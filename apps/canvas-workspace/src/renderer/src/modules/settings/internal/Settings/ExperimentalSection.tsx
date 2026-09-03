@@ -4,7 +4,7 @@ import {
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_CHANNELS,
 } from '../../../../../../shared/experimental-features';
-import { useAppShell } from '../../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../../app/shell/AppShellProvider';
 import { useI18n } from '../../../../i18n';
 import { Button } from '../../../../components/ui';
 import { ChannelConfigPanel } from './ChannelConfigPanel';

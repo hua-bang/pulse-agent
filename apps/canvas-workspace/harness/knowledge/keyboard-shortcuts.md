@@ -95,7 +95,7 @@ anywhere in the app again — both must come from the registry
 Two surfaces render shortcut labels, and both derive them from the registry
 instead of hardcoding strings:
 
-- The lazy `?` overlay, `src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
+- The lazy `?` overlay, `src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx`,
   exhaustively maps runtime shortcut IDs to display metadata — `SHORTCUT_HELP`
   is itself declared `satisfies Record<ShortcutId, { section, descriptionKey }>`,
   so it cannot go stale against the registry either — and derives its combo
@@ -108,7 +108,7 @@ instead of hardcoding strings:
   into the same sectioned layout (`SECTION_ORDER`: `canvas`, `view`,
   `selection`, `edit`, `panels`). `ShortcutsDialog` itself is only mounted
   through `React.lazy(() => import('./ShortcutsDialog'))` in
-  `src/renderer/src/components/shell/AppShellProvider/index.tsx` — it is not
+  `src/renderer/src/app/shell/AppShellProvider/index.tsx` — it is not
   loaded until the user opens the `?` overlay.
 - Palette hints, `src/renderer/src/modules/canvas/components/canvas/Canvas/hooks/useCanvasPaletteCommands.ts`,
   also derive from the registry: every Cmd+K palette command that has a
@@ -367,7 +367,7 @@ The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
 `src/renderer/src/hooks/useAppShortcuts.ts`,
 `src/renderer/src/hooks/useWebviewShortcutBridge.ts`,
 `src/renderer/src/utils/keyboardShortcut.ts`,
-`src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
+`src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx`,
 `src/shared/webview-shortcuts.ts`,
 `src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
 `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts`,

@@ -50,7 +50,7 @@ describe('renderer typography system', () => {
 
   it('reserves 600 weight for page titles and the product brand', () => {
     const allowed = new Set([
-      'components/shell/Sidebar/index.css',
+      'app/shell/Sidebar/index.css',
       'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
       'modules/skills/internal/index.css',

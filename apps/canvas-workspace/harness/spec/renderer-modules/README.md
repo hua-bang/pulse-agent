@@ -22,6 +22,8 @@ infrastructure with no product-domain meaning.
 
 ```text
 src/renderer/src/
+├── app/
+│   └── shell/         # providers, routes, Workbench, Sidebar composition
 ├── modules/
 │   ├── canvas/        # document state, transactions, history, external merge
 │   ├── chat/          # Chat visuals + runtime/session/target logic
@@ -37,7 +39,7 @@ src/renderer/src/
 │   ├── note-editor/   # editor runtime/extensions + owner-local visual modules
 │   ├── settings/      # distinct model/role/MCP/plugin settings under one owner
 │   └── node-mentions/ # shared leaf picker used by canvas/terminal/agent modules
-├── components/        # dock/shell awaiting migration + shared icons/ui
+├── components/        # dock awaiting migration + shared icons/ui
 ├── hooks/             # generic and product-specific hooks mixed together
 ├── types/             # cross-renderer contracts
 ├── utils/             # pure helpers, some still feature-specific

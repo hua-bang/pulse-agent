@@ -1,4 +1,4 @@
-import { Popover } from '../../ui/Popover';
+import { Popover } from '../../../components/ui/Popover';
 import { useI18n } from '../../../i18n';
 
 interface LayerContextMenuProps {

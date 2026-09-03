@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ChannelConfigStatus } from '../../../../types';
-import { useAppShell } from '../../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../../app/shell/AppShellProvider';
 import './ChannelConfigPanel.css';
 
 /**

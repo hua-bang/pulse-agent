@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentScope } from '../../../../../../shared/agent-chat';
 import { I18nProvider } from '../../../../i18n';
-import { AppShellProvider } from '../../../../components/shell/AppShellProvider';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 
 const captured = vi.hoisted(() => ({
   scope: null as AgentScope | null,

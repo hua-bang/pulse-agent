@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../../types';
-import type { NodeReferenceEntry } from '../../dock/ReferenceDrawer/types';
+import type { NodeReferenceEntry } from '../../../components/dock/ReferenceDrawer/types';
 import type { ChatDeliveryReceipt } from '../../../modules/chat';
 import { useChatDeliveryNotifier } from '../useChatDeliveryNotifier';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';

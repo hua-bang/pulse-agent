@@ -63,7 +63,7 @@ vi.mock('../../../../../components/dock/RightDock/context', () => ({
     tabs: [],
   }),
 }));
-vi.mock('../../../../../components/shell/AppShellProvider', () => ({
+vi.mock('../../../../../app/shell/AppShellProvider', () => ({
   useAppShell: () => ({ notify: vi.fn() }),
 }));
 vi.mock('../ChatPageNavigationChrome', () => ({

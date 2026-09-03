@@ -13,7 +13,7 @@ import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 import { useI18n } from '../../../i18n';
 import { subscribeCanvasSkillsChanged } from '../../../utils/skillsEvents';
 import { skillNameKey } from '../../../../../shared/skill-name';
-import { useAppShell } from '../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../app/shell/AppShellProvider';
 import { useRightDock } from '../../../components/dock/RightDock';
 import { SegmentedControl, TextField } from '../../../components/ui';
 import { SkillEditorModal } from './SkillEditorModal';

@@ -12,10 +12,10 @@ import {
   NodeGraphIcon,
   PluginIcon,
   ScheduledIcon,
-} from '../../icons';
+} from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
-import { Button } from '../../ui';
+import { Button } from '../../../components/ui';
 
 export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
   <SidebarSimple size={size} weight="regular" />

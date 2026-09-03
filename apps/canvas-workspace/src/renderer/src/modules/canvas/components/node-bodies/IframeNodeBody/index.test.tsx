@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
-import { AppShellProvider } from '../../../../../components/shell/AppShellProvider';
+import { AppShellProvider } from '../../../../../app/shell/AppShellProvider';
 import type { AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
 import { IframeNodeBody } from '.';
 

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduledRunFinished } from '../../../../../../shared/scheduled';
 import { I18nProvider } from '../../../../i18n';
-import { AppShellProvider } from '../../../../components/shell/AppShellProvider';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 import { useScheduledRunToasts } from '../useScheduledRunToasts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../../types';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-import type { ReferenceEntry } from '../../dock/ReferenceDrawer/types';
-import { getReferenceId } from '../../dock/ReferenceDrawer/utils';
+import type { ReferenceEntry } from '../../../components/dock/ReferenceDrawer/types';
+import { getReferenceId } from '../../../components/dock/ReferenceDrawer/utils';
 import type { ArtifactType } from '../../../types';
 
 const EMPTY_REFERENCES: ReferenceEntry[] = [];

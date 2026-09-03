@@ -9,7 +9,7 @@ import type {
 import { normalizeSchedule } from '../../../../../shared/scheduled';
 import { Button, FieldRow, Modal, Select, TextField, type SelectOption } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
-import { useAppShell } from '../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../app/shell/AppShellProvider';
 import { intervalLabel, weekdayNames } from './formatters';
 import { TimeOfDaySelect } from './TimeOfDaySelect';
 

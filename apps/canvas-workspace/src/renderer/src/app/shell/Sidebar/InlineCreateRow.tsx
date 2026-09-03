@@ -1,5 +1,5 @@
 import type React from 'react';
-import { FolderIcon, WorkspaceIcon } from '../../icons';
+import { FolderIcon, WorkspaceIcon } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 

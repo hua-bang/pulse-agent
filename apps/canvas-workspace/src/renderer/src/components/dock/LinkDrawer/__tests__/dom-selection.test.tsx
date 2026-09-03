@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppShellProvider } from '../../../shell/AppShellProvider';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 import { I18nProvider } from '../../../../i18n';
 import { ChatTargetProvider } from '../../../../modules/chat';
 import { LinkTabView } from '..';

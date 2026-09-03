@@ -6,7 +6,7 @@ import type { CanvasNode } from '../../../../types';
 import { consumePendingPreviewFocus, dispatchPreviewNodeAction } from '../../../../utils/openNodeBridge';
 import { useEvictAndPreview, usePeekNode, usePreviewNodeActionBridge } from '../usePreviewNodeActionBridge';
 import { I18nProvider } from '../../../../i18n';
-import { AppShellProvider } from '../../../shell/AppShellProvider';
+import { AppShellProvider } from '../../AppShellProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

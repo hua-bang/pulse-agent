@@ -2,7 +2,7 @@ import { useCallback, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode, ImageNodeData } from '../../../../../types';
 import { copyTextToClipboard } from '../../../../../utils/clipboard';
 import { toFileUrl } from '../../../../../utils/fileUrl';
-import { useAppShell } from '../../../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../../../app/shell/AppShellProvider';
 import { ImageNodeBody } from '../../node-bodies/ImageNodeBody';
 import { CloseButton, CopyImageButton, FullscreenButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';

@@ -735,7 +735,7 @@ React's maximum update depth, and clears the renderer.
 
 Workbench's node and selection fallbacks are module constants, and are
 covered by `Workbench/__tests__/ChatDockLifecycle.test.tsx`
-(`src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
+(`src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
 Knowledge chat applies the same stable-fallback rule, but is NOT exercised by
 that guard.
 
@@ -760,4 +760,4 @@ Primary regression suites live in:
 - `src/main/agent/__tests__/session-store.test.ts`
 - `src/renderer/src/modules/chat/attachments/useChatAttachments.test.tsx`
 - `src/main/agent/chat-failure-persistence.test.ts`
-- `src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
+- `src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`

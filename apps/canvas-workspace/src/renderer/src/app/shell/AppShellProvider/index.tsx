@@ -13,7 +13,7 @@ import {
 import { DEFAULT_TOAST_DURATION_MS } from '../../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../../types/ui-interaction';
 import { useI18n } from '../../../i18n';
-import { Modal } from '../../ui';
+import { Modal } from '../../../components/ui';
 import './index.css';
 
 interface AppShellContextValue {

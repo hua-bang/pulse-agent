@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { FolderEntry, WorkspaceEntry } from '../../../hooks/useWorkspaces';
-import { CloseIcon, ChevronRightIcon, FolderIcon, PencilIcon, PlusIcon } from '../../icons';
+import { CloseIcon, ChevronRightIcon, FolderIcon, PencilIcon, PlusIcon } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 

@@ -1,36 +1,36 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
-import { AppShellProvider, useAppShell } from './components/shell/AppShellProvider';
-import { ConversationCompletionToastBridge } from './components/shell/ConversationCompletionToastBridge';
-import { DeferredSettings } from './components/shell/AppLazyBoundaries';
+import { AppShellProvider, useAppShell } from './app/shell/AppShellProvider';
+import { ConversationCompletionToastBridge } from './app/shell/ConversationCompletionToastBridge';
+import { DeferredSettings } from './app/shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './modules/chat/lazy';
 import { isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './components/dock/RightDock';
 import { GlobalChatLauncher } from './components/dock/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './modules/settings';
-import { Sidebar } from './components/shell/Sidebar';
+import { Sidebar } from './app/shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
-import { Workbench, useWorkbenchState } from './components/shell/Workbench';
-import { resolveKnowledgeChatRouteContext } from './components/shell/Workbench/knowledgeChatContext';
+import { Workbench, useWorkbenchState } from './app/shell/Workbench';
+import { resolveKnowledgeChatRouteContext } from './app/shell/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage, NodesRouteViews } from './modules/workspace-nodes/surface';
 import { useKnowledgeAiContext, useNodeDetailBridges } from './modules/workspace-nodes';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useAppShortcutBindings } from './hooks/useAppShortcuts';
 import { parseCanvasLocation } from './utils/canvasLinks';
-import { PulseRouter, PulseRouterView } from './components/shell/router';
+import { PulseRouter, PulseRouterView } from './app/shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 import type { KnowledgeNodeSelection } from './types';
-import { PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './components/shell/RouteViews';
+import { PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './app/shell/RouteViews';
 import { useScheduledRunChatOpener } from './modules/scheduled';
 import {
   ChatTargetProvider,
   useActiveChatTarget,
   useChatTargetBroker,
 } from './modules/chat';
-import { useChatNavigation } from './components/shell/router/useChatNavigation';
+import { useChatNavigation } from './app/shell/router/useChatNavigation';
 import type { AgentScope } from './types';
-const MigrationSpinner = lazy(() => import('./components/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
+const MigrationSpinner = lazy(() => import('./app/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_PLUGINS = '/plugins', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];

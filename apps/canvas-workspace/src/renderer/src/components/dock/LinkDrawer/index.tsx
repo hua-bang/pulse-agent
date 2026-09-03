@@ -31,13 +31,13 @@ import {
   RELOAD_DOCK_TAB_EVENT,
 } from '../RightDock/dock-browser-commands';
 import { pickFaviconUrl } from "../../../modules/canvas/webview";
-import { useAppShell } from '../../shell/AppShellProvider';
+import { useAppShell } from '../../../app/shell/AppShellProvider';
 import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../types';
 import { ExternalLinkIcon, PlusIcon } from "../../icons";
 import { Button, TextField } from "../../ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../shared/experimental-features";
 import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../../modules/chat';
-import { useChatDeliveryNotifier } from '../../shell/useChatDeliveryNotifier';
+import { useChatDeliveryNotifier } from '../../../app/shell/useChatDeliveryNotifier';
 import { TabChatAction } from '../RightDock/TabChatAction';
 import "./index.css";
 /** Google blocks account sign-in inside embedded browsers (WebView policy);

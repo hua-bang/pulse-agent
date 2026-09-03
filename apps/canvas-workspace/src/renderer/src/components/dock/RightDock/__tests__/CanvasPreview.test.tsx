@@ -9,7 +9,7 @@ import type {
   CanvasNode,
 } from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
-import { AppShellProvider } from '../../../shell/AppShellProvider';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 import type { ChatDeliveryReceipt } from '../../../../modules/chat';
 import type { CanvasClipboard } from '../../../../types/ui-interaction';
 

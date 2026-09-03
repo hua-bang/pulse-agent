@@ -3,7 +3,7 @@ import { act, Component, useMemo, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
-import { RightDock, RightDockProvider } from '../../../dock/RightDock';
+import { RightDock, RightDockProvider } from '../../../../components/dock/RightDock';
 import {
   ChatTargetProvider,
   useActiveChatTarget,
@@ -11,7 +11,7 @@ import {
 } from '../../../../modules/chat';
 import type { WorkbenchController } from '../useWorkbenchState';
 import { Workbench } from '../index';
-import { AppShellProvider } from '../../../shell/AppShellProvider';
+import { AppShellProvider } from '../../AppShellProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -77,11 +77,11 @@ vi.mock('../../../../modules/chat/lazy', async () => {
   };
 });
 
-vi.mock('../../../dock/RightDock/DockCreationControls', () => ({
+vi.mock('../../../../components/dock/RightDock/DockCreationControls', () => ({
   DockCreationControls: () => null,
 }));
 
-vi.mock('../../../dock/RightDock/useDockAgentBridge', () => ({
+vi.mock('../../../../components/dock/RightDock/useDockAgentBridge', () => ({
   useDockAgentBridge: () => undefined,
 }));
 

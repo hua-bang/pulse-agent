@@ -28,7 +28,7 @@ import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { useCanvasDemoCanvas } from './hooks/useCanvasDemoCanvas';
 import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
 import { CanvasRootView } from './CanvasRootView';
-import { useAppShell } from '../../../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../../../app/shell/AppShellProvider';
 import { useI18n } from '../../../../../i18n';
 import { getNodeDefaultSize } from '../../../../../utils/nodeFactory';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';

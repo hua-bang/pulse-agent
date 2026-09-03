@@ -9,10 +9,10 @@ import {
 } from 'react';
 import type { LayerTreeNode } from './utils/layers';
 import { LayerItem } from './LayerItem';
-import { CloseIcon } from '../../icons';
+import { CloseIcon } from '../../../components/icons';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../utils/nodeTypeI18n';
-import { EmptyState } from '../../ui';
+import { EmptyState } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 
 interface LayersPanelProps {

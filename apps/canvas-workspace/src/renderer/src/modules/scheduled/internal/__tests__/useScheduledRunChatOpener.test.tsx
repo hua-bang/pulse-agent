@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduledRunFinished } from '../../../../../../shared/scheduled';
 import type { AgentScope } from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
-import { AppShellProvider } from '../../../../components/shell/AppShellProvider';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 
 const dock = vi.hoisted(() => ({
   openScheduledChat: vi.fn(),

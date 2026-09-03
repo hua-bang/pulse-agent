@@ -7,7 +7,7 @@ import {
   type RefObject,
 } from 'react';
 import type { LayerTreeNode } from './utils/layers';
-import { ChevronRightIcon, NodeTypeIcon } from '../../icons';
+import { ChevronRightIcon, NodeTypeIcon } from '../../../components/icons';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { isContainerNode } from '../../../utils/frameHierarchy';
 import { isImeComposing } from '../../../utils/ime';

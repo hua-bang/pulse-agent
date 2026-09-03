@@ -50,7 +50,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
   // ran this suite (no automatic trigger). Raised to measured;
   // must-not-grow applies from 516.
-  'src/renderer/src/components/shell/Workbench/index.tsx': 516,
+  'src/renderer/src/app/shell/Workbench/index.tsx': 485,
 };
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {

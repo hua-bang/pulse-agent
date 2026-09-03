@@ -12,7 +12,7 @@ import {
   ARTIFACT_CAPABILITY_RESPONSE,
   type ArtifactCapabilityName,
 } from '../../../../../shared/artifact-capabilities';
-import { useAppShell } from '../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../app/shell/AppShellProvider';
 import { Select } from '../../../components/ui';
 import { renderMermaidSource, type MermaidRenderResult } from '../../../utils/mermaid';
 import { buildCapabilityBridgeScript } from './capabilityBridge';

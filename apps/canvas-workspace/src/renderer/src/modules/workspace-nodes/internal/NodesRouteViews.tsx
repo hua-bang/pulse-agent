@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 import type { KnowledgeNodeSelection } from '../../../types';
-import { PulseRouterView } from '../../../components/shell/router';
-import { NodeDetailPageLazy, NodesPageLazy } from '../../../components/shell/AppLazyBoundaries';
+import { PulseRouterView } from '../../../app/shell/router';
+import { NodeDetailPageLazy, NodesPageLazy } from '../../../app/shell/AppLazyBoundaries';
 import type { NodesAiContext } from './knowledgeAiContext';
 
 interface Props {

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ScheduledRunFinished } from '../../../../../shared/scheduled';
 import { useI18n } from '../../../i18n';
-import { useAppShell } from '../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../app/shell/AppShellProvider';
 
 /**
  * The completion signal for scheduled runs — in-app only, by design. There is

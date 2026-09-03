@@ -207,7 +207,7 @@ first claim on Escape.
 ## `KnowledgeChatPortal` memoization rule
 
 The detail route also hosts the global chat through
-`src/renderer/src/components/shell/Workbench/KnowledgeChatPortal.tsx`. It must
+`src/renderer/src/app/shell/Workbench/KnowledgeChatPortal.tsx`. It must
 memoize its selected node by the semantic `(workspaceId, nodeId)` pair —
 concretely, `useMemo(() => buildKnowledgeChatContext(nodes, tags,
 selectedNode), [nodes, selectedNodeId, selectedWorkspaceId, tags])`, keyed
@@ -231,6 +231,6 @@ Bound tests:
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`
 - `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeDetailPage.escape.test.tsx`
 - `src/renderer/src/modules/workspace-nodes/internal/useWorkspaceNodes.test.tsx`
-- `src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
+- `src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
   — includes the knowledge-detail chat-target-stability regression for the
   `KnowledgeChatPortal` memoization rule above

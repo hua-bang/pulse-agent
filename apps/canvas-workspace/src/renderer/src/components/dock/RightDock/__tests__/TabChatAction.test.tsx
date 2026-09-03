@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
-import { AppShellProvider } from '../../../shell/AppShellProvider';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 import { TabChatAction } from '../TabChatAction';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

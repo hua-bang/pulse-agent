@@ -42,14 +42,11 @@ semantic node accent with `colorize`. Select/connect controls and plugin-owned
 glyphs can remain local when they have a surface-specific or plugin-specific
 contract.
 
-Routed full-page surfaces that are their own domain live OUTSIDE
-`components/`, in `src/renderer/src/views/` (`Scheduled`, `SkillsLibrary`,
-`WorkspaceNodes`). The boundary: a page owned by a larger domain stays with
-that domain (`ChatPage` in `modules/chat/components/`, the settings surfaces in
-`components/settings/`); a page domain whose only reason to exist is the
-route goes in `views/`. The lazy route tables (`shell/RouteViews.ts`,
-`shell/AppLazyBoundaries.tsx`) stay in `components/shell/` — they are
-routing infrastructure, not pages.
+Routed product surfaces live with their owner under `modules/` (`chat`,
+`scheduled`, `skills`, `workspace-nodes`, `settings`). Application-level route
+composition, providers, Workbench, and Sidebar live under `app/shell/`; they
+must not implement a product state machine. Root `components/` is reserved for
+domain-free visual infrastructure once the Dock migration completes.
 
 Place a new component in the group that owns its surface; add a new group only
 when a domain genuinely has no home (see reuse-first rules in `AGENTS.md` §0).

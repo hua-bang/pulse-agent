@@ -120,7 +120,7 @@ pathRules:
       - src/renderer/src/hooks/useAppShortcuts.ts
       - src/renderer/src/hooks/useWebviewShortcutBridge.ts
       - src/renderer/src/utils/keyboardShortcut.ts
-      - src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx
+      - src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx
       - src/shared/webview-shortcuts.ts
       - src/main/webview/shortcut-forwarding.ts
       - src/main/app/menu.ts

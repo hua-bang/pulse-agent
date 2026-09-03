@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../../types';
 import { useI18n } from '../../../../i18n';
-import { useAppShell } from '../../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../../app/shell/AppShellProvider';
 import { Button, TextField } from '../../../../components/ui';
 import './settings-config.css';
 

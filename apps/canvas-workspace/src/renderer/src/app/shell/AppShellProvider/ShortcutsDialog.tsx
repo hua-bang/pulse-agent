@@ -6,7 +6,7 @@ import {
   type ShortcutId,
   type ShortcutSectionId,
 } from '../../../shortcuts/registry';
-import { Modal } from '../../ui';
+import { Modal } from '../../../components/ui';
 
 const SECTION_TITLE_KEY: Record<ShortcutSectionId, I18nKey> = {
   canvas: 'shortcuts.canvas.title',

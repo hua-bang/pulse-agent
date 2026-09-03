@@ -4,7 +4,7 @@ import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../../..
 import { SessionBackBar } from '../SessionBackBar';
 import { useChatComposerController } from '../ChatComposer/useChatComposerController';
 import { isExternalOnlyRoleMessage } from '../../mentions/roleMentionItems';
-import { useAppShell } from '../../../../components/shell/AppShellProvider';
+import { useAppShell } from '../../../../app/shell/AppShellProvider';
 import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';
 import type { ChatTarget } from '../../target';

@@ -9,7 +9,7 @@ import {
 import type { CanvasSkillEntry } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { notifyCanvasSkillsChanged } from '../../../utils/skillsEvents';
-import { useAppShell } from '../../shell/AppShellProvider';
+import { useAppShell } from '../../../app/shell/AppShellProvider';
 import { Button } from '../../ui';
 import type { DockPreviewTab } from './dock-store';
 import { SkillMarkdown } from './SkillMarkdown';
