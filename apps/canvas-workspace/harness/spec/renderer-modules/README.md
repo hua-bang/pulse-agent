@@ -57,7 +57,7 @@ Current pressure points, measured on 2026-09-03:
 | Area | Evidence | Main friction |
 |---|---|---|
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
-| Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~1194 lines plus a public pure lifecycle seam | PTY/xterm ownership, Codex discovery, mirror terminals, and form state remain interleaved |
+| Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~938 lines plus lifecycle, Codex-capture, and mirror-terminal modules | owner PTY spawning/persistence and form state remain interleaved in the React adapter |
 | Agent Team workspace | `AgentTeamFrame/index.tsx` ~2232 lines; CSS ~2722 lines; no direct spec | snapshot projection, polling, actions, DAG layout, six visual surfaces, and artifact loading have no testable internal seam |
 | Workspace graph | `WorkspaceNodes/GraphPage.tsx` ~771 lines | graph projection/search/highlight and the ForceGraph adapter are inseparable |
 | Settings | MCP/Skills/Plugins managers share a flat folder and stylesheet | each domain combines bridge mutation, draft state, and visual implementation |
@@ -187,8 +187,8 @@ fullscreen placement adapter.
    remaining Canvas visuals still migrate incrementally from root components.
 2. Deepen coding-agent session lifecycle, then move AgentNodeBody visuals and
    session runtime into `modules/coding-agent/`. The public binding/command/
-   retry policy and visual ownership are implemented; PTY and mirror runtime
-   extraction remains.
+   retry policy, Codex discovery, mirror runtime, and visual ownership are
+   implemented; owner PTY runtime extraction remains.
 3. Form an Agent Team workspace model/controller interface before splitting
    AgentTeamFrame visuals and CSS. Do not replace one large file with dozens of
    pass-through props.

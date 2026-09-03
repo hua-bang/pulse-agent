@@ -70,6 +70,13 @@ agent-specific there is opt-in — an id it does not recognize gets a bare
 `<command> [prompt]`, which is the correct default for a CLI that takes its
 prompt positionally and needs no flags.
 
+Codex post-launch binding is isolated in
+`modules/coding-agent/session/codexSessionCapture.ts`: marker lookup is
+authoritative, the session-index diff is a conservative fallback, and two new
+sessions are treated as ambiguous rather than guessed. Team mirror PTY cache,
+retry, subscription, and late-unmount cleanup are owned by
+`modules/coding-agent/session/mirrorTerminal.ts`.
+
 - **Approval bypass.** The "skip permission prompts" toggle only renders when
   `AgentPicker` maps the id to a flag (`--dangerously-skip-permissions` for
   Claude Code, `--dangerously-bypass-approvals-and-sandbox` for Codex). Pi

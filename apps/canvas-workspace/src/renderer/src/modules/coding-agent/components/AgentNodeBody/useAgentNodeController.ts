@@ -14,11 +14,19 @@ import {
   shouldAutoResumeCodingAgentSession,
   shouldConsiderTeamAutoResume,
 } from '../../session/sessionLifecycle';
+import { mountMirrorTerminal } from '../../session/mirrorTerminal';
+import {
+  readCodexSessionBaseline,
+  startCodexSessionCapture,
+} from '../../session/codexSessionCapture';
 import { createTerminalKeyArbiter } from './utils/terminalFocus';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
-  claimTerminalSessionOwner, createDebouncedTerminalRefit, createPtySpawnLifecycle, createTerminalSnapshotPersister,
+  claimTerminalSessionOwner,
+  createDebouncedTerminalRefit,
+  createPtySpawnLifecycle,
+  createTerminalSnapshotPersister,
   finalizeTerminalSnapshotBeforeDispose,
   fitTerminalIfSane,
   loadRecentCwds,
@@ -27,6 +35,7 @@ import {
   readTerminalSnapshot,
   syncTerminalFontSizeToCanvas,
   writeTerminalOutput,
+  type TerminalSnapshotPersister,
 } from './utils/terminal';
 import { resolvePiSessionBinding } from './utils/piSession';
 
@@ -41,50 +50,6 @@ const codexBindingComment = (marker: string): string => [
   'No response is required for this message.',
   '-->',
 ].join('\n');
-interface MirrorTerminalCacheEntry {
-  term: Terminal;
-  fitAddon: FitAddon;
-  disposeSubscriptions: () => void;
-  lastUsed: number;
-}
-const RETRY_MIRROR_CONNECTION_MS = 1_000;
-const MAX_MIRROR_TERMINALS = 12;
-const MIRROR_TERMINAL_STASH_ID = 'agent-mirror-terminal-stash';
-const mirrorTerminalCache = new Map<string, MirrorTerminalCacheEntry>();
-const mirrorTerminalCacheKey = (workspaceId: string | undefined, nodeId: string, sessionId: string) =>
-  `${workspaceId ?? 'local'}:${nodeId}:${sessionId}`;
-const getMirrorTerminalStash = (): HTMLElement | null => {
-  if (typeof document === 'undefined') return null;
-  let stash = document.getElementById(MIRROR_TERMINAL_STASH_ID);
-  if (stash) return stash;
-  stash = document.createElement('div');
-  stash.id = MIRROR_TERMINAL_STASH_ID;
-  stash.style.display = 'none';
-  document.body.appendChild(stash);
-  return stash;
-};
-const detachMirrorTerminal = (entry: MirrorTerminalCacheEntry) => {
-  const element = entry.term.element;
-  const stash = getMirrorTerminalStash();
-  if (element && stash && element.parentElement !== stash) {
-    stash.appendChild(element);
-  }
-};
-const disposeMirrorTerminal = (entry: MirrorTerminalCacheEntry) => {
-  entry.disposeSubscriptions();
-  entry.term.dispose();
-  entry.term.element?.remove();
-};
-const pruneMirrorTerminalCache = (activeKey: string) => {
-  if (mirrorTerminalCache.size <= MAX_MIRROR_TERMINALS) return;
-  const entries = [...mirrorTerminalCache.entries()]
-    .filter(([key]) => key !== activeKey)
-    .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-  for (const [key, entry] of entries.slice(0, mirrorTerminalCache.size - MAX_MIRROR_TERMINALS)) {
-    disposeMirrorTerminal(entry);
-    mirrorTerminalCache.delete(key);
-  }
-};
 export const detectAgentView = (data: AgentNodeData): ViewMode => {
   if (data.viewMode === 'setup') return 'setup';
   if (data.viewMode === 'running') return 'running';
@@ -170,7 +135,7 @@ export const useAgentNodeController = ({
   const codexCaptureCancelRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const snapshotPersisterRef = useRef<ReturnType<typeof createTerminalSnapshotPersister> | null>(null);
+  const snapshotPersisterRef = useRef<TerminalSnapshotPersister | null>(null);
   const nodeIdRef = useRef(node.id);
   nodeIdRef.current = node.id;
   const dataRef = useRef(data);
@@ -254,163 +219,24 @@ export const useAgentNodeController = ({
       if (isMirrorTerminal) {
         spawnedRef.current = true;
         const activeSessionId = sessionId || dataRef.current.sessionId || nodeIdRef.current;
-        const cacheKey = mirrorTerminalCacheKey(workspaceId, nodeIdRef.current, activeSessionId);
-        let cached = mirrorTerminalCache.get(cacheKey);
-
-        if (cached) {
-          const cachedEntry = cached;
-          cached.lastUsed = Date.now();
-          containerRef.current.replaceChildren();
-          const element = cachedEntry.term.element;
-          if (element) containerRef.current.appendChild(element);
-          termRef.current = cachedEntry.term;
-          fitRef.current = cachedEntry.fitAddon;
-          scheduleTerminalFit(cachedEntry.fitAddon, cachedEntry.term, containerRef.current);
-          cleanupRef.current = () => detachMirrorTerminal(cachedEntry);
-          return;
-        }
-
-        const term = new Terminal(TERMINAL_OPTIONS);
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
-        containerRef.current.replaceChildren();
-        term.open(containerRef.current);
-        termRef.current = term;
-        fitRef.current = fitAddon;
-
-        term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-          if (handleTerminalShortcut(e, {
-            'terminal.mentionPicker': () => setPickerOpen(true),
-          })) return false;
-          return arbitrateTerminalKey(e);
+        const mirror = mountMirrorTerminal({
+          container: containerRef.current,
+          workspaceId,
+          nodeId: nodeIdRef.current,
+          sessionId: activeSessionId,
+          readOnly,
+          getSavedScrollback: () => dataRef.current.scrollback,
+          onKeyEvent: (event) => {
+            if (handleTerminalShortcut(event, {
+              'terminal.mentionPicker': () => setPickerOpen(true),
+            })) return false;
+            return arbitrateTerminalKey(event);
+          },
+          pty: window.canvasWorkspace?.pty,
         });
-
-        scheduleTerminalFit(fitAddon, term, containerRef.current);
-
-        const api = window.canvasWorkspace?.pty;
-        if (!api) {
-          term.writeln('\x1b[31mError: pty API not available (preload missing)\x1b[0m');
-          cleanupRef.current = () => {
-            term.dispose();
-            term.element?.remove();
-          };
-          return;
-        }
-
-        let liveEntry: MirrorTerminalCacheEntry | null = null;
-        let retryTimer: ReturnType<typeof setInterval> | null = null;
-        let disposed = false;
-        let restoredSavedOutput = false;
-
-        const stopRetry = () => {
-          if (!retryTimer) return;
-          clearInterval(retryTimer);
-          retryTimer = null;
-        };
-
-        const cleanupMirror = () => {
-          disposed = true;
-          stopRetry();
-          if (liveEntry) {
-            detachMirrorTerminal(liveEntry);
-          } else {
-            term.dispose();
-            term.element?.remove();
-          }
-        };
-        // Install cleanup before the first async probe so an unmount cannot
-        // leave a late getCwd continuation attached to a disposed view.
-        cleanupRef.current = cleanupMirror;
-
-        const attachLiveMirror = () => {
-          if (disposed || liveEntry) return;
-          stopRetry();
-
-          liveEntry = {
-            term,
-            fitAddon,
-            disposeSubscriptions: () => undefined,
-            lastUsed: Date.now(),
-          };
-          mirrorTerminalCache.set(cacheKey, liveEntry);
-          pruneMirrorTerminalCache(cacheKey);
-
-          if (!restoredSavedOutput) term.clear();
-          let wroteLivePlaceholder = true;
-          term.writeln('\x1b[2mConnected to live teammate terminal. New output will stream here.\x1b[0m');
-          scheduleTerminalFit(fitAddon, term, containerRef.current);
-
-          const removeData = api.onData(activeSessionId, (d: string) => {
-            if (wroteLivePlaceholder && !restoredSavedOutput) {
-              term.clear();
-            }
-            wroteLivePlaceholder = false;
-            term.write(d);
-          });
-          const removeExit = api.onExit(activeSessionId, (code: number) => {
-            term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
-          });
-          const inputDisposable = readOnly
-            ? { dispose: () => undefined }
-            : term.onData((d: string) => {
-              api.write(activeSessionId, d);
-            });
-          const resizeDisposable = term.onResize(({ cols, rows }) => {
-            api.resize(activeSessionId, cols, rows);
-          });
-
-          let subscriptionsDisposed = false;
-          liveEntry.disposeSubscriptions = () => {
-            if (subscriptionsDisposed) return;
-            subscriptionsDisposed = true;
-            removeData();
-            removeExit();
-            inputDisposable.dispose();
-            resizeDisposable.dispose();
-          };
-          cleanupRef.current = cleanupMirror;
-        };
-
-        const restoreSavedOutput = () => {
-          if (restoredSavedOutput) return;
-          const saved = dataRef.current.scrollback;
-          if (!saved) return;
-          restoredSavedOutput = true;
-          term.clear();
-          term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
-          term.write(saved.split('\n').join('\r\n'));
-          term.writeln('');
-          term.writeln('\x1b[2m--- waiting for live session to reconnect ---\x1b[0m');
-          scheduleTerminalFit(fitAddon, term, containerRef.current);
-        };
-
-        const retryLiveMirror = async () => {
-          if (disposed || liveEntry) return;
-          const retryResult = await api.getCwd(activeSessionId);
-          if (disposed || liveEntry) return;
-          if (retryResult.ok) {
-            attachLiveMirror();
-            return;
-          }
-          restoreSavedOutput();
-        };
-
-        const cwdResult = await api.getCwd(activeSessionId);
-        if (disposed) return;
-        if (!cwdResult.ok) {
-          restoreSavedOutput();
-          if (!restoredSavedOutput) {
-            term.writeln('\x1b[2mNo live teammate terminal yet.\x1b[0m');
-            term.writeln('\x1b[2mWaiting for the team runtime to connect this agent.\x1b[0m');
-          }
-          retryTimer = setInterval(() => {
-            void retryLiveMirror();
-          }, RETRY_MIRROR_CONNECTION_MS);
-          cleanupRef.current = cleanupMirror;
-          return;
-        }
-
-        attachLiveMirror();
+        termRef.current = mirror.term;
+        fitRef.current = mirror.fitAddon;
+        cleanupRef.current = mirror.dispose;
         return;
       }
 
@@ -495,106 +321,6 @@ export const useAgentNodeController = ({
       }
       const writeCommandTimeRef = { current: 0 };
 
-      const readCodexSessionBaseline = async (): Promise<Set<string> | null> => {
-        const codexApi = window.canvasWorkspace?.codexSessions;
-        if (!codexApi) return null;
-        const result = await codexApi.list().catch(() => null);
-        if (!result?.ok || !result.sessions) return null;
-        return new Set(result.sessions.map((entry) => entry.id));
-      };
-
-      const startCodexSessionCapture = (input: {
-        baselineIds: Set<string> | null;
-        launchStartedAt: number;
-        marker?: string;
-        cwd?: string;
-      }) => {
-        const codexApi = window.canvasWorkspace?.codexSessions;
-        if (!codexApi) return;
-
-        let cancelled = false;
-        let attempts = 0;
-        let timer: ReturnType<typeof setTimeout> | null = null;
-        const updatedAfterMs = input.launchStartedAt - 2_000;
-        const updatedAfter = new Date(updatedAfterMs).toISOString();
-
-        const applyCapturedSession = (codexSessionId: string) => {
-          if (
-            dataRef.current.agentType === 'codex'
-            && dataRef.current.sessionId === sessionId
-          ) {
-            const nextData = {
-              ...dataRef.current,
-              codexSessionId,
-              codexSessionMarker: undefined,
-            };
-            dataRef.current = nextData;
-            onUpdateRef.current(nodeIdRef.current, {
-              data: nextData,
-            });
-          }
-        };
-
-        codexCaptureCancelRef.current?.();
-        codexCaptureCancelRef.current = () => {
-          cancelled = true;
-          if (timer) clearTimeout(timer);
-        };
-
-        const poll = async () => {
-          if (cancelled) return;
-          attempts += 1;
-
-          if (input.marker) {
-            const markerResult = await codexApi.findByMarker({
-              marker: input.marker,
-              updatedAfterMs,
-              cwd: input.cwd,
-            }).catch(() => null);
-            if (cancelled) return;
-            if (markerResult?.ok && markerResult.session?.id) {
-              applyCapturedSession(markerResult.session.id);
-              codexCaptureCancelRef.current = null;
-              return;
-            }
-          }
-
-          if (!input.baselineIds) {
-            if (attempts < 30) {
-              timer = setTimeout(poll, 1_000);
-            } else {
-              codexCaptureCancelRef.current = null;
-            }
-            return;
-          }
-
-          const result = await codexApi.list({ updatedAfter }).catch(() => null);
-          if (cancelled) return;
-
-          if (result?.ok && result.sessions) {
-            const newSessions = result.sessions.filter((entry) => !input.baselineIds!.has(entry.id));
-            if (newSessions.length === 1) {
-              const [captured] = newSessions;
-              applyCapturedSession(captured.id);
-              codexCaptureCancelRef.current = null;
-              return;
-            }
-            if (newSessions.length > 1) {
-              codexCaptureCancelRef.current = null;
-              return;
-            }
-          }
-
-          if (attempts < 30) {
-            timer = setTimeout(poll, 1_000);
-          } else {
-            codexCaptureCancelRef.current = null;
-          }
-        };
-
-        timer = setTimeout(poll, 1_000);
-      };
-
       const writeCommand = async () => {
         if (spawnLifecycle.isCancelled()) return;
         if (!command) {
@@ -604,7 +330,7 @@ export const useAgentNodeController = ({
         }
         const shouldCaptureNewCodexSession = agentType === 'codex' && !resumeMode;
         const codexBaselineIds = shouldCaptureNewCodexSession
-          ? await readCodexSessionBaseline()
+          ? await readCodexSessionBaseline(window.canvasWorkspace?.codexSessions)
           : null;
         if (spawnLifecycle.isCancelled()) return;
         writeCommandTimeRef.current = Date.now();
@@ -640,12 +366,30 @@ export const useAgentNodeController = ({
         api.write(sessionId, commandPlan.commandLine);
 
         if (shouldCaptureNewCodexSession) {
-          startCodexSessionCapture({
-            baselineIds: codexBaselineIds,
-            launchStartedAt: writeCommandTimeRef.current,
-            marker: codexBindingMarker,
-            cwd: spawnCwd,
-          });
+          const codexApi = window.canvasWorkspace?.codexSessions;
+          if (codexApi) {
+            codexCaptureCancelRef.current?.();
+            codexCaptureCancelRef.current = startCodexSessionCapture({
+              api: codexApi,
+              baselineIds: codexBaselineIds,
+              launchStartedAt: writeCommandTimeRef.current,
+              marker: codexBindingMarker,
+              cwd: spawnCwd,
+              onCaptured: (codexSessionId) => {
+                if (
+                  dataRef.current.agentType !== 'codex'
+                  || dataRef.current.sessionId !== sessionId
+                ) return;
+                const nextData = {
+                  ...dataRef.current,
+                  codexSessionId,
+                  codexSessionMarker: undefined,
+                };
+                dataRef.current = nextData;
+                onUpdateRef.current(nodeIdRef.current, { data: nextData });
+              },
+            });
+          }
         }
 
         if (effectivePrompt || promptFile || codexBindingMarker) {
