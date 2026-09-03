@@ -10,14 +10,12 @@ import {
 import { AgentTypeSelect } from './AgentTypeSelect';
 import { TaskDagCanvas } from '../TaskDagCanvas';
 import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
+import { TeamCommand } from '../TeamCommand';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
-import { NodeMentionPicker } from '../../../node-mentions';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../shared/appShell';
 import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
-import { useTextareaMention } from '../../../../hooks/useTextareaMention';
 import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
-import { isImeComposing } from '../../../../utils/ime';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,
@@ -199,11 +197,6 @@ export const AgentTeamFrame = ({
   const data = node.data as FrameNodeData;
   const teamId = data.agentTeamId;
   const workspaceActive = useWorkspaceActive();
-  // In-flight guard for the composer (brief / message / revise) so a second
-  // Enter during the send round-trip doesn't dispatch the same text twice.
-  const [commandSending, setCommandSending] = useState(false);
-  const [briefDraft, setBriefDraft] = useState('');
-  const [messageDraft, setMessageDraft] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [gateAnswers, setGateAnswers] = useState<Record<string, string>>({});
   const [selectedArtifactId, setSelectedArtifactId] = useState('');
@@ -222,7 +215,6 @@ export const AgentTeamFrame = ({
     error?: string;
     loading: boolean;
   } | null>(null);
-  const commandRef = useRef<HTMLTextAreaElement>(null);
   const inlineGraphViewportRef = useRef<HTMLDivElement>(null);
   const fullscreenGraphViewportRef = useRef<HTMLDivElement>(null);
   const { confirm } = useAppShell();
@@ -521,39 +513,10 @@ export const AgentTeamFrame = ({
     setSelectedTaskId(defaultTask?.id ?? orderedTasks[0].id);
   }, [defaultTask, orderedTasks, selectedTaskId, taskById]);
 
-  const handleBriefLead = async () => {
-    if (await controller.briefLead(briefDraft)) setBriefDraft('');
-  };
-
   const handleConfirmPlan = controller.confirmPlan;
   const handleAdvanceRound = controller.advanceRound;
   const handleFinalizeCheckpoint = controller.finalizeCheckpoint;
   const handleUpdatePlanTeammate = controller.updatePlanTeammate;
-
-  const handleTeamCommand = async () => {
-    if (commandSending) return;
-    setCommandSending(true);
-    try {
-      if (phase === 'briefing') {
-        await handleBriefLead();
-        return;
-      }
-      const content = messageDraft.trim();
-      if (!lead || !content) return;
-      const revisePrefix = phase === 'plan_review'
-        ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\\n\\n'
-        : '';
-      const taskContext = !revisePrefix && teamStatus !== 'completed' && selectedTask
-        ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\\n`
-        : '';
-      if (await controller.sendInput(lead.id, `${revisePrefix}${taskContext}${content}`)) {
-        setMessageDraft('');
-      }
-    } finally {
-      setCommandSending(false);
-    }
-  };
-
   const handlePauseTeam = controller.pauseTeam;
   const handleResumeTeam = controller.resumeTeam;
   const handleDispatch = controller.dispatch;
@@ -682,57 +645,6 @@ export const AgentTeamFrame = ({
     />
   );
 
-  const commandMode = phase === 'briefing'
-    ? 'brief'
-    : phase === 'starting'
-      ? 'starting'
-      : phase === 'plan_review'
-        ? 'revise'
-        : isCompletedTeam
-          ? 'next'
-          : 'message';
-  const commandDraft = commandMode === 'brief' ? briefDraft : messageDraft;
-  const commandMention = useTextareaMention({
-    textareaRef: commandRef,
-    value: commandDraft,
-    onChange: (next) => {
-      if (phase === 'briefing') setBriefDraft(next);
-      else setMessageDraft(next);
-    },
-    disabled: readOnly,
-  });
-  const commandPlaceholder = commandMode === 'brief'
-    ? 'Describe the outcome, repo path, constraints, and what this team should handle...'
-    : commandMode === 'starting'
-      ? 'Agent terminals are starting before tasks are dispatched...'
-      : commandMode === 'revise'
-        ? 'Ask the Lead to adjust the plan — e.g. split a task, add constraints, change scope...'
-        : commandMode === 'next'
-          ? 'Describe the next task or follow-up this team should handle...'
-          : 'Tell Team Lead what to change...';
-  const commandLabel = commandMode === 'brief'
-    ? 'Brief Team Lead'
-    : commandMode === 'starting'
-      ? 'Starting Agents'
-      : commandMode === 'revise'
-        ? 'Revise Plan'
-        : commandMode === 'next'
-          ? 'Next Team Task'
-          : 'Message Team Lead';
-  const commandButtonLabel = commandMode === 'brief'
-    ? 'Brief'
-    : commandMode === 'starting'
-      ? 'Starting...'
-      : commandMode === 'revise'
-        ? 'Revise'
-        : commandMode === 'next'
-          ? 'Start next task'
-          : 'Send';
-  const canSendCommand = commandMode === 'starting'
-    ? false
-    : commandMode === 'brief'
-      ? !!briefDraft.trim()
-      : !!messageDraft.trim() && !!lead;
   const canPauseTeam = phase === 'executing'
     && teamStatus !== 'paused'
     && teamStatus !== 'completed'
@@ -740,57 +652,25 @@ export const AgentTeamFrame = ({
   const canResumeTeam = phase === 'executing' && teamStatus === 'paused';
   const canDispatch = phase === 'executing'
     && teamStatus === 'running'
-    && tasks.some((t) => t.status === 'todo')
-    && agents.some((a) => a.role === 'teammate' && a.status === 'idle');
+    && tasks.some((task) => task.status === 'todo')
+    && agents.some((agent) => agent.role === 'teammate' && agent.status === 'idle');
   const showGlobalGate = !!globalGate
     && !selectedHumanTaskGate
     && phase === 'executing'
     && isHumanFacingGate(globalGate);
 
   const renderTeamCommand = (placement: 'top' | 'lead' = 'top') => (
-    <div className={`agent-team-command agent-team-command--${placement}`} aria-label="Team command">
-      {commandMention.pickerOpen && (
-        <NodeMentionPicker
-          nodes={getAllNodes?.() ?? []}
-          onSelect={commandMention.handleSelect}
-          onClose={commandMention.handleClose}
-        />
-      )}
-      <div className="agent-team-command__copy">
-        <span className="agent-team-command__label">
-          {commandLabel}
-        </span>
-        {commandMode === 'message' && selectedTask && (
-          <span className={`agent-team-command__task-chip agent-team-command__task-chip--${selectedTask.status}`}>
-            Task · {selectedTask.title}
-          </span>
-        )}
-        <textarea
-          ref={commandRef}
-          value={commandDraft}
-          onChange={(event) => {
-            if (phase === 'briefing') setBriefDraft(event.target.value);
-            else setMessageDraft(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (isImeComposing(event)) return;
-            if (commandMention.handleKeyDown(event)) return;
-            const sendBrief = phase === 'briefing' && event.key === 'Enter' && (event.metaKey || event.ctrlKey);
-            const sendCommand = phase !== 'briefing' && event.key === 'Enter' && !event.shiftKey;
-            if (sendBrief || sendCommand) {
-              event.preventDefault();
-              void handleTeamCommand();
-            }
-          }}
-          placeholder={commandPlaceholder}
-          disabled={readOnly}
-          rows={commandMode === 'brief' ? 8 : commandMode === 'revise' ? 3 : commandMode === 'next' ? 3 : 1}
-        />
-      </div>
-      <button type="button" onClick={() => void handleTeamCommand()} disabled={readOnly || !canSendCommand || commandSending}>
-        {commandSending ? 'Sending…' : commandButtonLabel}
-      </button>
-    </div>
+    <TeamCommand
+      placement={placement}
+      phase={phase}
+      teamStatus={teamStatus}
+      lead={lead}
+      selectedTask={selectedTask}
+      readOnly={readOnly}
+      getAllNodes={getAllNodes}
+      briefLead={controller.briefLead}
+      sendInput={controller.sendInput}
+    />
   );
 
   const renderLeadDock = () => (
