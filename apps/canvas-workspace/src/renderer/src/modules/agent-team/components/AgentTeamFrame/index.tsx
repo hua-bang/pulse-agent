@@ -1,27 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
-import { AgentNodeBody } from '../../../modules/coding-agent/surface';
-import { AgentIcon } from '../../../modules/coding-agent/icon';
+import { AgentNodeBody } from '../../../coding-agent/surface';
+import { AgentIcon } from '../../../coding-agent/icon';
+import {
+  buildAgentTeamDagLayout,
+  createAgentTeamWorkspaceModel,
+  type AgentTeamGraphTask,
+} from '../../model/workspaceModel';
 import { AgentTypeSelect } from './AgentTypeSelect';
-import { NodeMentionPicker } from '../NodeMentionPicker';
-import { SegmentedControl } from '../../ui';
-import { useAppShell } from '../../shell/AppShellProvider';
-import { AGENT_REGISTRY } from '../../../config/agentRegistry';
-import { useTextareaMention } from '../../../hooks/useTextareaMention';
-import { useWorkspaceActive } from '../../../hooks/useWorkspaceActive';
-import { isImeComposing } from '../../../utils/ime';
-import { count } from '../../../perf/counters';
+import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
+import { SegmentedControl } from '../../../../components/ui';
+import { useAppShell } from '../../../../components/shell/AppShellProvider';
+import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
+import { useTextareaMention } from '../../../../hooks/useTextareaMention';
+import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
+import { isImeComposing } from '../../../../utils/ime';
+import { count } from '../../../../perf/counters';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,
   AgentTeamArtifactRecord,
   AgentTeamHumanGateRecord,
-  AgentTeamPhase,
   AgentTeamSnapshot,
   AgentTeamTaskRecord,
   CanvasNode,
   FrameNodeData,
-} from '../../../types';
+} from '../../../../types';
 
 interface AgentTeamFrameProps {
   node: CanvasNode;
@@ -47,17 +51,6 @@ const TASK_STATUS_LABELS: Record<string, string> = {
   round_checkpoint: 'Checkpoint',
 };
 
-const TASK_STATUS_RANK: Record<string, number> = {
-  proposed: 0,
-  needs_input: 0,
-  in_progress: 1,
-  needs_review: 2,
-  blocked: 3,
-  todo: 4,
-  done: 5,
-  failed: 6,
-};
-
 const statusLabel = (status: string) =>
   TASK_STATUS_LABELS[status] ?? status.replace(/_/g, ' ');
 
@@ -70,21 +63,6 @@ const sessionHealthSuffix = (health?: string): string =>
     : health === 'queued'
       ? ' · queued'
       : '';
-
-const inferPhase = (
-  explicit: AgentTeamPhase | undefined,
-  teammates: AgentTeamAgentRecord[],
-  tasks: AgentTeamTaskRecord[],
-  teamStatus?: string,
-): AgentTeamPhase => {
-  if (explicit) return explicit;
-  if (teamStatus === 'waiting_approval') return 'plan_review';
-  if (teammates.length > 0 || tasks.length > 0) return 'executing';
-  return 'briefing';
-};
-
-const taskStatusRank = (task: AgentTeamTaskRecord) =>
-  TASK_STATUS_RANK[task.status] ?? 99;
 
 const shortText = (value: string | undefined, fallback: string) =>
   value?.trim() || fallback;
@@ -128,13 +106,6 @@ const artifactFilePath = (artifact: AgentTeamArtifactRecord): string | undefined
   }
   return uri.startsWith('/') ? uri : undefined;
 };
-
-const DOWNSTREAM_TASK_RE = /(qa|test|测试|验收|验证|联调|review|审核|文档|document|summary|总结|release|发布|交付)/i;
-
-const isLikelyDownstreamPlanTask = (task: { title: string; description: string }) =>
-  DOWNSTREAM_TASK_RE.test(`${task.title} ${task.description}`);
-
-const graphKeyFromTitle = (title: string) => title.trim().toLowerCase();
 
 const hasConcreteHumanGatePrompt = (prompt: string): boolean => {
   const normalized = prompt.trim().replace(/\s+/g, ' ');
@@ -202,24 +173,7 @@ const metadataNumber = (
   return undefined;
 };
 
-interface GraphTaskItem {
-  key: string;
-  title: string;
-  description: string;
-  status: string;
-  ownerName: string;
-  ownerKey?: string;
-  depKeys: string[];
-  depLabels: string[];
-  artifactCount: number;
-  updatedAt?: number;
-  result?: string;
-  blockedReason?: string;
-  scope?: string[];
-  verify?: string;
-  sourceTask?: AgentTeamTaskRecord;
-  dependencyWarning?: boolean;
-}
+type GraphTaskItem = AgentTeamGraphTask;
 
 interface GraphAgentItem {
   key: string;
@@ -239,60 +193,7 @@ interface GraphAgentItem {
   sessionHealth?: string;
 }
 
-const DAG_NODE_WIDTH = 236;
-const DAG_NODE_HEIGHT = 58;
-const DAG_COLUMN_GAP = 315;
-const DAG_ROW_GAP = 76;
 const DAG_LEFT = 38;
-const DAG_TOP = 92;
-const DAG_BOTTOM = 72;
-const DAG_MIN_WIDTH = 720;
-const DAG_MIN_HEIGHT = 340;
-// Vertical gap between successive round bands, and the label strip reserved above
-// each band when more than one round is present.
-const DAG_ROUND_GAP = 52;
-const DAG_ROUND_LABEL_HEIGHT = 28;
-
-interface DagNodeItem {
-  task: GraphTaskItem;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  columnIndex: number;
-  rowIndex: number;
-}
-
-interface DagEdgeItem {
-  key: string;
-  path: string;
-  sourceKey: string;
-  targetKey: string;
-}
-
-interface DagStageItem {
-  key: string;
-  x: number;
-  y: number;
-  label: string;
-  index: number;
-}
-
-interface DagRoundItem {
-  key: string;
-  round: number;
-  label: string;
-  /** Top of the node area for this round band. */
-  top: number;
-  /** Height of the node area for this round band. */
-  height: number;
-  /** Y of the divider drawn above this band (only when showDivider). */
-  dividerTop: number;
-  /** Top of the "Round N" label strip (above the nodes). */
-  labelTop: number;
-  showDivider: boolean;
-  showLabel: boolean;
-}
 
 export const AgentTeamFrame = ({
   node,
@@ -345,14 +246,18 @@ export const AgentTeamFrame = ({
 
   const api = window.canvasWorkspace?.agentTeams;
   const runtime = snapshot?.runtime;
-  const agents = runtime?.agents ?? [];
+  const workspaceModel = useMemo(
+    () => snapshot ? createAgentTeamWorkspaceModel(snapshot) : null,
+    [snapshot],
+  );
+  const agents = workspaceModel?.agents ?? [];
   const tasks = runtime?.tasks ?? [];
   const gates = runtime?.humanGates ?? [];
   const artifacts = runtime?.artifacts ?? [];
   const openGates = gates.filter((gate) => gate.status === 'open');
   const lead = useMemo(() => agents.find((agent) => agent.role === 'lead'), [agents]);
-  const teammates = useMemo(() => agents.filter((agent) => agent.role !== 'lead'), [agents]);
-  const phase = inferPhase(snapshot?.phase, teammates, tasks, runtime?.team.status);
+  const teammates = workspaceModel?.teammates ?? [];
+  const phase = workspaceModel?.phase ?? 'briefing';
   const teamStatus = runtime?.team.status ?? 'planning';
   const isCompletedTeam = teamStatus === 'completed';
   const isCheckpoint = teamStatus === 'round_checkpoint';
@@ -370,24 +275,12 @@ export const AgentTeamFrame = ({
     .map((agent) => agentNodeByAgentId.get(agent.id))
     .filter((agentNode): agentNode is CanvasNode & { data: AgentNodeData } => !!agentNode);
 
-  const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
-  const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
-  const artifactsByTask = useMemo(() => {
-    const grouped = new Map<string, AgentTeamArtifactRecord[]>();
-    for (const artifact of artifacts) {
-      if (!artifact.taskId) continue;
-      grouped.set(artifact.taskId, [...(grouped.get(artifact.taskId) ?? []), artifact]);
-    }
-    return grouped;
-  }, [artifacts]);
-  const orderedTasks = useMemo(
-    () => [...tasks].sort((a, b) => taskStatusRank(a) - taskStatusRank(b) || a.createdAt - b.createdAt),
-    [tasks],
-  );
-  const defaultTask = useMemo(
-    () => orderedTasks.find((task) => task.status !== 'done' && task.status !== 'failed') ?? orderedTasks[0],
-    [orderedTasks],
-  );
+  const agentById = workspaceModel?.agentById ?? new Map<string, AgentTeamAgentRecord>();
+  const taskById = workspaceModel?.taskById ?? new Map<string, AgentTeamTaskRecord>();
+  const artifactsByTask = workspaceModel?.artifactsByTask
+    ?? new Map<string, AgentTeamArtifactRecord[]>();
+  const orderedTasks = workspaceModel?.orderedTasks ?? [];
+  const defaultTask = workspaceModel?.defaultTask;
   const selectedTask = useMemo(
     () => taskById.get(selectedTaskId) ?? defaultTask,
     [defaultTask, selectedTaskId, taskById],
@@ -410,123 +303,15 @@ export const AgentTeamFrame = ({
   );
   const selectedArtifactTask = selectedArtifact?.taskId ? taskById.get(selectedArtifact.taskId) : undefined;
   const selectedArtifactAgent = selectedArtifact?.agentId ? agentById.get(selectedArtifact.agentId) : undefined;
-  const graphTasks = useMemo<GraphTaskItem[]>(() => {
-    if (phase === 'plan_review' && plan) {
-      return plan.tasks.map((task) => {
-        const key = graphKeyFromTitle(task.title);
-        return {
-          key,
-          title: task.title,
-          description: task.description,
-          status: 'proposed',
-          ownerName: task.ownerName ?? 'Unassigned',
-          ownerKey: task.ownerName ? `plan:${graphKeyFromTitle(task.ownerName)}` : undefined,
-          depKeys: task.deps.map(graphKeyFromTitle),
-          depLabels: task.deps,
-          artifactCount: 0,
-          updatedAt: plan.updatedAt,
-          scope: task.scope,
-          verify: task.verify,
-          dependencyWarning: task.deps.length === 0 && isLikelyDownstreamPlanTask(task),
-        };
-      });
-    }
-
-    return orderedTasks.map((task) => {
-      const owner = task.ownerAgentId ? agentById.get(task.ownerAgentId) : undefined;
-      const taskArtifacts = artifactsByTask.get(task.id) ?? [];
-      return {
-        key: task.id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        ownerName: owner?.name ?? 'Any teammate',
-        ownerKey: owner ? `agent:${owner.id}` : undefined,
-        depKeys: task.deps,
-        depLabels: task.deps.map((depId) => taskById.get(depId)?.title ?? depId),
-        artifactCount: taskArtifacts.length,
-        updatedAt: task.updatedAt,
-        result: task.result,
-        blockedReason: task.blockedReason,
-        scope: Array.isArray(task.metadata?.scope)
-          ? (task.metadata.scope as unknown[]).filter((entry): entry is string => typeof entry === 'string')
-          : undefined,
-        verify: typeof task.metadata?.verify === 'string' ? task.metadata.verify : undefined,
-        sourceTask: task,
-      };
-    });
-  }, [agentById, artifactsByTask, orderedTasks, phase, plan, taskById]);
+  const graphTasks = workspaceModel?.tasks ?? [];
   const graphTaskByKey = useMemo(
     () => new Map(graphTasks.map((task) => [task.key, task])),
     [graphTasks],
   );
-  const graphRounds = useMemo(() => {
-    const roundOf = (task: GraphTaskItem): number => {
-      const value = task.sourceTask?.metadata?.round;
-      return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
-    };
-
-    // Group tasks by round, preserving the incoming (status/createdAt) order within each.
-    const byRound = new Map<number, GraphTaskItem[]>();
-    for (const task of graphTasks) {
-      const round = roundOf(task);
-      const bucket = byRound.get(round);
-      if (bucket) bucket.push(task);
-      else byRound.set(round, [task]);
-    }
-
-    return [...byRound.keys()]
-      .sort((a, b) => a - b)
-      .map((round) => {
-        const roundTasks = byRound.get(round) ?? [];
-        const roundKeys = new Set(roundTasks.map((task) => task.key));
-        const depthCache = new Map<string, number>();
-        // Only same-round dependencies push a task into a later stage; a follow-up task
-        // that depends on an earlier round still starts at this round's "Start" column.
-        const getDepth = (task: GraphTaskItem, seen = new Set<string>()): number => {
-          const cached = depthCache.get(task.key);
-          if (cached !== undefined) return cached;
-          if (seen.has(task.key)) return 0;
-          const nextSeen = new Set(seen).add(task.key);
-          const depths = task.depKeys
-            .filter((depKey) => roundKeys.has(depKey))
-            .map((depKey) => graphTaskByKey.get(depKey))
-            .filter((dep): dep is GraphTaskItem => !!dep)
-            .map((dep) => getDepth(dep, nextSeen) + 1);
-          const depth = depths.length > 0 ? Math.max(...depths) : 0;
-          depthCache.set(task.key, depth);
-          return depth;
-        };
-
-        const columns: GraphTaskItem[][] = [];
-        for (const task of roundTasks) {
-          const depth = getDepth(task);
-          if (!columns[depth]) columns[depth] = [];
-          columns[depth].push(task);
-        }
-        return { round, columns: columns.filter(Boolean) };
-      });
-  }, [graphTaskByKey, graphTasks]);
+  const graphRounds = workspaceModel?.rounds ?? [];
   // Each round is its own DAG (a planned wave). The switcher lets the user view one
   // round at a time; team-wide data (graphTasks/graphAgents) is intentionally untouched.
-  const roundOptions = useMemo(
-    () =>
-      graphRounds.map((group) => {
-        const roundTasks = group.columns.flat();
-        const doneCount = roundTasks.filter((task) => task.status === 'done').length;
-        const running = roundTasks.some(
-          (task) =>
-            task.status === 'in_progress'
-            || task.status === 'needs_input'
-            || task.status === 'needs_review',
-        );
-        const blocked = roundTasks.some((task) => task.status === 'blocked' || task.status === 'failed');
-        const allDone = roundTasks.length > 0 && doneCount === roundTasks.length;
-        const status = running ? 'running' : blocked ? 'blocked' : allDone ? 'done' : 'todo';
-        return { round: group.round, taskCount: roundTasks.length, doneCount, status };
-      }),
-    [graphRounds],
-  );
+  const roundOptions = workspaceModel?.roundOptions ?? [];
   const activeRound = useMemo(() => {
     if (roundOptions.length === 0) return null;
     if (selectedRound != null && roundOptions.some((option) => option.round === selectedRound)) {
@@ -539,114 +324,10 @@ export const AgentTeamFrame = ({
     const matched = graphRounds.filter((group) => group.round === activeRound);
     return matched.length > 0 ? matched : graphRounds;
   }, [graphRounds, activeRound]);
-  const buildDagLayout = useCallback((viewportHeight = 0) => {
-    const showRoundLabels = visibleRounds.length > 1;
-    const labelStrip = showRoundLabels ? DAG_ROUND_LABEL_HEIGHT : 0;
-    const columnCount = Math.max(1, ...visibleRounds.map((group) => group.columns.length));
-
-    const bandMaxRows = visibleRounds.map((group) =>
-      Math.max(1, ...group.columns.map((column) => column.length)),
-    );
-    const bandHeights = bandMaxRows.map((rows) => (rows - 1) * DAG_ROW_GAP + DAG_NODE_HEIGHT);
-    const contentHeight = bandHeights.reduce((sum, bandHeight) => sum + bandHeight + labelStrip, 0)
-      + Math.max(0, visibleRounds.length - 1) * DAG_ROUND_GAP;
-    const naturalHeight = DAG_TOP + contentHeight + DAG_BOTTOM;
-    const height = Math.max(DAG_MIN_HEIGHT, naturalHeight, viewportHeight);
-    const verticalShift = Math.max(0, height - naturalHeight) / 2;
-
-    const nodes: DagNodeItem[] = [];
-    const rounds: DagRoundItem[] = [];
-    let cursorY = DAG_TOP + verticalShift;
-
-    visibleRounds.forEach((group, roundIndex) => {
-      const labelTop = cursorY;
-      const bandTop = cursorY + labelStrip;
-      const bandHeight = bandHeights[roundIndex];
-      const maxRows = bandMaxRows[roundIndex];
-
-      rounds.push({
-        key: `round-${group.round}`,
-        round: group.round,
-        label: `Round ${group.round}`,
-        top: bandTop,
-        height: bandHeight,
-        dividerTop: cursorY - DAG_ROUND_GAP / 2,
-        labelTop,
-        showDivider: roundIndex > 0,
-        showLabel: showRoundLabels,
-      });
-
-      for (let columnIndex = 0; columnIndex < group.columns.length; columnIndex += 1) {
-        const column = group.columns[columnIndex];
-        const columnOffset = ((maxRows - column.length) * DAG_ROW_GAP) / 2;
-        for (let rowIndex = 0; rowIndex < column.length; rowIndex += 1) {
-          const task = column[rowIndex];
-          nodes.push({
-            task,
-            x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP,
-            y: bandTop + columnOffset + rowIndex * DAG_ROW_GAP,
-            width: DAG_NODE_WIDTH,
-            height: DAG_NODE_HEIGHT,
-            columnIndex,
-            rowIndex,
-          });
-        }
-      }
-
-      cursorY = bandTop + bandHeight + DAG_ROUND_GAP;
-    });
-
-    // Stage headers span the widest round and stay pinned at the top.
-    const stages: DagStageItem[] = Array.from({ length: columnCount }, (_unused, columnIndex) => ({
-      key: `stage-${columnIndex}`,
-      // Center the stage header over its node column (offset compensated via translateX in CSS).
-      x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP + DAG_NODE_WIDTH / 2,
-      y: 24 + verticalShift,
-      label: columnIndex === 0 ? 'Start' : `Stage ${columnIndex + 1}`,
-      index: columnIndex + 1,
-    }));
-
-    const nodeByKey = new Map(nodes.map((item) => [item.task.key, item]));
-    const roundByKey = new Map<string, number>();
-    visibleRounds.forEach((group) => {
-      for (const column of group.columns) {
-        for (const task of column) roundByKey.set(task.key, group.round);
-      }
-    });
-
-    const edges: DagEdgeItem[] = [];
-    for (const node of nodes) {
-      for (const depKey of node.task.depKeys) {
-        const source = nodeByKey.get(depKey);
-        if (!source) continue;
-        // Keep rounds visually separate: only draw dependency edges within the same round.
-        if (roundByKey.get(source.task.key) !== roundByKey.get(node.task.key)) continue;
-        const startX = source.x + source.width - 2;
-        const startY = source.y + source.height / 2;
-        const endX = node.x + 2;
-        const endY = node.y + node.height / 2;
-        const dx = Math.max(56, (endX - startX) / 2);
-        edges.push({
-          key: `${source.task.key}->${node.task.key}`,
-          sourceKey: source.task.key,
-          targetKey: node.task.key,
-          path: `M ${startX} ${startY} C ${startX + dx} ${startY}, ${endX - dx} ${endY}, ${endX} ${endY}`,
-        });
-      }
-    }
-
-    return {
-      nodes,
-      edges,
-      stages,
-      rounds,
-      width: Math.max(
-        DAG_MIN_WIDTH,
-        DAG_LEFT * 2 + Math.max(0, columnCount - 1) * DAG_COLUMN_GAP + DAG_NODE_WIDTH,
-      ),
-      height,
-    };
-  }, [visibleRounds]);
+  const buildDagLayout = useCallback(
+    (viewportHeight = 0) => buildAgentTeamDagLayout(visibleRounds, viewportHeight),
+    [visibleRounds],
+  );
   const inlineDagLayout = useMemo(
     () => buildDagLayout(graphViewportHeights.inline),
     [buildDagLayout, graphViewportHeights.inline],
@@ -664,7 +345,7 @@ export const AgentTeamFrame = ({
   const graphAgents = useMemo<GraphAgentItem[]>(() => {
     if (phase === 'plan_review' && plan) {
       return plan.teammates.map((teammate) => {
-        const ownerKey = `plan:${graphKeyFromTitle(teammate.name)}`;
+        const ownerKey = `plan:${teammate.name.trim().toLowerCase()}`;
         const ownedTasks = graphTasks.filter((task) => task.ownerKey === ownerKey);
         return {
           key: ownerKey,

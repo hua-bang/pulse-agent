@@ -1,6 +1,6 @@
-import { AgentIcon } from '../../../modules/coding-agent/icon';
-import type { AgentDef } from '../../../config/agentRegistry';
-import { Select } from '../../ui';
+import { AgentIcon } from '../../../coding-agent/icon';
+import type { AgentDef } from '../../../../config/agentRegistry';
+import { Select } from '../../../../components/ui';
 
 interface AgentTypeSelectProps {
   value: string;

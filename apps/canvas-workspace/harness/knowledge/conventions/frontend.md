@@ -12,7 +12,7 @@ leaf folder names were kept, only a group level was inserted):
 |---|---|
 | `shell/` | App chrome + routing: `AppShellProvider`, `Sidebar`, `Workbench`, `router`, `RouteViews.ts`, `AppLazyBoundaries.tsx`, `MigrationSpinner` |
 | `canvas/` | Canvas surface + chrome: `Canvas`, `CanvasNodeView`, edges layer, alignment guides, node/edge context menus, `EdgeStylePanel`, toolbars, `SearchBar`, `ZoomIndicator`, `CommandPalette`, `CanvasEmptyHint` |
-| `node-bodies/` | One body per canvas node type (`*NodeBody`, incl. lazy wrappers) plus `AgentTeamFrame` and the terminal-surface `NodeMentionPicker` |
+| `node-bodies/` | Legacy body implementations for remaining canvas node types plus the terminal-surface `NodeMentionPicker`; Agent and Agent Team bodies now live in their owner modules |
 | `note-editor/` | Rich-text editing surface for file/text nodes: `FileNodeEditorSurface`, `FileNodeBubbleMenu`, `SlashCommandMenu`, `EditorCommandIcon`, `Note*` pieces |
 | `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
 | `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |

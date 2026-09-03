@@ -25,7 +25,8 @@ src/renderer/src/
 ├── modules/
 │   ├── canvas/        # document state, transactions, history, external merge
 │   ├── chat/          # Chat visuals + runtime/session/target logic
-│   └── coding-agent/  # AgentNodeBody visuals + session policy/runtime
+│   ├── coding-agent/  # AgentNodeBody visuals + session policy/runtime
+│   └── agent-team/    # workspace projection/DAG model + frame visuals
 ├── components/        # remaining product visuals + shared UI mixed together
 ├── views/             # route-owned product surfaces
 ├── hooks/             # generic and product-specific hooks mixed together
@@ -58,7 +59,7 @@ Current pressure points, measured on 2026-09-03:
 |---|---|---|
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
 | Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~938 lines plus lifecycle, Codex-capture, and mirror-terminal modules | owner PTY spawning/persistence and form state remain interleaved in the React adapter |
-| Agent Team workspace | `AgentTeamFrame/index.tsx` ~2232 lines; CSS ~2722 lines; no direct spec | snapshot projection, polling, actions, DAG layout, six visual surfaces, and artifact loading have no testable internal seam |
+| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` ~1913 lines; CSS ~2722 lines; public model ~332 lines | polling/actions and task/agent/gate/artifact visual surfaces remain interleaved; snapshot-to-task/round projection and DAG layout are now independently tested |
 | Workspace graph | `WorkspaceNodes/GraphPage.tsx` ~771 lines | graph projection/search/highlight and the ForceGraph adapter are inseparable |
 | Settings | MCP/Skills/Plugins managers share a flat folder and stylesheet | each domain combines bridge mutation, draft state, and visual implementation |
 
@@ -190,7 +191,9 @@ fullscreen placement adapter.
    retry policy, Codex discovery, mirror runtime, and visual ownership are
    implemented; owner PTY runtime extraction remains.
 3. Form an Agent Team workspace model/controller interface before splitting
-   AgentTeamFrame visuals and CSS. Do not replace one large file with dozens of
+   AgentTeamFrame visuals and CSS. The workspace task/round projection and DAG
+   layout interface plus visual ownership are implemented; controller/actions
+   and visual submodules remain. Do not replace one large file with dozens of
    pass-through props.
 4. Extract the Workspace graph model from the ForceGraph adapter.
 5. Move MCP, Skills, and Plugin settings into separate owner modules. Do not

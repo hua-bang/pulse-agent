@@ -1,6 +1,6 @@
 import "./index.css";
 import type { CanvasNode, FrameNodeData } from "../../../types";
-import { AgentTeamFrame } from "../AgentTeamFrame";
+import { AgentTeamFrame } from "../../../modules/agent-team/surface";
 import { NodeTypeBadge } from "../../canvas/CanvasNodeView/NodeTypeBadge";
 import { useI18n } from "../../../i18n";
 import { collectDirectContainerChildren } from "../../../utils/frameHierarchy";
