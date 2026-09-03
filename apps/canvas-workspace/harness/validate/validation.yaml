@@ -170,14 +170,13 @@ pathRules:
   - name: workspace-nodes
     paths:
       - src/renderer/src/modules/workspace-nodes/**
-      - src/renderer/src/views/WorkspaceNodes/**
       - src/main/workspace-nodes/**
       - src/shared/canvas.ts
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/renderer/src/views/WorkspaceNodes
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/renderer/src/views/WorkspaceNodes src/main/workspace-nodes
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/main/workspace-nodes
 
   - name: mcp-apps
     paths:

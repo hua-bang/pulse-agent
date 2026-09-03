@@ -9,11 +9,12 @@ import { NodeDetailDockTab } from '../NodeDetailDockTab';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('../../../../views/WorkspaceNodes/NodeDetailPanel', () => ({
+vi.mock('../../../../modules/workspace-nodes/detail', () => ({
   NodeDetailPanel: () => <div data-testid="node-detail" />,
 }));
 
-vi.mock('../../../../views/WorkspaceNodes/useWorkspaceNodes', () => ({
+vi.mock('../../../../modules/workspace-nodes', () => ({
+  getNodeTitle: (node: { title?: string }, fallback: string) => node.title ?? fallback,
   useWorkspaceNode: () => ({
     node: { id: 'node-1', type: 'text', title: 'Research note', data: {}, updatedAt: 1 },
     loading: false,

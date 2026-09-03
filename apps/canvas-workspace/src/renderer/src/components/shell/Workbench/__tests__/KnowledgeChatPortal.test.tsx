@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KnowledgeChatPortal } from '../KnowledgeChatPortal';
 
-vi.mock('../../../../views/WorkspaceNodes/useWorkspaceNodes', () => ({
+vi.mock('../../../../modules/workspace-nodes', () => ({
   useAllWorkspaceNodeList: () => ({ nodes: [], tags: [] }),
 }));
 

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 const rendererRoot = fileURLToPath(new URL('.', import.meta.url));
 const globalCss = readFileSync(join(rendererRoot, 'styles.css'), 'utf8');
-const graphPageSource = readFileSync(join(rendererRoot, 'views/WorkspaceNodes/GraphPage.tsx'), 'utf8');
+const graphPageSource = readFileSync(join(rendererRoot, 'modules/workspace-nodes/internal/GraphPage.tsx'), 'utf8');
 const mindmapExportSource = readFileSync(join(rendererRoot, 'utils/mindmapExport.ts'), 'utf8');
 const canvasPackage = JSON.parse(
   readFileSync(join(rendererRoot, '../../../package.json'), 'utf8'),
@@ -54,7 +54,7 @@ describe('renderer typography system', () => {
       'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
       'modules/skills/internal/index.css',
-      'views/WorkspaceNodes/index.css',
+      'modules/workspace-nodes/internal/index.css',
     ]);
     const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
       const css = readFileSync(path, 'utf8');
@@ -69,7 +69,7 @@ describe('renderer typography system', () => {
     'modules/skills/internal/index.css',
     'modules/scheduled/internal/index.css',
     'modules/plugin-market/internal/index.css',
-    'views/WorkspaceNodes/index.css',
+    'modules/workspace-nodes/internal/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {
     const css = readFileSync(join(rendererRoot, relativePath), 'utf8');
     expect(css).toContain('font-size: 24px');

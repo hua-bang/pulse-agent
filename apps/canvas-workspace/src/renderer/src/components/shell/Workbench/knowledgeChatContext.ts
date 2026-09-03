@@ -12,7 +12,7 @@ import {
   getNodeTitle,
   getNodeWorkspaceId,
   isKnowledgeNodeType,
-} from '../../../views/WorkspaceNodes/utils';
+} from '../../../modules/workspace-nodes';
 
 export interface KnowledgeChatRouteContext {
   active: boolean;

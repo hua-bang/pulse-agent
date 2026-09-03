@@ -4,8 +4,7 @@ import type { KnowledgeTagDefinition, WorkspaceNodeListItem } from '../../../typ
 import { useI18n } from '../../../i18n';
 import { Button, Modal, TextField, useIndexNav } from '../../ui';
 import { NodeTypeIcon } from '../../icons';
-import { useAllWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
-import { getNodeTitle, getNodeWorkspaceId, isKnowledgeNodeType, matchesSearch, tagName } from '../../../views/WorkspaceNodes/utils';
+import { getNodeTitle, getNodeWorkspaceId, isKnowledgeNodeType, matchesSearch, tagName, useAllWorkspaceNodeList } from '../../../modules/workspace-nodes';
 import './node-dock-picker.css';
 
 interface Props {

@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { NodeDetailPanel } from '../../../views/WorkspaceNodes/NodeDetailPanel';
-import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../../../views/WorkspaceNodes/useWorkspaceNodes';
-import { getNodeTitle } from '../../../views/WorkspaceNodes/utils';
+import { NodeDetailPanel } from '../../../modules/workspace-nodes/detail';
+import { getNodeTitle, useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from '../../../modules/workspace-nodes';
 import { useI18n } from '../../../i18n';
 import type { AgentContextTabRef } from '../../../types';
 import type { ChatDeliveryReceipt } from '../../../modules/chat';

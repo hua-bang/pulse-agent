@@ -21,7 +21,7 @@ import {
   PluginSelectElementButton,
 } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
-import { isKnowledgeNodeType } from '../../../views/WorkspaceNodes/utils';
+import { isKnowledgeNodeType } from '../../../modules/workspace-nodes';
 import { isReferenceableNode } from '../../../utils/referenceNodes';
 import type { ChatDeliveryReceipt } from '../../../modules/chat';
 

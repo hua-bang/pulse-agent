@@ -4,7 +4,7 @@ import {
   getNodeTitle,
   getNodeWorkspaceId,
   tagName,
-} from '../../../views/WorkspaceNodes/utils';
+} from '../internal/utils';
 
 export type WorkspaceGraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
 export type WorkspaceGraphLinkKind = 'tag' | 'link' | 'workspace';

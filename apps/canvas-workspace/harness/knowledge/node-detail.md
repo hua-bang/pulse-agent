@@ -11,11 +11,11 @@ semantics, cross-surface navigation, Escape ownership, or the
 ## One panel, two hosts — and why the dock is primary
 
 There is ONE panel component,
-`src/renderer/src/views/WorkspaceNodes/NodeDetailPanel.tsx`, rendered by
+`src/renderer/src/modules/workspace-nodes/internal/NodeDetailPanel.tsx`, rendered by
 TWO hosts:
 
 - the `/nodes/<ws>/<id>` page route
-  (`src/renderer/src/views/WorkspaceNodes/NodeDetailPage.tsx`);
+  (`src/renderer/src/modules/workspace-nodes/internal/NodeDetailPage.tsx`);
 - the dock tab
   (`src/renderer/src/components/dock/RightDock/NodeDetailDockTab.tsx`, which
   renders the panel with `mode="dock"`).
@@ -68,7 +68,7 @@ real `CanvasNodeView` so a knowledge node reuses the exact same node body
 components the canvas itself uses, rather than a parallel read-only
 renderer:
 
-- `src/renderer/src/views/WorkspaceNodes/NodeCanvasPreview.tsx` adapts
+- `src/renderer/src/modules/workspace-nodes/internal/NodeCanvasPreview.tsx` adapts
   record → `CanvasNode` (constructs a `CanvasNode`-shaped object from the
   record's `id`/`type`/`title`/`data`/`properties`/`links`/`updatedAt`, plus
   a measured `width`/`height` from a `ResizeObserver`) and renders it via
@@ -80,7 +80,7 @@ renderer:
 
 ## `nodeDetailDescriptor.ts`: the surface SSOT
 
-`src/renderer/src/views/WorkspaceNodes/nodeDetailDescriptor.ts` is the
+`src/renderer/src/modules/workspace-nodes/internal/nodeDetailDescriptor.ts` is the
 single source of truth for type → surface/layout/capability. Callers never
 pass a second, potentially contradictory presentation string — every host
 asks this one table.
@@ -106,7 +106,7 @@ Policy per type:
     page-only `NodeDetailContextRail` behind `!isRichDetail`; it also adds
     `node-detail-panel--rich node-detail-panel--<surface>` classes when rich.
   - The Info inspector itself lives in
-    `src/renderer/src/views/WorkspaceNodes/NodeDetailHeader.tsx`
+    `src/renderer/src/modules/workspace-nodes/internal/NodeDetailHeader.tsx`
     (`metadata === 'inspector'` branch, backed by
     `NodeDetailInspector.tsx`).
 - **Web** retains its iframe navigation bar.
@@ -115,7 +115,7 @@ Policy per type:
   handlers (`onPointerDown`/`onPointerMove`/`onPointerUp`/
   `onPointerCancel`/`onLostPointerCapture`/`onKeyDown`, and the center
   `Button`) wired in `NodeCanvasPreview.tsx` via
-  `src/renderer/src/views/WorkspaceNodes/useMindmapDetailPan.ts`.
+  `src/renderer/src/modules/workspace-nodes/internal/useMindmapDetailPan.ts`.
 
 ## Save failures: the adapter must never reject into a node body
 
@@ -132,14 +132,14 @@ failure actively discarded exactly the edit that had failed to save (the one
 thing the user cannot retype from the UI).
 
 The fix, in `commitPatch` / `retryFailedSave` / `discardFailedSave`
-(`src/renderer/src/views/WorkspaceNodes/NodeCanvasPreview.tsx`):
+(`src/renderer/src/modules/workspace-nodes/internal/NodeCanvasPreview.tsx`):
 
 - a failed record write HOLDS the optimistic content on screen (it is never
   reverted to the last-known-good record);
 - external change events are refused/ignored while a failure is held
   (`updatePendingRef` / `failedPatchRef` gate the record-sync effect);
 - the panel shows a retry/discard banner
-  (`src/renderer/src/views/WorkspaceNodes/NodeCanvasSaveError.tsx`);
+  (`src/renderer/src/modules/workspace-nodes/internal/NodeCanvasSaveError.tsx`);
 - a further failure while one is already pending is merged into the same
   pending patch via `mergePatches`, so retry replays every unsaved change,
   not just the last keystroke.
@@ -151,7 +151,7 @@ The fix, in `commitPatch` / `retryFailedSave` / `discardFailedSave`
 at once without one hiding the other.
 
 Bound test:
-`src/renderer/src/views/WorkspaceNodes/__tests__/NodeCanvasPreview.test.tsx`
+`src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeCanvasPreview.test.tsx`
 (save-failure + rich-presentation guards).
 
 ## Deleted-node "missing" semantics
@@ -159,7 +159,7 @@ Bound test:
 The `workspace-node:read` IPC answers a deleted node with `ok: true` and NO
 record — this is indistinguishable from "nothing selected" unless a caller
 tracks it explicitly.
-`src/renderer/src/views/WorkspaceNodes/useWorkspaceNodes.ts`'s
+`src/renderer/src/modules/workspace-nodes/internal/useWorkspaceNodes.ts`'s
 `useWorkspaceNode` exposes that case as a separate `missing` boolean. A host
 that conflates `missing` with "nothing selected" tells someone their deleted
 node is merely unselected, which is misleading. The dock tab
@@ -172,7 +172,7 @@ Node Detail renders in two hosts (a page route and a dock tab), so neither
 host can own navigation callbacks — cross-surface travel is done with window
 events, never host callbacks threaded down through the shared panel:
 
-- `src/renderer/src/views/WorkspaceNodes/useNodeDetailBridges.ts`
+- `src/renderer/src/modules/workspace-nodes/internal/useNodeDetailBridges.ts`
   (`useNodeDetailBridges`) carries page↔canvas travel, including
   `FOCUS_NODE_ON_CANVAS_EVENT`;
 - `dispatchOpenNode` (`src/renderer/src/utils/openNodeBridge.ts`) is used for
@@ -187,7 +187,7 @@ node on its canvas.
 ## Escape ownership
 
 The page owns its own Escape handling —
-`src/renderer/src/views/WorkspaceNodes/NodeDetailPage.tsx` adds a
+`src/renderer/src/modules/workspace-nodes/internal/NodeDetailPage.tsx` adds a
 `window` `keydown` listener in the bubble phase, gated on the event target
 (ignored when the target is an `INPUT`/`TEXTAREA`/`contentEditable` element,
 an open overlay, or an IME composition), and calls `onBack()`.
@@ -195,7 +195,7 @@ an open overlay, or an IME composition), and calls `onBack()`.
 `src/renderer/src/hooks/useEscapeClose.ts` (`useEscapeClose`) is different by
 design: it listens on `document` in the CAPTURE phase and calls
 `stopPropagation()` — it backs the tag picker in
-`src/renderer/src/views/WorkspaceNodes/NodeTagEditor.tsx`. Capture-phase
+`src/renderer/src/modules/workspace-nodes/internal/NodeTagEditor.tsx`. Capture-phase
 listeners run before any bubble-phase listener sees the event at all, so if
 the page's own Escape subscriber were also capture-phase, it would win that
 race and eat the Escape before it ever reached the tag picker's
@@ -224,13 +224,13 @@ as React's "Maximum update depth exceeded".
 
 Bound tests:
 
-- `src/renderer/src/views/WorkspaceNodes/__tests__/NodeDetailPanel.test.tsx`
-- `src/renderer/src/views/WorkspaceNodes/__tests__/NodeCanvasPreview.test.tsx`
+- `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeDetailPanel.test.tsx`
+- `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeCanvasPreview.test.tsx`
   — save-failure + rich-presentation guards
-- `src/renderer/src/views/WorkspaceNodes/__tests__/nodeDetailStyles.test.ts`
+- `src/renderer/src/modules/workspace-nodes/internal/__tests__/nodeDetailStyles.test.ts`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`
-- `src/renderer/src/views/WorkspaceNodes/__tests__/NodeDetailPage.escape.test.tsx`
-- `src/renderer/src/views/WorkspaceNodes/useWorkspaceNodes.test.tsx`
+- `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeDetailPage.escape.test.tsx`
+- `src/renderer/src/modules/workspace-nodes/internal/useWorkspaceNodes.test.tsx`
 - `src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
   — includes the knowledge-detail chat-target-stability regression for the
   `KnowledgeChatPortal` memoization rule above
