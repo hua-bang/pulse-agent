@@ -53,17 +53,17 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/modules/settings/internal/WorkspaceSettings/index.tsx',
   '/modules/workspace-nodes/internal/NodesPage.tsx',
   '/modules/workspace-nodes/internal/NodeDetailPage.tsx',
-  '/components/node-bodies/FileNodeBody/index.tsx',
-  '/components/node-bodies/TextNodeBody/index.tsx',
-  '/components/node-bodies/IframeNodeBody/index.tsx',
+  '/modules/canvas/components/node-bodies/FileNodeBody/index.tsx',
+  '/modules/canvas/components/node-bodies/TextNodeBody/index.tsx',
+  '/modules/canvas/components/node-bodies/IframeNodeBody/index.tsx',
   '/modules/coding-agent/components/AgentNodeBody/index.tsx',
   '/modules/chat/components/ChatPanel/index.tsx',
   '/modules/chat/target/useRegisterChatTarget.ts',
   '/modules/chat/target/sessionScope.ts',
   '/components/dock/ReferenceDrawer/index.tsx',
-  '/components/canvas/CommandPalette/index.tsx',
-  '/components/canvas/SearchBar/index.tsx',
-  '/components/canvas/EdgeStylePanel/index.tsx',
+  '/modules/canvas/components/canvas/CommandPalette/index.tsx',
+  '/modules/canvas/components/canvas/SearchBar/index.tsx',
+  '/modules/canvas/components/canvas/EdgeStylePanel/index.tsx',
   '/modules/artifacts/internal/ArtifactTabView.tsx',
   '/plugins/renderer/devtools/AgentDebugPage.tsx',
   '/plugins/renderer/devtools/ChatDebugTrace.tsx',
@@ -188,7 +188,7 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
   it.each([
     'renderer/src/components/dock/WorkspaceTerminalDock/index.tsx',
     'renderer/src/modules/coding-agent/components/AgentNodeBody/index.tsx',
-    'renderer/src/components/node-bodies/TerminalNodeBody/index.tsx',
+    'renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx',
   ])('%s loads the xterm base styles with its lazy chunk', (path) => {
     const entry = readFileSync(join(srcRoot, path), 'utf-8');
     expect(entry).toContain("import '@xterm/xterm/css/xterm.css';");

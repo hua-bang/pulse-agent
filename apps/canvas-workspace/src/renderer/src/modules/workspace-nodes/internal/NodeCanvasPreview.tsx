@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { CanvasNodeView } from '../../../components/canvas/CanvasNodeView';
+import { CanvasNodeView } from '../../canvas/surface';
 import { isKnowledgeNodeType } from './utils';
 import { useI18n } from '../../../i18n';
 import { Button } from '../../../components/ui';

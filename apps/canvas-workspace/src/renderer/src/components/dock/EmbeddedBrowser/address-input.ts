@@ -7,7 +7,7 @@
  * (persisted to localStorage under `STORAGE_KEY`). Unknown stored values
  * (e.g. an engine that was later removed) fall back to the default.
  */
-import { BLANK_PAGE_URL, normalizeUrl } from '../../node-bodies/IframeNodeBody/utils';
+import { BLANK_PAGE_URL, normalizeUrl } from '../../../modules/canvas/webview';
 
 export const SEARCH_ENGINES = {
   google: {

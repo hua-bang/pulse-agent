@@ -1,7 +1,7 @@
 import './index.css';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useMemo, useState } from 'react';
-import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
+import { NodeMentionPicker } from '../../../node-mentions';
 import { AgentPicker } from './AgentPicker';
 import { AgentRestart } from './AgentRestart';
 import { AgentTeamManaged } from './AgentTeamManaged';

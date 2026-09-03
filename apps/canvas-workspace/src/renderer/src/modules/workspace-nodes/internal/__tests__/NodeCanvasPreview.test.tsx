@@ -12,7 +12,7 @@ const canvasViewState = vi.hoisted(() => ({
   onUpdate: null as ((id: string, patch: Partial<CanvasNode>) => void) | null,
 }));
 
-vi.mock('../../../../components/canvas/CanvasNodeView', () => ({
+vi.mock('../../../canvas/surface', () => ({
   CanvasNodeView: ({
     node,
     onUpdate,

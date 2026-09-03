@@ -81,7 +81,7 @@ difference between the two re-fit paths — do not unify them into a single
 ## Consumers (every xterm in the app)
 
 - Agent nodes: `src/renderer/src/modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts`.
-- Terminal nodes: `src/renderer/src/components/node-bodies/TerminalNodeBody/index.tsx`.
+- Terminal nodes: `src/renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx`.
 - The workspace terminal dock: `src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx`.
 
 All three call into the fit primitives above rather than the raw

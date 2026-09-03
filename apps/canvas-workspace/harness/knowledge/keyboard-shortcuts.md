@@ -110,7 +110,7 @@ instead of hardcoding strings:
   through `React.lazy(() => import('./ShortcutsDialog'))` in
   `src/renderer/src/components/shell/AppShellProvider/index.tsx` — it is not
   loaded until the user opens the `?` overlay.
-- Palette hints, `src/renderer/src/components/canvas/Canvas/hooks/useCanvasPaletteCommands.ts`,
+- Palette hints, `src/renderer/src/modules/canvas/components/canvas/Canvas/hooks/useCanvasPaletteCommands.ts`,
   also derive from the registry: every Cmd+K palette command that has a
   keyboard equivalent sets its `shortcut` field via
   `formatShortcutId('canvas.…')` / `formatShortcutId('app.…')` rather than a

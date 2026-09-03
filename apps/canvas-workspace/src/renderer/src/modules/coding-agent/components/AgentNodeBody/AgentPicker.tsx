@@ -4,7 +4,7 @@ import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
 import { isImeComposing } from '../../../../utils/ime';
 import { useI18n } from '../../../../i18n';
-import { NodeMentionPicker } from '../../../../components/node-bodies/NodeMentionPicker';
+import { NodeMentionPicker } from '../../../node-mentions';
 import { useTextareaMention } from '../../../../hooks/useTextareaMention';
 import type { CanvasNode } from '../../../../types';
 

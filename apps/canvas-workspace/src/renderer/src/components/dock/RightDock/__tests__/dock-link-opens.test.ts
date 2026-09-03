@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { LinkOpenRequest } from '../../../../../../shared/link-open';
 import {
   registerMountedWebviewIdentity,
-} from '../../../node-bodies/IframeNodeBody/webview-identities';
+} from '../../../../modules/canvas/webview';
 import { routeDockLinkOpen } from '../useDockLinkOpens';
 import { DockStore } from '../dock-store';
 

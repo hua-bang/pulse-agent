@@ -14,7 +14,7 @@ import type { CanvasNode } from '../../../types';
 import { buildNodeMentionInsertion } from '../../../utils/nodeMention';
 import { formatShortcutId } from '../../../shortcuts/registry';
 import { claimTerminalKey, handleTerminalShortcut } from '../../../shortcuts/terminalShortcuts';
-import { NodeMentionPicker } from '../../node-bodies/NodeMentionPicker';
+import { NodeMentionPicker } from '../../../modules/node-mentions';
 import { useDragResize } from '../../ui';
 import { useI18n } from '../../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';

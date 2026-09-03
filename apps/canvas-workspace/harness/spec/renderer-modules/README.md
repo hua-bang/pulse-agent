@@ -35,8 +35,9 @@ src/renderer/src/
 │   ├── plugin-market/ # listing state, route, dialogs, brand assets
 │   ├── skills/        # lazy skill library/editor route
 │   ├── note-editor/   # editor runtime/extensions + owner-local visual modules
-│   └── settings/      # distinct model/role/MCP/plugin settings under one owner
-├── components/        # remaining product visuals + shared UI mixed together
+│   ├── settings/      # distinct model/role/MCP/plugin settings under one owner
+│   └── node-mentions/ # shared leaf picker used by canvas/terminal/agent modules
+├── components/        # dock/shell awaiting migration + shared icons/ui
 ├── hooks/             # generic and product-specific hooks mixed together
 ├── types/             # cross-renderer contracts
 ├── utils/             # pure helpers, some still feature-specific
@@ -62,6 +63,10 @@ Current healthy properties:
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
+- Canvas visuals and remaining node bodies now live under `modules/canvas`.
+  Feature node bodies may be composed by Canvas, but shared mention UI and
+  pure knowledge-node predicates live in leaf/shared seams so those features
+  never depend back on Canvas and create a module cycle.
 
 Current pressure points, measured on 2026-09-03:
 

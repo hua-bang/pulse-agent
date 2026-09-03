@@ -4,13 +4,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import { I18nProvider } from '../../../i18n';
-import { IframeNodeBody } from '../../node-bodies/IframeNodeBody';
+import { IframeNodeBody } from '../../../modules/canvas/iframe';
 import { ReferencePreviewPanel } from './ReferencePreviews';
 import type { UrlReferenceEntry } from './types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('../../node-bodies/IframeNodeBody', () => ({
+vi.mock('../../../modules/canvas/iframe', () => ({
   IframeNodeBody: vi.fn(() => <div data-testid="iframe-preview" />),
 }));
 

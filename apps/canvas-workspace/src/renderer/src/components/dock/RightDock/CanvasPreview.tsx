@@ -3,14 +3,11 @@ import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode } fro
 import { useI18n } from '../../../i18n';
 import { useCanvas } from '../../../hooks/useCanvas';
 import { useCanvasFit } from '../../../hooks/useCanvasFit';
-import { useCanvasVisibility } from '../../canvas/Canvas/hooks/useCanvasVisibility';
-import { useCanvasRenderOrder } from '../../canvas/Canvas/hooks/useCanvasRenderOrder';
-import { CanvasSurface } from '../../canvas/Canvas/CanvasSurface';
-import { Canvas } from '../../canvas/Canvas';
+import { Canvas, CanvasSurface } from '../../../modules/canvas/surface';
+import { useCanvasRenderOrder, useCanvasVisibility } from '../../../modules/canvas/projection';
 // The reused surface pieces (.canvas-transform / .canvas-grid / node chrome
 // positioning) are styled by the Canvas stylesheet. Import it explicitly —
 // relying on the main Canvas having loaded it would be an implicit coupling.
-import '../../canvas/Canvas/index.css';
 import {
   PREVIEW_FOCUS_NODE_EVENT,
   consumePendingPreviewFocus,

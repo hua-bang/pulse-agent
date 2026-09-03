@@ -54,16 +54,13 @@ vi.mock('../../../../hooks/useCanvasFit', () => ({
   }),
 }));
 
-vi.mock('../../../canvas/Canvas/CanvasSurface', () => ({
+vi.mock('../../../../modules/canvas/surface', () => ({
   CanvasSurface: (props: { nodes?: CanvasNode[]; edges?: CanvasEdge[]; readOnly?: boolean }) => {
     rendered.surfaceNodes = props.nodes;
     rendered.surfaceEdges = props.edges;
     rendered.surfaceReadOnly = props.readOnly;
     return <div data-testid="canvas-surface" />;
   },
-}));
-
-vi.mock('../../../canvas/Canvas', () => ({
   Canvas: (props: {
     isActive?: boolean;
     keyboardActive?: boolean;

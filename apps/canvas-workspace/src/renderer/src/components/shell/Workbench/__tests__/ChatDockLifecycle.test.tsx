@@ -15,7 +15,7 @@ import { AppShellProvider } from '../../../shell/AppShellProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('../../../canvas/Canvas', () => ({
+vi.mock('../../../../modules/canvas/surface', () => ({
   Canvas: ({
     chatPanelOpen,
     onChatToggle,

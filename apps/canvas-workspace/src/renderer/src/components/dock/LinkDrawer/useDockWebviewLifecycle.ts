@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EmbeddedWebviewTag } from '../EmbeddedBrowser/types';
-import type { WebviewRestoreTarget } from '../../node-bodies/IframeNodeBody/useWebviewDiscard';
+import type { WebviewRestoreTarget } from '../../../modules/canvas/webview';
 
 const BACKGROUND_FRAME_RATE = 1;
 const ACTIVE_FRAME_RATE = 60;

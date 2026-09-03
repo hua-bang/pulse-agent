@@ -3,7 +3,7 @@ import { act, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DockShortcutRequest } from '../../../../../../shared/dock-shortcuts';
-import { registerMountedWebviewIdentity } from '../../../node-bodies/IframeNodeBody/webview-identities';
+import { registerMountedWebviewIdentity } from '../../../../modules/canvas/webview';
 import { FIND_IN_DOCK_TAB_EVENT } from '../dock-browser-commands';
 import { DockStore } from '../dock-store';
 import { dockTabElementId } from '../dock-tab-ids';

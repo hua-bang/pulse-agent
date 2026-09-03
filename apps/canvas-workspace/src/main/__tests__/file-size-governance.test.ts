@@ -21,7 +21,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/context-builder.ts': 856,
   'src/renderer/src/modules/workspace-nodes/internal/GraphPage.tsx': 598,
   'src/renderer/src/modules/settings/internal/settings-config/McpManager.tsx': 748,
-  'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
+  'src/renderer/src/modules/canvas/components/canvas/Canvas/index.tsx': 757,
   // 777→816 (2026-09-03, drift recorded): master changes #987–#988
   // expanded then partially reduced Feishu answer-card/run rendering without
   // updating this manually maintained baseline. Must-not-grow resumes at 816.

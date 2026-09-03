@@ -36,10 +36,10 @@ pathRules:
   - name: canvas-document
     paths:
       - src/renderer/src/modules/canvas/**
-      - src/renderer/src/components/canvas/Canvas/**
+      - src/renderer/src/modules/canvas/components/canvas/Canvas/**
     quick:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/canvas/document src/renderer/src/components/canvas/Canvas
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/canvas/document src/renderer/src/modules/canvas/components/canvas/Canvas
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
@@ -127,9 +127,9 @@ pathRules:
       - src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts
       - src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.ts
       - src/renderer/src/modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts
-      - src/renderer/src/components/node-bodies/TerminalNodeBody/index.tsx
+      - src/renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx
       - src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx
-      - src/renderer/src/components/node-bodies/NodeMentionPicker/index.tsx
+      - src/renderer/src/modules/node-mentions/components/NodeMentionPicker/index.tsx
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
     required:
@@ -241,10 +241,10 @@ pathRules:
       - src/renderer/src/hooks/useNoteKeyboard.ts
       - src/renderer/src/hooks/useCanvasSearch.ts
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/components/node-bodies/FileNodeBody
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/components/node-bodies/FileNodeBody
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody
 
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.

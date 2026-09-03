@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { CanvasNode } from '../../../types';
-import { CanvasNodeView } from '../../canvas/CanvasNodeView';
+import { CanvasNodeView } from '../../../modules/canvas/surface';
 import { Button } from '../../ui';
-import { IframeNodeBody } from '../../node-bodies/IframeNodeBody';
+import { IframeNodeBody } from '../../../modules/canvas/iframe';
 import { useI18n } from '../../../i18n';
 import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
 import { useRightDock } from '../RightDock';

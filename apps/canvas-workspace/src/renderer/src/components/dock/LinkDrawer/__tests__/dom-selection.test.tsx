@@ -25,8 +25,9 @@ vi.mock('../../EmbeddedBrowser/useEmbeddedBrowser', () => ({
   }),
 }));
 
-vi.mock('../../../node-bodies/IframeNodeBody/useWebviewRegistration', () => ({
+vi.mock('../../../../modules/canvas/webview', () => ({
   useWebviewRegistration: vi.fn(),
+  useWebviewRestore: vi.fn(),
 }));
 
 let root: Root | null = null;

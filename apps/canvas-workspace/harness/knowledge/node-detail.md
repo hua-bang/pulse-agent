@@ -122,9 +122,9 @@ Policy per type:
 The canvas's own `onUpdate` contract never rejects. Every node body is
 written against that non-rejecting contract and calls `onUpdate`
 fire-and-forget — confirmed in `TextNodeBody`, `MindmapNodeBody`, and
-`IframeNodeBody` (`src/renderer/src/components/node-bodies/TextNodeBody/index.tsx`,
-`src/renderer/src/components/node-bodies/MindmapNodeBody/index.tsx`,
-`src/renderer/src/components/node-bodies/IframeNodeBody/index.tsx`). If
+`IframeNodeBody` (`src/renderer/src/modules/canvas/components/node-bodies/TextNodeBody/index.tsx`,
+`src/renderer/src/modules/canvas/components/node-bodies/MindmapNodeBody/index.tsx`,
+`src/renderer/src/modules/canvas/components/node-bodies/IframeNodeBody/index.tsx`). If
 `NodeCanvasPreview`'s adapter rejected on a failed record write, that
 rejection reached nobody and surfaced only as an unhandled promise
 rejection — worse, the pre-fix behavior of re-reading the stored record on
@@ -145,8 +145,8 @@ The fix, in `commitPatch` / `retryFailedSave` / `discardFailedSave`
   not just the last keystroke.
 
 `FileNodeBody`'s own `.note-save-status` UI
-(`src/renderer/src/components/node-bodies/FileNodeBody/index.tsx`,
-`src/renderer/src/components/node-bodies/FileNodeBody/index.css`) reports *file* writes
+(`src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody/index.tsx`,
+`src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody/index.css`) reports *file* writes
 — a disjoint failure from the *record* write above, so both can be visible
 at once without one hiding the other.
 

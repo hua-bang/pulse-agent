@@ -81,7 +81,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Add a capability spanning main + preload + renderer | `harness/skills/add-ipc-surface/SKILL.md` (ordered procedure — contract placement, streaming pattern, bootstrap wire, lockstep rule) |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
-| Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure — plugin is the default path, host type is the exception); background: `harness/knowledge/plugin-node-mf2.md` (plugin path), `src/shared/canvas.ts`, `src/renderer/src/utils/nodeFactory.ts`, `src/renderer/src/components/canvas/CanvasNodeView/` (host-type touch points) |
+| Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure — plugin is the default path, host type is the exception); background: `harness/knowledge/plugin-node-mf2.md` (plugin path), `src/shared/canvas.ts`, `src/renderer/src/utils/nodeFactory.ts`, `src/renderer/src/modules/canvas/components/canvas/CanvasNodeView/` (host-type touch points) |
 | Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
 | Visual-regression baseline for ui/ pieces | `harness/tools/ui-showcase/README.md`; run `pnpm run visual` / `pnpm run visual:update` |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
@@ -232,7 +232,7 @@ pnpm --filter canvas-workspace package:linux
   APIs.
 - `src/renderer/src/App.tsx`: top-level renderer routes, shell, settings, and
   plugin route/nav integration.
-- `src/renderer/src/components/canvas/Canvas/`: canvas surface and interaction wiring.
+- `src/renderer/src/modules/canvas/components/canvas/Canvas/`: canvas surface and interaction wiring.
 - `src/renderer/src/components/shell/Workbench/`: mounted workspace state and chat
   portal ownership.
 - `src/renderer/src/components/dock/RightDock/`: tabbed right dock for chat and

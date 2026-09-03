@@ -1,5 +1,8 @@
 import type { CanvasNode, KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
 import type { I18nKey } from '../../../i18n';
+import { isKnowledgeNodeType } from '../../../shared/knowledgeNodes';
+
+export { isKnowledgeNodeType } from '../../../shared/knowledgeNodes';
 
 export const NODE_TYPE_LABEL_KEYS: Record<string, I18nKey> = {
   file: 'workspaceNodes.type.file',
@@ -57,14 +60,6 @@ export function getNodeTypeLabel(
 }
 
 export type KnowledgeNodeType = Extract<CanvasNode['type'], 'text' | 'file' | 'iframe' | 'image' | 'mindmap'>;
-
-export function isKnowledgeNodeType(type: string | undefined): type is KnowledgeNodeType {
-  return type === 'text'
-    || type === 'file'
-    || type === 'iframe'
-    || type === 'image'
-    || type === 'mindmap';
-}
 
 export function getNodeTags(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string[] {
   if (!node) return [];

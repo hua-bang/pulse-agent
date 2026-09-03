@@ -255,7 +255,7 @@ Primary regression suites live in:
 - `src/main/app/__tests__/link-policy.test.ts`
 - `src/main/app/__tests__/webview-shortcuts.test.ts`
 - `src/main/webview/__tests__/registry.test.ts`
-- `src/renderer/src/components/node-bodies/IframeNodeBody/useWebviewRegistration.test.tsx`
+- `src/renderer/src/modules/canvas/components/node-bodies/IframeNodeBody/useWebviewRegistration.test.tsx`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-browser-commands.test.ts`
 - `src/renderer/src/components/dock/RightDock/__tests__/dock-link-opens.test.ts`

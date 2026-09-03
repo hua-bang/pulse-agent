@@ -18,7 +18,7 @@ import {
 import { isImeComposing } from '../../../utils/ime';
 import { applyDockBrowserCommand, focusActiveDockTarget } from './dock-browser-commands';
 import { CHAT_TAB_ID } from './dock-tab-ids';
-import { mountedWebviewIdentityForWebContents } from '../../node-bodies/IframeNodeBody/webview-identities';
+import { mountedWebviewIdentityForWebContents } from '../../../modules/canvas/webview';
 import type { DockStore } from './dock-store';
 
 const isEditableEventTarget = (target: EventTarget | null): boolean => (

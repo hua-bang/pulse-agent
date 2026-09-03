@@ -19,8 +19,7 @@ import { useAddressBar } from './useAddressBar';
 import { useFindInPage } from './useFindInPage';
 import { usePageContextMenu } from './usePageContextMenu';
 import { focusDockPageOrRequest, useDockPageFocus } from './useDockPageFocus';
-import { useWebviewRegistration } from '../../node-bodies/IframeNodeBody/useWebviewRegistration';
-import { useWebviewRestore } from '../../node-bodies/IframeNodeBody/useWebviewDiscard';
+import { useWebviewRegistration, useWebviewRestore } from '../../../modules/canvas/webview';
 import {
   useDockWebviewBackgroundLifecycle,
   useDockWebviewDiscard,
@@ -31,7 +30,7 @@ import {
   FOCUS_DOCK_ADDRESS_EVENT,
   RELOAD_DOCK_TAB_EVENT,
 } from '../RightDock/dock-browser-commands';
-import { pickFaviconUrl } from "../../node-bodies/IframeNodeBody/utils";
+import { pickFaviconUrl } from "../../../modules/canvas/webview";
 import { useAppShell } from '../../shell/AppShellProvider';
 import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../types';
 import { ExternalLinkIcon, PlusIcon } from "../../icons";

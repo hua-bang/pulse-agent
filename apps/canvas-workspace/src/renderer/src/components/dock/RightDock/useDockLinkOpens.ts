@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { LinkOpenRequest } from '../../../../../shared/link-open';
-import { mountedWebviewIdentityForWebContents } from '../../node-bodies/IframeNodeBody/webview-identities';
+import { mountedWebviewIdentityForWebContents } from '../../../modules/canvas/webview';
 import { focusActiveDockTarget } from './dock-browser-commands';
 import type { DockStore } from './dock-store';
 
