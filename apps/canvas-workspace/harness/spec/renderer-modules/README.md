@@ -83,7 +83,7 @@ Current pressure points, measured on 2026-09-03:
 |---|---|---|
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
 | Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~938 lines plus lifecycle, Codex-capture, and mirror-terminal modules | owner PTY spawning/persistence and form state remain interleaved in the React adapter |
-| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` ~1628 lines; public model ~332 lines; controller ~190 lines; TaskDagCanvas is owner-local | task/agent/gate/artifact detail visuals remain interleaved; polling, IPC actions, snapshot projection, and DAG layout now have owned interfaces |
+| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` ~1583 lines; public model ~332 lines; controller ~190 lines; TaskDagCanvas and HumanGateCard are owner-local | task/agent/artifact detail visuals remain interleaved; polling, IPC actions, snapshot projection, DAG layout, and gate UI now have owned interfaces |
 | Workspace graph | `modules/workspace-nodes/internal/GraphPage.tsx` ~598 lines plus `model/graphModel.ts` | ForceGraph drawing and interaction remain in the view; projection/search/highlight now have a pure tested interface |
 | Settings | `modules/settings/internal/settings-config/` still shares one stylesheet; McpManager is ~748 lines | ownership is now correct, but each manager still combines bridge mutation, draft state, and visual implementation; no generic ConfigManager was introduced |
 

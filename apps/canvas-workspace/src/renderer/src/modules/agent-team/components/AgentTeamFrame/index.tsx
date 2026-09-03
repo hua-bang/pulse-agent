@@ -9,6 +9,7 @@ import {
 } from '../../model/workspaceModel';
 import { AgentTypeSelect } from './AgentTypeSelect';
 import { TaskDagCanvas } from '../TaskDagCanvas';
+import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { NodeMentionPicker } from '../../../node-mentions';
 import { SegmentedControl } from '../../../../components/ui';
@@ -105,14 +106,6 @@ const artifactFilePath = (artifact: AgentTeamArtifactRecord): string | undefined
     }
   }
   return uri.startsWith('/') ? uri : undefined;
-};
-
-const hasConcreteHumanGatePrompt = (prompt: string): boolean => {
-  const normalized = prompt.trim().replace(/\s+/g, ' ');
-  if (!normalized) return false;
-  if (/^agent requested human input\.?$/i.test(normalized)) return false;
-  if (/^human input requested\.?$/i.test(normalized)) return false;
-  return true;
 };
 
 const isHumanFacingGate = (gate: AgentTeamHumanGateRecord): boolean =>
@@ -673,59 +666,21 @@ export const AgentTeamFrame = ({
     );
   };
 
-  const renderHumanGate = (
-    gate: AgentTeamHumanGateRecord,
-    options: { compact?: boolean } = {},
-  ) => {
-    const gateAgent = gate.agentId ? agentById.get(gate.agentId) : undefined;
-    const gateTask = gate.taskId ? taskById.get(gate.taskId) : undefined;
-    const gateGraphTask = gate.taskId ? graphTaskByKey.get(gate.taskId) : undefined;
-    const hasPrompt = hasConcreteHumanGatePrompt(gate.prompt);
-    const displayedPrompt = hasPrompt
-      ? gate.prompt
-      : 'This agent asked for help but did not include a concrete question.';
-    const reason = gate.reason?.trim();
-    const showReason = !!reason && reason !== gate.prompt && !/^agent requested human input\.?$/i.test(reason);
-
-    return (
-      <div className={`agent-team-human-gate${options.compact ? ' agent-team-human-gate--compact' : ''}${hasPrompt ? '' : ' agent-team-human-gate--missing-prompt'}`}>
-        <div className="agent-team-human-gate__copy">
-          <span className="agent-team-detail__section-title">Needs input</span>
-          <strong>{displayedPrompt}</strong>
-          <span className="agent-team-human-gate__meta">
-            {gateAgent ? `From ${gateAgent.name}` : 'From teammate'}
-            {gateTask ? ` · Task: ${gateTask.title}` : ''}
-            {showReason ? ` · ${reason}` : ''}
-          </span>
-          {!hasPrompt && (
-            <span className="agent-team-human-gate__hint">
-              No actionable question was provided. Ask the owner to clarify or send a team command with the missing decision.
-            </span>
-          )}
-        </div>
-        <div className="agent-team-human-gate__actions">
-          {gateGraphTask && selectedTask?.id !== gate.taskId && (
-            <button type="button" onClick={() => selectGraphTask(gateGraphTask)}>
-              View task
-            </button>
-          )}
-          <input
-            value={gateAnswers[gate.id] ?? ''}
-            onChange={(event) => setGateAnswers((current) => ({ ...current, [gate.id]: event.target.value }))}
-            placeholder={hasPrompt ? 'Answer this question' : 'Optional clarification'}
-            disabled={readOnly}
-          />
-          <button
-            type="button"
-            onClick={() => void handleAnswerGate(gate.id)}
-            disabled={readOnly || !gateAnswers[gate.id]?.trim()}
-          >
-            Answer
-          </button>
-        </div>
-      </div>
-    );
-  };
+  const renderHumanGate = (gate: AgentTeamHumanGateRecord, options: { compact?: boolean } = {}) => (
+    <HumanGateCard
+      gate={gate}
+      agent={gate.agentId ? agentById.get(gate.agentId) : undefined}
+      task={gate.taskId ? taskById.get(gate.taskId) : undefined}
+      graphTask={gate.taskId ? graphTaskByKey.get(gate.taskId) : undefined}
+      selectedTaskId={selectedTask?.id}
+      answer={gateAnswers[gate.id] ?? ''}
+      compact={options.compact}
+      readOnly={readOnly}
+      onAnswerChange={(answer) => setGateAnswers((current) => ({ ...current, [gate.id]: answer }))}
+      onAnswer={() => void handleAnswerGate(gate.id)}
+      onViewTask={selectGraphTask}
+    />
+  );
 
   const commandMode = phase === 'briefing'
     ? 'brief'
