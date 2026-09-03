@@ -51,7 +51,7 @@ vi.mock('../../../hooks/useNoteOutlineEscape', () => ({
   useNoteOutlineEscape: vi.fn(),
 }));
 
-vi.mock('../../note-editor/FileNodeEditorSurface', () => ({
+vi.mock('../../../modules/note-editor/surface', () => ({
   FileNodeEditorSurface: () => <div data-testid="editor-surface" />,
 }));
 

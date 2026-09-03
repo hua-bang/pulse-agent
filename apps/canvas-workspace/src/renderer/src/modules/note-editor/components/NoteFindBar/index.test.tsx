@@ -4,8 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NoteSearchExtension, setNoteSearch } from '../../../editor/noteSearchExtension';
-import { I18nProvider } from '../../../i18n';
+import { NoteSearchExtension, setNoteSearch } from '../../runtime/noteSearchExtension';
+import { I18nProvider } from '../../../../i18n';
 import { NoteFindBar } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

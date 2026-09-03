@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n';
+import { I18nProvider } from '../../../../i18n';
 import { NoteBlockHandle } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

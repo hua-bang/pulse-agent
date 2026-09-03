@@ -21,9 +21,9 @@ import {
   parseSlashQuery,
   type SlashCmd,
   type SlashCmdContext,
-} from '../editor/slashCommands';
-import { NoteSearchExtension } from '../editor/noteSearchExtension';
-import { Callout } from '../editor/calloutNode';
+} from '../modules/note-editor/commands';
+import { NoteSearchExtension } from '../modules/note-editor/search';
+import { Callout } from '../modules/note-editor/extensions';
 import { isImeComposing } from '../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
 import { useNoteInteractionController } from './useNoteInteractionController';

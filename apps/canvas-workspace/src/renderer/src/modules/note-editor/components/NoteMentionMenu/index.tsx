@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import './index.css';
-import type { CanvasNode } from '../../../types';
-import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../utils/nodeTypeI18n';
-import { useI18n } from '../../../i18n';
-import { Popover } from '../../ui';
+import type { CanvasNode } from '../../../../types';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../utils/nodeTypeI18n';
+import { useI18n } from '../../../../i18n';
+import { Popover } from '../../../../components/ui';
 
 interface Props {
   panelId: string;

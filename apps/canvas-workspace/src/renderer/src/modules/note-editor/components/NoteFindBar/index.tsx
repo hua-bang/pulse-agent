@@ -10,9 +10,9 @@ import {
   replaceCurrentMatch,
   setNoteSearch,
   type NoteSearchOptions,
-} from '../../../editor/noteSearchExtension';
-import { useI18n } from '../../../i18n';
-import { isImeComposing } from '../../../utils/ime';
+} from '../../runtime/noteSearchExtension';
+import { useI18n } from '../../../../i18n';
+import { isImeComposing } from '../../../../utils/ime';
 
 interface Props {
   editor: Editor;

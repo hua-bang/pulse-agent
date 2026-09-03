@@ -6,8 +6,8 @@ import Underline from '@tiptap/extension-underline';
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setCanvasMotion } from '../../../hooks/canvasMotion';
-import { I18nProvider } from '../../../i18n';
+import { setCanvasMotion } from '../../../../hooks/canvasMotion';
+import { I18nProvider } from '../../../../i18n';
 import { FileNodeBubbleMenu } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

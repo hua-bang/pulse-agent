@@ -33,7 +33,8 @@ src/renderer/src/
 │   ├── scheduled/     # scheduled routes, run notifications, Chat integration
 │   ├── artifacts/     # chat renderers + independently lazy dock tab
 │   ├── plugin-market/ # listing state, route, dialogs, brand assets
-│   └── skills/        # lazy skill library/editor route
+│   ├── skills/        # lazy skill library/editor route
+│   └── note-editor/   # editor runtime/extensions + owner-local visual modules
 ├── components/        # remaining product visuals + shared UI mixed together
 ├── hooks/             # generic and product-specific hooks mixed together
 ├── types/             # cross-renderer contracts

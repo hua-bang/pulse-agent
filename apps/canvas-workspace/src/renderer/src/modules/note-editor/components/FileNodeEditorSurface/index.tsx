@@ -6,11 +6,11 @@ import {
   type RefObject,
 } from 'react';
 import { EditorContent, type Editor } from '@tiptap/react';
-import type { SlashCmd } from '../../../editor/slashCommands';
-import { filterCmds } from '../../../editor/slashCommands';
-import { insertSlashBlockAfter } from '../../../editor/noteBlockCommands';
-import type { NoteInteractionController } from '../../../hooks/useNoteInteractionController';
-import type { CanvasNode } from '../../../types';
+import type { SlashCmd } from '../../runtime/slashCommands';
+import { filterCmds } from '../../runtime/slashCommands';
+import { insertSlashBlockAfter } from '../../runtime/noteBlockCommands';
+import type { NoteInteractionController } from '../../../../hooks/useNoteInteractionController';
+import type { CanvasNode } from '../../../../types';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { NoteBlockHandle } from '../NoteBlockHandle';
 import { NoteFindBar } from '../NoteFindBar';

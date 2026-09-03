@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/react';
-import type { I18nKey } from '../i18n';
+import type { I18nKey } from '../../../i18n';
 
 export type SlashCommandGroupId = 'basic' | 'lists' | 'media' | 'advanced' | 'inline';
 

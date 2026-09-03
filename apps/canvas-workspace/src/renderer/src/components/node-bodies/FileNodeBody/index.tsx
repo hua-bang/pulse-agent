@@ -6,7 +6,7 @@ import { useFileNodeEditorRegistry } from '../../../hooks/useFileNodeEditorRegis
 import { useNoteMentions } from '../../../hooks/useNoteMentions';
 import { useNoteOutlineEscape } from '../../../hooks/useNoteOutlineEscape';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../../utils/openNodeBridge';
-import { FileNodeEditorSurface } from '../../note-editor/FileNodeEditorSurface';
+import { FileNodeEditorSurface } from '../../../modules/note-editor/surface';
 import { SpinnerIcon } from '../../icons';
 import { useRightDock } from '../../dock/RightDock';
 import { Button } from '../../ui';

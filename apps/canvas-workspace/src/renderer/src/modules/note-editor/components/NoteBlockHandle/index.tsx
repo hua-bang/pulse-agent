@@ -8,16 +8,16 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import type { Editor } from '@tiptap/react';
-import { useI18n } from '../../../i18n';
+import { useI18n } from '../../../../i18n';
 import {
   deleteNoteBlock,
   duplicateCurrentNoteBlock,
   insertSlashBlockAfter,
   moveCurrentNoteBlock,
   moveNoteBlockToIndex,
-} from '../../../editor/noteBlockCommands';
-import { formatShortcut } from '../../../utils/keyboardShortcut';
-import { Button, Popover } from '../../ui';
+} from '../../runtime/noteBlockCommands';
+import { formatShortcut } from '../../../../utils/keyboardShortcut';
+import { Button, Popover } from '../../../../components/ui';
 import './index.css';
 
 interface BlockTarget {

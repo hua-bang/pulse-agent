@@ -18,13 +18,13 @@ import {
   TextUnderline,
 } from '@phosphor-icons/react';
 import type { Editor } from '@tiptap/react';
-import { ALL_SLASH_COMMANDS, type SlashCmd } from '../../../editor/slashCommands';
-import type { NoteBubbleState } from '../../../hooks/useNoteInteractionController';
-import { subscribeCanvasMotion } from '../../../hooks/canvasMotion';
-import { useEscapeClose } from '../../../hooks/useEscapeClose';
-import { useI18n } from '../../../i18n';
+import { ALL_SLASH_COMMANDS, type SlashCmd } from '../../runtime/slashCommands';
+import type { NoteBubbleState } from '../../../../hooks/useNoteInteractionController';
+import { subscribeCanvasMotion } from '../../../../hooks/canvasMotion';
+import { useEscapeClose } from '../../../../hooks/useEscapeClose';
+import { useI18n } from '../../../../i18n';
 import { EditorCommandIcon } from '../EditorCommandIcon';
-import { Button, Popover, Portal } from '../../ui';
+import { Button, Popover, Portal } from '../../../../components/ui';
 import './index.css';
 
 interface Props {

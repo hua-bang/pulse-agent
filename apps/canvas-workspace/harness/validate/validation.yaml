@@ -222,6 +222,18 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/chat/components/__tests__/ChatRichToolResults.test.ts src/main/artifacts
 
+  - name: note-editor
+    paths:
+      - src/renderer/src/modules/note-editor/**
+      - src/renderer/src/hooks/useFileNodeEditor.ts
+      - src/renderer/src/hooks/useNoteKeyboard.ts
+      - src/renderer/src/hooks/useCanvasSearch.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/components/node-bodies/FileNodeBody
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/components/node-bodies/FileNodeBody
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

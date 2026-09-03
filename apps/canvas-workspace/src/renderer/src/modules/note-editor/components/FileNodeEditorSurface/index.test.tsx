@@ -4,9 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NoteInteractionController } from '../../../hooks/useNoteInteractionController';
-import { I18nProvider } from '../../../i18n';
-import type { CanvasNode } from '../../../types';
+import type { NoteInteractionController } from '../../../../hooks/useNoteInteractionController';
+import { I18nProvider } from '../../../../i18n';
+import type { CanvasNode } from '../../../../types';
 import { FileNodeEditorSurface } from '.';
 
 vi.mock('@tiptap/react', async (importOriginal) => {

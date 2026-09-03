@@ -3,10 +3,10 @@ import { MagnifyingGlass } from '@phosphor-icons/react';
 import {
   groupSlashCommands,
   type SlashCmd,
-} from '../../../editor/slashCommands';
-import { useI18n } from '../../../i18n';
+} from '../../runtime/slashCommands';
+import { useI18n } from '../../../../i18n';
 import { EditorCommandIcon } from '../EditorCommandIcon';
-import { Button, Popover } from '../../ui';
+import { Button, Popover } from '../../../../components/ui';
 import './index.css';
 
 interface Props {

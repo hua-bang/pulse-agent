@@ -18,7 +18,7 @@ import {
   TextT,
   TextUnderline,
 } from '@phosphor-icons/react';
-import type { SlashCommandIconId } from '../../../editor/slashCommands';
+import type { SlashCommandIconId } from '../../runtime/slashCommands';
 
 const COMMAND_ICONS = {
   text: TextT,

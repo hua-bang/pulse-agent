@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useI18n } from '../../../i18n';
-import { isImeComposing } from '../../../utils/ime';
-import { Button } from '../../ui/Button';
+import { useI18n } from '../../../../i18n';
+import { isImeComposing } from '../../../../utils/ime';
+import { Button } from '../../../../components/ui/Button';
 import './index.css';
 
 interface Props {
