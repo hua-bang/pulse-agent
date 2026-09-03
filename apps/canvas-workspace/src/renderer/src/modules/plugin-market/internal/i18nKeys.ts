@@ -1,4 +1,4 @@
-import type { I18nKey } from '../../i18n';
+import type { I18nKey } from '../../../i18n';
 
 const key = (value: string): I18nKey => value as I18nKey;
 

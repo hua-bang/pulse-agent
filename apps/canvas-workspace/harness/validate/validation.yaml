@@ -55,10 +55,10 @@ pathRules:
       - src/main/settings/canvas-plugins-config.ts
       - src/shared/plugin-market.ts
       - src/preload/bridge/plugin-market.ts
-      - src/renderer/src/views/PluginMarket/**
+      - src/renderer/src/modules/plugin-market/**
       - src/renderer/src/views/SkillsLibrary/**
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/views/PluginMarket
+      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/modules/plugin-market
       - pnpm --filter canvas-workspace typecheck
     required:
       - pnpm --filter canvas-workspace typecheck

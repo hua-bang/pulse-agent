@@ -1,4 +1,4 @@
-import { PLUGIN_BRAND_IMAGES } from '../../../../views/PluginMarket/pluginBrandAssets';
+import { PLUGIN_BRAND_IMAGES } from '../../../plugin-market/assets';
 
 const normalizeBrand = (value: string | undefined): string => (
   value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') ?? ''

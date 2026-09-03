@@ -5,12 +5,12 @@ import type {
   PluginMarketMutationResult,
   PluginMarketSnapshot,
   PluginMarketSource,
-} from '../../../../shared/plugin-market';
+} from '../../../../../shared/plugin-market';
 import {
   specsFromCanvasPluginsStatus,
   syncFederatedRendererPlugins,
-} from '../../../../plugins/renderer';
-import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../constants/canvasPlugins';
+} from '../../../../../plugins/renderer';
+import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../../constants/canvasPlugins';
 
 type CanvasWindow = Window & {
   canvasWorkspace?: Window['canvasWorkspace'] & { pluginMarket?: PluginMarketApi };

@@ -51,7 +51,7 @@ describe('renderer typography system', () => {
   it('reserves 600 weight for page titles and the product brand', () => {
     const allowed = new Set([
       'components/shell/Sidebar/index.css',
-      'views/PluginMarket/index.css',
+      'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
       'views/SkillsLibrary/index.css',
       'views/WorkspaceNodes/index.css',
@@ -68,7 +68,7 @@ describe('renderer typography system', () => {
   it.each([
     'views/SkillsLibrary/index.css',
     'modules/scheduled/internal/index.css',
-    'views/PluginMarket/index.css',
+    'modules/plugin-market/internal/index.css',
     'views/WorkspaceNodes/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {
     const css = readFileSync(join(rendererRoot, relativePath), 'utf8');

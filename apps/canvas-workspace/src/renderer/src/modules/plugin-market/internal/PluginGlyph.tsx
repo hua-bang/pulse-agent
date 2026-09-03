@@ -21,7 +21,7 @@ import {
   Wrench,
   type Icon,
 } from '@phosphor-icons/react';
-import type { PluginMarketListing } from '../../../../shared/plugin-market';
+import type { PluginMarketListing } from '../../../../../shared/plugin-market';
 import { normalizePluginIconKey, PLUGIN_BRAND_IMAGES } from './pluginBrandAssets';
 
 const ICONS: Record<string, Icon> = {

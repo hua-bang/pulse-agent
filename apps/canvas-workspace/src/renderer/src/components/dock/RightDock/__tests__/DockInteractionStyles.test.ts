@@ -5,7 +5,7 @@ const dockCss = readFileSync(new URL('../index.css', import.meta.url), 'utf8');
 const appCss = readFileSync(new URL('../../../../App.css', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../../../../App.tsx', import.meta.url), 'utf8');
 const pluginMarketListCss = readFileSync(
-  new URL('../../../../views/PluginMarket/list.css', import.meta.url),
+  new URL('../../../../modules/plugin-market/internal/list.css', import.meta.url),
   'utf8',
 );
 const modalCss = readFileSync(
@@ -13,7 +13,7 @@ const modalCss = readFileSync(
   'utf8',
 );
 const pluginDetailCss = readFileSync(
-  new URL('../../../../views/PluginMarket/modal.css', import.meta.url),
+  new URL('../../../../modules/plugin-market/internal/modal.css', import.meta.url),
   'utf8',
 );
 

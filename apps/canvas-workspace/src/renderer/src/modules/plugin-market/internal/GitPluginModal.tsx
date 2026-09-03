@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { GitBranch, X } from '@phosphor-icons/react';
-import type { PluginMarketSource } from '../../../../shared/plugin-market';
-import { Button, Modal, TextField } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import type { PluginMarketSource } from '../../../../../shared/plugin-market';
+import { Button, Modal, TextField } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
 import { pluginMarketKeys as keys } from './i18nKeys';
 
 interface Props {

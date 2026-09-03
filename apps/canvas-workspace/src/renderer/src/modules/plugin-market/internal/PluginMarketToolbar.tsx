@@ -9,9 +9,9 @@ import {
   Plus,
   ArrowsClockwise,
 } from '@phosphor-icons/react';
-import { Button, DropdownShell, SegmentedControl } from '../../components/ui';
-import { useI18n } from '../../i18n';
-import { SpinnerIcon } from '../../components/icons';
+import { Button, DropdownShell, SegmentedControl } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
+import { SpinnerIcon } from '../../../components/icons';
 import { pluginMarketKeys as keys } from './i18nKeys';
 
 interface ToolbarProps {

@@ -8,9 +8,9 @@ import {
   Sparkle,
   X,
 } from '@phosphor-icons/react';
-import type { PluginMarketListing } from '../../../../shared/plugin-market';
-import { Button, Modal } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import type { PluginMarketListing } from '../../../../../shared/plugin-market';
+import { Button, Modal } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
 import { PluginGlyph } from './PluginGlyph';
 import { pluginMarketKeys as keys } from './i18nKeys';
 

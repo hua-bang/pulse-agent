@@ -1,7 +1,7 @@
 import { MagnifyingGlass, PuzzlePiece, WarningCircle } from '@phosphor-icons/react';
-import { Button, EmptyState } from '../../components/ui';
-import { SpinnerIcon } from '../../components/icons';
-import { useI18n } from '../../i18n';
+import { Button, EmptyState } from '../../../components/ui';
+import { SpinnerIcon } from '../../../components/icons';
+import { useI18n } from '../../../i18n';
 import { pluginMarketKeys as keys } from './i18nKeys';
 
 export const PluginMarketLoading = () => {

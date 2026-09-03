@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { WarningCircle, X } from '@phosphor-icons/react';
-import type { PluginMarketListing } from '../../../../shared/plugin-market';
-import { Button, TextField } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import type { PluginMarketListing } from '../../../../../shared/plugin-market';
+import { Button, TextField } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
 import { GitPluginModal } from './GitPluginModal';
 import { PluginDetailModal } from './PluginDetailModal';
 import { PluginGlyph } from './PluginGlyph';

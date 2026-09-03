@@ -6,13 +6,13 @@ import type {
   PluginMarketApi,
   PluginMarketListing,
   PluginMarketSnapshot,
-} from '../../../../shared/plugin-market';
-import type { ShellApi } from '../../types/shell';
+} from '../../../../../shared/plugin-market';
+import type { ShellApi } from '../../../types/shell';
 import { PluginMarketRouteView } from './PluginMarketRouteView';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('../../i18n', () => ({
+vi.mock('../../../i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
       if (params?.name) return `${key}:${params.name}`;
