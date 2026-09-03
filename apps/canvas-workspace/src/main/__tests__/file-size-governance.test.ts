@@ -19,7 +19,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/canvas-agent.ts': 1158,
   'src/main/canvas/storage.ts': 1156,
   'src/main/agent/context-builder.ts': 856,
-  'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 812,
+  'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 598,
   'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,
   'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
   // 777→816 (2026-09-03, drift recorded): master changes #987–#988

@@ -167,6 +167,18 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/agent-team src/main/agent-teams
 
+  - name: workspace-nodes
+    paths:
+      - src/renderer/src/modules/workspace-nodes/**
+      - src/renderer/src/views/WorkspaceNodes/**
+      - src/main/workspace-nodes/**
+      - src/shared/canvas.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/renderer/src/views/WorkspaceNodes
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/renderer/src/views/WorkspaceNodes src/main/workspace-nodes
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

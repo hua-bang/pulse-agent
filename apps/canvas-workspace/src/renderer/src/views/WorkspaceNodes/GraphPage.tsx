@@ -14,13 +14,23 @@ import ForceGraph2D, {
   type NodeObject,
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { KnowledgeNodeSelection, WorkspaceNodeListItem } from '../../types';
+import type { KnowledgeNodeSelection } from '../../types';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
-import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
+import { getNodeTitle, getNodeWorkspaceId } from './utils';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { DropdownShell } from '../../components/ui';
 import { useRightDock } from '../../components/dock/RightDock';
+import {
+  buildWorkspaceGraph,
+  getGraphId,
+  getWorkspaceGraphHighlight,
+  nodeGraphId,
+  searchWorkspaceGraph,
+  type WorkspaceGraphLink as GraphLink,
+  type WorkspaceGraphNode as GraphNode,
+  type WorkspaceGraphSearchResult as GraphSearchResult,
+} from '../../modules/workspace-nodes';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -28,28 +38,7 @@ interface GraphPageProps {
   onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
 }
 
-type GraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
-type GraphLinkKind = 'tag' | 'link' | 'workspace';
 type LayoutPreset = 'compact' | 'normal' | 'loose';
-
-interface GraphNode {
-  id: string;
-  kind: GraphNodeKind;
-  label: string;
-  workspaceId?: string;
-  nodeId?: string;
-  source?: WorkspaceNodeListItem;
-}
-
-interface GraphLink {
-  source: string;
-  target: string;
-  kind: GraphLinkKind;
-  relation?: string;
-}
-
-/** A graph search hit — either a knowledge node or a tag node currently in the graph. */
-type GraphSearchResult = { kind: 'node'; node: WorkspaceNodeListItem } | { kind: 'tag'; graphId: string; label: string };
 
 const GRAPH_COLORS = {
   node: '#2383e2',
@@ -66,22 +55,8 @@ const GRAPH_COLORS = {
   labelBg: 'rgba(255, 255, 255, 0.92)',
 };
 
-function workspaceGraphId(workspaceId: string): string {
-  return `ws:${workspaceId}`;
-}
-
-function getGraphId(value: string | number | NodeObject<GraphNode> | null | undefined): string {
-  if (value === undefined || value === null) return '';
-  if (typeof value === 'object') return String(value.id ?? '');
-  return String(value);
-}
-
 function linkKey(link: LinkObject<GraphNode, GraphLink>): string {
   return `${getGraphId(link.source)}->${getGraphId(link.target)}`;
-}
-
-function nodeGraphId(workspaceId: string, nodeId: string): string {
-  return `${workspaceId}:${nodeId}`;
 }
 
 function selectedGraphId(selectedNode?: KnowledgeNodeSelection | null): string | null {
@@ -96,98 +71,6 @@ function isNodeGraphNode(node: NodeObject<GraphNode>): node is NodeObject<GraphN
   return node.kind === 'node' && Boolean(node.workspaceId && node.nodeId);
 }
 
-function buildGraphData(
-  nodes: WorkspaceNodeListItem[],
-  tagDefinitions: ReturnType<typeof useAllWorkspaceNodeList>['tags'],
-  workspaces: WorkspaceEntry[],
-  options: { showTags: boolean; showLinks: boolean; showWorkspaceHubs: boolean },
-  labels: { untitled: string },
-): ForceGraphData<GraphNode, GraphLink> {
-  const graphNodes = new Map<string, NodeObject<GraphNode>>();
-  const graphLinks: LinkObject<GraphNode, GraphLink>[] = [];
-  const visibleNodeIds = new Set(nodes.map((node) => nodeGraphId(getNodeWorkspaceId(node), node.id)));
-  const workspaceById = new Map(workspaces.map((ws) => [ws.id, ws] as const));
-  const workspaceUsage = new Map<string, number>();
-
-  for (const node of nodes) {
-    const workspaceId = getNodeWorkspaceId(node);
-    const id = nodeGraphId(workspaceId, node.id);
-    graphNodes.set(id, {
-      id,
-      kind: 'node',
-      label: getNodeTitle(node, labels.untitled),
-      workspaceId,
-      nodeId: node.id,
-      source: node,
-    });
-    workspaceUsage.set(workspaceId, (workspaceUsage.get(workspaceId) ?? 0) + 1);
-  }
-
-  if (options.showWorkspaceHubs) {
-    for (const [workspaceId, count] of workspaceUsage) {
-      if (count === 0) continue;
-      const hubId = workspaceGraphId(workspaceId);
-      const ws = workspaceById.get(workspaceId);
-      graphNodes.set(hubId, {
-        id: hubId,
-        kind: 'workspace',
-        label: ws?.name ?? workspaceId,
-        workspaceId,
-      });
-    }
-    for (const node of nodes) {
-      const workspaceId = getNodeWorkspaceId(node);
-      const hubId = workspaceGraphId(workspaceId);
-      if (!graphNodes.has(hubId)) continue;
-      graphLinks.push({
-        source: hubId,
-        target: nodeGraphId(workspaceId, node.id),
-        kind: 'workspace',
-      });
-    }
-  }
-
-  if (options.showTags) {
-    for (const node of nodes) {
-      const source = nodeGraphId(getNodeWorkspaceId(node), node.id);
-      for (const tag of getNodeTags(node)) {
-        const tagId = `tag:${tag}`;
-        if (!graphNodes.has(tagId)) {
-          graphNodes.set(tagId, {
-            id: tagId,
-            kind: 'tag',
-            label: tagName(tag, tagDefinitions),
-          });
-        }
-        graphLinks.push({ source, target: tagId, kind: 'tag' });
-      }
-    }
-  }
-
-  if (options.showLinks) {
-    for (const node of nodes) {
-      const workspaceId = getNodeWorkspaceId(node);
-      const source = nodeGraphId(workspaceId, node.id);
-      for (const link of node.links ?? []) {
-        const targetWorkspaceId = link.target.workspaceId ?? workspaceId;
-        const target = nodeGraphId(targetWorkspaceId, link.target.nodeId);
-        if (!visibleNodeIds.has(target) && !graphNodes.has(target)) {
-          graphNodes.set(target, {
-            id: target,
-            kind: 'missing',
-            label: link.target.nodeId,
-          });
-        }
-        graphLinks.push({ source, target, kind: 'link', relation: link.relation });
-      }
-    }
-  }
-
-  return {
-    nodes: Array.from(graphNodes.values()),
-    links: graphLinks,
-  };
-}
 
 export const GraphPage = ({
   workspaces,
@@ -247,41 +130,12 @@ export const GraphPage = ({
     [nodes, showOffCanvas],
   );
 
-  const searchSuggestions = useMemo<GraphSearchResult[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-
-    // Tags present in the current graph (only when tag nodes are shown). The
-    // tag graph node id is `tag:<token>`, matching buildGraphData.
-    const tagResults: Array<Extract<GraphSearchResult, { kind: 'tag' }>> = [];
-    if (showTags) {
-      const seen = new Set<string>();
-      for (const node of visibleNodes) {
-        for (const token of node.tags) {
-          if (seen.has(token)) continue;
-          seen.add(token);
-          const label = tagName(token, tags);
-          if (label.toLowerCase().includes(q) || token.toLowerCase().includes(q)) {
-            tagResults.push({ kind: 'tag', graphId: `tag:${token}`, label });
-          }
-        }
-      }
-      tagResults.sort((a, b) => a.label.localeCompare(b.label));
-    }
-
-    const nodeResults: GraphSearchResult[] = visibleNodes
-      .filter((node) => [
-        node.id,
-        node.workspaceName ?? '',
-        getNodeTitle(node, ''),
-        node.summary ?? '',
-        ...node.tags.map((tagId) => tagName(tagId, tags)),
-      ].some((value) => value.toLowerCase().includes(q)))
-      .map((node) => ({ kind: 'node', node } as GraphSearchResult));
-
-    // Tags first (a few), then nodes, capped.
-    return [...tagResults.slice(0, 6), ...nodeResults].slice(0, 12);
-  }, [visibleNodes, query, tags, showTags]);
+  const searchSuggestions = useMemo<GraphSearchResult[]>(() => searchWorkspaceGraph({
+    nodes: visibleNodes,
+    tags,
+    query,
+    showTags,
+  }), [query, showTags, tags, visibleNodes]);
 
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   useEffect(() => { setSuggestionIndex(0); }, [query]);
@@ -301,46 +155,19 @@ export const GraphPage = ({
     : undefined;
 
   const graphData = useMemo(
-    () => buildGraphData(
-      visibleNodes,
+    () => buildWorkspaceGraph({
+      nodes: visibleNodes,
       tags,
       workspaces,
-      { showTags, showLinks, showWorkspaceHubs },
-      { untitled: t('workspaceNodes.untitled') },
-    ),
+      options: { showTags, showLinks, showWorkspaceHubs },
+      untitled: t('workspaceNodes.untitled'),
+    }),
     [showLinks, showTags, showWorkspaceHubs, tags, t, visibleNodes, workspaces],
   );
-
-  const neighbors = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const node of graphData.nodes) {
-      map.set(getGraphId(node.id), new Set());
-    }
-    for (const link of graphData.links) {
-      const source = getGraphId(link.source);
-      const target = getGraphId(link.target);
-      if (!map.has(source)) map.set(source, new Set());
-      if (!map.has(target)) map.set(target, new Set());
-      map.get(source)?.add(target);
-      map.get(target)?.add(source);
-    }
-    return map;
-  }, [graphData.links, graphData.nodes]);
-
-  const highlighted = useMemo(() => {
-    const anchorId = hoverNodeId || activeNodeId;
-    const nodeIds = new Set<string>();
-    const linkIds = new Set<string>();
-    if (!anchorId) return { nodeIds, linkIds };
-
-    nodeIds.add(anchorId);
-    neighbors.get(anchorId)?.forEach((neighborId) => {
-      nodeIds.add(neighborId);
-      linkIds.add(`${anchorId}->${neighborId}`);
-      linkIds.add(`${neighborId}->${anchorId}`);
-    });
-    return { nodeIds, linkIds };
-  }, [activeNodeId, hoverNodeId, neighbors]);
+  const highlighted = useMemo(
+    () => getWorkspaceGraphHighlight(graphData, hoverNodeId || activeNodeId),
+    [activeNodeId, graphData, hoverNodeId],
+  );
 
   const focusNode = useCallback((nodeId: string, zoom = 2.8) => {
     const graph = graphRef.current;
