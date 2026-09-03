@@ -209,3 +209,9 @@
   letter-spacing: 0.02em;
   height: 36px;
 }
+.agent-team-command__label {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
