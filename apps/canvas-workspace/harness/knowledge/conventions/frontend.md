@@ -27,6 +27,12 @@ component tree under `src/renderer/src/agent-chat/`. In particular,
 Workbench, and the visible chat surfaces; visual chat modules adapt to that
 interface instead of owning the broker themselves.
 
+This is the implemented structure, not the final renderer taxonomy. The
+planned module-first target, dependency direction, phased migration, and
+directory-health audit live in
+[`../../spec/renderer-modules/README.md`](../../spec/renderer-modules/README.md).
+Do not move files to match that target outside an approved migration phase.
+
 ### Canvas icon family
 
 `components/icons/index.tsx` is the source of truth for canonical canvas node

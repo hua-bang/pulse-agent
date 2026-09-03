@@ -49,6 +49,7 @@ container, aligned with `packages/engine/harness/`:
   app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
   `diagnose-agent-latency` (trace and optimize Agent turn latency),
   `validate-canvas-change` (choose quick/standard/release evidence),
+  `check-renderer-structure` (audit renderer directory/module health),
   `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
   `extend-blessed-ui`, `add-ipc-surface` (safe-change procedures for the
   five recurring extension shapes).
@@ -71,6 +72,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
 | Main/renderer/preload boundaries | `harness/knowledge/conventions/README.md`, `harness/knowledge/conventions/architecture-boundaries.md` |
 | Renderer conventions | `harness/knowledge/conventions/frontend.md` |
+| Renderer current→module-first architecture and directory health | `harness/spec/renderer-modules/README.md`; run `harness/skills/check-renderer-structure/SKILL.md` |
 | Main-process conventions | `harness/knowledge/conventions/backend.md` |
 | PATH for anything the app spawns | `src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts` |
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
