@@ -3,7 +3,7 @@ import type { Artifact } from '../../../types';
 import { Button } from '../../ui/Button';
 import { ExternalLinkIcon } from '../../icons';
 import { BrowserNavigationButtons } from '../../dock/EmbeddedBrowser/BrowserNavigationButtons';
-import { STREAMING_SHELL } from '../../artifacts/streamingShell';
+import { STREAMING_SHELL } from '../../../modules/artifacts/rendering';
 import { appendDomPickerBridge } from './domPickerBridge';
 import { IframeOverviewBadge } from './IframeOverviewBadge';
 import type { LoadState } from './types';

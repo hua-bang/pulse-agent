@@ -34,7 +34,7 @@ const skillWorkspaceName = (
   return workspaces.find((workspace) => workspace.id === workspaceId)?.name;
 };
 
-const ArtifactTabView = lazy(() => import('../../artifacts/ArtifactTabView').then((m) => ({ default: m.ArtifactTabView })));
+const ArtifactTabView = lazy(() => import('../../../modules/artifacts/tab').then((m) => ({ default: m.ArtifactTabView })));
 const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
 const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
 const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));

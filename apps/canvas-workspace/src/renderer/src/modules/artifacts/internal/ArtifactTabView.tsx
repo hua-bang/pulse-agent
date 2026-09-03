@@ -6,15 +6,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Artifact, ArtifactVersion } from '../../types';
+import type { Artifact, ArtifactVersion } from '../../../types';
 import {
   ARTIFACT_CAPABILITY_MESSAGE,
   ARTIFACT_CAPABILITY_RESPONSE,
   type ArtifactCapabilityName,
-} from '../../../../shared/artifact-capabilities';
-import { useAppShell } from '../shell/AppShellProvider';
-import { Select } from '../ui';
-import { renderMermaidSource, type MermaidRenderResult } from '../../utils/mermaid';
+} from '../../../../../shared/artifact-capabilities';
+import { useAppShell } from '../../../components/shell/AppShellProvider';
+import { Select } from '../../../components/ui';
+import { renderMermaidSource, type MermaidRenderResult } from '../../../utils/mermaid';
 import { buildCapabilityBridgeScript } from './capabilityBridge';
 import './artifacts.css';
 

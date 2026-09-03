@@ -7,7 +7,7 @@
  * don't sprinkle JSON.parse / shape checks across the codebase.
  */
 
-import type { ArtifactType } from '../../types';
+import type { ArtifactType } from '../../../types';
 import type { InlineVisualPayload } from './ChatInlineVisual';
 import type { ArtifactCardPayload } from './ChatArtifactCard';
 import { parseToolResultPayload } from './parseToolResultPayload';

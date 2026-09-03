@@ -64,7 +64,7 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/components/canvas/CommandPalette/index.tsx',
   '/components/canvas/SearchBar/index.tsx',
   '/components/canvas/EdgeStylePanel/index.tsx',
-  '/components/artifacts/ArtifactTabView.tsx',
+  '/modules/artifacts/internal/ArtifactTabView.tsx',
   '/plugins/renderer/devtools/AgentDebugPage.tsx',
   '/plugins/renderer/devtools/ChatDebugTrace.tsx',
 ];

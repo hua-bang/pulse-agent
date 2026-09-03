@@ -212,6 +212,17 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/scheduled src/main/scheduled
 
+  - name: artifacts
+    paths:
+      - src/renderer/src/modules/artifacts/**
+      - src/main/artifacts/**
+      - src/shared/artifact-capabilities.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/chat/components/__tests__/ChatRichToolResults.test.ts src/main/artifacts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/chat/components/__tests__/ChatRichToolResults.test.ts src/main/artifacts
+
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
   # The canvas-cli mirror paths are bound by the root validation overlay.

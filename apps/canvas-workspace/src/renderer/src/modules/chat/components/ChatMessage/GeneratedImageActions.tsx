@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from 'react';
 import { toFileUrl } from '../../../../utils/fileUrl';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
-import { parseToolResultPayload } from '../../../../components/artifacts/parseToolResultPayload';
+import { parseToolResultPayload } from '../../../artifacts';
 
 export interface GeneratedImagePayload {
   ok?: boolean;

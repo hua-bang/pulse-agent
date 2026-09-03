@@ -7,7 +7,7 @@ import {
   ChatArtifactCard,
   ChatInlineVisual,
   parseVisualToolResult,
-} from '../../../../components/artifacts';
+} from '../../../artifacts';
 import type { GeneratedChatImage } from './useChatMessageController';
 
 interface Props {

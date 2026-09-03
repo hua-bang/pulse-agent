@@ -19,7 +19,7 @@ vi.mock('../TabChatAction', () => ({
   },
 }));
 
-vi.mock('../../../artifacts/ArtifactTabView', () => ({
+vi.mock('../../../../modules/artifacts/tab', () => ({
   ArtifactTabView: ({ artifactId }: { artifactId: string }) => (
     <div data-artifact-view={artifactId} />
   ),

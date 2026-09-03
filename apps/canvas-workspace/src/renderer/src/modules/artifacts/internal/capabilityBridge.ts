@@ -9,7 +9,7 @@
 import {
   ARTIFACT_CAPABILITY_MESSAGE,
   ARTIFACT_CAPABILITY_RESPONSE,
-} from '../../../../shared/artifact-capabilities';
+} from '../../../../../shared/artifact-capabilities';
 
 export function buildCapabilityBridgeScript(capabilities: string[]): string {
   const script = `(() => {

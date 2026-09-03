@@ -39,7 +39,7 @@ The workbench has exactly two side regions plus a modal tier:
   nodes management.
 - **Right region — `RightDock`** (`components/dock/RightDock`): ONE tabbed
   panel whose first tab is the **pinned chat**; preview surfaces open as
-  additional tabs — artifacts (`components/artifacts/ArtifactTabView`)
+  additional tabs — artifacts (`modules/artifacts/tab.ts`)
   and the link preview (`components/dock/LinkDrawer` → `LinkTabView`).
   `DockStore` owns the policies:
   - **the tab strip only renders when a preview tab exists** — chat alone
