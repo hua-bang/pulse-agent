@@ -16,6 +16,20 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
 
+  # Renderer module architecture is a planned, migration-aware target. The
+  # detector reports current pressure without failing default mode; its own
+  # specs pin folder classification and dependency-direction semantics.
+  - name: renderer-structure-health
+    paths:
+      - harness/spec/renderer-modules/**
+      - harness/skills/check-renderer-structure/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run harness/skills/check-renderer-structure/scripts/check-renderer-structure.test.mjs
+      - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
+    required:
+      - pnpm --filter canvas-workspace exec vitest run harness/skills/check-renderer-structure/scripts/check-renderer-structure.test.mjs
+      - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
+
   # Agent Plugins is a cross-process contract: strict package ingestion in
   # main, persisted registration, generated MCP config, preload IPC, and the
   # renderer market must move together. This rule pins the focused suite while
