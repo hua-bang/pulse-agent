@@ -15,10 +15,7 @@ export const CanvasRootView = ({
   onChatOpen,
   containerRef,
   ctxMenu,
-  draggingId,
-  draggingIds,
-  dragPreview,
-  dragOffset,
+  nodeGestures,
   edgeHandlers,
   edgeInteractionState,
   edges,
@@ -57,11 +54,8 @@ export const CanvasRootView = ({
   openShortcuts,
   paletteCommands,
   referenceDrawerOpen,
-  renderGroups,
   resetTransform,
   resizeNode,
-  resizingId,
-  resizePreview,
   resolveReferenceNode,
   rootFolder,
   settledScale,
@@ -76,7 +70,6 @@ export const CanvasRootView = ({
   setSelectedNodeIds,
   shapeDraft,
   shapeToolActive,
-  snapLines,
   transform,
   transformLayerRef,
   updateEdge,
@@ -133,18 +126,18 @@ export const CanvasRootView = ({
         transformLayerRef={transformLayerRef}
         animating={animating}
         moving={moving}
-        renderGroups={renderGroups}
+        renderGroups={nodeGestures.renderGroups}
         nodes={nodes}
         edges={edges}
         rootFolder={rootFolder}
         canvasId={canvasId}
         canvasName={canvasName}
-        draggingId={draggingId}
-        draggingIds={draggingIds}
-        dragPreview={dragPreview}
-        dragOffset={dragOffset}
-        resizingId={resizingId}
-        resizePreview={resizePreview}
+        draggingId={nodeGestures.draggingId}
+        draggingIds={nodeGestures.draggingIds}
+        dragPreview={nodeGestures.dragPreview}
+        dragOffset={nodeGestures.dragOffset}
+        resizingId={nodeGestures.resizingId}
+        resizePreview={nodeGestures.resizePreview}
         selectedNodeIdSet={selectedNodeIdSet}
         selectedEdgeId={selectedEdgeId}
         highlightedId={highlightedId}
@@ -154,7 +147,7 @@ export const CanvasRootView = ({
         edgePreviewEndpoints={getPreviewEndpoints()}
         shapeDraft={shapeDraft}
         marqueeRect={marquee.rect}
-        snapLines={snapLines}
+        snapLines={nodeGestures.snapLines}
         focusedNodeIds={focus.focusedNodeIds}
         focusContextNodeIds={focus.focusContextNodeIds}
         focusModeEnabled={focus.focusModeActive}

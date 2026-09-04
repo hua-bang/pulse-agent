@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { useCanvas } from '../../../runtime/useCanvas';
 import { useCanvasDocumentHost } from '../../../document/useCanvasDocumentHost';
-import { useNodeDrag } from '../../../runtime/useNodeDrag';
-import { useNodeResize } from '../../../runtime/useNodeResize';
 import { useCanvasContext } from '../../../runtime/useCanvasContext';
 import { useCanvasFit } from '../../../runtime/useCanvasFit';
 import { useCanvasKeyboard } from '../../../runtime/useCanvasKeyboard';
@@ -21,7 +19,7 @@ import { useCanvasSyncEffects } from './hooks/useCanvasSyncEffects';
 import { useCanvasMouseHandlers } from './hooks/useCanvasMouseHandlers';
 import { useCanvasPaletteCommands } from './hooks/useCanvasPaletteCommands';
 import { useCanvasEdgeHandlers } from './hooks/useCanvasEdgeHandlers';
-import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
+import { useCanvasNodeGestures } from './hooks/useCanvasNodeGestures';
 import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
 import { useCanvasVisibility } from './hooks/useCanvasVisibility';
@@ -225,29 +223,13 @@ export const Canvas = ({
     handleNodeViewportFocus(node);
   }, [handleNodeViewportFocus]);
 
-  const {
-    draggingId,
-    draggingIds,
-    dragPreview,
-    dragOffset,
-    snapLines,
-    onDragStart,
-    onDragMove,
-    onDragEnd,
-    onDragCancel,
-  } = useNodeDrag(
-    moveNode, moveNodes, transform.scale, nodes, selectedNodeIds,
-  );
-  const commitNodeResize = useCallback(
-    (id: string, width: number, height: number, x?: number, y?: number) => {
-      resizeNode(id, width, height, x, y, { disableTextAutoSize: true });
-    },
-    [resizeNode],
-  );
-  const { resizingId, resizePreview, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
-    useNodeResize(commitNodeResize, transform.scale, nodes);
-
-  const { sortedNodes, renderGroups } = useCanvasRenderOrder(visibleNodes);
+  const nodeGestures = useCanvasNodeGestures({
+    document: { moveNode, moveNodes, resizeNode },
+    nodes,
+    visibleNodes,
+    selectedNodeIds,
+    scale: transform.scale,
+  });
 
   const getContainer = useCallback(() => containerRef.current, []);
 
@@ -256,7 +238,7 @@ export const Canvas = ({
     beginConnect, beginMoveEnd, beginMoveBend, beginMoveEdge,
     getPreviewEndpoints,
   } = useEdgeInteraction({
-    nodes: visibleNodes, sortedNodes, screenToCanvas, getContainer,
+    nodes: visibleNodes, sortedNodes: nodeGestures.sortedNodes, screenToCanvas, getContainer,
     addEdge, updateEdge, commitHistory, edges: visibleEdges,
     // After the user commits one arrow, hop back to the select tool and
     // auto-select the new edge so the style panel is immediately
@@ -385,9 +367,15 @@ export const Canvas = ({
     isBlankCanvasTarget: ctxMenu.isBlankCanvasTarget,
     canvasMouseDown, canvasMouseMove, canvasMouseUp,
     moving, panning,
-    onDragStart, onDragMove, onDragEnd,
-    onDragCancel, onResizeCancel,
-    resizingId, onResizeStart, onResizeMove, onResizeEnd,
+    onDragStart: nodeGestures.onDragStart,
+    onDragMove: nodeGestures.onDragMove,
+    onDragEnd: nodeGestures.onDragEnd,
+    onDragCancel: nodeGestures.onDragCancel,
+    onResizeCancel: nodeGestures.onResizeCancel,
+    resizingId: nodeGestures.resizingId,
+    onResizeStart: nodeGestures.onResizeStart,
+    onResizeMove: nodeGestures.onResizeMove,
+    onResizeEnd: nodeGestures.onResizeEnd,
     edgeInteractionState, marquee, shapeToolActive, shapeDraft,
     commitHistory, onNodesChange,
   });
@@ -423,10 +411,7 @@ export const Canvas = ({
       chatPanelOpen={chatPanelOpen}
       containerRef={containerRef}
       ctxMenu={ctxMenu}
-      draggingId={draggingId}
-      draggingIds={draggingIds}
-      dragPreview={dragPreview}
-      dragOffset={dragOffset}
+      nodeGestures={nodeGestures}
       edgeHandlers={edgeHandlers}
       edgeInteractionState={edgeInteractionState}
       edges={visibleEdges}
@@ -464,11 +449,8 @@ export const Canvas = ({
       openShortcuts={openShortcuts}
       paletteCommands={paletteCommands}
       referenceDrawerOpen={referenceDrawerOpen}
-      renderGroups={renderGroups}
       resetTransform={resetTransform}
       resizeNode={resizeNode}
-      resizingId={resizingId}
-      resizePreview={resizePreview}
       resolveReferenceNode={resolveReferenceNode}
       rootFolder={rootFolder}
       search={search}
@@ -483,7 +465,6 @@ export const Canvas = ({
       setSelectedNodeIds={setSelectedNodeIds}
       shapeDraft={shapeDraft}
       shapeToolActive={shapeToolActive}
-      snapLines={snapLines}
       transform={transform}
       transformLayerRef={transformLayerRef}
       updateEdge={updateEdge}
