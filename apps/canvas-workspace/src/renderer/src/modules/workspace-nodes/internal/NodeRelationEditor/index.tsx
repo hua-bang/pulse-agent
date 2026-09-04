@@ -1,12 +1,13 @@
+import './index.css';
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import type { WorkspaceNodeLink, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { useI18n } from '../../../i18n';
-import { Button, TextField } from '../../../components/ui';
-import { CloseIcon } from '../../../components/icons';
-import { getNodeTitle } from './utils';
-import { dispatchOpenNode } from '../../../utils/openNodeBridge';
-import { isImeComposing } from '../../../utils/ime';
-import { useIndexNav } from '../../../components/ui/hooks/useIndexNav';
+import type { WorkspaceNodeLink, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import { useI18n } from '../../../../i18n';
+import { Button, TextField } from '../../../../components/ui';
+import { CloseIcon } from '../../../../components/icons';
+import { getNodeTitle } from '../utils';
+import { dispatchOpenNode } from '../../../../utils/openNodeBridge';
+import { isImeComposing } from '../../../../utils/ime';
+import { useIndexNav } from '../../../../components/ui/hooks/useIndexNav';
 
 interface Props {
   node: WorkspaceNodeRecord;
@@ -281,3 +282,4 @@ export const NodeRelationEditor = ({
     </div>
   );
 };
+

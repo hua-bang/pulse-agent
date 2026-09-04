@@ -18,7 +18,11 @@ import { fileURLToPath } from 'url';
 const read = (relativePath: string): string =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
 
-const STYLESHEETS = ['../index.css', '../NodeDetailDocument.css'];
+const STYLESHEETS = [
+  '../index.css',
+  '../NodeDetailDocument.css',
+  '../NodeRelationEditor/index.css',
+];
 const MARKUP = [
   '../NodeDetailPanel.tsx',
   '../NodeDetailHeader.tsx',
@@ -29,7 +33,7 @@ const MARKUP = [
   '../NodeDetailPage.tsx',
   '../NodeCanvasPreview.tsx',
   '../NodeCanvasSaveError.tsx',
-  '../NodeRelationEditor.tsx',
+  '../NodeRelationEditor/index.tsx',
   '../NodeTagEditor.tsx',
   '../NodeTitleEditor.tsx',
   '../../../dock/internal/RightDock/NodeDetailDockTab.tsx',
