@@ -1,10 +1,11 @@
+import './index.css';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
-import { useI18n } from '../../../i18n';
-import { Button } from '../../../components/ui/Button';
-import { Popover } from '../../../components/ui/Popover';
-import { TextField } from '../../../components/ui/TextField';
-import { CheckIcon, CloseIcon, SparklesIcon } from '../../../components/icons';
-import { NODE_TYPE_FILTERS, getNodeTypeLabel, type NodeTypeFilter } from './utils';
+import { useI18n } from '../../../../i18n';
+import { Button } from '../../../../components/ui/Button';
+import { Popover } from '../../../../components/ui/Popover';
+import { TextField } from '../../../../components/ui/TextField';
+import { CheckIcon, CloseIcon, SparklesIcon } from '../../../../components/icons';
+import { NODE_TYPE_FILTERS, getNodeTypeLabel, type NodeTypeFilter } from '../utils';
 
 export interface CountedFilterOption {
   id: string;
@@ -292,3 +293,4 @@ export const NodeFilters = ({
     </div>
   );
 };
+
