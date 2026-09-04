@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentTeamSnapshot } from '../../../types';
 import {
   buildAgentTeamDagLayout,
+  createAgentTeamGraphAgents,
   createAgentTeamWorkspaceModel,
 } from '..';
 
@@ -60,5 +61,42 @@ describe('Agent Team workspace model', () => {
     expect(model.tasks[2].depKeys).toEqual(['build']);
     expect(model.tasks[1].dependencyWarning).toBe(true);
     expect(model.tasks[2].dependencyWarning).toBe(false);
+  });
+
+  it('projects runtime agent summaries from tasks, artifacts, node identity, and session health', () => {
+    const teammate = {
+      id: 'agent-1', teamId: 'team-1', role: 'teammate' as const, name: 'Ada', status: 'running' as const,
+      currentTaskId: 'task-2', createdAt: 1, updatedAt: 2, metadata: { toolCount: 4 },
+    };
+    const model = createAgentTeamWorkspaceModel(snapshot({
+      runtime: {
+        ...snapshot().runtime,
+        agents: [teammate],
+        tasks: snapshot().runtime.tasks.map((task) => task.id === 'task-2' ? { ...task, ownerAgentId: 'agent-1' } : task),
+        artifacts: [{ id: 'artifact-1', teamId: 'team-1', agentId: 'agent-1', kind: 'file', title: 'report.md', createdAt: 3 }],
+      },
+    }));
+    const agentNode = {
+      id: 'node-1', type: 'agent' as const, title: 'Ada', x: 0, y: 0, width: 320, height: 240,
+      data: { sessionId: 'session-1', agentType: 'codex' },
+    };
+
+    expect(createAgentTeamGraphAgents({
+      phase: model.phase,
+      tasks: model.tasks,
+      teammates: model.teammates,
+      artifacts: snapshot({ runtime: { ...snapshot().runtime, artifacts: [{ id: 'artifact-1', teamId: 'team-1', agentId: 'agent-1', kind: 'file', title: 'report.md', createdAt: 3 }] } }).runtime.artifacts,
+      agentNodeByAgentId: new Map([['agent-1', agentNode]]),
+      sessions: { 'agent-1': 'healthy' },
+    })).toMatchObject([{
+      key: 'agent:agent-1',
+      agentType: 'codex',
+      currentTaskTitle: 'Verify',
+      taskCount: 1,
+      runningCount: 1,
+      artifactCount: 1,
+      toolCount: 4,
+      sessionHealth: 'healthy',
+    }]);
   });
 });

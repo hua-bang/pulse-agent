@@ -1,0 +1,182 @@
+.agent-team-frame__top {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+}
+
+.agent-team-frame__identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agent-team-frame__title {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-frame__phase-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.agent-team-frame__mission {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.agent-team-frame__mission span,
+.agent-team-frame__mission code {
+  min-width: 0;
+  max-width: 340px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: rgba(238, 242, 247, 0.92);
+  color: #3d5071;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 2px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-frame__mission code {
+  max-width: 280px;
+  color: #1f6f45;
+  background: #e8f5ee;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.agent-team-frame__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.agent-team-frame__actions {
+  justify-content: flex-end;
+}
+
+.agent-team-frame__status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.agent-team-frame__status {
+  border: 1px solid #b7dfc8;
+  background: #e8f5ee;
+  color: #1f6f45;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.agent-team-frame__status--paused,
+.agent-team-frame__status--waiting_approval {
+  color: #8a5a00;
+  background: #fff5d8;
+  border-color: #ead18b;
+}
+
+.agent-team-frame__status--failed {
+  color: #a2372a;
+  background: #fdebea;
+  border-color: #edb8b2;
+}
+
+.agent-team-frame__status--completed {
+  color: #285b95;
+  background: #e9f2ff;
+  border-color: #b8d4f3;
+}
+
+.agent-team-frame__primary-action {
+  border-color: #7aa7e8;
+  background: #5f94e6;
+  color: #ffffff;
+}
+
+.agent-team-frame__primary-action:hover:not(:disabled) {
+  background: #4f84d8;
+}
+
+.agent-team-frame__secondary-action {
+  color: var(--text-secondary);
+}
+
+.agent-team-frame .agent-team-frame__danger-action {
+  border-color: #edb8b2;
+  color: #a2372a;
+  background: #fff5f4;
+}
+
+.agent-team-frame .agent-team-frame__danger-action:hover:not(:disabled) {
+  background: #fdebea;
+}
+
+.agent-team-frame__error {
+  padding: 5px 8px;
+  border: 1px solid #edb8b2;
+  border-radius: var(--radius-sm);
+  color: #a2372a;
+  background: #fdebea;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-team-checkpoint-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e3c577;
+  border-radius: var(--radius-md);
+  background: #fef9ec;
+  color: #6b5318;
+}
+
+.agent-team-checkpoint-banner__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-team-checkpoint-banner__copy strong {
+  font-size: 13px;
+  font-weight: 500;
+  color: #5a440f;
+}
+
+.agent-team-checkpoint-banner__copy span {
+  font-size: 11.5px;
+  color: #7c6423;
+  line-height: 1.4;
+}
+
+.agent-team-checkpoint-banner__actions {
+  flex-shrink: 0;
+}
+
+.agent-team-checkpoint-banner__actions button {
+  white-space: nowrap;
+}

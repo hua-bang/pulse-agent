@@ -1,0 +1,176 @@
+.agent-team-graph-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(92, 128, 183, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 26px rgba(31, 54, 88, 0.045);
+}
+
+.agent-team-graph-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.agent-team-graph-panel__head > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-team-graph-panel__head strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-graph-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.agent-team-graph-panel__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.36fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+}
+
+.agent-team-graph-panel__main--graph-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.agent-team-task-graph {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(92, 128, 183, 0.12);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(90deg, rgba(35, 131, 226, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(35, 131, 226, 0.03) 1px, transparent 1px),
+    rgba(250, 252, 255, 0.9);
+  background-size: 34px 34px;
+  padding: 0;
+  scroll-padding: 24px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.agent-team-owner-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid #d8e4f2;
+  border-radius: var(--radius-pill);
+  background: #eef5ff;
+  color: #285b95;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 2px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-owner-chip__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+/* Selecting an agent already highlights its task nodes via the owner-highlight
+   ring; the owner chip keeps its identity color instead of switching to green. */
+.agent-team-owner-chip--active {
+  border-color: #d8e4f2;
+  background: #eef5ff;
+  color: #285b95;
+}
+
+.agent-team-detail__facts .agent-team-owner-chip--active {
+  color: #285b95;
+  background: #eef5ff;
+}
+
+.agent-team-graph-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(92, 128, 183, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.76);
+  padding: 10px;
+}
+
+.agent-team-detail-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(92, 128, 183, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(238, 243, 250, 0.7);
+}
+
+.agent-team-detail__empty {
+  padding: 12px 4px;
+}
+
+.agent-team-graph-detail__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.agent-team-graph-detail__head > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agent-team-graph-detail__head strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.32;
+}
+
+.agent-team-graph-empty {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  min-width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.agent-team-graph-empty strong {
+  color: var(--text);
+  font-size: 15px;
+}

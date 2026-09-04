@@ -1,9 +1,12 @@
 import type {
+  AgentNodeData,
   AgentTeamAgentRecord,
   AgentTeamArtifactRecord,
   AgentTeamPhase,
+  AgentTeamPlanDraft,
   AgentTeamSnapshot,
   AgentTeamTaskRecord,
+  CanvasNode,
 } from '../../../types';
 
 const TASK_STATUS_RANK: Record<string, number> = {
@@ -65,6 +68,107 @@ export interface AgentTeamWorkspaceModel {
   rounds: AgentTeamGraphRound[];
   roundOptions: AgentTeamRoundOption[];
 }
+
+export interface AgentTeamGraphAgent {
+  key: string;
+  name: string;
+  role: 'lead' | 'teammate';
+  agentType?: string;
+  status: string;
+  taskCount: number;
+  doneCount: number;
+  runningCount: number;
+  blockedCount: number;
+  artifactCount: number;
+  toolCount?: number;
+  currentTaskTitle?: string;
+  nodeId?: string;
+  sourceAgent?: AgentTeamAgentRecord;
+  sessionHealth?: string;
+}
+
+interface CreateAgentTeamGraphAgentsOptions {
+  phase: AgentTeamPhase;
+  plan?: AgentTeamPlanDraft;
+  tasks: AgentTeamGraphTask[];
+  teammates: AgentTeamAgentRecord[];
+  artifacts: AgentTeamArtifactRecord[];
+  agentNodeByAgentId: ReadonlyMap<string, CanvasNode & { data: AgentNodeData }>;
+  sessions?: Record<string, string>;
+}
+
+const metadataNumber = (metadata: Record<string, unknown> | undefined, keys: string[]): number | undefined => {
+  if (!metadata) return undefined;
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return undefined;
+};
+
+export const createAgentTeamGraphAgents = ({
+  phase,
+  plan,
+  tasks,
+  teammates,
+  artifacts,
+  agentNodeByAgentId,
+  sessions,
+}: CreateAgentTeamGraphAgentsOptions): AgentTeamGraphAgent[] => {
+  if (phase === 'plan_review' && plan) {
+    return plan.teammates.map((teammate) => {
+      const ownerKey = `plan:${teammate.name.trim().toLowerCase()}`;
+      const ownedTasks = tasks.filter((task) => task.ownerKey === ownerKey);
+      return {
+        key: ownerKey,
+        name: teammate.name,
+        role: 'teammate',
+        agentType: teammate.agentType ?? 'agent',
+        status: 'planned',
+        taskCount: ownedTasks.length,
+        doneCount: 0,
+        runningCount: 0,
+        blockedCount: 0,
+        artifactCount: 0,
+        currentTaskTitle: ownedTasks[0]?.title,
+      };
+    });
+  }
+
+  const taskByKey = new Map(tasks.map((task) => [task.key, task]));
+  return teammates.map((agent) => {
+    const ownedTasks = tasks.filter((task) => task.ownerKey === `agent:${agent.id}`);
+    const currentTask = agent.currentTaskId
+      ? taskByKey.get(agent.currentTaskId)
+      : ownedTasks.find((task) => task.status === 'in_progress' || task.status === 'needs_input' || task.status === 'needs_review')
+        ?? ownedTasks.find((task) => task.status !== 'done' && task.status !== 'failed')
+        ?? ownedTasks[0];
+    const agentArtifacts = artifacts.filter((artifact) => artifact.agentId === agent.id);
+    return {
+      key: `agent:${agent.id}`,
+      name: agent.name,
+      role: agent.role,
+      agentType: agentNodeByAgentId.get(agent.id)?.data.agentType
+        ?? agent.sessionRef?.provider
+        ?? agent.sessionRef?.displayName,
+      status: agent.status,
+      taskCount: ownedTasks.length,
+      doneCount: ownedTasks.filter((task) => task.status === 'done').length,
+      runningCount: ownedTasks.filter((task) => task.status === 'in_progress').length,
+      blockedCount: ownedTasks.filter((task) => task.status === 'blocked').length,
+      artifactCount: agentArtifacts.length,
+      toolCount: metadataNumber(agent.metadata, ['toolCount', 'toolCalls', 'toolsUsed']),
+      currentTaskTitle: currentTask?.title,
+      nodeId: typeof agent.metadata?.canvasNodeId === 'string'
+        ? agent.metadata.canvasNodeId
+        : typeof agent.sessionRef?.metadata?.nodeId === 'string'
+          ? agent.sessionRef.metadata.nodeId
+          : undefined,
+      sourceAgent: agent,
+      sessionHealth: sessions?.[agent.id],
+    };
+  });
+};
 
 const inferPhase = (snapshot: AgentTeamSnapshot): AgentTeamPhase => {
   if (snapshot.phase) return snapshot.phase;

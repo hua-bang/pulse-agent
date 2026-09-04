@@ -1,16 +1,11 @@
 import './index.css';
 import { AgentIcon } from '../../../coding-agent/icon';
-import type { AgentTeamAgentRecord } from '../../../../types';
 import { AgentTypeSelect } from '../AgentTeamFrame/AgentTypeSelect';
 import { agentSessionHealthSuffix, agentTeamStatusLabel } from '../visualLabels';
 import type { AgentDef } from '../../../../config/agentRegistry';
+import type { AgentTeamGraphAgent } from '../../model/workspaceModel';
 
-export interface AgentSummaryItem {
-  key: string; name: string; role: 'lead' | 'teammate'; agentType?: string; status: string;
-  taskCount: number; doneCount: number; runningCount: number; blockedCount: number;
-  artifactCount: number; toolCount?: number; currentTaskTitle?: string; nodeId?: string;
-  sourceAgent?: AgentTeamAgentRecord; sessionHealth?: string;
-}
+export type AgentSummaryItem = AgentTeamGraphAgent;
 
 interface Props {
   agents: AgentSummaryItem[];

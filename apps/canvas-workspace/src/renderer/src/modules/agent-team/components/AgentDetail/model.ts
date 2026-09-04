@@ -1,9 +1,8 @@
 import type { AgentNodeData, AgentTeamArtifactRecord, CanvasNode } from '../../../../types';
-import type { AgentTeamGraphTask } from '../../model/workspaceModel';
-import type { AgentSummaryItem } from '../AgentsStrip';
+import type { AgentTeamGraphAgent, AgentTeamGraphTask } from '../../model/workspaceModel';
 
 export interface AgentDetailModel {
-  agent: AgentSummaryItem;
+  agent: AgentTeamGraphAgent;
   tasks: AgentTeamGraphTask[];
   artifacts: AgentTeamArtifactRecord[];
   agentNode?: CanvasNode;
@@ -12,7 +11,7 @@ export interface AgentDetailModel {
 }
 
 interface CreateAgentDetailModelOptions {
-  agent: AgentSummaryItem;
+  agent: AgentTeamGraphAgent;
   tasks: AgentTeamGraphTask[];
   artifacts: AgentTeamArtifactRecord[];
   agentNode?: CanvasNode;
