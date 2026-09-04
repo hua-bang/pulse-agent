@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
-import { activateWorkspaceWindow } from '../../app/window-manager';
+import { getRuntimeWindowPort } from '../window-port';
 import { findDockLinkTab } from '../../dock/tab-actions';
 import { readA11y, readDOM, captureScreenshot } from '../../webview/reader';
 import {
@@ -144,7 +144,7 @@ async function readLivePage(workspaceId: string, input: PageReadInput): Promise<
     ? getWebContentsForNode(workspaceId, input.nodeId)
     : await ensureOperable({
         lookup: () => getWebContentsForNode(workspaceId, input.nodeId),
-        activate: () => activateWorkspaceWindow(workspaceId),
+        activate: () => getRuntimeWindowPort().activateWorkspaceWindow(workspaceId),
         mode: strategy === 'screenshot' ? 'operate' : 'read',
       });
   if (!wc) {

@@ -4,14 +4,15 @@ const activateWorkspaceWindow = vi.hoisted(() => vi.fn());
 const getPublishedDockWorkspaceId = vi.hoisted(() => vi.fn());
 const evalInPage = vi.hoisted(() => vi.fn());
 
-vi.mock('../../app/window-manager', () => ({ activateWorkspaceWindow }));
 vi.mock('../../dock/tab-store', () => ({ getPublishedDockWorkspaceId }));
 vi.mock('../../../plugins/main/webview-page-control/js-primitives', () => ({ evalInPage }));
 
 import { executeHostRendererEval } from './host-renderer-execution';
+import { setRuntimeWindowPort } from '../window-port';
 
 describe('host renderer execution', () => {
   beforeEach(() => {
+    setRuntimeWindowPort({ activateWorkspaceWindow });
     activateWorkspaceWindow.mockReset();
     getPublishedDockWorkspaceId.mockReset();
     evalInPage.mockReset();

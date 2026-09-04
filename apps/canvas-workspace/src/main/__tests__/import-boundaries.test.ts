@@ -150,6 +150,7 @@ const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
   ['canvas', new Set(['agent'])],
   ['generation', new Set(['agent'])],
   ['plugin-market', new Set(['agent'])],
+  ['runtime', new Set(['app'])],
   ['settings', new Set(['plugin-market'])],
   ['webview', new Set(['agent'])],
 ]);

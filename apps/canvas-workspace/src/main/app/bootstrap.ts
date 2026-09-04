@@ -78,6 +78,7 @@ import { setAgentWindowPort } from "../agent/window-port";
 import { setAgentScheduledPort } from "../agent/scheduled-port";
 import { setAgentCapabilityPort } from "../agent/capability-port";
 import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
+import { setRuntimeWindowPort } from "../runtime/window-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
 import {
   connectCanvasMcpOAuth,
@@ -121,6 +122,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // of going through the main entry module.
   configureAppIdentity();
   setAgentWindowPort({ getCanvasWindow, activateWorkspaceWindow });
+  setRuntimeWindowPort({ activateWorkspaceWindow });
   setPluginMarketAgentPort({
     reloadMcp: () => getCanvasAgentService().reloadMcp(),
     getMcpOAuthStatus: getCanvasMcpOAuthStatus,

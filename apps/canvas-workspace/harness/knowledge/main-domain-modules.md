@@ -179,7 +179,7 @@ done. Still open:
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
   `artifacts -> agent`, `canvas -> agent`,
   `plugin-market -> agent`, `settings -> plugin-market`, and `webview -> agent`. Existing
-  cycles involving runtime, default-browser, and settings remain migration
+  cycles involving default-browser and settings remain migration
   debt; tighten the rule as each reverse edge is
   replaced by an injected capability or an owner-facing interface.
 
