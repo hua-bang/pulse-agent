@@ -203,8 +203,9 @@ done. Still open:
 Process directions and the protected Main-domain edges listed above are
 enforced by `src/main/__tests__/import-boundaries.test.ts` (run via
 `pnpm --filter canvas-workspace test` — there is no CI for it; see
-`harness/knowledge/conventions/architecture-boundaries.md`). The remaining
-direction table is the migration target, not yet a complete mechanical gate.
+`harness/knowledge/conventions/architecture-boundaries.md`). The same suite
+also rejects every cycle in the complete `src/main/**` top-level domain graph;
+plugin adapters under `src/plugins/main/**` remain a separate extension surface.
 
 ## Compatibility Rules
 

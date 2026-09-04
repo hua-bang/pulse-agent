@@ -142,6 +142,19 @@ describe('import boundaries', () => {
 
     expect(violations).toEqual([]);
   });
+
+  it('keeps the main domain dependency graph acyclic', () => {
+    const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
+    const resolved = imports.flatMap(resolveImport);
+    const graph = buildMainDomainGraph(resolved);
+    const cyclicEdges = Array.from(graph.entries()).flatMap(([source, targets]) =>
+      Array.from(targets)
+        .filter((target) => hasDomainPath(graph, target, source))
+        .map((target) => `${source} -> ${target}`),
+    ).sort();
+
+    expect(cyclicEdges).toEqual([]);
+  });
 });
 
 const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
@@ -157,8 +170,11 @@ const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
 ]);
 
 function mainDomain(path: string | undefined): string | null {
-  if (!path?.startsWith('src/main/')) return null;
-  return path.slice('src/main/'.length).split('/')[0] ?? null;
+  if (path === 'src/main/index.ts') return 'entrypoint';
+  if (path?.startsWith('src/main/')) {
+    return path.slice('src/main/'.length).split('/')[0] ?? null;
+  }
+  return null;
 }
 
 function checkMainDomainBoundary(imported: ResolvedImport): string[] {
@@ -172,6 +188,36 @@ function checkMainDomainBoundary(imported: ResolvedImport): string[] {
     `${imported.sourceFile}:${imported.line} imports ${imported.specifier} ` +
       `(${sourceDomain} -> ${targetDomain})`,
   ];
+}
+
+function buildMainDomainGraph(imports: ResolvedImport[]): Map<string, Set<string>> {
+  const graph = new Map<string, Set<string>>();
+  for (const imported of imports) {
+    if (imported.sourceSurface !== 'main' || imported.targetSurface !== 'main') continue;
+    const source = mainDomain(imported.sourceFile);
+    const target = mainDomain(imported.targetPath);
+    if (!source || !target || source === target) continue;
+    const targets = graph.get(source) ?? new Set<string>();
+    targets.add(target);
+    graph.set(source, targets);
+    if (!graph.has(target)) graph.set(target, new Set());
+  }
+  return graph;
+}
+
+function hasDomainPath(
+  graph: Map<string, Set<string>>,
+  source: string,
+  target: string,
+  visited = new Set<string>(),
+): boolean {
+  if (source === target) return true;
+  if (visited.has(source)) return false;
+  visited.add(source);
+  for (const next of graph.get(source) ?? []) {
+    if (hasDomainPath(graph, next, target, visited)) return true;
+  }
+  return false;
 }
 
 function findSourceFiles(root: string): string[] {
