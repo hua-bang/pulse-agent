@@ -1,5 +1,6 @@
-import type { CanvasNode } from '../../../../../types';
-import type { ResizeHandlerFactory } from './types';
+import './index.css';
+import type { CanvasNode } from '../../../../../../types';
+import type { ResizeHandlerFactory } from '../types';
 
 interface NodeResizeHandlesProps {
   isFullscreen: boolean;
@@ -73,3 +74,4 @@ export const NodeResizeHandles = ({
     </>
   );
 };
+
