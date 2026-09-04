@@ -41,7 +41,6 @@ import type {
   CanvasAgentTeamCreateInput,
   CanvasAgentTeamCreateTaskInput,
   CanvasAgentTeamMetadata,
-  CanvasAgentTeamPhase,
   CanvasAgentTeamPlanDraft,
   CanvasAgentTeamPublishArtifactInput,
   CanvasAgentTeamRequestHumanInput,
@@ -61,6 +60,12 @@ import {
   stripAnsi,
   type AgentOutputMarker,
 } from './output-markers';
+import {
+  agentNodeIdsForAgents,
+  inferPhase,
+  metadataCanvasNodeIds,
+  plannedStartupAgentIds,
+} from './projection';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -144,58 +149,6 @@ const inferWorkingDirectoryFromText = (content: string): string | undefined => {
 
   return candidates.find(isExistingDirectory);
 };
-
-const inferPhase = (
-  metadata: CanvasAgentTeamMetadata | undefined,
-  snapshot: RuntimeSnapshot,
-): CanvasAgentTeamPhase => {
-  if (metadata?.phase) return metadata.phase;
-  if (metadata?.pendingPlan) return 'plan_review';
-  if (snapshot.agents.some((agent) => agent.role === 'teammate') || snapshot.tasks.length > 0) {
-    return 'executing';
-  }
-  return snapshot.team.status === 'waiting_approval' ? 'plan_review' : 'briefing';
-};
-
-const isTaskReadyForDispatch = (task: TeamTaskRecord, tasks: TeamTaskRecord[]): boolean =>
-  task.deps.every(depId => tasks.find(candidate => candidate.id === depId)?.status === 'done');
-
-const plannedStartupAgentIds = (snapshot: RuntimeSnapshot): string[] => {
-  const ids = new Set<string>();
-  if (snapshot.team.leadAgentId) ids.add(snapshot.team.leadAgentId);
-
-  const byId = new Map(snapshot.agents.map(agent => [agent.id, agent]));
-  const teammates = snapshot.agents.filter(agent => agent.role === 'teammate');
-  const readyTasks = snapshot.tasks.filter(task =>
-    task.status === 'todo' && isTaskReadyForDispatch(task, snapshot.tasks));
-  for (const task of readyTasks) {
-    const owner = task.ownerAgentId ? byId.get(task.ownerAgentId) : undefined;
-    if (owner?.role === 'teammate') {
-      ids.add(owner.id);
-      continue;
-    }
-    for (const teammate of teammates) ids.add(teammate.id);
-  }
-
-  if (ids.size === 1) {
-    const firstTeammate = teammates[0];
-    if (firstTeammate) ids.add(firstTeammate.id);
-  }
-  return [...ids];
-};
-
-const agentNodeIdsForAgents = (
-  metadata: CanvasAgentTeamMetadata | undefined,
-  agentIds: string[],
-): string[] =>
-  agentIds
-    .map(agentId => metadata?.agentNodeIds[agentId])
-    .filter((nodeId): nodeId is string => typeof nodeId === 'string' && nodeId.length > 0);
-
-const metadataCanvasNodeIds = (metadata: CanvasAgentTeamMetadata | undefined): string[] => [
-  metadata?.frameNodeId,
-  ...Object.values(metadata?.agentNodeIds ?? {}),
-].filter((nodeId): nodeId is string => typeof nodeId === 'string' && nodeId.length > 0);
 
 const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: string, cwd?: string): string => [
   `You are the Team Leader for "${teamName}" in Pulse Canvas.`,
