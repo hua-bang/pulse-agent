@@ -1,8 +1,9 @@
+import './index.css';
 import { useCallback, useEffect, useRef, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from 'react';
-import { LinkIcon } from './Icons';
-import { Button } from '../../../../components/ui';
-import { useEscapeClose } from '../../../../hooks/useEscapeClose';
-import { useI18n } from '../../../../i18n';
+import { LinkIcon } from '../Icons';
+import { Button } from '../../../../../components/ui';
+import { useEscapeClose } from '../../../../../hooks/useEscapeClose';
+import { useI18n } from '../../../../../i18n';
 
 interface ReferenceUrlEditorProps {
   handleAddUrl: () => void;
@@ -118,3 +119,4 @@ export const ReferenceUrlEditor = ({
     </div>
   );
 };
+
