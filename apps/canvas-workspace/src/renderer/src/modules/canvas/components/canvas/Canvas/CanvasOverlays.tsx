@@ -1,11 +1,11 @@
 import React, { lazy, Suspense, useMemo } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
-import type { EdgeInteractionState } from '../../../../../hooks/useEdgeInteraction';
+import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
 import type { PaletteCommand } from '../CommandPalette';
-import type { UseCanvasSearchReturn } from '../../../../../hooks/useCanvasSearch';
+import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeLabel } from '../EdgeLabel';
 import { ChatFloatingButton } from '../../../../chat/floating';

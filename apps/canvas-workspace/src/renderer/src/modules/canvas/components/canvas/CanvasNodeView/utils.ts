@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from '../../../../../types';
-import type { NodeDragOffset } from '../../../../../hooks/useNodeDrag';
+import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
 
 export function formatRelativeTime(epochMs: number): string {
   const diffSec = Math.floor((Date.now() - epochMs) / 1000);

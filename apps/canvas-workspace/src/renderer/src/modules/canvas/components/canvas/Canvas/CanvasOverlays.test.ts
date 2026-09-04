@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { CanvasEdge } from '../../../../../types';
-import type { EdgeInteractionState } from '../../../../../hooks/useEdgeInteraction';
+import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
 import {
   projectEdgeOverlayGeometry,
   shouldRenderEdgeLabels,

@@ -1,7 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
-import type { ResizeEdge } from '../../../../../hooks/useNodeResize';
-import type { NodeDragOffset } from '../../../../../hooks/useNodeDrag';
+import type { ResizeEdge } from '../../../runtime/useNodeResize';
+import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 

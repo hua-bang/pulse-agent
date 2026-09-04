@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 import { shouldHandleCanvasFindShortcut, useCanvasKeyboard } from './useCanvasKeyboard';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

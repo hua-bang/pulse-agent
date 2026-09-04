@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { subscribeCanvasMotion } from '../../../../../hooks/canvasMotion';
+import { subscribeCanvasMotion } from '../../../../../shared/canvasMotion';
 
 /**
  * Background paint-rate throttling for canvas webview nodes.

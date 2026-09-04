@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../../../../types';
-import type { UseCanvasSearchReturn } from '../../../../../hooks/useCanvasSearch';
+import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
 import { isImeComposing } from '../../../../../utils/ime';
 import { useI18n } from '../../../../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';

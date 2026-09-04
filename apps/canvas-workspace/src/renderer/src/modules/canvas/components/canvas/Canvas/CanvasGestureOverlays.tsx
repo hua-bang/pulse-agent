@@ -1,8 +1,8 @@
 import type React from 'react';
-import type { NodeDragPreview } from '../../../../../hooks/useNodeDrag';
-import type { NodeResizePreview } from '../../../../../hooks/useNodeResize';
-import type { MarqueeRect } from '../../../../../hooks/useMarqueeSelect';
-import type { ShapeDraft } from '../../../../../hooks/useShapeDraw';
+import type { NodeDragPreview } from '../../../runtime/useNodeDrag';
+import type { NodeResizePreview } from '../../../runtime/useNodeResize';
+import type { MarqueeRect } from '../../../runtime/useMarqueeSelect';
+import type { ShapeDraft } from '../../../runtime/useShapeDraw';
 import { ShapePrimitive } from '../../../../../utils/shapeGeometry';
 import { useI18n } from '../../../../../i18n';
 

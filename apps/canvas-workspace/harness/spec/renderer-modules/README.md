@@ -68,6 +68,10 @@ Current healthy properties:
 - Mindmap geometry, immutable tree edits, cross-node transfer, and PNG export
   live under `modules/canvas/mindmap/`; root utils no longer own mindmap
   behavior. Layout and transfer have interface-level regression tests.
+- Canvas viewport, gesture, selection, keyboard, search, paste, and drawing
+  hooks live under `modules/canvas/runtime/`; Dock consumes the viewport
+  interface through `modules/canvas/index.ts`. The cross-module gesture-motion
+  signal lives in `shared/canvasMotion.ts` for UI, note, and iframe consumers.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.

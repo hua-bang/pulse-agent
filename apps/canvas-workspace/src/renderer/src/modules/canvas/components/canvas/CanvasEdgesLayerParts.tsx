@@ -1,5 +1,5 @@
 import type { CanvasNode, EdgeArrowCap } from '../../../../types';
-import type { Point } from '../../../../hooks/useEdgeInteraction';
+import type { Point } from '../../runtime/useEdgeInteraction';
 
 export const SELECTION_COLOR = '#2a7fff';
 export const HANDLE_RADIUS = 5;

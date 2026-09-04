@@ -9,7 +9,7 @@ import {
   resolveEdgePathGeometry,
 } from '../../../../utils/edgeFactory';
 import { resolveEdgeStroke } from '../../../../../../shared/canvas';
-import type { EdgeInteractionState, Point } from '../../../../hooks/useEdgeInteraction';
+import type { EdgeInteractionState, Point } from '../../runtime/useEdgeInteraction';
 import {
   capId,
   EdgeHandles,

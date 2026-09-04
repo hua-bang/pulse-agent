@@ -9,12 +9,12 @@ import {
   applyResizePreviewToNodes,
   type NodeResizePreview,
   type ResizeEdge,
-} from '../../../../../hooks/useNodeResize';
-import type { NodeDragOffset, NodeDragPreview } from '../../../../../hooks/useNodeDrag';
-import { OVERVIEW_SCALE_THRESHOLD } from '../../../../../hooks/useCanvas';
-import type { EdgeInteractionState, Point } from '../../../../../hooks/useEdgeInteraction';
-import type { ShapeDraft } from '../../../../../hooks/useShapeDraw';
-import type { MarqueeRect } from '../../../../../hooks/useMarqueeSelect';
+} from '../../../runtime/useNodeResize';
+import type { NodeDragOffset, NodeDragPreview } from '../../../runtime/useNodeDrag';
+import { OVERVIEW_SCALE_THRESHOLD } from '../../../runtime/useCanvas';
+import type { EdgeInteractionState, Point } from '../../../runtime/useEdgeInteraction';
+import type { ShapeDraft } from '../../../runtime/useShapeDraw';
+import type { MarqueeRect } from '../../../runtime/useMarqueeSelect';
 import type { SnapLine } from '../../../../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../../../../utils/shapeGeometry';
 import { useI18n } from '../../../../../i18n';

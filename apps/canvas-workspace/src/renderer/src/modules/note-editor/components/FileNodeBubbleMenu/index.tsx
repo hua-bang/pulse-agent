@@ -20,7 +20,7 @@ import {
 import type { Editor } from '@tiptap/react';
 import { ALL_SLASH_COMMANDS, type SlashCmd } from '../../runtime/slashCommands';
 import type { NoteBubbleState } from '../../controller/useNoteInteractionController';
-import { subscribeCanvasMotion } from '../../../../hooks/canvasMotion';
+import { subscribeCanvasMotion } from '../../../../shared/canvasMotion';
 import { useEscapeClose } from '../../../../hooks/useEscapeClose';
 import { useI18n } from '../../../../i18n';
 import { EditorCommandIcon } from '../EditorCommandIcon';

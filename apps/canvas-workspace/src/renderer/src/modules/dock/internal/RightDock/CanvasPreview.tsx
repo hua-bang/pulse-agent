@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode } from '../../../../types';
 import { useI18n } from '../../../../i18n';
-import { useCanvas } from '../../../../hooks/useCanvas';
-import { useCanvasFit } from '../../../../hooks/useCanvasFit';
+import { useCanvas, useCanvasFit } from '../../../canvas';
 import { Canvas, CanvasSurface } from '../../../canvas/surface';
 import { useCanvasRenderOrder, useCanvasVisibility } from '../../../canvas/projection';
 // The reused surface pieces (.canvas-transform / .canvas-grid / node chrome

@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import type { CanvasNode, FileNodeData } from '../types';
-import type { CanvasClipboard } from '../types/ui-interaction';
-import { isImeComposing } from '../utils/ime';
+import type { CanvasNode, FileNodeData } from '../../../types';
+import type { CanvasClipboard } from '../../../types/ui-interaction';
+import { isImeComposing } from '../../../utils/ime';
 import {
   matchShortcut,
   type CanvasShortcutId,
   type KeyBinding,
-} from '../shortcuts/registry';
+} from '../../../shortcuts/registry';
 
 interface KeyboardShortcutLike {
   ctrlKey: boolean;

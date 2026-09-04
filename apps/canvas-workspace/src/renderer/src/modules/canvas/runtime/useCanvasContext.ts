@@ -1,4 +1,4 @@
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 
 export const useCanvasContext = (rootFolder: string | undefined, nodes: CanvasNode[], canvasName?: string) => {
   // Intentionally a no-op for now.

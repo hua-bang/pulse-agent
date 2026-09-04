@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 
 type Point = { x: number; y: number };
 

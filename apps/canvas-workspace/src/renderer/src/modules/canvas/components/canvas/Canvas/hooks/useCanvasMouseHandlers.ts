@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type { CanvasNode } from '../../../../../../types';
-import type { EdgeInteractionState } from '../../../../../../hooks/useEdgeInteraction';
-import type { ResizeEdge } from '../../../../../../hooks/useNodeResize';
+import type { EdgeInteractionState } from '../../../../runtime/useEdgeInteraction';
+import type { ResizeEdge } from '../../../../runtime/useNodeResize';
 import { acquireInteractionShield } from '../../../../../../utils/interactionShield';
 
 interface MarqueeApi {

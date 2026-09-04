@@ -3,7 +3,7 @@ import {
   getCanvasTransformClassName,
   getCanvasTransformTransition,
 } from './CanvasSurface';
-import { OVERVIEW_SCALE_THRESHOLD } from '../../../../../hooks/useCanvas';
+import { OVERVIEW_SCALE_THRESHOLD } from '../../../runtime/useCanvas';
 
 /**
  * Guards two zoom/pan-gesture polish fixes on `.canvas-transform`'s CSS

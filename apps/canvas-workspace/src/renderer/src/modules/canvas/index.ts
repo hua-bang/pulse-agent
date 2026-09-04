@@ -18,3 +18,5 @@ export * from './mindmap/layout';
 export * from './mindmap/tree';
 export * from './mindmap/transfer';
 export { exportMindmapNodeToPng, type MindmapImageExport } from './mindmap/export';
+export { useCanvas, OVERVIEW_SCALE_THRESHOLD, canvasTransformToCss } from './runtime/useCanvas';
+export { useCanvasFit } from './runtime/useCanvasFit';

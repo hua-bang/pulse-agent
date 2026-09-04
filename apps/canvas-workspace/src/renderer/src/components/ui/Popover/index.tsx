@@ -7,7 +7,7 @@ import { useClickOutside } from '../../../hooks/useClickOutside';
 import {
   getCanvasMotion,
   subscribeCanvasMotion,
-} from '../../../hooks/canvasMotion';
+} from '../../../shared/canvasMotion';
 
 // A stable "no anchor" ref so useAnchorRectPosition can be called
 // UNCONDITIONALLY below (rules-of-hooks — Popover supports two anchoring

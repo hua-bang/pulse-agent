@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isImeComposing } from '../utils/ime';
+import { isImeComposing } from '../../../utils/ime';
 
 const INTERACTIVE_SELECTOR = [
   'a[href]',

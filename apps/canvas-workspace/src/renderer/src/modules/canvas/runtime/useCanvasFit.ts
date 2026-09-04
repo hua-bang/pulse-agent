@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { CanvasNode, CanvasTransform } from '../types';
+import type { CanvasNode, CanvasTransform } from '../../../types';
 
 export const useCanvasFit = (
   containerRef: React.RefObject<HTMLDivElement | null>,

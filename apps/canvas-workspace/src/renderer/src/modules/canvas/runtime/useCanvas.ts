@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { CanvasTransform } from "../types";
+import type { CanvasTransform } from "../../../types";
 import {
   HEAVY_EMBED_THRESHOLD,
   setCanvasMotion,
   type CanvasMotionMode,
-} from "./canvasMotion";
+} from '../../../shared/canvasMotion';
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;

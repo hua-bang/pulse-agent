@@ -6,8 +6,8 @@ import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasProps } from './types';
-import type { NodeDragOffset, NodeDragPreview } from '../../../../../hooks/useNodeDrag';
-import type { NodeResizePreview } from '../../../../../hooks/useNodeResize';
+import type { NodeDragOffset, NodeDragPreview } from '../../../runtime/useNodeDrag';
+import type { NodeResizePreview } from '../../../runtime/useNodeResize';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 
 type CanvasRootViewProps = Pick<
@@ -76,7 +76,7 @@ type CanvasRootViewProps = Pick<
   resizePreview: NodeResizePreview | null;
   /** Gesture-frozen scale for CanvasSurface's `--canvas-scale` (see useCanvas). */
   settledScale: number;
-  search: ReturnType<typeof import('../../../../../hooks/useCanvasSearch').useCanvasSearch>;
+  search: ReturnType<typeof import('../../../runtime/useCanvasSearch').useCanvasSearch>;
   searchOpen: boolean;
   selectedEdgeId: string | null;
   selectedNodeIdSet: Set<string>;

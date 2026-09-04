@@ -33,7 +33,7 @@ const rendered = vi.hoisted(() => ({
   surfaceReadOnly: undefined as boolean | undefined,
 }));
 
-vi.mock('../../../../../hooks/useCanvas', () => ({
+vi.mock('../../../../canvas', () => ({
   useCanvas: () => ({
     transform: { x: 0, y: 0, scale: 1 },
     setTransform: vi.fn(),
@@ -45,9 +45,6 @@ vi.mock('../../../../../hooks/useCanvas', () => ({
     handleMouseUp: vi.fn(),
     zoomByStep: controls.zoomByStep,
   }),
-}));
-
-vi.mock('../../../../../hooks/useCanvasFit', () => ({
   useCanvasFit: () => ({
     fitAllNodes: controls.fitAllNodes,
     handleFocusNode: vi.fn(),

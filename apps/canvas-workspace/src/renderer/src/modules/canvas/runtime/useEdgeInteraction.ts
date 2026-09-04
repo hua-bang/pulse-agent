@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CanvasEdge, CanvasNode, EdgeEndpoint } from '../types';
+import type { CanvasEdge, CanvasNode, EdgeEndpoint } from '../../../types';
 import {
   bendFromCursor,
   createDefaultEdge,
   findNodeAtCanvasPoint,
   resolveEndpointToward,
-} from '../utils/edgeFactory';
+} from '../../../utils/edgeFactory';
 
 /** Discard connect clicks that never become a deliberate drag. */
 const CONNECT_DRAG_MIN_DISTANCE = 6;
