@@ -1,5 +1,6 @@
+import './index.css';
 import type { ReactNode } from 'react';
-import { Button } from '../../../components/ui/Button';
+import { Button } from '../../../../components/ui/Button';
 
 export type KnowledgeCardKind = 'file' | 'text' | 'iframe' | 'image' | 'mindmap' | 'generic';
 
@@ -26,3 +27,4 @@ export const CardShell = ({ kind, selected, contextSelected = false, openLabel, 
     {actions && <div className="knowledge-node-card__actions">{actions}</div>}
   </article>
 );
+
