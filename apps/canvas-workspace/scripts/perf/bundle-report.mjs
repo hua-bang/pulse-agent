@@ -15,6 +15,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildBundleGates } from './bundle-gates.mjs';
 import {
+  BUNDLE_FEATURE_ENTRIES,
+  findBundleFeatureEntryKeys,
+} from './bundle-features.mjs';
+import {
   matchesEntryDepStats,
   measureManifestClosure,
   measureRendererBundle,
@@ -43,15 +47,6 @@ const ENTRY_MODULE_WATCHLIST = [
   { lib: 'force-graph (d3-force)', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:react-force-graph|force-graph|d3-force)(?:@|\/)/ },
   { lib: 'module-federation runtime', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@module-federation\// },
   { lib: 'mermaid (must stay lazy)', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?mermaid\// },
-];
-
-const FEATURE_ENTRIES = [
-  { id: 'file', matches: (key) => key.endsWith('src/components/node-bodies/FileNodeBody/index.tsx') },
-  { id: 'chat', matches: (key) => key.endsWith('src/components/chat/ChatPanel.tsx') },
-  { id: 'terminal', matches: (key) => key.endsWith('src/components/node-bodies/TerminalNodeBody/index.tsx') },
-  { id: 'graph', matches: (key) => key.endsWith('src/views/WorkspaceNodes/GraphPage.tsx') },
-  { id: 'mermaid', matches: (_key, chunk) => /^assets\/mermaid\.core-/.test(chunk.file ?? '') },
-  { id: 'mf', matches: (key) => key.includes('/@module-federation+runtime@') && key.endsWith('/dist/index.js') },
 ];
 
 const kb = (bytes) => Math.round(bytes / 1024);
@@ -85,10 +80,8 @@ const main = () => {
   const entryGzipKB = kb(measured.entry.gzipBytes);
   const totalJsKB = kb(measured.total.jsRawBytes);
   const startupFiles = [...measured.startup.jsFiles, ...measured.startup.cssFiles];
-  const featureFirstLoad = Object.fromEntries(FEATURE_ENTRIES.map((feature) => {
-    const matches = Object.entries(manifest)
-      .filter(([key, chunk]) => feature.matches(key, chunk))
-      .map(([key]) => key);
+  const featureFirstLoad = Object.fromEntries(BUNDLE_FEATURE_ENTRIES.map((feature) => {
+    const matches = findBundleFeatureEntryKeys(manifest, feature);
     if (matches.length !== 1) {
       throw new Error(`expected exactly one manifest entry for feature ${feature.id}, found ${matches.length}`);
     }

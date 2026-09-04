@@ -1,0 +1,62 @@
+.reference-url-popover {
+  left: auto;
+  right: 0;
+  min-width: 260px;
+  margin: 0;
+  padding: 10px;
+  gap: 8px;
+}
+
+.reference-url-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.reference-url-input {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.reference-url-input:focus {
+  outline: none;
+  border-color: rgba(35, 131, 226, 0.5);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.12);
+}
+
+.reference-url-error {
+  color: #c0392b;
+  font-size: 11px;
+}
+
+.reference-url-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.reference-search-clear {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.reference-search-clear:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text);
+}
+

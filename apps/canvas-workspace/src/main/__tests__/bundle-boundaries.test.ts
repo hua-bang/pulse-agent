@@ -9,13 +9,13 @@ import { fileURLToPath } from 'url';
  * Walks the STATIC import graph from the renderer entry (main.tsx) and fails
  * if any watch-listed package becomes statically reachable, which would
  * silently fold it back into the startup chunk. Maintained lazy boundaries:
- *  - chat/utils/mermaid.ts does `import('mermaid')` (keeps mermaid + its
+ *  - renderer utils/mermaid.ts does `import('mermaid')` (keeps mermaid + its
  *    diagram sub-chunks out of the entry).
  *  - GraphPageLazy (B6) React.lazy-loads react-force-graph-2d + d3-force.
  *  - DefaultCanvasNode (C1/C6 + webview startup) React.lazy-loads the 6
  *    non-trivial node bodies (text/file/agent/frame/terminal/iframe), evicting
  *    editor packages and the embedded-browser scheduler from the entry.
- *  - chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
+ *  - modules/chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
  *    highlight.js + markdown-it + the chat tree.
  *  - WorkspaceTerminalPortal (C2) React.lazy-loads WorkspaceTerminalDock,
  *    evicting @xterm/xterm and its CSS from the startup closure.
@@ -49,22 +49,22 @@ const WATCHLIST = [
 ];
 
 const DYNAMIC_ONLY_MODULE_SUFFIXES = [
-  '/components/settings/Settings/index.tsx',
-  '/components/settings/WorkspaceSettings/index.tsx',
-  '/views/WorkspaceNodes/NodesPage.tsx',
-  '/views/WorkspaceNodes/NodeDetailPage.tsx',
-  '/components/node-bodies/FileNodeBody/index.tsx',
-  '/components/node-bodies/TextNodeBody/index.tsx',
-  '/components/node-bodies/IframeNodeBody/index.tsx',
-  '/components/chat/ChatPanel.tsx',
-  '/components/chat/chatScope.ts',
-  '/components/chat/useRegisterChatTarget.ts',
-  '/components/chat/utils/sessionScope.ts',
-  '/components/dock/ReferenceDrawer/index.tsx',
-  '/components/canvas/CommandPalette/index.tsx',
-  '/components/canvas/SearchBar/index.tsx',
-  '/components/canvas/EdgeStylePanel/index.tsx',
-  '/components/artifacts/ArtifactTabView.tsx',
+  '/modules/settings/internal/Settings/index.tsx',
+  '/modules/settings/internal/WorkspaceSettings/index.tsx',
+  '/modules/workspace-nodes/internal/NodesPage/index.tsx',
+  '/modules/workspace-nodes/internal/NodeDetailPage.tsx',
+  '/modules/canvas/components/node-bodies/FileNodeBody/index.tsx',
+  '/modules/canvas/components/node-bodies/TextNodeBody/index.tsx',
+  '/modules/canvas/components/node-bodies/IframeNodeBody/index.tsx',
+  '/modules/coding-agent/components/AgentNodeBody/index.tsx',
+  '/modules/chat/components/ChatPanel/index.tsx',
+  '/modules/chat/target/useRegisterChatTarget.ts',
+  '/modules/chat/target/sessionScope.ts',
+  '/modules/dock/internal/ReferenceDrawer/index.tsx',
+  '/modules/canvas/components/canvas/CommandPalette/index.tsx',
+  '/modules/canvas/components/canvas/SearchBar/index.tsx',
+  '/modules/canvas/components/canvas/EdgeStylePanel/index.tsx',
+  '/modules/artifacts/internal/ArtifactTabView/index.tsx',
   '/plugins/renderer/devtools/AgentDebugPage.tsx',
   '/plugins/renderer/devtools/ChatDebugTrace.tsx',
 ];
@@ -173,22 +173,22 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
   it.each(WATCHLIST)('%s stays dynamic-only (never in the startup chunk)', (pkg) => {
     expect(
       packages.has(pkg),
-      `${pkg} became statically reachable from main.tsx — it will be folded into the eagerly-parsed entry chunk. Load it via import() instead (see chat/utils/mermaid.ts).`,
+      `${pkg} became statically reachable from main.tsx — it will be folded into the eagerly-parsed entry chunk. Load it via import() instead (see utils/mermaid.ts).`,
     ).toBe(false);
   });
 
   it('mermaid lazy boundary still exists', () => {
     const mermaidUtil = readFileSync(
-      join(srcRoot, 'renderer/src/components/chat/utils/mermaid.ts'),
+      join(srcRoot, 'renderer/src/utils/mermaid.ts'),
       'utf-8',
     );
     expect(mermaidUtil).toMatch(/import\(\s*['"]mermaid['"]\s*\)/);
   });
 
   it.each([
-    'renderer/src/components/dock/WorkspaceTerminalDock/index.tsx',
-    'renderer/src/components/node-bodies/AgentNodeBody/index.tsx',
-    'renderer/src/components/node-bodies/TerminalNodeBody/index.tsx',
+    'renderer/src/modules/dock/internal/WorkspaceTerminalDock/index.tsx',
+    'renderer/src/modules/coding-agent/components/AgentNodeBody/index.tsx',
+    'renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx',
   ])('%s loads the xterm base styles with its lazy chunk', (path) => {
     const entry = readFileSync(join(srcRoot, path), 'utf-8');
     expect(entry).toContain("import '@xterm/xterm/css/xterm.css';");

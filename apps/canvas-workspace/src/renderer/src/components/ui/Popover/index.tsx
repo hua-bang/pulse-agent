@@ -7,7 +7,7 @@ import { useClickOutside } from '../../../hooks/useClickOutside';
 import {
   getCanvasMotion,
   subscribeCanvasMotion,
-} from '../../../hooks/canvasMotion';
+} from '../../../shared/canvasMotion';
 
 // A stable "no anchor" ref so useAnchorRectPosition can be called
 // UNCONDITIONALLY below (rules-of-hooks — Popover supports two anchoring
@@ -119,7 +119,7 @@ type Props = PointAnchorProps | RectAnchorProps;
  *  - **Rect anchor** (`anchorRef`): positions relative to a LIVE element's
  *    rect and keeps reanchoring on scroll/resize via
  *    `useAnchorRectPosition` — for a trigger button whose position can
- *    change while the panel is open (e.g. `chat/ModelSwitcher`), which a
+ *    change while the panel is open (e.g. `models/ModelSwitcher`), which a
  *    one-shot x/y clamp cannot track. A press on `anchorRef` itself never
  *    counts as an outside press (the anchor structurally IS the trigger).
  *
@@ -127,7 +127,7 @@ type Props = PointAnchorProps | RectAnchorProps;
  * for neither) — the same close-reason shape `ui/DropdownShell` already
  * exposes, for callers that want to restore focus to their trigger on a
  * deliberate Escape but not fight the user's attention on an outside press
- * (see `chat/ModelSwitcher`).
+ * (see `models/ModelSwitcher`).
  *
  * Because Popover already wires those, callers MUST NOT also call
  * `useMenuKeyboardNav` / `useClickOutside` / `useEscapeClose` themselves,

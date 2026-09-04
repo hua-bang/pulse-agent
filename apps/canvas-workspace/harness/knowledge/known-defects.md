@@ -10,7 +10,7 @@ test and delete its entry.
 ## LIVE (user-visible behavior is degraded today)
 
 ### File-watcher sync is disabled — external edits to file nodes don't propagate
-`src/renderer/src/hooks/useNodes.ts:275-283`. The `fs.watch`-based watcher
+`src/renderer/src/modules/canvas/document/useCanvasDocument.ts:241-269`. The `fs.watch`-based watcher
 that pushed external file changes into open file nodes is commented out,
 because its `onChanged` callback could call `applyNodes` with a stale
 `nodesRef.current`, reverting the user's in-flight edits (a classic
@@ -18,7 +18,7 @@ read-modify-write race between watcher events and local editing). The
 disable is deliberate and documented in the comment, and it is closed at BOTH
 ends: `FILE_WATCHER_ENABLED = false` in `src/main/files/watcher.ts:14` gates
 the main-process watcher itself (`:37` early-returns), and the renderer-side
-application block in `useNodes.ts` is commented out. The underlying race is
+application block in `useCanvasDocument.ts` is commented out. The underlying race is
 unfixed, so today an external edit to a file backing an open node is silently
 invisible until reload. Re-enable = flip the flag AND un-comment the hook
 block. Fix shape: apply watcher events through the same merge path used for
@@ -28,7 +28,7 @@ rather than raw `applyNodes`.
 ---
 
 **Verification.** Confirmed against source on the working branch
-(2026-07-07): disabled block + race explanation at `useNodes.ts:275-283`;
+(2026-07-07): disabled block + race explanation at `useCanvasDocument.ts:241-269`;
 main-process gate at `src/main/files/watcher.ts:14,37`.
 Provenance: surfaced by the post-consolidation harness audit; previously the
 defect lived only in that code comment, invisible to harness navigation.

@@ -76,7 +76,7 @@
 - **置信度**:0.9
 
 #### H7 · `markdown.render` 为每个无语言提示的代码块跑 `highlightAuto`,放大每 token 重解析成本
-- **文件**:`src/renderer/src/components/chat/utils/markdown.ts:18-40,140-142`
+- **文件**:`src/renderer/src/modules/chat/components/utils/markdown.ts:18-40,140-142`
 - **类别**:blocking-io / CPU
 - **证据**:`renderCodeBlockHtml` → `highlightCode`:无/未知语言时 `hljs.highlightAuto(code)`(`markdown.ts:33-39`)跨所有常见语言做自动检测(已知语言走更廉价的 `hljs.highlight`)。`renderMarkdown`(`140`)被 `renderMdWithMentions` 调用,而 `ChatMessage` 的 `useMemo` 按 `[message.content]` 触发——流式时每 token 重跑。
 - **用户影响**:`highlightAuto` 是 hljs 最昂贵操作之一(尝试多种语法)。在不断增长的代码块上每 token 重跑,是大型同步主线程成本,随代码长度与 token 速率增长,是代码密集回复流式卡顿的首要贡献者。因 delta append 无节流(`useChatStream.ts:246`)且 `renderMarkdown` 无缓存,所有代码块每 token 都被重 highlight。
@@ -159,7 +159,7 @@
 - **置信度**:0.9
 
 #### M-Chat1 · 逐 token `onTextDelta` 做整 messages 数组拷贝 → 重渲染每个 ChatMessage;未 memo 的 ChatMessage 每 token 重解析 markdown
-- **文件**:`chat/hooks/useChatStream.ts:240-249` + `ChatMessage.tsx:95-118`
+- **文件**:`modules/chat/runtime/useConversationRuntimeStream.ts` + `ChatMessage/index.tsx`
 - **类别**:re-render
 - **证据**:`onTextDelta` 每 token:`setMessages(prev => { const next=[...prev]; next[index]={...next[index], content: ...+delta}; return next; })`——每 token 新数组 + `assistantIndex` 处新对象 identity。`ChatMessages.tsx:257` 的 `.map` 对全列表重跑,`ChatMessage` 是普通函数(`95` 行,**未** `memo`),故每个兄弟消息也重渲染。`ChatMessage` 内 `assistantHtml = useMemo(() => renderMdWithMentions(message.content, nodes), [message.role, message.content, nodes])` 每 token 重解析在途消息的完整 markdown。
 - **用户影响**:流式速度下(每秒数十到数百 token),活跃消息的 markdown+语法高亮从头重跑(代码块时 `highlightAuto` 对增长 buffer 跑 = O(n²) 总 CPU)。**更正**:兄弟(非流式)消息会重渲染(函数体执行 + vdom diff),但**不**重解析 markdown(其 `useMemo` 由稳定 `message.content/nodes` 守护),故 markdown/高亮成本停留在单个流式消息——主导成本是该消息的 O(n²) 重解析。
@@ -167,7 +167,7 @@
 - **置信度**:0.85
 
 #### M-Chat2 · `publishTools()` 在每个 tool-input delta 与每个 `onVisualStream` 帧(~60fps)拷贝数组 + 克隆 Map,重渲染 tool chip 与流式 visual
-- **文件**:`chat/hooks/useChatStream.ts:142-148,171-212`
+- **文件**:`modules/chat/runtime/useConversationRuntimeStream.ts`
 - **类别**:re-render
 - **证据**:`publishTools = () => { const snapshot=[...toolCalls]; setStreamingTools(snapshot); if (assistantIndex.current>=0) setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot)); }`,被 `onToolInputDelta`(每 arg-token,`174-176`)与 `onVisualStream`(`211`,~60fps)调用。每次分配新数组 + 新 Map 喂 setState。
 - **用户影响**:**更正**:React 18 自动批处理把单个 IPC handler 内的两次 setState 合并为一次 commit,故是 ~60 渲染/秒而非 120;且 `ChatMessage` 的 markdown `useMemo`(按 `message.content`,流式 tool-arg/visual 时不变)被跳过,churn 是随列表长度增长的 vdom diff。整体是 ~1.4s 动画期间全列表 ~60fps 重渲染,与动画争抢但通常非灾难性。
@@ -303,7 +303,7 @@
 - **类别**:bundle
 - **证据**:`App.tsx` 顶层 `import { GraphPage } from './components/WorkspaceNodes/GraphPage'`(及 `NodeDetailPage`/`NodesPage`)。`GraphPage.tsx:11` 静态 `import ForceGraph2D from 'react-force-graph-2d'`。路由在渲染时由 `GRAPH_ENABLED`/`NODES_ENABLED`(`App.tsx:60-61,555`,默认 disabled)gate,但静态导入使 force-graph + d3 在启动 chunk 中。`{GRAPH_ENABLED && (...)}` 只影响渲染不影响打包。
 - **用户影响**:**精确化**:这是从本地磁盘加载 bundle 的 Electron 桌面应用,无每用户网络"下载"成本;真实成本是更大启动 chunk + 启动时对 react-force-graph-2d 及其 d3-force 的一次性 parse/eval,即便 graph/nodes 视图 flag-disabled。故 low。
-- **修复建议**:把实验视图改 `React.lazy + dynamic import` gate 在 flag 后(镜像 `chat/utils/mermaid.ts` 已用的 `import('mermaid')` 模式),则 force-graph chunk 仅在 flag 开启且路由打开时加载。
+- **修复建议**:把实验视图改 `React.lazy + dynamic import` gate 在 flag 后(镜像 `utils/mermaid.ts` 已用的 `import('mermaid')` 模式),则 force-graph chunk 仅在 flag 开启且路由打开时加载。
 - **置信度**:0.92
 
 #### L-Graph-Reheat / L-Focus 等图层细节已并入 H8 与 L7,不再重复。

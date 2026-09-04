@@ -166,7 +166,7 @@
 - **验收**:首屏移除 Welcome Guest WebContents 与远程导航依赖；空白工作区上线后，对应启动指标已随产品表面一并退役。
 
 ### B6 · C 维第一批:重依赖出 entry 〔M-L,依赖 A5〕
-- **背景**:C1-C6(入口 4,618KB,目标 ≤1,500)。全仓唯一懒边界是 mermaid,模式可复制(`chat/utils/mermaid.ts`)。
+- **背景**:C1-C6(入口 4,618KB,目标 ≤1,500)。全仓唯一懒边界是 mermaid,模式可复制(`utils/mermaid.ts`)。
 - **做法**:按 A5 的归因结论排序,预期首批 = `DefaultCanvasNode` 的 xterm/tiptap body 改 `React.lazy+Suspense`(占位框 fallback)+ `electron.vite.config.ts` 加 `manualChunks`。
 - **验收**:`bundle.entry_raw_kb` 下降并**同 PR 下调基线**;拆出的依赖从 bundle-boundaries 测试的 `EXPECTED_STATIC` 升入 `WATCHLIST`;keep-alive 画布功能无回归(97 个测试 + harness 冒烟)。
 

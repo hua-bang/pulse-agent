@@ -5,15 +5,15 @@ loading states, the full-page chat route's relationship to the right dock's
 content tabs, right-dock width behavior, and the main-process layer that keeps
 runs session-anchored so different conversations in one workspace can stream
 concurrently. Read this
-before changing `hooks/useChatSessions.ts`
-(`src/renderer/src/components/chat/hooks/useChatSessions.ts`), the full-page
+before changing `modules/chat/sessions/useChatSessions.ts`
+(`src/renderer/src/modules/chat/sessions/useChatSessions.ts`), the full-page
 chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
-(`src/renderer/src/components/dock/RightDock/dock-width.ts`), or
+(`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
 `session-mutation-coordinator.ts`, `prepared-chat.ts`,
 `canvas-run-registry.ts`, `run-session-context.ts`, `session-file-io.ts`,
 `clarification-registry.ts`, `session-store.ts`,
-`chat-failure-persistence.ts`, `useChatAttachments.ts`).
+`chat-failure-persistence.ts`, `src/renderer/src/modules/chat/attachments/useChatAttachments.ts`).
 
 ## Conversation-runtime architecture (2026-09)
 
@@ -28,10 +28,11 @@ independent runtime:
   `conversation-service.ts` (service facade) + `conversation-ipc.ts`
   (IPC: `canvas-agent:conversation-chat` / `conversation-abort` /
   `conversation-stop-relay` / `conversation-clarify-answer`).
-- Renderer: `conversationStore.ts` (useSyncExternalStore keyed by
+- Renderer: `src/renderer/src/modules/chat/runtime/conversationStore.ts` (useSyncExternalStore keyed by
   ConversationKey; snapshot cache keeps getSnapshot referentially stable),
-  `useConversationRuntimeStream.ts` (keyed stream hook driving the store +
-  conversation IPC), `useChatComposerStateKeyed.ts` (composer root used by
+  `src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.ts`
+  (keyed stream hook driving the store +
+  conversation IPC), `useChatComposerController.ts` (composer root used by
   BOTH `ChatPanel` and `ChatPageBody`).
 
 Two conversations in one workspace run fully in parallel; a second turn against
@@ -77,9 +78,9 @@ Key invariants and their guards:
   `conversation-runtime/service-conversation-runtime.test.ts` (parallel runs,
   per-conversation isolation, same-conversation serialization, delta streaming).
 - Renderer store + switch-only-selector + shared snapshot:
-  `hooks/conversationStore.test.ts`, `hooks/useChatStream.keyed.test.tsx`,
-  `hooks/useChatStream.shared-snapshot.test.tsx`,
-  `hooks/useChatComposerStateKeyed.test.tsx`.
+  `modules/chat/runtime/conversationStore.test.ts`, `modules/chat/runtime/useConversationRuntimeStream.test.tsx`,
+  `modules/chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx`,
+  `ChatComposer/__tests__/useChatComposerController.test.tsx`.
 - Session hydration is always qualified by `{ scope, sessionId }`; fetched
   messages are written to that conversation store BEFORE React adopts its
   selector. An unqualified `onMessagesLoaded(messages)` callback can capture
@@ -127,8 +128,8 @@ Three flags look similar and are not interchangeable.
   "the model is generating". That one drives the three-dot `.chat-loading`
   indicator, never the skeleton.
 
-`sessionsLoading` and `sessionLoading` both live in `hooks/useChatSessions.ts`
-(`src/renderer/src/components/chat/hooks/useChatSessions.ts`). Do not
+`sessionsLoading` and `sessionLoading` both live in `modules/chat/sessions/useChatSessions.ts`
+(`src/renderer/src/modules/chat/sessions/useChatSessions.ts`). Do not
 conflate them.
 
 **`runThreadFetch` and the request token.** Every thread-replacing IPC call —
@@ -183,14 +184,14 @@ else will ever clear that seeded-true flag.
 
 **Submit veto.** Sending is vetoed while `sessionLoading` is true — the same
 rule that already blocks session switches while streaming. The veto is
-implemented in `useMentions`' `isSubmitBlocked`, not at a single call site,
+implemented in `useChatComposerInput`' `isSubmitBlocked`, not at a single call site,
 because the composer has TWO submit paths: the send button and
 `handleKeyDown`'s Enter key. A guard placed only in a caller's `handleSubmit`
 is a hole — one of the two paths would bypass it.
 
-Tests: `hooks/useChatSessions.test.tsx`,
-`hooks/useMentions.submit-veto.test.tsx`, `__tests__/ChatSessionLoading.test.tsx`
-(all under `src/renderer/src/components/chat/`).
+Tests: `src/renderer/src/modules/chat/sessions/useChatSessions.test.tsx`,
+`src/renderer/src/modules/chat/components/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`,
+and `src/renderer/src/modules/chat/components/__tests__/ChatSessionLoading.test.tsx`.
 
 ## Live Agent activity feedback
 
@@ -229,8 +230,9 @@ running status occupies the title row's fixed status slot as a quiet spinner,
 never a second `Running` line. Do not add an in-thread progress banner that
 shifts the transcript.
 
-Guards: `__tests__/ChatMessages.accessibility.test.tsx`,
-`__tests__/ChatToolCalls.test.tsx`, and `__tests__/ChatSessionsRail.test.tsx`.
+Guards: `modules/chat/components/ChatMessages/__tests__/ChatMessages.accessibility.test.tsx`,
+`modules/chat/components/ChatMessage/ChatToolCalls/__tests__/ChatToolCalls.test.tsx`, and
+`modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
 ## Stopped-turn outcome lifecycle
 
@@ -238,7 +240,8 @@ A stopped turn keeps a compact recovery marker while it remains the latest
 user-visible outcome. Once a later user message moves the conversation on,
 that old marker is hidden; the partial assistant content stays in history.
 Failed-turn outcomes remain visible because their diagnostics and retry state
-are still relevant. Guard: `__tests__/ChatMessages.accessibility.test.tsx`.
+are still relevant. Guard:
+`modules/chat/components/ChatMessages/__tests__/ChatMessages.accessibility.test.tsx`.
 
 ## Stable full-page session rail
 
@@ -287,9 +290,9 @@ structurally stable while the selected conversation changes scope.
   intent ordering prevents a slower earlier request from replacing a newer
   destination click.
 
-Guards: `hooks/useChatSessions.test.tsx` composes cross-scope loading with the
+Guards: `modules/chat/sessions/useChatSessions.test.tsx` composes cross-scope loading with the
 unified rail and pins the one-source list contract;
-`__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
+`modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx` pins expansion preservation, pending-row
 feedback, the title-only row layout, precise recency ordering, and workspace
 row draft actions;
 `src/main/agent/__tests__/service-history.test.ts` pins active-store exclusion.
@@ -309,7 +312,7 @@ menu for now. Guard:
 
 ## Full-page chat topbar vs dock content tabs
 
-The full-page chat topbar (`chat/ChatPageBody.tsx`, shared by the AI Chat
+The full-page chat topbar (`chat/ChatPageBody/index.tsx`, shared by the AI Chat
 page and a scheduled task's chat page) has NO close button. Its right-most
 control instead shows/hides the dock's CONTENT tabs (link / artifact /
 node-detail / canvas-preview) beside the chat, and must never navigate — a
@@ -373,10 +376,10 @@ to a hidden workspace composer while `/chat` is visible.
 Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
 `RightDock/__tests__/CanvasPreview.test.tsx`,
-`Canvas/hooks/useCanvasSyncEffects.test.ts`, `hooks/useNodes.test.tsx`, and
+`Canvas/hooks/useCanvasSyncEffects.test.ts`, `modules/canvas/document/__tests__/useCanvasDocument.test.tsx`, and
 `Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
-`chat/__tests__/ChatPage.dom-review.test.tsx`,
-`chat/hooks/useSubmitDomReviewComments.test.tsx`, and
+`chat/ChatPageBody/__tests__/ChatPage.dom-review.test.tsx`,
+`chat/ChatComposer/__tests__/useSubmitDomReviewComments.test.tsx`, and
 `Workbench/__tests__/useChatInsertionBridge.test.tsx`.
 
 ### Explicit Chat ↔ dock-tab context
@@ -429,12 +432,12 @@ tools through the clarification approval lane before execution.
 Guards: `utils/chatPageDockTabs.test.ts`, `utils/mentions.test.ts`,
 `__tests__/ChatMessages.accessibility.test.tsx`, and
 `__tests__/ChatInput.execution-attachments.test.tsx` under
-`src/renderer/src/components/chat/`, plus
+`src/renderer/src/modules/chat/components/`, plus
 `RightDock/useDockAgentBridge.test.tsx`.
 
 ## Dock width policy
 
-`RightDock/dock-width.ts` (`src/renderer/src/components/dock/RightDock/dock-width.ts`).
+`RightDock/dock-width.ts` (`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`).
 
 - On the canvas, the dock may grow to ~95% of the viewport — the canvas
   reflows behind it, so a near-full-screen dock is legitimate there.
@@ -554,7 +557,7 @@ that conversation without overwriting a newer live snapshot, and adopt its
 session id; leaving the error on the rejected key strands the optimistic user
 message in a conversation that no longer exists.
 
-Guard: `src/renderer/src/components/chat/hooks/useChatComposerStateKeyed.test.tsx`.
+Guard: `src/renderer/src/modules/chat/components/ChatComposer/__tests__/useChatComposerController.test.tsx`.
 
 **Switching conversations while a run streams.** The rail stays usable: picking
 another session calls `disposeCurrentTurn` (via `useChatPagePendingSession`'s
@@ -650,8 +653,8 @@ Pending text and its context snapshot are kept by scope + conversation across
 chat-surface remounts. Delivery pauses while that conversation has no mounted
 chat host and resumes when it returns; it is not a durable app-restart queue.
 Manual Stop clears pending input. Draft attachments stay untouched because run
-input is text-only. Guards: `hooks/useChatRunQueue.test.tsx` and
-`hooks/useChatStream.protocol.test.tsx`.
+input is text-only. Guard:
+`src/renderer/src/modules/chat/runtime/useChatRunQueue.test.tsx`.
 
 ### Clarification serialization
 
@@ -704,7 +707,7 @@ accepted.
   its default return-string mode remains unchanged for other hosts.
 
 Guards: `useChatAttachments.test.tsx`
-(`src/renderer/src/components/chat/hooks/useChatAttachments.ts`),
+(`src/renderer/src/modules/chat/attachments/useChatAttachments.ts`),
 `segment-execution.test.ts`, `chat-protocol.test.ts`, and
 `chat-failure-persistence.test.ts` (all under `src/main/agent/`), plus
 `src/main/agent/backends/pi-agent-harness-backend.test.ts`.
@@ -719,8 +722,8 @@ The full-screen chat rail is one stable cross-scope projection.
   position.
 - Commit the current and other lists together after promotion.
 
-Guards: `useChatSessions.test.tsx` and `ChatSessionsRail.test.tsx` (both under
-`src/renderer/src/components/chat/`).
+Guards: `src/renderer/src/modules/chat/sessions/useChatSessions.test.tsx` and
+`src/renderer/src/modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
 ### Stable chat-target fallbacks at the app root
 
@@ -732,7 +735,7 @@ React's maximum update depth, and clears the renderer.
 
 Workbench's node and selection fallbacks are module constants, and are
 covered by `Workbench/__tests__/ChatDockLifecycle.test.tsx`
-(`src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
+(`src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
 Knowledge chat applies the same stable-fallback rule, but is NOT exercised by
 that guard.
 
@@ -740,13 +743,13 @@ that guard.
 
 Primary regression suites live in:
 
-- `src/renderer/src/components/chat/hooks/useChatSessions.test.tsx`
-- `src/renderer/src/components/chat/hooks/useMentions.submit-veto.test.tsx`
-- `src/renderer/src/components/chat/__tests__/ChatSessionLoading.test.tsx`
-- `src/renderer/src/components/chat/__tests__/ChatSessionsRail.test.tsx`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-content-tabs.test.ts`
-- `src/renderer/src/components/dock/RightDock/index.test.tsx`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-width.test.ts`
+- `src/renderer/src/modules/chat/sessions/useChatSessions.test.tsx`
+- `src/renderer/src/modules/chat/components/ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`
+- `src/renderer/src/modules/chat/components/__tests__/ChatSessionLoading.test.tsx`
+- `src/renderer/src/modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-content-tabs.test.ts`
+- `src/renderer/src/modules/dock/internal/RightDock/index.test.tsx`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-width.test.ts`
 - `src/main/agent/__tests__/service-history.test.ts`
 - `src/main/agent/active-chat-registry.test.ts`
 - `src/main/agent/prepared-chat.test.ts`
@@ -755,6 +758,6 @@ Primary regression suites live in:
 - `src/main/agent/__tests__/service-session-mutation.test.ts`
 - `src/main/agent/clarification-registry.test.ts`
 - `src/main/agent/__tests__/session-store.test.ts`
-- `src/renderer/src/components/chat/hooks/useChatAttachments.test.tsx`
+- `src/renderer/src/modules/chat/attachments/useChatAttachments.test.tsx`
 - `src/main/agent/chat-failure-persistence.test.ts`
-- `src/renderer/src/components/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
+- `src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`

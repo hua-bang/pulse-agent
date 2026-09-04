@@ -78,7 +78,7 @@ Canvas Workspace 的性能问题可归纳为 **5 个系统性根因**,贯穿两�
 
 ## 维度 C:前端资源与代码分割
 
-> 公共背景:`electron.vite.config.ts` renderer 段**无 `manualChunks`、无 `build.target`**;全仓 `React.lazy` 边界 **= 0**;唯一运行时 `import()` 代码分割点是 `chat/utils/mermaid.ts`。以下静态 import 全部折叠进同一启动 chunk。
+> 公共背景:`electron.vite.config.ts` renderer 段**无 `manualChunks`、无 `build.target`**;全仓 `React.lazy` 边界 **= 0**;唯一运行时 `import()` 代码分割点是 `utils/mermaid.ts`。以下静态 import 全部折叠进同一启动 chunk。
 
 | ID | 严重度 | 标题 | 关键文件 |
 |---|---|---|---|
@@ -137,11 +137,11 @@ Canvas Workspace 的性能问题可归纳为 **5 个系统性根因**,贯穿两�
 | ID | 严重度 | 标题 | 关键文件 |
 |---|---|---|---|
 | F1 `[R1-H7]` | high | `markdown.render` 为每个无语言提示代码块跑 `highlightAuto`,放大每 token 重解析(O(n²)) | `chat/utils/markdown.ts:18` |
-| F2 `[R1-M-Chat1]` | medium | 逐 token `onTextDelta` 整 messages 数组拷贝;`ChatMessage` 未 memo,每 token 重解析 markdown | `chat/hooks/useChatStream.ts:240` / `ChatMessage.tsx:95` |
-| F3 `[R1-M-Chat2]` | medium | `publishTools()` 每 tool-input delta 与每 `onVisualStream` 帧拷贝数组 + 克隆 Map | `chat/hooks/useChatStream.ts:142` |
-| F4 `[R2-§3.4]` | medium | `mermaid.render()` 在 renderer 主线程同步无 worker,含图回复流式完成瞬间 jank | `chat/utils/mermaid.ts` |
-| F5 `[R2-§3.5]` | medium | 首个图付多百 ms 的 `import('mermaid')` + initialize 主线程 stall | `chat/utils/mermaid.ts:15` |
-| F6 `[R2-§1.6]` | low | mermaid 渲染每次 chat re-render 用 `host.innerHTML` 写裸 SVG,无 per-message 缓存 | `chat/utils/mermaid.ts` |
+| F2 `[R1-M-Chat1]` | medium | 逐 token `onTextDelta` 更新 conversation store；消息正文仍需重解析 markdown | `modules/chat/runtime/useConversationRuntimeStream.ts` / `ChatMessage/index.tsx` |
+| F3 `[R1-M-Chat2]` | medium | Tool-input delta 会更新运行时工具快照 | `modules/chat/runtime/useConversationRuntimeStream.ts` |
+| F4 `[R2-§3.4]` | medium | `mermaid.render()` 在 renderer 主线程同步无 worker,含图回复流式完成瞬间 jank | `utils/mermaid.ts` |
+| F5 `[R2-§3.5]` | medium | 首个图付多百 ms 的 `import('mermaid')` + initialize 主线程 stall | `utils/mermaid.ts:15` |
+| F6 `[R2-§1.6]` | low | mermaid 渲染每次 chat re-render 用 `host.innerHTML` 写裸 SVG,无 per-message 缓存 | `utils/mermaid.ts` |
 | F7 `[R2-§1.3]` | medium | chat 子树(markdown-it + hljs)首屏无条件加载(详见 C3) | `chat/utils/markdown.ts:1` |
 
 **F 维核心修复**:`ChatMessage`/`ChatToolCalls` 包 `React.memo` + rAF 合并 text delta(每帧一次 setState);在途流式消息渲染纯文本/廉价 pass,完成时才跑完整 markdown+highlight,或按代码块内容 memo 化;mermaid 图间 yield + 限并发 + 源→SVG Map 缓存 + idle 预热 import。

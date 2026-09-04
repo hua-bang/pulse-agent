@@ -1,0 +1,230 @@
+.agent-team-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  height: 100%;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(92, 128, 183, 0.18);
+  background: rgba(249, 251, 255, 0.97);
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.agent-team-frame--briefing {
+  background: rgba(252, 253, 255, 0.98);
+}
+
+.agent-team-frame button,
+.agent-team-frame input,
+.agent-team-frame select,
+.agent-team-frame textarea {
+  font: inherit;
+}
+
+.agent-team-frame button {
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.agent-team-frame button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.agent-team-frame button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.agent-team-frame input,
+.agent-team-frame select,
+.agent-team-frame textarea {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 5px 8px;
+}
+
+.agent-team-frame input,
+.agent-team-frame select {
+  height: 30px;
+}
+
+.agent-team-frame textarea {
+  line-height: 1.35;
+  resize: none;
+  outline: none;
+}
+
+.agent-team-frame textarea:focus,
+.agent-team-frame input:focus,
+.agent-team-frame select:focus {
+  border-color: #9fc5f4;
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1);
+}
+
+.agent-team-panel-heading__label,
+.agent-team-detail__section-title,
+.agent-team-empty-panel__eyebrow {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+
+.agent-team-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.34fr) minmax(520px, 1fr);
+  gap: 14px;
+  min-height: 0;
+  flex: 1;
+}
+
+.agent-team-workspace--briefing {
+  grid-template-columns: minmax(260px, 0.34fr) minmax(520px, 1fr);
+}
+
+.agent-team-task-row__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background: #b8bdc7;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.agent-team-task-row__dot--done {
+  background: #30a46c;
+}
+
+.agent-team-task-row__dot--proposed,
+.agent-team-task-row__dot--planned,
+.agent-team-task-row__dot--idle,
+.agent-team-task-row__dot--stopped {
+  background: #9aa4b2;
+}
+
+.agent-team-task-row__dot--in_progress,
+.agent-team-task-row__dot--needs_review,
+.agent-team-task-row__dot--running {
+  background: #4f84d8;
+}
+
+.agent-team-task-row__dot--needs_input,
+.agent-team-task-row__dot--blocked,
+.agent-team-task-row__dot--todo {
+  background: #d5962b;
+}
+
+.agent-team-task-row__dot--failed {
+  background: #d04437;
+}
+
+.agent-team-detail__pill,
+.agent-team-detail__status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.agent-team-detail__status {
+  padding: 3px 8px;
+  border: 1px solid #b8d4f3;
+  color: #285b95;
+  background: #e9f2ff;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.agent-team-detail__status--proposed,
+.agent-team-detail__status--planned,
+.agent-team-detail__status--idle,
+.agent-team-detail__status--stopped {
+  border-color: #d9dee8;
+  color: #52606f;
+  background: #f4f6f9;
+}
+
+.agent-team-detail__status--running,
+.agent-team-detail__status--in_progress,
+.agent-team-detail__status--needs_review {
+  border-color: #b8d4f3;
+  color: #285b95;
+  background: #e9f2ff;
+}
+
+.agent-team-detail__status--done {
+  border-color: #b7dfc8;
+  color: #1f6f45;
+  background: #e8f5ee;
+}
+
+.agent-team-detail__status--blocked,
+.agent-team-detail__status--needs_input,
+.agent-team-detail__status--todo {
+  border-color: #ead18b;
+  color: #8a5a00;
+  background: #fff5d8;
+}
+
+.agent-team-detail__status--failed {
+  border-color: #edb8b2;
+  color: #a2372a;
+  background: #fdebea;
+}
+
+.agent-team-detail__pill {
+  max-width: 100%;
+  padding: 3px 7px;
+  overflow: hidden;
+  color: #285b95;
+  background: #e9f2ff;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.agent-team-detail__pill--done {
+  color: #1f6f45;
+  background: #e8f5ee;
+}
+
+.agent-team-detail__pill--artifact {
+  color: #3d5071;
+  background: #eef2f7;
+}
+
+.agent-team-frame .agent-team-detail__artifact-button {
+  height: auto;
+  min-height: 0;
+  max-width: 100%;
+  justify-content: flex-start;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-team-frame .agent-team-detail__artifact-button:hover {
+  color: #285b95;
+  background: #e9f2ff;
+}
+
+.agent-team-detail__muted {
+  color: var(--text-secondary);
+  font-size: 11px;
+}

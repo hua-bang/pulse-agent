@@ -1,0 +1,253 @@
+/* Reference nodes reuse the target node's native body rendering. The outer
+ * wrapper dissolves (no card chrome) so the inner readonly node reads as a
+ * normal node of its type, and a small floating control chip in the top-right
+ * carries the ref-only affordances (workspace label, open source, remove). */
+.canvas-node--reference {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.canvas-node--reference:hover {
+  box-shadow: none;
+  border: 0;
+}
+
+.canvas-node--reference.canvas-node--selected {
+  border: 0;
+  box-shadow: none;
+}
+
+/* The source pill overlays the top-right corner of the preview (sits "on
+ * top" of the card) rather than poking out above its top edge — a detached
+ * tab above the card reads as misplaced, especially when the body is empty. */
+.canvas-node--reference>.node-header {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  min-height: 0;
+  padding: 3px 7px;
+  gap: 5px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent-light);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(55, 53, 47, 0.08);
+  cursor: default;
+  font-size: 10px;
+}
+
+.canvas-node--reference>.node-header:active {
+  cursor: default;
+}
+
+.canvas-node--reference>.node-header .node-title {
+  display: none;
+}
+
+.node-type-badge--reference {
+  color: var(--accent);
+  width: 12px;
+  height: 12px;
+}
+
+.canvas-node--reference>.node-header .node-focus,
+.canvas-node--reference>.node-header .node-open-detail,
+.canvas-node--reference>.node-header .node-close {
+  color: var(--accent);
+  opacity: 0.75;
+  background: transparent;
+}
+
+.canvas-node--reference>.node-header .node-focus:hover,
+.canvas-node--reference>.node-header .node-open-detail:hover,
+.canvas-node--reference>.node-header .node-close:hover {
+  opacity: 1;
+  background: rgba(35, 131, 226, 0.12);
+}
+
+.node-reference-source {
+  min-width: 0;
+  max-width: 110px;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In-flow layout for a readonly node INSIDE a reference card's body — the
+ * embedded source preview fills the card instead of using canvas x/y/w/h.
+ * Scoped under .node-body--reference on purpose: a readonly node on a canvas
+ * surface (the right-dock canvas preview renders every node readonly) must
+ * keep its absolute position + translate from the inline wrapper style. */
+.node-body--reference .canvas-node--readonly {
+  position: relative;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-shadow: none;
+}
+
+.node-body--reference .canvas-node--readonly:hover {
+  box-shadow: none;
+}
+
+.canvas-node--readonly .node-header {
+  cursor: default;
+}
+
+.node-body--reference .canvas-node--readonly .node-focus {
+  opacity: 1;
+}
+
+.canvas-node--readonly .node-body {
+  user-select: text;
+}
+
+.canvas-node--embedded {
+  position: relative;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-shadow: none;
+}
+
+.canvas-node--embedded:hover {
+  box-shadow: none;
+}
+
+.canvas-node--embedded .node-focus,
+.canvas-node--embedded .node-close,
+.canvas-node--embedded .node-open-tab,
+.canvas-node--embedded .node-add-to-chat,
+.canvas-node--embedded .node-add-to-canvas,
+.canvas-node--embedded .node-open-detail,
+.canvas-node--embedded .node-plugin-select,
+.canvas-node--embedded .node-fullscreen,
+.canvas-node--embedded .resize-handle,
+.canvas-node--embedded .node-time-label {
+  display: none;
+}
+
+/* The inner readonly node renders with its own native chrome — no extra
+ * border or background overlay, so the reference looks identical to a real
+ * node of that type. When the reference is selected we add a soft accent
+ * ring around the inner node as the "this is the active reference" cue. */
+.canvas-node--reference.canvas-node--selected .canvas-node--readonly,
+.canvas-node--reference.canvas-node--selected .canvas-node--embedded {
+  box-shadow: 0 0 0 2px var(--accent-border);
+  border-radius: var(--radius-lg);
+}
+
+.node-body--reference {
+  position: relative;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* Invisible click/double-click layer above the embedded source. It deliberately
+ * does not handle mousedown: reference movement is handle-only, so iframe /
+ * webview pointer capture can never turn content interaction into node drag. */
+.reference-drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  cursor: default;
+  background: transparent;
+  pointer-events: none;
+}
+
+.reference-drag-overlay:active {
+  cursor: default;
+}
+
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-header,
+.canvas-node--reference.canvas-node--selected .node-body--reference .text-node-body,
+.canvas-node--reference.canvas-node--selected .node-body--reference .image-node-body,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--shape,
+.canvas-node--reference.canvas-node--selected .node-body--reference .shape-node-body,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--mindmap,
+.canvas-node--reference.canvas-node--selected .node-body--reference .mindmap-node-body {
+  cursor: default;
+}
+
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-header:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .text-node-body:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .image-node-body:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--shape:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .shape-node-body:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--mindmap:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .mindmap-node-body:active {
+  cursor: default;
+}
+
+/* Selected references expose the source preview as real content. Keep the
+ * inner preview's native drag affordances from advertising drag — dragging the
+ * reference is handled by the outer source chip or the unselected overlay. */
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-title {
+  cursor: default;
+}
+
+.node-body--reference>.canvas-node--readonly,
+.node-body--reference>.canvas-node--embedded {
+  height: 100% !important;
+}
+
+/* The reference card supplies its own header (badge / source / open-source /
+ * close), so the inner source preview must not also draw its own node chrome.
+ * An editable source (readOnly === false) would otherwise render floating
+ * close / fullscreen / resize controls that cover the content and duplicate
+ * the card's close button. We suppress them here. The card's own header/handles
+ * are siblings of `.node-body--reference`, so they are unaffected. */
+.node-body--reference .node-focus,
+.node-body--reference .node-close,
+.node-body--reference .node-open-tab,
+.node-body--reference .node-add-to-chat,
+.node-body--reference .node-add-to-canvas,
+.node-body--reference .node-open-detail,
+.node-body--reference .node-plugin-select,
+.node-body--reference .node-copy-image,
+.node-body--reference .node-fullscreen,
+.node-body--reference .resize-handle,
+.node-body--reference .node-time-label {
+  display: none;
+}
+
+.reference-node-missing {
+  height: 100%;
+  min-height: 90px;
+  border: 1px dashed rgba(74, 95, 148, 0.25);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 12px;
+}
+
+.reference-node-missing__title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.reference-node-missing__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+

@@ -1,0 +1,373 @@
+/* ────────────────────────────────────────────────────────────────
+ * AgentNodeBody — three view modes share one card chrome.
+ *   - .agent-body-wrap--setup    : configuration entry
+ *   - .agent-body-wrap--running  : live PTY with embedded xterm
+ *   - .agent-body-wrap--restart  : cold-reload recovery
+ * The agent identity uses a local purple accent so it reads as
+ * distinct from the global blue accent without leaking outward.
+ *
+ * The status-pill scope (`.agent-status-pill`) is hoisted to :root so
+ * it can also be rendered in the outer `CanvasNodeView` node-header.
+ * ──────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Align the agent UI with the global Notion-style accent (--accent =
+   * #2383e2) so its buttons, tabs and focus rings read as part of the
+   * same product instead of a separate purple sub-theme. Per-agent
+   * brand colors still live in `.agent-loading-overlay--<agent>` for
+   * the loading mark, which is the one place the agent's own identity
+   * is meaningful. */
+  --agent-accent: #2383e2;
+  --agent-accent-hover: #1c6dbf;
+  --agent-accent-soft: rgba(35, 131, 226, 0.1);
+  --agent-accent-border: rgba(35, 131, 226, 0.45);
+  --agent-warning: #d97706;
+  --agent-warning-soft: #fff4e2;
+  --agent-warning-border: rgba(217, 119, 6, 0.32);
+  --agent-success: #10b981;
+  --agent-success-soft: rgba(16, 185, 129, 0.12);
+  --agent-danger: #e03e3e;
+  --agent-sans: var(--font-sans);
+}
+
+.agent-body-wrap {
+  --agent-text: var(--text);
+  --agent-muted: var(--text-secondary);
+  --agent-faint: var(--text-muted);
+  font-family: var(--agent-sans);
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Card chrome shared by all three views ─────────────────────── */
+
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 14px;
+  gap: 12px;
+  box-sizing: border-box;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.agent-card--team-managed {
+  justify-content: center;
+  align-items: stretch;
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(247, 250, 255, 0.98), rgba(255, 255, 255, 0.98)),
+    #fbfcff;
+}
+
+.agent-team-lead-runtime {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.agent-team-lead-runtime__summary,
+.agent-team-lead-runtime__terminal {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-team-lead-runtime__summary {
+  z-index: 1;
+  transition: opacity 140ms ease;
+}
+
+.agent-team-lead-runtime--terminal-open .agent-team-lead-runtime__summary {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-team-lead-runtime__terminal {
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-team-lead-runtime__terminal--open {
+  z-index: 2;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.agent-team-lead-runtime__hide-terminal {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  height: 26px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--agent-muted);
+  font: 500 11px var(--agent-sans);
+  cursor: pointer;
+  padding: 0 8px;
+}
+
+.agent-team-lead-runtime__hide-terminal:hover {
+  background: #fff;
+  color: var(--agent-text);
+}
+
+.agent-team-lead-advanced {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.agent-team-lead-console {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(242, 247, 255, 0.98), rgba(255, 255, 255, 0.98)),
+    #fbfcff;
+}
+
+.agent-team-lead-console__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(35, 131, 226, 0.12);
+  background: rgba(243, 248, 255, 0.8);
+}
+
+.agent-team-lead-console__header > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-team-lead-console__header span {
+  color: var(--agent-accent);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.agent-team-lead-console__header strong {
+  overflow: hidden;
+  color: var(--agent-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-lead-console__status {
+  flex-shrink: 0;
+  border: 1px solid #b8d4f3;
+  border-radius: var(--radius-pill);
+  background: #e9f2ff;
+  color: #285b95;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.agent-team-lead-console__status--error {
+  border-color: #edb8b2;
+  color: #a2372a;
+  background: #fdebea;
+}
+
+.agent-team-lead-console__terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 10px;
+}
+
+.agent-team-lead-console--bare .agent-team-lead-console__terminal {
+  padding: 0;
+}
+
+.agent-team-lead-console__terminal > .agent-body-wrap--running {
+  height: 100%;
+}
+
+.agent-team-lead-console__terminal .agent-card {
+  border: 1px solid rgba(35, 131, 226, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 22px rgba(31, 54, 88, 0.04);
+}
+/* Back link rendered at the top of the body when Setup is entered from
+ * the Restart card's Edit action. */
+.agent-card-back {
+  display: flex;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+/* ── Status pill (Setup / Running / Restart / Edit) ───────────── */
+
+.agent-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--agent-sans);
+  white-space: nowrap;
+}
+
+.agent-status-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.agent-status-pill--setup,
+.agent-status-pill--edit {
+  background: var(--agent-accent-soft);
+  color: var(--agent-accent);
+}
+
+.agent-status-pill--running {
+  background: var(--agent-success-soft);
+  color: var(--agent-success);
+}
+
+.agent-status-pill--restart {
+  background: var(--agent-warning-soft);
+  color: var(--agent-warning);
+}
+
+.agent-status-pill--done {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+}
+
+.agent-status-pill--error {
+  background: rgba(224, 62, 62, 0.1);
+  color: var(--agent-danger);
+}
+
+/* ── Body & sections ───────────────────────────────────────────── */
+
+.agent-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.agent-section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--agent-text);
+  font-family: var(--agent-sans);
+}
+
+/* ── Card footer with primary CTA ──────────────────────────────── */
+
+.agent-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+}
+
+.agent-card-footer--restart {
+  justify-content: stretch;
+}
+
+.agent-card-footer--restart .agent-primary-btn {
+  flex: 1;
+}
+
+.agent-card-footer--restart .agent-secondary-btn {
+  flex: 1;
+}
+
+.agent-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--agent-accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--agent-sans);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, box-shadow 0.12s, transform 0.08s;
+  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.22);
+}
+
+.agent-primary-btn:hover {
+  background: var(--agent-accent-hover);
+  box-shadow: 0 2px 8px rgba(35, 131, 226, 0.28);
+}
+
+.agent-primary-btn:active {
+  transform: translateY(0.5px);
+}
+
+.agent-primary-btn svg {
+  color: #ffffff;
+}
+
+.agent-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--agent-accent-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--agent-accent);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--agent-sans);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.agent-secondary-btn:hover {
+  background: var(--agent-accent-soft);
+}
+
+.agent-secondary-btn--stop {
+  color: var(--agent-muted);
+  border-color: var(--border);
+}
+
+.agent-secondary-btn--stop:hover {
+  color: var(--agent-danger);
+  border-color: var(--agent-danger);
+  background: rgba(224, 62, 62, 0.06);
+}

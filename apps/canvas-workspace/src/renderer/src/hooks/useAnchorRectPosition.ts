@@ -35,7 +35,7 @@ interface Options {
  * trigger button), re-measuring on window resize, ancestor scroll, and panel
  * resize — the capability `useViewportClampedPosition`'s one-shot x/y clamp
  * doesn't have.
- * Extracted from `chat/ModelSwitcher`'s hand-rolled `updateMenuPosition`
+ * Extracted from `models/ModelSwitcher`'s hand-rolled `updateMenuPosition`
  * (API-extension batch follow-up, see `docs/ui-reuse-burndown.md`).
  *
  * Tries the preferred `placement` first; if the panel doesn't fit on that

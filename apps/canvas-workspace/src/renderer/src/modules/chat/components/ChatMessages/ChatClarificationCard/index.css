@@ -1,0 +1,17 @@
+.chat-message--clarification {
+  position: sticky;
+  bottom: 8px;
+  z-index: 4;
+}
+
+.chat-message--clarification .chat-clarify-card {
+  box-shadow: var(--shadow-card);
+}
+
+.chat-clarify-error {
+  margin-top: 8px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.4;
+}
+

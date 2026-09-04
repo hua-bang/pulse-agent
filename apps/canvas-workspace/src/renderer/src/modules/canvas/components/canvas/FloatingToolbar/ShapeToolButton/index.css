@@ -1,0 +1,66 @@
+.shape-tool-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.shape-tool-split .shape-tool-main {
+  padding: 0 6px 0 8px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.shape-tool-split .shape-tool-caret {
+  position: relative;
+  min-width: 18px;
+  padding: 0 4px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: 0;
+}
+
+.shape-tool-split .shape-tool-caret::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.shape-tool-popover {
+  display: grid;
+  grid-template-columns: repeat(4, 30px);
+}
+
+.shape-tool-option {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.shape-tool-option svg {
+  display: block;
+}
+
+.shape-tool-option:hover,
+.shape-tool-option:focus-visible {
+  outline: none;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+}
+
+.shape-tool-option--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}

@@ -27,7 +27,7 @@ keyboard binding in the workbench:
   section.
 - `types.ts` — shape declarations: `ShortcutOwner` (which layer owns the
   handler for a shortcut — `'canvas'` for `useCanvasKeyboard`, `'app'` for
-  `useAppShortcuts` in `App.tsx`, and `'document'` for the one binding
+  `useAppShortcuts` in `app/App`, and `'document'` for the one binding
   handled by a native document-level event instead of the keydown
   dispatcher: `canvas.paste` is declared with `owner: 'document'`, because
   letting the browser's native `paste` event arbitrate — rather than a
@@ -53,9 +53,9 @@ labels, and ownership.
 
 Behavior lives in the owner's handler table:
 
-- `src/renderer/src/hooks/useCanvasKeyboard.ts` (owner `canvas`), gated on
+- `src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts` (owner `canvas`), gated on
   the visible unlocked canvas.
-- `src/renderer/src/hooks/useAppShortcuts.ts` (owner `app`), works on every
+- `src/renderer/src/app/shortcuts/useAppShortcuts.ts` (owner `app`), works on every
   route — split from the canvas layer on purpose, because the canvas layer
   is gated on the visible unlocked canvas while these must keep working on
   the chat page and the node pages.
@@ -95,7 +95,7 @@ anywhere in the app again — both must come from the registry
 Two surfaces render shortcut labels, and both derive them from the registry
 instead of hardcoding strings:
 
-- The lazy `?` overlay, `src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
+- The lazy `?` overlay, `src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx`,
   exhaustively maps runtime shortcut IDs to display metadata — `SHORTCUT_HELP`
   is itself declared `satisfies Record<ShortcutId, { section, descriptionKey }>`,
   so it cannot go stale against the registry either — and derives its combo
@@ -108,9 +108,9 @@ instead of hardcoding strings:
   into the same sectioned layout (`SECTION_ORDER`: `canvas`, `view`,
   `selection`, `edit`, `panels`). `ShortcutsDialog` itself is only mounted
   through `React.lazy(() => import('./ShortcutsDialog'))` in
-  `src/renderer/src/components/shell/AppShellProvider/index.tsx` — it is not
+  `src/renderer/src/app/shell/AppShellProvider/index.tsx` — it is not
   loaded until the user opens the `?` overlay.
-- Palette hints, `src/renderer/src/components/canvas/Canvas/hooks/useCanvasPaletteCommands.ts`,
+- Palette hints, `src/renderer/src/modules/canvas/components/canvas/Canvas/hooks/useCanvasPaletteCommands.ts`,
   also derive from the registry: every Cmd+K palette command that has a
   keyboard equivalent sets its `shortcut` field via
   `formatShortcutId('canvas.…')` / `formatShortcutId('app.…')` rather than a
@@ -303,7 +303,7 @@ open alongside the host find bar.
 
 A focused terminal keeps Ctrl-chords but yields Cmd-chords and releases
 focus on double-Escape. The arbitration function is `decideTerminalKey` in
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts`. A focused
+`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts`. A focused
 terminal is otherwise its own keyboard black hole: xterm's helper element is
 a `<textarea>`, so the canvas dispatcher's editable guard silently drops
 every shortcut typed while it has focus, with no route back out. The split
@@ -363,15 +363,15 @@ exact-modifier matching, auto-repeat, Escape ownership, and clipboard
 recency.
 
 The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
-`src/renderer/src/hooks/useCanvasKeyboard.ts`,
-`src/renderer/src/hooks/useAppShortcuts.ts`,
+`src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts`,
+`src/renderer/src/app/shortcuts/useAppShortcuts.ts`,
 `src/renderer/src/hooks/useWebviewShortcutBridge.ts`,
 `src/renderer/src/utils/keyboardShortcut.ts`,
-`src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx`,
+`src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx`,
 `src/shared/webview-shortcuts.ts`,
 `src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts`,
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.ts`, and the four
+`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts`,
+`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.ts`, and the four
 xterm surfaces that dispatch terminal-owned shortcuts
 (`AgentNodeBody/useAgentNodeController.ts`, `TerminalNodeBody/index.tsx`,
 `WorkspaceTerminalDock/index.tsx`, `NodeMentionPicker/index.tsx`).
@@ -379,7 +379,7 @@ xterm surfaces that dispatch terminal-owned shortcuts
 Its `quick` step and its `required` step both run:
 
 ```
-pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts
+pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts
 ```
 
 `required` additionally runs `pnpm --filter canvas-workspace typecheck`
@@ -393,11 +393,11 @@ Primary regression suites live in:
 - `src/renderer/src/shortcuts/terminalShortcuts.test.ts` — pins the Cmd+2
   collision end to end against the REAL `useAppShortcuts`, including the
   control case that fails if the chord ever stops being shared
-- `src/renderer/src/hooks/useCanvasKeyboard.test.ts`
-- `src/renderer/src/hooks/useAppShortcuts.test.ts`
+- `src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts`
+- `src/renderer/src/app/shortcuts/useAppShortcuts.test.ts`
 - `src/main/webview/__tests__/shortcut-forwarding.test.ts`
-- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts` — the
+- `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts` — the
   pure decision rule
-- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts` — the
+- `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts` — the
   stateful hatch: double-Escape, the window boundary, the post-release reset,
   the time-zero sentinel, and the blur sequence

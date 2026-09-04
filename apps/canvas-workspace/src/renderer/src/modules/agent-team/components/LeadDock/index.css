@@ -1,0 +1,133 @@
+.agent-team-lead-dock {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(92, 128, 183, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 26px rgba(31, 54, 88, 0.045);
+}
+
+.agent-team-lead-dock {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  border-color: rgba(92, 128, 183, 0.18);
+  background:
+    linear-gradient(180deg, rgba(244, 249, 255, 0.95), rgba(255, 255, 255, 0.92)),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 30px rgba(31, 54, 88, 0.06);
+}
+
+.agent-team-lead-dock__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 10px;
+  align-items: center;
+  padding: 13px 15px;
+  border-bottom: 1px solid rgba(35, 131, 226, 0.1);
+  background: linear-gradient(180deg, rgba(35, 131, 226, 0.05), transparent);
+}
+
+.agent-team-lead-dock__head strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-lead-dock__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px;
+}
+
+.agent-team-frame--briefing .agent-team-lead-dock__body {
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+.agent-team-lead-dock__agent-surface {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(35, 131, 226, 0.12);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 16px rgba(31, 54, 88, 0.045);
+}
+
+.agent-team-frame--briefing .agent-team-lead-dock__agent-surface {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.agent-team-lead-dock__agent-surface > .agent-body-wrap,
+.agent-team-lead-dock__agent-surface > .agent-team-lead-console,
+.agent-team-lead-dock__agent-surface > .agent-team-managed,
+.agent-team-lead-dock__agent-surface > .agent-team-lead-advanced {
+  height: 100%;
+}
+
+.agent-team-frame--briefing .agent-team-lead-dock__agent-surface .agent-card {
+  gap: 8px;
+  padding: 10px;
+}
+
+.agent-team-frame--briefing .agent-team-lead-dock__agent-surface .agent-xterm-container {
+  min-height: 0;
+}
+
+.agent-team-lead-dock__agent-surface .agent-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.agent-team-lead-dock__current {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(35, 131, 226, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.agent-team-lead-dock__current strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.32;
+}
+
+.agent-team-lead-dock__current span:last-child {
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.agent-team-lead-dock__meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin-top: auto;
+  color: var(--text-secondary);
+}
+
+.agent-team-lead-dock__meta strong,
+.agent-team-lead-dock__meta code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-lead-dock__meta code {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+

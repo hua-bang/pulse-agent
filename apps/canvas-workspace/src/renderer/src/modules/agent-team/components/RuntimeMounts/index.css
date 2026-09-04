@@ -1,0 +1,15 @@
+.agent-team-runtime-mounts {
+  position: absolute;
+  left: -20000px;
+  top: -20000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-team-runtime-mount {
+  width: 640px;
+  height: 420px;
+}

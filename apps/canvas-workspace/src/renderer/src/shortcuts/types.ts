@@ -7,7 +7,7 @@
 export type ShortcutOwner =
   /** `useCanvasKeyboard` — only fires on the visible, unlocked canvas. */
   | 'canvas'
-  /** `useAppShortcuts` in App.tsx — app chrome, works on every route. */
+  /** `useAppShortcuts` in app/App — app chrome, works on every route. */
   | 'app'
   /**
    * `shortcuts/terminalShortcuts.ts`, dispatched from an xterm

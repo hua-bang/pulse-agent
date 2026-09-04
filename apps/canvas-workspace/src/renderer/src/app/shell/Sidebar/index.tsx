@@ -1,0 +1,481 @@
+import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
+
+import { useClickOutside } from '../../../hooks/useClickOutside';
+import type { NavItem } from '../../../../../plugins/types';
+import type { WorkspaceEntry, FolderEntry } from '../../../shared/workspaces';
+import type { CanvasNode } from '../../../types';
+import './index.css';
+import './interaction-polish.css';
+import { buildLayerTree, collectFrameIds, type LayerTreeNode } from './utils/layers';
+import { SidebarHeader, SidebarToggleIcon } from './SidebarHeader';
+import { WorkspaceItem } from './WorkspaceItem';
+import { WorkspaceList } from './WorkspaceList';
+import { LayersPanel } from './LayersPanel';
+import { LayerContextMenu } from './LayerContextMenu';
+import { useAppShell } from '../AppShellProvider';
+import { AppLogoIcon, PluginIcon, ScheduledIcon, SettingsIcon } from '../../../components/icons';
+import { Button } from '../../../components/ui';
+import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
+import { buildCanvasNodeLink } from '../../../utils/canvasLinks';
+import { copyTextToClipboard } from '../../../utils/clipboard';
+import { useI18n } from '../../../i18n';
+
+interface Props {
+  collapsed: boolean;
+  onToggle: () => void;
+  workspaces: WorkspaceEntry[];
+  folders: FolderEntry[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  onCreate: (name: string, folderId?: string) => void;
+  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+  onExport: (id: string) => void;
+  onOpenSettings: (id: string) => void;
+  /** Opens the global Settings drawer (gear button at the bottom of the sidebar). */
+  onOpenAppSettings: () => void;
+  onImport: () => void;
+  onCreateFolder: (name: string) => void;
+  onRenameFolder: (id: string, name: string) => void;
+  onDeleteFolder: (id: string) => void;
+  onToggleFolder: (id: string) => void;
+  onMoveWorkspace: (workspaceId: string, folderId: string | undefined) => void;
+  onReorderWorkspace: (
+    workspaceId: string,
+    beforeWorkspaceId: string | null,
+    folderId: string | undefined,
+  ) => void;
+  onReorderFolder: (folderId: string, beforeFolderId: string | null) => void;
+  activeNodes?: CanvasNode[];
+  selectedNodeIds?: string[];
+  onNodeFocus?: (nodeId: string) => void;
+  onNodeDelete?: (nodeId: string) => void;
+  onNodeRename?: (nodeId: string, title: string) => void;
+  activeView: string;
+  onEnterChat: () => void;
+  onEnterNodes: () => void;
+  onEnterGraph: () => void;
+  onEnterSkills: () => void;
+  onEnterScheduled: () => void;
+  /** When false, the Nodes nav button is hidden (feature flag off). */
+  nodesEnabled: boolean;
+  /** When false, the Graph nav button is hidden (feature flag off). */
+  graphEnabled: boolean;
+  pluginNavItems: ReadonlyArray<NavItem>;
+  onNavigate: (path: string) => void;
+  onExitChat: () => void;
+
+  enableSkills?: boolean;
+  enableScheduled?: boolean;
+}
+
+const WS_DRAG = 'application/x-workspace-id';
+const FOLDER_DRAG = 'application/x-folder-id';
+
+export const Sidebar = ({
+  collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
+  onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
+  onReorderWorkspace, onReorderFolder,
+  activeNodes = [], selectedNodeIds = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
+  onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
+  onEnterSkills,
+  onEnterScheduled,
+  enableSkills = true,
+  enableScheduled = true
+}: Props) => {
+  const { notify } = useAppShell();
+  const { t } = useI18n();
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState('');
+  const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
+  const [renameLayerValue, setRenameLayerValue] = useState('');
+  const [inlineCreate, setInlineCreate] = useState<'workspace' | 'folder' | null>(null);
+  const [inlineCreateValue, setInlineCreateValue] = useState('');
+  const [inlineCreateFolderId, setInlineCreateFolderId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [folderDropTarget, setFolderDropTarget] = useState<string | null>(null);
+  const [wsDropBeforeId, setWsDropBeforeId] = useState<string | null>(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
+  const [layerContextMenu, setLayerContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+
+  const layerTree = useMemo(() => buildLayerTree(activeNodes), [activeNodes]);
+  const frameIds = useMemo(() => collectFrameIds(layerTree), [layerTree]);
+  const selectedLayerIds = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
+  const primarySelectedNodeId = selectedNodeIds[0];
+  const anyFrameExpanded = useMemo(() => frameIds.some((id) => !collapsedLayers.has(id)), [frameIds, collapsedLayers]);
+
+  useEffect(() => {
+    if (selectedLayerIds.size === 0 || layerTree.length === 0) return;
+
+    const ancestorIds = new Set<string>();
+    const walk = (items: LayerTreeNode[], ancestors: string[]) => {
+      for (const item of items) {
+        if (selectedLayerIds.has(item.node.id)) {
+          for (const id of ancestors) ancestorIds.add(id);
+        }
+        if (item.children.length > 0) {
+          walk(item.children, [...ancestors, item.node.id]);
+        }
+      }
+    };
+
+    walk(layerTree, []);
+    if (ancestorIds.size === 0) return;
+
+    setCollapsedLayers((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of ancestorIds) {
+        if (next.delete(id)) changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [layerTree, selectedLayerIds]);
+
+  const toggleAllLayers = useCallback(() => {
+    setCollapsedLayers((prev) => {
+      if (frameIds.length === 0) return prev;
+      return frameIds.some((id) => !prev.has(id)) ? new Set(frameIds) : new Set<string>();
+    });
+  }, [frameIds]);
+
+  const handleLayerContextMenu = useCallback((e: ReactMouseEvent, nodeId: string) => {
+    e.preventDefault(); e.stopPropagation();
+    setLayerContextMenu({ x: e.clientX, y: e.clientY, nodeId });
+  }, []);
+
+  // Dismissal (outside-press + Escape) is owned by LayerContextMenu's
+  // Popover shell (useClickOutside + useMenuKeyboardNav/useEscapeClose), so
+  // no hand-rolled listeners live here anymore.
+
+  const toggleLayerCollapse = useCallback((id: string) => {
+    setCollapsedLayers((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }, []);
+
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameFolderInputRef = useRef<HTMLInputElement>(null);
+  const renameLayerInputRef = useRef<HTMLInputElement>(null);
+  const inlineCreateRef = useRef<HTMLInputElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (renamingId && renameInputRef.current) { renameInputRef.current.focus(); renameInputRef.current.select(); } }, [renamingId]);
+  useEffect(() => { if (renamingFolderId && renameFolderInputRef.current) { renameFolderInputRef.current.focus(); renameFolderInputRef.current.select(); } }, [renamingFolderId]);
+  useEffect(() => { if (renamingLayerId && renameLayerInputRef.current) { renameLayerInputRef.current.focus(); renameLayerInputRef.current.select(); } }, [renamingLayerId]);
+  useEffect(() => { if (inlineCreate && inlineCreateRef.current) inlineCreateRef.current.focus(); }, [inlineCreate]);
+
+  useClickOutside(addMenuRef, () => setShowAddMenu(false), showAddMenu);
+
+  const startRename = (ws: WorkspaceEntry) => { setRenamingId(ws.id); setRenameValue(ws.name); };
+  const commitRename = () => { if (renamingId && renameValue.trim()) onRename(renamingId, renameValue); setRenamingId(null); };
+  const startFolderRename = (f: FolderEntry) => { setRenamingFolderId(f.id); setRenameFolderValue(f.name); };
+  const commitFolderRename = () => { if (renamingFolderId && renameFolderValue.trim()) onRenameFolder(renamingFolderId, renameFolderValue); setRenamingFolderId(null); };
+  const startLayerRename = (nodeId: string) => {
+    const node = activeNodes.find((item) => item.id === nodeId);
+    if (!node) return;
+    setRenamingLayerId(nodeId);
+    setRenameLayerValue(node.title || getNodeDisplayLabel(node));
+  };
+  const commitLayerRename = () => {
+    if (!renamingLayerId) return;
+    const nextTitle = renameLayerValue.trim();
+    const node = activeNodes.find((item) => item.id === renamingLayerId);
+    setRenamingLayerId(null);
+    if (!node || !onNodeRename || !nextTitle || node.title === nextTitle) return;
+    onNodeRename(renamingLayerId, nextTitle);
+    notify({
+      tone: 'success',
+      title: t('sidebar.layerRenamed'),
+      description: `${getNodeDisplayLabel(node)} -> ${nextTitle}`,
+    });
+  };
+  const commitInlineCreate = () => {
+    const v = inlineCreateValue.trim();
+    if (v) {
+      if (inlineCreate === 'workspace') onCreate(v, inlineCreateFolderId ?? undefined);
+      else if (inlineCreate === 'folder') onCreateFolder(v);
+    }
+    setInlineCreate(null); setInlineCreateValue(''); setInlineCreateFolderId(null);
+  };
+  const cancelInlineCreate = () => {
+    setInlineCreate(null); setInlineCreateValue(''); setInlineCreateFolderId(null);
+  };
+  const startCreateInFolder = (folderId: string) => {
+    const folder = folders.find((f) => f.id === folderId);
+    if (folder?.collapsed) onToggleFolder(folderId);
+    setShowAddMenu(false);
+    setInlineCreate('workspace');
+    setInlineCreateValue('');
+    setInlineCreateFolderId(folderId);
+  };
+
+  const handleLayerDelete = useCallback((nodeId: string) => {
+    const node = activeNodes.find((item) => item.id === nodeId);
+    if (!node || !onNodeDelete) return;
+
+    onNodeDelete(nodeId);
+  }, [activeNodes, onNodeDelete]);
+
+  const handleLayerCopyLink = useCallback(async (nodeId: string) => {
+    const node = activeNodes.find((item) => item.id === nodeId);
+    if (!node) return;
+
+    try {
+      await copyTextToClipboard(buildCanvasNodeLink(activeId, nodeId));
+      notify({
+        tone: 'success',
+        title: t('sidebar.nodeLinkCopied'),
+        description: getNodeDisplayLabel(node),
+      });
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: t('sidebar.copyFailed'),
+        description: error instanceof Error ? error.message : t('sidebar.copyFailedDescription'),
+        autoCloseMs: 4200,
+      });
+    }
+  }, [activeNodes, activeId, notify, t]);
+
+  // Workspace drag
+  const handleWsDragStart = (e: DragEvent, wsId: string) => {
+    e.dataTransfer.setData(WS_DRAG, wsId); e.dataTransfer.effectAllowed = 'move';
+    (e.currentTarget as HTMLElement).classList.add('sidebar-dragging');
+  };
+  const handleWsDragEnd = (e: DragEvent) => {
+    (e.currentTarget as HTMLElement).classList.remove('sidebar-dragging');
+    setDropTarget(null); setWsDropBeforeId(null);
+  };
+  const handleWsDragOver = (e: DragEvent, targetId: string) => {
+    if (!e.dataTransfer.types.includes(WS_DRAG)) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(targetId);
+  };
+  const handleWsDragLeave = (e: DragEvent, targetId: string) => {
+    const rel = e.relatedTarget as HTMLElement | null;
+    if (rel && (e.currentTarget as HTMLElement).contains(rel)) return;
+    if (dropTarget === targetId) setDropTarget(null);
+  };
+  const handleWsDrop = (e: DragEvent, folderId: string | undefined) => {
+    e.preventDefault(); const wsId = e.dataTransfer.getData(WS_DRAG);
+    if (wsId) onMoveWorkspace(wsId, folderId);
+    setDropTarget(null); setWsDropBeforeId(null);
+  };
+
+  // Workspace-on-workspace reorder (drop A before B)
+  const handleWsReorderDragOver = (e: DragEvent, targetWsId: string) => {
+    if (!e.dataTransfer.types.includes(WS_DRAG)) return;
+    e.preventDefault(); e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setWsDropBeforeId(targetWsId);
+    setDropTarget(null);
+  };
+  const handleWsReorderDragLeave = (e: DragEvent, targetWsId: string) => {
+    const rel = e.relatedTarget as HTMLElement | null;
+    if (rel && (e.currentTarget as HTMLElement).contains(rel)) return;
+    if (wsDropBeforeId === targetWsId) setWsDropBeforeId(null);
+  };
+  const handleWsReorderDrop = (e: DragEvent, targetWs: WorkspaceEntry) => {
+    if (!e.dataTransfer.types.includes(WS_DRAG)) return;
+    e.preventDefault(); e.stopPropagation();
+    const wsId = e.dataTransfer.getData(WS_DRAG);
+    if (wsId && wsId !== targetWs.id) {
+      onReorderWorkspace(wsId, targetWs.id, targetWs.folderId);
+    }
+    setWsDropBeforeId(null); setDropTarget(null);
+  };
+
+  // Folder drag
+  const handleFolderDragStart = (e: DragEvent, folderId: string) => {
+    e.dataTransfer.setData(FOLDER_DRAG, folderId); e.dataTransfer.effectAllowed = 'move';
+    (e.currentTarget as HTMLElement).classList.add('sidebar-dragging');
+  };
+  const handleFolderDragEnd = (e: DragEvent) => {
+    (e.currentTarget as HTMLElement).classList.remove('sidebar-dragging'); setFolderDropTarget(null);
+  };
+  const handleFolderDragOver = (e: DragEvent, targetFolderId: string) => {
+    if (!e.dataTransfer.types.includes(FOLDER_DRAG)) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setFolderDropTarget(targetFolderId);
+  };
+  const handleFolderDragLeave = (e: DragEvent, targetFolderId: string) => {
+    const rel = e.relatedTarget as HTMLElement | null;
+    if (rel && (e.currentTarget as HTMLElement).contains(rel)) return;
+    if (folderDropTarget === targetFolderId) setFolderDropTarget(null);
+  };
+  const handleFolderDrop = (e: DragEvent, beforeFolderId: string | null) => {
+    e.preventDefault(); const fid = e.dataTransfer.getData(FOLDER_DRAG);
+    if (fid && fid !== beforeFolderId) onReorderFolder(fid, beforeFolderId); setFolderDropTarget(null);
+  };
+
+  // Combined folder handlers (receives both WS and folder drags)
+  const onFolderCombinedDragOver = (e: DragEvent, folderId: string) => { handleWsDragOver(e, folderId); handleFolderDragOver(e, folderId); };
+  const onFolderCombinedDragLeave = (e: DragEvent, folderId: string) => { handleWsDragLeave(e, folderId); handleFolderDragLeave(e, folderId); };
+  const onFolderCombinedDrop = (e: DragEvent, folderId: string) => {
+    if (e.dataTransfer.types.includes(WS_DRAG)) handleWsDrop(e, folderId);
+    else if (e.dataTransfer.types.includes(FOLDER_DRAG)) handleFolderDrop(e, folderId);
+  };
+
+  const renderWorkspaceItem = (ws: WorkspaceEntry) => (
+    <WorkspaceItem
+      key={ws.id} ws={ws} activeId={activeId} activeView={activeView}
+      isOnlyWorkspace={workspaces.length <= 1} isRenaming={renamingId === ws.id}
+      renameValue={renameValue} renameInputRef={renameInputRef}
+      isDropBefore={wsDropBeforeId === ws.id}
+      onSelect={onSelect} onStartRename={startRename} onRenameChange={setRenameValue}
+      onRenameCommit={commitRename} onRenameCancel={() => setRenamingId(null)}
+      onDelete={onDelete} onExport={onExport} onOpenSettings={onOpenSettings}
+      onDragStart={handleWsDragStart} onDragEnd={handleWsDragEnd}
+      onReorderDragOver={(e) => handleWsReorderDragOver(e, ws.id)}
+      onReorderDragLeave={(e) => handleWsReorderDragLeave(e, ws.id)}
+      onReorderDrop={(e) => handleWsReorderDrop(e, ws)}
+    />
+  );
+
+  return (
+    <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
+      {!collapsed && (
+        <>
+          <SidebarHeader
+            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
+            onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
+            onEnterSkills={onEnterSkills}
+            onEnterScheduled={onEnterScheduled}
+            nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
+            pluginNavItems={pluginNavItems} onNavigate={onNavigate}
+            showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
+            onCloseAddMenu={() => setShowAddMenu(false)}
+            addMenuRef={addMenuRef}
+            onNewWorkspace={() => { setShowAddMenu(false); setInlineCreate('workspace'); setInlineCreateValue(''); setInlineCreateFolderId(null); }}
+            onNewFolder={() => { setShowAddMenu(false); setInlineCreate('folder'); setInlineCreateValue(''); setInlineCreateFolderId(null); }}
+            onImportWorkspace={() => { setShowAddMenu(false); onImport(); }}
+            enableSkills={enableSkills}
+            enableScheduled={enableScheduled}
+          />
+          <WorkspaceList
+            folders={folders} workspaces={workspaces}
+            dropTarget={dropTarget} folderDropTarget={folderDropTarget}
+            renamingFolderId={renamingFolderId} renameFolderValue={renameFolderValue}
+            renameFolderInputRef={renameFolderInputRef}
+            inlineCreate={inlineCreate} inlineCreateValue={inlineCreateValue} inlineCreateRef={inlineCreateRef}
+            inlineCreateFolderId={inlineCreateFolderId}
+            onFolderDragStart={handleFolderDragStart} onFolderDragEnd={handleFolderDragEnd}
+            onFolderCombinedDragOver={onFolderCombinedDragOver}
+            onFolderCombinedDragLeave={onFolderCombinedDragLeave}
+            onFolderCombinedDrop={onFolderCombinedDrop}
+            onRootDragOver={(e) => handleWsDragOver(e, '__root__')}
+            onRootDragLeave={(e) => handleWsDragLeave(e, '__root__')}
+            onRootDrop={(e) => handleWsDrop(e, undefined)}
+            onToggleFolder={onToggleFolder} onStartFolderRename={startFolderRename}
+            onFolderRenameChange={setRenameFolderValue} onFolderRenameCommit={commitFolderRename}
+            onFolderRenameCancel={() => setRenamingFolderId(null)}
+            onDeleteFolder={onDeleteFolder}
+            onCreateWorkspaceInFolder={startCreateInFolder}
+            renderWorkspace={renderWorkspaceItem}
+            onInlineCreateChange={setInlineCreateValue} onInlineCreateCommit={commitInlineCreate}
+            onInlineCreateCancel={cancelInlineCreate}
+          />
+        </>
+      )}
+
+      {!collapsed && activeView === 'canvas' && activeNodes.length > 0 && (
+        <LayersPanel
+          layerTree={layerTree} frameIds={frameIds} nodeCount={activeNodes.length}
+          anyFrameExpanded={anyFrameExpanded} collapsedLayers={collapsedLayers}
+          selectedNodeIds={selectedLayerIds}
+          primarySelectedNodeId={primarySelectedNodeId}
+          onNodeFocus={(nodeId) => onNodeFocus?.(nodeId)}
+          onContextMenu={handleLayerContextMenu} onToggleCollapse={toggleLayerCollapse}
+          onToggleAll={toggleAllLayers}
+          renamingLayerId={renamingLayerId}
+          renameLayerValue={renameLayerValue}
+          renameLayerInputRef={renameLayerInputRef}
+          onLayerRenameChange={setRenameLayerValue}
+          onLayerRenameCommit={commitLayerRename}
+          onLayerRenameCancel={() => setRenamingLayerId(null)}
+        />
+      )}
+
+      {layerContextMenu && (
+        <LayerContextMenu
+          x={layerContextMenu.x} y={layerContextMenu.y} nodeId={layerContextMenu.nodeId}
+          onFocus={(nodeId) => onNodeFocus?.(nodeId)}
+          onRename={(nodeId) => startLayerRename(nodeId)}
+          onDelete={(nodeId) => { void handleLayerDelete(nodeId); }}
+          onCopyLink={(nodeId) => { void handleLayerCopyLink(nodeId); }}
+          onClose={() => setLayerContextMenu(null)}
+        />
+      )}
+
+      {collapsed && (
+        <div className="sidebar-collapsed-rail">
+          <button
+            type="button"
+            className="sidebar-collapsed-btn"
+            onClick={onToggle}
+            title={t('sidebar.expand')}
+            aria-label={t('sidebar.expand')}
+          >
+            <SidebarToggleIcon size={14} />
+          </button>
+          <button
+            type="button"
+            className={`sidebar-collapsed-btn${activeView === 'chat' ? ' sidebar-collapsed-btn--active' : ''}`}
+            onClick={onEnterChat}
+            title={t('sidebar.aiChatTitle')}
+            aria-label={t('sidebar.aiChat')}
+          >
+            <AppLogoIcon size={20} />
+          </button>
+          {
+            enableSkills ? <Button
+              variant="icon"
+              className={`sidebar-collapsed-btn${activeView === 'skills' ? ' sidebar-collapsed-btn--active' : ''}`}
+              onClick={onEnterSkills}
+              title={t('sidebar.skillsTitle')}
+              aria-label={t('sidebar.skills')}
+            >
+              <PluginIcon size={15} />
+            </Button> : null
+          }
+          {
+            enableScheduled ? (<Button
+              variant="icon"
+              className={`sidebar-collapsed-btn${activeView === 'scheduled' || activeView === 'scheduled-task' ? ' sidebar-collapsed-btn--active' : ''}`}
+              onClick={onEnterScheduled}
+              title={t('sidebar.scheduledTitle')}
+              aria-label={t('sidebar.scheduled')}
+            >
+              <ScheduledIcon size={15} />
+            </Button>) : null
+          }
+
+          <button
+            type="button"
+            className="sidebar-collapsed-btn"
+            onClick={onOpenAppSettings}
+            title={t('sidebar.settings')}
+            aria-label={t('sidebar.openSettings')}
+          >
+            <SettingsIcon size={14} strokeWidth={1.4} />
+          </button>
+        </div>
+      )}
+
+      {!collapsed && (
+        <div className="sidebar-footer">
+          <button
+            type="button"
+            className="sidebar-footer-btn"
+            onClick={onOpenAppSettings}
+            title={t('sidebar.settings')}
+            aria-label={t('sidebar.openSettings')}
+          >
+            <SettingsIcon size={14} strokeWidth={1.4} />
+            <span>{t('sidebar.settings')}</span>
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+};

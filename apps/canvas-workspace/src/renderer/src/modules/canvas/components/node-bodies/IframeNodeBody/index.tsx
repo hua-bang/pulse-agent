@@ -1,0 +1,246 @@
+import './index.css';
+import { useState } from 'react';
+import { useAppShell } from '../../../../../shared/appShell';
+import { useRightDock } from '../../../../../shared/dockPort';
+import { IframeEditor } from './IframeEditor';
+import { IframeRenderedView } from './IframeRenderedView';
+import { IframeReviewLayer } from './IframeReviewLayer';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, IframeNodeData } from '../../../../../types';
+import type { IframeNodeBodyProps } from './types';
+import { useIframeNodeState } from './useIframeNodeState';
+import { useChatDeliveryNotifier } from '../../../../chat/delivery';
+
+export const IframeNodeBody = ({
+  node,
+  workspaceId,
+  onUpdate,
+  isResizing,
+  onAddDomSelectionToChat,
+  onSubmitDomReviewComments,
+  onPageTitleChange,
+  readOnly = false,
+}: IframeNodeBodyProps) => {
+  const { openArtifact, addDomSelectionToChat } = useRightDock();
+  const { notify } = useAppShell();
+  const notifyChatDelivery = useChatDeliveryNotifier();
+  const [domPickerActive, setDomPickerActive] = useState(false);
+  const [reviewPickerActive, setReviewPickerActive] = useState(false);
+  const [reviewComments, setReviewComments] = useState<AgentContextDomReviewComment[]>([]);
+  const [draftSelection, setDraftSelection] = useState<AgentContextDomSelectionRef | null>(null);
+  const [draftText, setDraftText] = useState('');
+  const [reviewSending, setReviewSending] = useState(false);
+  const state = useIframeNodeState({
+    node,
+    workspaceId,
+    onUpdate,
+    onPageTitleChange,
+    isResizing,
+    readOnly,
+  });
+
+  const handlePickDomElement = async () => {
+    if (!workspaceId) return;
+    setDomPickerActive(true);
+    try {
+      const result = await state.pickDomElement();
+      if (result.ok && result.selection) {
+        const selection = {
+          ...result.selection,
+          workspaceId,
+          nodeId: node.id,
+          nodeTitle: node.title,
+        };
+        const receipt = await (onAddDomSelectionToChat
+          ? onAddDomSelectionToChat(selection)
+          : addDomSelectionToChat(workspaceId, selection));
+        notifyChatDelivery(receipt, result.selection.label);
+      } else if (!result.cancelled) {
+        notify({
+          tone: 'error',
+          title: 'Could not select DOM',
+          description: result.error ?? 'The page did not return a selected element.',
+          autoCloseMs: 3600,
+        });
+      }
+    } catch (error) {
+      notifyChatDelivery({
+        status: 'failed',
+        target: null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setDomPickerActive(false);
+    }
+  };
+
+  const handlePickReviewElement = async () => {
+    if (!workspaceId || state.mode !== 'url' || readOnly) return;
+    setReviewPickerActive(true);
+    try {
+      const result = await window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+      if (result.ok && result.selection) {
+        setDraftSelection({
+          ...result.selection,
+          workspaceId,
+          nodeId: node.id,
+          nodeTitle: node.title,
+        });
+        setDraftText('');
+      } else if (!result.cancelled) {
+        notify({
+          tone: 'error',
+          title: 'Could not select DOM',
+          description: result.error ?? 'The page did not return a selected element.',
+          autoCloseMs: 3600,
+        });
+      }
+    } finally {
+      setReviewPickerActive(false);
+    }
+  };
+
+  const handleSaveDraftReview = () => {
+    if (!draftSelection || !draftText.trim()) return;
+    setReviewComments((current) => [
+      ...current,
+      {
+        id: `review-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        text: draftText.trim(),
+        selection: draftSelection,
+      },
+    ]);
+    setDraftSelection(null);
+    setDraftText('');
+  };
+
+  const handleCancelDraftReview = () => {
+    setDraftSelection(null);
+    setDraftText('');
+  };
+
+  const handleSubmitReviews = async () => {
+    const ready = reviewComments.filter((comment) => comment.text.trim());
+    if (!ready.length || !onSubmitDomReviewComments) return;
+    setReviewSending(true);
+    try {
+      const ok = await onSubmitDomReviewComments(ready);
+      if (!ok) return;
+      setReviewComments([]);
+      setDraftSelection(null);
+      setDraftText('');
+      notify({
+        tone: 'success',
+        title: 'Review sent to Chat',
+        description: `${ready.length} comment${ready.length === 1 ? '' : 's'} sent as one request.`,
+        autoCloseMs: 1800,
+      });
+    } finally {
+      setReviewSending(false);
+    }
+  };
+
+  // Keep the rendered view (and therefore the <webview>) mounted at all times;
+  // toggle the editor as an overlay so the guest WebContents survives URL
+  // edits and never reloads just because the user opened the address bar.
+  return (
+    <div className="iframe-body-host">
+      <IframeRenderedView
+        artifact={state.artifact}
+        artifactHtml={state.artifactHtml}
+        artifactId={state.artifactId}
+        canGoBack={state.canGoBack}
+        canGoForward={state.canGoForward}
+        cancel={state.cancel}
+        commit={state.commit}
+        discardSnapshot={state.discardSnapshot}
+        draftUrl={state.draftUrl}
+        faviconUrl={(node.data as IframeNodeData).faviconUrl}
+        frameHostRef={state.frameHostRef}
+        generating={state.generating}
+        handleOpenExternal={state.handleOpenExternal}
+        handleKeyDown={state.handleKeyDown}
+        handlePickDomElement={handlePickDomElement}
+        handlePickReviewElement={handlePickReviewElement}
+        handleRegenerate={state.handleRegenerate}
+        handleGoBack={state.handleGoBack}
+        handleGoForward={state.handleGoForward}
+        handleReload={state.handleReload}
+        html={state.html}
+        isArtifactMode={state.isArtifactMode}
+        isResizing={isResizing}
+        loadError={state.loadError}
+        loadState={state.loadState}
+        localUrl={state.localUrl}
+        mode={state.mode}
+        nodeId={node.id}
+        openArtifact={openArtifact}
+        domPickerActive={domPickerActive}
+        reviewPickerActive={reviewPickerActive}
+        readOnly={readOnly}
+        savedPrompt={state.savedPrompt}
+        setDraftUrl={state.setDraftUrl}
+        setEditing={state.setEditing}
+        onWakeWebview={state.wakeWebview}
+        renderIframeRef={state.renderIframeRef}
+        shouldMountInlineFrame={state.shouldMountInlineFrame}
+        webviewDiscarded={state.webviewDiscarded}
+        streamIframeRef={state.streamIframeRef}
+        streamingActive={state.streamingActive}
+        title={node.title}
+        url={state.url}
+        webviewHostRef={state.webviewHostRef}
+        webviewKey={state.webviewKey}
+        workspaceId={workspaceId}
+      />
+      {(draftSelection || reviewComments.length > 0) && (
+        <IframeReviewLayer
+          comments={reviewComments}
+          draftSelection={draftSelection}
+          draftText={draftText}
+          sending={reviewSending}
+          onDraftTextChange={setDraftText}
+          onSaveDraft={handleSaveDraftReview}
+          onCancelDraft={handleCancelDraftReview}
+          onUpdateComment={(id, text) => {
+            setReviewComments((current) => current.map((comment) => (
+              comment.id === id ? { ...comment, text } : comment
+            )));
+          }}
+          onRemoveComment={(id) => {
+            setReviewComments((current) => current.filter((comment) => comment.id !== id));
+          }}
+          onSubmit={() => void handleSubmitReviews()}
+          onClear={() => {
+            setReviewComments([]);
+            handleCancelDraftReview();
+          }}
+        />
+      )}
+      {state.editing && (
+        <IframeEditor
+          cancel={state.cancel}
+          canCancel={state.hasContent}
+          commit={state.commit}
+          draftHtml={state.draftHtml}
+          draftMode={state.draftMode}
+          draftPrompt={state.draftPrompt}
+          draftUrl={state.draftUrl}
+          genError={state.genError}
+          generating={state.generating}
+          handleGenerate={state.handleGenerate}
+          handleKeyDown={state.handleKeyDown}
+          handlePromptKeyDown={state.handlePromptKeyDown}
+          handleTextareaKeyDown={state.handleTextareaKeyDown}
+          inputRef={state.inputRef}
+          openBlankPage={state.openBlankPage}
+          promptRef={state.promptRef}
+          setDraftHtml={state.setDraftHtml}
+          setDraftMode={state.setDraftMode}
+          setDraftPrompt={state.setDraftPrompt}
+          setDraftUrl={state.setDraftUrl}
+          textareaRef={state.textareaRef}
+        />
+      )}
+    </div>
+  );
+};

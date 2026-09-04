@@ -12,23 +12,18 @@ const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/service.ts': 2569,
-  'src/renderer/src/components/node-bodies/AgentTeamFrame/index.tsx': 2253,
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1606,
-  'src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts': 1286,
   'src/main/agent/canvas-agent.ts': 1158,
   'src/main/canvas/storage.ts': 1156,
-  'src/renderer/src/hooks/useNodes.ts': 918,
   'src/main/agent/context-builder.ts': 856,
-  'src/renderer/src/views/WorkspaceNodes/GraphPage.tsx': 812,
-  'src/renderer/src/components/settings/settings-config/McpManager.tsx': 786,
-  'src/renderer/src/components/canvas/Canvas/index.tsx': 770,
-  'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 777,
+  // 777→816 (2026-09-03, drift recorded): master changes #987–#988
+  // expanded then partially reduced Feishu answer-card/run rendering without
+  // updating this manually maintained baseline. Must-not-grow resumes at 816.
+  'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 816,
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/renderer/src/App.tsx': 608,
-  'src/renderer/src/utils/mindmapLayout.ts': 603,
   'src/main/agent/model/config.ts': 599,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/settings/canvas-plugins-config.ts': 558,
@@ -36,22 +31,14 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // session-restore fix) that never ran this suite (no automatic trigger).
   // Raised to measured; must-not-grow applies from 636.
   'src/main/agent/session-store.ts': 636,
-  // 542→576 (2026-08-22, drift recorded): onTurnComplete rail refresh
-  // (first-message + completion) and run re-attach on switch-back
-  // (chatRunReattach / useChatRunReattach) — the parallel-conversations UX.
-  // Raised to measured; must-not-grow applies from 576.
-  'src/renderer/src/components/chat/hooks/useChatStream.ts': 576,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
-  'src/renderer/src/hooks/useFileNodeEditor.ts': 511,
   'src/main/agent/skills/config.ts': 511,
-  'src/renderer/src/components/icons/index.tsx': 510,
-  'src/renderer/src/components/settings/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
   // ran this suite (no automatic trigger). Raised to measured;
   // must-not-grow applies from 516.
-  'src/renderer/src/components/shell/Workbench/index.tsx': 516,
+  'src/renderer/src/app/shell/Workbench/index.tsx': 485,
 };
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {

@@ -1,7 +1,7 @@
 # Terminal surface sizing (xterm fit policy)
 
-`src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts` owns the
-shared sizing policy for every xterm instance in the app: agent nodes,
+`src/renderer/src/modules/coding-agent/terminal.ts` is the public entry for the
+shared sizing policy currently owned by the coding-agent module: agent nodes,
 terminal nodes, and the workspace terminal dock. Read this file before
 touching how any of those surfaces mount, resize, restore, or scroll a
 terminal.
@@ -10,7 +10,7 @@ terminal.
 
 NEVER call `fitAddon.fit()` directly. Go through `fitTerminalIfSane` or
 `fitTerminalWithCanvasScale` instead (both exported from
-`AgentNodeBody/utils/terminal.ts`). Every real consumer already follows
+`modules/coding-agent/terminal.ts`). Every real consumer already follows
 this — there is no direct `fitAddon.fit(` call site anywhere else in `src/`.
 
 ## Why: FitAddon's column clamp turns into permanent scrollback damage
@@ -57,7 +57,7 @@ bottom there would yank it out from under them. This is the one behavioral
 difference between the two re-fit paths — do not unify them into a single
 "always scroll" or "never scroll" helper.
 
-## Contract (exports of `AgentNodeBody/utils/terminal.ts`)
+## Contract (exports of `modules/coding-agent/terminal.ts`)
 
 - `MIN_FITTABLE_TERMINAL_COLS` (20) — floor below which a proposed fit is
   rejected outright.
@@ -80,9 +80,9 @@ difference between the two re-fit paths — do not unify them into a single
 
 ## Consumers (every xterm in the app)
 
-- Agent nodes: `src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts`.
-- Terminal nodes: `src/renderer/src/components/node-bodies/TerminalNodeBody/index.tsx`.
-- The workspace terminal dock: `src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx`.
+- Agent nodes: `src/renderer/src/modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts`.
+- Terminal nodes: `src/renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx`.
+- The workspace terminal dock: `src/renderer/src/modules/dock/internal/WorkspaceTerminalDock/index.tsx`.
 
 All three call into the fit primitives above rather than the raw
 `FitAddon`.
@@ -99,5 +99,5 @@ behavior.
 
 ## Evidence
 
-- `src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFit.test.ts` —
+- `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFit.test.ts` —
   the bound regression suite for this sizing policy.

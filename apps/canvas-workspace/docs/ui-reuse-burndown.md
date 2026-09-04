@@ -53,7 +53,7 @@ verified in code by builder AND spot-confirmed by the independent reviewer):
   **RESOLVED 2026-07-10 — see "API-extension batch" below; both migrated,
   `bespokeDropdownShells` 2→0.**
 - `NoteMentionMenu`, `SlashCommandMenu`, `FileNodeBubbleMenu`,
-  `chat/ModelSwitcher` → Popover: Popover force-autofocuses its first
+  `models/ModelSwitcher` → Popover: Popover force-autofocuses its first
   button on mount with NO opt-out (`useMenuKeyboardNav` autoFocus default),
   which would steal focus from the editor/filter input; ModelSwitcher also
   needs live reanchoring on scroll/resize which Popover's one-shot x/y
@@ -286,7 +286,7 @@ unconditional and fires regardless of `autoFocus`.
 | `NoteMentionMenu` | **SKIP, deeper reason found.** Not a Popover-shaped menu at all: `role="listbox"`/`aria-selected` items with an externally-owned "active" index (`useNoteMentions.ts`'s own `window.addEventListener('keydown', ..., true)`, mounted on the editor, driving `moveMentionSelection`) — the menu itself only calls `useClickOutside`, never `useMenuKeyboardNav`, and DOM focus never enters it. That editor-level handler intercepts ArrowDown/ArrowUp/Enter/Escape with `stopImmediatePropagation()`, so adopting Popover wouldn't double-fire on THOSE keys (the editor's handler, registered first, wins). But it does **not** handle Home/End — so Popover's own unconditional Home/End branch would be the only listener left standing for those keys, and would yank DOM focus from the note's contentEditable into a menu button mid-typing. That's a real regression (Home/End inside an active `@mention` query currently does the caret's native line-start/end move), not present today, and `autoFocus={false}` does nothing to prevent it. Combined with the role/selection-model mismatch, this is a controlled-listbox shape Popover's contract doesn't serve — same conclusion `bespokePopoverPositioning`'s existing baseline comment already drew, now with the concrete mechanism. |
 | `SlashCommandMenu` | **SKIP, same reason.** Structurally identical to NoteMentionMenu — `useFileNodeEditor.ts`'s own capture-phase handler owns ArrowDown/Up/Enter/Escape via `moveSlashSelection`/`closeSlashMenu`; the menu itself never calls `useMenuKeyboardNav`. Same Home/End focus-steal gap, same `role="listbox"` mismatch. |
 | `FileNodeBubbleMenu` | **SKIP, original blocker re-confirmed, plus a second one found.** Re-read `useViewportClampedPosition` (the hook both DropdownShell... no, both Popover and the mention/slash menus share): it only clamps a top-left point back from the viewport edges — it does not flip above/below an anchor, nor center horizontally around one. FileNodeBubbleMenu needs both (`translate(-50%, ...)` horizontal centering around the selection midpoint, plus a measured flip-below when there's no room above) — Popover still lacks this, so the original verdict holds. Newly found: the bubble menu opens on EVERY non-empty text selection (`onSelectionUpdate` in `useFileNodeEditor.ts`) and today hand-rolls no keyboard nav at all (no `useClickOutside`, no `useMenuKeyboardNav`, no Escape). Popover's unconditional Home/End handling would hijack the browser's native "collapse selection to line start/end" — an extremely common edit action — every time ANY text is selected in the note editor, a severe regression, not a corner case. |
-| `chat/ModelSwitcher.tsx` → Popover | **SKIP at this point, re-confirmed unchanged.** Still hand-rolls its own `updateMenuPosition` (measures the trigger rect, flips above/below based on available space, re-runs on `resize` and capture-phase `scroll`) — exactly the live-reanchoring Popover's one-shot `useViewportClampedPosition` clamp cannot do. Also doesn't match `bespokePopoverPositioning`'s file signature (no `useViewportClampedPosition` import), so this was never actually counted by the ratchet either way — no counter movement possible regardless of verdict. **Unlocked and MIGRATED 2026-07-11 — see "Popover rect-anchoring batch" below.** |
+| `models/ModelSwitcher/index.tsx` → Popover | **SKIP at this point, re-confirmed unchanged.** Still hand-rolls its own `updateMenuPosition` (measures the trigger rect, flips above/below based on available space, re-runs on `resize` and capture-phase `scroll`) — exactly the live-reanchoring Popover's one-shot `useViewportClampedPosition` clamp cannot do. Also doesn't match `bespokePopoverPositioning`'s file signature (no `useViewportClampedPosition` import), so this was never actually counted by the ratchet either way — no counter movement possible regardless of verdict. **Unlocked and MIGRATED 2026-07-11 — see "Popover rect-anchoring batch" below.** |
 
 No counter movement from this sub-batch (all four skips); `bespokePopoverPositioning` stays at 2 (NoteMentionMenu + SlashCommandMenu — unchanged, its existing baseline comment's reasoning is now independently re-confirmed with the specific mechanism above). `FileNodeBubbleMenu` remains SKIPPED even after ModelSwitcher's later reanchoring unlock — its blocker is the Home/End keyboard-ownership issue above, a different, deeper problem the reanchoring extension does not touch.
 
@@ -373,7 +373,7 @@ surfaced several MORE candidates: `Sidebar/LayersPanel.tsx`'s
 selector — real, demonstrated 2-site duplication), `CanvasEmptyHint/index.tsx`
 (icon+title+description PREAMBLE, then a much larger bespoke action-grid +
 URL form + shortcuts button), and several single-line "no results" messages
-(`chat/ModelSwitcher.tsx`, `NodeMentionPicker`, `CommandPalette`) with no
+(`models/ModelSwitcher/index.tsx`, `NodeMentionPicker`, `CommandPalette`) with no
 icon/title/description structure at all — too thin to be this shell's
 concern.
 
@@ -395,7 +395,7 @@ with callers.
 | `chat/ChatEmptyState.tsx` | **SKIPPED.** Two real misfits, not a forced-in judgment call: (1) no description at all — just an icon and a one-line greeting, then the empty state's actual CONTENT is a repeating quick-actions list plus a conditional configure-banner, not a small trailing "action" appendage; (2) its layout is bottom-anchored and left-aligned (`justify-content: flex-end; align-items: flex-start` on the pre-existing wrapper) — inverted from every other candidate's centered-column shape. Squeezing the quick-actions list into `action` would pass ~90% of the component's real content through one opaque slot, reducing no real duplication. |
 | `CanvasEmptyHint/index.tsx` | **SKIPPED.** Only its preamble (icon 56px tile + title + description inside a bordered/shadowed card) matches; everything below — a primary-actions grid, two more action-grid sections, a URL composer form, a shortcuts button — is bespoke onboarding UI with no equivalent in `EmptyState`'s minimal contract. Also not one of the two originally-named evidence sites for this batch; a future batch could still carve out just its preamble if that specific duplication becomes worth it on its own evidence. |
 | `WorkspaceNodes/NodesPage.tsx` + `GraphPage.tsx` (`h2`+`p`, sharing one CSS selector) | **SKIPPED, scale mismatch.** A real, demonstrated 2-site duplication, but a page-level empty state, not a compact-panel one: pre-migration the `h2`/`p` used NO explicit font-size at all (pure browser UA default, ≈21px bold / 14px normal against this app's 14px body base) — a full head-and-a-half larger than `ReferenceEmptyState`'s pre-migration 14px/12px. `EmptyState`'s sibling pieces (`SectionHeader`, `FieldRow`) each ship exactly ONE fixed typography scale, no size variant — matching that house convention here would force a page-level heading down to drawer-hint size, the same "visual downgrade" reasoning the governance test's own `segmentedRoles` baseline comment already used to keep 3 card-style radiogroups off `SegmentedControl`. Left as frozen stock; revisit only alongside an explicit size variant, not by forcing today's fixed scale. |
-| `chat/ModelSwitcher.tsx`, `NodeMentionPicker`, `CommandPalette` (single-line "no results" messages) | **Not evidence — too thin.** A single `<div>{message}</div>`, no icon/title/description split. Forcing the full shell onto a one-liner would be the abstraction-for-its-own-sake the Occam rule warns against. |
+| `models/ModelSwitcher/index.tsx`, `NodeMentionPicker`, `CommandPalette` (single-line "no results" messages) | **Not evidence — too thin.** A single `<div>{message}</div>`, no icon/title/description split. Forcing the full shell onto a one-liner would be the abstraction-for-its-own-sake the Occam rule warns against. |
 
 No ratchet counter moved from this piece — the deleted CSS (title/description
 typography, spacing) contained zero radius/color/shadow literals, so
@@ -476,7 +476,7 @@ The first SETTINGS-FAMILY slice of C3's "migrate `rawButtonTags`/
 precedent (IframeNodeBody, 2026-07-10) — one component family, per-instance
 judgment, not a mechanical pass. This slice is exactly the surface the pilot
 predicted would fit: `src/renderer/src/components/Settings/` (the global
-settings drawer's sections) and `src/renderer/src/components/settings-config/`
+settings drawer's sections) and `src/renderer/src/modules/settings/internal-config/`
 (the Skills/MCP/Plugins CRUD managers shared by global settings and the
 per-workspace drawer). Unlike the pilot, this slice is NOT a near-miss —
 `settings-config.css`'s own header comment already documented that its
@@ -595,7 +595,7 @@ stacking rule died with the deleted `.cfg-*-btn` selectors — was FIXED
 ## Popover rect-anchoring batch — DONE 2026-07-11
 
 Implements the "Unlock = ... rect-anchored live positioning" bullet the
-API-extension batch named for `chat/ModelSwitcher`, then migrates it.
+API-extension batch named for `models/ModelSwitcher`, then migrates it.
 `FileNodeBubbleMenu` stays SKIPPED on purpose — its blocker is the Home/End
 keyboard-ownership issue documented above (a different, deeper problem);
 this batch does not touch `useMenuKeyboardNav`'s key-ownership model at all.
@@ -650,7 +650,7 @@ Both fixes landed as their own commits (not folded into the anchoring
 feature or the migration) so each is independently reviewable and
 revertable.
 
-### `chat/ModelSwitcher.tsx` → Popover: MIGRATED
+### `models/ModelSwitcher/index.tsx` → Popover: MIGRATED
 
 Preserved exactly: trigger-rect anchoring (`anchorRef={triggerRef}
 placement="top" align="end" gap={8} viewportMargin={12}` — the literal
@@ -688,7 +688,7 @@ opens the menu; the shell's own arrow-nav is already covered by
 `Popover.test.tsx`), not asserted on faith.
 
 10 new behavior tests in
-`src/renderer/src/components/chat/__tests__/ModelSwitcher.test.tsx`
+`src/renderer/src/modules/models/components/ModelSwitcher/__tests__/ModelSwitcher.test.tsx`
 (ModelSwitcher is fully prop-driven — no direct `window.canvasWorkspace`
 calls — so unlike the Settings-family slice this one mounts cleanly):
 opens on trigger click and lists Auto + provider models, portals to

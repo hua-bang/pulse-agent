@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 const rendererRoot = fileURLToPath(new URL('.', import.meta.url));
 const globalCss = readFileSync(join(rendererRoot, 'styles.css'), 'utf8');
-const graphPageSource = readFileSync(join(rendererRoot, 'views/WorkspaceNodes/GraphPage.tsx'), 'utf8');
-const mindmapExportSource = readFileSync(join(rendererRoot, 'utils/mindmapExport.ts'), 'utf8');
+const graphCanvasSource = readFileSync(join(rendererRoot, 'modules/workspace-nodes/internal/ForceGraphCanvas/index.tsx'), 'utf8');
+const mindmapExportSource = readFileSync(join(rendererRoot, 'modules/canvas/mindmap/export.ts'), 'utf8');
 const canvasPackage = JSON.parse(
   readFileSync(join(rendererRoot, '../../../package.json'), 'utf8'),
 ) as { devDependencies?: Record<string, string> };
@@ -33,8 +33,8 @@ describe('renderer typography system', () => {
   });
 
   it('uses the product font for canvas labels and waits for it before image export', () => {
-    expect(graphPageSource).toContain('"Lexend Variable", "PingFang SC"');
-    expect(graphPageSource).not.toContain('"SF Mono", "Fira Code"');
+    expect(graphCanvasSource).toContain('"Lexend Variable", "PingFang SC"');
+    expect(graphCanvasSource).not.toContain('"SF Mono", "Fira Code"');
     expect(mindmapExportSource).toContain('await Promise.all([');
     expect(mindmapExportSource).toContain('document.fonts.load(`400 14px');
     expect(mindmapExportSource).toContain('document.fonts.load(`500 20px');
@@ -50,11 +50,11 @@ describe('renderer typography system', () => {
 
   it('reserves 600 weight for page titles and the product brand', () => {
     const allowed = new Set([
-      'components/shell/Sidebar/index.css',
-      'views/PluginMarket/index.css',
-      'views/Scheduled/index.css',
-      'views/SkillsLibrary/index.css',
-      'views/WorkspaceNodes/index.css',
+      'app/shell/Sidebar/index.css',
+      'modules/plugin-market/internal/index.css',
+      'modules/scheduled/internal/index.css',
+      'modules/skills/internal/index.css',
+      'modules/workspace-nodes/internal/NodesPage/index.css',
     ]);
     const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
       const css = readFileSync(path, 'utf8');
@@ -66,10 +66,10 @@ describe('renderer typography system', () => {
   });
 
   it.each([
-    'views/SkillsLibrary/index.css',
-    'views/Scheduled/index.css',
-    'views/PluginMarket/index.css',
-    'views/WorkspaceNodes/index.css',
+    'modules/skills/internal/index.css',
+    'modules/scheduled/internal/index.css',
+    'modules/plugin-market/internal/index.css',
+    'modules/workspace-nodes/internal/NodesPage/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {
     const css = readFileSync(join(rendererRoot, relativePath), 'utf8');
     expect(css).toContain('font-size: 24px');

@@ -8,7 +8,7 @@
 
 ## 一、前端资源 (bundle / 依赖体积 / 资源加载)
 
-> 公共背景:`apps/canvas-workspace/electron.vite.config.ts` 的 renderer 段无 `build.rollupOptions.output.manualChunks`,全仓 `React.lazy` 边界为 0(唯一的运行时 `import()` 代码分割点是 `chat/utils/mermaid.ts`)。因此下列静态 import 全部折叠进同一个启动 chunk。
+> 公共背景:`apps/canvas-workspace/electron.vite.config.ts` 的 renderer 段无 `build.rollupOptions.output.manualChunks`,全仓 `React.lazy` 边界为 0(唯一的运行时 `import()` 代码分割点是 `utils/mermaid.ts`)。因此下列静态 import 全部折叠进同一个启动 chunk。
 
 ### 1.1 [medium] 所有 8 种节点 body 的依赖联合体被静态拉进首屏 chunk
 - **文件:行**:`apps/canvas-workspace/src/renderer/src/components/CanvasNodeView/DefaultCanvasNode.tsx:12-19`(JSX 分发 222-261)
@@ -22,19 +22,19 @@
 ### 1.2 [medium] xterm `Terminal` 类被 5 个 renderer 文件静态 import 进启动 chunk——与已验证的 mermaid lazy 模式正相反
 - **文件:行**:`apps/canvas-workspace/src/renderer/src/components/TerminalNodeBody/index.tsx:3-4`
 - **类别**:frontend-assets
-- **证据**:`import { Terminal } from '@xterm/xterm';` / `import { FitAddon } from '@xterm/addon-fit';` 顶层静态。同样的静态 import 出现在 `AgentNodeBody/useAgentNodeController.ts:2-3`、`AgentNodeBody/utils/terminal.ts:1-2`、`WorkspaceTerminalDock/index.tsx:3-4`,外加 `main.tsx:5` 的 CSS 副作用 `import "@xterm/xterm/css/xterm.css"`。但 `Terminal` 只在 `initTerminal`(TerminalNodeBody:122)里 `new Terminal(TERMINAL_OPTIONS)`(126/145)按需构造,由 terminal 节点 mount 时的 useEffect 触发。对比同目录 `chat/utils/mermaid.ts:15-29` 自带注释的正确范式(`import('mermaid')` 仅首个 mermaid fence 触发)。无 manualChunks → xterm 核心 + fit addon + xterm.css 全部并入首屏前的启动 chunk。
+- **证据**:`import { Terminal } from '@xterm/xterm';` / `import { FitAddon } from '@xterm/addon-fit';` 顶层静态。同样的静态 import 出现在 `AgentNodeBody/useAgentNodeController.ts:2-3`、`AgentNodeBody/utils/terminal.ts:1-2`、`WorkspaceTerminalDock/index.tsx:3-4`,外加 `main.tsx:5` 的 CSS 副作用 `import "@xterm/xterm/css/xterm.css"`。但 `Terminal` 只在 `initTerminal`(TerminalNodeBody:122)里 `new Terminal(TERMINAL_OPTIONS)`(126/145)按需构造,由 terminal 节点 mount 时的 useEffect 触发。对比同目录 `utils/mermaid.ts:15-29` 自带注释的正确范式(`import('mermaid')` 仅首个 mermaid fence 触发)。无 manualChunks → xterm 核心 + fit addon + xterm.css 全部并入首屏前的启动 chunk。
 - **影响**:打开空/纯文件画布的用户即便从不开终端,启动时也照付完整 xterm parse+eval。`Terminal` 是带 renderer/buffer/parser 子系统的大类。这是单点价值最高的缺失 lazy 边界,且与已做对的 mermaid 形成直接不对称。
 - **估算**:~250KB min / ~80KB gzip xterm 核心 + ~5KB fit addon 从启动 chunk 移除;~30-60ms script-eval 推迟出首屏(**估算**,Electron 本地加载,真实代价为 parse/eval 而非下载)。
 - **修复**:套用 mermaid.ts 模板——引入 `loadXterm(): Promise<{Terminal, FitAddon}>`(`import('@xterm/xterm')`/`import('@xterm/addon-fit')`),模块级 promise memoize;将已是 async 的 `initTerminal` 改为 `await loadXterm()` 后再构造;把 xterm.css 从 `main.tsx` 移入该 lazy 模块(或首次 terminal mount 时注入)。保持 `terminalTheme.ts`/`utils/terminal.ts` 的 `import type` 为纯类型(零成本)。
 - **置信度**:0.85
 
 ### 1.3 [medium] RightDock / Chat 面板首屏无条件挂载,经 mentions.ts 再导出把 markdown-it + highlight.js/lib/common 静态拉进启动 chunk
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/markdown.ts:1-3`(再导出于 `mentions.ts:5`,消费于 `ChatMessage.tsx:6,115,121`)
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/modules/chat/components/utils/markdown.ts:1-3`(再导出于 `mentions.ts:5`,消费于 `ChatMessage/index.tsx:6,115,121`)
 - **类别**:frontend-assets
 - **证据**:markdown.ts 第 1-3 行静态 import 全套(`highlight.js/lib/common`、`markdown-it`、`markdown-it-task-lists`),并在模块顶层 eager 实例化(`const markdown = new MarkdownIt({…})` 第 42 行,`markdown.use(taskLists,…)` 第 51 行)。`new MarkdownIt()` 构造与 ~35 个语法注册在模块 init 时跑,早于任何 chat 消息存在。隔壁 mermaid.ts 证明团队懂 lazy 范式,markdown.ts 反其道。
 - **影响**:每次冷启都 parse+eval markdown-it 核心 + hljs `lib/common`(~35 语法,每个有副作用注册)。从不打开 chat 的用户也照付。结合 xterm,这是首屏 chunk 中只在交互时才需要的 chat/terminal 库。
 - **估算**:~250KB min / ~75KB gzip(markdown-it ~100KB + hljs common ~150KB)移出启动;~20-40ms MarkdownIt 构造 + 35 语法注册移出首屏(**估算,偏高,视为粗估**)。
-- **修复**:把 renderMarkdown 改 lazy(镜像 mermaid.ts:`loadMarkdown(): Promise<(s)=>string>` 用 `Promise.all([import('markdown-it'), import('highlight.js/lib/common'), …])`)。因 `renderMdWithMentions` 在 ChatMessage 同步渲染中调用,最干净的切点是路由级动态 import:`React.lazy(() => import('./components/chat/ChatView'))`,让整个 chat 子树(含 markdown 栈)成为面板/路由首次激活时加载的独立 chunk。这可作为全仓**第一个** React.lazy 边界。
+- **修复**:把 renderMarkdown 改 lazy(镜像 mermaid.ts:`loadMarkdown(): Promise<(s)=>string>` 用 `Promise.all([import('markdown-it'), import('highlight.js/lib/common'), …])`)。因 `renderMdWithMentions` 在 ChatMessage 同步渲染中调用,最干净的切点是路由级动态 import:`React.lazy(() => import('./modules/chat/components/ChatView'))`,让整个 chat 子树(含 markdown 栈)成为面板/路由首次激活时加载的独立 chunk。这可作为全仓**第一个** React.lazy 边界。
 - **置信度**:0.85
 - **校正(对抗性核验)**:finding 把 RightDock 写成挂载点,但真实静态可达性走的是 `Workbench`(`App.tsx:514` 无条件渲染),而非 RightDock(后者由 Workbench portal 注入 ChatPanels);`ChatPage` 提供第二条无 flag 静态路径。结论不变;字节/耗时估算偏高。
 
@@ -58,9 +58,9 @@
 - **校正(对抗性核验)**:(1)read-merge-write 放大在 **Electron 主进程**(canvas storage),非 renderer 主线程;"数十 ms 主线程阻塞"应为"主进程事件循环阻塞",且在 per-workspace 保存锁下分散于多个 await,非单次同步冻结。(2)写侧部分有界——`writeCanvasFullV2` 按 `updatedAt` 仲裁、只重写变更 node;无界全量 parse 在**读/merge 侧**(2x mergeExternalNodes + readOnDiskNodeMap + seedPerNodeContent),仍是 3-4 次全读。
 
 ### 1.6 [low] mermaid 渲染在每次 chat re-render 用 `host.innerHTML` 写裸 SVG,无 per-message 已完成图缓存
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/mermaid.ts:55`
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/utils/mermaid.ts:55`
 - **类别**:runtime(资源/重解析)
-- **证据**:已核对——`renderInto`(55-70)在 async `mermaid.render()` 后 `host.innerHTML = result.svg;`。防重渲仅靠 DOM 属性:`renderMermaidIn`(83-92)选 `.chat-mermaid[data-rendered="false"]` 并翻 `host.dataset.rendered = 'pending'`。`ChatMessage.tsx:233-237` 在 `[assistantHtml, userHtml, isStreaming]` 的 useEffect 调 `renderMermaidIn`。问题:`assistantHtml` 每次内容变都被 `renderMdWithMentions` 重生成,消息 body innerHTML 被替换 → 已渲 SVG host 被销毁重建为 `data-rendered="false"` → 对同一 diagram 源的 `mermaid.render()` 从头重跑。无以源字符串为 key 的缓存。keep-alive 多 mount 或任何重置 innerHTML 的 re-render 都触发每个 mermaid 块重解析。
+- **证据**:已核对——`renderInto`(55-70)在 async `mermaid.render()` 后 `host.innerHTML = result.svg;`。防重渲仅靠 DOM 属性:`renderMermaidIn`(83-92)选 `.chat-mermaid[data-rendered="false"]` 并翻 `host.dataset.rendered = 'pending'`。`ChatMessage/index.tsx:233-237` 在 `[assistantHtml, userHtml, isStreaming]` 的 useEffect 调 `renderMermaidIn`。问题:`assistantHtml` 每次内容变都被 `renderMdWithMentions` 重生成,消息 body innerHTML 被替换 → 已渲 SVG host 被销毁重建为 `data-rendered="false"` → 对同一 diagram 源的 `mermaid.render()` 从头重跑。无以源字符串为 key 的缓存。keep-alive 多 mount 或任何重置 innerHTML 的 re-render 都触发每个 mermaid 块重解析。
 - **影响**:含 mermaid 的消息,任何重建 HTML 的后续 re-render(流式完成后的后续 token、主题切换、keep-alive 重 mount)对未变 diagram 触发完整 parse+layout+SVG-serialize。`mermaid.render` 是最贵操作之一(dagre/elk 布局),异步不阻首屏但落地时 jank。
 - **估算**:每次冗余重渲省 ~50-300ms(**估算**)。
 - **修复**:在 mermaid.ts 加模块级 `Map<string, string>`,key 为 trim 后源 → 渲染 SVG;`renderMermaidSource` 在 `loadMermaid()`/`render` 前查缓存。源跨重渲稳定,使重渲降为 O(1) innerHTML 赋值。
@@ -207,7 +207,7 @@
 - **校正(对抗性核验)**:从隐含 high 调为 medium——仅 Graph/Nodes 视图 mount 时、仅 knowledge-tag 变更事件触发,非每次画布保存/流式 tick,属 gated/bounded 而非持续热路径。
 
 ### 3.4 [medium] mermaid.render() 在 renderer 主线程同步、无 worker offload——含图回复在流式完成瞬间 jank
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/mermaid.ts:41-53,55-70,83-92`;`ChatMessage.tsx:233-236`
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/utils/mermaid.ts:41-53,55-70,83-92`;`ChatMessage/index.tsx:233-236`
 - **类别**:runtime
 - **证据**:已核对——`renderMermaidSource` `const { svg } = await mermaid.render(id, trimmed);`(47)。虽 await,`mermaid.render` 内部 CPU 同步:在调用(主)线程解析 DSL + 跑 dagre/ELK 布局 + SVG 串装配,**无 Web Worker**。`renderMermaidIn`(83-92)遍历每个 pending host 触发 `void renderInto(host)`,无并发上限/分块,一条消息所有图背靠背渲染。`ChatMessage` gate 于流末:`useEffect(() => { if (isStreaming) return; renderMermaidIn(bodyRef.current); }, [assistantHtml, userHtml, isStreaming])`。`isStreaming` 守卫对可解析性正确,但意味含 N 图回复在流完成瞬间把 N 个 host 一起翻转并在单串行 burst 中渲染,恰逢 token 流重渲压力 + 末次绘制落同一画布线程。
 - **影响**:每个非平凡流程图/时序图约 30-150ms 阻塞主线程布局;3 图回复 → 流完成时 ~90-450ms jank(画布掉帧、chat 滚动冻结、PTY/IPC delta 停滞)。画布、force-graph rAF、chat 共用此一 renderer 线程,故 stall 是全窗口的(**估算**)。
@@ -215,7 +215,7 @@
 - **置信度**:0.78
 
 ### 3.5 [medium] 首个图付多百 ms 的 `import('mermaid')` + initialize 主线程 stall——renderer 唯一代码分割点
-- **文件:行**:`apps/canvas-workspace/src/renderer/src/components/chat/utils/mermaid.ts:15-29`
+- **文件:行**:`apps/canvas-workspace/src/renderer/src/utils/mermaid.ts:15-29`
 - **类别**:first-paint(运行时首遇)
 - **证据**:已核对——`import('mermaid').then(mod => { const m = mod.default; m.initialize({...}); return m; })`(17-26)。文件自注释:"mermaid bundle 约 1MB"。这是 renderer 唯一代码分割边界(grep 确认 renderer 源唯一运行时 `import(` 即此;`App.tsx:324` importWorkspace 与 `CanvasRootView.tsx:76` 是函数调用/类型,非模块加载)。`loadMermaid` 由 `renderMermaidSource`(45)懒触,后者为 ChatMessage `renderMermaidIn`、`ChatInlineVisual`(168)、ArtifactTabView `ArtifactMermaid`(161)共享入口。故首个 chat 图 / 首个 mermaid inline visual / 首个 artifact 抽屉图——孰先——触发一次性模块 parse+evaluate + `mermaid.initialize`。
 - **影响**:首遇图为多百 ms 主线程 stall:~1MB JS(mermaid + dagre/d3)须磁盘读取、解析、求值,再 initialize,全在首个 SVG 出现前。因懒落地于会话中段(非启动),用户感知为首次任何图浮现时的突然冻结,期间画布与 chat 无响应。懒边界本身正确(挡出启动 chunk),但无预热。

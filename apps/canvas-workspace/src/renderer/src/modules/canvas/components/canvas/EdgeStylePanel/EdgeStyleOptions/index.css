@@ -1,0 +1,50 @@
+.edge-style-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.edge-style-row--caps {
+  gap: 1px;
+}
+
+.edge-style-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.edge-style-btn svg {
+  display: block;
+}
+
+.edge-style-btn:hover,
+.edge-style-btn:focus-visible {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+}
+
+.edge-style-btn:focus-visible {
+  outline: 1px solid rgba(35, 131, 226, 0.38);
+  outline-offset: 2px;
+}
+
+.edge-style-btn--active,
+.edge-style-btn--active:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.edge-style-btn--cap {
+  min-width: 22px;
+  padding: 0 2px;
+}
