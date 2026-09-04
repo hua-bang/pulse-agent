@@ -16,12 +16,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ArtifactType } from '../../../types';
-import './artifacts.css';
-import { useRightDock } from '../../../shared/dockPort';
-import { extractPartialStringField } from './partialJson';
-import { STREAMING_SHELL, withAutoHeight } from './streamingShell';
-import { renderMermaidSource, type MermaidRenderResult } from '../../../utils/mermaid';
+import type { ArtifactType } from '../../../../types';
+import './index.css';
+import { useRightDock } from '../../../../shared/dockPort';
+import { extractPartialStringField } from '../partialJson';
+import { STREAMING_SHELL, withAutoHeight } from '../streamingShell';
+import { renderMermaidSource, type MermaidRenderResult } from '../../../../utils/mermaid';
 
 export interface InlineVisualPayload {
   type: ArtifactType;
