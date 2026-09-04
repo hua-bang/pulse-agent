@@ -9,7 +9,7 @@ import {
 import type { LaidOutTopic } from '../../../mindmap/layout';
 import type { DropHint, KeyAction } from './types';
 import { isImeComposing } from '../../../../../utils/ime';
-import { useI18n } from '../../../../../i18n';
+import { TopicActions } from './TopicActions';
 
 interface TopicPillProps {
   topic: LaidOutTopic;
@@ -46,7 +46,6 @@ export const TopicPill = ({
   onKeyAction,
   readOnly = false,
 }: TopicPillProps) => {
-  const { t } = useI18n();
   const editorRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
 
@@ -259,47 +258,12 @@ export const TopicPill = ({
         {topic.text}
       </div>
       {!readOnly && !isEditing && (
-        <span className="mindmap-topic-actions" aria-hidden={false}>
-          <button
-            type="button"
-            className="mindmap-topic-action mindmap-topic-action--add"
-            aria-label={t('mindmap.topic.addChild')}
-            title={t('mindmap.topic.addChild')}
-            onMouseDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect();
-              onAddChild();
-            }}
-          >
-            +
-          </button>
-          {!isRoot && topic.hasChildren ? (
-            <button
-              type="button"
-              className={[
-                'mindmap-topic-action',
-                'mindmap-topic-action--fold',
-                topic.collapsed && 'mindmap-topic-action--unfold',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              style={{ ['--mindmap-topic-toggle-color' as string]: topic.color }}
-              aria-label={topic.collapsed ? t('mindmap.topic.unfold') : t('mindmap.topic.fold')}
-              title={topic.collapsed ? t('mindmap.topic.unfold') : t('mindmap.topic.fold')}
-              onMouseDown={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect();
-                onToggleCollapsed();
-              }}
-            >
-              {topic.collapsed ? t('mindmap.topic.unfoldShort') : t('mindmap.topic.foldShort')}
-            </button>
-          ) : null}
-        </span>
+        <TopicActions
+          topic={topic}
+          onAddChild={onAddChild}
+          onSelect={onSelect}
+          onToggleCollapsed={onToggleCollapsed}
+        />
       )}
     </div>
   );

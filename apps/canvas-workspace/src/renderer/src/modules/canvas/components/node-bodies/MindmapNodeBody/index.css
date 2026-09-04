@@ -11,7 +11,6 @@
   overflow: visible;
   background: transparent;
 }
-
 .mindmap-node-body--outer-dragging .mindmap-topic,
 .mindmap-node-body--outer-dragging .mindmap-topic-text {
   pointer-events: none;
@@ -165,100 +164,6 @@
   font-style: italic;
   pointer-events: none;
 }
-
-/* Heptabase-style inline actions: stay quiet at rest, appear on
- * hover/selection/focus, and keep a visible unfold affordance when a
- * subtree is hidden. */
-.mindmap-topic-actions {
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%) translateX(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.mindmap-topic:hover .mindmap-topic-actions,
-.mindmap-topic:focus-within .mindmap-topic-actions,
-.mindmap-topic--selected .mindmap-topic-actions,
-.mindmap-topic--collapsed .mindmap-topic-actions {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(-50%) translateX(0);
-}
-
-.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--add {
-  display: none;
-}
-
-.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--unfold {
-  min-width: 22px;
-  width: 22px;
-  padding: 0;
-  overflow: hidden;
-  color: transparent;
-  font-size: 0;
-}
-
-.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--unfold::before {
-  content: "";
-  display: block;
-  width: 6px;
-  height: 6px;
-  margin: 7px auto;
-  border-radius: 50%;
-  background: var(--mindmap-topic-toggle-color, currentColor);
-}
-
-.mindmap-topic-action {
-  height: 22px;
-  min-width: 22px;
-  border: 1px solid rgba(31, 35, 40, 0.12);
-  border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.92);
-  color: #1f2328;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 20px;
-  padding: 0 6px;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
-}
-
-.mindmap-topic-action:hover,
-.mindmap-topic-action:focus-visible {
-  background: #ffffff;
-  border-color: color-mix(in srgb, var(--mindmap-topic-accent, #5b7cbf) 46%, transparent);
-  color: var(--mindmap-topic-accent, #5b7cbf);
-  outline: none;
-}
-
-.mindmap-topic-action:active {
-  transform: translateY(1px);
-}
-
-.mindmap-topic-action--add {
-  border-radius: 50%;
-  padding: 0;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.mindmap-topic-action--fold {
-  color: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 72%, #1f2328);
-}
-
-.mindmap-topic-action--unfold {
-  border-color: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 44%, transparent);
-  background: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 10%, #ffffff);
-}
-
 /* ---- Drag-reorder visuals ----
  *
  * `--drag-source` dims the pill currently being dragged so the user can

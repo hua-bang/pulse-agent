@@ -113,6 +113,9 @@ Current healthy properties:
   owner-local `CanvasNodeBody`. Node-type dispatch now owns the existing
   coding-agent, note, frame, iframe, terminal, and text lazy boundaries in
   one place without exposing them to the node shell.
+- TopicPill keeps its focus/edit/IME/keyboard state machine together in a
+  ~270-line visual module; add/fold controls and their styles are isolated in
+  an owner-local 65-line `TopicActions` surface.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
