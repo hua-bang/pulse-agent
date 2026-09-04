@@ -98,6 +98,10 @@ Current healthy properties:
   128-line owner-local `CanvasEdgePath`; per-edge hit targets, focus opacity,
   selection underlay, handles, caps, and stroke rendering remain covered by
   the existing SVG and memo-comparator tests.
+- CanvasRootView is a ~270-line visual root with its 104-line contract kept
+  separately. The contract now names the actual focus, context-menu, mouse,
+  edge, node-action, search, marquee, and palette interfaces instead of
+  flattening them through `any`.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
