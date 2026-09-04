@@ -1,7 +1,8 @@
+import './index.css';
 import type { ReactNode } from 'react';
-import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { useI18n } from '../../../i18n';
-import { NodeRelationEditor } from './NodeRelationEditor';
+import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import { useI18n } from '../../../../i18n';
+import { NodeRelationEditor } from '../NodeRelationEditor';
 
 interface Props {
   aiInsight: ReactNode;
@@ -50,3 +51,4 @@ export const NodeDetailContextRail = ({
     </aside>
   );
 };
+
