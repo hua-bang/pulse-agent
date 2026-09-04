@@ -150,6 +150,9 @@ Current healthy properties:
 - AgentTerminal now follows the owner-folder convention and owns 242 lines of
   running info-strip, xterm panel, loading overlay, halo, and agent-mark CSS;
   terminal lifecycle remains behind the coding-agent session interfaces.
+- AgentRestart now follows the owner-folder convention and owns 161 lines of
+  saved-config, warning, action-link, and detail CSS. AgentNodeBody's remaining
+  373-line stylesheet is limited to shared card/body/status/footer controls.
 - Canvas visuals and remaining node bodies now live under `modules/canvas`.
   Feature node bodies may be composed by Canvas, but shared mention UI and
   textarea mention behavior live behind `modules/node-mentions/index.ts`, and

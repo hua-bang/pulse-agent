@@ -1,7 +1,8 @@
-import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
-import { AgentIcon } from './AgentIcon';
-import { truncatePath } from './utils/terminal';
-import { useI18n } from '../../../../i18n';
+import './index.css';
+import { AGENT_REGISTRY } from '../../../../../config/agentRegistry';
+import { AgentIcon } from '../AgentIcon';
+import { truncatePath } from '../utils/terminal';
+import { useI18n } from '../../../../../i18n';
 
 interface AgentRestartProps {
   agentType: string;
@@ -188,3 +189,4 @@ export const AgentRestart = ({
     </div>
   );
 };
+
