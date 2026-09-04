@@ -54,7 +54,7 @@ describe('renderer typography system', () => {
       'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
       'modules/skills/internal/index.css',
-      'modules/workspace-nodes/internal/index.css',
+      'modules/workspace-nodes/internal/NodesPage/index.css',
     ]);
     const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
       const css = readFileSync(path, 'utf8');
@@ -69,7 +69,7 @@ describe('renderer typography system', () => {
     'modules/skills/internal/index.css',
     'modules/scheduled/internal/index.css',
     'modules/plugin-market/internal/index.css',
-    'modules/workspace-nodes/internal/index.css',
+    'modules/workspace-nodes/internal/NodesPage/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {
     const css = readFileSync(join(rendererRoot, relativePath), 'utf8');
     expect(css).toContain('font-size: 24px');
