@@ -5,16 +5,17 @@ import type {
   CanvasPluginManifestNode,
   CanvasPluginsImportEntry,
   CanvasPluginsStatus,
-} from '../../../../types';
-import { useI18n } from '../../../../i18n';
-import { useAppShell } from '../../../../shared/appShell';
+} from '../../../../../types';
+import { useI18n } from '../../../../../i18n';
+import { useAppShell } from '../../../../../shared/appShell';
 import {
   specsFromCanvasPluginsStatus,
   syncFederatedRendererPlugins,
-} from '../../../../../../plugins/renderer';
-import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../../../constants/canvasPlugins';
-import { Button, TextField } from '../../../../components/ui';
-import './settings-config.css';
+} from '../../../../../../../plugins/renderer';
+import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../../../../constants/canvasPlugins';
+import { Button, TextField } from '../../../../../components/ui';
+import '../settings-config.css';
+import './index.css';
 
 const countImportEntries = (entries: CanvasPluginsImportEntry[]) => {
   const counts = { added: 0, existing: 0, skipped: 0 };

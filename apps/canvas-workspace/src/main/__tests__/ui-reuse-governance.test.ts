@@ -140,7 +140,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // ui-reuse-burndown.md.
   // 40→39 (Nodes interaction rebuild): the bespoke Nodes search input moved
   // onto ui/TextField inside the consolidated filter toolbar.
-  rawInputTags: 38,
+  // 38→37 (settings convergence): deleting the zero-caller legacy
+  // SkillsManager retired its hidden import-file input.
+  rawInputTags: 37,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
@@ -411,7 +413,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // palette tokens instead of repeating chip-specific color literals.
   // 1771→1708 (module-first ownership batches): retired duplicate product
   // chrome removed its literal colors; surviving styles were colocated.
-  hardcodedColorLiterals: 1708,
+  // 1708→1705 (settings convergence): deleting the zero-caller legacy
+  // SkillsManager removed its three drag-and-drop-only color literals.
+  hardcodedColorLiterals: 1705,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
