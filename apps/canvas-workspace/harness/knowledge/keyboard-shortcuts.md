@@ -27,7 +27,7 @@ keyboard binding in the workbench:
   section.
 - `types.ts` — shape declarations: `ShortcutOwner` (which layer owns the
   handler for a shortcut — `'canvas'` for `useCanvasKeyboard`, `'app'` for
-  `useAppShortcuts` in `App.tsx`, and `'document'` for the one binding
+  `useAppShortcuts` in `app/App`, and `'document'` for the one binding
   handled by a native document-level event instead of the keydown
   dispatcher: `canvas.paste` is declared with `owner: 'document'`, because
   letting the browser's native `paste` event arbitrate — rather than a

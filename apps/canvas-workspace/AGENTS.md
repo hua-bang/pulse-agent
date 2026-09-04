@@ -76,7 +76,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Main-process conventions | `harness/knowledge/conventions/backend.md` |
 | PATH for anything the app spawns | `src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts` |
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
-| Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/app/shell/Workbench/`, `src/renderer/src/modules/dock/internal/RightDock/` |
+| Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/app/App/`, `src/renderer/src/app/shell/Workbench/`, `src/renderer/src/modules/dock/internal/RightDock/` |
 | Keyboard shortcuts | Read `harness/knowledge/keyboard-shortcuts.md` before adding/changing/removing a shortcut, editing `menu.ts` accelerators, or touching webview/terminal key handling. Key contracts: `shortcuts/definitions.ts`, `shortcuts/registry.ts`, `hooks/useCanvasKeyboard.ts`, `hooks/useAppShortcuts.ts`, `src/main/app/menu.ts`, `src/shared/webview-shortcuts.ts`. Bound tests (`keyboard-shortcuts` rule, `harness/validate/validation.yaml`): `shortcuts/registry.test.ts`, `hooks/useCanvasKeyboard.test.ts`, `hooks/useAppShortcuts.test.ts`, `src/main/webview/__tests__/shortcut-forwarding.test.ts`, `AgentNodeBody/utils/terminalKeys.test.ts`, `AgentNodeBody/utils/terminalFocus.test.ts`, `shortcuts/terminalShortcuts.test.ts`. |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Add a capability spanning main + preload + renderer | `harness/skills/add-ipc-surface/SKILL.md` (ordered procedure — contract placement, streaming pattern, bootstrap wire, lockstep rule) |
@@ -230,7 +230,7 @@ pnpm --filter canvas-workspace package:linux
   teams, plugins, runtime-control, window creation, and teardown.
 - `src/preload/index.ts`: exposes `window.canvasWorkspace` and assembles bridge
   APIs.
-- `src/renderer/src/App.tsx`: top-level renderer routes, shell, settings, and
+- `src/renderer/src/app/App/index.tsx`: top-level renderer routes, shell, settings, and
   plugin route/nav integration.
 - `src/renderer/src/modules/canvas/components/canvas/Canvas/`: canvas surface and interaction wiring.
 - `src/renderer/src/app/shell/Workbench/`: mounted workspace state and chat

@@ -1,36 +1,45 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
-import './App.css';
-import { AppShellProvider, useAppShell } from './app/shell/AppShellProvider';
-import { ConversationCompletionToastBridge } from './app/shell/ConversationCompletionToastBridge';
-import { DeferredSettings } from './app/shell/AppLazyBoundaries';
-import { ChatPageLazy as ChatPage } from './modules/chat/lazy';
-import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from './modules/dock';
-import type { SettingsSection } from './modules/settings';
-import { Sidebar } from './app/shell/Sidebar';
-import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
-import { Workbench, useWorkbenchState } from './app/shell/Workbench';
-import { resolveKnowledgeChatRouteContext } from './app/shell/Workbench/knowledgeChatContext';
-import { GraphPageLazy as GraphPage } from './modules/workspace-nodes/surface';
-import { useKnowledgeAiContext, useNodeDetailBridges } from './modules/workspace-nodes';
-import { useWorkspaces } from './hooks/useWorkspaces';
-import { useAppShortcutBindings } from './hooks/useAppShortcuts';
-import { parseCanvasLocation } from './utils/canvasLinks';
-import { PulseRouter, PulseRouterView } from './app/shell/router';
-import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../shared/experimental-features';
-import { I18nProvider, useI18n } from './i18n';
-import type { KnowledgeNodeSelection } from './types';
-import { NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from './app/shell/RouteViews';
-import { useScheduledRunChatOpener } from './modules/scheduled';
+import './index.css';
+import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
+import { ConversationCompletionToastBridge } from '../shell/ConversationCompletionToastBridge';
+import { DeferredSettings } from '../shell/AppLazyBoundaries';
+import { ChatPageLazy as ChatPage } from '../../modules/chat/lazy';
+import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
+import type { SettingsSection } from '../../modules/settings';
+import { Sidebar } from '../shell/Sidebar';
+import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
+import { Workbench, useWorkbenchState } from '../shell/Workbench';
+import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeChatContext';
+import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
+import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/workspace-nodes';
+import { useWorkspaces } from '../../hooks/useWorkspaces';
+import { useAppShortcutBindings } from '../../hooks/useAppShortcuts';
+import { PulseRouter, PulseRouterView } from '../shell/router';
+import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
+import { I18nProvider, useI18n } from '../../i18n';
+import type { KnowledgeNodeSelection } from '../../types';
+import { NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from '../shell/RouteViews';
+import { useScheduledRunChatOpener } from '../../modules/scheduled';
 import {
   ChatTargetProvider,
   useActiveChatTarget,
   useChatTargetBroker,
-} from './modules/chat';
-import { useChatNavigation } from './app/shell/router/useChatNavigation';
-import type { AgentScope } from './types';
-const MigrationSpinner = lazy(() => import('./app/shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
-const ROUTE_CANVAS = '/', ROUTE_CHAT = '/chat', ROUTE_NODES = '/nodes', ROUTE_GRAPH = '/graph', ROUTE_PLUGINS = '/plugins', ROUTE_SKILLS = '/skills', ROUTE_SCHEDULED = '/scheduled';
+} from '../../modules/chat';
+import { useChatNavigation } from '../shell/router/useChatNavigation';
+import type { AgentScope } from '../../types';
+import { APP_ROUTES, resolveAppRoute, type AppActiveView as ActiveView } from './routeModel';
+import { useWorkspaceActions } from './useWorkspaceActions';
+const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
+const {
+  canvas: ROUTE_CANVAS,
+  chat: ROUTE_CHAT,
+  nodes: ROUTE_NODES,
+  graph: ROUTE_GRAPH,
+  plugins: ROUTE_PLUGINS,
+  skills: ROUTE_SKILLS,
+  scheduled: ROUTE_SCHEDULED,
+} = APP_ROUTES;
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const readSidebarCollapsedPreference = (): boolean => {
@@ -56,40 +65,28 @@ const PLUGIN_FLAGS =
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true, NODES_NAV_VISIBLE = false;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true, GRAPH_NAV_VISIBLE = false;
-type ActiveView = 'canvas' | 'chat' | string;
 const AppContent = () => {
   const { t } = useI18n();
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
-  const { path: routePath, params: routeParams } = useMemo(() => parseCanvasLocation(location), [location]);
   // so a one-shot read is sufficient.
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
-  const detailNodeMatch = routePath.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
-  const scheduledTaskMatch = routePath.match(/^\/scheduled\/([^/]+)$/);
-  const detailNode: KnowledgeNodeSelection | null = detailNodeMatch
-    ? { workspaceId: decodeURIComponent(detailNodeMatch[1]), nodeId: decodeURIComponent(detailNodeMatch[2]) }
-    : null;
-  // Disabled experimental routes silently fall back to canvas so a stale
-  // bookmark / deep link still loads something usable.
-  const nodesRouteActive =
-    NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch !== null);
-  const graphRouteActive = GRAPH_ENABLED && routePath === ROUTE_GRAPH;
-  const activeView: ActiveView = routePath === ROUTE_CHAT ? 'chat' : routePath === ROUTE_PLUGINS ? 'plugins'
-        : routePath === ROUTE_SKILLS ? 'skills'
-        : scheduledTaskMatch ? 'scheduled-task'
-          : routePath === ROUTE_SCHEDULED ? 'scheduled'
-            : nodesRouteActive
-              ? detailNodeMatch
-                ? 'node-detail'
-                : 'nodes'
-              : graphRouteActive
-                ? 'graph'
-                : pluginRoutes.some((r) => r.path === routePath)
-                  ? routePath
-                  : 'canvas';
-  const routeQuery = routeParams.toString();
-  const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
+  const route = useMemo(() => resolveAppRoute(location, {
+    nodesEnabled: NODES_ENABLED,
+    graphEnabled: GRAPH_ENABLED,
+    pluginPaths: pluginRoutes.map((item) => item.path),
+  }), [location, pluginRoutes]);
+  const {
+    path: routePath,
+    params: routeParams,
+    query: routeQuery,
+    activeView,
+    detailNode,
+    scheduledTaskId,
+    redirectToCanvas,
+  } = route;
+  const { openShortcuts, isOverlayOpen } = useAppShell();
   const chatTargetBroker = useChatTargetBroker();
   const activeChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
@@ -129,24 +126,19 @@ const AppContent = () => {
     });
   }, []);
 
+  const workspaceStore = useWorkspaces();
   const {
     workspaces,
     folders,
     activeId, activeIdReady,
     selectWorkspace,
-    createWorkspace,
     renameWorkspace,
-    deleteWorkspace,
     setRootFolder,
-    importWorkspace,
-    createFolder,
-    renameFolder,
-    deleteFolder,
     toggleFolder,
     moveWorkspace,
     reorderWorkspace,
     reorderFolder,
-  } = useWorkspaces();
+  } = workspaceStore;
 
   const workbench = useWorkbenchState({ activeWorkspaceId: activeId, workspaces });
   const {
@@ -183,14 +175,8 @@ const AppContent = () => {
   // bookmarked URL after toggling the flag off), bounce them back to the
   // canvas instead of leaving them on a blank view.
   useEffect(() => {
-    if (!NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch)) {
-      setLocation(ROUTE_CANVAS);
-      return;
-    }
-    if (!GRAPH_ENABLED && routePath === ROUTE_GRAPH) {
-      setLocation(ROUTE_CANVAS);
-    }
-  }, [routePath, detailNodeMatch, setLocation]);
+    if (redirectToCanvas) setLocation(ROUTE_CANVAS);
+  }, [redirectToCanvas, setLocation]);
 
   const {
     enterChatTarget,
@@ -207,13 +193,20 @@ const AppContent = () => {
     isOverlayOpen,
     openShortcuts,
   });
+  const workspaceActions = useWorkspaceActions({
+    store: workspaceStore,
+    ensureWorkspaceNodesLoaded,
+    enterChatView,
+    setLocation,
+    canvasRoute: ROUTE_CANVAS,
+  });
   const { dockWorkspaceId, reportChatWorkspace, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, chatEntryTarget?.scope, selectWorkspace);
   const openSessionInOwningScope = useCallback(async (
     scope: AgentScope,
     sessionId: string,
     scopeLabel: string,
   ) => {
-    const { createChatPageSessionTarget } = await import('./modules/chat/session');
+    const { createChatPageSessionTarget } = await import('../../modules/chat/session');
     enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
   }, [enterChatTarget]);
   const enterNodesView = useCallback(() => {
@@ -245,221 +238,13 @@ const AppContent = () => {
 
   useScheduledRunChatOpener({ activeView, chatRoute: ROUTE_CHAT, onOpenSessionInScope: openSessionInOwningScope });
 
-  const handleSelectWorkspace = useCallback((id: string) => {
-    ensureWorkspaceNodesLoaded(id);
-    selectWorkspace(id);
-    setLocation(ROUTE_CANVAS);
-  }, [ensureWorkspaceNodesLoaded, selectWorkspace, setLocation]);
-
   useEffect(() => {
     ensureWorkspaceNodesLoaded(activeId);
   }, [activeId, ensureWorkspaceNodesLoaded]);
 
-  const handleCreateWorkspace = useCallback((name: string, folderId?: string) => {
-    const trimmed = name.trim() || t('app.untitledWorkspace');
-    const id = createWorkspace(name, folderId);
-    notify({
-      tone: 'success',
-      title: t('app.workspaceCreated'),
-      description: trimmed,
-    });
-    return id;
-  }, [createWorkspace, notify, t]);
-
-  const handleRenameWorkspace = useCallback((id: string, name: string) => {
-    const workspace = workspaces.find((item) => item.id === id);
-    const trimmed = name.trim();
-    if (!workspace || !trimmed || workspace.name === trimmed) return;
-    renameWorkspace(id, trimmed);
-    notify({
-      tone: 'success',
-      title: t('app.workspaceRenamed'),
-      description: `${workspace.name} -> ${trimmed}`,
-    });
-  }, [workspaces, renameWorkspace, notify, t]);
-
-  const handleDeleteWorkspace = useCallback(async (id: string) => {
-    const workspace = workspaces.find((item) => item.id === id);
-    if (!workspace) return;
-
-    const accepted = await confirm({
-      intent: 'danger',
-      title: t('app.deleteWorkspaceTitle', { name: workspace.name }),
-      description: t('app.deleteWorkspaceDescription'),
-      confirmLabel: t('app.deleteWorkspaceConfirm'),
-    });
-    if (!accepted) return;
-
-    const toastId = notify({
-      tone: 'loading',
-      title: t('app.deletingWorkspaceTitle', { name: workspace.name }),
-      description: t('app.deletingWorkspaceDescription'),
-    });
-
-    const result = await deleteWorkspace(id);
-    if (!result.ok) {
-      updateToast(toastId, {
-        tone: 'error',
-        title: t('app.workspaceDeletionFailed'),
-        description: result.error ?? t('app.workspaceDeletionFailedDescription'),
-        autoCloseMs: 4200,
-      });
-      return;
-    }
-
-    updateToast(toastId, {
-      tone: 'success',
-      title: t('app.workspaceDeleted'),
-      description: workspace.name,
-      autoCloseMs: 2400,
-    });
-    if (result.switchedToEmpty) enterChatView();
-  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, enterChatView, t]);
-
-  const handleExportWorkspace = useCallback(async (id: string) => {
-    const workspace = workspaces.find((item) => item.id === id);
-    const api = window.canvasWorkspace?.store;
-    if (!workspace || !api) return;
-
-    const toastId = notify({
-      tone: 'loading',
-      title: t('app.exportingWorkspaceTitle', { name: workspace.name }),
-      description: t('app.exportingWorkspaceDescription'),
-    });
-
-    const result = await api.exportWorkspace(workspace.id, workspace.name);
-    if (!result.ok) {
-      if (result.canceled) {
-        updateToast(toastId, {
-          tone: 'info',
-          title: t('app.exportCanceled'),
-          description: workspace.name,
-          autoCloseMs: 1800,
-        });
-        return;
-      }
-      updateToast(toastId, {
-        tone: 'error',
-        title: t('app.workspaceExportFailed'),
-        description: result.error ?? t('app.workspaceExportFailedDescription'),
-        autoCloseMs: 4200,
-      });
-      return;
-    }
-
-    updateToast(toastId, {
-      tone: 'success',
-      title: t('app.workspaceExported'),
-      description: result.filePath ?? `${workspace.name} (${result.fileCount ?? 0} files)`,
-      autoCloseMs: 3600,
-    });
-  }, [workspaces, notify, updateToast, t]);
-
-  const handleImportWorkspace = useCallback(async () => {
-    const toastId = notify({
-      tone: 'loading',
-      title: t('app.importingWorkspaceTitle'),
-      description: t('app.importingWorkspaceDescription'),
-    });
-
-    const result = await importWorkspace();
-    if (!result.ok) {
-      if (result.canceled) {
-        updateToast(toastId, {
-          tone: 'info',
-          title: t('app.importCanceled'),
-          description: t('app.importCanceledDescription'),
-          autoCloseMs: 1800,
-        });
-        return;
-      }
-      updateToast(toastId, {
-        tone: 'error',
-        title: t('app.workspaceImportFailed'),
-        description: result.error ?? t('app.workspaceImportFailedDescription'),
-        autoCloseMs: 4200,
-      });
-      return;
-    }
-
-    updateToast(toastId, {
-      tone: 'success',
-      title: t('app.workspaceImported'),
-      description: `${result.workspace?.name ?? t('app.importedWorkspaceFallback')} (${result.fileCount ?? 0} files)`,
-      autoCloseMs: 3000,
-    });
-    setLocation(ROUTE_CANVAS);
-  }, [importWorkspace, notify, updateToast, setLocation, t]);
-
-  const handleSetActiveRootFolder = useCallback(async () => {
-    const api = window.canvasWorkspace?.dialog;
-    if (!api) {
-      notify({
-        tone: 'error',
-        title: t('app.rootFolderPickerUnavailable'),
-        autoCloseMs: 3200,
-      });
-      return;
-    }
-
-    const result = await api.openFolder();
-    if (!result.ok || result.canceled || !result.folderPath) return;
-
-    setRootFolder(activeId, result.folderPath);
-    notify({
-      tone: 'success',
-      title: t('app.rootFolderSet'),
-      description: result.folderPath,
-      autoCloseMs: 3000,
-    });
-  }, [activeId, notify, setRootFolder, t]);
-
-  const handleCreateFolder = useCallback((name: string) => {
-    const trimmed = name.trim() || t('app.untitledFolder');
-    const id = createFolder(name);
-    notify({
-      tone: 'success',
-      title: t('app.folderCreated'),
-      description: trimmed,
-    });
-    return id;
-  }, [createFolder, notify, t]);
-
-  const handleRenameFolder = useCallback((id: string, name: string) => {
-    const folder = folders.find((item) => item.id === id);
-    const trimmed = name.trim();
-    if (!folder || !trimmed || folder.name === trimmed) return;
-    renameFolder(id, trimmed);
-    notify({
-      tone: 'success',
-      title: t('app.folderRenamed'),
-      description: `${folder.name} -> ${trimmed}`,
-    });
-  }, [folders, renameFolder, notify, t]);
-
-  const handleDeleteFolder = useCallback(async (id: string) => {
-    const folder = folders.find((item) => item.id === id);
-    if (!folder) return;
-
-    const accepted = await confirm({
-      intent: 'danger',
-      title: t('app.deleteFolderTitle', { name: folder.name }),
-      description: t('app.deleteFolderDescription'),
-      confirmLabel: t('app.deleteFolderConfirm'),
-    });
-    if (!accepted) return;
-
-    deleteFolder(id);
-    notify({
-      tone: 'success',
-      title: t('app.folderDeleted'),
-      description: t('app.folderDeletedDescription', { name: folder.name }),
-    });
-  }, [folders, confirm, deleteFolder, notify, t]);
-
   useAppShortcutBindings({
     activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle,
-    workspaces, selectWorkspace: handleSelectWorkspace, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
+    workspaces, selectWorkspace: workspaceActions.select, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
   });
 
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => workspaces.find((ws) => ws.id === workspaceId)?.rootFolder, [workspaces]);
@@ -487,17 +272,17 @@ const AppContent = () => {
           workspaces={workspaces}
           folders={folders}
           activeId={activeId}
-          onSelect={handleSelectWorkspace}
-          onCreate={handleCreateWorkspace}
-          onRename={handleRenameWorkspace}
-          onDelete={handleDeleteWorkspace}
-          onExport={handleExportWorkspace}
+          onSelect={workspaceActions.select}
+          onCreate={workspaceActions.create}
+          onRename={workspaceActions.rename}
+          onDelete={workspaceActions.remove}
+          onExport={workspaceActions.exportWorkspace}
           onOpenSettings={openWorkspaceSettings}
           onOpenAppSettings={() => openAppSettings('models')}
-          onImport={handleImportWorkspace}
-          onCreateFolder={handleCreateFolder}
-          onRenameFolder={handleRenameFolder}
-          onDeleteFolder={handleDeleteFolder}
+          onImport={workspaceActions.importWorkspace}
+          onCreateFolder={workspaceActions.createFolder}
+          onRenameFolder={workspaceActions.renameFolder}
+          onDeleteFolder={workspaceActions.removeFolder}
           onToggleFolder={toggleFolder}
           onMoveWorkspace={moveWorkspace}
           onReorderWorkspace={reorderWorkspace}
@@ -529,12 +314,12 @@ const AppContent = () => {
               knowledgeChatContext={knowledgeChatContext}
               onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
               onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
-              onSelectWorkspace={handleSelectWorkspace}
+              onSelectWorkspace={workspaceActions.select}
               onActivateWorkspace={selectWorkspace}
               onOpenAppSettings={openAppSettings}
               onOpenWorkspaceSettings={openWorkspaceSettings}
               onOpenSessionInScope={openSessionInOwningScope}
-              onSetActiveRootFolder={handleSetActiveRootFolder}
+              onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
             />
           </PulseRouterView>
           <PulseRouterView name="chat">
@@ -561,7 +346,7 @@ const AppContent = () => {
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
             onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
-          <ScheduledRouteViews scheduledTaskId={scheduledTaskMatch ? decodeURIComponent(scheduledTaskMatch[1]) : null}
+          <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
             onOpenSessionInScope={openSessionInOwningScope} />
           {pluginRoutes.map((route) => {

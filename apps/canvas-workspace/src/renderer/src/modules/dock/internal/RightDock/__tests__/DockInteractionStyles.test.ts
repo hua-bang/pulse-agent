@@ -2,8 +2,8 @@ import { readFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
 
 const dockCss = readFileSync(new URL('../index.css', import.meta.url), 'utf8');
-const appCss = readFileSync(new URL('../../../../../App.css', import.meta.url), 'utf8');
-const appSource = readFileSync(new URL('../../../../../App.tsx', import.meta.url), 'utf8');
+const appCss = readFileSync(new URL('../../../../../app/App/index.css', import.meta.url), 'utf8');
+const appSource = readFileSync(new URL('../../../../../app/App/index.tsx', import.meta.url), 'utf8');
 const pluginMarketListCss = readFileSync(
   new URL('../../../../plugin-market/internal/list.css', import.meta.url),
   'utf8',

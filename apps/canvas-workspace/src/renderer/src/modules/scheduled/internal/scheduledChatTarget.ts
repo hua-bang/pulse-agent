@@ -5,7 +5,7 @@ export type ScheduledChatTarget =
   | { kind: 'route'; path: string };
 
 interface Options {
-  /** Current app view (`App.tsx`'s `activeView`). */
+  /** Current app view (`app/App`'s `activeView`). */
   activeView: string;
   taskId: string;
   /** The AI Chat route, owned by the router host. */

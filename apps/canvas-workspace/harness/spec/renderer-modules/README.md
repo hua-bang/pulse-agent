@@ -47,7 +47,7 @@ src/renderer/src/
 ├── types/             # cross-renderer contracts
 ├── utils/             # pure helpers, some still feature-specific
 ├── i18n/
-└── App.tsx
+└── app/App/         # application root composition + route projection
 ```
 
 Current healthy properties:
@@ -80,6 +80,10 @@ Current healthy properties:
   may compose product panes without those product modules depending back on
   Dock. Pure tab/split/content policy lives under `shared/dock/`, and embedded
   webview lifecycle lives under `platform/browser/`.
+- The renderer application root lives at `app/App/`: route projection is a
+  pure tested model and workspace mutation feedback is isolated in an
+  app-owned command hook. `main.tsx` imports it directly; no root App barrel
+  remains, and lazy route boundaries are unchanged.
 
 Current pressure points, measured on 2026-09-03:
 
@@ -102,7 +106,7 @@ move lines into more files.
 src/renderer/src/
 ├── main.tsx
 ├── app/                       # composition, routing, providers, app shell
-│   ├── App.tsx
+│   ├── App/
 │   ├── router/
 │   ├── providers/
 │   ├── shell/

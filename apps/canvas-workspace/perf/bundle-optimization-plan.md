@@ -374,7 +374,7 @@ pnpm --filter canvas-workspace package:mac:arm64
   `out/report.json`
 - 构建配置：`../electron.vite.config.ts`
 - 发布配置和依赖分类：`../package.json`
-- 启动静态 import：`../src/renderer/src/App.tsx`
+- 启动静态 import：`../src/renderer/src/app/App/index.tsx`
 - File/Tiptap 首用链：`../src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody/index.tsx`、
   `../src/renderer/src/modules/note-editor/editor/useFileNodeEditor.ts`
 - 体积采集实现：`../scripts/perf/bundle-report.mjs`
