@@ -148,6 +148,7 @@ const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
   ['agent', new Set(['app', 'runtime', 'scheduled'])],
   ['artifacts', new Set(['agent'])],
   ['canvas', new Set(['agent'])],
+  ['default-browser', new Set(['app'])],
   ['generation', new Set(['agent'])],
   ['plugin-market', new Set(['agent'])],
   ['runtime', new Set(['app'])],

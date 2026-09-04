@@ -19,7 +19,8 @@
  */
 
 import { app, BrowserWindow } from 'electron';
-import type { WriteLog } from '../app/logging';
+
+type WriteLog = (level: string, message: string, details?: string) => Promise<void>;
 
 const HTTP_SCHEMES = new Set(['http:', 'https:']);
 
