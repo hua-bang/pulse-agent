@@ -13,6 +13,7 @@ import { LeadDock } from '../LeadDock';
 import { TaskWorkspace } from '../TaskWorkspace';
 import { TeamHeader } from '../TeamHeader';
 import { RuntimeMounts } from '../RuntimeMounts';
+import { createAgentTeamFramePresentation } from './presentation';
 import { useAgentTeamFrameSelection } from './useAgentTeamFrameSelection';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { useAppShell } from '../../../../shared/appShell';
@@ -38,18 +39,6 @@ interface AgentTeamFrameProps {
   workspaceName?: string;
   readOnly?: boolean;
 }
-
-const metadataString = (
-  metadata: Record<string, unknown> | undefined,
-  keys: string[],
-): string | undefined => {
-  if (!metadata) return undefined;
-  for (const key of keys) {
-    const value = metadata[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return undefined;
-};
 
 const isHumanFacingGate = (gate: AgentTeamHumanGateRecord): boolean =>
   gate.metadata?.audience !== 'lead' && hasConcreteHumanGatePrompt(gate.prompt);
@@ -94,14 +83,8 @@ export const AgentTeamFrame = ({
   const gates = runtime?.humanGates ?? [];
   const artifacts = runtime?.artifacts ?? [];
   const openGates = gates.filter((gate) => gate.status === 'open');
-  const lead = useMemo(() => agents.find((agent) => agent.role === 'lead'), [agents]);
   const teammates = workspaceModel?.teammates ?? [];
   const phase = workspaceModel?.phase ?? 'briefing';
-  const teamStatus = runtime?.team.status ?? 'planning';
-  const isCompletedTeam = teamStatus === 'completed';
-  const isCheckpoint = teamStatus === 'round_checkpoint';
-  const checkpointRound = runtime?.checkpointRound;
-  const shouldShowLeadCommandSlot = phase === 'briefing' || phase === 'plan_review' || isCompletedTeam;
   const plan = snapshot?.pendingPlan;
   const teamAgentNodes = teamId
     ? (getAllNodes?.() ?? []).filter((candidate) => isTeamAgentNode(candidate, teamId))
@@ -109,7 +92,6 @@ export const AgentTeamFrame = ({
   const agentNodeByAgentId = new Map(
     teamAgentNodes.map((agentNode) => [agentNode.data.agentTeamAgentId!, agentNode]),
   );
-  const leadCanvasNode = lead ? agentNodeByAgentId.get(lead.id) : undefined;
   const teammateCanvasNodes = teammates
     .map((agent) => agentNodeByAgentId.get(agent.id))
     .filter((agentNode): agentNode is CanvasNode & { data: AgentNodeData } => !!agentNode);
@@ -132,6 +114,38 @@ export const AgentTeamFrame = ({
     agentNodeByAgentId,
     sessions: snapshot?.sessions,
   });
+  const presentation = createAgentTeamFramePresentation({
+    nodeId: node.id,
+    nodeTitle: node.title,
+    teamId,
+    data,
+    runtime,
+    phase,
+    agents,
+    teammates,
+    graphTaskCount: graphTasks.length,
+    graphAgentCount: graphAgents.length,
+    rootFolder,
+  });
+  const {
+    lead,
+    teamStatus,
+    isCheckpoint,
+    checkpointRound,
+    shouldShowLeadCommandSlot,
+    teamTitle,
+    teamCwd,
+    phaseTitle,
+    doneTaskCount,
+    activeTaskCount,
+    graphTitle,
+    graphSubtitle,
+    edgeMarkerId,
+    canPauseTeam,
+    canResumeTeam,
+    canDispatch,
+  } = presentation;
+  const leadCanvasNode = lead ? agentNodeByAgentId.get(lead.id) : undefined;
   const selection = useAgentTeamFrameSelection({
     phase,
     artifacts,
@@ -192,32 +206,6 @@ export const AgentTeamFrame = ({
     [graphAgents],
   );
 
-  const teamTitle = runtime?.team.name ?? data.agentTeamName ?? node.title;
-  const teamCwd = lead?.cwd
-    ?? metadataString(lead?.metadata, ['cwd'])
-    ?? metadataString(lead?.sessionRef?.metadata, ['cwd'])
-    ?? teammates.find((agent) => agent.cwd)?.cwd
-    ?? metadataString(runtime?.team.metadata, ['cwd'])
-    ?? rootFolder
-    ?? '';
-  const phaseTitle = phase === 'briefing'
-    ? 'Briefing'
-    : runtime?.team.status === 'completed'
-      ? 'Completed'
-      : isCheckpoint
-        ? `Round ${checkpointRound ?? ''} Checkpoint`
-        : phase === 'plan_review'
-          ? 'Plan Review'
-          : phase === 'starting'
-            ? 'Starting Agents'
-            : 'Executing';
-  const doneTaskCount = tasks.filter((task) => task.status === 'done').length;
-  const activeTaskCount = tasks.filter((task) =>
-    task.status === 'in_progress'
-    || task.status === 'needs_input'
-    || task.status === 'needs_review'
-  ).length;
-
   const handleConfirmPlan = controller.confirmPlan;
   const handleAdvanceRound = controller.advanceRound;
   const handleFinalizeCheckpoint = controller.finalizeCheckpoint;
@@ -254,19 +242,6 @@ export const AgentTeamFrame = ({
       ? lead.sessionRef.metadata.nodeId
       : undefined;
   const leadCurrentTask = lead?.currentTaskId ? taskById.get(lead.currentTaskId) : undefined;
-  const graphTitle = phase === 'plan_review'
-    ? 'Proposed task graph'
-    : phase === 'starting'
-      ? 'Starting task graph'
-      : phase === 'executing'
-        ? 'Live task graph'
-        : 'Task graph';
-  const edgeMarkerId = `agent-team-dag-arrow-${(teamId ?? node.id).replace(/[^\w-]/g, '-')}`;
-  const graphSubtitle = phase === 'briefing'
-    ? 'Brief Team Lead to generate a plan.'
-    : phase === 'starting'
-      ? 'Starting agent terminals before dispatching tasks.'
-      : `${graphTasks.length} task${graphTasks.length === 1 ? '' : 's'} · ${graphAgents.length} teammate${graphAgents.length === 1 ? '' : 's'}`;
 
   const renderHumanGate = (gate: AgentTeamHumanGateRecord, options: { compact?: boolean } = {}) => (
     <HumanGateCard
@@ -284,15 +259,6 @@ export const AgentTeamFrame = ({
     />
   );
 
-  const canPauseTeam = phase === 'executing'
-    && teamStatus !== 'paused'
-    && teamStatus !== 'completed'
-    && teamStatus !== 'failed';
-  const canResumeTeam = phase === 'executing' && teamStatus === 'paused';
-  const canDispatch = phase === 'executing'
-    && teamStatus === 'running'
-    && tasks.some((task) => task.status === 'todo')
-    && agents.some((agent) => agent.role === 'teammate' && agent.status === 'idle');
   const showGlobalGate = !!globalGate
     && !selectedHumanTaskGate
     && phase === 'executing'
