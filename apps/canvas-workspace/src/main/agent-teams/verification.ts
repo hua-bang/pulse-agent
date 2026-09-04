@@ -1,18 +1,10 @@
 import { exec } from 'child_process';
-import { statSync } from 'fs';
 import type { TaskVerificationResult } from 'pulse-coder-agent-teams/runtime';
+import { isExistingDirectory } from './working-directory';
 
 export const TASK_VERIFY_TIMEOUT_MS = 120_000;
 export const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;
 const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
-
-export function isExistingDirectory(value: string): boolean {
-  try {
-    return statSync(value).isDirectory();
-  } catch {
-    return false;
-  }
-}
 
 export function runTaskVerification(
   command: string,

@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import { promises as fsPromises, statSync } from 'fs';
-import { homedir } from 'os';
 import { dirname, join } from 'path';
 import { STORE_DIR } from '../canvas/storage';
 import {
@@ -68,7 +67,6 @@ import {
 import {
   INTEGRATION_VERIFY_TIMEOUT_MS,
   TASK_VERIFY_TIMEOUT_MS,
-  isExistingDirectory,
   runTaskVerification,
 } from './verification';
 import {
@@ -85,6 +83,7 @@ import {
   resolveTaskForAction,
   resolveTaskReferences,
 } from './resolution';
+import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-directory';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -116,31 +115,12 @@ const humanInputReasonForAgent = (
 ): string =>
   explicitReason || (agent && agent.role !== 'lead' ? 'Teammate requested Team Lead input' : 'Agent requested human input');
 
-const expandHomePath = (value: string): string =>
-  value === '~' || value.startsWith('~/')
-    ? value.replace(/^~/, homedir())
-    : value;
-
-const trimPathToken = (value: string): string =>
-  value.replace(/[),.;:!?，。；：、]+$/u, '');
-
 const isExistingFile = (value: string): boolean => {
   try {
     return statSync(value).isFile();
   } catch {
     return false;
   }
-};
-
-const inferWorkingDirectoryFromText = (content: string): string | undefined => {
-  const matches = content.matchAll(/(?:^|[\s([{"'`])(?<path>~?\/[^\s)\]}"'`，。；：、]+)/gu);
-  const candidates = Array.from(matches)
-    .map((match) => trimPathToken(match.groups?.path ?? ''))
-    .filter((candidate) => candidate.length > 1)
-    .map(expandHomePath)
-    .sort((a, b) => b.length - a.length);
-
-  return candidates.find(isExistingDirectory);
 };
 
 export class CanvasAgentTeamsService {
