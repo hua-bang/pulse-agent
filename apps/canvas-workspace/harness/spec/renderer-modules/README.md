@@ -94,6 +94,10 @@ Current healthy properties:
 - ShapeNodeBody now owns only its 193-line SVG/text editing surface; the
   141-line style picker and its CSS live in a child owner folder. A focused
   interaction test pins style patching without coupling to picker internals.
+- CanvasEdgesLayer is a 169-line projection/marker/preview layer over a
+  128-line owner-local `CanvasEdgePath`; per-edge hit targets, focus opacity,
+  selection underlay, handles, caps, and stroke rendering remain covered by
+  the existing SVG and memo-comparator tests.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
