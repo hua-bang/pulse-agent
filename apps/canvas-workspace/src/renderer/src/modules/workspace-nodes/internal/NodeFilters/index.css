@@ -217,3 +217,22 @@
   color: var(--accent);
 }
 
+@media (hover: hover) {
+  .knowledge-node-filter-option:hover {
+    background: var(--nodes-surface-hover);
+  }
+}
+
+.knowledge-node-filter-trigger:active,
+.knowledge-node-filter-option:active,
+.knowledge-node-active-filter .ui-btn:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-node-filter-trigger.ui-btn,
+  .knowledge-node-filter-option,
+  .knowledge-node-active-filter .ui-btn {
+    transition: none;
+  }
+}

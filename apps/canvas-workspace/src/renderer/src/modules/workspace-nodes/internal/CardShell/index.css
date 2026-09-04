@@ -50,3 +50,20 @@
   outline-offset: 2px;
 }
 
+@media (hover: hover) {
+  .knowledge-node-card__button:hover {
+    border-color: var(--nodes-border-strong);
+    background: var(--nodes-surface-hover);
+    box-shadow: none;
+  }
+}
+
+.knowledge-node-card__button:active {
+  transform: scale(0.99);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-node-card__button {
+    transition: none;
+  }
+}

@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { WorkspaceEntry } from '../../../shared/workspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
   AgentContextTagRef,
   WorkspaceNodeListItem,
-} from '../../../types';
-import { RefreshIcon, SparklesIcon } from '../../../components/icons';
-import { Button } from '../../../components/ui/Button';
-import { KnowledgeNodeCard } from './KnowledgeNodeCard';
-import { NodeFilters } from './NodeFilters';
-import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
+} from '../../../../types';
+import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
+import { Button } from '../../../../components/ui/Button';
+import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
+import { NodeFilters } from '../NodeFilters';
+import { useAllWorkspaceNodeList } from '../useWorkspaceNodes';
 import {
   type NodeTypeFilter,
   formatTime,
@@ -21,13 +21,12 @@ import {
   isKnowledgeNodeType,
   matchesSearch,
   tagName,
-} from './utils';
-import { useI18n } from '../../../i18n';
-import { useRightDock, useRightDockState } from '../../../shared/dockPort';
-import type { NodesAiContext } from './knowledgeAiContext';
-import { dispatchOpenNodePage } from '../../../utils/openNodeBridge';
+} from '../utils';
+import { useI18n } from '../../../../i18n';
+import { useRightDock, useRightDockState } from '../../../../shared/dockPort';
+import type { NodesAiContext } from '../knowledgeAiContext';
+import { dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import './index.css';
-import './NodeCards.css';
 
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];
