@@ -26,7 +26,7 @@ src/main/
 
   app/                # bootstrap, window(-manager), protocol, link-policy, logging,
                       # menu, identity, startup-metrics, update-ipc, shell-ipc
-  canvas/             # store, storage facade (v1/v2 read/write + migration),
+  canvas/             # store, sync/ merge policy, storage facade,
                       # persistence/ (paths, atomic JSON, schema, pollution),
                       # broadcast, workspaces, welcome-workspace,
                       # workspace-export-*, nodes/ (ipc, store, tags)
@@ -156,8 +156,9 @@ done. Still open:
   the same facade.
 - **Canvas store split** — `canvas/store.ts` still owns IPC registration,
   in-memory workspace state, watcher lifecycle, migration progress
-  broadcasting, and startup pollution audit together. Keep public
-  setup/teardown names stable if splitting.
+  broadcasting, and startup pollution audit together. Queue merge policy now
+  lives under `canvas/sync/`, and workspace paths come from persistence SSOT.
+  Keep public setup/teardown names stable for the remaining split.
 - **Agent Teams service split** — `agent-teams/service.ts` still combines plan
   normalization, task transitions, human gates, PTY/session recovery, and the
   heartbeat loop behind one wide class. Preserve its IPC-facing use cases

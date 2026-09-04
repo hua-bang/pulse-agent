@@ -8,9 +8,7 @@ vi.mock('electron', () => ({
   dialog: { showMessageBox: vi.fn() },
 }));
 
-import {
-  preserveMainOwnedQueueFields,
-} from '../canvas/store';
+import { preserveMainOwnedQueueFields } from '../canvas/store';
 import { mergeExternalEdges } from '../canvas/edge-sync';
 import type { CanvasEdge } from '../../shared/canvas';
 

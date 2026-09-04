@@ -2,8 +2,9 @@ import type { Dirent } from "fs";
 import { ipcMain, BrowserWindow, dialog } from "electron";
 import { promises as fs, watch as fsWatch, FSWatcher } from "fs";
 import { join, basename, dirname, relative, sep, isAbsolute } from "path";
-import { homedir } from "os";
 import {
+  MANIFEST_ID,
+  STORE_DIR,
   atomicWriteJson,
   readJsonWithRecovery,
   readCanvasFull,
@@ -18,6 +19,8 @@ import {
   type MigrationProgress,
   type ReadJsonResult,
 } from "./storage";
+import { getWorkspaceDir } from './persistence/paths';
+import { preserveMainOwnedQueueFields } from './sync/queue-merge';
 import {
   createWorkspaceExportArchive,
   createWorkspaceExportPayload,
@@ -48,9 +51,6 @@ type MigrationEventExtras = {
   errorKind?: 'pollution' | 'other';
   conflictingNodeIds?: string[];
 };
-
-const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
-const MANIFEST_ID = '__workspaces__';
 
 /**
  * Atomically write a canvas JSON file with a rolling `.bak` backup.
@@ -207,8 +207,7 @@ const getFilePath = (id: string): string => {
   return join(STORE_DIR, id, 'canvas.json');
 };
 
-export const getWorkspaceDir = (id: string): string =>
-  join(STORE_DIR, id);
+export { getWorkspaceDir, preserveMainOwnedQueueFields };
 
 /** Migrate old flat `{id}.json` → `{id}/canvas.json` if needed. */
 const migrateIfNeeded = async (id: string): Promise<void> => {
@@ -517,28 +516,6 @@ const ensureMigrated = async (workspaceId: string): Promise<void> => {
  *
  * Exported for tests.
  */
-export const preserveMainOwnedQueueFields = (memNode: CanvasNode, diskNode: CanvasNode): CanvasNode => {
-  if (memNode.type !== 'agent') return memNode;
-  const memData = (memNode.data ?? {}) as Record<string, unknown>;
-  const diskData = (diskNode.data ?? {}) as Record<string, unknown>;
-  if (typeof diskData.agentTeamId !== 'string') return memNode;
-  const diskRev = typeof diskData.queueRev === 'number' ? diskData.queueRev : 0;
-  const memRev = typeof memData.queueRev === 'number' ? memData.queueRev : 0;
-  if (diskRev <= memRev) return memNode;
-  return {
-    ...memNode,
-    data: {
-      ...memData,
-      inlinePrompt: diskData.inlinePrompt,
-      promptFile: diskData.promptFile,
-      lastInitPrompt: diskData.lastInitPrompt,
-      status: diskData.status,
-      viewMode: diskData.viewMode,
-      queueRev: diskRev,
-    } as CanvasNode['data'],
-  };
-};
-
 const mergeExternalNodes = async (
   id: string,
   inMemoryData: CanvasSaveData,
