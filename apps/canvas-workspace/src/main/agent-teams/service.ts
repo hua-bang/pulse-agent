@@ -85,6 +85,7 @@ import {
 } from './resolution';
 import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-directory';
 import { AgentNodeResolver, type AgentNodeMatch } from './agent-node-resolver';
+import { TeamEventBroadcaster } from './team-event-broadcaster';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -128,7 +129,10 @@ export class CanvasAgentTeamsService {
   // disk writes but check-then-write state transitions are not atomic
   // without this.
   private readonly teamLocks = new Map<string, Promise<unknown>>();
-  private readonly eventBroadcastTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly teamEventBroadcaster = new TeamEventBroadcaster({
+    loadMetadata: async (workspaceId, teamId) => this.getBundle(workspaceId).store.getTeamMetadata(teamId),
+    broadcast: broadcastCanvasUpdate,
+  });
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   // Agents that looked dead on the previous heartbeat tick. A session is only
   // declared dead after two consecutive suspicious ticks, so a node mid-spawn
@@ -316,7 +320,7 @@ export class CanvasAgentTeamsService {
     sourceAgent.updatedAt = now;
     await store.saveAgent(sourceAgent);
     await runtime.setTeamStatus(teamId, 'waiting_approval', sourceAgent.id);
-    this.broadcastTeamUpdate(workspaceId, metadata);
+    this.teamEventBroadcaster.broadcastMetadata(workspaceId, metadata);
 
     return this.snapshotInternal(workspaceId, teamId);
   }
@@ -468,7 +472,7 @@ export class CanvasAgentTeamsService {
     metadata.pendingPlan.updatedAt = now;
     metadata.updatedAt = now;
     await store.saveTeamMetadata(teamId, metadata);
-    this.broadcastTeamUpdate(workspaceId, metadata);
+    this.teamEventBroadcaster.broadcastMetadata(workspaceId, metadata);
 
     return this.snapshotInternal(workspaceId, teamId);
   }
@@ -1761,30 +1765,11 @@ export class CanvasAgentTeamsService {
     // instead of waiting for its next poll. Debounced per team because runs
     // emit events in bursts.
     runtime.onEvent((event) => {
-      this.scheduleTeamEventBroadcast(workspaceId, event.teamId);
+      this.teamEventBroadcaster.schedule(workspaceId, event.teamId);
     });
     const bundle = { store, runtime };
     this.runtimes.set(workspaceId, bundle);
     return bundle;
-  }
-
-  private scheduleTeamEventBroadcast(workspaceId: string, teamId: string): void {
-    const key = `${workspaceId}:${teamId}`;
-    if (this.eventBroadcastTimers.has(key)) return;
-    const timer = setTimeout(() => {
-      this.eventBroadcastTimers.delete(key);
-      void (async () => {
-        try {
-          const { store } = this.getBundle(workspaceId);
-          const metadata = await store.getTeamMetadata(teamId);
-          if (metadata) this.broadcastTeamUpdate(workspaceId, metadata);
-        } catch {
-          // Team may have been deleted between the event and the flush.
-        }
-      })();
-    }, 250);
-    timer.unref?.();
-    this.eventBroadcastTimers.set(key, timer);
   }
 
   private async requireMetadata(store: CanvasAgentTeamStore, teamId: string): Promise<CanvasAgentTeamMetadata> {
@@ -1792,17 +1777,6 @@ export class CanvasAgentTeamsService {
     if (!metadata) throw new Error(`Team metadata not found: ${teamId}`);
     return metadata;
   }
-
-  private broadcastTeamUpdate(workspaceId: string, metadata: CanvasAgentTeamMetadata): void {
-    const nodeIds = [
-      metadata.frameNodeId,
-      ...Object.values(metadata.agentNodeIds),
-    ].filter((nodeId): nodeId is string => !!nodeId);
-    if (nodeIds.length > 0) {
-      broadcastCanvasUpdate(workspaceId, nodeIds, 'update', 'agent-teams');
-    }
-  }
-
 
   /**
    * Resolve which team agent a canvas node belongs to, cached for the PTY
