@@ -1,0 +1,120 @@
+.node-detail-panel__document-header {
+  flex-shrink: 0;
+}
+
+.node-detail-panel__back {
+  align-self: flex-start;
+  gap: 5px;
+  margin-bottom: 20px;
+  color: var(--nodes-muted);
+}
+
+/* The disclosure chevron, turned around — one glyph for "there is more this
+ * way" in both directions, instead of a hardcoded ← next to drawn icons. */
+.node-detail-panel__back-chevron {
+  transform: rotate(180deg);
+}
+
+.node-detail-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.node-detail-panel__title-field {
+  min-width: 0;
+  flex: 1;
+}
+
+.node-detail-panel__title-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-detail-panel__document-title {
+  display: block;
+  width: 100%;
+  min-height: 1.16em;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-xs);
+  outline: 0;
+  color: var(--nodes-text);
+  background: transparent;
+  font-family: inherit;
+  font-size: clamp(30px, 4vw, 38px);
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.node-detail-panel__document-title[lang='zh'] {
+  letter-spacing: 0;
+}
+
+.node-detail-panel__document-title[contenteditable='true']:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.node-detail-panel__document-title[contenteditable='true'][aria-invalid='true'] {
+  outline-color: var(--error);
+}
+
+.node-detail-panel__title-error {
+  display: block;
+  margin-top: 6px;
+  color: var(--error);
+  font-size: 11px;
+}
+
+.node-detail-panel--dock .node-detail-panel__document-title {
+  font-size: clamp(20px, 4vw, 24px);
+}
+
+.node-detail-panel__document-meta {
+  min-height: 32px;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--nodes-muted);
+}
+
+.node-detail-panel__type {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 550;
+}
+
+.node-detail-panel__type svg {
+  color: var(--nodes-faint);
+}
+
+.node-detail-panel__meta-divider {
+  width: 1px;
+  height: 14px;
+  flex-shrink: 0;
+  background: var(--nodes-border);
+}
+
+.node-detail-panel__document-tags {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.node-detail-panel__document-tags .workspace-node-tag {
+  height: 24px;
+  padding-inline: 8px;
+  font-size: 10px;
+}

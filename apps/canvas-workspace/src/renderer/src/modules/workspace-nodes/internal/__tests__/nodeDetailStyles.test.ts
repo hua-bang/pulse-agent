@@ -21,13 +21,14 @@ const read = (relativePath: string): string =>
 const STYLESHEETS = [
   '../index.css',
   '../NodeDetailDocument.css',
+  '../NodeDetailHeader/index.css',
   '../NodeDetailContextRail/index.css',
   '../NodeDetailSupplementary/index.css',
   '../NodeRelationEditor/index.css',
 ];
 const MARKUP = [
   '../NodeDetailPanel.tsx',
-  '../NodeDetailHeader.tsx',
+  '../NodeDetailHeader/index.tsx',
   '../NodeDetailInspector.tsx',
   '../NodeDetailContextRail/index.tsx',
   '../NodeDetailPropertyRows.tsx',

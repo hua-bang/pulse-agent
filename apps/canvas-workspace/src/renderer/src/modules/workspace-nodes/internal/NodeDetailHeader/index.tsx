@@ -1,13 +1,14 @@
+import './index.css';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { useI18n } from '../../../i18n';
-import { dispatchFocusNodeOnCanvas, nodeLinkHref } from '../../../utils/openNodeBridge';
-import { CopyIcon, ListLinesIcon, NodeTypeIcon } from '../../../components/icons';
-import { Button } from '../../../components/ui';
-import { NodeDetailInspector } from './NodeDetailInspector';
-import { NodeTagEditor } from './NodeTagEditor';
-import { NodeTitleEditor } from './NodeTitleEditor';
-import { getNodeTypeLabel, isKnowledgeNodeType } from './utils';
+import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import { useI18n } from '../../../../i18n';
+import { dispatchFocusNodeOnCanvas, nodeLinkHref } from '../../../../utils/openNodeBridge';
+import { CopyIcon, ListLinesIcon, NodeTypeIcon } from '../../../../components/icons';
+import { Button } from '../../../../components/ui';
+import { NodeDetailInspector } from '../NodeDetailInspector';
+import { NodeTagEditor } from '../NodeTagEditor';
+import { NodeTitleEditor } from '../NodeTitleEditor';
+import { getNodeTypeLabel, isKnowledgeNodeType } from '../utils';
 
 interface Props {
   candidates: WorkspaceNodeListItem[];
@@ -172,3 +173,4 @@ export const NodeDetailHeader = ({
     </>
   );
 };
+
