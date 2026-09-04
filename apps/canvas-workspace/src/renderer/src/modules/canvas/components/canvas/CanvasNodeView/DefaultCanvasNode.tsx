@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useCallback,
   useState,
   type CSSProperties,
@@ -12,27 +10,14 @@ import {
   type RefObject,
 } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
-import { DynamicAppNodeBody } from '../../node-bodies/DynamicAppNodeBody';
-import { PluginNodeBody } from '../../node-bodies/PluginNodeBody';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useRightDock } from '../../../../../shared/dockPort';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
+import { CanvasNodeBody } from './CanvasNodeBody';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 import { dispatchOpenNodePage } from '../../../../../utils/openNodeBridge';
 import type { ChatDeliveryReceipt } from '../../../../chat';
-
-// Non-trivial node bodies are React.lazy so xterm (terminal/agent bodies),
-// tiptap/prosemirror + lowlight (text/file bodies), and the embedded-browser
-// scheduler (iframe bodies) stay out of the eagerly-parsed entry chunk. Each
-// chunk loads on first mount of its node type; the canvas is keepAlive, so
-// subsequent same-type nodes render synchronously.
-const AgentNodeBody = lazy(() => import('../../../../coding-agent/surface').then((m) => ({ default: m.AgentNodeBody })));
-const FileNodeBody = lazy(() => import('../../node-bodies/FileNodeBodyLazy').then((m) => ({ default: m.FileNodeBodyLazy })));
-const FrameNodeBody = lazy(() => import('../../node-bodies/FrameNodeBody').then((m) => ({ default: m.FrameNodeBody })));
-const IframeNodeBody = lazy(() => import('../../node-bodies/IframeNodeBody').then((m) => ({ default: m.IframeNodeBody })));
-const TerminalNodeBody = lazy(() => import('../../node-bodies/TerminalNodeBody').then((m) => ({ default: m.TerminalNodeBody })));
-const TextNodeBody = lazy(() => import('../../node-bodies/TextNodeBodyLazy').then((m) => ({ default: m.TextNodeBodyLazy })));
 
 interface DefaultCanvasNodeProps {
   classes: string;
@@ -261,57 +246,23 @@ export const DefaultCanvasNode = ({
     <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
       {!frameBodyOnly && !hideHeader && header}
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
-        <Suspense fallback={null}>
-        {node.type === 'file' ? (
-          <FileNodeBody
-            node={node}
-            onUpdate={onUpdate}
-            workspaceId={workspaceId}
-            getAllNodes={getAllNodes}
-            readOnly={readOnly}
-            renderFullEditor={renderFullFileBody}
-          />
-        ) : node.type === 'terminal' ? (
-          <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
-        ) : node.type === 'frame' || node.type === 'group' ? (
-          <FrameNodeBody
-            node={node}
-            getAllNodes={getAllNodes}
-            onUpdate={onUpdate}
-            onRemoveNodes={onRemoveNodes}
-            rootFolder={rootFolder}
-            workspaceId={workspaceId}
-            workspaceName={workspaceName}
-            readOnly={readOnly}
-          />
-        ) : node.type === 'text' ? (
-          <TextNodeBody
-            node={node}
-            onUpdate={onUpdate}
-            isSelected={isSelected}
-            isResizing={isResizing}
-            onSelect={onSelect}
-            onDragStart={onDragStart}
-            readOnly={readOnly}
-          />
-        ) : node.type === 'iframe' ? (
-          <IframeNodeBody
-            node={node}
-            workspaceId={workspaceId}
-            onUpdate={onUpdate}
-            isResizing={isResizing}
-            onAddDomSelectionToChat={onAddDomSelectionToChat}
-            onSubmitDomReviewComments={onSubmitDomReviewComments}
-            readOnly={readOnly}
-          />
-        ) : node.type === 'dynamic-app' ? (
-          <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
-        ) : node.type === 'plugin' ? (
-          <PluginNodeBody node={node} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />
-        ) : (
-          <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
-        )}
-        </Suspense>
+        <CanvasNodeBody
+          node={node}
+          getAllNodes={getAllNodes}
+          rootFolder={rootFolder}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          onUpdate={onUpdate}
+          onRemoveNodes={onRemoveNodes}
+          onSelect={onSelect}
+          onDragStart={onDragStart}
+          onAddDomSelectionToChat={onAddDomSelectionToChat}
+          onSubmitDomReviewComments={onSubmitDomReviewComments}
+          isSelected={isSelected}
+          isResizing={isResizing}
+          renderFullFileBody={renderFullFileBody}
+          readOnly={readOnly}
+        />
       </div>
       <NodeResizeHandles
         isFullscreen={isFullscreen}

@@ -109,6 +109,10 @@ Current healthy properties:
   contract beside it; edge projection, motion parking, empty/context states,
   bottom chrome, command palette, and find bar keep their existing order and
   eight focused policy tests.
+- DefaultCanvasNode is a ~275-line shell/header composition over a 143-line
+  owner-local `CanvasNodeBody`. Node-type dispatch now owns the existing
+  coding-agent, note, frame, iframe, terminal, and text lazy boundaries in
+  one place without exposing them to the node shell.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
