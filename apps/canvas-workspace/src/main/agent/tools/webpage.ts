@@ -3,10 +3,8 @@ import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { findDockLinkTab } from '../../dock/tab-actions';
 import { readDOMElement } from '../../webview/reader';
-import {
-  getCanvasCapabilityRuntime,
-  PAGE_READINESS_HINT,
-} from '../../runtime/capabilities';
+import { PAGE_READINESS_HINT } from '../../../shared/page-readiness';
+import { getAgentCapabilityPort } from '../capability-port';
 import type { CanvasTool } from './types';
 import { getAgentWindowPort } from '../window-port';
 
@@ -120,7 +118,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       execute: async (input, context) => {
         const { workspaceId: inputWorkspaceId, ...capabilityInput } = input;
         const targetWorkspaceId = (inputWorkspaceId as string) || workspaceId;
-        const result = await getCanvasCapabilityRuntime().call(
+        const result = await getAgentCapabilityPort().call(
           'browser.page.read',
           capabilityInput,
           {

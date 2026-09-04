@@ -76,6 +76,7 @@ import {
 } from "./window-manager";
 import { setAgentWindowPort } from "../agent/window-port";
 import { setAgentScheduledPort } from "../agent/scheduled-port";
+import { setAgentCapabilityPort } from "../agent/capability-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
 import {
   connectCanvasMcpOAuth,
@@ -123,6 +124,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     reloadMcp: () => getCanvasAgentService().reloadMcp(),
     getMcpOAuthStatus: getCanvasMcpOAuthStatus,
     connectMcpOAuth: connectCanvasMcpOAuth,
+  });
+  setAgentCapabilityPort({
+    call: async (name, input, context) => {
+      const { getCanvasCapabilityRuntime } = await import('../runtime/capabilities');
+      return getCanvasCapabilityRuntime().call(name, input, context);
+    },
   });
 
   const paths = resolveAppPaths(mainDir);

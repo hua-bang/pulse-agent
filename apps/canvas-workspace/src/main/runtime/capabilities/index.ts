@@ -14,7 +14,6 @@ export * from './types';
 export * from './tab-capabilities';
 export * from './page-capabilities';
 export * from './node-capabilities';
-export * from './agent-adapter';
 
 let runtime: CapabilityRuntime | null = null;
 

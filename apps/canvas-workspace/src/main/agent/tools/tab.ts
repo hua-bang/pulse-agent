@@ -7,10 +7,7 @@ import { getSessionScrollback } from '../../terminal/scrollback';
 import { execInSession } from '../../terminal/pty-manager';
 import { getDockTabs } from '../../dock/tab-store';
 import { searchHistory } from '../../dock/history-store';
-import {
-  executeCapabilityAsCanvasTool,
-  getCanvasCapabilityRuntime,
-} from '../../runtime/capabilities';
+import { executeCapabilityAsCanvasTool } from '../capability-port';
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
 import type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -69,7 +66,6 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         return executeCapabilityAsCanvasTool(
-          getCanvasCapabilityRuntime(),
           'browser.tabs.list',
           targetWorkspaceId,
           input,
@@ -90,7 +86,6 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         return executeCapabilityAsCanvasTool(
-          getCanvasCapabilityRuntime(),
           'browser.tabs.activate',
           targetWorkspaceId,
           input,
@@ -118,7 +113,6 @@ export function createTabTools(workspaceId: string): Record<string, CanvasTool> 
       execute: async (input, ctx) => {
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         return executeCapabilityAsCanvasTool(
-          getCanvasCapabilityRuntime(),
           'browser.tabs.open',
           targetWorkspaceId,
           input,

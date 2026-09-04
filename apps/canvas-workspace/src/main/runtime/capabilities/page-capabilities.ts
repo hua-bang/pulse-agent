@@ -15,12 +15,8 @@ import {
   resolvePageControlTarget,
 } from '../../../plugins/main/webview-page-control/target';
 import { CapabilityError, type AnyCapabilityDefinition } from './types';
-
-export const PAGE_READINESS_HINT =
-  'This is a point-in-time read of the live DOM — a "success" does not guarantee the data ' +
-  'finished loading. If the specific content you need (table rows, numbers, list items) looks ' +
-  'empty or missing, the page is likely still loading: call page_wait_for with a selector/' +
-  'predicate for that content, then read again before answering.';
+import { PAGE_READINESS_HINT } from '../../../shared/page-readiness';
+export { PAGE_READINESS_HINT } from '../../../shared/page-readiness';
 
 const pageReadInputSchema = z.object({
   nodeId: z.string().min(1).describe('Iframe canvas node id or right-dock link-tab id.'),
