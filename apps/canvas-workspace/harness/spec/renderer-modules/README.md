@@ -87,6 +87,10 @@ Current healthy properties:
   Node-action mapping and plugin manifest projection are tested at their
   interfaces; optional plugin discovery no longer runs inside the toolbar
   composition root.
+- TerminalNodeBody is a ~72-line visual mount over an owner-local terminal
+  runtime hook. PTY lease ownership, xterm lifecycle, snapshot persistence,
+  refitting, shortcut arbitration, and coding-agent mention hints remain
+  covered by the existing component-level lifecycle regressions.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
