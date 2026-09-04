@@ -66,6 +66,9 @@ Current healthy properties:
   empty experience's presentation.
 - RelayBar now follows the owner-folder convention and owns 80 lines of
   multi-role queue, speaking/handoff, pulse, and stop-control CSS.
+- ChatTurnMeta now follows the owner-folder convention and owns 163 lines of
+  turn outcome, retry/error details, and captured-context CSS; ChatView retains
+  only genuinely cross-chat mention/attachment/accessibility rules.
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
 - ModelSwitcher now lives behind `modules/models/index.ts`, independent from

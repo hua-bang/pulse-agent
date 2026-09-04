@@ -1,7 +1,8 @@
+import './index.css';
 import { ArrowClockwise, StopCircle, WarningCircle } from '@phosphor-icons/react';
-import type { AgentChatMessage, AgentTurnContextSnapshot } from '../../../../types';
-import { useI18n } from '../../../../i18n';
-import { Button } from '../../../../components/ui';
+import type { AgentChatMessage, AgentTurnContextSnapshot } from '../../../../../types';
+import { useI18n } from '../../../../../i18n';
+import { Button } from '../../../../../components/ui';
 
 interface ChatTurnOutcomeProps {
   status?: AgentChatMessage['turnStatus'];
@@ -123,3 +124,4 @@ export const ChatTurnContext = ({
     </div>
   );
 };
+
