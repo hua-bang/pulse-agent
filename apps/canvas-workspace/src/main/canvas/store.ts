@@ -23,6 +23,14 @@ import { getWorkspaceDir } from './persistence/paths';
 import { preserveMainOwnedQueueFields } from './sync/queue-merge';
 import { diffSnapshots, itemsToMap, visibleNodeFieldsChanged } from './sync/snapshots';
 import {
+  broadcastExternalUpdate,
+  seedWorkspaceSnapshotFromDisk,
+  setWorkspaceSnapshot,
+  startWorkspaceWatcher as startCanvasJsonWatcher,
+  stopWorkspaceWatcher as stopCanvasJsonWatcher,
+  watchedWorkspaceIds,
+} from './sync/workspace-watcher';
+import {
   createWorkspaceExportArchive,
   createWorkspaceExportPayload,
   isSafeRelativePath,
@@ -39,7 +47,7 @@ import {
   relativePathFromPortableUrl,
   rewriteCanvasFilePaths,
 } from './workspace-import';
-import { edgesToMap, mergeExternalEdges, readOnDiskEdgeMap, type SyncableEdge } from './edge-sync';
+import { edgesToMap, mergeExternalEdges, type SyncableEdge } from './edge-sync';
 
 /**
  * Extra fields the canvas-store side attaches to migration-progress events
@@ -195,8 +203,7 @@ export const importWorkspaceFromPath = async (sourcePath: string) => {
     (restoredData.nodes ?? []).map((node) => node.id).filter((id): id is string => Boolean(id)),
   ));
   knownEdgeIds.set(workspaceId, new Set((restoredData.edges ?? []).map((edge) => edge.id)));
-  lastSnapshot.set(workspaceId, itemsToMap(restoredData.nodes));
-  lastEdgeSnapshot.set(workspaceId, edgesToMap(restoredData.edges));
+  setWorkspaceSnapshot(workspaceId, restoredData.nodes, restoredData.edges);
   return imported;
 };
 
@@ -316,6 +323,12 @@ const migrateNotePaths = async (
  */
 const knownNodeIds = new Map<string, Set<string>>();
 const knownEdgeIds = new Map<string, Set<string>>();
+
+const observeKnownNodeIds = (workspaceId: string, nodeIds: Iterable<string>): void => {
+  const known = knownNodeIds.get(workspaceId) ?? new Set<string>();
+  for (const id of nodeIds) known.add(id);
+  knownNodeIds.set(workspaceId, known);
+};
 
 /**
  * Merge external changes (e.g. from canvas-cli) into the data being saved.
@@ -685,126 +698,6 @@ const withSaveLock = async <T>(id: string, fn: () => Promise<T>): Promise<T> => 
   return next;
 };
 
-/**
- * File-system-based external-update bus.
- *
- * Previous designs used a Unix domain socket and later a loopback TCP
- * listener to let canvas-cli notify Electron of mutations. Both are
- * denied by the macOS Seatbelt profile that CLI agents like Codex wrap
- * their child processes in (`network-outbound` is limited to outgoing
- * DNS/HTTPS; AF_UNIX connect and AF_INET connect to 127.0.0.1 both
- * return EPERM). The only remaining channel the sandboxed CLI reliably
- * has is the filesystem, which it already uses to persist the canvas.
- *
- * So we invert the model: the CLI just writes `canvas.json`, and the
- * Electron main process watches that file. When its contents change
- * for any reason other than our own save handler having just written
- * the same content, we re-read it, diff against the last snapshot the
- * main process knew about, and broadcast the changed node IDs to every
- * renderer via the existing `canvas:external-update` IPC channel.
- *
- * Echo suppression: `canvas:save` updates `lastSnapshot` synchronously
- * after its own `writeFile`, so when the watcher fires (async, 100ms
- * debounced) for the renderer's own write, the disk content and the
- * snapshot are identical, the diff is empty, and nothing is broadcast.
- */
-const watchers = new Map<string, FSWatcher>();
-const watcherDebounce = new Map<string, NodeJS.Timeout>();
-const lastSnapshot = new Map<string, Map<string, CanvasNode>>();
-const lastEdgeSnapshot = new Map<string, Map<string, CanvasEdge>>();
-
-/**
- * Read whatever canvas.json holds on disk RIGHT NOW, in its on-disk shape:
- *   - v1 workspaces: nodes carry inline `data`.
- *   - v2 workspaces: nodes are layout-only (no `data` field).
- *
- * Used to seed `lastSnapshot` so the `fs.watch` echo-suppression diff is
- * apples-to-apples. The watcher handler reads canvas.json the same way,
- * so a snapshot in any other shape would falsely report every node as
- * changed on every save.
- */
-const readOnDiskNodeMap = async (
-  workspaceId: string,
-): Promise<Map<string, CanvasNode>> => {
-  try {
-    const raw = await fs.readFile(getFilePath(workspaceId), 'utf-8');
-    const parsed = JSON.parse(raw) as CanvasSaveData;
-    return itemsToMap(parsed.nodes);
-  } catch {
-    // Missing or unparseable: treat as empty so the next watcher fire
-    // (with a parseable file) registers every node as "new" and broadcasts.
-    return new Map<string, CanvasNode>();
-  }
-};
-
-const broadcastExternalUpdate = (workspaceId: string, nodeIds: string[], edgeIds: string[] = []) => {
-  const payload = {
-    type: 'canvas:updated' as const,
-    workspaceId,
-    nodeIds,
-    edgeIds,
-    source: 'fs-watch' as const,
-  };
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed()) continue;
-    win.webContents.send('canvas:external-update', payload);
-  }
-};
-
-const handleWatcherFire = async (workspaceId: string): Promise<void> => {
-  const filePath = getFilePath(workspaceId);
-  let data: CanvasSaveData;
-  try {
-    const raw = await fs.readFile(filePath, 'utf-8');
-    data = JSON.parse(raw);
-  } catch {
-    // Partial write or transient read failure — the next event will
-    // catch the final state.
-    return;
-  }
-  const newMap = itemsToMap(data.nodes);
-  const newEdgeMap = edgesToMap(data.edges);
-  const oldMap = lastSnapshot.get(workspaceId) ?? new Map<string, CanvasNode>();
-  const oldEdgeMap = lastEdgeSnapshot.get(workspaceId) ?? new Map<string, CanvasEdge>();
-  const changedIds = diffSnapshots(oldMap, newMap);
-  const changedEdgeIds = diffSnapshots(oldEdgeMap, newEdgeMap);
-  if (changedIds.length === 0 && changedEdgeIds.length === 0) return;
-  lastSnapshot.set(workspaceId, newMap);
-  lastEdgeSnapshot.set(workspaceId, newEdgeMap);
-  // Keep knownNodeIds aligned with disk so `mergeExternalNodes` Rule 2
-  // (disk-only never-seen → append) doesn't re-add nodes that the
-  // watcher has already observed.
-  const known = knownNodeIds.get(workspaceId) ?? new Set<string>();
-  for (const id of newMap.keys()) known.add(id);
-  knownNodeIds.set(workspaceId, known);
-  broadcastExternalUpdate(workspaceId, changedIds, changedEdgeIds);
-};
-
-const startWorkspaceWatcher = (workspaceId: string): void => {
-  if (watchers.has(workspaceId)) return;
-  const filePath = getFilePath(workspaceId);
-  let watcher: FSWatcher;
-  try {
-    watcher = fsWatch(filePath, { persistent: false });
-  } catch (err) {
-    console.warn(`[canvas-store] fs.watch failed for ${workspaceId}:`, err);
-    return;
-  }
-  watcher.on('change', () => {
-    const existing = watcherDebounce.get(workspaceId);
-    if (existing) clearTimeout(existing);
-    const t = setTimeout(() => {
-      watcherDebounce.delete(workspaceId);
-      void handleWatcherFire(workspaceId);
-    }, 100);
-    watcherDebounce.set(workspaceId, t);
-  });
-  watcher.on('error', (err) => {
-    console.warn(`[canvas-store] watcher error for ${workspaceId}:`, err);
-  });
-  watchers.set(workspaceId, watcher);
-};
-
 // ─── Per-node file watcher (v2 workspaces) ──────────────────────────────
 //
 // In v2 storage, edits to a single node's `data` land in
@@ -1033,23 +926,12 @@ const stopNodesWatcher = (workspaceId: string): void => {
 };
 
 const stopWorkspaceWatcher = (workspaceId: string): void => {
-  const w = watchers.get(workspaceId);
-  if (w) {
-    try { w.close(); } catch { /* ignore */ }
-    watchers.delete(workspaceId);
-  }
-  const t = watcherDebounce.get(workspaceId);
-  if (t) {
-    clearTimeout(t);
-    watcherDebounce.delete(workspaceId);
-  }
-  lastSnapshot.delete(workspaceId);
-  lastEdgeSnapshot.delete(workspaceId);
+  stopCanvasJsonWatcher(workspaceId);
   stopNodesWatcher(workspaceId);
 };
 
 export const teardownCanvasWatchers = (): void => {
-  for (const id of Array.from(watchers.keys())) stopWorkspaceWatcher(id);
+  for (const id of watchedWorkspaceIds()) stopWorkspaceWatcher(id);
   // Defensive: any nodes/ watchers without a paired canvas.json watcher
   // (theoretically impossible) also get cleaned up.
   for (const id of Array.from(nodeFileWatchers.keys())) stopNodesWatcher(id);
@@ -1126,9 +1008,7 @@ export const setupCanvasStoreIpc = () => {
             // — for v2 that's layout-only; for v1 it's full inline data.
             // Without this, the watcher's diff would falsely flag every
             // node as changed on every save in v2 mode.
-            const onDiskMap = await readOnDiskNodeMap(payload.id);
-            lastSnapshot.set(payload.id, onDiskMap);
-            lastEdgeSnapshot.set(payload.id, await readOnDiskEdgeMap(getFilePath(payload.id)));
+            await seedWorkspaceSnapshotFromDisk(payload.id);
             // Same idea for v2 per-node files: snapshot their exact
             // bytes so the nodes/ watcher's debounced fire can diff
             // against them and suppress the echo of our own write.
@@ -1262,9 +1142,8 @@ export const setupCanvasStoreIpc = () => {
           // watcher here means we only watch workspaces the user has
           // actually opened, and the canvas.json file is guaranteed to
           // exist by this point.
-          lastSnapshot.set(payload.id, await readOnDiskNodeMap(payload.id));
-          lastEdgeSnapshot.set(payload.id, await readOnDiskEdgeMap(getFilePath(payload.id)));
-          startWorkspaceWatcher(payload.id);
+          await seedWorkspaceSnapshotFromDisk(payload.id);
+          startCanvasJsonWatcher(payload.id, observeKnownNodeIds);
           // For v2 workspaces, also seed the per-node content snapshot
           // and start watching nodes/ so per-node data edits (canvas-cli
           // editing scrollback, mindmap nodes, etc.) propagate to the

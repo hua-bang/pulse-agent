@@ -157,8 +157,8 @@ done. Still open:
 - **Canvas store split** — `canvas/store.ts` still owns IPC registration,
   in-memory workspace state, watcher lifecycle, migration progress
   broadcasting, and startup pollution audit together. Queue merge policy now
-  plus snapshot/diff projection live under `canvas/sync/`, and workspace paths
-  come from persistence SSOT.
+  plus snapshot/diff projection and the workspace-level canvas.json watcher
+  live under `canvas/sync/`; workspace paths come from persistence SSOT.
   Keep public setup/teardown names stable for the remaining split.
 - **Agent Teams service split** — `agent-teams/service.ts` still combines plan
   normalization, task transitions, human gates, PTY/session recovery, and the
