@@ -1,3 +1,4 @@
+import './index.css';
 import { useEffect, useState } from 'react';
 import type {
   ClipboardEvent,
@@ -7,10 +8,10 @@ import type {
   ReactNode,
   RefObject,
 } from 'react';
-import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../../../../types';
-import { useI18n } from '../../../../../i18n';
-import { FrameChildrenToggle, FrameColorPicker } from '../../node-bodies/FrameNodeBody/FrameHeaderControls';
-import { TextColorPicker } from '../../node-bodies/TextNodeBody/TextColorPicker';
+import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../../../../../types';
+import { useI18n } from '../../../../../../i18n';
+import { FrameChildrenToggle, FrameColorPicker } from '../../../node-bodies/FrameNodeBody/FrameHeaderControls';
+import { TextColorPicker } from '../../../node-bodies/TextNodeBody/TextColorPicker';
 import {
   AddToCanvasButton,
   AddToChatButton,
@@ -19,11 +20,11 @@ import {
   OpenDetailButton,
   OpenTabButton,
   PluginSelectElementButton,
-} from './NodeButtons';
-import { NodeTypeBadge } from './NodeTypeBadge';
-import { isKnowledgeNodeType } from '../../../../../shared/knowledgeNodes';
-import { isReferenceableNode } from '../../../../../utils/referenceNodes';
-import type { ChatDeliveryReceipt } from '../../../../chat';
+} from '../NodeButtons';
+import { NodeTypeBadge } from '../NodeTypeBadge';
+import { isKnowledgeNodeType } from '../../../../../../shared/knowledgeNodes';
+import { isReferenceableNode } from '../../../../../../utils/referenceNodes';
+import type { ChatDeliveryReceipt } from '../../../../../chat';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
@@ -234,3 +235,4 @@ export const CanvasNodeHeader = ({
     </div>
   );
 };
+

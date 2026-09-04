@@ -120,6 +120,10 @@ Current healthy properties:
 - NodeResizeHandles now follows the owner-folder convention and owns its
   169-line eight-direction/default/floating/Frame handle stylesheet; the
   parent CanvasNodeView CSS no longer defines resize geometry.
+- CanvasNodeHeader now follows the owner-folder convention and owns its
+  356-line header, badge, title, status, action, and overview-action CSS; the
+  parent CanvasNodeView stylesheet is reduced to node shell/type/focus and
+  fullscreen rules.
 - TopicPill keeps its focus/edit/IME/keyboard state machine together in a
   ~270-line visual module; add/fold controls and their styles are isolated in
   an owner-local 65-line `TopicActions` surface.
