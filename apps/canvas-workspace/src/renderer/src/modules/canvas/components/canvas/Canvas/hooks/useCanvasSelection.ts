@@ -21,6 +21,10 @@ export const useCanvasSelection = ({ nodesRef }: Options) => {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [renameSignal, setRenameSignal] = useState<{ nodeId: string; token: number } | null>(null);
+  const renameNode = useCallback((nodeId: string) => {
+    setRenameSignal((current) => ({ nodeId, token: (current?.token ?? 0) + 1 }));
+  }, []);
   // Which edge (if any) is in label-edit mode. Driven by dbl-click on
   // the edge body; cleared on blur/Escape/Enter. Stored here (not inside
   // EdgeLabel) so that selecting a different edge or deleting the edge
@@ -117,6 +121,8 @@ export const useCanvasSelection = ({ nodesRef }: Options) => {
     setSelectedEdgeId,
     highlightedId,
     setHighlightedId,
+    renameSignal,
+    renameNode,
     editingEdgeLabelId,
     setEditingEdgeLabelId,
     suppressBlankClickRef,

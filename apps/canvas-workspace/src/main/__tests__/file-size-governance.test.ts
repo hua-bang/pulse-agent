@@ -17,7 +17,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/canvas-agent.ts': 1158,
   'src/main/canvas/storage.ts': 1156,
   'src/main/agent/context-builder.ts': 856,
-  'src/renderer/src/modules/canvas/components/canvas/Canvas/index.tsx': 757,
   // 777→816 (2026-09-03, drift recorded): master changes #987–#988
   // expanded then partially reduced Feishu answer-card/run rendering without
   // updating this manually maintained baseline. Must-not-grow resumes at 816.

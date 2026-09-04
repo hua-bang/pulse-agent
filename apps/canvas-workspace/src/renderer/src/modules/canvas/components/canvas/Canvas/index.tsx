@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { useCanvas } from '../../../../../hooks/useCanvas';
-import { useCanvasDocument } from '../../..';
+import { useCanvasDocumentHost } from '../../../document/useCanvasDocumentHost';
 import { useNodeDrag } from '../../../../../hooks/useNodeDrag';
 import { useNodeResize } from '../../../../../hooks/useNodeResize';
 import { useCanvasContext } from '../../../../../hooks/useCanvasContext';
@@ -25,36 +25,25 @@ import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
 import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
 import { useCanvasVisibility } from './hooks/useCanvasVisibility';
-import { useCanvasDemoCanvas } from './hooks/useCanvasDemoCanvas';
+import { useCanvasCreationActions } from './hooks/useCanvasCreationActions';
+import { useCanvasFeedbackCommands } from './hooks/useCanvasFeedbackCommands';
+import { useNativeCanvasZoomGuard } from './hooks/useNativeCanvasZoomGuard';
 import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
-import { getNodeDefaultSize } from '../../../../../utils/nodeFactory';
-import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
-import { getUrlHostname, normalizeReferenceUrl } from '../../../../../shared/reference/utils';
-import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../../../../types';
+import type { CanvasNode } from '../../../../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../../../../shared/experimental-features';
 import {
   CanvasKeyboardActiveProvider,
   WorkspaceActiveProvider,
 } from '../../../../../hooks/useWorkspaceActive';
-import {
-  getSelectionAfterMindmapMerge,
-  type MergeMindmapTopicRequest,
-} from '../../../mindmap/transfer';
 
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const AGENT_TEAMS_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_AGENT_TEAMS] === true;
-
-const isAgentTeamTeammateNode = (node: CanvasNode): boolean => {
-  if (node.type !== 'agent') return false;
-  const data = node.data as AgentNodeData;
-  return !!data.agentTeamId && data.agentTeamRole === 'teammate';
-};
 
 export const Canvas = ({
   canvasId,
@@ -89,39 +78,11 @@ export const Canvas = ({
   onNodePatchComplete,
   onSetRootFolder,
 }: CanvasProps) => {
-  const { confirm, notify, updateToast, dismissToast, openShortcuts, isOverlayOpen } = useAppShell();
+  const { confirm, notify, updateToast, openShortcuts, isOverlayOpen } = useAppShell();
   const { t } = useI18n();
 
-  // Persistent save-failure toast with a Retry action. Repeated failures
-  // replace the previous toast instead of stacking; flushSave is assigned
-  // to the ref after useCanvasDocument returns it below.
-  const flushSaveRef = useRef<() => void>(() => undefined);
-  const saveErrorToastIdRef = useRef<string | null>(null);
-  const handleSaveError = useCallback(() => {
-    if (saveErrorToastIdRef.current) dismissToast(saveErrorToastIdRef.current);
-    saveErrorToastIdRef.current = notify({
-      tone: 'error',
-      title: t('canvas.saveFailed'),
-      description: t('canvas.saveFailedDescription'),
-      autoCloseMs: 0,
-      action: {
-        label: t('canvas.saveRetry'),
-        onClick: () => {
-          saveErrorToastIdRef.current = null;
-          flushSaveRef.current();
-        },
-      },
-    });
-  }, [dismissToast, notify, t]);
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
-  // Enter / F2 renames the selection. Selection lives here while inline
-  // title editing lives in the node component, so the bridge is a bump
-  // token the target node watches (see CanvasNodeView.renameToken).
-  const [renameSignal, setRenameSignal] = useState<{ nodeId: string; token: number } | null>(null);
-  const renameNode = useCallback((nodeId: string) => {
-    setRenameSignal((prev) => ({ nodeId, token: (prev?.token ?? 0) + 1 }));
-  }, []);
   const ownsKeyboard = keyboardActive ?? isActive;
   const keyboardLocked = !ownsKeyboard || isOverlayOpen;
   const temporaryHandTool = useTemporaryHandTool(!keyboardLocked);
@@ -131,7 +92,6 @@ export const Canvas = ({
   const transformLayerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<CanvasNode[]>([]);
   const visibleNodesRef = useRef<CanvasNode[]>([]);
-  const hasAutoFittedRef = useRef(false);
 
   const {
     transform, setTransform, settledScale, moving, panning,
@@ -144,109 +104,34 @@ export const Canvas = ({
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
 
-  /** When the Agent (canvas-cli) creates a node off-screen, show a
-   *  toast with a "Jump" action — the existing 2.5s purple
-   *  agent-edited ring is enough on its own when the node is already
-   *  visible, so we suppress the toast in that case to avoid noise on
-   *  bulk creates the user can clearly see. */
-  const handleAgentCreated = useCallback(
-    (node: CanvasNode) => {
-      if (isAgentTeamTeammateNode(node)) return;
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      // Project node center to container-relative screen space. The
-      // forward transform mirrors the inverse in useCanvas.screenToCanvas:
-      //   screen = canvas * scale + transform
-      const screenCenterX =
-        (node.x + node.width / 2) * transform.scale + transform.x;
-      const screenCenterY =
-        (node.y + node.height / 2) * transform.scale + transform.y;
-      const inViewport =
-        screenCenterX >= 0 &&
-        screenCenterX <= rect.width &&
-        screenCenterY >= 0 &&
-        screenCenterY <= rect.height;
-      if (inViewport) return;
-
-      notify({
-        tone: 'info',
-        title: t('canvas.agentAddedNode', { label: t(CANVAS_NODE_TYPE_LABEL_KEY[node.type]) }),
-        description: t('canvas.agentAddedNodeOffscreen'),
-        autoCloseMs: 8000,
-        action: {
-          label: t('canvas.jumpToNode'),
-          onClick: () => handleFocusNode(node),
-        },
-      });
-    },
-    [transform, notify, handleFocusNode, t],
-  );
-
   const {
     nodes, edges, loaded, externallyEditedIds,
     addNode, updateNode, removeNodes,
     syncDeletedNodes,
     moveNode, moveNodes, resizeNode,
     addEdge, updateEdge, removeEdge,
-    setTransformForSave, flushSave, commitHistory,
+    setTransformForSave, flushSave, commitHistory, hasAutoFittedRef,
     undo, redo, duplicateNode, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
     mergeMindmapTopic, splitMindmapTopic,
-  } = useCanvasDocument(
+  } = useCanvasDocumentHost({
     canvasId,
-    persistViewport
-      ? (savedTransform) => {
-          hasAutoFittedRef.current = true;
-          setTransform(savedTransform);
-        }
-      : undefined,
-    handleAgentCreated,
-    handleSaveError,
-  );
-
-  useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
+    persistViewport,
+    containerRef,
+    transform,
+    setTransform,
+    focusNode: handleFocusNode,
+  });
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
-  const handleSplitMindmapTopic = useCallback(
-    (
-      sourceNodeId: string,
-      sourceTopicId: string,
-      clientX: number,
-      clientY: number,
-    ): boolean => {
-      const container = containerRef.current;
-      if (!container) return false;
-      const point = screenToCanvas(clientX, clientY, container);
-      return splitMindmapTopic({
-        sourceNodeId,
-        sourceTopicId,
-        x: point.x - 24,
-        y: point.y - 24,
-      }) !== null;
-    },
-    [screenToCanvas, splitMindmapTopic],
-  );
-
-  // React's root wheel listener is passive, so useCanvas.handleWheel cannot
-  // suppress Chromium's default ctrl/meta+wheel page zoom (trackpad pinch
-  // arrives as ctrl+wheel). Block it with a native non-passive listener;
-  // the zoom itself still runs through the synthetic handler.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const blockNativeZoom = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) e.preventDefault();
-    };
-    el.addEventListener('wheel', blockNativeZoom, { passive: false });
-    return () => el.removeEventListener('wheel', blockNativeZoom);
-  }, [loaded]);
+  useNativeCanvasZoomGuard(containerRef, loaded);
 
   const {
     selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId,
     highlightedId, setHighlightedId,
+    renameSignal, renameNode,
     editingEdgeLabelId, setEditingEdgeLabelId,
     suppressBlankClickRef,
     selectedNodeIdSet,
@@ -255,25 +140,19 @@ export const Canvas = ({
     getAllNodes,
   } = useCanvasSelection({ nodesRef });
 
-  const handleMergeMindmapTopic = useCallback(
-    (request: MergeMindmapTopicRequest): boolean => {
-      const nextSelection = getSelectionAfterMindmapMerge(
-        nodesRef.current,
-        request,
-      );
-      const changed = mergeMindmapTopic(request);
-      if (changed && nextSelection) setSelectedNodeIds(nextSelection);
-      return changed;
+  const creation = useCanvasCreationActions({
+    surface: { canvasId, canvasName, rootFolder, containerRef, screenToCanvas },
+    document: {
+      addNode,
+      updateNode,
+      addEdge,
+      mergeMindmapTopic,
+      splitMindmapTopic,
+      syncDeletedNodes,
     },
-    [mergeMindmapTopic, setSelectedNodeIds],
-  );
-
-  const handleRemoveNodesLocally = useCallback((ids: string[]) => {
-    if (ids.length === 0) return;
-    const removed = new Set(ids);
-    syncDeletedNodes(ids);
-    setSelectedNodeIds((current) => current.filter((id) => !removed.has(id)));
-  }, [setSelectedNodeIds, syncDeletedNodes]);
+    selection: { nodesRef, setSelectedNodeIds, setHighlightedId },
+    feedback: { notify, updateToast, t },
+  });
 
   const { visibleNodes, visibleNodesById, visibleEdges } = useCanvasVisibility({
     nodes, edges, selectedEdgeId, setSelectedEdgeId, setSelectedNodeIds,
@@ -289,73 +168,6 @@ export const Canvas = ({
     containerRef, screenToCanvas, addNode, nodesRef, setSelectedNodeIds,
     setHighlightedId, notify,
   });
-
-  const handleCreateAgentTeam = useCallback(() => {
-    const api = window.canvasWorkspace?.agentTeams;
-    const container = containerRef.current;
-    if (!api || !container) return;
-    const rect = container.getBoundingClientRect();
-    const center = screenToCanvas(
-      rect.left + rect.width / 2,
-      rect.top + rect.height / 2,
-      container,
-    );
-    const x = center.x - 560;
-    const y = center.y - 310;
-    const toastId = notify({
-      tone: 'loading',
-      title: t('canvas.agentTeamCreating'),
-      description: canvasName ?? canvasId,
-    });
-    void api.create({
-      workspaceId: canvasId,
-      name: t('canvas.agentTeamName'),
-      goal: t('canvas.agentTeamGoal'),
-      cwd: rootFolder,
-      leadName: t('canvas.agentTeamLeadName'),
-      x,
-      y,
-    }).then((result) => {
-      if (!result.ok || !result.snapshot) {
-        updateToast(toastId, {
-          tone: 'error',
-          title: t('canvas.agentTeamCreationFailed'),
-          description: result.error ?? t('canvas.agentTeamCreateFailedDescription'),
-          autoCloseMs: 4200,
-        });
-        return;
-      }
-      const frameNodeId = result.snapshot.frameNodeId;
-      if (frameNodeId) {
-        setSelectedNodeIds([frameNodeId]);
-        setHighlightedId(frameNodeId);
-      }
-      updateToast(toastId, {
-        tone: 'success',
-        title: t('canvas.agentTeamCreated'),
-        description: t('canvas.agentTeamCreatedDescription'),
-        autoCloseMs: 2800,
-      });
-    }).catch((err) => {
-      updateToast(toastId, {
-        tone: 'error',
-        title: t('canvas.agentTeamCreationFailed'),
-        description: err instanceof Error ? err.message : String(err),
-        autoCloseMs: 4200,
-      });
-    });
-  }, [
-    canvasId,
-    canvasName,
-    containerRef,
-    notify,
-    rootFolder,
-    screenToCanvas,
-    setHighlightedId,
-    setSelectedNodeIds,
-    t,
-    updateToast,
-  ]);
 
   const actions = useCanvasNodeActions({
     nodesRef, edges,
@@ -393,85 +205,12 @@ export const Canvas = ({
     setSelectedNodeIds,
     updateNode,
   });
-
-  // Keyboard undo/redo with boundary feedback: a no-op Cmd+Z looks like
-  // the app froze, so a short toast tells the user the stack is empty.
-  const undoWithFeedback = useCallback(() => {
-    if (!undo()) {
-      notify({ tone: 'info', title: t('canvas.nothingToUndo'), autoCloseMs: 1500 });
-    }
-  }, [undo, notify, t]);
-
-  const redoWithFeedback = useCallback(() => {
-    if (!redo()) {
-      notify({ tone: 'info', title: t('canvas.nothingToRedo'), autoCloseMs: 1500 });
-    }
-  }, [redo, notify, t]);
-
-  // Cross-workspace Cmd+V silently creates *reference* nodes, which can
-  // read as a failed paste; a toast makes the reference semantics explicit.
-  const pasteReferenceNodesWithFeedback = useCallback((clip: Parameters<typeof pasteReferenceNodes>[0]) => {
-    const created = pasteReferenceNodes(clip);
-    if (created.length > 0) {
-      notify({
-        tone: 'info',
-        title: t('canvas.pastedReferences', { count: created.length }),
-        description: t('canvas.pastedReferencesDescription'),
-      });
-    }
-    return created;
-  }, [pasteReferenceNodes, notify, t]);
+  const feedbackCommands = useCanvasFeedbackCommands({ undo, redo, pasteReferenceNodes });
 
   /** Keyboard zoom, anchored on the canvas viewport centre. */
   const zoomCanvasBy = useCallback((factor: number) => {
     zoomByStep(factor, containerRef.current);
   }, [zoomByStep]);
-
-  const getViewportCenter = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return null;
-    const rect = container.getBoundingClientRect();
-    return screenToCanvas(
-      rect.left + rect.width / 2,
-      rect.top + rect.height / 2,
-      container,
-    );
-  }, [containerRef, screenToCanvas]);
-
-  const handleCreateUrlNode = useCallback((value: string): CanvasNode | null => {
-    const url = normalizeReferenceUrl(value);
-    const center = getViewportCenter();
-    if (!url || !center) return null;
-
-    const size = getNodeDefaultSize('iframe');
-    const node = addNode('iframe', center.x - size.width / 2, center.y - size.height / 2);
-    const title = getUrlHostname(url) || url;
-    const patch = {
-      title,
-      data: {
-        url,
-        html: '',
-        mode: 'url',
-        prompt: '',
-      } satisfies IframeNodeData,
-    };
-    updateNode(node.id, patch);
-    setSelectedNodeIds([node.id]);
-    setHighlightedId(node.id);
-    return { ...node, ...patch };
-  }, [addNode, getViewportCenter, setHighlightedId, setSelectedNodeIds, updateNode]);
-
-  const handleCreateDemoCanvas = useCanvasDemoCanvas({
-    addEdge,
-    addNode,
-    getViewportCenter,
-    notify,
-    rootFolder,
-    setHighlightedId,
-    setSelectedNodeIds,
-    t,
-    updateNode,
-  });
 
   // Zoom-chip companions: reframe around everything / the selection.
   const handleFitAll = useCallback(() => {
@@ -561,7 +300,7 @@ export const Canvas = ({
 
   useCanvasKeyboard({
     canvasId,
-    undo: undoWithFeedback, redo: redoWithFeedback,
+    undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
     nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNode,
@@ -600,7 +339,7 @@ export const Canvas = ({
 
   const pasteClipboardNodes = useCanvasClipboardPaste({
     canvasId, clipboard, pasteNodes,
-    pasteReferenceNodes: pasteReferenceNodesWithFeedback,
+    pasteReferenceNodes: feedbackCommands.pasteReferencesWithFeedback,
     setSelectedNodeIds,
   });
 
@@ -608,7 +347,7 @@ export const Canvas = ({
     canvasId, active: ownsKeyboard, containerRef, screenToCanvas,
     addNode, updateNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
-    onPasteUrl: handleCreateUrlNode,
+    onPasteUrl: creation.createUrlNode,
     pasteCanvasNodes: pasteClipboardNodes,
   });
 
@@ -698,8 +437,8 @@ export const Canvas = ({
       getAllNodes={getAllNodes}
       getPreviewEndpoints={getPreviewEndpoints}
       handleNodeViewportFocus={handleNodeViewportFocus}
-      handleCreateAgentTeam={AGENT_TEAMS_ENABLED ? handleCreateAgentTeam : undefined}
-      handleCreateDemoCanvas={handleCreateDemoCanvas}
+      handleCreateAgentTeam={AGENT_TEAMS_ENABLED ? creation.createAgentTeam : undefined}
+      handleCreateDemoCanvas={creation.createDemoCanvas}
       handleSearchMatchActivate={handleSearchMatchActivate}
       handleSelectNode={handleSelectNode}
       handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
@@ -719,9 +458,9 @@ export const Canvas = ({
       onPinReferenceNode={onPinReferenceNode} onAddToChat={onAddToChat} onAddDomSelectionToChat={onAddDomSelectionToChat} onSubmitDomReviewComments={onSubmitDomReviewComments}
       onReferenceToggle={onReferenceToggle}
       onUpdateReferenceSource={onUpdateReferenceSource}
-      onRemoveNodesLocally={handleRemoveNodesLocally}
-      onMergeMindmapTopic={handleMergeMindmapTopic}
-      onSplitMindmapTopic={handleSplitMindmapTopic}
+      onRemoveNodesLocally={creation.removeNodesLocally}
+      onMergeMindmapTopic={creation.mergeMindmap}
+      onSplitMindmapTopic={creation.splitMindmap}
       openShortcuts={openShortcuts}
       paletteCommands={paletteCommands}
       referenceDrawerOpen={referenceDrawerOpen}
