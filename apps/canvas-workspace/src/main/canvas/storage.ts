@@ -51,7 +51,6 @@ import {
 } from './persistence/paths';
 import {
   atomicWriteJson,
-  isEnoent,
   readJsonWithRecovery,
   type ReadJsonResult,
 } from './persistence/atomic-json';
@@ -72,6 +71,15 @@ import {
   detectV1Pollution,
   scanForPollutedWorkspaces,
 } from './persistence/pollution';
+import {
+  clearMigrationActive,
+  deleteSentinel,
+  isMigrationActive,
+  markMigrationActive,
+  readSentinel,
+  recoverInterruptedMigration,
+  writeSentinel,
+} from './persistence/migration-recovery';
 
 export {
   CANVAS_JSON_FILENAME,
@@ -113,155 +121,15 @@ export type {
   WorkspaceNodePropertyValue,
   WorkspaceNodeRecord,
 } from './persistence/schema';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sentinel
-
-export async function readSentinel(
-  workspaceId: string,
-  root: string = STORE_DIR,
-): Promise<MigrationSentinel | null> {
-  try {
-    const raw = await fs.readFile(getSentinelPath(workspaceId, root), 'utf-8');
-    return JSON.parse(raw) as MigrationSentinel;
-  } catch (err) {
-    if (isEnoent(err)) return null;
-    // Sentinel exists but is unparseable — treat as present-but-opaque so
-    // recovery still runs; return a minimal placeholder.
-    return { startedAt: 0, workspaceId, sourceUpdatedAt: null, expectedNodeIds: [] };
-  }
-}
-
-export async function writeSentinel(
-  workspaceId: string,
-  sentinel: MigrationSentinel,
-  root: string = STORE_DIR,
-): Promise<void> {
-  await atomicWriteJson(
-    getSentinelPath(workspaceId, root),
-    JSON.stringify(sentinel, null, 2),
-  );
-}
-
-export async function deleteSentinel(
-  workspaceId: string,
-  root: string = STORE_DIR,
-): Promise<void> {
-  await fs.unlink(getSentinelPath(workspaceId, root)).catch(() => undefined);
-}
-
-/**
- * In-process set of workspace ids whose migration is currently in
- * flight. Used to suppress recovery cleanup when another reader in the
- * same process catches the sentinel mid-migration — that's not a "crash
- * leftover", it's a live operation we'd be racing.
- *
- * Cross-process safety: this only covers concurrent callers in *this*
- * Node process (typically the Electron main process). canvas-cli is a
- * separate process and doesn't run recovery at all, so it never races
- * here either.
- */
-const activeMigrations = new Set<string>();
-
-export function markMigrationActive(workspaceId: string): void {
-  activeMigrations.add(workspaceId);
-}
-
-export function clearMigrationActive(workspaceId: string): void {
-  activeMigrations.delete(workspaceId);
-}
-
-export function isMigrationActive(workspaceId: string): boolean {
-  return activeMigrations.has(workspaceId);
-}
-
-/**
- * If a `.migrating` sentinel is present from a previous interrupted migration,
- * clean up so the next `readCanvasFull` lands in a sane state. Three cases:
- *
- *  - canvas.json is v1 (commit point not yet reached): delete partial
- *    per-node files listed in the sentinel, drop the sentinel. Workspace
- *    stays v1; lazy migrate retries on demand.
- *  - canvas.json is v2 (commit point passed; only the sentinel removal
- *    failed): leave per-node files in place, drop the sentinel.
- *  - canvas.json unparseable (rename collision, extremely rare): restore
- *    from `canvas.json.v1.bak`, clean per-node files, drop the sentinel.
- *
- * Skipped when an in-process migration is currently in flight for the
- * workspace — that's a live operation, not a crash leftover.
- *
- * Returns `true` iff a sentinel was found (caller may log).
- */
-export async function recoverInterruptedMigration(
-  workspaceId: string,
-  root: string = STORE_DIR,
-): Promise<boolean> {
-  if (isMigrationActive(workspaceId)) return false;
-  const sentinel = await readSentinel(workspaceId, root);
-  if (!sentinel) return false;
-
-  const canvasPath = getCanvasJsonPath(workspaceId, root);
-  const readResult = await readJsonWithRecovery(canvasPath);
-
-  if (readResult.kind === 'ok') {
-    const version = detectSchemaVersion(readResult.data);
-    if (version === 2) {
-      // Commit point passed before crash; nodes/*.json are complete.
-      await deleteSentinel(workspaceId, root);
-      return true;
-    }
-    // canvas.json is still v1 → crash happened pre-commit. Wipe partial work.
-    await cleanupPartialNodeFiles(workspaceId, sentinel.expectedNodeIds, root);
-    await deleteSentinel(workspaceId, root);
-    return true;
-  }
-
-  if (readResult.kind === 'missing') {
-    // canvas.json vanished mid-migration. The v1 backup is the source of
-    // truth; restore it so the next read is sane.
-    await restoreFromV1Backup(workspaceId, root);
-    await cleanupPartialNodeFiles(workspaceId, sentinel.expectedNodeIds, root);
-    await deleteSentinel(workspaceId, root);
-    return true;
-  }
-
-  // Unrecoverable read: try v1 backup, otherwise leave the sentinel so the
-  // user gets a loud failure rather than a silent half-state.
-  const restored = await restoreFromV1Backup(workspaceId, root);
-  if (restored) {
-    await cleanupPartialNodeFiles(workspaceId, sentinel.expectedNodeIds, root);
-    await deleteSentinel(workspaceId, root);
-  }
-  return true;
-}
-
-async function restoreFromV1Backup(
-  workspaceId: string,
-  root: string = STORE_DIR,
-): Promise<boolean> {
-  const bakPath = getV1BackupPath(workspaceId, root);
-  try {
-    const raw = await fs.readFile(bakPath, 'utf-8');
-    // Validate it parses before publishing — we don't want to swap one
-    // unreadable file for another.
-    JSON.parse(raw);
-    await atomicWriteJson(getCanvasJsonPath(workspaceId, root), raw);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function cleanupPartialNodeFiles(
-  workspaceId: string,
-  expectedNodeIds: string[],
-  root: string = STORE_DIR,
-): Promise<void> {
-  for (const id of expectedNodeIds) {
-    if (!isSafeNodeId(id)) continue;
-    await fs.unlink(getNodeFilePath(workspaceId, id, root)).catch(() => undefined);
-  }
-}
+export {
+  clearMigrationActive,
+  deleteSentinel,
+  isMigrationActive,
+  markMigrationActive,
+  readSentinel,
+  recoverInterruptedMigration,
+  writeSentinel,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-node I/O

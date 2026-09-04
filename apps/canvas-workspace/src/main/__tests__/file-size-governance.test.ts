@@ -15,7 +15,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1606,
   'src/main/agent/canvas-agent.ts': 1158,
-  'src/main/canvas/storage.ts': 734,
+  'src/main/canvas/storage.ts': 602,
   'src/main/agent/context-builder.ts': 856,
   // 777→816 (2026-09-03, drift recorded): master changes #987–#988
   // expanded then partially reduced Feishu answer-card/run rendering without

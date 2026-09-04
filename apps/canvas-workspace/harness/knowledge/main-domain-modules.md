@@ -142,10 +142,11 @@ Phases 1 (domain move) and 4 (agent tools split) of the original plan are
 done. Still open:
 
 - **Canvas storage split** — paths, atomic JSON/recovery, schema contracts,
-  and pollution detection now live under `canvas/persistence/` while
+  pollution detection, and interrupted-migration recovery now live under
+  `canvas/persistence/` while
   `canvas/storage.ts` preserves the existing caller interface. Remaining
-  follow-up: move migration recovery, full-canvas read/write, and the v1→v2
-  state machine behind the same facade.
+  follow-up: move full-canvas read/write and the v1→v2 state machine behind
+  the same facade.
 - **Canvas store split** — `canvas/store.ts` still owns IPC registration,
   in-memory workspace state, watcher lifecycle, migration progress
   broadcasting, and startup pollution audit together. Keep public
