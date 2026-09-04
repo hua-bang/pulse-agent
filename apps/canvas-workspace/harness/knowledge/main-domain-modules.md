@@ -176,10 +176,11 @@ done. Still open:
   owned by `agent-teams/projection.ts`; preserve the IPC-facing use cases while
   moving the remaining state machines into owner-local modules.
 - **Main domain dependency ratchet** — the process-layer import check now also
-  prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`, `canvas -> agent`,
+  prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
+  `artifacts -> agent`, `canvas -> agent`,
   `plugin-market -> agent`, `settings -> plugin-market`, and `webview -> agent`. Existing
-  cycles involving runtime, scheduled tasks, settings, plugin-market, and
-  artifacts remain migration debt; tighten the rule as each reverse edge is
+  cycles involving runtime, default-browser, and settings remain migration
+  debt; tighten the rule as each reverse edge is
   replaced by an injected capability or an owner-facing interface.
 
 ## Import Rules

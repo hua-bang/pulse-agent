@@ -77,6 +77,7 @@ import {
 import { setAgentWindowPort } from "../agent/window-port";
 import { setAgentScheduledPort } from "../agent/scheduled-port";
 import { setAgentCapabilityPort } from "../agent/capability-port";
+import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
 import {
   connectCanvasMcpOAuth,
@@ -129,6 +130,16 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     call: async (name, input, context) => {
       const { getCanvasCapabilityRuntime } = await import('../runtime/capabilities');
       return getCanvasCapabilityRuntime().call(name, input, context);
+    },
+  });
+  setArtifactAgentWritePort({
+    saveMemory: async (scope, content, kind) => {
+      const { saveMemory } = await import('../agent/memory-store');
+      await saveMemory(scope, content, kind);
+    },
+    saveSkill: async (scope, skill) => {
+      const { upsertCanvasSkill } = await import('../agent/skills/config');
+      await upsertCanvasSkill(scope, skill);
     },
   });
 

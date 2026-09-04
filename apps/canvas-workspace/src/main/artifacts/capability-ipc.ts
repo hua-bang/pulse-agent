@@ -23,6 +23,7 @@ import type {
   SkillSavePayload,
 } from '../../shared/artifact-capabilities';
 import { getArtifact } from './store';
+import { getArtifactAgentWritePort, type ArtifactMemoryKind } from './agent-write-port';
 
 const MAX_CONTENT_CHARS = 500;
 const MAX_SKILL_BODY_CHARS = 20_000;
@@ -33,9 +34,10 @@ async function adoptMemory(payload: MemoryAdoptPayload): Promise<ArtifactCapabil
   if (!content || content.length > MAX_CONTENT_CHARS) {
     return { ok: false, error: `content must be 1-${MAX_CONTENT_CHARS} chars` };
   }
-  const kind = payload.kind && MEMORY_KINDS.has(payload.kind) ? payload.kind : 'note';
+  const kind: ArtifactMemoryKind = payload.kind && MEMORY_KINDS.has(payload.kind)
+    ? payload.kind
+    : 'note';
 
-  const { saveMemory } = await import('../agent/memory-store');
   const workspaceId = payload.workspaceId?.trim();
   if (workspaceId) {
     const { listWorkspaces } = await import('../canvas/workspaces');
@@ -43,10 +45,10 @@ async function adoptMemory(payload: MemoryAdoptPayload): Promise<ArtifactCapabil
     if (!known.has(workspaceId)) {
       return { ok: false, error: `unknown workspaceId "${workspaceId}"` };
     }
-    await saveMemory({ kind: 'workspace', workspaceId }, content, kind);
+    await getArtifactAgentWritePort().saveMemory({ kind: 'workspace', workspaceId }, content, kind);
     return { ok: true, summary: `已采纳 1 条记忆 → 工作区 ${workspaceId}` };
   }
-  await saveMemory({ kind: 'global' }, content, kind);
+  await getArtifactAgentWritePort().saveMemory({ kind: 'global' }, content, kind);
   return { ok: true, summary: '已采纳 1 条记忆 → 全局' };
 }
 
@@ -61,7 +63,6 @@ async function saveSkill(payload: SkillSavePayload): Promise<ArtifactCapabilityR
     return { ok: false, error: `skill body must be 1-${MAX_SKILL_BODY_CHARS} chars` };
   }
 
-  const { upsertCanvasSkill } = await import('../agent/skills/config');
   if (payload.scope === 'workspace') {
     const workspaceId = payload.workspaceId?.trim();
     if (!workspaceId) return { ok: false, error: 'workspaceId required for workspace scope' };
@@ -70,10 +71,16 @@ async function saveSkill(payload: SkillSavePayload): Promise<ArtifactCapabilityR
     if (!known.has(workspaceId)) {
       return { ok: false, error: `unknown workspaceId "${workspaceId}"` };
     }
-    await upsertCanvasSkill({ level: 'workspace', workspaceId }, { name, description, body });
+    await getArtifactAgentWritePort().saveSkill(
+      { level: 'workspace', workspaceId },
+      { name, description, body },
+    );
     return { ok: true, summary: `已保存 skill "${name}" → 工作区 ${workspaceId}` };
   }
-  await upsertCanvasSkill({ level: 'global' }, { name, description, body });
+  await getArtifactAgentWritePort().saveSkill(
+    { level: 'global' },
+    { name, description, body },
+  );
   return { ok: true, summary: `已保存 skill "${name}" → 全局` };
 }
 
