@@ -15,7 +15,8 @@ import { AgentDetail, createAgentDetailModel } from '../AgentDetail';
 import { AgentInspector } from '../AgentInspector';
 import { TaskDetail } from '../TaskDetail';
 import { ArtifactViewer } from '../ArtifactViewer';
-import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
+import { LeadDock } from '../LeadDock';
+import { agentTeamStatusLabel as statusLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../shared/appShell';
@@ -565,62 +566,6 @@ export const AgentTeamFrame = ({
     />
   );
 
-  const renderLeadDock = () => (
-    <section className="agent-team-lead-dock" aria-label="Team Lead">
-      <div className="agent-team-lead-dock__head">
-        <strong>{lead?.name ?? 'Team Lead'}</strong>
-        <span className={`agent-team-detail__status agent-team-detail__status--${lead?.status ?? 'idle'}`}>
-          {statusLabel(lead?.status ?? 'idle')}{sessionHealthSuffix(lead ? snapshot?.sessions?.[lead.id] : undefined)}
-        </span>
-      </div>
-
-      <div className="agent-team-lead-dock__body">
-        {leadCanvasNode ? (
-          <div className="agent-team-lead-dock__agent-surface">
-            <AgentNodeBody
-              node={leadCanvasNode}
-              getAllNodes={getAllNodes}
-              rootFolder={rootFolder}
-              workspaceId={workspaceId}
-              workspaceName={workspaceName}
-              teamLeadBriefSlot={shouldShowLeadCommandSlot ? renderTeamCommand('lead') : undefined}
-              agentTeamStatus={teamStatus}
-              onUpdate={onUpdate}
-              readOnly={readOnly}
-              forceTeamWarmup={phase === 'starting'}
-            />
-          </div>
-        ) : (
-          <>
-            <div className="agent-team-lead-dock__current">
-              <span className="agent-team-detail__section-title">Current focus</span>
-              <strong>
-                {phase === 'briefing'
-                  ? 'Clarify scope and propose a plan'
-                  : leadCurrentTask?.title ?? selectedGraphTask?.title ?? 'Coordinate team execution'}
-              </strong>
-              <span>
-                {phase === 'plan_review'
-                  ? 'Review the graph and send feedback to revise. Approve when the plan looks right.'
-                  : phase === 'executing'
-                    ? 'Send normal changes to the lead and let the lead route work to the right teammate.'
-                    : 'Tell the lead what outcome, repo path, constraints, and teammate split you expect.'}
-              </span>
-            </div>
-
-            <div className="agent-team-lead-dock__meta">
-              <span>Provider</span>
-              <strong>{lead?.sessionRef?.displayName ?? lead?.sessionRef?.provider ?? 'Coding Agent'}</strong>
-              {leadNodeId && <code>{leadNodeId}</code>}
-            </div>
-
-            {shouldShowLeadCommandSlot && renderTeamCommand('lead')}
-          </>
-        )}
-      </div>
-    </section>
-  );
-
   const renderDetailPanel = () => {
     const agentActive = detailPanelMode === 'agent';
     return (
@@ -863,7 +808,18 @@ export const AgentTeamFrame = ({
       )}
 
       <div className={`agent-team-workspace agent-team-workspace--${phase}`}>
-        {renderLeadDock()}
+        <LeadDock
+          lead={lead}
+          leadNode={leadCanvasNode}
+          leadNodeId={leadNodeId}
+          phase={phase}
+          teamStatus={teamStatus}
+          sessionHealth={lead ? snapshot?.sessions?.[lead.id] : undefined}
+          currentTaskTitle={leadCurrentTask?.title}
+          selectedTaskTitle={selectedGraphTask?.title}
+          commandSlot={shouldShowLeadCommandSlot ? renderTeamCommand('lead') : undefined}
+          terminal={{ getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly }}
+        />
         {renderTaskGraph()}
       </div>
 
