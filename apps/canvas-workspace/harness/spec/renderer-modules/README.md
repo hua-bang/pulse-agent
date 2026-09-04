@@ -76,6 +76,9 @@ Current healthy properties:
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
+- Coding Agent setup is split into an 84-line picker composition, CLI
+  availability/install guidance, and a launch form; each child owns its CSS
+  and tests while the session controller remains independent of visuals.
 - Canvas visuals and remaining node bodies now live under `modules/canvas`.
   Feature node bodies may be composed by Canvas, but shared mention UI and
   pure knowledge-node predicates live in leaf/shared seams so those features
