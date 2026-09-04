@@ -1,0 +1,96 @@
+.agent-team-artifact-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(247, 250, 255, 0.72);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.agent-team-artifact-viewer__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: min(760px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  border: 1px solid rgba(92, 128, 183, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 48px rgba(31, 54, 88, 0.16);
+  padding: 12px;
+}
+.agent-team-artifact-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.agent-team-artifact-viewer__header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.agent-team-artifact-viewer__header strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-team-frame .agent-team-artifact-viewer__close {
+  height: 28px;
+}
+.agent-team-artifact-viewer__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.agent-team-artifact-viewer__section {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.agent-team-artifact-viewer__section p, .agent-team-artifact-viewer__section code, .agent-team-artifact-viewer__empty, .agent-team-artifact-viewer__error {
+  margin: 0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 7px;
+  background: rgba(250, 251, 253, 0.86);
+  padding: 8px;
+  line-height: 1.45;
+}
+.agent-team-artifact-viewer__section code {
+  display: block;
+  overflow: auto;
+  color: #285b95;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.agent-team-artifact-viewer__content {
+  flex: 1;
+  min-height: 90px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 7px;
+  background: #fafaf9;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+.agent-team-artifact-viewer__empty {
+  color: var(--text-secondary);
+}
+.agent-team-artifact-viewer__error {
+  color: #a2372a;
+  background: #fdebea;
+  border-color: #edb8b2;
+}

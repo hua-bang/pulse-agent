@@ -14,6 +14,7 @@ import { AgentsStrip, type AgentSummaryItem } from '../AgentsStrip';
 import { AgentDetail, createAgentDetailModel } from '../AgentDetail';
 import { AgentInspector } from '../AgentInspector';
 import { TaskDetail } from '../TaskDetail';
+import { ArtifactViewer } from '../ArtifactViewer';
 import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
@@ -63,22 +64,6 @@ const metadataString = (
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return undefined;
-};
-
-const artifactLabel = (artifact: AgentTeamArtifactRecord) =>
-  artifact.title || artifact.uri || artifact.kind;
-
-const artifactFilePath = (artifact: AgentTeamArtifactRecord): string | undefined => {
-  const uri = artifact.uri?.trim();
-  if (!uri) return undefined;
-  if (uri.startsWith('file://')) {
-    try {
-      return decodeURIComponent(new URL(uri).pathname);
-    } catch {
-      return uri.slice('file://'.length);
-    }
-  }
-  return uri.startsWith('/') ? uri : undefined;
 };
 
 const isHumanFacingGate = (gate: AgentTeamHumanGateRecord): boolean =>
@@ -149,12 +134,6 @@ export const AgentTeamFrame = ({
   const [graphFullscreenOpen, setGraphFullscreenOpen] = useState(false);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [graphViewportHeights, setGraphViewportHeights] = useState({ inline: 0, fullscreen: 0 });
-  const [artifactPreview, setArtifactPreview] = useState<{
-    artifactId: string;
-    content?: string;
-    error?: string;
-    loading: boolean;
-  } | null>(null);
   const inlineGraphViewportRef = useRef<HTMLDivElement>(null);
   const fullscreenGraphViewportRef = useRef<HTMLDivElement>(null);
   const { confirm } = useAppShell();
@@ -366,7 +345,6 @@ export const AgentTeamFrame = ({
   useEffect(() => {
     if (!selectedArtifactId || artifacts.some((artifact) => artifact.id === selectedArtifactId)) return;
     setSelectedArtifactId('');
-    setArtifactPreview(null);
   }, [artifacts, selectedArtifactId]);
 
   useEffect(() => {
@@ -434,31 +412,6 @@ export const AgentTeamFrame = ({
     if (fullscreenGraphViewportRef.current) observer.observe(fullscreenGraphViewportRef.current);
     return () => observer.disconnect();
   }, [graphFullscreenOpen]);
-
-  useEffect(() => {
-    if (!selectedArtifact) return;
-    const path = artifactFilePath(selectedArtifact);
-    if (!path || !window.canvasWorkspace?.file?.read) {
-      setArtifactPreview({ artifactId: selectedArtifact.id, loading: false });
-      return;
-    }
-
-    let cancelled = false;
-    setArtifactPreview({ artifactId: selectedArtifact.id, loading: true });
-    void window.canvasWorkspace.file.read(path).then((result) => {
-      if (cancelled) return;
-      setArtifactPreview({
-        artifactId: selectedArtifact.id,
-        content: result.ok ? result.content : undefined,
-        error: result.ok ? undefined : result.error ?? 'Unable to read artifact file.',
-        loading: false,
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedArtifact]);
 
   useEffect(() => {
     if (orderedTasks.length === 0) {
@@ -941,55 +894,13 @@ export const AgentTeamFrame = ({
       {renderAgentInspector()}
 
       {selectedArtifact && (
-        <div className="agent-team-artifact-viewer" role="dialog" aria-label="Artifact viewer">
-          <div className="agent-team-artifact-viewer__panel">
-            <div className="agent-team-artifact-viewer__header">
-              <div>
-                <span className="agent-team-detail__section-title">{selectedArtifact.kind}</span>
-                <strong>{artifactLabel(selectedArtifact)}</strong>
-              </div>
-              <button
-                type="button"
-                className="agent-team-artifact-viewer__close"
-                onClick={() => {
-                  setSelectedArtifactId('');
-                  setArtifactPreview(null);
-                }}
-              >
-                Close
-              </button>
-            </div>
-            <div className="agent-team-artifact-viewer__meta">
-              {selectedArtifactTask && <span>Task: {selectedArtifactTask.title}</span>}
-              {selectedArtifactAgent && <span>Agent: {selectedArtifactAgent.name}</span>}
-              <span>{new Date(selectedArtifact.createdAt).toLocaleString()}</span>
-            </div>
-            {selectedArtifact.summary && (
-              <div className="agent-team-artifact-viewer__section">
-                <span className="agent-team-detail__section-title">Summary</span>
-                <p>{selectedArtifact.summary}</p>
-              </div>
-            )}
-            {selectedArtifact.uri && (
-              <div className="agent-team-artifact-viewer__section">
-                <span className="agent-team-detail__section-title">URI</span>
-                <code>{selectedArtifact.uri}</code>
-              </div>
-            )}
-            {artifactPreview?.artifactId === selectedArtifact.id && artifactPreview.loading && (
-              <div className="agent-team-artifact-viewer__empty">Loading artifact file...</div>
-            )}
-            {artifactPreview?.artifactId === selectedArtifact.id && artifactPreview.error && (
-              <div className="agent-team-artifact-viewer__error">{artifactPreview.error}</div>
-            )}
-            {artifactPreview?.artifactId === selectedArtifact.id && artifactPreview.content && (
-              <pre className="agent-team-artifact-viewer__content">{artifactPreview.content}</pre>
-            )}
-            {!selectedArtifact.summary && !selectedArtifact.uri && !artifactPreview?.content && (
-              <div className="agent-team-artifact-viewer__empty">No preview content was published for this artifact.</div>
-            )}
-          </div>
-        </div>
+        <ArtifactViewer
+          artifact={selectedArtifact}
+          taskTitle={selectedArtifactTask?.title}
+          agentName={selectedArtifactAgent?.name}
+          readFile={window.canvasWorkspace?.file?.read}
+          onClose={() => setSelectedArtifactId('')}
+        />
       )}
     </div>
   );
