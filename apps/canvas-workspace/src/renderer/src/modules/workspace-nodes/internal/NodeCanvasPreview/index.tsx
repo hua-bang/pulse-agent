@@ -1,12 +1,13 @@
+import './index.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasNode, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { CanvasNodeView } from '../../canvas/surface';
-import { isKnowledgeNodeType } from './utils';
-import { useI18n } from '../../../i18n';
-import { Button } from '../../../components/ui';
-import { getNodeDetailDescriptor } from './nodeDetailDescriptor';
-import { useMindmapDetailPan } from './useMindmapDetailPan';
-import { NodeCanvasSaveError } from './NodeCanvasSaveError';
+import type { CanvasNode, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import { CanvasNodeView } from '../../../canvas/surface';
+import { isKnowledgeNodeType } from '../utils';
+import { useI18n } from '../../../../i18n';
+import { Button } from '../../../../components/ui';
+import { getNodeDetailDescriptor } from '../nodeDetailDescriptor';
+import { useMindmapDetailPan } from '../useMindmapDetailPan';
+import { NodeCanvasSaveError } from '../NodeCanvasSaveError';
 
 type WritablePatch = Pick<WorkspaceNodeRecord, 'title' | 'data' | 'properties' | 'links'>;
 
@@ -294,3 +295,4 @@ export const NodeCanvasPreview = ({
     </div>
   );
 };
+

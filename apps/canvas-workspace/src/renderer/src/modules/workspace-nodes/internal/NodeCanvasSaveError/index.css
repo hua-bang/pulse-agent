@@ -1,0 +1,21 @@
+.node-canvas-preview__save-error {
+  position: absolute;
+  z-index: var(--node-preview-layer-alert);
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  min-height: 26px;
+  padding: 5px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  background: color-mix(in srgb, var(--error) 8%, var(--nodes-surface));
+  box-shadow: var(--shadow-float);
+  color: var(--error);
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+}
+

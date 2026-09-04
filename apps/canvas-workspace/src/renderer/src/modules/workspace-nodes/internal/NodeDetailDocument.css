@@ -100,40 +100,6 @@
 .node-detail-panel__actions .ui-btn:hover {
   color: var(--nodes-text);
 }
-/* Floats over the editor it belongs to, in the same visual language as the
- * note's own `.note-save-status` pill — `.node-canvas-preview` is an
- * absolutely-positioned flex row whose single child is the canvas node, so an
- * in-flow banner would become a second flex ITEM and squeeze the editor into
- * a ribbon. Pinned to the TOP because the note's status sits bottom-right;
- * the two report different failures and must never overlap. */
-.node-detail-panel .node-canvas-preview {
-  /* Local stacking only — this overlay competes with one editor, not with
-   * app surfaces, so it stays off the global --layer-* scale exactly the way
-   * `.note-card` keeps its own `--note-layer-panel`. */
-  --node-preview-layer-alert: 50;
-}
-
-.node-canvas-preview__save-error {
-  position: absolute;
-  z-index: var(--node-preview-layer-alert);
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  min-height: 26px;
-  padding: 5px 8px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
-  background: color-mix(in srgb, var(--error) 8%, var(--nodes-surface));
-  box-shadow: var(--shadow-float);
-  color: var(--error);
-  font-size: 11px;
-  backdrop-filter: blur(8px);
-}
-
 .node-detail-panel__layout {
   width: min(100%, 1080px);
   min-height: 100%;
@@ -230,67 +196,6 @@
 .node-detail-panel--rich .node-detail-panel__actions {
   margin-top: 0;
 }
-
-.node-detail-panel.node-detail-panel--rich .node-detail-panel__preview,
-.node-detail-panel--rich.node-detail-panel--page .node-detail-panel__preview {
-  min-height: 0;
-  margin-top: 10px;
-  border: 1px solid var(--nodes-border);
-  border-radius: var(--radius-sm);
-  background: var(--nodes-surface);
-}
-
-.node-detail-panel.node-detail-panel--web .node-detail-panel__preview {
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
-}
-
-.node-detail-panel .node-detail-panel__preview {
-  min-height: 320px;
-  margin-top: 24px;
-  flex: 1;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-}
-
-.node-detail-panel--page .node-detail-panel__preview {
-  min-height: 480px;
-}
-
-/* CanvasNodeView remains the implementation surface, including Tiptap and
- * its slash/bubble interactions. Only its canvas-card chrome dissolves here
- * so the editor reads as part of the surrounding document. */
-.node-detail-panel .node-canvas-preview>.canvas-node,
-.node-detail-panel .node-canvas-preview>.canvas-node:hover,
-.node-detail-panel .node-canvas-preview>.canvas-node:focus-within {
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  box-shadow: none;
-}
-
-.node-detail-panel .node-canvas-preview .note-card {
-  background: transparent;
-}
-
-.node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror,
-.node-detail-panel .node-canvas-preview .file-preview {
-  padding: 16px 16px 44px 36px;
-}
-
-.node-detail-panel--dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
-.node-detail-panel--dock .node-canvas-preview .file-preview {
-  padding: 12px 12px 32px 24px;
-}
-
-.node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__preview {
-  height: clamp(300px, 46vh, 440px);
-  flex: 0 0 auto;
-  margin-top: 10px;
-}
-
 .node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__document-title {
   font-size: 18px;
   font-weight: 500;

@@ -1,5 +1,6 @@
-import { useI18n } from '../../../i18n';
-import { Button } from '../../../components/ui';
+import './index.css';
+import { useI18n } from '../../../../i18n';
+import { Button } from '../../../../components/ui';
 
 interface Props {
   onDiscard: () => void;
@@ -22,3 +23,4 @@ export const NodeCanvasSaveError = ({ onDiscard, onRetry, retrying }: Props) => 
     </div>
   );
 };
+
