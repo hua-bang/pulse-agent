@@ -5,7 +5,7 @@ import {
   createDefaultEdge,
   findNodeAtCanvasPoint,
   resolveEndpointToward,
-} from '../../../utils/edgeFactory';
+} from '../model/edgeFactory';
 
 /** Discard connect clicks that never become a deliberate drag. */
 const CONNECT_DRAG_MIN_DISTANCE = 6;

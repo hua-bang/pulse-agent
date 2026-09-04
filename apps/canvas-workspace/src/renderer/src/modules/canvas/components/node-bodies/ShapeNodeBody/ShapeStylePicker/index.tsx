@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { DropdownShell, SwatchRow } from '../../../../../../components/ui';
 import { useI18n } from '../../../../../../i18n';
 import type { CanvasNode, ShapeNodeData } from '../../../../../../types';
-import { ShapePrimitive } from '../../../../../../utils/shapeGeometry';
+import { ShapePrimitive } from '../../../../model/shapeGeometry';
 import './index.css';
 
 interface Props {

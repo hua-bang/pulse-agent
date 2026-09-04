@@ -6,7 +6,7 @@ import type {
   CanvasEdge,
   CanvasNode,
 } from '../../../../../types';
-import type { SnapLine } from '../../../../../utils/canvasSnapping';
+import type { SnapLine } from '../../../model/canvasSnapping';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 import type { MindmapTransferHandlers } from '../../../mindmap/transfer';
 import type { EdgeInteractionState, Point } from '../../../runtime/useEdgeInteraction';
@@ -130,4 +130,3 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
   onEdgeBodyContextMenu?: (edgeId: string, e: React.MouseEvent) => void;
   getAllNodes: () => CanvasNode[];
 }
-

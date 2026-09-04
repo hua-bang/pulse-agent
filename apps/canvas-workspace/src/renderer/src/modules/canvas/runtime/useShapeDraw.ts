@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode, ShapeNodeData } from '../../../types';
-import { SHAPE_KINDS, type ShapeKind } from '../../../utils/shapeGeometry';
+import { SHAPE_KINDS, type ShapeKind } from '../model/shapeGeometry';
 
 type Point = { x: number; y: number };
 

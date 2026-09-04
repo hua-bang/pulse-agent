@@ -1,5 +1,5 @@
-import type { CanvasEdge, CanvasNode, EdgeAnchor, EdgeEndpoint } from '../types';
-import { DEFAULT_EDGE_STROKE } from '../../../shared/canvas';
+import type { CanvasEdge, CanvasNode, EdgeAnchor, EdgeEndpoint } from '../../../types';
+import { DEFAULT_EDGE_STROKE } from '../../../../../shared/canvas';
 
 type Point = { x: number; y: number };
 type UnitVector = { x: number; y: number };

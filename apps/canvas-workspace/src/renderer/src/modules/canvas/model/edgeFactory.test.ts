@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CanvasEdge, CanvasNode } from '../types';
+import type { CanvasEdge, CanvasNode } from '../../../types';
 import { createDefaultEdge, edgePathGeometry } from './edgeFactory';
 
 describe('createDefaultEdge', () => {

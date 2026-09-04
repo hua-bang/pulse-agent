@@ -15,7 +15,7 @@ import {
   createNodeData,
   genId,
 } from '../../../utils/nodeFactory';
-import { resizeGroupsToChildren } from '../../../utils/resizeGroupsToChildren';
+import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
 
 export interface AddNodeOptions {
   fileName?: string;

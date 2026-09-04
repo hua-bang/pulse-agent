@@ -9,7 +9,7 @@ import type {
   TextNodeData,
 } from '../../../../../../types';
 import type { I18nKey } from '../../../../../../i18n';
-import { createDefaultEdge } from '../../../../../../utils/edgeFactory';
+import { createDefaultEdge } from '../../../../model/edgeFactory';
 import { genTopicId } from '../../../../../../utils/nodeFactory';
 
 type I18nParams = Record<string, string | number | boolean | null | undefined>;

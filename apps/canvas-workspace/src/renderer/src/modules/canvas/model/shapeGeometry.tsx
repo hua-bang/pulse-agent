@@ -1,4 +1,4 @@
-import type { ShapeNodeData } from '../types';
+import type { ShapeNodeData } from '../../../types';
 
 export type ShapeKind = ShapeNodeData['kind'];
 

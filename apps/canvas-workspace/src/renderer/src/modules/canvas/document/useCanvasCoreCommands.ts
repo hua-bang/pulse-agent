@@ -6,8 +6,8 @@ import type {
   TextNodeData,
 } from '../../../types';
 import { createNodeData, genId } from '../../../utils/nodeFactory';
-import { degradeEndpointsForDeletedNode } from '../../../utils/edgeFactory';
-import { resizeGroupsToChildren } from '../../../utils/resizeGroupsToChildren';
+import { degradeEndpointsForDeletedNode } from '../model/edgeFactory';
+import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
 import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 
 interface CoreCommandOptions {

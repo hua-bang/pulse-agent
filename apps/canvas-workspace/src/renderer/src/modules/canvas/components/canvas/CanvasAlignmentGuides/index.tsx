@@ -1,4 +1,4 @@
-import type { SnapLine } from '../../../../../utils/canvasSnapping';
+import type { SnapLine } from '../../../model/canvasSnapping';
 
 interface Props {
   lines: SnapLine[];

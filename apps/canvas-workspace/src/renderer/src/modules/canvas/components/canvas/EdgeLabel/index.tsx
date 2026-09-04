@@ -3,7 +3,7 @@ import './index.css';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import {
   resolveEdgePathGeometry,
-} from '../../../../../utils/edgeFactory';
+} from '../../../model/edgeFactory';
 import { isImeComposing } from '../../../../../utils/ime';
 
 /**

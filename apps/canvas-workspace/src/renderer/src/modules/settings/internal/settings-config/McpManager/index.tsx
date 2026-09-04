@@ -18,7 +18,8 @@ import {
   type McpServerDraft,
 } from './model';
 import { ServerForm } from './ServerForm';
-import { InheritedServerList, ServerList } from './ServerList';
+import { InheritedServerList } from './InheritedServerList';
+import { ServerList } from './ServerList';
 import '../settings-config.css';
 import './index.css';
 

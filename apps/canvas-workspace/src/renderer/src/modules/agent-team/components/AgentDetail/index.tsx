@@ -18,7 +18,7 @@ export type AgentTerminalSurface = Omit<
   'node' | 'terminalMode' | 'teamLeadBriefSlot' | 'agentTeamStatus' | 'forceTeamWarmup'
 >;
 
-interface AgentDetailProps {
+interface Props {
   detail?: AgentDetailModel;
   mode: AgentDetailMode;
   terminal?: AgentTerminalSurface;
@@ -36,7 +36,7 @@ export const AgentDetail = ({
   onExpand,
   onSelectTask,
   onSelectArtifact,
-}: AgentDetailProps) => {
+}: Props) => {
   if (!detail) {
     return <div className="agent-team-detail__muted agent-team-detail__empty">Select an agent to see its detail.</div>;
   }

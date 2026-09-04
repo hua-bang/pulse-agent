@@ -14,7 +14,7 @@ export const hasConcreteHumanGatePrompt = (prompt: string): boolean => {
   return true;
 };
 
-interface HumanGateCardProps {
+interface Props {
   gate: AgentTeamHumanGateRecord;
   agent?: AgentTeamAgentRecord;
   task?: AgentTeamTaskRecord;
@@ -40,7 +40,7 @@ export const HumanGateCard = ({
   onAnswerChange,
   onAnswer,
   onViewTask,
-}: HumanGateCardProps) => {
+}: Props) => {
   const hasPrompt = hasConcreteHumanGatePrompt(gate.prompt);
   const displayedPrompt = hasPrompt
     ? gate.prompt

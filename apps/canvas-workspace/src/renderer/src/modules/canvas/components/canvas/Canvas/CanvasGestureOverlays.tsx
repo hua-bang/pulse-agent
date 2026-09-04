@@ -3,7 +3,7 @@ import type { NodeDragPreview } from '../../../runtime/useNodeDrag';
 import type { NodeResizePreview } from '../../../runtime/useNodeResize';
 import type { MarqueeRect } from '../../../runtime/useMarqueeSelect';
 import type { ShapeDraft } from '../../../runtime/useShapeDraw';
-import { ShapePrimitive } from '../../../../../utils/shapeGeometry';
+import { ShapePrimitive } from '../../../model/shapeGeometry';
 import { useI18n } from '../../../../../i18n';
 
 /**

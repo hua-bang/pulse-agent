@@ -5,7 +5,7 @@ import {
   SHAPE_KINDS,
   ShapePrimitive,
   type ShapeKind,
-} from '../../../../../../utils/shapeGeometry';
+} from '../../../../model/shapeGeometry';
 import './index.css';
 
 interface Props {

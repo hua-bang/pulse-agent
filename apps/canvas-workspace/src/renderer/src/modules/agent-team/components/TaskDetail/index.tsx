@@ -6,7 +6,7 @@ import type { AgentTeamGraphTask } from '../../model/workspaceModel';
 import { agentArtifactLabel } from '../AgentDetail';
 import { agentTeamStatusLabel } from '../visualLabels';
 
-interface TaskDetailProps {
+interface Props {
   task?: AgentTeamGraphTask;
   artifacts: AgentTeamArtifactRecord[];
   ownerAgentType?: string;
@@ -22,7 +22,7 @@ export const TaskDetail = ({
   selectedAgentKey,
   humanGate,
   onSelectArtifact,
-}: TaskDetailProps) => {
+}: Props) => {
   if (!task) {
     return <div className="agent-team-detail__muted agent-team-detail__empty">Select a task to see its detail.</div>;
   }

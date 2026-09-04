@@ -5,7 +5,7 @@ import { AgentNodeBody } from '../../../coding-agent/surface';
 import type { AgentTerminalSurface } from '../AgentDetail';
 import { agentSessionHealthSuffix, agentTeamStatusLabel } from '../visualLabels';
 
-interface LeadDockProps {
+interface Props {
   lead?: AgentTeamAgentRecord;
   leadNode?: CanvasNode;
   leadNodeId?: string;
@@ -29,7 +29,7 @@ export const LeadDock = ({
   selectedTaskTitle,
   commandSlot,
   terminal,
-}: LeadDockProps) => (
+}: Props) => (
   <section className="agent-team-lead-dock" aria-label="Team Lead">
     <div className="agent-team-lead-dock__head">
       <strong>{lead?.name ?? 'Team Lead'}</strong>

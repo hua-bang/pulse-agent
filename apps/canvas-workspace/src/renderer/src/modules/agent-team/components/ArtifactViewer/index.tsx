@@ -3,7 +3,7 @@ import './index.css';
 import type { AgentTeamArtifactRecord, FileApi } from '../../../../types';
 import { agentArtifactLabel } from '../AgentDetail';
 
-interface ArtifactViewerProps {
+interface Props {
   artifact: AgentTeamArtifactRecord;
   taskTitle?: string;
   agentName?: string;
@@ -30,7 +30,7 @@ const artifactFilePath = (artifact: AgentTeamArtifactRecord): string | undefined
   return uri.startsWith('/') ? uri : undefined;
 };
 
-export const ArtifactViewer = ({ artifact, taskTitle, agentName, readFile, onClose }: ArtifactViewerProps) => {
+export const ArtifactViewer = ({ artifact, taskTitle, agentName, readFile, onClose }: Props) => {
   const [preview, setPreview] = useState<ArtifactPreview | null>(null);
 
   useEffect(() => {

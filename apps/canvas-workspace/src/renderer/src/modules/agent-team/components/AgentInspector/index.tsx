@@ -13,7 +13,7 @@ import {
   type AgentTerminalSurface,
 } from '../AgentDetail';
 
-interface AgentInspectorProps {
+interface Props {
   detail: AgentDetailModel;
   mode: AgentDetailMode;
   terminal?: AgentTerminalSurface;
@@ -31,7 +31,7 @@ export const AgentInspector = ({
   onModeChange,
   onSelectTask,
   onSelectArtifact,
-}: AgentInspectorProps) => {
+}: Props) => {
   const { agent, tasks, artifacts, agentNode, activityLines, workspaceLabel } = detail;
   return (
     <div className="agent-team-agent-inspector" role="dialog" aria-label="Agent detail">

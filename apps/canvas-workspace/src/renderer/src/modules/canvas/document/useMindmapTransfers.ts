@@ -1,13 +1,13 @@
 import { useCallback, type MutableRefObject } from 'react';
 import type { CanvasEdge, CanvasNode } from '../../../types';
-import { degradeEndpointsForDeletedNode } from '../../../utils/edgeFactory';
+import { degradeEndpointsForDeletedNode } from '../model/edgeFactory';
 import {
   mergeMindmapTopic as mergeMindmapTopicState,
   splitMindmapTopic as splitMindmapTopicState,
   type MergeMindmapTopicRequest,
   type SplitMindmapTopicRequest,
 } from '../mindmap/transfer';
-import { resizeGroupsToChildren } from '../../../utils/resizeGroupsToChildren';
+import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
 import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 
 interface UseMindmapTransfersOptions {

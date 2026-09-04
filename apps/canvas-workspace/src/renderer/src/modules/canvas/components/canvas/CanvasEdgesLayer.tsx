@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { resolveEdgeStroke } from '../../../../../../shared/canvas';
 import type { CanvasEdge, CanvasNode, EdgeArrowCap } from '../../../../types';
-import { resolveEdgePathGeometry } from '../../../../utils/edgeFactory';
+import { resolveEdgePathGeometry } from '../../model/edgeFactory';
 import type { EdgeInteractionState, Point } from '../../runtime/useEdgeInteraction';
 import { CanvasEdgePath } from './CanvasEdgePath';
 import {

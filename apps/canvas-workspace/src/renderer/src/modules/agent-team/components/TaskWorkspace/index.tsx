@@ -59,12 +59,12 @@ export interface TaskWorkspaceActions {
   finalizeCheckpoint: () => void;
 }
 
-interface TaskWorkspaceProps {
+interface Props {
   view: TaskWorkspaceView;
   actions: TaskWorkspaceActions;
 }
 
-export const TaskWorkspace = ({ view, actions }: TaskWorkspaceProps) => {
+export const TaskWorkspace = ({ view, actions }: Props) => {
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);

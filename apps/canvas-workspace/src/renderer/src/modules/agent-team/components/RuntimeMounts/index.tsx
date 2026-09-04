@@ -3,13 +3,13 @@ import type { CanvasNode } from '../../../../types';
 import { AgentNodeBody } from '../../../coding-agent/surface';
 import type { AgentTerminalSurface } from '../AgentDetail';
 
-interface RuntimeMountsProps {
+interface Props {
   nodes: CanvasNode[];
   starting: boolean;
   terminal: AgentTerminalSurface;
 }
 
-export const RuntimeMounts = ({ nodes, starting, terminal }: RuntimeMountsProps) => {
+export const RuntimeMounts = ({ nodes, starting, terminal }: Props) => {
   if (nodes.length === 0) return null;
   return (
     <div className="agent-team-runtime-mounts" aria-hidden="true">

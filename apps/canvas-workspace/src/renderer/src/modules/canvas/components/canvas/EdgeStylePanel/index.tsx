@@ -9,7 +9,7 @@ import type {
 } from '../../../../../types';
 import {
   resolveEdgePathGeometry,
-} from '../../../../../utils/edgeFactory';
+} from '../../../model/edgeFactory';
 import { useMenuKeyboardNav } from '../../../../../hooks/useMenuKeyboardNav';
 import { useI18n, type I18nKey } from '../../../../../i18n';
 import { resolveEdgeStroke } from '../../../../../../../shared/canvas';

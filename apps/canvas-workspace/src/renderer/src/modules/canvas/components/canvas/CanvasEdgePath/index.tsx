@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasEdge, EdgeStroke } from '../../../../../types';
-import { resolveEdgePathGeometry } from '../../../../../utils/edgeFactory';
+import { resolveEdgePathGeometry } from '../../../model/edgeFactory';
 import type { Point } from '../../../runtime/useEdgeInteraction';
 import { capId, EdgeHandles, SELECTION_COLOR } from '../CanvasEdgesLayerParts';
 

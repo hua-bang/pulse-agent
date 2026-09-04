@@ -51,7 +51,7 @@ const WATCHLIST = [
 const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/modules/settings/internal/Settings/index.tsx',
   '/modules/settings/internal/WorkspaceSettings/index.tsx',
-  '/modules/workspace-nodes/internal/NodesPage.tsx',
+  '/modules/workspace-nodes/internal/NodesPage/index.tsx',
   '/modules/workspace-nodes/internal/NodeDetailPage.tsx',
   '/modules/canvas/components/node-bodies/FileNodeBody/index.tsx',
   '/modules/canvas/components/node-bodies/TextNodeBody/index.tsx',
@@ -64,7 +64,7 @@ const DYNAMIC_ONLY_MODULE_SUFFIXES = [
   '/modules/canvas/components/canvas/CommandPalette/index.tsx',
   '/modules/canvas/components/canvas/SearchBar/index.tsx',
   '/modules/canvas/components/canvas/EdgeStylePanel/index.tsx',
-  '/modules/artifacts/internal/ArtifactTabView.tsx',
+  '/modules/artifacts/internal/ArtifactTabView/index.tsx',
   '/plugins/renderer/devtools/AgentDebugPage.tsx',
   '/plugins/renderer/devtools/ChatDebugTrace.tsx',
 ];

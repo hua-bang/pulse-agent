@@ -1,4 +1,4 @@
-import type { CanvasNode, GroupNodeData } from '../types';
+import type { CanvasNode, GroupNodeData } from '../../../types';
 
 const PADDING = 18;
 

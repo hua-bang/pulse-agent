@@ -5,7 +5,7 @@ import type {
   AgentTeamGraphTask,
 } from '../../model/workspaceModel';
 
-interface TaskDagCanvasProps {
+interface Props {
   layout: AgentTeamDagLayout;
   markerId: string;
   fullscreen?: boolean;
@@ -29,7 +29,7 @@ export const TaskDagCanvas = ({
   selectedAgentKey,
   agentTypeByOwnerKey,
   onSelectTask,
-}: TaskDagCanvasProps) => (
+}: Props) => (
   <div
     className={`agent-team-dag-canvas${fullscreen ? ' agent-team-dag-canvas--fullscreen' : ''}`}
     style={{ width: layout.width, height: layout.height }}

@@ -10,7 +10,7 @@ import { NodeMentionPicker } from '../../../node-mentions';
 import { useTextareaMention } from '../../../node-mentions';
 import { isImeComposing } from '../../../../utils/ime';
 
-interface TeamCommandProps {
+interface Props {
   placement: 'top' | 'lead';
   phase: AgentTeamPhase;
   teamStatus: string;
@@ -32,7 +32,7 @@ export const TeamCommand = ({
   getAllNodes,
   briefLead,
   sendInput,
-}: TeamCommandProps) => {
+}: Props) => {
   const [briefDraft, setBriefDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [sending, setSending] = useState(false);
