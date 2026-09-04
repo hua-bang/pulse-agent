@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { AgentNodeBody } from '../../../coding-agent/surface';
-import { AgentIcon } from '../../../coding-agent/icon';
 import {
   buildAgentTeamDagLayout,
   createAgentTeamWorkspaceModel,
@@ -14,6 +13,7 @@ import { TeamCommand } from '../TeamCommand';
 import { AgentsStrip, type AgentSummaryItem } from '../AgentsStrip';
 import { AgentDetail, createAgentDetailModel } from '../AgentDetail';
 import { AgentInspector } from '../AgentInspector';
+import { TaskDetail } from '../TaskDetail';
 import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
@@ -40,9 +40,6 @@ interface AgentTeamFrameProps {
   workspaceName?: string;
   readOnly?: boolean;
 }
-
-const shortText = (value: string | undefined, fallback: string) =>
-  value?.trim() || fallback;
 
 const compactPath = (value: string | undefined, maxLength = 54): string => {
   const path = value?.trim();
@@ -529,23 +526,6 @@ export const AgentTeamFrame = ({
     setDetailPanelMode('task');
   };
 
-  const ownerChipClass = (ownerKey?: string) =>
-    `agent-team-owner-chip${ownerKey && selectedAgentKey === ownerKey ? ' agent-team-owner-chip--active' : ''}`;
-
-  const renderOwnerChip = (ownerKey: string | undefined, ownerName: string) => {
-    const agentType = ownerKey ? agentTypeByOwnerKey.get(ownerKey) : undefined;
-    return (
-      <span className={ownerChipClass(ownerKey)}>
-        {agentType && (
-          <span className="agent-team-owner-chip__logo">
-            <AgentIcon id={agentType} size={12} />
-          </span>
-        )}
-        {ownerName}
-      </span>
-    );
-  };
-
   const renderDagCanvas = (variant: 'inline' | 'fullscreen' = 'inline') => {
     if (graphRounds.length === 0) {
       return (
@@ -688,97 +668,6 @@ export const AgentTeamFrame = ({
     </section>
   );
 
-  const renderTaskDetailContent = () => {
-    if (!selectedGraphTask) {
-      return <div className="agent-team-detail__muted agent-team-detail__empty">Select a task to see its detail.</div>;
-    }
-    return (
-      <>
-        <div className="agent-team-graph-detail__head">
-          <div>
-            <span className="agent-team-panel-heading__label">Selected task</span>
-            <strong>{selectedGraphTask.title}</strong>
-          </div>
-          <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphTask.status}`}>
-            {statusLabel(selectedGraphTask.status)}
-          </span>
-        </div>
-        <div className="agent-team-detail__facts">
-          <div>
-            <span className="agent-team-detail__section-title">Owner</span>
-            {renderOwnerChip(selectedGraphTask.ownerKey, selectedGraphTask.ownerName)}
-          </div>
-          <div>
-            <span className="agent-team-detail__section-title">Updated</span>
-            <strong>
-              {selectedGraphTask.updatedAt
-                ? new Date(selectedGraphTask.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                : 'Not yet'}
-            </strong>
-          </div>
-        </div>
-        <div className="agent-team-detail__description">
-          {shortText(selectedGraphTask.description, 'No task instructions yet.')}
-        </div>
-        <div className="agent-team-detail__grid">
-          <div className="agent-team-detail__section">
-            <span className="agent-team-detail__section-title">Dependencies</span>
-            {selectedGraphTask.depLabels.length === 0 ? (
-              <span className="agent-team-detail__muted">None</span>
-            ) : selectedGraphTask.depLabels.map((dep) => (
-              <span key={dep} className="agent-team-detail__pill">{dep}</span>
-            ))}
-          </div>
-          <div className="agent-team-detail__section">
-            <span className="agent-team-detail__section-title">Artifacts</span>
-            {selectedGraphTask.sourceTask && selectedTaskArtifacts.length > 0 ? selectedTaskArtifacts.map((artifact) => (
-              <button
-                key={artifact.id}
-                type="button"
-                className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
-                title={artifact.summary ?? artifact.uri ?? ''}
-                onClick={() => setSelectedArtifactId(artifact.id)}
-              >
-                {artifactLabel(artifact)}
-              </button>
-            )) : (
-              <span className="agent-team-detail__muted">
-                {selectedGraphTask.artifactCount > 0 ? `${selectedGraphTask.artifactCount} published` : 'None yet'}
-              </span>
-            )}
-          </div>
-        </div>
-        {selectedGraphTask.scope && selectedGraphTask.scope.length > 0 && (
-          <div className="agent-team-detail__result">
-            <span className="agent-team-detail__section-title">Scope</span>
-            <span>{selectedGraphTask.scope.join(', ')}</span>
-          </div>
-        )}
-        {selectedGraphTask.verify && (
-          <div className="agent-team-detail__result">
-            <span className="agent-team-detail__section-title">Verify</span>
-            <span>{selectedGraphTask.verify}</span>
-          </div>
-        )}
-        {selectedGraphTask.result && (
-          <div className="agent-team-detail__result">
-            <span className="agent-team-detail__section-title">Result</span>
-            <span>{selectedGraphTask.result}</span>
-          </div>
-        )}
-        {selectedGraphTask.blockedReason && (
-          <div className="agent-team-detail__result agent-team-detail__result--blocked">
-            <span className="agent-team-detail__section-title">Blocker</span>
-            <span>{selectedGraphTask.blockedReason}</span>
-          </div>
-        )}
-        {selectedHumanTaskGate && selectedGraphTask.sourceTask && (
-          renderHumanGate(selectedHumanTaskGate, { compact: true })
-        )}
-      </>
-    );
-  };
-
   const renderDetailPanel = () => {
     const agentActive = detailPanelMode === 'agent';
     return (
@@ -810,7 +699,18 @@ export const AgentTeamFrame = ({
             onSelectTask={selectGraphTask}
             onSelectArtifact={(artifact) => setSelectedArtifactId(artifact.id)}
           />
-        ) : renderTaskDetailContent()}
+        ) : (
+          <TaskDetail
+            task={selectedGraphTask}
+            artifacts={selectedTaskArtifacts}
+            ownerAgentType={selectedGraphTask?.ownerKey ? agentTypeByOwnerKey.get(selectedGraphTask.ownerKey) : undefined}
+            selectedAgentKey={selectedAgentKey}
+            humanGate={selectedHumanTaskGate && selectedGraphTask?.sourceTask
+              ? renderHumanGate(selectedHumanTaskGate, { compact: true })
+              : undefined}
+            onSelectArtifact={(artifact) => setSelectedArtifactId(artifact.id)}
+          />
+        )}
       </aside>
     );
   };
