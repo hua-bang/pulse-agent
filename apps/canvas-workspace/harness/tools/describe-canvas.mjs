@@ -130,12 +130,12 @@ const repoRoot = path.resolve(appRoot, '..', '..');
 const cliTypesPath = path.join(repoRoot, 'packages/canvas-cli/src/core/types.ts');
 const cliStorageV2Path = path.join(repoRoot, 'packages/canvas-cli/src/core/storage-v2.ts');
 const nodesStorePath = path.join(appRoot, 'src/main/canvas/nodes/store.ts');
-const storageTsPath = path.join(appRoot, 'src/main/canvas/storage.ts');
+const storageSchemaPath = path.join(appRoot, 'src/main/canvas/persistence/schema.ts');
 
 const cliTypesTs = fs.existsSync(cliTypesPath) ? read(cliTypesPath) : '';
 const cliStorageV2Ts = fs.existsSync(cliStorageV2Path) ? read(cliStorageV2Path) : '';
 const nodesStoreTs = fs.existsSync(nodesStorePath) ? read(nodesStorePath) : '';
-const storageTs = fs.existsSync(storageTsPath) ? read(storageTsPath) : '';
+const storageSchemaTs = fs.existsSync(storageSchemaPath) ? read(storageSchemaPath) : '';
 
 // Same union-extraction style as section 3, adapted to canvas-cli's node-type
 // aliases. The CLI splits its literals across `CreatableNodeType` (types it can
@@ -164,7 +164,7 @@ function extractConst(source, name) {
 // App's PER_NODE_SCHEMA_VERSION is an alias (`= WORKSPACE_NODE_SCHEMA_VERSION`)
 // defined in nodes/store.ts, not a literal in storage.ts — read the real source.
 const appPerNodeSchemaVersion = extractConst(nodesStoreTs, 'WORKSPACE_NODE_SCHEMA_VERSION');
-const appCanvasSchemaVersionV2 = extractConst(storageTs, 'CANVAS_SCHEMA_VERSION_V2');
+const appCanvasSchemaVersionV2 = extractConst(storageSchemaTs, 'CANVAS_SCHEMA_VERSION_V2');
 const cliPerNodeSchemaVersion = extractConst(cliStorageV2Ts, 'PER_NODE_SCHEMA_VERSION');
 const cliCanvasSchemaVersionV2 = extractConst(cliStorageV2Ts, 'CANVAS_SCHEMA_VERSION_V2');
 
@@ -180,11 +180,11 @@ if (appPerNodeSchemaVersion === undefined || cliPerNodeSchemaVersion === undefin
 }
 if (appCanvasSchemaVersionV2 === undefined || cliCanvasSchemaVersionV2 === undefined) {
   schemaVersionMismatches.push(
-    `CANVAS_SCHEMA_VERSION_V2 extraction failed: app=${appCanvasSchemaVersionV2} (storage.ts) cli=${cliCanvasSchemaVersionV2} (storage-v2.ts)`,
+    `CANVAS_SCHEMA_VERSION_V2 extraction failed: app=${appCanvasSchemaVersionV2} (persistence/schema.ts) cli=${cliCanvasSchemaVersionV2} (storage-v2.ts)`,
   );
 } else if (appCanvasSchemaVersionV2 !== cliCanvasSchemaVersionV2) {
   schemaVersionMismatches.push(
-    `CANVAS_SCHEMA_VERSION_V2: app=${appCanvasSchemaVersionV2} (storage.ts) != cli=${cliCanvasSchemaVersionV2} (storage-v2.ts)`,
+    `CANVAS_SCHEMA_VERSION_V2: app=${appCanvasSchemaVersionV2} (persistence/schema.ts) != cli=${cliCanvasSchemaVersionV2} (storage-v2.ts)`,
   );
 }
 

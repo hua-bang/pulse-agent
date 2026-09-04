@@ -26,8 +26,10 @@ src/main/
 
   app/                # bootstrap, window(-manager), protocol, link-policy, logging,
                       # menu, identity, startup-metrics, update-ipc, shell-ipc
-  canvas/             # store, storage (v1/v2 migration), broadcast, workspaces,
-                      # welcome-workspace, workspace-export-*, nodes/ (ipc, store, tags)
+  canvas/             # store, storage facade (v1/v2 read/write + migration),
+                      # persistence/ (paths, atomic JSON, schema, pollution),
+                      # broadcast, workspaces, welcome-workspace,
+                      # workspace-export-*, nodes/ (ipc, store, tags)
   agent/              # canvas-agent, service, ipc, session-send, session-store,
                       # context-builder, debug-trace, config-scope, default-skills,
                       # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,
@@ -139,9 +141,11 @@ system and `.github/workflows/perf.yml`.
 Phases 1 (domain move) and 4 (agent tools split) of the original plan are
 done. Still open:
 
-- **Canvas storage split** — `canvas/storage.ts` is still a single file;
-  split by responsibility (paths / atomic JSON / schema / migration /
-  node-files) only when a change forces it.
+- **Canvas storage split** — paths, atomic JSON/recovery, schema contracts,
+  and pollution detection now live under `canvas/persistence/` while
+  `canvas/storage.ts` preserves the existing caller interface. Remaining
+  follow-up: move migration recovery, full-canvas read/write, and the v1→v2
+  state machine behind the same facade.
 - **Canvas store split** — `canvas/store.ts` still owns IPC registration,
   in-memory workspace state, watcher lifecycle, migration progress
   broadcasting, and startup pollution audit together. Keep public
