@@ -8,9 +8,6 @@ import { useCanvasKeyboard } from '../../../runtime/useCanvasKeyboard';
 import { useCanvasSearch } from '../../../runtime/useCanvasSearch';
 import { useCanvasImagePaste } from '../../../runtime/useCanvasImagePaste';
 import { useTemporaryHandTool } from '../../../runtime/useTemporaryHandTool';
-import { useEdgeInteraction } from '../../../runtime/useEdgeInteraction';
-import { useShapeDraw } from '../../../runtime/useShapeDraw';
-import { useMarqueeSelect } from '../../../runtime/useMarqueeSelect';
 import { useCanvasFocusMode } from './hooks/useCanvasFocusMode';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasContextMenu } from './hooks/useCanvasContextMenu';
@@ -18,7 +15,7 @@ import { useCanvasNodeActions } from './hooks/useCanvasNodeActions';
 import { useCanvasSyncEffects } from './hooks/useCanvasSyncEffects';
 import { useCanvasMouseHandlers } from './hooks/useCanvasMouseHandlers';
 import { useCanvasPaletteCommands } from './hooks/useCanvasPaletteCommands';
-import { useCanvasEdgeHandlers } from './hooks/useCanvasEdgeHandlers';
+import { useCanvasDrawingGestures } from './hooks/useCanvasDrawingGestures';
 import { useCanvasNodeGestures } from './hooks/useCanvasNodeGestures';
 import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
@@ -231,53 +228,21 @@ export const Canvas = ({
     scale: transform.scale,
   });
 
-  const getContainer = useCallback(() => containerRef.current, []);
-
-  const {
-    state: edgeInteractionState,
-    beginConnect, beginMoveEnd, beginMoveBend, beginMoveEdge,
-    getPreviewEndpoints,
-  } = useEdgeInteraction({
-    nodes: visibleNodes, sortedNodes: nodeGestures.sortedNodes, screenToCanvas, getContainer,
-    addEdge, updateEdge, commitHistory, edges: visibleEdges,
-    // After the user commits one arrow, hop back to the select tool and
-    // auto-select the new edge so the style panel is immediately
-    // available. Matches tldraw's "draw one arrow, then edit" flow.
-    onConnectCommitted: (edgeId) => {
-      setActiveTool('select');
-      setSelectedEdgeId(edgeId);
-      setSelectedNodeIds([]);
+  const drawingGestures = useCanvasDrawingGestures({
+    activeTool: effectiveActiveTool,
+    containerRef,
+    document: { addEdge, updateEdge, commitHistory, addNode, updateNode },
+    edges: visibleEdges,
+    nodes: visibleNodes,
+    sortedNodes: nodeGestures.sortedNodes,
+    screenToCanvas,
+    selection: {
+      setActiveTool,
+      setSelectedEdgeId,
+      setSelectedNodeIds,
+      setEditingEdgeLabelId,
+      handleMarqueeSelect,
     },
-  });
-
-  const edgeHandlers = useCanvasEdgeHandlers({
-    beginConnect, beginMoveEnd, beginMoveBend, beginMoveEdge,
-    updateEdge,
-    setSelectedEdgeId, setSelectedNodeIds, setEditingEdgeLabelId,
-  });
-
-  const {
-    draft: shapeDraft,
-    handleOverlayMouseDown: handleShapeOverlayMouseDown,
-    isActive: shapeToolActive,
-  } = useShapeDraw({
-    activeTool: effectiveActiveTool, screenToCanvas, getContainer, addNode, updateNode,
-    // Drop back to the select tool and select the committed shape so
-    // the user can immediately restyle it via the ShapeStylePicker.
-    onCommitted: (node) => {
-      setActiveTool('select');
-      setSelectedNodeIds([node.id]);
-      setSelectedEdgeId(null);
-    },
-  });
-
-  const marquee = useMarqueeSelect({
-    // Only the plain select tool should own blank-canvas drags. Connect
-    // and shape modes mount their own full-canvas overlays that already
-    // intercept mousedown.
-    enabled: effectiveActiveTool === 'select' && !shapeToolActive,
-    screenToCanvas, getContainer, nodes: visibleNodes,
-    onSelect: handleMarqueeSelect,
   });
 
   useCanvasKeyboard({
@@ -376,7 +341,10 @@ export const Canvas = ({
     onResizeStart: nodeGestures.onResizeStart,
     onResizeMove: nodeGestures.onResizeMove,
     onResizeEnd: nodeGestures.onResizeEnd,
-    edgeInteractionState, marquee, shapeToolActive, shapeDraft,
+    edgeInteractionState: drawingGestures.edgeInteractionState,
+    marquee: drawingGestures.marquee,
+    shapeToolActive: drawingGestures.shapeToolActive,
+    shapeDraft: drawingGestures.shapeDraft,
     commitHistory, onNodesChange,
   });
 
@@ -412,26 +380,22 @@ export const Canvas = ({
       containerRef={containerRef}
       ctxMenu={ctxMenu}
       nodeGestures={nodeGestures}
-      edgeHandlers={edgeHandlers}
-      edgeInteractionState={edgeInteractionState}
+      drawingGestures={drawingGestures}
       edges={visibleEdges}
       editingEdgeLabelId={editingEdgeLabelId}
       externallyEditedIds={externallyEditedIds}
       findNodesById={visibleNodesById}
       focus={focus}
       getAllNodes={getAllNodes}
-      getPreviewEndpoints={getPreviewEndpoints}
       handleNodeViewportFocus={handleNodeViewportFocus}
       handleCreateAgentTeam={AGENT_TEAMS_ENABLED ? creation.createAgentTeam : undefined}
       handleCreateDemoCanvas={creation.createDemoCanvas}
       handleSearchMatchActivate={handleSearchMatchActivate}
       handleSelectNode={handleSelectNode}
-      handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
       handleWheel={handleWheel}
       highlightedId={highlightedId}
       renameSignal={renameSignal}
       loaded={loaded}
-      marquee={marquee}
       mouse={mouse}
       moving={moving}
       nodes={visibleNodes}
@@ -463,8 +427,6 @@ export const Canvas = ({
       setSearchOpen={setSearchOpen}
       setSelectedEdgeId={setSelectedEdgeId}
       setSelectedNodeIds={setSelectedNodeIds}
-      shapeDraft={shapeDraft}
-      shapeToolActive={shapeToolActive}
       transform={transform}
       transformLayerRef={transformLayerRef}
       updateEdge={updateEdge}

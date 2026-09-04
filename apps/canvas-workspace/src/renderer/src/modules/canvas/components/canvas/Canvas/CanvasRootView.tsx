@@ -16,26 +16,22 @@ export const CanvasRootView = ({
   containerRef,
   ctxMenu,
   nodeGestures,
-  edgeHandlers,
-  edgeInteractionState,
+  drawingGestures,
   edges,
   editingEdgeLabelId,
   externallyEditedIds,
   findNodesById,
   focus,
   getAllNodes,
-  getPreviewEndpoints,
   handleNodeViewportFocus,
   handleCreateAgentTeam,
   handleCreateDemoCanvas,
   handleSearchMatchActivate,
   handleSelectNode,
-  handleShapeOverlayMouseDown,
   handleWheel,
   highlightedId,
   renameSignal,
   loaded,
-  marquee,
   mouse,
   moving,
   nodes,
@@ -68,8 +64,6 @@ export const CanvasRootView = ({
   setSearchOpen,
   setSelectedEdgeId,
   setSelectedNodeIds,
-  shapeDraft,
-  shapeToolActive,
   transform,
   transformLayerRef,
   updateEdge,
@@ -143,10 +137,10 @@ export const CanvasRootView = ({
         highlightedId={highlightedId}
         renameSignal={renameSignal}
         externallyEditedIds={externallyEditedIds}
-        edgeInteractionState={edgeInteractionState}
-        edgePreviewEndpoints={getPreviewEndpoints()}
-        shapeDraft={shapeDraft}
-        marqueeRect={marquee.rect}
+        edgeInteractionState={drawingGestures.edgeInteractionState}
+        edgePreviewEndpoints={drawingGestures.getPreviewEndpoints()}
+        shapeDraft={drawingGestures.shapeDraft}
+        marqueeRect={drawingGestures.marquee.rect}
         snapLines={nodeGestures.snapLines}
         focusedNodeIds={focus.focusedNodeIds}
         focusContextNodeIds={focus.focusContextNodeIds}
@@ -176,9 +170,9 @@ export const CanvasRootView = ({
           setSelectedEdgeId(id);
           if (id) setSelectedNodeIds([]);
         }}
-        onEdgeHandleMouseDown={edgeHandlers.handleEdgeHandleMouseDown}
-        onEdgeBodyMouseDown={edgeHandlers.handleEdgeBodyMouseDown}
-        onEdgeBodyDoubleClick={edgeHandlers.handleEdgeBodyDoubleClick}
+        onEdgeHandleMouseDown={drawingGestures.edgeHandlers.handleEdgeHandleMouseDown}
+        onEdgeBodyMouseDown={drawingGestures.edgeHandlers.handleEdgeBodyMouseDown}
+        onEdgeBodyDoubleClick={drawingGestures.edgeHandlers.handleEdgeBodyDoubleClick}
         onEdgeBodyContextMenu={handleEdgeContextMenu}
         onExitFullscreen={focus.exitFullscreen}
         getAllNodes={getAllNodes}
@@ -189,7 +183,7 @@ export const CanvasRootView = ({
           x={edgeMenu.x}
           y={edgeMenu.y}
           edgeId={edgeMenu.edgeId}
-          onEditLabel={(id) => edgeHandlers.handleEdgeBodyDoubleClick(id)}
+          onEditLabel={(id) => drawingGestures.edgeHandlers.handleEdgeBodyDoubleClick(id)}
           onEditStyle={(id) => {
             setSelectedEdgeId(id);
             setSelectedNodeIds([]);
@@ -218,7 +212,7 @@ export const CanvasRootView = ({
 
       <CanvasOverlays
         nodes={nodes}
-        edgeInteractionState={edgeInteractionState}
+        edgeInteractionState={drawingGestures.edgeInteractionState}
         contextMenu={ctxMenu.contextMenu}
         searchOpen={searchOpen}
         activeTool={activeTool}
@@ -244,18 +238,18 @@ export const CanvasRootView = ({
         findSearch={search}
         findNodesById={nodesById}
         onFindMatchActivate={handleSearchMatchActivate}
-        onConnectMouseDown={edgeHandlers.handleConnectOverlayMouseDown}
-        shapeToolActive={shapeToolActive}
-        onShapeMouseDown={handleShapeOverlayMouseDown}
+        onConnectMouseDown={drawingGestures.edgeHandlers.handleConnectOverlayMouseDown}
+        shapeToolActive={drawingGestures.shapeToolActive}
+        onShapeMouseDown={drawingGestures.handleShapeOverlayMouseDown}
         selectedEdge={edges.find((edge) => edge.id === selectedEdgeId) ?? null}
         transform={transform}
         onUpdateEdge={(id, patch) => updateEdge(id, patch)}
         onRemoveEdge={(id) => { void actions.requestRemoveEdge(id); }}
         edges={edges}
         editingEdgeLabelId={editingEdgeLabelId}
-        onStartEditEdgeLabel={edgeHandlers.handleEdgeBodyDoubleClick}
-        onCommitEditEdgeLabel={edgeHandlers.handleCommitEditEdgeLabel}
-        onCancelEditEdgeLabel={edgeHandlers.handleCancelEditEdgeLabel}
+        onStartEditEdgeLabel={drawingGestures.edgeHandlers.handleEdgeBodyDoubleClick}
+        onCommitEditEdgeLabel={drawingGestures.edgeHandlers.handleCommitEditEdgeLabel}
+        onCancelEditEdgeLabel={drawingGestures.edgeHandlers.handleCancelEditEdgeLabel}
       />
     </div>
   );
