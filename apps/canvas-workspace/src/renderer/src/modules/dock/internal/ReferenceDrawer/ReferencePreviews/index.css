@@ -1,0 +1,209 @@
+.reference-card-footer {
+  display: flex;
+  gap: 6px;
+}
+
+.reference-drawer-primary,
+.reference-drawer-secondary {
+  border: 0;
+  border-radius: 5px;
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
+.reference-drawer-primary {
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+  flex: 1;
+}
+
+.reference-drawer-primary:hover:not(:disabled) {
+  background: rgba(35, 131, 226, 0.12);
+}
+
+.reference-drawer-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.reference-drawer-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.reference-drawer-secondary:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+}
+
+.reference-native-card,
+.reference-url-card {
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 4px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.reference-preview-area {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The URL card and the native card share the same absolute box so the
+   <webview> inside the URL card has a stable layout slot across switches. */
+.reference-url-card--persistent,
+.reference-native-card--persistent {
+  position: absolute;
+  top: 4px;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  margin: 0;
+  flex: none;
+}
+
+.reference-url-card--persistent {
+  z-index: 1;
+}
+
+.reference-native-card--persistent {
+  z-index: 2;
+}
+
+/* Insets must match .reference-url-card--persistent / .reference-native-card--persistent
+   exactly: those previews stay mounted (webviews kept alive) underneath, and
+   any mismatch lets a strip of the mounted card peek out around the hint. */
+.reference-pick-hint--overlay {
+  position: absolute;
+  top: 4px;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.reference-url-stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.reference-url-slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.reference-url-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.reference-url-card--preview .iframe-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.reference-url-card--preview .iframe-frame-host webview {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.reference-url-card--preview .iframe-bar {
+  padding: 5px 6px;
+}
+
+.reference-url-card-icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-xl);
+  display: grid;
+  place-items: center;
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+}
+
+.reference-url-card-kicker {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reference-url-card h3 {
+  margin: 4px 0 10px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.reference-url-link {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  word-break: break-all;
+}
+
+.reference-url-link:hover {
+  text-decoration: underline;
+}
+
+/* The .canvas-node wrapper is absolutely positioned with inline width/height
+   from getNodeWrapperStyle, so a plain `flex: 1` never applies here — the
+   preview stayed pinned at the 420px preview-node height with dead space
+   above the footer. The card owns the geometry in the drawer: neutralize the
+   absolute box (relative keeps it the containing block for node chrome) and
+   let it flex to the card minus the footer. */
+.reference-native-card > .canvas-node {
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-self: stretch;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+}
+
+.reference-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding: 5px 6px;
+  border-top: 1px solid var(--border-light);
+  background: #fbfbfa;
+  flex-wrap: nowrap;
+}
+

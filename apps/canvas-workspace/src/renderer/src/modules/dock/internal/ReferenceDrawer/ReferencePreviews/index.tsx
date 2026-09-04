@@ -1,14 +1,15 @@
+import './index.css';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { CanvasNode } from '../../../../types';
-import { CanvasNodeView } from '../../../canvas/surface';
-import { Button } from '../../../../components/ui';
-import { IframeNodeBody } from '../../../canvas/iframe';
-import { useI18n } from '../../../../i18n';
-import { MIN_REFERENCE_DRAWER_WIDTH } from '../../../../shared/reference/constants';
-import { useRightDock } from '../RightDock';
-import type { ArtifactReferenceEntry, NodeReferenceEntry, ReferenceEntry, UrlReferenceEntry } from '../../../../shared/reference/types';
-import { createArtifactPreviewNode, createUrlPreviewNode, getReferenceId, isArtifactReference, isUrlReference } from '../../../../shared/reference/utils';
+import type { CanvasNode } from '../../../../../types';
+import { CanvasNodeView } from '../../../../canvas/surface';
+import { Button } from '../../../../../components/ui';
+import { IframeNodeBody } from '../../../../canvas/iframe';
+import { useI18n } from '../../../../../i18n';
+import { MIN_REFERENCE_DRAWER_WIDTH } from '../../../../../shared/reference/constants';
+import { useRightDock } from '../../RightDock';
+import type { ArtifactReferenceEntry, NodeReferenceEntry, ReferenceEntry, UrlReferenceEntry } from '../../../../../shared/reference/types';
+import { createArtifactPreviewNode, createUrlPreviewNode, getReferenceId, isArtifactReference, isUrlReference } from '../../../../../shared/reference/utils';
 
 interface ReferencePreviewPanelProps {
   activeWorkspaceId: string;
@@ -485,3 +486,4 @@ const ReferenceArtifactPreviewCard = ({
     </div>
   );
 };
+

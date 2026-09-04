@@ -169,6 +169,9 @@ Current healthy properties:
 - ReferenceDrawer's ArtifactsPicker now follows the owner-folder convention
   and owns its 86-line scope/list/action popover CSS; the drawer root no longer
   owns artifact-only presentation.
+- ReferencePreviews now follows the owner-folder convention and owns 209 lines
+  of persistent native/URL/artifact preview slots and card footer CSS. Webview
+  keep-alive layering remains inside the same preview module and focused test.
 - The renderer application root lives at `app/App/`: route projection is a
   pure tested model and workspace mutation feedback is isolated in an
   app-owned command hook. `main.tsx` imports it directly; no root App barrel
