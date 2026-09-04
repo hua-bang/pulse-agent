@@ -23,4 +23,19 @@ describe('bundle feature entries', () => {
       'src/modules/chat/components/ChatPanel/index.tsx',
     ]);
   });
+
+  it('finds the owner-folder GraphPage lazy entry in the Vite manifest', () => {
+    const graph = BUNDLE_FEATURE_ENTRIES.find(feature => feature.id === 'graph');
+    const manifest = {
+      'src/modules/workspace-nodes/internal/GraphPage/index.tsx': {
+        file: 'assets/workspace-graph.js',
+        isDynamicEntry: true,
+      },
+    };
+
+    expect(graph).toBeDefined();
+    expect(findBundleFeatureEntryKeys(manifest, graph)).toEqual([
+      'src/modules/workspace-nodes/internal/GraphPage/index.tsx',
+    ]);
+  });
 });
