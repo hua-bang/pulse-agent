@@ -125,7 +125,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // SegmentedControl after the removable chip control was retired.
   // 283→280 (chat header): removed the redundant roles, reply-style, and
   // settings action buttons while retaining the New chat action.
-  rawButtonTags: 280,
+  // 280→273 (module-first ownership batches): obsolete duplicate controls
+  // disappeared as product visuals gained one owning component each.
+  rawButtonTags: 273,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -205,7 +207,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // configure banner removed its bespoke radius literal.
   // 116→115 (model picker): removing the old chip close control retired its
   // one remaining 50% radius literal; the replacement uses radius tokens.
-  borderRadiusLiterals: 114,
+  // 114→113 (module-first ownership batches): deleting obsolete visual
+  // chrome removed one remaining literal-radius declaration.
+  borderRadiusLiterals: 113,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -245,7 +249,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // the dialog role consistently. A deliberate increase, not a regression.
   // 12→11 (C1 lightbox re-shell): ChatImageLightbox's own `role="dialog"`
   // div is gone — that role now comes from ui/Modal's card.
-  dialogRoles: 10,
+  // 10→9 (module-first ownership batches): a duplicate product dialog shell
+  // was retired while the blessed ui/ shells retained role ownership.
+  dialogRoles: 9,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
   // Modal/Drawer render through it. Falls as legacy callers adopt <Portal> or
   // the new point-anchored ui/Popover shell.
@@ -317,7 +323,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // handler, plus the dock-browser dispatcher; the dispatchers are shared,
   // typed owners rather than one-off component listeners, so the merged
   // inventory is 17.
-  handRolledKeydown: 17,
+  // 17→16 (module-first ownership batches): one obsolete component-scoped
+  // listener disappeared; existing registry and owner listeners remain.
+  handRolledKeydown: 16,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as
@@ -401,7 +409,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // rules now read var() — the fix itself cost zero literals.
   // 1781→1775 (model picker): the searchable model catalog uses shared
   // palette tokens instead of repeating chip-specific color literals.
-  hardcodedColorLiterals: 1771,
+  // 1771→1708 (module-first ownership batches): retired duplicate product
+  // chrome removed its literal colors; surviving styles were colocated.
+  hardcodedColorLiterals: 1708,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -465,7 +475,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // box-shadow ring to the shared accent outline.
   // 146→143 (AI Chat model setup hierarchy): deleting the duplicate central
   // configure banner removed its base, hover, and status-dot shadows.
-  shadowLiterals: 141,
+  // 141→136 (module-first ownership batches): obsolete duplicate chrome
+  // removed five literal shadow declarations.
+  shadowLiterals: 136,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

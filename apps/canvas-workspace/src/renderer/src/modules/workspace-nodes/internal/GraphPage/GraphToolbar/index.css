@@ -1,0 +1,104 @@
+.workspace-graph-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  max-width: calc(100% - 36px);
+}
+
+.workspace-graph-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 3px;
+  border: 1px solid var(--nodes-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.03);
+  backdrop-filter: blur(8px);
+}
+
+.workspace-graph-toolbar__sep {
+  display: none;
+}
+
+.workspace-graph-toolbar span {
+  color: var(--nodes-muted);
+  font-size: 12px;
+}
+
+.workspace-graph-toolbar__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.workspace-graph-toolbar strong {
+  font-size: 13px;
+}
+
+.workspace-graph-toolbar .workspace-node-chip {
+  height: 28px;
+  border-radius: 5px;
+  background: transparent;
+  padding: 0 9px;
+}
+
+.workspace-graph-toolbar .workspace-node-chip:hover {
+  background: var(--nodes-surface-hover);
+}
+
+.workspace-graph-toolbar .workspace-node-chip.is-active {
+  background: var(--nodes-surface-active);
+  color: var(--accent);
+}
+
+.workspace-node-chip--toolbar-action {
+  font-weight: 500;
+}
+
+.workspace-graph-toolbar__more {
+  position: relative;
+}
+
+/* DropdownShell owns positioning and interaction; this owner only extends
+ * the graph menu's visual chrome. */
+.ui-dropdown__panel.workspace-graph-toolbar__menu {
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--nodes-shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  z-index: 6;
+}
+
+.workspace-graph-toolbar__menu-item {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  color: inherit;
+}
+
+.workspace-graph-toolbar__menu-item:hover,
+.workspace-graph-toolbar__menu-item:focus-visible {
+  outline: none;
+  background: rgba(55, 53, 47, 0.06);
+}
