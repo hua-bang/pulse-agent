@@ -64,19 +64,28 @@ narrow node widths.
 
 ## Per-agent launch behavior
 
-`AgentNodeBody/useAgentNodeController.ts` composes the shell line. Everything
-agent-specific there is opt-in — an id it does not recognize gets a bare
+`modules/coding-agent/session/sessionLifecycle.ts` composes the shell line and
+`session/ownerTerminal.ts` owns PTY spawn, shell-ready handoff, persistence,
+session binding, Codex capture, and cleanup. `AgentNodeBody/useAgentNodeController.ts`
+is the React adapter. Everything agent-specific there is opt-in — an id it does not recognize gets a bare
 `<command> [prompt]`, which is the correct default for a CLI that takes its
 prompt positionally and needs no flags.
+
+Codex post-launch binding is isolated in
+`modules/coding-agent/session/codexSessionCapture.ts`: marker lookup is
+authoritative, the session-index diff is a conservative fallback, and two new
+sessions are treated as ambiguous rather than guessed. Team mirror PTY cache,
+retry, subscription, and late-unmount cleanup are owned by
+`modules/coding-agent/session/mirrorTerminal.ts`.
 
 - **Approval bypass.** The "skip permission prompts" toggle only renders when
   `AgentPicker` maps the id to a flag (`--dangerously-skip-permissions` for
   Claude Code, `--dangerously-bypass-approvals-and-sandbox` for Codex). Pi
   executes tools without asking by default, so it has no flag and no toggle.
-  Keep the picker's flag map and the controller's `dangerousFlag` chain in
+  Keep the picker's flag map and `sessionLifecycle.ts`'s `dangerousFlag` chain in
   sync — they are two copies of the same mapping.
 - **Resume.** See "Binding a node to one conversation" below. The rule the
-  code enforces: `AgentRestart` offers "resume" only when the node can name
+  lifecycle interface enforces: `AgentRestart` offers "resume" only when the node can name
   its OWN conversation. A bare "continue the most recent session" fallback
   never qualifies — it can attach the node to a sibling node's conversation,
   or to one the user started by hand in a terminal.
@@ -90,9 +99,9 @@ each mechanism is what decides whether resume is offered at all.
 
 | Agent | Mechanism | Where it lives |
 |---|---|---|
-| Claude Code | caller-supplied id: `--session-id <uuid>` on first launch, `--resume <uuid>` after | `cliSessionId` on the node |
+| Claude Code | caller-supplied id: `--session-id <uuid>` on first launch, `--resume <uuid>` after | `cliSessionId` on the node; `modules/coding-agent/session/ownerTerminal.ts` |
 | Codex | discovered after the fact: a marker comment is appended to the first prompt, then `~/.codex/state_5.sqlite` is polled for the thread containing it (session-index diffing as fallback), then `codex exec resume <id>` | `codexSessionId` / `codexSessionMarker`; `main/agent/codex-sessions.ts` |
-| Pi | private storage: `--session-dir <node dir>` on every launch, plus `--continue` to resume | `piSessionKey` on the node |
+| Pi | private storage: `--session-dir <node dir>` on every launch, plus `--continue` to resume | `piSessionKey` on the node; `modules/coding-agent/session/piSession.ts` |
 
 Prefer the cheapest mechanism the CLI actually supports, in this order:
 
@@ -113,7 +122,7 @@ lookups search, so a node-private directory makes `--continue` — "the most
 recent session in this directory" — resolve to that node and nothing else.
 The node stores only an opaque UUID (`piSessionKey`); the path is derived in
 `useAgentNodeController` (`piSessionDirArg`) as
-`$HOME/.pi/agent/sessions/pulse-canvas/<key>`.
+`$HOME/.pi/agent/sessions/pulse-canvas/<key>` in `session/piSession.ts`.
 
 Four things about that path are load-bearing:
 
@@ -138,7 +147,8 @@ Rejected: `pi -c` against the default directory. It resolves per working
 directory, so two nodes on one repo — or a `pi` the user ran in a terminal —
 silently share a conversation.
 
-Tests: `AgentNodeBody/__tests__/piSessionBinding.test.tsx`.
+Tests: `AgentNodeBody/__tests__/piSessionBinding.test.tsx` and
+`modules/coding-agent/session/piSession.test.ts`.
 
 ## Not automatic
 

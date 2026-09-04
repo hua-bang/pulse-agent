@@ -5,25 +5,21 @@ Applies to `src/renderer/src/**`. The renderer is a React 18 + wouter app. It ha
 
 ## Component layout
 
-`src/renderer/src/components/` is grouped by domain (regrouped 2026-08-09;
-leaf folder names were kept, only a group level was inserted):
+`src/renderer/src/components/` contains only domain-free visual infrastructure.
+Product visuals live with their owning module:
 
 | Group | Owns |
 |---|---|
-| `shell/` | App chrome + routing: `AppShellProvider`, `Sidebar`, `Workbench`, `router`, `RouteViews.ts`, `AppLazyBoundaries.tsx`, `MigrationSpinner` |
-| `canvas/` | Canvas surface + chrome: `Canvas`, `CanvasNodeView`, edges layer, alignment guides, node/edge context menus, `EdgeStylePanel`, toolbars, `SearchBar`, `ZoomIndicator`, `CommandPalette`, `CanvasEmptyHint` |
-| `node-bodies/` | One body per canvas node type (`*NodeBody`, incl. lazy wrappers) plus `AgentTeamFrame` and the terminal-surface `NodeMentionPicker` |
-| `note-editor/` | Rich-text editing surface for file/text nodes: `FileNodeEditorSurface`, `FileNodeBubbleMenu`, `SlashCommandMenu`, `EditorCommandIcon`, `Note*` pieces |
-| `dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `EmbeddedBrowser`, `WorkspaceTerminalDock` |
-| `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
-| `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
-| `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |
-| `mcp-apps/` | Sandboxed MCP App host, approval UI, AppBridge lifecycle, and inline↔RightDock surface placement; chat owns only the tool-result adapter |
-| `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
+| `components/ui/` | Blessed design-system primitives; governance and ui-showcase depend on this stable path |
+| `components/icons/` | Domain-free icon interface; split implementation only by real icon family |
+| `app/shell/` | App chrome, routes, providers, Workbench, and Sidebar composition |
+| `modules/canvas/` | Canvas surface, chrome, document state, and node-body composition |
+| `modules/note-editor/` | Lazy Tiptap runtime, extensions, interactions, and owner-local editor visuals |
+| Other `modules/*` | Product visuals and state colocated under the owning capability |
 
 Non-visual Agent Chat state and cross-surface coordination live outside the
-component tree under `src/renderer/src/agent-chat/`. In particular,
-`agent-chat/target/` owns the app-level ChatTarget broker used by Canvas, Dock,
+component tree under `src/renderer/src/modules/chat/`. In particular,
+`modules/chat/target/` owns the app-level ChatTarget broker used by Canvas, Dock,
 Workbench, and the visible chat surfaces; visual chat modules adapt to that
 interface instead of owning the broker themselves.
 
@@ -42,19 +38,16 @@ semantic node accent with `colorize`. Select/connect controls and plugin-owned
 glyphs can remain local when they have a surface-specific or plugin-specific
 contract.
 
-Routed full-page surfaces that are their own domain live OUTSIDE
-`components/`, in `src/renderer/src/views/` (`Scheduled`, `SkillsLibrary`,
-`WorkspaceNodes`). The boundary: a page owned by a larger domain stays with
-that domain (`ChatPage` in `components/chat/`, the settings surfaces in
-`components/settings/`); a page domain whose only reason to exist is the
-route goes in `views/`. The lazy route tables (`shell/RouteViews.ts`,
-`shell/AppLazyBoundaries.tsx`) stay in `components/shell/` — they are
-routing infrastructure, not pages.
+Routed product surfaces live with their owner under `modules/` (`chat`,
+`scheduled`, `skills`, `workspace-nodes`, `settings`). Application-level route
+composition, providers, Workbench, and Sidebar live under `app/shell/`; they
+must not implement a product state machine. Root `components/` is reserved for
+domain-free visual infrastructure once the Dock migration completes.
 
 Place a new component in the group that owns its surface; add a new group only
 when a domain genuinely has no home (see reuse-first rules in `AGENTS.md` §0).
-Within a group, each non-trivial component keeps its own folder
-`src/renderer/src/components/<group>/<ComponentName>/`:
+Within an owner, each non-trivial component keeps its own folder
+`components/<ComponentName>/`:
 
 ```
 <ComponentName>/
@@ -86,10 +79,13 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
 ## Hooks
 
 - Shared hooks live in `src/renderer/src/hooks/` named `useXxx.ts`
-  (`useCanvas`, `useNodes`, `useClickOutside`, `useEscapeClose`, …).
+  (`useCanvas`, `useClickOutside`, `useEscapeClose`, …). Canvas document
+  state is product-owned under `modules/canvas/document/useCanvasDocument.ts`.
 - Component-scoped hooks may live beside the component
-  (`useAgentNodeController.ts`, `Canvas/hooks/`, `chat/ChatComposer/`,
-  `chat/ChatPanel/hooks/`, `chat/ChatPageBody/hooks/`).
+  (`useAgentNodeController.ts`, `Canvas/hooks/`,
+  `modules/chat/components/ChatComposer/`,
+  `modules/chat/components/ChatPanel/hooks/`,
+  `modules/chat/components/ChatPageBody/hooks/`).
 - Hooks return typed values; keep them framework-pure (no Electron/Node imports).
 
 ## Keyboard shortcuts (registry-owned)

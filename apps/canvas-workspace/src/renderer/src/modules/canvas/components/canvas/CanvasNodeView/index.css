@@ -1,0 +1,311 @@
+.canvas-node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--surface);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+/* Skip layout / paint / hit-test for nodes that are offscreen. The wrapper
+ * already has explicit width/height inline (see CanvasNodeView/utils.ts
+ * getNodeWrapperStyle), so contain-intrinsic-size isn't required for the
+ * box to keep its size when content is skipped — Chromium falls back to
+ * the explicit width/height. The win:
+ *  - React mount stays unchanged (no churn during pan/resize, no Tiptap /
+ *    xterm / webview re-init cost — that's why we did NOT switch to
+ *    viewport-based mount/unmount).
+ *  - Browser skips paint and tile rasterization for nodes outside the
+ *    visible viewport, easing the "tile memory limits exceeded" pressure
+ *    on large canvases.
+ *
+ * File nodes opt in only when they are not selected/focused/fullscreen:
+ * their wrapper has explicit dimensions, so Chromium can skip offscreen
+ * paint without remounting Tiptap or disturbing an active editor. Node
+ * types whose internal engines read DOM dimensions on init (xterm) or run
+ * a separate rendering pipeline (<webview>, mindmap's force-graph) remain
+ * excluded — those need to be visible when they boot or they may compute
+ * a 0×0 layout and never recover. They still benefit indirectly via
+ * .canvas-transform--moving and webview background throttling. */
+.canvas-node--frame,
+.canvas-node--group,
+.canvas-node--text,
+.canvas-node--shape,
+.canvas-node--image,
+.canvas-node--reference {
+  content-visibility: auto;
+}
+
+.canvas-node--file:not(.canvas-node--selected):not(.canvas-node--fullscreen):not(:focus-within) {
+  content-visibility: auto;
+  contain-intrinsic-size: 520px 420px;
+}
+
+/* Overview semantic zoom is scoped to url/webview nodes only (their
+ * placeholder + identity badge live in IframeNodeBody/index.css). Non-web
+ * bodies (file / terminal / agent / mindmap / reference / plugin) stay
+ * rendered at overview so their content reads as a shrunk-down thumbnail
+ * rather than a blank card — a deliberate product choice over the marginal
+ * paint saving that hiding them bought (the dominant overview-drag win is
+ * the `.node-header__actions` popover `display:none` below, not body
+ * hiding). image/shape/text were always live thumbnails. */
+
+.canvas-node:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.canvas-node--selected {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(35, 131, 226, 0.12);
+}
+.canvas-node--dragging {
+  box-shadow: var(--shadow-drag);
+  z-index: 100;
+  opacity: 0.97;
+}
+
+.canvas-node--resizing {
+  box-shadow: var(--shadow-drag);
+  z-index: 100;
+}
+
+/* Focus mode (Heptabase-style): the focused node is centered + reframed
+ * by the viewport, so the "emphasis" job here is purely a soft ring +
+ * mild shadow lift — no aggressive halo. Context nodes stay at full
+ * opacity so neighbors / container children remain readable. Dimmed
+ * nodes drop to ~18% opacity (no blur, no white overlay) — they remain
+ * clickable so the user can "click a peripheral card to refocus on it"
+ * exactly like Heptabase. */
+.canvas-node--focus-mode-focused {
+  z-index: 80;
+  opacity: 1;
+  border-color: rgba(71, 85, 105, 0.34);
+  /* Keep the focused node legible against the dim backdrop without the
+   * saturated purple halo competing with the content. */
+  box-shadow: var(--shadow-card-hover), 0 0 0 1.5px rgba(71, 85, 105, 0.38), 0 12px 34px rgba(15, 23, 42, 0.18);
+}
+
+.canvas-node--focus-mode-context {
+  opacity: 1;
+}
+
+.canvas-node--focus-mode-focused.canvas-node--frame,
+.canvas-node--focus-mode-focused.canvas-node--group {
+  z-index: 0;
+}
+
+.canvas-node--focus-mode-focused.canvas-node--frame {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #7c5cff) 55%, transparent);
+}
+
+.canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 65%, transparent);
+}
+
+.canvas-node--focus-mode-focused.canvas-node--group {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 55%, transparent);
+}
+
+.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 65%, transparent);
+}
+/* Overview zoom: below scale 0.6 a 1px border renders sub-pixel and the card
+ * shadows blur away, so card-chromed nodes melt into the background — the
+ * "white on white" overview wash. Counter-scale a hairline ring so the edge
+ * stays exactly ~1 SCREEN pixel at any zoom (same trick as the frame pill's
+ * clamp). outline, not box-shadow, on purpose: it never fights the per-type
+ * shadow cascade and is exempt from the zoom-out shadow-kill fast path in
+ * Canvas/index.css. Chromeless bodies (image/shape/mindmap/text/group/
+ * reference) and frames (their tinted wash carries the edge) opt out by not
+ * being listed; fullscreen nodes are excluded because the transform is dead
+ * there while --canvas-scale still holds the old value. */
+.canvas-transform--small .canvas-node--file:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--terminal:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--agent:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--iframe:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--plugin:not(.canvas-node--fullscreen),
+.canvas-transform--small .canvas-node--dynamic-app:not(.canvas-node--fullscreen) {
+  outline: calc(1px / var(--canvas-scale, 1)) solid rgba(55, 53, 47, 0.16);
+  outline-offset: calc(-1px / var(--canvas-scale, 1));
+}
+
+.node-body {
+  flex: 1;
+  overflow: hidden;
+}
+.canvas-node--focus-mode-dimmed {
+  /* Pushed down to 0.12 so frame title chips and small colored badges
+   * stop registering as "still present" against the dark backdrop —
+   * users explicitly asked for "only one bright card, everything else
+   * faded". Still leaves enough opacity for the user to see roughly
+   * where peripheral cards sit and to click them to refocus. */
+  opacity: 0.12;
+  box-shadow: none;
+  transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.node-close--floating {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+.canvas-node--highlighted {
+  animation: nodeHighlight 1.5s ease-out;
+}
+
+/* Transient ring shown right after canvas-cli (an agent) modifies a node. */
+.canvas-node--agent-edited {
+  animation: nodeAgentEdit 2.5s ease-out;
+}
+
+.canvas-node--agent-edited::before {
+  content: "agent edited";
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #7c5cff;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 1px 3px rgba(124, 92, 255, 0.25);
+  pointer-events: none;
+  animation: agentLabelFade 2.5s ease-out forwards;
+}
+
+@keyframes nodeAgentEdit {
+  0% {
+    box-shadow: var(--shadow-card), 0 0 0 3px rgba(124, 92, 255, 0.85), 0 0 24px rgba(124, 92, 255, 0.45);
+  }
+
+  100% {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@keyframes agentLabelFade {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes nodeHighlight {
+
+  0%,
+  100% {
+    box-shadow: var(--shadow-card);
+  }
+
+  20%,
+  60% {
+    box-shadow: var(--shadow-card), 0 0 0 3px var(--accent), 0 0 20px rgba(35, 131, 226, 0.3);
+  }
+}
+
+/* Image/mindmap nodes lack a header — float the fullscreen toggle in
+ * the top-right corner next to the existing floating close button. */
+.node-fullscreen--floating {
+  position: absolute;
+  top: 4px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+.node-copy-image--floating {
+  position: absolute;
+  top: 4px;
+  right: 56px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+/* Fullscreen node. The parent `.canvas-transform` has its transform
+ * killed by `.canvas-container[data-fullscreen="on"]` (see
+ * Canvas/index.css), so a plain `inset` here just resolves against
+ * the canvas-container viewport. We leave a small inset so the
+ * fullscreen node reads as a focused card floating on the dim
+ * backdrop, while fullscreen controls float above the content instead
+ * of reserving their own top lane. The inline
+ * `transform: translate(x,y)` + width/height set by CanvasNodeView
+ * for the node's normal slot are overridden with `!important` — the
+ * node DOM never moves, only its CSS box flips between "slot" and
+ * "fullscreen". That keeps the iframe / editor / terminal mounted
+ * across the toggle, no reload. */
+.canvas-node.canvas-node--fullscreen,
+.canvas-node.canvas-node--fullscreen:hover {
+  position: absolute !important;
+  inset:
+    var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none !important;
+  /* Above the backdrop (z-index 50) so dimming covers other nodes
+   * while this one stays crisp. */
+  z-index: 60;
+  border-radius: var(--radius-xs);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
+}
+
+/* Fullscreen disables drag-by-header and resize handles, so the header
+ * cursor + handles should reflect that. The only chrome the user needs
+ * is the exit-fullscreen button; everything else (close, focus, ref,
+ * time, color pickers) hides so the bar stays clean. */
+.canvas-node--fullscreen .node-header {
+  cursor: default;
+}
+
+/* In fullscreen, the floating chip (see Canvas/index.tsx) is the
+ * single control surface — drop every node-header affordance so the
+ * header stays clean (title only). The chip also owns the exit
+ * button, so `.node-fullscreen` itself hides. */
+.canvas-node--fullscreen .node-open-tab,
+.canvas-node--fullscreen .node-add-to-chat,
+.canvas-node--fullscreen .node-add-to-canvas,
+.canvas-node--fullscreen .node-open-detail,
+.canvas-node--fullscreen .node-plugin-select,
+.canvas-node--fullscreen .node-focus,
+.canvas-node--fullscreen .node-close,
+.canvas-node--fullscreen .node-fullscreen,
+.canvas-node--fullscreen .node-header__actions,
+.canvas-node--fullscreen .node-time-label,
+.canvas-node--fullscreen .frame-color-trigger,
+.canvas-node--fullscreen .text-color-trigger,
+.canvas-node--fullscreen .group-ungroup-button,
+.canvas-node--fullscreen .group-count-label,
+.canvas-node--fullscreen .node-status-label,
+.canvas-node--fullscreen .node-close--floating,
+.canvas-node--fullscreen .node-fullscreen--floating {
+  display: none !important;
+}

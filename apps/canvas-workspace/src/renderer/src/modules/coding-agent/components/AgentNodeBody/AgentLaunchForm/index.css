@@ -1,0 +1,223 @@
+.agent-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--agent-muted);
+  font-family: var(--agent-sans);
+}
+
+.agent-field-label svg {
+  color: var(--agent-muted);
+  flex-shrink: 0;
+}
+
+.agent-team-lead-setup-summary {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(35, 131, 226, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(247, 250, 255, 0.86);
+}
+
+.agent-team-lead-setup-summary > div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.agent-team-lead-setup-summary span {
+  color: var(--agent-muted);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.agent-team-lead-setup-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Setup: working directory field ────────────────────────────── */
+
+.agent-dir-field {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.agent-dir-field:focus-within {
+  border-color: var(--agent-accent-border);
+  box-shadow: 0 0 0 3px var(--agent-accent-soft);
+}
+
+.agent-dir-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--agent-text);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.agent-dir-input::placeholder {
+  color: var(--agent-faint);
+  font-family: var(--font-mono);
+}
+
+.agent-dir-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.agent-dir-icon:hover {
+  background: var(--agent-accent-soft);
+  color: var(--agent-accent);
+}
+
+/* ── Setup: recents row ────────────────────────────────────────── */
+
+.agent-recent {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.agent-recent-label {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--agent-faint);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding-right: 2px;
+}
+
+.agent-recent-chip {
+  padding: 2px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--agent-muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-recent-chip:hover {
+  background: var(--agent-accent-soft);
+  border-style: solid;
+  border-color: var(--agent-accent-border);
+  color: var(--agent-accent);
+}
+
+/* ── Setup: prompt textarea ────────────────────────────────────── */
+
+.agent-prompt-input {
+  width: 100%;
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--agent-text);
+  font-size: 13px;
+  font-family: var(--agent-sans);
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.agent-prompt-input:focus {
+  border-color: var(--agent-accent-border);
+  box-shadow: 0 0 0 3px var(--agent-accent-soft);
+}
+
+.agent-prompt-input::placeholder {
+  color: var(--agent-faint);
+}
+
+.agent-dangerous-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--agent-muted, rgba(55, 53, 47, 0.65));
+  font-family: var(--agent-sans);
+  cursor: pointer;
+  user-select: none;
+}
+
+.agent-dangerous-toggle input[type='checkbox'] {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.agent-dangerous-toggle-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  line-height: 20px;
+}
+
+.agent-dangerous-toggle-text code {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1;
+  background: rgba(55, 53, 47, 0.06);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  color: rgba(55, 53, 47, 0.7);
+}

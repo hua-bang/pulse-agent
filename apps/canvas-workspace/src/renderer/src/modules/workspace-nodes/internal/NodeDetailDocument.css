@@ -1,0 +1,343 @@
+/* Shared document treatment for Node Tabs and Full Page. The surrounding
+ * chrome changes by mode; the title, tags, real canvas-node editor, and
+ * supplementary disclosures remain one NodeDetailPanel composition. */
+
+.node-detail-panel.node-detail-panel--page {
+  max-width: none;
+  margin: 0;
+  border: 0;
+  min-height: 100%;
+  box-shadow: none;
+}
+
+.node-detail-panel .node-detail-panel__content {
+  gap: 0;
+  padding: 0;
+  background: var(--nodes-surface);
+}
+
+.node-detail-panel .node-detail-panel__empty {
+  margin: auto;
+  padding: 32px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.node-detail-panel .node-detail-panel__empty p {
+  margin: 0;
+}
+
+.node-detail-panel__empty-hint {
+  color: var(--nodes-faint);
+  font-size: 11px;
+}
+
+/* Switching nodes replaces a whole document; a skeleton keeps the shape of
+ * what is arriving instead of collapsing the surface to one line of text. */
+.node-detail-panel__skeleton {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 32px 42px;
+  display: grid;
+  gap: 14px;
+}
+
+.node-detail-panel--dock .node-detail-panel__skeleton {
+  padding: 30px clamp(22px, 6vw, 42px);
+}
+
+.node-detail-panel__skeleton-line,
+.node-detail-panel__skeleton-block {
+  border-radius: var(--radius-xs);
+  /* --nodes-surface-soft (4%) disappears against the panel once the pulse
+   * dips; this reads as a placeholder at both ends of the animation. */
+  background: color-mix(in srgb, var(--nodes-text) 9%, transparent);
+  animation: node-detail-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.node-detail-panel__skeleton-line--title {
+  height: 34px;
+  width: 62%;
+}
+
+.node-detail-panel__skeleton-line--meta {
+  height: 14px;
+  width: 38%;
+}
+
+.node-detail-panel__skeleton-block {
+  height: 220px;
+  margin-top: 10px;
+}
+
+@keyframes node-detail-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-detail-panel__skeleton-line,
+  .node-detail-panel__skeleton-block {
+    animation: none;
+  }
+}
+
+.node-detail-panel__actions {
+  margin-top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-detail-panel__actions .ui-btn {
+  gap: 5px;
+  color: var(--nodes-muted);
+}
+
+.node-detail-panel__actions .ui-btn:hover {
+  color: var(--nodes-text);
+}
+.node-detail-panel__layout {
+  width: min(100%, 1080px);
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 32px 42px 88px;
+  display: grid;
+  grid-template-columns: minmax(0, 720px) minmax(220px, 260px);
+  align-items: start;
+  justify-content: center;
+  gap: 42px;
+}
+
+.node-detail-panel--dock .node-detail-panel__layout {
+  width: 100%;
+  padding: 0;
+  display: block;
+}
+
+.node-detail-panel__document {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-detail-panel--dock .node-detail-panel__document {
+  width: 100%;
+  padding: 18px clamp(16px, 4vw, 28px) 32px;
+}
+
+/* Web pages and mindmaps are working surfaces, not long-form documents.
+ * Keep their identity/actions in a compact bar and give the real node body
+ * every remaining pixel; generic Relations/Info live on document nodes. */
+.node-detail-panel--rich .node-detail-panel__content {
+  overflow: hidden;
+}
+
+.node-detail-panel--rich .node-detail-panel__layout,
+.node-detail-panel--rich .node-detail-panel__document {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.node-detail-panel--rich .node-detail-panel__layout {
+  max-width: none;
+  padding: 18px;
+  display: block;
+}
+
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__layout {
+  padding: 0;
+}
+
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document {
+  padding: 12px;
+}
+
+/* A Web detail is a browser surface, not a card inside a document. Keep the
+ * compact identity bar, then let the browser own the remaining edges. */
+.node-detail-panel--web .node-detail-panel__layout,
+.node-detail-panel--web.node-detail-panel--dock .node-detail-panel__document {
+  padding: 0;
+}
+
+.node-detail-panel--web .node-detail-panel__document-header {
+  padding: 14px 18px 0;
+}
+
+.node-detail-panel--web.node-detail-panel--dock .node-detail-panel__document-header {
+  padding: 12px 12px 0;
+}
+
+.node-detail-panel--web .node-detail-panel__back {
+  margin: 14px 18px 8px;
+}
+
+.node-detail-panel--rich .node-detail-panel__document-title,
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document-title {
+  font-size: clamp(18px, 2.4vw, 22px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.node-detail-panel--rich .node-detail-panel__document-meta {
+  min-height: 24px;
+  margin-top: 7px;
+}
+
+.node-detail-panel--rich .node-detail-panel__actions {
+  margin-top: 0;
+}
+.node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__document-title {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__document-meta {
+  min-height: 24px;
+  margin-top: 6px;
+}
+.workspace-node-detail-page .workspace-node-detail-page__body {
+  padding: 0;
+  overflow: hidden;
+  background: var(--nodes-surface);
+}
+
+@media (max-width: 1050px) {
+  .node-detail-panel--page .node-detail-panel__layout {
+    max-width: 760px;
+    display: block;
+  }
+
+  .node-detail-panel__context-rail {
+    position: static;
+    margin-top: 40px;
+    padding-top: 28px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--nodes-border);
+  }
+
+  .node-detail-panel__ai-insight {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .node-detail-panel__layout {
+    padding: 34px 22px 72px;
+    display: block;
+  }
+
+  .node-detail-panel__context-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .node-detail-panel__ai-insight {
+    grid-column: auto;
+  }
+
+  .node-detail-panel__document {
+    padding-inline: 22px;
+  }
+
+}
+
+/* The AI dock changes the detail page's available column width without
+ * changing the browser viewport. Container queries keep the document usable
+ * in that split layout, where viewport media queries cannot detect the
+ * constrained center pane. */
+@container (max-width: 1050px) {
+  .node-detail-panel--page .node-detail-panel__layout {
+    max-width: 760px;
+    display: block;
+  }
+
+  .node-detail-panel--page .node-detail-panel__context-rail {
+    position: static;
+    margin-top: 40px;
+    padding-top: 28px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--nodes-border);
+  }
+
+  .node-detail-panel--page .node-detail-panel__ai-insight {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 720px) {
+  .node-detail-panel--page .node-detail-panel__layout {
+    padding: 34px 22px 72px;
+  }
+
+  .node-detail-panel--page .node-detail-panel__context-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .node-detail-panel--page .node-detail-panel__ai-insight {
+    grid-column: auto;
+  }
+}
+
+@container (max-width: 560px) {
+  .node-detail-panel--dock .node-detail-panel__document {
+    padding: 16px 18px 32px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-title {
+    font-size: 22px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-meta {
+    flex-wrap: wrap;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__preview {
+    min-height: 240px;
+    margin-top: 18px;
+  }
+
+  .node-detail-panel--dock .node-relation-editor__form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 400px) {
+  .node-detail-panel--dock .node-detail-panel__document {
+    padding: 14px 14px 28px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__title-row {
+    gap: 8px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-title {
+    font-size: 20px;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__document-tags {
+    flex-basis: 100%;
+  }
+
+  .node-detail-panel--dock .node-detail-panel__meta-divider {
+    display: none;
+  }
+
+  .node-detail-panel--dock .node-relation-editor__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .node-detail-panel--dock .node-relation-editor__predicate {
+    grid-column: 1 / -1;
+    max-width: 100%;
+  }
+}

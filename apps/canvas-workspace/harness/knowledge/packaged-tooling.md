@@ -158,7 +158,7 @@ surfacing later as a startup timeout.
 - `src/main/files/shell-path.ts` — shell-PATH inspect/configure helpers.
 - `src/main/settings/experimental-ipc.ts` — the `agent-teams` flag's
   fire-and-forget install trigger.
-- `src/renderer/src/components/settings/Settings/AgentSection.tsx`,
+- `src/renderer/src/modules/settings/internal/Settings/AgentSection.tsx`,
   `AgentShellPathCard.tsx` — Settings UI.
 - `src/main/app/bootstrap.ts` — calls `ensureAgentToolingAtStartup` at
   startup.

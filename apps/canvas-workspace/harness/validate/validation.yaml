@@ -30,6 +30,20 @@ pathRules:
       - pnpm --filter canvas-workspace exec vitest run harness/skills/check-renderer-structure/scripts/check-renderer-structure.test.mjs
       - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
 
+  # Canvas document state is a data-integrity seam: nodes+edges history,
+  # external CLI merge, persistence scheduling, and content side effects must
+  # stay coherent through the public modules/canvas interface.
+  - name: canvas-document
+    paths:
+      - src/renderer/src/modules/canvas/**
+      - src/renderer/src/modules/canvas/components/canvas/Canvas/**
+    quick:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/canvas/document src/renderer/src/modules/canvas/components/canvas/Canvas
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+
   # Agent Plugins is a cross-process contract: strict package ingestion in
   # main, persisted registration, generated MCP config, preload IPC, and the
   # renderer market must move together. This rule pins the focused suite while
@@ -41,10 +55,10 @@ pathRules:
       - src/main/settings/canvas-plugins-config.ts
       - src/shared/plugin-market.ts
       - src/preload/bridge/plugin-market.ts
-      - src/renderer/src/views/PluginMarket/**
-      - src/renderer/src/views/SkillsLibrary/**
+      - src/renderer/src/modules/plugin-market/**
+      - src/renderer/src/modules/skills/**
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/views/PluginMarket
+      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/modules/plugin-market src/renderer/src/modules/skills
       - pnpm --filter canvas-workspace typecheck
     required:
       - pnpm --filter canvas-workspace typecheck
@@ -59,15 +73,15 @@ pathRules:
     paths:
       - src/main/agent/conversation-runtime/**
       - src/shared/conversation-runtime.ts
-      - src/renderer/src/agent-chat/runtime/**
-      - src/renderer/src/components/chat/ChatComposer/useChatComposerController.ts
-      - src/renderer/src/components/chat/ChatPanel/index.tsx
-      - src/renderer/src/components/chat/ChatPageBody/index.tsx
+      - src/renderer/src/modules/chat/runtime/**
+      - src/renderer/src/modules/chat/components/ChatComposer/useChatComposerController.ts
+      - src/renderer/src/modules/chat/components/ChatPanel/index.tsx
+      - src/renderer/src/modules/chat/components/ChatPageBody/index.tsx
       - harness/mock-llm.mjs
       - harness/mock-llm.test.mjs
     quick:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/shared/conversation-runtime.test.ts src/main/agent/conversation-runtime src/renderer/src/agent-chat/runtime/conversationStore.test.ts src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.test.tsx src/renderer/src/agent-chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx src/renderer/src/components/chat/ChatComposer/__tests__/useChatComposerController.test.tsx harness/mock-llm.test.mjs
+      - pnpm --filter canvas-workspace exec vitest run src/shared/conversation-runtime.test.ts src/main/agent/conversation-runtime src/renderer/src/modules/chat/runtime/conversationStore.test.ts src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.test.tsx src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx src/renderer/src/modules/chat/components/ChatComposer/__tests__/useChatComposerController.test.tsx harness/mock-llm.test.mjs
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
@@ -102,25 +116,25 @@ pathRules:
   - name: keyboard-shortcuts
     paths:
       - src/renderer/src/shortcuts/**
-      - src/renderer/src/hooks/useCanvasKeyboard.ts
-      - src/renderer/src/hooks/useAppShortcuts.ts
+      - src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts
+      - src/renderer/src/app/shortcuts/useAppShortcuts.ts
       - src/renderer/src/hooks/useWebviewShortcutBridge.ts
       - src/renderer/src/utils/keyboardShortcut.ts
-      - src/renderer/src/components/shell/AppShellProvider/ShortcutsDialog.tsx
+      - src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx
       - src/shared/webview-shortcuts.ts
       - src/main/webview/shortcut-forwarding.ts
       - src/main/app/menu.ts
-      - src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminal.ts
-      - src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.ts
-      - src/renderer/src/components/node-bodies/AgentNodeBody/useAgentNodeController.ts
-      - src/renderer/src/components/node-bodies/TerminalNodeBody/index.tsx
-      - src/renderer/src/components/dock/WorkspaceTerminalDock/index.tsx
-      - src/renderer/src/components/node-bodies/NodeMentionPicker/index.tsx
+      - src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts
+      - src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.ts
+      - src/renderer/src/modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts
+      - src/renderer/src/modules/canvas/components/node-bodies/TerminalNodeBody/index.tsx
+      - src/renderer/src/modules/dock/internal/WorkspaceTerminalDock/index.tsx
+      - src/renderer/src/modules/node-mentions/components/NodeMentionPicker/index.tsx
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/hooks/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/components/node-bodies/AgentNodeBody/utils/terminalFocus.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
 
   # The Coding Agent node's CLI roster is a cross-file contract: one registry
   # entry, but a usable agent also needs a brand mark, a dock identity, a
@@ -132,15 +146,117 @@ pathRules:
   - name: coding-agent-roster
     paths:
       - src/renderer/src/config/agentRegistry.ts
-      - src/renderer/src/components/node-bodies/AgentNodeBody/**
+      - src/renderer/src/modules/coding-agent/**
       - src/renderer/src/utils/codingAgentCommand.ts
-      - src/renderer/src/components/dock/RightDock/DockAgentTabIcon.tsx
+      - src/renderer/src/modules/dock/internal/RightDock/DockAgentTabIcon.tsx
       - src/main/agent/codex-sessions.ts
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/node-bodies/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/dock/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/components/node-bodies/AgentNodeBody src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/components/dock/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+
+  - name: agent-team-workspace
+    paths:
+      - src/renderer/src/modules/agent-team/**
+      - src/main/agent-teams/**
+      - src/shared/agent-teams.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/agent-team
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/agent-team src/main/agent-teams
+
+  - name: workspace-nodes
+    paths:
+      - src/renderer/src/modules/workspace-nodes/**
+      - src/main/workspace-nodes/**
+      - src/shared/canvas.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/main/workspace-nodes
+
+  - name: mcp-apps
+    paths:
+      - src/renderer/src/modules/mcp-apps/**
+      - src/shared/mcp-apps.ts
+      - src/main/agent/mcp-apps.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-apps.test.ts
+
+  - name: model-selection
+    paths:
+      - src/renderer/src/modules/models/**
+      - src/renderer/src/utils/modelCatalog.ts
+      - src/renderer/src/types/models.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
+
+  - name: renderer-settings
+    paths:
+      - src/renderer/src/modules/settings/**
+      - src/renderer/src/shared/roleLibraryEvents.ts
+      - src/main/settings/**
+      - src/preload/bridge/settings.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/settings src/renderer/src/modules/chat/mentions/roleMentionItems.test.ts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/settings src/renderer/src/modules/chat/mentions/roleMentionItems.test.ts src/main/settings
+
+  - name: renderer-dock
+    paths:
+      - src/renderer/src/modules/dock/**
+      - src/renderer/src/shared/dockPort.tsx
+      - src/renderer/src/shared/dockTypes.ts
+      - src/renderer/src/shared/dock/**
+      - src/renderer/src/platform/browser/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/dock src/renderer/src/shared/dock src/renderer/src/platform/browser
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/dock src/renderer/src/shared/dock src/renderer/src/platform/browser
+
+  - name: scheduled-tasks
+    paths:
+      - src/renderer/src/modules/scheduled/**
+      - src/shared/scheduled.ts
+      - src/main/scheduled/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/scheduled
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/scheduled src/main/scheduled
+
+  - name: artifacts
+    paths:
+      - src/renderer/src/modules/artifacts/**
+      - src/main/artifacts/**
+      - src/shared/artifact-capabilities.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/chat/components/__tests__/ChatRichToolResults.test.ts src/main/artifacts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/chat/components/__tests__/ChatRichToolResults.test.ts src/main/artifacts
+
+  - name: note-editor
+    paths:
+      - src/renderer/src/modules/note-editor/**
+      - src/renderer/src/shared/fileNodeEditorRegistry.tsx
+      - src/renderer/src/modules/canvas/runtime/useCanvasSearch.ts
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody
 
   # Static source-of-truth checks for the app's agent-tool registry, IPC
   # handle/invoke pairs, canvas node union/factory, and storage schema parity.
@@ -187,9 +303,9 @@ pathRules:
       - src/main/files/shell-path.test.ts
       - src/shared/settings-config.ts
       - src/preload/bridge/settings.ts
-      - src/renderer/src/components/settings/Settings/AgentSection.tsx
-      - src/renderer/src/components/settings/Settings/AgentShellPathCard.tsx
-      - src/renderer/src/components/settings/Settings/AgentSection.css
+      - src/renderer/src/modules/settings/internal/Settings/AgentSection.tsx
+      - src/renderer/src/modules/settings/internal/Settings/AgentShellPathCard.tsx
+      - src/renderer/src/modules/settings/internal/Settings/AgentSection.css
       - src/main/__tests__/agent-tooling-package.test.ts
       - harness/tools/smoke-packaged-agent-tooling.mjs
     quick:

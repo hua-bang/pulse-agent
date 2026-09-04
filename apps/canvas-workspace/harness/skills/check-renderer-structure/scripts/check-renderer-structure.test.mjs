@@ -30,9 +30,10 @@ describe('analyzeRendererStructure', () => {
     write(root, 'components/chat/ChatPanel.tsx', Array.from({ length: 305 }, () => '// line').join('\n'));
     write(root, 'components/ui/Bad.tsx', "import '../../modules/chat';\n");
     write(root, 'modules/chat/index.ts');
-    write(root, 'modules/chat/consumer.ts', "import '../mcp-apps/internal';\n");
+    write(root, 'modules/chat/components/Huge/index.tsx', Array.from({ length: 306 }, () => '// line').join('\n'));
+    write(root, 'modules/chat/consumer.ts', "import '../mcp-apps/runtime/internal';\n");
     write(root, 'modules/mcp-apps/index.ts');
-    write(root, 'modules/mcp-apps/internal.ts');
+    write(root, 'modules/mcp-apps/runtime/internal.ts');
     write(root, 'modules/mcp-apps/consumer.ts', "import '../chat';\n");
 
     const report = analyzeRendererStructure(root);
@@ -43,6 +44,7 @@ describe('analyzeRendererStructure', () => {
       'components/chat/ChatPanel.tsx',
     ]);
     expect(report.pressure.visualOver300).toEqual([
+      { path: 'modules/chat/components/Huge/index.tsx', lines: 306 },
       { path: 'components/chat/ChatPanel.tsx', lines: 305 },
     ]);
     expect(report.boundaryErrors.map(item => item.reason)).toEqual([

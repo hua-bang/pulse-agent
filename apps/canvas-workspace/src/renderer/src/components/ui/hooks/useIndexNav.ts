@@ -4,7 +4,7 @@ export interface ClampIndexOptions {
   /** When true, moving past either edge wraps to the opposite end. Defaults
    *  to false — CLAMP (hold at the edge), the behavior every current caller
    *  needs (NodeMentionPicker, CommandPalette, and the note mention/slash
-   *  menus via `clampMenuIndex` in `utils/noteInteractionState.ts`, which
+   *  menus via `clampMenuIndex` in `modules/note-editor/model/noteInteractionState.ts`, which
    *  now delegates to `clampIndexMove`). Kept as a real parameter rather
    *  than silently normalizing, in case a future wrap-around list needs it. */
   wrap?: boolean;
@@ -15,7 +15,7 @@ export interface ClampIndexOptions {
  * `delta` is typically +1/-1; `length` is the current item count (0 clamps
  * to 0). This is the one piece that was duplicated three ways before this
  * module existed — inline in NodeMentionPicker, inline in CommandPalette,
- * and as `clampMenuIndex` in `utils/noteInteractionState.ts` — and all
+ * and as `clampMenuIndex` in `modules/note-editor/model/noteInteractionState.ts` — and all
  * three turned out to share the same clamp (no-wrap) semantics, so no
  * per-site parameterization was needed beyond `wrap`.
  */
@@ -62,7 +62,7 @@ export interface UseIndexNavResult {
  * The EXTERNALLY-DRIVEN site — the note mention/slash menus, whose index
  * lives inside `NoteInteractionState` rather than component state — calls
  * `clampIndexMove` directly instead of this hook (see
- * `utils/noteInteractionState.ts`); it has no local `useState` to wrap.
+ * `modules/note-editor/model/noteInteractionState.ts`); it has no local `useState` to wrap.
  */
 export const useIndexNav = (options: UseIndexNavOptions = {}): UseIndexNavResult => {
   const { wrap = false, initialIndex = 0 } = options;

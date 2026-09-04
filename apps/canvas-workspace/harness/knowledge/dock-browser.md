@@ -255,15 +255,15 @@ Primary regression suites live in:
 - `src/main/app/__tests__/link-policy.test.ts`
 - `src/main/app/__tests__/webview-shortcuts.test.ts`
 - `src/main/webview/__tests__/registry.test.ts`
-- `src/renderer/src/components/node-bodies/IframeNodeBody/useWebviewRegistration.test.tsx`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-store.test.ts`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-browser-commands.test.ts`
-- `src/renderer/src/components/dock/RightDock/__tests__/dock-link-opens.test.ts`
+- `src/renderer/src/modules/canvas/components/node-bodies/IframeNodeBody/useWebviewRegistration.test.tsx`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-store.test.ts`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-browser-commands.test.ts`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-link-opens.test.ts`
 - `src/main/dock/__tests__/tab-actions.test.ts`
-- `src/renderer/src/components/dock/RightDock/useDockAgentBridge.test.tsx`
-- `src/renderer/src/components/dock/RightDock/__tests__/DockTabSwitcher.test.tsx`
-- `src/renderer/src/components/dock/LinkDrawer/__tests__/address-bar.test.tsx`
-- `src/renderer/src/components/dock/LinkDrawer/__tests__/find-in-page.test.tsx`
+- `src/renderer/src/modules/dock/internal/RightDock/useDockAgentBridge.test.tsx`
+- `src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabSwitcher.test.tsx`
+- `src/renderer/src/modules/dock/internal/LinkDrawer/__tests__/address-bar.test.tsx`
+- `src/renderer/src/modules/dock/internal/LinkDrawer/__tests__/find-in-page.test.tsx`
 
 The real-app driver sends normal input to the host target. To exercise a
 guest's `before-input-event` shortcut relay, attach CDP to the `type: webview`

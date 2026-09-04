@@ -1,0 +1,510 @@
+.iframe-body-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+.iframe-body-host > .iframe-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.iframe-body-host > .iframe-body--empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.iframe-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--surface);
+}
+
+.iframe-body--empty {
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.iframe-empty-inner {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iframe-empty-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.iframe-empty-input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.1s, box-shadow 0.1s;
+  background: var(--surface);
+}
+
+.iframe-empty-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.15);
+}
+
+.iframe-blank-btn {
+  align-self: flex-start;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-xs);
+  padding: 0 8px;
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.iframe-blank-btn:hover {
+  background: rgba(35, 131, 226, 0.14);
+}
+
+.iframe-blank-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iframe-empty-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.iframe-empty-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.iframe-empty-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.iframe-empty-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.iframe-empty-btn--primary:hover {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.iframe-empty-btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iframe-empty-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Mode tabs (URL / HTML) ────────────────────────────────────────── */
+
+.iframe-mode-tabs {
+  display: flex;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.iframe-mode-tab {
+  flex: 1;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.iframe-mode-tab:hover {
+  color: var(--text);
+}
+
+.iframe-mode-tab--active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ── HTML textarea ─────────────────────────────────────────────────── */
+
+.iframe-empty-textarea {
+  width: 100%;
+  min-height: 120px;
+  max-height: 260px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  resize: vertical;
+  tab-size: 2;
+  line-height: 1.5;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+.iframe-empty-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.15);
+}
+
+/* ── HTML badge in the address bar ─────────────────────────────────── */
+
+.iframe-empty-textarea--prompt {
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 80px;
+}
+
+/* ── Generation error ──────────────────────────────────────────────── */
+
+.iframe-gen-error {
+  font-size: 11px;
+  color: #dc2626;
+  padding: 4px 8px;
+  background: rgba(220, 38, 38, 0.06);
+  border-radius: var(--radius-xs);
+}
+
+/* ── AI button ─────────────────────────────────────────────────────── */
+
+.iframe-empty-btn--ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+.iframe-empty-btn--ai:hover {
+  background: #7c3aed;
+  opacity: 1;
+}
+
+/* ── Spinner ───────────────────────────────────────────────────────── */
+
+.iframe-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.iframe-spinner--small {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+  border-color: rgba(0, 0, 0, 0.15);
+  border-top-color: var(--text-muted);
+}
+
+/* ── Streaming indicator in address bar ────────────────────────────── */
+
+.iframe-review-layer {
+  position: absolute;
+  inset: 31px 0 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.iframe-review-selection {
+  position: absolute;
+  border: 2px solid #2383e2;
+  background: rgba(35, 131, 226, 0.08);
+  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 99999px rgba(15, 23, 42, 0.04);
+  pointer-events: none;
+}
+
+.iframe-review-pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: var(--radius-pill);
+  background: #2383e2;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.iframe-review-pin--active {
+  background: #111827;
+}
+
+.iframe-review-popover {
+  position: absolute;
+  width: min(260px, calc(100% - 20px));
+  max-width: calc(100% - 20px);
+  padding: 9px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.2);
+  pointer-events: auto;
+}
+
+.iframe-review-popover--draft {
+  border-color: rgba(35, 131, 226, 0.36);
+}
+
+.iframe-review-popover__label {
+  margin-bottom: 6px;
+  overflow: hidden;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iframe-review-textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  border-radius: var(--radius-sm);
+  padding: 7px;
+  color: #111827;
+  background: #fff;
+  font: 12px/1.4 inherit;
+  outline: none;
+}
+
+.iframe-review-textarea:focus {
+  border-color: #2383e2;
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.14);
+}
+
+.iframe-review-popover__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+/* The popovers' Close/Delete/Cancel/Add and the pending bar's Clear/Send
+ * mini-buttons moved onto ui/Button's `xs` tier (secondary/danger/primary
+ * as semantically fits — see ui-reuse-burndown.md, "absorb the recorded
+ * node-chrome skips"). This bespoke `.iframe-review-mini-btn`(`--primary`)
+ * chrome is gone; the popover's own label/box/pending-bar chrome below is
+ * unrelated and stays. */
+
+.iframe-review-pending-bar {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  color: #111827;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: auto;
+}
+
+/* ── Gesture-time static-ization (P2) ────────────────────────────────────
+ * During a heavy zoom-out gesture, useCanvas writes data-motion="zoom-out"
+ * + data-heavy-embeds onto .canvas-transform on the FIRST wheel event —
+ * before that tick's rAF applies the transform — so inline iframes stop
+ * painting IMMEDIATELY, not at the 0.35 settle. This kills the live-embed
+ * raster that dominates the deep zoom-out band (measured 60.9% frames>20ms
+ * over 0.35→0.1 on the 86-node/40-embed real-webview profile before this).
+ * visibility, NOT display: layout-preserving, so toggling it on every
+ * gesture triggers no reflow, and it has no guest-side effect on <webview>
+ * (whose gesture cost the P3 frame-rate lease handles) — scoped to
+ * iframe.iframe-frame. At settle the attr clears: either overview takes
+ * over (< 0.35, display:none below) or the iframe simply repaints. Zoom-IN
+ * is deliberately excluded — the user is zooming toward content and wants
+ * to see it resolve. */
+[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--iframe iframe.iframe-frame {
+  visibility: hidden;
+}
+
+/* ── Overview semantic zoom ─────────────────────────────────────────────
+ * Below OVERVIEW_SCALE_THRESHOLD (CanvasSurface adds
+ * `.canvas-transform--overview` at settled scale < 0.35) inline embeds are
+ * unreadable but still cost raster + a compositor layer each, and — once the
+ * zoomed-out viewport contains them — their rAF/CSS animations all resume at
+ * once (measured 55% frames >20ms with 40 live iframes at overview scale;
+ * docs/performance-verification-large-canvas.md). `display: none` keeps the
+ * iframe document and its JS state alive but stops rendering: the layer is
+ * dropped and rAF/CSS animations pause. Scoped to `.iframe-frame` so
+ * url-mode `<webview>` guests are untouched (hiding a webview has
+ * guest-side effects; their cost is already bounded by the 1fps background
+ * throttle). Uses settled scale, so the swap happens once per gesture. */
+.canvas-transform--overview .canvas-node--iframe iframe.iframe-frame,
+.canvas-transform--overview .canvas-node--iframe .iframe-frame--pending {
+  display: none;
+}
+
+/* url-mode guests: the <webview> carries the same .iframe-frame class
+ * (useIframeNodeState's useEmbeddedBrowser config), so the bare selector
+ * above used to display:none LIVE webviews — the exact hazard the
+ * lifecycle code avoids (guests misbehave under display:none). Scope the
+ * display swap to inline iframes + the pending shell (the shell MUST stay
+ * display:none at overview or the deferred-mount observer would
+ * mass-mount 40 subdocuments), and hide guests with visibility instead:
+ * paint/composite stops under the identity badge, element semantics stay
+ * intact — the same mechanism as the frozen-state hide. */
+.canvas-transform--overview .canvas-node--iframe .iframe-frame-host {
+  visibility: hidden;
+}
+
+/* A quiet page-like card: faint accent wash fading into the surface, so
+ * web nodes read as "a page" instead of a flat colored block. */
+.canvas-transform--overview .canvas-node--iframe .iframe-frame-wrapper {
+  background: linear-gradient(180deg, var(--accent-light), var(--surface) 55%);
+}
+
+/* Identity badge (IframeOverviewBadge): favicon tile + title/hostname label
+ * for url embeds, a code glyph for html/srcdoc ones. Hidden outside overview —
+ * display:none keeps it out of the paint chunks the compositor walks
+ * (the Layerize lesson from the idle actions popover).
+ *
+ * Two coordinate systems on purpose: the tile is reverse-scaled to a constant
+ * on-screen size so its border/shadow keep their weight at any overview zoom,
+ * while the text label is laid out in card-relative units (font/padding ÷ the
+ * clamped scale) so it always ellipsises to the card width and never overflows
+ * a narrow node. The favicon tile sits just above centre and the label chip
+ * just below it, so the two read as one page-identity unit instead of a lone
+ * icon floating over a detached bottom bar. */
+.iframe-overview-badge {
+  display: none;
+}
+
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
+/* Constant on-screen size via reverse-scale; nudged above centre so the
+ * title/hostname chip below sits under it and the pair reads centred. */
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-tile {
+  --iframe-overview-tile-shadow: 0 2px 8px rgba(55, 53, 47, 0.1);
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--iframe-overview-tile-shadow);
+  color: var(--text-secondary);
+  transform: translate(-50%, -50%) scale(calc(1 / clamp(0.06, var(--canvas-scale, 1), 0.35)));
+}
+
+.iframe-overview-badge-favicon {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
+/* Title + hostname chip: a centred, auto-width rounded label sitting just
+ * below the tile. Laid out in canvas units so ellipsis follows the card's
+ * real width; the size compensation clamps at 0.14 so the label holds its
+ * on-screen size through mid-overview and only then shrinks with the card. */
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-label {
+  --iframe-overview-label-shadow: 0 calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(4px / clamp(0.14, var(--canvas-scale, 1), 0.35)) rgba(55, 53, 47, 0.08);
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, calc(24px / clamp(0.14, var(--canvas-scale, 1), 0.35)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  max-width: 88%;
+  padding: calc(3px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(9px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  border-radius: calc(7px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  background: var(--surface);
+  /* The chip is laid out in card units (not transform-scaled like the tile),
+   * so its border/shadow must be size-compensated too or they collapse to a
+   * sub-pixel hairline at overview zoom. */
+  border: solid var(--border);
+  border-width: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  box-shadow: var(--iframe-overview-label-shadow);
+  text-align: center;
+}
+
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: calc(10.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-host {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: calc(8.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}

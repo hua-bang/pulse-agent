@@ -1,0 +1,312 @@
+/* ─── Per-message hover toolbar (timestamp + copy / edit / regen) ── */
+
+.chat-message-body {
+  position: relative;
+}
+
+/* Toolbar floats below the bubble (top: 100%) and is out of flow so it
+   doesn't reserve vertical space. `padding-top` gives a small visual
+   gap from the bubble while keeping the toolbar's hit area flush with
+   the bubble's bottom edge — so hovering bubble → toolbar stays
+   continuous, no dead gap to break `.chat-message:hover`. */
+.chat-message-toolbar {
+  position: absolute;
+  top: 100%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+
+/* Anchor the toolbar to the same side as its bubble: user messages are
+   right-aligned, assistant messages are left-aligned. */
+.chat-message-user .chat-message-toolbar {
+  right: 0;
+}
+
+.chat-message-assistant .chat-message-toolbar {
+  left: 0;
+  flex-direction: row-reverse;
+}
+
+.chat-message:hover .chat-message-toolbar,
+.chat-message-toolbar:focus-within {
+  opacity: 1;
+}
+
+/* The toolbar floats over the gap just beneath each bubble. Keeping the
+   container itself non-interactive (pointer-events inherits down to its
+   children) means dragging a text selection to the bottom edge of a
+   bubble never gets hijacked by the invisible toolbar. Only the actual
+   controls opt back in — and only once the toolbar is revealed. */
+.chat-message:hover .chat-message-toolbar-btn,
+.chat-message:hover .chat-message-timestamp,
+.chat-message-toolbar:focus-within .chat-message-toolbar-btn,
+.chat-message-toolbar:focus-within .chat-message-timestamp {
+  pointer-events: auto;
+}
+
+.chat-message-timestamp {
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.42);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+  padding-right: 2px;
+}
+
+.chat-message-toolbar-btn {
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  background: #fff;
+  color: rgba(55, 53, 47, 0.55);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-message-toolbar-btn:hover {
+  background: rgba(55, 53, 47, 0.05);
+  color: #37352f;
+  border-color: rgba(55, 53, 47, 0.18);
+}
+
+.chat-message-toolbar-btn--copied {
+  background: rgba(46, 160, 67, 0.12);
+  color: #2f8a3d;
+  border-color: rgba(46, 160, 67, 0.2);
+}
+
+.chat-message-toolbar-btn--copied:hover {
+  background: rgba(46, 160, 67, 0.16);
+  color: #2f8a3d;
+  border-color: rgba(46, 160, 67, 0.28);
+}
+
+.chat-message-toolbar-btn--icon {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.chat-message-toolbar-btn--primary {
+  background: #2383e2;
+  border-color: #2383e2;
+  color: #fff;
+}
+
+.chat-message-toolbar-btn--primary:hover {
+  background: #1f76cc;
+  border-color: #1f76cc;
+  color: #fff;
+}
+
+.chat-message-toolbar-btn--primary:disabled {
+  background: rgba(55, 53, 47, 0.18);
+  border-color: rgba(55, 53, 47, 0.18);
+  color: #fff;
+  cursor: not-allowed;
+}
+
+/* ─── Inline user-message editor ───────────────────────────── */
+
+.chat-message-edit {
+  width: 100%;
+  max-width: min(92%, 560px);
+  background: #fff;
+  border: 1px solid rgba(35, 131, 226, 0.4);
+  border-radius: var(--radius-xl);
+  border-bottom-right-radius: 4px;
+  padding: 8px 10px 6px;
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-message-edit-input {
+  width: 100%;
+  min-height: 40px;
+  resize: vertical;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #37352f;
+  padding: 0;
+}
+
+.chat-message-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chat-message-edit-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: rgba(55, 53, 47, 0.42);
+}
+/* ─── Broken image placeholder ─────────────────────────────── */
+
+.chat-message-image-card--broken img {
+  display: none;
+}
+
+.chat-message-image-card--broken::before {
+  content: '⚠ image unavailable';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  background: rgba(55, 53, 47, 0.04);
+  color: rgba(55, 53, 47, 0.45);
+  font-size: 12px;
+  font-style: italic;
+}
+/* ─── Session-ref chips (session_search / session_summary) ─ */
+
+.chat-session-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 4px 19px;
+}
+
+.chat-session-ref-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: var(--radius-sm);
+  background: rgba(55, 53, 47, 0.028);
+  font-family: inherit;
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.7);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.35;
+}
+
+.chat-session-ref-chip:hover {
+  background: rgba(55, 53, 47, 0.06);
+  border-color: rgba(55, 53, 47, 0.16);
+}
+
+.chat-session-ref-icon {
+  flex-shrink: 0;
+  color: rgba(55, 53, 47, 0.4);
+}
+
+.chat-session-ref-name {
+  font-weight: 500;
+  color: rgba(55, 53, 47, 0.85);
+  white-space: nowrap;
+}
+
+.chat-session-ref-date {
+  color: rgba(55, 53, 47, 0.4);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chat-session-ref-count {
+  color: rgba(55, 53, 47, 0.35);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chat-session-ref-preview {
+  color: rgba(55, 53, 47, 0.5);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Inline session citation chip (assistant body, `@[session:...|label]`). */
+.chat-mention-chip--session {
+  background: rgba(120, 80, 200, 0.07);
+  border-color: rgba(120, 80, 200, 0.16);
+}
+
+.chat-mention-chip--session .chat-mention-chip-icon {
+  color: rgba(120, 80, 200, 0.7);
+}
+
+.chat-mention-chip--session.chat-mention-chip--clickable:hover {
+  background: rgba(120, 80, 200, 0.13);
+  border-color: rgba(120, 80, 200, 0.3);
+}
+
+/* While a turn is streaming, session jumps are blocked (clicks are ignored
+   by the handler); dim the chips so they don't read as actionable yet. */
+.chat-messages--loading [data-action="session-jump"] {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+/* ─── Multi-role chat (speaker attribution + role mentions) ── */
+
+/* Role mention chip — fixed violet family (tokens in styles.css); per-role
+   color identity lives on the reply badge (a snapshot that survives role
+   edits/deletes). */
+.chat-mention-chip--role {
+  color: var(--role-accent);
+  background: var(--role-accent-soft);
+}
+
+.chat-mention-chip--role .chat-mention-chip-icon {
+  color: var(--role-accent-icon);
+}
+
+/* Speaker badge above a role's reply. Inline color/background come from the
+   message's speakerRoleColor snapshot; these are the neutral fallbacks. */
+.chat-message-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 1px 0 4px;
+  padding: 1.5px 9px 1.5px 7px;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+}
+
+.chat-message-speaker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* Role reply avatar: colored initial instead of the default bot mark. */
+.chat-message-avatar--role {
+  border: none;
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1;
+  user-select: none;
+}

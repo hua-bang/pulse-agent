@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setCanvasMotion } from '../../../hooks/canvasMotion';
+import { setCanvasMotion } from '../../../shared/canvasMotion';
 import { Popover } from '../Popover';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

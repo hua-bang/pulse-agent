@@ -74,7 +74,7 @@ const only = (readFlag('--scenario') ?? 'startup,chat-stream,image-memory,typing
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// Covers the editor's 200ms writeback debounce plus useNodes' 800ms save
+// Covers the editor's 200ms writeback debounce plus useCanvasDocument's 800ms save
 // debounce, with margin for a busy renderer. Counter windows must start with
 // no prior save pending and end only after the measured gesture's save fires.
 const SAVE_DRAIN_MS = 1_200;

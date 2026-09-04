@@ -30,16 +30,20 @@ Strict mode exits non-zero for target gaps or dependency-direction violations.
 ## Interpret the report
 
 - `boundaryErrors`: fix before accepting a module move. Cross-module imports
-  must use the target module's root interface; shared/platform code cannot
-  import upward.
+  must use the target module's root interface or an intentional root-level
+  performance entrypoint; shared/platform code cannot import upward. Internal
+  implementation belongs below a subdirectory, never in a root entry file.
 - `businessComponentGroups`: current product visuals still grouped under root
-  `components/`. They are migration candidates, not automatic defects.
+  `components/`. They may depend on their destination module during a phased
+  move; they remain target gaps, not shared-component boundary errors.
 - `legacyFeatureRoots`: feature ownership still split across renderer root
   folders.
 - `flatComponentFiles`: inspect whether each non-trivial visual module needs
   an owner folder with local CSS, types, controller, and tests.
-- `pressure`: use as investigation leads. Existing file-size governance is the
-  authority; do not equate line count with shallow design.
+- `pressure`: use as investigation leads. Visual pressure covers both legacy
+  root visuals and `modules/*/components|views`, so moving a file cannot hide
+  it. Existing file-size governance is the authority; do not equate line count
+  with shallow design.
 - `separatedStyles` and `centralTests`: inspect ownership manually. Heuristics
   cannot prove CSS selector ownership or whether a test is genuinely
   cross-module.

@@ -38,8 +38,8 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | Normalized package to legacy Canvas registries/config adapter | `src/main/plugin-market/canvas-package-adapter.ts` |
 | Canvas plugin directory/config SSOT and skill sources | `src/main/settings/canvas-plugins-config.ts` |
 | IPC registration and preload bridge | `src/main/plugin-market/ipc.ts`, `src/preload/bridge/plugin-market.ts`, `src/preload/index.ts` |
-| Route, state, filters, rows and dialogs | `src/renderer/src/views/PluginMarket/`, wired by `src/renderer/src/App.tsx` |
-| Installed-plugin `@` mentions and request-context collection | `src/renderer/src/agent-chat/mentions/pluginMentionItems.ts`, `components/chat/ChatComposer/useChatComposerInput.ts` |
+| Route, state, filters, rows and dialogs | `src/renderer/src/modules/plugin-market/`, wired by `src/renderer/src/app/App/index.tsx` |
+| Installed-plugin `@` mentions and request-context collection | `src/renderer/src/modules/chat/mentions/pluginMentionItems.ts`, `modules/chat/components/ChatComposer/useChatComposerInput.ts` |
 | Turn-level plugin routing guidance | `src/main/agent/plugin-selection-context.ts` |
 | Canvas Agent skills/MCP composition | `src/main/agent/engine-plugins.ts` |
 
@@ -157,13 +157,13 @@ Canvas tool-result events preserve a bounded, policy-approved pre-offload MCP re
 Let the repository runner select the bound Canvas checks for a change:
 
 ```bash
-node scripts/harness/run-harness-check.mjs --path apps/canvas-workspace/src/main/plugin-market apps/canvas-workspace/src/shared/plugin-market.ts apps/canvas-workspace/src/preload/bridge/plugin-market.ts apps/canvas-workspace/src/renderer/src/views/PluginMarket
+node scripts/harness/run-harness-check.mjs --path apps/canvas-workspace/src/main/plugin-market apps/canvas-workspace/src/shared/plugin-market.ts apps/canvas-workspace/src/preload/bridge/plugin-market.ts apps/canvas-workspace/src/renderer/src/modules/plugin-market
 ```
 
 Focused iteration:
 
 ```bash
-pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/views/PluginMarket
+pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/modules/plugin-market
 pnpm --filter canvas-workspace typecheck
 node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 ```

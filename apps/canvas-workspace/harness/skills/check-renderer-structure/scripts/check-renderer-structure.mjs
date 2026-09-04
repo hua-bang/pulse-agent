@@ -94,7 +94,11 @@ const analyzeDependencyDirection = (rendererRoot, productionFiles) => {
       if (sourceRoot === 'modules' && targetRoot === 'app') {
         errors.push({ file: file.path, import: specifier, reason: 'module imports app' });
       }
-      if (sourceRoot === 'components' && targetRoot === 'modules') {
+      if (
+        sourceRoot === 'components'
+        && SHARED_COMPONENT_GROUPS.has(file.path.split('/')[1])
+        && targetRoot === 'modules'
+      ) {
         errors.push({ file: file.path, import: specifier, reason: 'shared component imports product module' });
       }
       if (sourceRoot === 'shared' && ['app', 'modules', 'components', 'platform'].includes(targetRoot)) {
@@ -105,7 +109,10 @@ const analyzeDependencyDirection = (rendererRoot, productionFiles) => {
       }
       if (sourceOwner && targetOwner && sourceOwner !== targetOwner && targetParts.length > 2) {
         const remaining = targetParts.slice(2).join('/');
-        if (!/^index(?:\.[cm]?[jt]sx?)?$/.test(remaining)) {
+        const isRootEntryFile = !remaining.includes('/') && ['.ts', '.tsx'].some(
+          extension => existsSync(`${resolve(rendererRoot, target)}${extension}`),
+        );
+        if (!/^index(?:\.[cm]?[jt]sx?)?$/.test(remaining) && !isRootEntryFile) {
           errors.push({
             file: file.path,
             import: specifier,
@@ -144,7 +151,10 @@ export const analyzeRendererStructure = (rendererRoot) => {
     .sort((a, b) => b.lines - a.lines);
 
   const visualOver300 = productionFiles
-    .filter(file => extname(file.path) === '.tsx' && /^(components|views)\//.test(file.path))
+    .filter(file => extname(file.path) === '.tsx' && (
+      /^(components|views)\//.test(file.path)
+      || /^modules\/[^/]+\/(components|views)\//.test(file.path)
+    ))
     .filter(file => !/^use[A-Z]/.test(file.path.split('/').pop() ?? ''))
     .map(file => ({ path: file.path, lines: countLines(readFileSync(file.absolutePath, 'utf8')) }))
     .filter(file => file.lines > 300)

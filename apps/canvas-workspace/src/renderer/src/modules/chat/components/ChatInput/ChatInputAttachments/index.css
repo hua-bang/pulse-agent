@@ -1,0 +1,117 @@
+.chat-attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px 0;
+}
+
+.chat-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid rgba(31, 35, 40, 0.1);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  color: #4b5563;
+  cursor: default;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.chat-attachment-chip:hover {
+  border-color: rgba(35, 131, 226, 0.28);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.chat-attachment-chip:focus-visible {
+  outline: 2px solid #2383e2;
+  outline-offset: 2px;
+}
+
+.chat-attachment-preview {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.chat-attachment-chip img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 7px;
+  background: #f3f4f6;
+}
+
+.chat-attachment-placeholder {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.chat-attachment-details {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-attachment-name,
+.chat-attachment-status,
+.chat-attachment-error {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-attachment-status {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.chat-attachment-error {
+  color: var(--error);
+  font-size: 11px;
+}
+
+.chat-attachment-chip--failed {
+  border-color: color-mix(in srgb, var(--error) 24%, transparent);
+}
+
+.chat-attachment-retry,
+.chat-attachment-remove {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.chat-attachment-retry {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.chat-attachment-retry:disabled,
+.chat-attachment-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
