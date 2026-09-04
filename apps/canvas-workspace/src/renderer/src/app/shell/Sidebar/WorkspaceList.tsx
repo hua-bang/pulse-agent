@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { WorkspaceEntry, FolderEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry, FolderEntry } from '../../../shared/workspaces';
 import { FolderItem } from './FolderItem';
 import { InlineCreateRow } from './InlineCreateRow';
 

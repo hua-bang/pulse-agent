@@ -8,7 +8,7 @@ import { buildDockTabRefs } from '../../../shared/dock/tabRefs';
 import { createReferenceNodeDataSnapshot } from '../../../shared/reference/utils';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../shared/reference/types';
 import type { SettingsSection } from '../../../modules/settings';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { WorkbenchController } from './useWorkbenchState';
 import type { CanvasNode, ReferenceNodeData } from '../../../types';
 import { createDefaultNode } from '../../../utils/nodeFactory';

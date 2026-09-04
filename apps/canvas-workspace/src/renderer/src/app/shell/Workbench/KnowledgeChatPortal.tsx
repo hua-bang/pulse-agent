@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,

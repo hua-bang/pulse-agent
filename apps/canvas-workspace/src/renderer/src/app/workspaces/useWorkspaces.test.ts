@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { selectActiveAfterDeletion, type WorkspaceEntry } from './useWorkspaces';
+import type { WorkspaceEntry } from '../../shared/workspaces';
+import { selectActiveAfterDeletion } from './useWorkspaces';
 
 const ws = (id: string): WorkspaceEntry => ({ id, name: id });
 

@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { RightDockProvider } from '../../../dock/internal/RightDock';
 
 // react-force-graph-2d renders to a real <canvas> 2D/WebGL context that

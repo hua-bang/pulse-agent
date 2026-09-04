@@ -8,7 +8,7 @@ import {
   type MouseEventHandler,
 } from 'react';
 import { useI18n } from '../../../../i18n';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import type {
   AgentContextDomReviewComment,
   AgentContextDomSelectionRef,

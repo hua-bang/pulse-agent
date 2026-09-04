@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkspaceEntry } from '../../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 import { filterWorkspaces } from '../WorkspaceDockPicker';
 
 const workspaces: WorkspaceEntry[] = [

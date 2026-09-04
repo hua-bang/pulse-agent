@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useAppShell } from '../shell/AppShellProvider';
 import { useI18n } from '../../i18n';
-import { useWorkspaces } from '../../hooks/useWorkspaces';
+import { useWorkspaces } from '../workspaces/useWorkspaces';
 
 interface Options {
   store: ReturnType<typeof useWorkspaces>;

@@ -1,5 +1,5 @@
 import { FolderSimple, Globe } from '@phosphor-icons/react';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { useI18n } from '../../../i18n';
 import { Select } from '../../../components/ui';
 import type { LibraryContext } from './types';

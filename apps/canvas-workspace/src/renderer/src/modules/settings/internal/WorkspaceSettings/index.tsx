@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { Drawer, Button, TextField, FieldRow } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
 import { useAppShell } from '../../../../shared/appShell';

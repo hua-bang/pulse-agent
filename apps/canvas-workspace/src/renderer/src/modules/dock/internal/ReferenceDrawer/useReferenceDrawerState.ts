@@ -8,7 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import type { CanvasNode } from '../../../../types';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useClickOutside } from '../../../../hooks/useClickOutside';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
 import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';

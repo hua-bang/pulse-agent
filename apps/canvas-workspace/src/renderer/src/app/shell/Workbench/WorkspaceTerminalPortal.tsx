@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useRightDockTerminalHost } from '../../../modules/dock';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
 import type { DockTerminalWorkspaceState } from '../../../modules/dock';
 

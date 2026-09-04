@@ -1,5 +1,5 @@
 import { lazy, Suspense, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useI18n } from '../../../../i18n';
 import { focusActiveDockTarget, focusDockLinkTarget } from './dock-browser-commands';
 import { handleDockTabListKeyDown } from './dock-accessibility';

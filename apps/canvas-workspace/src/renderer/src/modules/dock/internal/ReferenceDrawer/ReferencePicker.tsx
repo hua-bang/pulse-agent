@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type { CanvasNode } from '../../../../types';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useMenuKeyboardNav } from '../../../../hooks/useMenuKeyboardNav';
 import { Button } from '../../../../components/ui';
 import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';

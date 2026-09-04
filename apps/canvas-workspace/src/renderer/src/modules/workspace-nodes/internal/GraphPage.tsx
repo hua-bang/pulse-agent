@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { KnowledgeNodeSelection } from '../../../types';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTitle, getNodeWorkspaceId } from './utils';

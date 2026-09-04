@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { PulseRouterView } from '../router';
 import { SkillsRouteLoading } from '../../../modules/skills/loading';
 

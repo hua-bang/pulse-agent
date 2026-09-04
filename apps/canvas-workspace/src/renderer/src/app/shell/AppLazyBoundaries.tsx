@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import type { SettingsSection } from '../../modules/settings';
-import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../shared/workspaces';
 
 export const NodesPageLazy = lazy(() =>
   import('../../modules/workspace-nodes/nodes-page').then((module) => ({ default: module.NodesPage })),

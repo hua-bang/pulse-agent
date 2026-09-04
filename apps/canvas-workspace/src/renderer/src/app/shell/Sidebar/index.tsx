@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type
 
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import type { NavItem } from '../../../../../plugins/types';
-import type { WorkspaceEntry, FolderEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry, FolderEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
 import './index.css';
 import './interaction-polish.css';

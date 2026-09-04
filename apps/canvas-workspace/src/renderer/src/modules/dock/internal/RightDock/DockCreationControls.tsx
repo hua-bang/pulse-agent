@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useI18n } from '../../../../i18n';
 import { PlusIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';

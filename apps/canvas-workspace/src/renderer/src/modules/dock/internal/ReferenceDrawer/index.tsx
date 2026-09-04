@@ -1,6 +1,6 @@
 import './index.css';
 import type { CanvasNode } from '../../../../types';
-import type { WorkspaceEntry } from '../../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { ReferenceDrawerToolbar } from './ReferenceDrawerToolbar';
 import { ReferenceEmptyState } from './ReferenceEmptyState';
 import { ReferenceEntryList } from './ReferenceEntryList';

@@ -1,39 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-export interface WorkspaceEntry {
-  id: string;
-  name: string;
-  rootFolder?: string;
-  folderId?: string;
-}
-
-export interface FolderEntry {
-  id: string;
-  name: string;
-  collapsed?: boolean;
-}
-
-export interface WorkspaceDeleteResult {
-  ok: boolean;
-  error?: string;
-  /** True when the deleted workspace was active and we switched away from it. */
-  switchedActive?: boolean;
-  /** The workspace that became active (only set when `switchedActive`). */
-  newActiveId?: string;
-  /**
-   * True when the workspace we switched to has no saved nodes, so the canvas
-   * would only show the empty welcome hint. Callers may route to chat instead.
-   */
-  switchedToEmpty?: boolean;
-}
-
-export interface WorkspaceImportResult {
-  ok: boolean;
-  canceled?: boolean;
-  workspace?: WorkspaceEntry;
-  fileCount?: number;
-  error?: string;
-}
+import type {
+  FolderEntry,
+  WorkspaceDeleteResult,
+  WorkspaceEntry,
+  WorkspaceImportResult,
+} from '../../shared/workspaces';
 
 interface WorkspaceManifest {
   workspaces: WorkspaceEntry[];

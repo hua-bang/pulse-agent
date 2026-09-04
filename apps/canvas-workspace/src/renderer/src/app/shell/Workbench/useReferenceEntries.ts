@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode } from '../../../types';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import type { ReferenceEntry } from '../../../shared/reference/types';
 import { getReferenceId } from '../../../shared/reference/utils';

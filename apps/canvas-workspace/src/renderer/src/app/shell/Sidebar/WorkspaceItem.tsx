@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, ExportIcon, PencilIcon, SettingsIcon, WorkspaceIcon } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';

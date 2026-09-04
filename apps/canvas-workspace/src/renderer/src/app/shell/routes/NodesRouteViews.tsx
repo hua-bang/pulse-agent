@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
+import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { KnowledgeNodeSelection } from '../../../types';
 import { PulseRouterView } from '../router';
 import { NodeDetailPageLazy, NodesPageLazy } from '../AppLazyBoundaries';

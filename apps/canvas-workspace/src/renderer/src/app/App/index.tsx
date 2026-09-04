@@ -13,7 +13,7 @@ import { Workbench, useWorkbenchState } from '../shell/Workbench';
 import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
 import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/workspace-nodes';
-import { useWorkspaces } from '../../hooks/useWorkspaces';
+import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
