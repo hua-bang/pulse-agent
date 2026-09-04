@@ -75,6 +75,7 @@ import {
   setWindowFactory,
 } from "./window-manager";
 import { setAgentWindowPort } from "../agent/window-port";
+import { setAgentScheduledPort } from "../agent/scheduled-port";
 
 let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./link-policy";
@@ -206,6 +207,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       import('../scheduled/runtime'),
     ]);
     const scheduled = getScheduledTaskService();
+    setAgentScheduledPort(scheduled);
     await scheduled.ensureMemoryReportTask();
     setupScheduledTaskIpc();
     scheduled.start();

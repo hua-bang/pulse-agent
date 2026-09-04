@@ -34,7 +34,7 @@ src/main/
                       # context-builder, debug-trace, config-scope, default-skills,
                       # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,
                       # workspace-meta, plugin-node-capabilities, dom-selection-context,
-                      # window-port (app-owned BrowserWindow capability injection),
+                      # window-port + scheduled-port (app-owned capability injection),
                       # model/, mcp/, skills/, tools/ (20+ split tool modules; the
                       # sibling tools.ts is a 2-line re-export shim kept for imports)
   agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
@@ -181,7 +181,9 @@ done. Still open:
 - Prefer `index.ts` barrel files only where they hide internal substructure and
   do not create circular dependencies. `agent/window-port.ts` is the app-owned
   window capability seam: bootstrap injects `window-manager` there so Agent
-  screenshot/webpage tools never import the `app/` composition layer.
+  screenshot/webpage tools never import the `app/` composition layer. The
+  sibling `scheduled-port.ts` similarly keeps Agent tools/session labels from
+  importing Scheduled's runtime, while Scheduled may still use Agent to run a task.
 
 Process directions and the protected Main-domain edges listed above are
 enforced by `src/main/__tests__/import-boundaries.test.ts` (run via

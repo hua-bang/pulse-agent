@@ -145,7 +145,7 @@ describe('import boundaries', () => {
 });
 
 const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
-  ['agent', new Set(['app'])],
+  ['agent', new Set(['app', 'scheduled'])],
   ['canvas', new Set(['agent'])],
   ['settings', new Set(['plugin-market'])],
   ['webview', new Set(['agent'])],
