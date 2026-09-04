@@ -9,7 +9,7 @@ import {
   FileNodeEditorRegistryProvider,
   useFileNodeEditorRegistry,
 } from '../../../../../shared/fileNodeEditorRegistry';
-import { CanvasKeyboardActiveProvider } from '../../../../../hooks/useWorkspaceActive';
+import { CanvasKeyboardActiveProvider } from '../../../../../shared/workspaceActivity';
 import { FileNodeBody } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

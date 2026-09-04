@@ -3,7 +3,7 @@ import './index.css';
 import { useI18n } from '../../../../../i18n';
 import { AGENT_REGISTRY } from '../../../../../config/agentRegistry';
 import type { CanvasNode } from '../../../../../types';
-import { useTextareaMention } from '../../../../../hooks/useTextareaMention';
+import { useTextareaMention } from '../../../../node-mentions';
 import { isImeComposing } from '../../../../../utils/ime';
 import { NodeMentionPicker } from '../../../../node-mentions';
 import { truncatePath } from '../utils/terminal';

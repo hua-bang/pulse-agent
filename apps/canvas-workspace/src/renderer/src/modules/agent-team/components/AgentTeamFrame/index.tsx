@@ -18,7 +18,7 @@ import { useAgentTeamFrameSelection } from './useAgentTeamFrameSelection';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { useAppShell } from '../../../../shared/appShell';
 import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
-import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
+import { useWorkspaceActive } from '../../../../shared/workspaceActivity';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,

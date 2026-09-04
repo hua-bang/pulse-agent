@@ -12,7 +12,7 @@ import { useNoteKeyboard } from './useNoteKeyboard';
 import { useNoteInteractionController } from '../controller/useNoteInteractionController';
 import { createNoteEditorExtensions } from './noteEditorExtensions';
 import { useI18n } from '../../../i18n';
-import { useCanvasKeyboardActive } from '../../../hooks/useWorkspaceActive';
+import { useCanvasKeyboardActive } from '../../../shared/workspaceActivity';
 import {
   insertImageAtPos,
   insertImageAtSelection,

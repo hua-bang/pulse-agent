@@ -102,6 +102,7 @@ Current healthy properties:
   and tests while the session controller remains independent of visuals.
 - Canvas visuals and remaining node bodies now live under `modules/canvas`.
   Feature node bodies may be composed by Canvas, but shared mention UI and
+  textarea mention behavior live behind `modules/node-mentions/index.ts`, and
   pure knowledge-node predicates live in leaf/shared seams so those features
   never depend back on Canvas and create a module cycle.
 - Note editor runtime, interaction state, extensions, image handling, keyboard
@@ -119,6 +120,9 @@ Current healthy properties:
 - Workspace manifest/selection state lives under `app/workspaces/`; the
   `WorkspaceEntry`/`FolderEntry` data contract is in `shared/workspaces.ts`
   so product modules consume a downward dependency instead of importing app.
+- Workspace visibility and Canvas keyboard ownership contexts live in
+  `shared/workspaceActivity.tsx`; Canvas provides them while Agent Team,
+  coding-agent, note-editor, and Dock consume the downward shared port.
 - `components/icons/index.tsx` remains the stable public interface; canonical
   Canvas node glyphs plus brand, status, action, and workspace glyphs are
   implemented as a few real families. Consumers did not change; the barrel is

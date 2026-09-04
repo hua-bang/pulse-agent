@@ -5,7 +5,7 @@ import { isImeComposing } from '../../../utils/ime';
 import { detectMention, filterMentionCandidates } from '../../../utils/noteMention';
 import { nodeLinkHref } from '../../../utils/openNodeBridge';
 import type { NoteInteractionController } from '../controller/useNoteInteractionController';
-import { useCanvasKeyboardActive } from '../../../hooks/useWorkspaceActive';
+import { useCanvasKeyboardActive } from '../../../shared/workspaceActivity';
 
 interface Options {
   editor: Editor | null;

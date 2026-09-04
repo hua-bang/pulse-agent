@@ -10,7 +10,7 @@ import type { AgentTeamEventRecord, AgentTeamSnapshot } from '../../../../types'
 import type { AgentNodeBodyProps } from './types';
 import { resolveCodingAgentView as detectAgentView } from '../../session/sessionLifecycle';
 import { useAgentNodeController } from './useAgentNodeController';
-import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
+import { useWorkspaceActive } from '../../../../shared/workspaceActivity';
 import { count } from '../../../../perf/counters';
 
 export { detectAgentView };

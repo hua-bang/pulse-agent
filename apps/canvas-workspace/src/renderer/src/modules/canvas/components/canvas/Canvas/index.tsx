@@ -38,7 +38,7 @@ import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../../../../shared/exper
 import {
   CanvasKeyboardActiveProvider,
   WorkspaceActiveProvider,
-} from '../../../../../hooks/useWorkspaceActive';
+} from '../../../../../shared/workspaceActivity';
 
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })

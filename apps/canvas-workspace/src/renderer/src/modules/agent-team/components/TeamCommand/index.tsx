@@ -7,7 +7,7 @@ import type {
   CanvasNode,
 } from '../../../../types';
 import { NodeMentionPicker } from '../../../node-mentions';
-import { useTextareaMention } from '../../../../hooks/useTextareaMention';
+import { useTextareaMention } from '../../../node-mentions';
 import { isImeComposing } from '../../../../utils/ime';
 
 interface TeamCommandProps {

@@ -13,7 +13,7 @@ import {
   dispatchPreviewNodeAction,
   type OpenNodeDetail,
 } from '../../../../utils/openNodeBridge';
-import { WorkspaceActiveProvider } from '../../../../hooks/useWorkspaceActive';
+import { WorkspaceActiveProvider } from '../../../../shared/workspaceActivity';
 import { FileNodeEditorRegistryProvider } from '../../../../shared/fileNodeEditorRegistry';
 import { CanvasPreviewChrome, CanvasPreviewState } from './CanvasPreviewChrome';
 import type { ChatDeliveryReceipt } from '../../../chat';
