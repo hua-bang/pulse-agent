@@ -1,3 +1,4 @@
+import './index.css';
 import {
   useCallback,
   useEffect,
@@ -6,14 +7,14 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { WorkspaceEntry } from '../../../shared/workspaces';
-import type { KnowledgeNodeSelection } from '../../../types';
-import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
-import { getNodeTitle, getNodeWorkspaceId } from './utils';
-import { useI18n } from '../../../i18n';
-import { isImeComposing } from '../../../utils/ime';
-import { DropdownShell } from '../../../components/ui';
-import { useRightDock } from '../../../shared/dockPort';
+import type { WorkspaceEntry } from '../../../../shared/workspaces';
+import type { KnowledgeNodeSelection } from '../../../../types';
+import { useAllWorkspaceNodeList } from '../useWorkspaceNodes';
+import { getNodeTitle, getNodeWorkspaceId } from '../utils';
+import { useI18n } from '../../../../i18n';
+import { isImeComposing } from '../../../../utils/ime';
+import { DropdownShell } from '../../../../components/ui';
+import { useRightDock } from '../../../../shared/dockPort';
 import {
   buildWorkspaceGraph,
   getGraphId,
@@ -22,12 +23,12 @@ import {
   searchWorkspaceGraph,
   type WorkspaceGraphNode as GraphNode,
   type WorkspaceGraphSearchResult as GraphSearchResult,
-} from '../model/graphModel';
+} from '../../model/graphModel';
 import {
   ForceGraphCanvas,
   type ForceGraphCanvasHandle,
   type GraphLayoutPreset,
-} from './ForceGraphCanvas';
+} from '../ForceGraphCanvas';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -445,3 +446,4 @@ export const GraphPage = ({
     </main>
   );
 };
+

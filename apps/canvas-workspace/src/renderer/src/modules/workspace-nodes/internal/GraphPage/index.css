@@ -1,0 +1,255 @@
+.workspace-graph-page {
+  background:
+    radial-gradient(900px circle at 46% 38%, rgba(35, 131, 226, 0.08) 0%, rgba(255, 255, 255, 0.9) 52%, rgba(248, 248, 247, 1) 82%),
+    radial-gradient(680px circle at 72% 66%, rgba(217, 115, 13, 0.05) 0%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #ffffff 0%, #fbfbfa 58%, #f8f8f7 100%);
+}
+
+.workspace-graph-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  max-width: calc(100% - 36px);
+}
+
+.workspace-graph-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 3px;
+  border: 1px solid var(--nodes-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.03);
+  backdrop-filter: blur(8px);
+}
+
+.workspace-graph-toolbar__sep {
+  display: none;
+}
+
+.workspace-graph-toolbar span {
+  color: var(--nodes-muted);
+  font-size: 12px;
+}
+
+.workspace-graph-toolbar__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.workspace-graph-toolbar strong {
+  font-size: 13px;
+}
+
+.workspace-graph-toolbar .workspace-node-chip {
+  height: 28px;
+  border-radius: 5px;
+  background: transparent;
+  padding: 0 9px;
+}
+
+.workspace-graph-toolbar .workspace-node-chip:hover {
+  background: var(--nodes-surface-hover);
+}
+
+.workspace-graph-toolbar .workspace-node-chip.is-active {
+  background: var(--nodes-surface-active);
+  color: var(--accent);
+}
+
+.workspace-node-chip--toolbar-action {
+  font-weight: 500;
+}
+
+.workspace-graph-toolbar__more {
+  position: relative;
+}
+
+/* Renders through ui/DropdownShell now (API-extension batch — see
+ * ui-reuse-burndown.md); position/top/right come from the shell's own base
+ * + bottom/align-end modifier classes (top: calc(100% + 6px); right: 0 —
+ * the same values this rule used, so no override needed for those). The
+ * panel keeps its own chrome (background/border/radius/shadow/z-index) via
+ * a compound selector so it wins on specificity over the shell's base
+ * chrome regardless of CSS import order — same "extend, don't force-
+ * normalize" precedent as ChatAnchors'/ShapeNodeBody's panelClassName
+ * overrides. */
+.ui-dropdown__panel.workspace-graph-toolbar__menu {
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--nodes-shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  /* Pre-migration menu had no inter-item gap — undo the shell's gap:2px
+   * base so pixels stay byte-identical (review finding). */
+  gap: 0;
+  z-index: 6;
+}
+
+.workspace-graph-toolbar__menu-item {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  color: inherit;
+}
+
+.workspace-graph-toolbar__menu-item:hover,
+.workspace-graph-toolbar__menu-item:focus-visible {
+  outline: none;
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.workspace-graph-search {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  box-shadow: var(--nodes-shadow);
+  min-width: 360px;
+  max-width: 480px;
+}
+
+.workspace-graph-search__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-graph-search input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  height: 28px;
+  padding: 0 4px;
+}
+
+.workspace-graph-search__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: auto;
+  border-top: 1px solid var(--nodes-border);
+  padding-top: 4px;
+}
+
+.workspace-graph-search__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  padding: 7px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.workspace-graph-search__item.is-active,
+.workspace-graph-search__item:hover,
+.workspace-graph-search__item:focus-visible {
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.workspace-graph-search__item:focus-visible {
+  outline: 1px solid rgba(35, 131, 226, 0.35);
+  outline-offset: -1px;
+}
+
+.workspace-graph-search__title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-graph-search__meta {
+  font-size: 11px;
+  color: var(--nodes-muted);
+  flex-shrink: 0;
+}
+
+.workspace-graph-search__empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--nodes-muted);
+  text-align: center;
+}
+
+.workspace-graph-force-layer {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(55, 53, 47, 0.09) 1px, rgba(0, 0, 0, 0) 0);
+  background-size: 26px 26px;
+  z-index: 1;
+}
+
+.workspace-graph-legend {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 4;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  height: 38px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.94);
+  padding: 0 13px;
+  color: var(--nodes-muted);
+  font-size: 12px;
+}
+
+.workspace-graph-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  margin-right: 6px;
+}
+
+.workspace-graph-legend-node {
+  background: var(--nodes-dot);
+}
+
+.workspace-graph-legend-tag {
+  background: var(--nodes-tag-dot);
+}
+
+.workspace-graph-legend-link {
+  background: var(--nodes-link-dot);
+}
+
