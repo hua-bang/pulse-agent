@@ -1,9 +1,10 @@
-import type { CanvasNode } from '../../../../types';
-import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
-import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../utils/nodeTypeI18n';
-import { useI18n } from '../../../../i18n';
-import type { NodeReferenceEntry, ReferenceEntry } from '../../../../shared/reference/types';
-import { getReferenceId, getUrlHostname, getUrlReferenceLabel, isArtifactReference, isUrlReference } from '../../../../shared/reference/utils';
+import './index.css';
+import type { CanvasNode } from '../../../../../types';
+import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
+import { useI18n } from '../../../../../i18n';
+import type { NodeReferenceEntry, ReferenceEntry } from '../../../../../shared/reference/types';
+import { getReferenceId, getUrlHostname, getUrlReferenceLabel, isArtifactReference, isUrlReference } from '../../../../../shared/reference/utils';
 
 interface ReferenceEntryListProps {
   entries: ReferenceEntry[];
@@ -93,3 +94,4 @@ export const ReferenceEntryList = ({
     </ul>
   );
 };
+

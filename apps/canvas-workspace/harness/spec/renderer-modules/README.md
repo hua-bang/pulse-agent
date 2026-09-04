@@ -174,6 +174,8 @@ Current healthy properties:
   keep-alive layering remains inside the same preview module and focused test.
 - ReferenceEmptyState now follows the owner-folder convention and owns its
   68-line empty icon, selected-node hint, and muted fallback CSS.
+- ReferenceEntryList now follows the owner-folder convention and owns 120
+  lines of list-row, active, metadata, type, and remove-action CSS.
 - The renderer application root lives at `app/App/`: route projection is a
   pure tested model and workspace mutation feedback is isolated in an
   app-owned command hook. `main.tsx` imports it directly; no root App barrel
