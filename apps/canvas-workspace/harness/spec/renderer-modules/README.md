@@ -54,6 +54,9 @@ Current healthy properties:
 
 - Chat visual modules use owner folders with `index.tsx`, `index.css`, local
   controllers, types, and tests.
+- ChatToolCalls now owns its complete 297-line collapsed/live/result/status
+  tool presentation stylesheet instead of carrying a four-line patch beside
+  293 parent-owned lines; ChatMessage CSS is reduced from 945 to 651 lines.
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
 - ModelSwitcher now lives behind `modules/models/index.ts`, independent from
