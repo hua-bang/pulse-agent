@@ -87,6 +87,9 @@ Current healthy properties:
   pure tested model and workspace mutation feedback is isolated in an
   app-owned command hook. `main.tsx` imports it directly; no root App barrel
   remains, and lazy route boundaries are unchanged.
+- `components/icons/index.tsx` remains the stable public interface; canonical
+  Canvas node glyphs are implemented as one real family in `nodeTypes.tsx`.
+  Consumers did not change and the barrel no longer exceeds the code limit.
 
 Current pressure points, measured on 2026-09-03:
 

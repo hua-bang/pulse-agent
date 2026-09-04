@@ -34,10 +34,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
   'src/main/agent/skills/config.ts': 511,
-  // 510→539 (2026-09-03, drift recorded): master icon-alignment changes
-  // #989–#991 landed without updating this manually maintained baseline.
-  // Must-not-grow resumes at 539.
-  'src/renderer/src/components/icons/index.tsx': 539,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
   // ran this suite (no automatic trigger). Raised to measured;
