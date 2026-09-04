@@ -79,6 +79,12 @@ import {
   observeQueuedLaunch,
 } from './recovery-policy';
 import { formatLeadExecutionPrompt, formatLeaderBriefingPrompt } from './prompts';
+import {
+  resolveAgentReference,
+  resolveOpenGateForAgent,
+  resolveTaskForAction,
+  resolveTaskReferences,
+} from './resolution';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -563,12 +569,12 @@ export class CanvasAgentTeamsService {
       ].join('\n'));
     }
     const owner = input.ownerAgentId || input.ownerName
-      ? this.resolveAgentReference(snapshot.agents, input.ownerAgentId || input.ownerName || '')
+      ? resolveAgentReference(snapshot.agents, input.ownerAgentId || input.ownerName || '')
       : undefined;
     const depRefs = input.depRefs ?? [];
     const deps = Array.from(new Set([
       ...(input.deps ?? []),
-      ...this.resolveTaskReferences(snapshot.tasks, depRefs),
+      ...resolveTaskReferences(snapshot.tasks, depRefs),
     ]));
     const taskMetadata: Record<string, unknown> = {};
     if (input.scope && input.scope.length > 0) taskMetadata[TASK_METADATA_KEYS.scope] = input.scope;
@@ -803,11 +809,11 @@ export class CanvasAgentTeamsService {
       const { store } = this.getBundle(input.workspaceId);
       const agents = await store.listAgents(input.teamId);
       const agent = input.sourceAgentId
-        ? this.resolveAgentReference(agents, input.sourceAgentId)
+        ? resolveAgentReference(agents, input.sourceAgentId)
         : undefined;
       if (agent?.role !== 'teammate') return undefined;
       const tasks = await store.listTasks(input.teamId);
-      const task = this.resolveTaskForAction(tasks, input.taskId, agent);
+      const task = resolveTaskForAction(tasks, input.taskId, agent);
       if (task.status === 'done' || task.status === 'failed') return undefined;
       const command = readTaskVerifyCommand(task.metadata);
       if (!command) return undefined;
@@ -834,9 +840,9 @@ export class CanvasAgentTeamsService {
     const { runtime, store } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
 
     // Teammate completions must ship a handoff file: downstream tasks and the
     // Team Lead's acceptance review read it instead of a truncated summary.
@@ -889,9 +895,9 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
     await runtime.blockTask(task.id, input.reason, agent?.id ?? 'runtime');
     return this.snapshotInternal(input.workspaceId, input.teamId);
   }
@@ -904,7 +910,7 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     // Cancellation withdraws work and releases its file scope for replacement
     // tasks — a routing decision that belongs to the lead or the human, not
@@ -912,7 +918,7 @@ export class CanvasAgentTeamsService {
     if (agent && agent.role !== 'lead') {
       throw new Error('Only the Team Lead can cancel tasks. Use block-task to report a blocker instead.');
     }
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
     await runtime.cancelTask(task.id, input.reason, agent?.id ?? 'human');
     // The cancelled task no longer holds its scope: dispatch immediately so
     // an overlapping fallback task starts now instead of on the next tick.
@@ -928,9 +934,9 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
     await runtime.openHumanGate({
       teamId: input.teamId,
       agentId: agent?.id,
@@ -950,10 +956,10 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     const task = input.taskId || agent?.currentTaskId
-      ? this.resolveTaskForAction(snapshot.tasks, input.taskId, agent)
+      ? resolveTaskForAction(snapshot.tasks, input.taskId, agent)
       : undefined;
     await runtime.createArtifact({
       teamId: input.teamId,
@@ -983,7 +989,7 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     // Finalizing the whole team is a Lead (or human) decision. A teammate
     // that believes everything is done reports its own task; the Lead
@@ -1061,7 +1067,7 @@ export class CanvasAgentTeamsService {
   ): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
-    const agent = this.resolveAgentReference(snapshot.agents, agentRef);
+    const agent = resolveAgentReference(snapshot.agents, agentRef);
     const input = agent.role === 'lead'
       ? formatLeadExecutionPrompt(snapshot.team.name, snapshot.team.goal, content)
       : content;
@@ -1070,11 +1076,11 @@ export class CanvasAgentTeamsService {
     // teammate questions), resolve it so we can pick the exact gate instead of
     // guessing from the agent's current/needs-input state.
     const targetTaskId = taskRef
-      ? this.resolveTaskReferences(snapshot.tasks, [taskRef])[0]
+      ? resolveTaskReferences(snapshot.tasks, [taskRef])[0]
       : undefined;
     const openGate = agent.role === 'lead'
       ? undefined
-      : this.resolveOpenGateForAgent(snapshot, agent, targetTaskId);
+      : resolveOpenGateForAgent(snapshot, agent, targetTaskId);
     if (openGate) {
       await runtime.answerHumanGate(openGate.id, input);
       await runtime.dispatchReadyTasks(teamId);
@@ -1857,84 +1863,6 @@ export class CanvasAgentTeamsService {
       if (agent) return { teamId: entry.teamId, agent };
     }
     return null;
-  }
-
-  private resolveOpenGateForAgent(
-    snapshot: RuntimeSnapshot,
-    agent: TeamAgentRecord,
-    taskId?: string,
-  ): RuntimeSnapshot['humanGates'][number] | undefined {
-    const openGates = snapshot.humanGates.filter((gate) =>
-      gate.status === 'open'
-      && gate.agentId === agent.id
-    );
-    if (openGates.length === 0) return undefined;
-
-    // An explicit task pins the answer to that task's gate, disambiguating when
-    // a teammate has several open questions across different tasks.
-    if (taskId) {
-      return openGates.find((gate) => gate.taskId === taskId);
-    }
-
-    if (agent.currentTaskId) {
-      const currentTaskGate = openGates.find((gate) => gate.taskId === agent.currentTaskId);
-      if (currentTaskGate) return currentTaskGate;
-    }
-
-    const needsInputTaskIds = new Set(
-      snapshot.tasks
-        .filter((task) => task.ownerAgentId === agent.id && task.status === 'needs_input')
-        .map((task) => task.id),
-    );
-    const needsInputGates = openGates.filter((gate) => gate.taskId && needsInputTaskIds.has(gate.taskId));
-    if (needsInputGates.length === 1) return needsInputGates[0];
-
-    return openGates.length === 1 ? openGates[0] : undefined;
-  }
-
-  private resolveAgentReference(agents: TeamAgentRecord[], ref: string): TeamAgentRecord {
-    const trimmed = ref.trim();
-    if (!trimmed) throw new Error('Agent reference is required');
-    const byId = agents.find((agent) => agent.id === trimmed);
-    if (byId) return byId;
-
-    const key = trimmed.toLowerCase();
-    const matches = agents.filter((agent) => agent.name.trim().toLowerCase() === key);
-    if (matches.length === 1) return matches[0];
-    if (matches.length > 1) throw new Error(`Agent reference is ambiguous: ${ref}`);
-    throw new Error(`Agent not found: ${ref}`);
-  }
-
-  private resolveTaskReferences(tasks: TeamTaskRecord[], refs: string[]): string[] {
-    return refs.map((ref) => {
-      const trimmed = ref.trim();
-      if (!trimmed) throw new Error('Task dependency reference is empty');
-      const byId = tasks.find((task) => task.id === trimmed);
-      if (byId) return byId.id;
-
-      const key = trimmed.toLowerCase();
-      const matches = tasks.filter((task) => task.title.trim().toLowerCase() === key);
-      if (matches.length === 1) return matches[0].id;
-      if (matches.length > 1) throw new Error(`Task dependency reference is ambiguous: ${ref}`);
-      throw new Error(`Task dependency not found: ${ref}`);
-    });
-  }
-
-  private resolveTaskForAction(
-    tasks: TeamTaskRecord[],
-    taskRef: string | undefined,
-    agent: TeamAgentRecord | undefined,
-  ): TeamTaskRecord {
-    if (taskRef) {
-      const [taskId] = this.resolveTaskReferences(tasks, [taskRef]);
-      const task = tasks.find((candidate) => candidate.id === taskId);
-      if (task) return task;
-    }
-    if (agent?.currentTaskId) {
-      const task = tasks.find((candidate) => candidate.id === agent.currentTaskId);
-      if (task) return task;
-    }
-    throw new Error('Task ID required when source agent has no current task');
   }
 
   private async applyAgentOutputMarker(
