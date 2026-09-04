@@ -105,6 +105,10 @@ Current healthy properties:
 - CanvasSurface is a ~253-line render implementation with its documented
   133-line node/edge/gesture integration contract separated beside it; the
   tested transform transition and overview-class policies remain unchanged.
+- CanvasOverlays is a ~250-line lazy overlay composition with its 82-line
+  contract beside it; edge projection, motion parking, empty/context states,
+  bottom chrome, command palette, and find bar keep their existing order and
+  eight focused policy tests.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
