@@ -416,40 +416,6 @@
   background: rgba(248, 250, 252, 0.95);
 }
 /* ─── AI chat accessibility / responsive overrides ────────── */
-
-.chat-panel,
-.chat-page-body {
-  --chat-a11y-secondary: #73726e;
-}
-
-.chat-turn-status {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
-.chat-message--clarification {
-  position: sticky;
-  bottom: 8px;
-  z-index: 4;
-}
-
-.chat-message--clarification .chat-clarify-card {
-  box-shadow: var(--shadow-card);
-}
-
-.chat-clarify-error {
-  margin-top: 8px;
-  color: var(--error);
-  font-size: 12px;
-  line-height: 1.4;
-}
 /* Small supporting copy still carries meaning, so keep it at normal-text
    contrast on white instead of relying on low-opacity ink. */
 .chat-panel .chat-input:empty::before,

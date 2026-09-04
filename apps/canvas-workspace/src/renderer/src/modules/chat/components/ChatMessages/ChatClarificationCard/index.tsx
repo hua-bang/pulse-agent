@@ -1,9 +1,10 @@
+import './index.css';
 import { useId } from 'react';
-import { useI18n } from '../../../../i18n';
-import { isImeComposing } from '../../../../utils/ime';
-import { BotAvatarIcon } from '../../../../components/icons';
-import { Button } from '../../../../components/ui';
-import type { PendingClarification } from '../../../../types';
+import { useI18n } from '../../../../../i18n';
+import { isImeComposing } from '../../../../../utils/ime';
+import { BotAvatarIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui';
+import type { PendingClarification } from '../../../../../types';
 
 interface ChatClarificationCardProps {
   pendingClarify: PendingClarification;
@@ -118,3 +119,4 @@ export const ChatClarificationCard = ({
     </div>
   );
 };
+

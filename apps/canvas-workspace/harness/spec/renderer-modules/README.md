@@ -69,6 +69,9 @@ Current healthy properties:
 - ChatTurnMeta now follows the owner-folder convention and owns 163 lines of
   turn outcome, retry/error details, and captured-context CSS; ChatView retains
   only genuinely cross-chat mention/attachment/accessibility rules.
+- ChatMessages now owns its live-region status CSS, while
+  ChatClarificationCard follows the owner-folder convention and owns its
+  sticky/card/error presentation. Both stylesheets remain below 500 lines.
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
 - ModelSwitcher now lives behind `modules/models/index.ts`, independent from
