@@ -11,12 +11,10 @@ import {
   resolveEdgePathGeometry,
 } from '../../../../../utils/edgeFactory';
 import { useMenuKeyboardNav } from '../../../../../hooks/useMenuKeyboardNav';
-import { SwatchRow } from '../../../../../components/ui';
 import { useI18n, type I18nKey } from '../../../../../i18n';
-import {
-  DEFAULT_EDGE_STROKE,
-  resolveEdgeStroke,
-} from '../../../../../../../shared/canvas';
+import { resolveEdgeStroke } from '../../../../../../../shared/canvas';
+import { EdgeStyleOptions, type EdgeStyleSection as Section } from './EdgeStyleOptions';
+import { CapPreview, StylePreview, WidthPreview } from './previews';
 
 /**
  * A compact floating panel, shown when an edge is selected, that lets
@@ -44,31 +42,6 @@ interface Props {
   onRemove: (id: string) => void;
 }
 
-type Section = 'color' | 'width' | 'style' | 'head' | 'tail';
-
-// Palette mirrors tldraw-style defaults — 1 neutral + 6 hues that read well on the
-// off-white canvas background at both zoom extremes. First entry matches
-// DEFAULT_STROKE.color in CanvasEdgesLayer.
-const COLORS: string[] = [
-  DEFAULT_EDGE_STROKE.color,
-  '#e5484d',
-  '#f76808',
-  '#ffba18',
-  '#30a46c',
-  '#0091ff',
-  '#8e4ec6',
-];
-
-const WIDTHS: Array<{ label: string; value: number }> = [
-  { label: 'S', value: 1.6 },
-  { label: 'M', value: 2.4 },
-  { label: 'L', value: 4 },
-];
-
-const STYLES: Array<NonNullable<EdgeStroke['style']>> = ['solid', 'dashed', 'dotted'];
-
-const CAPS: EdgeArrowCap[] = ['none', 'triangle', 'arrow', 'dot', 'bar'];
-
 const STYLE_LABEL_KEY: Record<NonNullable<EdgeStroke['style']>, I18nKey> = {
   solid: 'edgeStyle.style.solid',
   dashed: 'edgeStyle.style.dashed',
@@ -82,93 +55,6 @@ const CAP_LABEL_KEY: Record<EdgeArrowCap, I18nKey> = {
   dot: 'edgeStyle.cap.dot',
   bar: 'edgeStyle.cap.bar',
 };
-
-const strokeDasharrayFor = (style: EdgeStroke['style']): string | undefined => {
-  switch (style) {
-    case 'dashed': return '6 4';
-    case 'dotted': return '1.5 3';
-    case 'solid':
-    default:       return undefined;
-  }
-};
-
-/**
- * Small SVG preview for a single arrow cap. Used in the head/tail
- * picker buttons — a short line with the cap on the right-hand side.
- */
-const CapPreview = ({ cap, color, side }: { cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }) => {
-  const size = 18;
-  // For "tail" we mirror so the cap visually sits on the start of the stroke.
-  const x1 = side === 'head' ? 2 : 16;
-  const x2 = side === 'head' ? 14 : 4;
-  return (
-    <svg width={size} height={size} viewBox="0 0 18 18">
-      <line x1={x1} y1={9} x2={x2} y2={9} stroke={color} strokeWidth={1.4} strokeLinecap="round" />
-      {cap === 'triangle' && (
-        <path
-          d={side === 'head' ? 'M10,5 L16,9 L10,13 Z' : 'M8,5 L2,9 L8,13 Z'}
-          fill={color}
-        />
-      )}
-      {cap === 'arrow' && (
-        <path
-          d={side === 'head' ? 'M10,5 L16,9 L10,13' : 'M8,5 L2,9 L8,13'}
-          fill="none"
-          stroke={color}
-          strokeWidth={1.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-      {cap === 'dot' && (
-        <circle cx={side === 'head' ? 15 : 3} cy={9} r={2.5} fill={color} />
-      )}
-      {cap === 'bar' && (
-        <rect x={side === 'head' ? 14 : 3} y={4} width={1.6} height={10} fill={color} />
-      )}
-      {cap === 'none' && (
-        <circle cx={side === 'head' ? 15 : 3} cy={9} r={2.2} fill="none" stroke={color} strokeWidth={1} />
-      )}
-    </svg>
-  );
-};
-
-/**
- * Inline preview for the width chip — a short line rendered at the
- * edge's current stroke width (clamped to what the chip can display).
- */
-const WidthPreview = ({ width }: { width: number }) => (
-  <svg width="22" height="14" viewBox="0 0 22 14">
-    <line
-      x1={3}
-      y1={7}
-      x2={19}
-      y2={7}
-      stroke="currentColor"
-      strokeWidth={Math.min(width, 4)}
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-/**
- * Inline preview for the style chip — a short line rendered in the
- * current dash pattern.
- */
-const StylePreview = ({ style }: { style: EdgeStroke['style'] }) => (
-  <svg width="22" height="14" viewBox="0 0 22 14">
-    <line
-      x1={3}
-      y1={7}
-      x2={19}
-      y2={7}
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeDasharray={strokeDasharrayFor(style)}
-    />
-  </svg>
-);
 
 export const EdgeStylePanel = ({
   edge,
@@ -355,115 +241,15 @@ export const EdgeStylePanel = ({
           role="menu"
           aria-label={t('edgeStyle.options')}
         >
-          {openSection === 'color' && (
-            <SwatchRow
-              ariaLabel={t('edgeStyle.color', { color })}
-              options={COLORS.map((c) => ({ value: c, label: t('edgeStyle.colorOption', { color: c }) }))}
-              value={color}
-              onChange={(next) => choose(() => setStroke({ color: next }))}
-            />
-          )}
-
-          {openSection === 'width' && (
-            <div className="edge-style-row">
-              {WIDTHS.map((w) => (
-                <button
-                  type="button"
-                  key={w.label}
-                  role="menuitemradio"
-                  aria-checked={Math.abs(width - w.value) < 0.05}
-                  data-menu-autofocus={Math.abs(width - w.value) < 0.05 ? 'true' : undefined}
-                  className={`edge-style-btn${Math.abs(width - w.value) < 0.05 ? ' edge-style-btn--active' : ''}`}
-                  onClick={() => choose(() => setStroke({ width: w.value }))}
-                  title={t('edgeStyle.widthOption', { label: w.label })}
-                  aria-label={t('edgeStyle.widthOption', { label: w.label })}
-                >
-                  <svg width="26" height="18" viewBox="0 0 26 18">
-                    <line
-                      x1={3}
-                      y1={9}
-                      x2={23}
-                      y2={9}
-                      stroke="currentColor"
-                      strokeWidth={w.value}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {openSection === 'style' && (
-            <div className="edge-style-row">
-              {STYLES.map((st) => (
-                <button
-                  type="button"
-                  key={st}
-                  role="menuitemradio"
-                  aria-checked={st === style}
-                  data-menu-autofocus={st === style ? 'true' : undefined}
-                  className={`edge-style-btn${st === style ? ' edge-style-btn--active' : ''}`}
-                  onClick={() => choose(() => setStroke({ style: st }))}
-                  title={styleLabel(st)}
-                  aria-label={styleLabel(st)}
-                >
-                  <svg width="30" height="18" viewBox="0 0 30 18">
-                    <line
-                      x1={3}
-                      y1={9}
-                      x2={27}
-                      y2={9}
-                      stroke="currentColor"
-                      strokeWidth={1.8}
-                      strokeLinecap="round"
-                      strokeDasharray={strokeDasharrayFor(st)}
-                    />
-                  </svg>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {openSection === 'head' && (
-            <div className="edge-style-row edge-style-row--caps">
-              {CAPS.map((c) => (
-                <button
-                  type="button"
-                  key={`head-${c}`}
-                  role="menuitemradio"
-                  aria-checked={c === head}
-                  data-menu-autofocus={c === head ? 'true' : undefined}
-                  className={`edge-style-btn edge-style-btn--cap${c === head ? ' edge-style-btn--active' : ''}`}
-                  onClick={() => choose(() => onUpdate(edge.id, { arrowHead: c }))}
-                  title={t('edgeStyle.arrowEndOption', { cap: capLabel(c) })}
-                  aria-label={t('edgeStyle.arrowEndOption', { cap: capLabel(c) })}
-                >
-                  <CapPreview cap={c} color="currentColor" side="head" />
-                </button>
-              ))}
-            </div>
-          )}
-
-          {openSection === 'tail' && (
-            <div className="edge-style-row edge-style-row--caps">
-              {CAPS.map((c) => (
-                <button
-                  type="button"
-                  key={`tail-${c}`}
-                  role="menuitemradio"
-                  aria-checked={c === tail}
-                  data-menu-autofocus={c === tail ? 'true' : undefined}
-                  className={`edge-style-btn edge-style-btn--cap${c === tail ? ' edge-style-btn--active' : ''}`}
-                  onClick={() => choose(() => onUpdate(edge.id, { arrowTail: c }))}
-                  title={t('edgeStyle.arrowStartOption', { cap: capLabel(c) })}
-                  aria-label={t('edgeStyle.arrowStartOption', { cap: capLabel(c) })}
-                >
-                  <CapPreview cap={c} color="currentColor" side="tail" />
-                </button>
-              ))}
-            </div>
-          )}
+          <EdgeStyleOptions
+            section={openSection}
+            stroke={resolvedStroke}
+            head={head}
+            tail={tail}
+            changeStroke={(patch) => choose(() => setStroke(patch))}
+            changeHead={(cap) => choose(() => onUpdate(edge.id, { arrowHead: cap }))}
+            changeTail={(cap) => choose(() => onUpdate(edge.id, { arrowTail: cap }))}
+          />
         </div>
       )}
     </div>

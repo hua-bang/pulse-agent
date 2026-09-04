@@ -76,6 +76,9 @@ Current healthy properties:
 - The iframe rendered surface is a 53-line composition over owner-local
   toolbar and content modules; URL webview queued/error/discarded states and
   HTML/stream frames no longer share one 486-line visual implementation.
+- Edge styling is a 257-line positioned panel over an owner-local option
+  renderer and shared preview geometry; option selection is tested through
+  its stroke/cap command interface.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
