@@ -1,7 +1,8 @@
-import type { CanvasNode } from '../../../../types';
-import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
-import { EmptyState } from '../../../../components/ui';
-import { useI18n } from '../../../../i18n';
+import './index.css';
+import type { CanvasNode } from '../../../../../types';
+import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
+import { EmptyState } from '../../../../../components/ui';
+import { useI18n } from '../../../../../i18n';
 
 export const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) => {
   const { t } = useI18n();
@@ -40,3 +41,4 @@ export const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNod
     />
   );
 };
+
