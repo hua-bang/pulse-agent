@@ -1,8 +1,9 @@
-import type { CanvasNode, WorkspaceNodeListItem } from '../../../types';
-import { CheckIcon, ListLinesIcon, NodeTypeIcon, SparklesIcon } from '../../../components/icons';
-import { Button } from '../../../components/ui/Button';
-import { CardShell, type KnowledgeCardKind } from './CardShell';
-import { NodeCardPreview } from './NodeCardPreview';
+import './index.css';
+import type { CanvasNode, WorkspaceNodeListItem } from '../../../../types';
+import { CheckIcon, ListLinesIcon, NodeTypeIcon, SparklesIcon } from '../../../../components/icons';
+import { Button } from '../../../../components/ui/Button';
+import { CardShell, type KnowledgeCardKind } from '../CardShell';
+import { NodeCardPreview } from '../NodeCardPreview';
 
 type PreviewKind = Extract<CanvasNode['type'], 'file' | 'text' | 'iframe' | 'image' | 'mindmap'>;
 
@@ -149,3 +150,4 @@ export const KnowledgeNodeCard = ({
     </CardShell>
   );
 };
+
