@@ -182,6 +182,9 @@ Current healthy properties:
 - ReferenceUrlEditor now follows the owner-folder convention and owns its
   62-line URL dialog/form/error/action CSS; the drawer root stylesheet is
   reduced to 248 lines.
+- ReferenceDrawerToolbar now follows the owner-folder convention and owns 75
+  lines of toolbar/action/anchor/popover-shell CSS. ReferenceDrawer's root CSS
+  is now 173 lines of drawer/header/content/animation layout only.
 - The renderer application root lives at `app/App/`: route projection is a
   pure tested model and workspace mutation feedback is isolated in an
   app-owned command hook. `main.tsx` imports it directly; no root App barrel

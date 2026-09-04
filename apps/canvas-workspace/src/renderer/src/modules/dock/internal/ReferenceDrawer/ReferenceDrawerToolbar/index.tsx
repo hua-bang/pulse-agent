@@ -1,10 +1,11 @@
+import './index.css';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
-import type { CanvasNode } from '../../../../types';
-import type { WorkspaceEntry } from '../../../../shared/workspaces';
-import type { ReferencePickerMode, ReferencePickerNodeGroup } from '../../../../shared/reference/types';
-import { ArtifactsPicker } from './ArtifactsPicker';
-import { ReferencePicker } from './ReferencePicker';
-import { ReferenceUrlEditor } from './ReferenceUrlEditor';
+import type { CanvasNode } from '../../../../../types';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
+import type { ReferencePickerMode, ReferencePickerNodeGroup } from '../../../../../shared/reference/types';
+import { ArtifactsPicker } from '../ArtifactsPicker';
+import { ReferencePicker } from '../ReferencePicker';
+import { ReferenceUrlEditor } from '../ReferenceUrlEditor';
 
 interface ReferenceDrawerToolbarProps {
   activeWorkspaceId: string;
@@ -98,3 +99,4 @@ export const ReferenceDrawerToolbar = ({
     />
   </div>
 );
+
