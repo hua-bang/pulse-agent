@@ -33,7 +33,7 @@ vi.mock('electron', () => ({
   dialog: { showOpenDialog: fakes.dialog },
 }));
 
-vi.mock('../settings/canvas-plugins-config', () => ({
+vi.mock('./config', () => ({
   addCanvasPluginDirectory: vi.fn(async (root: string) => {
     fakes.registeredRoots.add(resolve(root));
     return fakes.getStatus();

@@ -8,7 +8,7 @@ import {
 } from 'pulse-coder-engine/built-in';
 
 import { scopeMcpConfigPath, scopeRootDir, skillSourceDirs } from './config-scope';
-import { getCanvasPluginSkillScanPathsSync } from '../settings/canvas-plugins-config';
+import { getCanvasPluginSkillScanPathsSync } from '../plugin-market/config';
 import { getPluginMarketMcpConfigPathsSync } from '../plugin-market/store';
 import { createCanvasMcpOAuthProvider, getCanvasMcpOAuthStatus } from './mcp/oauth';
 import type { AgentScope } from './types';

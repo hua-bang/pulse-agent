@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AGENT_PLUGIN_V1_SCHEMA,
   PULSE_CANVAS_EXTENSION_NAMESPACE,
-} from '../../../shared/plugin-market';
+} from '../../shared/plugin-market';
 
 const { paths } = vi.hoisted(() => ({
   paths: {
@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
 }));
 
 async function loadConfigModule() {
-  return import('../canvas-plugins-config');
+  return import('./config');
 }
 
 async function createPluginDir(id: string, nodeType = `${id}.card`): Promise<string> {

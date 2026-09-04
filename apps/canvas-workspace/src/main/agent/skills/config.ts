@@ -20,6 +20,7 @@ import {
   type SkillSourceDir,
 } from '../config-scope';
 import { skillNameKey } from '../../../shared/skill-name';
+import { getCanvasPluginSkillSources } from '../../plugin-market/config';
 import { findSkillResources } from './resources';
 export interface CanvasSkill {
   /** Unique skill name (also drives the on-disk directory slug). */
@@ -133,7 +134,6 @@ async function findSkillFiles(base: string): Promise<string[]> {
 
 async function pluginSkillSources(): Promise<SkillSourceDir[]> {
   try {
-    const { getCanvasPluginSkillSources } = await import('../../settings/canvas-plugins-config');
     return await getCanvasPluginSkillSources();
   } catch {
     return [];

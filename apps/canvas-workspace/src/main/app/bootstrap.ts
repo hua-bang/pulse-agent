@@ -32,7 +32,7 @@ import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
 import { setupAgentRolesIpc } from "../agent/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
-import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
+import { setupCanvasPluginsConfigIpc } from "../plugin-market/config-ipc";
 import { setupPluginMarketIpc } from "../plugin-market/ipc";
 import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
 import {

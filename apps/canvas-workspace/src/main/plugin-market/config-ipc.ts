@@ -5,7 +5,7 @@ import {
   importCanvasPluginsConfigJson,
   removeCanvasPluginDirectory,
   setCanvasPluginConfigValue,
-} from './canvas-plugins-config';
+} from './config';
 import { getCanvasAgentService } from '../agent/ipc';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';
 

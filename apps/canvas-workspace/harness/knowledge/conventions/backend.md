@@ -18,9 +18,10 @@ src/main/
   canvas/             # Canvas persistence: store, storage, migration, broadcast, welcome workspace
   files/              # File read/write/dialog IPC + filesystem watcher
   generation/         # HTML generation + streaming IPC
+  plugin-market/      # Agent Plugin packages, config persistence + IPC
   perf/               # Main-process perf counters (loop delay) feeding the perf gates
   runtime/            # Runtime control server, MCP helpers
-  settings/           # App/model/plugin settings persistence + IPC
+  settings/           # App/model feature settings persistence + IPC
   terminal/           # node-pty session management
   webview/            # Embedded webview registry, CDP helpers, page reader
 ```

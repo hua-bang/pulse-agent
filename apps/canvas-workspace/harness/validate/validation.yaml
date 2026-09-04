@@ -52,13 +52,13 @@ pathRules:
     paths:
       - src/main/plugin-market/**
       - src/main/agent/engine-plugins.ts
-      - src/main/settings/canvas-plugins-config.ts
+      - src/main/plugin-market/config.ts
       - src/shared/plugin-market.ts
       - src/preload/bridge/plugin-market.ts
       - src/renderer/src/modules/plugin-market/**
       - src/renderer/src/modules/skills/**
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/modules/plugin-market src/renderer/src/modules/skills
+      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/renderer/src/modules/plugin-market src/renderer/src/modules/skills
       - pnpm --filter canvas-workspace typecheck
     required:
       - pnpm --filter canvas-workspace typecheck

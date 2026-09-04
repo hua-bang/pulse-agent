@@ -18,7 +18,7 @@ import {
   getCanvasPluginsStatus,
   removeCanvasPluginDirectory,
   setCanvasPluginNativePolicy,
-} from '../settings/canvas-plugins-config';
+} from './config';
 import { getCanvasAgentService } from '../agent/ipc';
 import { connectCanvasMcpOAuth, getCanvasMcpOAuthStatus } from '../agent/mcp/oauth';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';

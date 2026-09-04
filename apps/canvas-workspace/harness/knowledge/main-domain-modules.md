@@ -45,7 +45,8 @@ src/main/
   files/              # manager, watcher, skill-installer
   generation/         # html-generator + ipc
   runtime/            # control-server, mcp-server, mcp-registration
-  settings/           # experimental-ipc, canvas-plugins-config/-ipc,
+  plugin-market/      # package readers, config + IPC, install/remove service
+  settings/           # experimental-ipc,
                       # built-in-tools-config/-ipc, plugin-manifest-icons
   perf/               # loop-delay (startup/runtime perf counters feed perf/ gates)
 ```
@@ -122,14 +123,20 @@ Local runtime integration ownership: runtime control HTTP server, local MCP
 server, MCP registration. Keeps optional local service endpoints out of the
 Electron app shell.
 
+### `plugin-market/`
+
+Agent Plugin package ownership: package reading and validation, plugin
+directory/config persistence, native-code policy, skill/MCP discovery,
+install/remove mutations, and both legacy Canvas-plugin and market IPC.
+
 ### `settings/`
 
 Settings and feature-flag ownership: the shared feature registry resolves
 `experimental`, product-owned `stable`, and enabled-user-only `grandfathered`
 lifecycles; only the applicable entries surface as Experimental overrides.
-This module also owns canvas plugin config + IPC, built-in tools config + IPC,
-and plugin manifest icons. If a setting becomes domain-specific, it moves into
-that domain.
+This module owns built-in tools config + IPC and plugin manifest icons. Canvas
+plugin directory/config state and its IPC live with `plugin-market/`. If a
+setting becomes domain-specific, it moves into that domain.
 
 ### `perf/`
 

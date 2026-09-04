@@ -9,7 +9,7 @@ import type {
   CanvasPluginsImportEntry,
   CanvasPluginsStatus,
 } from '../../shared/settings-config';
-import { agentPluginSkillScanPathsSync } from '../plugin-market/skill-scan';
+import { agentPluginSkillScanPathsSync } from './skill-scan';
 
 interface CanvasPluginsConfigFile {
   pluginDirs?: string[];
@@ -241,8 +241,8 @@ async function readPluginEntry(
   config: CanvasPluginsConfigFile,
 ): Promise<CanvasPluginEntry> {
   const [{ readPluginPackage }, { canvasEntryFromPackage }] = await Promise.all([
-    import('../plugin-market/package-reader'),
-    import('../plugin-market/canvas-package-adapter'),
+    import('./package-reader'),
+    import('./canvas-package-adapter'),
   ]);
   const result = await readPluginPackage(dir);
   if (!result.package) {
@@ -325,7 +325,7 @@ export async function getCanvasPluginsStatus(): Promise<CanvasPluginsStatus> {
   const config = await readConfig();
   const pluginDirs = Array.from(new Set((config.pluginDirs ?? []).map(normalizePluginDir).filter(Boolean)));
   const plugins = await Promise.all(pluginDirs.map((dir) => readPluginEntry(dir, config)));
-  const { dedupeRendererSpecs } = await import('../plugin-market/canvas-package-adapter');
+  const { dedupeRendererSpecs } = await import('./canvas-package-adapter');
   return {
     path: canvasPluginsConfigPath(),
     pluginDirs,
