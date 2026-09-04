@@ -1,10 +1,11 @@
+import './index.css';
 import type { RefObject } from 'react';
-import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { useI18n } from '../../../i18n';
-import { CloseIcon } from '../../../components/icons';
-import { Button, Popover } from '../../../components/ui';
-import { NodeDetailPropertyRows } from './NodeDetailPropertyRows';
-import { NodeRelationEditor } from './NodeRelationEditor';
+import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import { useI18n } from '../../../../i18n';
+import { CloseIcon } from '../../../../components/icons';
+import { Button, Popover } from '../../../../components/ui';
+import { NodeDetailPropertyRows } from '../NodeDetailPropertyRows';
+import { NodeRelationEditor } from '../NodeRelationEditor';
 
 interface Props {
   anchorRef: RefObject<HTMLElement>;
@@ -87,3 +88,4 @@ export const NodeDetailInspector = ({
     </Popover>
   );
 };
+

@@ -1,0 +1,49 @@
+.node-detail-panel__inspector {
+  position: fixed;
+  z-index: var(--layer-dock-menu);
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(640px, calc(100vh - 24px));
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-lg);
+  /* Popover portals this element to document.body, outside the Nodes token
+   * scope. Use the global surface token so the inspector remains opaque. */
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.node-detail-panel__inspector-header {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--nodes-text);
+  font-size: 12px;
+}
+
+.node-detail-panel__inspector-section {
+  display: grid;
+  gap: 9px;
+  padding: 12px 2px;
+  border-top: 1px solid var(--nodes-border);
+}
+
+.node-detail-panel__inspector-section h2 {
+  margin: 0;
+  color: var(--nodes-faint);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.node-detail-panel__inspector .node-detail-panel__property-row {
+  min-height: 30px;
+  grid-template-columns: minmax(72px, 96px) 1fr;
+  border: 0;
+  font-size: 11px;
+}
+

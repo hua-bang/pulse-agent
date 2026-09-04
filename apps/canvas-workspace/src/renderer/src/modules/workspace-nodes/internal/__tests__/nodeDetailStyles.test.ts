@@ -22,6 +22,7 @@ const STYLESHEETS = [
   '../index.css',
   '../NodeDetailDocument.css',
   '../NodeDetailHeader/index.css',
+  '../NodeDetailInspector/index.css',
   '../NodeDetailContextRail/index.css',
   '../NodeDetailSupplementary/index.css',
   '../NodeRelationEditor/index.css',
@@ -29,7 +30,7 @@ const STYLESHEETS = [
 const MARKUP = [
   '../NodeDetailPanel.tsx',
   '../NodeDetailHeader/index.tsx',
-  '../NodeDetailInspector.tsx',
+  '../NodeDetailInspector/index.tsx',
   '../NodeDetailContextRail/index.tsx',
   '../NodeDetailPropertyRows.tsx',
   '../NodeDetailSupplementary/index.tsx',
