@@ -1,8 +1,9 @@
-import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
-import { useI18n } from '../../../i18n';
-import { ChevronRightIcon } from '../../../components/icons';
-import { NodeDetailPropertyRows } from './NodeDetailPropertyRows';
-import { NodeRelationEditor } from './NodeRelationEditor';
+import './index.css';
+import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import { useI18n } from '../../../../i18n';
+import { ChevronRightIcon } from '../../../../components/icons';
+import { NodeDetailPropertyRows } from '../NodeDetailPropertyRows';
+import { NodeRelationEditor } from '../NodeRelationEditor';
 
 interface Props {
   candidates: WorkspaceNodeListItem[];
@@ -60,3 +61,4 @@ export const NodeDetailSupplementary = ({
     </div>
   );
 };
+
