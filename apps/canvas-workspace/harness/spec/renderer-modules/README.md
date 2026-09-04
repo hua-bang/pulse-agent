@@ -82,7 +82,7 @@ Current pressure points, measured on 2026-09-03:
 | Area | Evidence | Main friction |
 |---|---|---|
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
-| Coding-agent session | `modules/coding-agent/components/AgentNodeBody/useAgentNodeController.ts` ~938 lines plus lifecycle, Codex-capture, and mirror-terminal modules | owner PTY spawning/persistence and form state remain interleaved in the React adapter |
+| Coding-agent session | `AgentNodeBody/useAgentNodeController.ts` ~496 lines; owner terminal ~375 lines; activation adapter ~142 lines; command/binding policy ~186 lines | setup-form state remains in the React adapter; owner/mirror/read-only terminal mounts, PTY lease/persistence, launch/resume binding, Codex recovery, and team auto-resume now have owned interfaces |
 | Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` 500 lines; public model/projection ~436 lines; controller ~190 lines; header, task workspace, task, agent, inspector, gate, command, strip, DAG, artifact viewer, lead dock, and runtime mounts are owner-local | selection orchestration remains in the frame adapter; graph layout state, snapshot-to-agent projection, action presentation, and hidden runtime ownership now have tested interfaces |
 | Workspace graph | `modules/workspace-nodes/internal/GraphPage.tsx` ~598 lines plus `model/graphModel.ts` | ForceGraph drawing and interaction remain in the view; projection/search/highlight now have a pure tested interface |
 | Settings | `modules/settings/internal/settings-config/` still shares one stylesheet; McpManager is ~748 lines | ownership is now correct, but each manager still combines bridge mutation, draft state, and visual implementation; no generic ConfigManager was introduced |
@@ -213,12 +213,13 @@ fullscreen placement adapter.
 2. Deepen coding-agent session lifecycle, then move AgentNodeBody visuals and
    session runtime into `modules/coding-agent/`. The public binding/command/
    retry policy, Codex discovery, mirror runtime, and visual ownership are
-   implemented; owner PTY runtime extraction remains.
+   implemented; setup-form state remains the next deepening opportunity.
 3. Form an Agent Team workspace model/controller interface before splitting
    AgentTeamFrame visuals and CSS. The workspace task/round projection and DAG
    layout interface, workspace controller/actions, and visual ownership are
-   implemented; remaining detail visual submodules still need extraction. Do not replace one large file with dozens of
-   pass-through props.
+   implemented; Frame is at the production 500-line ceiling with owner-local
+   detail/workspace/header/runtime modules. Selection orchestration can still
+   move into a React adapter; do not replace it with dozens of pass-through props.
 4. Extract the Workspace graph model from the ForceGraph adapter.
 5. Move MCP, Skills, and Plugin settings into separate owner modules. Do not
    create a generic ConfigManager whose interface mirrors all three domains.

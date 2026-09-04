@@ -12,6 +12,16 @@ const hasQueuedLaunchPrompt = (data: AgentNodeData): boolean =>
 const hasTeamWarmupLaunch = (data: AgentNodeData): boolean =>
   !!data.agentTeamId && data.agentTeamWarmup === true;
 
+export type CodingAgentView = 'setup' | 'running' | 'restart';
+
+export const resolveCodingAgentView = (data: AgentNodeData): CodingAgentView => {
+  if (data.viewMode) return data.viewMode;
+  const hasPriorSession = !!data.sessionId || !!data.scrollback;
+  if (hasPriorSession) return 'restart';
+  if (data.status === 'running' || data.status === 'done' || data.status === 'error') return 'running';
+  return 'setup';
+};
+
 export interface CodingAgentResumeBinding {
   canResume: boolean;
   sessionKey: string | undefined;

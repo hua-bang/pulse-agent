@@ -8,7 +8,8 @@ import { AgentTeamManaged } from './AgentTeamManaged';
 import { AgentTerminal } from './AgentTerminal';
 import type { AgentTeamEventRecord, AgentTeamSnapshot } from '../../../../types';
 import type { AgentNodeBodyProps } from './types';
-import { detectAgentView, useAgentNodeController } from './useAgentNodeController';
+import { resolveCodingAgentView as detectAgentView } from '../../session/sessionLifecycle';
+import { useAgentNodeController } from './useAgentNodeController';
 import { useWorkspaceActive } from '../../../../hooks/useWorkspaceActive';
 import { count } from '../../../../perf/counters';
 

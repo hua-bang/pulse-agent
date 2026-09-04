@@ -1,71 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FitAddon } from '@xterm/addon-fit';
-import { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
+import type { Terminal } from '@xterm/xterm';
 import type { AgentNodeData, CanvasNode } from '../../../../types';
 import { getAgentCommand } from '../../../../config/agentRegistry';
-import { TERMINAL_OPTIONS } from '../../../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../../../utils/nodeMention';
 import { handleTerminalShortcut } from '../../../../shortcuts/terminalShortcuts';
 import {
   getCodingAgentResumeBinding,
-  getTeamAutoResumeDecision,
-  nextTeamAutoResumeState,
-  planCodingAgentLaunchCommand,
+  resolveCodingAgentView,
   shouldAutoResumeCodingAgentSession,
-  shouldConsiderTeamAutoResume,
 } from '../../session/sessionLifecycle';
 import { mountMirrorTerminal } from '../../session/mirrorTerminal';
+import { mountOwnerTerminal, mountReadonlyTerminal } from '../../session/ownerTerminal';
 import {
-  readCodexSessionBaseline,
-  startCodexSessionCapture,
-} from '../../session/codexSessionCapture';
+  useAgentSessionActivation,
+  type AgentSessionActivationIntent,
+} from '../../session/useAgentSessionActivation';
+import { useCodexSessionRecovery } from '../../session/useCodexSessionRecovery';
 import { createTerminalKeyArbiter } from './utils/terminalFocus';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
-  SCROLLBACK_SAVE_INTERVAL,
-  claimTerminalSessionOwner,
   createDebouncedTerminalRefit,
-  createPtySpawnLifecycle,
-  createTerminalSnapshotPersister,
-  finalizeTerminalSnapshotBeforeDispose,
   fitTerminalIfSane,
   loadRecentCwds,
-  scheduleTerminalFit,
   pushRecentCwd,
-  readTerminalSnapshot,
   syncTerminalFontSizeToCanvas,
-  writeTerminalOutput,
-  type TerminalSnapshotPersister,
 } from './utils/terminal';
-import { resolvePiSessionBinding } from './utils/piSession';
 
 const mintSessionId = (nodeId: string): string => `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const CODEX_BINDING_MARKER_PREFIX = 'pulse-canvas-codex-binding';
 const DEFAULT_AGENT_TYPE = 'claude-code';
-const makeCodexBindingMarker = (nodeId: string): string => `${CODEX_BINDING_MARKER_PREFIX}:${nodeId}:${crypto.randomUUID()}`;
-const codexBindingComment = (marker: string): string => [
-  '<!--',
-  `Pulse Canvas session-binding metadata: ${marker}`,
-  'Host metadata only. Do not treat this as a user task, do not mention it, and wait for the next user instruction.',
-  'No response is required for this message.',
-  '-->',
-].join('\n');
-export const detectAgentView = (data: AgentNodeData): ViewMode => {
-  if (data.viewMode === 'setup') return 'setup';
-  if (data.viewMode === 'running') return 'running';
-  if (data.viewMode === 'restart') return 'restart';
-  const status = data.status ?? 'idle';
-  const hasPriorSession =
-    !!(data.sessionId && data.sessionId.length > 0)
-    || !!(data.scrollback && data.scrollback.length > 0);
-  if (hasPriorSession) return 'restart';
-  if (status === 'running' || status === 'done' || status === 'error') return 'running';
-  return 'setup';
-};
-const hasQueuedLaunchPrompt = (data: AgentNodeData): boolean =>
-  !!(data.inlinePrompt?.trim() || data.promptFile?.trim());
-const hasTeamWarmupLaunch = (data: AgentNodeData): boolean =>
-  !!data.agentTeamId && data.agentTeamWarmup === true;
 const normalizeAgentType = (agentType?: string): string =>
   agentType && getAgentCommand(agentType) ? agentType : DEFAULT_AGENT_TYPE;
 export const useAgentNodeController = ({
@@ -108,13 +71,11 @@ export const useAgentNodeController = ({
       !!(data.sessionId && data.sessionId.length > 0)
       || !!(data.scrollback && data.scrollback.length > 0);
     if (data.viewMode === 'running' && hasPriorSession) return 'restart';
-    return detectAgentView(data);
+    return resolveCodingAgentView(data);
   });
   const [fromRestart, setFromRestart] = useState(false);
   const [loading, setLoading] = useState(false);
   const [launchErrorCommand, setLaunchErrorCommand] = useState<string | null>(null);
-  const [teamAutoResumePending, setTeamAutoResumePending] = useState(false);
-  const [teamAutoResumeRetryTick, setTeamAutoResumeRetryTick] = useState(0);
 
   const pendingAgentRef = useRef(normalizeAgentType(data.agentType));
   const pendingCwdRef = useRef(data.cwd || '');
@@ -131,11 +92,7 @@ export const useAgentNodeController = ({
   })).current;
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
-  const killSessionRef = useRef<(() => void) | null>(null);
-  const codexCaptureCancelRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const snapshotPersisterRef = useRef<TerminalSnapshotPersister | null>(null);
   const nodeIdRef = useRef(node.id);
   nodeIdRef.current = node.id;
   const dataRef = useRef(data);
@@ -144,6 +101,45 @@ export const useAgentNodeController = ({
   onUpdateRef.current = onUpdate;
   const getAllNodesRef = useRef(getAllNodes);
   getAllNodesRef.current = getAllNodes;
+
+  const handleSessionActivation = useCallback((intent: AgentSessionActivationIntent) => {
+    pendingAgentRef.current = intent.agentType;
+    pendingCwdRef.current = intent.cwd;
+    pendingPromptRef.current = intent.prompt;
+    pendingResumeRef.current = intent.resume;
+    if (intent.mintSession) needsAutoMintRef.current = true;
+    if (intent.nextData) {
+      dataRef.current = intent.nextData;
+      onUpdateRef.current(nodeIdRef.current, { data: intent.nextData });
+    }
+    setViewMode('running');
+  }, []);
+  const { pending: teamAutoResumePending } = useAgentSessionActivation({
+    data,
+    viewMode,
+    disabled: readOnly || isMirrorTerminal,
+    teamManaged: isTeamManagedAgent,
+    workspaceId,
+    rootFolder,
+    api: window.canvasWorkspace?.agentTeams,
+    onActivate: handleSessionActivation,
+  });
+  const handleCodexSessionRecovered = useCallback((codexSessionId: string) => {
+    const nextData = {
+      ...dataRef.current,
+      codexSessionId,
+      codexSessionMarker: undefined,
+    };
+    dataRef.current = nextData;
+    onUpdateRef.current(nodeIdRef.current, { data: nextData });
+  }, []);
+  useCodexSessionRecovery({
+    data,
+    disabled: readOnly || isMirrorTerminal,
+    rootFolder,
+    api: window.canvasWorkspace?.codexSessions,
+    onRecovered: handleCodexSessionRecovered,
+  });
 
   useEffect(() => {
     if (readOnly || isMirrorTerminal || !isTeamManagedAgent) return;
@@ -166,42 +162,6 @@ export const useAgentNodeController = ({
     if (nextCwd && cwdInput !== nextCwd) setCwdInput(nextCwd);
     if (!dangerousMode) setDangerousMode(true);
   }, [cwdInput, dangerousMode, data.cwd, isTeamManagedAgent, rootFolder]);
-
-  useEffect(() => {
-    if (readOnly || isMirrorTerminal) return;
-    if (data.agentType !== 'codex' || data.codexSessionId || !data.codexSessionMarker) return;
-    const codexApi = window.canvasWorkspace?.codexSessions;
-    if (!codexApi) return;
-
-    let cancelled = false;
-    void codexApi.findByMarker({
-      marker: data.codexSessionMarker,
-      cwd: data.cwd || rootFolder || undefined,
-    }).then((result) => {
-      if (cancelled || !result.ok || !result.session?.id) return;
-      const nextData = {
-        ...dataRef.current,
-        codexSessionId: result.session.id,
-        codexSessionMarker: undefined,
-      };
-      dataRef.current = nextData;
-      onUpdateRef.current(nodeIdRef.current, {
-        data: nextData,
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    data.agentType,
-    data.codexSessionId,
-    data.codexSessionMarker,
-    data.cwd,
-    isMirrorTerminal,
-    readOnly,
-    rootFolder,
-  ]);
 
   // Team agent output markers and exit events are parsed in the MAIN process
   // (agent-teams/pty-bridge observes the PTY directly), so the renderer no
@@ -242,441 +202,61 @@ export const useAgentNodeController = ({
 
       if (readOnly) {
         spawnedRef.current = true;
-        const term = new Terminal(TERMINAL_OPTIONS);
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
-        containerRef.current.replaceChildren();
-        term.open(containerRef.current);
-        termRef.current = term;
-        fitRef.current = fitAddon;
-        const saved = dataRef.current.scrollback;
-        if (saved) {
-          term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
-          term.write(saved.split('\n').join('\r\n'));
-          term.writeln('');
-        } else {
-          term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
-        }
-        scheduleTerminalFit(fitAddon, term, containerRef.current);
+        const mount = mountReadonlyTerminal({
+          container: containerRef.current,
+          scrollback: dataRef.current.scrollback,
+        });
+        termRef.current = mount.term;
+        fitRef.current = mount.fitAddon;
+        cleanupRef.current = mount.dispose;
         return;
       }
       spawnedRef.current = true;
-      setLoading(true);
-
-      const term = new Terminal(TERMINAL_OPTIONS);
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      containerRef.current.replaceChildren();
-      term.open(containerRef.current);
-      termRef.current = term;
-      fitRef.current = fitAddon;
-
-      term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-        if (handleTerminalShortcut(e, {
-          'terminal.mentionPicker': () => setPickerOpen(true),
-        })) return false;
-        return arbitrateTerminalKey(e);
-      });
-
-      scheduleTerminalFit(fitAddon, term, containerRef.current);
-
-      const api = window.canvasWorkspace?.pty;
-      if (!api) {
-        term.writeln('\x1b[31mError: pty API not available (preload missing)\x1b[0m');
-        return;
-      }
-      const sessionOwner = claimTerminalSessionOwner(sessionId);
-      const spawnLifecycle = createPtySpawnLifecycle(sessionOwner);
-      cleanupRef.current = spawnLifecycle.cancel;
-      killSessionRef.current = sessionOwner.finishFinalization;
-      const snapshotPersister = createTerminalSnapshotPersister({
-        initialSnapshot: { scrollback: dataRef.current.scrollback ?? '', cwd: dataRef.current.cwd ?? '' },
-        readSnapshot: () => readTerminalSnapshot(term, () => api.getCwd(sessionId), dataRef.current.cwd ?? ''),
-        persist: (snapshot) => sessionOwner.persistIfCurrent(snapshot, ({ scrollback, cwd: persistedCwd }) => onUpdateRef.current(nodeIdRef.current, {
-          data: { ...dataRef.current, scrollback, cwd: persistedCwd },
-        }, { history: false })),
-      });
-      snapshotPersisterRef.current = snapshotPersister;
-
-      const spawnCwd = cwd || rootFolder || undefined;
-      const command = getAgentCommand(agentType);
-      const existingCliSessionId = agentType === 'claude-code'
-        ? dataRef.current.cliSessionId
-        : undefined;
-      const cliSessionId = existingCliSessionId || crypto.randomUUID();
-      const canResumeClaude = !!existingCliSessionId;
-      if (agentType === 'claude-code' && dataRef.current.cliSessionId !== cliSessionId) {
-        const nextData = {
-          ...dataRef.current,
-          cliSessionId,
-        };
-        dataRef.current = nextData;
-        onUpdateRef.current(nodeIdRef.current, { data: nextData });
-      }
-      const piSession = resolvePiSessionBinding(agentType, dataRef.current.piSessionKey);
-      if (piSession.key && dataRef.current.piSessionKey !== piSession.key) {
-        const nextData = { ...dataRef.current, piSessionKey: piSession.key };
-        dataRef.current = nextData;
-        onUpdateRef.current(nodeIdRef.current, { data: nextData });
-      }
-      const writeCommandTimeRef = { current: 0 };
-
-      const writeCommand = async () => {
-        if (spawnLifecycle.isCancelled()) return;
-        if (!command) {
-          writeTerminalOutput(term, `\x1b[33mUnknown agent type: ${agentType}\x1b[0m`, snapshotPersister, true);
-          setLoading(false);
-          return;
-        }
-        const shouldCaptureNewCodexSession = agentType === 'codex' && !resumeMode;
-        const codexBaselineIds = shouldCaptureNewCodexSession
-          ? await readCodexSessionBaseline(window.canvasWorkspace?.codexSessions)
-          : null;
-        if (spawnLifecycle.isCancelled()) return;
-        writeCommandTimeRef.current = Date.now();
-
-        const { inlinePrompt, promptFile, agentArgs, dangerousMode } = dataRef.current;
-        const effectivePrompt = inlinePromptOverride || inlinePrompt;
-        const codexBindingMarker = shouldCaptureNewCodexSession
-          ? dataRef.current.codexSessionMarker || makeCodexBindingMarker(nodeIdRef.current)
-          : undefined;
-        const codexBindingPrompt = codexBindingMarker ? codexBindingComment(codexBindingMarker) : '';
-        const commandPlan = planCodingAgentLaunchCommand({
-          agentType,
-          command,
-          resume: resumeMode && (agentType !== 'claude-code' || canResumeClaude),
-          cliSessionId,
-          codexSessionId: dataRef.current.codexSessionId,
-          piFlags: piSession.flags(resumeMode),
-          prompt: effectivePrompt,
-          promptFile,
-          codexBindingPrompt,
-          dangerousMode,
-          agentArgs,
-          teamManaged: !!dataRef.current.agentTeamId,
-        });
-        if ('error' in commandPlan) {
-          const message = commandPlan.error === 'missing-codex-session'
-            ? 'Cannot resume Codex: saved session id is missing.'
-            : `Unknown agent type: ${agentType}`;
-          writeTerminalOutput(term, `\x1b[33m${message}\x1b[0m`, snapshotPersister, true);
-          setLoading(false);
-          return;
-        }
-        api.write(sessionId, commandPlan.commandLine);
-
-        if (shouldCaptureNewCodexSession) {
-          const codexApi = window.canvasWorkspace?.codexSessions;
-          if (codexApi) {
-            codexCaptureCancelRef.current?.();
-            codexCaptureCancelRef.current = startCodexSessionCapture({
-              api: codexApi,
-              baselineIds: codexBaselineIds,
-              launchStartedAt: writeCommandTimeRef.current,
-              marker: codexBindingMarker,
-              cwd: spawnCwd,
-              onCaptured: (codexSessionId) => {
-                if (
-                  dataRef.current.agentType !== 'codex'
-                  || dataRef.current.sessionId !== sessionId
-                ) return;
-                const nextData = {
-                  ...dataRef.current,
-                  codexSessionId,
-                  codexSessionMarker: undefined,
-                };
-                dataRef.current = nextData;
-                onUpdateRef.current(nodeIdRef.current, { data: nextData });
-              },
-            });
-          }
-        }
-
-        if (effectivePrompt || promptFile || codexBindingMarker) {
-          const nextData = {
-            ...dataRef.current,
-            inlinePrompt: '',
-            promptFile: '',
-            lastInitPrompt: effectivePrompt || dataRef.current.lastInitPrompt || '',
-            codexSessionMarker: codexBindingMarker ?? dataRef.current.codexSessionMarker,
-          };
-          dataRef.current = nextData;
-          onUpdateRef.current(nodeIdRef.current, {
-            data: nextData,
-          });
-        }
-      };
-
-      let prompted = false;
-      let promptFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-      let commandStartTimer: ReturnType<typeof setTimeout> | null = null;
-      const removeDataRef: { current: (() => void) | null } = { current: null };
-      const ECHO_WINDOW_MS = 300;
-      const QUIESCENCE_MS = 500;
-      const FAILSAFE_MS = 15_000;
-      let loadingDismissed = false;
-      let bannerStarted = false;
-      let quiescenceTimer: ReturnType<typeof setTimeout> | null = null;
-      const dismissLoading = () => {
-        if (loadingDismissed) return;
-        loadingDismissed = true;
-        if (quiescenceTimer) {
-          clearTimeout(quiescenceTimer);
-          quiescenceTimer = null;
-        }
-        setLoading(false);
-      };
-      const markTeamWarmupReady = () => {
-        if (!hasTeamWarmupLaunch(dataRef.current) || dataRef.current.agentTeamWarmupReady) return;
-        const nextData = {
-          ...dataRef.current,
-          agentTeamWarmupReady: true,
-        };
-        dataRef.current = nextData;
-        onUpdateRef.current(nodeIdRef.current, { data: nextData });
-      };
-      const scheduleQuiescence = () => {
-        if (loadingDismissed) return;
-        if (quiescenceTimer) clearTimeout(quiescenceTimer);
-        quiescenceTimer = setTimeout(() => {
-          quiescenceTimer = null;
-          markTeamWarmupReady();
-          dismissLoading();
-        }, QUIESCENCE_MS);
-      };
-      const loadingTimeout = setTimeout(dismissLoading, FAILSAFE_MS);
-
-      const attachPermanentListener = () => {
-        removeDataRef.current = api.onData(sessionId, (d: string) => {
-          writeTerminalOutput(term, d, snapshotPersister);
-          if (loadingDismissed) return;
-          if (writeCommandTimeRef.current === 0) return;
-          const since = Date.now() - writeCommandTimeRef.current;
-          if (!bannerStarted) {
-            if (since <= ECHO_WINDOW_MS) return;
-            bannerStarted = true;
-          }
-          scheduleQuiescence();
-        });
-      };
-
-      const promptRemoveRef: { current: (() => void) | null } = { current: null };
-      const startInitialCommand = () => {
-        if (prompted || spawnLifecycle.isCancelled()) return;
-        prompted = true;
-        if (promptFallbackTimer) {
-          clearTimeout(promptFallbackTimer);
-          promptFallbackTimer = null;
-        }
-        promptRemoveRef.current?.();
-        promptRemoveRef.current = null;
-        attachPermanentListener();
-        commandStartTimer = setTimeout(() => {
-          commandStartTimer = null;
-          void writeCommand();
-        }, 100);
-      };
-
-      promptRemoveRef.current = api.onData(sessionId, (d: string) => {
-        writeTerminalOutput(term, d, snapshotPersister);
-        startInitialCommand();
-      });
-
-      const removeExit = api.onExit(sessionId, (code: number) => {
-        writeTerminalOutput(term, `\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`, snapshotPersister, true);
-        dismissLoading();
-        onUpdateRef.current(nodeIdRef.current, {
-          data: { ...dataRef.current, status: 'done' },
-        });
-        // A team-managed agent must stay relaunchable while mounted: every
-        // launch effect bails while viewMode is 'running', so keeping it
-        // there after the PTY died would strand everything the main process
-        // queues afterwards (lead notifications, redispatched tasks) until
-        // the node happens to remount. Dropping to the restart view re-arms
-        // the queued-launch and team auto-resume effects.
-        if (dataRef.current.agentTeamId) {
-          setViewMode('restart');
-        }
-      });
-
-      const cleanupSpawnResources = () => {
-        spawnLifecycle.cancel(() => {
-          if (!prompted) promptRemoveRef.current?.();
-          if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
-          if (commandStartTimer) clearTimeout(commandStartTimer);
-          removeDataRef.current?.();
-          removeExit();
-          codexCaptureCancelRef.current?.();
-          codexCaptureCancelRef.current = null;
-          clearTimeout(loadingTimeout);
-          dismissLoading();
-        });
-      };
-      cleanupRef.current = cleanupSpawnResources;
-
-      const currentData = dataRef.current;
-      const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId, {
-        PULSE_CANVAS_WORKSPACE_ID: workspaceId,
-        PULSE_CANVAS_NODE_ID: nodeIdRef.current,
-        PULSE_CANVAS_TEAM_ID: currentData.agentTeamId,
-        PULSE_CANVAS_TEAM_AGENT_ID: currentData.agentTeamAgentId,
-        PULSE_CANVAS_TEAM_ROLE: currentData.agentTeamRole,
-      });
-      if (spawnLifecycle.reclaimIfCancelled(result, (leaseId) => api.kill(sessionId, leaseId))) return;
-      if (!result.ok) {
-        cleanupSpawnResources();
-        sessionOwner.finishFinalization();
-        writeTerminalOutput(term, `\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`, snapshotPersister, true);
-        onUpdateRef.current(nodeIdRef.current, {
-          data: { ...dataRef.current, status: 'error' },
-        });
-        return;
-      }
-      killSessionRef.current = () => { try { api.kill(sessionId, result.leaseId); } finally { sessionOwner.finishFinalization(); } };
-      promptFallbackTimer = setTimeout(startInitialCommand, 500);
-
-      term.onData((d: string) => {
-        api.write(sessionId, d);
-      });
-
-      term.onResize(({ cols, rows }) => { api.resize(sessionId, cols, rows); });
-
-      onUpdateRef.current(nodeIdRef.current, {
-        data: {
-          ...dataRef.current,
-          agentType,
-          cwd: spawnCwd ?? '',
-          status: 'running',
+      const mount = mountOwnerTerminal({
+        container: containerRef.current,
+        request: {
+          nodeId: nodeIdRef.current,
           sessionId,
-          cliSessionId: agentType === 'claude-code' ? cliSessionId : undefined,
-          codexSessionId: agentType === 'codex' && resumeMode
-            ? dataRef.current.codexSessionId
-            : undefined,
+          agentType,
+          cwd,
+          inlinePromptOverride,
+          resume: resumeMode,
+          rootFolder,
+          workspaceId,
+        },
+        state: {
+          get: () => dataRef.current,
+          update: (mutate, options) => {
+            const nextData = mutate(dataRef.current);
+            dataRef.current = nextData;
+            if (options) onUpdateRef.current(nodeIdRef.current, { data: nextData }, options);
+            else onUpdateRef.current(nodeIdRef.current, { data: nextData });
+            return nextData;
+          },
+        },
+        adapters: {
+          pty: window.canvasWorkspace?.pty,
+          codexSessions: window.canvasWorkspace?.codexSessions,
+        },
+        events: {
+          onLoadingChange: setLoading,
+          onExit: () => {
+            if (dataRef.current.agentTeamId) setViewMode('restart');
+          },
+          onKeyEvent: (event) => {
+            if (handleTerminalShortcut(event, {
+              'terminal.mentionPicker': () => setPickerOpen(true),
+            })) return false;
+            return arbitrateTerminalKey(event);
+          },
         },
       });
-
-      saveTimerRef.current = setInterval(() => void snapshotPersister.flush().catch(() => undefined), SCROLLBACK_SAVE_INTERVAL);
+      termRef.current = mount.term;
+      fitRef.current = mount.fitAddon;
+      cleanupRef.current = mount.dispose;
     },
     [isMirrorTerminal, rootFolder, workspaceId, readOnly],
   );
-
-  useEffect(() => {
-    if (readOnly || isMirrorTerminal) return;
-    if (viewMode === 'running') return;
-    if (data.viewMode !== 'running' && data.status !== 'running') return;
-
-    const hasLaunchPrompt = hasQueuedLaunchPrompt(data);
-    const shouldResumeSavedConversation = !isTeamManagedAgent && !hasLaunchPrompt
-      && getCodingAgentResumeBinding(data).canResume;
-    if (!hasLaunchPrompt && !hasTeamWarmupLaunch(data) && !shouldResumeSavedConversation) return;
-
-    pendingAgentRef.current = normalizeAgentType(data.agentType);
-    pendingCwdRef.current = data.cwd || rootFolder || '';
-    pendingPromptRef.current = data.inlinePrompt || '';
-    pendingResumeRef.current = shouldResumeSavedConversation;
-    if (hasTeamWarmupLaunch(data)) needsAutoMintRef.current = true;
-    setViewMode('running');
-  }, [
-    data.agentType,
-    data.cliSessionId,
-    data.codexSessionId,
-    data.piSessionKey,
-    data.cwd,
-    data.agentTeamWarmup,
-    data.inlinePrompt,
-    data.promptFile,
-    data.status,
-    data.viewMode,
-    isMirrorTerminal,
-    isTeamManagedAgent,
-    forceTeamWarmup,
-    readOnly,
-    rootFolder,
-    viewMode,
-  ]);
-
-  useEffect(() => {
-    if (readOnly || isMirrorTerminal || !isTeamManagedAgent) return;
-    if (viewMode === 'running') return;
-    if (!workspaceId || !data.agentTeamId || !data.agentTeamAgentId) return;
-    if (!shouldConsiderTeamAutoResume(data)) return;
-
-    const autoResumeDecision = getTeamAutoResumeDecision(data);
-    if (!autoResumeDecision.eligible) {
-      const retryDelay = autoResumeDecision.retryAfterMs;
-      if (retryDelay != null) {
-        setTeamAutoResumePending(true);
-        const timer = setTimeout(() => {
-          setTeamAutoResumeRetryTick((tick) => tick + 1);
-        }, retryDelay);
-        return () => clearTimeout(timer);
-      }
-      return;
-    }
-
-    let cancelled = false;
-    setTeamAutoResumePending(true);
-    void (async () => {
-      const result = await window.canvasWorkspace?.agentTeams?.prepareAgentAutoResume(
-        workspaceId,
-        data.agentTeamId!,
-        data.agentTeamAgentId!,
-      ).catch(() => null);
-      if (cancelled) return;
-      if (!result?.ok || !result.canResume) {
-        setTeamAutoResumePending(false);
-        return;
-      }
-
-      pendingAgentRef.current = normalizeAgentType(data.agentType);
-      pendingCwdRef.current = data.cwd || rootFolder || '';
-      pendingPromptRef.current = '';
-      pendingResumeRef.current = true;
-      needsAutoMintRef.current = true;
-      const nextData = {
-        ...dataRef.current,
-        status: 'running' as const,
-        inlinePrompt: '',
-        promptFile: '',
-        agentTeamAutoResume: nextTeamAutoResumeState(dataRef.current),
-      };
-      dataRef.current = nextData;
-      onUpdateRef.current(nodeIdRef.current, {
-        data: nextData,
-      });
-      setTeamAutoResumePending(false);
-      setViewMode('running');
-    })();
-
-    return () => {
-      cancelled = true;
-      setTeamAutoResumePending(false);
-    };
-  }, [
-    data.agentTeamAgentId,
-    data.agentTeamId,
-    data.agentTeamWarmup,
-    data.agentType,
-    data.cliSessionId,
-    data.codexSessionId,
-    data.piSessionKey,
-    data.cwd,
-    data.agentTeamAutoResume,
-    data.inlinePrompt,
-    data.promptFile,
-    data.scrollback,
-    data.sessionId,
-    data.status,
-    data.viewMode,
-    isMirrorTerminal,
-    isTeamManagedAgent,
-    forceTeamWarmup,
-    readOnly,
-    rootFolder,
-    teamAutoResumeRetryTick,
-    viewMode,
-    workspaceId,
-  ]);
 
   const mirrorSessionId = isMirrorTerminal ? data.sessionId : undefined;
   useEffect(() => {
@@ -697,40 +277,18 @@ export const useAgentNodeController = ({
         pendingPromptRef.current,
         pendingResumeRef.current,
         runSessionId,
-      );
+    );
     }
     return () => {
-      if (isMirrorTerminal) {
-        cleanupRef.current?.();
-        codexCaptureCancelRef.current?.();
-        codexCaptureCancelRef.current = null;
-        termRef.current = null;
-        fitRef.current = null;
-        spawnedRef.current = false;
-        cleanupRef.current = null;
-        setLoading(false);
-        return;
-      }
-      if (saveTimerRef.current) clearInterval(saveTimerRef.current);
-      const persister = snapshotPersisterRef.current;
       const term = termRef.current;
-      const killSession = killSessionRef.current;
-      cleanupRef.current?.();
-      codexCaptureCancelRef.current?.();
-      codexCaptureCancelRef.current = null;
-      if (viewMode === 'running' && persister && term) {
-        finalizeTerminalSnapshotBeforeDispose(term, persister, () => { killSession?.(); term.dispose(); });
-      } else {
-        killSession?.();
-        term?.dispose();
-      }
+      const cleanup = cleanupRef.current;
+      cleanup?.();
+      if (!cleanup) term?.dispose();
       containerRef.current?.replaceChildren();
       termRef.current = null;
       fitRef.current = null;
       spawnedRef.current = false;
       cleanupRef.current = null;
-      snapshotPersisterRef.current = null;
-      killSessionRef.current = null;
       setLoading(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
