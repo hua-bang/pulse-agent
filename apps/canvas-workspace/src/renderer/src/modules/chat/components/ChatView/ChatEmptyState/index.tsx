@@ -1,11 +1,12 @@
+import './index.css';
 import {
   GLOBAL_QUICK_ACTIONS,
   KNOWLEDGE_QUICK_ACTIONS,
   QUICK_ACTIONS,
   type EmptyStateQuickAction,
-} from './quickActions';
-import { AppLogoIcon } from '../../../../components/icons';
-import { useI18n, type I18nKey } from '../../../../i18n';
+} from '../quickActions';
+import { AppLogoIcon } from '../../../../../components/icons';
+import { useI18n, type I18nKey } from '../../../../../i18n';
 
 function QuickActionIcon({ action }: { action: EmptyStateQuickAction }) {
   switch (action.key) {
@@ -109,3 +110,4 @@ export const ChatEmptyState = ({
     </div>
   );
 };
+
