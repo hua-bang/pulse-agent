@@ -64,6 +64,8 @@ Current healthy properties:
 - ChatEmptyState now follows the owner-folder convention and owns its 86-line
   entrance, logo, greeting, and quick-action CSS; ChatView no longer owns the
   empty experience's presentation.
+- RelayBar now follows the owner-folder convention and owns 80 lines of
+  multi-role queue, speaking/handoff, pulse, and stop-control CSS.
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
 - ModelSwitcher now lives behind `modules/models/index.ts`, independent from
