@@ -44,12 +44,17 @@ import type {
   CanvasAgentTeamMetadata,
   CanvasAgentTeamPhase,
   CanvasAgentTeamPlanDraft,
-  CanvasAgentTeamPlanTask,
-  CanvasAgentTeamPlanTeammate,
   CanvasAgentTeamPublishArtifactInput,
   CanvasAgentTeamRequestHumanInput,
   CanvasAgentTeamSnapshot,
 } from './types';
+import {
+  DEFAULT_TEAMMATE_AGENT,
+  parsePlanDraft,
+  planDraftFromUnknown,
+  resolvePlanTaskGraph,
+} from './planning';
+import { cleanString } from './input-normalization';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -57,15 +62,12 @@ interface RuntimeBundle {
 }
 
 const DEFAULT_LEAD_AGENT = 'codex';
-const DEFAULT_TEAMMATE_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
 const VERIFY_TIMEOUT_MS = 120_000;
 const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;
 const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
-const MAX_PLAN_TEAMMATES = 6;
-const MAX_PLAN_TASKS = 20;
 const ARTIFACT_KINDS = new Set<ArtifactKind>([
   'diff',
   'test_log',
@@ -107,12 +109,6 @@ interface AgentOutputMarker {
 interface AgentNodeMatch {
   teamId: string;
   agent: TeamAgentRecord;
-}
-
-interface ResolvedPlanTask {
-  id: string;
-  task: CanvasAgentTeamPlanTask;
-  depIds: string[];
 }
 
 const stripAnsi = (value: string): string =>
@@ -171,17 +167,6 @@ const isRecoverableSessionExitReview = (task: TeamTaskRecord, agentId: string): 
   && typeof task.blockedReason === 'string'
   && SESSION_EXIT_REVIEW_REASON_RE.test(task.blockedReason);
 
-const asPlainObject = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-
-const cleanString = (value: unknown, fallback = ''): string => {
-  if (typeof value !== 'string') return fallback;
-  const trimmed = value.trim();
-  return trimmed || fallback;
-};
-
 const expandHomePath = (value: string): string =>
   value === '~' || value.startsWith('~/')
     ? value.replace(/^~/, homedir())
@@ -215,199 +200,6 @@ const inferWorkingDirectoryFromText = (content: string): string | undefined => {
     .sort((a, b) => b.length - a.length);
 
   return candidates.find(isExistingDirectory);
-};
-
-const normalizePlanTeammates = (value: unknown): CanvasAgentTeamPlanTeammate[] => {
-  const raw = Array.isArray(value) ? value : [];
-  const teammates = raw
-    .map((item): CanvasAgentTeamPlanTeammate | null => {
-      if (typeof item === 'string') {
-        const name = cleanString(item);
-        return name ? { name, agentType: DEFAULT_TEAMMATE_AGENT } : null;
-      }
-      const obj = asPlainObject(item);
-      const name = cleanString(obj.name);
-      if (!name) return null;
-      return {
-        name,
-        agentType: cleanString(obj.agentType, DEFAULT_TEAMMATE_AGENT),
-      };
-    })
-    .filter((item): item is CanvasAgentTeamPlanTeammate => !!item);
-
-  // Reject instead of silently truncating: a sliced-away teammate would break
-  // task owner references in confusing ways the lead cannot diagnose.
-  if (teammates.length > MAX_PLAN_TEAMMATES) {
-    throw new Error(
-      `Plan has ${teammates.length} teammates; the maximum is ${MAX_PLAN_TEAMMATES}. `
-      + 'Consolidate ownership so each teammate owns a durable area, then resubmit the plan.',
-    );
-  }
-
-  return teammates.length > 0 ? teammates : [{ name: 'Codex Exec', agentType: DEFAULT_TEAMMATE_AGENT }];
-};
-
-const normalizePlanTasks = (value: unknown, fallbackSummary: string): CanvasAgentTeamPlanTask[] => {
-  const raw = Array.isArray(value) ? value : [];
-  const tasks = raw
-    .map((item): CanvasAgentTeamPlanTask | null => {
-      const obj = asPlainObject(item);
-      const title = cleanString(obj.title);
-      if (!title) return null;
-      const scope = Array.isArray(obj.scope)
-        ? obj.scope.map((entry) => cleanString(entry)).filter(Boolean)
-        : [];
-      return {
-        title,
-        description: cleanString(obj.description, title),
-        ownerName: cleanString(obj.ownerName) || undefined,
-        deps: Array.isArray(obj.deps)
-          ? obj.deps.map((dep) => cleanString(dep)).filter(Boolean)
-          : [],
-        scope: scope.length > 0 ? scope : undefined,
-        verify: cleanString(obj.verify) || undefined,
-      };
-    })
-    .filter((item): item is CanvasAgentTeamPlanTask => !!item);
-
-  // Reject instead of silently truncating: a sliced-away task that other
-  // tasks depend on used to surface as a baffling "Unknown task dependency".
-  if (tasks.length > MAX_PLAN_TASKS) {
-    throw new Error(
-      `Plan has ${tasks.length} tasks; the maximum is ${MAX_PLAN_TASKS}. `
-      + 'Merge small tasks, or submit a first-round plan now and add later work after the round checkpoint.',
-    );
-  }
-
-  if (tasks.length > 0) return tasks;
-  return [{
-    title: 'Execute approved plan',
-    description: fallbackSummary || 'Carry out the plan approved by the user.',
-    ownerName: 'Codex Exec',
-    deps: [],
-  }];
-};
-
-const parsePlanDraft = (text: string, sourceAgentId: string, now: number): CanvasAgentTeamPlanDraft | null => {
-  const trimmed = text.trim();
-  if (!trimmed || /^<[^>]+>$/.test(trimmed)) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    return null;
-  }
-
-  const obj = asPlainObject(parsed);
-  const summary = cleanString(obj.summary, 'Leader proposed a team execution plan.');
-  return {
-    summary,
-    teammates: normalizePlanTeammates(obj.teammates),
-    tasks: normalizePlanTasks(obj.tasks, summary),
-    integrationVerify: cleanString(obj.integrationVerify) || undefined,
-    sourceAgentId,
-    createdAt: now,
-    updatedAt: now,
-  };
-};
-
-const planDraftFromUnknown = (value: unknown, sourceAgentId: string, now: number): CanvasAgentTeamPlanDraft => {
-  if (typeof value === 'string') {
-    const parsed = parsePlanDraft(value, sourceAgentId, now);
-    if (!parsed) throw new Error('Plan must be valid JSON');
-    return parsed;
-  }
-
-  const obj = asPlainObject(value);
-  if (Object.keys(obj).length === 0) {
-    throw new Error('Plan must be a JSON object');
-  }
-  const summary = cleanString(obj.summary, 'Leader proposed a team execution plan.');
-  return {
-    summary,
-    teammates: normalizePlanTeammates(obj.teammates),
-    tasks: normalizePlanTasks(obj.tasks, summary),
-    integrationVerify: cleanString(obj.integrationVerify) || undefined,
-    sourceAgentId,
-    createdAt: now,
-    updatedAt: now,
-  };
-};
-
-const planTaskKey = (title: string): string => title.trim().toLowerCase().replace(/\s+/g, ' ');
-
-const resolvePlanTaskGraph = (tasks: CanvasAgentTeamPlanTask[]): ResolvedPlanTask[] => {
-  const taskByTitle = new Map<string, { task: CanvasAgentTeamPlanTask; id: string }>();
-
-  for (const task of tasks) {
-    const key = planTaskKey(task.title);
-    if (taskByTitle.has(key)) {
-      throw new Error(`Duplicate task title in plan: ${task.title}`);
-    }
-    taskByTitle.set(key, { task, id: randomUUID() });
-  }
-
-  const resolved = tasks.map((task): ResolvedPlanTask => {
-    const current = taskByTitle.get(planTaskKey(task.title));
-    if (!current) throw new Error(`Task not found in plan: ${task.title}`);
-
-    const depIds = Array.from(new Set((task.deps ?? []).map((depTitle) => {
-      const depKey = planTaskKey(depTitle);
-      const dep = taskByTitle.get(depKey);
-      if (!dep) {
-        throw new Error(`Unknown task dependency "${depTitle}" for task "${task.title}"`);
-      }
-      return dep.id;
-    })));
-
-    return { id: current.id, task, depIds };
-  });
-
-  assertResolvedPlanTaskGraphAcyclic(resolved);
-
-  return resolved;
-};
-
-const assertResolvedPlanTaskGraphAcyclic = (tasks: ResolvedPlanTask[]): void => {
-  const byId = new Map(tasks.map((task) => [task.id, task]));
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const stack: string[] = [];
-
-  const label = (id: string): string => {
-    const task = byId.get(id);
-    return task ? `${task.task.title} (${id})` : id;
-  };
-
-  const visit = (id: string): string[] | null => {
-    if (visiting.has(id)) {
-      const start = stack.indexOf(id);
-      return [...stack.slice(start), id];
-    }
-    if (visited.has(id)) return null;
-
-    const task = byId.get(id);
-    if (!task) return null;
-
-    visiting.add(id);
-    stack.push(id);
-    for (const depId of task.depIds) {
-      const cycle = visit(depId);
-      if (cycle) return cycle;
-    }
-    stack.pop();
-    visiting.delete(id);
-    visited.add(id);
-    return null;
-  };
-
-  for (const task of tasks) {
-    const cycle = visit(task.id);
-    if (cycle) {
-      throw new Error(`Task dependency cycle detected: ${cycle.map(label).join(' -> ')}`);
-    }
-  }
 };
 
 const inferPhase = (

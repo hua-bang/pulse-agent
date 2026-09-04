@@ -162,9 +162,10 @@ done. Still open:
   persistence SSOT.
   Keep public setup/teardown names stable for the remaining split.
 - **Agent Teams service split** — `agent-teams/service.ts` still combines plan
-  normalization, task transitions, human gates, PTY/session recovery, and the
-  heartbeat loop behind one wide class. Preserve its IPC-facing use cases
-  while moving those state machines into owner-local implementation modules.
+  application, task transitions, human gates, PTY/session recovery, and the
+  heartbeat loop behind one wide class. Plan normalization and dependency-DAG
+  validation now live in `agent-teams/planning.ts`; preserve the IPC-facing
+  use cases while moving the remaining state machines into owner-local modules.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `canvas -> agent`, and `webview -> agent`. Existing
   cycles involving runtime, scheduled tasks, settings, plugin-market, and
