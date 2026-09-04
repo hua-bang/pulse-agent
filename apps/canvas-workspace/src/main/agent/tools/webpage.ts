@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
-import { activateWorkspaceWindow } from '../../app/window-manager';
 import { findDockLinkTab } from '../../dock/tab-actions';
 import { readDOMElement } from '../../webview/reader';
 import {
@@ -9,6 +8,7 @@ import {
   PAGE_READINESS_HINT,
 } from '../../runtime/capabilities';
 import type { CanvasTool } from './types';
+import { getAgentWindowPort } from '../window-port';
 
 export function createWebpageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -43,7 +43,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
           ? getWebContentsForNode(targetWorkspaceId, nodeId)
           : await ensureOperable({
               lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
-              activate: () => activateWorkspaceWindow(targetWorkspaceId),
+              activate: () => getAgentWindowPort().activateWorkspaceWindow(targetWorkspaceId),
               mode: 'read',
             });
         if (!wc) {

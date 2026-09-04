@@ -69,7 +69,12 @@ import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
 import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
-import { setWindowFactory } from "./window-manager";
+import {
+  activateWorkspaceWindow,
+  getCanvasWindow,
+  setWindowFactory,
+} from "./window-manager";
+import { setAgentWindowPort } from "../agent/window-port";
 
 let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./link-policy";
@@ -107,6 +112,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // Keep identity configured even when tests import bootstrap directly instead
   // of going through the main entry module.
   configureAppIdentity();
+  setAgentWindowPort({ getCanvasWindow, activateWorkspaceWindow });
 
   const paths = resolveAppPaths(mainDir);
   const { writeLog, flush: flushLogs } = createMainLogger();

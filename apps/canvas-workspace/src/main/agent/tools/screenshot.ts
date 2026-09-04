@@ -10,7 +10,7 @@ import {
 import { z } from 'zod';
 import type { CanvasTool } from './types';
 import { STORE_DIR } from './_shared/canvas-io';
-import { getCanvasWindow } from '../../app/window-manager';
+import { getAgentWindowPort } from '../window-port';
 
 // Capture the OS screen, another app window, or this app's own canvas window
 // and return it as a PNG file. The channel image relay (and the desktop chat)
@@ -79,7 +79,7 @@ function clampDisplayIndex(raw: unknown, count: number): number {
 }
 
 async function captureApp(workspaceId: string): Promise<string> {
-  const win = getCanvasWindow();
+  const win = getAgentWindowPort().getCanvasWindow();
   if (!win) {
     return 'Error: the canvas-workspace window is not open, so there is nothing to capture.';
   }

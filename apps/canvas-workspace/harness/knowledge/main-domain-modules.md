@@ -32,6 +32,7 @@ src/main/
                       # context-builder, debug-trace, config-scope, default-skills,
                       # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,
                       # workspace-meta, plugin-node-capabilities, dom-selection-context,
+                      # window-port (app-owned BrowserWindow capability injection),
                       # model/, mcp/, skills/, tools/ (20+ split tool modules; the
                       # sibling tools.ts is a 2-line re-export shim kept for imports)
   agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
@@ -145,6 +146,15 @@ done. Still open:
   in-memory workspace state, watcher lifecycle, migration progress
   broadcasting, and startup pollution audit together. Keep public
   setup/teardown names stable if splitting.
+- **Agent Teams service split** — `agent-teams/service.ts` still combines plan
+  normalization, task transitions, human gates, PTY/session recovery, and the
+  heartbeat loop behind one wide class. Preserve its IPC-facing use cases
+  while moving those state machines into owner-local implementation modules.
+- **Main domain dependency ratchet** — the process-layer import check now also
+  prevents `agent -> app`, `canvas -> agent`, and `webview -> agent`. Existing
+  cycles involving runtime, scheduled tasks, settings, plugin-market, and
+  artifacts remain migration debt; tighten the rule as each reverse edge is
+  replaced by an injected capability or an owner-facing interface.
 
 ## Import Rules
 
@@ -157,11 +167,15 @@ done. Still open:
 - `artifacts/` may import canvas storage APIs to pin artifacts, but canvas
   should not import artifact internals.
 - Prefer `index.ts` barrel files only where they hide internal substructure and
-  do not create circular dependencies.
+  do not create circular dependencies. `agent/window-port.ts` is the app-owned
+  window capability seam: bootstrap injects `window-manager` there so Agent
+  screenshot/webpage tools never import the `app/` composition layer.
 
-These directions are enforced by `src/main/__tests__/import-boundaries.test.ts`
-(run via `pnpm --filter canvas-workspace test` — there is no CI for it; see
-`harness/knowledge/conventions/architecture-boundaries.md`).
+Process directions and the protected Main-domain edges listed above are
+enforced by `src/main/__tests__/import-boundaries.test.ts` (run via
+`pnpm --filter canvas-workspace test` — there is no CI for it; see
+`harness/knowledge/conventions/architecture-boundaries.md`). The remaining
+direction table is the migration target, not yet a complete mechanical gate.
 
 ## Compatibility Rules
 

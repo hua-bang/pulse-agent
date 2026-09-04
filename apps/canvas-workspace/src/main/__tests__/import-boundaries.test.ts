@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import * as ts from 'typescript';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = process.cwd();
 const SRC_ROOT = join(REPO_ROOT, 'src');
@@ -134,7 +134,39 @@ describe('import boundaries', () => {
       throw new Error(formatFailure(violations, staleAllowlistEntries));
     }
   });
+
+  it('keeps protected main domains below the app composition root', () => {
+    const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
+    const resolved = imports.flatMap(resolveImport);
+    const violations = resolved.flatMap(checkMainDomainBoundary);
+
+    expect(violations).toEqual([]);
+  });
 });
+
+const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
+  ['agent', new Set(['app'])],
+  ['canvas', new Set(['agent'])],
+  ['webview', new Set(['agent'])],
+]);
+
+function mainDomain(path: string | undefined): string | null {
+  if (!path?.startsWith('src/main/')) return null;
+  return path.slice('src/main/'.length).split('/')[0] ?? null;
+}
+
+function checkMainDomainBoundary(imported: ResolvedImport): string[] {
+  if (imported.sourceSurface !== 'main' || imported.targetSurface !== 'main') return [];
+  const sourceDomain = mainDomain(imported.sourceFile);
+  const targetDomain = mainDomain(imported.targetPath);
+  if (!sourceDomain || !targetDomain || sourceDomain === targetDomain) return [];
+  if (!FORBIDDEN_MAIN_DOMAIN_IMPORTS.get(sourceDomain)?.has(targetDomain)) return [];
+
+  return [
+    `${imported.sourceFile}:${imported.line} imports ${imported.specifier} ` +
+      `(${sourceDomain} -> ${targetDomain})`,
+  ];
+}
 
 function findSourceFiles(root: string): string[] {
   const files: string[] = [];

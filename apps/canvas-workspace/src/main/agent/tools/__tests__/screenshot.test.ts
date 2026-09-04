@@ -33,17 +33,18 @@ vi.mock('electron', () => ({
   systemPreferences: {
     getMediaAccessStatus: () => h.state.screenStatus,
   },
-  // window-manager.getCanvasWindow() reaches for these.
-  BrowserWindow: {
-    getFocusedWindow: () => h.state.win,
-    getAllWindows: () => (h.state.win ? [h.state.win] : []),
-  },
 }));
 
 // Isolate from the real ~/.pulse-coder/canvas tree; the tool only needs STORE_DIR.
 vi.mock('../_shared/canvas-io', () => ({ STORE_DIR: h.storeDir }));
 
 import { createScreenshotTools } from '../screenshot';
+import { setAgentWindowPort } from '../../window-port';
+
+setAgentWindowPort({
+  getCanvasWindow: () => h.state.win,
+  activateWorkspaceWindow: async () => ({ ok: true }),
+});
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // "‰PNG" header bytes
 
