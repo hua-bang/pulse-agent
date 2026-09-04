@@ -5,14 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type MutableRefObject,
 } from 'react';
-import ForceGraph2D, {
-  type ForceGraphMethods,
-  type GraphData as ForceGraphData,
-  type LinkObject,
-  type NodeObject,
-} from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../../hooks/useWorkspaces';
 import type { KnowledgeNodeSelection } from '../../../types';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
@@ -27,10 +20,14 @@ import {
   getWorkspaceGraphHighlight,
   nodeGraphId,
   searchWorkspaceGraph,
-  type WorkspaceGraphLink as GraphLink,
   type WorkspaceGraphNode as GraphNode,
   type WorkspaceGraphSearchResult as GraphSearchResult,
 } from '../model/graphModel';
+import {
+  ForceGraphCanvas,
+  type ForceGraphCanvasHandle,
+  type GraphLayoutPreset,
+} from './ForceGraphCanvas';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -38,33 +35,12 @@ interface GraphPageProps {
   onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
 }
 
-type LayoutPreset = 'compact' | 'normal' | 'loose';
-
-const GRAPH_COLORS = {
-  node: '#2383e2',
-  nodeText: '#1d4f87',
-  tag: '#d9730d',
-  tagText: '#8a4b0d',
-  missing: '#9b9a97',
-  missingText: 'rgba(55, 53, 47, 0.58)',
-  workspace: '#8b5cf6',
-  workspaceText: '#5b21b6',
-  link: 'rgba(55, 53, 47, 0.22)',
-  linkHighlight: 'rgba(55, 53, 47, 0.72)',
-  workspaceLink: 'rgba(139, 92, 246, 0.32)',
-  labelBg: 'rgba(255, 255, 255, 0.92)',
-};
-
-function linkKey(link: LinkObject<GraphNode, GraphLink>): string {
-  return `${getGraphId(link.source)}->${getGraphId(link.target)}`;
-}
-
 function selectedGraphId(selectedNode?: KnowledgeNodeSelection | null): string | null {
   if (!selectedNode) return null;
   return nodeGraphId(selectedNode.workspaceId, selectedNode.nodeId);
 }
 
-function isNodeGraphNode(node: NodeObject<GraphNode>): node is NodeObject<GraphNode> & {
+function isNodeGraphNode(node: GraphNode): node is GraphNode & {
   workspaceId: string;
   nodeId: string;
 } {
@@ -79,7 +55,7 @@ export const GraphPage = ({
 }: GraphPageProps) => {
   const { t } = useI18n();
   const dock = useRightDock();
-  const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
+  const graphRef = useRef<ForceGraphCanvasHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastClickRef = useRef<{ nodeId: string; ts: number } | null>(null);
   const { nodes, tags, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
@@ -88,7 +64,7 @@ export const GraphPage = ({
   const [showLinks, setShowLinks] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
-  const [layoutPreset, setLayoutPreset] = useState<LayoutPreset>('normal');
+  const [layoutPreset, setLayoutPreset] = useState<GraphLayoutPreset>('normal');
   const [query, setQuery] = useState('');
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(selectedGraphId(selectedNode));
@@ -170,11 +146,8 @@ export const GraphPage = ({
   );
 
   const focusNode = useCallback((nodeId: string, zoom = 2.8) => {
-    const graph = graphRef.current;
     const node = graphData.nodes.find((item) => getGraphId(item.id) === nodeId);
-    if (!graph || !node || node.x === undefined || node.y === undefined) return;
-    graph.centerAt(node.x, node.y, 520);
-    graph.zoom(zoom, 520);
+    if (node) graphRef.current?.focusNode(node, zoom);
   }, [graphData.nodes]);
 
   useEffect(() => {
@@ -198,29 +171,6 @@ export const GraphPage = ({
       window.removeEventListener('resize', update);
     };
   }, []);
-
-  useEffect(() => {
-    const graph = graphRef.current;
-    if (!graph) return undefined;
-
-    const preset =
-      layoutPreset === 'compact'
-        ? { linkDistance: 58, charge: -110 }
-        : layoutPreset === 'loose'
-          ? { linkDistance: 120, charge: -280 }
-          : { linkDistance: 82, charge: -165 };
-
-    const charge = graph.d3Force('charge');
-    charge?.strength?.(preset.charge);
-    charge?.distanceMax?.(layoutPreset === 'loose' ? 1200 : 900);
-    graph.d3Force('link')?.distance?.(preset.linkDistance);
-    graph.d3ReheatSimulation();
-
-    const timeout = window.setTimeout(() => {
-      graph.zoomToFit(450, 140);
-    }, 60);
-    return () => window.clearTimeout(timeout);
-  }, [graphData.links.length, graphData.nodes.length, layoutPreset]);
 
   // Note: we deliberately do NOT auto-focus when `selectedNode` changes.
   // Single-click on a graph node opens its dock tab, and a focus effect
@@ -247,7 +197,7 @@ export const GraphPage = ({
     window.setTimeout(() => focusNode(graphId), 80);
   }, [dock, focusNode, onSelectNode, t]);
 
-  const handleNodeClick = useCallback((node: NodeObject<GraphNode>, _event: MouseEvent) => {
+  const handleNodeClick = useCallback((node: GraphNode, _event: MouseEvent) => {
     const nodeId = getGraphId(node.id);
     if (!nodeId) return;
 
@@ -273,88 +223,6 @@ export const GraphPage = ({
     }
   }, [dock, focusNode, onSelectNode]);
 
-  const renderNode = useCallback((
-    node: NodeObject<GraphNode>,
-    ctx: CanvasRenderingContext2D,
-    globalScale: number,
-  ) => {
-    const nodeId = getGraphId(node.id);
-    const isTag = node.kind === 'tag';
-    const isMissing = node.kind === 'missing';
-    const isWorkspace = node.kind === 'workspace';
-    const radius = isWorkspace ? 12 : isTag ? 8 : isMissing ? 5 : 6.5;
-    const isHighlighted = highlighted.nodeIds.size === 0 || highlighted.nodeIds.has(nodeId);
-    const isSelected = activeNodeId === nodeId;
-    const isHovered = hoverNodeId === nodeId;
-    const fill = isWorkspace
-      ? GRAPH_COLORS.workspace
-      : isTag
-        ? GRAPH_COLORS.tag
-        : isMissing
-          ? GRAPH_COLORS.missing
-          : GRAPH_COLORS.node;
-    const alpha = isHighlighted ? 1 : 0.18;
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-
-    if (isSelected || isHovered) {
-      ctx.shadowColor = fill;
-      ctx.shadowBlur = 14;
-    }
-
-    ctx.beginPath();
-    ctx.arc(node.x ?? 0, node.y ?? 0, isSelected ? radius + 2.5 : radius, 0, Math.PI * 2);
-    ctx.fillStyle = fill;
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-
-    const shouldShowLabel = showLabels || isSelected || isHovered || isWorkspace || globalScale > 2.3;
-    if (shouldShowLabel && isHighlighted) {
-      const label = node.label || nodeId;
-      const fontSize = Math.max(8, 11 / globalScale);
-      ctx.font = `${fontSize}px "Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      const textWidth = ctx.measureText(label).width;
-      const paddingX = 4;
-      const paddingY = 2.5;
-      const textX = (node.x ?? 0) + radius + 6;
-      const textY = (node.y ?? 0) + 1;
-
-      ctx.fillStyle = GRAPH_COLORS.labelBg;
-      ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(
-          textX - paddingX,
-          textY - fontSize / 2 - paddingY,
-          textWidth + paddingX * 2,
-          fontSize + paddingY * 2,
-          5,
-        );
-      } else {
-        ctx.rect(
-          textX - paddingX,
-          textY - fontSize / 2 - paddingY,
-          textWidth + paddingX * 2,
-          fontSize + paddingY * 2,
-        );
-      }
-      ctx.fill();
-
-      ctx.fillStyle = isWorkspace
-        ? GRAPH_COLORS.workspaceText
-        : isTag
-          ? GRAPH_COLORS.tagText
-          : isMissing
-            ? GRAPH_COLORS.missingText
-            : GRAPH_COLORS.nodeText;
-      ctx.fillText(label, textX, textY + fontSize / 2 - 2);
-    }
-
-    ctx.restore();
-  }, [activeNodeId, highlighted.nodeIds, hoverNodeId, showLabels]);
-
   return (
     <main className="workspace-graph-page" ref={containerRef}>
       <div className="workspace-graph-toolbar">
@@ -370,7 +238,7 @@ export const GraphPage = ({
           <button className={`workspace-node-chip${showOffCanvas ? ' is-active' : ''}`} onClick={() => setShowOffCanvas((value) => !value)}>
             {showOffCanvas ? t('workspaceGraph.hideOffCanvas') : t('workspaceGraph.showOffCanvas')}
           </button>
-          <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
+          <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit()}>{t('workspaceGraph.fit')}</button>
           <DropdownShell
             className="workspace-graph-toolbar__more"
             panelClassName="workspace-graph-toolbar__menu"
@@ -416,10 +284,7 @@ export const GraphPage = ({
                   className="workspace-graph-toolbar__menu-item"
                   role="menuitem"
                   onClick={() => {
-                    const graph = graphRef.current;
-                    if (!graph) return;
-                    if (isPaused) graph.resumeAnimation();
-                    else graph.pauseAnimation();
+                    graphRef.current?.setPaused(!isPaused);
                     setIsPaused((value) => !value);
                   }}
                 >
@@ -553,42 +418,26 @@ export const GraphPage = ({
       )}
 
       <div className="workspace-graph-force-layer">
-        <ForceGraph2D
-          ref={graphRef as unknown as MutableRefObject<ForceGraphMethods<any, any> | undefined>}
-          graphData={graphData}
-          width={dimensions.width}
-          height={dimensions.height}
-          backgroundColor="rgba(0,0,0,0)"
-          nodeLabel={(node) => node.label}
-          onNodeHover={(node) => {
-            setHoverNodeId(node ? getGraphId(node.id) : null);
+        <ForceGraphCanvas
+          ref={graphRef}
+          view={{
+            graph: graphData,
+            width: dimensions.width,
+            height: dimensions.height,
+            activeNodeId,
+            hoverNodeId,
+            highlightedNodeIds: highlighted.nodeIds,
+            highlightedLinkIds: highlighted.linkIds,
+            showLabels,
+            layoutPreset,
           }}
-          onNodeClick={handleNodeClick}
-          onNodeRightClick={(node, event) => {
-            event.preventDefault();
-            handleNodeClick(node, event);
-          }}
-          onBackgroundClick={() => {
-            setActiveNodeId(null);
-            onSelectNode?.(null);
-          }}
-          linkWidth={(link) => highlighted.linkIds.size === 0 || highlighted.linkIds.has(linkKey(link)) ? 1.15 : 0.35}
-          linkColor={(link) => {
-            const highlightActive = highlighted.linkIds.size === 0 || highlighted.linkIds.has(linkKey(link));
-            if (link.kind === 'workspace') return GRAPH_COLORS.workspaceLink;
-            return highlightActive ? GRAPH_COLORS.linkHighlight : GRAPH_COLORS.link;
-          }}
-          linkDirectionalParticles={(link) => link.kind !== 'workspace' && highlighted.linkIds.has(linkKey(link)) ? 2 : 0}
-          linkDirectionalParticleWidth={1.2}
-          linkDirectionalParticleSpeed={0.005}
-          cooldownTime={12000}
-          nodeCanvasObject={renderNode}
-          nodePointerAreaPaint={(node, paintColor, ctx) => {
-            const radius = node.kind === 'workspace' ? 16 : node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;
-            ctx.fillStyle = paintColor;
-            ctx.beginPath();
-            ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, Math.PI * 2);
-            ctx.fill();
+          actions={{
+            hoverNode: setHoverNodeId,
+            clickNode: handleNodeClick,
+            clearSelection: () => {
+              setActiveNodeId(null);
+              onSelectNode?.(null);
+            },
           }}
         />
       </div>

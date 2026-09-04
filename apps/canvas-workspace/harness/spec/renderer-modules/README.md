@@ -88,7 +88,7 @@ Current pressure points, measured on 2026-09-03:
 | Canvas document | `modules/canvas/document/useCanvasDocument.ts` ~338 lines plus owner-local history/merge/command modules | persistence scheduling remains in the React adapter; the non-React seam and transaction modules are established |
 | Coding-agent session | `AgentNodeBody/useAgentNodeController.ts` ~496 lines; owner terminal ~375 lines; activation adapter ~142 lines; command/binding policy ~186 lines | setup-form state remains in the React adapter; owner/mirror/read-only terminal mounts, PTY lease/persistence, launch/resume binding, Codex recovery, and team auto-resume now have owned interfaces |
 | Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` 500 lines; public model/projection ~436 lines; controller ~190 lines; header, task workspace, task, agent, inspector, gate, command, strip, DAG, artifact viewer, lead dock, and runtime mounts are owner-local | selection orchestration remains in the frame adapter; graph layout state, snapshot-to-agent projection, action presentation, and hidden runtime ownership now have tested interfaces |
-| Workspace graph | `modules/workspace-nodes/internal/GraphPage.tsx` ~598 lines plus `model/graphModel.ts` | ForceGraph drawing and interaction remain in the view; projection/search/highlight now have a pure tested interface |
+| Workspace graph | `GraphPage.tsx` ~447 lines; ForceGraph adapter ~192 lines; pure graph model ~200 lines | toolbar/search visual state remains in the page; projection/search/highlight and all third-party ForceGraph drawing/layout/viewport calls now have separate tested interfaces |
 | Settings | `modules/settings/internal/settings-config/` still shares one stylesheet; McpManager is ~748 lines | ownership is now correct, but each manager still combines bridge mutation, draft state, and visual implementation; no generic ConfigManager was introduced |
 
 Line counts are discovery signals, not the decision rule. Use the deletion
@@ -224,7 +224,9 @@ fullscreen placement adapter.
    implemented; Frame is at the production 500-line ceiling with owner-local
    detail/workspace/header/runtime modules. Selection orchestration can still
    move into a React adapter; do not replace it with dozens of pass-through props.
-4. Extract the Workspace graph model from the ForceGraph adapter.
+4. Extract the Workspace graph model from the ForceGraph adapter. Implemented:
+   model projection/search/highlight and the third-party canvas/layout adapter
+   are separate; toolbar/search visuals can still become owner-local modules.
 5. Move MCP, Skills, and Plugin settings into separate owner modules. Do not
    create a generic ConfigManager whose interface mirrors all three domains.
 6. Keep the icons barrel stable; split only its internal implementation by a
