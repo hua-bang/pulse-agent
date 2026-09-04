@@ -477,7 +477,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // configure banner removed its base, hover, and status-dot shadows.
   // 141→136 (module-first ownership batches): obsolete duplicate chrome
   // removed five literal shadow declarations.
-  shadowLiterals: 136,
+  // 136→135 (workspace node cards): removed the unreachable pre-CardShell
+  // selected-card shadow; live cards own their styles under CardShell.
+  shadowLiterals: 135,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
