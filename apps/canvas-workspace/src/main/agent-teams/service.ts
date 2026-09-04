@@ -71,6 +71,13 @@ import {
   isExistingDirectory,
   runTaskVerification,
 } from './verification';
+import {
+  DEFAULT_QUEUED_LAUNCH_GRACE_MS,
+  LEAD_SESSION_DOWN_GATE_KIND,
+  QUEUED_LAUNCH_REVIEW_REASON,
+  isRecoverableSessionExitReview,
+  observeQueuedLaunch,
+} from './recovery-policy';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -82,21 +89,12 @@ const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
 const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
-// Marks the human gate the watchdog opens when the Team Lead's session is
-// confirmed unreachable; recovery auto-cancels gates of this kind.
-const LEAD_SESSION_DOWN_GATE_KIND = 'lead-session-down';
-// Both reasons route the task back through prepareAgentAutoResume: the canvas
-// relaunches the agent with its task when the node next mounts.
-const SESSION_EXIT_REVIEW_REASON_RE =
-  /^Agent session (?:exited(?: with code -?\d+)? before reporting task completion|was never relaunched to receive the dispatched task)\.$/;
-const QUEUED_LAUNCH_REVIEW_REASON = 'Agent session was never relaunched to receive the dispatched task.';
 // How long a dispatched task may sit as a queued launch prompt (agent PTY
 // dead, prompt waiting for the renderer to spawn the node) while windows are
 // open before the watchdog stops trusting it. Within the grace it is the
 // normal headless-dispatch state; past it, nothing is going to mount the node
 // — the workspace is not open in any window — and leaving the task
 // in_progress fakes progress forever.
-const QUEUED_LAUNCH_GRACE_MS = 2 * 60_000;
 interface AgentNodeMatch {
   teamId: string;
   agent: TeamAgentRecord;
@@ -110,12 +108,6 @@ const humanInputReasonForAgent = (
   explicitReason: string | undefined,
 ): string =>
   explicitReason || (agent && agent.role !== 'lead' ? 'Teammate requested Team Lead input' : 'Agent requested human input');
-
-const isRecoverableSessionExitReview = (task: TeamTaskRecord, agentId: string): boolean =>
-  task.status === 'needs_review'
-  && task.ownerAgentId === agentId
-  && typeof task.blockedReason === 'string'
-  && SESSION_EXIT_REVIEW_REASON_RE.test(task.blockedReason);
 
 const expandHomePath = (value: string): string =>
   value === '~' || value.startsWith('~/')
@@ -249,7 +241,7 @@ export class CanvasAgentTeamsService {
   // tests can shrink the window.
   softStallThresholdMs = SOFT_STALL_THRESHOLD_MS;
   // Queued-launch grace before the watchdog escalates (public for tests).
-  queuedLaunchGraceMs = QUEUED_LAUNCH_GRACE_MS;
+  queuedLaunchGraceMs = DEFAULT_QUEUED_LAUNCH_GRACE_MS;
   // First heartbeat tick that observed each agent's current queued launch
   // prompt with no live PTY; cleared when the PTY appears or the queue drains.
   private readonly queuedLaunchSince = new Map<string, number>();
@@ -1720,12 +1712,16 @@ export class CanvasAgentTeamsService {
       if (state.hasQueuedLaunch) {
         this.watchdogSuspects.delete(suspectKey);
         const now = Date.now();
-        const since = this.queuedLaunchSince.get(suspectKey);
-        if (since === undefined) {
-          this.queuedLaunchSince.set(suspectKey, now);
+        const observation = observeQueuedLaunch(
+          this.queuedLaunchSince.get(suspectKey),
+          now,
+          this.queuedLaunchGraceMs,
+        );
+        if (observation.state === 'started') {
+          this.queuedLaunchSince.set(suspectKey, observation.since);
           continue;
         }
-        if (now - since < this.queuedLaunchGraceMs) continue;
+        if (observation.state === 'waiting') continue;
         this.queuedLaunchSince.delete(suspectKey);
         await runtime.requestTaskReview(agent.currentTaskId, QUEUED_LAUNCH_REVIEW_REASON, agent.id);
         continue;
@@ -1779,12 +1775,16 @@ export class CanvasAgentTeamsService {
       // the queue within seconds; past the grace nothing is going to.
       this.watchdogSuspects.delete(suspectKey);
       const now = Date.now();
-      const since = this.queuedLaunchSince.get(suspectKey);
-      if (since === undefined) {
-        this.queuedLaunchSince.set(suspectKey, now);
+      const observation = observeQueuedLaunch(
+        this.queuedLaunchSince.get(suspectKey),
+        now,
+        this.queuedLaunchGraceMs,
+      );
+      if (observation.state === 'started') {
+        this.queuedLaunchSince.set(suspectKey, observation.since);
         return;
       }
-      if (now - since < this.queuedLaunchGraceMs) return;
+      if (observation.state === 'waiting') return;
       this.queuedLaunchSince.delete(suspectKey);
     } else {
       this.queuedLaunchSince.delete(suspectKey);
