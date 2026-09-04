@@ -1,3 +1,4 @@
+import './index.css';
 import {
   useCallback,
   useEffect,
@@ -7,13 +8,13 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react';
-import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../../types';
-import { tagName } from './utils';
-import { useI18n } from '../../../i18n';
-import { CloseIcon } from '../../../components/icons';
-import { isImeComposing } from '../../../utils/ime';
-import { useClickOutside } from '../../../hooks/useClickOutside';
-import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../../../types';
+import { tagName } from '../utils';
+import { useI18n } from '../../../../i18n';
+import { CloseIcon } from '../../../../components/icons';
+import { isImeComposing } from '../../../../utils/ime';
+import { useClickOutside } from '../../../../hooks/useClickOutside';
+import { useEscapeClose } from '../../../../hooks/useEscapeClose';
 
 interface NodeTagEditorProps {
   node: WorkspaceNodeRecord;
@@ -332,3 +333,4 @@ export const NodeTagEditor = ({
     </div>
   );
 };
+

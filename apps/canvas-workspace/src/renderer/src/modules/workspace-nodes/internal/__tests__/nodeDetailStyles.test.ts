@@ -28,6 +28,7 @@ const STYLESHEETS = [
   '../NodeCanvasPreview/index.css',
   '../NodeCanvasSaveError/index.css',
   '../NodeRelationEditor/index.css',
+  '../NodeTagEditor/index.css',
 ];
 const MARKUP = [
   '../NodeDetailPanel.tsx',
@@ -40,7 +41,7 @@ const MARKUP = [
   '../NodeCanvasPreview/index.tsx',
   '../NodeCanvasSaveError/index.tsx',
   '../NodeRelationEditor/index.tsx',
-  '../NodeTagEditor.tsx',
+  '../NodeTagEditor/index.tsx',
   '../NodeTitleEditor.tsx',
   '../../../dock/internal/RightDock/NodeDetailDockTab.tsx',
 ];
