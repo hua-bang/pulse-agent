@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import { promises as fsPromises, statSync } from 'fs';
-import { dirname, join } from 'path';
-import { STORE_DIR } from '../canvas/storage';
+import { dirname } from 'path';
 import {
   TeamRuntime,
   TASK_METADATA_KEYS,
@@ -86,6 +85,7 @@ import {
 import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-directory';
 import { AgentNodeResolver, type AgentNodeMatch } from './agent-node-resolver';
 import { TeamEventBroadcaster } from './team-event-broadcaster';
+import { AgentTeamWorkspaceDiscovery } from './workspace-discovery';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -134,6 +134,7 @@ export class CanvasAgentTeamsService {
     broadcast: broadcastCanvasUpdate,
   });
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly workspaceDiscovery = new AgentTeamWorkspaceDiscovery();
   // Agents that looked dead on the previous heartbeat tick. A session is only
   // declared dead after two consecutive suspicious ticks, so a node mid-spawn
   // (PTY created but sessionId not yet persisted to canvas.json) is not
@@ -1452,7 +1453,7 @@ export class CanvasAgentTeamsService {
   }
 
   async heartbeatTick(): Promise<void> {
-    const workspaceIds = await this.discoverWorkspaceIds();
+    const workspaceIds = await this.workspaceDiscovery.discover(this.runtimes.keys());
     for (const workspaceId of workspaceIds) {
       const { runtime, store } = this.getBundle(workspaceId);
       let entries: Array<{ teamId: string }>;
@@ -1487,36 +1488,6 @@ export class CanvasAgentTeamsService {
         }
       }
     }
-  }
-
-  private workspaceScanCache: { at: number; ids: string[] } | null = null;
-
-  private async discoverWorkspaceIds(): Promise<string[]> {
-    const ids = new Set(this.runtimes.keys());
-    // The on-disk set changes only when a team is created in a new workspace
-    // (which goes through getBundle and is picked up immediately above);
-    // rescan the directory at most once a minute, with async stats, so the
-    // heartbeat never blocks the main thread on storage I/O.
-    if (!this.workspaceScanCache || Date.now() - this.workspaceScanCache.at > 60_000) {
-      const found: string[] = [];
-      try {
-        const dirents = await fsPromises.readdir(STORE_DIR, { withFileTypes: true });
-        await Promise.all(dirents.map(async (dirent) => {
-          if (!dirent.isDirectory()) return;
-          try {
-            const stat = await fsPromises.stat(join(STORE_DIR, dirent.name, 'agent-teams', 'state.json'));
-            if (stat.isFile()) found.push(dirent.name);
-          } catch {
-            // No team state in this workspace.
-          }
-        }));
-      } catch {
-        // Store directory may not exist yet.
-      }
-      this.workspaceScanCache = { at: Date.now(), ids: found };
-    }
-    for (const id of this.workspaceScanCache.ids) ids.add(id);
-    return [...ids];
   }
 
   /**

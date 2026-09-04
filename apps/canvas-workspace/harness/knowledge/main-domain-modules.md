@@ -181,6 +181,7 @@ done. Still open:
   Working-directory inference lives in `agent-teams/working-directory.ts`.
   PTY-hot-path node→agent lookup/cache lives in `agent-teams/agent-node-resolver.ts`.
   Debounced runtime-event→canvas broadcasts live in `agent-teams/team-event-broadcaster.ts`.
+  Heartbeat workspace discovery and its disk-scan cache live in `agent-teams/workspace-discovery.ts`.
   Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
 - **Main domain dependency ratchet** — the process-layer import check now also
