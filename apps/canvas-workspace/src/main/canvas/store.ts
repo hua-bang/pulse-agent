@@ -21,6 +21,7 @@ import {
 } from "./storage";
 import { getWorkspaceDir } from './persistence/paths';
 import { preserveMainOwnedQueueFields } from './sync/queue-merge';
+import { diffSnapshots, itemsToMap, visibleNodeFieldsChanged } from './sync/snapshots';
 import {
   createWorkspaceExportArchive,
   createWorkspaceExportPayload,
@@ -194,7 +195,7 @@ export const importWorkspaceFromPath = async (sourcePath: string) => {
     (restoredData.nodes ?? []).map((node) => node.id).filter((id): id is string => Boolean(id)),
   ));
   knownEdgeIds.set(workspaceId, new Set((restoredData.edges ?? []).map((edge) => edge.id)));
-  lastSnapshot.set(workspaceId, nodesToMap(restoredData.nodes));
+  lastSnapshot.set(workspaceId, itemsToMap(restoredData.nodes));
   lastEdgeSnapshot.set(workspaceId, edgesToMap(restoredData.edges));
   return imported;
 };
@@ -712,13 +713,6 @@ const watcherDebounce = new Map<string, NodeJS.Timeout>();
 const lastSnapshot = new Map<string, Map<string, CanvasNode>>();
 const lastEdgeSnapshot = new Map<string, Map<string, CanvasEdge>>();
 
-const nodesToMap = (nodes: CanvasNode[] | undefined): Map<string, CanvasNode> => {
-  const m = new Map<string, CanvasNode>();
-  if (!nodes) return m;
-  for (const n of nodes) if (n.id) m.set(n.id, n);
-  return m;
-};
-
 /**
  * Read whatever canvas.json holds on disk RIGHT NOW, in its on-disk shape:
  *   - v1 workspaces: nodes carry inline `data`.
@@ -735,34 +729,12 @@ const readOnDiskNodeMap = async (
   try {
     const raw = await fs.readFile(getFilePath(workspaceId), 'utf-8');
     const parsed = JSON.parse(raw) as CanvasSaveData;
-    return nodesToMap(parsed.nodes);
+    return itemsToMap(parsed.nodes);
   } catch {
     // Missing or unparseable: treat as empty so the next watcher fire
     // (with a parseable file) registers every node as "new" and broadcasts.
     return new Map<string, CanvasNode>();
   }
-};
-
-const diffSnapshots = <T extends { updatedAt?: number }>(
-  before: Map<string, T>,
-  after: Map<string, T>,
-): string[] => {
-  const ids = new Set<string>();
-  for (const [id, node] of after) {
-    const prev = before.get(id);
-    if (!prev) { ids.add(id); continue; }
-    // Cheap timestamp check first, fall back to structural equality so
-    // we also catch updates that forgot to bump updatedAt.
-    if ((prev.updatedAt ?? 0) !== (node.updatedAt ?? 0)) {
-      ids.add(id);
-    } else if (JSON.stringify(prev) !== JSON.stringify(node)) {
-      ids.add(id);
-    }
-  }
-  for (const id of before.keys()) {
-    if (!after.has(id)) ids.add(id);
-  }
-  return Array.from(ids);
 };
 
 const broadcastExternalUpdate = (workspaceId: string, nodeIds: string[], edgeIds: string[] = []) => {
@@ -790,7 +762,7 @@ const handleWatcherFire = async (workspaceId: string): Promise<void> => {
     // catch the final state.
     return;
   }
-  const newMap = nodesToMap(data.nodes);
+  const newMap = itemsToMap(data.nodes);
   const newEdgeMap = edgesToMap(data.edges);
   const oldMap = lastSnapshot.get(workspaceId) ?? new Map<string, CanvasNode>();
   const oldEdgeMap = lastEdgeSnapshot.get(workspaceId) ?? new Map<string, CanvasEdge>();
@@ -956,7 +928,7 @@ const handlePerNodeBatchFire = async (workspaceId: string): Promise<void> => {
     inner.set(nodeId, raw);
 
     if (prev === raw) continue; // exact-bytes echo of our own write
-    if (prev !== undefined && !visibleFieldsChanged(prev, raw)) {
+    if (prev !== undefined && !visibleNodeFieldsChanged(prev, raw)) {
       // Only metadata (updatedAt / createdAt) churned, or `data` keys got
       // reordered by a spread upstream. The renderer can't see this
       // difference, so broadcasting would just trigger a false "agent
@@ -1005,39 +977,6 @@ const handlePerNodeBatchFire = async (workspaceId: string): Promise<void> => {
  * Comparing the raw bytes would be a stricter test but it's the very
  * thing we're trying to relax here.
  */
-const visibleFieldsChanged = (prevRaw: string, nextRaw: string): boolean => {
-  type PerNodeShape = { data?: unknown; type?: unknown; title?: unknown };
-  let prev: PerNodeShape;
-  let next: PerNodeShape;
-  try {
-    prev = JSON.parse(prevRaw) as PerNodeShape;
-    next = JSON.parse(nextRaw) as PerNodeShape;
-  } catch {
-    return true;
-  }
-  if (prev.type !== next.type) return true;
-  if (prev.title !== next.title) return true;
-  return stableStringify(prev.data) !== stableStringify(next.data);
-};
-
-/**
- * Deterministic JSON serialization with sorted object keys, so two
- * structurally-equal objects with different key insertion orders produce
- * the same string. Used inside `visibleFieldsChanged` to defeat the
- * "renderer spread reorders keys" false positive.
- */
-const stableStringify = (value: unknown): string => {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return '[' + value.map(stableStringify).join(',') + ']';
-  }
-  const keys = Object.keys(value as Record<string, unknown>).sort();
-  const parts = keys.map(
-    (k) => JSON.stringify(k) + ':' + stableStringify((value as Record<string, unknown>)[k]),
-  );
-  return '{' + parts.join(',') + '}';
-};
-
 const startNodesWatcher = (workspaceId: string): void => {
   if (nodeFileWatchers.has(workspaceId)) return;
   const dir = getNodesDir(workspaceId);
@@ -1139,7 +1078,7 @@ export const setupCanvasStoreIpc = () => {
             // sent this save. We compare against this after the merge
             // to detect CLI-side changes the renderer doesn't know yet
             // (see the broadcast below).
-            const rendererMemoryMap = nodesToMap(
+            const rendererMemoryMap = itemsToMap(
               (payload.data as CanvasSaveData).nodes,
             );
             const rendererMemoryEdgeMap = edgesToMap(
@@ -1201,7 +1140,7 @@ export const setupCanvasStoreIpc = () => {
             // mergedMap (full v1-shape) is what the renderer cares about
             // for the pickedUp broadcast below — that comparison is
             // memory-vs-memory, not against the watcher snapshot.
-            const mergedMap = nodesToMap(merged.nodes);
+            const mergedMap = itemsToMap(merged.nodes);
             const mergedEdgeMap = edgesToMap(merged.edges);
             // Now that the write has landed, mark every persisted id as
             // known so subsequent `mergeExternalNodes` calls can tell
