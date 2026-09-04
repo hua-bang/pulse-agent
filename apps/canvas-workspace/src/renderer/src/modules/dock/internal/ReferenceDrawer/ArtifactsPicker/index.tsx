@@ -1,8 +1,9 @@
+import './index.css';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { ArtifactSummary } from '../../../../types';
-import { Button, Popover, SegmentedControl } from '../../../../components/ui';
-import { useRightDock } from '../RightDock';
-import { useI18n } from '../../../../i18n';
+import type { ArtifactSummary } from '../../../../../types';
+import { Button, Popover, SegmentedControl } from '../../../../../components/ui';
+import { useRightDock } from '../../RightDock';
+import { useI18n } from '../../../../../i18n';
 
 /** Storage scope of global-chat artifacts (not a canvas workspace). */
 const GLOBAL_ARTIFACT_SCOPE = '__global_chat__';
@@ -219,3 +220,4 @@ export const ArtifactsPicker = ({ activeWorkspaceId, workspaceNameById, onPrevie
     </>
   );
 };
+

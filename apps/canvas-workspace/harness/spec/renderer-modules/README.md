@@ -166,6 +166,9 @@ Current healthy properties:
   may compose product panes without those product modules depending back on
   Dock. Pure tab/split/content policy lives under `shared/dock/`, and embedded
   webview lifecycle lives under `platform/browser/`.
+- ReferenceDrawer's ArtifactsPicker now follows the owner-folder convention
+  and owns its 86-line scope/list/action popover CSS; the drawer root no longer
+  owns artifact-only presentation.
 - The renderer application root lives at `app/App/`: route projection is a
   pure tested model and workspace mutation feedback is isolated in an
   app-owned command hook. `main.tsx` imports it directly; no root App barrel
