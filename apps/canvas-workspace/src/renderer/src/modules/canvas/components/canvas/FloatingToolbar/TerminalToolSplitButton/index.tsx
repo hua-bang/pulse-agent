@@ -1,7 +1,8 @@
-import { useI18n } from '../../../../../i18n';
-import { NodeTypeIcon } from '../../../../../components/icons';
+import { NodeTypeIcon } from '../../../../../../components/icons';
+import { useI18n } from '../../../../../../i18n';
+import './index.css';
 
-interface TerminalToolSplitButtonProps {
+interface Props {
   open: boolean;
   showAdd: boolean;
   onToggle: () => void;
@@ -13,16 +14,20 @@ export const TerminalToolSplitButton = ({
   showAdd,
   onToggle,
   onNewTerminal,
-}: TerminalToolSplitButtonProps) => {
+}: Props) => {
   const { t } = useI18n();
-  const toggleLabel = open ? t('canvas.toolbar.hideTerminal') : t('canvas.toolbar.showTerminal');
+  const toggleLabel = open
+    ? t('canvas.toolbar.hideTerminal')
+    : t('canvas.toolbar.showTerminal');
 
   return (
-    <div className={[
-      'terminal-tool-split',
-      open ? 'terminal-tool-split--active' : '',
-      showAdd ? 'terminal-tool-split--with-add' : '',
-    ].filter(Boolean).join(' ')}>
+    <div
+      className={[
+        'terminal-tool-split',
+        open ? 'terminal-tool-split--active' : '',
+        showAdd ? 'terminal-tool-split--with-add' : '',
+      ].filter(Boolean).join(' ')}
+    >
       <button
         className={`toolbar-btn toolbar-btn--create terminal-tool-main${open ? ' toolbar-btn--active' : ''}`}
         onClick={onToggle}

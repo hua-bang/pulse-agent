@@ -1,3 +1,5 @@
+import './index.css';
+
 function isImageIcon(icon: string): boolean {
   return /^(https?:|data:image\/|pulse-canvas:)/i.test(icon);
 }

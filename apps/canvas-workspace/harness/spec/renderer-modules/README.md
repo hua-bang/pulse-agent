@@ -82,6 +82,11 @@ Current healthy properties:
 - CommandPalette is a 240-line keyboard surface over a pure 115-line search
   projection and an owner-local row renderer; node match ordering, command
   aliases, and disabled filtering are tested independently of React.
+- FloatingToolbar is a 71-line composition over owner-local panel toggles,
+  tool modes, node creation, terminal, shape, Agent Team, and plugin controls.
+  Node-action mapping and plugin manifest projection are tested at their
+  interfaces; optional plugin discovery no longer runs inside the toolbar
+  composition root.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
@@ -111,7 +116,7 @@ Current healthy properties:
   Canvas node glyphs are implemented as one real family in `nodeTypes.tsx`.
   Consumers did not change and the barrel no longer exceeds the code limit.
 
-Current pressure points, measured on 2026-09-03:
+Current pressure points, measured on 2026-09-04:
 
 | Area | Evidence | Main friction |
 |---|---|---|

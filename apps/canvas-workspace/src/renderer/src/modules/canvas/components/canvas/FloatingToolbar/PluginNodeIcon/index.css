@@ -1,0 +1,12 @@
+.plugin-node-icon-media {
+  display: block;
+  border-radius: var(--radius-xs);
+  object-fit: contain;
+}
+
+.plugin-node-icon-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
