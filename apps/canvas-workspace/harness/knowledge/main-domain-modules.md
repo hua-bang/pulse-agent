@@ -35,7 +35,7 @@ src/main/
                       # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,
                       # workspace-meta, plugin-node-capabilities, dom-selection-context,
                       # window-port + scheduled-port (app-owned capability injection),
-                      # model/, mcp/, skills/, tools/ (20+ split tool modules; the
+                      # mcp/, skills/, tools/ (20+ split tool modules; the
                       # sibling tools.ts is a 2-line re-export shim kept for imports)
   agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
                       # canvas-agent-session-adapter (pulse-coder-agent-teams integration)
@@ -44,6 +44,7 @@ src/main/
   terminal/           # pty-manager
   files/              # manager, watcher, skill-installer
   generation/         # html-generator + ipc
+  models/             # provider/model config, resolution, secret storage + IPC
   runtime/            # control-server, mcp-server, mcp-registration
   plugin-market/      # package readers, config + IPC, install/remove service
   settings/           # experimental-ipc,
@@ -74,7 +75,7 @@ node records and tags (`nodes/`).
 ### `agent/`
 
 Canvas agent ownership: chat/session lifecycle, engine integration, prompt
-profile and model config (`model/`), MCP config (`mcp/`), agent skills
+profile, MCP config (`mcp/`), agent skills
 (`skills/`), workspace context building, agent tools (`tools/` — split into
 per-capability modules; `tools.ts` is a compatibility re-export shim), debug
 trace support, sending prompts into agent terminal nodes, workspace
@@ -114,8 +115,14 @@ helpers, file watching, skill installation file operations.
 
 ### `generation/`
 
-Standalone generation ownership: HTML generation and its streaming IPC. May
-share model resolution with `agent/model`.
+Standalone generation ownership: HTML generation and its streaming IPC. Uses
+the shared Main `models/` domain for provider resolution.
+
+### `models/`
+
+Shared Main-process model ownership: provider/model configuration, API-key
+storage, environment resolution, provider model discovery, and the
+`canvas-model:*` IPC surface. Agent and Generation consume this domain.
 
 ### `runtime/`
 

@@ -12,7 +12,7 @@ import {
   DEFAULT_CLAUDE_BASE_URL,
   DEFAULT_OPENAI_BASE_URL,
   type ResolvedCanvasModel,
-} from '../model/config';
+} from '../../models/config';
 
 export interface PiModelRuntime {
   models: Models;

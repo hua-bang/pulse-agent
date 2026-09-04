@@ -45,7 +45,7 @@ describe('canvas model config key storage', () => {
       }],
     }), 'utf8');
 
-    const { getCanvasModelStatus } = await import('../config');
+    const { getCanvasModelStatus } = await import('./config');
     const status = await getCanvasModelStatus();
 
     expect(status.apiKeyPresent).toBe(false);
@@ -65,7 +65,7 @@ describe('canvas model config key storage', () => {
       }],
     }), 'utf8');
 
-    const { upsertCanvasModelProvider } = await import('../config');
+    const { upsertCanvasModelProvider } = await import('./config');
     await upsertCanvasModelProvider({
       id: 'openai',
       name: 'OpenAI',

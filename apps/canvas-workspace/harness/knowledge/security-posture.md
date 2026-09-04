@@ -78,7 +78,7 @@ These make on-disk files an execution or injection surface:
   `src/main/plugin-market/config.ts`) load external plugin code
   into main and renderer via manifests/registries.
 - **Model config is the positive example:** it stores only env-var *names*
-  for API keys, never secret values (`src/main/agent/model/config.ts`).
+  for API keys, never secret values (`src/main/models/config.ts`).
 
 ## Network & serving surfaces
 

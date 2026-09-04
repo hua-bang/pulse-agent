@@ -24,7 +24,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/main/agent/model/config.ts': 599,
+  'src/main/models/config.ts': 594,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/plugin-market/config.ts': 502,
   // 605→636 (2026-07-17, drift recorded): grew via master work (#806

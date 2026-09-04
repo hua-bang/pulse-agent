@@ -279,7 +279,7 @@ pathRules:
     paths:
       - package.json
       - src/main/agent/backends/pi-*
-      - src/main/agent/model/config.ts
+      - src/main/models/config.ts
       - harness/tools/pi-agent-harness-smoke/**
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/main/agent/backends/pi-agent-harness-backend.test.ts src/main/agent/backends/pi-model-adapter.test.ts src/main/agent/backends/pi-tool-adapter.test.ts

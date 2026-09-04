@@ -251,8 +251,8 @@ pnpm --filter canvas-workspace package:linux
   import, and migration hooks.
 - `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,
   recovery, and pollution detection.
-- `src/main/agent/`: Canvas Agent service, session store, prompt/model config,
-  tools, and chat IPC.
+- `src/main/agent/`: Canvas Agent service, session store, prompt config, tools,
+  and chat IPC; shared provider/model config lives in `src/main/models/`.
 - `src/main/agent-teams/`: agent-team service, store, IPC, PTY bridge, and
   canvas node integration.
 - `src/main/runtime/control-server.ts`: loopback runtime server used by live

@@ -24,7 +24,7 @@ import {
   teardownCanvasAgent,
 } from "../agent/ipc";
 import { setupCodexSessionsIpc } from "../agent/codex-sessions";
-import { setupCanvasModelIpc } from "../agent/model/ipc";
+import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { ensureDefaultSkillsSeeded } from "../agent/default-skills";

@@ -12,16 +12,17 @@ for import rules and `harness/knowledge/main-domain-modules.md` for the full mod
 src/main/
   index.ts            # main entry / bootstrap wiring
   app/                # Electron lifecycle: window, protocol, link-policy, logging, menu, updates
-  agent/              # Canvas Agent (engine-backed chat): service, ipc, sessions, context, model
+  agent/              # Canvas Agent (engine-backed chat): service, ipc, sessions, context
   agent-teams/        # Multi-agent teams integration (pulse-coder-agent-teams)
   artifacts/          # Artifact persistence + IPC
   canvas/             # Canvas persistence: store, storage, migration, broadcast, welcome workspace
   files/              # File read/write/dialog IPC + filesystem watcher
   generation/         # HTML generation + streaming IPC
+  models/             # Shared provider/model config, secret storage + IPC
   plugin-market/      # Agent Plugin packages, config persistence + IPC
   perf/               # Main-process perf counters (loop delay) feeding the perf gates
   runtime/            # Runtime control server, MCP helpers
-  settings/           # App/model feature settings persistence + IPC
+  settings/           # App feature settings persistence + IPC
   terminal/           # node-pty session management
   webview/            # Embedded webview registry, CDP helpers, page reader
 ```

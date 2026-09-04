@@ -9,7 +9,7 @@ import { searchSessionTitles } from './session-title-search';
 import { appendActiveSessionGroups, scopeFromServiceKey } from './active-session-groups';
 import { ScopeActivationGate } from './scope-activation-gate';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
-import type { ResolvedCanvasModel } from './model/config';
+import type { ResolvedCanvasModel } from '../models/config';
 import {
   SessionMutationCoordinator,
   type BranchSessionResult,

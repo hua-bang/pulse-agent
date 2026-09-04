@@ -1,5 +1,5 @@
 import { generateText } from 'ai';
-import { resolveCanvasModel } from './model/config';
+import { resolveCanvasModel } from '../models/config';
 
 const SYSTEM_PROMPT = `You write clear instructions for a recurring AI task.
 

@@ -3,7 +3,7 @@ import type { Engine } from 'pulse-coder-engine';
 
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
 import type { AgentClarificationRequest } from '../../../shared/agent-chat';
-import type { ResolvedCanvasModel } from '../model/config';
+import type { ResolvedCanvasModel } from '../../models/config';
 import type {
   CanvasAgentDebugTrace,
   CanvasAgentMessage,
