@@ -1,5 +1,5 @@
 import Image from '@tiptap/extension-image';
-import { toFileUrl } from '../utils/fileUrl';
+import { toFileUrl } from '../../../utils/fileUrl';
 
 const FILE_IMAGE_MARKDOWN_RE = /!\[([^\]]*)\]\(((?:file:\/\/|pulse-canvas:\/\/)[^\s)]+)(?:\s+"([^"]*)")?\)/g;
 const LOCAL_IMAGE_HINT_RE = /\]\((?:file:\/\/|pulse-canvas:\/\/)/;

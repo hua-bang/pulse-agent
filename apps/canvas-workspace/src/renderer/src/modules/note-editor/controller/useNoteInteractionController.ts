@@ -21,7 +21,7 @@ import {
   type NoteInteractionUpdater,
   type NoteMentionMenuState,
   type NoteSlashMenuState,
-} from '../utils/noteInteractionState';
+} from '../model/noteInteractionState';
 
 export type {
   NoteBubbleState,
@@ -30,7 +30,7 @@ export type {
   NoteLinkPromptState,
   NoteMentionMenuState,
   NoteSlashMenuState,
-} from '../utils/noteInteractionState';
+} from '../model/noteInteractionState';
 
 /**
  * Single owner for Note editor interaction surfaces.

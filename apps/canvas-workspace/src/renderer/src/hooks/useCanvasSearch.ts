@@ -1,16 +1,16 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, FileNodeData, TextNodeData } from '../types';
-import { useFileNodeEditorRegistry } from './useFileNodeEditorRegistry';
+import { useFileNodeEditorRegistry } from '../shared/fileNodeEditorRegistry';
 
 // noteSearchExtension pulls @tiptap/react + @tiptap/pm; a static import here
 // would drag prosemirror into the entry chunk via Canvas → useCanvasSearch
 // (chain B). Inline highlighting only makes sense once a file-node editor is
 // mounted — and mounting one loads the file-node chunk that already contains
 // this module — so the dynamic import below resolves from cache in practice.
-type NoteSearchModule = typeof import('../modules/note-editor/search');
+type NoteSearchModule = typeof import('../modules/note-editor');
 let noteSearchModule: NoteSearchModule | null = null;
 const loadNoteSearch = (): Promise<NoteSearchModule> =>
-  import('../modules/note-editor/search').then((m) => (noteSearchModule = m));
+  import('../modules/note-editor').then((m) => (noteSearchModule = m));
 
 /**
  * A single hit found by the Ctrl+F search.

@@ -9,7 +9,7 @@ import { EditorContent, type Editor } from '@tiptap/react';
 import type { SlashCmd } from '../../runtime/slashCommands';
 import { filterCmds } from '../../runtime/slashCommands';
 import { insertSlashBlockAfter } from '../../runtime/noteBlockCommands';
-import type { NoteInteractionController } from '../../../../hooks/useNoteInteractionController';
+import type { NoteInteractionController } from '../../controller/useNoteInteractionController';
 import type { CanvasNode } from '../../../../types';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { NoteBlockHandle } from '../NoteBlockHandle';

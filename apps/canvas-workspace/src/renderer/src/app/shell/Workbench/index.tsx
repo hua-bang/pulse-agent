@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../../../modules/canvas/surface';
-import { FileNodeEditorRegistryProvider } from '../../../hooks/useFileNodeEditorRegistry';
+import { FileNodeEditorRegistryProvider } from '../../../shared/fileNodeEditorRegistry';
 import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';
 import { isDockChatVisible, isDockTerminalVisible, useRightDock, useRightDockChatHost, useRightDockState } from '../../../modules/dock';
 import { buildDockTabRefs } from '../../../shared/dock/tabRefs';

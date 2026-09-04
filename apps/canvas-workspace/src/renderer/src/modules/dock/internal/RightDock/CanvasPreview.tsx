@@ -15,7 +15,7 @@ import {
   type OpenNodeDetail,
 } from '../../../../utils/openNodeBridge';
 import { WorkspaceActiveProvider } from '../../../../hooks/useWorkspaceActive';
-import { FileNodeEditorRegistryProvider } from '../../../../hooks/useFileNodeEditorRegistry';
+import { FileNodeEditorRegistryProvider } from '../../../../shared/fileNodeEditorRegistry';
 import { CanvasPreviewChrome, CanvasPreviewState } from './CanvasPreviewChrome';
 import type { ChatDeliveryReceipt } from '../../../chat';
 import { TabChatAction } from './TabChatAction';

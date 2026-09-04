@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, FileNodeData } from '../../../../../types';
-import { useFileNodeEditor, getMarkdown } from '../../../../../hooks/useFileNodeEditor';
-import { useFileNodeEditorRegistry } from '../../../../../hooks/useFileNodeEditorRegistry';
-import { useNoteMentions } from '../../../../../hooks/useNoteMentions';
-import { useNoteOutlineEscape } from '../../../../../hooks/useNoteOutlineEscape';
+import { useFileNodeEditorRegistry } from '../../../../../shared/fileNodeEditorRegistry';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../../../../utils/openNodeBridge';
-import { FileNodeEditorSurface } from '../../../../note-editor/surface';
+import {
+  FileNodeEditorSurface,
+  getMarkdown,
+  useFileNodeEditor,
+  useNoteMentions,
+  useNoteOutlineEscape,
+} from '../../../../note-editor';
 import { SpinnerIcon } from '../../../../../components/icons';
 import { useRightDock } from '../../../../../shared/dockPort';
 import { Button } from '../../../../../components/ui';

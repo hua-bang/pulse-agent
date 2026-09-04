@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { CanvasNode } from '../types';
-import { isImeComposing } from '../utils/ime';
-import { detectMention, filterMentionCandidates } from '../utils/noteMention';
-import { nodeLinkHref } from '../utils/openNodeBridge';
-import type { NoteInteractionController } from './useNoteInteractionController';
-import { useCanvasKeyboardActive } from './useWorkspaceActive';
+import type { CanvasNode } from '../../../types';
+import { isImeComposing } from '../../../utils/ime';
+import { detectMention, filterMentionCandidates } from '../../../utils/noteMention';
+import { nodeLinkHref } from '../../../utils/openNodeBridge';
+import type { NoteInteractionController } from '../controller/useNoteInteractionController';
+import { useCanvasKeyboardActive } from '../../../hooks/useWorkspaceActive';
 
 interface Options {
   editor: Editor | null;

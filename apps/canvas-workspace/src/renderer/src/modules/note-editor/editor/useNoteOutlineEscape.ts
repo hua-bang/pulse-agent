@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { NoteInteractionController } from './useNoteInteractionController';
+import type { NoteInteractionController } from '../controller/useNoteInteractionController';
 
 interface Options {
   editor: Editor | null;

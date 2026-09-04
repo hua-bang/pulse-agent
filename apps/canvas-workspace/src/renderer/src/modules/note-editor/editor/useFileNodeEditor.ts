@@ -1,72 +1,25 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Paragraph from '@tiptap/extension-paragraph';
-import Placeholder from '@tiptap/extension-placeholder';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import Link from '@tiptap/extension-link';
-import Underline from '@tiptap/extension-underline';
-import Highlight from '@tiptap/extension-highlight';
-import { Table } from '@tiptap/extension-table';
-import TableRow from '@tiptap/extension-table-row';
-import TableCell from '@tiptap/extension-table-cell';
-import TableHeader from '@tiptap/extension-table-header';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { createLowlight } from 'lowlight';
-import { Markdown } from 'tiptap-markdown';
-import type { CanvasNode, FileNodeData } from '../types';
+import type { CanvasNode, FileNodeData } from '../../../types';
 import {
   filterCmds,
   parseSlashQuery,
   type SlashCmd,
   type SlashCmdContext,
-} from '../modules/note-editor/commands';
-import { NoteSearchExtension } from '../modules/note-editor/search';
-import { Callout } from '../modules/note-editor/extensions';
-import { isImeComposing } from '../utils/ime';
+} from '../runtime/slashCommands';
+import { isImeComposing } from '../../../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
-import { useNoteInteractionController } from './useNoteInteractionController';
-import { MarkdownSafeImage } from './fileNodeMarkdownImage';
-import { syntaxHighlightLanguages } from '../utils/syntaxHighlightLanguages';
-import { useI18n } from '../i18n';
-import { useCanvasKeyboardActive } from './useWorkspaceActive';
+import { useNoteInteractionController } from '../controller/useNoteInteractionController';
+import { createNoteEditorExtensions } from './noteEditorExtensions';
+import { useI18n } from '../../../i18n';
+import { useCanvasKeyboardActive } from '../../../hooks/useWorkspaceActive';
 import {
   insertImageAtPos,
   insertImageAtSelection,
   isImageUrl,
   resolveWorkspaceId,
   saveImageBlob,
-} from '../utils/noteImageInsert';
-
-const lowlight = createLowlight(syntaxHighlightLanguages);
-
-// Markdown collapses consecutive blank lines into a single paragraph
-// separator, so empty paragraphs typed by the user (Enter → Enter) are
-// lost after save+reload. Preserve them by emitting a non-breaking space
-// during markdown serialization — that keeps one paragraph per blank line
-// through the markdown roundtrip, matching the pre-reload editor view.
-const EMPTY_PARAGRAPH_MARKER = '\u00A0';
-
-const EmptyLinePreservingParagraph = Paragraph.extend({
-  addStorage() {
-    return {
-      ...this.parent?.(),
-      markdown: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        serialize(state: any, node: any) {
-          if (node.childCount === 0) {
-            state.write(EMPTY_PARAGRAPH_MARKER);
-          } else {
-            state.renderInline(node);
-          }
-          state.closeBlock(node);
-        },
-        parse: {},
-      },
-    };
-  },
-});
+} from '../runtime/noteImageInsert';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getMarkdown = (editor: any): string =>
@@ -189,40 +142,7 @@ export const useFileNodeEditor = ({
   }, [commitContent]);
 
   const editor = useEditor({
-    extensions: [
-      // StarterKit v3 bundles Link + Underline + CodeBlock — disable the
-      // built-ins since we register explicit configured versions below.
-      // Also disable Paragraph so our empty-line-preserving version wins.
-      StarterKit.configure({
-        codeBlock: false,
-        link: false,
-        underline: false,
-        paragraph: false,
-      }),
-      EmptyLinePreservingParagraph,
-      MarkdownSafeImage.configure({ inline: false }),
-      Callout,
-      Placeholder.configure({ placeholder: t('noteEditor.placeholder') }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Underline,
-      Highlight.configure({ multicolor: false }),
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        linkOnPaste: true,
-        // Allow the internal node-mention scheme so `@` links aren't stripped.
-        protocols: ['pulse-canvas'],
-        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-      }),
-      CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
-      Table.configure({ resizable: false, HTMLAttributes: { class: 'note-table' } }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      NoteSearchExtension,
-      Markdown.configure({ html: false, transformPastedText: true }),
-    ],
+    extensions: createNoteEditorExtensions(t('noteEditor.placeholder')),
     content: data.content || '',
     editable: !readOnly,
     editorProps: {

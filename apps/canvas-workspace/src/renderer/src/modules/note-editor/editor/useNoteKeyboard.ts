@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { FileNodeData } from '../types';
-import { duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../modules/note-editor/commands';
-import { isImeComposing } from '../utils/ime';
+import type { FileNodeData } from '../../../types';
+import { duplicateCurrentNoteBlock, moveCurrentNoteBlock } from '../runtime/noteBlockCommands';
+import { isImeComposing } from '../../../utils/ime';
 
 interface Options {
   editor: Editor | null;

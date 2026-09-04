@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   write: vi.fn(),
 }));
 
-vi.mock('../../../../../hooks/useFileNodeEditor', () => ({
+vi.mock('../../../../note-editor', () => ({
   getMarkdown: mocks.getMarkdown,
   useFileNodeEditor: (options: typeof mocks.options) => {
     mocks.options = options;
@@ -33,26 +33,17 @@ vi.mock('../../../../../hooks/useFileNodeEditor', () => ({
       insertImageFromFile: vi.fn(),
     };
   },
-}));
-
-vi.mock('../../../../../hooks/useFileNodeEditorRegistry', () => ({
-  useFileNodeEditorRegistry: () => null,
-}));
-
-vi.mock('../../../../../hooks/useNoteMentions', () => ({
   useNoteMentions: () => ({
     filteredMentions: [],
     insertMention: vi.fn(),
     closeMention: vi.fn(),
   }),
-}));
-
-vi.mock('../../../../../hooks/useNoteOutlineEscape', () => ({
   useNoteOutlineEscape: vi.fn(),
+  FileNodeEditorSurface: () => <div data-testid="editor-surface" />,
 }));
 
-vi.mock('../../../../note-editor/surface', () => ({
-  FileNodeEditorSurface: () => <div data-testid="editor-surface" />,
+vi.mock('../../../../../shared/fileNodeEditorRegistry', () => ({
+  useFileNodeEditorRegistry: () => null,
 }));
 
 vi.mock('../../../../../shared/dockPort', () => ({

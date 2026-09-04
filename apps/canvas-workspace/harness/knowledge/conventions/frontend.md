@@ -5,21 +5,17 @@ Applies to `src/renderer/src/**`. The renderer is a React 18 + wouter app. It ha
 
 ## Component layout
 
-`src/renderer/src/components/` is grouped by domain (regrouped 2026-08-09;
-leaf folder names were kept, only a group level was inserted):
+`src/renderer/src/components/` contains only domain-free visual infrastructure.
+Product visuals live with their owning module:
 
 | Group | Owns |
 |---|---|
-| `shell/` | App chrome + routing: `AppShellProvider`, `Sidebar`, `Workbench`, `router`, `RouteViews.ts`, `AppLazyBoundaries.tsx`, `MigrationSpinner` |
-| `canvas/` | Canvas surface + chrome: `Canvas`, `CanvasNodeView`, edges layer, alignment guides, node/edge context menus, `EdgeStylePanel`, toolbars, `SearchBar`, `ZoomIndicator`, `CommandPalette`, `CanvasEmptyHint` |
-| `node-bodies/` | Legacy body implementations for remaining canvas node types plus the terminal-surface `NodeMentionPicker`; Agent and Agent Team bodies now live in their owner modules |
-| `note-editor/` | Rich-text editing surface for file/text nodes: `FileNodeEditorSurface`, `FileNodeBubbleMenu`, `SlashCommandMenu`, `EditorCommandIcon`, `Note*` pieces |
-| `modules/dock/` | `RightDock`, `LinkDrawer`, `ReferenceDrawer`, `WorkspaceTerminalDock`; embedded-browser lifecycle is in `platform/browser/` |
-| `settings/` | `Settings`, `WorkspaceSettings`, `settings-config` |
-| `chat/` | Canvas Agent chat panel + `ChatFloatingButton` |
-| `models/` | Runtime model-selection UI shared by chat surfaces; provider/configuration editors remain under `settings/` |
-| `mcp-apps/` | Sandboxed MCP App host, approval UI, AppBridge lifecycle, and inline↔RightDock surface placement; chat owns only the tool-result adapter |
-| `artifacts/`, `ui/`, `icons/` | Unchanged pre-existing domains (`ui/` is the blessed design-system set — governance and the ui-showcase reference it by path; do not move it) |
+| `components/ui/` | Blessed design-system primitives; governance and ui-showcase depend on this stable path |
+| `components/icons/` | Domain-free icon interface; split implementation only by real icon family |
+| `app/shell/` | App chrome, routes, providers, Workbench, and Sidebar composition |
+| `modules/canvas/` | Canvas surface, chrome, document state, and node-body composition |
+| `modules/note-editor/` | Lazy Tiptap runtime, extensions, interactions, and owner-local editor visuals |
+| Other `modules/*` | Product visuals and state colocated under the owning capability |
 
 Non-visual Agent Chat state and cross-surface coordination live outside the
 component tree under `src/renderer/src/modules/chat/`. In particular,
@@ -50,8 +46,8 @@ domain-free visual infrastructure once the Dock migration completes.
 
 Place a new component in the group that owns its surface; add a new group only
 when a domain genuinely has no home (see reuse-first rules in `AGENTS.md` §0).
-Within a group, each non-trivial component keeps its own folder
-`src/renderer/src/components/<group>/<ComponentName>/`:
+Within an owner, each non-trivial component keeps its own folder
+`components/<ComponentName>/`:
 
 ```
 <ComponentName>/

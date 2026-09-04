@@ -1,5 +1,5 @@
-import { downscaleImageBase64 } from './downscaleImage';
-import { toFileUrl } from './fileUrl';
+import { downscaleImageBase64 } from '../../../utils/downscaleImage';
+import { toFileUrl } from '../../../utils/fileUrl';
 import type { EditorView } from '@tiptap/pm/view';
 
 /** Map an image mime type to a file extension (jpeg → jpg, default png). */

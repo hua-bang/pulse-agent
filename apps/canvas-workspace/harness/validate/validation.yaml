@@ -250,8 +250,7 @@ pathRules:
   - name: note-editor
     paths:
       - src/renderer/src/modules/note-editor/**
-      - src/renderer/src/hooks/useFileNodeEditor.ts
-      - src/renderer/src/hooks/useNoteKeyboard.ts
+      - src/renderer/src/shared/fileNodeEditorRegistry.tsx
       - src/renderer/src/hooks/useCanvasSearch.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/note-editor src/renderer/src/modules/canvas/components/node-bodies/FileNodeBody

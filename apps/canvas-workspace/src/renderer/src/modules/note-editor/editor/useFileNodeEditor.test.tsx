@@ -3,9 +3,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorContent } from '@tiptap/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileNodeData } from '../types';
-import { I18nProvider } from '../i18n';
-import { useFileNodeEditor } from './useFileNodeEditor';
+import type { FileNodeData } from '../../../types';
+import { I18nProvider } from '../../../i18n';
+import { useFileNodeEditor } from '..';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -8,7 +8,7 @@ import { RightDockProvider } from '../../../../dock/internal/RightDock';
 import {
   FileNodeEditorRegistryProvider,
   useFileNodeEditorRegistry,
-} from '../../../../../hooks/useFileNodeEditorRegistry';
+} from '../../../../../shared/fileNodeEditorRegistry';
 import { CanvasKeyboardActiveProvider } from '../../../../../hooks/useWorkspaceActive';
 import { FileNodeBody } from '.';
 

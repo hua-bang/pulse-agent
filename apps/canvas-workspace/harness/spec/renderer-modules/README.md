@@ -72,6 +72,10 @@ Current healthy properties:
   Feature node bodies may be composed by Canvas, but shared mention UI and
   pure knowledge-node predicates live in leaf/shared seams so those features
   never depend back on Canvas and create a module cycle.
+- Note editor runtime, interaction state, extensions, image handling, keyboard
+  ownership, and editor hooks live behind `modules/note-editor/index.ts`.
+  FileNodeBody remains lazy; the lightweight editor registry is in `shared/`
+  because app, Canvas, and Dock all consume it without loading Tiptap.
 - Dock consumers use `shared/dockPort.tsx`; Dock owns the concrete store and
   may compose product panes without those product modules depending back on
   Dock. Pure tab/split/content policy lives under `shared/dock/`, and embedded

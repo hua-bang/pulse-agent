@@ -38,7 +38,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/session-store.ts': 636,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
-  'src/renderer/src/hooks/useFileNodeEditor.ts': 511,
   'src/main/agent/skills/config.ts': 511,
   // 510→539 (2026-09-03, drift recorded): master icon-alignment changes
   // #989–#991 landed without updating this manually maintained baseline.

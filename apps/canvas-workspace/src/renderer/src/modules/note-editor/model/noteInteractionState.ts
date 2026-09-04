@@ -1,4 +1,4 @@
-import { clampIndexMove } from '../components/ui/hooks/useIndexNav';
+import { clampIndexMove } from '../../../components/ui/hooks/useIndexNav';
 
 export interface NoteSlashMenuState {
   x: number;
