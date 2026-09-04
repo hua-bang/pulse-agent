@@ -12,7 +12,9 @@ import { TaskDagCanvas } from '../TaskDagCanvas';
 import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
 import { TeamCommand } from '../TeamCommand';
 import { AgentsStrip, type AgentSummaryItem } from '../AgentsStrip';
-import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel, agentTypeDisplayLabel } from '../visualLabels';
+import { AgentDetail, createAgentDetailModel } from '../AgentDetail';
+import { AgentInspector } from '../AgentInspector';
+import { agentSessionHealthSuffix as sessionHealthSuffix, agentTeamStatusLabel as statusLabel } from '../visualLabels';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { SegmentedControl } from '../../../../components/ui';
 import { useAppShell } from '../../../../shared/appShell';
@@ -85,44 +87,10 @@ const artifactFilePath = (artifact: AgentTeamArtifactRecord): string | undefined
 const isHumanFacingGate = (gate: AgentTeamHumanGateRecord): boolean =>
   gate.metadata?.audience !== 'lead' && hasConcreteHumanGatePrompt(gate.prompt);
 
-const terminalLineText = (value: string): string =>
-  value
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
-    .replace(/[│┃╭╮╰╯┌┐└┘├┤┬┴┼─━═]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const isLowSignalTerminalLine = (value: string): boolean =>
-  !value
-  || /^gpt-[\w.-]+/i.test(value)
-  || /^>\s*(write tests|explain this codebase|find and fix)/i.test(value)
-  || /^\.\.\. \+\d+ lines/i.test(value)
-  || /^\+\d+ lines/i.test(value)
-  || /^working\b/i.test(value)
-  || /^messages to be submitted/i.test(value);
-
-const recentTerminalLines = (scrollback: string | undefined, limit = 8): string[] => {
-  if (!scrollback) return [];
-  const seen = new Set<string>();
-  return scrollback
-    .split('\n')
-    .map(terminalLineText)
-    .filter((line) => !isLowSignalTerminalLine(line))
-    .filter((line) => {
-      if (seen.has(line)) return false;
-      seen.add(line);
-      return true;
-    })
-    .slice(-limit);
-};
-
 const isTeamAgentNode = (node: CanvasNode, teamId: string): node is CanvasNode & { data: AgentNodeData } =>
   node.type === 'agent'
   && (node.data as AgentNodeData).agentTeamId === teamId
   && !!(node.data as AgentNodeData).agentTeamAgentId;
-
-const agentTypeLabel = (agentType?: string): string => agentTypeDisplayLabel(agentType, AGENT_REGISTRY);
 
 // Agent Teams currently supports only Claude Code and Codex for teammates.
 const TEAM_AGENT_OPTIONS = AGENT_REGISTRY.filter((def) => def.id === 'claude-code' || def.id === 'codex');
@@ -351,6 +319,22 @@ export const AgentTeamFrame = ({
     });
   }, [artifacts, graphTaskByKey, graphTasks, phase, plan, teammates, snapshot?.sessions]);
   const selectedGraphAgent = graphAgents.find((agent) => agent.key === selectedAgentKey);
+  const selectedAgentNode = selectedGraphAgent?.sourceAgent
+    ? agentNodeByAgentId.get(selectedGraphAgent.sourceAgent.id)
+    : selectedGraphAgent?.nodeId
+      ? teamAgentNodes.find((candidate) => candidate.id === selectedGraphAgent.nodeId)
+      : undefined;
+  const selectedAgentDetail = selectedGraphAgent
+    ? createAgentDetailModel({
+        agent: selectedGraphAgent,
+        tasks: graphTasks.filter((task) => task.ownerKey === selectedGraphAgent.key),
+        artifacts: selectedGraphAgent.sourceAgent
+          ? artifacts.filter((artifact) => artifact.agentId === selectedGraphAgent.sourceAgent?.id)
+          : [],
+        agentNode: selectedAgentNode,
+        rootFolder,
+      })
+    : undefined;
   const agentTypeByOwnerKey = useMemo(
     () => new Map(graphAgents.map((agent) => [agent.key, agent.agentType])),
     [graphAgents],
@@ -704,157 +688,6 @@ export const AgentTeamFrame = ({
     </section>
   );
 
-  const getAgentDetailContext = (agent: GraphAgentItem) => {
-    const ownedTasks = graphTasks.filter((task) => task.ownerKey === agent.key);
-    const agentArtifacts = agent.sourceAgent
-      ? artifacts.filter((artifact) => artifact.agentId === agent.sourceAgent?.id)
-      : [];
-    const agentNode = agent.sourceAgent
-      ? agentNodeByAgentId.get(agent.sourceAgent.id)
-      : agent.nodeId
-        ? teamAgentNodes.find((candidate) => candidate.id === agent.nodeId)
-        : undefined;
-    const agentData = agentNode?.data as AgentNodeData | undefined;
-    return {
-      ownedTasks,
-      agentArtifacts,
-      agentNode,
-      agentData,
-      activityLines: recentTerminalLines(agentData?.scrollback),
-    };
-  };
-
-  const renderAgentDetailContent = () => {
-    if (!selectedGraphAgent) {
-      return <div className="agent-team-detail__muted agent-team-detail__empty">Select an agent to see its detail.</div>;
-    }
-    const { ownedTasks, agentArtifacts, agentNode, agentData, activityLines } = getAgentDetailContext(selectedGraphAgent);
-    return (
-      <>
-        <div className="agent-team-graph-detail__head">
-          <div>
-            <span className="agent-team-panel-heading__label">Selected agent</span>
-            <strong>{selectedGraphAgent.name}</strong>
-          </div>
-          <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphAgent.status}`}>
-            {statusLabel(selectedGraphAgent.status)}{sessionHealthSuffix(selectedGraphAgent.sessionHealth)}
-          </span>
-        </div>
-
-        <div className={`agent-team-agent-detail__viewer${agentViewMode === 'terminal' ? ' agent-team-agent-detail__viewer--terminal' : ''}`}>
-          <div className="agent-team-subtabs">
-            <SegmentedControl
-              ariaPattern="tab"
-              ariaLabel="Agent view"
-              value={agentViewMode}
-              onChange={(id) => setAgentViewMode(id as 'activity' | 'terminal')}
-              options={[
-                { id: 'activity', label: 'Activity' },
-                { id: 'terminal', label: 'Terminal' },
-              ]}
-            />
-            <button
-              type="button"
-              className="agent-team-subtab-expand"
-              title="Open in large view"
-              aria-label="Open in large view"
-              onClick={() => {
-                setAgentInspectorMode(agentViewMode);
-                setAgentInspectorOpen(true);
-              }}
-            >
-              ⤢
-            </button>
-          </div>
-          {agentViewMode === 'activity' ? (
-            <div className="agent-team-agent-detail__activity">
-              <div className="agent-team-agent-detail__meta">
-                <span className="agent-team-detail__agent-type">
-                  <AgentIcon id={selectedGraphAgent.agentType ?? 'claude-code'} size={13} />
-                  {agentTypeLabel(selectedGraphAgent.agentType)}
-                </span>
-                {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
-                <span>{agentData?.cwd || rootFolder || 'No workspace'}</span>
-              </div>
-
-              <div className="agent-team-agent-detail__stats">
-                <span><strong>{selectedGraphAgent.taskCount}</strong> tasks</span>
-                <span><strong>{selectedGraphAgent.runningCount}</strong> running</span>
-                <span><strong>{selectedGraphAgent.blockedCount}</strong> blocked</span>
-                <span><strong>{selectedGraphAgent.artifactCount}</strong> artifacts</span>
-              </div>
-
-              <div className="agent-team-agent-detail__section">
-                <span className="agent-team-detail__section-title">Current task</span>
-                <strong>{selectedGraphAgent.currentTaskTitle ?? 'No active task'}</strong>
-              </div>
-
-              <div className="agent-team-agent-detail__section">
-                <span className="agent-team-detail__section-title">Assigned tasks</span>
-                {ownedTasks.length === 0 ? (
-                  <span className="agent-team-detail__muted">No assigned tasks.</span>
-                ) : ownedTasks.map((task) => (
-                  <button
-                    key={task.key}
-                    type="button"
-                    className={`agent-team-agent-detail__task agent-team-agent-detail__task--${task.status}`}
-                    onClick={() => selectGraphTask(task)}
-                  >
-                    <strong>{task.title}</strong>
-                    <span>{statusLabel(task.status)}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="agent-team-agent-detail__section">
-                <span className="agent-team-detail__section-title">Artifacts</span>
-                {agentArtifacts.length === 0 ? (
-                  <span className="agent-team-detail__muted">None yet</span>
-                ) : agentArtifacts.map((artifact) => (
-                  <button
-                    key={artifact.id}
-                    type="button"
-                    className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
-                    title={artifact.summary ?? artifact.uri ?? ''}
-                    onClick={() => setSelectedArtifactId(artifact.id)}
-                  >
-                    {artifactLabel(artifact)}
-                  </button>
-                ))}
-              </div>
-
-              <div className="agent-team-agent-detail__section">
-                <span className="agent-team-detail__section-title">Recent output</span>
-                {activityLines.length === 0 ? (
-                  <span className="agent-team-detail__muted">No readable output yet.</span>
-                ) : activityLines.map((line, index) => (
-                  <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
-                ))}
-              </div>
-            </div>
-          ) : agentNode ? (
-            <div className="agent-team-agent-detail__inline-terminal">
-              <AgentNodeBody
-                node={agentNode}
-                getAllNodes={getAllNodes}
-                rootFolder={rootFolder}
-                workspaceId={workspaceId}
-                workspaceName={workspaceName}
-                onUpdate={onUpdate}
-                readOnly={readOnly}
-                terminalMode="mirror"
-              />
-            </div>
-          ) : (
-            <div className="agent-team-detail__muted agent-team-detail__empty">
-              No runtime node yet. Approve &amp; run the plan to stream the terminal.
-            </div>
-          )}
-        </div>
-      </>
-    );
-  };
-
   const renderTaskDetailContent = () => {
     if (!selectedGraphTask) {
       return <div className="agent-team-detail__muted agent-team-detail__empty">Select a task to see its detail.</div>;
@@ -964,7 +797,20 @@ export const AgentTeamFrame = ({
             { id: 'agent', label: 'Agent' },
           ]}
         />
-        {agentActive ? renderAgentDetailContent() : renderTaskDetailContent()}
+        {agentActive ? (
+          <AgentDetail
+            detail={selectedAgentDetail}
+            mode={agentViewMode}
+            terminal={{ getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly }}
+            onModeChange={setAgentViewMode}
+            onExpand={() => {
+              setAgentInspectorMode(agentViewMode);
+              setAgentInspectorOpen(true);
+            }}
+            onSelectTask={selectGraphTask}
+            onSelectArtifact={(artifact) => setSelectedArtifactId(artifact.id)}
+          />
+        ) : renderTaskDetailContent()}
       </aside>
     );
   };
@@ -1047,139 +893,17 @@ export const AgentTeamFrame = ({
   );
 
   const renderAgentInspector = () => {
-    if (!agentInspectorOpen || !selectedGraphAgent) return null;
-    const {
-      ownedTasks,
-      agentArtifacts,
-      agentNode: selectedAgentNode,
-      agentData: selectedAgentData,
-      activityLines,
-    } = getAgentDetailContext(selectedGraphAgent);
+    if (!agentInspectorOpen || !selectedAgentDetail) return null;
     return (
-      <div className="agent-team-agent-inspector" role="dialog" aria-label="Agent detail">
-        <div className="agent-team-agent-inspector__panel">
-          <div className="agent-team-agent-inspector__head">
-            <div>
-              <span className="agent-team-panel-heading__label">Agent detail</span>
-              <strong>{selectedGraphAgent.name}</strong>
-            </div>
-            <button type="button" onClick={() => setAgentInspectorOpen(false)}>Close</button>
-          </div>
-          <div className="agent-team-agent-inspector__body">
-            <div className="agent-team-agent-inspector__summary">
-              <div className="agent-team-agent-inspector__meta">
-                <span className="agent-team-detail__agent-type">
-                  <AgentIcon id={selectedGraphAgent.agentType ?? 'claude-code'} size={13} />
-                  {agentTypeLabel(selectedGraphAgent.agentType)}
-                </span>
-                <span>{statusLabel(selectedGraphAgent.status)}</span>
-                {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
-              </div>
-              <div className="agent-team-agent-inspector__stats">
-                <span><strong>{selectedGraphAgent.taskCount}</strong> tasks</span>
-                <span><strong>{selectedGraphAgent.runningCount}</strong> running</span>
-                <span><strong>{selectedGraphAgent.blockedCount}</strong> blocked tasks</span>
-                <span><strong>{selectedGraphAgent.artifactCount}</strong> artifacts</span>
-                <span><strong>{selectedGraphAgent.toolCount ?? '—'}</strong> tools</span>
-              </div>
-              <div className="agent-team-agent-inspector__section">
-                <span className="agent-team-detail__section-title">Assigned tasks</span>
-                {ownedTasks.length === 0 ? (
-                  <span className="agent-team-detail__muted">No assigned tasks.</span>
-                ) : ownedTasks.map((task) => (
-                  <button
-                    key={task.key}
-                    type="button"
-                    className={`agent-team-agent-inspector__task agent-team-agent-inspector__task--${task.status}`}
-                    onClick={() => selectGraphTask(task)}
-                  >
-                    <strong>{task.title}</strong>
-                    <span>{statusLabel(task.status)}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="agent-team-agent-inspector__section">
-                <span className="agent-team-detail__section-title">Artifacts</span>
-                {agentArtifacts.length === 0 ? (
-                  <span className="agent-team-detail__muted">None yet</span>
-                ) : agentArtifacts.map((artifact) => (
-                  <button
-                    key={artifact.id}
-                    type="button"
-                    className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
-                    title={artifact.summary ?? artifact.uri ?? ''}
-                    onClick={() => setSelectedArtifactId(artifact.id)}
-                  >
-                    {artifactLabel(artifact)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="agent-team-agent-inspector__terminal">
-              <div className="agent-team-agent-inspector__viewer-head">
-                <div>
-                  <span className="agent-team-panel-heading__label">Coding Agent</span>
-                  <strong>{agentInspectorMode === 'terminal' ? 'Terminal' : 'Activity'}</strong>
-                </div>
-                <SegmentedControl
-                  className="agent-team-agent-inspector__viewer-tabs"
-                  ariaPattern="tab"
-                  ariaLabel="Agent detail mode"
-                  value={agentInspectorMode}
-                  onChange={(id) => setAgentInspectorMode(id as 'activity' | 'terminal')}
-                  options={[
-                    { id: 'activity', label: 'Activity' },
-                    { id: 'terminal', label: 'Terminal' },
-                  ]}
-                />
-              </div>
-              {agentInspectorMode === 'activity' ? (
-                <div className="agent-team-agent-inspector__activity">
-                  <div className="agent-team-agent-inspector__activity-hero">
-                    <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphAgent.status}`}>
-                      {statusLabel(selectedGraphAgent.status)}
-                    </span>
-                    <strong>{selectedGraphAgent.currentTaskTitle ?? 'No active task'}</strong>
-                    <span>{selectedGraphAgent.doneCount}/{selectedGraphAgent.taskCount} tasks complete</span>
-                  </div>
-                  <div className="agent-team-agent-inspector__activity-grid">
-                    <span><strong>{selectedGraphAgent.toolCount ?? '—'}</strong> Tools</span>
-                    <span><strong>{selectedGraphAgent.artifactCount}</strong> Artifacts</span>
-                    <span><strong>{selectedAgentData?.cwd || rootFolder || '—'}</strong> Workspace</span>
-                  </div>
-                  <div className="agent-team-agent-inspector__recent-output">
-                    <span className="agent-team-detail__section-title">Recent output</span>
-                    {activityLines.length === 0 ? (
-                      <span className="agent-team-detail__muted">No readable output yet.</span>
-                    ) : activityLines.map((line, index) => (
-                      <span key={`${index}-${line}`}>{line}</span>
-                    ))}
-                  </div>
-                </div>
-              ) : selectedAgentNode ? (
-                <div className="agent-team-agent-inspector__terminal-body">
-                  <AgentNodeBody
-                    node={selectedAgentNode}
-                    getAllNodes={getAllNodes}
-                    rootFolder={rootFolder}
-                    workspaceId={workspaceId}
-                    workspaceName={workspaceName}
-                    onUpdate={onUpdate}
-                    readOnly={readOnly}
-                    terminalMode="mirror"
-                  />
-                </div>
-              ) : (
-                <div className="agent-team-agent-inspector__terminal-empty">
-                  <span className="agent-team-detail__section-title">Coding Agent</span>
-                  <strong>No runtime node yet</strong>
-                  <span>Approve and run the plan before opening the full Coding Agent view.</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <AgentInspector
+        detail={selectedAgentDetail}
+        mode={agentInspectorMode}
+        terminal={{ getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly }}
+        onClose={() => setAgentInspectorOpen(false)}
+        onModeChange={setAgentInspectorMode}
+        onSelectTask={selectGraphTask}
+        onSelectArtifact={(artifact) => setSelectedArtifactId(artifact.id)}
+      />
     );
   };
 
