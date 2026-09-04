@@ -78,6 +78,7 @@ import {
   isRecoverableSessionExitReview,
   observeQueuedLaunch,
 } from './recovery-policy';
+import { formatLeadExecutionPrompt, formatLeaderBriefingPrompt } from './prompts';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -135,85 +136,6 @@ const inferWorkingDirectoryFromText = (content: string): string | undefined => {
 
   return candidates.find(isExistingDirectory);
 };
-
-const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: string, cwd?: string): string => [
-  `You are the Team Leader for "${teamName}" in Pulse Canvas.`,
-  '',
-  `Current team goal: ${goal || 'Clarify the goal with the user.'}`,
-  ...(cwd
-    ? [
-      '',
-      `Team working directory: ${cwd}`,
-      'All teammate nodes created from this plan will start in this directory. Plan tasks against this path unless the user explicitly asks for a different location.',
-    ]
-    : []),
-  '',
-  'Your only job in this phase is to clarify requirements and draft a Pulse Canvas Agent Team plan.',
-  'Do not implement the task yourself. Reading the repository to inform the plan is fine; do not create or edit project files in this phase — the only file you may write is a temporary plan JSON for propose-plan --plan-file.',
-  'Do not spawn teammates yourself; Pulse Canvas will create teammate nodes only after the user approves your plan.',
-  'If there is already a pending plan and the user asks for changes — including changes requested directly in this conversation — you MUST revise and resubmit the full plan by re-running propose-plan. A chat reply alone does NOT update the plan: the task graph shown to the user and the "Approve & Run" action keep using the last submitted plan until you re-run propose-plan. So after agreeing to any change, immediately resubmit the updated plan. Do not create execution tasks during plan review.',
-  '',
-  'When the plan is ready for user approval, submit it through the Pulse Canvas CLI instead of writing a terminal marker.',
-  'Prefer --plan-json so you do not need to edit a temporary file. Use this JSON shape:',
-  '{"summary":"short plan summary","teammates":[{"name":"Backend Codex","agentType":"codex"},{"name":"Frontend Codex","agentType":"codex"},{"name":"QA Codex","agentType":"codex"}],"tasks":[{"title":"Define API contract","description":"Concrete instructions and expected output.","ownerName":"Backend Codex","deps":[],"scope":["docs/api-contract.md","src/server/api"],"verify":"manual"},{"title":"Implement frontend integration","description":"Concrete instructions and expected output.","ownerName":"Frontend Codex","deps":["Define API contract"],"scope":["src/web"],"verify":"npm test --prefix src/web"},{"title":"QA integration and fixes","description":"Verify the completed backend/frontend flow and report or fix issues.","ownerName":"QA Codex","deps":["Define API contract","Implement frontend integration"],"scope":["tests"],"verify":"npm test"}]}',
-  '',
-  'Every task object MUST include "deps": [] or a list of exact task titles from the same plan.',
-  'Give every task that creates or edits files a "scope": the file or directory paths (relative to the working directory) it may modify. Survey, analysis, and review tasks may omit scope.',
-  'Tasks that can run in parallel MUST have non-overlapping scopes. Pulse Canvas will not dispatch two scope-overlapping tasks at the same time, so overlapping scopes silently serialize your DAG.',
-  'Give every task that produces code a "verify": ONE cheap, deterministic command that proves the task works (a scoped test, typecheck, or lint — not a full build or long test suite). Pulse Canvas re-runs it when the teammate submits the task and shows you PASS/FAIL during acceptance. Use "verify": "manual" for survey/analysis/contract tasks.',
-  'Optionally add a top-level "integrationVerify": ONE command that proves the whole deliverable works together (e.g. the full test suite). When the user finishes the team, Pulse Canvas runs it as a final integration task before the review.',
-  'Use deps to encode the real execution order. Do not rely on wording like "after" or "then" in descriptions.',
-  'Plan the smallest DAG that still exposes useful parallel work: usually 3-6 teammates and 4-10 tasks for normal app/repo work. Go above 10 tasks only when there are truly independent deliverables.',
-  'Target 2-4 ready-to-start workstreams. Do not serialize the whole graph behind one setup/research task, and do not create one microtask per file, component, command, or tiny edit.',
-  'Aim for at least 2-3 tasks runnable in parallel at every stage of the DAG. If a task only blocks one downstream task, consider whether they can run concurrently with a shared contract instead of a hard dependency.',
-  'Each teammate should usually own 1-2 meaningful tasks. Split by durable ownership or artifact boundary, not by mechanical steps.',
-  'Use deps only for real handoffs: a task depends on another task only when it needs that task\'s concrete output or contract.',
-  'Downstream tasks such as frontend integration, QA, testing, review, documentation, release, validation, and final summary MUST depend on the implementation or contract tasks they need.',
-  'Make each task narrow and non-overlapping. A task description MUST state the expected deliverable and its scope boundary.',
-  'Survey, analysis, contract, architecture, and planning tasks should produce findings or a contract artifact only; they must not also implement runtime, host app, child apps, QA, or documentation unless that is the entire assigned task.',
-  'Implementation tasks should not include QA/final summary work. QA/documentation/final summary tasks should be separate downstream tasks.',
-  '',
-  'Run:',
-  'pulse-canvas team propose-plan --plan-json \'<json>\'',
-  '',
-  'If the JSON is too large or hard to quote, write a temporary file and run:',
-  'pulse-canvas team propose-plan --plan-file <path-to-json>',
-  '',
-  'The CLI can read PULSE_CANVAS_WORKSPACE_ID, PULSE_CANVAS_TEAM_ID, PULSE_CANVAS_TEAM_AGENT_ID, PULSE_CANVAS_NODE_ID, and PULSE_CANVAS_TEAM_ROLE from this session environment.',
-  '',
-  `User message:\n${content}`,
-].join('\n');
-
-const formatLeadExecutionPrompt = (teamName: string, goal: string, content: string): string => [
-  `Human follow-up for "${teamName}" in Pulse Canvas.`,
-  '',
-  `Team goal: ${goal || 'Coordinate the team.'}`,
-  '',
-  'You are the Team Leader during execution. You coordinate the team.',
-  'You may do lightweight integration and coordination yourself: answer the human directly, summarize status, explain how the pieces fit together, and lay out how the project should be accepted and delivered. A quick read to answer such questions is fine.',
-  'Do not take over a teammate\'s detailed implementation work. Do not write or edit feature code, build out deliverables, or run builds, installs, dev servers, or tests to implement the change — hand that to a teammate instead of doing it yourself.',
-  'No change is too small to delegate: even a one-line fix goes to the owning teammate (send) or a new task, because edits you make bypass the team\'s review, handoff, and scope tracking.',
-  'First decide what the follow-up needs:',
-  'If it is a question or a coordination / acceptance / delivery matter you can handle as lead, just reply — do not create a task.',
-  'Otherwise, decide whether it modifies existing work or creates genuinely new work.',
-  'If it changes work that is already todo, in progress, needs input, or needs review, do not create a duplicate task. Send the change to the responsible teammate instead:',
-  'pulse-canvas team send --to "Teammate name" --message "Revise the current task: ..."',
-  'If a teammate already produced enough work to satisfy later tasks, close only the covered downstream tasks that are not actively running:',
-  'pulse-canvas team complete-task --task "<covered downstream task id or title>" --summary "<why this was already satisfied>"',
-  'If a covered downstream task is actively running, send guidance to that teammate instead of marking it complete.',
-  'Use create-task only for new work not covered by any existing task:',
-  'pulse-canvas team create-task --title "Task title" --description "Concrete instructions" --owner "Teammate name" --scope "src/path" --verify "<cheap test/typecheck command>" --dispatch',
-  'Declare --scope (repeatable) for tasks that edit files; tasks with overlapping scopes never run at the same time.',
-  'Declare --verify for tasks that produce code; Pulse Canvas re-runs it at submission and shows you PASS/FAIL during acceptance.',
-  '',
-  'Use pulse-canvas team status to ground yourself in the current tasks, agents, open questions, and pending reviews before deciding.',
-  'Use pulse-canvas team send --to "Teammate name" --message "..." to share context with a teammate.',
-  'Use pulse-canvas team propose-plan only when the change needs a new human-approved plan.',
-  'Do not use Claude/Codex subagents for teammate work; Pulse Canvas owns teammate nodes and dispatch.',
-  'Handle this follow-up once. Do not run sleep, watch, tail, polling loops, or repeated status checks. Pulse Canvas will wake you again when another decision is required.',
-  '',
-  `Human message:\n${content}`,
-].join('\n');
 
 export class CanvasAgentTeamsService {
   private readonly runtimes = new Map<string, RuntimeBundle>();

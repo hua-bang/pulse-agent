@@ -176,7 +176,8 @@ done. Still open:
   owned by `agent-teams/projection.ts`, while command execution and bounded
   output capture live in `agent-teams/verification.ts`. Session-exit matching
   and queued-launch grace decisions live in `agent-teams/recovery-policy.ts`;
-  preserve the IPC-facing use cases while moving the remaining state machines
+  Team Lead briefing/execution protocol text lives in `agent-teams/prompts.ts`.
+  Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
