@@ -79,6 +79,9 @@ Current healthy properties:
 - Edge styling is a 257-line positioned panel over an owner-local option
   renderer and shared preview geometry; option selection is tested through
   its stroke/cap command interface.
+- CommandPalette is a 240-line keyboard surface over a pure 115-line search
+  projection and an owner-local row renderer; node match ordering, command
+  aliases, and disabled filtering are tested independently of React.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.

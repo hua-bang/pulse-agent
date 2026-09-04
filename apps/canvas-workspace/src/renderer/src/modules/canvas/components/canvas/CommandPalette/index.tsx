@@ -1,36 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
-import type { CanvasNode, FileNodeData, TextNodeData } from '../../../../../types';
+import type { CanvasNode } from '../../../../../types';
 import { isImeComposing } from '../../../../../utils/ime';
 import { useI18n, type I18nKey } from '../../../../../i18n';
-import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
 import { useIndexNav } from '../../../../../components/ui';
+import {
+  buildPaletteSections,
+  type PaletteCommand,
+  type PaletteItem,
+  type PaletteSectionId,
+} from './model';
+import { PaletteRow } from './PaletteRow';
+
+export type { PaletteCommand } from './model';
 
 /**
  * A single executable entry in the palette. Commands are bound by the
  * caller (Canvas/index.tsx) — the palette only routes selection back
  * to `command.run()` and dismisses itself.
  */
-export interface PaletteCommand {
-  id: string;
-  /** Primary label — also the main field matched against the query. */
-  title: string;
-  /** Secondary line shown beneath the title. */
-  hint?: string;
-  /** Used both for visual section grouping and result ordering. */
-  group: 'create' | 'navigate' | 'view' | 'edit' | 'help';
-  /** Lowercased extra strings the fuzzy matcher will consider. */
-  aliases?: string[];
-  /** Optional shortcut string displayed on the right (e.g. "Cmd+D"). */
-  shortcut?: string;
-  /** When provided and false, the command is filtered out — used for
-   *  selection-dependent commands ("Duplicate selection"). */
-  enabled?: boolean;
-  run: () => void;
-}
-
-const GROUP_ORDER: Array<PaletteCommand['group']> = ['edit', 'create', 'navigate', 'view', 'help'];
-
 const GROUP_LABEL_KEY: Record<PaletteCommand['group'], I18nKey> = {
   create: 'canvas.palette.group.create',
   navigate: 'canvas.palette.group.navigate',
@@ -38,25 +26,12 @@ const GROUP_LABEL_KEY: Record<PaletteCommand['group'], I18nKey> = {
   edit: 'canvas.palette.group.edit',
   help: 'canvas.palette.group.help',
 };
-
-interface NodeResult {
-  kind: 'node';
-  node: CanvasNode;
-  matchType: 'title-prefix' | 'title-contains' | 'filename' | 'content' | 'recent';
-  matchText: string;
-}
-
-interface CommandResult {
-  kind: 'command';
-  command: PaletteCommand;
-}
-
-type PaletteItem = NodeResult | CommandResult;
-
-interface Section {
-  label: string;
-  items: PaletteItem[];
-}
+const SECTION_LABEL_KEY: Record<PaletteSectionId, I18nKey> = {
+  ...GROUP_LABEL_KEY,
+  nodes: 'canvas.palette.section.nodes',
+  commands: 'canvas.palette.section.commands',
+  recent: 'canvas.palette.section.recentNodes',
+};
 
 interface Props {
   nodes: CanvasNode[];
@@ -64,8 +39,6 @@ interface Props {
   onSelectNode: (node: CanvasNode) => void;
   onClose: () => void;
 }
-
-const MAX_NODE_RESULTS = 20;
 
 /**
  * Cmd+K palette — unified search-and-command surface for the canvas.
@@ -93,111 +66,10 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
     inputRef.current?.focus();
   }, []);
 
-  const enabledCommands = useMemo(
-    () => commands.filter((c) => c.enabled !== false),
-    [commands],
+  const sections = useMemo(
+    () => buildPaletteSections(nodes, commands, query),
+    [commands, nodes, query],
   );
-
-  const sections = useMemo<Section[]>(() => {
-    const q = query.trim().toLowerCase();
-
-    if (!q) {
-      // Empty query: show every command grouped by category, plus the
-      // most-recently-edited nodes underneath. The "default state"
-      // doubles as a discoverability surface — users who open the
-      // palette without typing learn the command set just by looking.
-      const out: Section[] = [];
-      for (const group of GROUP_ORDER) {
-        const items = enabledCommands
-          .filter((c) => c.group === group)
-          .map((c): CommandResult => ({ kind: 'command', command: c }));
-        if (items.length > 0) out.push({ label: t(GROUP_LABEL_KEY[group]), items });
-      }
-      const recentNodes = [...nodes]
-        .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-        .slice(0, 8)
-        .map((node): NodeResult => ({
-          kind: 'node',
-          node,
-          matchType: 'recent',
-          matchText: node.title,
-        }));
-      if (recentNodes.length > 0) out.push({ label: t('canvas.palette.section.recentNodes'), items: recentNodes });
-      return out;
-    }
-
-    const nodeResults: NodeResult[] = [];
-    for (const node of nodes) {
-      const titleLower = node.title.toLowerCase();
-      if (titleLower.startsWith(q)) {
-        nodeResults.push({ kind: 'node', node, matchType: 'title-prefix', matchText: node.title });
-        continue;
-      }
-      if (titleLower.includes(q)) {
-        nodeResults.push({ kind: 'node', node, matchType: 'title-contains', matchText: node.title });
-        continue;
-      }
-      if (node.type === 'file') {
-        const fileData = node.data as FileNodeData;
-        const filePath = fileData.filePath || '';
-        const fileName = filePath.split('/').pop() || '';
-        if (fileName.toLowerCase().includes(q) || filePath.toLowerCase().includes(q)) {
-          nodeResults.push({ kind: 'node', node, matchType: 'filename', matchText: filePath });
-          continue;
-        }
-        const content = fileData.content || '';
-        if (content.toLowerCase().includes(q)) {
-          const idx = content.toLowerCase().indexOf(q);
-          const start = Math.max(0, idx - 20);
-          const end = Math.min(content.length, idx + q.length + 20);
-          const snippet = (start > 0 ? '...' : '') + content.slice(start, end) + (end < content.length ? '...' : '');
-          nodeResults.push({ kind: 'node', node, matchType: 'content', matchText: snippet });
-          continue;
-        }
-      } else if (node.type === 'text') {
-        const content = (node.data as TextNodeData).content || '';
-        if (content.toLowerCase().includes(q)) {
-          const idx = content.toLowerCase().indexOf(q);
-          const start = Math.max(0, idx - 20);
-          const end = Math.min(content.length, idx + q.length + 20);
-          const snippet = (start > 0 ? '...' : '') + content.slice(start, end) + (end < content.length ? '...' : '');
-          nodeResults.push({ kind: 'node', node, matchType: 'content', matchText: snippet });
-          continue;
-        }
-      }
-    }
-    const nodePriority: Record<NodeResult['matchType'], number> = {
-      'title-prefix': 0,
-      'title-contains': 1,
-      filename: 2,
-      content: 3,
-      recent: 4,
-    };
-    nodeResults.sort((a, b) => {
-      const pa = nodePriority[a.matchType];
-      const pb = nodePriority[b.matchType];
-      if (pa !== pb) return pa - pb;
-      return a.node.title.localeCompare(b.node.title);
-    });
-
-    const commandHits = enabledCommands.filter((c) => {
-      if (c.title.toLowerCase().includes(q)) return true;
-      if (c.aliases?.some((alias) => alias.toLowerCase().includes(q))) return true;
-      return false;
-    });
-
-    const out: Section[] = [];
-    if (nodeResults.length > 0) {
-      out.push({ label: t('canvas.palette.section.nodes'), items: nodeResults.slice(0, MAX_NODE_RESULTS) });
-    }
-    if (commandHits.length > 0) {
-      out.push({
-        label: t('canvas.palette.section.commands'),
-        items: commandHits.map((c): CommandResult => ({ kind: 'command', command: c })),
-      });
-    }
-    return out;
-  }, [query, nodes, enabledCommands, t]);
 
   // Flat list of items in display order — what arrow-key navigation
   // walks. Section headers don't get a slot; selectedIndex points
@@ -335,8 +207,8 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
             <div className="command-palette-empty">{t('canvas.palette.noMatches')}</div>
           ) : (
             sections.map((section) => (
-              <div key={section.label} className="command-palette-section">
-                <div className="command-palette-section-label">{section.label}</div>
+              <div key={section.id} className="command-palette-section">
+                <div className="command-palette-section-label">{t(SECTION_LABEL_KEY[section.id])}</div>
                 {section.items.map((item) => {
                   const idx = runningIndex++;
                   const isSelected = idx === selectedIndex;
@@ -345,7 +217,7 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
                       key={item.kind === 'node' ? `node:${item.node.id}` : `cmd:${item.command.id}`}
                       item={item}
                       index={idx}
-                      isSelected={isSelected}
+                      selected={isSelected}
                       onActivate={runItem}
                       onHover={setSelectedIndex}
                       onFocus={setSelectedIndex}
@@ -364,71 +236,5 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
         </div>
       </div>
     </div>
-  );
-};
-
-interface RowProps {
-  item: PaletteItem;
-  index: number;
-  isSelected: boolean;
-  onActivate: (item: PaletteItem) => void;
-  onHover: (index: number) => void;
-  onFocus: (index: number) => void;
-}
-
-const PaletteRow = ({ item, index, isSelected, onActivate, onHover, onFocus }: RowProps) => {
-  const { t } = useI18n();
-  const className = `command-palette-row ${isSelected ? 'selected' : ''}`;
-  if (item.kind === 'node') {
-    const showSnippet = item.matchType !== 'title-prefix' && item.matchType !== 'title-contains' && item.matchType !== 'recent';
-    const title = item.node.title || t('canvas.palette.untitled');
-    const typeLabel = t(CANVAS_NODE_TYPE_LABEL_KEY[item.node.type]);
-    return (
-      <button
-        type="button"
-        className={className}
-        id={`command-palette-option-${index}`}
-        role="option"
-        aria-selected={isSelected}
-        aria-label={t('canvas.palette.nodeOption', { type: typeLabel, title })}
-        data-palette-index={index}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => onActivate(item)}
-        onMouseEnter={() => onHover(index)}
-        onFocus={() => onFocus(index)}
-      >
-        <div className="command-palette-row-main">
-          <span className={`command-palette-badge command-palette-badge--${item.node.type}`}>
-            {typeLabel}
-          </span>
-          <span className="command-palette-row-title">{title}</span>
-        </div>
-        {showSnippet && <div className="command-palette-row-hint">{item.matchText}</div>}
-      </button>
-    );
-  }
-  const c = item.command;
-  const groupLabel = t(GROUP_LABEL_KEY[c.group]);
-  return (
-    <button
-      type="button"
-      className={className}
-      id={`command-palette-option-${index}`}
-      role="option"
-      aria-selected={isSelected}
-      aria-label={t('canvas.palette.commandOption', { group: groupLabel, title: c.title })}
-      data-palette-index={index}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => onActivate(item)}
-      onMouseEnter={() => onHover(index)}
-      onFocus={() => onFocus(index)}
-    >
-      <div className="command-palette-row-main">
-        <span className="command-palette-badge command-palette-badge--cmd">{groupLabel}</span>
-        <span className="command-palette-row-title">{c.title}</span>
-        {c.shortcut && <span className="command-palette-shortcut">{c.shortcut}</span>}
-      </div>
-      {c.hint && <div className="command-palette-row-hint">{c.hint}</div>}
-    </button>
   );
 };
