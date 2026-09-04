@@ -6,12 +6,12 @@ import {
   removeCanvasPluginDirectory,
   setCanvasPluginConfigValue,
 } from './config';
-import { getCanvasAgentService } from '../agent/ipc';
+import { getPluginMarketAgentPort } from './agent-port';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';
 
 async function refreshRuntimePluginsAndAgents(): Promise<void> {
   await reloadConfiguredExternalMainPlugins();
-  await getCanvasAgentService().reloadMcp();
+  await getPluginMarketAgentPort().reloadMcp();
 }
 
 export function setupCanvasPluginsConfigIpc(): void {
