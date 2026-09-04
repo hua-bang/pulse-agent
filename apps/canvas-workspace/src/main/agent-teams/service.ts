@@ -51,7 +51,6 @@ import {
 } from './planning';
 import { cleanString } from './input-normalization';
 import {
-  isPlaceholderHumanInputText,
   normalizeArtifactKind,
   parseAgentOutputMarker,
   stripAnsi,
@@ -86,6 +85,7 @@ import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-di
 import { AgentNodeResolver, type AgentNodeMatch } from './agent-node-resolver';
 import { TeamEventBroadcaster } from './team-event-broadcaster';
 import { AgentTeamWorkspaceDiscovery } from './workspace-discovery';
+import { repairAgentTeamState } from './state-repairs';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -96,7 +96,6 @@ const DEFAULT_LEAD_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
-const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
 // How long a dispatched task may sit as a queued launch prompt (agent PTY
 // dead, prompt waiting for the renderer to spawn the node) while windows are
 // open before the watchdog stops trusting it. Within the grace it is the
@@ -1208,9 +1207,7 @@ export class CanvasAgentTeamsService {
   ): Promise<{ canResume: boolean; snapshot: CanvasAgentTeamSnapshot }> {
     const { runtime, store } = this.getBundle(workspaceId);
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
-    await this.repairLegacyOutputMarkerBlocks(store, teamId);
-    await this.repairAnsweredHumanGateBlocks(store, teamId);
-    await this.repairPlaceholderHumanGates(store, teamId);
+    await repairAgentTeamState(store, teamId);
 
     const [team, agent, tasks, metadata] = await Promise.all([
       store.getTeam(teamId),
@@ -1294,9 +1291,7 @@ export class CanvasAgentTeamsService {
   private async snapshotInternal(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
-    await this.repairLegacyOutputMarkerBlocks(store, teamId);
-    await this.repairAnsweredHumanGateBlocks(store, teamId);
-    await this.repairPlaceholderHumanGates(store, teamId);
+    await repairAgentTeamState(store, teamId);
     await runtime.notifyLeadPendingGates(teamId);
     await runtime.notifyLeadPendingTaskReviews(teamId);
     await runtime.notifyLeadReviewIfStalled(teamId);
@@ -1474,9 +1469,7 @@ export class CanvasAgentTeamsService {
               return;
             }
             await this.watchdogCheckAgents(workspaceId, entry.teamId);
-            await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
-            await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
-            await this.repairPlaceholderHumanGates(store, entry.teamId);
+            await repairAgentTeamState(store, entry.teamId);
             await runtime.repairCurrentRound(entry.teamId);
             await runtime.notifyLeadPendingGates(entry.teamId);
             await runtime.notifyLeadPendingTaskReviews(entry.teamId);
@@ -1846,123 +1839,6 @@ export class CanvasAgentTeamsService {
     return false;
   }
 
-  private async repairLegacyOutputMarkerBlocks(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
-    const [tasks, agents] = await Promise.all([
-      store.listTasks(teamId),
-      store.listAgents(teamId),
-    ]);
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-    const now = Date.now();
-    for (const task of tasks) {
-      if (task.status !== 'blocked' || task.blockedReason !== LEGACY_OUTPUT_BLOCK_REASON || !task.ownerAgentId) {
-        continue;
-      }
-      const agent = agentsById.get(task.ownerAgentId);
-      if (!agent || agent.currentTaskId !== task.id) continue;
-      task.status = 'in_progress';
-      task.blockedReason = undefined;
-      task.updatedAt = now;
-      await store.saveTask(task);
-      if (agent.status === 'blocked') {
-        agent.status = 'running';
-        agent.updatedAt = now;
-        await store.saveAgent(agent);
-      }
-    }
-  }
-
-  /**
-   * Cancel open human gates whose prompt carries no concrete question —
-   * junk recorded before the marker parser filtered echoed/wrapped prompt
-   * examples. Such gates nag the Team Lead with unanswerable digests and
-   * park their task/agent in needs_input although the agent never actually
-   * asked anything; once cancelled, the parked records resume.
-   */
-  private async repairPlaceholderHumanGates(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
-    const gates = await store.listHumanGates(teamId);
-    const junk = gates.filter((gate) => gate.status === 'open' && isPlaceholderHumanInputText(gate.prompt.trim()));
-    if (junk.length === 0) return;
-
-    const now = Date.now();
-    for (const gate of junk) {
-      gate.status = 'cancelled';
-      gate.updatedAt = now;
-      await store.saveHumanGate(gate);
-    }
-
-    const [tasks, agents, refreshedGates] = await Promise.all([
-      store.listTasks(teamId),
-      store.listAgents(teamId),
-      store.listHumanGates(teamId),
-    ]);
-    const remainingOpen = refreshedGates.filter((gate) => gate.status === 'open');
-    const openTaskIds = new Set(remainingOpen.map((gate) => gate.taskId).filter(Boolean));
-    const openAgentIds = new Set(remainingOpen.map((gate) => gate.agentId).filter(Boolean));
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-
-    for (const gate of junk) {
-      if (gate.taskId && !openTaskIds.has(gate.taskId)) {
-        const task = tasks.find((candidate) => candidate.id === gate.taskId);
-        if (task && task.status === 'needs_input') {
-          task.status = task.ownerAgentId ? 'in_progress' : 'todo';
-          task.blockedReason = undefined;
-          task.updatedAt = now;
-          await store.saveTask(task);
-        }
-      }
-      if (gate.agentId && !openAgentIds.has(gate.agentId)) {
-        const agent = agentsById.get(gate.agentId);
-        if (agent && agent.status === 'needs_input') {
-          agent.status = agent.currentTaskId ? 'running' : 'idle';
-          agent.updatedAt = now;
-          await store.saveAgent(agent);
-        }
-      }
-    }
-  }
-
-  private async repairAnsweredHumanGateBlocks(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
-    const [gates, tasks, agents] = await Promise.all([
-      store.listHumanGates(teamId),
-      store.listTasks(teamId),
-      store.listAgents(teamId),
-    ]);
-    const openTaskGateIds = new Set(
-      gates
-        .filter((gate) => gate.status === 'open' && gate.taskId)
-        .map((gate) => gate.taskId as string),
-    );
-    const answeredTaskGateIds = new Set(
-      gates
-        .filter((gate) => gate.status === 'answered' && gate.taskId)
-        .map((gate) => gate.taskId as string),
-    );
-    if (answeredTaskGateIds.size === 0) return;
-
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-    const now = Date.now();
-    for (const task of tasks) {
-      if (
-        task.status !== 'needs_input'
-        || !answeredTaskGateIds.has(task.id)
-        || openTaskGateIds.has(task.id)
-      ) {
-        continue;
-      }
-
-      task.status = task.ownerAgentId ? 'in_progress' : 'todo';
-      task.blockedReason = undefined;
-      task.updatedAt = now;
-      await store.saveTask(task);
-
-      if (!task.ownerAgentId) continue;
-      const agent = agentsById.get(task.ownerAgentId);
-      if (!agent || agent.status !== 'needs_input' || agent.currentTaskId !== task.id) continue;
-      agent.status = 'running';
-      agent.updatedAt = now;
-      await store.saveAgent(agent);
-    }
-  }
 }
 
 let service: CanvasAgentTeamsService | null = null;
