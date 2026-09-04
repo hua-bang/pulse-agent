@@ -7,6 +7,7 @@ import type {
 import type { ChatDeliveryReceipt } from '../../../../../chat';
 import { DynamicAppNodeBody } from '../../../node-bodies/DynamicAppNodeBody';
 import { PluginNodeBody } from '../../../node-bodies/PluginNodeBody';
+import './index.css';
 
 const AgentNodeBody = lazy(() => import('../../../../../coding-agent/surface')
   .then((module) => ({ default: module.AgentNodeBody })));

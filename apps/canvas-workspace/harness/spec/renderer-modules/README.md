@@ -124,6 +124,10 @@ Current healthy properties:
   356-line header, badge, title, status, action, and overview-action CSS; the
   parent CanvasNodeView stylesheet is reduced to node shell/type/focus and
   fullscreen rules.
+- CanvasNodeBody now owns 440 lines of file/iframe/image/shape/mindmap/group
+  outer-shell and nested header/body styling alongside its node-type dispatch.
+  CanvasNodeView's remaining 315-line CSS is limited to the common node shell,
+  selection/motion/focus feedback, overview outline, and fullscreen behavior.
 - TopicPill keeps its focus/edit/IME/keyboard state machine together in a
   ~270-line visual module; add/fold controls and their styles are isolated in
   an owner-local 65-line `TopicActions` surface.
