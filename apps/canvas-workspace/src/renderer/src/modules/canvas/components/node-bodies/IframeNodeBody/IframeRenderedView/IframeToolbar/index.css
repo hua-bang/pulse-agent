@@ -126,3 +126,36 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.iframe-bar-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(35, 131, 226, 0.12);
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.iframe-bar-badge--ai {
+  background: rgba(168, 85, 247, 0.12);
+  color: #8b5cf6;
+}
+
+.iframe-bar-url--html {
+  gap: 0;
+}
+
+/* ── AI prompt textarea variant ────────────────────────────────────── */
+
+.iframe-bar-streaming {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ── Review comments overlay ───────────────────────────────────────── */

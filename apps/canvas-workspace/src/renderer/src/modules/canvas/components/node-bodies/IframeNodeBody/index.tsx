@@ -1,5 +1,4 @@
 import './index.css';
-import './iframeBar.css';
 import { useState } from 'react';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useRightDock } from '../../../../../shared/dockPort';

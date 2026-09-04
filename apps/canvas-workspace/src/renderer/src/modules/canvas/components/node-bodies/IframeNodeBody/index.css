@@ -4,7 +4,6 @@
   height: 100%;
   display: flex;
 }
-
 .iframe-body-host > .iframe-body {
   flex: 1 1 auto;
   min-width: 0;
@@ -25,193 +24,6 @@
   height: 100%;
   background: var(--surface);
 }
-
-.canvas-node--fullscreen.canvas-node--iframe .iframe-frame-wrapper {
-  flex-basis: 100%;
-}
-
-/* ── Frame wrapper (holds the iframe + streaming effects) ──────────── */
-
-.iframe-frame-wrapper {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  position: relative;
-  overflow: hidden;
-}
-
-.canvas-node--iframe.canvas-node--selected .iframe-frame-wrapper {
-  box-shadow: inset 0 0 0 1px rgba(35, 131, 226, 0.1);
-}
-
-.iframe-frame-wrapper--streaming {
-  padding: 2px;
-  background: linear-gradient(
-    270deg,
-    #8b5cf6, #6366f1, #3b82f6, #06b6d4, #8b5cf6
-  );
-  background-size: 400% 400%;
-  animation: iframe-gradient-flow 4s ease infinite;
-}
-
-@keyframes iframe-gradient-flow {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* ── Shimmer bar at the top during streaming ───────────────────────── */
-
-.iframe-shimmer-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  z-index: 2;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(139, 92, 246, 0.8) 30%,
-    rgba(59, 130, 246, 0.9) 50%,
-    rgba(139, 92, 246, 0.8) 70%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: iframe-shimmer-slide 1.5s ease-in-out infinite;
-}
-
-@keyframes iframe-shimmer-slide {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-/* ── Resize-time pointer shield ─────────────────────────────────────────
- *
- * Covers the iframe/webview while the node is being resized so the
- * embedded document can't capture mousemove/mouseup. Transparent +
- * pointer-events:auto means the cursor hits the shield (which sits in
- * the parent DOM) and the canvas's resize listeners keep firing. */
-
-.iframe-pointer-shield {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  background: transparent;
-  pointer-events: auto;
-  cursor: inherit;
-}
-
-/* ── The iframe/webview itself ──────────────────────────────────────── */
-
-.iframe-frame {
-  flex: 1;
-  width: 100%;
-  border: none;
-  background: #fff;
-  display: flex;
-  min-height: 0;
-}
-
-/* Host for imperatively-mounted Electron `<webview>` (URL mode). React
- * can't create the webview itself because Electron reads `allowpopups`
- * during the element's `connectedCallback` — by then React's prop
- * coercion has already stripped boolean values. We append a real
- * `<webview>` into this div from a useLayoutEffect. */
-.iframe-frame-host {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  min-height: 0;
-}
-
-.iframe-frame-wrapper--streaming .iframe-frame {
-  border-radius: 2px;
-}
-
-.iframe-load-queued {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 20px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.iframe-load-queued img {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-}
-
-.iframe-load-queued strong {
-  max-width: 90%;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.iframe-load-queued span {
-  font-size: 11px;
-}
-
-
-.iframe-load-error {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  background: #fff;
-}
-
-.iframe-load-error-card {
-  max-width: 320px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
-  text-align: center;
-}
-
-.iframe-load-error-title {
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.iframe-load-error-message {
-  margin-bottom: 12px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.iframe-load-error-note {
-  margin: -4px 0 12px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--text-secondary);
-}
-
-.iframe-load-error-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-/* Empty state — URL input */
 
 .iframe-body--empty {
   align-items: center;
@@ -377,30 +189,6 @@
 
 /* ── HTML badge in the address bar ─────────────────────────────────── */
 
-.iframe-bar-badge {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: rgba(35, 131, 226, 0.12);
-  color: var(--accent);
-  margin-right: 6px;
-}
-
-.iframe-bar-badge--ai {
-  background: rgba(168, 85, 247, 0.12);
-  color: #8b5cf6;
-}
-
-.iframe-bar-url--html {
-  gap: 0;
-}
-
-/* ── AI prompt textarea variant ────────────────────────────────────── */
-
 .iframe-empty-textarea--prompt {
   font-family: inherit;
   font-size: 13px;
@@ -453,15 +241,6 @@
 }
 
 /* ── Streaming indicator in address bar ────────────────────────────── */
-
-.iframe-bar-streaming {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-/* ── Review comments overlay ───────────────────────────────────────── */
 
 .iframe-review-layer {
   position: absolute;
@@ -728,57 +507,4 @@
   font-size: calc(8.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
   font-weight: 500;
   letter-spacing: 0.01em;
-}
-
-/* Deferred-mount pending shell: rendered instead of the inline iframe until
- * the node first nears the viewport (useDeferredVisibleMount). Same visual
- * family as the overview placeholder above. */
-.iframe-frame--pending {
-  flex: 1;
-  background: linear-gradient(135deg, var(--accent-light), var(--accent-soft));
-}
-
-/* ── L3 discard placeholder (Memory Saver style) ─────────────────────────
- * Shown over the webview host after main reclaimed this node's guest
- * process for memory (discard-monitor.ts). The snapshot is the page's last
- * painted frame; without one the gradient card + chip stands in. Click or
- * linger to wake (the page reloads). */
-.iframe-discarded {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: linear-gradient(135deg, var(--accent-light), var(--accent-soft));
-}
-
-.iframe-discarded-snapshot {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: grayscale(0.35) brightness(0.96);
-}
-
-.iframe-discarded-chip {
-  position: relative;
-  padding: 4px 10px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 500;
-  box-shadow: var(--shadow-card);
-}
-
-/* While frozen (L2) the guest also stops being painted/composited — see
- * FROZEN_HIDDEN_CLASS in useWebviewBackgroundThrottle.ts. visibility (not
- * display): webview misbehaves under display:none and layout must not
- * shift. */
-.iframe-frame-host--frozen > .iframe-frame {
-  visibility: hidden;
 }

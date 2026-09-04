@@ -73,6 +73,9 @@ Current healthy properties:
   hooks live under `modules/canvas/runtime/`; Dock consumes the viewport
   interface through `modules/canvas/index.ts`. The cross-module gesture-motion
   signal lives in `shared/canvasMotion.ts` for UI, note, and iframe consumers.
+- The iframe rendered surface is a 53-line composition over owner-local
+  toolbar and content modules; URL webview queued/error/discarded states and
+  HTML/stream frames no longer share one 486-line visual implementation.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.

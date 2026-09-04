@@ -3,8 +3,8 @@ import { createElement, createRef, type RefObject } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../../i18n';
-import { IframeRenderedView } from './IframeRenderedView';
+import { I18nProvider } from '../../../../../../i18n';
+import { IframeRenderedView } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
