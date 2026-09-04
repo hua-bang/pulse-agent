@@ -173,8 +173,9 @@ done. Still open:
   heartbeat loop behind one wide class. Plan normalization/dependency-DAG
   validation live in `agent-teams/planning.ts`, and PTY output protocol parsing
   lives in `agent-teams/output-markers.ts`. Phase/session startup projection is
-  owned by `agent-teams/projection.ts`; preserve the IPC-facing use cases while
-  moving the remaining state machines into owner-local modules.
+  owned by `agent-teams/projection.ts`, while command execution and bounded
+  output capture live in `agent-teams/verification.ts`; preserve the IPC-facing
+  use cases while moving the remaining state machines into owner-local modules.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
   `artifacts -> agent`, `canvas -> agent`, `default-browser -> app`,

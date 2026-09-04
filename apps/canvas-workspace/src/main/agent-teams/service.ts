@@ -1,4 +1,3 @@
-import { exec } from 'child_process';
 import { randomUUID } from 'crypto';
 import { promises as fsPromises, statSync } from 'fs';
 import { homedir } from 'os';
@@ -66,6 +65,12 @@ import {
   metadataCanvasNodeIds,
   plannedStartupAgentIds,
 } from './projection';
+import {
+  INTEGRATION_VERIFY_TIMEOUT_MS,
+  TASK_VERIFY_TIMEOUT_MS,
+  isExistingDirectory,
+  runTaskVerification,
+} from './verification';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -76,9 +81,6 @@ const DEFAULT_LEAD_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
-const VERIFY_TIMEOUT_MS = 120_000;
-const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;
-const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
 const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
 // Marks the human gate the watchdog opens when the Team Lead's session is
 // confirmed unreachable; recovery auto-cancels gates of this kind.
@@ -122,14 +124,6 @@ const expandHomePath = (value: string): string =>
 
 const trimPathToken = (value: string): string =>
   value.replace(/[),.;:!?，。；：、]+$/u, '');
-
-const isExistingDirectory = (value: string): boolean => {
-  try {
-    return statSync(value).isDirectory();
-  } catch {
-    return false;
-  }
-};
 
 const isExistingFile = (value: string): boolean => {
   try {
@@ -912,35 +906,11 @@ export class CanvasAgentTeamsService {
       // longer budget than per-task verifies.
       const timeoutMs = task.metadata?.kind === 'integration-verification'
         ? INTEGRATION_VERIFY_TIMEOUT_MS
-        : VERIFY_TIMEOUT_MS;
-      return await this.runTaskVerification(command, metadata?.cwd || agent.cwd, timeoutMs);
+        : TASK_VERIFY_TIMEOUT_MS;
+      return await runTaskVerification(command, metadata?.cwd || agent.cwd, timeoutMs);
     } catch {
       return undefined;
     }
-  }
-
-  private runTaskVerification(command: string, cwd: string | undefined, timeoutMs = VERIFY_TIMEOUT_MS): Promise<TaskVerificationResult> {
-    const startedAt = Date.now();
-    return new Promise((resolve) => {
-      exec(command, {
-        cwd: cwd && isExistingDirectory(cwd) ? cwd : undefined,
-        timeout: timeoutMs,
-        maxBuffer: 4 * 1024 * 1024,
-      }, (error, stdout, stderr) => {
-        const output = `${stdout ?? ''}${stderr ? `\n${stderr}` : ''}`.trim();
-        const exitCode = error == null
-          ? 0
-          : typeof error.code === 'number' ? error.code : null;
-        resolve({
-          command,
-          ok: error == null,
-          exitCode,
-          durationMs: Date.now() - startedAt,
-          outputTail: output.slice(-VERIFY_OUTPUT_TAIL_CHARS),
-          at: Date.now(),
-        });
-      });
-    });
   }
 
   private async completeAgentTaskLocked(input: CanvasAgentTeamCompleteTaskInput, verification?: TaskVerificationResult): Promise<{
