@@ -113,8 +113,9 @@ Current healthy properties:
   `WorkspaceEntry`/`FolderEntry` data contract is in `shared/workspaces.ts`
   so product modules consume a downward dependency instead of importing app.
 - `components/icons/index.tsx` remains the stable public interface; canonical
-  Canvas node glyphs are implemented as one real family in `nodeTypes.tsx`.
-  Consumers did not change and the barrel no longer exceeds the code limit.
+  Canvas node glyphs plus brand, status, action, and workspace glyphs are
+  implemented as a few real families. Consumers did not change; the barrel is
+  now a 12-line export surface instead of a 398-line implementation file.
 
 Current pressure points, measured on 2026-09-04:
 
