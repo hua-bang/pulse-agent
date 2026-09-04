@@ -23,7 +23,10 @@ function setConsumePending(consumePending: () => Promise<{ urls: string[] }>): v
   };
 }
 
-function mountProbe(open: (url: string) => void, initialReady: boolean): { setReady: (ready: boolean) => void } {
+function mountProbe(
+  open: (url: string) => void,
+  initialReady: boolean,
+): { setReady: (ready: boolean) => void } {
   const Probe = ({ ready }: { ready: boolean }) => {
     useConsumePendingLinks(open, ready);
     return null;
@@ -31,14 +34,10 @@ function mountProbe(open: (url: string) => void, initialReady: boolean): { setRe
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  act(() => {
-    root?.render(<Probe ready={initialReady} />);
-  });
+  act(() => root?.render(<Probe ready={initialReady} />));
   return {
     setReady: (ready: boolean) => {
-      act(() => {
-        root?.render(<Probe ready={ready} />);
-      });
+      act(() => root?.render(<Probe ready={ready} />));
     },
   };
 }
@@ -54,41 +53,35 @@ describe('useConsumePendingLinks', () => {
     const consumePending = vi.fn().mockResolvedValue({ urls: ['https://example.com'] });
     setConsumePending(consumePending);
     const open = vi.fn();
-
     mountProbe(open, false);
     await flush();
-
     expect(consumePending).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();
   });
 
   it('drains queued urls in order once ready flips true', async () => {
-    const consumePending = vi.fn().mockResolvedValue({ urls: ['https://a.example', 'https://b.example'] });
+    const consumePending = vi.fn().mockResolvedValue({
+      urls: ['https://a.example', 'https://b.example'],
+    });
     setConsumePending(consumePending);
     const open = vi.fn();
-
     const probe = mountProbe(open, false);
     await flush();
-    expect(open).not.toHaveBeenCalled();
-
     probe.setReady(true);
     await flush();
-
     expect(consumePending).toHaveBeenCalledTimes(1);
-    expect(open.mock.calls.map((call) => call[0])).toEqual(['https://a.example', 'https://b.example']);
+    expect(open.mock.calls.map((call) => call[0])).toEqual([
+      'https://a.example',
+      'https://b.example',
+    ]);
   });
 
   it('does not re-drain on a later render once already ready', async () => {
     const consumePending = vi.fn().mockResolvedValue({ urls: ['https://a.example'] });
     setConsumePending(consumePending);
-    const open = vi.fn();
-
-    const probe = mountProbe(open, true);
+    const probe = mountProbe(vi.fn(), true);
     await flush();
     expect(consumePending).toHaveBeenCalledTimes(1);
-
-    // A re-render that keeps ready=true (e.g. a sibling state change) must
-    // not trigger a second drain of an already-empty queue.
     probe.setReady(true);
     await flush();
     expect(consumePending).toHaveBeenCalledTimes(1);

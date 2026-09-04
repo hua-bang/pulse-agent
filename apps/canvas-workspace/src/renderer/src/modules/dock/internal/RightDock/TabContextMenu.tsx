@@ -10,7 +10,7 @@
  * back exactly as it does after individual closes.
  */
 import { useI18n, type I18nKey } from '../../../../i18n';
-import { useGuestInteractionShield } from '../../../../hooks/useGuestInteractionShield';
+import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { Button, Popover } from '../../../../components/ui';
 import type { DockPreviewTab, DockStore } from './dock-store';
 

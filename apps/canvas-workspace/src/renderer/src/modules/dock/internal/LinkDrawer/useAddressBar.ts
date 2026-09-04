@@ -18,7 +18,7 @@ import {
 import { resolveAddressInput } from '../../../../platform/browser/address-input';
 import { useAddressSuggestions, type AddressSuggestion } from './AddressSuggestions';
 import { useClickOutside } from '../../../../hooks/useClickOutside';
-import { useGuestInteractionShield } from '../../../../hooks/useGuestInteractionShield';
+import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { clampIndexMove } from '../../../../components/ui';
 import { cancelDockPageFocusRequest } from '../RightDock/dock-browser-commands';
 

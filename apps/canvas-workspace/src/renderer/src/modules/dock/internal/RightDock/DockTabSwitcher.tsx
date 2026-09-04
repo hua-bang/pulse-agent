@@ -4,7 +4,7 @@
  */
 import { CaretDown } from '@phosphor-icons/react';
 import { useRef, useState } from 'react';
-import { useGuestInteractionShield } from '../../../../hooks/useGuestInteractionShield';
+import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { useI18n } from '../../../../i18n';
 import { Button, Popover } from '../../../../components/ui';
 import { DockAgentTabIcon } from './DockAgentTabIcon';

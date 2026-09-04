@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { WebviewContextMenuRequest } from '../../../../../../shared/webview-context-menu';
-import { useGuestInteractionShield } from '../../../../hooks/useGuestInteractionShield';
+import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 
 export interface PageContextMenuState {
   request: WebviewContextMenuRequest;

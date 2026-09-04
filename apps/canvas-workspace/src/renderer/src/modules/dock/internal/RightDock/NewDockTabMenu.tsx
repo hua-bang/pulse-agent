@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { useGuestInteractionShield } from '../../../../hooks/useGuestInteractionShield';
+import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { useI18n } from '../../../../i18n';
 import { NodeTypeIcon } from '../../../../components/icons';
 import { Button, Popover } from '../../../../components/ui';

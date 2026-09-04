@@ -42,8 +42,8 @@ src/renderer/src/
 │   └── dock/          # tab/session state, pane visuals, terminal/reference hosts
 ├── components/        # domain-free icons/ui only
 ├── platform/
-│   └── browser/       # embedded webview lifecycle and URL adapters
-├── hooks/             # generic and product-specific hooks mixed together
+│   └── browser/       # webview lifecycle, URL, guest-input and launch adapters
+├── hooks/             # domain-free overlay geometry and keyboard behavior
 ├── types/             # cross-renderer contracts
 ├── utils/             # pure helpers, some still feature-specific
 ├── i18n/
@@ -123,6 +123,9 @@ Current healthy properties:
 - Workspace visibility and Canvas keyboard ownership contexts live in
   `shared/workspaceActivity.tsx`; Canvas provides them while Agent Team,
   coding-agent, note-editor, and Dock consume the downward shared port.
+- Cold-start link draining, forwarded webview shortcuts, and guest pointer
+  shielding live under `platform/browser`; root hooks now contain only
+  domain-free overlay positioning, dismissal, and keyboard behavior.
 - `components/icons/index.tsx` remains the stable public interface; canonical
   Canvas node glyphs plus brand, status, action, and workspace glyphs are
   implemented as a few real families. Consumers did not change; the barrel is

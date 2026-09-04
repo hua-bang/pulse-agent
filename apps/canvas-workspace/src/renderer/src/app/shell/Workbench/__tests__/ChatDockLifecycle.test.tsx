@@ -85,7 +85,7 @@ vi.mock('../../../../modules/dock/internal/RightDock/useDockAgentBridge', () => 
   useDockAgentBridge: () => undefined,
 }));
 
-vi.mock('../../../../hooks/useConsumePendingLinks', () => ({
+vi.mock('../../../../platform/browser/useConsumePendingLinks', () => ({
   useConsumePendingLinks: () => undefined,
 }));
 

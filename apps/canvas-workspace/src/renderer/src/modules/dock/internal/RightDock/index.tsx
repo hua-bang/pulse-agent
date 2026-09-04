@@ -13,7 +13,7 @@ import { useI18n } from '../../../../i18n';
 import { CHAT_TAB_ID } from './dock-store';
 import { useDockContext, useRightDockState } from './context';
 import type { RightDockProps } from './dock-types';
-import { useConsumePendingLinks } from '../../../../hooks/useConsumePendingLinks';
+import { useConsumePendingLinks } from '../../../../platform/browser/useConsumePendingLinks';
 import { useDockLinkOpens } from './useDockLinkOpens';
 import { useDockAgentBridge } from './useDockAgentBridge';
 import { useDockSplitView } from './useDockSplitView';

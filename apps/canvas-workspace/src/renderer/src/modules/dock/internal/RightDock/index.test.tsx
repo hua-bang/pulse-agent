@@ -11,7 +11,7 @@ import type { AgentContextDomReviewComment } from '../../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('../../../../hooks/useConsumePendingLinks', () => ({
+vi.mock('../../../../platform/browser/useConsumePendingLinks', () => ({
   useConsumePendingLinks: () => undefined,
 }));
 
