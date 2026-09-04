@@ -102,6 +102,9 @@ Current healthy properties:
   separately. The contract now names the actual focus, context-menu, mouse,
   edge, node-action, search, marquee, and palette interfaces instead of
   flattening them through `any`.
+- CanvasSurface is a ~253-line render implementation with its documented
+  133-line node/edge/gesture integration contract separated beside it; the
+  tested transform transition and overview-class policies remain unchanged.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
