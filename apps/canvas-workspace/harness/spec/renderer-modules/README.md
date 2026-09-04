@@ -57,6 +57,10 @@ Current healthy properties:
 - ChatToolCalls now owns its complete 297-line collapsed/live/result/status
   tool presentation stylesheet instead of carrying a four-line patch beside
   293 parent-owned lines; ChatMessage CSS is reduced from 945 to 651 lines.
+- MarkdownContent provides one dangerous-HTML rendering interface for user,
+  completed assistant, and streaming assistant bodies. It owns 338 lines of
+  Markdown/code/highlight/Mermaid/GFM CSS, reducing ChatMessage CSS to 312
+  lines of message toolbar/editor/image/session/role presentation.
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
 - ModelSwitcher now lives behind `modules/models/index.ts`, independent from

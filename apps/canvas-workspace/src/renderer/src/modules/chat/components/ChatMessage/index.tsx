@@ -11,6 +11,7 @@ import { ChatTurnOutcome } from './ChatTurnMeta';
 import { CopyMessageButton } from './ChatMessageActions';
 import { useChatMessageController } from './useChatMessageController';
 import { ChatMessageToolResults } from './ChatMessageToolResults';
+import { MarkdownContent } from './MarkdownContent';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -183,18 +184,10 @@ export const ChatMessage = ({
       {message.role === 'assistant' ? (
         isStreaming ? (
           message.content ? (
-            <div
-              ref={bodyRef}
-              className="chat-message-content chat-md chat-md--streaming"
-              dangerouslySetInnerHTML={{ __html: assistantHtml }}
-            />
+            <MarkdownContent bodyRef={bodyRef} html={assistantHtml} streaming />
           ) : null
         ) : (
-          <div
-            ref={bodyRef}
-            className="chat-message-content chat-md"
-            dangerouslySetInnerHTML={{ __html: assistantHtml }}
-          />
+          <MarkdownContent bodyRef={bodyRef} html={assistantHtml} />
         )
       ) : isEditing ? (
         <div className="chat-message-edit">
@@ -226,11 +219,7 @@ export const ChatMessage = ({
           </div>
         </div>
       ) : (
-        <div
-          ref={bodyRef}
-          className="chat-message-content chat-md"
-          dangerouslySetInnerHTML={{ __html: userHtml }}
-        />
+        <MarkdownContent bodyRef={bodyRef} html={userHtml} />
       )}
       {message.role === 'assistant' && !(hideStoppedOutcome && message.turnStatus === 'stopped') && (
         <ChatTurnOutcome
