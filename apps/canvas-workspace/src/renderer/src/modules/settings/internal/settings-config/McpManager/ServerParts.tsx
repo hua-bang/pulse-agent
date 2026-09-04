@@ -1,4 +1,4 @@
-import type { CanvasMcpServerHealth } from '../../../../types';
+import type { CanvasMcpServerHealth } from '../../../../../types';
 
 interface HealthBadgeProps {
   health: CanvasMcpServerHealth | undefined;
