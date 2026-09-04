@@ -1,8 +1,9 @@
+import './index.css';
 import type { CSSProperties } from 'react';
-import type { WorkspaceNodeListItem } from '../../../types';
-import { toFileUrl } from '../../../utils/fileUrl';
-import { ImageIcon, NodeTypeIcon, SparklesIcon } from '../../../components/icons';
-import { getNodeAiSummary, getNodeSummary, truncateText } from './utils';
+import type { WorkspaceNodeListItem } from '../../../../types';
+import { toFileUrl } from '../../../../utils/fileUrl';
+import { ImageIcon, NodeTypeIcon, SparklesIcon } from '../../../../components/icons';
+import { getNodeAiSummary, getNodeSummary, truncateText } from '../utils';
 
 interface AiSummaryPreviewModel {
   kind: 'ai-summary';

@@ -1,0 +1,218 @@
+.knowledge-card-preview {
+  width: 100%;
+  min-width: 0;
+  display: block;
+  box-sizing: border-box;
+}
+
+.knowledge-card-preview--file {
+  display: grid;
+  gap: 4px;
+}
+
+.knowledge-card-preview__file-row {
+  display: block;
+  color: var(--nodes-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-card-preview--text {
+  display: block;
+  color: var(--nodes-muted);
+  font-size: 12px;
+  line-height: 1.58;
+  text-wrap: pretty;
+}
+
+.knowledge-card-preview__quote {
+  display: none;
+}
+
+.knowledge-card-preview--web {
+  display: grid;
+  gap: 6px;
+  padding: 8px 9px;
+  border-radius: var(--radius-xs);
+  background: var(--nodes-surface-soft);
+}
+
+.knowledge-card-preview--ai-summary {
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+}
+
+.knowledge-card-preview__ai-summary-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.knowledge-card-preview__ai-summary-label>span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.knowledge-card-preview__ai-summary-copy {
+  color: var(--nodes-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.knowledge-card-preview__ai-summary-source {
+  color: var(--nodes-faint);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.knowledge-card-preview__web-source {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 7px;
+  color: var(--nodes-faint);
+  font-size: 10px;
+}
+
+.knowledge-card-preview__web-source>span:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+
+.knowledge-card-preview__web-copy {
+  color: var(--nodes-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.knowledge-card-preview--image {
+  display: grid;
+  gap: 8px;
+}
+
+.knowledge-card-preview__image-field {
+  position: relative;
+  height: 124px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background: var(--surface-alt);
+  color: var(--nodes-faint);
+}
+
+.knowledge-card-preview__image-horizon {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  height: 28px;
+  border-top: 1px solid var(--nodes-border);
+  border-radius: var(--radius-pill) var(--radius-pill) 0 0;
+  background: var(--nodes-surface-soft);
+}
+
+.knowledge-card-preview__image-field svg {
+  position: relative;
+  z-index: 1;
+}
+
+.knowledge-card-preview__image-field img {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.knowledge-card-preview__image-caption,
+.knowledge-card-preview--generic {
+  color: var(--nodes-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.knowledge-card-preview--mindmap {
+  position: relative;
+  height: 128px;
+  overflow: hidden;
+  border: 1px solid var(--nodes-border);
+  border-radius: var(--radius-xs);
+  background: var(--nodes-surface-soft);
+}
+
+.knowledge-card-preview__mindmap-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.knowledge-card-preview__mindmap-lines path {
+  fill: none;
+  stroke: var(--nodes-border-strong);
+  stroke-width: 1.2;
+}
+
+.knowledge-card-preview__mindmap-root {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  width: 34%;
+  min-height: 25px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--nodes-surface);
+  color: var(--nodes-text);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  transform: translateY(-50%);
+}
+
+.knowledge-card-preview__mindmap-root>span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-card-preview__mindmap-branches {
+  position: absolute;
+  inset: 0;
+}
+
+.knowledge-card-preview__mindmap-branches>span {
+  position: absolute;
+  top: var(--mindmap-y);
+  right: 8px;
+  width: 31%;
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  padding: 3px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--nodes-surface);
+  color: var(--nodes-muted);
+  font-size: 9px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
