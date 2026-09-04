@@ -3,9 +3,9 @@ import type {
   CanvasModelProviderConfig,
   ModelSelection,
   UseCanvasModelsResult,
-} from '../types';
-import { useI18n } from '../i18n';
-import { shortModelName } from '../utils/modelCatalog';
+} from '../../types';
+import { useI18n } from '../../i18n';
+import { shortModelName } from '../../utils/modelCatalog';
 
 const MODEL_SETTINGS_CHANGED_EVENT = 'canvas-workspace:model-settings-changed';
 

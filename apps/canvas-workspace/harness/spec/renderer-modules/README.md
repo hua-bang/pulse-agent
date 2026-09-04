@@ -57,7 +57,8 @@ Current healthy properties:
 - Chat runtime, sessions, target coordination, attachments, mentions, and
   composer state no longer live in one flat component hooks directory.
 - ModelSwitcher now lives behind `modules/models/index.ts`, independent from
-  Chat internals. The MCP App host/provider live in `modules/mcp-apps`; Chat
+  Chat internals; its status/selection hook is owned by the same public
+  interface and shared by Chat and Settings. The MCP App host/provider live in `modules/mcp-apps`; Chat
   consumes both through their public interfaces.
 - RightDock already has a framework-free store interface and strong
   interface-level tests; its size alone is not a reason to split it.

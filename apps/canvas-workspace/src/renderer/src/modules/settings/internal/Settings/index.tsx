@@ -17,7 +17,7 @@
 import { useEffect, useState } from 'react';
 import { Drawer, SegmentedControl } from '../../../../components/ui';
 import { ModelsSection } from '../ModelSettings';
-import { useCanvasModels } from '../../../../hooks/useCanvasModels';
+import { useCanvasModels } from '../../../models';
 import { ReplyStyleSection, usePromptProfile } from '../PromptSettings';
 import { RolesSection } from '../RolesSettings';
 import { AgentSection } from './AgentSection';

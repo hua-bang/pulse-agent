@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { AgentContextTabRef, AgentRequestContext, CanvasNode } from '../../../../types';
 import type { AgentScope, WorkspaceOption } from '../../../../types';
 import { conversationKeyId, type ConversationKey } from '../../../../../../shared/conversation-runtime';
-import { useCanvasModels } from '../../../../hooks/useCanvasModels';
+import { useCanvasModels } from '../../../models';
 import { useChatSessions } from '../../sessions/useChatSessions';
 import { useConversationRuntimeStream } from '../../runtime/useConversationRuntimeStream';
 import { useChatComposerInput } from './useChatComposerInput';
