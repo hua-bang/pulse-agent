@@ -1,10 +1,11 @@
+import './index.css';
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, RefObject } from 'react';
-import type { CanvasNode, ReferenceNodeData } from '../../../../../types';
-import { useI18n } from '../../../../../i18n';
-import { OpenSourceButton } from './NodeButtons';
-import { NodeResizeHandles } from './NodeResizeHandles';
-import { NodeTypeBadge } from './NodeTypeBadge';
-import type { ReferenceSourceRenderer, ResizeHandlerFactory } from './types';
+import type { CanvasNode, ReferenceNodeData } from '../../../../../../types';
+import { useI18n } from '../../../../../../i18n';
+import { OpenSourceButton } from '../NodeButtons';
+import { NodeResizeHandles } from '../NodeResizeHandles';
+import { NodeTypeBadge } from '../NodeTypeBadge';
+import type { ReferenceSourceRenderer, ResizeHandlerFactory } from '../types';
 
 interface ReferenceCanvasNodeProps {
   classes: string;
@@ -137,3 +138,4 @@ export const ReferenceCanvasNode = ({
     </div>
   );
 };
+

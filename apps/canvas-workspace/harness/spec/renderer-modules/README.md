@@ -113,6 +113,10 @@ Current healthy properties:
   owner-local `CanvasNodeBody`. Node-type dispatch now owns the existing
   coding-agent, note, frame, iframe, terminal, and text lazy boundaries in
   one place without exposing them to the node shell.
+- ReferenceCanvasNode now follows the owner-folder convention and owns its
+  253-line reference shell/embedded-preview stylesheet; the parent node CSS
+  no longer owns reference-only source-pill, missing-state, drag-overlay, or
+  nested preview rules.
 - TopicPill keeps its focus/edit/IME/keyboard state machine together in a
   ~270-line visual module; add/fold controls and their styles are isolated in
   an owner-local 65-line `TopicActions` surface.
