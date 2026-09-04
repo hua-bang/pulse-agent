@@ -11,7 +11,6 @@ import {
   readTaskRound,
   readTaskVerifyCommand,
   type AgentRole,
-  type ArtifactKind,
   type RuntimeSnapshot,
   type TeamAgentRecord,
   type TaskVerificationResult,
@@ -55,6 +54,13 @@ import {
   resolvePlanTaskGraph,
 } from './planning';
 import { cleanString } from './input-normalization';
+import {
+  isPlaceholderHumanInputText,
+  normalizeArtifactKind,
+  parseAgentOutputMarker,
+  stripAnsi,
+  type AgentOutputMarker,
+} from './output-markers';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -68,15 +74,6 @@ const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
 const VERIFY_TIMEOUT_MS = 120_000;
 const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;
 const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
-const ARTIFACT_KINDS = new Set<ArtifactKind>([
-  'diff',
-  'test_log',
-  'note',
-  'screenshot',
-  'file',
-  'summary',
-  'other',
-]);
 const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
 // Marks the human gate the watchdog opens when the Team Lead's session is
 // confirmed unreachable; recovery auto-cancels gates of this kind.
@@ -93,64 +90,10 @@ const QUEUED_LAUNCH_REVIEW_REASON = 'Agent session was never relaunched to recei
 // — the workspace is not open in any window — and leaving the task
 // in_progress fakes progress forever.
 const QUEUED_LAUNCH_GRACE_MS = 2 * 60_000;
-const AGENT_TEAM_MARKER_RE =
-  /^\s*\[agent-team:(?<kind>plan|human-input-needed|artifact)(?:\s+taskId="(?<taskId>[^"]+)")?(?:\s+kind="(?<artifactKind>[^"]+)")?(?:\s+title="(?<artifactTitle>[^"]+)")?\]\s*(?<text>.*)\s*$/;
-
-type AgentOutputMarkerKind = 'plan' | 'human-input-needed' | 'artifact';
-
-interface AgentOutputMarker {
-  kind: AgentOutputMarkerKind;
-  taskId?: string;
-  artifactKind?: string;
-  artifactTitle?: string;
-  text: string;
-}
-
 interface AgentNodeMatch {
   teamId: string;
   agent: TeamAgentRecord;
 }
-
-const stripAnsi = (value: string): string =>
-  value
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
-
-/**
- * A human-input marker is only actionable with a concrete question. Task
- * prompts contain the literal fallback example
- * `[agent-team:human-input-needed taskId="..."] <question>`, and the TUI
- * echo of that prompt re-enters the PTY output — line-wrapped at terminal
- * width, so the placeholder arrives whole (`<question>`), truncated
- * (`<ques`), or cut off entirely (empty text). Opening gates for those
- * floods the Team Lead backlog with unanswerable questions and parks the
- * task/agent in needs_input even though the agent is actually working.
- */
-const isPlaceholderHumanInputText = (text: string): boolean =>
-  !text
-  || text.startsWith('<')
-  || /^agent requested human input\.?$/i.test(text)
-  || /^human input requested\.?$/i.test(text);
-
-const parseAgentOutputMarker = (line: string): AgentOutputMarker | null => {
-  const match = AGENT_TEAM_MARKER_RE.exec(stripAnsi(line).trim());
-  if (!match?.groups) return null;
-  const text = match.groups.text.trim();
-  if (/^<[^>]+>$/.test(text)) return null;
-  if (match.groups.kind === 'human-input-needed' && isPlaceholderHumanInputText(text)) return null;
-  return {
-    kind: match.groups.kind as AgentOutputMarkerKind,
-    taskId: match.groups.taskId,
-    artifactKind: match.groups.artifactKind,
-    artifactTitle: match.groups.artifactTitle,
-    text,
-  };
-};
-
-const normalizeArtifactKind = (value: string | undefined): ArtifactKind => {
-  if (!value) return 'other';
-  return ARTIFACT_KINDS.has(value as ArtifactKind) ? value as ArtifactKind : 'other';
-};
 
 const gateAudienceMetadataForAgent = (agent: TeamAgentRecord | undefined): Record<string, unknown> | undefined =>
   agent && agent.role !== 'lead' ? { audience: 'lead' } : undefined;
