@@ -122,7 +122,7 @@ Current pressure points, measured on 2026-09-04:
 |---|---|---|
 | Canvas document | Canvas composition ~496 lines; document adapter ~338 lines plus host feedback adapter ~85 lines and owner-local history/merge/command modules | persistence scheduling remains in the React adapter; save retry, viewport restore, external-create feedback, creation/transfer commands, and transaction interfaces are separated |
 | Coding-agent session | `AgentNodeBody/useAgentNodeController.ts` ~496 lines; owner terminal ~375 lines; activation adapter ~142 lines; command/binding policy ~186 lines | setup-form state remains in the React adapter; owner/mirror/read-only terminal mounts, PTY lease/persistence, launch/resume binding, Codex recovery, and team auto-resume now have owned interfaces |
-| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` 500 lines; public model/projection ~436 lines; controller ~190 lines; header, task workspace, task, agent, inspector, gate, command, strip, DAG, artifact viewer, lead dock, and runtime mounts are owner-local | selection orchestration remains in the frame adapter; graph layout state, snapshot-to-agent projection, action presentation, and hidden runtime ownership now have tested interfaces |
+| Agent Team workspace | `modules/agent-team/components/AgentTeamFrame/index.tsx` ~447 lines; selection adapter ~143 lines; public model/projection ~436 lines; controller ~190 lines; header, task workspace, task, agent, inspector, gate, command, strip, DAG, artifact viewer, lead dock, and runtime mounts are owner-local | task/agent/artifact selection and stale-snapshot reconciliation now have a tested owner hook; remaining frame pressure is presentation projection and top-level workspace composition |
 | Workspace graph | `GraphPage.tsx` ~447 lines; ForceGraph adapter ~192 lines; pure graph model ~200 lines | toolbar/search visual state remains in the page; projection/search/highlight and all third-party ForceGraph drawing/layout/viewport calls now have separate tested interfaces |
 | Settings | MCP manager ~370 lines; MCP draft codec ~112 lines; server form/list visuals 144/184 lines; Skills/Plugins remain separate managers | MCP bridge mutation remains in its manager adapter; draft conversion and MCP-specific form/list/OAuth/tool visuals now have owner interfaces; no generic ConfigManager was introduced |
 
@@ -256,9 +256,9 @@ fullscreen placement adapter.
 3. Form an Agent Team workspace model/controller interface before splitting
    AgentTeamFrame visuals and CSS. The workspace task/round projection and DAG
    layout interface, workspace controller/actions, and visual ownership are
-   implemented; Frame is at the production 500-line ceiling with owner-local
-   detail/workspace/header/runtime modules. Selection orchestration can still
-   move into a React adapter; do not replace it with dozens of pass-through props.
+   implemented. Selection orchestration and stale-snapshot reconciliation now
+   live in a tested owner hook; remaining Frame presentation projection should
+   deepen without replacing it with dozens of pass-through props.
 4. Extract the Workspace graph model from the ForceGraph adapter. Implemented:
    model projection/search/highlight and the third-party canvas/layout adapter
    are separate; toolbar/search visuals can still become owner-local modules.

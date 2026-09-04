@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import './index.css';
 import {
   createAgentTeamGraphAgents,
   createAgentTeamWorkspaceModel,
-  type AgentTeamGraphTask,
 } from '../../model/workspaceModel';
 import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
 import { TeamCommand } from '../TeamCommand';
@@ -14,6 +13,7 @@ import { LeadDock } from '../LeadDock';
 import { TaskWorkspace } from '../TaskWorkspace';
 import { TeamHeader } from '../TeamHeader';
 import { RuntimeMounts } from '../RuntimeMounts';
+import { useAgentTeamFrameSelection } from './useAgentTeamFrameSelection';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { useAppShell } from '../../../../shared/appShell';
 import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
@@ -62,8 +62,6 @@ const isTeamAgentNode = (node: CanvasNode, teamId: string): node is CanvasNode &
 // Agent Teams currently supports only Claude Code and Codex for teammates.
 const TEAM_AGENT_OPTIONS = AGENT_REGISTRY.filter((def) => def.id === 'claude-code' || def.id === 'codex');
 
-type GraphTaskItem = AgentTeamGraphTask;
-
 export const AgentTeamFrame = ({
   node,
   getAllNodes,
@@ -77,15 +75,7 @@ export const AgentTeamFrame = ({
   const data = node.data as FrameNodeData;
   const teamId = data.agentTeamId;
   const workspaceActive = useWorkspaceActive();
-  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [gateAnswers, setGateAnswers] = useState<Record<string, string>>({});
-  const [selectedArtifactId, setSelectedArtifactId] = useState('');
-  const [selectedAgentKey, setSelectedAgentKey] = useState('');
-  const [agentInspectorMode, setAgentInspectorMode] = useState<'activity' | 'terminal'>('terminal');
-  const [agentViewMode, setAgentViewMode] = useState<'activity' | 'terminal'>('activity');
-  const [detailPanelMode, setDetailPanelMode] = useState<'task' | 'agent'>('task');
-  const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
-  const [selectedPlanTaskKey, setSelectedPlanTaskKey] = useState('');
   const { confirm } = useAppShell();
   const controller = useAgentTeamWorkspaceController({
     api: window.canvasWorkspace?.agentTeams,
@@ -130,10 +120,38 @@ export const AgentTeamFrame = ({
     ?? new Map<string, AgentTeamArtifactRecord[]>();
   const orderedTasks = workspaceModel?.orderedTasks ?? [];
   const defaultTask = workspaceModel?.defaultTask;
-  const selectedTask = useMemo(
-    () => taskById.get(selectedTaskId) ?? defaultTask,
-    [defaultTask, selectedTaskId, taskById],
-  );
+  const graphTasks = workspaceModel?.tasks ?? [];
+  const graphRounds = workspaceModel?.rounds ?? [];
+  const roundOptions = workspaceModel?.roundOptions ?? [];
+  const graphAgents = createAgentTeamGraphAgents({
+    phase,
+    plan,
+    tasks: graphTasks,
+    teammates,
+    artifacts,
+    agentNodeByAgentId,
+    sessions: snapshot?.sessions,
+  });
+  const selection = useAgentTeamFrameSelection({
+    phase,
+    artifacts,
+    graphTasks,
+    graphAgents,
+    orderedTasks,
+    taskById,
+    defaultTask,
+  });
+  const {
+    graphTaskByKey,
+    selectedTask,
+    selectedGraphTask,
+    selectedArtifact,
+    selectedAgentKey,
+    detailPanelMode,
+    agentInspectorMode,
+    agentViewMode,
+    agentInspectorOpen,
+  } = selection;
   const selectedTaskArtifacts = selectedTask
     ? artifactsByTask.get(selectedTask.id) ?? []
     : [];
@@ -146,34 +164,12 @@ export const AgentTeamFrame = ({
   const globalGate = openGates.find((gate) =>
     isHumanFacingGate(gate) && (!selectedTask || gate.taskId !== selectedTask.id)
   );
-  const selectedArtifact = useMemo(
-    () => artifacts.find((artifact) => artifact.id === selectedArtifactId),
-    [artifacts, selectedArtifactId],
-  );
-  const selectedArtifactTask = selectedArtifact?.taskId ? taskById.get(selectedArtifact.taskId) : undefined;
-  const selectedArtifactAgent = selectedArtifact?.agentId ? agentById.get(selectedArtifact.agentId) : undefined;
-  const graphTasks = workspaceModel?.tasks ?? [];
-  const graphTaskByKey = useMemo(
-    () => new Map(graphTasks.map((task) => [task.key, task])),
-    [graphTasks],
-  );
-  const graphRounds = workspaceModel?.rounds ?? [];
-  const roundOptions = workspaceModel?.roundOptions ?? [];
-  const selectedGraphTask = useMemo(() => {
-    if (phase === 'plan_review') {
-      return graphTaskByKey.get(selectedPlanTaskKey) ?? graphTasks[0];
-    }
-    return selectedTask ? graphTaskByKey.get(selectedTask.id) : graphTasks[0];
-  }, [graphTaskByKey, graphTasks, phase, selectedPlanTaskKey, selectedTask]);
-  const graphAgents = createAgentTeamGraphAgents({
-    phase,
-    plan,
-    tasks: graphTasks,
-    teammates,
-    artifacts,
-    agentNodeByAgentId,
-    sessions: snapshot?.sessions,
-  });
+  const selectedArtifactTask = selectedArtifact?.taskId
+    ? taskById.get(selectedArtifact.taskId)
+    : undefined;
+  const selectedArtifactAgent = selectedArtifact?.agentId
+    ? agentById.get(selectedArtifact.agentId)
+    : undefined;
   const selectedGraphAgent = graphAgents.find((agent) => agent.key === selectedAgentKey);
   const selectedAgentNode = selectedGraphAgent?.sourceAgent
     ? agentNodeByAgentId.get(selectedGraphAgent.sourceAgent.id)
@@ -221,42 +217,6 @@ export const AgentTeamFrame = ({
     || task.status === 'needs_input'
     || task.status === 'needs_review'
   ).length;
-
-  useEffect(() => {
-    if (!selectedArtifactId || artifacts.some((artifact) => artifact.id === selectedArtifactId)) return;
-    setSelectedArtifactId('');
-  }, [artifacts, selectedArtifactId]);
-
-  useEffect(() => {
-    if (phase !== 'plan_review') {
-      if (selectedPlanTaskKey) setSelectedPlanTaskKey('');
-      return;
-    }
-    if (graphTasks.length === 0) return;
-    if (selectedPlanTaskKey && graphTaskByKey.has(selectedPlanTaskKey)) return;
-    setSelectedPlanTaskKey(graphTasks[0].key);
-  }, [graphTaskByKey, graphTasks, phase, selectedPlanTaskKey]);
-
-  useEffect(() => {
-    if (!selectedAgentKey || graphAgents.some((agent) => agent.key === selectedAgentKey)) return;
-    setSelectedAgentKey('');
-    setDetailPanelMode('task');
-    setAgentInspectorOpen(false);
-  }, [graphAgents, selectedAgentKey]);
-
-  useEffect(() => {
-    setAgentInspectorMode('terminal');
-    setAgentViewMode('terminal');
-  }, [selectedAgentKey]);
-
-  useEffect(() => {
-    if (orderedTasks.length === 0) {
-      if (selectedTaskId) setSelectedTaskId('');
-      return;
-    }
-    if (selectedTaskId && taskById.has(selectedTaskId)) return;
-    setSelectedTaskId(defaultTask?.id ?? orderedTasks[0].id);
-  }, [defaultTask, orderedTasks, selectedTaskId, taskById]);
 
   const handleConfirmPlan = controller.confirmPlan;
   const handleAdvanceRound = controller.advanceRound;
@@ -308,13 +268,6 @@ export const AgentTeamFrame = ({
       ? 'Starting agent terminals before dispatching tasks.'
       : `${graphTasks.length} task${graphTasks.length === 1 ? '' : 's'} · ${graphAgents.length} teammate${graphAgents.length === 1 ? '' : 's'}`;
 
-  const selectGraphTask = (task: GraphTaskItem) => {
-    if (task.sourceTask) setSelectedTaskId(task.sourceTask.id);
-    else setSelectedPlanTaskKey(task.key);
-    setSelectedAgentKey(task.ownerKey ?? '');
-    setDetailPanelMode('task');
-  };
-
   const renderHumanGate = (gate: AgentTeamHumanGateRecord, options: { compact?: boolean } = {}) => (
     <HumanGateCard
       gate={gate}
@@ -327,7 +280,7 @@ export const AgentTeamFrame = ({
       readOnly={readOnly}
       onAnswerChange={(answer) => setGateAnswers((current) => ({ ...current, [gate.id]: answer }))}
       onAnswer={() => void handleAnswerGate(gate.id)}
-      onViewTask={selectGraphTask}
+      onViewTask={selection.selectGraphTask}
     />
   );
 
@@ -366,10 +319,10 @@ export const AgentTeamFrame = ({
         detail={selectedAgentDetail}
         mode={agentInspectorMode}
         terminal={{ getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly }}
-        onClose={() => setAgentInspectorOpen(false)}
-        onModeChange={setAgentInspectorMode}
-        onSelectTask={selectGraphTask}
-        onSelectArtifact={(artifact) => setSelectedArtifactId(artifact.id)}
+        onClose={selection.closeAgentInspector}
+        onModeChange={selection.setAgentInspectorMode}
+        onSelectTask={selection.selectGraphTask}
+        onSelectArtifact={selection.selectArtifact}
       />
     );
   };
@@ -454,19 +407,13 @@ export const AgentTeamFrame = ({
             checkpointRound,
           }}
           actions={{
-            selectTask: selectGraphTask,
-            selectAgent: (agent) => {
-              setSelectedAgentKey(agent.key);
-              setDetailPanelMode('agent');
-            },
+            selectTask: selection.selectGraphTask,
+            selectAgent: selection.selectGraphAgent,
             changeAgentType: (name, agentType) => void handleUpdatePlanTeammate(name, agentType),
-            changeDetailMode: setDetailPanelMode,
-            changeAgentViewMode: setAgentViewMode,
-            expandAgent: () => {
-              setAgentInspectorMode(agentViewMode);
-              setAgentInspectorOpen(true);
-            },
-            selectArtifact: (artifact) => setSelectedArtifactId(artifact.id),
+            changeDetailMode: selection.setDetailPanelMode,
+            changeAgentViewMode: selection.setAgentViewMode,
+            expandAgent: selection.expandAgentInspector,
+            selectArtifact: selection.selectArtifact,
             confirmPlan: handleConfirmPlan,
             advanceRound: () => void handleAdvanceRound(),
             finalizeCheckpoint: () => void handleFinalizeCheckpoint(),
@@ -492,7 +439,7 @@ export const AgentTeamFrame = ({
           taskTitle={selectedArtifactTask?.title}
           agentName={selectedArtifactAgent?.name}
           readFile={window.canvasWorkspace?.file?.read}
-          onClose={() => setSelectedArtifactId('')}
+          onClose={selection.closeArtifact}
         />
       )}
     </div>
