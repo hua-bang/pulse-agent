@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { CanvasNode, MindmapNodeData, MindmapTopic } from '../types';
+import type { CanvasNode, MindmapNodeData, MindmapTopic } from '../../../types';
 import {
   getSelectionAfterMindmapMerge,
   mergeMindmapTopic,
   splitMindmapTopic,
-} from './mindmapTransfer';
+} from './transfer';
 
 const topic = (
   id: string,

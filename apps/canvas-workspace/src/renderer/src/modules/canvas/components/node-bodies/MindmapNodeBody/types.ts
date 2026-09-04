@@ -1,7 +1,7 @@
 import type { CanvasNode } from '../../../../../types';
 import type {
   MergeMindmapTopicRequest,
-} from '../../../../../utils/mindmapTransfer';
+} from '../../../mindmap/transfer';
 
 export interface MindmapNodeBodyProps {
   node: CanvasNode;

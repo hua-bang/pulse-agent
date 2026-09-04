@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode } from '../../../../../types';
-import type { MergeMindmapTopicRequest } from '../../../../../utils/mindmapTransfer';
+import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import { MindmapNodeBody } from '../../node-bodies/MindmapNodeBody';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { CloseButton, FullscreenButton } from './NodeButtons';

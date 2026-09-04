@@ -13,11 +13,10 @@ import {
   findParent,
   findTopicPath,
   insertChild,
-  layoutMindmap,
   setTopicText,
   toggleCollapsed,
-  type LaidOutTopic,
-} from '../../../../../utils/mindmapLayout';
+} from '../../../mindmap/tree';
+import { layoutMindmap, type LaidOutTopic } from '../../../mindmap/layout';
 import type { DropHint, KeyAction, MindmapNodeBodyProps } from './types';
 import {
   startMindmapDrag,

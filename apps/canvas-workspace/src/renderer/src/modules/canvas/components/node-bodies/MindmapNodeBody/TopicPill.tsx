@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type MouseEvent,
 } from 'react';
-import type { LaidOutTopic } from '../../../../../utils/mindmapLayout';
+import type { LaidOutTopic } from '../../../mindmap/layout';
 import type { DropHint, KeyAction } from './types';
 import { isImeComposing } from '../../../../../utils/ime';
 import { useI18n } from '../../../../../i18n';

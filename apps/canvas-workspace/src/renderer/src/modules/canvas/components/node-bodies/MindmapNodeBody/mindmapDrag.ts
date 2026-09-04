@@ -4,8 +4,8 @@ import {
   isDescendant,
   moveTopic,
   type DropTarget,
-  type LaidOutTopic,
-} from '../../../../../utils/mindmapLayout';
+} from '../../../mindmap/tree';
+import type { LaidOutTopic } from '../../../mindmap/layout';
 import type { MindmapNodeBodyProps } from './types';
 
 export interface MindmapReorderState {

@@ -14,3 +14,7 @@ export {
   type ExternalDocumentUpdate,
   type ExternalDocumentUpdateEvent,
 } from './document/externalMerge';
+export * from './mindmap/layout';
+export * from './mindmap/tree';
+export * from './mindmap/transfer';
+export { exportMindmapNodeToPng, type MindmapImageExport } from './mindmap/export';

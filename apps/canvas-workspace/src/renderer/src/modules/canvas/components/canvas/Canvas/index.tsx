@@ -43,7 +43,7 @@ import {
 import {
   getSelectionAfterMindmapMerge,
   type MergeMindmapTopicRequest,
-} from '../../../../../utils/mindmapTransfer';
+} from '../../../mindmap/transfer';
 
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })

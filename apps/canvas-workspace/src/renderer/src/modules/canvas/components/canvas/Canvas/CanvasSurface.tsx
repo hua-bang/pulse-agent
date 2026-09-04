@@ -19,7 +19,7 @@ import type { SnapLine } from '../../../../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../../../../utils/shapeGeometry';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
-import type { MindmapTransferHandlers } from '../../../../../utils/mindmapTransfer';
+import type { MindmapTransferHandlers } from '../../../mindmap/transfer';
 import { markOnce } from '../../../../../perf/monitor';
 import { CanvasGestureHud, MarqueePreview, ShapeDraftPreview } from './CanvasGestureOverlays';
 import type { ChatDeliveryReceipt } from '../../../../chat';

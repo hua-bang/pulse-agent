@@ -3,7 +3,7 @@ import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
-import type { LaidOutTopic } from '../../../../../utils/mindmapLayout';
+import type { LaidOutTopic } from '../../../mindmap/layout';
 import { TopicPill } from './TopicPill';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

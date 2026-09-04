@@ -65,6 +65,9 @@ Current healthy properties:
 - Canvas document history, external merge, core transactions, and content
   materialization now live behind `modules/canvas/index.ts`; the React adapter
   is `modules/canvas/document/useCanvasDocument.ts`.
+- Mindmap geometry, immutable tree edits, cross-node transfer, and PNG export
+  live under `modules/canvas/mindmap/`; root utils no longer own mindmap
+  behavior. Layout and transfer have interface-level regression tests.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.

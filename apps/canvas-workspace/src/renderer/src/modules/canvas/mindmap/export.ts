@@ -1,5 +1,5 @@
-import type { CanvasNode, MindmapNodeData } from '../types';
-import { layoutMindmap, type MindmapLayout, type LaidOutTopic } from './mindmapLayout';
+import type { CanvasNode, MindmapNodeData } from '../../../types';
+import { layoutMindmap, type MindmapLayout, type LaidOutTopic } from './layout';
 
 const EXPORT_MARGIN = 28;
 const EXPORT_SCALE = 2;

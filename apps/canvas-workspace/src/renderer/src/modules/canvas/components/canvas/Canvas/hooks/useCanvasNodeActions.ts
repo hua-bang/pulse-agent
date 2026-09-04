@@ -2,7 +2,7 @@ import { useCallback, type MutableRefObject } from 'react';
 import type { AgentNodeData, CanvasEdge, CanvasNode, FrameNodeData } from '../../../../../../types';
 import { useI18n } from '../../../../../../i18n';
 import { getNodeDisplayLabel } from '../../../../../../utils/nodeLabel';
-import { exportMindmapNodeToPng } from '../../../../../../utils/mindmapExport';
+import { exportMindmapNodeToPng } from '../../../../mindmap/export';
 import { getNodeDeleteConfirm } from './node-delete-confirm';
 
 interface NotifyArgs {

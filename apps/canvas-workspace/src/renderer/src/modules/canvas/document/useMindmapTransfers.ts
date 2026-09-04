@@ -6,7 +6,7 @@ import {
   splitMindmapTopic as splitMindmapTopicState,
   type MergeMindmapTopicRequest,
   type SplitMindmapTopicRequest,
-} from '../../../utils/mindmapTransfer';
+} from '../mindmap/transfer';
 import { resizeGroupsToChildren } from '../../../utils/resizeGroupsToChildren';
 import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 

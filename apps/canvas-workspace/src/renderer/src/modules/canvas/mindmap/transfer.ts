@@ -1,12 +1,12 @@
-import type { CanvasNode, MindmapNodeData, MindmapTopic } from '../types';
-import { createDefaultNode, genTopicId } from './nodeFactory';
+import type { CanvasNode, MindmapNodeData, MindmapTopic } from '../../../types';
+import { createDefaultNode, genTopicId } from '../../../utils/nodeFactory';
 import {
   deleteTopic,
   findParent,
   findTopicPath,
   insertChild,
   type DropTarget,
-} from './mindmapLayout';
+} from './tree';
 
 export interface MergeMindmapTopicRequest {
   sourceNodeId: string;

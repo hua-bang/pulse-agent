@@ -2,7 +2,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
 import type { ResizeEdge } from '../../../../../hooks/useNodeResize';
 import type { NodeDragOffset } from '../../../../../hooks/useNodeDrag';
-import type { MergeMindmapTopicRequest } from '../../../../../utils/mindmapTransfer';
+import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 
 export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';

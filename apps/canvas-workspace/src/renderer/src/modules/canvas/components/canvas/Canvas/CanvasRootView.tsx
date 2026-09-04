@@ -8,7 +8,7 @@ import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasProps } from './types';
 import type { NodeDragOffset, NodeDragPreview } from '../../../../../hooks/useNodeDrag';
 import type { NodeResizePreview } from '../../../../../hooks/useNodeResize';
-import type { MergeMindmapTopicRequest } from '../../../../../utils/mindmapTransfer';
+import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 
 type CanvasRootViewProps = Pick<
   CanvasProps,
