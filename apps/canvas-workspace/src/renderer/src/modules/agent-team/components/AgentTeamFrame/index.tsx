@@ -1,52 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import './index.css';
-import {
-  createAgentTeamGraphAgents,
-  createAgentTeamWorkspaceModel,
-} from '../../model/workspaceModel';
-import { HumanGateCard, hasConcreteHumanGatePrompt } from '../HumanGateCard';
+import { HumanGateCard } from '../HumanGateCard';
 import { TeamCommand } from '../TeamCommand';
-import { createAgentDetailModel } from '../AgentDetail';
 import { AgentInspector } from '../AgentInspector';
 import { ArtifactViewer } from '../ArtifactViewer';
 import { LeadDock } from '../LeadDock';
 import { TaskWorkspace } from '../TaskWorkspace';
 import { TeamHeader } from '../TeamHeader';
 import { RuntimeMounts } from '../RuntimeMounts';
-import { createAgentTeamFramePresentation } from './presentation';
-import { useAgentTeamFrameSelection } from './useAgentTeamFrameSelection';
+import { useAgentTeamFrameModel } from './useAgentTeamFrameModel';
 import { useAgentTeamWorkspaceController } from '../../controller/useAgentTeamWorkspaceController';
 import { useAppShell } from '../../../../shared/appShell';
 import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
 import { useWorkspaceActive } from '../../../../shared/workspaceActivity';
-import type {
-  AgentNodeData,
-  AgentTeamAgentRecord,
-  AgentTeamArtifactRecord,
-  AgentTeamHumanGateRecord,
-  AgentTeamTaskRecord,
-  CanvasNode,
-  FrameNodeData,
-} from '../../../../types';
-
-interface AgentTeamFrameProps {
-  node: CanvasNode;
-  getAllNodes?: () => CanvasNode[];
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
-  onRemoveNodes?: (ids: string[]) => void;
-  rootFolder?: string;
-  workspaceId?: string;
-  workspaceName?: string;
-  readOnly?: boolean;
-}
-
-const isHumanFacingGate = (gate: AgentTeamHumanGateRecord): boolean =>
-  gate.metadata?.audience !== 'lead' && hasConcreteHumanGatePrompt(gate.prompt);
-
-const isTeamAgentNode = (node: CanvasNode, teamId: string): node is CanvasNode & { data: AgentNodeData } =>
-  node.type === 'agent'
-  && (node.data as AgentNodeData).agentTeamId === teamId
-  && !!(node.data as AgentNodeData).agentTeamAgentId;
+import type { AgentTeamHumanGateRecord, FrameNodeData } from '../../../../types';
+import type { AgentTeamFrameProps } from './types';
 
 // Agent Teams currently supports only Claude Code and Codex for teammates.
 const TEAM_AGENT_OPTIONS = AGENT_REGISTRY.filter((def) => def.id === 'claude-code' || def.id === 'codex');
@@ -73,60 +41,31 @@ export const AgentTeamFrame = ({
     workspaceActive,
   });
   const { snapshot, loading, error, planAction, teamAction } = controller;
-  const runtime = snapshot?.runtime;
-  const workspaceModel = useMemo(
-    () => snapshot ? createAgentTeamWorkspaceModel(snapshot) : null,
-    [snapshot],
-  );
-  const agents = workspaceModel?.agents ?? [];
-  const tasks = runtime?.tasks ?? [];
-  const gates = runtime?.humanGates ?? [];
-  const artifacts = runtime?.artifacts ?? [];
-  const openGates = gates.filter((gate) => gate.status === 'open');
-  const teammates = workspaceModel?.teammates ?? [];
-  const phase = workspaceModel?.phase ?? 'briefing';
-  const plan = snapshot?.pendingPlan;
-  const teamAgentNodes = teamId
-    ? (getAllNodes?.() ?? []).filter((candidate) => isTeamAgentNode(candidate, teamId))
-    : [];
-  const agentNodeByAgentId = new Map(
-    teamAgentNodes.map((agentNode) => [agentNode.data.agentTeamAgentId!, agentNode]),
-  );
-  const teammateCanvasNodes = teammates
-    .map((agent) => agentNodeByAgentId.get(agent.id))
-    .filter((agentNode): agentNode is CanvasNode & { data: AgentNodeData } => !!agentNode);
-
-  const agentById = workspaceModel?.agentById ?? new Map<string, AgentTeamAgentRecord>();
-  const taskById = workspaceModel?.taskById ?? new Map<string, AgentTeamTaskRecord>();
-  const artifactsByTask = workspaceModel?.artifactsByTask
-    ?? new Map<string, AgentTeamArtifactRecord[]>();
-  const orderedTasks = workspaceModel?.orderedTasks ?? [];
-  const defaultTask = workspaceModel?.defaultTask;
-  const graphTasks = workspaceModel?.tasks ?? [];
-  const graphRounds = workspaceModel?.rounds ?? [];
-  const roundOptions = workspaceModel?.roundOptions ?? [];
-  const graphAgents = createAgentTeamGraphAgents({
+  const model = useAgentTeamFrameModel({ node, getAllNodes, rootFolder, snapshot });
+  const {
+    runtime,
+    tasks,
     phase,
     plan,
-    tasks: graphTasks,
-    teammates,
-    artifacts,
-    agentNodeByAgentId,
-    sessions: snapshot?.sessions,
-  });
-  const presentation = createAgentTeamFramePresentation({
-    nodeId: node.id,
-    nodeTitle: node.title,
-    teamId,
-    data,
-    runtime,
-    phase,
-    agents,
-    teammates,
-    graphTaskCount: graphTasks.length,
-    graphAgentCount: graphAgents.length,
-    rootFolder,
-  });
+    teammateCanvasNodes,
+    leadCanvasNode,
+    agentById,
+    taskById,
+    graphTasks,
+    graphRounds,
+    roundOptions,
+    graphAgents,
+    presentation,
+    selection,
+    selectedTaskArtifacts,
+    selectedHumanTaskGate,
+    globalGate,
+    selectedArtifactTask,
+    selectedArtifactAgent,
+    selectedAgentDetail,
+    agentTypeByOwnerKey,
+    isHumanFacingGate,
+  } = model;
   const {
     lead,
     teamStatus,
@@ -145,16 +84,6 @@ export const AgentTeamFrame = ({
     canResumeTeam,
     canDispatch,
   } = presentation;
-  const leadCanvasNode = lead ? agentNodeByAgentId.get(lead.id) : undefined;
-  const selection = useAgentTeamFrameSelection({
-    phase,
-    artifacts,
-    graphTasks,
-    graphAgents,
-    orderedTasks,
-    taskById,
-    defaultTask,
-  });
   const {
     graphTaskByKey,
     selectedTask,
@@ -166,54 +95,6 @@ export const AgentTeamFrame = ({
     agentViewMode,
     agentInspectorOpen,
   } = selection;
-  const selectedTaskArtifacts = selectedTask
-    ? artifactsByTask.get(selectedTask.id) ?? []
-    : [];
-  const selectedTaskGate = selectedTask
-    ? openGates.find((gate) => gate.taskId === selectedTask.id)
-    : undefined;
-  const selectedHumanTaskGate = selectedTaskGate && isHumanFacingGate(selectedTaskGate)
-    ? selectedTaskGate
-    : undefined;
-  const globalGate = openGates.find((gate) =>
-    isHumanFacingGate(gate) && (!selectedTask || gate.taskId !== selectedTask.id)
-  );
-  const selectedArtifactTask = selectedArtifact?.taskId
-    ? taskById.get(selectedArtifact.taskId)
-    : undefined;
-  const selectedArtifactAgent = selectedArtifact?.agentId
-    ? agentById.get(selectedArtifact.agentId)
-    : undefined;
-  const selectedGraphAgent = graphAgents.find((agent) => agent.key === selectedAgentKey);
-  const selectedAgentNode = selectedGraphAgent?.sourceAgent
-    ? agentNodeByAgentId.get(selectedGraphAgent.sourceAgent.id)
-    : selectedGraphAgent?.nodeId
-      ? teamAgentNodes.find((candidate) => candidate.id === selectedGraphAgent.nodeId)
-      : undefined;
-  const selectedAgentDetail = selectedGraphAgent
-    ? createAgentDetailModel({
-        agent: selectedGraphAgent,
-        tasks: graphTasks.filter((task) => task.ownerKey === selectedGraphAgent.key),
-        artifacts: selectedGraphAgent.sourceAgent
-          ? artifacts.filter((artifact) => artifact.agentId === selectedGraphAgent.sourceAgent?.id)
-          : [],
-        agentNode: selectedAgentNode,
-        rootFolder,
-      })
-    : undefined;
-  const agentTypeByOwnerKey = useMemo(
-    () => new Map(graphAgents.map((agent) => [agent.key, agent.agentType])),
-    [graphAgents],
-  );
-
-  const handleConfirmPlan = controller.confirmPlan;
-  const handleAdvanceRound = controller.advanceRound;
-  const handleFinalizeCheckpoint = controller.finalizeCheckpoint;
-  const handleUpdatePlanTeammate = controller.updatePlanTeammate;
-  const handlePauseTeam = controller.pauseTeam;
-  const handleResumeTeam = controller.resumeTeam;
-  const handleDispatch = controller.dispatch;
-
   const handleDeleteTeam = async () => {
     const accepted = await confirm({
       intent: 'danger',
@@ -322,12 +203,12 @@ export const AgentTeamFrame = ({
           canDispatch,
         }}
         actions={{
-          pause: () => void handlePauseTeam(),
-          resume: () => void handleResumeTeam(),
-          dispatch: () => void handleDispatch(),
+          pause: () => void controller.pauseTeam(),
+          resume: () => void controller.resumeTeam(),
+          dispatch: () => void controller.dispatch(),
           deleteTeam: () => void handleDeleteTeam(),
-          advanceRound: () => void handleAdvanceRound(),
-          finalizeCheckpoint: () => void handleFinalizeCheckpoint(),
+          advanceRound: () => void controller.advanceRound(),
+          finalizeCheckpoint: () => void controller.finalizeCheckpoint(),
         }}
       />
 
@@ -375,14 +256,14 @@ export const AgentTeamFrame = ({
           actions={{
             selectTask: selection.selectGraphTask,
             selectAgent: selection.selectGraphAgent,
-            changeAgentType: (name, agentType) => void handleUpdatePlanTeammate(name, agentType),
+            changeAgentType: (name, agentType) => void controller.updatePlanTeammate(name, agentType),
             changeDetailMode: selection.setDetailPanelMode,
             changeAgentViewMode: selection.setAgentViewMode,
             expandAgent: selection.expandAgentInspector,
             selectArtifact: selection.selectArtifact,
-            confirmPlan: handleConfirmPlan,
-            advanceRound: () => void handleAdvanceRound(),
-            finalizeCheckpoint: () => void handleFinalizeCheckpoint(),
+            confirmPlan: controller.confirmPlan,
+            advanceRound: () => void controller.advanceRound(),
+            finalizeCheckpoint: () => void controller.finalizeCheckpoint(),
           }}
         />
       </div>
