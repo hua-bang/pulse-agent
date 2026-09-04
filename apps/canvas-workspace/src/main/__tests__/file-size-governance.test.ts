@@ -11,7 +11,7 @@ const SOURCE_ROOT = 'src';
 const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
-  'src/main/agent-teams/service.ts': 2058,
+  'src/main/agent-teams/service.ts': 2028,
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1177,
   'src/main/agent/canvas-agent.ts': 1158,

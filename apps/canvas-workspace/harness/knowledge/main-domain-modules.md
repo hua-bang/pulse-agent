@@ -179,6 +179,7 @@ done. Still open:
   Team Lead briefing/execution protocol text lives in `agent-teams/prompts.ts`.
   Agent/task/gate name and fallback rules live in `agent-teams/resolution.ts`.
   Working-directory inference lives in `agent-teams/working-directory.ts`.
+  PTY-hot-path node→agent lookup/cache lives in `agent-teams/agent-node-resolver.ts`.
   Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
 - **Main domain dependency ratchet** — the process-layer import check now also

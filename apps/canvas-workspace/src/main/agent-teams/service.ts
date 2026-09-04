@@ -84,6 +84,7 @@ import {
   resolveTaskReferences,
 } from './resolution';
 import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-directory';
+import { AgentNodeResolver, type AgentNodeMatch } from './agent-node-resolver';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -101,11 +102,6 @@ const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
 // normal headless-dispatch state; past it, nothing is going to mount the node
 // — the workspace is not open in any window — and leaving the task
 // in_progress fakes progress forever.
-interface AgentNodeMatch {
-  teamId: string;
-  agent: TeamAgentRecord;
-}
-
 const gateAudienceMetadataForAgent = (agent: TeamAgentRecord | undefined): Record<string, unknown> | undefined =>
   agent && agent.role !== 'lead' ? { audience: 'lead' } : undefined;
 
@@ -156,7 +152,7 @@ export class CanvasAgentTeamsService {
   private readonly lastAgentOutputAt = new Map<string, number>();
   private readonly softStallNudgedAt = new Map<string, number>();
   // nodeId -> agent identity for the PTY hot path (one entry per team node).
-  private readonly nodeAgentCache = new Map<string, { teamId: string; agentId: string }>();
+  private readonly agentNodeResolver = new AgentNodeResolver();
 
   private withTeamLock<T>(workspaceId: string, teamId: string, run: () => Promise<T>): Promise<T> {
     const key = `${workspaceId}:${teamId}`;
@@ -1816,33 +1812,8 @@ export class CanvasAgentTeamsService {
    * (sessionRef.sessionId is the node id) and deleted teams self-heal.
    */
   private async resolveAgentNodeCached(workspaceId: string, nodeId: string): Promise<AgentNodeMatch | null> {
-    const key = `${workspaceId}:${nodeId}`;
     const { store } = this.getBundle(workspaceId);
-    const cached = this.nodeAgentCache.get(key);
-    if (cached) {
-      const agent = await store.getAgent(cached.agentId);
-      if (agent && agent.teamId === cached.teamId && agent.sessionRef?.sessionId === nodeId) {
-        return { teamId: cached.teamId, agent };
-      }
-      this.nodeAgentCache.delete(key);
-    }
-    const match = await this.findAgentByNodeId(store, nodeId);
-    if (match) {
-      this.nodeAgentCache.set(key, { teamId: match.teamId, agentId: match.agent.id });
-    }
-    return match;
-  }
-
-  private async findAgentByNodeId(store: CanvasAgentTeamStore, nodeId: string): Promise<AgentNodeMatch | null> {
-    const entries = await store.listTeamMetadata();
-    for (const entry of entries) {
-      const agentId = Object.entries(entry.metadata.agentNodeIds)
-        .find(([, candidateNodeId]) => candidateNodeId === nodeId)?.[0];
-      if (!agentId) continue;
-      const agent = await store.getAgent(agentId);
-      if (agent) return { teamId: entry.teamId, agent };
-    }
-    return null;
+    return this.agentNodeResolver.resolve(workspaceId, nodeId, store);
   }
 
   private async applyAgentOutputMarker(
