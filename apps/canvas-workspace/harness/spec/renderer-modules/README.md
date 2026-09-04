@@ -91,6 +91,9 @@ Current healthy properties:
   runtime hook. PTY lease ownership, xterm lifecycle, snapshot persistence,
   refitting, shortcut arbitration, and coding-agent mention hints remain
   covered by the existing component-level lifecycle regressions.
+- ShapeNodeBody now owns only its 193-line SVG/text editing surface; the
+  141-line style picker and its CSS live in a child owner folder. A focused
+  interaction test pins style patching without coupling to picker internals.
 - Coding-agent session bindings, launch command planning, and team auto-resume
   backoff now live behind `modules/coding-agent/index.ts`; AgentNodeBody and
   its owner-local tests/styles have moved into the same module.
