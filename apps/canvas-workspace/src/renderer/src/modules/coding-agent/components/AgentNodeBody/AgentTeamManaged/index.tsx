@@ -1,7 +1,8 @@
+import './index.css';
 import type { ReactNode } from 'react';
-import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
-import { AgentIcon } from './AgentIcon';
-import { truncatePath } from './utils/terminal';
+import { AGENT_REGISTRY } from '../../../../../config/agentRegistry';
+import { AgentIcon } from '../AgentIcon';
+import { truncatePath } from '../utils/terminal';
 
 interface AgentTeamManagedProps {
   agentType: string;
@@ -92,3 +93,4 @@ export const AgentTeamManaged = ({
     </div>
   );
 };
+

@@ -1,0 +1,188 @@
+/* ── Team-lead "managed" card ──────────────────────────────────────
+ * A calm summary of the team leader's latest run. The visual language
+ * intentionally mirrors the briefing/setup view: a compact header plus
+ * a single low-contrast "facts" box, so the executing/completed state
+ * reads as the same surface — just with live values instead of inputs. */
+.agent-team-managed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow-y: auto;
+}
+
+.agent-team-managed__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.agent-team-managed__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  color: var(--agent-accent);
+  background:
+    linear-gradient(135deg, rgba(35, 131, 226, 0.16), rgba(35, 131, 226, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(35, 131, 226, 0.18);
+}
+
+.agent-team-managed__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-text);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-team-managed__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px 9px 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--agent-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.agent-team-managed__status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent-faint);
+}
+
+.agent-team-managed--running .agent-team-managed__status {
+  background: rgba(35, 131, 226, 0.1);
+  color: var(--agent-accent);
+}
+
+.agent-team-managed--running .agent-team-managed__status::before {
+  background: var(--agent-accent);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.16);
+  animation: agent-team-managed-pulse 1.8s ease-in-out infinite;
+}
+
+.agent-team-managed--done .agent-team-managed__status {
+  background: var(--agent-success-soft);
+  color: #1f6f45;
+}
+
+.agent-team-managed--done .agent-team-managed__status::before {
+  background: var(--agent-success);
+}
+
+.agent-team-managed--error .agent-team-managed__status {
+  background: rgba(224, 62, 62, 0.1);
+  color: var(--agent-danger);
+}
+
+.agent-team-managed--error .agent-team-managed__status::before {
+  background: var(--agent-danger);
+}
+
+@keyframes agent-team-managed-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* Facts box — same low-contrast surface as the setup summary. */
+.agent-team-managed__facts {
+  display: grid;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid rgba(35, 131, 226, 0.12);
+  border-radius: 11px;
+  background: rgba(247, 250, 255, 0.86);
+}
+
+.agent-team-managed__fact {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.agent-team-managed__fact > span {
+  color: var(--agent-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.agent-team-managed__fact > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The decision value carries natural-language intent, so let it wrap
+ * to two lines in the readable sans face rather than truncating. */
+.agent-team-managed__fact--decision > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.agent-team-managed__command {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.agent-team-managed__terminal-button {
+  justify-self: start;
+  height: 30px;
+  margin-top: 2px;
+  border: 1px solid rgba(35, 131, 226, 0.22);
+  border-radius: var(--radius-md);
+  background: rgba(35, 131, 226, 0.06);
+  color: var(--agent-accent);
+  font: 500 12px var(--agent-sans);
+  cursor: pointer;
+  padding: 0 12px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.agent-team-managed__terminal-button:hover {
+  background: rgba(35, 131, 226, 0.12);
+  border-color: rgba(35, 131, 226, 0.34);
+}
+

@@ -144,6 +144,9 @@ Current healthy properties:
 - Coding Agent setup is split into an 84-line picker composition, CLI
   availability/install guidance, and a launch form; each child owns its CSS
   and tests while the session controller remains independent of visuals.
+- AgentTeamManaged now follows the owner-folder convention and owns its
+  188-line lead summary/facts/command/terminal-button stylesheet; shared
+  AgentNodeBody CSS no longer carries Team-managed presentation.
 - Canvas visuals and remaining node bodies now live under `modules/canvas`.
   Feature node bodies may be composed by Canvas, but shared mention UI and
   textarea mention behavior live behind `modules/node-mentions/index.ts`, and
