@@ -14,7 +14,7 @@ import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeCh
 import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
 import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/workspace-nodes';
 import { useWorkspaces } from '../../hooks/useWorkspaces';
-import { useAppShortcutBindings } from '../../hooks/useAppShortcuts';
+import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';

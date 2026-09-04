@@ -117,7 +117,7 @@ pathRules:
     paths:
       - src/renderer/src/shortcuts/**
       - src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts
-      - src/renderer/src/hooks/useAppShortcuts.ts
+      - src/renderer/src/app/shortcuts/useAppShortcuts.ts
       - src/renderer/src/hooks/useWebviewShortcutBridge.ts
       - src/renderer/src/utils/keyboardShortcut.ts
       - src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx
@@ -131,10 +131,10 @@ pathRules:
       - src/renderer/src/modules/dock/internal/WorkspaceTerminalDock/index.tsx
       - src/renderer/src/modules/node-mentions/components/NodeMentionPicker/index.tsx
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.test.ts
 
   # The Coding Agent node's CLI roster is a cross-file contract: one registry
   # entry, but a usable agent also needs a brand mark, a dock identity, a

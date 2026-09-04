@@ -55,7 +55,7 @@ Behavior lives in the owner's handler table:
 
 - `src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts` (owner `canvas`), gated on
   the visible unlocked canvas.
-- `src/renderer/src/hooks/useAppShortcuts.ts` (owner `app`), works on every
+- `src/renderer/src/app/shortcuts/useAppShortcuts.ts` (owner `app`), works on every
   route — split from the canvas layer on purpose, because the canvas layer
   is gated on the visible unlocked canvas while these must keep working on
   the chat page and the node pages.
@@ -364,7 +364,7 @@ recency.
 
 The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
 `src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts`,
-`src/renderer/src/hooks/useAppShortcuts.ts`,
+`src/renderer/src/app/shortcuts/useAppShortcuts.ts`,
 `src/renderer/src/hooks/useWebviewShortcutBridge.ts`,
 `src/renderer/src/utils/keyboardShortcut.ts`,
 `src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx`,
@@ -379,7 +379,7 @@ xterm surfaces that dispatch terminal-owned shortcuts
 Its `quick` step and its `required` step both run:
 
 ```
-pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/hooks/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts
+pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts
 ```
 
 `required` additionally runs `pnpm --filter canvas-workspace typecheck`
@@ -394,7 +394,7 @@ Primary regression suites live in:
   collision end to end against the REAL `useAppShortcuts`, including the
   control case that fails if the chord ever stops being shared
 - `src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts`
-- `src/renderer/src/hooks/useAppShortcuts.test.ts`
+- `src/renderer/src/app/shortcuts/useAppShortcuts.test.ts`
 - `src/main/webview/__tests__/shortcut-forwarding.test.ts`
 - `src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts` — the
   pure decision rule

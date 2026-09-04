@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { isImeComposing } from '../utils/ime';
-import { matchShortcut, type AppShortcutId } from '../shortcuts/registry';
-import { useWebviewShortcutBridge } from './useWebviewShortcutBridge';
+import { isImeComposing } from '../../utils/ime';
+import { matchShortcut, type AppShortcutId } from '../../shortcuts/registry';
+import { useWebviewShortcutBridge } from '../../hooks/useWebviewShortcutBridge';
 
 interface Options {
   /** Current route bucket — only 'chat' reacts to the chat-page Escape. */
