@@ -156,6 +156,7 @@
 
 .canvas-node--file>.node-header .node-type-badge--file {
   color: rgba(55, 53, 47, 0.45);
+}
 
 .canvas-node--iframe {
   border-color: rgba(55, 53, 47, 0.1);
@@ -437,4 +438,6 @@
 
 .node-body--mindmap {
   padding: 0;
-
+  height: 100%;
+  overflow: visible;
+}

@@ -1,3 +1,4 @@
+import './index.css';
 import {
   useCallback,
   useEffect,
@@ -9,16 +10,16 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
-import type { CanvasNode } from '../../../../types';
-import type { WorkspaceEntry } from '../../../../shared/workspaces';
-import { useMenuKeyboardNav } from '../../../../hooks/useMenuKeyboardNav';
-import { Button } from '../../../../components/ui';
-import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
-import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../utils/nodeTypeI18n';
-import { useI18n } from '../../../../i18n';
-import { BranchIcon, ListIcon, SearchIcon } from './Icons';
-import type { ReferencePickerMode, ReferencePickerNodeGroup } from '../../../../shared/reference/types';
-import { getReferenceGroupIcon } from '../../../../shared/reference/utils';
+import type { CanvasNode } from '../../../../../types';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
+import { useMenuKeyboardNav } from '../../../../../hooks/useMenuKeyboardNav';
+import { Button } from '../../../../../components/ui';
+import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
+import { useI18n } from '../../../../../i18n';
+import { BranchIcon, ListIcon, SearchIcon } from '../Icons';
+import type { ReferencePickerMode, ReferencePickerNodeGroup } from '../../../../../shared/reference/types';
+import { getReferenceGroupIcon } from '../../../../../shared/reference/utils';
 
 interface ReferencePickerProps {
   allNodes: Record<string, CanvasNode[]>;
@@ -395,3 +396,4 @@ const ReferencePickerGroupSection = ({
     </div>
   );
 };
+

@@ -1,0 +1,340 @@
+.reference-workspace-picker {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 4px;
+}
+
+.reference-workspace-picker-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.reference-workspace-select {
+  appearance: none;
+  height: 30px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 246, 0.94)),
+    var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    color 0.14s ease;
+}
+
+.reference-workspace-select:hover,
+.reference-workspace-select:focus-visible,
+.reference-workspace-select--open {
+  border-color: rgba(35, 131, 226, 0.34);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+  outline: none;
+}
+
+.reference-workspace-select-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-workspace-select-caret {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition:
+    color 0.14s ease,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reference-workspace-select--open .reference-workspace-select-caret {
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.reference-workspace-options {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 2px;
+  right: 2px;
+  z-index: 2;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 10px 26px rgba(15, 15, 15, 0.12),
+    0 1px 2px rgba(15, 15, 15, 0.06);
+  /* Global menuAppear (opacity + scale + rise) — same intent as the old
+     private reference-workspace-menu-in; kept the drawer's own timing. */
+  animation: menuAppear 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reference-workspace-option {
+  appearance: none;
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.reference-workspace-option:hover,
+.reference-workspace-option:focus-visible {
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+  outline: none;
+}
+
+.reference-workspace-option--selected {
+  background: rgba(35, 131, 226, 0.1);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.reference-workspace-option-check {
+  width: 13px;
+  flex: 0 0 13px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.reference-workspace-option-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-picker-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 4px;
+}
+
+.reference-picker-search {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.reference-picker-search:focus-within {
+  border-color: rgba(35, 131, 226, 0.42);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1);
+  color: var(--accent);
+}
+
+.reference-picker-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.reference-picker-list {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.reference-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  transition: background 0.1s ease;
+}
+
+.reference-picker-item:hover,
+.reference-picker-item:focus-visible {
+  background: rgba(0, 0, 0, 0.05);
+  outline: none;
+}
+
+.reference-picker-item-type {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-width: 44px;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-picker-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-picker-item-workspace {
+  max-width: 90px;
+  color: var(--text-muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-picker-empty {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.reference-picker-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.reference-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.reference-group-header:hover,
+.reference-group-header:focus-visible {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+  outline: none;
+}
+
+.reference-group-caret {
+  transition: transform 0.14s ease;
+  color: var(--text-muted);
+}
+
+.reference-group--collapsed .reference-group-caret {
+  transform: rotate(0deg);
+}
+
+.reference-picker-group:not(.reference-group--collapsed) .reference-group-caret {
+  transform: rotate(90deg);
+}
+
+.reference-group-type-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.045);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.reference-group--type-url .reference-group-type-icon,
+.reference-group--type-iframe .reference-group-type-icon {
+  background: rgba(35, 131, 226, 0.09);
+  color: var(--accent);
+}
+
+.reference-group--type-agent .reference-group-type-icon {
+  background: rgba(139, 92, 246, 0.1);
+  color: #6d48c8;
+}
+
+.reference-group--type-terminal .reference-group-type-icon {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text);
+}
+
+.reference-group--type-missing .reference-group-type-icon {
+  background: rgba(192, 57, 43, 0.1);
+  color: #c0392b;
+}
+
+.reference-group-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-group-count {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.reference-picker-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 14px;
+}
+
+.reference-picker-group-items .reference-picker-item {
+  width: 100%;
+}
+

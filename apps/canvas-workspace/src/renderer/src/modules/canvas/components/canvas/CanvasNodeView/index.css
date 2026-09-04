@@ -53,7 +53,6 @@
  * paint saving that hiding them bought (the dominant overview-drag win is
  * the `.node-header__actions` popover `display:none` below, not body
  * hiding). image/shape/text were always live thumbnails. */
-}
 
 .canvas-node:hover {
   box-shadow: var(--shadow-card-hover);
@@ -148,9 +147,6 @@
   opacity: 0.12;
   box-shadow: none;
   transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-  height: 100%;
-  overflow: visible;
 }
 
 .node-close--floating {
