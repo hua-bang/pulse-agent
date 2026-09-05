@@ -92,6 +92,7 @@ describe('useDockAgentBridge activation acknowledgement', () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-1');
     store.openNodeDetail('ws-1', 'node-1', 'Workspace one node');
+    store.setActiveWorkspace('ws-2');
     store.openNodeDetail('ws-2', 'node-2', 'Workspace two node');
     await render(store, 'ws-1');
 
@@ -140,6 +141,7 @@ describe('useDockAgentBridge activation acknowledgement', () => {
   it('switches dock ownership without navigating and acknowledges after the switch', async () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-1');
+    store.setActiveWorkspace('ws-2');
     store.openNodeDetail('ws-2', 'node-2', 'Other workspace node');
     const selectWorkspace = await render(store, 'ws-1');
 
@@ -162,9 +164,10 @@ describe('useDockAgentBridge activation acknowledgement', () => {
     }));
   });
 
-  it('acknowledges a transcript-chip activation only after its dock workspace is ready', async () => {
+  it('opens a cross-workspace transcript citation as a preview without switching the Dock', async () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-1');
+    store.setActiveWorkspace('ws-2');
     store.openNodeDetail('ws-2', 'node-2', 'Other workspace node');
     const selectWorkspace = await render(store, 'ws-1');
     const respond = vi.fn();
@@ -173,18 +176,14 @@ describe('useDockAgentBridge activation acknowledgement', () => {
       detail: {
         tabId: 'node-detail:ws-2:node-2',
         dockWorkspaceId: 'ws-2',
+        tab: { id: 'node-detail:ws-2:node-2', kind: 'node-detail', title: 'Other workspace node', workspaceId: 'ws-2', nodeId: 'node-2' },
         respond,
       },
     })));
 
-    expect(selectWorkspace).toHaveBeenCalledWith('ws-2');
-    expect(respond).not.toHaveBeenCalled();
-
-    act(() => store.setActiveWorkspace('ws-2'));
-    await render(store, 'ws-2', selectWorkspace);
-
-    expect(store.getSnapshot().activeTabId).toBe('node-detail:ws-2:node-2');
-    expect(respond).toHaveBeenCalledWith({ status: 'activated' });
+    expect(selectWorkspace).not.toHaveBeenCalled();
+    expect(store.getSnapshot()).toMatchObject({ activeTerminalWorkspaceId: 'ws-1', activeTabId: 'node-detail:ws-2:node-2' });
+    expect(respond).toHaveBeenCalledWith({ status: 'reopened' });
   });
 
   it('returns a stale acknowledgement when the tab no longer exists', async () => {
@@ -265,7 +264,7 @@ describe('useDockAgentBridge activation acknowledgement', () => {
     expect(store.getSnapshot().tabs).toHaveLength(0);
   });
 
-  it('waits for the owning workspace before reopening a historical link', async () => {
+  it('reopens a foreign historical link in the current scope without changing ownership', async () => {
     const store = new DockStore();
     store.setActiveWorkspace('ws-1');
     const selectWorkspace = await render(store, 'ws-1');
@@ -282,11 +281,8 @@ describe('useDockAgentBridge activation acknowledgement', () => {
     act(() => window.dispatchEvent(new CustomEvent('canvas:activate-dock-tab', {
       detail: { tabId: tab.id, dockWorkspaceId: 'ws-2', tab, respond },
     })));
-    expect(selectWorkspace).toHaveBeenCalledWith('ws-2');
-    expect(respond).not.toHaveBeenCalled();
-
-    act(() => store.setActiveWorkspace('ws-2'));
-    await render(store, 'ws-2', selectWorkspace);
+    expect(selectWorkspace).not.toHaveBeenCalled();
+    expect(store.getSnapshot().activeTerminalWorkspaceId).toBe('ws-1');
 
     expect(respond).toHaveBeenCalledWith({ status: 'reopened' });
     expect(store.getSnapshot().tabs).toContainEqual(expect.objectContaining({

@@ -114,8 +114,7 @@ export const RightDock = ({
 
   const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
     if (!onActivateWorkspace || !workspaces.some(workspace => workspace.id === workspaceId)) return false;
-    onActivateWorkspace(workspaceId);
-    return true;
+    return onActivateWorkspace(workspaceId) !== false;
   }, [onActivateWorkspace, workspaces]);
 
   useDockLinkOpens(store);
@@ -129,12 +128,13 @@ export const RightDock = ({
     if (state.splitTabIds?.includes(CHAT_TAB_ID)) store.toggleSplitView();
     if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
       store.activate(state.tabs[0].id);
+      if (!state.expanded) store.collapse();
       return;
     }
     if (state.activeTabId === CHAT_TAB_ID) {
       store.collapse();
     }
-  }, [chatTabEnabled, state.activeTabId, state.splitTabIds, state.tabs, store]);
+  }, [chatTabEnabled, state.activeTabId, state.expanded, state.splitTabIds, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
   const terminalTabsVisible = state.terminalTabs.length > 0;

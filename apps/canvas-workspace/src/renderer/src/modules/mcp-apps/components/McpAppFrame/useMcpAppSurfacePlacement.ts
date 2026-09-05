@@ -45,11 +45,25 @@ export const useMcpAppSurfacePlacement = ({
     let targetVisible = false;
     let observer: ResizeObserver | null = null;
     let observedTarget: HTMLElement | null = null;
+    let ancestors: HTMLElement[] = [];
+    let mutationObserver: MutationObserver | null = null;
     const syncObservedTarget = (target: HTMLElement | null) => {
-      if (!observer || observedTarget === target) return;
-      observer.disconnect();
+      if (observedTarget === target && ancestors.every((element, index) => (
+        element.parentElement === (ancestors[index + 1] ?? null)
+      ))) return;
+      observer?.disconnect();
       observedTarget = target;
-      if (target) observer.observe(target);
+      mutationObserver?.disconnect();
+      ancestors = [];
+      for (let element = target; element; element = element.parentElement) {
+        ancestors.push(element);
+        observer?.observe(element);
+        mutationObserver?.observe(element, {
+          attributes: true,
+          childList: true,
+          attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'inert'],
+        });
+      }
     };
     const placeOverTarget = () => {
       const target = resolveTarget();
@@ -61,26 +75,49 @@ export const useMcpAppSurfacePlacement = ({
         return 'missing';
       }
       const rect = target.getBoundingClientRect();
-      const hasLayout = rect.width > 0 || rect.height > 0;
-      const visible = !hasLayout || (
-        rect.bottom > 0
-        && rect.right > 0
-        && rect.top < window.innerHeight
-        && rect.left < window.innerWidth
-      );
+      // A body-level portal does not inherit its anchor's visibility or clips.
+      // Preserve the iframe viewport; clip the overlay, never resize it to the
+      // visible slice (which would reflow the app while the transcript scrolls).
+      let left = Math.max(0, rect.left);
+      let top = Math.max(0, rect.top);
+      let right = Math.min(window.innerWidth, rect.right);
+      let bottom = Math.min(window.innerHeight, rect.bottom);
+      let visible = target.isConnected && rect.width > 0 && rect.height > 0;
+      for (const element of ancestors) {
+        const style = getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden'
+          || style.visibility === 'collapse' || style.opacity === '0'
+          || element.hidden || element.inert || element.getAttribute('aria-hidden') === 'true') {
+          visible = false;
+        }
+        if (element === target) continue;
+        const clipsX = /^(auto|scroll|hidden|clip)$/.test(style.overflowX || style.overflow);
+        const clipsY = /^(auto|scroll|hidden|clip)$/.test(style.overflowY || style.overflow);
+        if (!clipsX && !clipsY) continue;
+        const bounds = element.getBoundingClientRect();
+        if (clipsX) {
+          left = Math.max(left, bounds.left + element.clientLeft);
+          right = Math.min(right, bounds.left + element.clientLeft + element.clientWidth);
+        }
+        if (clipsY) {
+          top = Math.max(top, bounds.top + element.clientTop);
+          bottom = Math.min(bottom, bounds.top + element.clientTop + element.clientHeight);
+        }
+      }
+      visible = visible && right > left && bottom > top;
       Object.assign(surface.style, {
         position: 'fixed',
         left: `${rect.left}px`,
         top: `${rect.top}px`,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
+        clipPath: `inset(${Math.max(0, top - rect.top)}px ${Math.max(0, rect.right - right)}px ${Math.max(0, rect.bottom - bottom)}px ${Math.max(0, left - rect.left)}px)`,
         visibility: visible ? 'visible' : 'hidden',
         pointerEvents: visible ? 'auto' : 'none',
       });
       targetVisible = visible;
       return `${rect.left}:${rect.top}:${rect.width}:${rect.height}`;
     };
-    placeOverTarget();
     let animationFrame: number | undefined;
     let lastPlacement = '';
     let stableFrames = 0;
@@ -118,7 +155,11 @@ export const useMcpAppSurfacePlacement = ({
     observer = typeof ResizeObserver === 'undefined'
       ? null
       : new ResizeObserver(finishTargetTransition);
+    mutationObserver = typeof MutationObserver === 'undefined'
+      ? null
+      : new MutationObserver(finishTargetTransition);
     syncObservedTarget(resolveTarget());
+    placeOverTarget();
     transitionRoot?.addEventListener('transitionrun', restartTargetTracking);
     transitionRoot?.addEventListener('transitionend', finishTargetTransition);
     transitionRoot?.addEventListener('transitioncancel', finishTargetTransition);
@@ -127,6 +168,7 @@ export const useMcpAppSurfacePlacement = ({
     return () => {
       if (animationFrame !== undefined) cancelAnimationFrame(animationFrame);
       observer?.disconnect();
+      mutationObserver?.disconnect();
       transitionRoot?.removeEventListener('transitionrun', restartTargetTracking);
       transitionRoot?.removeEventListener('transitionend', finishTargetTransition);
       transitionRoot?.removeEventListener('transitioncancel', finishTargetTransition);

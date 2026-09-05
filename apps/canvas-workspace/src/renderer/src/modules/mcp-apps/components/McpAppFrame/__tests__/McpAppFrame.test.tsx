@@ -19,7 +19,8 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
     oninitialized?: () => void;
     onsandboxready?: () => void;
     constructor() { bridgeState.current = this; }
-    addEventListener() {}
+    onsizechange?: (params: { height?: number }) => void;
+    addEventListener(_type: string, listener: (params: { height?: number }) => void) { this.onsizechange = listener; }
     async connect() { this.oninitialized?.(); }
     async teardownResource() {}
     async close() {}
@@ -88,6 +89,20 @@ describe('buildMcpAppCsp', () => {
     const frame = document.body.querySelector('iframe');
     expect(frame?.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin');
     expect(frame?.getAttribute('src')).toContain('pulse-mcp-app://sandbox/index.html');
+    await act(async () => { frame!.dispatchEvent(new Event('load')); });
+    const anchor = host.querySelector<HTMLElement>('.chat-mcp-app__inline-host')!;
+    expect(anchor.style.height).toBe('320px');
+    for (const height of [0, -1, NaN, Infinity]) {
+      await act(async () => { bridgeState.current.onsizechange({ height }); });
+      expect(anchor.style.height).toBe('320px');
+    }
+    await act(async () => { bridgeState.current.onsizechange({ height: 480 }); });
+    await act(async () => { bridgeState.current.onsizechange({ height: 0 }); });
+    expect(anchor.style.height).toBe('480px');
+    await act(async () => { bridgeState.current.onsizechange({ height: 900 }); });
+    expect(anchor.style.height).toBe('720px');
+    await act(async () => { bridgeState.current.onsizechange({ height: 80 }); });
+    expect(anchor.style.height).toBe('120px');
     await act(async () => { root.unmount(); });
   });
 
@@ -177,7 +192,9 @@ describe('buildMcpAppCsp', () => {
     await act(async () => {
       host.querySelector<HTMLButtonElement>('[data-reopen-app]')?.click();
     });
-    expect(frame.parentElement?.style.visibility).not.toBe('hidden');
+    expect(frame.parentElement?.dataset.displayMode).toBe('fullscreen');
+    // happy-dom has no layout; visible geometry is covered by the placement suite.
+    expect(frame.parentElement?.style.visibility).toBe('hidden');
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>('[data-focus-split-other]')?.click();

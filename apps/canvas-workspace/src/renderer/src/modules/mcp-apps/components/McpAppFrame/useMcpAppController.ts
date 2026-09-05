@@ -380,7 +380,9 @@ export const useMcpAppController = ({
       console[method](`[mcp-app${logger ? `:${logger}` : ''}]`, data);
     };
     bridge.addEventListener('sizechange', ({ height: nextHeight }) => {
-      if (typeof nextHeight === 'number' && Number.isFinite(nextHeight)) {
+      // Viewport-filling apps can report zero when the SDK measures max-content.
+      // Keep the last usable viewport instead of collapsing it to the minimum.
+      if (typeof nextHeight === 'number' && Number.isFinite(nextHeight) && nextHeight > 0) {
         setHeight(Math.max(120, Math.min(720, Math.ceil(nextHeight))));
       }
     });

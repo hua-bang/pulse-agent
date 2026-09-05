@@ -1,3 +1,4 @@
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../../shared/agent-chat';
 /** Framework-free state for the pinned chat plus preview/terminal tabs.
  * Owns activation, dedupe, workspace sessions, closing order, comparison pairing,
  * collapse retention, and chat unread policy. React binds with
@@ -13,7 +14,7 @@ import {
   type TerminalCommit,
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from './dock-link-sessions';
-import { ClosedLinkTabStack, allocateTabId, updateRetainedLinkTabs } from './dock-link-tabs';
+import { ClosedLinkTabStack, allocateTabId } from './dock-link-tabs';
 import {
   getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch,
   getSetFaviconPatch, getSetTitlePatch, getSyncLinkUrlPatch,
@@ -110,7 +111,10 @@ export class DockStore {
   }
 
   openMcpApp(instanceId: string, title: string): void { this.commit(getOpenMcpAppPatch(this.state, instanceId, title)); }
-  closeMcpApp(instanceId: string): void { this.close(mcpAppTabId(instanceId)); }
+  closeMcpApp(instanceId: string): void {
+    this.linkSessions.removePreview(mcpAppTabId(instanceId));
+    this.close(mcpAppTabId(instanceId));
+  }
   openNodeDetail(workspaceId: string, nodeId: string, title: string): void {
     const id = nodeDetailTabId(workspaceId, nodeId);
     const existing = this.state.tabs.find((tab) => tab.id === id);
@@ -131,6 +135,7 @@ export class DockStore {
    * the active surface — an unrelated active tab remains visible. */
   enterNodePage(workspaceId: string, nodeId: string): void {
     const id = nodeDetailTabId(workspaceId, nodeId);
+    this.linkSessions.removePreview(id);
     const promotedActivePreview = this.state.expanded && this.state.activeTabId === id;
     this.close(id);
     if (promotedActivePreview) this.collapse();
@@ -172,6 +177,7 @@ export class DockStore {
     const next = new Set(ids);
     const cur = this.state.mountedWorkspaceIds;
     if (next.size === cur.size && [...next].every((id) => cur.has(id))) return;
+    for (const id of next) this.linkSessions.removePreview(canvasPreviewTabId(id));
     this.commit({ mountedWorkspaceIds: next });
     for (const tab of this.state.tabs) {
       if (tab.kind === 'canvas' && next.has(tab.workspaceId)) this.close(tab.id);
@@ -288,53 +294,7 @@ export class DockStore {
 
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
-    this.persistActiveLinkSession();
-    const leavingId = this.state.activeTerminalWorkspaceId;
-    const nonLinkTabs = this.state.tabs.filter((tab) => tab.kind !== 'link');
-    // The workspace being left keeps its web tabs MOUNTED (hidden) instead of
-    // unmounting them, so coming back does not reload every page and lose its
-    // scroll position, form state and sign-in. `DockPanes` renders these; the
-    // tab strip never does.
-    const retainedLinkTabs = updateRetainedLinkTabs(
-      this.state.retainedLinkTabs,
-      {
-        workspaceId: leavingId,
-        tabs: this.state.tabs.filter((tab): tab is DockLinkTab => tab.kind === 'link'),
-        activeTabId: this.state.activeTabId,
-      },
-      workspaceId,
-    );
-    // Prefer the retained copy over the persisted one: a hidden guest may have
-    // navigated since the switch, and the retained entry is what tracked it.
-    const retainedEntry = this.state.retainedLinkTabs.find(
-      (entry) => entry.workspaceId === workspaceId,
-    );
-    const persistedSession = this.linkSessions.get(workspaceId);
-    const restoredSession = retainedEntry ?? persistedSession;
-    const restoredLinkTabs = restoredSession?.tabs ?? [];
-    const tabs = [...nonLinkTabs, ...restoredLinkTabs];
-    const projection = projectTerminalWorkspace(this.state.terminalTabsByWorkspace, workspaceId);
-    const switchingFromTerminal = isTerminalTabId(this.state.activeTabId);
-    const restoredLinkId = restoredSession?.activeTabId
-      && restoredLinkTabs.some((tab) => tab.id === restoredSession.activeTabId)
-      ? restoredSession.activeTabId
-      : restoredLinkTabs[0]?.id;
-    const currentTabStillExists = tabs.some((tab) => tab.id === this.state.activeTabId);
-    const activeTabId = restoredLinkId
-      ?? (switchingFromTerminal ? projection.activeTerminalTabId : undefined)
-      ?? (currentTabStillExists ? this.state.activeTabId : undefined)
-      ?? projection.activeTerminalTabId
-      ?? tabs[0]?.id
-      ?? CHAT_TAB_ID;
-    this.commit({
-      activeTerminalWorkspaceId: workspaceId,
-      tabs,
-      retainedLinkTabs,
-      ...projection,
-      activeTabId,
-      expanded: persistedSession?.expanded ?? false,
-      ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
-    });
+    this.commit(this.linkSessions.switchWorkspace(this.state, workspaceId));
   }
 
   /**
@@ -368,12 +328,14 @@ export class DockStore {
   }
 
   openTerminal(): void {
+    if (this.state.activeTerminalWorkspaceId === GLOBAL_CHAT_STORE_ID) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
     const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
     this.applyTerminalCommit(openTerminalCommit(this.state, workspace), workspaceId);
   }
 
   newTerminal(): void {
+    if (this.state.activeTerminalWorkspaceId === GLOBAL_CHAT_STORE_ID) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
     this.applyTerminalCommit(
       newTerminalCommit(terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId)),

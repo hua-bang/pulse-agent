@@ -6,7 +6,7 @@ import type {
 import type { AgentContextTabRef } from '../../../../types';
 import { buildDockTabRefs } from '../../../../shared/dock/tabRefs';
 import type { DockState, DockStore } from './dock-store';
-import { activateOrReopenDockTab, type DockTabActivationOutcome } from './dock-tab-reopen';
+import { activateOrReopenDockTab, previewReferencedDockTab, type DockTabActivationOutcome } from './dock-tab-reopen';
 
 type LocalActivationResult = { status: DockTabActivationOutcome };
 type PendingActivation = {
@@ -75,7 +75,12 @@ export function useDockAgentBridge(
       const detail = (e as CustomEvent<LocalActivationDetail>).detail;
       const tabId = detail?.tabId;
       if (!tabId) return;
-      queueActivation(detail.dockWorkspaceId || activeWorkspaceId, tabId, detail.tab, (status) => {
+      if (detail.dockWorkspaceId && detail.dockWorkspaceId !== activeWorkspaceId) {
+        const status = detail.tab?.id === tabId ? previewReferencedDockTab(store, detail.tab) : 'stale';
+        detail.respond?.({ status });
+        return;
+      }
+      queueActivation(activeWorkspaceId, tabId, detail.tab, (status) => {
         detail.respond?.({ status });
       });
     };
@@ -137,7 +142,7 @@ export function useDockAgentBridge(
   }, []);
 
   useEffect(() => {
-    if (!activeWorkspaceId) return;
+    if (!activeWorkspaceId || state.activeTerminalWorkspaceId !== activeWorkspaceId) return;
     window.canvasWorkspace.dock.publishTabs(activeWorkspaceId, buildDockTabRefs(state, activeWorkspaceId));
   }, [state.tabs, state.terminalTabsByWorkspace, state.activeTabId, state.expanded, state.splitTabIds, activeWorkspaceId]);
 }

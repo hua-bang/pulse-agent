@@ -40,7 +40,7 @@ export const WorkspaceTerminalPortal = ({
   if (!terminalHost) return null;
 
   return createPortal(
-    workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).flatMap((ws) => {
+    workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id) || terminalTabsByWorkspace[ws.id]?.tabs.length).flatMap((ws) => {
       const terminalTabs = terminalTabsByWorkspace[ws.id]?.tabs ?? [];
       return terminalTabs.map((tab) => {
         const visible = ws.id === activeWorkspaceId && tab.id === activeTerminalTabId;

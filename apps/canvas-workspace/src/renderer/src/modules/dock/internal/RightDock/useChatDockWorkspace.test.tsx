@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 describe('useChatDockWorkspace', () => {
-  it('tracks the Chat conversation scope and permits an explicit dock override', async () => {
+  it('tracks the Chat scope without permitting a tab to override it', async () => {
     host = document.createElement('div');
     root = createRoot(host);
     const selectCanvasWorkspace = vi.fn();
@@ -61,7 +61,10 @@ describe('useChatDockWorkspace', () => {
     expect(latest?.dockWorkspaceId).toBe('chat-c');
 
     act(() => latest?.activateDockWorkspace('tab-d'));
-    expect(latest?.dockWorkspaceId).toBe('tab-d');
+    expect(latest?.dockWorkspaceId).toBe('chat-c');
+
+    act(() => latest?.reportChatWorkspace(null));
+    expect(latest?.dockWorkspaceId).toBe('__global_chat__');
     expect(selectCanvasWorkspace).not.toHaveBeenCalled();
   });
 });

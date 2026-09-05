@@ -15,5 +15,5 @@ export interface RightDockProps {
   pageMinAppWidth?: number;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
-  onActivateWorkspace?: (workspaceId: string) => void;
+  onActivateWorkspace?: (workspaceId: string) => boolean | void;
 }

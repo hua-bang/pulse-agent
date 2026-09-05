@@ -58,13 +58,23 @@ Chromium `background-tab` disposition never steals focus. Foreground opens
 activate the resulting tab and focus that tab, while source-restoring menu
 actions focus the opener only when they do not navigate away from it.
 
-Right-dock link-tab sessions are isolated per Workspace. The main-process tab
-mirror is keyed by `workspaceId`, and the renderer keeps each Workspace's link
-session, retained guests, persisted tabs, and reopen stack separate. Global
-Chat does not create a shared tab pool: its interactive browser tools use the
-latest visible Dock Workspace as an ambient route when `workspaceId` is
-omitted, while an explicit `workspaceId` targets that Workspace's own tab
-session. A tab list is never assembled by merging Workspaces.
+Right-dock sessions are isolated per chat scope. Full-page Workspace Chat
+uses that Workspace's session (shared with its Canvas); Global Chat uses
+`__global_chat__`, never the previously selected Canvas. All preview kinds,
+not only links, belong to the Dock scope in which they were opened. Resource
+workspace ids on artifact/node/canvas previews still identify their source.
+The in-memory scope view restores mixed tab order, actual selected tab,
+comparison panes, and chat state; web metadata and expansion remain durable.
+Terminal tabs require a real Workspace and are not offered in Global.
+
+Transcript citations from another scope open a resource preview in the current
+Dock instead of switching its scope. Unsupported references (notably live
+terminals without a reconstructible preview) return stale. Exact main-process
+tab activation still targets the owning live instance; full-page Chat rejects
+a cross-scope activation rather than silently overriding the conversation.
+Global browser tools use the published visible Dock scope when `workspaceId`
+is omitted. Explicit ids keep their qualified lookup; tab lists never merge
+scopes.
 
 ## Guest lifetime
 
@@ -232,9 +242,9 @@ menu and can make viewport clamping push it far away from the click.
   `dock:open-artifact` push used by the scheduled memory report — artifact
   `workspaceId` is a storage scope and may be the `__global_chat__` sentinel.
   Activation does not call `activateWorkspaceWindow`: the renderer selects the
-  owning dock workspace while preserving the current host route (notably
-  `#/chat`), then replies on `dock:tab-activation-result`. Main reports success
-  only after that acknowledgement; missing/stale tabs time out as failure.
+  owning dock workspace where the host permits it, then replies on `dock:tab-activation-result`. Main reports success
+  only after that acknowledgement; unavailable scopes and stale tabs fail.
+  Full-page Chat keeps its conversation scope and refuses cross-scope activation.
 - `history-store.ts` holds web-tab browsing history behind
   `browser_search_history`.
 
