@@ -43,3 +43,23 @@ Every tunable the engine reads, with defaults and read sites. All `config/index.
 3. **Dead fallback**: `summarizeMessages` resolves `options?.model ?? COMPACT_SUMMARY_MODEL ?? DEFAULT_MODEL`, but `COMPACT_SUMMARY_MODEL` is always a string (possibly `''`), so `?? DEFAULT_MODEL` never fires — when the caller supplies no model and the env is unset, `provider('')` is called with an empty model id. Fix candidate: `||` or export undefined-if-empty.
 4. If the summary fails to shrink below `COMPACT_TARGET` (or at all), the summary is DISCARDED and the transcript hard-truncates to `KEEP_LAST_TURNS` — setting `COMPACT_TARGET` close to `COMPACT_TRIGGER` makes silent truncation more likely.
 5. `MAX_COMPACTION_ATTEMPTS` exhausts across both trigger sites in one `loop()`; after that, overflow retries proceed uncompacted.
+
+## Runtime Configuration Layout
+
+Write new configuration under .pulse-coder and preserve .coder compatibility unless explicitly migrating. Runtime task skills are loaded by the engine's skills plugin; repository action protocols under harness/skills are a separate layer.
+
+| Task | Source / entry |
+|---|---|
+| MCP configuration and current server inventory | .pulse-coder/mcp.json; src/built-in/mcp-plugin/ |
+| Add or inspect runtime skills | .pulse-coder/skills/<name>/SKILL.md; src/built-in/skills-plugin/ |
+| Add or inspect sub-agents | .pulse-coder/agents/*.md; src/built-in/sub-agent-plugin/ |
+| Engine plugin discovery | src/plugin/EnginePlugin.ts and src/plugin/PluginManager.ts; plugin-system.md |
+| Remote skill configuration | Optional .pulse-coder/skills/remote.json; src/built-in/skills-plugin/index.ts |
+| Oversized tool results | src/built-in/tool-offload-plugin/; TOOL_OFFLOAD_THRESHOLD and TOOL_OFFLOAD_DIR |
+| Orchestration roles | src/orchestrator/ and the pulse-coder-engine/orchestrator subpath; orchestrator.md |
+
+The actual files and directory entries own server, skill, and agent inventories; do not keep a second fixed count in AGENTS.md. Engine plugin/config directories may be absent until used. The current engine user-config loader scans .pulse-coder/config/ and legacy/home equivalents; a flat .pulse-coder/config.json is not implemented by that loader. See plugin-system.md for the unimplemented applyUserConfig boundary.
+
+TOOL_OFFLOAD_THRESHOLD defaults to 30,000 characters. TOOL_OFFLOAD_DIR overrides the storage directory; the default is the user-scoped ~/.pulse-coder/offload. Hosts can supply an explicit directory. Compaction knobs remain in the table above and the loop implementation.
+
+OPENAI_API_KEY/PULSE_OPENAI_API_KEY, ANTHROPIC_API_KEY/PULSE_ANTHROPIC_API_KEY, TAVILY_API_KEY, GEMINI_API_KEY, INTERNAL_API_SECRET, and CLARIFICATION_* remain environment-only, as required by the root security policy. Provider PULSE_ fallbacks and tool-local exceptions are described above; never infer a fallback for a tool that reads its own variables directly. Other host/plugin credential storage follows its owning settings/vault boundary; no credentials belong in source control.

@@ -216,3 +216,17 @@ to everything below.
   prompt-injection amplification above — treat page text like attacker input.
 - If you touch `buildEngine()`, decide the engine-plugin `scan` question
   deliberately (it is currently inherited default-ON, undecided).
+
+## Memory, artifact actions, and background runs
+
+### Explicit memory adoption
+
+`src/main/agent/memory-store.ts` (store + prompt injection; explicit-save-only by design), `src/main/agent/tools/memory.ts` (`memory_save` eager; `memory_list`/`memory_forget`/`memory_adopt` deferred — `memory_adopt` is the sole cross-workspace write path, reserved for user-confirmed candidates from the `memory-review` default skill), tests in `src/main/agent/__tests__/memory-store.test.ts` + `tools-graph.test.ts`
+
+### Artifact action boundary
+
+`src/shared/artifact-capabilities.ts` (trust model + contract), `src/main/artifacts/capability-ipc.ts` (`artifact-capability:invoke`, main-side authoritative validation), `src/renderer/src/modules/artifacts/internal/capabilityBridge.ts` + `ArtifactTabView` (host-authored bridge script, postMessage relay, audit toast). Capabilities are declared on the artifact RECORD by creating code (never by the page), gated on a real user gesture in the bridge, and every write surfaces a toast. Current capabilities: `memory.adopt`, `skill.save` (both = the user's click IS the confirmation). Tests: `src/main/artifacts/__tests__/capability-invoke.test.ts`
+
+### Headless runs
+
+`src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory-report.ts` (first consumer — cross-workspace memory report as self-contained HTML; adoption stays interactive-only; scheduled entry archives to `<memory>/reports/` with rolling retention AND publishes a `__global_chat__`-scoped artifact, surfaced by an OS notification whose click pushes `dock:open-artifact`). Tests: `src/main/agent/__tests__/headless-run.test.ts`

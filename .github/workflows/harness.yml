@@ -1,0 +1,84 @@
+name: Harness Integrity
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'
+      - 'harness/**'
+      - '**/harness/**'
+      - '**/scripts/**'
+      - '**/*.test.*'
+      - '**/*.spec.*'
+      - package.json
+      - 'packages/*/package.json'
+      - 'apps/*/package.json'
+      - pnpm-workspace.yaml
+      - pnpm-lock.yaml
+      - .gitignore
+      - .github/workflows/harness.yml
+      - .github/workflows/perf.yml
+  push:
+    branches: [master]
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'
+      - 'harness/**'
+      - '**/harness/**'
+      - '**/scripts/**'
+      - '**/*.test.*'
+      - '**/*.spec.*'
+      - package.json
+      - 'packages/*/package.json'
+      - 'apps/*/package.json'
+      - pnpm-workspace.yaml
+      - pnpm-lock.yaml
+      - .gitignore
+      - .github/workflows/harness.yml
+      - .github/workflows/perf.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install validation dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Check harness integrity
+        run: node scripts/harness/check-harness.mjs
+
+      - name: Run harness and policy regression tests
+        run: pnpm exec vitest run scripts/harness harness/skills/visualize-harness/scripts/render-harness-graph.test.mjs apps/canvas-workspace/scripts/perf/report-policy.test.mjs
+
+      - name: Plan every configured check
+        run: node scripts/harness/run-harness-check.mjs --all --dry-run --report .harness/ci-plan.json
+
+      - name: Upload validation plan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-validation-plan
+          path: .harness/ci-plan.json
+          if-no-files-found: warn

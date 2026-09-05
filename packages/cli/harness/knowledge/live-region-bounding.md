@@ -139,3 +139,23 @@ code points through the same module.
 Already-rendered text carries ANSI colour codes, which occupy no columns, so
 `stringWidth()` over-counts every styled line. `wrappedRowCount()` strips them
 before measuring; anything else measuring rendered output must do the same.
+
+## Streaming and interaction guards
+
+- Ink transcript model: `InkUiBridge.events` is append-only and rendered via Ink `<Static>` (printed once into terminal scrollback). Never mutate an already-emitted event — stream into `liveText`/`liveTools` and finalize on boundaries (tool call, tool result, run end, abort).
+
+- Multi-character `useInput` chunks are pastes (or coalesced typing) and must be inserted literally — never interpreted as Enter/Tab; bracketed paste additionally arrives via Ink's `usePaste` channel.
+
+- The Ink host renders with `patchConsole: false`: `EngineLogSink` owns `console.*` (installed before engine init) and routes it to `~/.pulse-coder/logs/cli.log` + the `/debug` policy (errors surface as dim lines; warns dedupe per unique text per session; info/debug only with `/debug on`, `--verbose`, or `--verbose`). Never write to stdout directly from Ink-host code paths — it tears the frame; log via `console.*` (captured) or the bridge.
+
+- Tool traces are gray one-line summaries by default (`label · N lines/matches`, single-line output inlined, structured output yields NO summary — never a JSON dump); failures stay red with the error inline. `Ctrl+O` toggles content previews and, per the Static model, affects only future traces.
+
+- Assistant text is two-tier: segments finalized because a tool call started are narration (`status: 'info'`, rendered gray, no markdown); only the segment that ends a run renders bright with markdown. The status line's TEXT stays stable during a run (`Running agent · <elapsed>`) — never write per-tool churn into `status`.
+
+- Terminal text math goes through `src/terminal/text-width.ts`: layout truncation measures DISPLAY COLUMNS (CJK/emoji are 2 wide) and cursor movement/deletion steps whole CODE POINTS. `String.length` is wrong for both — never clamp or step by it.
+
+- The Ink host renders with `incrementalRendering: true`: Ink's default writer erases and repaints the ENTIRE live block on every frame (measured: ~2x the lines and bytes of the incremental writer over a streaming answer), and at 30fps that repaint of the status line and bordered composer is visible as shimmer. `src/ink/ink-app.screen.test.tsx` pins that the incremental writer paints the same screen as the default one.
+
+- A live region that shrinks must be compensated by matching `<Static>` output, or the composer walks UP the screen and leaves dead rows below it. Ink writes static output in place of the erased live block, so the normal finalize-into-transcript path is already neutral — `src/ink/ink-app.screen.test.tsx` emulates a terminal across a bridge-driven run and fails if the composer jumps up more than a row. Do not "fix" this with reserved padding: holding a high-water height pins the composer mid-run but voids the screen and produces a far bigger jump when the reservation is released.
+
+- Everything rendered BELOW `<Static>` must be bounded by terminal size on BOTH axes, and the axes are coupled — a row window is only correct if it either truncates on columns or charges each line its wrapped height. A frame taller than the viewport makes Ink wipe the screen and replay the whole transcript on EVERY frame until it shrinks back, which at streaming rate is the terminal flicker. `src/ink/ink-app.render.test.tsx` pins the frame height against a mock TTY. Detail + current bounds: `harness/knowledge/live-region-bounding.md`.

@@ -1,32 +1,31 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { join } from 'path';
 import { createServer, type Server } from 'http';
 import { createCli } from '../../cli';
 
-// All tests in this file write to ~/.pulse-coder/canvas-runtime/canvas-workspace.json
-// since the CLI hard-codes that path. We back up any real file before each
-// test and restore it afterwards so we don't clobber the user's live runtime.
+
+const runtimeHome = await vi.hoisted(async () => {
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  return mkdtemp(join(tmpdir(), 'canvas-cli-runtime-test-'));
+});
+vi.mock('os', async (importOriginal) => ({
+  ...await importOriginal<typeof import('os')>(),
+  homedir: () => runtimeHome,
+}));
+afterAll(async () => { await fs.rm(runtimeHome, { recursive: true, force: true }); });
+
 const RUNTIME_FILE = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
-let backup: Buffer | null = null;
 
 beforeEach(async () => {
-  try {
-    backup = await fs.readFile(RUNTIME_FILE);
-  } catch {
-    backup = null;
-  }
   await fs.rm(RUNTIME_FILE, { force: true });
 });
 
 afterEach(async () => {
-  if (backup) {
-    await fs.mkdir(join(homedir(), '.pulse-coder', 'canvas-runtime'), { recursive: true });
-    await fs.writeFile(RUNTIME_FILE, backup);
-  } else {
-    await fs.rm(RUNTIME_FILE, { force: true });
-  }
+  await fs.rm(RUNTIME_FILE, { force: true });
 });
 
 async function writeRuntime(info: object): Promise<void> {
@@ -38,7 +37,7 @@ function startStubServer(
   handler: (body: unknown, headers: Record<string, string | string[] | undefined>, url?: string) =>
     { status: number; body: unknown },
 ): Promise<{ server: Server; baseUrl: string }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const chunks: Buffer[] = [];
       req.on('data', (c) => chunks.push(c as Buffer));
@@ -53,6 +52,7 @@ function startStubServer(
         res.end(JSON.stringify(body));
       });
     });
+    server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address();
       if (!addr || typeof addr !== 'object') throw new Error('listen failed');

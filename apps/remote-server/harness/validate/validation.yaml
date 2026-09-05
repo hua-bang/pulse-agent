@@ -22,4 +22,4 @@ pathRules:
       - src/adapters/discord/adapter.ts
       - .env.example
     required:
-      - node harness/tools/describe-remote-server.mjs
+      - node apps/remote-server/harness/tools/describe-remote-server.mjs

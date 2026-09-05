@@ -232,3 +232,50 @@ The following must not change during structural refactors:
 
 Behavioral changes should be separate follow-up commits after a structural
 move has passed typecheck and tests.
+
+## Document transactions and artifact pinning
+
+- External canvas-store synchronization must treat edges as first-class state:
+  watcher events carry edge ids, renderer reloads must accept edge-only events,
+  and stale saves merge edges by `updatedAt` without dropping unsaved local
+  edges. Guards: `src/main/canvas/__tests__/store-merge.test.ts` and
+  `src/renderer/src/modules/canvas/document/__tests__/externalMerge.test.ts`.
+
+- Cross-mindmap topic transfers are canvas-level atomic transactions: rekey
+  every moved topic subtree, update both maps in one history snapshot, and
+  degrade bound edges in that same snapshot when a whole source map is removed.
+  Topic components own only drag intent; `useCanvasDocument` owns mutation and undo.
+
+`src/main/artifacts/ipc.ts` — pin refuses sentinel (`__*`) scopes, dedupes against a live mirror, list/get lazily clear a stale `pinnedNodeId`, delete removes the canvas mirror node; `artifact:list-all` (metadata-only summaries) skips `__*` dirs EXCEPT `__global_chat__` (session-store sentinel rule — a blanket skip silently hides global artifacts). Library drawer = renamed ReferenceDrawer: Pinned entries persist per workspace via the `references` IPC domain (`src/main/references/`, `src/shared/references.ts`, hydrate/save in `Workbench/useReferenceEntries.ts`); Artifacts source tab is `ReferenceDrawer/ArtifactsPicker.tsx` (cross-scope pin disabled by design). Tests: `src/main/artifacts/__tests__/pin-lifecycle.test.ts`
+
+## Main and shared entry reference
+
+- `src/main/index.ts`: thin Electron main entrypoint.
+- `src/main/app/bootstrap.ts`: startup wiring for IPC, canvas storage, agent,
+  teams, plugins, runtime-control, window creation, and teardown.
+- `src/preload/index.ts`: exposes `window.canvasWorkspace` and assembles bridge
+  APIs.
+- `src/shared/canvas.ts`: canonical canvas node, edge, reference, and workspace
+  node contracts.
+- `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (tab
+  mirror), `tab-actions.ts` (tab-activation pushes), `history-store.ts`
+  (browsing history). Detail: `harness/knowledge/dock-browser.md`.
+- `src/main/webview/lifecycle.ts`: shared Canvas-node and right-dock webview
+  lifecycle policy. Real-time Feishu/Lark hosts remain eligible for the 1fps
+  paint throttle but are exempt from L2 freeze and therefore L3 discard; match
+  the guest's current URL, not the node/tab's originally saved URL.
+- `src/main/canvas/store.ts`: workspace manifest/store IPC, watchers, export,
+  import, and migration hooks.
+- `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,
+  recovery, and pollution detection.
+- `src/main/agent/`: Canvas Agent service, session store, prompt config, tools,
+  and chat IPC; shared provider/model config lives in `src/main/models/`.
+- `src/main/agent-teams/`: agent-team service, store, IPC, PTY bridge, and
+  canvas node integration.
+- `src/main/runtime/control-server.ts`: loopback runtime server used by live
+  `pulse-canvas` commands.
+- `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/types.ts`: Canvas
+  plugin registries and shared plugin contracts.
+- `harness/`: workspace harness container — `knowledge/` (conventions + maps),
+  `tools/driver/` (Electron launch, CDP, screenshot, input, logs, cleanup),
+  `skills/` (agent procedures), `validate/` (check bindings).

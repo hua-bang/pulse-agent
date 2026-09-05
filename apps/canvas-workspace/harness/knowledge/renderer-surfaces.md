@@ -159,3 +159,14 @@ This structure came out of a 2026-06 container cleanup, in three steps:
    chat is alone), and the dock switched from pure overlay to reserving
    layout space on the canvas route — making the right region one
    container, symmetric with the left reference area.
+
+## Renderer entry reference
+
+- `src/renderer/src/app/App/index.tsx`: top-level renderer routes, shell, settings, and
+  plugin route/nav integration.
+- `src/renderer/src/modules/canvas/components/canvas/Canvas/`: canvas surface and interaction wiring.
+- `src/renderer/src/app/shell/Workbench/`: mounted workspace state and chat
+  portal ownership.
+- `src/renderer/src/modules/dock/internal/RightDock/`: tabbed right dock for chat and
+  previews (link, artifact, node-detail, canvas-preview, terminal tabs).
+  Behavior: `harness/knowledge/dock-browser.md`.

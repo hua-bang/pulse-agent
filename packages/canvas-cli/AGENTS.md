@@ -53,9 +53,10 @@ above, then the package source/tests.
 
 - Treat `~/.pulse-coder/canvas/` and `~/.pulse-coder/canvas-runtime/` as user
   runtime data, never repository source of truth.
-- Keep the package test entry on `--no-file-parallelism`: the live-command and
-  status suites intentionally exercise the same hard-coded runtime descriptor,
-  so running those files concurrently races their backup/write/restore cycle.
+- Keep the existing `--no-file-parallelism` test entry until changing it is
+  measured separately. Runtime/CLI suites mock homedir before module import
+  and use per-file temporary homes; never back up or rewrite a live user's
+  runtime descriptor as test setup. Their HTTP stubs need loopback listeners.
 - The Electron app ships `dist/index.cjs` as an external-agent executable. Keep
   its runtime dependencies bundled (currently `commander` via tsup
   `noExternal`) so a packaged app can run it with Electron's Node runtime on a

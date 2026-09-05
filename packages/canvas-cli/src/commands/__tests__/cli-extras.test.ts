@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir, homedir } from 'os';
@@ -7,11 +7,23 @@ import { saveCanvas, saveWorkspaceManifest } from '../../core/store';
 import { ENV_WORKSPACE_ID } from '../../core/workspace-resolution';
 import type { CanvasSaveData } from '../../core/types';
 
+
+const runtimeHome = await vi.hoisted(async () => {
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  return mkdtemp(join(tmpdir(), 'canvas-cli-runtime-test-'));
+});
+vi.mock('os', async (importOriginal) => ({
+  ...await importOriginal<typeof import('os')>(),
+  homedir: () => runtimeHome,
+}));
+afterAll(async () => { await fs.rm(runtimeHome, { recursive: true, force: true }); });
+
 const RUNTIME_FILE = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
 
 let testDir: string;
 let savedEnv: string | undefined;
-let runtimeBackup: Buffer | null = null;
 
 async function runCli(argv: string[]): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   const stdout: string[] = [];
@@ -43,20 +55,13 @@ beforeEach(async () => {
   await fs.mkdir(testDir, { recursive: true });
   savedEnv = process.env[ENV_WORKSPACE_ID];
   delete process.env[ENV_WORKSPACE_ID];
-  // Isolate from a real runtime file so `status` is deterministic.
-  try { runtimeBackup = await fs.readFile(RUNTIME_FILE); } catch { runtimeBackup = null; }
   await fs.rm(RUNTIME_FILE, { force: true });
 });
 
 afterEach(async () => {
   if (savedEnv === undefined) delete process.env[ENV_WORKSPACE_ID];
   else process.env[ENV_WORKSPACE_ID] = savedEnv;
-  if (runtimeBackup) {
-    await fs.mkdir(join(homedir(), '.pulse-coder', 'canvas-runtime'), { recursive: true });
-    await fs.writeFile(RUNTIME_FILE, runtimeBackup);
-  } else {
-    await fs.rm(RUNTIME_FILE, { force: true });
-  }
+  await fs.rm(RUNTIME_FILE, { force: true });
   await fs.rm(testDir, { recursive: true, force: true });
 });
 

@@ -8,10 +8,10 @@ name: Performance
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml']
+    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
   push:
     branches: [master]
-    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml']
+    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
 
 permissions:
   contents: read
@@ -32,33 +32,41 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - id: classify
         name: Classify performance impact
         shell: bash
+        env:
+          HARNESS_EVENT_NAME: ${{ github.event_name }}
+          HARNESS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HARNESS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HARNESS_PERFORMANCE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'performance') }}
         run: |
-          runtime=false
-          packaging=false
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import { classifyPerformanceChanges } from './apps/canvas-workspace/scripts/perf/report-policy.mjs';
 
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            runtime=true
-            packaging=true
-          else
-            while IFS= read -r file; do
-              case "$file" in
-                .github/workflows/perf.yml|apps/canvas-workspace/perf/*|apps/canvas-workspace/scripts/perf/*|apps/canvas-workspace/electron.vite.config.ts|apps/canvas-workspace/src/main/index.ts|apps/canvas-workspace/src/main/app/*|apps/canvas-workspace/src/main/webview/*|apps/canvas-workspace/src/renderer/src/App.tsx|apps/canvas-workspace/src/renderer/src/components/canvas/Canvas/*|apps/canvas-workspace/src/renderer/src/components/shell/Workbench/*|apps/canvas-workspace/src/renderer/src/components/node-bodies/IframeNodeBody/*|apps/canvas-workspace/src/renderer/src/components/canvas/CanvasNodeView/*|apps/canvas-workspace/src/renderer/src/hooks/*|apps/canvas-workspace/src/renderer/src/perf/*)
-                  runtime=true
-                  ;;
-              esac
-              case "$file" in
-                .github/workflows/perf.yml|apps/canvas-workspace/package.json|apps/canvas-workspace/electron-builder.*|apps/canvas-workspace/build/*|apps/canvas-workspace/resources/*|apps/canvas-workspace/scripts/perf/package-*|pnpm-lock.yaml)
-                  packaging=true
-                  ;;
-              esac
-            done < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")
-          fi
-
-          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
-          echo "packaging=$packaging" >> "$GITHUB_OUTPUT"
+          const eventName = process.env.HARNESS_EVENT_NAME;
+          let paths = [];
+          if (eventName === 'pull_request') {
+            const base = process.env.HARNESS_BASE_SHA;
+            const head = process.env.HARNESS_HEAD_SHA;
+            if (![base, head].every(sha => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(sha ?? ''))) {
+              throw new Error('Pull-request classification requires valid base/head commit SHAs');
+            }
+            paths = execFileSync('git', ['diff', '--name-only', '--no-renames', '-z', base, head, '--'], {
+              encoding: 'utf8',
+            }).split('\0').filter(Boolean);
+          }
+          const result = classifyPerformanceChanges({
+            paths, eventName, performanceLabel: process.env.HARNESS_PERFORMANCE_LABEL === 'true',
+          });
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'runtime=' + result.runtime + '\npackaging=' + result.packaging + '\n');
+          NODE
 
   bundle:
     if: github.event_name == 'pull_request' && needs.changes.outputs.runtime != 'true' && !contains(github.event.pull_request.labels.*.name, 'performance')

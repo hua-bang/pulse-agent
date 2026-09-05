@@ -1,15 +1,19 @@
 import { EventEmitter } from 'node:events';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EnginePluginContext } from '../../plugin/EnginePlugin.js';
 import type { Tool } from '../../shared/types.js';
-import { builtInRoleSoulPlugin } from './index.js';
+const fixtureHome = vi.hoisted(() => ({ directory: '' }));
+vi.mock('os', async (importOriginal) => ({
+  ...await importOriginal<typeof import('node:os')>(),
+  homedir: () => fixtureHome.directory,
+}));
 
-const SOUL_BASE_DIR = path.join(homedir(), '.pulse-coder', 'souls');
+let builtInRoleSoulPlugin: typeof import('./index.js').builtInRoleSoulPlugin;
 
 function createPluginContextHarness(): {
   context: EnginePluginContext;
@@ -69,6 +73,11 @@ describe('builtInRoleSoulPlugin runtime registration persistence', () => {
 
     process.env.PULSE_CODER_SOUL_STATE_DIR = path.join(tempDir, 'state');
     process.env.PULSE_CODER_SOUL_PERSIST = '1';
+    // The registry base is captured at module import, independently of stateDir.
+    // Re-import only after the test home exists; never touch the real user vault.
+    fixtureHome.directory = tempDir;
+    vi.resetModules();
+    ({ builtInRoleSoulPlugin } = await import('./index.js'));
   });
 
   afterEach(async () => {
@@ -94,7 +103,7 @@ describe('builtInRoleSoulPlugin runtime registration persistence', () => {
 
   it('persists registered souls to ~/.pulse-coder/souls/<id>/SOUL.md and reloads after re-initialization', async () => {
     const soulId = `__vitest_runtime_persisted_soul_${Date.now()}__`;
-    const soulDir = path.join(SOUL_BASE_DIR, soulId);
+    const soulDir = path.join(tempDir, '.pulse-coder', 'souls', soulId);
     const soulFile = path.join(soulDir, 'SOUL.md');
     createdSoulDirs.add(soulDir);
 
@@ -127,7 +136,7 @@ describe('builtInRoleSoulPlugin runtime registration persistence', () => {
   it('keeps registered soul definition after soul_clear removes active session state', async () => {
     const soulId = `__vitest_runtime_clear_keeps_registry_${Date.now()}__`;
     const sessionId = 'session-clear-keeps-registry';
-    const soulDir = path.join(SOUL_BASE_DIR, soulId);
+    const soulDir = path.join(tempDir, '.pulse-coder', 'souls', soulId);
     const soulFile = path.join(soulDir, 'SOUL.md');
     createdSoulDirs.add(soulDir);
 

@@ -120,6 +120,8 @@ Installation and Pulse-native enablement are separate decisions:
 New market records always start with `nativeEnabled: false`. Strict v1 packages without a market record also default to native-disabled. Untracked legacy Canvas plugin directories retain the old default-enabled native behavior for compatibility; market-managed legacy packages obey the explicit trust bit.
 
 Changing installation or native trust calls both `reloadConfiguredExternalMainPlugins()` and `CanvasAgentService.reloadMcp()` so the effective runtime follows persisted state.
+
+MCP reload must activate the target scope before rebuilding the engine and then obtain a fresh status probe. Previously a reload against an inactive scope returned stale or empty state. `src/main/agent/service.ts` implements `activateScope(targetScope)` before `reloadEngine()`; preserve that order for explicit connect/load actions.
 The market renderer then reads the execution-authoritative Canvas plugin status, dispatches the shared plugins-changed event, and reconciles renderer federation registrations so disabling or uninstalling a native extension removes its routes, navigation items, chat cards, and node views from the live window.
 
 ## MCP adapter

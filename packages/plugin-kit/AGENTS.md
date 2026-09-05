@@ -5,7 +5,7 @@
 
 ## Module Positioning
 
-`pulse-coder-plugin-kit` is the umbrella package for engine plugins and plugin infrastructure. It currently contains five reusable subsystems, each behind its own subpath export:
+`pulse-coder-plugin-kit` is the umbrella package for engine plugins and plugin infrastructure. It contains reusable subsystems, each behind its own subpath export:
 
 - Worktree binding (`/worktree`): file-backed worktree records, scope-to-worktree bindings, `AsyncLocalStorage` run context, and a prompt-injection engine plugin.
 - Vault binding (`/vault`): file-backed per-project/per-tenant workspace directories, vault resolution, prompt injection, and the optional `vault_inspect` tool.
@@ -52,7 +52,7 @@ SKIP_DTS=1 pnpm --filter pulse-coder-plugin-kit build
 pnpm --filter pulse-coder-plugin-kit test
 ```
 
-`test` runs the real memory specs (`src/memory/service.test.ts`, `src/memory/integration.test.ts`); the former `--passWithNoTests` flag is gone. Coverage is memory-only — worktree/vault/devtools/langfuse still have no specs, so green ≠ coverage there. `typecheck` is listed in harness validation, but currently fails locally with TS6059 `rootDir` errors from engine source imports plus deep Zod/FlexibleSchema type instantiation errors in `src/devtools/index.ts` and `src/vault/tools.ts`. Default `build` runs declaration generation, so use the skipped-DTS build only as a JS packaging smoke until the TypeScript boundary is fixed.
+`test` discovers memory and goal specs; worktree/vault/devtools/langfuse have no dedicated specs, so green is not coverage for those modules. Local validation selects `test` and `build:js`, not `typecheck`. The standalone typecheck retains the known TS6059 `rootDir` boundary from engine source imports and reported deep Zod/FlexibleSchema instantiation errors in `src/devtools/index.ts` and `src/vault/tools.ts`. Default `build` also generates declarations; use `build:js` for the bound JS packaging smoke.
 
 ## Key Files
 

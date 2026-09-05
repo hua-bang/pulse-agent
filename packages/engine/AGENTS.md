@@ -21,7 +21,7 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 | Built-in tools reference | `harness/knowledge/tools-reference.md` |
 | Orchestration module (task graph, scheduler, `/orchestrator` subpath) | `harness/knowledge/orchestrator.md` |
 | Embedding the engine in a host | `harness/knowledge/host-integration.md` |
-| Env knobs, defaults, precedence chains | `harness/knowledge/config-reference.md` |
+| Env knobs, defaults, runtime files, compaction/offload | `harness/knowledge/config-reference.md` |
 | Security posture, sandboxing, threat surfaces | `harness/knowledge/security-posture.md` |
 | Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
 | Undecided design/contract intent (decision-pending) | `harness/spec/README.md` |
@@ -78,5 +78,6 @@ Pass/fail checks stay in the repo runner (`scripts/harness/run-harness-check.mjs
 
 ## Failure Capture
 
-- Engine-origin failures and their guards are recorded in root `AGENTS.md` §6 (history over-pruning, execSync freezing the Electron host, UTF-8 chunk-split corruption); regression tests live in `src/core/loop.test.ts`.
+- Before history cleanup, read `harness/knowledge/loop-lifecycle.md`; new cleanup must ship a regression test preserving later user turns. Tool I/O/UTF-8 guards live in `harness/knowledge/tools-reference.md`.
+- Engine/plugin code logs through `console.*`; never write raw stdout/stderr under a host. Detail: `harness/knowledge/host-integration.md` (Logging ownership).
 - Tools must be non-blocking and shell-safe: pass args as arrays to async `execFile`/`spawn`, never build shell strings (both `bash.ts` and `grep.ts` were fixed after blocking-I/O / injection bugs — see `harness/knowledge/architecture.md` Risk Areas).

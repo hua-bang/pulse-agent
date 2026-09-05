@@ -11,8 +11,8 @@ This directory is an index, not a copy. Knowledge in this repo is distributed ac
 | Repository navigation, meta-rules, precedence | Root `AGENTS.md` / `CLAUDE.md` (§0–§3) |
 | Auxiliary-workspace boundary, active workspace set | Root `AGENTS.md` §3 + `pnpm-workspace.yaml` |
 | Workspace role, routing, and curated knowledge pointers | Workspace `AGENTS.md` and local `docs/` |
-| Security / secrets / runtime key precedence | Root `AGENTS.md` §7 |
-| Named failure captures and their guards | Root `AGENTS.md` §6 |
+| Security / secrets / runtime key precedence | Root `AGENTS.md` §7; engine `harness/knowledge/config-reference.md`; plugin-kit vault helpers |
+| Named failure captures and their guards | Root `AGENTS.md` §6 routes to the owning workspace Knowledge and regression tests |
 | Package contracts, module boundaries | Workspace `AGENTS.md` + `harness/knowledge/contracts.md` if present, otherwise local docs/types/tests |
 | App behavior spec | Workspace `AGENTS.md` or `CLAUDE.md`; `docs/spec/` only when behavior needs durable product-level SSOT |
 | Runtime operation | Workspace `docs/runbook.md` or local entry file |

@@ -42,3 +42,7 @@ How to embed the engine, learned from the four real hosts (cli, agent-teams, rem
 8. Need a per-run working directory? Wrap `bash`/`grep`/`ls` yourself + a prompt note (teammate pattern) — no engine option exists.
 9. Persist `onCompacted` output together with `onResponse` output, or the next run rehydrates stale messages.
 10. Host tools go in `EngineOptions.tools` — last-merge override beats plugin tools by name.
+
+## Logging ownership
+
+Raw stdout writes from an engine plugin tore the Ink host's frame: process.stdout.write inside sub-agent-plugin scrolled the screen under Ink, stranding a stale copy of the live region in scrollback per write (observed as dozens of duplicated running-tool lines during parallel sub-agent runs). Engine code logs via console.* — hosts own the terminal and capture console into their log layer; never write raw stdout/stderr from engine or plugin code.
