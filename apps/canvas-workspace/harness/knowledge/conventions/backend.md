@@ -12,15 +12,17 @@ for import rules and `harness/knowledge/main-domain-modules.md` for the full mod
 src/main/
   index.ts            # main entry / bootstrap wiring
   app/                # Electron lifecycle: window, protocol, link-policy, logging, menu, updates
-  agent/              # Canvas Agent (engine-backed chat): service, ipc, sessions, context, model
+  agent/              # Canvas Agent (engine-backed chat): service, ipc, sessions, context
   agent-teams/        # Multi-agent teams integration (pulse-coder-agent-teams)
   artifacts/          # Artifact persistence + IPC
   canvas/             # Canvas persistence: store, storage, migration, broadcast, welcome workspace
   files/              # File read/write/dialog IPC + filesystem watcher
   generation/         # HTML generation + streaming IPC
+  models/             # Shared provider/model config, secret storage + IPC
+  plugin-market/      # Agent Plugin packages, config persistence + IPC
   perf/               # Main-process perf counters (loop delay) feeding the perf gates
   runtime/            # Runtime control server, MCP helpers
-  settings/           # App/model/plugin settings persistence + IPC
+  settings/           # App feature settings persistence + IPC
   terminal/           # node-pty session management
   webview/            # Embedded webview registry, CDP helpers, page reader
 ```
@@ -93,7 +95,11 @@ but never bypass this writer with independent append paths.
 
 ## Tests
 
-- Domain tests live in `src/main/__tests__/` on **vitest**
+- Leaf-module tests live beside their implementation as `*.test.ts`; tests
+  spanning several modules in one domain live in `<domain>/__tests__/`.
+  `src/main/__tests__/` is reserved for cross-domain behavior, packaging or
+  process boundaries, and structural governance. Its allowlist is enforced by
+  `test-locality-governance.test.ts`. All run on **vitest**
   (`pnpm --filter canvas-workspace test`).
 - The boundary and file-size governance suites also live here — keep them
   green. They run via `pnpm --filter canvas-workspace test` (manual / repo

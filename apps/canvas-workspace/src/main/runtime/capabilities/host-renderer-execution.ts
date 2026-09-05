@@ -1,4 +1,4 @@
-import { activateWorkspaceWindow } from '../../app/window-manager';
+import { getRuntimeWindowPort } from '../window-port';
 import { getPublishedDockWorkspaceId } from '../../dock/tab-store';
 import { evalInPage } from '../../../plugins/main/webview-page-control/js-primitives';
 import { CapabilityError, type CapabilityContext } from './types';
@@ -21,7 +21,7 @@ export async function executeHostRendererEval(
 }
 
 async function execute(input: HostRendererEvalInput, context: CapabilityContext): Promise<unknown> {
-  const activation = await activateWorkspaceWindow(context.workspaceId);
+  const activation = await getRuntimeWindowPort().activateWorkspaceWindow(context.workspaceId);
   if (!activation.ok) {
     throw new CapabilityError(
       'host_renderer_unavailable',

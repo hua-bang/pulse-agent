@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import * as ts from 'typescript';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = process.cwd();
 const SRC_ROOT = join(REPO_ROOT, 'src');
@@ -22,7 +22,7 @@ interface ImportRef {
   sourceFile: string;
   line: number;
   specifier: string;
-  kind: 'import' | 'export' | 'dynamic-import' | 'require';
+  kind: 'import' | 'export' | 'dynamic-import' | 'import-type' | 'require';
 }
 
 interface ResolvedImport extends ImportRef {
@@ -134,7 +134,109 @@ describe('import boundaries', () => {
       throw new Error(formatFailure(violations, staleAllowlistEntries));
     }
   });
+
+  it('keeps protected main domains below the app composition root', () => {
+    const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
+    const resolved = imports.flatMap(resolveImport);
+    const violations = resolved.flatMap(checkMainDomainBoundary);
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps the main domain dependency graph acyclic', () => {
+    const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
+    const resolved = imports.flatMap(resolveImport);
+    const graph = buildMainDomainGraph(resolved);
+    const cyclicEdges = Array.from(graph.entries()).flatMap(([source, targets]) =>
+      Array.from(targets)
+        .filter((target) => hasDomainPath(graph, target, source))
+        .map((target) => `${source} -> ${target}`),
+    ).sort();
+
+    expect(cyclicEdges).toEqual([]);
+  });
+
+  it('treats TypeScript import types as domain dependencies', () => {
+    const sourcePath = join(SRC_ROOT, 'main', 'canvas', 'synthetic.ts');
+    const imports = readImportsFromSource(
+      sourcePath,
+      "type AgentService = import('../agent/service').CanvasAgentService;",
+    );
+    const resolved = imports.flatMap(resolveImport);
+
+    expect(imports).toMatchObject([{
+      sourceFile: 'src/main/canvas/synthetic.ts',
+      specifier: '../agent/service',
+      kind: 'import-type',
+    }]);
+    expect(resolved.flatMap(checkMainDomainBoundary)).toEqual([
+      'src/main/canvas/synthetic.ts:1 imports ../agent/service (canvas -> agent)',
+    ]);
+  });
 });
+
+const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
+  ['agent', new Set(['app', 'runtime', 'scheduled'])],
+  ['artifacts', new Set(['agent'])],
+  ['canvas', new Set(['agent'])],
+  ['default-browser', new Set(['app'])],
+  ['generation', new Set(['agent'])],
+  ['plugin-market', new Set(['agent'])],
+  ['runtime', new Set(['app'])],
+  ['settings', new Set(['plugin-market'])],
+  ['webview', new Set(['agent'])],
+]);
+
+function mainDomain(path: string | undefined): string | null {
+  if (path === 'src/main/index.ts') return 'entrypoint';
+  if (path?.startsWith('src/main/')) {
+    return path.slice('src/main/'.length).split('/')[0] ?? null;
+  }
+  return null;
+}
+
+function checkMainDomainBoundary(imported: ResolvedImport): string[] {
+  if (imported.sourceSurface !== 'main' || imported.targetSurface !== 'main') return [];
+  const sourceDomain = mainDomain(imported.sourceFile);
+  const targetDomain = mainDomain(imported.targetPath);
+  if (!sourceDomain || !targetDomain || sourceDomain === targetDomain) return [];
+  if (!FORBIDDEN_MAIN_DOMAIN_IMPORTS.get(sourceDomain)?.has(targetDomain)) return [];
+
+  return [
+    `${imported.sourceFile}:${imported.line} imports ${imported.specifier} ` +
+      `(${sourceDomain} -> ${targetDomain})`,
+  ];
+}
+
+function buildMainDomainGraph(imports: ResolvedImport[]): Map<string, Set<string>> {
+  const graph = new Map<string, Set<string>>();
+  for (const imported of imports) {
+    if (imported.sourceSurface !== 'main' || imported.targetSurface !== 'main') continue;
+    const source = mainDomain(imported.sourceFile);
+    const target = mainDomain(imported.targetPath);
+    if (!source || !target || source === target) continue;
+    const targets = graph.get(source) ?? new Set<string>();
+    targets.add(target);
+    graph.set(source, targets);
+    if (!graph.has(target)) graph.set(target, new Set());
+  }
+  return graph;
+}
+
+function hasDomainPath(
+  graph: Map<string, Set<string>>,
+  source: string,
+  target: string,
+  visited = new Set<string>(),
+): boolean {
+  if (source === target) return true;
+  if (visited.has(source)) return false;
+  visited.add(source);
+  for (const next of graph.get(source) ?? []) {
+    if (hasDomainPath(graph, next, target, visited)) return true;
+  }
+  return false;
+}
 
 function findSourceFiles(root: string): string[] {
   const files: string[] = [];
@@ -164,9 +266,13 @@ function findSourceFiles(root: string): string[] {
 }
 
 function readImports(filePath: string): ImportRef[] {
+  return readImportsFromSource(filePath, readFileSync(filePath, 'utf8'));
+}
+
+function readImportsFromSource(filePath: string, sourceText: string): ImportRef[] {
   const sourceFile = ts.createSourceFile(
     filePath,
-    readFileSync(filePath, 'utf8'),
+    sourceText,
     ts.ScriptTarget.Latest,
     true,
     filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
@@ -204,6 +310,12 @@ function readImports(filePath: string): ImportRef[] {
       ts.isStringLiteralLike(node.moduleReference.expression)
     ) {
       addImport(node.moduleReference.expression, 'import');
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteralLike(node.argument.literal)
+    ) {
+      addImport(node.argument.literal, 'import-type');
     } else if (ts.isCallExpression(node)) {
       const [firstArg] = node.arguments;
       if (firstArg && ts.isStringLiteralLike(firstArg)) {

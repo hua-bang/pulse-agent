@@ -11,11 +11,11 @@ const SOURCE_ROOT = 'src';
 const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
-  'src/main/agent-teams/service.ts': 2569,
+  'src/main/agent-teams/service.ts': 1849,
   'src/renderer/src/types.ts': 1861,
-  'src/main/canvas/store.ts': 1606,
+  'src/main/canvas/store.ts': 1177,
   'src/main/agent/canvas-agent.ts': 1158,
-  'src/main/canvas/storage.ts': 1156,
+  'src/main/canvas/storage.ts': 602,
   'src/main/agent/context-builder.ts': 856,
   // 777→816 (2026-09-03, drift recorded): master changes #987–#988
   // expanded then partially reduced Feishu answer-card/run rendering without
@@ -24,9 +24,9 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/main/agent/model/config.ts': 599,
+  'src/main/models/config.ts': 594,
   'src/plugins/main/dynamic-app/tools.ts': 593,
-  'src/main/settings/canvas-plugins-config.ts': 558,
+  'src/main/plugin-market/config.ts': 502,
   // 605→636 (2026-07-17, drift recorded): grew via master work (#806
   // session-restore fix) that never ran this suite (no automatic trigger).
   // Raised to measured; must-not-grow applies from 636.

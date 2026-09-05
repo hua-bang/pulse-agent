@@ -9,7 +9,7 @@ import type {
   PluginNodeCapabilityEntry,
 } from '../types';
 import { loadCanvas } from '../../main/agent/tools/_shared/canvas-io';
-import { resolveCanvasPluginConfigValue } from '../../main/settings/canvas-plugins-config';
+import { resolveCanvasPluginConfigValue } from '../../main/plugin-market/config';
 import { withCdp, type CdpSender } from '../../main/webview/cdp-session';
 import { getWebContentsForNode } from '../../main/webview/registry';
 import { agentBus, drainAgentTraceEvents, subscribeAgentTrace } from './agent-bus';

@@ -11,7 +11,7 @@ pathRules:
       - electron.vite.config.ts
     quick:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts src/main/__tests__/test-locality-governance.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
@@ -52,13 +52,13 @@ pathRules:
     paths:
       - src/main/plugin-market/**
       - src/main/agent/engine-plugins.ts
-      - src/main/settings/canvas-plugins-config.ts
+      - src/main/plugin-market/config.ts
       - src/shared/plugin-market.ts
       - src/preload/bridge/plugin-market.ts
       - src/renderer/src/modules/plugin-market/**
       - src/renderer/src/modules/skills/**
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/main/settings/__tests__/canvas-plugins-config.test.ts src/renderer/src/modules/plugin-market src/renderer/src/modules/skills
+      - pnpm --filter canvas-workspace exec vitest run src/main/plugin-market src/renderer/src/modules/plugin-market src/renderer/src/modules/skills
       - pnpm --filter canvas-workspace typecheck
     required:
       - pnpm --filter canvas-workspace typecheck
@@ -151,10 +151,10 @@ pathRules:
       - src/renderer/src/modules/dock/internal/RightDock/DockAgentTabIcon.tsx
       - src/main/agent/codex-sessions.ts
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/agent/codex-sessions.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/__tests__/codex-sessions.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/agent/codex-sessions.test.ts
 
   - name: agent-team-workspace
     paths:
@@ -279,7 +279,7 @@ pathRules:
     paths:
       - package.json
       - src/main/agent/backends/pi-*
-      - src/main/agent/model/config.ts
+      - src/main/models/config.ts
       - harness/tools/pi-agent-harness-smoke/**
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/main/agent/backends/pi-agent-harness-backend.test.ts src/main/agent/backends/pi-model-adapter.test.ts src/main/agent/backends/pi-tool-adapter.test.ts

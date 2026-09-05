@@ -21,12 +21,18 @@ vi.mock('electron', () => ({
 
 import { invokeArtifactCapability } from '../capability-ipc';
 import { createArtifact } from '../store';
-import { listMemory } from '../../agent/memory-store';
+import { listMemory, saveMemory } from '../../agent/memory-store';
+import { upsertCanvasSkill } from '../../agent/skills/config';
+import { setArtifactAgentWritePort } from '../agent-write-port';
 
 const canvasDir = join(sandboxHome, '.pulse-coder', 'canvas');
 
 describe('invokeArtifactCapability', () => {
   beforeEach(async () => {
+    setArtifactAgentWritePort({
+      saveMemory: async (scope, content, kind) => { await saveMemory(scope, content, kind); },
+      saveSkill: async (scope, skill) => { await upsertCanvasSkill(scope, skill); },
+    });
     await fs.mkdir(canvasDir, { recursive: true });
     process.env.PULSE_CANVAS_MEMORY_DIR = join(canvasDir, 'memory');
     await fs.writeFile(

@@ -9,7 +9,7 @@
  */
 
 import { generateText, streamText } from 'ai';
-import { resolveCanvasModel } from './model/config';
+import { resolveCanvasModel } from '../models/config';
 
 const SYSTEM_PROMPT = `You generate concise, structured "Pulse Workspace" documents in markdown.
 

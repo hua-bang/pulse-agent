@@ -18,9 +18,8 @@ import {
   getCanvasPluginsStatus,
   removeCanvasPluginDirectory,
   setCanvasPluginNativePolicy,
-} from '../settings/canvas-plugins-config';
-import { getCanvasAgentService } from '../agent/ipc';
-import { connectCanvasMcpOAuth, getCanvasMcpOAuthStatus } from '../agent/mcp/oauth';
+} from './config';
+import { getPluginMarketAgentPort } from './agent-port';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';
 import { PUBLIC_PLUGIN_CATALOG } from './catalog';
 import { writePluginMcpAdapter } from './mcp-adapter';
@@ -57,7 +56,7 @@ function isContained(root: string, target: string): boolean {
 
 async function refreshRuntime(): Promise<void> {
   await reloadConfiguredExternalMainPlugins();
-  await getCanvasAgentService().reloadMcp();
+  await getPluginMarketAgentPort().reloadMcp();
 }
 
 function remoteServerRuntimeName(plugin: NormalizedPluginPackage, serverName: string): string {
@@ -70,7 +69,7 @@ async function packageMcpAuthState(
   const remoteServers = plugin.mcp?.servers.filter((server) => server.type !== 'stdio') ?? [];
   if (remoteServers.length === 0) return undefined;
   const statuses = await Promise.all(remoteServers.map((server) => (
-    getCanvasMcpOAuthStatus(remoteServerRuntimeName(plugin, server.name))
+    getPluginMarketAgentPort().getMcpOAuthStatus(remoteServerRuntimeName(plugin, server.name))
   )));
   return statuses.every((status) => status.connected) ? 'connected' : 'connectable';
 }
@@ -450,11 +449,11 @@ export class PluginMarketService {
       const disconnected = [];
       for (const server of remoteServers) {
         const runtimeName = remoteServerRuntimeName(result.package, server.name);
-        const status = await getCanvasMcpOAuthStatus(runtimeName);
+        const status = await getPluginMarketAgentPort().getMcpOAuthStatus(runtimeName);
         if (!status.connected) disconnected.push({ runtimeName, url: server.url });
       }
       const next = disconnected[0];
-      if (next) await connectCanvasMcpOAuth(next.runtimeName, next.url);
+      if (next) await getPluginMarketAgentPort().connectMcpOAuth(next.runtimeName, next.url);
       return committedResult(result.diagnostics);
     });
   }

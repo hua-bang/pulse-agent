@@ -24,15 +24,17 @@ import {
   teardownCanvasAgent,
 } from "../agent/ipc";
 import { setupCodexSessionsIpc } from "../agent/codex-sessions";
-import { setupCanvasModelIpc } from "../agent/model/ipc";
+import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
+import { upsertCanvasSkill } from "../agent/skills/config";
+import { saveMemory } from "../agent/memory-store";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
 import { setupAgentRolesIpc } from "../agent/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
-import { setupCanvasPluginsConfigIpc } from "../settings/canvas-plugins-ipc";
+import { setupCanvasPluginsConfigIpc } from "../plugin-market/config-ipc";
 import { setupPluginMarketIpc } from "../plugin-market/ipc";
 import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
 import {
@@ -69,7 +71,21 @@ import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
 import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
-import { setWindowFactory } from "./window-manager";
+import {
+  activateWorkspaceWindow,
+  getCanvasWindow,
+  setWindowFactory,
+} from "./window-manager";
+import { setAgentWindowPort } from "../agent/window-port";
+import { setAgentScheduledPort } from "../agent/scheduled-port";
+import { setAgentCapabilityPort } from "../agent/capability-port";
+import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
+import { setRuntimeWindowPort } from "../runtime/window-port";
+import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
+import {
+  connectCanvasMcpOAuth,
+  getCanvasMcpOAuthStatus,
+} from "../agent/mcp/oauth";
 
 let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./link-policy";
@@ -107,6 +123,27 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // Keep identity configured even when tests import bootstrap directly instead
   // of going through the main entry module.
   configureAppIdentity();
+  setAgentWindowPort({ getCanvasWindow, activateWorkspaceWindow });
+  setRuntimeWindowPort({ activateWorkspaceWindow });
+  setPluginMarketAgentPort({
+    reloadMcp: () => getCanvasAgentService().reloadMcp(),
+    getMcpOAuthStatus: getCanvasMcpOAuthStatus,
+    connectMcpOAuth: connectCanvasMcpOAuth,
+  });
+  setAgentCapabilityPort({
+    call: async (name, input, context) => {
+      const { getCanvasCapabilityRuntime } = await import('../runtime/capabilities');
+      return getCanvasCapabilityRuntime().call(name, input, context);
+    },
+  });
+  setArtifactAgentWritePort({
+    saveMemory: async (scope, content, kind) => {
+      await saveMemory(scope, content, kind);
+    },
+    saveSkill: async (scope, skill) => {
+      await upsertCanvasSkill(scope, skill);
+    },
+  });
 
   const paths = resolveAppPaths(mainDir);
   const { writeLog, flush: flushLogs } = createMainLogger();
@@ -200,6 +237,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       import('../scheduled/runtime'),
     ]);
     const scheduled = getScheduledTaskService();
+    setAgentScheduledPort(scheduled);
     await scheduled.ensureMemoryReportTask();
     setupScheduledTaskIpc();
     scheduled.start();

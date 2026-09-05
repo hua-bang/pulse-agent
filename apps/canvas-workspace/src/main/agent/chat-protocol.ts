@@ -9,7 +9,7 @@ import {
   startPreparedChat,
   type PreparedChatPayload,
 } from './prepared-chat';
-import { resolveCanvasModel } from './model/config';
+import { resolveCanvasModel } from '../models/config';
 
 const MAX_ATTACHMENT_COUNT = 6;
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;

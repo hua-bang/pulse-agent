@@ -1,9 +1,51 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const defaults = vi.hoisted(() => ({
+  activateWorkspaceWindow: vi.fn(),
+  ensureOperable: vi.fn(),
+}));
+
+vi.mock('../../webview/registry', () => ({ getWebContentsForNode: () => null }));
+vi.mock('../../webview/ensure-operable', () => ({ ensureOperable: defaults.ensureOperable }));
+vi.mock('../../dock/tab-actions', () => ({ findDockLinkTab: () => undefined }));
+vi.mock('../../webview/reader', () => ({
+  readA11y: vi.fn(),
+  readDOM: vi.fn(),
+  captureScreenshot: vi.fn(),
+}));
+
 import { CapabilityRuntime } from './runtime';
 import { createPageCapabilities } from './page-capabilities';
+import { setRuntimeWindowPort } from '../window-port';
 
 describe('Page capabilities', () => {
+  it('uses the runtime window port when the default live reader activates a missing node', async () => {
+    defaults.activateWorkspaceWindow.mockResolvedValue({ ok: true });
+    defaults.ensureOperable.mockImplementation(async (options: {
+      activate: () => Promise<unknown>;
+      mode: string;
+    }) => {
+      expect(options.mode).toBe('read');
+      await options.activate();
+      return null;
+    });
+    setRuntimeWindowPort({ activateWorkspaceWindow: defaults.activateWorkspaceWindow });
+    const runtime = new CapabilityRuntime(createPageCapabilities());
+
+    await expect(runtime.call(
+      'browser.page.read',
+      { nodeId: 'web-1', strategy: 'dom' },
+      { workspaceId: 'ws-1', actor: { kind: 'test' } },
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: 'webview_not_found',
+        message: expect.stringContaining('auto-activation attempted'),
+      },
+    });
+    expect(defaults.activateWorkspaceWindow).toHaveBeenCalledWith('ws-1');
+  });
+
   it('reads a live page with workspace context through the public runtime seam', async () => {
     const readPage = vi.fn().mockResolvedValue({
       strategy: 'dom',

@@ -18,16 +18,19 @@ vi.mock('../../dock/tab-actions', () => ({
 vi.mock('../../webview/ensure-operable', () => ({
   ensureOperable: mocks.ensureOperable,
 }));
-vi.mock('../../app/window-manager', () => ({
-  activateWorkspaceWindow: mocks.activateWorkspaceWindow,
+vi.mock('../window-port', () => ({
+  getAgentWindowPort: () => ({
+    activateWorkspaceWindow: mocks.activateWorkspaceWindow,
+    getCanvasWindow: () => null,
+  }),
 }));
 vi.mock('../../webview/reader', () => ({
   readDOMElement: mocks.readDOMElement,
 }));
 
-vi.mock('../../runtime/capabilities', () => ({
-  PAGE_READINESS_HINT: 'readiness hint',
-  getCanvasCapabilityRuntime: () => ({ call: mocks.runtimeCall }),
+vi.mock('../../../shared/page-readiness', () => ({ PAGE_READINESS_HINT: 'readiness hint' }));
+vi.mock('../capability-port', () => ({
+  getAgentCapabilityPort: () => ({ call: mocks.runtimeCall }),
 }));
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 

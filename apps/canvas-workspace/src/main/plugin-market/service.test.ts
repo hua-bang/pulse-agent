@@ -33,7 +33,7 @@ vi.mock('electron', () => ({
   dialog: { showOpenDialog: fakes.dialog },
 }));
 
-vi.mock('../settings/canvas-plugins-config', () => ({
+vi.mock('./config', () => ({
   addCanvasPluginDirectory: vi.fn(async (root: string) => {
     fakes.registeredRoots.add(resolve(root));
     return fakes.getStatus();
@@ -45,18 +45,6 @@ vi.mock('../settings/canvas-plugins-config', () => ({
   getCanvasPluginsStatus: fakes.getStatus,
   removeCanvasPluginDirectory: fakes.remove,
   setCanvasPluginNativePolicy: fakes.setPolicy,
-}));
-
-vi.mock('../agent/ipc', () => ({
-  getCanvasAgentService: () => ({ reloadMcp: fakes.reloadMcp }),
-}));
-
-vi.mock('../agent/mcp/oauth', () => ({
-  connectCanvasMcpOAuth: fakes.connectOauth,
-  getCanvasMcpOAuthStatus: async (serverName: string) => ({
-    connected: fakes.connectedOauth.has(serverName),
-    hasClientInformation: false,
-  }),
 }));
 
 vi.mock('../../plugins/main', () => ({
@@ -134,6 +122,15 @@ beforeEach(async () => {
   fakes.configuredPlugins.length = 0;
   fakes.connectedOauth.clear();
   vi.clearAllMocks();
+  const { setPluginMarketAgentPort } = await import('./agent-port');
+  setPluginMarketAgentPort({
+    reloadMcp: fakes.reloadMcp,
+    connectMcpOAuth: fakes.connectOauth,
+    getMcpOAuthStatus: async (serverName) => ({
+      connected: fakes.connectedOauth.has(serverName),
+      hasClientInformation: false,
+    }),
+  });
   fakes.getStatus.mockImplementation(async () => canvasStatus());
   fakes.getPolicy.mockImplementation((root: string, format: string) => (
     fakes.nativePolicy.get(resolve(root)) ?? format === 'legacy-canvas'
@@ -288,6 +285,9 @@ describe('PluginMarketService mutations', () => {
     const result = await choose(new PluginMarketService(), root);
 
     expect(result).toMatchObject({ ok: true });
+    expect(fakes.reloadMain.mock.invocationCallOrder[0]).toBeLessThan(
+      fakes.reloadMcp.mock.invocationCallOrder[0],
+    );
     expect(result.diagnostics).toEqual([
       expect.objectContaining({ code: 'mcp-server.invalid', componentId: 'broken' }),
     ]);

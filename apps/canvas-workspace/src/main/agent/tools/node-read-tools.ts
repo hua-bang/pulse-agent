@@ -5,7 +5,7 @@ import {
   buildWorkspaceSummary,
   formatSummaryForPrompt,
 } from '../context-builder';
-import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
+import { getAgentCapabilityPort } from '../capability-port';
 import type { CanvasTool } from './types';
 
 export function createNodeReadTools(workspaceId: string): Record<string, CanvasTool> {
@@ -90,7 +90,7 @@ export function createNodeReadTools(workspaceId: string): Record<string, CanvasT
       execute: async (input, context) => {
         const nodeId = input.nodeId as string;
         const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const result = await getCanvasCapabilityRuntime().call(
+        const result = await getAgentCapabilityPort().call(
           'canvas.nodes.read',
           { nodeId },
           {

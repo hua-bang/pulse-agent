@@ -38,7 +38,7 @@ vi.mock('../../../plugins/main', () => ({
 
 // The runner resolves the chat model before every run; stub it so tests never
 // touch real model settings or env keys.
-vi.mock('../model/config', () => ({
+vi.mock('../../models/config', () => ({
   resolveCanvasModel: async () => ({
     provider: 'stub-provider',
     providerType: 'stub',

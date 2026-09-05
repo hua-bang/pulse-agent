@@ -26,15 +26,7 @@ import {
   type ScheduledWeekday,
 } from '../../../shared/scheduled';
 import type { CanvasTool } from './types';
-
-/**
- * `scheduled/runtime` reaches back into the agent service, so importing it
- * eagerly would close a module cycle (tools/index → runtime → agent/ipc →
- * service → tools/index). Load it per call instead, matching bootstrap's
- * dynamic import of the same module.
- */
-const scheduledService = async () =>
-  (await import('../../scheduled/runtime')).getScheduledTaskService();
+import { getAgentScheduledPort } from '../scheduled-port';
 
 interface ScheduleInput {
   kind: 'interval' | 'daily' | 'weekly';
@@ -119,7 +111,7 @@ export function createScheduledTools(): Record<string, CanvasTool> {
     inputSchema: z.object({}),
     execute: async () => {
       try {
-        const tasks = await (await scheduledService()).listTasks();
+        const tasks = await getAgentScheduledPort().listTasks();
         return JSON.stringify({ ok: true, total: tasks.length, tasks: tasks.map(summarize) });
       } catch (err) {
         return failure(err);
@@ -153,7 +145,7 @@ export function createScheduledTools(): Record<string, CanvasTool> {
       enabled?: boolean;
     }) => {
       try {
-        const task = await (await scheduledService()).createTask({
+        const task = await getAgentScheduledPort().createTask({
           title: input.title,
           prompt: input.prompt,
           schedule: toSchedule(input.schedule),
@@ -187,7 +179,7 @@ export function createScheduledTools(): Record<string, CanvasTool> {
       enabled?: boolean;
     }) => {
       try {
-        const task = await (await scheduledService()).updateTask(input.taskId, {
+        const task = await getAgentScheduledPort().updateTask(input.taskId, {
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.prompt !== undefined ? { prompt: input.prompt } : {}),
           ...(input.schedule !== undefined ? { schedule: toSchedule(input.schedule) } : {}),

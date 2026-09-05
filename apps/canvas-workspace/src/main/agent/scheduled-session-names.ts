@@ -2,13 +2,13 @@
  * Display names for scheduled-task session stores, so their conversations
  * read as the task the user named rather than a sentinel store id.
  *
- * `scheduled/runtime` reaches back into the agent service, so it is imported
- * per call — an eager import would close a module cycle.
+ * Scheduled owns execution and injects this read interface at the app root.
  */
+import { getAgentScheduledPort } from './scheduled-port';
+
 export async function scheduledTaskTitles(): Promise<Map<string, string>> {
   try {
-    const { getScheduledTaskService } = await import('../scheduled/runtime');
-    const tasks = await getScheduledTaskService().listTasks();
+    const tasks = await getAgentScheduledPort().listTasks();
     return new Map(tasks.map((task) => [task.id, task.title]));
   } catch {
     return new Map();

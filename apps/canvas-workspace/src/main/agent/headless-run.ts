@@ -13,7 +13,7 @@
  */
 
 import { Engine } from 'pulse-coder-engine';
-import { resolveCanvasModel } from './model/config';
+import { resolveCanvasModel } from '../models/config';
 import type { CanvasTool } from './tools/types';
 
 const DEFAULT_MAX_STEPS = 12;

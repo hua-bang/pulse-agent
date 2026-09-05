@@ -37,6 +37,10 @@ vi.mock('../../artifacts/store', () => ({ getCurrentVersionContent: vi.fn() }));
 vi.mock('../../dock/history-store', () => ({ searchHistory: vi.fn() }));
 
 import { createTabTools } from './tab';
+import { setAgentCapabilityPort } from '../capability-port';
+import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
+
+setAgentCapabilityPort(getCanvasCapabilityRuntime());
 
 describe('dock tab interaction tools', () => {
   beforeEach(() => {

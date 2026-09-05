@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
+import { getAgentCapabilityPort } from '../capability-port';
 import type { CanvasTool } from './types';
 
 export function createSearchTools(workspaceId: string): Record<string, CanvasTool> {
@@ -30,7 +30,7 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
       execute: async (input, context) => {
         const { workspaceId: inputWorkspaceId, ...capabilityInput } = input;
         const targetWorkspaceId = (inputWorkspaceId as string) || workspaceId;
-        const result = await getCanvasCapabilityRuntime().call(
+        const result = await getAgentCapabilityPort().call(
           'canvas.nodes.search',
           capabilityInput,
           {

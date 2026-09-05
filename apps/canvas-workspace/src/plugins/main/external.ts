@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import type { CanvasPluginEntry } from '../../shared/settings-config';
-import { getCanvasPluginsStatus } from '../../main/settings/canvas-plugins-config';
+import { getCanvasPluginsStatus } from '../../main/plugin-market/config';
 import type { MainCanvasPlugin } from '../types';
 import { deactivateCanvasPlugin, setupCanvasPlugins } from './registry';
 

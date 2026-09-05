@@ -9,7 +9,7 @@ import { Engine } from 'pulse-coder-engine';
 import type { MCPAppsManager, MCPClientManager, MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { join } from 'path';
-import { resolveCanvasModel, type ResolvedCanvasModel } from './model/config';
+import { resolveCanvasModel, type ResolvedCanvasModel } from '../models/config';
 import { createCanvasEnginePlugins } from './engine-plugins';
 import { formatSelectedPluginsBlock } from './plugin-selection-context';
 import { agentBus } from '../../plugins/main';

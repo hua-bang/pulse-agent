@@ -26,7 +26,7 @@ import { listWorkspaces } from '../canvas/workspaces';
 import { addArtifactVersion, createArtifact, listArtifacts, updateArtifact } from '../artifacts/store';
 import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
 import { GLOBAL_CHAT_SESSION_STORE_ID } from './session-store';
-import { createGlobalCanvasTools } from './tools';
+import { createGlobalCanvasTools } from './tools/index';
 import type { CanvasTool } from './tools/types';
 import {
   runHeadlessAgentTask,

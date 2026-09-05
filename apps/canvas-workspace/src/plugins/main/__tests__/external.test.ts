@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
 import type { CanvasPluginEntry } from '../../../shared/settings-config';
 
-vi.mock('../../../main/settings/canvas-plugins-config', () => ({
+vi.mock('../../../main/plugin-market/config', () => ({
   getCanvasPluginsStatus: vi.fn(async () => ({
     path: '/tmp/canvas-plugins.json',
     pluginDirs: [],

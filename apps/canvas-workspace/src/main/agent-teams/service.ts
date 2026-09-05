@@ -1,9 +1,6 @@
-import { exec } from 'child_process';
 import { randomUUID } from 'crypto';
 import { promises as fsPromises, statSync } from 'fs';
-import { homedir } from 'os';
-import { dirname, join } from 'path';
-import { STORE_DIR } from '../canvas/storage';
+import { dirname } from 'path';
 import {
   TeamRuntime,
   TASK_METADATA_KEYS,
@@ -11,7 +8,6 @@ import {
   readTaskRound,
   readTaskVerifyCommand,
   type AgentRole,
-  type ArtifactKind,
   type RuntimeSnapshot,
   type TeamAgentRecord,
   type TaskVerificationResult,
@@ -42,14 +38,54 @@ import type {
   CanvasAgentTeamCreateInput,
   CanvasAgentTeamCreateTaskInput,
   CanvasAgentTeamMetadata,
-  CanvasAgentTeamPhase,
   CanvasAgentTeamPlanDraft,
-  CanvasAgentTeamPlanTask,
-  CanvasAgentTeamPlanTeammate,
   CanvasAgentTeamPublishArtifactInput,
   CanvasAgentTeamRequestHumanInput,
   CanvasAgentTeamSnapshot,
 } from './types';
+import {
+  DEFAULT_TEAMMATE_AGENT,
+  parsePlanDraft,
+  planDraftFromUnknown,
+  resolvePlanTaskGraph,
+} from './planning';
+import { cleanString } from './input-normalization';
+import {
+  normalizeArtifactKind,
+  parseAgentOutputMarker,
+  stripAnsi,
+  type AgentOutputMarker,
+} from './output-markers';
+import {
+  agentNodeIdsForAgents,
+  inferPhase,
+  metadataCanvasNodeIds,
+  plannedStartupAgentIds,
+} from './projection';
+import {
+  INTEGRATION_VERIFY_TIMEOUT_MS,
+  TASK_VERIFY_TIMEOUT_MS,
+  runTaskVerification,
+} from './verification';
+import {
+  DEFAULT_QUEUED_LAUNCH_GRACE_MS,
+  LEAD_SESSION_DOWN_GATE_KIND,
+  QUEUED_LAUNCH_REVIEW_REASON,
+  isRecoverableSessionExitReview,
+  observeQueuedLaunch,
+} from './recovery-policy';
+import { formatLeadExecutionPrompt, formatLeaderBriefingPrompt } from './prompts';
+import {
+  resolveAgentReference,
+  resolveOpenGateForAgent,
+  resolveTaskForAction,
+  resolveTaskReferences,
+} from './resolution';
+import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-directory';
+import { AgentNodeResolver, type AgentNodeMatch } from './agent-node-resolver';
+import { TeamEventBroadcaster } from './team-event-broadcaster';
+import { AgentTeamWorkspaceDiscovery } from './workspace-discovery';
+import { repairAgentTeamState } from './state-repairs';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
@@ -57,105 +93,15 @@ interface RuntimeBundle {
 }
 
 const DEFAULT_LEAD_AGENT = 'codex';
-const DEFAULT_TEAMMATE_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
-const VERIFY_TIMEOUT_MS = 120_000;
-const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;
-const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
-const MAX_PLAN_TEAMMATES = 6;
-const MAX_PLAN_TASKS = 20;
-const ARTIFACT_KINDS = new Set<ArtifactKind>([
-  'diff',
-  'test_log',
-  'note',
-  'screenshot',
-  'file',
-  'summary',
-  'other',
-]);
-const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
-// Marks the human gate the watchdog opens when the Team Lead's session is
-// confirmed unreachable; recovery auto-cancels gates of this kind.
-const LEAD_SESSION_DOWN_GATE_KIND = 'lead-session-down';
-// Both reasons route the task back through prepareAgentAutoResume: the canvas
-// relaunches the agent with its task when the node next mounts.
-const SESSION_EXIT_REVIEW_REASON_RE =
-  /^Agent session (?:exited(?: with code -?\d+)? before reporting task completion|was never relaunched to receive the dispatched task)\.$/;
-const QUEUED_LAUNCH_REVIEW_REASON = 'Agent session was never relaunched to receive the dispatched task.';
 // How long a dispatched task may sit as a queued launch prompt (agent PTY
 // dead, prompt waiting for the renderer to spawn the node) while windows are
 // open before the watchdog stops trusting it. Within the grace it is the
 // normal headless-dispatch state; past it, nothing is going to mount the node
 // — the workspace is not open in any window — and leaving the task
 // in_progress fakes progress forever.
-const QUEUED_LAUNCH_GRACE_MS = 2 * 60_000;
-const AGENT_TEAM_MARKER_RE =
-  /^\s*\[agent-team:(?<kind>plan|human-input-needed|artifact)(?:\s+taskId="(?<taskId>[^"]+)")?(?:\s+kind="(?<artifactKind>[^"]+)")?(?:\s+title="(?<artifactTitle>[^"]+)")?\]\s*(?<text>.*)\s*$/;
-
-type AgentOutputMarkerKind = 'plan' | 'human-input-needed' | 'artifact';
-
-interface AgentOutputMarker {
-  kind: AgentOutputMarkerKind;
-  taskId?: string;
-  artifactKind?: string;
-  artifactTitle?: string;
-  text: string;
-}
-
-interface AgentNodeMatch {
-  teamId: string;
-  agent: TeamAgentRecord;
-}
-
-interface ResolvedPlanTask {
-  id: string;
-  task: CanvasAgentTeamPlanTask;
-  depIds: string[];
-}
-
-const stripAnsi = (value: string): string =>
-  value
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
-
-/**
- * A human-input marker is only actionable with a concrete question. Task
- * prompts contain the literal fallback example
- * `[agent-team:human-input-needed taskId="..."] <question>`, and the TUI
- * echo of that prompt re-enters the PTY output — line-wrapped at terminal
- * width, so the placeholder arrives whole (`<question>`), truncated
- * (`<ques`), or cut off entirely (empty text). Opening gates for those
- * floods the Team Lead backlog with unanswerable questions and parks the
- * task/agent in needs_input even though the agent is actually working.
- */
-const isPlaceholderHumanInputText = (text: string): boolean =>
-  !text
-  || text.startsWith('<')
-  || /^agent requested human input\.?$/i.test(text)
-  || /^human input requested\.?$/i.test(text);
-
-const parseAgentOutputMarker = (line: string): AgentOutputMarker | null => {
-  const match = AGENT_TEAM_MARKER_RE.exec(stripAnsi(line).trim());
-  if (!match?.groups) return null;
-  const text = match.groups.text.trim();
-  if (/^<[^>]+>$/.test(text)) return null;
-  if (match.groups.kind === 'human-input-needed' && isPlaceholderHumanInputText(text)) return null;
-  return {
-    kind: match.groups.kind as AgentOutputMarkerKind,
-    taskId: match.groups.taskId,
-    artifactKind: match.groups.artifactKind,
-    artifactTitle: match.groups.artifactTitle,
-    text,
-  };
-};
-
-const normalizeArtifactKind = (value: string | undefined): ArtifactKind => {
-  if (!value) return 'other';
-  return ARTIFACT_KINDS.has(value as ArtifactKind) ? value as ArtifactKind : 'other';
-};
-
 const gateAudienceMetadataForAgent = (agent: TeamAgentRecord | undefined): Record<string, unknown> | undefined =>
   agent && agent.role !== 'lead' ? { audience: 'lead' } : undefined;
 
@@ -165,39 +111,6 @@ const humanInputReasonForAgent = (
 ): string =>
   explicitReason || (agent && agent.role !== 'lead' ? 'Teammate requested Team Lead input' : 'Agent requested human input');
 
-const isRecoverableSessionExitReview = (task: TeamTaskRecord, agentId: string): boolean =>
-  task.status === 'needs_review'
-  && task.ownerAgentId === agentId
-  && typeof task.blockedReason === 'string'
-  && SESSION_EXIT_REVIEW_REASON_RE.test(task.blockedReason);
-
-const asPlainObject = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-
-const cleanString = (value: unknown, fallback = ''): string => {
-  if (typeof value !== 'string') return fallback;
-  const trimmed = value.trim();
-  return trimmed || fallback;
-};
-
-const expandHomePath = (value: string): string =>
-  value === '~' || value.startsWith('~/')
-    ? value.replace(/^~/, homedir())
-    : value;
-
-const trimPathToken = (value: string): string =>
-  value.replace(/[),.;:!?，。；：、]+$/u, '');
-
-const isExistingDirectory = (value: string): boolean => {
-  try {
-    return statSync(value).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
 const isExistingFile = (value: string): boolean => {
   try {
     return statSync(value).isFile();
@@ -205,341 +118,6 @@ const isExistingFile = (value: string): boolean => {
     return false;
   }
 };
-
-const inferWorkingDirectoryFromText = (content: string): string | undefined => {
-  const matches = content.matchAll(/(?:^|[\s([{"'`])(?<path>~?\/[^\s)\]}"'`，。；：、]+)/gu);
-  const candidates = Array.from(matches)
-    .map((match) => trimPathToken(match.groups?.path ?? ''))
-    .filter((candidate) => candidate.length > 1)
-    .map(expandHomePath)
-    .sort((a, b) => b.length - a.length);
-
-  return candidates.find(isExistingDirectory);
-};
-
-const normalizePlanTeammates = (value: unknown): CanvasAgentTeamPlanTeammate[] => {
-  const raw = Array.isArray(value) ? value : [];
-  const teammates = raw
-    .map((item): CanvasAgentTeamPlanTeammate | null => {
-      if (typeof item === 'string') {
-        const name = cleanString(item);
-        return name ? { name, agentType: DEFAULT_TEAMMATE_AGENT } : null;
-      }
-      const obj = asPlainObject(item);
-      const name = cleanString(obj.name);
-      if (!name) return null;
-      return {
-        name,
-        agentType: cleanString(obj.agentType, DEFAULT_TEAMMATE_AGENT),
-      };
-    })
-    .filter((item): item is CanvasAgentTeamPlanTeammate => !!item);
-
-  // Reject instead of silently truncating: a sliced-away teammate would break
-  // task owner references in confusing ways the lead cannot diagnose.
-  if (teammates.length > MAX_PLAN_TEAMMATES) {
-    throw new Error(
-      `Plan has ${teammates.length} teammates; the maximum is ${MAX_PLAN_TEAMMATES}. `
-      + 'Consolidate ownership so each teammate owns a durable area, then resubmit the plan.',
-    );
-  }
-
-  return teammates.length > 0 ? teammates : [{ name: 'Codex Exec', agentType: DEFAULT_TEAMMATE_AGENT }];
-};
-
-const normalizePlanTasks = (value: unknown, fallbackSummary: string): CanvasAgentTeamPlanTask[] => {
-  const raw = Array.isArray(value) ? value : [];
-  const tasks = raw
-    .map((item): CanvasAgentTeamPlanTask | null => {
-      const obj = asPlainObject(item);
-      const title = cleanString(obj.title);
-      if (!title) return null;
-      const scope = Array.isArray(obj.scope)
-        ? obj.scope.map((entry) => cleanString(entry)).filter(Boolean)
-        : [];
-      return {
-        title,
-        description: cleanString(obj.description, title),
-        ownerName: cleanString(obj.ownerName) || undefined,
-        deps: Array.isArray(obj.deps)
-          ? obj.deps.map((dep) => cleanString(dep)).filter(Boolean)
-          : [],
-        scope: scope.length > 0 ? scope : undefined,
-        verify: cleanString(obj.verify) || undefined,
-      };
-    })
-    .filter((item): item is CanvasAgentTeamPlanTask => !!item);
-
-  // Reject instead of silently truncating: a sliced-away task that other
-  // tasks depend on used to surface as a baffling "Unknown task dependency".
-  if (tasks.length > MAX_PLAN_TASKS) {
-    throw new Error(
-      `Plan has ${tasks.length} tasks; the maximum is ${MAX_PLAN_TASKS}. `
-      + 'Merge small tasks, or submit a first-round plan now and add later work after the round checkpoint.',
-    );
-  }
-
-  if (tasks.length > 0) return tasks;
-  return [{
-    title: 'Execute approved plan',
-    description: fallbackSummary || 'Carry out the plan approved by the user.',
-    ownerName: 'Codex Exec',
-    deps: [],
-  }];
-};
-
-const parsePlanDraft = (text: string, sourceAgentId: string, now: number): CanvasAgentTeamPlanDraft | null => {
-  const trimmed = text.trim();
-  if (!trimmed || /^<[^>]+>$/.test(trimmed)) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    return null;
-  }
-
-  const obj = asPlainObject(parsed);
-  const summary = cleanString(obj.summary, 'Leader proposed a team execution plan.');
-  return {
-    summary,
-    teammates: normalizePlanTeammates(obj.teammates),
-    tasks: normalizePlanTasks(obj.tasks, summary),
-    integrationVerify: cleanString(obj.integrationVerify) || undefined,
-    sourceAgentId,
-    createdAt: now,
-    updatedAt: now,
-  };
-};
-
-const planDraftFromUnknown = (value: unknown, sourceAgentId: string, now: number): CanvasAgentTeamPlanDraft => {
-  if (typeof value === 'string') {
-    const parsed = parsePlanDraft(value, sourceAgentId, now);
-    if (!parsed) throw new Error('Plan must be valid JSON');
-    return parsed;
-  }
-
-  const obj = asPlainObject(value);
-  if (Object.keys(obj).length === 0) {
-    throw new Error('Plan must be a JSON object');
-  }
-  const summary = cleanString(obj.summary, 'Leader proposed a team execution plan.');
-  return {
-    summary,
-    teammates: normalizePlanTeammates(obj.teammates),
-    tasks: normalizePlanTasks(obj.tasks, summary),
-    integrationVerify: cleanString(obj.integrationVerify) || undefined,
-    sourceAgentId,
-    createdAt: now,
-    updatedAt: now,
-  };
-};
-
-const planTaskKey = (title: string): string => title.trim().toLowerCase().replace(/\s+/g, ' ');
-
-const resolvePlanTaskGraph = (tasks: CanvasAgentTeamPlanTask[]): ResolvedPlanTask[] => {
-  const taskByTitle = new Map<string, { task: CanvasAgentTeamPlanTask; id: string }>();
-
-  for (const task of tasks) {
-    const key = planTaskKey(task.title);
-    if (taskByTitle.has(key)) {
-      throw new Error(`Duplicate task title in plan: ${task.title}`);
-    }
-    taskByTitle.set(key, { task, id: randomUUID() });
-  }
-
-  const resolved = tasks.map((task): ResolvedPlanTask => {
-    const current = taskByTitle.get(planTaskKey(task.title));
-    if (!current) throw new Error(`Task not found in plan: ${task.title}`);
-
-    const depIds = Array.from(new Set((task.deps ?? []).map((depTitle) => {
-      const depKey = planTaskKey(depTitle);
-      const dep = taskByTitle.get(depKey);
-      if (!dep) {
-        throw new Error(`Unknown task dependency "${depTitle}" for task "${task.title}"`);
-      }
-      return dep.id;
-    })));
-
-    return { id: current.id, task, depIds };
-  });
-
-  assertResolvedPlanTaskGraphAcyclic(resolved);
-
-  return resolved;
-};
-
-const assertResolvedPlanTaskGraphAcyclic = (tasks: ResolvedPlanTask[]): void => {
-  const byId = new Map(tasks.map((task) => [task.id, task]));
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const stack: string[] = [];
-
-  const label = (id: string): string => {
-    const task = byId.get(id);
-    return task ? `${task.task.title} (${id})` : id;
-  };
-
-  const visit = (id: string): string[] | null => {
-    if (visiting.has(id)) {
-      const start = stack.indexOf(id);
-      return [...stack.slice(start), id];
-    }
-    if (visited.has(id)) return null;
-
-    const task = byId.get(id);
-    if (!task) return null;
-
-    visiting.add(id);
-    stack.push(id);
-    for (const depId of task.depIds) {
-      const cycle = visit(depId);
-      if (cycle) return cycle;
-    }
-    stack.pop();
-    visiting.delete(id);
-    visited.add(id);
-    return null;
-  };
-
-  for (const task of tasks) {
-    const cycle = visit(task.id);
-    if (cycle) {
-      throw new Error(`Task dependency cycle detected: ${cycle.map(label).join(' -> ')}`);
-    }
-  }
-};
-
-const inferPhase = (
-  metadata: CanvasAgentTeamMetadata | undefined,
-  snapshot: RuntimeSnapshot,
-): CanvasAgentTeamPhase => {
-  if (metadata?.phase) return metadata.phase;
-  if (metadata?.pendingPlan) return 'plan_review';
-  if (snapshot.agents.some((agent) => agent.role === 'teammate') || snapshot.tasks.length > 0) {
-    return 'executing';
-  }
-  return snapshot.team.status === 'waiting_approval' ? 'plan_review' : 'briefing';
-};
-
-const isTaskReadyForDispatch = (task: TeamTaskRecord, tasks: TeamTaskRecord[]): boolean =>
-  task.deps.every(depId => tasks.find(candidate => candidate.id === depId)?.status === 'done');
-
-const plannedStartupAgentIds = (snapshot: RuntimeSnapshot): string[] => {
-  const ids = new Set<string>();
-  if (snapshot.team.leadAgentId) ids.add(snapshot.team.leadAgentId);
-
-  const byId = new Map(snapshot.agents.map(agent => [agent.id, agent]));
-  const teammates = snapshot.agents.filter(agent => agent.role === 'teammate');
-  const readyTasks = snapshot.tasks.filter(task =>
-    task.status === 'todo' && isTaskReadyForDispatch(task, snapshot.tasks));
-  for (const task of readyTasks) {
-    const owner = task.ownerAgentId ? byId.get(task.ownerAgentId) : undefined;
-    if (owner?.role === 'teammate') {
-      ids.add(owner.id);
-      continue;
-    }
-    for (const teammate of teammates) ids.add(teammate.id);
-  }
-
-  if (ids.size === 1) {
-    const firstTeammate = teammates[0];
-    if (firstTeammate) ids.add(firstTeammate.id);
-  }
-  return [...ids];
-};
-
-const agentNodeIdsForAgents = (
-  metadata: CanvasAgentTeamMetadata | undefined,
-  agentIds: string[],
-): string[] =>
-  agentIds
-    .map(agentId => metadata?.agentNodeIds[agentId])
-    .filter((nodeId): nodeId is string => typeof nodeId === 'string' && nodeId.length > 0);
-
-const metadataCanvasNodeIds = (metadata: CanvasAgentTeamMetadata | undefined): string[] => [
-  metadata?.frameNodeId,
-  ...Object.values(metadata?.agentNodeIds ?? {}),
-].filter((nodeId): nodeId is string => typeof nodeId === 'string' && nodeId.length > 0);
-
-const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: string, cwd?: string): string => [
-  `You are the Team Leader for "${teamName}" in Pulse Canvas.`,
-  '',
-  `Current team goal: ${goal || 'Clarify the goal with the user.'}`,
-  ...(cwd
-    ? [
-      '',
-      `Team working directory: ${cwd}`,
-      'All teammate nodes created from this plan will start in this directory. Plan tasks against this path unless the user explicitly asks for a different location.',
-    ]
-    : []),
-  '',
-  'Your only job in this phase is to clarify requirements and draft a Pulse Canvas Agent Team plan.',
-  'Do not implement the task yourself. Reading the repository to inform the plan is fine; do not create or edit project files in this phase — the only file you may write is a temporary plan JSON for propose-plan --plan-file.',
-  'Do not spawn teammates yourself; Pulse Canvas will create teammate nodes only after the user approves your plan.',
-  'If there is already a pending plan and the user asks for changes — including changes requested directly in this conversation — you MUST revise and resubmit the full plan by re-running propose-plan. A chat reply alone does NOT update the plan: the task graph shown to the user and the "Approve & Run" action keep using the last submitted plan until you re-run propose-plan. So after agreeing to any change, immediately resubmit the updated plan. Do not create execution tasks during plan review.',
-  '',
-  'When the plan is ready for user approval, submit it through the Pulse Canvas CLI instead of writing a terminal marker.',
-  'Prefer --plan-json so you do not need to edit a temporary file. Use this JSON shape:',
-  '{"summary":"short plan summary","teammates":[{"name":"Backend Codex","agentType":"codex"},{"name":"Frontend Codex","agentType":"codex"},{"name":"QA Codex","agentType":"codex"}],"tasks":[{"title":"Define API contract","description":"Concrete instructions and expected output.","ownerName":"Backend Codex","deps":[],"scope":["docs/api-contract.md","src/server/api"],"verify":"manual"},{"title":"Implement frontend integration","description":"Concrete instructions and expected output.","ownerName":"Frontend Codex","deps":["Define API contract"],"scope":["src/web"],"verify":"npm test --prefix src/web"},{"title":"QA integration and fixes","description":"Verify the completed backend/frontend flow and report or fix issues.","ownerName":"QA Codex","deps":["Define API contract","Implement frontend integration"],"scope":["tests"],"verify":"npm test"}]}',
-  '',
-  'Every task object MUST include "deps": [] or a list of exact task titles from the same plan.',
-  'Give every task that creates or edits files a "scope": the file or directory paths (relative to the working directory) it may modify. Survey, analysis, and review tasks may omit scope.',
-  'Tasks that can run in parallel MUST have non-overlapping scopes. Pulse Canvas will not dispatch two scope-overlapping tasks at the same time, so overlapping scopes silently serialize your DAG.',
-  'Give every task that produces code a "verify": ONE cheap, deterministic command that proves the task works (a scoped test, typecheck, or lint — not a full build or long test suite). Pulse Canvas re-runs it when the teammate submits the task and shows you PASS/FAIL during acceptance. Use "verify": "manual" for survey/analysis/contract tasks.',
-  'Optionally add a top-level "integrationVerify": ONE command that proves the whole deliverable works together (e.g. the full test suite). When the user finishes the team, Pulse Canvas runs it as a final integration task before the review.',
-  'Use deps to encode the real execution order. Do not rely on wording like "after" or "then" in descriptions.',
-  'Plan the smallest DAG that still exposes useful parallel work: usually 3-6 teammates and 4-10 tasks for normal app/repo work. Go above 10 tasks only when there are truly independent deliverables.',
-  'Target 2-4 ready-to-start workstreams. Do not serialize the whole graph behind one setup/research task, and do not create one microtask per file, component, command, or tiny edit.',
-  'Aim for at least 2-3 tasks runnable in parallel at every stage of the DAG. If a task only blocks one downstream task, consider whether they can run concurrently with a shared contract instead of a hard dependency.',
-  'Each teammate should usually own 1-2 meaningful tasks. Split by durable ownership or artifact boundary, not by mechanical steps.',
-  'Use deps only for real handoffs: a task depends on another task only when it needs that task\'s concrete output or contract.',
-  'Downstream tasks such as frontend integration, QA, testing, review, documentation, release, validation, and final summary MUST depend on the implementation or contract tasks they need.',
-  'Make each task narrow and non-overlapping. A task description MUST state the expected deliverable and its scope boundary.',
-  'Survey, analysis, contract, architecture, and planning tasks should produce findings or a contract artifact only; they must not also implement runtime, host app, child apps, QA, or documentation unless that is the entire assigned task.',
-  'Implementation tasks should not include QA/final summary work. QA/documentation/final summary tasks should be separate downstream tasks.',
-  '',
-  'Run:',
-  'pulse-canvas team propose-plan --plan-json \'<json>\'',
-  '',
-  'If the JSON is too large or hard to quote, write a temporary file and run:',
-  'pulse-canvas team propose-plan --plan-file <path-to-json>',
-  '',
-  'The CLI can read PULSE_CANVAS_WORKSPACE_ID, PULSE_CANVAS_TEAM_ID, PULSE_CANVAS_TEAM_AGENT_ID, PULSE_CANVAS_NODE_ID, and PULSE_CANVAS_TEAM_ROLE from this session environment.',
-  '',
-  `User message:\n${content}`,
-].join('\n');
-
-const formatLeadExecutionPrompt = (teamName: string, goal: string, content: string): string => [
-  `Human follow-up for "${teamName}" in Pulse Canvas.`,
-  '',
-  `Team goal: ${goal || 'Coordinate the team.'}`,
-  '',
-  'You are the Team Leader during execution. You coordinate the team.',
-  'You may do lightweight integration and coordination yourself: answer the human directly, summarize status, explain how the pieces fit together, and lay out how the project should be accepted and delivered. A quick read to answer such questions is fine.',
-  'Do not take over a teammate\'s detailed implementation work. Do not write or edit feature code, build out deliverables, or run builds, installs, dev servers, or tests to implement the change — hand that to a teammate instead of doing it yourself.',
-  'No change is too small to delegate: even a one-line fix goes to the owning teammate (send) or a new task, because edits you make bypass the team\'s review, handoff, and scope tracking.',
-  'First decide what the follow-up needs:',
-  'If it is a question or a coordination / acceptance / delivery matter you can handle as lead, just reply — do not create a task.',
-  'Otherwise, decide whether it modifies existing work or creates genuinely new work.',
-  'If it changes work that is already todo, in progress, needs input, or needs review, do not create a duplicate task. Send the change to the responsible teammate instead:',
-  'pulse-canvas team send --to "Teammate name" --message "Revise the current task: ..."',
-  'If a teammate already produced enough work to satisfy later tasks, close only the covered downstream tasks that are not actively running:',
-  'pulse-canvas team complete-task --task "<covered downstream task id or title>" --summary "<why this was already satisfied>"',
-  'If a covered downstream task is actively running, send guidance to that teammate instead of marking it complete.',
-  'Use create-task only for new work not covered by any existing task:',
-  'pulse-canvas team create-task --title "Task title" --description "Concrete instructions" --owner "Teammate name" --scope "src/path" --verify "<cheap test/typecheck command>" --dispatch',
-  'Declare --scope (repeatable) for tasks that edit files; tasks with overlapping scopes never run at the same time.',
-  'Declare --verify for tasks that produce code; Pulse Canvas re-runs it at submission and shows you PASS/FAIL during acceptance.',
-  '',
-  'Use pulse-canvas team status to ground yourself in the current tasks, agents, open questions, and pending reviews before deciding.',
-  'Use pulse-canvas team send --to "Teammate name" --message "..." to share context with a teammate.',
-  'Use pulse-canvas team propose-plan only when the change needs a new human-approved plan.',
-  'Do not use Claude/Codex subagents for teammate work; Pulse Canvas owns teammate nodes and dispatch.',
-  'Handle this follow-up once. Do not run sleep, watch, tail, polling loops, or repeated status checks. Pulse Canvas will wake you again when another decision is required.',
-  '',
-  `Human message:\n${content}`,
-].join('\n');
 
 export class CanvasAgentTeamsService {
   private readonly runtimes = new Map<string, RuntimeBundle>();
@@ -550,8 +128,12 @@ export class CanvasAgentTeamsService {
   // disk writes but check-then-write state transitions are not atomic
   // without this.
   private readonly teamLocks = new Map<string, Promise<unknown>>();
-  private readonly eventBroadcastTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly teamEventBroadcaster = new TeamEventBroadcaster({
+    loadMetadata: async (workspaceId, teamId) => this.getBundle(workspaceId).store.getTeamMetadata(teamId),
+    broadcast: broadcastCanvasUpdate,
+  });
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly workspaceDiscovery = new AgentTeamWorkspaceDiscovery();
   // Agents that looked dead on the previous heartbeat tick. A session is only
   // declared dead after two consecutive suspicious ticks, so a node mid-spawn
   // (PTY created but sessionId not yet persisted to canvas.json) is not
@@ -567,14 +149,14 @@ export class CanvasAgentTeamsService {
   // tests can shrink the window.
   softStallThresholdMs = SOFT_STALL_THRESHOLD_MS;
   // Queued-launch grace before the watchdog escalates (public for tests).
-  queuedLaunchGraceMs = QUEUED_LAUNCH_GRACE_MS;
+  queuedLaunchGraceMs = DEFAULT_QUEUED_LAUNCH_GRACE_MS;
   // First heartbeat tick that observed each agent's current queued launch
   // prompt with no live PTY; cleared when the PTY appears or the queue drains.
   private readonly queuedLaunchSince = new Map<string, number>();
   private readonly lastAgentOutputAt = new Map<string, number>();
   private readonly softStallNudgedAt = new Map<string, number>();
   // nodeId -> agent identity for the PTY hot path (one entry per team node).
-  private readonly nodeAgentCache = new Map<string, { teamId: string; agentId: string }>();
+  private readonly agentNodeResolver = new AgentNodeResolver();
 
   private withTeamLock<T>(workspaceId: string, teamId: string, run: () => Promise<T>): Promise<T> {
     const key = `${workspaceId}:${teamId}`;
@@ -738,7 +320,7 @@ export class CanvasAgentTeamsService {
     sourceAgent.updatedAt = now;
     await store.saveAgent(sourceAgent);
     await runtime.setTeamStatus(teamId, 'waiting_approval', sourceAgent.id);
-    this.broadcastTeamUpdate(workspaceId, metadata);
+    this.teamEventBroadcaster.broadcastMetadata(workspaceId, metadata);
 
     return this.snapshotInternal(workspaceId, teamId);
   }
@@ -890,7 +472,7 @@ export class CanvasAgentTeamsService {
     metadata.pendingPlan.updatedAt = now;
     metadata.updatedAt = now;
     await store.saveTeamMetadata(teamId, metadata);
-    this.broadcastTeamUpdate(workspaceId, metadata);
+    this.teamEventBroadcaster.broadcastMetadata(workspaceId, metadata);
 
     return this.snapshotInternal(workspaceId, teamId);
   }
@@ -967,12 +549,12 @@ export class CanvasAgentTeamsService {
       ].join('\n'));
     }
     const owner = input.ownerAgentId || input.ownerName
-      ? this.resolveAgentReference(snapshot.agents, input.ownerAgentId || input.ownerName || '')
+      ? resolveAgentReference(snapshot.agents, input.ownerAgentId || input.ownerName || '')
       : undefined;
     const depRefs = input.depRefs ?? [];
     const deps = Array.from(new Set([
       ...(input.deps ?? []),
-      ...this.resolveTaskReferences(snapshot.tasks, depRefs),
+      ...resolveTaskReferences(snapshot.tasks, depRefs),
     ]));
     const taskMetadata: Record<string, unknown> = {};
     if (input.scope && input.scope.length > 0) taskMetadata[TASK_METADATA_KEYS.scope] = input.scope;
@@ -1207,11 +789,11 @@ export class CanvasAgentTeamsService {
       const { store } = this.getBundle(input.workspaceId);
       const agents = await store.listAgents(input.teamId);
       const agent = input.sourceAgentId
-        ? this.resolveAgentReference(agents, input.sourceAgentId)
+        ? resolveAgentReference(agents, input.sourceAgentId)
         : undefined;
       if (agent?.role !== 'teammate') return undefined;
       const tasks = await store.listTasks(input.teamId);
-      const task = this.resolveTaskForAction(tasks, input.taskId, agent);
+      const task = resolveTaskForAction(tasks, input.taskId, agent);
       if (task.status === 'done' || task.status === 'failed') return undefined;
       const command = readTaskVerifyCommand(task.metadata);
       if (!command) return undefined;
@@ -1224,35 +806,11 @@ export class CanvasAgentTeamsService {
       // longer budget than per-task verifies.
       const timeoutMs = task.metadata?.kind === 'integration-verification'
         ? INTEGRATION_VERIFY_TIMEOUT_MS
-        : VERIFY_TIMEOUT_MS;
-      return await this.runTaskVerification(command, metadata?.cwd || agent.cwd, timeoutMs);
+        : TASK_VERIFY_TIMEOUT_MS;
+      return await runTaskVerification(command, metadata?.cwd || agent.cwd, timeoutMs);
     } catch {
       return undefined;
     }
-  }
-
-  private runTaskVerification(command: string, cwd: string | undefined, timeoutMs = VERIFY_TIMEOUT_MS): Promise<TaskVerificationResult> {
-    const startedAt = Date.now();
-    return new Promise((resolve) => {
-      exec(command, {
-        cwd: cwd && isExistingDirectory(cwd) ? cwd : undefined,
-        timeout: timeoutMs,
-        maxBuffer: 4 * 1024 * 1024,
-      }, (error, stdout, stderr) => {
-        const output = `${stdout ?? ''}${stderr ? `\n${stderr}` : ''}`.trim();
-        const exitCode = error == null
-          ? 0
-          : typeof error.code === 'number' ? error.code : null;
-        resolve({
-          command,
-          ok: error == null,
-          exitCode,
-          durationMs: Date.now() - startedAt,
-          outputTail: output.slice(-VERIFY_OUTPUT_TAIL_CHARS),
-          at: Date.now(),
-        });
-      });
-    });
   }
 
   private async completeAgentTaskLocked(input: CanvasAgentTeamCompleteTaskInput, verification?: TaskVerificationResult): Promise<{
@@ -1262,9 +820,9 @@ export class CanvasAgentTeamsService {
     const { runtime, store } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
 
     // Teammate completions must ship a handoff file: downstream tasks and the
     // Team Lead's acceptance review read it instead of a truncated summary.
@@ -1317,9 +875,9 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
     await runtime.blockTask(task.id, input.reason, agent?.id ?? 'runtime');
     return this.snapshotInternal(input.workspaceId, input.teamId);
   }
@@ -1332,7 +890,7 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     // Cancellation withdraws work and releases its file scope for replacement
     // tasks — a routing decision that belongs to the lead or the human, not
@@ -1340,7 +898,7 @@ export class CanvasAgentTeamsService {
     if (agent && agent.role !== 'lead') {
       throw new Error('Only the Team Lead can cancel tasks. Use block-task to report a blocker instead.');
     }
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
     await runtime.cancelTask(task.id, input.reason, agent?.id ?? 'human');
     // The cancelled task no longer holds its scope: dispatch immediately so
     // an overlapping fallback task starts now instead of on the next tick.
@@ -1356,9 +914,9 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
-    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    const task = resolveTaskForAction(snapshot.tasks, input.taskId, agent);
     await runtime.openHumanGate({
       teamId: input.teamId,
       agentId: agent?.id,
@@ -1378,10 +936,10 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     const task = input.taskId || agent?.currentTaskId
-      ? this.resolveTaskForAction(snapshot.tasks, input.taskId, agent)
+      ? resolveTaskForAction(snapshot.tasks, input.taskId, agent)
       : undefined;
     await runtime.createArtifact({
       teamId: input.teamId,
@@ -1411,7 +969,7 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
     const agent = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     // Finalizing the whole team is a Lead (or human) decision. A teammate
     // that believes everything is done reports its own task; the Lead
@@ -1489,7 +1047,7 @@ export class CanvasAgentTeamsService {
   ): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
-    const agent = this.resolveAgentReference(snapshot.agents, agentRef);
+    const agent = resolveAgentReference(snapshot.agents, agentRef);
     const input = agent.role === 'lead'
       ? formatLeadExecutionPrompt(snapshot.team.name, snapshot.team.goal, content)
       : content;
@@ -1498,11 +1056,11 @@ export class CanvasAgentTeamsService {
     // teammate questions), resolve it so we can pick the exact gate instead of
     // guessing from the agent's current/needs-input state.
     const targetTaskId = taskRef
-      ? this.resolveTaskReferences(snapshot.tasks, [taskRef])[0]
+      ? resolveTaskReferences(snapshot.tasks, [taskRef])[0]
       : undefined;
     const openGate = agent.role === 'lead'
       ? undefined
-      : this.resolveOpenGateForAgent(snapshot, agent, targetTaskId);
+      : resolveOpenGateForAgent(snapshot, agent, targetTaskId);
     if (openGate) {
       await runtime.answerHumanGate(openGate.id, input);
       await runtime.dispatchReadyTasks(teamId);
@@ -1649,9 +1207,7 @@ export class CanvasAgentTeamsService {
   ): Promise<{ canResume: boolean; snapshot: CanvasAgentTeamSnapshot }> {
     const { runtime, store } = this.getBundle(workspaceId);
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
-    await this.repairLegacyOutputMarkerBlocks(store, teamId);
-    await this.repairAnsweredHumanGateBlocks(store, teamId);
-    await this.repairPlaceholderHumanGates(store, teamId);
+    await repairAgentTeamState(store, teamId);
 
     const [team, agent, tasks, metadata] = await Promise.all([
       store.getTeam(teamId),
@@ -1735,9 +1291,7 @@ export class CanvasAgentTeamsService {
   private async snapshotInternal(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
-    await this.repairLegacyOutputMarkerBlocks(store, teamId);
-    await this.repairAnsweredHumanGateBlocks(store, teamId);
-    await this.repairPlaceholderHumanGates(store, teamId);
+    await repairAgentTeamState(store, teamId);
     await runtime.notifyLeadPendingGates(teamId);
     await runtime.notifyLeadPendingTaskReviews(teamId);
     await runtime.notifyLeadReviewIfStalled(teamId);
@@ -1894,7 +1448,7 @@ export class CanvasAgentTeamsService {
   }
 
   async heartbeatTick(): Promise<void> {
-    const workspaceIds = await this.discoverWorkspaceIds();
+    const workspaceIds = await this.workspaceDiscovery.discover(this.runtimes.keys());
     for (const workspaceId of workspaceIds) {
       const { runtime, store } = this.getBundle(workspaceId);
       let entries: Array<{ teamId: string }>;
@@ -1915,9 +1469,7 @@ export class CanvasAgentTeamsService {
               return;
             }
             await this.watchdogCheckAgents(workspaceId, entry.teamId);
-            await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
-            await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
-            await this.repairPlaceholderHumanGates(store, entry.teamId);
+            await repairAgentTeamState(store, entry.teamId);
             await runtime.repairCurrentRound(entry.teamId);
             await runtime.notifyLeadPendingGates(entry.teamId);
             await runtime.notifyLeadPendingTaskReviews(entry.teamId);
@@ -1929,36 +1481,6 @@ export class CanvasAgentTeamsService {
         }
       }
     }
-  }
-
-  private workspaceScanCache: { at: number; ids: string[] } | null = null;
-
-  private async discoverWorkspaceIds(): Promise<string[]> {
-    const ids = new Set(this.runtimes.keys());
-    // The on-disk set changes only when a team is created in a new workspace
-    // (which goes through getBundle and is picked up immediately above);
-    // rescan the directory at most once a minute, with async stats, so the
-    // heartbeat never blocks the main thread on storage I/O.
-    if (!this.workspaceScanCache || Date.now() - this.workspaceScanCache.at > 60_000) {
-      const found: string[] = [];
-      try {
-        const dirents = await fsPromises.readdir(STORE_DIR, { withFileTypes: true });
-        await Promise.all(dirents.map(async (dirent) => {
-          if (!dirent.isDirectory()) return;
-          try {
-            const stat = await fsPromises.stat(join(STORE_DIR, dirent.name, 'agent-teams', 'state.json'));
-            if (stat.isFile()) found.push(dirent.name);
-          } catch {
-            // No team state in this workspace.
-          }
-        }));
-      } catch {
-        // Store directory may not exist yet.
-      }
-      this.workspaceScanCache = { at: Date.now(), ids: found };
-    }
-    for (const id of this.workspaceScanCache.ids) ids.add(id);
-    return [...ids];
   }
 
   /**
@@ -2062,12 +1584,16 @@ export class CanvasAgentTeamsService {
       if (state.hasQueuedLaunch) {
         this.watchdogSuspects.delete(suspectKey);
         const now = Date.now();
-        const since = this.queuedLaunchSince.get(suspectKey);
-        if (since === undefined) {
-          this.queuedLaunchSince.set(suspectKey, now);
+        const observation = observeQueuedLaunch(
+          this.queuedLaunchSince.get(suspectKey),
+          now,
+          this.queuedLaunchGraceMs,
+        );
+        if (observation.state === 'started') {
+          this.queuedLaunchSince.set(suspectKey, observation.since);
           continue;
         }
-        if (now - since < this.queuedLaunchGraceMs) continue;
+        if (observation.state === 'waiting') continue;
         this.queuedLaunchSince.delete(suspectKey);
         await runtime.requestTaskReview(agent.currentTaskId, QUEUED_LAUNCH_REVIEW_REASON, agent.id);
         continue;
@@ -2121,12 +1647,16 @@ export class CanvasAgentTeamsService {
       // the queue within seconds; past the grace nothing is going to.
       this.watchdogSuspects.delete(suspectKey);
       const now = Date.now();
-      const since = this.queuedLaunchSince.get(suspectKey);
-      if (since === undefined) {
-        this.queuedLaunchSince.set(suspectKey, now);
+      const observation = observeQueuedLaunch(
+        this.queuedLaunchSince.get(suspectKey),
+        now,
+        this.queuedLaunchGraceMs,
+      );
+      if (observation.state === 'started') {
+        this.queuedLaunchSince.set(suspectKey, observation.since);
         return;
       }
-      if (now - since < this.queuedLaunchGraceMs) return;
+      if (observation.state === 'waiting') return;
       this.queuedLaunchSince.delete(suspectKey);
     } else {
       this.queuedLaunchSince.delete(suspectKey);
@@ -2199,30 +1729,11 @@ export class CanvasAgentTeamsService {
     // instead of waiting for its next poll. Debounced per team because runs
     // emit events in bursts.
     runtime.onEvent((event) => {
-      this.scheduleTeamEventBroadcast(workspaceId, event.teamId);
+      this.teamEventBroadcaster.schedule(workspaceId, event.teamId);
     });
     const bundle = { store, runtime };
     this.runtimes.set(workspaceId, bundle);
     return bundle;
-  }
-
-  private scheduleTeamEventBroadcast(workspaceId: string, teamId: string): void {
-    const key = `${workspaceId}:${teamId}`;
-    if (this.eventBroadcastTimers.has(key)) return;
-    const timer = setTimeout(() => {
-      this.eventBroadcastTimers.delete(key);
-      void (async () => {
-        try {
-          const { store } = this.getBundle(workspaceId);
-          const metadata = await store.getTeamMetadata(teamId);
-          if (metadata) this.broadcastTeamUpdate(workspaceId, metadata);
-        } catch {
-          // Team may have been deleted between the event and the flush.
-        }
-      })();
-    }, 250);
-    timer.unref?.();
-    this.eventBroadcastTimers.set(key, timer);
   }
 
   private async requireMetadata(store: CanvasAgentTeamStore, teamId: string): Promise<CanvasAgentTeamMetadata> {
@@ -2230,17 +1741,6 @@ export class CanvasAgentTeamsService {
     if (!metadata) throw new Error(`Team metadata not found: ${teamId}`);
     return metadata;
   }
-
-  private broadcastTeamUpdate(workspaceId: string, metadata: CanvasAgentTeamMetadata): void {
-    const nodeIds = [
-      metadata.frameNodeId,
-      ...Object.values(metadata.agentNodeIds),
-    ].filter((nodeId): nodeId is string => !!nodeId);
-    if (nodeIds.length > 0) {
-      broadcastCanvasUpdate(workspaceId, nodeIds, 'update', 'agent-teams');
-    }
-  }
-
 
   /**
    * Resolve which team agent a canvas node belongs to, cached for the PTY
@@ -2250,111 +1750,8 @@ export class CanvasAgentTeamsService {
    * (sessionRef.sessionId is the node id) and deleted teams self-heal.
    */
   private async resolveAgentNodeCached(workspaceId: string, nodeId: string): Promise<AgentNodeMatch | null> {
-    const key = `${workspaceId}:${nodeId}`;
     const { store } = this.getBundle(workspaceId);
-    const cached = this.nodeAgentCache.get(key);
-    if (cached) {
-      const agent = await store.getAgent(cached.agentId);
-      if (agent && agent.teamId === cached.teamId && agent.sessionRef?.sessionId === nodeId) {
-        return { teamId: cached.teamId, agent };
-      }
-      this.nodeAgentCache.delete(key);
-    }
-    const match = await this.findAgentByNodeId(store, nodeId);
-    if (match) {
-      this.nodeAgentCache.set(key, { teamId: match.teamId, agentId: match.agent.id });
-    }
-    return match;
-  }
-
-  private async findAgentByNodeId(store: CanvasAgentTeamStore, nodeId: string): Promise<AgentNodeMatch | null> {
-    const entries = await store.listTeamMetadata();
-    for (const entry of entries) {
-      const agentId = Object.entries(entry.metadata.agentNodeIds)
-        .find(([, candidateNodeId]) => candidateNodeId === nodeId)?.[0];
-      if (!agentId) continue;
-      const agent = await store.getAgent(agentId);
-      if (agent) return { teamId: entry.teamId, agent };
-    }
-    return null;
-  }
-
-  private resolveOpenGateForAgent(
-    snapshot: RuntimeSnapshot,
-    agent: TeamAgentRecord,
-    taskId?: string,
-  ): RuntimeSnapshot['humanGates'][number] | undefined {
-    const openGates = snapshot.humanGates.filter((gate) =>
-      gate.status === 'open'
-      && gate.agentId === agent.id
-    );
-    if (openGates.length === 0) return undefined;
-
-    // An explicit task pins the answer to that task's gate, disambiguating when
-    // a teammate has several open questions across different tasks.
-    if (taskId) {
-      return openGates.find((gate) => gate.taskId === taskId);
-    }
-
-    if (agent.currentTaskId) {
-      const currentTaskGate = openGates.find((gate) => gate.taskId === agent.currentTaskId);
-      if (currentTaskGate) return currentTaskGate;
-    }
-
-    const needsInputTaskIds = new Set(
-      snapshot.tasks
-        .filter((task) => task.ownerAgentId === agent.id && task.status === 'needs_input')
-        .map((task) => task.id),
-    );
-    const needsInputGates = openGates.filter((gate) => gate.taskId && needsInputTaskIds.has(gate.taskId));
-    if (needsInputGates.length === 1) return needsInputGates[0];
-
-    return openGates.length === 1 ? openGates[0] : undefined;
-  }
-
-  private resolveAgentReference(agents: TeamAgentRecord[], ref: string): TeamAgentRecord {
-    const trimmed = ref.trim();
-    if (!trimmed) throw new Error('Agent reference is required');
-    const byId = agents.find((agent) => agent.id === trimmed);
-    if (byId) return byId;
-
-    const key = trimmed.toLowerCase();
-    const matches = agents.filter((agent) => agent.name.trim().toLowerCase() === key);
-    if (matches.length === 1) return matches[0];
-    if (matches.length > 1) throw new Error(`Agent reference is ambiguous: ${ref}`);
-    throw new Error(`Agent not found: ${ref}`);
-  }
-
-  private resolveTaskReferences(tasks: TeamTaskRecord[], refs: string[]): string[] {
-    return refs.map((ref) => {
-      const trimmed = ref.trim();
-      if (!trimmed) throw new Error('Task dependency reference is empty');
-      const byId = tasks.find((task) => task.id === trimmed);
-      if (byId) return byId.id;
-
-      const key = trimmed.toLowerCase();
-      const matches = tasks.filter((task) => task.title.trim().toLowerCase() === key);
-      if (matches.length === 1) return matches[0].id;
-      if (matches.length > 1) throw new Error(`Task dependency reference is ambiguous: ${ref}`);
-      throw new Error(`Task dependency not found: ${ref}`);
-    });
-  }
-
-  private resolveTaskForAction(
-    tasks: TeamTaskRecord[],
-    taskRef: string | undefined,
-    agent: TeamAgentRecord | undefined,
-  ): TeamTaskRecord {
-    if (taskRef) {
-      const [taskId] = this.resolveTaskReferences(tasks, [taskRef]);
-      const task = tasks.find((candidate) => candidate.id === taskId);
-      if (task) return task;
-    }
-    if (agent?.currentTaskId) {
-      const task = tasks.find((candidate) => candidate.id === agent.currentTaskId);
-      if (task) return task;
-    }
-    throw new Error('Task ID required when source agent has no current task');
+    return this.agentNodeResolver.resolve(workspaceId, nodeId, store);
   }
 
   private async applyAgentOutputMarker(
@@ -2442,123 +1839,6 @@ export class CanvasAgentTeamsService {
     return false;
   }
 
-  private async repairLegacyOutputMarkerBlocks(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
-    const [tasks, agents] = await Promise.all([
-      store.listTasks(teamId),
-      store.listAgents(teamId),
-    ]);
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-    const now = Date.now();
-    for (const task of tasks) {
-      if (task.status !== 'blocked' || task.blockedReason !== LEGACY_OUTPUT_BLOCK_REASON || !task.ownerAgentId) {
-        continue;
-      }
-      const agent = agentsById.get(task.ownerAgentId);
-      if (!agent || agent.currentTaskId !== task.id) continue;
-      task.status = 'in_progress';
-      task.blockedReason = undefined;
-      task.updatedAt = now;
-      await store.saveTask(task);
-      if (agent.status === 'blocked') {
-        agent.status = 'running';
-        agent.updatedAt = now;
-        await store.saveAgent(agent);
-      }
-    }
-  }
-
-  /**
-   * Cancel open human gates whose prompt carries no concrete question —
-   * junk recorded before the marker parser filtered echoed/wrapped prompt
-   * examples. Such gates nag the Team Lead with unanswerable digests and
-   * park their task/agent in needs_input although the agent never actually
-   * asked anything; once cancelled, the parked records resume.
-   */
-  private async repairPlaceholderHumanGates(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
-    const gates = await store.listHumanGates(teamId);
-    const junk = gates.filter((gate) => gate.status === 'open' && isPlaceholderHumanInputText(gate.prompt.trim()));
-    if (junk.length === 0) return;
-
-    const now = Date.now();
-    for (const gate of junk) {
-      gate.status = 'cancelled';
-      gate.updatedAt = now;
-      await store.saveHumanGate(gate);
-    }
-
-    const [tasks, agents, refreshedGates] = await Promise.all([
-      store.listTasks(teamId),
-      store.listAgents(teamId),
-      store.listHumanGates(teamId),
-    ]);
-    const remainingOpen = refreshedGates.filter((gate) => gate.status === 'open');
-    const openTaskIds = new Set(remainingOpen.map((gate) => gate.taskId).filter(Boolean));
-    const openAgentIds = new Set(remainingOpen.map((gate) => gate.agentId).filter(Boolean));
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-
-    for (const gate of junk) {
-      if (gate.taskId && !openTaskIds.has(gate.taskId)) {
-        const task = tasks.find((candidate) => candidate.id === gate.taskId);
-        if (task && task.status === 'needs_input') {
-          task.status = task.ownerAgentId ? 'in_progress' : 'todo';
-          task.blockedReason = undefined;
-          task.updatedAt = now;
-          await store.saveTask(task);
-        }
-      }
-      if (gate.agentId && !openAgentIds.has(gate.agentId)) {
-        const agent = agentsById.get(gate.agentId);
-        if (agent && agent.status === 'needs_input') {
-          agent.status = agent.currentTaskId ? 'running' : 'idle';
-          agent.updatedAt = now;
-          await store.saveAgent(agent);
-        }
-      }
-    }
-  }
-
-  private async repairAnsweredHumanGateBlocks(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
-    const [gates, tasks, agents] = await Promise.all([
-      store.listHumanGates(teamId),
-      store.listTasks(teamId),
-      store.listAgents(teamId),
-    ]);
-    const openTaskGateIds = new Set(
-      gates
-        .filter((gate) => gate.status === 'open' && gate.taskId)
-        .map((gate) => gate.taskId as string),
-    );
-    const answeredTaskGateIds = new Set(
-      gates
-        .filter((gate) => gate.status === 'answered' && gate.taskId)
-        .map((gate) => gate.taskId as string),
-    );
-    if (answeredTaskGateIds.size === 0) return;
-
-    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-    const now = Date.now();
-    for (const task of tasks) {
-      if (
-        task.status !== 'needs_input'
-        || !answeredTaskGateIds.has(task.id)
-        || openTaskGateIds.has(task.id)
-      ) {
-        continue;
-      }
-
-      task.status = task.ownerAgentId ? 'in_progress' : 'todo';
-      task.blockedReason = undefined;
-      task.updatedAt = now;
-      await store.saveTask(task);
-
-      if (!task.ownerAgentId) continue;
-      const agent = agentsById.get(task.ownerAgentId);
-      if (!agent || agent.status !== 'needs_input' || agent.currentTaskId !== task.id) continue;
-      agent.status = 'running';
-      agent.updatedAt = now;
-      await store.saveAgent(agent);
-    }
-  }
 }
 
 let service: CanvasAgentTeamsService | null = null;

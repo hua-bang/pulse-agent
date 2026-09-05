@@ -99,7 +99,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Artifact runtime capabilities (page → host actions) | `src/shared/artifact-capabilities.ts` (trust model + contract), `src/main/artifacts/capability-ipc.ts` (`artifact-capability:invoke`, main-side authoritative validation), `src/renderer/src/modules/artifacts/internal/capabilityBridge.ts` + `ArtifactTabView` (host-authored bridge script, postMessage relay, audit toast). Capabilities are declared on the artifact RECORD by creating code (never by the page), gated on a real user gesture in the bridge, and every write surfaces a toast. Current capabilities: `memory.adopt`, `skill.save` (both = the user's click IS the confirmation). Tests: `src/main/artifacts/__tests__/capability-invoke.test.ts` |
 | Artifact pin lifecycle + Library drawer | `src/main/artifacts/ipc.ts` — pin refuses sentinel (`__*`) scopes, dedupes against a live mirror, list/get lazily clear a stale `pinnedNodeId`, delete removes the canvas mirror node; `artifact:list-all` (metadata-only summaries) skips `__*` dirs EXCEPT `__global_chat__` (session-store sentinel rule — a blanket skip silently hides global artifacts). Library drawer = renamed ReferenceDrawer: Pinned entries persist per workspace via the `references` IPC domain (`src/main/references/`, `src/shared/references.ts`, hydrate/save in `Workbench/useReferenceEntries.ts`); Artifacts source tab is `ReferenceDrawer/ArtifactsPicker.tsx` (cross-scope pin disabled by design). Tests: `src/main/artifacts/__tests__/pin-lifecycle.test.ts` |
 | Headless (background) agent runs | `src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory-report.ts` (first consumer — cross-workspace memory report as self-contained HTML; adoption stays interactive-only; scheduled entry archives to `<memory>/reports/` with rolling retention AND publishes a `__global_chat__`-scoped artifact, surfaced by an OS notification whose click pushes `dock:open-artifact`). Tests: `src/main/agent/__tests__/headless-run.test.ts` |
-| Scheduled tasks | Read `harness/knowledge/scheduled-tasks.md` before changing cadence/DST math, catch-up or `intervalMinutes` migration, the run-finished toast/dock-chat chain, or the scheduled session-store vocabulary. Key contracts: `src/shared/scheduled.ts`, `src/main/scheduled/`, `src/shared/agent-chat.ts`, `src/renderer/src/shared/dock/dock-chat-availability.ts`, `src/main/agent/tools/scheduled.ts`. Tests: `src/shared/scheduled.test.ts`, `src/main/__tests__/scheduled-task-service.test.ts`, `src/main/__tests__/scheduled-run-notify.test.ts`, `src/renderer/src/shared/dock/dock-chat-availability.test.ts`. |
+| Scheduled tasks | Read `harness/knowledge/scheduled-tasks.md` before changing cadence/DST math, catch-up or `intervalMinutes` migration, the run-finished toast/dock-chat chain, or the scheduled session-store vocabulary. Key contracts: `src/shared/scheduled.ts`, `src/main/scheduled/`, `src/shared/agent-chat.ts`, `src/renderer/src/shared/dock/dock-chat-availability.ts`, `src/main/agent/tools/scheduled.ts`. Tests: `src/shared/scheduled.test.ts`, `src/main/scheduled/scheduled-task-service.test.ts`, `src/main/__tests__/scheduled-run-notify.test.ts`, `src/renderer/src/shared/dock/dock-chat-availability.test.ts`. |
 | Dock web tabs (the embedded browser) | Read `harness/knowledge/dock-browser.md` before changing guest navigation, identity/routing, retention, focus, shortcuts, or tab overflow. Key contracts: `src/shared/webview-registration.ts`, `src/shared/link-open.ts`, `src/shared/dock-shortcuts.ts`; main policy/registry under `src/main/app/` + `src/main/webview/`; renderer ownership under `IframeNodeBody/webview-identities.ts`, `RightDock/`, and `LinkDrawer/`. |
 | Add a capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md`; use `harness/skills/add-agent-tool/SKILL.md` for the optional task-specific Canvas Agent adapter |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/modules/agent-team/` |
@@ -109,7 +109,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 | Project records (perf analyses, roadmaps) | `docs/` |
 | Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |
 | Boundary, file-size, and UI-reuse gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts`, `src/main/__tests__/ui-reuse-governance.test.ts` |
-| Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
+| Storage/plugin/runtime tests | `src/main/canvas/__tests__/storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
 | Local validation | `harness/validate/validation.yaml` |
 | Choose proportionate local validation | `harness/skills/validate-canvas-change/SKILL.md` |
 
@@ -169,7 +169,7 @@ deploys the external-agent `pulse-canvas` CLI + bundled skills. Do not mix them.
 - External canvas-store synchronization must treat edges as first-class state:
   watcher events carry edge ids, renderer reloads must accept edge-only events,
   and stale saves merge edges by `updatedAt` without dropping unsaved local
-  edges. Guards: `src/main/__tests__/canvas-store-merge.test.ts` and
+  edges. Guards: `src/main/canvas/__tests__/store-merge.test.ts` and
   `src/renderer/src/modules/canvas/document/__tests__/externalMerge.test.ts`.
 - Live-app capabilities live under `src/main/runtime/capabilities/` behind tiered access (`read`/`operate`/`unsafe`) and the runtime server's bearer-auth boundary; Pulse CLI gets `read`/`operate` by default, with `browser.page.eval` (`page_eval` tool) and `host.renderer.eval` (`host_renderer_eval` tool / `pulse-canvas runtime host-eval`) as the only `unsafe` exceptions, each independently flag-gated; external Canvas node updates stay limited to title/content.
   Guard: `src/main/runtime/capabilities/*.test.ts`, `src/main/runtime/__tests__/control-server.test.ts`.
@@ -251,8 +251,8 @@ pnpm --filter canvas-workspace package:linux
   import, and migration hooks.
 - `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,
   recovery, and pollution detection.
-- `src/main/agent/`: Canvas Agent service, session store, prompt/model config,
-  tools, and chat IPC.
+- `src/main/agent/`: Canvas Agent service, session store, prompt config, tools,
+  and chat IPC; shared provider/model config lives in `src/main/models/`.
 - `src/main/agent-teams/`: agent-team service, store, IPC, PTY bridge, and
   canvas node integration.
 - `src/main/runtime/control-server.ts`: loopback runtime server used by live

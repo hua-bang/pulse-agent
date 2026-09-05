@@ -23,7 +23,7 @@ import {
 } from '../../../plugins/mock-node/constants';
 import { createNodeReadTools } from './node-read-tools';
 import { applyStringEdits, type StringEdit } from './_shared/string-edits';
-import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
+import { getAgentCapabilityPort } from '../capability-port';
 
 export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -333,7 +333,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           if (!applied.ok) return `Error: ${applied.error}`;
           content = applied.content;
         }
-        const result = await getCanvasCapabilityRuntime().call(
+        const result = await getAgentCapabilityPort().call(
           'canvas.nodes.update',
           {
             nodeId: input.nodeId,

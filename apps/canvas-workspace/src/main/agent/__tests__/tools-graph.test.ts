@@ -68,6 +68,8 @@ vi.mock('../../dock/tab-store', () => ({
 }));
 
 import { createCanvasTools, createGlobalCanvasTools } from '../tools';
+import { setAgentCapabilityPort } from '../capability-port';
+import { getCanvasCapabilityRuntime } from '../../runtime/capabilities';
 import {
   readCanvasFull,
   writeCanvasFull,
@@ -80,6 +82,8 @@ import {
 } from '../../canvas/nodes/store';
 import { upsertKnowledgeTag } from '../../canvas/nodes/tags';
 import type { CanvasEdge } from '../../../shared/canvas';
+
+setAgentCapabilityPort(getCanvasCapabilityRuntime());
 
 const wsId = 'ws-tools-test';
 
