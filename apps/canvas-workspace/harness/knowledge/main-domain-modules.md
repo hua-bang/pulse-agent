@@ -85,8 +85,9 @@ documentation generation.
 
 Multi-agent teams ownership: team service and store, team IPC, PTY bridge for
 teammate terminals, canvas node integration, session adapter into the canvas
-agent. Integrates `pulse-coder-agent-teams`. `service.ts` (2,569 lines) is the
-largest baselined file in the app — split opportunities live here.
+agent. Integrates `pulse-coder-agent-teams`. `service.ts` is down from 2,569
+to 1,849 lines; the remaining transition/watchdog state machines are the next
+split opportunities.
 
 ### `artifacts/`
 

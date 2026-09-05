@@ -22,7 +22,7 @@ interface ImportRef {
   sourceFile: string;
   line: number;
   specifier: string;
-  kind: 'import' | 'export' | 'dynamic-import' | 'require';
+  kind: 'import' | 'export' | 'dynamic-import' | 'import-type' | 'require';
 }
 
 interface ResolvedImport extends ImportRef {
@@ -155,6 +155,24 @@ describe('import boundaries', () => {
 
     expect(cyclicEdges).toEqual([]);
   });
+
+  it('treats TypeScript import types as domain dependencies', () => {
+    const sourcePath = join(SRC_ROOT, 'main', 'canvas', 'synthetic.ts');
+    const imports = readImportsFromSource(
+      sourcePath,
+      "type AgentService = import('../agent/service').CanvasAgentService;",
+    );
+    const resolved = imports.flatMap(resolveImport);
+
+    expect(imports).toMatchObject([{
+      sourceFile: 'src/main/canvas/synthetic.ts',
+      specifier: '../agent/service',
+      kind: 'import-type',
+    }]);
+    expect(resolved.flatMap(checkMainDomainBoundary)).toEqual([
+      'src/main/canvas/synthetic.ts:1 imports ../agent/service (canvas -> agent)',
+    ]);
+  });
 });
 
 const FORBIDDEN_MAIN_DOMAIN_IMPORTS = new Map<string, Set<string>>([
@@ -248,9 +266,13 @@ function findSourceFiles(root: string): string[] {
 }
 
 function readImports(filePath: string): ImportRef[] {
+  return readImportsFromSource(filePath, readFileSync(filePath, 'utf8'));
+}
+
+function readImportsFromSource(filePath: string, sourceText: string): ImportRef[] {
   const sourceFile = ts.createSourceFile(
     filePath,
-    readFileSync(filePath, 'utf8'),
+    sourceText,
     ts.ScriptTarget.Latest,
     true,
     filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
@@ -288,6 +310,12 @@ function readImports(filePath: string): ImportRef[] {
       ts.isStringLiteralLike(node.moduleReference.expression)
     ) {
       addImport(node.moduleReference.expression, 'import');
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteralLike(node.argument.literal)
+    ) {
+      addImport(node.argument.literal, 'import-type');
     } else if (ts.isCallExpression(node)) {
       const [firstArg] = node.arguments;
       if (firstArg && ts.isStringLiteralLike(firstArg)) {

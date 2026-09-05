@@ -26,6 +26,8 @@ import {
 import { setupCodexSessionsIpc } from "../agent/codex-sessions";
 import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
+import { upsertCanvasSkill } from "../agent/skills/config";
+import { saveMemory } from "../agent/memory-store";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
@@ -136,11 +138,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   });
   setArtifactAgentWritePort({
     saveMemory: async (scope, content, kind) => {
-      const { saveMemory } = await import('../agent/memory-store');
       await saveMemory(scope, content, kind);
     },
     saveSkill: async (scope, skill) => {
-      const { upsertCanvasSkill } = await import('../agent/skills/config');
       await upsertCanvasSkill(scope, skill);
     },
   });
