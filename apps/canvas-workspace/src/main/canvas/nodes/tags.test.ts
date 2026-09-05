@@ -7,7 +7,7 @@ import {
   readKnowledgeTags,
   upsertKnowledgeTag,
   writeKnowledgeTags,
-} from '../canvas/nodes/tags';
+} from './tags';
 
 let root: string;
 

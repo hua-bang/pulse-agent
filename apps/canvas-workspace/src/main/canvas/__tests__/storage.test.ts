@@ -34,8 +34,8 @@ import {
   type CanvasSaveData,
   type MigrationProgress,
   type PerNodeFile,
-} from '../canvas/storage';
-import { mutateWorkspaceNode } from '../canvas/nodes/store';
+} from '../storage';
+import { mutateWorkspaceNode } from '../nodes/store';
 
 let root: string;
 const wsId = 'ws-test';

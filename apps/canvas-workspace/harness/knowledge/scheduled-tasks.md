@@ -176,7 +176,7 @@ through `tools/index → runtime → agent/ipc → service → tools/index`.
 Bound tests:
 
 - `src/shared/scheduled.test.ts` — schedule validation + next-run math
-- `src/main/__tests__/scheduled-task-service.test.ts`
+- `src/main/scheduled/scheduled-task-service.test.ts`
 - `src/main/__tests__/scheduled-run-notify.test.ts` — completion push,
   success AND failure, and no OS notification
 - `src/renderer/src/modules/scheduled/internal/__tests__/useScheduledRunToasts.test.tsx`

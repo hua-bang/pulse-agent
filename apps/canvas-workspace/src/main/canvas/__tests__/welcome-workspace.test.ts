@@ -6,10 +6,10 @@ import {
   WELCOME_WORKSPACE_ID,
   WELCOME_WORKSPACE_NAME,
   ensureWelcomeWorkspaceSeeded,
-} from '../canvas/welcome-workspace';
-import { readCanvasFull } from '../canvas/storage';
-import { saveCanvas } from '../canvas/service';
-import { listWorkspaces, WORKSPACES_MANIFEST_FILENAME } from '../canvas/workspaces';
+} from '../welcome-workspace';
+import { readCanvasFull } from '../storage';
+import { saveCanvas } from '../service';
+import { listWorkspaces, WORKSPACES_MANIFEST_FILENAME } from '../workspaces';
 
 let root: string;
 

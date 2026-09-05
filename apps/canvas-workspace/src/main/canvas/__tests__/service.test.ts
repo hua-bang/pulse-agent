@@ -25,12 +25,12 @@ vi.mock('electron', () => ({
 import {
   appendImageNodeToCanvas,
   saveCanvas,
-} from '../canvas/service';
+} from '../service';
 import {
   readCanvasFull,
   writeCanvasFull,
   type CanvasSaveData,
-} from '../canvas/storage';
+} from '../storage';
 
 let root: string;
 

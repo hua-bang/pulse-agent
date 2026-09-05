@@ -136,7 +136,7 @@ Canvas AgentTeams 融合两者：**Claude 式 lifecycle/hooks/runtime + Codex �
 - `pnpm --filter pulse-coder-agent-teams test`
 - `pnpm --filter pulse-coder-agent-teams typecheck`
 - `pnpm --filter pulse-coder-agent-teams build`
-- `pnpm --filter canvas-workspace test -- --run src/main/__tests__/agent-teams-service.test.ts`
+- `pnpm --filter canvas-workspace test -- --run src/main/agent-teams/__tests__/service.test.ts`
 - `pnpm --filter canvas-workspace typecheck`
 - `pnpm --filter canvas-workspace build`
 - `pnpm --filter canvas-workspace dev` 启动级 smoke：main/preload/renderer 编译并启动到 `localhost:5173`

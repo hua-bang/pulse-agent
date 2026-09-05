@@ -8,7 +8,7 @@ import {
   findCodexThreadByMarker,
   normalizeCodexThreadRows,
   parseCodexSessionIndex,
-} from '../agent/codex-sessions';
+} from './codex-sessions';
 
 const hasSqlite3 = (): boolean => {
   try {

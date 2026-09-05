@@ -8,9 +8,9 @@ vi.mock('electron', () => ({
   dialog: { showMessageBox: vi.fn() },
 }));
 
-import { preserveMainOwnedQueueFields } from '../canvas/store';
-import { mergeExternalEdges } from '../canvas/edge-sync';
-import type { CanvasEdge } from '../../shared/canvas';
+import { preserveMainOwnedQueueFields } from '../store';
+import { mergeExternalEdges } from '../edge-sync';
+import type { CanvasEdge } from '../../../shared/canvas';
 
 type MergeNode = Parameters<typeof preserveMainOwnedQueueFields>[0];
 

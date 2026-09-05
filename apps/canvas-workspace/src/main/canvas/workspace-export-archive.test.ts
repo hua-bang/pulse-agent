@@ -4,7 +4,7 @@ import {
   createWorkspaceExportPayload,
   parseWorkspaceExportFile,
   type WorkspaceExportFile,
-} from '../canvas/workspace-export-archive';
+} from './workspace-export-archive';
 
 const makePayload = (files: WorkspaceExportFile[] = []) => createWorkspaceExportPayload({
   exportedAt: '2026-06-17T00:00:00.000Z',

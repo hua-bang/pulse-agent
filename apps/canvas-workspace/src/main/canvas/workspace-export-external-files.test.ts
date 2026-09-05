@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import {
   collectExternalFilePaths,
   collectExternalWorkspaceFiles,
-} from '../canvas/workspace-export-external-files';
+} from './workspace-export-external-files';
 
 let root: string;
 let workspaceDir: string;

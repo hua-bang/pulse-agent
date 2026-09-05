@@ -6,7 +6,7 @@ import {
   listWorkspaces,
   readWorkspaceManifest,
   WORKSPACES_MANIFEST_FILENAME,
-} from '../canvas/workspaces';
+} from './workspaces';
 
 let root: string;
 

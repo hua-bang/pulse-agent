@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDomPickerScript } from '../webview/dom-snapshot-script';
+import { createDomPickerScript } from './dom-snapshot-script';
 
 class FakeElement {
   className = '';

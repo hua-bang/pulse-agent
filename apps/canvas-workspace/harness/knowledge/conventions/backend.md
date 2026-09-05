@@ -95,8 +95,11 @@ but never bypass this writer with independent append paths.
 
 ## Tests
 
-- Domain tests live either beside their owner module as `*.test.ts` or in
-  `src/main/__tests__/` for cross-domain/integration coverage, on **vitest**
+- Leaf-module tests live beside their implementation as `*.test.ts`; tests
+  spanning several modules in one domain live in `<domain>/__tests__/`.
+  `src/main/__tests__/` is reserved for cross-domain behavior, packaging or
+  process boundaries, and structural governance. Its allowlist is enforced by
+  `test-locality-governance.test.ts`. All run on **vitest**
   (`pnpm --filter canvas-workspace test`).
 - The boundary and file-size governance suites also live here — keep them
   green. They run via `pnpm --filter canvas-workspace test` (manual / repo

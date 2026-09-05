@@ -22,7 +22,7 @@ Verified against the tree on 2026-07-07; if this drifts, `ls src/main/` wins.
 ```text
 src/main/
   index.ts            # thin entrypoint -> app/bootstrap.ts
-  __tests__/          # cross-domain suites incl. import-boundaries + file-size governance
+  __tests__/          # allowlisted cross-domain/process/governance suites only
 
   app/                # bootstrap, window(-manager), protocol, link-policy, logging,
                       # menu, identity, startup-metrics, update-ipc, shell-ipc

@@ -3,7 +3,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduledTask } from '../../shared/scheduled';
-import { ScheduledTaskService } from '../scheduled/scheduled-task-service';
+import { ScheduledTaskService } from './scheduled-task-service';
 
 describe('ScheduledTaskService', () => {
   let root: string;

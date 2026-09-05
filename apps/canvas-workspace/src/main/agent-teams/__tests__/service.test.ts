@@ -17,17 +17,17 @@ const mockState = vi.hoisted(() => ({
   queuedLaunch: false,
 }));
 
-vi.mock('../canvas/storage', () => ({
+vi.mock('../../canvas/storage', () => ({
   get STORE_DIR() {
     return mockState.root;
   },
 }));
 
-vi.mock('../canvas/broadcast', () => ({
+vi.mock('../../canvas/broadcast', () => ({
   broadcastCanvasUpdate: vi.fn(),
 }));
 
-vi.mock('../agent-teams/canvas-nodes', () => ({
+vi.mock('../canvas-nodes', () => ({
   createAgentTeamCanvasNodes: vi.fn(async (input: any) => {
     mockState.createdTeams.push(input);
     const agentNodeIds: Record<string, string> = {
@@ -96,9 +96,9 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
   }),
 }));
 
-import { CanvasAgentTeamsService } from '../agent-teams/service';
-import { removeAgentTeamCanvasNodes } from '../agent-teams/canvas-nodes';
-import type { CanvasAgentTeamSnapshot } from '../agent-teams/types';
+import { CanvasAgentTeamsService } from '../service';
+import { removeAgentTeamCanvasNodes } from '../canvas-nodes';
+import type { CanvasAgentTeamSnapshot } from '../types';
 
 const plan = {
   summary: 'Refactor checkout safely with implementation and review lanes.',

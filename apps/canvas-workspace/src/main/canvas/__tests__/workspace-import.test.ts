@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   createWorkspaceExportArchive,
   createWorkspaceExportPayload,
-} from '../canvas/workspace-export-archive';
-import { importWorkspaceArchiveToStore } from '../canvas/workspace-import';
+} from '../workspace-export-archive';
+import { importWorkspaceArchiveToStore } from '../workspace-import';
 
 const roots: string[] = [];
 

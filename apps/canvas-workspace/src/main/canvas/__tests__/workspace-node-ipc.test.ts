@@ -26,7 +26,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('../canvas/nodes/store', () => ({
+vi.mock('../nodes/store', () => ({
   listWorkspaceNodes: async () => cloneNode(testState.listedNodes),
   readWorkspaceNode: async () => cloneNode(testState.node),
   writeWorkspaceNode: async (_workspaceId: string, node: Record<string, any>) => {
@@ -57,21 +57,21 @@ vi.mock('../canvas/nodes/store', () => ({
   },
 }));
 
-vi.mock('../canvas/nodes/tags', () => ({
+vi.mock('../nodes/tags', () => ({
   readKnowledgeTags: async () => [],
   upsertKnowledgeTag: async (tag: { name: string }) => ({ id: tag.name, name: tag.name }),
 }));
 
-vi.mock('../canvas/nodes/broadcast', () => ({
+vi.mock('../nodes/broadcast', () => ({
   broadcastWorkspaceNodesChanged: vi.fn(),
   scheduleWorkspaceNodesChanged: vi.fn(),
 }));
 
-vi.mock('../canvas/storage', () => ({
+vi.mock('../storage', () => ({
   readCanvasFull: async () => ({ data: cloneNode(testState.canvasData) }),
 }));
 
-import { setupWorkspaceNodeIpc } from '../canvas/nodes/ipc';
+import { setupWorkspaceNodeIpc } from '../nodes/ipc';
 
 beforeEach(() => {
   testState.handlers.clear();
