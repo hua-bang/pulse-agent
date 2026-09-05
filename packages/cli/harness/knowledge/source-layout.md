@@ -47,3 +47,40 @@ import paths stay stable:
 Factory extractions (`buildComposerActions`, `buildKeyHandler`) destructure a
 per-render context object so the extracted bodies stay verbatim — when editing
 them, keep the context field list in sync with what the body references.
+
+## Host tool boundaries
+
+- `src/tools/runtime-tools.ts` is the shared tool assembly for both UI hosts. Keep Ink
+  and readline on this entry so `run_js` and live-app capabilities cannot drift.
+
+- Live-app capability tools are absent by default; expose them only when
+  `PULSE_CODER_EXPERIMENTAL_APP_RUNTIME=1`. The Canvas host separately requires
+  its `agent-runtime-control` flag, so both sides opt into the hidden feature.
+
+- When live-app capability tools are registered, their descriptions and the
+  bundled Pulse Canvas skill must route the agent to native tools first;
+  `pulse-canvas runtime` is the fallback for hosts without those tools. Both
+  entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
+
+- `run_js` registration imports `src/tools/sandbox/index.js`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync. The executor↔runner IPC wire types live in `src/tools/sandbox/protocol.ts`, shared by both sides.
+
+## Entry reference
+
+- `src/index.ts`: entrypoint — arg parse and dispatch to print mode / Ink / readline.
+- `src/readline/readline-host.ts`: readline fallback host — command loop, agent run wiring, and session save path.
+- `src/ink/ink-controller.ts`: default Ink-mode controller with command handling, engine plan-mode wiring, agent/ACP routing, session sync, queued input, real token usage, and shutdown.
+- `src/ink/ink-app.tsx`: Ink rendering (Static transcript + live region), input composer, paste handling, command suggestions, history, and mode shortcuts.
+- `src/ink/ink-ui-bridge.ts`: append-only event + live-region bridge between runtime callbacks and the Ink UI; tool-result previews and streaming throttle live here.
+- `src/ui-mode.ts`: `--ui`/`--tui`/`-p`/`--continue` and `PULSE_CODER_UI` resolution.
+- `src/print/print-mode.ts`: `-p` one-shot runner; stdout carries only the answer, console logging is redirected to stderr.
+- `src/terminal/markdown.ts`, `src/session/history-store.ts`: markdown-to-ANSI renderer and persisted prompt history.
+- `src/shared/log-sink.ts`: console capture for the engine log layer (file + ring buffer + subscriber policy).
+- `src/session/session.ts`, `src/commands/session-commands.ts`: session storage and slash-command behavior.
+- `src/commands/acp-commands.ts`: `/acp` state commands, platform key resolution, session listing, and session close.
+- `src/commands/team-commands.ts`: `/team`, `/teams`, and `/solo` command surface.
+- `src/shared/memory-integration.ts`: memory plugin setup and per-run memory context.
+- `src/shared/goal-integration.ts`: goal plugin singleton and per-session scope binding.
+- `src/ink/controller-goal.ts`: host IO wiring for the goal runner (service resolution + verify command execution).
+- `src/ink/controller-run.ts`: `runSingleTurn` (one agent round) and `startGoalLoop` (injects runOnce/confirm/verify into the plugin-kit runner).
+- `src/tools/runtime-tools.ts`, `src/tools/canvas-runtime-tools.ts`: shared host-tool
+  assembly and the structured Pulse Canvas capability adapter.

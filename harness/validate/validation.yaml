@@ -20,21 +20,31 @@ pathRules:
     required:
       - pnpm exec vitest run harness/skills/visualize-harness/scripts/render-harness-graph.test.mjs
 
-  - name: harness-runner
+  - name: harness-tools
     paths:
-      - scripts/harness/run-harness-check.mjs
-      - scripts/harness/run-harness-check.test.mjs
+      - scripts/harness/**
+      - .gitignore
+      - .github/workflows/harness.yml
     required:
-      - pnpm exec vitest run scripts/harness/run-harness-check.test.mjs
+      - pnpm exec vitest run scripts/harness
 
   - name: root-workspace-config
     paths:
       - package.json
       - pnpm-workspace.yaml
       - tsconfig.json
+      - pnpm-lock.yaml
     required:
       - pnpm run build
       - pnpm test
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+
+  - name: performance-policy
+    paths:
+      - .github/workflows/perf.yml
+    required:
+      - pnpm --filter canvas-workspace exec vitest run scripts/perf/report-policy.test.mjs
 
   # canvas-workspace owns these mirrored canvas-cli contracts; keep its static
   # parity check active when the CLI side changes as well as the app side.
@@ -46,12 +56,27 @@ pathRules:
       - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
 escalationRules:
-  # Reminder-only (printed, never auto-run). The rule NAME must contain the
-  # affected workspace's dir slug as a substring — that is how the runner
-  # matches. Trigger criteria for each engine class live in
+  # Reminder-only (printed, never auto-run). Explicit paths select the
+  # relevant reminders; legacy rules without paths use the workspace name.
+  # Trigger criteria for each engine class live in
   # packages/engine/harness/validate/README.md; consumer rationale in
   # packages/engine/harness/knowledge/contracts.md "Known Consumers".
   enginePublicApiChange:
+    paths:
+      - packages/engine/package.json
+      - packages/engine/src/index.ts
+      - packages/engine/src/Engine.ts
+      - packages/engine/src/shared/**
+      - packages/engine/src/plugin/**
+      # Exported declarations can change without editing their barrels.
+      # Include owners reachable through the main and subpath exports.
+      - packages/engine/src/built-in/**
+      - packages/engine/src/orchestrator/**
+      - packages/engine/src/config/**
+      - packages/engine/src/core/**
+      - packages/engine/src/ai/**
+      - packages/engine/src/context/**
+      - packages/engine/src/tools/**
     required:
       - pnpm --filter pulse-coder-engine build
       - pnpm --filter pulse-coder-cli test
@@ -62,6 +87,8 @@ escalationRules:
       - pnpm --filter canvas-workspace typecheck
 
   engineBuiltInPluginChange:
+    paths:
+      - packages/engine/src/built-in/**
     required:
       - pnpm --filter pulse-coder-engine test
       - pnpm --filter @pulse-coder/remote-server build
@@ -69,6 +96,10 @@ escalationRules:
       - pnpm --filter pulse-coder-plugin-kit build
 
   engineCoreLoopChange:
+    paths:
+      - packages/engine/src/core/**
+      - packages/engine/src/context/**
+      - packages/engine/src/ai/**
     required:
       - pnpm --filter pulse-coder-engine test
       - pnpm --filter pulse-coder-cli test
@@ -78,6 +109,9 @@ escalationRules:
       - pnpm --filter pulse-coder-plugin-kit test
 
   engineToolSchemaChange:
+    paths:
+      - packages/engine/src/tools/**
+      - packages/engine/src/shared/types.ts
     required:
       - pnpm --filter pulse-coder-engine test
       - pnpm --filter pulse-coder-plugin-kit build
@@ -86,11 +120,19 @@ escalationRules:
       - pnpm --filter canvas-workspace test
 
   agentTeamsRuntimeProtocolChange:
+    paths:
+      - packages/agent-teams/package.json
+      - packages/agent-teams/src/index.ts
+      - packages/agent-teams/src/runtime.ts
+      - packages/agent-teams/src/runtime/**
     required:
       - pnpm --filter pulse-coder-cli build
       - pnpm --filter canvas-workspace typecheck
 
   pluginKitPublicApiChange:
+    paths:
+      - packages/plugin-kit/package.json
+      - packages/plugin-kit/src/**
     required:
       - pnpm --filter pulse-coder-engine typecheck
       - pnpm --filter @pulse-coder/remote-server build

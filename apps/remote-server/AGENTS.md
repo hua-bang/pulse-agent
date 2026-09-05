@@ -44,7 +44,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 | Slash commands | `src/core/chat-commands.ts`, `src/core/chat-commands/command-defs.ts`, `src/core/chat-commands/handlers/*` |
 | Internal automation | `src/routes/internal.ts` |
 | Platform behavior | Adapter contract is the four methods `verifyRequest`/`parseIncoming`/`ackRequest`/`createStreamHandle` (`src/core/types.ts`); `src/adapters/feishu/*`, `src/adapters/discord/*`, `src/routes/feishu.ts`, `src/routes/discord.ts` |
-| Devtools API | `src/routes/devtools.ts`; static UI is built outside this workspace in `../devtools-web` |
+| Devtools API | `src/routes/devtools.ts`; `src/server.ts` serves `../devtools-web/dist` from the excluded auxiliary app (`DEVTOOLS_DIST_PATH` overrides). Do not delete that app. |
 | Focused helper tests | `src/core/model-config.test.ts`, `src/core/attachments.test.ts`, `src/core/tools/analyze-image.test.ts` |
 
 ## Local Constraints

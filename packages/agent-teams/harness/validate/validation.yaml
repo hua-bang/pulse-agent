@@ -19,4 +19,4 @@ pathRules:
       - src/runtime/team-runtime.ts
       - docs/contracts.md
     required:
-      - node harness/tools/describe-agent-teams.mjs
+      - node packages/agent-teams/harness/tools/describe-agent-teams.mjs

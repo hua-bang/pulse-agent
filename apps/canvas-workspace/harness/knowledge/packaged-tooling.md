@@ -176,3 +176,9 @@ skill-installer, shell-path, and the Settings UI files above) to:
 - manual (release-level, actually packages the app): `pnpm --filter
   canvas-workspace package:mac:arm64 && node
   apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs`
+
+## Child-process PATH contract
+
+`src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts`
+
+Repo harness skills guide coding agents; src/main/agent/skills is the product runtime feature. The files/skill-installer boundary deploys the external pulse-canvas CLI and bundled skills through the same compatibility bundle.

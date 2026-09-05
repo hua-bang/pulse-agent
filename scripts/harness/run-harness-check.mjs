@@ -19,100 +19,64 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseSimpleYaml } from './simple-yaml.mjs';
+import { createReport, prepareReportPath, writeReport } from './report.mjs';
+import { discoverWorkspaces, inspectCommand, matchesAny, readValidation } from './validation-data.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LEVELS = ['quick', 'standard', 'release'];
 
 function addRuleCommands(rule, plan, source, level) {
+  let selected = 0;
+  const add = (cmd, reason) => { selected += 1; plan.addCommand(cmd, reason); };
   const quick = Array.isArray(rule.quick) ? rule.quick : null;
   if (quick) {
-    for (const cmd of quick) plan.addCommand(cmd, `${source} · quick`);
+    for (const cmd of quick) add(cmd, `${source} · quick`);
   } else if (level === 'quick') {
     // Validation files without tiered commands retain their old behavior.
-    for (const cmd of rule.required || []) plan.addCommand(cmd, source);
+    for (const cmd of rule.required || []) add(cmd, source);
   }
   if (level !== 'quick') {
-    for (const cmd of rule.required || []) plan.addCommand(cmd, source);
+    for (const cmd of rule.required || []) add(cmd, source);
   }
   if (level === 'release') {
-    for (const cmd of rule.release || []) plan.addCommand(cmd, `${source} · release`);
+    for (const cmd of rule.release || []) add(cmd, `${source} · release`);
   }
+  if (!selected) plan.deferredRules.push({ source, commands: [...(rule.required ?? []), ...(rule.release ?? [])] });
 }
 
-// --- workspace discovery (pnpm-workspace.yaml is the membership SSOT) ---
 
-function listWorkspaces() {
-  const config = parseSimpleYaml(fs.readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'));
-  const globs = Array.isArray(config.packages) ? config.packages : [];
-  const dirs = [];
-  for (const glob of globs) {
-    if (glob.endsWith('/*')) {
-      const base = glob.slice(0, -2);
-      const abs = path.join(repoRoot, base);
-      if (!fs.existsSync(abs)) continue;
-      for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-        if (entry.isDirectory()) dirs.push(path.posix.join(base, entry.name));
-      }
-    } else {
-      dirs.push(glob);
-    }
+function normalizeExplicitPath(input) {
+  const absolute = path.resolve(repoRoot, input);
+  let cursor = absolute;
+  const suffix = [];
+  while (!fs.existsSync(cursor)) {
+    const parent = path.dirname(cursor);
+    if (parent === cursor) throw new Error('Cannot resolve path: ' + input);
+    suffix.unshift(path.basename(cursor));
+    cursor = parent;
   }
-  return dirs.filter((dir) => fs.existsSync(path.join(repoRoot, dir, 'package.json')));
+  const canonicalRoot = fs.realpathSync(repoRoot);
+  const canonical = path.join(fs.realpathSync(cursor), ...suffix);
+  const canonicalRelative = path.relative(canonicalRoot, canonical);
+  const outside = (relative) => relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative);
+  if (outside(canonicalRelative)) throw new Error('Path is outside the repository: ' + input);
+  const lexicalRelative = path.relative(repoRoot, absolute);
+  const relative = outside(lexicalRelative) ? canonicalRelative : lexicalRelative;
+  return relative.split(path.sep).join('/') || '.';
 }
 
-// --- glob matching for validation.yaml `paths` entries ---
-
-function globToRegExp(glob) {
-  let re = '';
-  for (let i = 0; i < glob.length;) {
-    if (glob.startsWith('**/', i)) { re += '(?:.*/)?'; i += 3; continue; }
-    if (glob.startsWith('**', i)) { re += '.*'; i += 2; continue; }
-    if (glob[i] === '*') { re += '[^/]*'; i += 1; continue; }
-    if (glob[i] === '?') { re += '[^/]'; i += 1; continue; }
-    re += glob[i].replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    i += 1;
-  }
-  return new RegExp(`^${re}$`);
-}
-
-function matchesAny(relPath, globs) {
-  return (globs || []).some((glob) => globToRegExp(String(glob)).test(relPath));
-}
-
-/**
- * Expand a repo-relative `--path` that names a DIRECTORY into every file under
- * it (excluding `.git`). Rule globs like `src/**` compile to `^src/.*$`, which
- * only matches files BENEATH `src` — a bare directory arg otherwise matches no
- * rule and silently reports "No bound checks" even though the intent is "every
- * file under here". File paths pass through unchanged.
- */
 function expandDirectoryPaths(repoPaths) {
-  const expanded = [];
-  for (const p of repoPaths) {
-    const posix = p.split(path.sep).join('/');
-    const abs = path.join(repoRoot, posix);
-    let isDir = false;
-    try {
-      isDir = fs.statSync(abs).isDirectory();
-    } catch {
-      // Not on disk (e.g. a deleted path) — keep the literal path.
-    }
-    if (!isDir) {
-      expanded.push(posix);
-      continue;
-    }
-    const walk = (dirAbs) => {
-      for (const entry of fs.readdirSync(dirAbs, { withFileTypes: true })) {
-        if (entry.name === '.git') continue;
-        const childAbs = path.join(dirAbs, entry.name);
-        if (entry.isDirectory()) walk(childAbs);
-        else expanded.push(path.relative(repoRoot, childAbs).split(path.sep).join('/'));
+  const expanded = new Set();
+  for (const input of repoPaths) {
+    const relative = normalizeExplicitPath(input);
+    const absolute = path.join(repoRoot, relative);
+    if (fs.existsSync(absolute) && fs.statSync(absolute).isDirectory()) {
+      for (const file of git(['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', relative]).split('\0')) {
+        if (file) expanded.add(file);
       }
-    };
-    walk(abs);
+    } else expanded.add(relative);
   }
-  return expanded;
+  return [...expanded];
 }
 
 // --- changed-path sources ---
@@ -124,38 +88,47 @@ function git(args) {
 }
 
 function pathsFromStatus() {
-  return git(['status', '--porcelain', '-uall'])
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => line.slice(3).trim())
-    .map((entry) => (entry.includes(' -> ') ? entry.split(' -> ')[1] : entry));
+  const records = git(['status', '--porcelain=v1', '-z', '--untracked-files=all']).split('\0');
+  const changed = new Set();
+  for (let i = 0; i < records.length; i += 1) {
+    const record = records[i];
+    if (!record) continue;
+    changed.add(record.slice(3));
+    if (/[RC]/.test(record.slice(0, 2)) && records[i + 1]) changed.add(records[++i]);
+  }
+  return [...changed];
 }
 
 function pathsFromRange(ref) {
-  return git(['diff', '--name-only', `${ref}...HEAD`]).split('\n').filter(Boolean);
+  const commit = git(['rev-parse', '--verify', '--end-of-options', ref + '^{commit}']).trim();
+  const records = git(['diff', '--name-status', '--find-renames', '-z', commit + '...HEAD', '--']).split('\0');
+  const changed = new Set();
+  for (let i = 0; i < records.length; i += 1) {
+    const status = records[i];
+    if (!status) continue;
+    if (records[i + 1]) changed.add(records[++i]);
+    if (/^[RC]/.test(status) && records[i + 1]) changed.add(records[++i]);
+  }
+  return [...changed];
 }
 
 // --- plan assembly ---
 
-function loadValidation(relFile) {
-  const abs = path.join(repoRoot, relFile);
-  if (!fs.existsSync(abs)) return null;
-  return parseSimpleYaml(fs.readFileSync(abs, 'utf8'));
+function loadValidation(relFile, required = false) {
+  return readValidation(repoRoot, relFile, { required });
 }
 
 function collectForWorkspace(workspace, relPaths, plan, { all = false, level = 'quick' } = {}) {
   const file = path.posix.join(workspace, 'harness/validate/validation.yaml');
-  const validation = loadValidation(file);
-  if (!validation) {
-    plan.warnings.push(`${workspace}: no harness/validate/validation.yaml — falling back to nothing; add one.`);
-    return;
-  }
+  const validation = loadValidation(file, true);
   for (const rule of validation.pathRules || []) {
-    const hit = all || relPaths.some((p) => matchesAny(p, rule.paths));
-    if (!hit) continue;
+    const hits = relPaths.filter((p) => matchesAny(p, rule.paths));
+    if (!all && !hits.length) continue;
+    for (const hit of hits) plan.matchedPaths.add(path.posix.join(workspace, hit));
     addRuleCommands(rule, plan, `${workspace} · ${rule.name}`, level);
-    for (const note of rule.manual || []) plan.notes.push(`${workspace} · ${rule.name} (manual): ${note}`);
-    for (const note of rule.optional || []) plan.notes.push(`${workspace} · ${rule.name} (optional): ${note}`);
+    for (const kind of ['manual', 'optional']) for (const text of rule[kind] ?? []) {
+      plan.notes.push({ source: workspace + ' · ' + rule.name, kind, text, status: 'not-run' });
+    }
   }
 }
 
@@ -163,22 +136,28 @@ function collectForRoot(rootPaths, plan, { all = false, level = 'quick' } = {}) 
   const validation = loadValidation('harness/validate/validation.yaml');
   if (!validation) return;
   for (const rule of validation.pathRules || []) {
-    const hit = all || rootPaths.some((p) => matchesAny(p, rule.paths));
-    if (!hit) continue;
+    const hits = rootPaths.filter((p) => matchesAny(p, rule.paths));
+    if (!all && !hits.length) continue;
+    for (const hit of hits) plan.matchedPaths.add(hit);
     addRuleCommands(rule, plan, `root · ${rule.name}`, level);
-    for (const note of rule.manual || []) plan.notes.push(`root · ${rule.name} (manual): ${note}`);
+    for (const kind of ['manual', 'optional']) for (const text of rule[kind] ?? []) {
+      plan.notes.push({ source: 'root · ' + rule.name, kind, text, status: 'not-run' });
+    }
   }
 }
 
-function escalationReminders(affectedWorkspaces) {
+function escalationReminders(affectedWorkspaces, paths, all) {
   const validation = loadValidation('harness/validate/validation.yaml');
   const rules = validation?.escalationRules || {};
   const normalized = affectedWorkspaces.map((ws) => ws.split('/').pop().replace(/[^a-z]/gi, '').toLowerCase());
   const reminders = [];
   for (const [name, rule] of Object.entries(rules)) {
     const key = name.toLowerCase();
-    if (!normalized.some((ws) => ws && key.includes(ws))) continue;
-    reminders.push({ name, commands: rule.required || [] });
+    const matchedPaths = rule.paths ? paths.filter((file) => matchesAny(file, rule.paths)) : [];
+    const matches = rule.paths ? matchedPaths.length > 0 : normalized.some((ws) => ws && key.includes(ws));
+    if (!all && !matches) continue;
+    reminders.push({ name, commands: rule.required || [], matchedPaths, status: 'not-run',
+      reason: all ? 'all rules requested' : rule.paths ? 'changed paths' : 'affected workspace (legacy)' });
   }
   return reminders;
 }
@@ -186,22 +165,32 @@ function escalationReminders(affectedWorkspaces) {
 // --- main ---
 
 function parseArgs(argv) {
-  const options = { paths: [], all: false, dryRun: false, since: null, level: null };
+  const options = { paths: [], all: false, dryRun: false, since: null, level: null, report: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--all') options.all = true;
-    else if (arg === '--level') options.level = argv[++i];
+    else if (arg === '--level' || arg === '--since' || arg === '--report') {
+      const value = argv[++i];
+      if (!value || value.startsWith('--')) throw new Error(arg + ' requires a value');
+      if (arg === '--level') options.level = value;
+      else if (arg === '--since') options.since = value;
+      else options.report = value;
+    }
     else if (arg === '--dry-run' || arg === '--list') options.dryRun = true;
-    else if (arg === '--since') options.since = argv[++i];
     else if (arg === '--path') {
+      const start = options.paths.length;
       while (argv[i + 1] && !argv[i + 1].startsWith('--')) options.paths.push(argv[++i]);
+      if (options.paths.length === start) throw new Error('--path requires at least one path');
     } else if (arg === '--help' || arg === '-h') {
-      console.log('Usage: run-harness-check.mjs [--all] [--since <ref>] [--path <p...>] [--level quick|standard|release] [--dry-run]');
+      console.log('Usage: run-harness-check.mjs [--all] [--since <ref>] [--path <p...>] [--level quick|standard|release] [--dry-run] [--report <file>]');
       process.exit(0);
     } else {
       console.error(`Unknown argument: ${arg}`);
       process.exit(2);
     }
+  }
+  if (Number(options.all) + Number(options.since !== null) + Number(options.paths.length > 0) > 1) {
+    throw new Error('Choose one path source: --all, --since, or --path');
   }
   options.level ??= options.all ? 'release' : 'quick';
   if (!LEVELS.includes(options.level)) {
@@ -211,9 +200,9 @@ function parseArgs(argv) {
   return options;
 }
 
-function main() {
-  const options = parseArgs(process.argv.slice(2));
-  const workspaces = listWorkspaces();
+function runChecks(options, report, reportPath) {
+  const workspaceRecords = discoverWorkspaces(repoRoot);
+  const workspaces = workspaceRecords.map((workspace) => workspace.dir);
 
   let changed = options.paths;
   if (options.paths.length > 0) {
@@ -224,15 +213,20 @@ function main() {
     changed = options.since ? pathsFromRange(options.since) : pathsFromStatus();
     if (changed.length === 0) {
       console.log('Working tree clean and no --path given. Use --since <ref>, --path, or --all.');
-      process.exit(0);
+      report.status = 'no-checks';
+      report.exitCode = 0;
+      return;
     }
   }
+  report.paths = changed;
 
   const plan = {
     commands: [],
     sources: new Map(),
     notes: [],
     warnings: [],
+    matchedPaths: new Set(),
+    deferredRules: [],
     addCommand(cmd, source) {
       if (!this.sources.has(cmd)) {
         this.sources.set(cmd, []);
@@ -265,12 +259,38 @@ function main() {
     collectForRoot(changed.map((p) => p.split(path.sep).join('/')), plan, { level: options.level });
   }
 
+  report.workspaces = affected;
+  report.commands = plan.commands.map((command) => ({
+    command, cwd: repoRoot, reasons: plan.sources.get(command), status: 'planned', exitCode: null, durationMs: null,
+  }));
+  report.unmatchedPaths = changed.filter((file) => !plan.matchedPaths.has(file));
+  report.deferredRules = plan.deferredRules;
+  report.manualChecks = plan.notes;
+  report.escalations = escalationReminders(affected, changed, options.all);
+  const unboundManaged = report.unmatchedPaths.filter((file) => {
+    const owner = workspaces.find((workspace) => file.startsWith(workspace + '/'));
+    const local = owner ? file.slice(owner.length + 1) : file;
+    return (owner && local.startsWith('src/')) ||
+      /^(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig(?:\.[^/]+)?\.json|vitest\.config\.[^/]+|tsup\.config\.[^/]+|electron\.vite\.config\.[^/]+|electron-builder\.[^/]+)$/.test(local) ||
+      file.startsWith('.github/workflows/');
+  });
+  if (unboundManaged.length) throw new Error('No validation rule for managed paths:\n' + unboundManaged.join('\n'));
+
+  const commandErrors = [];
+  for (const cmd of plan.commands) {
+    const inspection = inspectCommand(cmd, repoRoot, workspaceRecords);
+    for (const error of inspection.errors) commandErrors.push(cmd + ': ' + error);
+    if (inspection.uninspected.length) report.uninspectedCommands.push({ command: cmd, reasons: inspection.uninspected });
+    for (const reason of inspection.uninspected) plan.warnings.push('Uninspected command reference: ' + reason);
+  }
+  if (commandErrors.length) throw new Error('Invalid bound checks:\n' + commandErrors.join('\n'));
+
   console.log(`Validation level: ${options.level}`);
   console.log(`Affected workspaces: ${affected.length ? affected.join(', ') : '(none)'}`);
-  for (const warning of plan.warnings) console.log(`! ${warning}`);
+  for (const warning of new Set(plan.warnings)) console.log(`! ${warning}`);
 
   if (plan.commands.length === 0) {
-    console.log('No bound checks for these paths (docs-only or unruled change).');
+    console.log(plan.deferredRules.length ? 'Matched checks are deferred by validation level.' : 'No bound checks for these paths (document/auxiliary scope).');
   }
 
   if (options.dryRun) {
@@ -281,24 +301,33 @@ function main() {
 
   const results = [];
   if (!options.dryRun) {
+    report.status = 'running';
     for (const cmd of plan.commands) {
+      const evidence = report.commands.find((item) => item.command === cmd);
+      evidence.status = 'running';
+      writeReport(reportPath, report);
       console.log(`\n▶ ${cmd}   [${plan.sources.get(cmd).join('; ')}]`);
       const startedAt = Date.now();
       const run = spawnSync('sh', ['-c', cmd], { cwd: repoRoot, stdio: 'inherit' });
-      results.push({ cmd, code: run.status ?? 1, seconds: ((Date.now() - startedAt) / 1000).toFixed(1) });
+      evidence.exitCode = run.status ?? 1;
+      evidence.durationMs = Date.now() - startedAt;
+      evidence.status = evidence.exitCode === 0 ? 'passed' : 'failed';
+      results.push({ cmd, code: evidence.exitCode, seconds: (evidence.durationMs / 1000).toFixed(1) });
+      writeReport(reportPath, report);
     }
   }
 
   if (plan.notes.length) {
     console.log('\nNotes (not auto-run):');
-    for (const note of plan.notes) console.log(`- ${note}`);
+    for (const note of plan.notes) console.log('- ' + note.source + ' (' + note.kind + '): ' + note.text);
   }
 
-  const reminders = escalationReminders(affected);
+  const reminders = report.escalations;
   if (reminders.length) {
     console.log('\nEscalation reminders (run manually if the change qualifies):');
     for (const reminder of reminders) {
       console.log(`- ${reminder.name}: ${reminder.commands.join(' && ')}`);
+      if (reminder.matchedPaths.length) console.log('  matched: ' + reminder.matchedPaths.slice(0, 3).join(', '));
     }
   }
 
@@ -311,8 +340,33 @@ function main() {
       console.log(`${mark} ${result.cmd} (${result.seconds}s)`);
     }
     console.log(`${results.length - failed}/${results.length} passed`);
-    process.exit(failed ? 1 : 0);
+    report.status = failed ? 'failed' : 'passed';
+    report.exitCode = failed ? 1 : 0;
+  } else {
+    report.status = options.dryRun && report.commands.length ? 'planned' : report.deferredRules.length ? 'deferred-by-level' : 'no-checks';
+    report.exitCode = 0;
   }
 }
 
-main();
+try {
+  const options = parseArgs(process.argv.slice(2));
+  const reportPath = prepareReportPath(repoRoot, options.report);
+  const report = createReport(repoRoot, options);
+  writeReport(reportPath, report);
+  try {
+    runChecks(options, report, reportPath);
+  } catch (error) {
+    report.status = 'failed';
+    report.exitCode = 2;
+    report.errors.push(error.message);
+    console.error(error.message);
+  } finally {
+    report.finishedAt = new Date().toISOString();
+    writeReport(reportPath, report);
+    if (reportPath) console.log('Report: ' + reportPath);
+  }
+  process.exitCode = report.exitCode ?? 2;
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 2;
+}

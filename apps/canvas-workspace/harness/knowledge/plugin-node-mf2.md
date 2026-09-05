@@ -158,3 +158,7 @@ The same mock plugin now declares two node types:
 The mock plugin directory can also be used as a local package example in
 Settings -> Canvas Plugins because its manifest uses package-local renderer
 paths.
+
+## External example history
+
+The former in-repository packages/canvas-nodes example was removed in the 2026-08 slim-down. Use tag pre-slim-archive as a reference implementation; do not recreate a workspace solely from a historical example.

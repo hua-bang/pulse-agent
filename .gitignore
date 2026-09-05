@@ -93,6 +93,7 @@ dist
 release/
 
 # Pulse Canvas harness runtime artifacts
+/.harness/
 apps/canvas-workspace/.harness/
 *.harness-bak
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { createServer, type Server } from 'http';
 import { homedir } from 'os';
@@ -9,31 +9,33 @@ import {
   listRuntimeCapabilities,
 } from './runtime-capabilities';
 
+
+const runtimeHome = await vi.hoisted(async () => {
+  const { mkdtemp } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  return mkdtemp(join(tmpdir(), 'canvas-cli-runtime-test-'));
+});
+vi.mock('os', async (importOriginal) => ({
+  ...await importOriginal<typeof import('os')>(),
+  homedir: () => runtimeHome,
+}));
+afterAll(async () => { await fs.rm(runtimeHome, { recursive: true, force: true }); });
+
 const runtimeFile = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
-let backup: Buffer | null = null;
 
 beforeEach(async () => {
-  try {
-    backup = await fs.readFile(runtimeFile);
-  } catch {
-    backup = null;
-  }
   await fs.rm(runtimeFile, { force: true });
 });
 
 afterEach(async () => {
-  if (backup) {
-    await fs.mkdir(join(homedir(), '.pulse-coder', 'canvas-runtime'), { recursive: true });
-    await fs.writeFile(runtimeFile, backup);
-  } else {
-    await fs.rm(runtimeFile, { force: true });
-  }
+  await fs.rm(runtimeFile, { force: true });
 });
 
 async function startStub(
   handler: (url: string, body: unknown, auth: string) => { status: number; body: unknown },
 ): Promise<{ server: Server; baseUrl: string }> {
-  return await new Promise((resolve) => {
+  return await new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const chunks: Buffer[] = [];
       req.on('data', (chunk) => chunks.push(chunk as Buffer));
@@ -48,6 +50,7 @@ async function startStub(
         res.end(JSON.stringify(response.body));
       });
     });
+    server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
       if (!address || typeof address !== 'object') throw new Error('listen failed');

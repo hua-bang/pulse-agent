@@ -1,82 +1,43 @@
 # Repository Harness
 
-This directory is the source of truth for the repository-level harness pilot. It is separate from `.pulse-coder/`, which remains product/runtime configuration (MCP servers, sub-agents, runtime skills) for Pulse Coder itself.
+Start with root AGENTS.md, then this index and the affected workspace's AGENTS.md. Follow only task-matched routes into local knowledge, tools, validation, and skills.
 
-The target harness shape is one always-on control surface plus four expandable surfaces:
+The architecture and ownership rules live in [DESIGN.md](DESIGN.md); delivery status and remaining work live in [ROADMAP.md](ROADMAP.md).
 
-```text
-AGENTS.md -> Knowledge / Tool / Validate / Skills
-```
+## Find the Owner
 
-See `harness/DESIGN.md` for the full model. In short: `AGENTS.md` carries persistent routing, constraints, gates, acceptance standards, and failure guards; Knowledge / Tool / Validate / Skills carry the expandable facts, mechanisms, validation planning, and action protocols.
-
-## Reading Path
-
-Use progressive disclosure. Do not read the whole repository by default.
-
-```text
-AGENTS.md / CLAUDE.md
--> harness/README.md
--> affected workspace entry
--> workspace contracts/spec/runbook/validation as needed
-```
-
-## Areas
-
-| Area | Path | Purpose |
-|---|---|---|
-| Harness design | `DESIGN.md` | Target shape for AGENTS.md + Knowledge / Tool / Validate / Skills across global and module scopes. |
-| Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no automatic trigger or semantic checks), and the keystone rollout plan. |
-| Workspace membership | `../pnpm-workspace.yaml` | Machine-readable active workspace set. |
-| Root validation rules | `validate/validation.yaml` | Machine-readable root validation routing and escalation rules. |
-| Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (root AGENTS, workspace AGENTS, workspace docs/contracts). |
-| Validate index | `validate/` | Index for the Validate surface — routes to root validation rules, workspace validation, checks, and run evidence. |
-| Tools | `tools/` | Harness tool index; wired executables live in `scripts/harness/` (runner + drift check). |
-| Skills | `skills/` | Stable repo action protocols; includes interactive harness visualization and the cross-workspace Canvas capability workflow. |
-
-## Knowledge Routing
-
-Keep source-of-truth routing lightweight and human-readable. Do not maintain a separate YAML rule table for this during the pilot.
-
-| Knowledge | Default target |
+| Need | Source of truth |
 |---|---|
-| Knowledge surface index (what the agent faces) | `harness/knowledge/README.md` |
-| Validate surface index (how the agent validates) | `harness/validate/README.md` |
-| Repository navigation | `AGENTS.md` |
-| Claude Code specifics | `CLAUDE.md` |
-| Workspace routing | `pnpm-workspace.yaml` + workspace `AGENTS.md` |
-| Validation rules | workspace `harness/validate/validation.yaml`, plus optional root impact rules in `harness/validate/validation.yaml` |
-| Package contract | Workspace `AGENTS.md`, `README.md`, `harness/knowledge/contracts.md` if present, otherwise local docs/types/tests |
-| App behavior | Workspace `AGENTS.md` or `CLAUDE.md`; add `docs/spec/` only when behavior needs durable product-level SSOT |
-| Runtime operation | Workspace `docs/runbook.md` or local entry file |
-| Future action protocol | Add `harness/skills/<name>/SKILL.md` only after a recurring workflow is stable enough to justify a file |
-| Tool documentation | `harness/tools/README.md` and executable tool README files |
+| Global constraints, precedence, required reading | Root AGENTS.md; CLAUDE.md only imports it |
+| Active workspace membership | pnpm-workspace.yaml |
+| Package metadata and executable scripts | The owning package.json |
+| Local role, contracts, architecture, failure guards | Workspace AGENTS.md and its harness/Knowledge or existing docs |
+| Shared knowledge navigation | [knowledge/README.md](knowledge/README.md) |
+| Check selection and evidence | Local validation YAML, then the [root overlay](validate/validation.yaml) and [validation guide](validate/README.md) |
+| Executable harness mechanisms | [tools/README.md](tools/README.md); implementations under scripts/harness/ |
+| Recurring repository actions | Existing root/workspace harness/skills protocols, routed from their AGENTS files |
 
-## Principles
+Read the workspace's contracts before changing a shared interface. Read DESIGN.md before changing harness structure or governance. Root owns shared constraints and cross-workspace impact; workspace owners keep local implementation knowledge. Reuse existing entries before adding a file.
 
-> "Everything should be made as simple as possible, but not simpler." — attributed to Einstein
+## Reading Layers
 
-Both halves are load-bearing here: "as simple as possible" is the Occam/reuse-first rule (no parallel entries, no speculative assets, delete what stops earning its place); "but not simpler" is the honesty rule (do not pretend a doc line is a mechanism, do not delete complexity a real contract still needs).
+- L0: AGENTS.md, CLAUDE.md, and project README.md are entry/control surfaces.
+- L1: this index, DESIGN.md, ROADMAP.md, root validation, and root docs topic indexes route shared material.
+- L2: workspace AGENTS plus local harness/docs own package-specific facts and procedures.
 
-- Root entry files route; they do not duplicate workspace knowledge.
-- `pnpm-workspace.yaml` maps workspaces; workspace-local `harness/validate/validation.yaml` maps local checks; root `validate/validation.yaml` maps root config and cross-workspace impact. Keep other routing in Markdown until it proves stable enough to mechanize.
-- Workspace facts live near the workspace.
-- Add mechanical checks only after a rule proves stable enough to enforce.
-- Package-local harness directories are optional extension points, not required boilerplate.
+The model is AGENTS.md + Knowledge + Tool + Validate + Skills. Spec is optional intended behavior, defined in DESIGN.md. These names do not require boilerplate directories or READMEs; add a surface index only when real navigation cost justifies it.
 
-## Validation Levels
+## Run Proportionate Checks
 
-The manual runner defaults to `--level quick` during iteration. Use
-`--level standard` when a workspace change is functionally complete and
-`--level release` for final performance or release evidence. `--all` defaults
-to `release`, so an explicit full sweep remains genuinely full.
+- Iteration: the manual runner defaults to quick.
+- Functional completion: use --level standard.
+- Relevant performance/release evidence: use --level release and required manual scenarios.
+- Explicit full bound-check sweep: --all defaults to release. Legacy untiered rules retain their original checks.
 
-Workspace rules may provide `quick`, `required` (standard), and `release`
-command tiers. Untiered legacy rules keep their previous behavior at every
-level until that workspace deliberately adopts tiering.
+The runner selects local commands plus root path rules. Escalations remain manual. The structural checker validates configuration, command references, and routing; structural success does not prove behavioral coverage. Commands, report format, and execution limits belong to the validation guide.
 
-## Pilot Coverage
+## Keep the Boundaries Clear
 
-The pilot is no longer limited to an initial representative set. `pnpm-workspace.yaml` defines the active workspace set, workspace `AGENTS.md` files own local role/navigation, and every active workspace has a local `harness/validate/validation.yaml`. Root `harness/validate/validation.yaml` is now reserved for root config checks and cross-workspace impact rules.
+Repository harness/ contains maintained knowledge, tools, protocols, and check definitions. .pulse-coder/ is product runtime configuration and skills. Generated .harness/ output holds reports or runtime artifacts and is not durable Knowledge.
 
-`pnpm-workspace.yaml` is the SSOT for the active workspace set. See `harness/ROADMAP.md` for pilot status and known gaps.
+Prefer mechanisms over duplicated prose, state unimplemented gates honestly, and keep facts near their owners. Current automatic-trigger status and qualification criteria are tracked in ROADMAP.md.

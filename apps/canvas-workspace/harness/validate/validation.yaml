@@ -170,24 +170,24 @@ pathRules:
   - name: workspace-nodes
     paths:
       - src/renderer/src/modules/workspace-nodes/**
-      - src/main/workspace-nodes/**
+      - src/main/canvas/nodes/**
       - src/shared/canvas.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/main/workspace-nodes
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/workspace-nodes src/main/canvas/nodes
 
   - name: mcp-apps
     paths:
       - src/renderer/src/modules/mcp-apps/**
       - src/shared/mcp-apps.ts
-      - src/main/agent/mcp-apps.ts
+      - src/main/agent/mcp-app*.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-apps.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-app-ipc.test.ts src/main/agent/mcp-app-runtime.test.ts src/main/agent/mcp-app-session-approvals.test.ts
 
   - name: model-selection
     paths:

@@ -154,7 +154,22 @@ Both root and workspace `AGENTS.md` files use the same categories:
 | Acceptance standards | What evidence must be collected before claiming the work is done. |
 | Failure capture | Named guardrails from past failures, stated as concise rules. |
 
-`AGENTS.md` should not become the full knowledge base. If a section starts accumulating detailed facts, move those facts into Knowledge, Tool, Validate, or Skills and keep only the trigger or summary in `AGENTS.md`.
+### Content Admission and Maintenance
+
+Judge root and workspace entries by the decisions they enable. Apply these principles whenever adding, extracting, or writing back an instruction:
+
+| Principle | Admission decision |
+|---|---|
+| Decision value | Keep text that changes how an agent finds the owner, respects a boundary, chooses a prerequisite, or verifies completion. Generic advice and task narration do not earn a place in the entry. |
+| Narrowest ownership | Put a rule at the smallest scope that needs it. Root owns repository-wide constraints and cross-workspace routes; a local implementation detail belongs to its workspace. |
+| One source of truth | Point to the owning manifest, contract, check, or procedure. Update that owner when reality changes; avoid maintaining another description of the same fact in the entry. |
+| Progressive disclosure | Keep the necessary constraint and the trigger for reading more. Put mechanisms, examples, histories, and edge cases in the existing owning resource, and preserve a discoverable route to them. |
+| Actionable evidence | State the condition and the behavior or evidence it requires. Prefer an executable guard when the rule can be checked; use the entry to route to that guard and state any acceptance boundary it cannot cover. |
+| Rule lifecycle | Amend or consolidate the existing rule before appending another. Correct or retire obsolete guidance against current evidence; keep uncertain claims explicitly qualified in their owning resource. |
+
+Before retaining text in an entry, identify the routing decision, constraint, or acceptance requirement that would be lost if it moved downstream. Keep what is needed to discover and apply the rule. A past failure earns durable guidance through its reusable cause and guard; the task transcript and temporary status stay in run evidence.
+
+Entry length and growth may be observed as context-cost information. They do not decide admission, trigger a mandatory rewrite, or define acceptance. A brief duplicated rule can violate ownership; a longer necessary constraint can belong. Content placement and semantic consistency remain judgments during maintenance and review. Structural checks verify objective references and configuration; their success does not certify these principles.
 
 ## Agent Loop
 
@@ -168,7 +183,7 @@ The expected agent behavior is:
 5. Select validation from the workspace first, then apply root Validate overlay for root or cross-workspace impact.
 6. Report the commands run, commands skipped, and why.
 7. Feed durable discoveries back into the right surface:
-   - new fact or local rule -> workspace Knowledge or AGENTS.md
+   - new fact -> owning Knowledge; an entry rule or route must pass content admission
    - new intended behavior or normative design -> workspace Spec
    - new design decision or rejected option -> workspace Spec history
    - new mechanism -> Tool
