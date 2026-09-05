@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AgentScope } from '../../../../types';
 import { resolveDockWorkspaceId } from './dock-workspace';
 
-/** Keeps the full-page Chat dock aligned with its conversation while leaving
- * qualified cross-workspace tab activation as an explicit override. */
+/** Keeps the full-page Chat dock aligned with its conversation without letting
+ * tab activation silently replace that conversation-owned scope. */
 export function useChatDockWorkspace(
   activeView: string,
   activeCanvasWorkspaceId: string,
@@ -25,11 +25,9 @@ export function useChatDockWorkspace(
     reportedWorkspaceId === undefined ? entryWorkspaceId : reportedWorkspaceId,
   );
   const activateDockWorkspace = useCallback((workspaceId: string) => {
-    if (activeView === 'chat') {
-      setReportedWorkspaceId(workspaceId);
-      return;
-    }
+    if (activeView === 'chat') return false;
     selectCanvasWorkspace(workspaceId);
+    return true;
   }, [activeView, selectCanvasWorkspace]);
 
   return {

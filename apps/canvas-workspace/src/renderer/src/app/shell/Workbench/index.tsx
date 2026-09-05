@@ -469,7 +469,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
           chatHost,
         )}
       <WorkspaceTerminalPortal
-        activeWorkspaceId={activeWorkspaceId}
+        activeWorkspaceId={dockState.activeTerminalWorkspaceId}
         workspaces={workspaces}
         mountedWorkspaceIds={mountedWorkspaceIds}
         allNodes={allNodes}

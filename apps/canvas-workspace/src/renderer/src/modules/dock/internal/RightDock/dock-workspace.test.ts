@@ -7,9 +7,9 @@ describe('resolveDockWorkspaceId', () => {
       .toBe('chat-workspace');
   });
 
-  it('falls back to the active Canvas workspace for global Chat', () => {
-    expect(resolveDockWorkspaceId('chat', 'canvas-workspace', null))
-      .toBe('canvas-workspace');
+  it('uses an independent Global session regardless of the Canvas workspace', () => {
+    expect(resolveDockWorkspaceId('chat', 'canvas-workspace', null)).toBe('__global_chat__');
+    expect(resolveDockWorkspaceId('chat', 'other-canvas', null)).toBe('__global_chat__');
   });
 
   it('ignores retained Chat scope outside the Chat route', () => {

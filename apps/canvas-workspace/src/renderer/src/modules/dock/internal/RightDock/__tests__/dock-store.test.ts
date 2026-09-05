@@ -665,7 +665,7 @@ describe('DockStore', () => {
     });
   });
 
-  it('replaces the stale workspace pane instead of the focused chat pane on workspace switch', () => {
+  it('restores the target workspace layout instead of carrying over another split', () => {
     const dock = new DockStore();
     dock.setActiveWorkspace('ws-2');
     dock.openLink('https://two.example');
@@ -679,7 +679,7 @@ describe('DockStore', () => {
 
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: workspaceTwoLinkId,
-      splitTabIds: [workspaceTwoLinkId, CHAT_TAB_ID],
+      splitTabIds: undefined,
     });
   });
 

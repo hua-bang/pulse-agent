@@ -177,7 +177,7 @@ export const DockTabStrip = ({
             store={store}
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
-            showTerminal
+            showTerminal={workspaces.some(workspace => workspace.id === activeWorkspaceId)}
             newTabTitle={t('rightDock.newTabTitle')}
             mountedWorkspaceIds={state.mountedWorkspaceIds}
             terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}

@@ -386,18 +386,18 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 
 A content tab being visible beside Chat is never implicit model context. The
 user must add it through `@Tab` or the tab's Ask AI action. Full-page Chat
-initially binds the dock to the visible conversation's workspace scope, so its
-Tabs are published under that Workspace and are never merged with another
-Workspace's tab session. Global and scheduled conversations do not own a tab
-session; the renderer publishes the Workspace currently hosting the visible
-Dock as a route. Interactive Global browser tools can omit `workspaceId` to
-operate that route, or pass an explicit `workspaceId` to target another
-isolated Workspace. Canvas/node/resource operations still require an explicit
-Workspace target in Global Chat. A qualified tab reference may explicitly move
-the dock to that tab's owning workspace without changing the conversation
-scope; the next conversation switch binds it to the newly selected conversation
-again. Candidates are built from the dock's actual `activeTerminalWorkspaceId`,
-including after that explicit override.
+binds the dock to the visible conversation's scope: Workspace sessions share
+their Canvas Dock; Global owns `__global_chat__` independently of the last
+Canvas. Switching conversations within one scope keeps the same Dock session.
+Preview tabs, selected tab and comparison layout are scope-owned; web metadata
+and expansion persist across app restart. Scheduled-task routes retain their
+existing Canvas routing. Interactive Global browser tools can omit
+`workspaceId` to operate the published Dock scope; Canvas/node/resource tools
+still require an explicit Workspace target. Exact tab activation cannot
+silently override a full-page Chat conversation's Dock scope. Candidates use
+the Dock store's actual `activeTerminalWorkspaceId`; publication waits for
+that store to match the incoming scope so old tabs are never published under
+the new scope during React's transition render.
 
 Every node / DOM-selection / whole-tab dock-to-Chat action awaits a
 `ChatDeliveryReceipt` and reports delivered, queued, unavailable, or failed
@@ -417,8 +417,9 @@ hidden dock composer. Whole-tab actions reuse `AgentContextTabRef` and the
 shared `TabChatAction` rather than creating a second insertion path.
 
 Tab mention markers retain `dockWorkspaceId` plus kind-specific resource
-identity. Transcript chips switch to the owning workspace before activation;
-if a cited web tab was closed, the dock deterministically reopens its persisted
+identity. Cross-scope transcript chips open a preview in the current Dock,
+retaining the resource source; they do not change the conversation or Dock scope.
+Within the same scope, if a cited web tab was closed, the dock deterministically reopens its persisted
 URL and returns a distinct `reopened` receipt. Legacy or unsupported references
 remain visibly stale rather than falling back to whichever tab is active.
 Activation is acknowledged by the dock, so Chat shows progress/success instead

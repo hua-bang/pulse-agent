@@ -51,7 +51,10 @@ The workbench has exactly two side regions plus a modal tier:
     chat tab, cleared on activation;
   - artifact tabs are deduped by `(workspaceId, artifactId)` — opening
     an already-open artifact re-activates its tab;
-  - link tabs are deduped by exact URL within their owning workspace.
+  - all preview tabs belong to the Dock scope where they were opened;
+    switching scope restores its own tab order, focus and comparison layout.
+    Global Chat has its own scope, independent of the active Canvas;
+  - link tabs are deduped by exact URL within their owning scope.
     They persist their URL, title, favicon, and last active tab in renderer
     local storage, so reopening the app restores that workspace's browser
     session; terminal and other transient preview tabs do not persist;
