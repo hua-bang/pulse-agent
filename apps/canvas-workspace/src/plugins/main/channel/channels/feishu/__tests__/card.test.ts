@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildCompletedProcessCard,
   buildDoneCard,
   buildProgressCard,
+  buildThinkingCard,
   buildWorkspacePickerCard,
   formatToolLabel,
   type ToolEntry,
@@ -48,46 +48,68 @@ describe('feishu card tool list', () => {
     expect(formatToolLabel('read', { docToken: 'doccnXyz' })).toBe('read — doccnXyz');
   });
 
-  it('progress card shows the current stage and folds tool details', () => {
-    const card = buildProgressCard('working', tools, 20) as { header?: unknown };
+  it('keeps Working as an expanded process disclosure with a live timeline', () => {
+    const card = buildProgressCard('working', tools, 20) as {
+      header?: unknown;
+      body: { elements: Array<Record<string, unknown>> };
+    };
+    const panel = card.body.elements[0];
     const body = texts(card).join('\n');
     expect(card.header).toBeUndefined();
-    expect(body).toContain('<font color="purple">●</font> **Canvas write node node-2**');
-    expect(body).toContain('<font color="grey">运行中 · 20s</font>');
-    expect(body).toContain('working');
-    expect(body).toContain('<font color="grey">Called tools 2 times</font>');
+    expect(panel.tag).toBe('collapsible_panel');
+    expect(panel.expanded).toBe(true);
+    expect(body).toContain('**Working**');
     expect(body).toContain('<font color="grey">│</font>');
-    expect(JSON.stringify(card)).toContain('"text_size":"heading"');
-    expect(JSON.stringify(card)).toContain('"text_size":"notation"');
-    expect(body).not.toContain('**当前答复**\nworking');
-    // Tool rows stay quiet in the folded panel: grey structure/text, no heavy status color or debug label.
+    expect(body).toContain('<font color="grey">›</font>');
+    expect(body).toContain('<font color="grey">•</font>');
     expect(body).toContain('<font color="grey">Canvas read node · node-1 · 18s</font>');
-    expect(body).toContain('<font color="grey">Canvas write node · node-2</font>');
+    expect(body).toContain('Canvas write node · node-2');
+    expect(body).toContain('working');
+    expect(body).not.toContain('Called tools');
+    expect(JSON.stringify(card)).not.toContain('"text_size":"heading"');
+    expect(JSON.stringify(card)).toContain('"text_size":"normal"');
+    expect(JSON.stringify(card)).toContain('"text_size":"notation"');
   });
 
-  it('completed process card leaves only a completion row plus folded tool details', () => {
-    const card = buildCompletedProcessCard(tools, 20) as {
+  it('does not freeze the live answer after the old 700 character preview limit', () => {
+    const streamed = `${'a'.repeat(760)}tail`;
+    const body = texts(buildProgressCard(streamed)).join('\n');
+    expect(body).toContain('tail');
+  });
+
+  it('thinking and progress cards keep the same stable status geometry', () => {
+    const thinking = texts(buildThinkingCard());
+    const progress = texts(buildProgressCard('', tools));
+    expect(thinking[0]).toBe('**Working**');
+    expect(progress[0]).toBe(thinking[0]);
+  });
+
+  it('done card keeps the final answer below an expanded completed timeline', () => {
+    const card = buildDoneCard('final answer', tools) as {
       header?: unknown;
       body: { elements: Array<Record<string, unknown>> };
     };
     const panel = card.body.elements.find((e) => e.tag === 'collapsible_panel');
     expect(panel).toBeDefined();
-    expect(panel!.expanded).toBe(false);
+    expect(panel!.expanded).toBe(true);
     expect(card.header).toBeUndefined();
     const body = texts(card).join('\n');
-    expect(body).toContain('<font color="grey">●</font> **Completed**');
-    expect(body).toContain('<font color="grey">已完成 2 个步骤，下面是最终答复。</font>');
-    expect(body).toContain('<font color="grey">Called tools 2 times</font>');
-    expect(body).not.toContain('执行过程 · 已完成');
+    expect(body).toContain('**Completed**');
+    expect(body).toContain('final answer');
+    expect(body).toContain('<font color="grey">│</font>');
+    expect(body).toContain('<font color="grey">›</font>');
+    expect(body).toContain('◎ Completed');
+    expect(body).not.toContain('Called tools');
     expect(body).toContain('Canvas read node · node-1');
   });
 
-  it('done card with no tools is just the answer (no panel)', () => {
+  it('done card with no tools keeps status and answer without a panel', () => {
     const card = buildDoneCard('hi', []) as {
       body: { elements: Array<Record<string, unknown>> };
     };
-    expect(card.body.elements).toHaveLength(1);
-    expect(card.body.elements[0].tag).toBe('markdown');
+    expect(card.body.elements).toHaveLength(2);
+    expect(card.body.elements.every(element => element.tag === 'markdown')).toBe(true);
+    expect(texts(card).join('\n')).toContain('hi');
   });
 
   it('workspace picker card uses a workspace dropdown and two submit buttons', () => {

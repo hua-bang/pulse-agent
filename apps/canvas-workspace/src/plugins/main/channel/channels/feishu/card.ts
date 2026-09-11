@@ -1,8 +1,8 @@
 // Feishu interactive card (schema 2.0) builders for the streamed agent run.
 // One card is created on run start and progressively patched: thinking →
 // progress (accumulated text + a live list of tool calls) → done / error.
-// On done the tool list folds into a collapsible panel so the answer stays
-// front-and-center while the work remains inspectable.
+// Working/Completed is an expanded disclosure containing the live tool timeline;
+// the same card keeps the streamed answer directly below it.
 
 import type { OutboundTarget, WorkspacePicker } from '../../core/types';
 
@@ -33,10 +33,6 @@ function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): obje
 
 function muted(content: string): string {
   return `<font color="grey">${content}</font>`;
-}
-
-function purple(content: string): string {
-  return `<font color="purple">${content}</font>`;
 }
 
 function red(content: string): string {
@@ -96,16 +92,33 @@ function toolLine(tool: ToolEntry): string {
   return segs.join(' · ');
 }
 
-/** Render folded tool details as a quiet vertical timeline. */
-function toolTimeline(tools: ToolEntry[]): string {
-  return tools
-    .flatMap((tool, index) => {
-      const isLast = index === tools.length - 1;
-      const dot = muted(tool.done ? '●' : '◦');
-      const row = `${dot} ${muted(toolLine(tool))}`;
-      return isLast ? [row] : [row, `${muted('│')}`];
-    })
-    .join('\n');
+const DOT_PULSE_FRAMES = ['•', '●', '•', '·'] as const;
+
+function dotPulseFrame(elapsedSec: number): string {
+  return DOT_PULSE_FRAMES[Math.abs(Math.floor(elapsedSec)) % DOT_PULSE_FRAMES.length];
+}
+
+/**
+ * The reference interaction keeps the process visible as one quiet vertical
+ * timeline. Finished rows recede; the current row gets the only moving mark.
+ */
+function toolTimeline(tools: ToolEntry[], elapsedSec: number, running: boolean): string {
+  const pulse = dotPulseFrame(elapsedSec);
+  const rail = muted('│');
+  const liveMark = muted(pulse);
+  const rows = tools.map((tool) => {
+    const completed = tool.done || !running;
+    const status = completed ? muted('›') : liveMark;
+    const label = completed ? muted(toolLine(tool)) : toolLine(tool);
+    return `${rail}  ${status}  ${label}`;
+  });
+
+  if (running && rows.length === 0) {
+    rows.push(liveMark);
+  } else if (!running) {
+    rows.push(`${muted('└')}  ${muted('◎ Completed')}`);
+  }
+  return rows.join('\n');
 }
 
 /** Recover the "name" / "detail" parts of a `formatToolLabel` string. */
@@ -113,10 +126,6 @@ function splitToolLabel(label: string): { name: string; detail: string } {
   const i = label.indexOf(' — ');
   if (i >= 0) return { name: label.slice(0, i), detail: label.slice(i + 3) };
   return { name: label, detail: '' };
-}
-
-function toolCountLine(count: number): string {
-  return `Called tools ${count} ${count === 1 ? 'time' : 'times'}`;
 }
 
 function titleizeToolName(name: string): string {
@@ -127,110 +136,61 @@ function titleizeToolName(name: string): string {
   )).join(' ');
 }
 
-function stepTitle(status: string, tools: ToolEntry[]): string {
-  if (status === '已完成') return 'Completed';
-  if (status === '出错') return 'Error';
-  const latest = tools.at(-1);
-  if (!latest) return 'Thinking';
-  const { name, detail } = splitToolLabel(latest.label);
-  const title = titleizeToolName(name);
-  return detail ? `${title} ${detail}` : title;
+function statusLine(status: 'working' | 'completed'): string {
+  return `**${status === 'working' ? 'Working' : 'Completed'}**`;
 }
 
-function stepSubtitle(status: string, elapsedSec?: number): string {
-  const parts = [status];
-  if (typeof elapsedSec === 'number') parts.push(`${elapsedSec}s`);
-  return parts.join(' · ');
-}
-
-function statusDot(status: string): string {
-  if (status === '出错') return red('●');
-  if (status === '已完成') return muted('●');
-  return purple('●');
-}
-
-function toolPanel(tools: ToolEntry[]): object | undefined {
-  if (tools.length === 0) return undefined;
+/** Working/Completed is itself the disclosure control, like the reference. */
+function processPanel(
+  status: 'working' | 'completed',
+  tools: ToolEntry[],
+  elapsedSec: number,
+): object {
   return {
     tag: 'collapsible_panel',
-    expanded: false,
+    expanded: true,
     header: {
-      title: md(muted(toolCountLine(tools.length)), 'notation'),
+      title: md(statusLine(status), 'normal'),
       vertical_align: 'center',
     },
-    elements: [md(toolTimeline(tools), 'notation')],
+    elements: [md(toolTimeline(tools, elapsedSec, status === 'working'), 'notation')],
   };
 }
 
-/** Native-like Agent process block: stage title stays visible; tool details fold away. */
-function processElements(input: {
-  status: string;
-  tools?: ToolEntry[];
-  elapsedSec?: number;
-  note?: string;
-  answerPreview?: string;
-}): object[] {
-  const tools = input.tools ?? [];
-  const title = stepTitle(input.status, tools);
-  const subtitle = stepSubtitle(input.status, input.elapsedSec);
-  const elements: object[] = [
-    md(`${statusDot(input.status)} **${title}**`, 'heading'),
-    md(muted(input.note ?? subtitle), 'notation'),
-  ];
-  if (input.answerPreview?.trim()) {
-    elements.push(md(clamp(input.answerPreview.trim()).slice(0, 700), 'normal'));
-  }
-  const foldedTools = toolPanel(tools);
-  if (foldedTools) elements.push(foldedTools);
+/** The process stays above the answer while both update in the same card. */
+function liveElements(text: string, tools: ToolEntry[], elapsedSec: number): object[] {
+  const elements: object[] = [processPanel('working', tools, elapsedSec)];
+  if (text.trim()) elements.push(md(clamp(text.trim()), 'normal'));
   return elements;
 }
 
 export function buildThinkingCard(): object {
-  return card(undefined, 'blue', processElements({
-    status: '准备中',
-    note: '已收到请求，正在准备运行环境...',
-  }), false);
+  return card(undefined, 'blue', liveElements('', [], 0), false);
 }
 
 export function buildProgressCard(
   text: string,
   tools: ToolEntry[] = [],
-  elapsedSec?: number,
+  elapsedSec = 0,
 ): object {
-  return card(undefined, 'blue', processElements({
-    status: '运行中',
-    tools,
-    elapsedSec,
-    note: tools.length === 0 ? '正在生成答复...' : undefined,
-    answerPreview: text,
-  }), false);
-}
-
-export function buildCompletedProcessCard(tools: ToolEntry[] = [], elapsedSec?: number): object {
-  return card(undefined, 'green', processElements({
-    status: '已完成',
-    tools,
-    elapsedSec,
-    note: tools.length > 0
-      ? `已完成 ${tools.length} 个步骤，下面是最终答复。`
-      : '已完成，下面是最终答复。',
-  }), false);
+  return card(undefined, 'blue', liveElements(text, tools, elapsedSec), false);
 }
 
 export function buildDoneCard(text: string, tools: ToolEntry[] = []): object {
-  const elements: object[] = [md(clamp(text) || '✅ Done')];
-  if (tools.length > 0) {
-    elements.push(...processElements({
-      status: '已完成',
-      tools,
-      note: `已完成 ${tools.length} 个步骤。`,
-    }));
-  }
-  return card('Pulse 已完成', 'green', elements, true);
+  const elapsedSec = tools.reduce((total, tool) => total + (tool.elapsedSec ?? 0), 0);
+  const elements: object[] = tools.length > 0
+    ? [processPanel('completed', tools, elapsedSec)]
+    : [md(statusLine('completed'), 'normal')];
+  if (text.trim()) elements.push(md(clamp(text.trim()), 'normal'));
+  else elements.push(md(' Done', 'normal'));
+  return card(undefined, 'green', elements, true);
 }
 
 export function buildErrorCard(message: string): object {
-  return card('Pulse 运行出错', 'red', [md(`**状态**：出错\n\n❌ ${message}`)], false);
+  return card(undefined, 'red', [
+    md(`${red('●')} **Error**`, 'heading'),
+    md(message, 'normal'),
+  ], false);
 }
 
 export function buildWorkspacePickerCard(picker: WorkspacePicker, target?: OutboundTarget): object {
