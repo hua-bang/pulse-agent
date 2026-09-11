@@ -309,25 +309,23 @@ export class ChannelBridge {
       idleTimer = setTimeout(check, this.runIdleTimeoutMs);
     });
 
-    // Give this conversation its own session so topics / chats sharing a
-    // scope keep separate histories. Safe here: runs are serialized per
-    // scope, so nothing else can swap the session mid-turn.
-    try {
-      await this.sessions.ensureSession(scope, msg.conversationId);
-    } catch (err) {
-      console.error(`[channel:${channel.id}] failed to select session`, err);
-    }
-
+    // Acknowledge the accepted turn before any potentially slow session setup.
+    // The scope is already reserved, so another message cannot start a second run.
     let stream: ChannelStream;
     try {
       stream = await channel.openStream(target);
     } catch (err) {
+      finished = true;
+      if (idleTimer) clearTimeout(idleTimer);
       this.activeRuns.delete(runKey);
       console.error(`[channel:${channel.id}] failed to open stream`, err);
       return;
     }
 
     try {
+      // Keep session selection inside the error/finally path: a failed setup
+      // must close the early card, not continue chatting in the wrong session.
+      await this.sessions.ensureSession(scope, msg.conversationId);
       const chat = this.service.chatWithScope(
         scope,
         buildAgentPrompt(msg),

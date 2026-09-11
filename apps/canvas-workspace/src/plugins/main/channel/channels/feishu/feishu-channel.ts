@@ -17,7 +17,7 @@ import {
   type FeishuSendTarget,
 } from './feishu-client';
 import {
-  buildCompletedProcessCard,
+  buildDoneCard,
   buildErrorCard,
   buildProgressCard,
   buildThinkingCard,
@@ -30,7 +30,7 @@ import { loadBotIdentity, messageMentionsBot, type FeishuBotIdentity } from './b
 
 const CHANNEL_ID = 'feishu';
 const PROGRESS_THROTTLE_MS = 800;
-const PROGRESS_HEARTBEAT_MS = 15_000;
+const PROGRESS_HEARTBEAT_MS = 1_200;
 const CARD_SEND_TIMEOUT_MS = 10_000;
 const CARD_UPDATE_TIMEOUT_MS = 10_000;
 
@@ -356,10 +356,7 @@ export class FeishuStream implements ChannelStream {
       t.done = true;
       t.elapsedSec = Math.round((now - t.startedAt) / 1000);
     }
-    await this.finalizeWithAnswer(
-      () => buildCompletedProcessCard(this.tools, this.elapsedSec()),
-      text,
-    );
+    await this.finalize(() => buildDoneCard(text, this.tools), text || '✅ Done');
   }
 
   async onError(message: string): Promise<void> {
@@ -463,23 +460,6 @@ export class FeishuStream implements ChannelStream {
     if (!finalUpdated) {
       await this.sendFallbackText(fallbackText);
     }
-  }
-
-  private async finalizeWithAnswer(
-    processFactory: () => object,
-    answerText: string,
-  ): Promise<void> {
-    this.finalizing = true;
-    this.pendingProgressFactory = null;
-    if (this.updateInFlight) {
-      await this.updateInFlight;
-    }
-
-    if (!this.cardUpdateTimedOut) {
-      await this.patchCard(processFactory, 'Feishu completed process card update');
-    }
-
-    await this.sendFallbackText(answerText || '✅ Done');
   }
 
   private async sendFallbackText(text: string): Promise<void> {

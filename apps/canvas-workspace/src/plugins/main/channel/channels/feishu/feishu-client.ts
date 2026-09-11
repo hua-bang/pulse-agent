@@ -100,17 +100,21 @@ export async function getFeishuBotInfo(): Promise<FeishuBotInfo> {
     );
   }
 
-  const payload = (await response.json()) as FeishuApiResponse<{
-    open_id?: string;
-    app_name?: string;
-  }>;
+  type BotInfo = { open_id?: string; app_name?: string };
+  const payload = (await response.json()) as FeishuApiResponse<BotInfo> & { bot?: BotInfo };
   if (payload.code !== 0) {
     throw new Error(`Failed to get Feishu bot info: ${payload.msg || 'unknown error'}`);
   }
 
+  // bot/v3/info uses a top-level bot envelope, unlike the IM APIs' data envelope.
+  const bot = payload.bot ?? payload.data;
+  const openId = bot?.open_id?.trim();
+  if (!openId) {
+    throw new Error('Failed to get Feishu bot info: missing bot open_id');
+  }
   return {
-    openId: payload.data?.open_id,
-    appName: payload.data?.app_name,
+    openId,
+    appName: bot?.app_name,
   };
 }
 

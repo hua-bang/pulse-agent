@@ -41,6 +41,25 @@ describe('FeishuStream', () => {
     vi.useRealTimers();
   });
 
+  it('animates the working marker through heartbeat card patches', async () => {
+    const stream = new FeishuStream({} as never, {
+      chatId: 'group1',
+      isGroup: true,
+      triggerMessageId: 'm1',
+    });
+
+    await stream.init();
+    expect(JSON.stringify(mockedSendCard.mock.calls[0][2])).toContain('•');
+
+    await vi.advanceTimersByTimeAsync(1_200);
+    await flushAsync();
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('●');
+
+    await vi.advanceTimersByTimeAsync(1_200);
+    await flushAsync();
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('•');
+  });
+
   it('keeps streaming after a transient card patch failure', async () => {
     mockedUpdateCard
       .mockRejectedValueOnce(new Error('rate limited'))
@@ -60,8 +79,8 @@ describe('FeishuStream', () => {
     await vi.advanceTimersByTimeAsync(800);
     await flushAsync();
 
-    expect(mockedUpdateCard).toHaveBeenCalledTimes(2);
-    expect(JSON.stringify(mockedUpdateCard.mock.calls[1][2])).toContain('second chunk');
+    expect(mockedUpdateCard.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('second chunk');
     expect(mockedSendText).not.toHaveBeenCalled();
   });
 
@@ -90,8 +109,8 @@ describe('FeishuStream', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     await flushAsync();
 
-    expect(mockedUpdateCard).toHaveBeenCalledTimes(2);
-    expect(JSON.stringify(mockedUpdateCard.mock.calls[1][2])).toContain('first second third');
+    expect(mockedUpdateCard.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('first second third');
   });
 
   it('shows tool input progress before the final tool call arrives', async () => {
@@ -120,7 +139,28 @@ describe('FeishuStream', () => {
     expect(latestCard).toContain('Demo');
   });
 
-  it('still sends the final answer as plain text when the completed process patch hangs', async () => {
+  it('finishes by patching the original card with the final answer', async () => {
+    const stream = new FeishuStream({} as never, {
+      chatId: 'group1',
+      isGroup: true,
+      triggerMessageId: 'm1',
+    });
+
+    await stream.init();
+    stream.onText('partial');
+    await vi.advanceTimersByTimeAsync(800);
+    await flushAsync();
+    await stream.onDone('final answer');
+
+    const finalCard = JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2]);
+    expect(finalCard).toContain('Completed');
+    expect(finalCard).toContain('final answer');
+    expect(finalCard).not.toContain('partial');
+    expect(mockedSendCard).toHaveBeenCalledTimes(1);
+    expect(mockedSendText).not.toHaveBeenCalled();
+  });
+
+  it('falls back to plain text when the final card patch hangs', async () => {
     mockedUpdateCard.mockImplementationOnce(() => new Promise(() => undefined));
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
@@ -138,7 +178,7 @@ describe('FeishuStream', () => {
     expect(mockedSendText.mock.calls[0][2]).toBe('final answer');
   });
 
-  it('still sends the final answer as plain text when the completed process update fails', async () => {
+  it('falls back to plain text when the final card update fails', async () => {
     mockedUpdateCard.mockRejectedValueOnce(new Error('final failed'));
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
