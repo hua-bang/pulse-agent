@@ -1,3 +1,4 @@
+import { resolveFrameAccent, resolveFramePalette } from '../../node-bodies/FrameNodeBody/colorPresets';
 import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from '../../../../../types';
 import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
@@ -65,22 +66,8 @@ export const getNodeClasses = ({
   .filter(Boolean)
   .join(' ');
 
-/* Frame palette (matches design/frame-color.html "Soft" palette).
- *
- * Each frame's tones (pill bg, pill text, body tint, border, dot pattern)
- * are derived in CSS via oklch(L C var(--frame-hue)) with fixed L/C math.
- * To support that, this helper parses the stored color into a hue number
- * (and chroma, used to flag the low-chroma "graphite" preset).
- *
- * Storage compatibility:
- *  - New presets (`COLOR_PRESETS` in FrameNodeBody/index.tsx) write
- *    `oklch(0.68 0.108 <hue>)`; we extract <hue> directly.
- *  - Legacy hex values (FigJam-era presets, demo workspaces) are converted
- *    via HSL — for the warm pastel range these were drawn from, HSL hue is
- *    within ~5–10° of oklch hue, which is good enough for the design's
- *    soft tones.
- *  - Anything unparseable falls back to hue 250 (a neutral indigo).
- */
+/* Presets supply sampled surface colors. Hue/chroma remains the fallback
+ * for custom colors and the existing selection/focus indicators. */
 const DEFAULT_FRAME_HUE = 250;
 const DEFAULT_FRAME_CHROMA = 0.052;
 
@@ -144,11 +131,18 @@ export const getNodeWrapperStyle = (node: CanvasNode, dragOffset?: NodeDragOffse
   if (node.type === 'frame') {
     const color = (node.data as FrameNodeData).color;
     const { hue, chroma } = resolveFrameHue(color);
+    const palette = resolveFramePalette(color);
     return {
       ...size,
       left: x,
       top: y,
-      '--frame-color': color,
+      '--frame-color': resolveFrameAccent(color),
+      '--frame-title-border': palette?.titleBorder ?? `color-mix(in srgb, ${color} 70%, black)`,
+      '--frame-title-color': palette?.title ?? `oklch(0.90 ${chroma} ${hue})`,
+      '--frame-fill': palette?.fill ?? `color-mix(in srgb, ${color} 10%, transparent)`,
+      '--frame-focus-fill': palette?.focusFill ?? `color-mix(in srgb, ${color} 16%, transparent)`,
+      '--frame-border-color': palette?.border ?? `color-mix(in srgb, ${color} 24%, transparent)`,
+      '--frame-text-color': palette?.text ?? `oklch(0.30 ${chroma} ${hue})`,
       '--frame-hue': String(hue),
       '--frame-chroma': String(chroma),
     } as CSSProperties;

@@ -73,10 +73,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image:
-    radial-gradient(circle, rgba(0, 0, 0, 0.08) 0.7px, transparent 0.7px);
-  background-size: 24px 24px;
-  background-color: #eeecea;
+  background-color: var(--bg-canvas);
 }
 
 .canvas-bottom-chrome {

@@ -14,31 +14,7 @@ import { useI18n } from "../../../../../i18n";
  * now behind a React.lazy boundary.
  */
 
-// Muted frame palette. These are intentionally lower-chroma than the
-// previous presets so large canvas frames read as organization, not alerts.
-//
-// Each preset is one hue around the wheel (coral -> amber -> olive -> sage
-// -> teal -> sky -> indigo -> mauve + a low-chroma graphite slot). All
-// derived tones (pill bg, pill text, body tint, border, dot pattern) are
-// computed in CSS as `oklch(L C var(--frame-hue))`; see
-// CanvasNodeView/utils.ts for the parse path.
-//
-// `value` is the identity swatch written into `data.color`; only its HUE is
-// load-bearing (CanvasNodeView/utils.ts derives every tone from the hue, and
-// treats chroma < 0.02 as the graphite neutral). Hues match the user-supplied
-// pale-tint palette (rose/peach/green/blue/indigo/violet); the last preset
-// stays near-zero chroma so the frame reads as a quiet neutral.
-const COLOR_PRESETS = [
-  { name: "Rose",     hue: 6,   value: "oklch(0.68 0.108 6)"   },
-  { name: "Peach",    hue: 48,  value: "oklch(0.68 0.108 48)"  },
-  { name: "Amber",    hue: 96,  value: "oklch(0.68 0.108 96)"  },
-  { name: "Green",    hue: 168, value: "oklch(0.68 0.108 168)" },
-  { name: "Teal",     hue: 200, value: "oklch(0.68 0.108 200)" },
-  { name: "Blue",     hue: 241, value: "oklch(0.68 0.108 241)" },
-  { name: "Indigo",   hue: 261, value: "oklch(0.68 0.108 261)" },
-  { name: "Violet",   hue: 306, value: "oklch(0.68 0.108 306)" },
-  { name: "Graphite", hue: 265, value: "oklch(0.68 0.006 265)" }
-];
+import { FRAME_COLOR_PRESETS as COLOR_PRESETS, resolveFrameAccent } from './colorPresets';
 
 interface ColorPickerProps {
   node: CanvasNode;
@@ -159,7 +135,7 @@ export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
         <button
           type="button"
           className="frame-color-dot"
-          style={{ backgroundColor: data.color }}
+          style={{ backgroundColor: resolveFrameAccent(data.color) }}
           title={t('canvas.frameStyle.color')}
           aria-label={t('canvas.frameStyle.color')}
           aria-haspopup="menu"
@@ -176,12 +152,12 @@ export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
         <SwatchRow
           ariaLabel={t('canvas.frameStyle.color')}
           options={COLOR_PRESETS.map((preset) => ({
-            value: preset.value,
+            value: preset.accent,
             label: t('canvas.frameStyle.colorOption', { name: preset.name }),
           }))}
-          value={data.color}
+          value={resolveFrameAccent(data.color)}
           onChange={(next) => {
-            handleColorChange(next);
+            handleColorChange(COLOR_PRESETS.find((preset) => preset.accent === next)?.value ?? next);
             close();
           }}
         />

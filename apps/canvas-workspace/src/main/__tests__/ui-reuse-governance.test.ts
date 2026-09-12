@@ -212,7 +212,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // one remaining 50% radius literal; the replacement uses radius tokens.
   // 114→113 (module-first ownership batches): deleting obsolete visual
   // chrome removed one remaining literal-radius declaration.
-  borderRadiusLiterals: 113,
+  // 113→112: remove the obsolete frame dot overlay.
+  borderRadiusLiterals: 112,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -418,7 +419,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // chrome removed its literal colors; surviving styles were colocated.
   // 1708→1705 (settings convergence): deleting the zero-caller legacy
   // SkillsManager removed its three drag-and-drop-only color literals.
-  hardcodedColorLiterals: 1705,
+  // 1705→1703: reuse canvas ground token and retire the stale frame palette comment.
+  // 1703→1691: frame surfaces share the accent and surface tokens.
+  // 1691→1689: remove frame dot paint and reuse the canvas grid token.
+  hardcodedColorLiterals: 1689,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
