@@ -370,141 +370,114 @@
  * over (< 0.35, display:none below) or the iframe simply repaints. Zoom-IN
  * is deliberately excluded — the user is zooming toward content and wants
  * to see it resolve. */
-[data-motion="zoom-out"][data-heavy-embeds] .canvas-node--iframe iframe.iframe-frame {
+[data-motion="zoom-out"][data-heavy-embeds] .iframe-body-host:not([data-overview-content="true"]) iframe.iframe-frame {
   visibility: hidden;
 }
 
-/* ── Overview semantic zoom ─────────────────────────────────────────────
- * Below OVERVIEW_SCALE_THRESHOLD (CanvasSurface adds
- * `.canvas-transform--overview` at settled scale < 0.35) inline embeds are
- * unreadable but still cost raster + a compositor layer each, and — once the
- * zoomed-out viewport contains them — their rAF/CSS animations all resume at
- * once (measured 55% frames >20ms with 40 live iframes at overview scale;
- * docs/performance-verification-large-canvas.md). `display: none` keeps the
- * iframe document and its JS state alive but stops rendering: the layer is
- * dropped and rAF/CSS animations pause. Scoped to `.iframe-frame` so
- * url-mode `<webview>` guests are untouched (hiding a webview has
- * guest-side effects; their cost is already bounded by the 1fps background
- * throttle). Uses settled scale, so the swap happens once per gesture. */
-.canvas-transform--overview .canvas-node--iframe iframe.iframe-frame,
-.canvas-transform--overview .canvas-node--iframe .iframe-frame--pending {
+/* Overview swaps only rendering, never the guest lifecycle. A node's persisted
+ * opt-out applies to HTML and URL embeds alike. Keep the control independent
+ * from this opt-out so users can always switch back at low zoom. */
+.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) iframe.iframe-frame,
+.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-frame--pending {
   display: none;
 }
 
-/* url-mode guests: the <webview> carries the same .iframe-frame class
- * (useIframeNodeState's useEmbeddedBrowser config), so the bare selector
- * above used to display:none LIVE webviews — the exact hazard the
- * lifecycle code avoids (guests misbehave under display:none). Scope the
- * display swap to inline iframes + the pending shell (the shell MUST stay
- * display:none at overview or the deferred-mount observer would
- * mass-mount 40 subdocuments), and hide guests with visibility instead:
- * paint/composite stops under the identity badge, element semantics stay
- * intact — the same mechanism as the frozen-state hide. */
-.canvas-transform--overview .canvas-node--iframe .iframe-frame-host {
+/* Never display:none live webviews: preserve their guest-side semantics. */
+.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-bar,
+.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-frame-host {
   visibility: hidden;
 }
 
-/* A quiet page-like card: faint accent wash fading into the surface, so
- * web nodes read as "a page" instead of a flat colored block. */
-.canvas-transform--overview .canvas-node--iframe .iframe-frame-wrapper {
-  background: linear-gradient(180deg, var(--accent-light), var(--surface) 55%);
+.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-frame-wrapper {
+  background: var(--surface);
 }
 
-/* Identity badge (IframeOverviewBadge): favicon tile + title/hostname label
- * for url embeds, a code glyph for html/srcdoc ones. Hidden outside overview —
- * display:none keeps it out of the paint chunks the compositor walks
- * (the Layerize lesson from the idle actions popover).
- *
- * Two coordinate systems on purpose: the tile is reverse-scaled to a constant
- * on-screen size so its border/shadow keep their weight at any overview zoom,
- * while the text label is laid out in card-relative units (font/padding ÷ the
- * clamped scale) so it always ellipsises to the card width and never overflows
- * a narrow node. The favicon tile sits just above centre and the label chip
- * just below it, so the two read as one page-identity unit instead of a lone
- * icon floating over a detached bottom bar. */
-.iframe-overview-badge {
+.iframe-overview-badge,
+.iframe-overview-control.ui-btn {
   display: none;
 }
 
-.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge {
+.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-overview-badge {
+  --iframe-overview-scale: clamp(0.14, var(--canvas-scale, 1), 0.35);
   position: absolute;
   inset: 0;
-  display: block;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: calc(8px / var(--iframe-overview-scale));
+  padding: calc(24px / var(--iframe-overview-scale)) calc(16px / var(--iframe-overview-scale)) calc(8px / var(--iframe-overview-scale));
+  overflow: hidden;
   pointer-events: none;
+  background: var(--surface);
 }
 
-/* Constant on-screen size via reverse-scale; nudged above centre so the
- * title/hostname chip below sits under it and the pair reads centred. */
-.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-tile {
-  --iframe-overview-tile-shadow: 0 2px 8px rgba(55, 53, 47, 0.1);
-  position: absolute;
-  left: 50%;
-  top: 42%;
+.iframe-overview-badge-source {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--iframe-overview-tile-shadow);
-  color: var(--text-secondary);
-  transform: translate(-50%, -50%) scale(calc(1 / clamp(0.06, var(--canvas-scale, 1), 0.35)));
+  gap: calc(6px / var(--iframe-overview-scale));
+  min-width: 0;
 }
 
+.iframe-overview-badge-tile {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: calc(14px / var(--iframe-overview-scale));
+  height: calc(14px / var(--iframe-overview-scale));
+  color: var(--text-muted);
+}
+
+.iframe-overview-badge-tile > svg,
 .iframe-overview-badge-favicon {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-sm);
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
-/* Title + hostname chip: a centred, auto-width rounded label sitting just
- * below the tile. Laid out in canvas units so ellipsis follows the card's
- * real width; the size compensation clamps at 0.14 so the label holds its
- * on-screen size through mid-overview and only then shrinks with the card. */
-.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-label {
-  --iframe-overview-label-shadow: 0 calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(4px / clamp(0.14, var(--canvas-scale, 1), 0.35)) rgba(55, 53, 47, 0.08);
-  position: absolute;
-  left: 50%;
-  top: 42%;
-  transform: translate(-50%, calc(24px / clamp(0.14, var(--canvas-scale, 1), 0.35)));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  max-width: 88%;
-  padding: calc(3px / clamp(0.14, var(--canvas-scale, 1), 0.35)) calc(9px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  border-radius: calc(7px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  background: var(--surface);
-  /* The chip is laid out in card units (not transform-scaled like the tile),
-   * so its border/shadow must be size-compensated too or they collapse to a
-   * sub-pixel hairline at overview zoom. */
-  border: solid var(--border);
-  border-width: calc(1px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  box-shadow: var(--iframe-overview-label-shadow);
-  text-align: center;
-}
-
-.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-title {
-  max-width: 100%;
+.iframe-overview-badge-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
   color: var(--text);
-  font-size: calc(10.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
+  font-size: calc(13px / var(--iframe-overview-scale));
+  line-height: 1.45;
   font-weight: 500;
-  letter-spacing: 0.01em;
+  text-align: left;
 }
 
-.canvas-transform--overview .canvas-node--iframe .iframe-overview-badge-host {
-  max-width: 100%;
+.iframe-overview-badge-host {
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-secondary);
-  font-size: calc(8.5px / clamp(0.14, var(--canvas-scale, 1), 0.35));
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  color: var(--text-muted);
+  font-size: calc(10px / var(--iframe-overview-scale));
+  line-height: 1.4;
+}
+
+/* Screen-sized hit area, not a canvas-sized button that shrinks to a speck.
+ * Hidden at working zoom; hover/focus reveals it in BOTH low-zoom modes. */
+.canvas-transform--overview .iframe-overview-control.ui-btn {
+  display: inline-flex;
+  position: absolute;
+  top: calc(6px / var(--canvas-scale, 1));
+  right: calc(6px / var(--canvas-scale, 1));
+  z-index: 3;
+  transform: scale(calc(1 / var(--canvas-scale, 1)));
+  transform-origin: top right;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.canvas-transform--overview .canvas-node--iframe:hover .iframe-overview-control,
+.canvas-transform--overview .iframe-body-host:focus-within .iframe-overview-control {
+  opacity: 1;
+  pointer-events: auto;
 }

@@ -1,18 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../../../../i18n';
 import { NodeTypeIcon } from '../../../../../components/icons';
 
-/**
- * Overview-zoom identity badge: favicon + title + hostname for url embeds, a
- * code glyph for html/srcdoc ones. Always in the tree but display:none outside
- * `.canvas-transform--overview` (see index.css) so it costs the compositor
- * nothing at working zoom — the CSS swap keeps the semantic-zoom flip
- * per-gesture, exactly like the placeholder it replaces.
- *
- * Layout is two coordinate systems on purpose: the favicon tile is
- * reverse-scaled to a constant on-screen size, while the text label is laid
- * out in card-relative units so it always ellipsises to the card width and
- * never overflows a narrow node (see index.css).
- */
+/** Title-first overview identity. CSS swaps it once per settled zoom gesture. */
 export const IframeOverviewBadge = ({
   mode,
   url,
@@ -24,6 +14,7 @@ export const IframeOverviewBadge = ({
   title?: string;
   faviconUrl?: string;
 }) => {
+  const { t } = useI18n();
   const [faviconFailed, setFaviconFailed] = useState(false);
   // A fresh favicon (after navigating the embed) gets another chance.
   useEffect(() => setFaviconFailed(false), [faviconUrl]);
@@ -43,32 +34,30 @@ export const IframeOverviewBadge = ({
   const primary =
     trimmedTitle && trimmedTitle.toLowerCase() !== (host ?? '').toLowerCase()
       ? trimmedTitle
-      : host ?? (mode === 'url' ? 'Web page' : 'HTML');
+      : host ?? (mode === 'url' ? t('node.type.webPage') : 'HTML');
   const secondary = primary === host ? null : host;
 
   return (
     <div className="iframe-overview-badge" aria-hidden="true">
-      <span className="iframe-overview-badge-tile">
-        {mode === 'url' && faviconUrl && !faviconFailed ? (
-          <img
-            className="iframe-overview-badge-favicon"
-            src={faviconUrl}
-            loading="lazy"
-            onError={() => setFaviconFailed(true)}
-            alt=""
-          />
-        ) : mode === 'url' ? (
-          <NodeTypeIcon type="iframe" size={16} colorize />
-        ) : (
-          <NodeTypeIcon type="agent" size={16} colorize />
-        )}
+      <span className="iframe-overview-badge-source">
+        <span className="iframe-overview-badge-tile">
+          {mode === 'url' && faviconUrl && !faviconFailed ? (
+            <img
+              className="iframe-overview-badge-favicon"
+              src={faviconUrl}
+              loading="lazy"
+              onError={() => setFaviconFailed(true)}
+              alt=""
+            />
+          ) : mode === 'url' ? (
+            <NodeTypeIcon type="iframe" size={16} colorize />
+          ) : (
+            <NodeTypeIcon type="agent" size={16} colorize />
+          )}
+        </span>
+        {secondary ? <span className="iframe-overview-badge-host">{secondary}</span> : null}
       </span>
-      <span className="iframe-overview-badge-label">
-        <span className="iframe-overview-badge-title">{primary}</span>
-        {secondary ? (
-          <span className="iframe-overview-badge-host">{secondary}</span>
-        ) : null}
-      </span>
+      <span className="iframe-overview-badge-title">{primary}</span>
     </div>
   );
 };

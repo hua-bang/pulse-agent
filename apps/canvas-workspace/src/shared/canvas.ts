@@ -293,6 +293,8 @@ export interface IframeNodeData {
   pageTitle?: string;
   /** Last favicon URL reported by the embedded webview for URL mode. */
   faviconUrl?: string;
+  /** Keep this embed visible at overview zoom; does not change offscreen lifecycle. */
+  showContentAtOverview?: boolean;
   /** When set, content is sourced from `artifacts.get(artifactId)`. */
   artifactId?: string;
 }

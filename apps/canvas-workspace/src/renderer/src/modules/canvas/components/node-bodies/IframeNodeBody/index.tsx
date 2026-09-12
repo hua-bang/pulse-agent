@@ -2,6 +2,7 @@ import './index.css';
 import { useState } from 'react';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useRightDock } from '../../../../../shared/dockPort';
+import { IframeOverviewControl } from './IframeOverviewControl';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
 import { IframeReviewLayer } from './IframeReviewLayer';
@@ -143,7 +144,8 @@ export const IframeNodeBody = ({
   // toggle the editor as an overlay so the guest WebContents survives URL
   // edits and never reloads just because the user opened the address bar.
   return (
-    <div className="iframe-body-host">
+    <div className="iframe-body-host" data-overview-content={(node.data as IframeNodeData).showContentAtOverview === true}>
+      {!readOnly && !state.editing && <IframeOverviewControl node={node} onUpdate={onUpdate} />}
       <IframeRenderedView
         artifact={state.artifact}
         artifactHtml={state.artifactHtml}

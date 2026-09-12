@@ -31,7 +31,7 @@ vi.mock('./useIframeNodeState', () => ({
 
 vi.mock('./IframeRenderedView', () => ({
   IframeRenderedView: ({ handlePickDomElement }: { handlePickDomElement: () => void }) => (
-    <button type="button" onClick={handlePickDomElement}>Pick element</button>
+    <button type="button" data-testid="pick-element" onClick={handlePickDomElement}>Pick element</button>
   ),
 }));
 
@@ -107,7 +107,7 @@ describe('IframeNodeBody DOM selection delivery', () => {
     mocks.addDomSelectionToChat.mockResolvedValue({ status: 'unavailable', target: null });
     await render();
 
-    await act(async () => host?.querySelector<HTMLButtonElement>('button')?.click());
+    await act(async () => host?.querySelector<HTMLButtonElement>('[data-testid="pick-element"]')?.click());
 
     expect(mocks.addDomSelectionToChat).toHaveBeenCalledWith('workspace-a', expect.objectContaining({
       id: selection.id,
@@ -133,7 +133,7 @@ describe('IframeNodeBody DOM selection delivery', () => {
     }));
     await render(onAddDomSelectionToChat);
 
-    await act(async () => host?.querySelector<HTMLButtonElement>('button')?.click());
+    await act(async () => host?.querySelector<HTMLButtonElement>('[data-testid="pick-element"]')?.click());
 
     expect(onAddDomSelectionToChat).toHaveBeenCalledOnce();
     expect(document.body.textContent).toContain('Queued for AI Chat');
