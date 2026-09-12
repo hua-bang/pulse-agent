@@ -11,38 +11,31 @@ import {
   createLarkClient,
   feishuConfigured,
   sendCardMessage,
-  sendImageMessage,
   sendTextMessage,
-  updateCardMessage,
   type FeishuSendTarget,
 } from './feishu-client';
 import {
-  buildDoneCard,
-  buildErrorCard,
-  buildProgressCard,
-  buildThinkingCard,
   buildWorkspacePickerCard,
-  formatToolLabel,
   WORKSPACE_PICKER_SELECT_NAME,
 } from './card';
 import { downloadInboundImages, extractInboundImageKeys } from './inbound-image';
 import { loadBotIdentity, messageMentionsBot, type FeishuBotIdentity } from './bot-mention';
 
+import { FeishuStream } from './feishu-stream';
+import { FeishuRunActions } from './run-actions';
 const CHANNEL_ID = 'feishu';
-const PROGRESS_THROTTLE_MS = 800;
-const PROGRESS_HEARTBEAT_MS = 1_200;
-const CARD_SEND_TIMEOUT_MS = 10_000;
-const CARD_UPDATE_TIMEOUT_MS = 10_000;
+export { FeishuStream } from './feishu-stream';
 
 /**
  * Feishu channel using the SDK's long-connection (WSClient) event stream —
  * the canvas app dials out to Feishu over a WebSocket, so it works behind
  * NAT with no public webhook URL. Inbound text messages are normalized to
- * {@link InboundMessage}; agent output is rendered into a single interactive
- * card that is progressively patched.
+ * {@link InboundMessage}; agent output is rendered into a streamed process
+ * card and a separate response card with turn-scoped controls.
  */
 export class FeishuChannel implements Channel {
   readonly id = CHANNEL_ID;
+  private readonly runActions = new FeishuRunActions();
   private wsClient: lark.WSClient | null = null;
   private client: lark.Client | null = null;
 
@@ -78,12 +71,16 @@ export class FeishuChannel implements Channel {
       },
       'card.action.trigger': async (data: unknown) => {
         logRawCardAction(data);
+        const control = this.runActions.handle(data);
+        if (control) return control;
         const msg = parseCardAction(data);
         if (msg) onInbound(msg);
         return {};
       },
       'interactive_card.action.trigger': async (data: unknown) => {
         logRawCardAction(data);
+        const control = this.runActions.handle(data);
+        if (control) return control;
         const msg = parseCardAction(data);
         if (msg) onInbound(msg);
         return {};
@@ -101,6 +98,7 @@ export class FeishuChannel implements Channel {
     } catch (err) {
       console.error('[channel:feishu] WSClient stop failed', err);
     }
+    this.runActions.clear();
     this.wsClient = null;
     this.client = null;
   }
@@ -122,7 +120,7 @@ export class FeishuChannel implements Channel {
 
   async openStream(target: OutboundTarget): Promise<ChannelStream> {
     if (!this.client) throw new Error('Feishu channel not started');
-    const stream = new FeishuStream(this.client, toSendTarget(target));
+    const stream = new FeishuStream(this.client, toSendTarget(target), this.runActions);
     await stream.init();
     return stream;
   }
@@ -143,6 +141,7 @@ function toSendTarget(target: OutboundTarget): FeishuSendTarget {
   if (reply?.chatId) {
     return {
       chatId: reply.chatId,
+      requesterId: reply.requesterId,
       threadId: reply.threadId,
       isGroup: Boolean(reply.isGroup),
       triggerMessageId: reply.triggerMessageId ?? '',
@@ -150,356 +149,6 @@ function toSendTarget(target: OutboundTarget): FeishuSendTarget {
   }
   // Fallback: treat the conversation id as a bare chat_id (no threading).
   return { chatId: target.conversationId, isGroup: false, triggerMessageId: '' };
-}
-
-/**
- * Renders one agent run into a single Feishu card. Text/tool events are
- * accumulated and flushed to the card on a trailing throttle so we don't
- * exceed Feishu's update-rate limits; images are sent as separate messages.
- */
-interface ToolRun {
-  id?: string;
-  name: string;
-  label: string;
-  startedAt: number;
-  done: boolean;
-  elapsedSec?: number;
-  inputBytes?: number;
-  inputStreaming?: boolean;
-  argsReceived?: boolean;
-}
-
-export class FeishuStream implements ChannelStream {
-  private cardMessageId: string | null = null;
-  private cardFailed = false;
-  private accumulated = '';
-  /** Every tool call this run, accumulated as a live list for the card. */
-  private readonly tools: ToolRun[] = [];
-  private readonly startedAt = Date.now();
-
-  private updateInFlight: Promise<boolean> | null = null;
-  private pendingProgressFactory: (() => object) | null = null;
-  private flushTimer: NodeJS.Timeout | null = null;
-  private heartbeatTimer: NodeJS.Timeout | null = null;
-  private lastFlush = 0;
-  private finalizing = false;
-  private cardUpdateTimedOut = false;
-
-  constructor(
-    private readonly client: lark.Client,
-    private readonly target: FeishuSendTarget,
-  ) {}
-
-  async init(): Promise<void> {
-    try {
-      this.cardMessageId = await withTimeout(
-        sendCardMessage(this.client, this.target, buildThinkingCard()),
-        CARD_SEND_TIMEOUT_MS,
-        'Feishu thinking card send',
-      );
-    } catch (err) {
-      // If the initial card cannot be sent, fall back to text messages.
-      this.cardFailed = true;
-      console.error('[channel:feishu] failed to send thinking card', err);
-      return;
-    }
-    this.startHeartbeat();
-  }
-
-  onText(delta: string): void {
-    this.accumulated += delta;
-    this.scheduleFlush();
-  }
-
-  onToolCall(name: string, args: unknown, toolCallId?: string): void {
-    const existing = toolCallId ? this.findTool(toolCallId) : undefined;
-    if (existing) {
-      existing.id = toolCallId ?? existing.id;
-      existing.name = name;
-      existing.label = formatToolLabel(name, args);
-      existing.inputStreaming = false;
-      existing.argsReceived = true;
-    } else {
-      this.tools.push({
-        id: toolCallId,
-        name,
-        label: formatToolLabel(name, args),
-        startedAt: Date.now(),
-        done: false,
-        argsReceived: true,
-      });
-    }
-    this.scheduleFlush();
-  }
-
-  onToolResult(result: { name: string; result: string; toolCallId?: string }): void {
-    this.markToolDone(result.toolCallId, result.name);
-    this.scheduleFlush();
-  }
-
-  onToolInputStart(data: { id: string; toolName: string }): void {
-    const existing = this.findTool(data.id);
-    if (existing) {
-      existing.id = data.id;
-      existing.name = data.toolName;
-      existing.inputStreaming = true;
-      if (!existing.argsReceived) existing.label = `${data.toolName} — preparing input`;
-    } else {
-      this.tools.push({
-        id: data.id,
-        name: data.toolName,
-        label: `${data.toolName} — preparing input`,
-        startedAt: Date.now(),
-        done: false,
-        inputBytes: 0,
-        inputStreaming: true,
-      });
-    }
-    this.scheduleFlush();
-  }
-
-  onToolInputDelta(data: { id: string; delta: string }): void {
-    const tool = this.findTool(data.id);
-    if (!tool) return;
-    tool.inputBytes = (tool.inputBytes ?? 0) + data.delta.length;
-    if (!tool.argsReceived) {
-      tool.label = `${tool.name} — preparing input ${formatByteCount(tool.inputBytes)}`;
-    }
-    this.scheduleFlush();
-  }
-
-  onToolInputEnd(data: { id: string }): void {
-    const tool = this.findTool(data.id);
-    if (!tool) return;
-    tool.inputStreaming = false;
-    if (!tool.argsReceived) {
-      tool.label = `${tool.name} — prepared input`;
-    }
-    this.scheduleFlush();
-  }
-
-  async onImage(imagePath: string, mimeType?: string): Promise<void> {
-    try {
-      await sendImageMessage(this.client, this.target, imagePath, mimeType);
-      // The image tool's result is consumed by the image relay (no onToolResult
-      // for it), so close out its pending entry here.
-      this.markToolDone();
-      this.scheduleFlush();
-    } catch (err) {
-      console.error('[channel:feishu] failed to send image', err);
-    }
-  }
-
-  /**
-   * Mark the most recent still-running tool as done (preferring one whose
-   * label matches `name`) and record how long it took.
-   */
-  private findTool(toolCallId?: string, name?: string): ToolRun | undefined {
-    if (toolCallId) {
-      const byId = this.tools.find((tool) => tool.id === toolCallId);
-      if (byId) return byId;
-      return undefined;
-    }
-    if (name) {
-      for (let i = this.tools.length - 1; i >= 0; i--) {
-        const tool = this.tools[i];
-        if (!tool.done && tool.name === name) return tool;
-      }
-    }
-    return undefined;
-  }
-
-  private markToolDone(toolCallId?: string, name?: string): void {
-    let idx = -1;
-    if (toolCallId) {
-      idx = this.tools.findIndex((tool) => tool.id === toolCallId && !tool.done);
-    }
-    for (let i = this.tools.length - 1; i >= 0; i--) {
-      if (idx !== -1) break;
-      if (this.tools[i].done) continue;
-      if (idx === -1) idx = i; // fallback: latest running regardless of name
-      if (name && (this.tools[i].name === name || this.tools[i].label.startsWith(name))) {
-        idx = i;
-        break;
-      }
-    }
-    if (idx === -1) return;
-    const t = this.tools[idx];
-    t.done = true;
-    t.elapsedSec = Math.round((Date.now() - t.startedAt) / 1000);
-  }
-
-  async onClarification(question: string): Promise<void> {
-    // Surface the question as its own text message so it stands out from the
-    // streamed card; the user's next message is routed back as the answer.
-    try {
-      await withTimeout(
-        sendTextMessage(this.client, this.target, `❓ ${question}`),
-        CARD_SEND_TIMEOUT_MS,
-        'Feishu clarification send',
-      );
-    } catch (err) {
-      console.error('[channel:feishu] failed to send clarification', err);
-      // Re-throw so the bridge can fail the run: a question the user never
-      // received can never be answered, and parking it would pin the scope.
-      throw err;
-    }
-  }
-
-  async onDone(text: string): Promise<void> {
-    this.cancelTimers();
-    // Any tool without an observed result (e.g. the run ended right after)
-    // shouldn't linger as ⏳ in the folded list.
-    const now = Date.now();
-    for (const t of this.tools) {
-      if (t.done) continue;
-      t.done = true;
-      t.elapsedSec = Math.round((now - t.startedAt) / 1000);
-    }
-    await this.finalize(() => buildDoneCard(text, this.tools), text || '✅ Done');
-  }
-
-  async onError(message: string): Promise<void> {
-    this.cancelTimers();
-    await this.finalize(() => buildErrorCard(message), `❌ Error: ${message}`);
-  }
-
-  private elapsedSec(): number {
-    return Math.round((Date.now() - this.startedAt) / 1000);
-  }
-
-  private scheduleFlush(): void {
-    if (this.cardFailed || this.finalizing || this.flushTimer) return;
-    const wait = Math.max(0, PROGRESS_THROTTLE_MS - (Date.now() - this.lastFlush));
-    this.flushTimer = setTimeout(() => {
-      this.flushTimer = null;
-      this.lastFlush = Date.now();
-      this.enqueueProgress(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
-    }, wait);
-  }
-
-  private startHeartbeat(): void {
-    if (this.cardFailed || this.heartbeatTimer) return;
-    this.heartbeatTimer = setInterval(() => {
-      if (this.cardFailed || this.finalizing) return;
-      this.lastFlush = Date.now();
-      this.enqueueProgress(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
-    }, PROGRESS_HEARTBEAT_MS);
-  }
-
-  private cancelTimers(): void {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-  }
-
-  /**
-   * Keep only the newest progress snapshot while a card patch is in flight.
-   * Feishu patch calls can be slow; queuing every 800ms snapshot can leave the
-   * final answer stuck behind stale updates for minutes.
-   */
-  private enqueueProgress(factory: () => object): void {
-    if (this.cardFailed || this.finalizing) return;
-    this.pendingProgressFactory = factory;
-    this.drainProgressUpdates();
-  }
-
-  private drainProgressUpdates(): void {
-    if (this.updateInFlight || this.cardFailed || this.finalizing) return;
-    const factory = this.pendingProgressFactory;
-    if (!factory) return;
-
-    this.pendingProgressFactory = null;
-    const update = this.patchCard(factory, 'Feishu card update');
-    this.updateInFlight = update;
-    void update.finally(() => {
-      if (this.updateInFlight === update) {
-        this.updateInFlight = null;
-      }
-      this.drainProgressUpdates();
-    });
-  }
-
-  private async patchCard(factory: () => object, label: string): Promise<boolean> {
-    if (this.cardFailed || !this.cardMessageId) return false;
-    try {
-      await withTimeout(
-        updateCardMessage(this.client, this.cardMessageId, factory()),
-        CARD_UPDATE_TIMEOUT_MS,
-        label,
-      );
-      return true;
-    } catch (err) {
-      if (isTimeoutError(err)) this.cardUpdateTimedOut = true;
-      // Treat non-timeout patch failures as transient. Feishu can reject an
-      // individual update because of rate limits or a stale card state; stopping
-      // all later patches makes the bot appear frozen mid-run.
-      console.error('[channel:feishu] card update failed', err);
-      return false;
-    }
-  }
-
-  private async finalize(factory: () => object, fallbackText: string): Promise<void> {
-    this.finalizing = true;
-    this.pendingProgressFactory = null;
-    if (this.updateInFlight) {
-      await this.updateInFlight;
-    }
-
-    // A timed-out card patch may still complete later and overwrite newer card
-    // content. Once that happens, stop trusting this card and send the final
-    // answer as a separate text message instead of racing another patch.
-    const finalUpdated = this.cardUpdateTimedOut
-      ? false
-      : await this.patchCard(factory, 'Feishu final card update');
-    if (!finalUpdated) {
-      await this.sendFallbackText(fallbackText);
-    }
-  }
-
-  private async sendFallbackText(text: string): Promise<void> {
-    try {
-      await withTimeout(
-        sendTextMessage(this.client, this.target, text),
-        CARD_SEND_TIMEOUT_MS,
-        'Feishu fallback text send',
-      );
-    } catch (err) {
-      console.error('[channel:feishu] fallback text send failed', err);
-    }
-  }
-}
-
-class TimeoutError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TimeoutError';
-  }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: NodeJS.Timeout | null = null;
-  const timeout = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new TimeoutError(label + ' timed out after ' + ms + 'ms')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
-
-function isTimeoutError(err: unknown): boolean {
-  return err instanceof TimeoutError || (err instanceof Error && err.name === 'TimeoutError');
-}
-
-function formatByteCount(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 // ── Event parsing ───────────────────────────────────────────────────────────
@@ -620,7 +269,7 @@ function extractMessageText(rawContent: string | undefined, messageType: string 
   }
 }
 
-interface FeishuCardActionEvent {
+export interface FeishuCardActionEvent {
   open_id?: string;
   user_id?: string;
   open_message_id?: string;
@@ -691,6 +340,7 @@ export function parseInbound(data: unknown, botIdentity?: FeishuBotIdentity): In
   const conversationId = topicKey ? `${chatId}:${topicKey}` : chatId;
 
   const reply: FeishuSendTarget = {
+    requesterId: userId,
     chatId,
     threadId: topicKey,
     isGroup,

@@ -1,8 +1,4 @@
-// Feishu interactive card (schema 2.0) builders for the streamed agent run.
-// One card is created on run start and progressively patched: thinking →
-// progress (accumulated text + a live list of tool calls) → done / error.
-// Working/Completed is an expanded disclosure containing the live tool timeline;
-// the same card keeps the streamed answer directly below it.
+// Feishu schema 2.0 builders: a streamed process card and a separate reply card.
 
 import type { OutboundTarget, WorkspacePicker } from '../../core/types';
 
@@ -21,14 +17,16 @@ function clamp(text: string): string {
 export interface ToolEntry {
   /** "name — detail" (no status icon; the renderer adds it). */
   label: string;
+  /** Public assistant commentary emitted before this tool. */
+  beforeText?: string;
   /** True once the tool has returned a result. */
   done: boolean;
   /** Wall-clock duration in seconds, set when done. */
   elapsedSec?: number;
 }
 
-function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): object {
-  return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}) };
+function md(content: string, textSize?: 'heading' | 'normal' | 'notation', id?: string): object {
+  return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}), ...(id ? { element_id: id } : {}) };
 }
 
 function muted(content: string): string {
@@ -87,7 +85,7 @@ function formButton(
 function toolLine(tool: ToolEntry): string {
   const { name, detail } = splitToolLabel(tool.label);
   const segs = [titleizeToolName(name || 'tool')];
-  if (detail) segs.push(detail);
+  if (detail) segs.push(detail.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
   if (tool.done && typeof tool.elapsedSec === 'number') segs.push(`${tool.elapsedSec}s`);
   return segs.join(' · ');
 }
@@ -103,18 +101,19 @@ function pendingLabel(elapsedSec: number): string {
 }
 
 /** Finished rows recede; active rows use a stable, explicit status label. */
-function toolTimeline(tools: ToolEntry[], elapsedSec: number, running: boolean): string {
+function toolTimeline(tools: ToolEntry[], elapsedSec: number, running: boolean, text = '', stopped = false): string {
   const rail = muted('│');
   const rows = tools.map((tool) => {
     const completed = tool.done || !running;
     const label = completed ? muted(toolLine(tool)) : `${toolLine(tool)}  ${muted('执行中')}`;
-    return `${rail}  ${muted('›')}  ${label}`;
+    return [tool.beforeText?.trim(), `${rail}  ${muted('›')}  ${label}`].filter(Boolean).join('\n\n');
   });
 
+  if (text.trim()) rows.push(text.trim());
   if (running && rows.length === 0) {
     rows.push(muted(pendingLabel(elapsedSec)));
   } else if (!running) {
-    rows.push(`${muted('└')}  ${muted('◎ Completed')}`);
+    rows.push(`${muted('└')}  ${muted(stopped ? '◎ Stopped' : '◎ Completed')}`);
   }
   return rows.join('\n');
 }
@@ -134,54 +133,57 @@ function titleizeToolName(name: string): string {
   )).join(' ');
 }
 
-function statusLine(status: 'working' | 'completed'): string {
-  return `**${status === 'working' ? 'Working' : 'Completed'}**`;
+function statusLine(status: 'working' | 'thinking' | 'completed' | 'stopped'): string {
+  return `**${{ working: 'Working', thinking: 'Thinking', completed: 'Completed', stopped: 'Stopped' }[status]}**`;
 }
 
 /** Working/Completed is itself the disclosure control, like the reference. */
 function processPanel(
-  status: 'working' | 'completed',
+  status: 'working' | 'completed' | 'stopped',
   tools: ToolEntry[],
   elapsedSec: number,
+  text = '',
 ): object {
   return {
     tag: 'collapsible_panel',
     expanded: true,
     header: {
-      title: md(statusLine(status), 'normal'),
+      title: md(statusLine(status === 'working' && (text.trim() || tools.length > 0) && tools.every(tool => tool.done)
+        ? 'thinking' : status), 'normal', 'process_status'),
       vertical_align: 'center',
     },
-    elements: [md(toolTimeline(tools, elapsedSec, status === 'working'), 'notation')],
+    elements: [md(clamp(toolTimeline(tools, elapsedSec, status === 'working', text, status === 'stopped')), 'notation', 'process_body')],
   };
 }
 
-/** The process stays above the answer while both update in the same card. */
-function liveElements(text: string, tools: ToolEntry[], elapsedSec: number): object[] {
-  const elements: object[] = [processPanel('working', tools, elapsedSec)];
-  if (text.trim()) elements.push(md(clamp(text.trim()), 'normal'));
-  return elements;
-}
-
+/** Streamed text is public progress; final output has its own message. */
 export function buildThinkingCard(): object {
-  return card(undefined, 'blue', liveElements('', [], 0), false);
+  return buildProgressCard('');
 }
 
-export function buildProgressCard(
+export function buildProgressCard(text: string, tools: ToolEntry[] = [], elapsedSec = 0): object {
+  return card(undefined, 'blue', [processPanel('working', tools, elapsedSec, text)], false);
+}
+
+export function buildDoneCard(text: string, tools: ToolEntry[] = [], stopped = false): object {
+  return card(undefined, 'grey', [processPanel(stopped ? 'stopped' : 'completed', tools, 0, text)], true);
+}
+
+export function buildReplyCard(
   text: string,
-  tools: ToolEntry[] = [],
-  elapsedSec = 0,
+  state: 'queued' | 'working' | 'stopping' | 'completed' | 'stopped' | 'error',
+  stopToken?: string,
 ): object {
-  return card(undefined, 'blue', liveElements(text, tools, elapsedSec), false);
-}
-
-export function buildDoneCard(text: string, tools: ToolEntry[] = []): object {
-  const elapsedSec = tools.reduce((total, tool) => total + (tool.elapsedSec ?? 0), 0);
-  const elements: object[] = tools.length > 0
-    ? [processPanel('completed', tools, elapsedSec)]
-    : [md(statusLine('completed'), 'normal')];
-  if (text.trim()) elements.push(md(clamp(text.trim()), 'normal'));
-  else elements.push(md(' Done', 'normal'));
-  return card(undefined, 'green', elements, true);
+  const active = ['queued', 'working', 'stopping'].includes(state);
+  const hint = state === 'queued' ? '正在等待执行…'
+    : state === 'stopping' ? '正在停止…' : '正在执行任务…';
+  const elements = [md(active ? muted(`*${hint}*`) : clamp(text.trim() || '已完成'), 'normal')];
+  if (active && stopToken) {
+    const value = { action: 'run.stop', token: stopToken };
+    elements.push({ tag: 'button', text: plainText('停止'), type: 'danger',
+      disabled: state !== 'working', value, behaviors: [{ type: 'callback', value }] });
+  }
+  return card(undefined, 'grey', elements, !active);
 }
 
 export function buildErrorCard(message: string): object {
@@ -268,6 +270,21 @@ export function buildWorkspacePickerCard(picker: WorkspacePicker, target?: Outbo
 export function formatToolLabel(name: string, args: unknown): string {
   const detail = summarizeArgs(args);
   return detail ? `${name} — ${detail}` : name;
+}
+
+/** Display only known descriptive string fields while tool JSON is incomplete. */
+export function formatStreamingToolLabel(name: string, input: string): string | undefined {
+  const match = input.match(/"(title|name|query|q|path|file|filePath|url|command|cmd)"\s*:\s*"((?:\\.|[^"\\])*)/);
+  if (!match) return undefined;
+  try {
+    const value: unknown = JSON.parse(`"${match[2]}"`);
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    return formatToolLabel(name, { [match[1]]: value });
+  } catch {
+    // A chunk may end midway through a JSON unicode escape. Keep the previous
+    // preview until the next chunk completes it.
+    return undefined;
+  }
 }
 
 function summarizeArgs(args: unknown): string {

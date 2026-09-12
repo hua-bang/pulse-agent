@@ -218,6 +218,8 @@ export async function downloadMessageImage(messageId: string, fileKey: string): 
  *   present on a topic's root message.
  */
 export interface FeishuSendTarget {
+  /** Only the initiating user may stop this reply. */
+  requesterId?: string;
   chatId: string;
   threadId?: string;
   isGroup: boolean;

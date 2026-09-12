@@ -11,10 +11,12 @@ WeCom later is a matter of implementing one interface.
 - Resolves which canvas workspace a conversation talks to (**explicit, sticky**
   binding — established with a light first-contact picker).
 - Drives the host's conversation-owned runtime for that workspace and streams the
-  agent's output back into the channel (Feishu: a single interactive card
-  that is progressively patched — tool calls accumulate as a live ⏳/✅ list
-  that folds into a collapsible panel once the run finishes; images are sent
-  as separate messages).
+  agent's output back into the channel. Feishu sends a native streamed process
+  card, followed by a separate response card. Public assistant text and tool
+  actions remain in chronological order in the process disclosure. The response
+  shows execution status and a Stop button, then becomes the final answer in
+  place. A trailing copy of that final answer is removed from the process log.
+  Images are sent as separate messages.
 - Supports clarification round-trips, abort, and session commands.
 
 The plugin is **inert unless explicitly opted in**. `enabledWhen` requires
@@ -33,9 +35,14 @@ relaunch (the flag is read at plugin registration time).
 1. Create a **self-built app** in the Feishu Open Platform.
 2. Event subscription: choose **long-connection (WebSocket)** mode and
    subscribe to `im.message.receive_v1`. No public URL is needed — the
-   canvas app dials out, so it works behind NAT.
+   canvas app dials out, so it works behind NAT. Configure the card action
+   callback `card.action.trigger` on the same long connection for Stop and
+   workspace-picker buttons.
 3. Grant scopes: `im:message` (receive), `im:message:send_as_bot` (send),
-   and `im:resource` (image upload, optional).
+   `cardkit:card:write` (native streaming),
+   and `im:resource` (image upload, optional). If CardKit entity creation fails
+   (including missing permission), the run falls back to ordinary message-card
+   patches. Native client animation is unavailable in that fallback.
 4. Provide credentials, either way:
 
    - **From the UI (recommended):** Settings → Experimental → turn on
@@ -233,6 +240,9 @@ channels/
     feishu-channel.ts  WSClient long-connection + card ChannelStream
     feishu-client.ts   Lark SDK message/card/image helpers
     card.ts            interactive-card builders + tool hints
+    feishu-stream.ts   event accumulation, throttling, coalescing, timeout fallback
+    run-card.ts        native CardKit entity / element transport, legacy fallback
+    run-actions.ts     per-turn, requester-and-message-checked Stop callbacks
 index.ts             ChannelMainPlugin (registered in built-in.ts)
 ```
 
@@ -270,3 +280,41 @@ The plugin relies on two small extension points on the canvas plugin system:
 
 This plugin is self-contained and does **not** depend on `apps/remote-server`;
 the Feishu helpers are copied, not imported.
+
+### Feishu streaming transport
+
+CardKit uses stable text element IDs and strictly increasing sequence numbers.
+Unchanged text is skipped. Network updates remain throttled and coalesced; the
+client prints appended text every 30 ms using the fast strategy, so it does not
+build up a slow typing backlog. Completion closes streaming mode before replacing
+the final layout. Native timeouts cancel remaining calls in the abandoned progress update; a final
+update with a newer sequence closes streaming and supersedes late progress.
+Legacy message-patch timeouts retain the independent text fallback.
+
+The native path requires `cardkit:card:write`. Contract tests mock CardKit and do
+not prove client rendering, loading animation, or visual cadence. Validate those
+in a real Feishu chat with an authorized test bot after changing the transport.
+See [Feishu streaming cards](https://open.feishu.cn/document/uAjLw4CM/ukzMukzMukzM/feishu-cards/streaming-updates-openapi-overview)
+and [streaming text](https://open.feishu.cn/document/cardkit-v1/card-element/content.md).
+
+For account-free regression checks and a local request replay, use the
+[offline Feishu replay](../../../../harness/tools/feishu-replay/README.md).
+Its browser renderer is a simulation; it does not certify native animations.
+
+### Turn-scoped Stop button
+
+`ChannelStream.onRunStart` supplies a stop closure only when the runtime starts
+that specific queued turn. The reply button remains disabled before that point.
+The Feishu channel checks its ephemeral token, original response message ID, and
+initiating user's open ID before accepting a Stop action. Completed/failed turns
+remove the control; channel shutdown clears the registry. A stale closure also
+checks the bridge turn's `finished` flag, so it cannot abort the next queued turn.
+A successful stop settles as Stopped, removes the button, and preserves the
+process record. The reply card uses ordinary message patches, keeping its button
+outside CardKit's streaming-interaction restrictions.
+
+Regression coverage: channel bridge tests (queued controls, cross-topic stop
+isolation, stale callbacks), run-action tests (identity/message/token checks),
+and the offline replay Stop scenario. Reply-update timeouts use an independent
+final text message because ordinary message patches cannot supersede late
+updates by sequence. Stop tokens are invalidated before final delivery begins.

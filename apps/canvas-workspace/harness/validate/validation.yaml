@@ -348,3 +348,13 @@ pathRules:
       - pnpm --filter canvas-workspace perf:report
     manual:
       - pnpm --filter canvas-workspace perf:webview-load:ab
+
+  # Offline protocol replay plus a standalone, explicitly simulated card preview.
+  - name: feishu-replay
+    paths:
+      - harness/tools/feishu-replay/**
+      - src/plugins/main/channel/channels/feishu/**
+    required:
+      - pnpm --filter canvas-workspace exec tsc --noEmit -p harness/tools/feishu-replay/tsconfig.json
+      - pnpm --filter canvas-workspace exec vitest run harness/tools/feishu-replay/replay.test.ts
+      - node apps/canvas-workspace/harness/tools/feishu-replay/preview.mjs

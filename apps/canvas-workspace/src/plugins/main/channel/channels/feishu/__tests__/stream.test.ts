@@ -147,7 +147,7 @@ describe('FeishuStream', () => {
     expect(latestCard).toContain('Demo');
   });
 
-  it('finishes by patching the original card with the final answer', async () => {
+  it('finishes the process card and patches the separate reply with the final answer', async () => {
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
       isGroup: true,
@@ -161,15 +161,15 @@ describe('FeishuStream', () => {
     await stream.onDone('final answer');
 
     const finalCard = JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2]);
-    expect(finalCard).toContain('Completed');
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-2)?.[2])).toContain('Completed');
     expect(finalCard).toContain('final answer');
     expect(finalCard).not.toContain('partial');
-    expect(mockedSendCard).toHaveBeenCalledTimes(1);
+    expect(mockedSendCard).toHaveBeenCalledTimes(2);
     expect(mockedSendText).not.toHaveBeenCalled();
   });
 
   it('falls back to plain text when the final card patch hangs', async () => {
-    mockedUpdateCard.mockImplementationOnce(() => new Promise(() => undefined));
+    mockedUpdateCard.mockResolvedValueOnce(undefined).mockImplementationOnce(() => new Promise(() => undefined));
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
       isGroup: true,
@@ -181,13 +181,13 @@ describe('FeishuStream', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     await done;
 
-    expect(mockedSendCard).toHaveBeenCalledTimes(1);
+    expect(mockedSendCard).toHaveBeenCalledTimes(2);
     expect(mockedSendText).toHaveBeenCalledTimes(1);
     expect(mockedSendText.mock.calls[0][2]).toBe('final answer');
   });
 
   it('falls back to plain text when the final card update fails', async () => {
-    mockedUpdateCard.mockRejectedValueOnce(new Error('final failed'));
+    mockedUpdateCard.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('final failed'));
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
       isGroup: true,
@@ -197,8 +197,8 @@ describe('FeishuStream', () => {
     await stream.init();
     await stream.onDone('final answer');
 
-    expect(mockedUpdateCard).toHaveBeenCalledTimes(1);
-    expect(mockedSendCard).toHaveBeenCalledTimes(1);
+    expect(mockedUpdateCard).toHaveBeenCalledTimes(2);
+    expect(mockedSendCard).toHaveBeenCalledTimes(2);
     expect(mockedSendText).toHaveBeenCalledTimes(1);
     expect(mockedSendText.mock.calls[0][2]).toBe('final answer');
   });

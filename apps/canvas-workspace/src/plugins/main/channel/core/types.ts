@@ -68,11 +68,13 @@ export type CommandReply =
 
 /**
  * A live output sink for a single agent run. The channel decides how each
- * event renders (Feishu progressively patches one interactive card). All
+ * event renders (Feishu updates process and response cards independently). All
  * methods may be async; callers await them so a channel can serialize its
  * own writes.
  */
 export interface ChannelStream {
+  /** Called only when this queued turn actually begins; control expires with the turn. */
+  onRunStart?(stop: () => void): void;
   onText(delta: string): void | Promise<void>;
   onToolCall(name: string, args: unknown, toolCallId?: string): void | Promise<void>;
   onToolResult?(result: { name: string; result: string; toolCallId?: string }): void | Promise<void>;
@@ -81,7 +83,7 @@ export interface ChannelStream {
   onToolInputEnd?(data: { id: string }): void | Promise<void>;
   onImage?(imagePath: string, mimeType?: string): void | Promise<void>;
   onClarification(question: string): void | Promise<void>;
-  onDone(text: string): void | Promise<void>;
+  onDone(text: string, options?: { stopped?: boolean }): void | Promise<void>;
   onError(message: string): void | Promise<void>;
 }
 
