@@ -24,7 +24,18 @@ export function createConversationRunner(agent: CanvasAgent): ConversationRuntim
       (data) => ctx.onToolCall?.(data),
       (data) => ctx.onToolResult?.(data),
       ctx.mentionedWorkspaceIds,
-      (request) => ctx.onClarificationRequest?.(request),
+      (request) => {
+        // CanvasAgent.chat treats this callback as a notification and waits in
+        // its run registry. Forward the conversation-owned answer back to that
+        // registry; returning the promise alone leaves the engine blocked.
+        const answer = ctx.onClarificationRequest?.(request);
+        if (answer) {
+          void answer.then(
+            value => { agent.answerClarification(request.id, value); },
+            () => { agent.answerClarification(request.id, request.defaultAnswer ?? 'No'); },
+          );
+        }
+      },
       {
         ...ctx.requestContext,
         expectedConversationSessionId: ctx.expectedSessionId,

@@ -337,12 +337,12 @@ export class ConversationRuntime {
           this.publish();
         },
         onClarificationRequest: (req) => {
-          external?.onClarificationRequest?.(req);
           return this.clarifications.wait(
             req,
             (request) => {
               this.clarification = { ...request };
               this.publish();
+              external?.onClarificationRequest?.(request);
             },
             this.controller?.signal,
           );

@@ -7,6 +7,7 @@ import type {
   PluginStore,
 } from '../../../types';
 import type { CanvasAgent } from '../../../../main/agent/canvas-agent';
+import { ClarificationRegistry } from '../../../../main/agent/clarification-registry';
 import { ConversationRuntimeService } from '../../../../main/agent/conversation-runtime/conversation-service';
 import { buildAgentPrompt, ChannelBridge } from '../core/bridge';
 import type {
@@ -103,7 +104,9 @@ type AgentPlan = (ctx: {
 
 function makeRuntime(plan: AgentPlan): ConversationRuntimeService {
   const sessions = new Map<string, unknown[]>();
+  const clarifications = new ClarificationRegistry();
   const agent = {
+    answerClarification: (id: string, answer: string) => clarifications.answer(id, answer),
     chat: vi.fn(async (...args: unknown[]) => {
       const message = args[0] as string;
       const onClarification = args[5] as ((req: { id: string; question: string }) => Promise<string> | void) | undefined;
@@ -115,7 +118,11 @@ function makeRuntime(plan: AgentPlan): ConversationRuntimeService {
         message,
         sessionId: requestContext?.expectedConversationSessionId ?? '',
         signal,
-        clarify: onClarification,
+        // Like CanvasAgent.chat, wait in the agent registry rather than
+        // incorrectly awaiting the notification callback's return value.
+        clarify: onClarification
+          ? request => clarifications.wait(request, onClarification, signal)
+          : undefined,
       });
     }),
     stopRelay: vi.fn(() => false),

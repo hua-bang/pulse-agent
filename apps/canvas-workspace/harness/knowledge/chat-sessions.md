@@ -73,6 +73,15 @@ Key invariants and their guards:
 
 - A conversation key is `scopeSessionStoreId(scope) + sessionId`; the store
   mapping is `shared/conversation-runtime.ts` (`conversationKey`).
+- Clarification answers must cross both registries: the conversation runtime
+  accepts the surface reply, and `createConversationRunner` forwards that answer
+  to `CanvasAgent.answerClarification` to release the engine's run-owned wait.
+  `CanvasAgent.chat` treats its clarification callback as a notification; merely
+  returning a promise from that callback does not resume the tool. Publish the
+  external notification only after the conversation wait is registered/active.
+  Guards: `conversation-runtime/conversation-runner.test.ts` and the channel
+  `__tests__/bridge.test.ts` use the real registry's notification-only contract,
+  including reply/stop and topic isolation (not an awaitable mock callback).
 - Runtime queue/abort/clarification/persist are exercised in
   `conversation-runtime/conversation-runtime.test.ts` and
   `conversation-runtime/service-conversation-runtime.test.ts` (parallel runs,
