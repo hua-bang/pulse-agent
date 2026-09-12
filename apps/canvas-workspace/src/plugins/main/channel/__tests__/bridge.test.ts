@@ -187,6 +187,9 @@ class FakeChannel implements Channel {
 
 class FakeStream implements ChannelStream {
   done: string | null = null;
+  stopControl?: () => void;
+  stopped = false;
+  onRunStart(stop: () => void): void { this.stopControl = stop; }
   errors: string[] = [];
   text = '';
   clarification: string | null = null;
@@ -194,7 +197,7 @@ class FakeStream implements ChannelStream {
   onText(delta: string): void { this.text += delta; }
   onToolCall(): void {}
   onClarification(question: string): void { this.clarification = question; }
-  onDone(text: string): void { this.done = text; }
+  onDone(text: string, options?: { stopped?: boolean }): void { this.done = text; this.stopped = options?.stopped === true; }
   onError(message: string): void { this.errors.push(message); }
 }
 
@@ -264,6 +267,39 @@ describe('ChannelBridge conversation isolation', () => {
       'done:first',
       'done:second',
     ]));
+  });
+
+  it('binds stop to the active turn and ignores its stale control after the queue advances', async () => {
+    const signals = new Map<string, AbortSignal>();
+    const secondDone = deferred<void>();
+    const runtime = makeRuntime(async ({ message, signal }) => {
+      signals.set(message, signal);
+      if (message === 'first') {
+        await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
+        return { response: '', stopped: true };
+      }
+      await secondDone.promise;
+      return { response: 'finished' };
+    });
+    const bridge = new ChannelBridge(fakeService(), runtime, memoryStore());
+    await bridge.addChannel(channel);
+    channel.handler!(msg('first'));
+    channel.handler!(msg('second'));
+    channel.handler!(msg('other-topic', { conversationId: 'topic-b' }));
+    await waitFor(() => expect(channel.streams).toHaveLength(3));
+    await waitFor(() => expect(signals.has('other-topic')).toBe(true));
+    const first = channel.streams.find(stream => stream.triggerMessageId === 'm-1')!;
+    const second = channel.streams.find(stream => stream.triggerMessageId === 'm-2')!;
+    expect(first.stopControl).toBeDefined(); expect(second.stopControl).toBeUndefined();
+    first.stopControl!();
+    await waitFor(() => expect(second.stopControl).toBeDefined());
+    expect(first.stopped).toBe(true);
+    first.stopControl!();
+    expect(signals.get('second')!.aborted).toBe(false);
+    expect(signals.get('other-topic')!.aborted).toBe(false);
+    secondDone.resolve();
+    await waitFor(() => expect(second.done).toBe('finished'));
+    await bridge.stop();
   });
 
   it('resolves the next message scope after an earlier workspace switch commits', async () => {

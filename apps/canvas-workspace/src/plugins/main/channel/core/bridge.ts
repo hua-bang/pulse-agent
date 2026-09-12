@@ -277,6 +277,7 @@ export class ChannelBridge {
     let settleWatchdog: ((result: AgentChatResult) => void) | null = null;
 
     const markAgentActivity = (): void => {
+      if (!turnStarted) stream.onRunStart?.(() => { if (!finished) this.runtime.abort(scope, sessionId); });
       turnStarted = true;
       lastAgentActivityAt = Date.now();
     };
@@ -460,7 +461,7 @@ export class ChannelBridge {
       if (idleTimer) clearTimeout(idleTimer);
 
       if (result.ok) {
-        await stream.onDone(result.response?.trim() || '✅ Done');
+        await stream.onDone(result.response?.trim() || '✅ Done', { stopped: 'stopped' in result && result.stopped === true });
       } else {
         await stream.onError(result.error ?? 'Unknown error');
       }

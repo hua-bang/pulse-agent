@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildReplyCard,
   buildDoneCard,
   buildProgressCard,
   buildThinkingCard,
@@ -103,7 +104,7 @@ describe('feishu card tool list', () => {
     expect(done).not.toContain('已等待');
   });
 
-  it('done card keeps the final answer below an expanded completed timeline', () => {
+  it('done process card keeps commentary inside the completed timeline', () => {
     const card = buildDoneCard('final answer', tools) as {
       header?: unknown;
       body: { elements: Array<Record<string, unknown>> };
@@ -122,13 +123,40 @@ describe('feishu card tool list', () => {
     expect(body).toContain('Canvas read node · node-1');
   });
 
-  it('done card with no tools keeps status and answer without a panel', () => {
+  it('done process card retains its disclosure even without tools', () => {
     const card = buildDoneCard('hi', []) as {
       body: { elements: Array<Record<string, unknown>> };
     };
-    expect(card.body.elements).toHaveLength(2);
-    expect(card.body.elements.every(element => element.tag === 'markdown')).toBe(true);
+    expect(card.body.elements).toHaveLength(1);
+    expect(card.body.elements[0].tag).toBe('collapsible_panel');
     expect(texts(card).join('\n')).toContain('hi');
+  });
+
+  it('reply owns the stop button while active and only the result after completion', () => {
+    const active = JSON.stringify(buildReplyCard('', 'working', 'turn-token'));
+    expect(active).toContain('run.stop'); expect(active).toContain('停止');
+    expect(active).toContain('"disabled":false');
+    expect(JSON.stringify(buildReplyCard('', 'queued', 'turn-token'))).toContain('"disabled":true');
+    const done = JSON.stringify(buildReplyCard('最终回答', 'completed', 'turn-token'));
+    expect(done).toContain('最终回答'); expect(done).not.toContain('button');
+    expect(done).not.toContain('collapsible_panel');
+  });
+
+  it('bounds final reply text to the existing card limit while retaining the latest output', () => {
+    const text = '长'.repeat(20000) + '最终结论';
+    const reply = texts(buildReplyCard(text, 'completed')).join('');
+    expect(reply.length).toBeLessThanOrEqual(8001);
+    expect(reply.endsWith('最终结论')).toBe(true);
+  });
+
+  it('interleaves public commentary with tools in emission order', () => {
+    const content = texts(buildProgressCard('现在整理结果', [
+      { label: 'read', beforeText: '先读入口文件', done: true },
+      { label: 'bash', beforeText: '接着检查仓库状态', done: false },
+    ])).join('\n');
+    expect(content.indexOf('先读入口文件')).toBeLessThan(content.indexOf('Read'));
+    expect(content.indexOf('Read')).toBeLessThan(content.indexOf('接着检查仓库状态'));
+    expect(content.indexOf('Bash')).toBeLessThan(content.indexOf('现在整理结果'));
   });
 
   it('workspace picker card uses a workspace dropdown and two submit buttons', () => {

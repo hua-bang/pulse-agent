@@ -224,7 +224,7 @@ describe('channel watchdog guards', () => {
     await bridge.addChannel(channel);
     send();
     await vi.advanceTimersByTimeAsync(100);
-    expect(streams[0].onDone).toHaveBeenCalledWith('done');
+    expect(streams[0].onDone).toHaveBeenCalledWith('done', { stopped: false });
     expect(runtime.abort).not.toHaveBeenCalled();
     delivery.resolve();
     await vi.advanceTimersByTimeAsync(0);
