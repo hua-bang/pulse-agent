@@ -184,7 +184,7 @@ export function buildTabMentionChip(item: MentionItem, nodeType: string): HTMLSp
   labelSpan.className = 'chat-mention-chip-label';
   labelSpan.textContent = label;
   chip.appendChild(labelSpan);
-  if (item.description) {
+  if (item.description && tab.kind !== 'link') {
     const metaSpan = document.createElement('span');
     metaSpan.className = 'chat-mention-chip-meta';
     metaSpan.textContent = item.description;

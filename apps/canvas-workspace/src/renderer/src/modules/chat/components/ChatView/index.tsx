@@ -28,7 +28,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
     knowledgeMode = false, emptyStateVariant,
   } = context;
   const {
-    inputPlaceholder, input, attachments, editableRef, mentionOpen, mentionItems, mentionIndex,
+    inputPlaceholder, input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading = false, mentionIndex,
     onSelectMention, onMentionIndexChange, onInput, onKeyDown, onPaste, onAttachFiles,
     onRemoveAttachment, onRetryAttachment, sendDisabled = false, interactionDisabled = false,
     runInputDisabled = false, onSubmit, onQueue, queuedInputs, steeringInputId, onSteerQueued,
@@ -129,12 +129,13 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
           if (nodeId) onNodeFocus?.(nodeId);
         }}
         editableRef={editableRef}
-        mentionOpen={mentionOpen && mentionItems.length > 0}
-        mentionIndex={mentionIndex}
-        mentionPopup={mentionOpen && mentionItems.length > 0 ? (
+        mentionOpen={mentionOpen}
+        mentionIndex={mentionLoading || mentionItems.length === 0 ? -1 : mentionIndex}
+        mentionPopup={mentionOpen ? (
           <ChatMentionPopup
             mentionItems={mentionItems}
             mentionIndex={mentionIndex}
+            isLoading={mentionLoading}
             onSelectMention={onSelectMention}
             onMentionIndexChange={onMentionIndexChange}
           />

@@ -125,6 +125,7 @@ export const useChatPanelController = ({
     loading,
     mentionIndex,
     mentionItems,
+    mentionLoading,
     mentionOpen,
     messageTools,
     messages,
@@ -434,7 +435,7 @@ export const useChatPanelController = ({
         knowledgeMode,
     },
     composer: {
-        input, attachments, editableRef, mentionOpen, mentionItems, mentionIndex,
+        input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading, mentionIndex,
         onSelectMention: selectMention, onMentionIndexChange: setMentionIndex,
         onInput: handleInput, onKeyDown: handleComposerKeyDown, onPaste: handlePaste,
         onAttachFiles: handleAttachFiles, onRemoveAttachment: removeAttachment,

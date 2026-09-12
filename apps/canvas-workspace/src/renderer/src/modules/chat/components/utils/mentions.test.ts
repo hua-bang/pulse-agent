@@ -259,7 +259,39 @@ describe('chat mention rendering', () => {
     });
   });
 
-  it('keeps a localized disambiguation label on a tab candidate and its composer chip', () => {
+  it('keeps tab disambiguation in candidates and chip data but hides web-page chip metadata', () => {
+    const [item] = buildTabMentionItems([{
+      id: 'link:workspace-2',
+      kind: 'link',
+      title: 'CPA Manager Plus',
+      url: 'https://example.com/monitoring',
+      dockWorkspaceId: '__global_chat__',
+      isActive: true,
+    }], () => 'Web page · __global_chat__ · Current tab');
+
+    expect(item.description).toBe('Web page · __global_chat__ · Current tab');
+    const chip = createMentionChipElement(item);
+    expect(chip.dataset.nodeType).toBe('iframe');
+    expect(chip.dataset.tabDescription).toBe('Web page · __global_chat__ · Current tab');
+    expect(chip.querySelector('.chat-mention-chip-meta')).toBeNull();
+    expect(chip.getAttribute('aria-label'))
+      .toBe('CPA Manager Plus · Web page · __global_chat__ · Current tab');
+    const editable = document.createElement('div');
+    editable.appendChild(chip);
+    expect(collectTabRefsFromEditable(editable)).toEqual([{
+      id: 'link:workspace-2',
+      kind: 'link',
+      title: 'CPA Manager Plus',
+      url: 'https://example.com/monitoring',
+      dockWorkspaceId: '__global_chat__',
+      workspaceId: undefined,
+      nodeId: undefined,
+      artifactId: undefined,
+      sessionId: undefined,
+    }]);
+  });
+
+  it('keeps inserted metadata visible for non-web tab chips', () => {
     const [item] = buildTabMentionItems([{
       id: 'canvas:workspace-2',
       kind: 'canvas',
@@ -269,13 +301,9 @@ describe('chat mention rendering', () => {
       isActive: true,
     }], () => 'Canvas · Product · Current tab');
 
-    expect(item.description).toBe('Canvas · Product · Current tab');
     const chip = createMentionChipElement(item);
-    expect(chip.dataset.nodeType).toBe('workspace');
     expect(chip.querySelector('.chat-mention-chip-meta')?.textContent)
       .toBe('Canvas · Product · Current tab');
-    expect(chip.getAttribute('aria-label'))
-      .toBe('Roadmap · Canvas · Product · Current tab');
   });
 
   it('renders a tab marker back into a clickable jump chip in the transcript', () => {

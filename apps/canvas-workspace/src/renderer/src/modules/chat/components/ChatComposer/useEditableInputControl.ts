@@ -7,6 +7,7 @@ interface Options {
   setInput: (value: string) => void;
   setMentionOpen: (value: boolean) => void;
   setMentionItems: (value: MentionItem[]) => void;
+  setMentionLoading: (value: boolean) => void;
   setMentionIndex: (value: number) => void;
   setAttachments: (value: ChatImageAttachment[]) => void;
 }
@@ -18,6 +19,7 @@ export const useEditableInputControl = ({
   setInput,
   setMentionOpen,
   setMentionItems,
+  setMentionLoading,
   setMentionIndex,
   setAttachments,
 }: Options) => {
@@ -27,9 +29,10 @@ export const useEditableInputControl = ({
     mentionBuildSeqRef.current++;
     setMentionOpen(false);
     setMentionItems([]);
+    setMentionLoading(false);
     setMentionIndex(0);
     setAttachments([]);
-  }, [editableRef, mentionBuildSeqRef, setAttachments, setInput, setMentionIndex, setMentionItems, setMentionOpen]);
+  }, [editableRef, mentionBuildSeqRef, setAttachments, setInput, setMentionIndex, setMentionItems, setMentionLoading, setMentionOpen]);
 
   const focusInput = useCallback(() => {
     editableRef.current?.focus();
@@ -39,6 +42,7 @@ export const useEditableInputControl = ({
     mentionBuildSeqRef.current++;
     setMentionOpen(false);
     setMentionItems([]);
+    setMentionLoading(false);
     setMentionIndex(0);
     const element = editableRef.current;
     if (element) element.textContent = text;
@@ -50,7 +54,7 @@ export const useEditableInputControl = ({
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
-  }, [editableRef, mentionBuildSeqRef, setInput, setMentionIndex, setMentionItems, setMentionOpen]);
+  }, [editableRef, mentionBuildSeqRef, setInput, setMentionIndex, setMentionItems, setMentionLoading, setMentionOpen]);
 
   return { clearInput, focusInput, replaceInput };
 };

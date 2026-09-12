@@ -31,6 +31,32 @@
   padding-top: 6px;
 }
 
+.chat-mention-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat-mention-status-spinner {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.chat-mention-status .chat-spin {
+  animation: spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-mention-status .chat-spin {
+    animation: none;
+  }
+}
+
 .chat-mention-item {
   display: flex;
   align-items: center;

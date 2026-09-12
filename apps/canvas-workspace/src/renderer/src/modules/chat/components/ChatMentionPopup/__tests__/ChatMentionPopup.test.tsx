@@ -63,4 +63,49 @@ describe('ChatMentionPopup', () => {
     expect(options[1].querySelector<HTMLImageElement>('.chat-plugin-brand-icon img')?.src)
       .toContain('arcade');
   });
+
+  it('distinguishes accessible loading and empty states', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatMentionPopup
+            mentionItems={[]}
+            mentionIndex={0}
+            isLoading
+            onSelectMention={vi.fn()}
+            onMentionIndexChange={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    const listbox = host.querySelector<HTMLElement>('[role="listbox"]');
+    const status = host.querySelector<HTMLElement>('[role="status"]');
+    expect(listbox?.getAttribute('aria-busy')).toBe('true');
+    expect(status?.textContent).toContain('Searching mentions');
+    expect(listbox?.contains(status ?? null)).toBe(false);
+    expect(host.querySelector('.chat-spin')).not.toBeNull();
+    expect(host.textContent).not.toContain('No matching mentions');
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatMentionPopup
+            mentionItems={[]}
+            mentionIndex={0}
+            onSelectMention={vi.fn()}
+            onMentionIndexChange={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    expect(listbox?.getAttribute('aria-busy')).toBe('false');
+    expect(host.querySelector('[role="status"]')?.textContent).toBe('No matching mentions');
+    expect(host.querySelector('.chat-spin')).toBeNull();
+  });
 });

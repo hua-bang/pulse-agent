@@ -168,7 +168,9 @@ export const ChatInput = ({
           aria-haspopup="listbox"
           aria-expanded={mentionOpen}
           aria-controls={mentionOpen ? CHAT_MENTION_LISTBOX_ID : undefined}
-          aria-activedescendant={mentionOpen ? chatMentionOptionId(mentionIndex) : undefined}
+          aria-activedescendant={mentionOpen && mentionIndex >= 0
+            ? chatMentionOptionId(mentionIndex)
+            : undefined}
           data-placeholder={placeholder ?? (knowledgeMode
             ? (contextChips.length === 1 && contextChips[0]?.kind === 'node'
               ? t('chat.askCurrentNode')

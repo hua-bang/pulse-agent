@@ -886,6 +886,8 @@ const en = {
   'chat.mention.projectFiles': 'Project Files',
   'chat.mention.projectFolders': 'Project Folders',
   'chat.mention.suggestions': 'Mention suggestions',
+  'chat.mention.searching': 'Searching mentions…',
+  'chat.mention.noResults': 'No matching mentions',
 
   'nodeMention.title': '@ Reference a node',
   'nodeMention.searchPlaceholder': 'Search node names...',
@@ -2798,6 +2800,8 @@ const zh: Record<keyof typeof en, string> = {
   'chat.mention.projectFiles': '项目文件',
   'chat.mention.projectFolders': '项目文件夹',
   'chat.mention.suggestions': '引用建议',
+  'chat.mention.searching': '正在搜索引用…',
+  'chat.mention.noResults': '没有匹配的引用',
 
   'nodeMention.title': '@ 引用节点',
   'nodeMention.searchPlaceholder': '搜索节点名称...',
