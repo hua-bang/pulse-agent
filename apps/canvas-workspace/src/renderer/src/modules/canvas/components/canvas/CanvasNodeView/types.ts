@@ -18,6 +18,8 @@ export interface CanvasNodeViewProps {
   dragOffset?: NodeDragOffset | null;
   isResizing: boolean;
   isSelected: boolean;
+  /** Derived from the canvas container hierarchy, never persisted on the node. */
+  isNestedFrame?: boolean;
   /**
    * Bumped by the canvas when Enter / F2 targets THIS node, which starts
    * inline title editing. A monotonic token rather than a boolean so the

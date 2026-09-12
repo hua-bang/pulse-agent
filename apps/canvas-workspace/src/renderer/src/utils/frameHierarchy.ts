@@ -217,3 +217,25 @@ export const computeContainerDepths = (nodes: CanvasNode[]): Map<string, number>
 };
 
 export const computeFrameDepths = computeContainerDepths;
+
+/** Frames with a frame ancestor need a boundary on the same white surface.
+ * Reuse container parenthood, including intervening transparent groups. */
+export const collectNestedFrameIds = (nodes: CanvasNode[]): Set<string> => {
+  const containers = nodes.filter(isContainerNode);
+  const parents = computeParentContainerMap(containers);
+  const frames = new Set(containers.filter((node) => node.type === 'frame').map((node) => node.id));
+  const nested = new Set<string>();
+  for (const id of frames) {
+    const visited = new Set([id]);
+    let parent = parents.get(id);
+    while (parent && !visited.has(parent)) {
+      if (frames.has(parent)) {
+        nested.add(id);
+        break;
+      }
+      visited.add(parent);
+      parent = parents.get(parent);
+    }
+  }
+  return nested;
+};

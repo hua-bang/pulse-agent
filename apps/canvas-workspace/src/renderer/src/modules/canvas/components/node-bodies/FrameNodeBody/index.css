@@ -12,6 +12,18 @@
   overflow: visible;
 }
 
+/* Keep nested white regions distinguishable even at overview zoom. An inset
+ * outline does not change layout; selection and focus keep their blue border. */
+.canvas-node--frame.canvas-node--nested-frame:not(
+  .canvas-node--selected,
+  .canvas-node--focus-mode-focused,
+  .canvas-node--frame-title-overlay,
+  .canvas-node--fullscreen
+) {
+  outline: calc(1px / var(--canvas-scale, 1)) solid var(--note-border);
+  outline-offset: calc(-1px / var(--canvas-scale, 1));
+}
+
 .canvas-node--frame>* {
   position: relative;
   z-index: 1;

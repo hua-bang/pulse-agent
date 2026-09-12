@@ -21,6 +21,7 @@ const CanvasNodeViewComponent = ({
   dragOffset,
   isResizing,
   isSelected,
+  isNestedFrame = false,
   renameToken,
   isHighlighted,
   isAgentEdited,
@@ -194,7 +195,7 @@ const CanvasNodeViewComponent = ({
 
   return (
     <DefaultCanvasNode
-      classes={viewModel.classes}
+      classes={`${viewModel.classes}${node.type === 'frame' && isNestedFrame ? ' canvas-node--nested-frame' : ''}`}
       fullscreenButton={fullscreenButton}
       focusAction={focusAction}
       getAllNodes={getAllNodes}
@@ -250,6 +251,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.dragOffset === next.dragOffset &&
   prev.isResizing === next.isResizing &&
   prev.isSelected === next.isSelected &&
+  prev.isNestedFrame === next.isNestedFrame &&
   prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
