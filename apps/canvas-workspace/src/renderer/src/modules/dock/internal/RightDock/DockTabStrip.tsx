@@ -1,25 +1,25 @@
-import { lazy, Suspense, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { PushPin } from '@phosphor-icons/react';
+import { lazy, Suspense, type ReactNode, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useI18n } from '../../../../i18n';
 import { focusActiveDockTarget, focusDockLinkTarget } from './dock-browser-commands';
 import { handleDockTabListKeyDown } from './dock-accessibility';
-import { hasDockTab } from '../../../../shared/dock/dock-split-state';
 import { getDockTabVisualState, type DockTabVisualState } from './dock-tab-visual-state';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from '../../../../shared/dock/dock-tab-ids';
 import type { DockStore } from './dock-store';
 import { DockContentTab } from './DockContentTab';
 import { DockTabIcon } from './DockTabIcon';
-import { SplitViewToggle } from './SplitViewToggle';
 import type { DockComparisonPair, DockState } from './dock-types';
 import type { DockTabSwitcherItem } from './dock-tab-items';
 import type { useDockTabDrag } from './useDockTabDrag';
-import type { useDockTabIndicator } from './useDockTabIndicator';
+import { useDockTabIndicator } from './useDockTabIndicator';
 
 const DockCreationControls = lazy(() => import('./DockCreationControls').then((m) => ({ default: m.DockCreationControls })));
 const TerminalDockTab = lazy(() => import('./TerminalDockTab').then((m) => ({ default: m.TerminalDockTab })));
 const DockTabSwitcher = lazy(() => import('./DockTabSwitcher').then((m) => ({ default: m.DockTabSwitcher })));
 
 interface Props {
+  readingControls?: ReactNode;
   store: DockStore;
   state: DockState;
   activePaneId: string | null;
@@ -33,7 +33,7 @@ interface Props {
   chatVisual: DockTabVisualState;
   allTabItems: readonly DockTabSwitcherItem[];
   terminalTabsVisible: boolean;
-  tabIndicator: ReturnType<typeof useDockTabIndicator>;
+  dockWidth: number;
   tabDrag: ReturnType<typeof useDockTabDrag>;
   workspaces: WorkspaceEntry[];
   activeWorkspaceId: string;
@@ -44,6 +44,7 @@ interface Props {
 }
 
 export const DockTabStrip = ({
+  readingControls,
   store,
   state,
   activePaneId,
@@ -57,7 +58,7 @@ export const DockTabStrip = ({
   chatVisual,
   allTabItems,
   terminalTabsVisible,
-  tabIndicator,
+  dockWidth,
   tabDrag,
   workspaces,
   activeWorkspaceId,
@@ -68,6 +69,9 @@ export const DockTabStrip = ({
 }: Props) => {
   const { t } = useI18n();
   const comparisonActive = Boolean(splitTabIds);
+  // The observer owner mounts with its DOM, including on the first lazy open.
+  const tabIndicator = useDockTabIndicator({ activeTabId: activePaneId, visible: tabStripVisible,
+    previewTabs: state.tabs, terminalTabs: state.terminalTabs, chatTabEnabled, dockWidth });
   return (
     <div
       className="right-dock__tabs"
@@ -112,12 +116,13 @@ export const DockTabStrip = ({
             data-split-visible={chatVisual.splitVisible}
             data-split-part={chatVisual.splitPart}
             data-unread={state.chatUnread}
-            title={t('rightDock.chat')}
+            title={chatVisual.splitPart === 'right' ? `${t('rightDock.pinnedRight')} · ${t('rightDock.chat')}` : t('rightDock.chat')}
             tabIndex={rovingTabId === CHAT_TAB_ID ? 0 : -1}
             onClick={() => store.activate(CHAT_TAB_ID)}
           >
             <DockTabIcon kind="chat" />
             <span className="right-dock__tab-title">{t('rightDock.chat')}</span>
+            {chatVisual.splitPart === 'right' && <PushPin size={11} className="right-dock__tab-pin" aria-hidden="true" />}
             <span className="right-dock__tab-unread" aria-hidden="true" />
           </button>
         )}
@@ -166,9 +171,11 @@ export const DockTabStrip = ({
           />
         ))}
       </div>
-      {allTabItems.length > 1 && (
+      {(allTabItems.length > 0 || store.canReopenClosedTab()) && (
         <Suspense fallback={null}>
-          <DockTabSwitcher items={allTabItems} activeTabId={activePaneId} onActivate={activateFromUser} />
+          <DockTabSwitcher key={activeWorkspaceId} items={allTabItems} activeTabId={activePaneId} splitTabIds={splitTabIds}
+            closedTabs={store.getClosedTabs()} onReopen={offset => { store.reopenClosedTab(offset); focusActiveDockTarget(store); }}
+            onActivate={activateFromUser} />
         </Suspense>
       )}
       {visible && (
@@ -184,13 +191,7 @@ export const DockTabStrip = ({
           />
         </Suspense>
       )}
-      {chatTabEnabled && (
-        <SplitViewToggle
-          store={store}
-          active={comparisonActive}
-          canOpen={Boolean(activePaneId && activePaneId !== CHAT_TAB_ID && hasDockTab(state, activePaneId))}
-        />
-      )}
+      {readingControls}
       <span data-tooltip={t('rightDock.collapse')} className="right-dock__tooltip-wrapper right-dock__tooltip-wrapper--right">
         <button
           type="button"

@@ -13,6 +13,8 @@ export interface RightDockProps {
   onCanvasNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onCanvasSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   pageMinAppWidth?: number;
+  readingLeftInset?: number;
+  hostView?: string;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   onActivateWorkspace?: (workspaceId: string) => boolean | void;

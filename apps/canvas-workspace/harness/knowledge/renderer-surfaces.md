@@ -62,10 +62,10 @@ The workbench has exactly two side regions plus a modal tier:
     chat. From dock chrome, Escape collapses an active web tab, closes a
     reconstructible content/terminal tab, and leaves pinned chat alone;
     Escape inside a web page remains page-owned;
-  - web and terminal tabs can enter split view with the pinned chat: content
-    stays on the left, Pulse AI stays on the right, clicking or focusing either
-    pane moves the active-view focus without unmounting the other, and closing
-    the paired content exits split view;
+  - web and terminal tabs can enter comparison with the pinned chat: content
+    stays on the left and Pulse AI on the right; ordinary tab selection replaces
+    the left, while explicit placement changes the right. Pane focus routes input
+    without changing this rule, and closing paired content exits comparison;
   - browser tabs mount lazily on first visibility, so restored hidden tabs and
     a collapsed dock do not create cold guests. Resident tab contents stay
     mounted in the background and hide via `visibility` (never `display: none`

@@ -129,7 +129,10 @@ const renderDock = async (
   return mount;
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Resolve the real lazy chrome modules before testing synchronous key events.
+  await import('./DockTabStrip');
+  await import('./DockReadingControls');
   reviewSubmit.mockClear();
   window.localStorage.clear();
   Object.defineProperty(window, 'canvasWorkspace', {
@@ -166,6 +169,7 @@ describe('RightDock tab keyboard navigation', () => {
     const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
 
     expect(tabs).toHaveLength(3);
+    expect(host.querySelector('.right-dock__tab-glider')?.getAttribute('data-visible')).toBe('true');
     expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, -1, 0]);
 
     tabs[2].focus();
@@ -459,5 +463,56 @@ describe('RightDock web-tab shortcuts', () => {
 
     expect(details.at(-1)?.tabId).toBe(expectedTabId);
     window.removeEventListener(FOCUS_DOCK_PAGE_EVENT, listener);
+  });
+});
+
+
+describe('compact reading controls', () => {
+  it('keeps reading and comparison controls in the tab strip and restores the side width', async () => {
+    const host = await renderDock();
+    const expand = host.querySelector<HTMLButtonElement>('.right-dock__tabs [aria-label="Expand reading"]')!;
+    expect(expand).toBeTruthy();
+    expect(expand.textContent).toBe('');
+    expect(host.querySelector('.right-dock__reading-controls')).toBeNull();
+    act(() => expand.click());
+    expect(document.documentElement.dataset.dockReading).toBe('reading');
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('1200px');
+    expect(document.documentElement.style.getPropertyValue('--right-dock-inset')).toBe('480px');
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Back to canvas"]')!.click());
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('480px');
+    expect(document.documentElement.dataset.dockReading).toBe('side');
+  });
+  it('keeps the left webpage when entering full-page chat with the right AI pane focused', async () => {
+    const host = await renderDock();
+    const linkId = host.querySelector<HTMLElement>('[data-dock-tab-id^="link:"]')!.dataset.dockTabId;
+    act(() => host.querySelector<HTMLButtonElement>('.right-dock__split-toggle')!.click());
+    act(() => host.querySelector<HTMLButtonElement>('[data-dock-tab-id="chat"]')!.click());
+    await act(async () => root?.render(<I18nProvider><RightDockProvider>
+      <SeededDock chatTabEnabled={false} />
+    </RightDockProvider></I18nProvider>));
+    const selected = host.querySelector<HTMLElement>('[data-dock-tab-id][aria-selected="true"]');
+    expect(selected?.dataset.dockTabId).toBe(linkId);
+    expect(host.querySelector('.right-dock__split-toggle')).toBeNull();
+  });
+  it('offers only expand/return on full-page chat and keeps comparison out of its tab menu', async () => {
+    const host = await renderDock(true, false, true);
+    expect(host.querySelector('.right-dock__split-toggle')).toBeNull();
+    expect(host.querySelector('[data-dock-tab-id="chat"]')).toBeNull();
+    const originalWidth = host.querySelector<HTMLElement>('.right-dock')!.style.width;
+    act(() => host.querySelector<HTMLButtonElement>('.right-dock__reading-toggle')!.click());
+    expect(document.documentElement.dataset.dockReading).toBe('reading');
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('1200px');
+    expect(host.querySelector('.right-dock__split-toggle')).toBeNull();
+    act(() => host.querySelector<HTMLButtonElement>('.right-dock__reading-toggle')!.click());
+    expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe(originalWidth);
+    expect(document.documentElement.dataset.dockReading).toBe('side');
+    await act(async () => {
+      host.querySelector('[data-dock-tab-id^="link:"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+      await import('./TabContextMenu');
+    });
+    const menu = document.querySelector('.context-menu--in-dock')!;
+    expect(menu).toBeTruthy();
+    expect(menu.textContent).not.toContain('Open on the left');
+    expect(menu.textContent).not.toContain('Compare on the right');
   });
 });

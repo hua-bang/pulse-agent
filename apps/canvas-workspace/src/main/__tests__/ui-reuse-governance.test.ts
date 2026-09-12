@@ -253,7 +253,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // div is gone — that role now comes from ui/Modal's card.
   // 10→9 (module-first ownership batches): a duplicate product dialog shell
   // was retired while the blessed ui/ shells retained role ownership.
-  dialogRoles: 9,
+  // 9→10: Dock tab search uses the existing ui/Popover as a nonmodal search
+  // dialog containing a combobox/listbox, not a menu or a new dialog shell.
+  dialogRoles: 10,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
   // Modal/Drawer render through it. Falls as legacy callers adopt <Portal> or
   // the new point-anchored ui/Popover shell.

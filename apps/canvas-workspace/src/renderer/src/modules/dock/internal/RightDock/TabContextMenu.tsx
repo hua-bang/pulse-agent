@@ -12,12 +12,14 @@
 import { useI18n, type I18nKey } from '../../../../i18n';
 import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { Button, Popover } from '../../../../components/ui';
+import { getDockPaneSelection } from '../../../../shared/dock/dock-split-state';
 import type { DockPreviewTab, DockStore } from './dock-store';
 
 interface Props {
   tab: DockPreviewTab;
   tabs: readonly DockPreviewTab[];
   store: DockStore;
+  allowComparison?: boolean;
   x: number;
   y: number;
   onClose: () => void;
@@ -28,6 +30,7 @@ export const TabContextMenu = ({
   tab,
   tabs,
   store,
+  allowComparison = true,
   x,
   y,
   onClose,
@@ -70,6 +73,11 @@ export const TabContextMenu = ({
 
   return (
     <Popover x={x} y={y} onClose={closeMenu} className="context-menu context-menu--in-dock">
+      {allowComparison && <>
+      {item('rightDock.openLeft', run(() => store.placeTab(tab.id, 'left')))}
+      {item('rightDock.openRight', run(() => store.placeTab(tab.id, 'right')),
+        !getDockPaneSelection(store.getSnapshot(), tab.id, 'right'))}
+      </>}
       {tab.kind === 'link' && tab.url && (
         <>
           {item('rightDock.tabMenu.copyAddress', run(

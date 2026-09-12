@@ -61,3 +61,9 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* Reading promotes the same Dock over the main workspace. Preserve the
+   underlying route's dimensions and mounted state for an exact return. */
+:root[data-dock-reading="reading"] .app-body > :not(.sidebar) {
+  visibility: hidden;
+}

@@ -22,7 +22,7 @@ import {
   type DockOpenLinkOptions,
 } from './dock-link-commands';
 import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from './dock-tab-operations';
-import { applyDockSplitState, getComparisonSurvivorId, getSplitViewToggle } from '../../../../shared/dock/dock-split-state';
+import { applyDockSplitState, getComparisonSurvivorId, getSplitViewToggle, getDockPaneSelection } from '../../../../shared/dock/dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
 import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
@@ -295,9 +295,12 @@ export class DockStore {
     return true;
   }
 
-  /** Open/close the two-pane comparison view. It starts with Pulse AI as the
-   *  second pane; subsequent tab activation may replace either focused pane. */
+  /** Compare with Pulse AI pinned on the right; normal activation updates the left. */
   toggleSplitView(): void { const next = getSplitViewToggle(this.state); if (next) this.commit(next); }
+
+  placeTab(id: string, side: 'left' | 'right'): void {
+    const next = getDockPaneSelection(this.state, id, side); if (next) { this.activate(id); this.commit(next); }
+  }
 
   openChat(): void { const next = getOpenChatPatch(this.state); if (next) this.commit(next); }
 
@@ -470,10 +473,11 @@ export class DockStore {
     return this.closedLinkTabs.has(this.state.activeTerminalWorkspaceId);
   }
 
-  /** Restore the most recently closed web tab of the active workspace at the
-   *  position it held, and focus it. No-op when the stack is empty. */
-  reopenClosedTab(): void {
-    const entry = this.closedLinkTabs.pop(this.state.activeTerminalWorkspaceId);
+  /** Closed history is scoped to this workspace. */
+  getClosedTabs(): DockLinkTab[] { return this.closedLinkTabs.list(this.state.activeTerminalWorkspaceId).map(entry => entry.tab); }
+
+  reopenClosedTab(offset = 0): void {
+    const entry = this.closedLinkTabs.pop(this.state.activeTerminalWorkspaceId, offset);
     if (!entry) return;
     const tabs = [...this.state.tabs];
     const restoredId = allocateTabId(tabs, entry.tab.id);

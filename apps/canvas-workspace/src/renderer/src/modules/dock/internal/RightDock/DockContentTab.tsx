@@ -5,6 +5,7 @@
  * Split out of `RightDock` so the strip's markup stays readable; the dock
  * still owns activation, drag state and the tab menu.
  */
+import { PushPin } from '@phosphor-icons/react';
 import type { DragEvent, MouseEvent } from 'react';
 import { useI18n } from '../../../../i18n';
 import { DockTabIcon } from './DockTabIcon';
@@ -81,7 +82,7 @@ export const DockContentTab = ({
         data-split-visible={visual.splitVisible}
         // A shrunken tab shows little of its title, so the tooltip carries the
         // address a web tab is actually pointing at.
-        title={tab.kind === 'link' && tab.url ? `${tab.title}\n${tab.url}` : tab.title}
+        title={`${visual.splitPart ? `${t(visual.splitPart === 'right' ? 'rightDock.pinnedRight' : 'rightDock.browsingLeft')} · ` : ''}${tab.title}${tab.kind === 'link' && tab.url ? `\n${tab.url}` : ''}`}
         draggable
         tabIndex={tabIndex}
         onDragStart={(event) => onDragStart(event, tab.id)}
@@ -103,6 +104,7 @@ export const DockContentTab = ({
           faviconUrl={tab.kind === 'link' ? tab.faviconUrl : undefined}
         />
         <span className="right-dock__tab-title">{tab.title}</span>
+        {visual.splitPart === 'right' && <PushPin size={11} className="right-dock__tab-pin" aria-hidden="true" />}
       </button>
       <button
         type="button"

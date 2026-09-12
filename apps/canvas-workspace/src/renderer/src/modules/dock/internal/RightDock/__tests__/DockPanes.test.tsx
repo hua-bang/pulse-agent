@@ -133,6 +133,8 @@ describe('DockPanes split focus', () => {
     store.activate(CHAT_TAB_ID);
     store.openArtifact('ws1', 'artifact-2');
     const [leftTab, rightTab] = store.getSnapshot().tabs;
+    store.placeTab(leftTab.id, 'left');
+    store.placeTab(rightTab.id, 'right');
     mount = document.createElement('div');
     document.body.appendChild(mount);
     root = createRoot(mount);

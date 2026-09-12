@@ -27,19 +27,21 @@ import {
 import { useDockTabDrag } from './useDockTabDrag';
 import {
   cancelDockPageFocusRequestUnless,
+  cancelDockPageFocusRequest,
+  FOCUS_OUTSIDE_DOCK_EVENT,
   focusActiveDockTarget,
 } from './dock-browser-commands';
 import { useDockExternalFocus } from './useDockExternalFocus';
 import { getDockTabSwitcherItems } from './dock-tab-items';
 import { DockPanes } from './DockPanes';
-import { DockTabStrip } from './DockTabStrip';
 import { getRenderableComparisonPair } from '../../../../shared/dock/dock-split-state';
-import { useDockTabIndicator } from './useDockTabIndicator';
 import { getDockTabVisualState } from './dock-tab-visual-state';
 import {
   getRovingDockTabId,
   handleDockResizeKeyDown,
 } from './dock-accessibility';
+import { useDockReadingLayout } from './useDockReadingLayout';
+import './dock-reading.css';
 import './index.css';
 import './terminal-tab.css';
 
@@ -62,6 +64,8 @@ export { useChatDockWorkspace } from './useChatDockWorkspace';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
+const DockTabStrip = lazy(() => import('./DockTabStrip').then(m => ({ default: m.DockTabStrip })));
+const DockReadingControls = lazy(() => import('./DockReadingControls').then(m => ({ default: m.DockReadingControls })));
 const DockKeyboardController = lazy(() => import('./DockKeyboardController').then((m) => ({ default: m.DockKeyboardController })));
 const TabContextMenu = lazy(() => import('./TabContextMenu').then((m) => ({ default: m.TabContextMenu })));
 
@@ -99,6 +103,8 @@ export const RightDock = ({
   onCanvasNodesChange,
   onCanvasSelectionChange,
   pageMinAppWidth,
+  readingLeftInset = 0,
+  hostView = 'canvas',
   workspaces,
   onOpenNodePage,
   onActivateWorkspace,
@@ -125,13 +131,14 @@ export const RightDock = ({
 
   useEffect(() => {
     if (chatTabEnabled) return;
-    if (state.splitTabIds?.includes(CHAT_TAB_ID)) store.toggleSplitView();
-    if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
-      store.activate(state.tabs[0].id);
-      if (!state.expanded) store.collapse();
+    if (state.splitTabIds) store.toggleSplitView();
+    const current = store.getSnapshot();
+    if (current.activeTabId === CHAT_TAB_ID && current.tabs.length > 0) {
+      store.activate(current.tabs[0].id);
+      if (!current.expanded) store.collapse();
       return;
     }
-    if (state.activeTabId === CHAT_TAB_ID) {
+    if (current.activeTabId === CHAT_TAB_ID) {
       store.collapse();
     }
   }, [chatTabEnabled, state.activeTabId, state.expanded, state.splitTabIds, state.tabs, store]);
@@ -141,6 +148,8 @@ export const RightDock = ({
   const terminalHostMounted = Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
   const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible;
   const visible = state.expanded && (chatTabEnabled || hasPreviews || terminalTabsVisible);
+  const stripMounted = useRef(false);
+  if (visible) stripMounted.current = true;
   // While the chat tab is unavailable a transient 'chat' active pointer
   // (route guard hasn't run yet) should highlight nothing.
   const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID
@@ -165,36 +174,21 @@ export const RightDock = ({
   );
   const [viewportWidth, setViewportWidth] = useState<number>(readViewportWidth);
   const maxWidth = resolveDockMaxWidth(viewportWidth, capWidth, pageMinAppWidth);
-  const width = clampDockWidth(chosenWidth, viewportWidth, capWidth, pageMinAppWidth);
+  const sideWidth = clampDockWidth(chosenWidth, viewportWidth, capWidth, pageMinAppWidth);
+  const reading = useDockReadingLayout({
+    scope: `${hostView}:${state.activeTerminalWorkspaceId}`, visible, split: splitViewActive,
+    availableWidth: viewportWidth - readingLeftInset, sideWidth,
+    hasContent: hasPreviews || terminalTabsVisible,
+  });
+  const width = reading.width;
   const tabWidth = resolveTabWidth(orderedTabIds.length, width);
-  // Stable identity with live values: `useDockSplitView` keeps this in an
-  // effect dep list, and a clamp that changed identity per route would re-run
-  // (and re-clamp `chosenWidth`) on every navigation.
-  const widthPolicyRef = useRef({ viewportWidth, capWidth, pageMinAppWidth });
-  widthPolicyRef.current = { viewportWidth, capWidth, pageMinAppWidth };
-  const clampToPolicy = useCallback((value: number) => clampDockWidth(
-    value,
-    widthPolicyRef.current.viewportWidth,
-    widthPolicyRef.current.capWidth,
-    widthPolicyRef.current.pageMinAppWidth,
-  ), []);
   const splitView = useDockSplitView({
-    active: splitViewActive,
     chatPane: splitTabIds?.[0] === CHAT_TAB_ID ? 'left' : splitTabIds?.[1] === CHAT_TAB_ID ? 'right' : undefined,
     dockWidth: width,
-    setDockWidth: setChosenWidth,
-    clampDockWidth: clampToPolicy,
   });
 
   const tabDrag = useDockTabDrag(store);
-  const tabIndicator = useDockTabIndicator({
-    activeTabId: activePaneId,
-    visible: tabStripVisible,
-    previewTabs: state.tabs,
-    terminalTabs: state.terminalTabs,
-    chatTabEnabled,
-    dockWidth: width,
-  });
+
 
   useEffect(() => {
     const onResize = () => setViewportWidth(readViewportWidth());
@@ -207,12 +201,12 @@ export const RightDock = ({
     // chat tab: a route without one (the full-page chats) still shows link and
     // artifact tabs here, and gating the inset on `chatTabEnabled` let that
     // dock overlay — and cover — the page it was opened beside.
-    const inset = visible && reserveSpace ? `${width}px` : '0px';
+    const inset = visible && reserveSpace ? `${sideWidth}px` : '0px';
     document.documentElement.style.setProperty('--right-dock-inset', inset);
     return () => {
       document.documentElement.style.setProperty('--right-dock-inset', '0px');
     };
-  }, [visible, reserveSpace, width]);
+  }, [visible, reserveSpace, sideWidth]);
 
   const dockRef = useRef<HTMLElement>(null);
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
@@ -264,6 +258,7 @@ export const RightDock = ({
       ref={dockRef}
       className="right-dock"
       data-expanded={visible}
+      data-reading={reading.expanded}
       role="complementary"
       aria-label={t('rightDock.ariaLabel')}
       style={{ width }}
@@ -280,7 +275,7 @@ export const RightDock = ({
           />
         </Suspense>
       )}
-      <div
+      {!reading.expanded && <div
         className="right-dock__resize-handle"
         onMouseDown={resize.onMouseDown}
         onKeyDown={(event) => handleDockResizeKeyDown(event, {
@@ -299,8 +294,8 @@ export const RightDock = ({
         aria-valuemin={DOCK_MIN_WIDTH}
         aria-valuemax={maxWidth}
         aria-valuenow={width}
-      />
-      <DockTabStrip
+      />}
+      {stripMounted.current && <Suspense fallback={null}><DockTabStrip
         store={store}
         state={state}
         activePaneId={activePaneId}
@@ -314,7 +309,7 @@ export const RightDock = ({
         chatVisual={chatVisual}
         allTabItems={allTabItems}
         terminalTabsVisible={terminalTabsVisible}
-        tabIndicator={tabIndicator}
+        dockWidth={width}
         tabDrag={tabDrag}
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -322,7 +317,18 @@ export const RightDock = ({
         closeFromUser={closeFromUser}
         setTabMenu={setTabMenu}
         collapseFromUser={collapseFromUser}
-      />
+        readingControls={visible && <Suspense fallback={null}><DockReadingControls store={store} expanded={reading.expanded}
+        chatTabEnabled={chatTabEnabled} hasContent={hasPreviews || terminalTabsVisible}
+        returnLabel={t(hostView === 'canvas' ? 'rightDock.returnCanvas' : !chatTabEnabled ? 'rightDock.returnChat' : 'rightDock.returnLayout')}
+        onExpand={() => reading.setMode('reading')}
+        onReturn={() => {
+          if (splitViewActive) store.toggleSplitView();
+          reading.setMode('side');
+          cancelDockPageFocusRequest();
+          window.dispatchEvent(new Event(FOCUS_OUTSIDE_DOCK_EVENT));
+        }}
+        /></Suspense>}
+      /></Suspense>}
       <DockPanes
         store={store}
         state={state}
@@ -358,6 +364,7 @@ export const RightDock = ({
           <TabContextMenu
             tab={tabMenuTab}
             tabs={state.tabs}
+            allowComparison={chatTabEnabled}
             store={store}
             x={tabMenu.x}
             y={tabMenu.y}
