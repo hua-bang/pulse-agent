@@ -76,6 +76,7 @@ export interface ChatViewComposer {
   editableRef: RefObject<HTMLDivElement>;
   mentionOpen: boolean;
   mentionItems: MentionItem[];
+  mentionLoading?: boolean;
   mentionIndex: number;
   onSelectMention: (item: MentionItem) => void;
   onMentionIndexChange: (index: number) => void;

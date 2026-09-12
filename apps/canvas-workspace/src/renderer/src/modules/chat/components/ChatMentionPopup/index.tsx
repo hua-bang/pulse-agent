@@ -8,10 +8,12 @@ import { useI18n } from '../../../../i18n';
 import { SessionTitle } from '../SessionTitle';
 import { sessionTitleText } from '../utils/sessionTitle';
 import { pluginMentionIconMarkup } from '../utils/pluginMentionIcons';
+import { SpinnerIcon } from '../../../../components/icons';
 
 interface ChatMentionPopupProps {
   mentionItems: MentionItem[];
   mentionIndex: number;
+  isLoading?: boolean;
   onSelectMention: (item: MentionItem) => void;
   onMentionIndexChange: (index: number) => void;
 }
@@ -22,6 +24,7 @@ export const chatMentionOptionId = (index: number): string => `chat-mention-opti
 export const ChatMentionPopup = ({
   mentionItems,
   mentionIndex,
+  isLoading = false,
   onSelectMention,
   onMentionIndexChange,
 }: ChatMentionPopupProps) => {
@@ -36,14 +39,26 @@ export const ChatMentionPopup = ({
   }, [mentionIndex]);
 
   return (
-    <div
-      className="chat-mention-popup"
-      id={CHAT_MENTION_LISTBOX_ID}
-      ref={popupRef}
-      role="listbox"
-      aria-label={t('chat.mention.suggestions')}
-    >
-      {mentionItems.map((item, index) => {
+    <div className="chat-mention-popup" ref={popupRef}>
+      {isLoading ? (
+        <div className="chat-mention-status" role="status" aria-live="polite">
+          <span className="chat-mention-status-spinner" aria-hidden="true">
+            <SpinnerIcon size={14} className="chat-spin" />
+          </span>
+          <span>{t('chat.mention.searching')}</span>
+        </div>
+      ) : mentionItems.length === 0 ? (
+        <div className="chat-mention-status" role="status">
+          {t('chat.mention.noResults')}
+        </div>
+      ) : null}
+      <div
+        id={CHAT_MENTION_LISTBOX_ID}
+        role="listbox"
+        aria-label={t('chat.mention.suggestions')}
+        aria-busy={isLoading}
+      >
+        {!isLoading && mentionItems.map((item, index) => {
         const pluginIcon = item.type === 'plugin'
           ? pluginMentionIconMarkup(item.label, item.pluginIconKey, 16)
           : '';
@@ -115,7 +130,8 @@ export const ChatMentionPopup = ({
             </button>
           </div>
         );
-      })}
+        })}
+      </div>
     </div>
   );
 };

@@ -49,6 +49,19 @@ describe('ChatAnchors', () => {
     expect(host?.innerHTML).toBe('');
   });
 
+  it('owns its icon-button styling without loading ChatPanel CSS', () => {
+    render(
+      <I18nProvider>
+        <ChatAnchors anchors={ANCHORS} onJump={vi.fn()} />
+      </I18nProvider>,
+    );
+    const trigger = host!.querySelector<HTMLButtonElement>('.chat-panel-action-btn')!;
+    expect(trigger.classList.contains('ui-btn')).toBe(true);
+    expect(trigger.classList.contains('ui-btn--icon')).toBe(true);
+    expect(trigger.classList.contains('ui-btn--md')).toBe(true);
+    expect(trigger.querySelector('svg')?.getAttribute('width')).toBe('16');
+  });
+
   it('opens on trigger click and lists anchors in order', () => {
     render(
       <I18nProvider>

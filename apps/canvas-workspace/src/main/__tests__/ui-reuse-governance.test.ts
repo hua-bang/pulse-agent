@@ -127,7 +127,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // settings action buttons while retaining the New chat action.
   // 280→273 (module-first ownership batches): obsolete duplicate controls
   // disappeared as product visuals gained one owning component each.
-  rawButtonTags: 273,
+  // ChatAnchors owns its trigger styling via ui/Button, independent of lazy ChatPanel CSS.
+  rawButtonTags: 272,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

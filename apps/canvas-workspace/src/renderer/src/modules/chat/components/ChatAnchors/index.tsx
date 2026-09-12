@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, type KeyboardEvent as ReactKeybo
 import './index.css';
 import { ListLinesIcon } from '../../../../components/icons';
 import { useI18n } from '../../../../i18n';
-import { DropdownShell } from '../../../../components/ui';
+import { Button, DropdownShell } from '../../../../components/ui';
 import type { ChatAnchor } from '../utils/anchors';
 
 interface ChatAnchorsProps {
@@ -73,7 +73,9 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
           openRef.current = open;
           toggleRef.current = toggle;
           return (
-            <button
+            <Button
+              variant="icon"
+              size="md"
               ref={triggerRef}
               type="button"
               className="chat-panel-action-btn"
@@ -98,7 +100,7 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
               }}
             >
               <ListLinesIcon size={16} />
-            </button>
+            </Button>
           );
         }}
       >

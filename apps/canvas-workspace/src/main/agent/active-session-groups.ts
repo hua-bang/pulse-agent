@@ -45,6 +45,7 @@ export async function appendActiveSessionGroups({
 }: AppendActiveSessionGroupsOptions): Promise<void> {
   for (const [key, agent] of agents) {
     const scope = scopeFromServiceKey(key);
+    if (scope.kind === 'workspace' && !Object.prototype.hasOwnProperty.call(workspaceNames, scope.workspaceId)) continue;
     const storeId = scopeSessionStoreId(scope);
     if (includedStoreIds.has(storeId)) continue;
     const sessions = await agent.listSessions();

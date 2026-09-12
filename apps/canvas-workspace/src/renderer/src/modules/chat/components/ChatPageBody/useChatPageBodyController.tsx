@@ -127,6 +127,7 @@ export const useChatPageBodyController = ({
     loading,
     mentionIndex,
     mentionItems,
+    mentionLoading,
     mentionOpen,
     messageTools,
     messages,
@@ -382,7 +383,7 @@ export const useChatPageBodyController = ({
         : agentScope.kind === 'workspace'
           ? t('chat.askWorkspace', { name: scopeLabel })
           : t('chat.askAnything'),
-      input, attachments, editableRef, mentionOpen, mentionItems, mentionIndex,
+      input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading, mentionIndex,
       onSelectMention: selectMention, onMentionIndexChange: setMentionIndex,
       onInput: handleInput, onKeyDown: handleComposerKeyDown, onPaste: handlePaste,
       onAttachFiles: handleAttachFiles, onRemoveAttachment: removeAttachment,

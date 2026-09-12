@@ -31,6 +31,7 @@ export function useChatComposerInput({
 }: UseChatComposerInputOptions) {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
   const [mentionIndex, setMentionIndex] = useState(0);
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const {
@@ -50,6 +51,7 @@ export function useChatComposerInput({
     mentionBuildSeqRef.current++;
     setMentionOpen(false);
     setMentionItems([]);
+    setMentionLoading(false);
     setMentionIndex(0);
   }, [scopeId]);
   /** Trigger whose query selectMention must replace. */
@@ -78,6 +80,7 @@ export function useChatComposerInput({
     setInput,
     setMentionOpen,
     setMentionItems,
+    setMentionLoading,
     setMentionIndex,
     setAttachments,
   });
@@ -98,7 +101,9 @@ export function useChatComposerInput({
       || !selection.anchorNode
       || selection.anchorNode.nodeType !== Node.TEXT_NODE
     ) {
+      setMentionLoading(false);
       setMentionOpen(false);
+      setMentionItems([]);
       return;
     }
 
@@ -113,7 +118,9 @@ export function useChatComposerInput({
       : atMatch ?? slashMatch;
 
     if (!match) {
+      setMentionLoading(false);
       setMentionOpen(false);
+      setMentionItems([]);
       return;
     }
 
@@ -121,10 +128,17 @@ export function useChatComposerInput({
     mentionTriggerRef.current = trigger;
 
     setMentionIndex(0);
+    setMentionItems([]);
+    setMentionLoading(true);
+    setMentionOpen(true);
     void buildMentionItems(match[1], trigger).then(items => {
       if (buildSeq !== mentionBuildSeqRef.current) return;
       setMentionItems(items);
-      setMentionOpen(items.length > 0);
+      setMentionLoading(false);
+    }).catch(() => {
+      if (buildSeq !== mentionBuildSeqRef.current) return;
+      setMentionItems([]);
+      setMentionLoading(false);
     });
   }, [buildMentionItems]);
 
@@ -137,6 +151,7 @@ export function useChatComposerInput({
       if (editableRef.current?.contains(target)) return;
       if (target.closest('.chat-mention-popup')) return;
       mentionBuildSeqRef.current++;
+      setMentionLoading(false);
       setMentionOpen(false);
     };
     document.addEventListener('mousedown', handleMouseDown);
@@ -184,6 +199,7 @@ export function useChatComposerInput({
 
     setInput(serializeEditable(element));
     mentionBuildSeqRef.current++;
+    setMentionLoading(false);
     setMentionOpen(false);
     element.focus();
   }, [nodes]);
@@ -211,30 +227,33 @@ export function useChatComposerInput({
     // never send the message or move the mention selection.
     if (isImeComposing(event)) return;
 
-    if (mentionOpen && mentionItems.length > 0) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setMentionIndex(index => (index + 1) % mentionItems.length);
-        return;
-      }
-
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setMentionIndex(index => (index - 1 + mentionItems.length) % mentionItems.length);
-        return;
-      }
-
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault();
-        selectMention(mentionItems[mentionIndex]);
-        return;
-      }
-
+    if (mentionOpen) {
       if (event.key === 'Escape') {
         event.preventDefault();
         mentionBuildSeqRef.current++;
+        setMentionLoading(false);
         setMentionOpen(false);
         return;
+      }
+
+      if (mentionItems.length > 0) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setMentionIndex(index => (index + 1) % mentionItems.length);
+          return;
+        }
+
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          setMentionIndex(index => (index - 1 + mentionItems.length) % mentionItems.length);
+          return;
+        }
+
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          event.preventDefault();
+          selectMention(mentionItems[mentionIndex]);
+          return;
+        }
       }
     }
 
@@ -274,6 +293,7 @@ export function useChatComposerInput({
     insertTabMention,
     mentionIndex,
     mentionItems,
+    mentionLoading,
     mentionOpen,
     removeAttachment: chatAttachments.removeAttachment,
     retryAttachment: chatAttachments.retryAttachment,
