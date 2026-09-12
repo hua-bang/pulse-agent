@@ -586,7 +586,7 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
-  it('keeps right-hand AI pinned even after focusing it, while new tabs replace the left', () => {
+  it('switches the focused pane without moving the other visible tab', () => {
     const dock = new DockStore();
     dock.openLink('https://a.example');
     const linkId = linkTabId('https://a.example');
@@ -607,16 +607,16 @@ describe('DockStore', () => {
     dock.openArtifact('ws1', 'a1');
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: artifactTabId('ws1', 'a1'),
-      splitTabIds: [artifactTabId('ws1', 'a1'), CHAT_TAB_ID],
+      splitTabIds: [linkId, artifactTabId('ws1', 'a1')],
     });
 
-    // Choosing another page still updates the left, independent of focus.
+    // Focusing the left page redirects the next selection to that side.
     dock.activate(linkId);
-    expect(dock.getSnapshot().splitTabIds).toEqual([linkId, CHAT_TAB_ID]);
+    expect(dock.getSnapshot().splitTabIds).toEqual([linkId, artifactTabId('ws1', 'a1')]);
     dock.openNodeDetail('ws1', 'node-1', 'Node one');
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: nodeDetailTabId('ws1', 'node-1'),
-      splitTabIds: [nodeDetailTabId('ws1', 'node-1'), CHAT_TAB_ID],
+      splitTabIds: [nodeDetailTabId('ws1', 'node-1'), artifactTabId('ws1', 'a1')],
     });
 
     dock.toggleSplitView();
@@ -654,7 +654,7 @@ describe('DockStore', () => {
     const dock = new DockStore();
     dock.openTerminal();
     dock.toggleSplitView();
-    dock.activate(CHAT_TAB_ID);
+    dock.activate(TERMINAL_TAB_ID);
 
     dock.newTerminal();
 
