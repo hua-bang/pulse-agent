@@ -586,7 +586,7 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
-  it('opens comparison with Pulse AI, then replaces the focused pane with any dock tab', () => {
+  it('keeps right-hand AI pinned even after focusing it, while new tabs replace the left', () => {
     const dock = new DockStore();
     dock.openLink('https://a.example');
     const linkId = linkTabId('https://a.example');
@@ -607,17 +607,16 @@ describe('DockStore', () => {
     dock.openArtifact('ws1', 'a1');
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: artifactTabId('ws1', 'a1'),
-      splitTabIds: [linkId, artifactTabId('ws1', 'a1')],
+      splitTabIds: [artifactTabId('ws1', 'a1'), CHAT_TAB_ID],
     });
 
-    // Focusing the already-visible left pane chooses which side the next tab
-    // replaces; it must not move either visible tab by itself.
+    // Choosing another page still updates the left, independent of focus.
     dock.activate(linkId);
-    expect(dock.getSnapshot().splitTabIds).toEqual([linkId, artifactTabId('ws1', 'a1')]);
+    expect(dock.getSnapshot().splitTabIds).toEqual([linkId, CHAT_TAB_ID]);
     dock.openNodeDetail('ws1', 'node-1', 'Node one');
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: nodeDetailTabId('ws1', 'node-1'),
-      splitTabIds: [nodeDetailTabId('ws1', 'node-1'), artifactTabId('ws1', 'a1')],
+      splitTabIds: [nodeDetailTabId('ws1', 'node-1'), CHAT_TAB_ID],
     });
 
     dock.toggleSplitView();
@@ -692,7 +691,7 @@ describe('DockStore', () => {
     const thirdId = artifactTabId('ws1', 'a3');
     dock.toggleSplitView();
     dock.activate(CHAT_TAB_ID);
-    dock.activate(firstId);
+    dock.placeTab(firstId, 'right');
 
     dock.close(firstId);
 
@@ -712,6 +711,8 @@ describe('DockStore', () => {
     dock.activate(CHAT_TAB_ID);
     dock.openArtifact('ws1', 'a1');
     const survivorId = artifactTabId('ws1', 'a1');
+    dock.placeTab(TERMINAL_TAB_ID, 'left');
+    dock.placeTab(survivorId, 'right');
     dock.activate(TERMINAL_TAB_ID);
 
     dock.closeTerminal(TERMINAL_TAB_ID);

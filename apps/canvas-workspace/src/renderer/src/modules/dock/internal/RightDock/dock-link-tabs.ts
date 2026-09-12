@@ -172,9 +172,14 @@ export class ClosedLinkTabStack {
   }
 
   /** Pop the newest entry for `workspaceId`, leaving other workspaces' alone. */
-  pop(workspaceId: string): ClosedLinkTab | undefined {
+  list(workspaceId: string): ClosedLinkTab[] {
+    return this.entries.filter(entry => entry.workspaceId === workspaceId).reverse();
+  }
+
+  pop(workspaceId: string, offset = 0): ClosedLinkTab | undefined {
     for (let index = this.entries.length - 1; index >= 0; index -= 1) {
       if (this.entries[index].workspaceId !== workspaceId) continue;
+      if (offset-- > 0) continue;
       const [entry] = this.entries.splice(index, 1);
       return entry;
     }

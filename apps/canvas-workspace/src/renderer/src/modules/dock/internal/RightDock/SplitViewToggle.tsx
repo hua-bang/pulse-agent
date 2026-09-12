@@ -6,6 +6,7 @@ interface Props {
   store: DockStore;
   active: boolean;
   canOpen: boolean;
+  onToggle?: () => void;
 }
 
 const SplitViewIcon = () => (
@@ -15,23 +16,23 @@ const SplitViewIcon = () => (
   </svg>
 );
 
-export const SplitViewToggle = ({ store, active, canOpen }: Props) => {
+export const SplitViewToggle = ({ store, active, canOpen, onToggle }: Props) => {
   const { t } = useI18n();
   const label = t(active ? 'rightDock.exitSplitView' : 'rightDock.openSplitView');
   const isDisabled = !active && !canOpen;
   return (
-    <span data-tooltip={t('rightDock.splitView')} className="right-dock__tooltip-wrapper">
+    <span data-tooltip={label} className="right-dock__tooltip-wrapper">
       <Button
         variant="icon"
         size="sm"
         className="right-dock__split-toggle"
         aria-label={label}
-        title={t('rightDock.splitView')}
+        title={label}
         aria-pressed={active}
         disabled={isDisabled}
         onClick={() => {
           if (isDisabled) return;
-          store.toggleSplitView();
+          if (onToggle) onToggle(); else store.toggleSplitView();
         }}
       >
         <SplitViewIcon />

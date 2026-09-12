@@ -182,11 +182,12 @@ frame is not a reliable mount barrier.
 
 `RightDock/dock-tab-items.ts` is the single visible-tab projection used by the
 strip, keyboard cycling, and the All Tabs menu. Hidden terminal sessions are
-excluded consistently. Overflow is discoverable through the accessible All
-Tabs menu, and the pinned Pulse AI tab remains reachable at the start of the
+excluded consistently. Overflow is discoverable through the counted All
+Tabs search dialog (title/URL filtering, domain labels, visible-pane labels,
+recent activation order and workspace-scoped recently closed web tabs), and the pinned Pulse AI tab remains reachable at the start of the
 strip rather than scrolling away with page tabs.
 
-The strip and All Tabs menu share one fixed 16px icon slot and the same Pulse,
+The strip and All Tabs search share one fixed 16px icon slot and the same Pulse,
 terminal/agent, page-favicon, node-detail, or content mark. Keep favicon and
 agent metadata in the projection rather than replacing every row with a
 generic kind dot.
@@ -211,13 +212,36 @@ state from the same persisted dock session; a workspace without saved state
 starts collapsed.
 
 The dock comparison view is exactly two stable left/right panes, not a layout
-tree. It opens with the focused non-chat tab on the left and Pulse AI on the
-right. Selecting an already-visible tab changes focus; selecting any other
-dock tab replaces the focused pane without moving the other one. Closing
+tree. The toolbar opens a searchable target picker; choosing a tab puts the
+current tab on the left and the chosen tab on the right. The picker excludes
+the current tab and invalid pairs; AI is offered only where a Dock chat exists. Selecting an already-visible tab changes input focus; selecting any other
+dock tab replaces the left pane without changing the pinned right pane.
+Explicit tab-menu placement is the only way to
+replace the right pane; placing an already-visible tab on the other side
+swaps the pair without duplicating guests. Exiting comparison keeps the left
+pane even when focus was on the right. Closing
 either visible content tab exits comparison and keeps the survivor. Two
 terminal tabs are deliberately not paired because the renderer still owns one
-shared terminal portal host; selecting another terminal replaces the visible
-terminal pane instead.
+shared terminal portal host; explicit two-terminal pairing is rejected. A normal terminal selection that
+would require two terminal panes exits comparison and shows the selected
+terminal alone.
+
+The tab-strip expand/return and comparison icons add no extra toolbar row.
+Reading expansion is layout-only (`useDockReadingLayout`): Canvas and full-page
+chat can promote the same Dock to the main workspace width while retaining the
+sidebar. Comparison also uses that width instead of permanently growing the
+saved side-panel width. Return restores the original inset and side width;
+manual expansion survives ordinary tab switching and comparison exit.
+Full-page chat keeps its existing left conversation/right Dock layout for
+single-page browsing. It supports content-to-content comparison through the
+same picker and tab menu, but never offers a duplicate AI pane. Content-only
+pairs survive route changes; an inherited AI pair exits while preserving the
+left content tab. Comparison expands over the main work area without remounting
+the underlying conversation; return restores the original layout. Covered route content is hidden and
+inert while its mounted state and layout dimensions stay intact. Route/scope
+changes do not promote an unrelated scope; collapsing clears manual promotion.
+Guards: `__tests__/useDockReadingLayout.test.tsx`, `dock-reading-flow.test.ts`,
+and `DockTabSwitcher.test.tsx` under RightDock.
 
 Menus or suggestions above a guest must hold `useGuestInteractionShield`,
 because guest clicks do not reach the host document. The shield observes guests

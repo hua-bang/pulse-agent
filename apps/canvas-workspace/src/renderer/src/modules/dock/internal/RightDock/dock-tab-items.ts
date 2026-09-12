@@ -6,6 +6,7 @@ export interface DockTabSwitcherItem {
   title: string;
   kind: 'chat' | 'terminal' | DockPreviewTab['kind'];
   faviconUrl?: string;
+  url?: string;
   agentType?: string;
 }
 
@@ -34,7 +35,18 @@ export function getDockTabSwitcherItems(
       id: tab.id,
       title: tab.title,
       kind: tab.kind,
+      ...(tab.kind === 'link' ? { url: tab.url } : {}),
       ...(tab.kind === 'link' && tab.faviconUrl ? { faviconUrl: tab.faviconUrl } : {}),
     })),
   ];
 }
+
+export const dockTabDomain = (url?: string): string => {
+  if (!url) return '';
+  try { return new URL(url).host; } catch { return url; }
+};
+
+export const filterDockTabs = (items: readonly DockTabSwitcherItem[], query: string): DockTabSwitcherItem[] => {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return items.filter(item => terms.every(term => `${item.title} ${item.url ?? ''}`.toLocaleLowerCase().includes(term)));
+};

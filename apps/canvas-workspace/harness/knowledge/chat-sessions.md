@@ -473,6 +473,15 @@ not prepend the workspace root to an already absolute path.
   actual inline size without changing `window.innerWidth`; viewport-only
   breakpoints therefore miss exactly the squeezed side-by-side state.
 
+Explicit reading expansion bypasses the side-panel cap within the main work
+area. `useDockReadingLayout` preserves the underlying side-width preference and
+route inset; return restores both without changing the selected conversation.
+Full-page chat already owns a left conversation/right Dock layout, so its
+comparison picker offers content tabs only, never a duplicate AI pane. Two
+webpages can use the main work area for comparison; return preserves the
+original layout and conversation draft/session. Hidden underlying content
+is inert while reading or comparing content.
+
 Chat comparisons default to a 380px chat pane (or half of the available width
 on smaller docks), giving the remaining width to the file/content pane.
 Manual divider changes retain the chosen chat width as the dock grows; ordinary

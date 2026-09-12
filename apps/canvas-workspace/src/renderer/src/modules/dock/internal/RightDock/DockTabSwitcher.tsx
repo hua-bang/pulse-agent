@@ -1,80 +1,117 @@
-/**
- * Browser-style all-tabs entry. The horizontal strip may scroll, but this
- * fixed trigger keeps every tab reachable with a pointer or keyboard.
- */
-import { CaretDown } from '@phosphor-icons/react';
-import { useRef, useState } from 'react';
+import { CaretDown, Columns } from '@phosphor-icons/react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { useI18n } from '../../../../i18n';
-import { Button, Popover } from '../../../../components/ui';
+import { Button, Popover, TextField } from '../../../../components/ui';
+import { isImeComposing } from '../../../../utils/ime';
 import { DockAgentTabIcon } from './DockAgentTabIcon';
 import { DockTabIcon } from './DockTabIcon';
-import type { DockTabSwitcherItem } from './dock-tab-items';
+import { dockTabDomain, filterDockTabs, type DockTabSwitcherItem } from './dock-tab-items';
+import './dock-reading.css';
 
 interface Props {
+  mode?: 'switch' | 'compare';
   items: readonly DockTabSwitcherItem[];
   activeTabId: string | null;
+  splitTabIds?: readonly string[];
   onActivate: (id: string) => void;
+  closedTabs?: readonly DockTabSwitcherItem[];
+  onReopen?: (offset: number) => void;
 }
 
-export const DockTabSwitcher = ({ items, activeTabId, onActivate }: Props) => {
+export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, closedTabs = [], onReopen }: Props) => {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState(0);
+  const [recent, setRecent] = useState<string[]>([]);
   useGuestInteractionShield(open);
-
+  useEffect(() => {
+    if (activeTabId) setRecent(current => [activeTabId, ...current.filter(id => id !== activeTabId)].slice(0, 100));
+  }, [activeTabId]);
+  useEffect(() => {
+    if (!open) return;
+    // The anchored popover starts hidden while measured. Focus only once it paints.
+    const frame = requestAnimationFrame(() => searchRef.current?.querySelector('input')?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+  const ordered = [...items].sort((a, b) => {
+    const rank = (id: string) => recent.includes(id) ? recent.indexOf(id) : recent.length;
+    return rank(a.id) - rank(b.id);
+  });
+  const rows = [
+    ...filterDockTabs(ordered, query).map(item => ({ item, closedIndex: -1 })),
+    ...closedTabs.flatMap((item, closedIndex) => filterDockTabs([item], query).length ? [{ item, closedIndex }] : []),
+  ];
+  const currentIndex = Math.min(selected, Math.max(0, rows.length - 1));
+  useEffect(() => {
+    if (open) document.getElementById(`${listId}-${currentIndex}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, currentIndex, listId]);
   const close = (reason?: 'escape' | 'outside') => {
     setOpen(false);
     if (reason === 'escape') triggerRef.current?.focus();
   };
-
+  const choose = (index: number) => {
+    const row = rows[index];
+    if (!row) return;
+    setOpen(false);
+    if (row.closedIndex >= 0) onReopen?.(row.closedIndex);
+    else onActivate(row.item.id);
+  };
+  const comparing = mode === 'compare';
+  const title = t(comparing ? 'rightDock.chooseComparison' : 'rightDock.allTabs');
   return (
     <>
-      <Button
-        ref={triggerRef}
-        variant="icon"
-        size="sm"
-        className="right-dock__tab-switcher"
-        aria-label={t('rightDock.allTabs')}
-        title={t('rightDock.allTabs')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <CaretDown size={14} weight="bold" aria-hidden="true" />
+      <Button ref={triggerRef} size="sm" variant={comparing ? 'icon' : 'secondary'}
+        className={comparing ? 'right-dock__split-toggle right-dock__comparison-trigger' : 'right-dock__tab-search-trigger'}
+        aria-label={title} title={title} aria-haspopup="dialog" aria-expanded={open}
+        onClick={() => { setQuery(''); setSelected(0); setOpen(value => !value); }}>
+        {comparing ? <Columns size={16} /> : <>{t('rightDock.tabCount', { count: items.length })}<CaretDown size={12} /></>}
       </Button>
       {open && (
-        <Popover
-          anchorRef={triggerRef}
-          placement="bottom"
-          align="end"
-          gap={6}
-          ariaLabel={t('rightDock.allTabs')}
-          className="context-menu context-menu--in-dock right-dock__tab-switcher-menu"
-          onClose={close}
-        >
-          {items.map((item) => (
-            <Button
-              key={item.id}
-              size="sm"
-              className="context-menu-item right-dock__tab-switcher-item"
-              role="menuitemradio"
-              aria-checked={item.id === activeTabId}
-              data-menu-autofocus={item.id === activeTabId ? 'true' : undefined}
-              title={item.title}
-              onClick={() => {
-                setOpen(false);
-                onActivate(item.id);
-              }}
-            >
-              {item.kind === 'terminal' && item.agentType
-                ? <DockAgentTabIcon agentType={item.agentType} />
-                : <DockTabIcon kind={item.kind} faviconUrl={item.faviconUrl} />}
-              <span className="context-menu-label">
-                <strong>{item.title}</strong>
-              </span>
-            </Button>
-          ))}
+        <Popover anchorRef={triggerRef} placement="bottom" align="end" gap={6}
+          role="dialog" ariaLabel={title} autoFocus={false} keyboardNavigation={false}
+          className="context-menu context-menu--in-dock right-dock__tab-switcher-menu right-dock__tab-search"
+          onClose={close}>
+          <div ref={searchRef} className="right-dock__tab-search-input">
+            <TextField aria-label={t('rightDock.searchTabs')} placeholder={t('rightDock.searchTabs')}
+              role="combobox" aria-expanded aria-controls={listId} aria-autocomplete="list"
+              aria-activedescendant={rows.length ? `${listId}-${currentIndex}` : undefined}
+              value={query} onChange={event => { setQuery(event.target.value); setSelected(0); }}
+              onKeyDown={event => {
+                if (isImeComposing(event.nativeEvent)) return;
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                  event.preventDefault(); event.stopPropagation();
+                  setSelected(Math.max(0, Math.min(rows.length - 1, currentIndex + (event.key === 'ArrowDown' ? 1 : -1))));
+                } else if (event.key === 'Enter') { event.preventDefault(); choose(currentIndex); }
+              }} />
+          </div>
+          <div id={listId} role="listbox" aria-label={title} className="right-dock__tab-search-results">
+            {rows.map(({ item, closedIndex }, index) => (
+              <div key={`${closedIndex}:${item.id}`}>
+                {(index === 0 || (closedIndex >= 0 && rows[index - 1].closedIndex < 0)) && (
+                  <div className="right-dock__tab-search-heading">{t(closedIndex >= 0 ? 'rightDock.recentlyClosed' : comparing ? 'rightDock.chooseComparison' : 'rightDock.recentTabs')}</div>
+                )}
+                <Button id={`${listId}-${index}`} size="sm" role="option" aria-selected={index === currentIndex}
+                  className="right-dock__tab-search-row" title={item.url || item.title}
+                  onMouseEnter={() => setSelected(index)} onClick={() => choose(index)}>
+                  {item.kind === 'terminal' && item.agentType
+                    ? <DockAgentTabIcon agentType={item.agentType} />
+                    : <DockTabIcon kind={item.kind} faviconUrl={item.faviconUrl} />}
+                  <span className="right-dock__tab-search-label"><strong>{item.title}</strong>
+                    {item.url && <small>{dockTabDomain(item.url)}</small>}</span>
+                  {closedIndex < 0 && (splitTabIds?.includes(item.id) || activeTabId === item.id) && (
+                    <span className="right-dock__tab-position">{t(splitTabIds?.[1] === item.id ? 'rightDock.pinnedRight'
+                      : splitTabIds?.[0] === item.id ? 'rightDock.browsingLeft' : 'rightDock.currentTab')}</span>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+          {!rows.length && <p role="status" className="right-dock__tab-search-empty">{t(comparing && !items.length ? 'rightDock.openTabToCompare' : 'rightDock.noMatchingTabs')}</p>}
         </Popover>
       )}
     </>

@@ -17,9 +17,7 @@ export const getRenderableComparisonPair = (
   state: DockState,
   chatTabEnabled: boolean,
 ): DockComparisonPair | undefined => (
-  chatTabEnabled || !state.splitTabIds?.includes(CHAT_TAB_ID)
-    ? state.splitTabIds
-    : undefined
+  chatTabEnabled || !state.splitTabIds?.includes(CHAT_TAB_ID) ? state.splitTabIds : undefined
 );
 
 export const getComparisonSurvivorId = (
@@ -46,15 +44,9 @@ export const applyDockSplitState = (current: DockState, next: Partial<DockState>
     const selectedId = candidate.activeTabId;
     if (!current.splitTabIds.includes(selectedId) && hasDockTab(candidate, selectedId)) {
       const nextPair: DockComparisonPair = [...current.splitTabIds];
-      const existingTerminalIndex = isTerminalTabId(selectedId)
-        ? nextPair.findIndex((id) => isTerminalTabId(id))
-        : -1;
       const stalePaneIndex = nextPair.findIndex((id) => !hasDockTab(candidate, id));
-      const focusedIndex = current.splitTabIds.indexOf(current.activeTabId);
-      const replaceIndex = existingTerminalIndex >= 0
-        ? existingTerminalIndex
-        : stalePaneIndex >= 0 ? stalePaneIndex
-        : focusedIndex >= 0 ? focusedIndex : 0;
+      // Focus routes input, never decides where the next page opens.
+      const replaceIndex = stalePaneIndex >= 0 ? stalePaneIndex : 0;
       nextPair[replaceIndex] = selectedId;
       candidate.splitTabIds = nextPair;
     }
@@ -67,11 +59,29 @@ export const applyDockSplitState = (current: DockState, next: Partial<DockState>
 };
 
 export const getSplitViewToggle = (state: DockState): Partial<DockState> | null => {
-  if (state.splitTabIds) return { splitTabIds: undefined };
+  if (state.splitTabIds) return { splitTabIds: undefined, activeTabId: state.splitTabIds[0] };
   if (state.activeTabId === CHAT_TAB_ID || !hasDockTab(state, state.activeTabId)) return null;
   return {
     expanded: true,
     splitTabIds: [state.activeTabId, CHAT_TAB_ID],
     chatUnread: false,
   };
+};
+
+/** Explicit placement is the only way to replace the pinned right pane.
+ * Moving a visible tab to the other side swaps the pair, never duplicates it. */
+export const getDockPaneSelection = (
+  state: DockState, id: string, side: 'left' | 'right',
+): Partial<DockState> | null => {
+  if (!hasDockTab(state, id)) return null;
+  const pair = state.splitTabIds;
+  if (!pair && side === 'left') return { activeTabId: id, expanded: true };
+  const slot = side === 'left' ? 0 : 1;
+  const other = pair?.[1 - slot] ?? state.activeTabId;
+  if (other === id && !pair) return null;
+  const ids: DockComparisonPair = pair ? [...pair] : [other, id];
+  if (ids[1 - slot] === id) ids[1 - slot] = ids[slot];
+  ids[slot] = id;
+  if (!isValidPair(state, ids)) return null;
+  return { splitTabIds: ids, activeTabId: id, expanded: true, ...(ids.includes(CHAT_TAB_ID) ? { chatUnread: false } : {}) };
 };
