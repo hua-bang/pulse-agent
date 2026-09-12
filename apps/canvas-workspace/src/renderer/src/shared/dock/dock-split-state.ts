@@ -45,8 +45,8 @@ export const applyDockSplitState = (current: DockState, next: Partial<DockState>
     if (!current.splitTabIds.includes(selectedId) && hasDockTab(candidate, selectedId)) {
       const nextPair: DockComparisonPair = [...current.splitTabIds];
       const stalePaneIndex = nextPair.findIndex((id) => !hasDockTab(candidate, id));
-      // Focus routes input, never decides where the next page opens.
-      const replaceIndex = stalePaneIndex >= 0 ? stalePaneIndex : 0;
+      const focusedIndex = current.splitTabIds.indexOf(current.activeTabId);
+      const replaceIndex = stalePaneIndex >= 0 ? stalePaneIndex : Math.max(0, focusedIndex);
       nextPair[replaceIndex] = selectedId;
       candidate.splitTabIds = nextPair;
     }
@@ -68,7 +68,7 @@ export const getSplitViewToggle = (state: DockState): Partial<DockState> | null 
   };
 };
 
-/** Explicit placement is the only way to replace the pinned right pane.
+/** Explicit placement chooses a side without first focusing its content.
  * Moving a visible tab to the other side swaps the pair, never duplicates it. */
 export const getDockPaneSelection = (
   state: DockState, id: string, side: 'left' | 'right',

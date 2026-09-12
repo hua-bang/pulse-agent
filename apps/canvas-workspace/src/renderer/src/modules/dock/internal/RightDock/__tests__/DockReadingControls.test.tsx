@@ -23,7 +23,7 @@ const setup = async (store: DockStore, chat: boolean) => {
 const rows = () => [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
 
 describe('explicit comparison picker', () => {
-  it('compares two web tabs on full-page chat, excludes AI, and keeps the right tab pinned', async () => {
+  it('compares two web tabs on full-page chat, excludes AI, and switches the focused side', async () => {
     const store = new DockStore();
     store.openLink('https://first.example'); const first = store.getSnapshot().activeTabId;
     store.openLink('https://second.example'); const second = store.getSnapshot().activeTabId;
@@ -36,7 +36,7 @@ describe('explicit comparison picker', () => {
     expect(store.getSnapshot().splitTabIds).toEqual([second, first]);
     act(() => store.activate(first));
     act(() => store.openLink('https://third.example'));
-    expect(store.getSnapshot().splitTabIds).toEqual([store.getSnapshot().activeTabId, first]);
+    expect(store.getSnapshot().splitTabIds).toEqual([second, store.getSnapshot().activeTabId]);
     act(() => mount!.querySelector<HTMLButtonElement>('.right-dock__split-toggle')!.click());
     expect(store.getSnapshot().splitTabIds).toBeUndefined();
   });

@@ -57,8 +57,8 @@ export interface DockState {
   /** `CHAT_TAB_ID`, a terminal tab id, or a preview tab id. */
   activeTabId: string;
   /** Stable left/right tab ids in the two-pane comparison view. The focused
-   *  tab remains `activeTabId`; selecting a hidden tab replaces the left
-   *  slot. The right slot changes only through explicit placement. */
+   *  tab remains `activeTabId`; selecting a hidden tab replaces the focused
+   *  slot, leaving the other visible pane in place. */
   splitTabIds?: DockComparisonPair;
   expanded: boolean;
   chatUnread: boolean;
