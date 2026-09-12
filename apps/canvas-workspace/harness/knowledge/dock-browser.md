@@ -215,9 +215,11 @@ The dock comparison view is exactly two stable left/right panes, not a layout
 tree. The toolbar opens a searchable target picker; choosing a tab puts the
 current tab on the left and the chosen tab on the right. The picker excludes
 the current tab and invalid pairs; AI is offered only where a Dock chat exists. Selecting an already-visible tab changes input focus; selecting any other
-dock tab replaces the left pane without changing the pinned right pane.
-Explicit tab-menu placement is the only way to
-replace the right pane; placing an already-visible tab on the other side
+dock tab replaces the focused pane without moving the other one. Clicking
+inside either pane sets that target; the focused border and tab underline
+identify it. There is no fixed-right pin. The tab picker labels visible tabs
+by their left/right position. Explicit tab-menu placement can select a side
+without first focusing it; placing an already-visible tab on the other side
 swaps the pair without duplicating guests. Exiting comparison keeps the left
 pane even when focus was on the right. Closing
 either visible content tab exits comparison and keeps the survivor. Two

@@ -41,5 +41,3 @@
 .right-dock[data-reading="true"] .right-dock__tabs { -webkit-app-region: no-drag; }
 
 .right-dock__reading-toggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
-
-.right-dock__tab-pin { flex-shrink: 0; color: var(--accent); }

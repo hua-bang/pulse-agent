@@ -64,8 +64,8 @@ The workbench has exactly two side regions plus a modal tier:
     Escape inside a web page remains page-owned;
   - web and terminal tabs can enter comparison with the pinned chat: content
     stays on the left and Pulse AI on the right; ordinary tab selection replaces
-    the left, while explicit placement changes the right. Pane focus routes input
-    without changing this rule, and closing paired content exits comparison;
+    the focused pane and leaves the other in place. Clicking a pane selects it
+    as the replacement target; explicit placement can choose a side directly, and closing paired content exits comparison;
   - browser tabs mount lazily on first visibility, so restored hidden tabs and
     a collapsed dock do not create cold guests. Resident tab contents stay
     mounted in the background and hide via `visibility` (never `display: none`

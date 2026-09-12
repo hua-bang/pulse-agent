@@ -36,7 +36,7 @@ describe('DockTabSwitcher search', () => {
   it('focuses search, shows domains and pane positions, then selects by domain', async () => {
     const { input, type, onActivate } = await setup();
     expect(document.activeElement).toBe(input);
-    expect(document.body.textContent).toContain('Pinned right');
+    expect(document.body.textContent).toContain('Right pane');
     expect(document.body.textContent).toContain('Left pane');
     type('docs.example');
     expect(document.querySelectorAll('[role="option"]')).toHaveLength(1);

@@ -295,7 +295,7 @@ export class DockStore {
     return true;
   }
 
-  /** Compare with Pulse AI pinned on the right; normal activation updates the left. */
+  /** Compare with Pulse AI on the right; normal activation updates the focused pane. */
   toggleSplitView(): void { const next = getSplitViewToggle(this.state); if (next) this.commit(next); }
 
   placeTab(id: string, side: 'left' | 'right'): void {

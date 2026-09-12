@@ -1,4 +1,3 @@
-import { PushPin } from '@phosphor-icons/react';
 import { lazy, Suspense, type ReactNode, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useI18n } from '../../../../i18n';
@@ -116,13 +115,12 @@ export const DockTabStrip = ({
             data-split-visible={chatVisual.splitVisible}
             data-split-part={chatVisual.splitPart}
             data-unread={state.chatUnread}
-            title={chatVisual.splitPart === 'right' ? `${t('rightDock.pinnedRight')} · ${t('rightDock.chat')}` : t('rightDock.chat')}
+            title={chatVisual.splitPart === 'right' ? `${t('rightDock.rightPane')} · ${t('rightDock.chat')}` : t('rightDock.chat')}
             tabIndex={rovingTabId === CHAT_TAB_ID ? 0 : -1}
             onClick={() => store.activate(CHAT_TAB_ID)}
           >
             <DockTabIcon kind="chat" />
             <span className="right-dock__tab-title">{t('rightDock.chat')}</span>
-            {chatVisual.splitPart === 'right' && <PushPin size={11} className="right-dock__tab-pin" aria-hidden="true" />}
             <span className="right-dock__tab-unread" aria-hidden="true" />
           </button>
         )}
