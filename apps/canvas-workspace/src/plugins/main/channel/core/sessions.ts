@@ -1,92 +1,213 @@
-import type { AgentScope, CanvasAgentServiceRef, PluginStore } from '../../../types';
+import type { AgentScope, PluginStore } from '../../../types';
+import type { ConversationRuntimeService } from '../../../../main/agent/conversation-runtime/conversation-service';
 
 const STORE_KEY = 'sessions';
 
 /**
- * Gives each external conversation its own Canvas Agent session, even when
- * several conversations share one agent scope.
- *
- * Canvas keeps a single *current* session per scope; this router maps
- * `scope::conversationId → sessionId` and, before each turn, swaps the scope's
- * current session to the one owned by the conversation (creating it on first
- * contact). Because runs are serialized per scope key, the swap can't race
- * another turn. The map is persisted so conversations keep their history
- * across restarts.
- *
- * Trade-off: the scope's *current* session is shared with the Canvas UI, so
- * the UI for that scope reflects whichever conversation ran last.
+ * Durable `(scope, channel, conversation) -> sessionId` routing for external
+ * chats. Sessions are provisioned and copied through the conversation runtime,
+ * so routing never moves the Canvas UI's current-session pointer.
  */
 export class SessionRouter {
   private map: Record<string, string> = {};
   private loaded = false;
+  private loadFlight: Promise<void> | null = null;
+  private mutationTail: Promise<void> = Promise.resolve();
+  private readonly routeFlights = new Map<string, Promise<string>>();
+  private readonly sessionOwners = new Map<string, string>();
 
   constructor(
-    private readonly service: CanvasAgentServiceRef,
+    private readonly runtime: ConversationRuntimeService,
     private readonly store: PluginStore,
   ) {}
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
-    this.map = (await this.store.get<Record<string, string>>(STORE_KEY)) ?? {};
-    this.loaded = true;
+    if (!this.loadFlight) {
+      this.loadFlight = this.store.get<Record<string, string>>(STORE_KEY).then((stored) => {
+        this.map = { ...(stored ?? {}) };
+        this.loaded = true;
+      }).finally(() => {
+        this.loadFlight = null;
+      });
+    }
+    await this.loadFlight;
   }
 
-  private key(scope: AgentScope, conversationId: string): string {
-    const scopeKey = scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
-    return `${scopeKey}::${conversationId}`;
+  private scopeKey(scope: AgentScope): string {
+    return scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
   }
 
-  /**
-   * Ensure the scope's current session is the one owned by `conversationId`.
-   * Call inside the per-scope run guard, before chat.
-   */
-  async ensureSession(scope: AgentScope, conversationId: string): Promise<void> {
+  private key(scope: AgentScope, channelId: string, conversationId: string): string {
+    return `${this.scopeKey(scope)}::${channelId}::${conversationId}`;
+  }
+
+  private legacyKey(scope: AgentScope, conversationId: string): string {
+    return `${this.scopeKey(scope)}::${conversationId}`;
+  }
+
+  private ownerKey(scope: AgentScope, sessionId: string): string {
+    return `${this.scopeKey(scope)}::${sessionId}`;
+  }
+
+  private runMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const run = this.mutationTail.catch(() => undefined).then(operation);
+    this.mutationTail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async persistMapping(routeKey: string, sessionId: string): Promise<void> {
+    const previous = this.map[routeKey];
+    this.map[routeKey] = sessionId;
+    try {
+      await this.store.set(STORE_KEY, { ...this.map });
+    } catch (err) {
+      if (previous === undefined) delete this.map[routeKey];
+      else this.map[routeKey] = previous;
+      throw err;
+    }
+  }
+
+  private async claimSession(
+    scope: AgentScope,
+    routeKey: string,
+    sessionId: string,
+  ): Promise<string> {
+    const ownerKey = this.ownerKey(scope, sessionId);
+    const owner = this.sessionOwners.get(ownerKey);
+    if (!owner || owner === routeKey) {
+      this.sessionOwners.set(ownerKey, routeKey);
+      return sessionId;
+    }
+
+    // Historical stores could contain duplicate mappings. Fork the durable
+    // history for the later route rather than sharing live runtime state or
+    // deleting either real history.
+    const copied = await this.runtime.copySessionToScope(scope, sessionId, scope);
+    if (!copied.ok || !copied.sessionId) {
+      throw new Error(copied.error ?? 'Could not isolate duplicated session mapping');
+    }
+    this.sessionOwners.set(this.ownerKey(scope, copied.sessionId), routeKey);
+    return copied.sessionId;
+  }
+
+  async ensureSession(
+    scope: AgentScope,
+    channelId: string,
+    conversationId: string,
+  ): Promise<string> {
     await this.ensureLoaded();
-    const key = this.key(scope, conversationId);
-    const desired = this.map[key];
+    const routeKey = this.key(scope, channelId, conversationId);
+    const existing = this.routeFlights.get(routeKey);
+    if (existing) return existing;
 
-    if (desired) {
-      if (this.service.getCurrentSessionIdForScope(scope) === desired) return;
-      await this.service.loadSessionForScope(scope, desired);
-      // loadSession is a no-op when the session no longer exists; confirm it
-      // actually became current, otherwise fall through to a fresh one.
-      if (this.service.getCurrentSessionIdForScope(scope) === desired) return;
-    }
+    const flight = this.runMutation(async () => {
+      const legacyKey = this.legacyKey(scope, conversationId);
+      const mapped = this.map[routeKey] ?? this.map[legacyKey];
+      if (mapped && await this.runtime.hasSession(scope, mapped)) {
+        const claimed = await this.claimSession(scope, routeKey, mapped);
+        if (this.map[routeKey] !== claimed) await this.persistMapping(routeKey, claimed);
+        return claimed;
+      }
 
-    await this.service.newSessionForScope(scope);
-    const fresh = this.service.getCurrentSessionIdForScope(scope);
-    if (fresh) {
-      this.map[key] = fresh;
-      await this.store.set(STORE_KEY, this.map);
+      const created = await this.runtime.provisionSession(scope);
+      if (!created.ok || !created.sessionId) {
+        throw new Error(created.error ?? 'Could not create conversation session');
+      }
+      this.sessionOwners.set(this.ownerKey(scope, created.sessionId), routeKey);
+      await this.persistMapping(routeKey, created.sessionId);
+      return created.sessionId;
+    });
+    this.routeFlights.set(routeKey, flight);
+    try {
+      return await flight;
+    } finally {
+      if (this.routeFlights.get(routeKey) === flight) this.routeFlights.delete(routeKey);
     }
   }
 
-  /**
-   * Point a conversation at a specific existing session id. Used when the
-   * user switches sessions explicitly (e.g. /session N) so the choice sticks
-   * across later turns instead of being overwritten by the mapping.
-   */
+  async createFreshSession(
+    scope: AgentScope,
+    channelId: string,
+    conversationId: string,
+  ): Promise<string> {
+    await this.ensureLoaded();
+    return this.runMutation(async () => {
+      const created = await this.runtime.provisionSession(scope);
+      if (!created.ok || !created.sessionId) {
+        throw new Error(created.error ?? 'Could not create conversation session');
+      }
+      const routeKey = this.key(scope, channelId, conversationId);
+      this.sessionOwners.set(this.ownerKey(scope, created.sessionId), routeKey);
+      await this.persistMapping(routeKey, created.sessionId);
+      return created.sessionId;
+    });
+  }
+
   async setConversationSession(
     scope: AgentScope,
+    channelId: string,
     conversationId: string,
     sessionId: string,
-  ): Promise<void> {
+  ): Promise<string> {
     await this.ensureLoaded();
-    this.map[this.key(scope, conversationId)] = sessionId;
-    await this.store.set(STORE_KEY, this.map);
+    return this.runMutation(async () => {
+      if (!await this.runtime.hasSession(scope, sessionId)) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+      const routeKey = this.key(scope, channelId, conversationId);
+      const claimed = await this.claimSession(scope, routeKey, sessionId);
+      await this.persistMapping(routeKey, claimed);
+      return claimed;
+    });
   }
 
-  /**
-   * Return the persisted session id for a conversation/scope pair without
-   * activating or swapping the agent. Used when a channel binds midway through
-   * a global chat and wants to copy that prior conversation into the new
-   * workspace scope.
-   */
   async getConversationSessionId(
     scope: AgentScope,
+    channelId: string,
     conversationId: string,
   ): Promise<string | undefined> {
     await this.ensureLoaded();
-    return this.map[this.key(scope, conversationId)];
+    return this.map[this.key(scope, channelId, conversationId)]
+      ?? this.map[this.legacyKey(scope, conversationId)];
+  }
+
+  async copyConversationSession(
+    sourceScope: AgentScope,
+    targetScope: AgentScope,
+    channelId: string,
+    conversationId: string,
+  ): Promise<{ ok: boolean; sessionId?: string; messageCount?: number; error?: string }> {
+    const sourceSessionId = await this.getConversationSessionId(
+      sourceScope,
+      channelId,
+      conversationId,
+    );
+    if (!sourceSessionId) return { ok: true, messageCount: 0 };
+
+    const copied = await this.runtime.copySessionToScope(
+      sourceScope,
+      sourceSessionId,
+      targetScope,
+    );
+    if (!copied.ok || !copied.sessionId) return copied;
+    try {
+      const sessionId = await this.setConversationSession(
+        targetScope,
+        channelId,
+        conversationId,
+        copied.sessionId,
+      );
+      return { ...copied, sessionId };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  abort(scope: AgentScope, sessionId: string): boolean {
+    return this.runtime.abort(scope, sessionId);
   }
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { AgentScope, CanvasAgentMessage, ChatResponse } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import { scopeSessionStoreId } from '../../../shared/agent-chat';
@@ -9,7 +10,7 @@ import { createConversationRunner } from './conversation-runner';
 
 /** Structural store surface the service drives (injectable for tests). */
 export interface ConversationStoreAdapter {
-  loadMessages(sessionId: string): Promise<CanvasAgentMessage[]>;
+  loadMessages(sessionId: string): Promise<CanvasAgentMessage[] | null>;
   persist(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
 }
 
@@ -24,6 +25,7 @@ export interface ConversationStoreAdapter {
 export class ConversationRuntimeService {
   private readonly registries = new Map<string, ConversationRuntimeRegistry>();
   private readonly pendingRegistries = new Map<string, Promise<ConversationRuntimeRegistry>>();
+  private readonly stores = new Map<string, ConversationStoreAdapter>();
 
   constructor(
     private readonly getAgent: (scope: AgentScope) => CanvasAgent | undefined,
@@ -72,16 +74,81 @@ export class ConversationRuntimeService {
     if (!agent) throw new Error(`No active agent for scope ${key}`);
     const storeId = scopeSessionStoreId(scope);
     const storeAdapter = this.storeAdapterFactory(storeId, scope);
+    this.stores.set(key, storeAdapter);
     const registry = new ConversationRuntimeRegistry({
-      create: (conversationKey) => ({
-        key: conversationKey,
-        loadMessages: () => storeAdapter.loadMessages(conversationKey.sessionId),
-        persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
-        runTurn: createConversationRunner(agent),
-      }),
+      create: (conversationKey) => {
+        const runTurn = createConversationRunner(agent);
+        return {
+          key: conversationKey,
+          loadMessages: async () => (
+            await storeAdapter.loadMessages(conversationKey.sessionId) ?? []
+          ),
+          persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
+          runTurn,
+          withTurnLease: async (operation) => {
+            if (!this.runConversation) return operation();
+            const result = await this.runConversation(
+              scope,
+              conversationKey.sessionId,
+              operation,
+            );
+            return result ?? {
+              response: '',
+              code: 'CHAT_SCOPE_BUSY',
+              error: 'This conversation is already running.',
+            };
+          },
+        };
+      },
     });
     this.registries.set(key, registry);
     return registry;
+  }
+
+  /** Create a durable session without moving the scope's UI current pointer. */
+  async provisionSession(
+    scope: AgentScope,
+    messages: CanvasAgentMessage[] = [],
+  ): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
+    try {
+      await this.registryFor(scope);
+      const sessionId = randomUUID();
+      const store = this.stores.get(scopeKey(scope));
+      if (!store) throw new Error(`No conversation store for scope ${scopeKey(scope)}`);
+      await store.persist(sessionId, messages);
+      return { ok: true, sessionId };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /** Check a durable session without moving the scope's UI current pointer. */
+  async hasSession(scope: AgentScope, sessionId: string): Promise<boolean> {
+    await this.registryFor(scope);
+    const store = this.stores.get(scopeKey(scope));
+    if (!store) return false;
+    return (await store.loadMessages(sessionId)) !== null;
+  }
+
+  /** Copy durable history into a new pointer-neutral session in the target scope. */
+  async copySessionToScope(
+    sourceScope: AgentScope,
+    sourceSessionId: string,
+    targetScope: AgentScope,
+  ): Promise<{ ok: boolean; sessionId?: string; messageCount?: number; error?: string }> {
+    try {
+      await this.registryFor(sourceScope);
+      const sourceStore = this.stores.get(scopeKey(sourceScope));
+      if (!sourceStore) throw new Error(`No conversation store for scope ${scopeKey(sourceScope)}`);
+      const messages = await sourceStore.loadMessages(sourceSessionId);
+      if (messages === null) return { ok: false, error: 'Source session not found' };
+      const created = await this.provisionSession(targetScope, messages);
+      return created.ok
+        ? { ok: true, sessionId: created.sessionId, messageCount: messages.length }
+        : created;
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   /** Run one turn against a conversation. The runtime owns the queue. */
@@ -96,9 +163,7 @@ export class ConversationRuntimeService {
       const registry = await this.registryFor(scope);
       const runtime = await registry.open(conversationKey(scope, sessionId));
       const operation = () => runtime.sendAndWait({ message, ...input }, external);
-      const result = this.runConversation
-        ? await this.runConversation(scope, sessionId, operation)
-        : await operation();
+      const result = await operation();
       if (!result) {
         return { ok: false, code: 'CHAT_SCOPE_BUSY', error: 'This conversation is already running.' };
       }
@@ -148,6 +213,7 @@ export class ConversationRuntimeService {
   disposeAll(): void {
     for (const registry of this.registries.values()) registry.disposeAll();
     this.registries.clear();
+    this.stores.clear();
   }
 }
 

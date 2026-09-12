@@ -14,6 +14,8 @@ export interface CommandDeps {
   bindings: BindingStore;
   service: CanvasAgentServiceRef;
   sessionRouter: SessionRouter;
+  /** Session currently executing/queued for this topic, if any. */
+  activeSessionId?: string;
   /**
    * Bring the canvas app to the front and open a workspace, for operations
    * that need the UI (e.g. webview/iframe page control). Optional — absent in
@@ -75,17 +77,17 @@ async function scopeLabel(scope: AgentScope): Promise<string> {
 async function migrateConversationSession(
   sourceScope: AgentScope,
   targetScope: AgentScope,
+  channelId: string,
   conversationId: string,
   deps: CommandDeps,
 ): Promise<{ ok: boolean; messageCount?: number; error?: string }> {
-  const sourceSessionId = await deps.sessionRouter.getConversationSessionId(sourceScope, conversationId);
-  if (!sourceSessionId) return { ok: true, messageCount: 0 };
-
-  const copied = await deps.service.copySessionToScope(sourceScope, sourceSessionId, targetScope);
+  const copied = await deps.sessionRouter.copyConversationSession(
+    sourceScope,
+    targetScope,
+    channelId,
+    conversationId,
+  );
   if (!copied.ok) return { ok: false, error: copied.error };
-  if (copied.sessionId) {
-    await deps.sessionRouter.setConversationSession(targetScope, conversationId, copied.sessionId);
-  }
   return { ok: true, messageCount: copied.messageCount ?? 0 };
 }
 
@@ -99,7 +101,7 @@ interface WorkspaceUseResult {
   label: string;
   contextSuffix: string;
   migratedMessageCount?: number;
-  warning?: string;
+  error?: string;
 }
 
 interface WorkspacePickerReplyOptions {
@@ -195,38 +197,47 @@ async function bindConversationToWorkspace(
     ? workspaceScope(previousWorkspaceId)
     : { kind: 'global' };
   const targetScope: AgentScope = workspaceScope(workspaceId);
-  await deps.bindings.bind(msg.channelId, msg.conversationId, workspaceId);
 
   const label = await workspaceLabelById(workspaceId);
   if (options.fresh) {
-    const res = await deps.service.newSessionForScope(targetScope);
-    if (!res.ok) {
+    try {
+      await deps.sessionRouter.createFreshSession(
+        targetScope,
+        msg.channelId,
+        msg.conversationId,
+      );
+    } catch (err) {
       return {
         label,
         contextSuffix: '',
-        warning: `Fresh session could not be started: ${res.error ?? 'unknown error'}`,
+        error: `Fresh session could not be started: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-    const sessionId = deps.service.getCurrentSessionIdForScope(targetScope);
-    if (sessionId) {
-      await deps.sessionRouter.setConversationSession(targetScope, msg.conversationId, sessionId);
-    }
+    await deps.bindings.bind(msg.channelId, msg.conversationId, workspaceId);
     return { label, contextSuffix: ' Started a fresh session.' };
   }
 
   const shouldMigrate = options.forceMigrate ?? Boolean(options.carry);
   if (!shouldMigrate || sameScope(previousScope, targetScope)) {
+    await deps.bindings.bind(msg.channelId, msg.conversationId, workspaceId);
     return { label, contextSuffix: '' };
   }
 
-  const migrated = await migrateConversationSession(previousScope, targetScope, msg.conversationId, deps);
+  const migrated = await migrateConversationSession(
+    previousScope,
+    targetScope,
+    msg.channelId,
+    msg.conversationId,
+    deps,
+  );
   if (!migrated.ok) {
     return {
       label,
       contextSuffix: '',
-      warning: `Previous chat context could not be migrated: ${migrated.error ?? 'unknown error'}`,
+      error: `Previous chat context could not be migrated: ${migrated.error ?? 'unknown error'}`,
     };
   }
+  await deps.bindings.bind(msg.channelId, msg.conversationId, workspaceId);
   const contextSuffix = migrated.messageCount && migrated.messageCount > 0
     ? ` Brought over ${migrated.messageCount} previous messages.`
     : '';
@@ -249,7 +260,7 @@ export async function handleCommand(
   const [rawCmd, ...rest] = text.slice(1).split(/\s+/);
   const cmd = rawCmd.toLowerCase();
   const arg = rest.join(' ').trim();
-  const { bindings, service, sessionRouter, activateCanvas } = deps;
+  const { bindings, service, sessionRouter, activeSessionId, activateCanvas } = deps;
 
   const requireBound = () => bindings.getBound(msg.channelId, msg.conversationId);
   const currentScope = async (): Promise<AgentScope> => {
@@ -279,9 +290,7 @@ export async function handleCommand(
       const id = await resolveWorkspaceRef(ref);
       if (!id) return textReply(`Workspace not found: ${ref}. Use /list to see available workspaces.`);
       const bound = await bindConversationToWorkspace(msg, deps, id, { forceMigrate: true });
-      if (bound.warning) {
-        return textReply(`✅ This chat is now bound to ${bound.label}.\n⚠️ ${bound.warning}`);
-      }
+      if (bound.error) return textReply(`Failed to bind workspace: ${bound.error}`);
       const suffix = bound.migratedMessageCount && bound.migratedMessageCount > 0
         ? ` Migrated ${bound.migratedMessageCount} previous messages.`
         : '';
@@ -302,11 +311,12 @@ export async function handleCommand(
         carry,
         fresh: parsed.fresh,
       });
+      if (used.error) return textReply(`Failed to switch workspace: ${used.error}`);
       const prefix = parsed.fresh ? 'Using fresh session in' : 'Using';
       if (!activateCanvas) {
         return textReply(
           `✅ ${prefix} ${used.label}.${used.contextSuffix}\n` +
-          `⚠️ Opening the canvas app is not available here.${used.warning ? `\n⚠️ ${used.warning}` : ''}`,
+          `⚠️ Opening the canvas app is not available here.`,
         );
       }
 
@@ -314,7 +324,7 @@ export async function handleCommand(
       const openLine = res.ok
         ? `✅ ${prefix} ${used.label}. Opened in Canvas.${used.contextSuffix}`
         : `✅ ${prefix} ${used.label}.${used.contextSuffix}\n⚠️ Failed to open Canvas: ${res.error ?? 'unknown error'}`;
-      return textReply(used.warning ? `${openLine}\n⚠️ ${used.warning}` : openLine);
+      return textReply(openLine);
     }
 
     case 'unbind': {
@@ -332,18 +342,22 @@ export async function handleCommand(
 
     case 'new': {
       const scope = await currentScope();
-      const res = await service.newSessionForScope(scope);
-      const sessionId = res.ok ? service.getCurrentSessionIdForScope(scope) : null;
-      if (sessionId) {
-        await sessionRouter.setConversationSession(scope, msg.conversationId, sessionId);
+      try {
+        await sessionRouter.createFreshSession(scope, msg.channelId, msg.conversationId);
+        return textReply(`🆕 Started a new session in ${await scopeLabel(scope)}.`);
+      } catch (err) {
+        return textReply(`Failed to start a new session: ${err instanceof Error ? err.message : String(err)}`);
       }
-      return textReply(res.ok
-        ? `🆕 Started a new session in ${await scopeLabel(scope)}.`
-        : `Failed to start a new session: ${res.error}`);
     }
 
     case 'stop': {
-      service.abortScope(await currentScope());
+      const scope = await currentScope();
+      const sessionId = activeSessionId ?? await sessionRouter.getConversationSessionId(
+        scope,
+        msg.channelId,
+        msg.conversationId,
+      );
+      if (sessionId) sessionRouter.abort(scope, sessionId);
       return textReply('🛑 Stop requested.');
     }
 
@@ -351,9 +365,14 @@ export async function handleCommand(
       const scope = await currentScope();
       const list = await service.listSessionsForScope(scope);
       if (list.length === 0) return textReply('No sessions yet.');
+      const selectedSessionId = await sessionRouter.getConversationSessionId(
+        scope,
+        msg.channelId,
+        msg.conversationId,
+      );
       const lines = list
         .slice(0, 15)
-        .map((s, i) => `${i + 1}. ${s.isCurrent ? '(current) ' : ''}${s.date} — ${s.messageCount} msgs`);
+        .map((s, i) => `${i + 1}. ${s.sessionId === selectedSessionId ? '(current) ' : ''}${s.date} — ${s.messageCount} msgs`);
       return textReply(`🗂️ Sessions for ${await scopeLabel(scope)}:\n${lines.join('\n')}\n\nSwitch with /session <number>.`);
     }
 
@@ -370,17 +389,25 @@ export async function handleCommand(
           : list.find((s) => s.sessionId === arg);
       if (!target) return textReply(`Session not found: ${arg}. Use /sessions to list.`);
 
-      if (target.isCurrent) {
-        // Already current, but make sure this conversation owns it going forward.
-        await sessionRouter.setConversationSession(scope, msg.conversationId, target.sessionId);
-        return textReply(`🎯 Already on session ${target.date} (${target.messageCount} msgs).`);
+      try {
+        const previousSessionId = await sessionRouter.getConversationSessionId(
+          scope,
+          msg.channelId,
+          msg.conversationId,
+        );
+        const selectedSessionId = await sessionRouter.setConversationSession(
+          scope,
+          msg.channelId,
+          msg.conversationId,
+          target.sessionId,
+        );
+        const copied = selectedSessionId !== target.sessionId ? ' (isolated copy)' : '';
+        return textReply(previousSessionId === selectedSessionId
+          ? `🎯 Already on session ${target.date} (${target.messageCount} msgs)${copied}.`
+          : `✅ Switched to session ${target.date} (${target.messageCount} msgs)${copied}.`);
+      } catch (err) {
+        return textReply(`Failed to switch session: ${err instanceof Error ? err.message : String(err)}`);
       }
-
-      const res = await service.loadSessionForScope(scope, target.sessionId);
-      if (!res.ok) return textReply(`Failed to switch session: ${res.error ?? 'unknown error'}`);
-      // Pin the choice so the per-conversation router keeps it on later turns.
-      await sessionRouter.setConversationSession(scope, msg.conversationId, target.sessionId);
-      return textReply(`✅ Switched to session ${target.date} (${target.messageCount} msgs).`);
     }
 
     case 'open': {

@@ -10,7 +10,7 @@ WeCom later is a matter of implementing one interface.
 - Connects to a channel and receives inbound messages.
 - Resolves which canvas workspace a conversation talks to (**explicit, sticky**
   binding — established with a light first-contact picker).
-- Drives `CanvasAgentService.chat()` for that workspace and streams the
+- Drives the host's conversation-owned runtime for that workspace and streams the
   agent's output back into the channel (Feishu: a single interactive card
   that is progressively patched — tool calls accumulate as a live ⏳/✅ list
   that folds into a collapsible panel once the run finishes; images are sent
@@ -83,7 +83,7 @@ so mentioning another person never wakes the bot.
 | `/unbind` | Clear this chat's binding (chat must be re-bound to talk again) |
 | `/default <name\|id>` | Set the workspace suggested for `/bind` (not auto-applied) |
 | `/new` | Start a fresh session |
-| `/stop` | Abort the current run |
+| `/stop` | Abort only this chat/topic's current run |
 | `/sessions` | List sessions (numbered) for the bound workspace |
 | `/session <number\|id>` | Switch this chat to a specific session (sticky) |
 | `/open` | Activate the bound workspace in the canvas (for webview ops; no focus steal) |
@@ -132,21 +132,32 @@ on the group root.
 
 ### Sessions
 
-Each conversation keeps **its own session/history**, even when several
-conversations (a DM, a group, different topics) share one workspace. Canvas
-stores a single *current* session per workspace, so the plugin maps
-`workspace::conversation → sessionId` and swaps the current session to the
-conversation's own before each turn (creating it on first contact). Runs are
-serialized per workspace, so the swap can't race another turn. The map
-persists, so histories survive restarts.
+Each `(scope, channelId, conversationId)` maps to a durable session. The
+plugin provisions and copies sessions through `ConversationRuntimeService`
+without reading or changing the Canvas UI's current-session pointer.
 
-Trade-offs:
+- Different topics in the same workspace run concurrently. Each topic uses
+  the host runtime's FIFO queue, with a short per-topic submission queue to
+  preserve arrival order across asynchronous routing and session creation.
+- Every accepted turn opens a reply card before waiting for provisioning or
+  earlier submissions. Reply targets stay anchored to the triggering message.
+- `/stop`, clarification answers, and watchdog aborts target only that topic's
+  explicit session. Queued turns do not spend their watchdog budget while waiting.
+  `/stop` stops the active turn; already queued messages can continue afterward.
+- Session/workspace-changing commands (`/new`, `/session`, `/use`, `/bind`,
+  `/unbind`) wait for earlier submissions and are rejected while the topic has
+  active/queued turns. Retry after it finishes; they never reinterpret an
+  in-flight session in a different workspace.
+- Failed provisioning or routing persistence does not fall back to the UI's
+  current session. Legacy keys migrate lazily; duplicate legacy mappings fork
+  durable history rather than sharing a live runtime. Already-mixed historical
+  content cannot be reconstructed automatically.
+- The runtime holds the host session-mutation lease for each complete turn,
+  including initial/final persistence, and releases it before draining the queue.
 
-- The workspace's *current* session is shared with the Canvas UI, so the UI
-  for that workspace shows whichever conversation ran last (each session is
-  intact and selectable in the UI's session list).
-- Conversations bound to the same workspace still run one-at-a-time (a second
-  in-flight message sees "still working").
+Session bindings survive restarts; in-memory pending messages do not. This is
+not a durable message broker, and process-crash replay/exactly-once delivery is
+not guaranteed. Workspace UI tools still share a single visible canvas.
 
 ### Canvas activation (for webview ops)
 
@@ -208,7 +219,10 @@ Set `CANVAS_CHANNEL_DEBUG=1` before launch to log each raw inbound event
 ```
 core/                channel-agnostic orchestration
   types.ts           Channel / InboundMessage / ChannelStream contracts
-  bridge.ts          inbound → resolve binding → service.chat() → stream out
+  bridge.ts          inbound → resolve binding → conversation runtime → stream out
+  submission-queue.ts per-topic ordered submission (not model execution)
+  sessions.ts        pointer-neutral durable session routing
+  inbound-prompt.ts  text and local image-path prompt construction
   binding.ts         (channelId, conversationId) → workspaceId, persisted
   commands.ts        slash-command handling
   dedupe.ts          message-id LRU dedupe
@@ -248,8 +262,9 @@ should generalize this layer rather than cloning the `feishu` naming.
 
 The plugin relies on two small extension points on the canvas plugin system:
 
-- `MainCtx.getAgentService()` — drive conversations via the host's
-  `CanvasAgentService` singleton (injected by the host in `bootstrap.ts`).
+- `MainCtx.getAgentService()` plus `getConversationRuntimeService()` — reuse
+  the host's singleton agent and conversation runtime (also used by chat IPC).
+  The channel never calls the legacy scope-wide chat path.
 - `MainCanvasPlugin.deactivate()` — release the long-lived channel
   connection on app shutdown (invoked from `window-all-closed`).
 

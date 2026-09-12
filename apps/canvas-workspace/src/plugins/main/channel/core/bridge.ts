@@ -1,17 +1,21 @@
 import type { AgentChatResult, AgentScope, CanvasAgentServiceRef } from '../../../types';
+import type { ConversationRuntimeService } from '../../../../main/agent/conversation-runtime/conversation-service';
 import type { PluginStore } from '../../../types';
 import { BindingStore } from './binding';
 import { buildWorkspacePickerReply, handleCommand } from './commands';
 import { MessageDedupe } from './dedupe';
+import { buildAgentPrompt } from './inbound-prompt';
+export { buildAgentPrompt } from './inbound-prompt';
 import { extractGeneratedImageResult } from './image-result';
 import { SessionRouter } from './sessions';
+import { SubmissionQueue, type SubmissionReservation } from './submission-queue';
 import type { Channel, ChannelStream, CommandReply, InboundMessage, OutboundTarget } from './types';
 import { listWorkspaces, workspaceLabelById } from './workspaces';
 
 interface ActiveRun {
-  channelId: string;
-  conversationId: string;
-  /** Set while the agent is awaiting an answer to a clarification request. */
+  sessionId: string;
+  pendingTurns: number;
+  /** Set while the active turn awaits an answer to a clarification request. */
   pendingClarificationId?: string;
 }
 
@@ -39,15 +43,17 @@ const CLARIFICATION_TIMEOUT_ENV = 'CANVAS_CHANNEL_CLARIFICATION_TIMEOUT_MS';
  * any number of channels, resolves the target agent scope, and drives the
  * Canvas Agent — streaming its output back through the originating channel.
  *
- * Concurrency: at most one in-flight run per scope key. A follow-up message
- * for a busy scope either answers a pending clarification or is rejected with
- * a "still working" notice.
+ * Concurrency: each channel conversation resolves to an explicit durable
+ * session. The existing conversation runtime runs different sessions in
+ * parallel and queues turns for the same session FIFO.
  */
 export class ChannelBridge {
   private readonly bindings: BindingStore;
   private readonly sessions: SessionRouter;
   private readonly dedupe: MessageDedupe;
   private readonly activeRuns = new Map<string, ActiveRun>();
+  /** Orders only runtime submissions; turn execution remains owned by the runtime queue. */
+  private readonly submissions = new SubmissionQueue();
   private readonly channels = new Map<string, Channel>();
   private readonly activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   private readonly runIdleTimeoutMs: number;
@@ -56,6 +62,7 @@ export class ChannelBridge {
 
   constructor(
     private readonly service: CanvasAgentServiceRef,
+    private readonly runtime: ConversationRuntimeService,
     store: PluginStore,
     options: {
       activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -65,7 +72,7 @@ export class ChannelBridge {
     } = {},
   ) {
     this.bindings = new BindingStore(store);
-    this.sessions = new SessionRouter(service, store);
+    this.sessions = new SessionRouter(runtime, store);
     // Persist dedupe so a redelivered event that straddles a restart isn't
     // processed twice.
     this.dedupe = new MessageDedupe(500, { store, storeKey: 'dedupe' });
@@ -90,9 +97,10 @@ export class ChannelBridge {
   async addChannel(channel: Channel): Promise<void> {
     this.channels.set(channel.id, channel);
     await channel.start((msg) => {
-      void this.handleInbound(channel, msg).catch((err) => {
+      const submission = this.submissions.reserve(channelConversationKey(msg.channelId, msg.conversationId));
+      void this.handleInbound(channel, msg, submission).catch((err) => {
         console.error(`[channel:${channel.id}] inbound handling failed`, err);
-      });
+      }).finally(submission.release);
     });
   }
 
@@ -106,17 +114,32 @@ export class ChannelBridge {
     this.channels.clear();
   }
 
-  private async handleInbound(channel: Channel, msg: InboundMessage): Promise<void> {
+  private async handleInbound(
+    channel: Channel,
+    msg: InboundMessage,
+    submission: SubmissionReservation,
+  ): Promise<void> {
     await this.dedupe.ensureLoaded();
     if (!this.dedupe.accept(msg.messageId)) return;
 
     const target = { conversationId: msg.conversationId, reply: msg.reply };
-
-    // Slash commands run regardless of workspace binding / busy state.
+    const topicKey = channelConversationKey(msg.channelId, msg.conversationId);
+    // Route changes wait only for earlier submissions, then fail closed while
+    // the topic has active/queued turns. Never pair an old session with a new scope.
+    if (/^\/(?:new|use|bind|unbind|session)(?:\s|$)/i.test(msg.text.trim())) {
+      await submission.previous;
+      if (this.activeRuns.has(topicKey)) {
+        await channel.sendText(target, 'Wait for this topic to finish before changing its session or workspace. /stop is still available.');
+        return;
+      }
+    }
+    const active = this.activeRuns.get(topicKey);
+    // Stop and informational commands remain immediate.
     const commandReply = await handleCommand(msg, {
       bindings: this.bindings,
       service: this.service,
       sessionRouter: this.sessions,
+      activeSessionId: active?.sessionId,
       activateCanvas: this.activateCanvas,
     });
     if (commandReply !== null) {
@@ -126,63 +149,48 @@ export class ChannelBridge {
 
     if (!msg.text.trim() && !msg.imagePaths?.length) return;
 
-    const boundWorkspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
+    let boundWorkspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
+    let pickerReply: CommandReply | null = null;
     if (!boundWorkspaceId && !msg.isDirect) {
-      const currentWorkspaceId = await this.bindCurrentWorkspaceForGroupFirstContact(msg);
-      const pickerReply = await buildWorkspacePickerReply(msg, {
+      boundWorkspaceId = await this.bindCurrentWorkspaceForGroupFirstContact(msg) ?? undefined;
+      pickerReply = await buildWorkspacePickerReply(msg, {
         bindings: this.bindings,
         service: this.service,
         sessionRouter: this.sessions,
         activateCanvas: this.activateCanvas,
       }, {
         defaultCarry: true,
-        summary: currentWorkspaceId
-          ? `Current chat: using ${await workspaceLabelById(currentWorkspaceId)}.`
+        summary: boundWorkspaceId
+          ? `Current chat: using ${await workspaceLabelById(boundWorkspaceId)}.`
           : undefined,
       });
 
-      if (!currentWorkspaceId) {
+      if (!boundWorkspaceId) {
         await this.sendReply(channel, target, pickerReply);
         return;
       }
-
-      await this.runTurn(channel, msg, { kind: 'workspace', workspaceId: currentWorkspaceId });
-      await this.sendReply(channel, target, pickerReply);
-      return;
     }
 
     const scope: AgentScope = boundWorkspaceId
       ? { kind: 'workspace', workspaceId: boundWorkspaceId }
       : { kind: 'global' };
-    const runKey = agentScopeKey(scope);
-
-    // Busy scope: if THIS conversation is the one awaiting a clarification
-    // answer, route the message as the answer. Otherwise (a different
-    // conversation bound to the same scope, or no pending question) tell
-    // the user to wait — so a clarification can't be answered by an unrelated
-    // chat that happens to share the scope.
-    const existing = this.activeRuns.get(runKey);
-    if (existing) {
-      if (
-        existing.pendingClarificationId &&
-        existing.conversationId === msg.conversationId
-      ) {
-        const matched = this.service.answerClarificationForScope(
-          scope,
-          existing.pendingClarificationId,
-          msg.text,
-        );
-        existing.pendingClarificationId = undefined;
-        if (!matched) {
-          await channel.sendText(target, '⚠️ Could not match your reply to the pending question.');
-        }
-      } else {
-        await channel.sendText(target, '⏳ Still working on the previous message. Send /stop to cancel.');
+    const current = this.activeRuns.get(topicKey);
+    if (current?.pendingClarificationId) {
+      const matched = this.runtime.answerClarification(
+        scope,
+        current.sessionId,
+        current.pendingClarificationId,
+        msg.text,
+      );
+      current.pendingClarificationId = undefined;
+      if (!matched) {
+        await channel.sendText(target, '⚠️ Could not match your reply to the pending question.');
       }
       return;
     }
 
-    await this.runTurn(channel, msg, scope);
+    await this.runTurn(channel, msg, submission);
+    if (pickerReply) await this.sendReply(channel, target, pickerReply);
   }
 
   private async bindCurrentWorkspaceForGroupFirstContact(
@@ -211,15 +219,54 @@ export class ChannelBridge {
   private async runTurn(
     channel: Channel,
     msg: InboundMessage,
-    scope: AgentScope,
+    submission: SubmissionReservation,
   ): Promise<void> {
+    let submitted = false;
+    const markSubmitted = (): void => {
+      if (submitted) return;
+      submitted = true;
+      submission.release();
+    };
     const target = { conversationId: msg.conversationId, reply: msg.reply };
-    const run: ActiveRun = { channelId: msg.channelId, conversationId: msg.conversationId };
-    const runKey = agentScopeKey(scope);
-    this.activeRuns.set(runKey, run);
+    let stream: ChannelStream;
+    try {
+      stream = await channel.openStream(target);
+    } catch (err) {
+      markSubmitted();
+      console.error(`[channel:${channel.id}] failed to open stream`, err);
+      return;
+    }
+
+    await submission.previous;
+    const workspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
+    const scope: AgentScope = workspaceId ? { kind: 'workspace', workspaceId } : { kind: 'global' };
+    const runKey = channelConversationKey(msg.channelId, msg.conversationId);
+    let run = this.activeRuns.get(runKey);
+    let sessionId: string;
+    try {
+      sessionId = run?.sessionId ?? await this.sessions.ensureSession(
+        scope,
+        msg.channelId,
+        msg.conversationId,
+      );
+    } catch (err) {
+      markSubmitted();
+      await stream.onError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    if (!run) {
+      run = { sessionId, pendingTurns: 0 };
+      this.activeRuns.set(runKey, run);
+    }
+    const activeRun = run;
+    activeRun.pendingTurns += 1;
+    let turnClarificationId: string | undefined;
     let finished = false;
     let idleTimer: NodeJS.Timeout | null = null;
     let lastAgentActivityAt = Date.now();
+    // Queued turns do not consume their watchdog budget until the conversation
+    // runtime actually starts them (signalled by the first role-turn callback).
+    let turnStarted = false;
     // A tool's `execute()` blocks without emitting any streaming callback, so
     // we track how many are running (and since when) to grant them the larger
     // tool-exec budget instead of tripping the idle watchdog mid-tool.
@@ -230,6 +277,7 @@ export class ChannelBridge {
     let settleWatchdog: ((result: AgentChatResult) => void) | null = null;
 
     const markAgentActivity = (): void => {
+      turnStarted = true;
       lastAgentActivityAt = Date.now();
     };
 
@@ -249,7 +297,7 @@ export class ChannelBridge {
     const failRun = (message: string): void => {
       if (finished) return;
       console.warn(`[channel:${channel.id}] ${message}`);
-      this.service.abortScope(scope);
+      this.runtime.abort(scope, sessionId);
       settleWatchdog?.({ ok: false, error: message });
     };
 
@@ -259,10 +307,15 @@ export class ChannelBridge {
       const check = (): void => {
         if (finished) return;
 
+        if (!turnStarted) {
+          idleTimer = setTimeout(check, this.runIdleTimeoutMs);
+          return;
+        }
+
         // Parked on a clarification: keep idle fresh (so the run doesn't get
         // idle-killed the instant the answer arrives) but bound the wait so an
         // undelivered/ignored question can't pin the scope forever.
-        if (run.pendingClarificationId) {
+        if (activeRun.pendingClarificationId) {
           lastAgentActivityAt = Date.now();
           const waited = Date.now() - clarificationStartedAt;
           if (waited >= this.clarificationTimeoutMs) {
@@ -309,105 +362,102 @@ export class ChannelBridge {
       idleTimer = setTimeout(check, this.runIdleTimeoutMs);
     });
 
-    // Acknowledge the accepted turn before any potentially slow session setup.
-    // The scope is already reserved, so another message cannot start a second run.
-    let stream: ChannelStream;
-    try {
-      stream = await channel.openStream(target);
-    } catch (err) {
-      finished = true;
-      if (idleTimer) clearTimeout(idleTimer);
-      this.activeRuns.delete(runKey);
-      console.error(`[channel:${channel.id}] failed to open stream`, err);
-      return;
-    }
+    const releaseRun = (): void => {
+      activeRun.pendingTurns -= 1;
+      if (turnClarificationId && activeRun.pendingClarificationId === turnClarificationId) {
+        activeRun.pendingClarificationId = undefined;
+      }
+      if (activeRun.pendingTurns === 0 && this.activeRuns.get(runKey) === activeRun) {
+        this.activeRuns.delete(runKey);
+      }
+    };
 
     try {
-      // Keep session selection inside the error/finally path: a failed setup
-      // must close the early card, not continue chatting in the wrong session.
-      await this.sessions.ensureSession(scope, msg.conversationId);
-      const chat = this.service.chatWithScope(
+      const chat = this.runtime.chat(
         scope,
+        sessionId,
         buildAgentPrompt(msg),
-        (delta) => {
-          if (finished) return;
-          markAgentActivity();
-          void Promise.resolve(stream.onText(delta)).catch(noop);
-        },
-        (toolCall) => {
-          if (finished) return;
-          // Args are complete and `execute()` is about to block — mark the
-          // tool in-flight so the idle watchdog doesn't kill it mid-run.
-          markToolStart();
-          void Promise.resolve(
-            stream.onToolCall(toolCall.name, toolCall.args, toolCall.toolCallId),
-          ).catch(noop);
-        },
-        (toolResult) => {
-          if (finished) return;
-          markToolEnd();
-          const image = extractGeneratedImageResult(toolResult);
-          if (image && stream.onImage) {
-            void Promise.resolve(stream.onImage(image.outputPath, image.mimeType)).catch(noop);
-            return;
-          }
-          if (stream.onToolResult) {
+        {
+          onText: (delta) => {
+            if (finished) return;
+            markAgentActivity();
+            void Promise.resolve(stream.onText(delta)).catch(noop);
+          },
+          onToolCall: (toolCall) => {
+            if (finished) return;
+            markToolStart();
             void Promise.resolve(
-              stream.onToolResult({
-                name: toolResult.name,
-                result: toolResult.result,
-                toolCallId: toolResult.toolCallId,
-              }),
+              stream.onToolCall(toolCall.name, toolCall.args, toolCall.toolCallId),
             ).catch(noop);
-          }
-        },
-        undefined,
-        (req) => {
-          if (finished) return;
-          markAgentActivity();
-          run.pendingClarificationId = req.id;
-          clarificationStartedAt = Date.now();
-          // A question that can't be delivered can never be answered, so fail
-          // the run instead of parking it until the clarification timeout.
-          void Promise.resolve(stream.onClarification(req.question)).catch((err) => {
-            console.error(`[channel:${channel.id}] failed to deliver clarification`, err);
-            if (run.pendingClarificationId === req.id) run.pendingClarificationId = undefined;
-            failRun(
-              "Couldn't deliver the agent's question to the chat, so it can't be answered. " +
-                'Stopped this run.',
-            );
-          });
-        },
-        undefined,
-        undefined,
-        (toolInput) => {
-          if (finished) return;
-          markAgentActivity();
-          if (stream.onToolInputStart) {
-            void Promise.resolve(stream.onToolInputStart(toolInput)).catch(noop);
-          }
-        },
-        (toolInput) => {
-          if (finished) return;
-          markAgentActivity();
-          if (stream.onToolInputDelta) {
-            void Promise.resolve(stream.onToolInputDelta(toolInput)).catch(noop);
-          }
-        },
-        (toolInput) => {
-          if (finished) return;
-          markAgentActivity();
-          if (stream.onToolInputEnd) {
-            void Promise.resolve(stream.onToolInputEnd(toolInput)).catch(noop);
-          }
+          },
+          onToolResult: (toolResult) => {
+            if (finished) return;
+            markToolEnd();
+            const image = extractGeneratedImageResult(toolResult);
+            if (image && stream.onImage) {
+              void Promise.resolve(stream.onImage(image.outputPath, image.mimeType)).catch(noop);
+              return;
+            }
+            if (stream.onToolResult) {
+              void Promise.resolve(
+                stream.onToolResult({
+                  name: toolResult.name,
+                  result: toolResult.result,
+                  toolCallId: toolResult.toolCallId,
+                }),
+              ).catch(noop);
+            }
+          },
+          onClarificationRequest: (req) => {
+            if (finished) return;
+            markAgentActivity();
+            turnClarificationId = req.id;
+            activeRun.pendingClarificationId = req.id;
+            clarificationStartedAt = Date.now();
+            void Promise.resolve(stream.onClarification(req.question)).catch((err) => {
+              console.error(`[channel:${channel.id}] failed to deliver clarification`, err);
+              if (activeRun.pendingClarificationId === req.id) {
+                activeRun.pendingClarificationId = undefined;
+              }
+              failRun(
+                "Couldn't deliver the agent's question to the chat, so it can't be answered. " +
+                  'Stopped this run.',
+              );
+            });
+          },
+          onToolInputStart: (toolInput) => {
+            if (finished) return;
+            markAgentActivity();
+            if (stream.onToolInputStart) {
+              void Promise.resolve(stream.onToolInputStart(toolInput)).catch(noop);
+            }
+          },
+          onToolInputDelta: (toolInput) => {
+            if (finished) return;
+            markAgentActivity();
+            if (stream.onToolInputDelta) {
+              void Promise.resolve(stream.onToolInputDelta(toolInput)).catch(noop);
+            }
+          },
+          onToolInputEnd: (toolInput) => {
+            if (finished) return;
+            markAgentActivity();
+            if (stream.onToolInputEnd) {
+              void Promise.resolve(stream.onToolInputEnd(toolInput)).catch(noop);
+            }
+          },
+          onRoleTurnStart: () => markAgentActivity(),
         },
       );
+      markSubmitted();
       chat.catch((err) => {
         if (finished) {
           console.error(`[channel:${channel.id}] late agent failure after channel timeout`, err);
         }
       });
       const result = await Promise.race([chat, idleTimeout]);
+      finished = true;
+      if (idleTimer) clearTimeout(idleTimer);
 
       if (result.ok) {
         await stream.onDone(result.response?.trim() || '✅ Done');
@@ -415,34 +465,19 @@ export class ChannelBridge {
         await stream.onError(result.error ?? 'Unknown error');
       }
     } catch (err) {
+      finished = true;
+      if (idleTimer) clearTimeout(idleTimer);
       await stream.onError(err instanceof Error ? err.message : String(err));
     } finally {
       finished = true;
       if (idleTimer) clearTimeout(idleTimer);
-      this.activeRuns.delete(runKey);
+      releaseRun();
     }
   }
 }
 
-function agentScopeKey(scope: AgentScope): string {
-  return scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
-}
-
-/**
- * Build the prompt handed to the agent. When the inbound message carried
- * images, append a note with their local paths so the agent reads them with
- * `image_analyze` (the vision tool accepts local `imagePaths`). An
- * image-only message becomes just the note.
- */
-export function buildAgentPrompt(msg: InboundMessage): string {
-  const text = msg.text.trim();
-  if (!msg.imagePaths?.length) return text;
-
-  const list = msg.imagePaths.map((path) => `- ${path}`).join('\n');
-  const note =
-    `[The user attached ${msg.imagePaths.length} image(s), saved locally at the path(s) below. ` +
-    `To view or analyze them, call image_analyze with these imagePaths:\n${list}]`;
-  return text ? `${text}\n\n${note}` : note;
+function channelConversationKey(channelId: string, conversationId: string): string {
+  return `${channelId}::${conversationId}`;
 }
 
 function readPositiveIntegerEnv(name: string): number | undefined {

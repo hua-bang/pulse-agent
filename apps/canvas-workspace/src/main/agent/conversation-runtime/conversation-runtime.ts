@@ -73,6 +73,8 @@ export interface ConversationRuntimeDeps {
   loadMessages: () => Promise<AgentChatMessage[]>;
   /** Persist the conversation's full message list after each settled turn. */
   persist: (messages: AgentChatMessage[]) => Promise<void>;
+  /** Hold the host mutation lease across a complete turn, including persistence. */
+  withTurnLease?: (operation: () => Promise<TurnRunnerResult>) => Promise<TurnRunnerResult>;
   /** Execute one turn against the shared Engine. */
   runTurn: (ctx: TurnRunnerContext) => Promise<TurnRunnerResult>;
 }
@@ -239,6 +241,29 @@ export class ConversationRuntime {
     this.status = 'running';
     this.error = null;
     this.runId = null;
+    this.controller = new AbortController();
+    try {
+      const operation = () => this.executeTurn(input, external);
+      return await (this.deps.withTurnLease ? this.deps.withTurnLease(operation) : operation());
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+      return { response: '', error: this.error };
+    } finally {
+      this.status = 'idle';
+      this.streamingTools = [];
+      this.clarification = null;
+      this.controller = null;
+      this.runId = null;
+      this.publish();
+      // The previous lease must be released before the next queued turn starts.
+      void this.drain();
+    }
+  }
+
+  private async executeTurn(
+    input: ConversationSendInput,
+    external?: ConversationTurnExternal,
+  ): Promise<TurnRunnerResult> {
     this.messages.push({
       role: 'user',
       content: input.message,
@@ -246,7 +271,6 @@ export class ConversationRuntime {
       attachments: input.attachments?.length ? input.attachments : undefined,
       contextSnapshot: input.requestContext?.contextSnapshot,
     });
-    this.controller = new AbortController();
     this.publish();
 
     // Materialize the user turn before invoking the model. This makes a new
@@ -260,7 +284,7 @@ export class ConversationRuntime {
       result = await this.deps.runTurn({
         message: input.message,
         history: this.messages.slice(0, -1),
-        signal: this.controller.signal,
+        signal: this.controller!.signal,
         expectedSessionId: this.key.sessionId,
         mentionedWorkspaceIds: input.mentionedWorkspaceIds,
         requestContext: input.requestContext,
@@ -351,14 +375,6 @@ export class ConversationRuntime {
       result = { ...result, error: this.error };
     }
 
-    this.status = 'idle';
-    this.streamingTools = [];
-    this.clarification = null;
-    this.controller = null;
-    this.runId = null;
-    this.publish();
-
-    this.drain();
     return result;
   }
 
