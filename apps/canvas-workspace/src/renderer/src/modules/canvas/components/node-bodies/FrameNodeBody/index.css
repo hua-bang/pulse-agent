@@ -1,15 +1,11 @@
-/* Frame surfaces use the Frames X palette A from getNodeWrapperStyle.
- * --frame-bg-alpha controls the content wash independently of the solid title.
- * A lighter wash lets the canvas ground show through. */
+/* Minimal artboards: plain white surfaces with labels outside the frame.
+ * Stored frame colors remain available for returning to the palette style. */
 
 .canvas-node--frame {
   --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
-  /* Keep the wash translucent instead of painting an opaque pastel panel. */
-  --_a: var(--frame-bg-alpha, 0.6);
-
-  background: color-mix(in srgb, var(--frame-fill) calc(var(--_a) * 100%), transparent);
-  border: 1px solid var(--frame-border-color);
+  background: var(--surface);
+  border: 2px solid transparent;
   border-radius: var(--radius-md);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
@@ -22,22 +18,22 @@
 }
 
 .canvas-node--frame:hover {
-  border-color: oklch(0.87 calc(var(--_c) * 0.70) var(--_h));
+  border-color: var(--note-border);
   box-shadow: none;
 }
 
 .canvas-node--frame.canvas-node--selected {
   border-style: solid;
-  border-color: oklch(0.62 calc(var(--_c) * 0.95) var(--_h));
-  box-shadow: 0 0 0 3px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.20);
+  border-color: var(--accent);
+  box-shadow: none;
 }
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: color-mix(in srgb, var(--frame-focus-fill) calc(var(--frame-bg-alpha, 0.7) * 100%), transparent);
+  background: var(--surface);
   border-style: solid;
-  border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
-  box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
+  border-color: var(--accent);
+  box-shadow: none;
 }
 
 .canvas-node--frame.canvas-node--frame-title-overlay,
@@ -61,8 +57,8 @@
   pointer-events: auto;
 }
 
-/* ---- Header pill ----
- * Floating chip above the frame body, inset from the top-left corner.
+/* ---- Outside label ----
+ * Plain text above the frame body, aligned to its left edge.
  * It is bottom-anchored to the body's top edge and scales from its bottom
  * edge, so zoomed-out readable labels grow upward instead of overlapping the
  * frame body. */
@@ -74,21 +70,20 @@
   position: absolute;
   top: auto;
   bottom: calc(100% + var(--frame-title-gap, 10px));
-  /* left: 28px; */
+  left: 0;
   height: auto;
   /* Override the generic .node-header min-height: 32px so the pill renders
    * at its intended height. */
   min-height: 0;
   width: auto;
-  max-width: min(560px, calc(100% - 56px));
-  padding: 7px 12px 7px 10px;
+  max-width: min(560px, 100%);
+  padding: 0;
   gap: 8px;
 
-  /* Deeper same-hue label leads the lighter transparent region below it. */
-  background: var(--frame-title-color);
-  border: 1px solid var(--frame-title-border);
-  border-radius: var(--radius-md);
-  color: var(--frame-text-color);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-none);
+  color: var(--frame-label);
   box-shadow: none;
 
   /* Header lives inside .canvas-transform; same scale-clamping logic as
@@ -100,22 +95,21 @@
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame {
-  color: var(--frame-text-color);
-  width: 15px;
-  height: 15px;
+  display: none;
 }
 
 .canvas-node--frame .node-header .node-title {
   flex: 0 1 auto;
-  color: var(--frame-text-color);
-  font-weight: 500;
+  color: inherit;
+  padding: 0;
+  font-weight: 400;
   font-size: 14px;
   line-height: 1.2;
   letter-spacing: 0;
 }
 
 .canvas-node--frame .node-header .node-title:focus {
-  background: rgba(255, 255, 255, 0.65);
+  background: var(--surface);
   border-radius: var(--radius-xs);
 }
 
@@ -139,8 +133,8 @@
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--text) 14%, transparent);
-  color: var(--frame-text-color);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
   transition:
     background 0.14s ease,
@@ -188,8 +182,8 @@
 }
 
 .frame-children-toggle:hover {
-  background: var(--frame-title-color);
-  color: oklch(0.46 calc(var(--_c) * 2.6) var(--_h));
+  background: var(--surface-subtle);
+  color: var(--text);
   transform: translateY(-0.5px);
 }
 
@@ -203,8 +197,8 @@
 }
 
 .frame-children-toggle:disabled:hover {
-  background: color-mix(in srgb, var(--text) 14%, transparent);
-  color: var(--frame-text-color);
+  background: transparent;
+  color: var(--text-secondary);
   transform: none;
 }
 
@@ -230,12 +224,12 @@
 
 .canvas-node--frame .node-header .node-focus,
 .canvas-node--frame .node-header .node-close {
-  color: oklch(0.55 calc(var(--_c) * 1.8) var(--_h));
+  color: var(--text-secondary);
 }
 
 .canvas-node--frame .node-header .node-focus:hover {
-  background: oklch(0.88 calc(var(--_c) * 0.9) var(--_h));
-  color: oklch(0.46 calc(var(--_c) * 2.4) var(--_h));
+  background: var(--surface-subtle);
+  color: var(--text);
 }
 
 .canvas-node--frame .node-header .node-close:hover {
@@ -256,12 +250,12 @@
   width: auto;
   padding: 0 0 0 8px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   background: transparent;
   box-shadow: none;
-  opacity: 1;
-  pointer-events: auto;
-  transition: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
   z-index: auto;
 }
 
@@ -273,7 +267,7 @@
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
-  color: oklch(0.55 calc(var(--_c) * 1.8) var(--_h));
+  color: var(--text-secondary);
 }
 
 .canvas-node--frame .node-header .node-header__actions .node-open-tab svg,
@@ -316,18 +310,7 @@
   position: relative;
 }
 
-/* ---- Collapsed frame ----
- * When children are collapsed the body no longer hosts live nodes, so we
- * quiet the fill + dot texture and let the children summary read clearly.
- * The wrapper class is applied by getNodeClasses; the body variant scopes
- * the summary layout. */
-.canvas-node--frame.canvas-node--frame-collapsed {
-  --_a: var(--frame-bg-alpha, 0.45);
-}
-
-.canvas-node--frame.canvas-node--frame-collapsed::before {
-  opacity: 0.14;
-}
+/* ---- Collapsed children summary ---- */
 
 .frame-body--collapsed {
   display: flex;
@@ -348,7 +331,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.3;
 }
@@ -361,7 +344,7 @@
   padding: 3px 4px;
   border-radius: 5px;
   /* Subtle row tint so each child reads as a chip against the dimmed body. */
-  background: oklch(0.96 calc(var(--_c) * 0.22) var(--_h) / 0.55);
+  background: var(--surface-subtle);
 }
 
 .frame-children-summary__icon {
@@ -371,7 +354,7 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  color: oklch(0.46 calc(var(--_c) * 0.85) var(--_h));
+  color: var(--text-secondary);
 }
 
 .frame-children-summary__title {
@@ -400,7 +383,7 @@
 
   position: relative;
   transform: none;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -456,4 +439,36 @@
 
 .frame-color-popover .ui-swatchrow {
   flex-wrap: nowrap;
+}
+
+/* Only the label remains in the resting state. Keyboard focus reveals the
+ * same controls as pointer hover, without moving the label or its hit area. */
+.canvas-node--frame .node-time-label {
+  display: none;
+}
+
+.canvas-node--frame .frame-children-toggle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas-node--frame:hover .node-header,
+.canvas-node--frame .node-header:focus-within {
+  color: var(--text-secondary);
+}
+
+.canvas-node--frame.canvas-node--selected .node-header,
+.canvas-node--frame.canvas-node--focus-mode-focused .node-header {
+  color: var(--accent);
+}
+
+.canvas-node--frame:hover .frame-children-toggle,
+.canvas-node--frame.canvas-node--selected .frame-children-toggle,
+.canvas-node--frame .node-header:focus-within .frame-children-toggle,
+.canvas-node--frame.canvas-node--frame-collapsed .frame-children-toggle,
+.canvas-node--frame:hover .node-header__actions,
+.canvas-node--frame.canvas-node--selected .node-header__actions,
+.canvas-node--frame .node-header:focus-within .node-header__actions {
+  opacity: 1;
+  pointer-events: auto;
 }

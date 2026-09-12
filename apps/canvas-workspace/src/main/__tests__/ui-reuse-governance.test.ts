@@ -213,7 +213,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 114→113 (module-first ownership batches): deleting obsolete visual
   // chrome removed one remaining literal-radius declaration.
   // 113→112: remove the obsolete frame dot overlay.
-  borderRadiusLiterals: 112,
+  // 112→111: minimal frame chrome shares the square-corner token.
+  borderRadiusLiterals: 111,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -422,7 +423,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1705→1703: reuse canvas ground token and retire the stale frame palette comment.
   // 1703→1691: frame surfaces share the accent and surface tokens.
   // 1691→1689: remove frame dot paint and reuse the canvas grid token.
-  hardcodedColorLiterals: 1689,
+  // 1689→1675: neutral artboard chrome uses shared surface/text tokens.
+  hardcodedColorLiterals: 1675,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -490,7 +492,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // removed five literal shadow declarations.
   // 136→135 (workspace node cards): removed the unreachable pre-CardShell
   // selected-card shadow; live cards own their styles under CardShell.
-  shadowLiterals: 135,
+  // 135→133: minimal frames use outlines without selection shadows.
+  shadowLiterals: 133,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
@@ -571,7 +574,6 @@ const RATCHET_BASELINE: Record<string, number> = {
 // deliberately isolated from the palette); they stay here so a definition
 // sneaking in gets flagged as a stale-baseline failure.
 const KNOWN_UNDEFINED_TOKENS = new Set([
-  '--frame-bg-alpha',
   '--frame-title-gap',
 ]);
 

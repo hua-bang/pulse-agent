@@ -20,8 +20,9 @@
 :root {
   color-scheme: light;
   --bg: #f8f8f7;
-  /* Plain FigJam reference ground. */
-  --bg-canvas: #f5f5f5;
+  /* Minimal frame presentation: white artboards on a near-white ground. */
+  --bg-canvas: #f3f3f3;
+  --frame-label: #8c8c8c;
   --surface: #ffffff;
   --surface-hover: #fafaf9;
   --border: #e8e5e0;
@@ -34,8 +35,8 @@
      Single-fallback tokens keep their exact fallback value (zero visual
      change); divergent-fallback ones take the dominant value (deliberate
      normalization); --text-primary/-tertiary alias the existing ink tiers.
-     The oklch frame-engine dials (--frame-bg-alpha, --frame-title-gap) stay
-     deliberately undefined — they are per-scope parameters, not palette. */
+     The frame title-gap override stays deliberately undefined; it is a
+     per-scope parameter, not a palette token. */
   --text-primary: var(--text);
   --text-tertiary: var(--text-muted);
   --accent-muted: rgba(80, 120, 220, 0.16);
@@ -96,6 +97,7 @@
      value change. Near-variants (2px ring, other opacities) stay literal;
      they are C3 normalization judgments, not this batch's scope. */
   --shadow-focus: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  --radius-none: 0;
   --radius: 8px;
   --radius-md: 8px;
   /* scale midpoint; was referenced 7x while undefined, with divergent fallbacks */
