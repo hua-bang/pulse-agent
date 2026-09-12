@@ -261,6 +261,38 @@ describe('CanvasAgentService history', () => {
     expect(canvasAgentState.configs).toHaveLength(initialConfigCount + 1);
   });
 
+  it('lists only visible workspace stores while preserving global and scheduled history', async () => {
+    const ids = ['ws-visible', 'ws-removed', '__global_chat__', '__scheduled__-task-1'];
+    for (const workspaceId of ids) {
+      const dir = join(sessionRoot, workspaceId, 'agent-sessions');
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(join(dir, 'current.json'), JSON.stringify({
+        sessionId: `session-${workspaceId}`, workspaceId, createdAt: 1, updatedAt: 2,
+        messages: [{ role: 'user', content: 'saved history', timestamp: 1 }],
+      }));
+    }
+    const service = new CanvasAgentService();
+    const groups = await service.listAllSessions({ 'ws-visible': 'Visible' });
+    expect(groups.map(group => group.workspaceId).sort()).toEqual(
+      ['ws-visible', '__global_chat__', '__scheduled__-task-1'].sort(),
+    );
+    expect(await fs.readFile(join(sessionRoot, 'ws-removed', 'agent-sessions', 'current.json'), 'utf8'))
+      .toContain('saved history');
+    const empty = await service.listAllSessions({});
+    expect(empty.map(group => group.workspaceId).sort()).toEqual(['__global_chat__', '__scheduled__-task-1'].sort());
+  });
+
+  it('does not reintroduce a removed workspace through an active agent', async () => {
+    const service = new CanvasAgentService();
+    await service.activate('ws-visible');
+    await service.activate('ws-removed');
+    const groups = await service.listAllSessions({ 'ws-visible': 'Visible' });
+    expect(groups.map(group => group.workspaceId)).toEqual(['ws-visible']);
+    canvasAgentState.listSessions.mockClear();
+    expect(await service.listAllSessions({})).toEqual([]);
+    expect(canvasAgentState.listSessions).not.toHaveBeenCalled();
+  });
+
   it('hides an active empty-chat scope from the unified session groups', async () => {
     const scan = vi.spyOn(SessionStore, 'listAllWorkspaceSessions').mockResolvedValue([]);
     const service = new CanvasAgentService();
@@ -269,7 +301,7 @@ describe('CanvasAgentService history', () => {
 
     const groups = await service.listAllSessions({});
 
-    expect(scan).toHaveBeenCalledWith(new Set(['__global_chat__']));
+    expect(scan).toHaveBeenCalledWith(new Set(['__global_chat__']), new Set());
 
     expect(groups).toEqual([]);
   });

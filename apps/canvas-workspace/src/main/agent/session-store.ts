@@ -295,8 +295,8 @@ export class SessionStore {
   // ─── Cross-workspace scanning ────────────────────────────────
 
   /** Scan all listable session stores. */
-  static listAllWorkspaceSessions(excludedStoreIds?: ReadonlySet<string>) {
-    return scanAllWorkspaceSessions(storeDir(), excludedStoreIds);
+  static listAllWorkspaceSessions(excludedStoreIds?: ReadonlySet<string>, visibleWorkspaceIds?: ReadonlySet<string>) {
+    return scanAllWorkspaceSessions(storeDir(), excludedStoreIds, visibleWorkspaceIds);
   }
 
   /** Read a store's on-disk current id without activating an agent. */

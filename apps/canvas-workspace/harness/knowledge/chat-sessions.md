@@ -328,6 +328,12 @@ node-detail / canvas-preview) beside the chat, and must never navigate — a
 control that routes away from the page the user is reading is not a panel
 toggle.
 
+Shared topbar controls must carry their own button styles: `ChatAnchors` uses
+`ui/Button` (icon, md) rather than relying on the lazily loaded ChatPanel CSS.
+Cold-loading `/chat` does not load that panel stylesheet; a raw trigger otherwise
+falls back to browser-default chrome. Guard: `ChatAnchors/__tests__/ChatAnchors.test.tsx`;
+visual verification must include a populated cold chat route, not only canvas-first navigation.
+
 `RightDock/dock-content-tabs.ts` owns that switch, via
 `store.toggleContentTabs`:
 

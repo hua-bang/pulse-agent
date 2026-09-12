@@ -317,8 +317,8 @@ export class CanvasAgentService {
     return this.sessionMutations.loadStoredSession(scope, sessionId, () => loadCanvasAgentSessionFromStore(scope, sessionId));
   }
   /**
-   * List sessions from ALL workspaces, grouped by workspace.
-   * @param workspaceNames — map of workspaceId → display name (from renderer manifest)
+   * List sessions from visible workspaces and global/scheduled scopes.
+   * @param workspaceNames — authoritative visible workspaceId → name map from renderer manifest
    */
   async listAllSessions(
     workspaceNames: Record<string, string>,
@@ -327,7 +327,7 @@ export class CanvasAgentService {
     const activeStoreIds = new Set(Array.from(
       this.agents.keys(), key => scopeSessionStoreId(scopeFromServiceKey(key)),
     ));
-    const diskGroups = await SessionStore.listAllWorkspaceSessions(activeStoreIds);
+    const diskGroups = await SessionStore.listAllWorkspaceSessions(activeStoreIds, new Set(Object.keys(workspaceNames)));
     const groups: CrossWorkspaceSessionGroup[] = [];
     const scheduledTitles = await scheduledTaskTitles();
     const includedStoreIds = new Set<string>();
