@@ -71,7 +71,7 @@ export async function analyzeImagesWithOpenAI(args: {
   if (!apiKey) throw new Error('OPENAI_API_KEY environment variable is not set');
 
   const apiUrl = (process.env.OPENAI_API_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = args.model?.trim() || process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-5.4';
+  const model = args.model?.trim() || process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-5.6-sol';
   const mode = args.visionApiMode ?? 'responses';
   const detail = args.detail ?? 'auto';
 

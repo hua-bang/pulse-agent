@@ -106,7 +106,7 @@ const toolSchema = z.object({
     .enum(['openai', 'gpt', 'gemini'])
     .optional()
     .describe('Vision provider. Defaults to "openai"/"gpt". Set "gemini" to use Gemini explicitly.'),
-  model: z.string().optional().describe('Vision model name. Defaults to OPENAI_VISION_MODEL or gpt-5.4 for OpenAI; GEMINI_VISION_MODEL or gemini-2.5-flash for Gemini.'),
+  model: z.string().optional().describe('Vision model name. Defaults to OPENAI_VISION_MODEL or gpt-5.6-sol for OpenAI; GEMINI_VISION_MODEL or gemini-2.5-flash for Gemini.'),
   detail: z.enum(['auto', 'low', 'high']).optional().describe('OpenAI image detail level. Only sent for OpenAI/GPT requests. Defaults to "auto".'),
   visionApiMode: z
     .enum(['responses', 'chat_completions', 'auto'])
@@ -134,7 +134,7 @@ interface AnalyzeImageToolContext extends ToolExecutionContext {
 const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 const DEFAULT_OPENAI_API_URL = 'https://api.openai.com/v1';
-const DEFAULT_OPENAI_MODEL = 'gpt-5.4';
+const DEFAULT_OPENAI_MODEL = 'gpt-5.6-sol';
 const FIXED_TIMEOUT_MS = 300000;
 const DEFAULT_MAX_IMAGES = 6;
 const DEFAULT_PROMPT = '请按图片顺序描述关键信息，识别文字，提取主体内容，并结合用户上下文回答问题。如果存在多个图片，先分别概述，再总结。';
@@ -148,7 +148,7 @@ interface ResolvedImage {
 export const analyzeImageTool: Tool<AnalyzeImageInput, AnalyzeImageResult> = {
   name: 'analyze_image',
   description:
-    'Analyze one or more local images. Defaults to OpenAI/GPT vision (uses OPENAI_API_KEY plus OPENAI_API_URL, model OPENAI_VISION_MODEL or gpt-5.4) via {apiUrl}/responses input_image. Set provider="gemini" to use Gemini instead. If imagePaths are omitted, automatically uses runContext.latestAttachments from the latest image message.',
+    'Analyze one or more local images. Defaults to OpenAI/GPT vision (uses OPENAI_API_KEY plus OPENAI_API_URL, model OPENAI_VISION_MODEL or gpt-5.6-sol) via {apiUrl}/responses input_image. Set provider="gemini" to use Gemini instead. If imagePaths are omitted, automatically uses runContext.latestAttachments from the latest image message.',
   defer_loading: true,
   inputSchema: toolSchema,
   execute: async (input: AnalyzeImageInput, context?: AnalyzeImageToolContext): Promise<AnalyzeImageResult> => {
