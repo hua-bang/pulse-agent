@@ -61,7 +61,7 @@ describe('feishu card tool list', () => {
     expect(body).toContain('**Working**');
     expect(body).toContain('<font color="grey">│</font>');
     expect(body).toContain('<font color="grey">›</font>');
-    expect(body).toContain('<font color="grey">•</font>');
+    expect(body).toContain('<font color="grey">执行中</font>');
     expect(body).toContain('<font color="grey">Canvas read node · node-1 · 18s</font>');
     expect(body).toContain('Canvas write node · node-2');
     expect(body).toContain('working');
@@ -82,6 +82,25 @@ describe('feishu card tool list', () => {
     const progress = texts(buildProgressCard('', tools));
     expect(thinking[0]).toBe('**Working**');
     expect(progress[0]).toBe(thinking[0]);
+  });
+
+  it('replaces the pulsing dot with quiet pending text and delayed elapsed time', () => {
+    expect(texts(buildThinkingCard())[1]).toBe('<font color="grey">正在处理</font>');
+    for (const elapsed of [0, 1, 2, 3, 4]) {
+      expect(texts(buildProgressCard('', [], elapsed))[1]).toBe(texts(buildThinkingCard())[1]);
+    }
+    expect(texts(buildProgressCard('', [], 5))[1]).toContain('正在处理 · 已等待 5 秒');
+    expect(texts(buildProgressCard('', [], 65))[1]).toContain('已等待 1 分 05 秒');
+    expect(texts(buildProgressCard('', [], -5))[1]).toContain('正在处理</font>');
+    expect(texts(buildProgressCard('', [], NaN))[1]).toContain('正在处理</font>');
+  });
+
+  it('keeps active tool markers stable and removes pending copy on completion', () => {
+    expect(texts(buildProgressCard('', tools, 1))).toEqual(texts(buildProgressCard('', tools, 2)));
+    const done = texts(buildDoneCard('answer', tools)).join('\n');
+    expect(done).not.toContain('执行中');
+    expect(done).not.toContain('正在处理');
+    expect(done).not.toContain('已等待');
   });
 
   it('done card keeps the final answer below an expanded completed timeline', () => {
