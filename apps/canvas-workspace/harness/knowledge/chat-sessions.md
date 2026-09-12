@@ -470,9 +470,11 @@ not prepend the workspace root to an already absolute path.
 Explicit reading expansion bypasses the side-panel cap within the main work
 area. `useDockReadingLayout` preserves the underlying side-width preference and
 route inset; return restores both without changing the selected conversation.
-Full-page chat already owns a left conversation/right Dock layout, so it
-offers only expand/return and no additional Dock comparison. Return preserves
-that original layout and its conversation draft/session. Hidden underlying content is inert during page-only reading.
+Full-page chat already owns a left conversation/right Dock layout, so its
+comparison picker offers content tabs only, never a duplicate AI pane. Two
+webpages can use the main work area for comparison; return preserves the
+original layout and conversation draft/session. Hidden underlying content
+is inert while reading or comparing content.
 
 Chat comparisons default to a 380px chat pane (or half of the available width
 on smaller docks), giving the remaining width to the file/content pane.

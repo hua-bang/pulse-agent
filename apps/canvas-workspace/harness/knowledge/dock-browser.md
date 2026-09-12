@@ -212,8 +212,9 @@ state from the same persisted dock session; a workspace without saved state
 starts collapsed.
 
 The dock comparison view is exactly two stable left/right panes, not a layout
-tree. It opens with the focused non-chat tab on the left and Pulse AI on the
-right. Selecting an already-visible tab changes input focus; selecting any other
+tree. The toolbar opens a searchable target picker; choosing a tab puts the
+current tab on the left and the chosen tab on the right. The picker excludes
+the current tab and invalid pairs; AI is offered only where a Dock chat exists. Selecting an already-visible tab changes input focus; selecting any other
 dock tab replaces the left pane without changing the pinned right pane.
 Explicit tab-menu placement is the only way to
 replace the right pane; placing an already-visible tab on the other side
@@ -231,10 +232,12 @@ chat can promote the same Dock to the main workspace width while retaining the
 sidebar. Comparison also uses that width instead of permanently growing the
 saved side-panel width. Return restores the original inset and side width;
 manual expansion survives ordinary tab switching and comparison exit.
-Full-page chat keeps its existing left conversation/right Dock layout and
-only offers expand/return. It exposes no Dock comparison toggle or tab-menu
-placement actions, rejects inherited comparison pairs, and restores the same
-conversation layout on return. Covered route content is hidden and
+Full-page chat keeps its existing left conversation/right Dock layout for
+single-page browsing. It supports content-to-content comparison through the
+same picker and tab menu, but never offers a duplicate AI pane. Content-only
+pairs survive route changes; an inherited AI pair exits while preserving the
+left content tab. Comparison expands over the main work area without remounting
+the underlying conversation; return restores the original layout. Covered route content is hidden and
 inert while its mounted state and layout dimensions stay intact. Route/scope
 changes do not promote an unrelated scope; collapsing clears manual promotion.
 Guards: `__tests__/useDockReadingLayout.test.tsx`, `dock-reading-flow.test.ts`,

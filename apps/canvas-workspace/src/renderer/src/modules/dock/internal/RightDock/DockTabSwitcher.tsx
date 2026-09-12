@@ -1,4 +1,4 @@
-import { CaretDown } from '@phosphor-icons/react';
+import { CaretDown, Columns } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { useI18n } from '../../../../i18n';
@@ -10,6 +10,7 @@ import { dockTabDomain, filterDockTabs, type DockTabSwitcherItem } from './dock-
 import './dock-reading.css';
 
 interface Props {
+  mode?: 'switch' | 'compare';
   items: readonly DockTabSwitcherItem[];
   activeTabId: string | null;
   splitTabIds?: readonly string[];
@@ -18,7 +19,7 @@ interface Props {
   onReopen?: (offset: number) => void;
 }
 
-export const DockTabSwitcher = ({ items, activeTabId, splitTabIds, onActivate, closedTabs = [], onReopen }: Props) => {
+export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, closedTabs = [], onReopen }: Props) => {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -60,13 +61,15 @@ export const DockTabSwitcher = ({ items, activeTabId, splitTabIds, onActivate, c
     if (row.closedIndex >= 0) onReopen?.(row.closedIndex);
     else onActivate(row.item.id);
   };
-  const title = t('rightDock.allTabs');
+  const comparing = mode === 'compare';
+  const title = t(comparing ? 'rightDock.chooseComparison' : 'rightDock.allTabs');
   return (
     <>
-      <Button ref={triggerRef} size="sm" className="right-dock__tab-search-trigger"
+      <Button ref={triggerRef} size="sm" variant={comparing ? 'icon' : 'secondary'}
+        className={comparing ? 'right-dock__split-toggle right-dock__comparison-trigger' : 'right-dock__tab-search-trigger'}
         aria-label={title} title={title} aria-haspopup="dialog" aria-expanded={open}
         onClick={() => { setQuery(''); setSelected(0); setOpen(value => !value); }}>
-        {t('rightDock.tabCount', { count: items.length })}<CaretDown size={12} />
+        {comparing ? <Columns size={16} /> : <>{t('rightDock.tabCount', { count: items.length })}<CaretDown size={12} /></>}
       </Button>
       {open && (
         <Popover anchorRef={triggerRef} placement="bottom" align="end" gap={6}
@@ -90,7 +93,7 @@ export const DockTabSwitcher = ({ items, activeTabId, splitTabIds, onActivate, c
             {rows.map(({ item, closedIndex }, index) => (
               <div key={`${closedIndex}:${item.id}`}>
                 {(index === 0 || (closedIndex >= 0 && rows[index - 1].closedIndex < 0)) && (
-                  <div className="right-dock__tab-search-heading">{t(closedIndex >= 0 ? 'rightDock.recentlyClosed' : 'rightDock.recentTabs')}</div>
+                  <div className="right-dock__tab-search-heading">{t(closedIndex >= 0 ? 'rightDock.recentlyClosed' : comparing ? 'rightDock.chooseComparison' : 'rightDock.recentTabs')}</div>
                 )}
                 <Button id={`${listId}-${index}`} size="sm" role="option" aria-selected={index === currentIndex}
                   className="right-dock__tab-search-row" title={item.url || item.title}
@@ -108,7 +111,7 @@ export const DockTabSwitcher = ({ items, activeTabId, splitTabIds, onActivate, c
               </div>
             ))}
           </div>
-          {!rows.length && <p role="status" className="right-dock__tab-search-empty">{t('rightDock.noMatchingTabs')}</p>}
+          {!rows.length && <p role="status" className="right-dock__tab-search-empty">{t(comparing && !items.length ? 'rightDock.openTabToCompare' : 'rightDock.noMatchingTabs')}</p>}
         </Popover>
       )}
     </>

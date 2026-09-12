@@ -17,7 +17,7 @@ export const getRenderableComparisonPair = (
   state: DockState,
   chatTabEnabled: boolean,
 ): DockComparisonPair | undefined => (
-  chatTabEnabled ? state.splitTabIds : undefined
+  chatTabEnabled || !state.splitTabIds?.includes(CHAT_TAB_ID) ? state.splitTabIds : undefined
 );
 
 export const getComparisonSurvivorId = (

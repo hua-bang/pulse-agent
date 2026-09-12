@@ -3,7 +3,7 @@ import { getRenderableComparisonPair } from '../../../../../shared/dock/dock-spl
 import { DockStore, CHAT_TAB_ID } from '../dock-store';
 
 describe('pinned comparison browsing', () => {
-  it('never presents an inherited comparison on a full-page chat host', () => {
+  it('keeps content comparison on full-page chat but excludes its duplicate AI pane', () => {
     const store = new DockStore();
     store.openLink('https://a.example');
     store.toggleSplitView();
@@ -11,7 +11,7 @@ describe('pinned comparison browsing', () => {
     expect(getRenderableComparisonPair(store.getSnapshot(), true)).toBeDefined();
     store.openLink('https://b.example');
     store.placeTab(store.getSnapshot().tabs[0].id, 'right');
-    expect(getRenderableComparisonPair(store.getSnapshot(), false)).toBeUndefined();
+    expect(getRenderableComparisonPair(store.getSnapshot(), false)).toEqual(store.getSnapshot().splitTabIds);
   });
   it('places a reference explicitly, keeps it while browsing and exits on the left', () => {
     const store = new DockStore();

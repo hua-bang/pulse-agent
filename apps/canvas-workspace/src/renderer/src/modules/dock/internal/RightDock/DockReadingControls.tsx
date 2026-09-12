@@ -2,7 +2,10 @@ import { ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
 import { Button } from '../../../../components/ui';
 import { SplitViewToggle } from './SplitViewToggle';
 import { useI18n } from '../../../../i18n';
-import { CHAT_TAB_ID, type DockStore } from './dock-store';
+import type { DockStore } from './dock-store';
+import { DockTabSwitcher } from './DockTabSwitcher';
+import { getDockTabSwitcherItems } from './dock-tab-items';
+import { getDockPaneSelection } from '../../../../shared/dock/dock-split-state';
 import { focusActiveDockTarget } from './dock-browser-commands';
 
 interface Props {
@@ -19,8 +22,12 @@ interface Props {
 export const DockReadingControls = ({ store, expanded, chatTabEnabled, hasContent,
   returnLabel, onExpand, onReturn }: Props) => {
   const { t } = useI18n();
-  const pair = store.getSnapshot().splitTabIds;
-  const comparing = Boolean(pair);
+  const state = store.getSnapshot();
+  const pair = state.splitTabIds;
+  const candidates = getDockTabSwitcherItems(state, {
+    chatTabEnabled, chatTitle: t('rightDock.chat'), terminalTitle: t('workspaceTerminal.title'),
+  }).filter(item => getDockPaneSelection(state, item.id, 'right'));
+
   if (!hasContent) return null;
   const readingLabel = expanded ? returnLabel : t('rightDock.expandReading');
   return (
@@ -30,12 +37,12 @@ export const DockReadingControls = ({ store, expanded, chatTabEnabled, hasConten
         onClick={expanded ? onReturn : onExpand}>
         {expanded ? <ArrowsInSimple size={16} /> : <ArrowsOutSimple size={16} />}
       </Button>
-      {chatTabEnabled && <SplitViewToggle store={store} active={comparing}
-        canOpen={store.getSnapshot().activeTabId !== CHAT_TAB_ID}
-        onToggle={() => {
-          store.toggleSplitView();
-          focusActiveDockTarget(store);
-        }} />}
+      {pair ? <SplitViewToggle store={store} active canOpen
+        onToggle={() => { if (store.getSnapshot().splitTabIds) store.toggleSplitView(); focusActiveDockTarget(store); }} /> : (
+        <DockTabSwitcher key={`${state.activeTerminalWorkspaceId}:${state.activeTabId}`}
+          mode="compare" items={candidates} activeTabId={null}
+          onActivate={id => { store.placeTab(id, 'right'); focusActiveDockTarget(store); }} />
+      )}
     </>
   );
 };

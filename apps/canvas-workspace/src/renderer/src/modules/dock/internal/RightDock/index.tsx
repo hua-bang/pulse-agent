@@ -131,8 +131,12 @@ export const RightDock = ({
 
   useEffect(() => {
     if (chatTabEnabled) return;
-    if (state.splitTabIds) store.toggleSplitView();
-    const current = store.getSnapshot();
+    // The layout effect may already have switched scopes; inspect that live state.
+    let current = store.getSnapshot();
+    if (current.splitTabIds?.includes(CHAT_TAB_ID)) {
+      store.toggleSplitView();
+      current = store.getSnapshot();
+    }
     if (current.activeTabId === CHAT_TAB_ID && current.tabs.length > 0) {
       store.activate(current.tabs[0].id);
       if (!current.expanded) store.collapse();
@@ -364,7 +368,6 @@ export const RightDock = ({
           <TabContextMenu
             tab={tabMenuTab}
             tabs={state.tabs}
-            allowComparison={chatTabEnabled}
             store={store}
             x={tabMenu.x}
             y={tabMenu.y}

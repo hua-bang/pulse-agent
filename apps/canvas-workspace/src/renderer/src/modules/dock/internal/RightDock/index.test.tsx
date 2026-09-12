@@ -482,27 +482,52 @@ describe('compact reading controls', () => {
     expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('480px');
     expect(document.documentElement.dataset.dockReading).toBe('side');
   });
+  it('preserves the destination scope content pair when leaving another scope with AI comparison', async () => {
+    const ScopedDock = ({ scope, chat }: { scope: string; chat: boolean }) => {
+      const { store } = useDockContext();
+      const seeded = useRef(false);
+      if (!seeded.current) {
+        seeded.current = true;
+        store.setActiveWorkspace('a');
+        store.openLink('https://a.example'); store.toggleSplitView();
+        store.setActiveWorkspace('b');
+        store.openLink('https://b-left.example'); const left = store.getSnapshot().activeTabId;
+        store.openLink('https://b-right.example'); const right = store.getSnapshot().activeTabId;
+        store.activate(left); store.placeTab(right, 'right');
+        store.setActiveWorkspace('a');
+      }
+      return <RightDock activeWorkspaceId={scope} activeIdReady chatTabEnabled={chat}
+        reserveSpace capWidth={false} workspaces={[]} onOpenNodePage={() => undefined} />;
+    };
+    mount = document.createElement('div'); document.body.appendChild(mount); root = createRoot(mount);
+    await act(async () => root?.render(<I18nProvider><RightDockProvider><ScopedDock scope="a" chat /></RightDockProvider></I18nProvider>));
+    await act(async () => root?.render(<I18nProvider><RightDockProvider><ScopedDock scope="b" chat={false} /></RightDockProvider></I18nProvider>));
+    const selected = [...mount.querySelectorAll('[data-dock-tab-id][aria-selected="true"]')];
+    expect(selected.map(tab => tab.textContent)).toEqual(['https://b-left.example', 'https://b-right.example']);
+    expect(mount.querySelector('.right-dock__split-toggle')?.getAttribute('aria-pressed')).toBe('true');
+  });
   it('keeps the left webpage when entering full-page chat with the right AI pane focused', async () => {
     const host = await renderDock();
     const linkId = host.querySelector<HTMLElement>('[data-dock-tab-id^="link:"]')!.dataset.dockTabId;
-    act(() => host.querySelector<HTMLButtonElement>('.right-dock__split-toggle')!.click());
+    await act(async () => host.querySelector<HTMLButtonElement>('.right-dock__comparison-trigger')!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(row => row.textContent?.includes('Pulse Agent'))!.click());
     act(() => host.querySelector<HTMLButtonElement>('[data-dock-tab-id="chat"]')!.click());
     await act(async () => root?.render(<I18nProvider><RightDockProvider>
       <SeededDock chatTabEnabled={false} />
     </RightDockProvider></I18nProvider>));
     const selected = host.querySelector<HTMLElement>('[data-dock-tab-id][aria-selected="true"]');
     expect(selected?.dataset.dockTabId).toBe(linkId);
-    expect(host.querySelector('.right-dock__split-toggle')).toBeNull();
+    expect(host.querySelector('.right-dock__comparison-trigger')).toBeTruthy();
   });
-  it('offers only expand/return on full-page chat and keeps comparison out of its tab menu', async () => {
+  it('keeps expand/return and content comparison available on full-page chat', async () => {
     const host = await renderDock(true, false, true);
-    expect(host.querySelector('.right-dock__split-toggle')).toBeNull();
+    expect(host.querySelector('.right-dock__comparison-trigger')).toBeTruthy();
     expect(host.querySelector('[data-dock-tab-id="chat"]')).toBeNull();
     const originalWidth = host.querySelector<HTMLElement>('.right-dock')!.style.width;
     act(() => host.querySelector<HTMLButtonElement>('.right-dock__reading-toggle')!.click());
     expect(document.documentElement.dataset.dockReading).toBe('reading');
     expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe('1200px');
-    expect(host.querySelector('.right-dock__split-toggle')).toBeNull();
+    expect(host.querySelector('.right-dock__comparison-trigger')).toBeTruthy();
     act(() => host.querySelector<HTMLButtonElement>('.right-dock__reading-toggle')!.click());
     expect(host.querySelector<HTMLElement>('.right-dock')!.style.width).toBe(originalWidth);
     expect(document.documentElement.dataset.dockReading).toBe('side');
@@ -512,7 +537,7 @@ describe('compact reading controls', () => {
     });
     const menu = document.querySelector('.context-menu--in-dock')!;
     expect(menu).toBeTruthy();
-    expect(menu.textContent).not.toContain('Open on the left');
-    expect(menu.textContent).not.toContain('Compare on the right');
+    expect(menu.textContent).toContain('Open on the left');
+    expect(menu.textContent).toContain('Compare on the right');
   });
 });

@@ -21,13 +21,13 @@ export const SplitViewToggle = ({ store, active, canOpen, onToggle }: Props) => 
   const label = t(active ? 'rightDock.exitSplitView' : 'rightDock.openSplitView');
   const isDisabled = !active && !canOpen;
   return (
-    <span data-tooltip={t('rightDock.splitView')} className="right-dock__tooltip-wrapper">
+    <span data-tooltip={label} className="right-dock__tooltip-wrapper">
       <Button
         variant="icon"
         size="sm"
         className="right-dock__split-toggle"
         aria-label={label}
-        title={t('rightDock.splitView')}
+        title={label}
         aria-pressed={active}
         disabled={isDisabled}
         onClick={() => {

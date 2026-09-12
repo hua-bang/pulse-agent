@@ -19,7 +19,6 @@ interface Props {
   tab: DockPreviewTab;
   tabs: readonly DockPreviewTab[];
   store: DockStore;
-  allowComparison?: boolean;
   x: number;
   y: number;
   onClose: () => void;
@@ -30,7 +29,6 @@ export const TabContextMenu = ({
   tab,
   tabs,
   store,
-  allowComparison = true,
   x,
   y,
   onClose,
@@ -73,11 +71,9 @@ export const TabContextMenu = ({
 
   return (
     <Popover x={x} y={y} onClose={closeMenu} className="context-menu context-menu--in-dock">
-      {allowComparison && <>
       {item('rightDock.openLeft', run(() => store.placeTab(tab.id, 'left')))}
       {item('rightDock.openRight', run(() => store.placeTab(tab.id, 'right')),
         !getDockPaneSelection(store.getSnapshot(), tab.id, 'right'))}
-      </>}
       {tab.kind === 'link' && tab.url && (
         <>
           {item('rightDock.tabMenu.copyAddress', run(
