@@ -67,6 +67,71 @@ afterEach(() => {
 });
 
 describe('ConversationRuntimeService.chat', () => {
+  it('holds a per-turn lease through persistence and queues instead of rejecting the next turn', async () => {
+    let leased = false;
+    const leaseStates: boolean[] = [];
+    const adapter = makeStoreAdapter();
+    const persist = adapter.persist;
+    adapter.persist = async (id, messages) => {
+      leaseStates.push(leased);
+      await persist(id, messages);
+    };
+    const service = new ConversationRuntimeService(
+      () => mockAgent.agent as never,
+      () => adapter,
+      async (_scope, _id, operation) => {
+        if (leased) return null;
+        leased = true;
+        try { return await operation(); } finally { leased = false; }
+      },
+    );
+    const results = await Promise.all([
+      service.chat(scope, 'session-a', 'first'),
+      service.chat(scope, 'session-a', 'second'),
+    ]);
+    expect(results.every(result => result.ok)).toBe(true);
+    expect(leaseStates).toEqual([true, true, true, true]);
+    expect(leased).toBe(false);
+  });
+
+  it('provisions and copies durable sessions without touching the UI current pointer', async () => {
+    const stored = new Map<string, CanvasAgentMessage[]>();
+    const service = new ConversationRuntimeService(
+      () => mockAgent.agent as never,
+      () => ({
+        loadMessages: async id => stored.get(id) ?? null,
+        persist: async (id, messages) => { stored.set(id, [...messages]); },
+      }),
+    );
+    const created = await service.provisionSession(scope, [
+      { role: 'user', content: 'history', timestamp: 1 },
+    ]);
+    expect(created.ok).toBe(true);
+    expect(created.sessionId).toBeTruthy();
+    expect(await service.hasSession(scope, created.sessionId!)).toBe(true);
+    expect(await service.hasSession(scope, 'missing')).toBe(false);
+    const copied = await service.copySessionToScope(scope, created.sessionId!, scope);
+    expect(copied).toMatchObject({ ok: true, messageCount: 1 });
+    expect(copied.sessionId).not.toBe(created.sessionId);
+    expect(stored.get(copied.sessionId!)).toEqual([{ role: 'user', content: 'history', timestamp: 1 }]);
+    expect(mockAgent.agent.getCurrentSessionId).not.toHaveBeenCalled();
+    expect(mockAgent.agent.chat).not.toHaveBeenCalled();
+  });
+
+  it('reports provisioning and source-copy failures rather than a usable session id', async () => {
+    const service = new ConversationRuntimeService(
+      () => mockAgent.agent as never,
+      () => ({
+        loadMessages: async () => null,
+        persist: async () => { throw new Error('disk full'); },
+      }),
+    );
+    expect(await service.provisionSession(scope)).toEqual({ ok: false, error: 'disk full' });
+    expect(await service.copySessionToScope(scope, 'missing', scope)).toEqual({
+      ok: false, error: 'Source session not found',
+    });
+  });
+
   it('activates a cold scope before opening its first conversation', async () => {
     let activeAgent: typeof mockAgent.agent | undefined;
     const activateScope = vi.fn(async () => {

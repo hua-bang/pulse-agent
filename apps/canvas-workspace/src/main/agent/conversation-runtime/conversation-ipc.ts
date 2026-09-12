@@ -8,6 +8,30 @@ import { isPerfChatReplayRequest, replayPerfChatStream } from '../perf-chat-repl
 
 let service: ConversationRuntimeService | null = null;
 
+export function getConversationRuntimeService(
+  getService: () => unknown,
+): ConversationRuntimeService {
+  if (!service) {
+    const agentService = getService() as CanvasAgentService;
+    service = new ConversationRuntimeService(
+      (scope) => agentService.getAgentForScope(scope),
+      (_storeId, scope) => ({
+        loadMessages: async (sessionId) => (
+          agentService.sessionMutations.readConversation(scope, sessionId)
+        ),
+        persist: (sessionId, messages) => (
+          agentService.sessionMutations.replaceConversationMessages(scope, sessionId, messages)
+        ),
+      }),
+      (scope, sessionId, operation) => (
+        agentService.sessionMutations.runChat(scope, operation, sessionId)
+      ),
+      (scope) => agentService.activateScope(scope),
+    );
+  }
+  return service;
+}
+
 const resolveScope = (payload: AgentScopeRef): AgentScope => {
   if (payload.scope?.kind === 'global') return { kind: 'global' };
   if (payload.scope?.kind === 'scheduled' && payload.scope.taskId) {
@@ -39,27 +63,7 @@ export interface ConversationRuntimeChatPayload {
  * work unchanged while main owns per-conversation state.
  */
 export function setupConversationRuntimeIpc(getService: () => CanvasAgentService): void {
-  const ensure = (): ConversationRuntimeService => {
-    if (!service) {
-      const agentService = getService();
-      service = new ConversationRuntimeService(
-        (scope) => agentService.getAgentForScope(scope),
-        (_storeId, scope) => ({
-          loadMessages: async (sessionId) => (
-            await agentService.sessionMutations.readConversation(scope, sessionId) ?? []
-          ),
-          persist: (sessionId, messages) => (
-            agentService.sessionMutations.replaceConversationMessages(scope, sessionId, messages)
-          ),
-        }),
-        (scope, sessionId, operation) => (
-          agentService.sessionMutations.runChat(scope, operation, sessionId)
-        ),
-        (scope) => agentService.activateScope(scope),
-      );
-    }
-    return service;
-  };
+  const ensure = (): ConversationRuntimeService => getConversationRuntimeService(getService);
 
   ipcMain.handle(
     'canvas-agent:conversation-chat',

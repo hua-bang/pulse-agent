@@ -9,6 +9,7 @@ import {
 import { ChannelBridge } from './core/bridge';
 import type { Channel } from './core/types';
 import { activateWorkspaceWindow } from '../../../main/app/window-manager';
+import { getConversationRuntimeService } from '../../../main/agent/conversation-runtime/conversation-ipc';
 
 // Registry of all channel implementations. To add a new channel (Discord,
 // Telegram, WeCom, …) implement the `Channel` interface and add it here —
@@ -67,7 +68,8 @@ export const ChannelMainPlugin: MainCanvasPlugin = {
 
   async activate(ctx: MainCtx): Promise<void> {
     const service = ctx.getAgentService();
-    bridge = new ChannelBridge(service, ctx.store, {
+    const runtime = getConversationRuntimeService(() => service);
+    bridge = new ChannelBridge(service, runtime, ctx.store, {
       activateCanvas: activateWorkspaceWindow,
     });
 

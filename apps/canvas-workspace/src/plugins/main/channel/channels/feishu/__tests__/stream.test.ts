@@ -41,7 +41,7 @@ describe('FeishuStream', () => {
     vi.useRealTimers();
   });
 
-  it('animates the working marker through heartbeat card patches', async () => {
+  it('refreshes pending duration without pulsing glyphs and stops on completion', async () => {
     const stream = new FeishuStream({} as never, {
       chatId: 'group1',
       isGroup: true,
@@ -49,15 +49,23 @@ describe('FeishuStream', () => {
     });
 
     await stream.init();
-    expect(JSON.stringify(mockedSendCard.mock.calls[0][2])).toContain('•');
+    expect(JSON.stringify(mockedSendCard.mock.calls[0][2])).toContain('正在处理');
 
     await vi.advanceTimersByTimeAsync(1_200);
     await flushAsync();
-    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('●');
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('正在处理');
 
     await vi.advanceTimersByTimeAsync(1_200);
     await flushAsync();
-    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('•');
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('正在处理');
+    await vi.advanceTimersByTimeAsync(3_600);
+    await flushAsync();
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).toContain('已等待 6 秒');
+    await stream.onDone('answer');
+    const patchCount = mockedUpdateCard.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(mockedUpdateCard).toHaveBeenCalledTimes(patchCount);
+    expect(JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2])).not.toContain('正在处理');
   });
 
   it('keeps streaming after a transient card patch failure', async () => {

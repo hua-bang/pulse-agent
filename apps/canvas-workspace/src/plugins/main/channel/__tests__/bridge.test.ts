@@ -6,6 +6,8 @@ import type {
   CanvasAgentServiceRef,
   PluginStore,
 } from '../../../types';
+import type { CanvasAgent } from '../../../../main/agent/canvas-agent';
+import { ConversationRuntimeService } from '../../../../main/agent/conversation-runtime/conversation-service';
 import { buildAgentPrompt, ChannelBridge } from '../core/bridge';
 import type {
   Channel,
@@ -24,54 +26,59 @@ vi.mock('../core/workspaces', () => {
   const label = (w: { id: string; name?: string }) => (w.name ? `${w.name} (${w.id})` : w.id);
   return {
     listWorkspaces: vi.fn(async () => workspaces),
-    resolveWorkspace: vi.fn(async (ref: string) => {
-      const byId = workspaces.find((w) => w.id === ref);
-      if (byId) return byId.id;
-      return workspaces.find((w) => w.name.toLowerCase() === ref.toLowerCase())?.id ?? null;
-    }),
-    resolveWorkspaceRef: vi.fn(async (ref: string) => {
-      if (/^#?\d{1,3}$/.test(ref.trim())) {
-        const n = Number(ref.trim().replace('#', ''));
-        if (n >= 1 && n <= workspaces.length) return workspaces[n - 1].id;
-      }
-      const byId = workspaces.find((w) => w.id === ref);
-      if (byId) return byId.id;
-      return workspaces.find((w) => w.name.toLowerCase() === ref.toLowerCase())?.id ?? null;
-    }),
+    resolveWorkspace: vi.fn(async (ref: string) => workspaces.find(w => w.id === ref)?.id ?? null),
+    resolveWorkspaceRef: vi.fn(async (ref: string) => workspaces.find(w => w.id === ref)?.id ?? null),
     workspaceLabel: label,
     workspaceLabelById: vi.fn(async (id: string) => {
-      const found = workspaces.find((w) => w.id === id);
+      const found = workspaces.find(w => w.id === id);
       return found ? label(found) : id;
     }),
   };
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function waitFor(assertion: () => void): Promise<void> {
+  let error: unknown;
+  for (let i = 0; i < 30; i += 1) {
+    try {
+      assertion();
+      return;
+    } catch (err) {
+      error = err;
+      await Promise.resolve();
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+  throw error;
+}
+
 function memoryStore(): PluginStore {
   const map = new Map<string, unknown>();
   return {
-    async get<T>(k: string) {
-      return map.get(k) as T | undefined;
-    },
-    async set<T>(k: string, v: T) {
-      map.set(k, v);
-    },
-    async delete(k: string) {
-      map.delete(k);
-    },
-    async list() {
-      return Array.from(map.keys());
-    },
+    async get<T>(key: string) { return map.get(key) as T | undefined; },
+    async set<T>(key: string, value: T) { map.set(key, value); },
+    async delete(key: string) { map.delete(key); },
+    async list() { return Array.from(map.keys()); },
   };
 }
 
 function fakeService(overrides: Partial<CanvasAgentServiceRef> = {}): CanvasAgentServiceRef {
   return {
-    chat: async (): Promise<AgentChatResult> => ({ ok: true, response: 'hi' }),
-    chatWithScope: async (): Promise<AgentChatResult> => ({ ok: true, response: 'hi' }),
+    chat: vi.fn(async (): Promise<AgentChatResult> => ({ ok: true, response: 'legacy' })),
+    chatWithScope: vi.fn(async (): Promise<AgentChatResult> => ({ ok: true, response: 'legacy' })),
     abort: () => {},
     abortScope: () => {},
-    answerClarification: () => true,
-    answerClarificationForScope: () => true,
+    answerClarification: () => false,
+    answerClarificationForScope: () => false,
     getStatus: (): AgentStatusInfo => ({ ok: true, active: false, messageCount: 0 }),
     getStatusForScope: (): AgentStatusInfo => ({ ok: true, active: false, messageCount: 0 }),
     getCurrentSessionId: () => null,
@@ -82,63 +89,91 @@ function fakeService(overrides: Partial<CanvasAgentServiceRef> = {}): CanvasAgen
     loadSessionForScope: async () => ({ ok: true }),
     listSessions: async (): Promise<AgentSessionInfo[]> => [],
     listSessionsForScope: async (): Promise<AgentSessionInfo[]> => [],
-    copySessionToScope: async () => ({ ok: true, sessionId: 'copied-session', messageCount: 0 }),
+    copySessionToScope: async () => ({ ok: true, sessionId: 'legacy-copy', messageCount: 0 }),
     ...overrides,
   };
 }
 
+type AgentPlan = (ctx: {
+  message: string;
+  sessionId: string;
+  signal: AbortSignal;
+  clarify?: (req: { id: string; question: string }) => Promise<string> | void;
+}) => Promise<{ response: string; stopped?: boolean }>;
+
+function makeRuntime(plan: AgentPlan): ConversationRuntimeService {
+  const sessions = new Map<string, unknown[]>();
+  const agent = {
+    chat: vi.fn(async (...args: unknown[]) => {
+      const message = args[0] as string;
+      const onClarification = args[5] as ((req: { id: string; question: string }) => Promise<string> | void) | undefined;
+      const requestContext = args[6] as { expectedConversationSessionId?: string } | undefined;
+      const onRoleTurnStart = args[11] as (() => void) | undefined;
+      const signal = args[13] as AbortSignal;
+      onRoleTurnStart?.();
+      return plan({
+        message,
+        sessionId: requestContext?.expectedConversationSessionId ?? '',
+        signal,
+        clarify: onClarification,
+      });
+    }),
+    stopRelay: vi.fn(() => false),
+  } as unknown as CanvasAgent;
+  const activeSessions = new Set<string>();
+  return new ConversationRuntimeService(
+    () => agent,
+    () => ({
+      loadMessages: async sessionId => sessions.get(sessionId) as never ?? null,
+      persist: async (sessionId, messages) => { sessions.set(sessionId, [...messages]); },
+    }),
+    async (_scope, sessionId, operation) => {
+      if (activeSessions.has(sessionId)) return null;
+      activeSessions.add(sessionId);
+      try {
+        return await operation();
+      } finally {
+        activeSessions.delete(sessionId);
+      }
+    },
+  );
+}
+
+let messageCounter = 0;
 function msg(text: string, overrides: Partial<InboundMessage> = {}): InboundMessage {
+  messageCounter += 1;
   return {
     channelId: 'feishu',
     conversationId: 'chatA',
     userId: 'u1',
-    messageId: `m-${Math.random()}`,
+    messageId: `m-${messageCounter}`,
     text,
     isMention: false,
     isDirect: true,
-    reply: { chatId: 'chatA', isGroup: false, triggerMessageId: 'm1' },
+    reply: { chatId: 'chatA', isGroup: false, triggerMessageId: `m-${messageCounter}` },
     ...overrides,
   };
-}
-
-async function flushInbound(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 class FakeChannel implements Channel {
   readonly id = 'feishu';
   handler: InboundHandler | null = null;
-  events: string[] = [];
   sentText: Array<{ target: OutboundTarget; text: string }> = [];
   pickers: Array<{ target: OutboundTarget; picker: WorkspacePicker }> = [];
   streams: FakeStream[] = [];
-  /** When set, a stream's onClarification rejects (simulates an undeliverable question). */
-  failClarification = false;
 
-  isConfigured(): boolean {
-    return true;
-  }
-
-  async start(onInbound: InboundHandler): Promise<void> {
-    this.handler = onInbound;
-  }
-
-  async stop(): Promise<void> {
-    this.handler = null;
-  }
-
-  async openStream(): Promise<ChannelStream> {
-    const stream = new FakeStream(this.events, this.failClarification);
+  isConfigured(): boolean { return true; }
+  async start(onInbound: InboundHandler): Promise<void> { this.handler = onInbound; }
+  async stop(): Promise<void> { this.handler = null; }
+  async openStream(target: OutboundTarget): Promise<ChannelStream> {
+    const stream = new FakeStream(target.conversationId, (target.reply as { triggerMessageId?: string } | null)?.triggerMessageId);
     this.streams.push(stream);
     return stream;
   }
-
   async sendText(target: OutboundTarget, text: string): Promise<void> {
     this.sentText.push({ target, text });
   }
-
   async sendWorkspacePicker(target: OutboundTarget, picker: WorkspacePicker): Promise<void> {
-    this.events.push('picker');
     this.pickers.push({ target, picker });
   }
 }
@@ -147,397 +182,181 @@ class FakeStream implements ChannelStream {
   done: string | null = null;
   errors: string[] = [];
   text = '';
-  toolInputs: string[] = [];
-  toolCalls: Array<{ name: string; args: unknown; toolCallId?: string }> = [];
-  toolResults: Array<{ name: string; result: string; toolCallId?: string }> = [];
-
-  constructor(
-    private readonly events: string[],
-    private readonly failClarification = false,
-  ) {}
-
-  onText(delta: string): void {
-    this.text += delta;
-  }
-
-  onToolCall(name: string, args: unknown, toolCallId?: string): void {
-    this.toolCalls.push({ name, args, toolCallId });
-  }
-
-  onToolResult(result: { name: string; result: string; toolCallId?: string }): void {
-    this.toolResults.push(result);
-  }
-
-  onToolInputStart(data: { id: string; toolName: string }): void {
-    this.toolInputs.push(`start:${data.id}:${data.toolName}`);
-  }
-
-  onToolInputDelta(data: { id: string; delta: string }): void {
-    this.toolInputs.push(`delta:${data.id}:${data.delta}`);
-  }
-
-  onToolInputEnd(data: { id: string }): void {
-    this.toolInputs.push(`end:${data.id}`);
-  }
-
-  async onClarification(): Promise<void> {
-    if (this.failClarification) throw new Error('clarification send failed');
-  }
-
-  onDone(text: string): void {
-    this.events.push('done');
-    this.done = text;
-  }
-
-  onError(message: string): void {
-    this.errors.push(message);
-  }
+  clarification: string | null = null;
+  constructor(readonly conversationId: string, readonly triggerMessageId?: string) {}
+  onText(delta: string): void { this.text += delta; }
+  onToolCall(): void {}
+  onClarification(question: string): void { this.clarification = question; }
+  onDone(text: string): void { this.done = text; }
+  onError(message: string): void { this.errors.push(message); }
 }
 
-describe('ChannelBridge', () => {
+describe('ChannelBridge conversation isolation', () => {
   let channel: FakeChannel;
 
   beforeEach(() => {
+    messageCounter = 0;
     channel = new FakeChannel();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
-  it('auto-binds an unbound group message to the active workspace and shows the picker', async () => {
-    const service = fakeService({
-      chatWithScope: vi.fn(async () => ({ ok: true, response: 'workspace reply' })),
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'workspace-session'),
+  it('runs simultaneous first messages from two topics in one workspace independently', async () => {
+    const started: Array<{ message: string; sessionId: string }> = [];
+    const bothStarted = deferred<void>();
+    const runtime = makeRuntime(async ({ message, sessionId }) => {
+      started.push({ message, sessionId });
+      if (started.length === 2) bothStarted.resolve();
+      await bothStarted.promise;
+      return { response: `reply:${message}` };
     });
-    const bridge = new ChannelBridge(service, memoryStore());
+    const service = fakeService();
+    const bridge = new ChannelBridge(service, runtime, memoryStore());
     await bridge.addChannel(channel);
 
-    channel.handler!(
-      msg('你在吗', {
-        conversationId: 'groupA:threadA',
-        isDirect: false,
-        isMention: true,
-        reply: { chatId: 'groupA', threadId: 'threadA', isGroup: true, triggerMessageId: 'm1' },
-      }),
-    );
-    await flushInbound();
+    channel.handler!(msg('topic-a', {
+      conversationId: 'group:thread-a',
+      isDirect: false,
+      reply: { chatId: 'group', threadId: 'thread-a', isGroup: true, triggerMessageId: 'a' },
+    }));
+    channel.handler!(msg('topic-b', {
+      conversationId: 'group:thread-b',
+      isDirect: false,
+      reply: { chatId: 'group', threadId: 'thread-b', isGroup: true, triggerMessageId: 'b' },
+    }));
 
-    expect(service.chatWithScope).toHaveBeenCalledWith(
-      { kind: 'workspace', workspaceId: 'ws-A' },
-      '你在吗',
-      expect.any(Function),
-      expect.any(Function),
-      expect.any(Function),
-      undefined,
-      expect.any(Function),
-      undefined,
-      undefined,
-      expect.any(Function),
-      expect.any(Function),
-      expect.any(Function),
-    );
-    expect(channel.pickers).toHaveLength(1);
-    expect(channel.pickers[0].target.conversationId).toBe('groupA:threadA');
-    expect(channel.pickers[0].picker.defaultCarry).toBe(true);
-    expect(channel.pickers[0].picker.summary).toContain('Alpha (ws-A)');
-    expect(channel.pickers[0].picker.fallbackText).toContain('Alpha (ws-A)');
-    expect(channel.streams[0].done).toBe('workspace reply');
-    expect(channel.events).toEqual(['done', 'picker']);
+    await waitFor(() => expect(started).toHaveLength(2));
+    expect(new Set(started.map(entry => entry.sessionId)).size).toBe(2);
+    await waitFor(() => expect(channel.streams.every(stream => stream.done)).toBe(true));
+    expect(service.chatWithScope).not.toHaveBeenCalled();
+    expect(channel.sentText.some(entry => entry.text.includes('Still working'))).toBe(false);
   });
 
-  it('still lets an unbound direct chat use the global agent', async () => {
-    const service = fakeService({
-      chatWithScope: vi.fn(async () => ({ ok: true, response: 'global reply' })),
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+  it('queues same-topic messages FIFO without dropping them', async () => {
+    const first = deferred<void>();
+    const starts: string[] = [];
+    const runtime = makeRuntime(async ({ message }) => {
+      starts.push(message);
+      if (message === 'first') await first.promise;
+      return { response: `done:${message}` };
     });
-    const bridge = new ChannelBridge(service, memoryStore());
+    const bridge = new ChannelBridge(fakeService(), runtime, memoryStore());
     await bridge.addChannel(channel);
 
-    channel.handler!(msg('你好'));
-    await flushInbound();
+    channel.handler!(msg('first'));
+    channel.handler!(msg('second'));
+    await waitFor(() => expect(starts).toEqual(['first']));
+    expect(channel.sentText).toHaveLength(0);
 
-    expect(service.chatWithScope).toHaveBeenCalledWith(
-      { kind: 'global' },
-      '你好',
-      expect.any(Function),
-      expect.any(Function),
-      expect.any(Function),
-      undefined,
-      expect.any(Function),
-      undefined,
-      undefined,
-      expect.any(Function),
-      expect.any(Function),
-      expect.any(Function),
-    );
-    expect(channel.pickers).toHaveLength(0);
-    expect(channel.streams[0].done).toBe('global reply');
+    first.resolve();
+    await waitFor(() => expect(starts).toEqual(['first', 'second']));
+    await waitFor(() => expect(['m-1', 'm-2'].map(id => channel.streams.find(stream => stream.triggerMessageId === id)?.done)).toEqual([
+      'done:first',
+      'done:second',
+    ]));
   });
 
-  it('aborts and releases a run when the agent produces no activity', async () => {
-    vi.useFakeTimers();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const hangingRun = new Promise<AgentChatResult>(() => undefined);
-    const chatWithScope = vi.fn(async () => {
-      if (chatWithScope.mock.calls.length > 1) {
-        return { ok: true, response: 'second reply' };
+  it('resolves the next message scope after an earlier workspace switch commits', async () => {
+    const runtime = makeRuntime(async () => ({ response: 'done' }));
+    const chat = vi.spyOn(runtime, 'chat');
+    const bridge = new ChannelBridge(fakeService(), runtime, memoryStore());
+    await bridge.addChannel(channel);
+    channel.handler!(msg('/use ws-B --fresh'));
+    channel.handler!(msg('after-switch'));
+    await waitFor(() => expect(chat).toHaveBeenCalledTimes(1));
+    expect(chat.mock.calls[0][0]).toEqual({ kind: 'workspace', workspaceId: 'ws-B' });
+    await waitFor(() => expect(channel.streams[0]?.done).toBe('done'));
+  });
+
+  it('routes clarification answers only to the requesting topic', async () => {
+    const starts: string[] = [];
+    const runtime = makeRuntime(async ({ message, clarify }) => {
+      starts.push(message);
+      if (message === 'ask') {
+        const answer = await clarify?.({ id: 'q-a', question: 'which one?' });
+        return { response: `answer:${answer}` };
       }
-      return hangingRun;
+      return { response: `reply:${message}` };
     });
-    const abortScope = vi.fn();
-    const service = fakeService({
-      chatWithScope,
-      abortScope,
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
-    });
-    const bridge = new ChannelBridge(service, memoryStore(), { runIdleTimeoutMs: 50 });
+    const bridge = new ChannelBridge(fakeService(), runtime, memoryStore());
     await bridge.addChannel(channel);
 
-    try {
-      channel.handler!(msg('first'));
-      await vi.advanceTimersByTimeAsync(50);
+    channel.handler!(msg('ask', { conversationId: 'topic-a' }));
+    await waitFor(() => expect(channel.streams[0]?.clarification).toBe('which one?'));
+    channel.handler!(msg('not-the-answer', { conversationId: 'topic-b' }));
+    await waitFor(() => expect(starts).toContain('not-the-answer'));
+    expect(channel.streams[0].done).toBeNull();
 
-      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
-      expect(channel.streams[0].errors[0]).toContain('No agent activity');
-
-      channel.handler!(msg('second', { messageId: 'second' }));
-      await vi.advanceTimersByTimeAsync(0);
-      await Promise.resolve();
-
-      expect(chatWithScope).toHaveBeenCalledTimes(2);
-      expect(channel.streams[1].done).toBe('second reply');
-    } finally {
-      warnSpy.mockRestore();
-    }
+    channel.handler!(msg('chosen', { conversationId: 'topic-a' }));
+    await waitFor(() => expect(channel.streams[0].done).toBe('answer:chosen'));
+    expect(starts).toEqual(['ask', 'not-the-answer']);
   });
 
-  it('forwards tool input events and treats them as agent activity', async () => {
+  it('times out only the targeted topic while another topic continues', async () => {
     vi.useFakeTimers();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    let onToolInputDelta: ((data: { id: string; delta: string }) => void) | undefined;
-    const chatWithScope = vi.fn(
-      async (
-        _scope,
-        _message,
-        _onText,
-        onToolCall,
-        onToolResult,
-        _mentioned,
-        _onClarification,
-        _requestContext,
-        _attachments,
-        onToolInputStart,
-        onToolInputDeltaArg,
-        onToolInputEnd,
-      ): Promise<AgentChatResult> => {
-        onToolInputDelta = onToolInputDeltaArg;
-        onToolInputStart?.({ id: 'tool-1', toolName: 'visual_render' });
-        onToolInputDeltaArg?.({ id: 'tool-1', delta: 'abc' });
-        onToolInputEnd?.({ id: 'tool-1' });
-        onToolCall?.({ name: 'visual_render', args: { title: 'Demo' }, toolCallId: 'tool-1' });
-        onToolResult?.({ name: 'visual_render', result: 'ok', toolCallId: 'tool-1' });
-        return new Promise<AgentChatResult>(() => undefined);
-      },
-    );
-    const abortScope = vi.fn();
-    const service = fakeService({
-      chatWithScope,
-      abortScope,
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+    const signals = new Map<string, AbortSignal>();
+    const runtime = makeRuntime(async ({ message, signal }) => {
+      signals.set(message, signal);
+      if (message === 'slow-a') {
+        await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
+        return { response: '', stopped: true };
+      }
+      await new Promise(resolve => setTimeout(resolve, 40));
+      return { response: 'topic-b-done' };
     });
-    const bridge = new ChannelBridge(service, memoryStore(), { runIdleTimeoutMs: 50 });
+    const bridge = new ChannelBridge(fakeService(), runtime, memoryStore(), { runIdleTimeoutMs: 50 });
     await bridge.addChannel(channel);
 
-    try {
-      channel.handler!(msg('first'));
-      await vi.advanceTimersByTimeAsync(0);
-      await Promise.resolve();
+    channel.handler!(msg('slow-a', { conversationId: 'topic-a' }));
+    channel.handler!(msg('slow-b', { conversationId: 'topic-b' }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signals.size).toBe(2);
 
-      expect(channel.streams[0].toolInputs).toEqual([
-        'start:tool-1:visual_render',
-        'delta:tool-1:abc',
-        'end:tool-1',
-      ]);
-      expect(channel.streams[0].toolCalls[0]).toEqual({
-        name: 'visual_render',
-        args: { title: 'Demo' },
-        toolCallId: 'tool-1',
-      });
-      expect(channel.streams[0].toolResults[0]).toEqual({
-        name: 'visual_render',
-        result: 'ok',
-        toolCallId: 'tool-1',
-      });
-
-      await vi.advanceTimersByTimeAsync(40);
-      onToolInputDelta?.({ id: 'tool-1', delta: 'still-running' });
-      await vi.advanceTimersByTimeAsync(49);
-      expect(abortScope).not.toHaveBeenCalled();
-
-      await vi.advanceTimersByTimeAsync(1);
-      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
-    } finally {
-      warnSpy.mockRestore();
-    }
+    await vi.advanceTimersByTimeAsync(50);
+    expect(signals.get('slow-a')?.aborted).toBe(true);
+    expect(signals.get('slow-b')?.aborted).toBe(false);
+    expect(channel.streams.find(stream => stream.conversationId === 'topic-b')?.done).toBe(
+      'topic-b-done',
+    );
   });
 
-  it('does not kill a run while a tool is executing past the idle budget', async () => {
-    vi.useFakeTimers();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    // A tool whose execute() blocks: onToolCall fires (args complete) but no
-    // onToolResult — exactly the "single slow tool" case the idle watchdog used
-    // to kill mid-run.
-    const chatWithScope = vi.fn(
-      async (_scope, _message, _onText, onToolCall): Promise<AgentChatResult> => {
-        onToolCall?.({ name: 'page_wait_for', args: { nodeId: 'n1' }, toolCallId: 'tool-1' });
-        return new Promise<AgentChatResult>(() => undefined);
-      },
-    );
-    const abortScope = vi.fn();
-    const service = fakeService({
-      chatWithScope,
-      abortScope,
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+  it('continues the same-topic queue after a failed turn', async () => {
+    const starts: string[] = [];
+    const runtime = makeRuntime(async ({ message }) => {
+      starts.push(message);
+      if (message === 'fails') throw new Error('boom');
+      return { response: 'recovered' };
     });
-    const bridge = new ChannelBridge(service, memoryStore(), {
-      runIdleTimeoutMs: 50,
-      toolExecTimeoutMs: 200,
-    });
+    const bridge = new ChannelBridge(fakeService(), runtime, memoryStore());
     await bridge.addChannel(channel);
 
-    try {
-      channel.handler!(msg('first'));
-      await vi.advanceTimersByTimeAsync(0);
-      await Promise.resolve();
+    channel.handler!(msg('fails'));
+    channel.handler!(msg('next'));
 
-      // Well past the idle budget, but the tool is still in flight — survive.
-      await vi.advanceTimersByTimeAsync(199);
-      expect(abortScope).not.toHaveBeenCalled();
-
-      // Once the tool-exec ceiling elapses, recover the scope.
-      await vi.advanceTimersByTimeAsync(1);
-      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
-      expect(channel.streams[0].errors[0]).toContain('tool ran for');
-    } finally {
-      warnSpy.mockRestore();
-    }
-  });
-
-  it('fails the run when a clarification question cannot be delivered', async () => {
-    vi.useFakeTimers();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    channel.failClarification = true;
-    const chatWithScope = vi.fn(
-      async (_scope, _message, _onText, _onToolCall, _onToolResult, _mentioned, onClarification): Promise<AgentChatResult> => {
-        onClarification?.({ id: 'q1', question: 'which one?' });
-        return new Promise<AgentChatResult>(() => undefined);
-      },
-    );
-    const abortScope = vi.fn();
-    const service = fakeService({
-      chatWithScope,
-      abortScope,
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
-    });
-    const bridge = new ChannelBridge(service, memoryStore(), {
-      runIdleTimeoutMs: 50,
-      clarificationTimeoutMs: 10_000,
-    });
-    await bridge.addChannel(channel);
-
-    try {
-      channel.handler!(msg('first'));
-      // Undeliverable question fails fast — no need to wait out any budget.
-      await vi.advanceTimersByTimeAsync(1);
-      await Promise.resolve();
-
-      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
-      expect(channel.streams[0].errors[0]).toContain("can't be answered");
-    } finally {
-      warnSpy.mockRestore();
-      errSpy.mockRestore();
-    }
-  });
-
-  it('stops a run when a clarification goes unanswered past the budget', async () => {
-    vi.useFakeTimers();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const chatWithScope = vi.fn(
-      async (_scope, _message, _onText, _onToolCall, _onToolResult, _mentioned, onClarification): Promise<AgentChatResult> => {
-        onClarification?.({ id: 'q1', question: 'which one?' });
-        return new Promise<AgentChatResult>(() => undefined);
-      },
-    );
-    const abortScope = vi.fn();
-    const service = fakeService({
-      chatWithScope,
-      abortScope,
-      newSessionForScope: vi.fn(async () => ({ ok: true })),
-      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
-    });
-    const bridge = new ChannelBridge(service, memoryStore(), {
-      runIdleTimeoutMs: 50,
-      clarificationTimeoutMs: 200,
-    });
-    await bridge.addChannel(channel);
-
-    try {
-      channel.handler!(msg('first'));
-      await vi.advanceTimersByTimeAsync(0);
-      await Promise.resolve();
-
-      // Parked awaiting an answer — must survive well past the idle budget.
-      await vi.advanceTimersByTimeAsync(199);
-      expect(abortScope).not.toHaveBeenCalled();
-
-      // Once the clarification budget elapses, recover the scope.
-      await vi.advanceTimersByTimeAsync(1);
-      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
-      expect(channel.streams[0].errors[0]).toContain('No answer to the question');
-    } finally {
-      warnSpy.mockRestore();
-    }
+    await waitFor(() => expect(starts).toEqual(['fails', 'next']));
+    await waitFor(() => expect(channel.streams.find(stream => stream.triggerMessageId === 'm-1')?.errors[0]).toContain('boom'));
+    expect(channel.streams.find(stream => stream.triggerMessageId === 'm-2')?.done).toBe('recovered');
   });
 });
 
 describe('buildAgentPrompt', () => {
   const withImages = (text: string, imagePaths?: string[]): InboundMessage => ({
-    channelId: 'feishu',
-    conversationId: 'c1',
-    userId: 'u1',
-    messageId: 'm1',
-    text,
-    isMention: false,
-    isDirect: true,
-    reply: {},
-    imagePaths,
+    channelId: 'feishu', conversationId: 'c1', userId: 'u1', messageId: 'm1',
+    text, isMention: false, isDirect: true, reply: {}, imagePaths,
   });
 
-  it('returns the plain text when there are no images', () => {
+  it('returns plain text without images', () => {
     expect(buildAgentPrompt(withImages('hello'))).toBe('hello');
-    expect(buildAgentPrompt(withImages('hello', []))).toBe('hello');
   });
 
-  it('appends an image note with the local paths and tool hint', () => {
+  it('appends local image paths and the image tool hint', () => {
     const prompt = buildAgentPrompt(withImages('what is this?', ['/tmp/a.png', '/tmp/b.jpg']));
     expect(prompt).toContain('what is this?');
     expect(prompt).toContain('image_analyze');
     expect(prompt).toContain('/tmp/a.png');
     expect(prompt).toContain('/tmp/b.jpg');
-    expect(prompt).toContain('2 image(s)');
-  });
-
-  it('uses only the note for an image-only message', () => {
-    const prompt = buildAgentPrompt(withImages('', ['/tmp/a.png']));
-    expect(prompt.startsWith('[The user attached 1 image(s)')).toBe(true);
-    expect(prompt).toContain('/tmp/a.png');
   });
 });

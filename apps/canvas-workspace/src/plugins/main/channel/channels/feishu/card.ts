@@ -92,29 +92,27 @@ function toolLine(tool: ToolEntry): string {
   return segs.join(' · ');
 }
 
-const DOT_PULSE_FRAMES = ['•', '●', '•', '·'] as const;
-
-function dotPulseFrame(elapsedSec: number): string {
-  return DOT_PULSE_FRAMES[Math.abs(Math.floor(elapsedSec)) % DOT_PULSE_FRAMES.length];
+/** Keep pending feedback readable without changing glyph size on every patch. */
+function pendingLabel(elapsedSec: number): string {
+  const seconds = Number.isFinite(elapsedSec) ? Math.max(0, Math.floor(elapsedSec)) : 0;
+  if (seconds < 5) return '正在处理';
+  const duration = seconds < 60
+    ? `${seconds} 秒`
+    : `${Math.floor(seconds / 60)} 分 ${String(seconds % 60).padStart(2, '0')} 秒`;
+  return `正在处理 · 已等待 ${duration}`;
 }
 
-/**
- * The reference interaction keeps the process visible as one quiet vertical
- * timeline. Finished rows recede; the current row gets the only moving mark.
- */
+/** Finished rows recede; active rows use a stable, explicit status label. */
 function toolTimeline(tools: ToolEntry[], elapsedSec: number, running: boolean): string {
-  const pulse = dotPulseFrame(elapsedSec);
   const rail = muted('│');
-  const liveMark = muted(pulse);
   const rows = tools.map((tool) => {
     const completed = tool.done || !running;
-    const status = completed ? muted('›') : liveMark;
-    const label = completed ? muted(toolLine(tool)) : toolLine(tool);
-    return `${rail}  ${status}  ${label}`;
+    const label = completed ? muted(toolLine(tool)) : `${toolLine(tool)}  ${muted('执行中')}`;
+    return `${rail}  ${muted('›')}  ${label}`;
   });
 
   if (running && rows.length === 0) {
-    rows.push(liveMark);
+    rows.push(muted(pendingLabel(elapsedSec)));
   } else if (!running) {
     rows.push(`${muted('└')}  ${muted('◎ Completed')}`);
   }
