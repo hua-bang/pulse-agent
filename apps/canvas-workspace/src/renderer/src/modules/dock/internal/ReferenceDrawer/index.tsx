@@ -89,8 +89,8 @@ export const ReferenceDrawer = ({
       />
       <header className="reference-drawer-header">
         <div>
-          <div className="reference-drawer-kicker">{t('reference.kicker')}</div>
-          <h2>{t('reference.title')}</h2>
+          {/* <div className="reference-drawer-kicker">{t('reference.kicker')}</div> */}
+          <h2 style={{ lineHeight: '24px' }}>{t('reference.title')}</h2>
         </div>
         <button
           className="reference-drawer-icon-button"
