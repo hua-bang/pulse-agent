@@ -23,6 +23,7 @@ const SKILLS: SkillEntry[] = [
   { name: 'canvas-deep-research', subdir: 'canvas-deep-research' },
   { name: 'canvas-frame-research', subdir: 'canvas-frame-research' },
   { name: 'canvas-bootstrap', subdir: 'canvas-bootstrap' },
+  { name: 'file-pulse-agent-issue', subdir: 'file-pulse-agent-issue' },
 ];
 
 function rewriteSkillName(content: string, name: string): string {

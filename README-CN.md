@@ -272,11 +272,15 @@ pnpm --filter canvas-workspace test       # vitest run（仓库中最大的测�
 ---
 name: my-skill
 description: 该技能用于什么场景
+# 可选：不参与自动匹配，仅允许用户显式点名调用。
+disable-model-invocation: true
 ---
 
 # Instructions
 ...
 ```
+
+设置 `disable-model-invocation: true` 后，需要在当前用户请求中写出技能的完整名称，例如：`用 my-skill 完成……`。
 
 可选远程技能配置：`.pulse-coder/skills/remote.json`。
 
