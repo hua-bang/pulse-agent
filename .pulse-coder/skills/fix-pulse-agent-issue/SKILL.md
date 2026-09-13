@@ -3,7 +3,7 @@ name: fix-pulse-agent-issue
 description: Diagnose and implement a verified fix for one Pulse Agent GitHub issue in the pulse-agent repository.
 description_zh: 在 pulse-agent 仓库中诊断并修复一条指定的 GitHub issue。
 disable-model-invocation: true
-version: 1.0.0
+version: 1.1.0
 author: Pulse Coder Team
 ---
 
@@ -128,6 +128,25 @@ Validation: <commands and results>
 Remaining risk: <unverified scope or none>
 ```
 
-Do not close the issue directly. If the user also explicitly requested commit/push/PR handoff, use the repository's existing git/MR workflow, link the issue in the PR body, and inspect CI for the pushed HEAD before reporting completion.
+Do not close the issue directly. If the user also explicitly requested commit/push/PR handoff, use the repository's existing git/MR workflow and inspect CI for the pushed HEAD before reporting completion.
 
-Completion criterion: the worktree contains a reviewable issue-scoped fix with reproducible evidence, or the blocker is stated precisely without a false completion claim.
+Choose the PR linkage from the verified scope:
+
+- For a complete fix that satisfies the issue's acceptance condition, include `Fixes #<number>` in the PR body. This is the default for successful runs of this skill and lets GitHub close the issue when the PR merges into the default branch.
+- For a partial fix, investigation, prerequisite, or follow-up that does not fully resolve the issue, include `Related to #<number>` instead. Never use a closing keyword merely because the PR mentions the issue.
+- For an issue URL, resolve its number after verifying the repository and use the same keyword form.
+
+Report the selected linkage explicitly:
+
+```md
+Issue linkage: Fixes #<number>
+```
+
+or:
+
+```md
+Issue linkage: Related to #<number>
+Reason not closing: <remaining acceptance gap>
+```
+
+Completion criterion: the worktree contains a reviewable issue-scoped fix with reproducible evidence, and any requested PR uses the correct closing or non-closing linkage; otherwise the blocker is stated precisely without a false completion claim.
