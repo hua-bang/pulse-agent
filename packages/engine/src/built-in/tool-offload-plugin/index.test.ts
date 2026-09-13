@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync, readFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { promises as fs } from 'fs';
+import { ReadTool } from '../../tools/read';
+import { truncateOutput } from '../../tools/utils';
+import { MAX_TOOL_OUTPUT_LENGTH } from '../../config';
 
 import {
   measurePayloadSize,
@@ -92,12 +95,47 @@ describe('offloadToolOutput', () => {
     expect(persisted).toEqual(output);
   });
 
+  it.each([false, true])('preserves MCP content shape and error status (%s), with all original data on disk', async (isError) => {
+    const { store } = makeStore();
+    const output = {
+      content: [{ type: 'image', data: 'X'.repeat(40000), mimeType: 'image/png' }],
+      structuredContent: { result: 'S'.repeat(40000) },
+      _meta: { resource: 'metadata' },
+      isError,
+    };
+    const res = await offloadToolOutput(output, { toolName: 'mcp', threshold: 30000, store });
+    expect(res!.output).toEqual({ content: [{ type: 'text', text: expect.stringContaining('offloaded to disk') }], isError });
+    expect(measurePayloadSize(res!.output)).toBeLessThan(30000);
+    expect(JSON.parse(readFileSync(res!.path, 'utf-8'))).toEqual(output);
+    expect(output.content[0].type).toBe('image');
+  });
+
   it('does not offload an already-capped read result at exactly the threshold', async () => {
     const { store } = makeStore();
     // read caps content at MAX_TOOL_OUTPUT_LENGTH; payload equals threshold, not over.
     const output = { content: 'C'.repeat(30_000), totalLines: 1 };
     const res = await offloadToolOutput(output, { toolName: 'read', threshold: 30_000, store });
     expect(res).toBeNull();
+  });
+
+  it('does not re-offload a real read of a long JSON line', async () => {
+    const { store } = makeStore();
+    const filePath = await store.write('long.json', JSON.stringify({ text: 'X'.repeat(40000) }));
+    for (const range of [{}, { offset: 0, limit: 1 }]) {
+      const output = await ReadTool.execute({ filePath, ...range });
+      expect(output.content.length).toBeLessThanOrEqual(MAX_TOOL_OUTPUT_LENGTH);
+      expect(output.content).toContain('truncated');
+      expect(await offloadToolOutput(output, { toolName: 'read', threshold: 30000, store })).toBeNull();
+    }
+  });
+
+  it.each([30001, 39960, 129960, 1000000])('budgets the marker and reports exact omitted chars for %i chars', (length) => {
+    const output = truncateOutput('H' + 'x'.repeat(length - 2) + 'T');
+    expect(output.length).toBeLessThanOrEqual(MAX_TOOL_OUTPUT_LENGTH);
+    expect(output.startsWith('H')).toBe(true);
+    expect(output.endsWith('T')).toBe(true);
+    const match = output.match(/\n\n\.\.\. \[truncated (\d+) characters\] \.\.\.\n\n/)!;
+    expect(Number(match[1])).toBe(length - (output.length - match[0].length));
   });
 
   it('dedupes identical content to the same file name (content hash)', async () => {

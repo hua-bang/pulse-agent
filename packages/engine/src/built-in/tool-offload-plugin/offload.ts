@@ -127,7 +127,9 @@ export function buildStub(params: {
  * top-level string field (e.g. `read` → `{ content, totalLines }`), only that
  * field is replaced with the stub so metadata survives. Otherwise (plain string,
  * array, or many medium fields) the whole value is serialized to disk and the
- * output becomes the stub string.
+ * output becomes the stub string. MCP content envelopes remain content envelopes
+ * so their SDK toModelOutput converter can still consume the result; the full
+ * envelope (including structuredContent and metadata) is preserved on disk.
  */
 export async function offloadToolOutput(
   output: unknown,
@@ -140,6 +142,28 @@ export async function offloadToolOutput(
   if (payloadSize <= threshold) return null;
 
   const safeName = sanitizeToolName(toolName);
+
+  // MCP tools retain their SDK toModelOutput converter after afterToolCall.
+  // Replacing the envelope with a string makes that converter throw on
+  // `'content' in result` during stream finalization, after UI tool completion.
+  if (output && typeof output === 'object' && !Array.isArray(output)) {
+    const record = output as Record<string, unknown>;
+    if (Array.isArray(record.content) && record.content.every(
+      (part) => part && typeof part === 'object' && typeof part.type === 'string',
+    )) {
+      const json = JSON.stringify(output, null, 2);
+      const filePath = await store.write(`${safeName}-${contentHash(json)}.json`, json);
+      const stub = buildStub({ toolName, content: json, filePath, previewChars });
+      return {
+        output: {
+          content: [{ type: 'text', text: stub }],
+          ...(typeof record.isError === 'boolean' ? { isError: record.isError } : {}),
+        },
+        path: filePath,
+        payloadSize,
+      };
+    }
+  }
 
   // Case 1: object with one dominant, over-threshold top-level string field.
   if (output && typeof output === 'object' && !Array.isArray(output)) {
