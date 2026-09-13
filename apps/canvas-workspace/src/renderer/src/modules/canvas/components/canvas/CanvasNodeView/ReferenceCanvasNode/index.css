@@ -251,3 +251,40 @@
   font-size: 11px;
 }
 
+
+/* The visible source and outer resize bounds must coincide for editable as
+ * well as readonly previews. Keep the source transform/stacking context. */
+.node-body--reference > .canvas-node {
+  position: relative;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+}
+
+.canvas-node--reference:hover,
+.canvas-node--reference.canvas-node--selected {
+  content-visibility: visible;
+  outline: calc(1px / var(--canvas-scale, 1)) solid var(--accent-border);
+}
+
+/* Keep edge targets usable when the canvas is zoomed out. */
+.canvas-node--reference > .resize-handle--right,
+.canvas-node--reference > .resize-handle--left {
+  top: 0;
+  bottom: 0;
+  width: calc(10px / var(--canvas-scale, 1));
+}
+.canvas-node--reference > .resize-handle--right { right: calc(-5px / var(--canvas-scale, 1)); }
+.canvas-node--reference > .resize-handle--left { left: calc(-5px / var(--canvas-scale, 1)); }
+.canvas-node--reference > .resize-handle--bottom {
+  bottom: calc(-5px / var(--canvas-scale, 1));
+  height: calc(10px / var(--canvas-scale, 1));
+}
+.canvas-node--reference > .resize-handle--corner,
+.canvas-node--reference > .resize-handle--bottom-left {
+  bottom: calc(-5px / var(--canvas-scale, 1));
+  width: calc(18px / var(--canvas-scale, 1));
+  height: calc(18px / var(--canvas-scale, 1));
+}
+.canvas-node--reference > .resize-handle--corner { right: calc(-5px / var(--canvas-scale, 1)); }
+.canvas-node--reference > .resize-handle--bottom-left { left: calc(-5px / var(--canvas-scale, 1)); }

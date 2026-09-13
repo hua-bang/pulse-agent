@@ -127,6 +127,9 @@ const CanvasNodeViewComponent = ({
   if (node.type === 'reference') {
     return (
       <ReferenceCanvasNode
+        handleAddToChat={onAddToChat ? viewModel.handleAddToChat : undefined}
+        handleFocus={viewModel.handleFocus}
+        handleToggleFullscreen={viewModel.fullscreenButtonEnabled ? viewModel.handleToggleFullscreen : undefined}
         classes={viewModel.classes}
         handleClose={viewModel.handleClose}
         handleHeaderMouseDown={viewModel.handleHeaderMouseDown}

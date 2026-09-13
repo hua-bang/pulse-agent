@@ -1,5 +1,5 @@
 import './index.css';
-import type { RefObject } from 'react';
+import type { RefObject, ReactNode } from 'react';
 import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { CloseIcon } from '../../../../components/icons';
@@ -9,6 +9,7 @@ import { NodeRelationEditor } from '../NodeRelationEditor';
 
 interface Props {
   anchorRef: RefObject<HTMLElement>;
+  children?: ReactNode;
   candidates: WorkspaceNodeListItem[];
   dateLocale: string;
   node: WorkspaceNodeRecord;
@@ -22,6 +23,7 @@ interface Props {
 
 export const NodeDetailInspector = ({
   anchorRef,
+  children,
   candidates,
   dateLocale,
   node,
@@ -62,6 +64,7 @@ export const NodeDetailInspector = ({
           <CloseIcon size={13} />
         </Button>
       </div>
+      {children}
       {source && (
         <section className="node-detail-panel__inspector-section">
           <h2>{t('workspaceNodes.source')}</h2>

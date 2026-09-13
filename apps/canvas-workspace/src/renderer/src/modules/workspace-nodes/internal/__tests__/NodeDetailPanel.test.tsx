@@ -83,6 +83,17 @@ function render(node: ReactNode): HTMLDivElement {
 }
 
 describe('NodeDetailPanel', () => {
+  it('gives compact file tabs the full body and keeps metadata in the inspector', () => {
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" compactDocument />);
+    expect(view.querySelector('.node-detail-panel--document-dock')).not.toBeNull();
+    expect(view.querySelector('[data-testid="node-canvas-preview"]')?.getAttribute('data-min-height')).toBe('0');
+    expect(view.querySelector('.node-detail-panel__document-meta')).toBeNull();
+    expect(view.querySelector('details')).toBeNull();
+    act(() => (view.querySelector('button[aria-label="Info"]') as HTMLButtonElement).click());
+    expect(document.querySelector('.node-detail-panel__inspector [data-testid="node-tag-editor"]')).not.toBeNull();
+    expect(document.querySelector('.node-detail-panel__inspector')?.textContent).toContain('RSS shifts');
+  });
+
   it.each(['dock', 'page'] as const)(
     'keeps title, tags, and the real node preview in document order in %s mode',
     (mode) => {

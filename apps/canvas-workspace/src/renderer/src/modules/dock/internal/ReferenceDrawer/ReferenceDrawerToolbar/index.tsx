@@ -1,102 +1,28 @@
 import './index.css';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
-import type { CanvasNode } from '../../../../../types';
+import { Select, TextField } from '../../../../../components/ui';
+import { useI18n } from '../../../../../i18n';
 import type { WorkspaceEntry } from '../../../../../shared/workspaces';
-import type { ReferencePickerMode, ReferencePickerNodeGroup } from '../../../../../shared/reference/types';
-import { ArtifactsPicker } from '../ArtifactsPicker';
-import { ReferencePicker } from '../ReferencePicker';
-import { ReferenceUrlEditor } from '../ReferenceUrlEditor';
+import type { LibraryKind } from '../libraryModel';
 
-interface ReferenceDrawerToolbarProps {
-  activeWorkspaceId: string;
-  onPreviewArtifact: Parameters<typeof ArtifactsPicker>[0]['onPreviewArtifact'];
-  allNodes: Record<string, CanvasNode[]>;
-  currentNodeCount: number;
-  externalWorkspaceId?: string;
-  externalWorkspaces: WorkspaceEntry[];
-  handleAddFromPicker: (nodeId: string) => void;
-  handleAddUrl: () => void;
-  pickerOpen: ReferencePickerMode | null;
-  pickerRef: RefObject<HTMLDivElement>;
-  pickableNodeGroups: ReferencePickerNodeGroup[];
-  pickableNodes: CanvasNode[];
-  searchActive: boolean;
-  searchDraft: string;
-  setExternalWorkspaceId: (workspaceId: string | undefined) => void;
-  setPickerOpen: Dispatch<SetStateAction<ReferencePickerMode | null>>;
-  setSearchDraft: (value: string) => void;
-  setUrlDraft: (value: string) => void;
-  setUrlEditorOpen: Dispatch<SetStateAction<boolean>>;
-  setUrlError: (value: string | undefined) => void;
-  urlDraft: string;
-  urlEditorOpen: boolean;
-  urlEditorRef: RefObject<HTMLDivElement>;
-  urlError?: string;
-  workspaceNameById: Map<string, string>;
+interface Props {
+  source: string; onSourceChange: (value: string) => void;
+  query: string; onQueryChange: (value: string) => void;
+  kind: LibraryKind; onKindChange: (value: LibraryKind) => void;
+  workspaces: WorkspaceEntry[]; activeWorkspaceId: string;
 }
-
-export const ReferenceDrawerToolbar = ({
-  activeWorkspaceId,
-  onPreviewArtifact,
-  allNodes,
-  currentNodeCount,
-  externalWorkspaceId,
-  externalWorkspaces,
-  handleAddFromPicker,
-  handleAddUrl,
-  pickerOpen,
-  pickerRef,
-  pickableNodeGroups,
-  pickableNodes,
-  searchActive,
-  searchDraft,
-  setExternalWorkspaceId,
-  setPickerOpen,
-  setSearchDraft,
-  setUrlDraft,
-  setUrlEditorOpen,
-  setUrlError,
-  urlDraft,
-  urlEditorOpen,
-  urlEditorRef,
-  urlError,
-  workspaceNameById,
-}: ReferenceDrawerToolbarProps) => (
-  <div className="reference-drawer-toolbar">
-    <ReferencePicker
-      allNodes={allNodes}
-      currentNodeCount={currentNodeCount}
-      externalWorkspaceId={externalWorkspaceId}
-      externalWorkspaces={externalWorkspaces}
-      pickerOpen={pickerOpen}
-      pickerRef={pickerRef}
-      pickableNodeGroups={pickableNodeGroups}
-      pickableNodes={pickableNodes}
-      searchActive={searchActive}
-      searchDraft={searchDraft}
-      setExternalWorkspaceId={setExternalWorkspaceId}
-      setPickerOpen={setPickerOpen}
-      setSearchDraft={setSearchDraft}
-      workspaceNameById={workspaceNameById}
-      onPick={handleAddFromPicker}
-    />
-
-    <ArtifactsPicker
-      activeWorkspaceId={activeWorkspaceId}
-      workspaceNameById={workspaceNameById}
-      onPreviewArtifact={onPreviewArtifact}
-    />
-
-    <ReferenceUrlEditor
-      handleAddUrl={handleAddUrl}
-      setUrlDraft={setUrlDraft}
-      setUrlEditorOpen={setUrlEditorOpen}
-      setUrlError={setUrlError}
-      urlDraft={urlDraft}
-      urlEditorOpen={urlEditorOpen}
-      urlEditorRef={urlEditorRef}
-      urlError={urlError}
-    />
-  </div>
-);
-
+export const ReferenceDrawerToolbar = ({ source, onSourceChange, query, onQueryChange, kind, onKindChange, workspaces, activeWorkspaceId }: Props) => {
+  const { t } = useI18n();
+  return <div className="reference-drawer-toolbar">
+    <div className="library-source-row">
+      <Select value={source} onChange={onSourceChange} ariaLabel={t('reference.librarySource')} options={[
+        { value: 'current', label: t('reference.currentWorkspace') },
+        { value: 'all', label: t('reference.libraryAllWorkspaces') },
+        ...workspaces.filter(w => w.id !== activeWorkspaceId).map(w => ({ value: `workspace:${w.id}`, label: w.name })),
+      ]} />
+      <Select value={kind} onChange={value => onKindChange(value as LibraryKind)} ariaLabel={t('reference.libraryType')}
+        options={(['all', 'note', 'link', 'artifact', 'image', 'mindmap', 'other'] as const).map(value => ({ value, label: t(`reference.libraryKind.${value}`) }))} />
+    </div>
+    <TextField type="search" value={query} onChange={event => onQueryChange(event.target.value)}
+      aria-label={t('reference.librarySearch')} placeholder={t('reference.librarySearch')} />
+  </div>;
+};

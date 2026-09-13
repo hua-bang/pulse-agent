@@ -1,3 +1,4 @@
+import { NoteColor } from './NoteColor';
 import StarterKit from '@tiptap/starter-kit';
 import Paragraph from '@tiptap/extension-paragraph';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -54,6 +55,7 @@ export const createNoteEditorExtensions = (placeholder: string) => [
   TaskList,
   TaskItem.configure({ nested: true }),
   Underline,
+  NoteColor,
   Highlight.configure({ multicolor: false }),
   Link.configure({
     openOnClick: false,

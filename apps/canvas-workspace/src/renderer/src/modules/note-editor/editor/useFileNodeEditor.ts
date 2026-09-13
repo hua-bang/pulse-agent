@@ -247,7 +247,7 @@ export const useFileNodeEditor = ({
       const nextFocus = event.relatedTarget;
       if (
         nextFocus instanceof Element
-        && nextFocus.closest('.note-bubble-menu, .note-bubble-type-menu')
+        && nextFocus.closest('.note-bubble-menu, .note-bubble-type-menu, .note-bubble-color-menu, .note-bubble-more-menu')
       ) {
         return;
       }

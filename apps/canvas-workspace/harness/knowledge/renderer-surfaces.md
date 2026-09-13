@@ -21,22 +21,25 @@ The workbench has exactly two side regions plus a modal tier:
                  app-shell dialogs / toasts (above everything)
 ```
 
-- **Left region — Library.** `ReferenceDrawer` (displayed as "Library")
-  is the only left-side container: the pinned reference entries (persisted
-  per workspace in `references.json`, hydrated/saved by
-  `Workbench/useReferenceEntries`), source pickers for current/other
-  workspace nodes and URLs, an Artifacts browser
-  (`ReferenceDrawer/ArtifactsPicker` — scope filter current workspace /
-  all scopes via `artifact:list-all`; clicking a row pins the artifact
-  as a reference entry and previews it in-drawer (cross-scope works —
-  the preview resolves by the ARTIFACT's storage scope), with
-  open-in-dock and pin-to-canvas actions; cross-scope pin-to-canvas is
-  disabled because the canvas mirror resolves by the host canvas's
-  workspaceId), and previews. New "look things up while working"
-  surfaces belong here, not in a new drawer. Division of labor: Library
-  = browse/pick sources; Sidebar Layers = this canvas's spatial
-  structure tree; the experimental `/nodes` page = full-page knowledge
-  nodes management.
+- **Left region — Library.** `ReferenceDrawer` is the only left-side
+  container. Its card browser combines workspace node metadata, artifacts
+  (`artifact:list-all`), and saved references (`references.json`, owned by
+  `Workbench/useReferenceEntries`). Workspace source, content type, and search
+  are independent filters; adding a URL is a separate header action.
+  Cards render in a bounded scroll window without mounting full editors.
+  Dragging a node card onto the canvas creates a reference at the drop point,
+  retaining the source workspace/node identity without moving the source.
+  Clicking opens an in-drawer detail page; back restores the filter and scroll
+  position, and previous/next follows the browsing result snapshot. Content
+  records load on demand. Visited web previews retain their guest layout
+  behind the opaque, inert browser overlay when returning to cards.
+  Artifact details must use the same positioned, full-height preview slot as
+  retained web pages; an unpositioned card cannot cover their stacking layers.
+  Opening in Dock is explicit. Artifact previews resolve in their storage
+  scope; cross-scope pin-to-canvas stays disabled because the mirror resolves
+  in the host workspace. New source browsing surfaces belong here, not in a
+  new drawer. Sidebar Layers owns the canvas spatial tree; `/nodes` owns
+  full-page knowledge node management.
 - **Right region — `RightDock`** (`modules/dock/internal/RightDock`): ONE tabbed
   panel whose first tab is the **pinned chat**; preview surfaces open as
   additional tabs — artifacts (`modules/artifacts/tab.ts`)

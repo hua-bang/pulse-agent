@@ -9,6 +9,7 @@ import {
 } from 'react';
 import {
   CaretDown,
+  TextAa,
   Code,
   HighlighterCircle,
   LinkSimple,
@@ -26,6 +27,7 @@ import { useI18n } from '../../../../i18n';
 import { EditorCommandIcon } from '../EditorCommandIcon';
 import { Button, Popover, Portal } from '../../../../components/ui';
 import './index.css';
+import { NOTE_COLORS, type NoteColorName } from '../../editor/NoteColor';
 
 interface Props {
   editor: Editor;
@@ -51,6 +53,8 @@ export const FileNodeBubbleMenu = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const typeButtonRef = useRef<HTMLButtonElement>(null);
   const typePanelId = useId();
+  const colorButtonRef = useRef<HTMLButtonElement>(null);
+  const [extraMenu, setExtraMenu] = useState<'color' | null>(null);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [, renderTransaction] = useReducer((value: number) => value + 1, 0);
   const [placement, setPlacement] = useState<{
@@ -88,7 +92,7 @@ export const FileNodeBubbleMenu = ({
   // The nested block-type Popover owns Escape while it is open. Otherwise
   // the selection toolbar consumes Escape itself so the same key press does
   // not also reach canvas-level deselection/dismiss handlers.
-  useEscapeClose(!typeMenuOpen, onClose);
+  useEscapeClose(!typeMenuOpen && !extraMenu, onClose);
 
   const currentBlockType = BLOCK_TYPE_COMMANDS.find((command) =>
     command.isBlockTypeActive(editor),
@@ -149,7 +153,7 @@ export const FileNodeBubbleMenu = ({
           aria-haspopup="menu"
           aria-expanded={typeMenuOpen}
           aria-controls={typeMenuOpen ? typePanelId : undefined}
-          onClick={() => setTypeMenuOpen((open) => !open)}
+          onClick={() => { setExtraMenu(null); setTypeMenuOpen((open) => !open); }}
         >
           {currentBlockType && <EditorCommandIcon icon={currentBlockType.icon} size={16} />}
           <span>{currentBlockType ? t(currentBlockType.labelKey) : t('slashCommand.text.label')}</span>
@@ -203,6 +207,35 @@ export const FileNodeBubbleMenu = ({
           () => editor.chain().focus().toggleBold().run(),
           <TextB size={16} weight="bold" aria-hidden="true" />,
         )}
+        <Button ref={colorButtonRef} variant="icon" size="sm" className="note-bubble-btn"
+          aria-label={t('noteBubble.colors')} title={t('noteBubble.colors')} aria-haspopup="dialog" aria-expanded={extraMenu === 'color'}
+          onClick={() => { setTypeMenuOpen(false); setExtraMenu(extraMenu === 'color' ? null : 'color'); }}><TextAa size={16} /></Button>
+        {extraMenu === 'color' && <Popover anchorRef={colorButtonRef} placement="bottom" align="end" autoFocus={false}
+          className="note-bubble-color-menu" ariaLabel={t('noteBubble.colors')} closeOnCanvasMotion onClose={() => setExtraMenu(null)}>
+          {(['color', 'background'] as const).map(kind => <div key={kind} className="note-color-section">
+            <div className="note-color-label">{t(kind === 'color' ? 'noteBubble.textColor' : 'noteBubble.backgroundColor')}</div>
+            <div className="note-color-row">
+              {([null, ...Object.keys(NOTE_COLORS)] as (NoteColorName | null)[]).map(color => {
+                const active = editor.getAttributes('noteColor')[kind] || null;
+                return <Button key={color || 'default'} variant="icon" size="sm" className="note-color-swatch"
+                  aria-label={`${t(kind === 'color' ? 'noteBubble.textColor' : 'noteBubble.backgroundColor')}: ${t(`noteBubble.color.${color || 'default'}`)}`}
+                  aria-pressed={active === color} title={t(`noteBubble.color.${color || 'default'}`)}
+                  onClick={() => {
+                    const attrs = { ...editor.getAttributes('noteColor'), [kind]: color };
+                    const chain = editor.chain().focus();
+                    if (!attrs.color && !attrs.background) chain.unsetMark('noteColor').run();
+                    else chain.setMark('noteColor', attrs).run();
+                    setExtraMenu(null);
+                  }}>
+                  <span style={kind === 'color' ? { color: color ? NOTE_COLORS[color][0] : 'var(--text)' }
+                    : { background: color ? NOTE_COLORS[color][1] : 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {kind === 'color' ? 'A' : ''}
+                  </span>
+                </Button>;
+              })}
+            </div>
+          </div>)}
+        </Popover>}
         {iconButton(
           t('noteBubble.italic'),
           editor.isActive('italic'),

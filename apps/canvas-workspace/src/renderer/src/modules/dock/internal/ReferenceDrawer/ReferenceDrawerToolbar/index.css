@@ -1,7 +1,7 @@
 .reference-drawer-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   padding: 6px 14px 0;
   flex-wrap: wrap;
 }
@@ -73,3 +73,19 @@
   gap: 1px;
 }
 
+
+.reference-drawer-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.library-source-row {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.library-source-row>.ui-select {
+  flex: 1;
+  min-width: 0;
+}

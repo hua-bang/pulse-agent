@@ -2,7 +2,7 @@ import './index.css';
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, RefObject } from 'react';
 import type { CanvasNode, ReferenceNodeData } from '../../../../../../types';
 import { useI18n } from '../../../../../../i18n';
-import { OpenSourceButton } from '../NodeButtons';
+import { OpenSourceButton, AddToChatButton, FullscreenButton, FocusButton } from '../NodeButtons';
 import { NodeResizeHandles } from '../NodeResizeHandles';
 import { NodeTypeBadge } from '../NodeTypeBadge';
 import type { ReferenceSourceRenderer, ResizeHandlerFactory } from '../types';
@@ -10,6 +10,9 @@ import type { ReferenceSourceRenderer, ResizeHandlerFactory } from '../types';
 interface ReferenceCanvasNodeProps {
   classes: string;
   handleClose: (e: MouseEvent) => void;
+  handleAddToChat?: (e: MouseEvent) => void;
+  handleFocus?: (e: MouseEvent) => void;
+  handleToggleFullscreen?: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
   handleNodeBodyMouseDown: (e: MouseEvent) => void;
   handleNodeClick: (e: MouseEvent) => void;
@@ -32,6 +35,9 @@ interface ReferenceCanvasNodeProps {
 export const ReferenceCanvasNode = ({
   classes,
   handleClose,
+  handleAddToChat,
+  handleFocus,
+  handleToggleFullscreen,
   handleHeaderMouseDown,
   handleNodeBodyMouseDown,
   handleNodeClick,
@@ -81,6 +87,9 @@ export const ReferenceCanvasNode = ({
           {node.title}
         </span>
         <span className="node-reference-source" title={workspaceLabel}>{workspaceLabel}</span>
+        {handleAddToChat && <AddToChatButton onClick={handleAddToChat} />}
+        {handleToggleFullscreen && <FullscreenButton isFullscreen={isFullscreen} onClick={handleToggleFullscreen} />}
+        {handleFocus && <FocusButton onClick={handleFocus} />}
         <OpenSourceButton onClick={handleOpenReferenceSource} disabled={!sourceNode} />
         {readOnly ? null : (
           <button

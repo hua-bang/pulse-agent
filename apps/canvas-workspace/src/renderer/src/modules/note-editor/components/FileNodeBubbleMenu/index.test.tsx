@@ -8,6 +8,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setCanvasMotion } from '../../../../shared/canvasMotion';
 import { I18nProvider } from '../../../../i18n';
+import { NoteColor } from '../../editor/NoteColor';
 import { FileNodeBubbleMenu } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -30,6 +31,25 @@ afterEach(() => {
 });
 
 describe('FileNodeBubbleMenu', () => {
+  it('keeps selection through the color panel and shows formats directly', () => {
+    host = document.createElement('div'); document.body.append(host);
+    editorHost = document.createElement('div'); document.body.append(editorHost);
+    editor = new Editor({ element: editorHost, extensions: [StarterKit, NoteColor, Highlight], content: '<p>Alpha Beta</p>' });
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    root = createRoot(host);
+    act(() => root?.render(<I18nProvider><FileNodeBubbleMenu editor={editor!}
+      bubble={{ x: 180, y: 140, bottom: 160 }} onOpenLinkPrompt={vi.fn()} onClose={vi.fn()} /></I18nProvider>));
+    expect(document.querySelector('button[aria-label="Italic"]')).not.toBeNull();
+    act(() => (document.querySelector('button[aria-label="Text style"]') as HTMLButtonElement).click());
+    expect(editor.state.selection.to - editor.state.selection.from).toBe(5);
+    act(() => (document.querySelector('button[aria-label="Font color: Blue"]') as HTMLButtonElement).click());
+    expect(editor.getAttributes('noteColor').color).toBe('blue');
+    expect(editor.state.selection.from).toBe(1);
+    expect(editor.state.selection.to).toBe(6);
+    expect(document.querySelector('button[aria-label="More formatting"]')).toBeNull();
+    expect(document.querySelector('button[aria-label="Italic"]')).not.toBeNull();
+  });
+
   it('owns Escape and wheel events while the selection toolbar is open', () => {
     host = document.createElement('div');
     document.body.append(host);

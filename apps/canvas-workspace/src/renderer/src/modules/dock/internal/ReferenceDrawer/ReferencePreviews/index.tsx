@@ -1,4 +1,5 @@
 import './index.css';
+import { LibraryMindmapPreview } from '../LibraryMindmapPreview';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { CanvasNode } from '../../../../../types';
@@ -237,6 +238,7 @@ export const ReferencePreviewPanel = ({
           >
             <ReferenceNativeNodePreview
               node={node}
+              workspaceId={entry.workspaceId}
               drawerWidth={drawerWidth}
               workspaceName={workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot}
               onAddToCanvas={() => onAddReferenceToCanvas(entry)}
@@ -255,13 +257,16 @@ export const ReferencePreviewPanel = ({
 
       {activeReference && !isUrlReference(activeReference) && !isArtifactReference(activeReference) && activeReferenceNode && !activeNodeReferenceIsPersistent && (
         <div className="reference-native-card reference-native-card--persistent">
-          <ReferenceNativeNodePreview
+          {activeReferenceNode.type === 'mindmap' && 'root' in activeReferenceNode.data
+            ? <LibraryMindmapPreview root={activeReferenceNode.data.root} detail />
+            : <ReferenceNativeNodePreview
             node={activeReferenceNode}
+            workspaceId={activeReference.workspaceId}
             drawerWidth={drawerWidth}
             workspaceName={workspaceNameById.get(activeReference.workspaceId) ?? activeReference.workspaceNameSnapshot}
             onAddToCanvas={() => onAddReferenceToCanvas(activeReference)}
             onFocusNode={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
-          />
+          />}
           <NodeReferenceFooter
             referenceId={getReferenceId(activeReference)}
             onClearAll={onClearAll}
@@ -368,6 +373,7 @@ ReferenceUrlWebPreview.displayName = 'ReferenceUrlWebPreview';
 
 interface ReferenceNativeNodePreviewProps {
   node: CanvasNode;
+  workspaceId?: string;
   drawerWidth: number;
   workspaceName?: string;
   onAddToCanvas: () => void;
@@ -376,6 +382,7 @@ interface ReferenceNativeNodePreviewProps {
 
 const ReferenceNativeNodePreview = memo(({
   node,
+  workspaceId,
   drawerWidth,
   workspaceName,
   onAddToCanvas,
@@ -401,6 +408,7 @@ const ReferenceNativeNodePreview = memo(({
       node={previewNode}
       getAllNodes={getPreviewNodes}
       workspaceName={workspaceName}
+      workspaceId={workspaceId}
       isDragging={false}
       isResizing={false}
       isSelected={false}
@@ -449,7 +457,7 @@ const ReferenceArtifactPreviewCard = ({
   );
 
   return (
-    <div className="reference-url-card reference-url-card--preview" style={ACTIVE_SLOT_STYLE}>
+    <div className="reference-url-card reference-url-card--preview reference-url-card--persistent" style={ACTIVE_SLOT_STYLE}>
       <div className="reference-url-preview">
         <IframeNodeBody
           node={previewNode}
