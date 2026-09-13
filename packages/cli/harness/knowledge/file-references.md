@@ -35,7 +35,7 @@ palette (`useInput` / `use-composer-layout.ts`).
   stays a plain string so history remains byte-identical for cache-friendly prompts.
 - Oversized images (>5MB) and empty image files are skipped with a reason.
 
-## Clipboard paste (`/paste-image`, Ctrl+Shift+V)
+## Clipboard paste (`/paste-image`, Ctrl+V)
 
 The terminal protocol cannot carry clipboard IMAGES — only clipboard text reaches
 the app on Cmd/Ctrl+V. "Paste my screenshot" therefore requires the CLI to read
@@ -48,9 +48,11 @@ the system clipboard itself, outside the terminal.
   `xclip`/`wl-paste`; Windows uses PowerShell + System.Windows.Forms.
 - `runCommand` MUST use `encoding: 'buffer'` — the default utf8 decoding
   replaces non-text bytes with U+FFFD and corrupts the PNG.
-- Ink binds `Ctrl+Shift+V` (only fires where the terminal lets it through;
-  Linux terminals claim that chord for paste) and both hosts expose
-  `/paste-image [description]`. The image flows through the SAME
+- Ink binds the reachable legacy `Ctrl+V` key shape. Traditional terminals
+  encode it as byte `0x16` and cannot preserve a simultaneous Shift modifier;
+  terminals may still claim paste chords before Ink receives them. Both hosts
+  expose the reliable fallback `/paste-image [description]`. The image flows
+  through the SAME
   `buildUserContent` image-part channel as `@image.png`.
 - The clipboard image is capped at the same 5MB as `@` image references.
 

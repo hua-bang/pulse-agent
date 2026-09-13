@@ -53,7 +53,7 @@ export const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/clear', description: 'Clear current conversation' },
   { command: '/compact', description: 'Force compact current conversation context' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
-  { command: '/paste-image [description]', description: 'Send the clipboard image as a message (Ctrl+Shift+V)' },
+  { command: '/paste-image [description]', description: 'Send the clipboard image as a message (Ctrl+V in Ink)' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/goal <objective> [--verify <cmd>] [--rounds <n>]', description: 'Set a goal the agent keeps working toward; /goal status shows progress; /goal clear stops it' },
   { command: '/status', description: 'Show current CLI/session status' },

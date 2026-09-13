@@ -162,10 +162,10 @@ export function buildKeyHandler(ctx: ComposerKeyContext): (value: string, key: I
     return;
   }
 
-  if (key.ctrl && key.shift && value === 'v') {
-    // Paste the clipboard image as a message. Note: this only fires where the
-    // terminal lets Ctrl+Shift+V through (macOS); on Linux the terminal itself
-    // claims that chord for paste, so the /paste-image command is the fallback.
+  if (key.ctrl && value === 'v') {
+    // Traditional terminals encode Ctrl+V as byte 0x16 and cannot preserve a
+    // simultaneous Shift modifier. Handle the reachable Ctrl+V shape directly;
+    // terminals that claim the chord for text paste continue through usePaste.
     const description = input.trim();
     setInput('');
     setCursor(0);
