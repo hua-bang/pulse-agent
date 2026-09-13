@@ -46,6 +46,8 @@ Read `harness/README.md`, the affected workspace AGENTS, and local validation. F
 
 Before code/review: owning AGENTS + local validation. Before contract changes: affected contracts + root overlay. Before docs: nearest owner + `harness/DESIGN.md`.
 
+After creating or entering a linked git worktree, run `pnpm bootstrap:worktree` before build/test. It keeps each worktree's `node_modules` layout local while reusing the shared pnpm store, and refuses dependency links that resolve into another checkout.
+
 Performance and harness-integrity CI are defined. Bound workspace acceptance still runs manually; the integrity workflow only checks harness code/data and plans commands. See `harness/validate/README.md`. Qualify further enforcement before enabling it.
 
 Repo protocols live in harness/skills; product skills in .pulse-coder/skills. Use existing protocols; add one only for stable recurring work.

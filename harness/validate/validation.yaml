@@ -28,6 +28,13 @@ pathRules:
     required:
       - pnpm exec vitest run scripts/harness
 
+  - name: worktree-bootstrap
+    paths:
+      - scripts/bootstrap-worktree-deps.mjs
+      - scripts/bootstrap-worktree-deps.test.mjs
+    required:
+      - node scripts/bootstrap-worktree-deps.test.mjs
+
   - name: root-workspace-config
     paths:
       - package.json

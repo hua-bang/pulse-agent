@@ -37,6 +37,7 @@
     "start:debug": "pnpm --filter pulse-coder-cli start:debug",
     "canvas:package:mac:arm64": "pnpm --filter canvas-workspace package:mac:arm64",
     "clean": "pnpm -r clean",
+    "bootstrap:worktree": "node ./scripts/bootstrap-worktree-deps.mjs",
     "cleanup:worktrees": "node ./scripts/cleanup-worktree-deps.mjs",
     "release": "node ./scripts/release-packages.mjs",
     "release:core": "node ./scripts/release-packages.mjs --packages=engine,cli"
