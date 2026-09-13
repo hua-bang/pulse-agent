@@ -18,6 +18,8 @@ const SANDBOX_HTML = `<!doctype html>
   const inner = document.createElement('iframe');
   inner.style.cssText = 'display:block;width:100%;height:100vh;border:0;background:transparent';
   inner.setAttribute('sandbox', 'allow-scripts allow-forms');
+  // The app has an opaque origin, so a self/src allowlist cannot match it.
+  inner.setAttribute('allow', 'clipboard-write *');
   document.body.appendChild(inner);
   const proxyReady = 'ui/notifications/sandbox-proxy-ready';
   const resourceReady = 'ui/notifications/sandbox-resource-ready';

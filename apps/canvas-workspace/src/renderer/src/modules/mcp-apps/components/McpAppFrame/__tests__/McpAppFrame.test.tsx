@@ -88,6 +88,7 @@ describe('buildMcpAppCsp', () => {
     });
     const frame = document.body.querySelector('iframe');
     expect(frame?.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin');
+    expect(frame?.getAttribute('allow')).toBe('clipboard-write *');
     expect(frame?.getAttribute('src')).toContain('pulse-mcp-app://sandbox/index.html');
     await act(async () => { frame!.dispatchEvent(new Event('load')); });
     const anchor = host.querySelector<HTMLElement>('.chat-mcp-app__inline-host')!;

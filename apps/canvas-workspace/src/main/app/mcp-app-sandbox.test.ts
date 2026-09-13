@@ -10,6 +10,14 @@ describe('createMcpAppSandboxResponse', () => {
     expect(await response.text()).toContain("event.origin === 'null'");
   });
 
+  it('delegates only clipboard writing to the opaque app without relaxing its sandbox', async () => {
+    const html = await createMcpAppSandboxResponse('pulse-mcp-app://sandbox/index.html').text();
+    expect(html).toContain("inner.setAttribute('allow', 'clipboard-write *')");
+    expect(html).toContain("inner.setAttribute('sandbox', 'allow-scripts allow-forms')");
+    expect(html).not.toContain('clipboard-read');
+    expect(html).not.toContain('allow-same-origin');
+  });
+
   it('rejects header injection and falls back to the closed policy', () => {
     const response = createMcpAppSandboxResponse(
       'pulse-mcp-app://sandbox/index.html?csp=default-src%20*%0AX-Evil%3A%201',
