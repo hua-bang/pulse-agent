@@ -34,6 +34,6 @@ Read before changing run/abort/queue behavior, modes, slash commands, sessions, 
 
 - Slash command changes should preserve session persistence, queued input, abort handling, and the clarification flow.
 
-- Known divergence, preserved as-is by the structure refactor: in the READLINE host a direct `/<skill-name> <message>` invocation transforms the message but then still falls through to `handleCommand`, which reports the command unknown — the transformed skill message never runs (`routeSlashInput` in `src/readline/command-surface.ts`, NOTE comment). The Ink host resolves the same input correctly; `/skills <name> <message>` works on both. Fix deliberately deferred: it is a behavior change and needs its own test.
+- Direct `/<skill-name> <message>` invocation must return the transformed one-shot message from `routeSlashInput` instead of falling through to the built-in command handler. The Ink and readline hosts both support this form and `/skills <name> <message>`; `src/readline/command-surface.test.ts` guards the readline path.
 
 Print-mode output is owned by src/print/print-mode.ts: stdout carries only the answer, while console logging is redirected to stderr. Clarification and session/task-list metadata must survive host changes.
