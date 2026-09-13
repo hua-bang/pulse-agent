@@ -42,7 +42,7 @@ export const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/compact', description: 'Force compact current conversation context' },
   { command: '/model [<spec>|reset]', description: 'Show candidates or switch the model for this session' },
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
-  { command: '/paste-image [description]', description: 'Send the clipboard image as a message (Ctrl+Shift+V in Ink)' },
+  { command: '/paste-image [description]', description: 'Send the clipboard image as a message (Ctrl+V in Ink)' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
   { command: '/status', description: 'Show current session status' },
   { command: '/mode', description: 'Show current plan mode' },

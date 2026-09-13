@@ -112,8 +112,8 @@ export function InkCliApp({ controller, runtime, onExit, initialHistory, onHisto
   // means the clipboard holds a bitmap (the terminal protocol never carries
   // images): read the system clipboard and submit it through the same
   // image-part channel as /paste-image, matching Cmd+V image paste in Claude
-  // Code. Ctrl+Shift+V remains the explicit fallback where a terminal claims
-  // the paste chord itself.
+  // Code. Ctrl+V remains the explicit fallback when an image clipboard paste
+  // does not produce a bracketed-paste event.
   const handlePaste = buildPasteHandler({
     insertPastedText,
     readImage: () => readClipboardImage(),
