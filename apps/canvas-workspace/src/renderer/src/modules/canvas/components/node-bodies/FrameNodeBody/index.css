@@ -12,6 +12,16 @@
   overflow: visible;
 }
 
+/* Keep nested white regions distinguishable even at overview zoom. An inset
+ * outline does not change layout; selection and focus keep their blue border. */
+.canvas-node--frame.canvas-node--nested-frame:not(.canvas-node--selected,
+  .canvas-node--focus-mode-focused,
+  .canvas-node--frame-title-overlay,
+  .canvas-node--fullscreen) {
+  outline: calc(1px / var(--canvas-scale, 1)) solid var(--note-border);
+  outline-offset: calc(-1px / var(--canvas-scale, 1));
+}
+
 .canvas-node--frame>* {
   position: relative;
   z-index: 1;
@@ -102,8 +112,8 @@
   flex: 0 1 auto;
   color: inherit;
   padding: 0;
-  font-weight: 400;
-  font-size: 14px;
+  font-weight: 500;
+  font-size: 16px;
   line-height: 1.2;
   letter-spacing: 0;
 }
@@ -241,6 +251,7 @@
 .canvas-transform--small .canvas-node--frame .node-header .node-header__actions {
   position: absolute;
   left: 100%;
+  right: auto;
   top: 0;
   height: 100%;
   transform: none;
@@ -466,9 +477,14 @@
 .canvas-node--frame.canvas-node--selected .frame-children-toggle,
 .canvas-node--frame .node-header:focus-within .frame-children-toggle,
 .canvas-node--frame.canvas-node--frame-collapsed .frame-children-toggle,
-.canvas-node--frame:hover .node-header__actions,
-.canvas-node--frame.canvas-node--selected .node-header__actions,
+.canvas-node--frame:hover .node-header .node-header__actions,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions,
 .canvas-node--frame .node-header:focus-within .node-header__actions {
   opacity: 1;
   pointer-events: auto;
+}
+/* Frames own their already counter-scaled toolbar at every zoom level.
+ * Keep dormant toolbars out of the compositor, but preserve keyboard access. */
+.canvas-node--frame:not(:hover):not(.canvas-node--selected):not(:focus-within) .node-header__actions {
+  display: none;
 }

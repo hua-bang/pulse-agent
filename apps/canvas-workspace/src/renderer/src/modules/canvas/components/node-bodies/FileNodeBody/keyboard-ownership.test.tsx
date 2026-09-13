@@ -98,13 +98,8 @@ describe('FileNodeBody keyboard ownership', () => {
     const editor = registry?.get(NOTE.id);
     expect(editor).not.toBeNull();
     await act(async () => {
-      editor?.commands.focus();
-      await Promise.resolve();
-    });
-    const addBlock = host.querySelector<HTMLButtonElement>('[aria-label="Add a block below"]');
-    expect(addBlock).not.toBeNull();
-    await act(async () => {
-      addBlock?.click();
+      editor?.view.focus();
+      editor?.commands.insertContent('/');
       await Promise.resolve();
     });
     expect(document.querySelector('.slash-menu')).not.toBeNull();

@@ -1,97 +1,83 @@
 import './index.css';
-import type { CanvasNode } from '../../../../../types';
-import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
-import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
+import { LibraryMindmapPreview } from '../LibraryMindmapPreview';
+import { SearchIcon } from '../Icons';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { REFERENCE_DRAG_TYPE } from '../../../../../shared/reference/drag';
+import { Button, EmptyState } from '../../../../../components/ui';
+import { NodeTypeIcon } from '../../../../../components/icons';
+import { toFileUrl } from '../../../../../utils/fileUrl';
 import { useI18n } from '../../../../../i18n';
-import type { NodeReferenceEntry, ReferenceEntry } from '../../../../../shared/reference/types';
-import { getReferenceId, getUrlHostname, getUrlReferenceLabel, isArtifactReference, isUrlReference } from '../../../../../shared/reference/utils';
+import { libraryWindow, LIBRARY_ROW_HEIGHT, type LibraryItem } from '../libraryModel';
 
-interface ReferenceEntryListProps {
-  entries: ReferenceEntry[];
-  activeWorkspaceId: string;
+interface Props {
+  items: LibraryItem[];
+  visible: boolean;
+  browseKey: string;
+  positions: Map<string, number>;
+  returnedId?: string;
   workspaceNameById: Map<string, string>;
-  getNodeByEntry: (entry: NodeReferenceEntry) => CanvasNode | undefined;
-  activeId?: string;
-  onSelect: (referenceId: string | undefined) => void;
-  onFocus: (workspaceId: string, nodeId: string) => void;
-  onOpenUrl: (url: string) => void;
-  onRemove: (referenceId: string) => void;
+  onOpen: (item: LibraryItem) => void;
+  loading: boolean;
+  hasFilters?: boolean;
+  onResetFilters?: () => void;
 }
 
-export const ReferenceEntryList = ({
-  entries,
-  activeWorkspaceId,
-  workspaceNameById,
-  getNodeByEntry,
-  activeId,
-  onSelect,
-  onFocus,
-  onOpenUrl,
-  onRemove,
-}: ReferenceEntryListProps) => {
+export const ReferenceEntryList = ({ items, visible, browseKey, positions, returnedId, workspaceNameById, onOpen, loading, hasFilters, onResetFilters }: Props) => {
   const { t } = useI18n();
-
+  const root = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ top: positions.get(browseKey) || 0, height: 520 });
+  useLayoutEffect(() => {
+    if (!visible || !root.current) return;
+    const top = Math.min(positions.get(browseKey) || 0, Math.max(0, items.length * LIBRARY_ROW_HEIGHT - root.current.clientHeight));
+    root.current.scrollTop = top;
+    setViewport({ top, height: root.current.clientHeight || 520 });
+  }, [visible, browseKey, positions, items.length]);
+  useEffect(() => {
+    const el = root.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (el.clientHeight > 0) setViewport(value => ({ ...value, height: el.clientHeight }));
+    });
+    observer.observe(el); return () => observer.disconnect();
+  }, []);
+  const range = libraryWindow(items.length, viewport.top, viewport.height);
+  useEffect(() => {
+    if (!visible || !returnedId) return;
+    const button = Array.from(root.current?.querySelectorAll<HTMLButtonElement>('[data-library-id]') || [])
+      .find(el => el.dataset.libraryId === returnedId);
+    button?.focus({ preventScroll: true });
+  }, [visible, returnedId, range.start]);
   return (
-    <ul className="reference-group-items">
-      {entries.map((entry) => {
-        const id = getReferenceId(entry);
-        const node = !isUrlReference(entry) && !isArtifactReference(entry) ? getNodeByEntry(entry) : undefined;
-        const label = isUrlReference(entry)
-          ? getUrlReferenceLabel(entry)
-          : isArtifactReference(entry)
-            ? entry.titleSnapshot ?? entry.artifactId
-            : node
-              ? getNodeDisplayLabel(node)
-              : entry.titleSnapshot ?? entry.nodeId;
-        const type = isUrlReference(entry) || isArtifactReference(entry)
-          ? entry.kind
-          : node?.type ?? entry.typeSnapshot ?? 'missing';
-        const active = id === activeId;
-        const workspaceLabel = isUrlReference(entry)
-          ? getUrlHostname(entry.url)
-          : entry.workspaceId === activeWorkspaceId
-            ? t('reference.current')
-            : workspaceNameById.get(entry.workspaceId)
-              ?? (isArtifactReference(entry) ? t('reference.artifactScopeGlobal') : entry.workspaceNameSnapshot)
-              ?? t('reference.workspace');
-        const typeLabel = type === 'url'
-          ? t('reference.group.url')
-          : type === 'artifact'
-            ? t('reference.group.artifact')
-            : type === 'missing'
-              ? t('reference.group.missing')
-              : t(CANVAS_NODE_TYPE_LABEL_KEY[type]);
-
-        return (
-          <li key={id} className="reference-group-item-row">
-            <button
-              type="button"
-              className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
-              onClick={() => onSelect(id)}
-              onDoubleClick={() => {
-                if (isUrlReference(entry)) onOpenUrl(entry.url);
-                else if (!isArtifactReference(entry)) onFocus(entry.workspaceId, entry.nodeId);
+    <div ref={root} className="library-card-list" hidden={!visible} role="list" aria-label={t('reference.libraryItems')}
+      onScroll={event => {
+        if (!visible) return;
+        const top = event.currentTarget.scrollTop;
+        positions.set(browseKey, top); setViewport(value => ({ ...value, top }));
+      }}>
+      {items.length === 0 ? <EmptyState className="library-empty-state"
+        icon={<span className="library-empty-icon" aria-hidden="true"><SearchIcon /></span>}
+        title={loading ? t('reference.libraryLoading') : t('reference.libraryEmpty')}
+        description={loading ? undefined : t('reference.libraryEmptyHint')}
+        action={!loading && hasFilters && onResetFilters ? <Button size="sm" onClick={onResetFilters}>{t('reference.libraryResetFilters')}</Button> : undefined} /> : <>
+        <div style={{ height: range.before }} aria-hidden="true" />
+        {items.slice(range.start, range.end).map((item, offset) => (
+          <div key={item.id} role="listitem" aria-posinset={range.start + offset + 1} aria-setsize={items.length} className="library-card-row">
+            <Button className={`library-card${returnedId === item.id ? ' library-card--returned' : ''}`}
+              draggable={item.entry.kind === 'node'} onDragStart={event => {
+                if (item.entry.kind !== 'node') { event.preventDefault(); return; }
+                event.dataTransfer.effectAllowed = 'copy';
+                event.dataTransfer.setData(REFERENCE_DRAG_TYPE, JSON.stringify(item.entry));
               }}
-            >
-              <span className="reference-group-item-label" title={label}>
-                {label}
-              </span>
-              <span className="reference-group-item-meta" title={workspaceLabel}>{workspaceLabel}</span>
-              <span className="reference-group-item-type">{typeLabel}</span>
-            </button>
-            <button
-              className="reference-group-item-remove"
-              type="button"
-              onClick={() => onRemove(id)}
-              aria-label={t('reference.remove')}
-              title={t('reference.remove')}
-            >
-              x
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+              data-library-id={item.id} onClick={() => onOpen(item)} aria-label={t('reference.libraryPreview', { title: item.title })}>
+              <span className="library-card-heading"><NodeTypeIcon type={item.nodeType || 'iframe'} size={15} /><span>{item.title}</span></span>
+              {item.kind === 'mindmap' ? <LibraryMindmapPreview item={item} /> : item.previewPath ? <img className="library-card-image" src={toFileUrl(item.previewPath)} alt="" loading="lazy" decoding="async" />
+                : <span className="library-card-summary">{item.summary || t('reference.libraryPreviewHint')}</span>}
+              <span className="library-card-meta"><span>{t(`reference.libraryKind.${item.kind}`)}</span><span>{workspaceNameById.get(item.workspaceId) || t('reference.artifactScopeGlobal')}</span></span>
+            </Button>
+          </div>
+        ))}
+        <div style={{ height: range.after }} aria-hidden="true" />
+      </>}
+    </div>
   );
 };
-

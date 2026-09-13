@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { ChevronRightIcon, SparklesIcon } from '../../../components/icons';
@@ -25,6 +26,8 @@ interface Props {
   /** The record was read successfully and simply is not there any more. */
   missing?: boolean;
   mode?: 'page' | 'dock';
+  headerAction?: ReactNode;
+  compactDocument?: boolean;
   tagDefinitions?: KnowledgeTagDefinition[];
   relationCandidates?: WorkspaceNodeListItem[];
   readOnly?: boolean;
@@ -49,6 +52,8 @@ export const NodeDetailPanel = ({
   error,
   missing = false,
   mode = 'dock',
+  headerAction,
+  compactDocument = false,
   tagDefinitions = [],
   relationCandidates = [],
   readOnly = false,
@@ -66,6 +71,7 @@ export const NodeDetailPanel = ({
   const source = node ? renderNodePropertyValue(node.properties?.source) : '';
   const aiSummary = getNodeAiSummary(node);
   const detail = getNodeDetailDescriptor(node?.type);
+  const isDocumentDock = compactDocument && mode === 'dock' && node?.type === 'file';
   const isRichDetail = detail.layout === 'workspace';
   const infoProperties = mode === 'page'
     ? properties.filter(([key]) => key !== 'source' && key !== 'aiSummary')
@@ -122,7 +128,7 @@ export const NodeDetailPanel = ({
   };
 
   return (
-    <section className={`node-detail-panel node-detail-panel--${mode}${isRichDetail ? ` node-detail-panel--rich node-detail-panel--${detail.surface}` : ''}`}>
+    <section className={`node-detail-panel node-detail-panel--${mode}${isDocumentDock ? ' node-detail-panel--document-dock' : ''}${isRichDetail ? ` node-detail-panel--rich node-detail-panel--${detail.surface}` : ''}`}>
       <div className="node-detail-panel__content">
         {!node || loading || error || missing ? renderPlaceholder() : (
           <div className="node-detail-panel__layout">
@@ -136,7 +142,10 @@ export const NodeDetailPanel = ({
               <NodeDetailHeader
                 candidates={relationCandidates}
                 dateLocale={dateLocale}
-                metadata={detail.metadata}
+                metadata={isDocumentDock ? 'inspector' : detail.metadata}
+                compact={isDocumentDock}
+                action={headerAction}
+                inspectorContent={isDocumentDock ? aiInsight : undefined}
                 mode={mode}
                 node={node}
                 onNodePatched={onNodePatched}
@@ -152,20 +161,20 @@ export const NodeDetailPanel = ({
               {/* The dock is where most people land (list cards, graph nodes and
                 * note mentions all open a tab), so the reading aid cannot be
                 * page-only — the page just has a rail to spare for it. */}
-              {mode === 'dock' && !isRichDetail && aiInsight}
+              {mode === 'dock' && !isRichDetail && !isDocumentDock && aiInsight}
 
               <div className="node-detail-panel__preview">
                 <NodeCanvasPreview
                   workspaceId={workspaceId}
                   record={node}
                   mentionCandidates={relationCandidates}
-                  minHeight={isRichDetail ? 0 : mode === 'page' ? 480 : 320}
+                  minHeight={isRichDetail || isDocumentDock ? 0 : mode === 'page' ? 480 : 320}
                   readOnly={readOnly}
                   onPatched={onNodePatched}
                 />
               </div>
 
-              {!isRichDetail && (
+              {!isRichDetail && !isDocumentDock && (
                 <NodeDetailSupplementary
                   candidates={relationCandidates}
                   dateLocale={dateLocale}

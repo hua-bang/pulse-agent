@@ -26,8 +26,9 @@ describe('NodeTypeIcon', () => {
   it('uses the reference geometry for the core canvas creation icons', () => {
     const note = renderIcon('file');
     expect(note.getAttribute('viewBox')).toBe('0 0 18 18');
-    expect(note.querySelector('rect')?.getAttribute('x')).toBe('3');
-    expect(note.querySelectorAll('path')).toHaveLength(1);
+    expect(note.querySelector('rect')).toBeNull();
+    expect(note.querySelectorAll('path')).toHaveLength(2);
+    expect(note.querySelectorAll('path')[1]?.getAttribute('d')).toBe('M6.5 9h5M6.5 12h4');
 
     const terminal = renderIcon('terminal');
     expect(terminal.querySelector('rect')?.getAttribute('x')).toBe('2.5');

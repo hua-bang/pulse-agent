@@ -341,3 +341,34 @@
     max-width: 100%;
   }
 }
+
+/* File tabs are reading/editing surfaces, matching the canvas fullscreen note.
+ * Metadata stays available in the header inspector instead of taking body space. */
+.node-detail-panel--document-dock .node-detail-panel__content { overflow: hidden; }
+.node-detail-panel--document-dock .node-detail-panel__layout,
+.node-detail-panel--document-dock .node-detail-panel__document {
+  height: 100%; min-height: 0; padding: 0; display: flex; flex-direction: column;
+}
+.node-detail-panel--document-dock .node-detail-panel__document-header {
+  padding: 8px 14px; border-bottom: 1px solid var(--nodes-border);
+}
+.node-detail-panel.node-detail-panel--document-dock .node-detail-panel__document-title {
+  font-size: 13px; font-weight: 500; line-height: 1.4;
+}
+.node-detail-panel.node-detail-panel--document-dock .node-detail-panel__preview {
+  height: auto; min-height: 0; flex: 1; margin: 0;
+}
+.node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
+.node-detail-panel--document-dock .node-canvas-preview .file-preview {
+  padding: 20px 28px 72px;
+}
+@container (min-width: 561px) {
+  .node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
+  .node-detail-panel--document-dock .node-canvas-preview .file-preview {
+    padding: 32px 40px 96px;
+    font-size: 16px; line-height: 1.8;
+    --note-heading-1: 1.75em;
+    --note-heading-2: 1.375em;
+    --note-paragraph-gap: 0.85em;
+  }
+}

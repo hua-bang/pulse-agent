@@ -53,10 +53,6 @@
   }
 }
 
-/* The filename used to live in its own bar; in the Notion/Heptabase
- * redesign we want a single thin chrome strip, so the hint now floats
- * inline next to the toolbar status (rendered in JSX). The standalone
- * strip is kept hidden as a fallback for any legacy callers. */
 .note-file-hint {
   display: none;
 }
@@ -129,32 +125,31 @@
   flex: 1;
   overflow-y: auto;
   height: 100%;
-  /* Scoped paper colour driven by the card root so colour-mode swaps
-   * or per-node tints can override in one place. */
 }
 
-/* Generous reading column inspired by Notion/Heptabase pages.
- * Slightly off-black text, increased line-height, more vertical
- * breathing room. The bottom padding is intentionally large so the
- * caret never sits flush with the resize handle while typing. */
+/* Document typography stays local: app chrome keeps its established font.
+ * Card density is the default; existing focus/fullscreen states open up the
+ * reading rhythm without changing the document or mounting another editor. */
 .note-tiptap-editor .ProseMirror {
   box-sizing: border-box;
-  width: min(100%, 900px);
+  width: min(100%, 800px);
   min-height: 100%;
   margin-inline: auto;
-  padding: 28px 32px 96px 52px;
-  font-family: var(--font-ui);
-  font-size: 16px;
-  line-height: 1.62;
+  /* One balanced inset; block controls stack in the margin on hover. */
+  padding: 20px 28px 72px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  --note-heading-1: 1.5em;
+  --note-heading-2: 1.25em;
+  --note-paragraph-gap: 0.65em;
   color: var(--text);
   outline: none;
   caret-color: var(--accent);
   text-rendering: optimizeLegibility;
 }
 
-/* Inviting empty-state hint — Heptabase shows a dim "Type your
- * thoughts..." prompt; we mirror that and reference the slash
- * affordance so first-time users know what to do. */
 .note-tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--text-muted);
@@ -166,12 +161,12 @@
 }
 
 .note-tiptap-editor .ProseMirror h1 {
-  font-size: 1.9em;
-  font-weight: 500;
-  margin: 0.95em 0 0.4em;
+  font-size: var(--note-heading-1);
+  font-weight: 600;
+  margin: 1.2em 0 0.5em;
   color: var(--text);
-  line-height: 1.26;
-  letter-spacing: -0.025em;
+  line-height: 1.4;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
@@ -180,30 +175,31 @@
 }
 
 .note-tiptap-editor .ProseMirror h2 {
-  font-size: 1.42em;
-  font-weight: 500;
-  margin: 1.5em 0 0.5em;
+  font-size: var(--note-heading-2);
+  font-weight: 600;
+  margin: 1.35em 0 0.5em;
   color: var(--text);
-  line-height: 1.34;
-  letter-spacing: -0.015em;
+  line-height: 1.45;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
 .note-tiptap-editor .ProseMirror h3 {
-  font-size: 1.16em;
-  font-weight: 500;
-  margin: 1.25em 0 0.4em;
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 1.2em 0 0.4em;
   color: var(--text);
-  letter-spacing: -0.01em;
+  line-height: 1.5;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
 .note-tiptap-editor .ProseMirror p {
-  margin: 0 0 0.5em;
+  margin: 0 0 var(--note-paragraph-gap);
 }
 
 .note-tiptap-editor .ProseMirror strong {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .note-tiptap-editor .ProseMirror em {
@@ -217,8 +213,21 @@
 }
 
 .note-tiptap-editor .ProseMirror li {
-  margin: 0.28em 0;
-  padding-left: 0.15em;
+  margin: 0.3em 0;
+  padding-left: 0.1em;
+}
+
+/* Nested lists belong to their parent item, not a new document section. */
+.note-tiptap-editor .ProseMirror li p {
+  margin-bottom: 0.25em;
+}
+
+.note-tiptap-editor .ProseMirror li :is(ul, ol) {
+  margin-block: 0.25em;
+}
+
+.note-tiptap-editor .ProseMirror :is(h2, h3):first-child {
+  margin-top: 0;
 }
 
 /* Muted gray bullet/number markers, per the reference cards. */
@@ -282,10 +291,10 @@
 .note-tiptap-editor .ProseMirror code {
   font-family: var(--font-mono);
   font-size: 0.86em;
-  background: var(--note-inline-code-bg);
-  padding: 1px 5px;
+  background: color-mix(in srgb, var(--note-inline-code-bg) 55%, transparent);
+  padding: 0.08em 0.25em;
   border-radius: var(--radius-xs);
-  color: var(--error);
+  color: var(--text-secondary);
   letter-spacing: 0;
 }
 
@@ -487,29 +496,21 @@
   border: 2px solid transparent;
 }
 
-@container (max-width: 560px) {
-  .note-tiptap-editor .ProseMirror {
-    padding: 24px;
-    font-size: 15.5px;
-  }
-
-  .note-tiptap-editor .ProseMirror h1 {
-    font-size: 1.78em;
-  }
-
-  .note-tiptap-editor .ProseMirror h2 {
-    font-size: 1.34em;
+/* Reuse Canvas presentation states; narrow focus windows keep card density. */
+@container (min-width: 561px) {
+  :is(.canvas-node--focus-mode-focused, .canvas-node--fullscreen) .note-tiptap-editor .ProseMirror {
+    padding: 32px 40px 96px;
+    font-size: 16px;
+    line-height: 1.8;
+    --note-heading-1: 1.75em;
+    --note-heading-2: 1.375em;
+    --note-paragraph-gap: 0.85em;
   }
 }
 
 @container (max-width: 400px) {
   .note-tiptap-editor .ProseMirror {
-    padding: 20px 20px 72px 50px;
-    font-size: 15px;
-  }
-
-  .note-tiptap-editor .ProseMirror h1 {
-    font-size: 1.65em;
+    padding: 18px 28px 72px;
   }
 
   .note-callout {

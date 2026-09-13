@@ -1,4 +1,4 @@
-import { AppWindow, Tabs } from '@phosphor-icons/react';
+import { AppWindow } from '@phosphor-icons/react';
 import { AppLogoIcon, NodeTypeIcon, FolderIcon } from '../../../../components/icons';
 import type { DockTabSwitcherItem } from './dock-tab-items';
 import { LinkTabIcon } from './LinkTabIcon';
@@ -21,7 +21,7 @@ export const DockTabIcon = ({ kind, faviconUrl }: Props) => {
       ) : kind === 'link' ? (
         <LinkTabIcon faviconUrl={faviconUrl} />
       ) : kind === 'node-detail' ? (
-        <Tabs size={14} weight="regular" />
+        <NodeTypeIcon type="file" size={14} />
       ) : kind === 'folder' ? (
         <FolderIcon size={14} />
       ) : kind === 'mcp-app' ? (

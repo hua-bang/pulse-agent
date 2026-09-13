@@ -21,6 +21,7 @@ const CanvasNodeViewComponent = ({
   dragOffset,
   isResizing,
   isSelected,
+  isNestedFrame = false,
   renameToken,
   isHighlighted,
   isAgentEdited,
@@ -126,6 +127,9 @@ const CanvasNodeViewComponent = ({
   if (node.type === 'reference') {
     return (
       <ReferenceCanvasNode
+        handleAddToChat={onAddToChat ? viewModel.handleAddToChat : undefined}
+        handleFocus={viewModel.handleFocus}
+        handleToggleFullscreen={viewModel.fullscreenButtonEnabled ? viewModel.handleToggleFullscreen : undefined}
         classes={viewModel.classes}
         handleClose={viewModel.handleClose}
         handleHeaderMouseDown={viewModel.handleHeaderMouseDown}
@@ -194,7 +198,7 @@ const CanvasNodeViewComponent = ({
 
   return (
     <DefaultCanvasNode
-      classes={viewModel.classes}
+      classes={`${viewModel.classes}${node.type === 'frame' && isNestedFrame ? ' canvas-node--nested-frame' : ''}`}
       fullscreenButton={fullscreenButton}
       focusAction={focusAction}
       getAllNodes={getAllNodes}
@@ -250,6 +254,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.dragOffset === next.dragOffset &&
   prev.isResizing === next.isResizing &&
   prev.isSelected === next.isSelected &&
+  prev.isNestedFrame === next.isNestedFrame &&
   prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&

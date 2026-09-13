@@ -91,6 +91,18 @@ describe('ReferenceCanvasNode', () => {
     expect(handleHeaderMouseDown).toHaveBeenCalledTimes(1);
   });
 
+  it('routes AI, fullscreen and focus through the outer reference actions', () => {
+    const handleAddToChat = vi.fn(), handleToggleFullscreen = vi.fn(), handleFocus = vi.fn();
+    renderReferenceNode({ handleAddToChat, handleToggleFullscreen, handleFocus });
+    for (const label of ['Add node to AI chat', 'Enter fullscreen', 'Focus node']) {
+      (host?.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement).click();
+    }
+    expect(handleAddToChat).toHaveBeenCalledTimes(1);
+    expect(handleToggleFullscreen).toHaveBeenCalledTimes(1);
+    expect(handleFocus).toHaveBeenCalledTimes(1);
+    expect(host?.querySelector('button[aria-label="Open source"]')).not.toBeNull();
+  });
+
   it('announces title editing as a single-line text box', () => {
     renderReferenceNode({ isEditingTitle: true });
 

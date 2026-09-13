@@ -96,3 +96,23 @@
 .note-bubble-type-item--active.ui-btn {
   color: var(--accent);
 }
+
+.note-bubble-color-menu {
+  position: fixed;
+  z-index: var(--layer-note-popover);
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-float);
+}
+.note-color-section + .note-color-section { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+.note-color-label { font-size: 11px; color: var(--text-secondary); padding: 0 4px 6px; }
+.note-color-row { display: flex; gap: 2px; }
+.note-color-swatch.ui-btn { border-radius: var(--radius-sm); }
+.note-color-swatch.ui-btn[aria-pressed='true'] { background: var(--surface-alt); outline: 1px solid var(--border); outline-offset: -1px; }
+.note-color-swatch span { width: 20px; height: 20px; border-radius: var(--radius-sm); display: grid; place-items: center; font-weight: 600; }
+
+@media (max-width: 460px) {
+  .note-bubble-menu { flex-wrap: wrap; justify-content: center; width: calc(100vw - 16px); }
+}

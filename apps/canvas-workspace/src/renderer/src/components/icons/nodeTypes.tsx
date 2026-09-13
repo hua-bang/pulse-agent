@@ -86,8 +86,8 @@ export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: N
     case 'file':
       return (
         <svg {...props18}>
-          <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M7 9h4M9 7v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <path d="M10.5 2.5H5a1.5 1.5 0 00-1.5 1.5v10A1.5 1.5 0 005 15.5h8a1.5 1.5 0 001.5-1.5V6.5l-4-4zM10.5 2.5v4h4" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+          <path d="M6.5 9h5M6.5 12h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
         </svg>
       );
     case 'terminal':

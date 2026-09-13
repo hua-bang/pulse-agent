@@ -48,13 +48,14 @@ describe('renderer typography system', () => {
     }
   });
 
-  it('reserves 600 weight for page titles and the product brand', () => {
+  it('reserves 600 weight for page titles, the product brand and document emphasis', () => {
     const allowed = new Set([
       'app/shell/Sidebar/index.css',
       'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
       'modules/skills/internal/index.css',
       'modules/workspace-nodes/internal/NodesPage/index.css',
+      'modules/canvas/components/node-bodies/FileNodeBody/index.css',
     ]);
     const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
       const css = readFileSync(path, 'utf8');
@@ -62,7 +63,13 @@ describe('renderer typography system', () => {
       return Array.from({ length: count }, () => relative(rendererRoot, path));
     });
     expect(new Set(declarations)).toEqual(allowed);
-    expect(declarations).toHaveLength(allowed.size);
+    // The neutral document face uses semibold only for H1–H3 and strong;
+    // product chrome retains its existing one-title-per-owner allowance.
+    for (const path of allowed) {
+      expect(declarations.filter((entry) => entry === path)).toHaveLength(
+        path.endsWith('/FileNodeBody/index.css') ? 4 : 1,
+      );
+    }
   });
 
   it.each([

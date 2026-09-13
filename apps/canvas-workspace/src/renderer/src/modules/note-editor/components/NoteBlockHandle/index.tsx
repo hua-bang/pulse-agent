@@ -4,7 +4,6 @@ import {
   ArrowUp,
   Copy,
   DotsSixVertical,
-  Plus,
   Trash,
 } from '@phosphor-icons/react';
 import type { Editor } from '@tiptap/react';
@@ -12,7 +11,6 @@ import { useI18n } from '../../../../i18n';
 import {
   deleteNoteBlock,
   duplicateCurrentNoteBlock,
-  insertSlashBlockAfter,
   moveCurrentNoteBlock,
   moveNoteBlockToIndex,
 } from '../../runtime/noteBlockCommands';
@@ -24,15 +22,16 @@ interface BlockTarget {
   index: number;
   top: number;
   height: number;
+  left: number;
+  width: number;
 }
 
 interface Props {
   editor: Editor;
   cardRef: RefObject<HTMLDivElement>;
-  onAddBlock?: (index: number) => void;
 }
 
-export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
+export const NoteBlockHandle = ({ editor, cardRef }: Props) => {
   const { t } = useI18n();
   const [active, setActive] = useState<BlockTarget | null>(null);
   const [dropTop, setDropTop] = useState<number | null>(null);
@@ -64,22 +63,29 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
       const card = cardRef.current;
       if (disposed || !card) return;
 
-      const targetBlock = (target: EventTarget | null): { element: HTMLElement; target: BlockTarget } | null => {
-        let element = target instanceof HTMLElement ? target : null;
-        while (element && element.parentElement !== root) element = element.parentElement;
-        if (!element || element.parentElement !== root) return null;
-        const index = Array.from(root.children).indexOf(element);
-        if (index < 0) return null;
-        const rect = element.getBoundingClientRect();
-        const cardRect = card.getBoundingClientRect();
-        return { element, target: { index, top: rect.top - cardRect.top, height: rect.height } };
-      };
       const targetBlockAtIndex = (index: number): BlockTarget | null => {
         const element = root.children.item(index);
         if (!(element instanceof HTMLElement)) return null;
         const rect = element.getBoundingClientRect();
         const cardRect = card.getBoundingClientRect();
-        return { index, top: rect.top - cardRect.top, height: rect.height };
+        // DOM rects are viewport-scaled; the absolute overlay uses card-local
+        // CSS pixels. Anchor to the reading column, not the window's edge.
+        const scale = card.offsetWidth > 0 ? cardRect.width / card.offsetWidth : 1;
+        if (scale <= 0) return null;
+        return {
+          index,
+          top: (rect.top - cardRect.top) / scale,
+          height: rect.height / scale,
+          left: (rect.left - cardRect.left) / scale,
+          width: rect.width / scale,
+        };
+      };
+      const targetBlock = (target: EventTarget | null): { element: HTMLElement; target: BlockTarget } | null => {
+        let element = target instanceof HTMLElement ? target : null;
+        while (element && element.parentElement !== root) element = element.parentElement;
+        if (!element || element.parentElement !== root) return null;
+        const targetGeometry = targetBlockAtIndex(Array.from(root.children).indexOf(element));
+        return targetGeometry ? { element, target: targetGeometry } : null;
       };
       const revealSelectedBlock = () => {
         if (!editor.isFocused || menuOpenRef.current) return;
@@ -121,6 +127,9 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
         const after = event.clientY > rect.top + rect.height / 2;
         let finalIndex = hit.target.index + (after ? 1 : 0);
         if (fromIndex < finalIndex) finalIndex -= 1;
+        // The handle owns focus during a drag. Re-enter the editor before
+        // dispatch so its focused-user-edit persistence guard sees the move.
+        editor.view.focus();
         moveNoteBlockToIndex(editor, fromIndex, finalIndex);
         draggedIndexRef.current = null;
         setDropTop(null);
@@ -140,6 +149,9 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
         requestAnimationFrame(revealSelectedBlock);
       };
       scroller?.addEventListener('scroll', clearStaleTarget);
+      const resizeObserver = new ResizeObserver(clearStaleTarget);
+      resizeObserver.observe(card);
+      resizeObserver.observe(root);
       editor.on('focus', revealSelectedBlock);
       editor.on('selectionUpdate', refreshSelectedBlock);
       editor.on('transaction', refreshSelectedBlock);
@@ -150,6 +162,7 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
         root.removeEventListener('dragover', onDragOver);
         root.removeEventListener('drop', onDrop);
         scroller?.removeEventListener('scroll', clearStaleTarget);
+        resizeObserver.disconnect();
         editor.off('focus', revealSelectedBlock);
         editor.off('selectionUpdate', refreshSelectedBlock);
         editor.off('transaction', refreshSelectedBlock);
@@ -175,24 +188,9 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
       <span
         ref={handleRef}
         className="note-block-handle-anchor"
-        style={{ top: active.top }}
+        style={{ top: active.top, left: Math.max(0, active.left - 26) }}
         onMouseEnter={() => setActive(active)}
       >
-        <Button
-          variant="icon"
-          size="xs"
-          className="note-block-add"
-          aria-label={t('noteBlock.add')}
-          title={t('noteBlock.add')}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            if (onAddBlock) onAddBlock(active.index);
-            else insertSlashBlockAfter(editor, active.index);
-            setMenuOpen(false);
-          }}
-        >
-          <Plus size={15} weight="regular" aria-hidden="true" />
-        </Button>
         <Button
           ref={menuButtonRef}
           variant="icon"
@@ -212,6 +210,9 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
             setMenuOpen((value) => !value);
           }}
           onDragStart={(event) => {
+            // Canvas shells cancel unclaimed native drags. This handle owns
+            // the gesture, so keep it from reaching that fallback handler.
+            event.stopPropagation();
             draggedIndexRef.current = active.index;
             didDragRef.current = true;
             event.dataTransfer.effectAllowed = 'move';
@@ -288,7 +289,7 @@ export const NoteBlockHandle = ({ editor, cardRef, onAddBlock }: Props) => {
           </Popover>
         )}
       </span>
-      {dropTop !== null && <span className="note-block-drop-line" style={{ top: dropTop }} aria-hidden="true" />}
+      {dropTop !== null && <span className="note-block-drop-line" style={{ top: dropTop, left: active.left, width: active.width }} aria-hidden="true" />}
     </>
   );
 };

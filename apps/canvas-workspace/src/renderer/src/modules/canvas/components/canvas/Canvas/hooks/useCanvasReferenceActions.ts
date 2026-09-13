@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { REFERENCE_DRAG_TYPE, readReferenceDrag } from '../../../../../../shared/reference/drag';
 import type { CanvasNode } from '../../../../../../types';
 import type { CanvasClipboard } from '../../../../../../types/ui-interaction';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../../shared/reference/types';
@@ -90,6 +91,30 @@ export const useCanvasReferenceActions = ({
     },
     [addNode, canvasId, containerRef, onPasteReferences, screenToCanvas, updateNode],
   );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !createReferenceNode) return;
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes(REFERENCE_DRAG_TYPE)) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = 'copy';
+    };
+    const drop = (event: DragEvent) => {
+      const entry = readReferenceDrag(event.dataTransfer?.getData(REFERENCE_DRAG_TYPE) || '');
+      if (!entry) return;
+      event.preventDefault(); event.stopPropagation();
+      const point = screenToCanvas(event.clientX, event.clientY, container);
+      const template = createReferenceNode(entry, point.x, point.y);
+      if (!template) return;
+      const node = addNode('reference', point.x - template.width / 2, point.y - template.height / 2);
+      updateNode(node.id, { title: template.title, ref: template.ref, data: template.data,
+        width: template.width, height: template.height });
+      setSelectedNodeIds([node.id]);
+    };
+    container.addEventListener('dragover', over);
+    container.addEventListener('drop', drop);
+    return () => { container.removeEventListener('dragover', over); container.removeEventListener('drop', drop); };
+  }, [containerRef, createReferenceNode, screenToCanvas, addNode, updateNode, setSelectedNodeIds]);
 
   useEffect(() => {
     if (!referencePlacementRequest || !createReferenceNode) return;

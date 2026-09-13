@@ -307,7 +307,8 @@
  * stopped painting). display:none instead of opacity keeps hover/selected
  * behavior identical (the trigger is on .canvas-node), trading only the
  * 0.18s fade-in. */
-.canvas-transform--small .canvas-node:not(:hover):not(.canvas-node--selected) .node-header__actions {
+/* Frames handle resting/hover/focus visibility in FrameNodeBody. */
+.canvas-transform--small .canvas-node:not(.canvas-node--frame):not(:hover):not(.canvas-node--selected) .node-header__actions {
   display: none;
 }
 

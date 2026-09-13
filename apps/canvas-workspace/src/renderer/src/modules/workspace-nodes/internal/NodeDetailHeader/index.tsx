@@ -1,5 +1,5 @@
 import './index.css';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { dispatchFocusNodeOnCanvas, nodeLinkHref } from '../../../../utils/openNodeBridge';
@@ -12,6 +12,9 @@ import { getNodeTypeLabel, isKnowledgeNodeType } from '../utils';
 
 interface Props {
   candidates: WorkspaceNodeListItem[];
+  compact?: boolean;
+  action?: ReactNode;
+  inspectorContent?: ReactNode;
   dateLocale: string;
   metadata: 'inline' | 'inspector';
   mode: 'page' | 'dock';
@@ -43,6 +46,9 @@ const InfoGlyph = () => (
 
 export const NodeDetailHeader = ({
   candidates,
+  compact,
+  action,
+  inspectorContent,
   dateLocale,
   metadata,
   mode,
@@ -100,6 +106,7 @@ export const NodeDetailHeader = ({
             />
           </div>
           <div className="node-detail-panel__title-actions">
+            {action}
             {mode === 'dock' && onOpenPage && (
               <Button variant="icon" size="xs" aria-label={t('workspaceNodes.goToDetail')} title={t('workspaceNodes.goToDetail')} onClick={onOpenPage}>
                 <ListLinesIcon size={13} />
@@ -137,7 +144,7 @@ export const NodeDetailHeader = ({
             </div>
           </div>
         </div>
-        <div className="node-detail-panel__document-meta">
+        {!compact && <div className="node-detail-panel__document-meta">
           <span className="node-detail-panel__type">
             {isKnowledgeNodeType(node.type) && <NodeTypeIcon type={node.type} size={14} colorize />}
             <span>{getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}</span>
@@ -154,7 +161,7 @@ export const NodeDetailHeader = ({
               onTagsChanged={onTagsChanged}
             />
           </div>
-        </div>
+        </div>}
       </header>
       {inspectorOpen && metadata === 'inspector' && (
         <NodeDetailInspector
@@ -168,7 +175,13 @@ export const NodeDetailHeader = ({
           readOnly={readOnly}
           source={source}
           workspaceId={workspaceId}
-        />
+        >
+          {inspectorContent}
+          {compact && <div className="node-detail-panel__inspector-section">
+            <NodeTagEditor node={node} workspaceId={workspaceId} tags={tags} tagDefinitions={tagDefinitions}
+              readOnly={readOnly} onNodePatched={onNodePatched} onTagsChanged={onTagsChanged} />
+          </div>}
+        </NodeDetailInspector>
       )}
     </>
   );

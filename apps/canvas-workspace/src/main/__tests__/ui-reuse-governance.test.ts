@@ -128,7 +128,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 280→273 (module-first ownership batches): obsolete duplicate controls
   // disappeared as product visuals gained one owning component each.
   // ChatAnchors owns its trigger styling via ui/Button, independent of lazy ChatPanel CSS.
-  rawButtonTags: 272,
+  // 272→269: Library navigation and cards use Button.
+  rawButtonTags: 269,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -214,7 +215,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // chrome removed one remaining literal-radius declaration.
   // 113→112: remove the obsolete frame dot overlay.
   // 112→111: minimal frame chrome shares the square-corner token.
-  borderRadiusLiterals: 111,
+  // 111→110: Library cards reuse radius tokens.
+  borderRadiusLiterals: 110,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -424,7 +426,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1703→1691: frame surfaces share the accent and surface tokens.
   // 1691→1689: remove frame dot paint and reuse the canvas grid token.
   // 1689→1675: neutral artboard chrome uses shared surface/text tokens.
-  hardcodedColorLiterals: 1675,
+  // 1675→1670: Library cards reuse the shared surface palette.
+  // 1670→1669: Note headers inherit the shared file icon color.
+  hardcodedColorLiterals: 1669,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

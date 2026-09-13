@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CanvasNode } from '../types';
 import {
   collectCollapsedFrameDescendantIds,
+  collectNestedFrameIds,
   filterCollapsedFrameDescendants,
 } from './frameHierarchy';
 
@@ -74,5 +75,31 @@ describe('frameHierarchy collapsed frames', () => {
 
     expect(collectCollapsedFrameDescendantIds(nodes).size).toBe(0);
     expect(filterCollapsedFrameDescendants(nodes)).toBe(nodes);
+  });
+});
+
+describe('nested frame boundaries', () => {
+  it('identifies nested frames at every depth while leaving root siblings unmarked', () => {
+    const outer = frameNode('outer', 0, 0, 600, 600);
+    const inner = frameNode('inner', 50, 50, 350, 350);
+    const deepest = frameNode('deepest', 100, 100, 100, 100);
+    const sibling = frameNode('sibling', 800, 0, 300, 300);
+    expect([...collectNestedFrameIds([outer, inner, deepest, sibling, textNode('note', 120, 120)])].sort())
+      .toEqual(['deepest', 'inner']);
+  });
+
+  it('updates when the outer frame moves even though the child object is unchanged', () => {
+    const outer = frameNode('outer', 0, 0, 500, 500);
+    const inner = frameNode('inner', 50, 50, 150, 150);
+    expect(collectNestedFrameIds([outer, inner]).has(inner.id)).toBe(true);
+    expect(collectNestedFrameIds([{ ...outer, x: 800 }, inner]).has(inner.id)).toBe(false);
+  });
+
+  it('looks through groups but does not treat a root group as a white frame', () => {
+    const outer = frameNode('outer', 0, 0, 600, 600);
+    const group = makeNode('group', 'group', 40, 40, 400, 400, { childIds: ['inner'] });
+    const inner = frameNode('inner', 80, 80, 160, 160);
+    expect([...collectNestedFrameIds([group, inner])]).toEqual([]);
+    expect([...collectNestedFrameIds([outer, group, inner])]).toEqual(['inner']);
   });
 });

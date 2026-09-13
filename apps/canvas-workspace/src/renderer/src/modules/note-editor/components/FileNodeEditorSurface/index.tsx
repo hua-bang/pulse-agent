@@ -8,7 +8,6 @@ import {
 import { EditorContent, type Editor } from '@tiptap/react';
 import type { SlashCmd } from '../../runtime/slashCommands';
 import { filterCmds } from '../../runtime/slashCommands';
-import { insertSlashBlockAfter } from '../../runtime/noteBlockCommands';
 import type { NoteInteractionController } from '../../controller/useNoteInteractionController';
 import type { CanvasNode } from '../../../../types';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
@@ -61,7 +60,6 @@ export const FileNodeEditorSurface = ({
     linkPrompt,
     findBarOpen,
     outlineOpen,
-    openSlashMenu,
     closeSlashMenu,
     closeBubble,
     closeFindBar,
@@ -202,22 +200,7 @@ export const FileNodeEditorSurface = ({
       </div>
 
       {!readOnly && editor && (
-        <NoteBlockHandle
-          editor={editor}
-          cardRef={cardRef}
-          onAddBlock={(index) => {
-            if (!insertSlashBlockAfter(editor, index)) return;
-            const slashFrom = editor.state.selection.from - 1;
-            const coords = editor.view.coordsAtPos(slashFrom);
-            openSlashMenu({
-              x: coords.left,
-              y: coords.bottom,
-              query: '',
-              index: 0,
-              slashFrom,
-            });
-          }}
-        />
+        <NoteBlockHandle editor={editor} cardRef={cardRef} />
       )}
 
       <input
