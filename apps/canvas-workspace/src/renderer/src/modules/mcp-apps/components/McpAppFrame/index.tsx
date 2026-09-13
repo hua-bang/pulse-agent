@@ -41,6 +41,7 @@ export const McpAppFrame = (props: McpAppFrameProps) => {
             title={controller.title}
             src={`pulse-mcp-app://sandbox/index.html?csp=${encodeURIComponent(controller.resource.csp)}`}
             sandbox="allow-scripts allow-same-origin"
+            allow="clipboard-write *"
             style={{ height: '100%' }}
             onLoad={() => { void controller.connectBridge(); }}
           />
