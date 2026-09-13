@@ -46,7 +46,7 @@ Every tunable the engine reads, with defaults and read sites. All `config/index.
 
 ## Runtime Configuration Layout
 
-Write new configuration under .pulse-coder and preserve .coder compatibility unless explicitly migrating. Runtime task skills are loaded by the engine's skills plugin; repository action protocols under harness/skills are a separate layer.
+Write new configuration under .pulse-coder and preserve .coder compatibility unless explicitly migrating. Runtime task skills are loaded by the engine's skills plugin; repository action protocols under harness/skills are a separate layer. A local skill with frontmatter `disable-model-invocation: true` remains loadable by exact name but is omitted from the model's automatic-matching list, so it requires explicit user invocation.
 
 | Task | Source / entry |
 |---|---|

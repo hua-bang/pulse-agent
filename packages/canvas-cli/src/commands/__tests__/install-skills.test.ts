@@ -16,6 +16,7 @@ describe('installSkills', () => {
         '<target>/canvas-bootstrap/SKILL.md',
         '<target>/canvas-deep-research/SKILL.md',
         '<target>/canvas-frame-research/SKILL.md',
+        '<target>/file-pulse-agent-issue/SKILL.md',
         '<target>/pulse-canvas/SKILL.md',
       ]);
 
@@ -23,6 +24,7 @@ describe('installSkills', () => {
       const canvas = await fs.readFile(join(target, 'pulse-canvas', 'SKILL.md'), 'utf-8');
       const deepResearch = await fs.readFile(join(target, 'canvas-deep-research', 'SKILL.md'), 'utf-8');
       const frameResearch = await fs.readFile(join(target, 'canvas-frame-research', 'SKILL.md'), 'utf-8');
+      const fileIssue = await fs.readFile(join(target, 'file-pulse-agent-issue', 'SKILL.md'), 'utf-8');
 
       expect(canvas).toContain('name: pulse-canvas');
       expect(canvas).toContain('Whenever `$PULSE_CANVAS_WORKSPACE_ID` is set');
@@ -41,6 +43,9 @@ describe('installSkills', () => {
       expect(frameResearch).toContain('Resolve the Target Frame');
       expect(frameResearch).toContain('Layout Only the Frame');
       expect(frameResearch).toContain('pulse-canvas layout frame-grid');
+      expect(fileIssue).toContain('name: file-pulse-agent-issue');
+      expect(fileIssue).toContain('disable-model-invocation: true');
+      expect(fileIssue).toContain('hua-bang/pulse-agent');
     } finally {
       await fs.rm(target, { recursive: true, force: true });
     }

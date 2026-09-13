@@ -346,17 +346,57 @@ type SkillToolInput = z.infer<typeof skillToolSchema>;
 /**
  * 生成技能工具
  */
-function generateSkillTool(registry: BuiltInSkillRegistry): Tool<SkillToolInput, SkillInfo> {
+function isModelInvocable(skill: SkillInfo): boolean {
+  return skill.metadata?.['disable-model-invocation'] !== true;
+}
+
+function messageText(message: unknown): string {
+  if (!message || typeof message !== 'object') return '';
+  const content = (message as { content?: unknown }).content;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((part) => {
+      if (!part || typeof part !== 'object') return '';
+      const text = (part as { text?: unknown }).text;
+      return typeof text === 'string' ? text : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function containsExactSkillName(text: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^A-Za-z0-9_-])${escaped}(?=$|[^A-Za-z0-9_-])`).test(text);
+}
+
+export function explicitlyNamedSkillsForContext(context: { messages: unknown[] }, skills: SkillInfo[]): Set<string> {
+  const latestUserMessage = [...context.messages]
+    .reverse()
+    .find((message) => message && typeof message === 'object' && (message as { role?: unknown }).role === 'user');
+  const text = messageText(latestUserMessage);
+  return new Set(
+    skills
+      .filter((skill) => !isModelInvocable(skill) && containsExactSkillName(text, skill.name))
+      .map((skill) => skill.name),
+  );
+}
+
+export function generateSkillTool(
+  registry: BuiltInSkillRegistry,
+  explicitlyInvokedSkillNames: ReadonlySet<string> = new Set(),
+): Tool<SkillToolInput, SkillInfo> {
   const getSkillsPrompt = (availableSkills: SkillInfo[]) => {
     return [
       "If query matches an available skill's description or instruction [use skill], use the skill tool to get detailed instructions.",
       "Load a skill to get detailed instructions for a specific task.",
       "Skills provide specialized knowledge and step-by-step guidance.",
-      "Use this when a task matches an available skill's description.",
-      "Only the skills listed here are available:",
+      "Use this when a task matches an available skill's description, or when the user explicitly names an installed skill.",
+      "Skills marked disable-model-invocation are omitted from this list and may only be loaded when the user names them exactly.",
+      "Only the model-invocable skills listed here are available for automatic matching:",
       "[!important] You should follow the skill's step-by-step guidance. If the skill is not complete, ask the user for more information.",
       "<available_skills>",
-      ...availableSkills.flatMap((skill) => [
+      ...availableSkills.filter(isModelInvocable).flatMap((skill) => [
         `  <skill>`,
         `    <name>${skill.name}</name>`,
         `    <description>${skill.description}</description>`,
@@ -374,6 +414,9 @@ function generateSkillTool(registry: BuiltInSkillRegistry): Tool<SkillToolInput,
       const skill = registry.get(name);
       if (!skill) {
         throw new Error(`Skill ${name} not found`);
+      }
+      if (!isModelInvocable(skill) && !explicitlyInvokedSkillNames.has(skill.name)) {
+        throw new Error(`Skill ${skill.name} requires explicit user invocation by exact name`);
       }
       return skill;
     }
@@ -409,11 +452,15 @@ export function createSkillsPlugin(options: SkillsPluginOptions = {}): EnginePlu
       context.registerService('skillRegistry', registry);
       context.registerTool('skill', generateSkillTool(registry));
 
-      context.registerHook('beforeRun', ({ tools }) => {
+      context.registerHook('beforeRun', ({ context: runContext, tools }) => {
+        const explicitlyInvokedSkillNames = explicitlyNamedSkillsForContext(
+          runContext,
+          registry.getAll(),
+        );
         return {
           tools: {
             ...tools,
-            skill: generateSkillTool(registry)
+            skill: generateSkillTool(registry, explicitlyInvokedSkillNames)
           }
         };
       });

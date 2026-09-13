@@ -272,11 +272,15 @@ Create `.pulse-coder/skills/<skill-name>/SKILL.md`:
 ---
 name: my-skill
 description: What this skill helps with
+# Optional: hide it from automatic matching; users must name it explicitly.
+disable-model-invocation: true
 ---
 
 # Instructions
 ...
 ```
+
+With `disable-model-invocation: true`, invoke the skill by including its exact name in the current user request, for example: `Use my-skill to ...`.
 
 Optional remote skills config: `.pulse-coder/skills/remote.json`.
 

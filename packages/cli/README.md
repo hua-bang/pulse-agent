@@ -240,10 +240,14 @@ readline 宿主：处理中按 `Esc` 中止；`Ctrl+C` 立即保存退出。
 ---
 name: my-custom-skill
 description: 我的自定义技能
+# 可选：不参与自动匹配，仅在用户显式点名时加载。
+disable-model-invocation: true
 ---
 
 # 技能内容...
 ```
+
+设置 `disable-model-invocation: true` 后，需要在当前用户请求中写出完整技能名，例如：`用 my-custom-skill 完成……`。
 
 无技能时 `/skills` 会提示 `Add SKILL.md under .pulse-coder/skills/**/SKILL.md`。
 

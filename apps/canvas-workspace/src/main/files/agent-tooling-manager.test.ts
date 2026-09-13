@@ -17,6 +17,7 @@ async function writeBundle(root: string, version = '1.2.3'): Promise<string> {
   const bundleRoot = join(root, 'bundle');
   await fs.mkdir(join(bundleRoot, 'canvas-cli', 'skills', 'canvas'), { recursive: true });
   await fs.mkdir(join(bundleRoot, 'canvas-cli', 'skills', 'canvas-bootstrap'), { recursive: true });
+  await fs.mkdir(join(bundleRoot, 'canvas-cli', 'skills', 'file-pulse-agent-issue'), { recursive: true });
   await fs.writeFile(join(bundleRoot, 'canvas-cli', 'index.cjs'), '#!/usr/bin/env node\n');
   await fs.writeFile(
     join(bundleRoot, 'canvas-cli', 'skills', 'canvas', 'SKILL.md'),
@@ -25,6 +26,10 @@ async function writeBundle(root: string, version = '1.2.3'): Promise<string> {
   await fs.writeFile(
     join(bundleRoot, 'canvas-cli', 'skills', 'canvas-bootstrap', 'SKILL.md'),
     '---\nname: canvas-bootstrap\ndescription: Bootstrap Canvas\n---\n',
+  );
+  await fs.writeFile(
+    join(bundleRoot, 'canvas-cli', 'skills', 'file-pulse-agent-issue', 'SKILL.md'),
+    '---\nname: file-pulse-agent-issue\ndescription: File issue\ndisable-model-invocation: true\n---\n',
   );
   await fs.writeFile(
     join(bundleRoot, 'canvas-cli-package.json'),
@@ -97,6 +102,8 @@ describe('AgentToolingManager', () => {
       expect(canvasSkill).not.toMatch(/^pulse-canvas /m);
       await expect(fs.readFile(join(parent, 'canvas-bootstrap', 'SKILL.md'), 'utf8'))
         .resolves.toContain('name: canvas-bootstrap');
+      await expect(fs.readFile(join(parent, 'file-pulse-agent-issue', 'SKILL.md'), 'utf8'))
+        .resolves.toContain('disable-model-invocation: true');
     }
     await expect(manager.status()).resolves.toMatchObject({
       installed: true,
