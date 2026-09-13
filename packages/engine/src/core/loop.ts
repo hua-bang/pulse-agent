@@ -686,6 +686,15 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           },
         });
 
+        // SDK result promises can remain pending when toModelOutput throws
+        // during finish-step. Observe the actual stream as well, so a failed
+        // converter rejects this turn instead of waiting for the total timeout.
+        const streamFailurePromise = new Promise<never>((_resolve, reject) => {
+          if (result.consumeStream) {
+            Promise.resolve(result.consumeStream({ onError: reject })).catch(reject);
+          }
+        });
+
         const usagePromise = (result as any).usage;
         const llmCompletionPromise = Promise.all([
           result.text,
@@ -697,6 +706,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         [text, steps, finishReason, usage] = await Promise.race([
           llmCompletionPromise,
           llmWaitAbortPromise,
+          streamFailurePromise,
         ]);
       } catch (error) {
         if (timeoutError) throw timeoutError;
