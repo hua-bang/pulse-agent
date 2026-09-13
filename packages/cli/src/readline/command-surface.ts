@@ -86,8 +86,7 @@ export async function routeSlashInput(
     return { kind: 'handled' };
   }
 
-  let messageInput = trimmedInput;
-  const commandLine = messageInput.substring(1);
+  const commandLine = trimmedInput.substring(1);
   const parts = commandLine.split(/\s+/).filter(part => part.length > 0);
 
   if (parts.length === 0) {
@@ -110,7 +109,7 @@ export async function routeSlashInput(
     const skill = host.skillCommands.findSkill(command);
     const skillMessage = args.join(' ').trim();
     if (skill && skillMessage) {
-      messageInput = `[use skill](${skill.name}) ${skillMessage}`;
+      return { kind: 'message', message: `[use skill](${skill.name}) ${skillMessage}` };
     } else {
       if (skill) {
         host.tui.error(`Usage: /${skill.name} <message>`);
@@ -168,9 +167,6 @@ export async function routeSlashInput(
     return { kind: 'message', message: `[use skill](worktree) new ${workName}` };
   }
 
-  // NOTE: a transformed non-local skill message also lands here and is passed
-  // to handleCommand (which reports it as unknown) — preserved as-is from the
-  // pre-split host; see host AGENTS notes before changing.
   await commands.handleCommand(command, args);
   return { kind: 'handled' };
 }

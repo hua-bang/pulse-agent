@@ -61,6 +61,6 @@ For interactive changes, preserve both hosts' shared behavior and the documented
 
 ## Known divergence and write-back
 
-The readline direct skill invocation has a documented fall-through defect; read host-lifecycle.md before touching slash routing. Do not silently restore retired commands or normalize intentional host differences.
+Direct skill slash invocation and its regression guard are documented in host-lifecycle.md; read it before touching slash routing. Do not silently restore retired commands or normalize intentional host differences.
 
 Write detailed lessons into the relevant Knowledge file and keep this entry as a task router. Source maps belong in source-layout.md, command selection in local validation.
