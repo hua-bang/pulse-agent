@@ -173,7 +173,7 @@ export const DockTabStrip = ({
         <Suspense fallback={null}>
           <DockTabSwitcher key={activeWorkspaceId} items={allTabItems} activeTabId={activePaneId} splitTabIds={splitTabIds}
             closedTabs={store.getClosedTabs()} onReopen={offset => { store.reopenClosedTab(offset); focusActiveDockTarget(store); }}
-            onActivate={activateFromUser} />
+            onActivate={activateFromUser} onClose={id => store.close(id)} />
         </Suspense>
       )}
       {visible && (

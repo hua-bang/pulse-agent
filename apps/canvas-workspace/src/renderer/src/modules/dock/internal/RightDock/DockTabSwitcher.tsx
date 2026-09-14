@@ -1,4 +1,4 @@
-import { CaretDown, Columns } from '@phosphor-icons/react';
+import { CaretDown, Columns, X } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { useI18n } from '../../../../i18n';
@@ -15,11 +15,12 @@ interface Props {
   activeTabId: string | null;
   splitTabIds?: readonly string[];
   onActivate: (id: string) => void;
+  onClose?: (id: string) => void;
   closedTabs?: readonly DockTabSwitcherItem[];
   onReopen?: (offset: number) => void;
 }
 
-export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, closedTabs = [], onReopen }: Props) => {
+export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, onClose, closedTabs = [], onReopen }: Props) => {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -95,19 +96,31 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
                 {(index === 0 || (closedIndex >= 0 && rows[index - 1].closedIndex < 0)) && (
                   <div className="right-dock__tab-search-heading">{t(closedIndex >= 0 ? 'rightDock.recentlyClosed' : comparing ? 'rightDock.chooseComparison' : 'rightDock.recentTabs')}</div>
                 )}
-                <Button id={`${listId}-${index}`} size="sm" role="option" aria-selected={index === currentIndex}
-                  className="right-dock__tab-search-row" title={item.url || item.title}
-                  onMouseEnter={() => setSelected(index)} onClick={() => choose(index)}>
-                  {item.kind === 'terminal' && item.agentType
-                    ? <DockAgentTabIcon agentType={item.agentType} />
-                    : <DockTabIcon kind={item.kind} faviconUrl={item.faviconUrl} />}
-                  <span className="right-dock__tab-search-label"><strong>{item.title}</strong>
-                    {item.url && <small>{dockTabDomain(item.url)}</small>}</span>
-                  {closedIndex < 0 && (splitTabIds?.includes(item.id) || activeTabId === item.id) && (
-                    <span className="right-dock__tab-position">{t(splitTabIds?.[1] === item.id ? 'rightDock.rightPane'
-                      : splitTabIds?.[0] === item.id ? 'rightDock.leftPane' : 'rightDock.currentTab')}</span>
+                <div className={`right-dock__tab-search-entry${!comparing && closedIndex < 0 && item.kind === 'link' && onClose ? ' right-dock__tab-search-entry--closable' : ''}`}>
+                  <Button id={`${listId}-${index}`} size="sm" role="option" aria-selected={index === currentIndex}
+                    className="right-dock__tab-search-row" title={item.url || item.title}
+                    onMouseEnter={() => setSelected(index)} onClick={() => choose(index)}>
+                    {item.kind === 'terminal' && item.agentType
+                      ? <DockAgentTabIcon agentType={item.agentType} />
+                      : <DockTabIcon kind={item.kind} faviconUrl={item.faviconUrl} />}
+                    <span className="right-dock__tab-search-label"><strong>{item.title}</strong>
+                      {item.url && <small>{dockTabDomain(item.url)}</small>}</span>
+                    {closedIndex < 0 && (splitTabIds?.includes(item.id) || activeTabId === item.id) && (
+                      <span className="right-dock__tab-position">{t(splitTabIds?.[1] === item.id ? 'rightDock.rightPane'
+                        : splitTabIds?.[0] === item.id ? 'rightDock.leftPane' : 'rightDock.currentTab')}</span>
+                    )}
+                  </Button>
+                  {!comparing && closedIndex < 0 && item.kind === 'link' && onClose && (
+                    <Button size="sm" variant="icon" className="right-dock__tab-search-close"
+                      aria-label={t('rightDock.closeTab', { title: item.title })}
+                      title={t('rightDock.closeTab', { title: item.title })}
+                      onClick={event => {
+                        event.stopPropagation();
+                        onClose(item.id);
+                        searchRef.current?.querySelector('input')?.focus();
+                      }}><X size={14} /></Button>
                   )}
-                </Button>
+                </div>
               </div>
             ))}
           </div>
