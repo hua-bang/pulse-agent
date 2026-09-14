@@ -13,6 +13,7 @@ afterEach(() => { act(() => root?.unmount()); mount?.remove(); root = null; vi.r
 const setup = async () => {
   const onActivate = vi.fn();
   const onReopen = vi.fn();
+  const onClose = vi.fn();
   mount = document.createElement('div'); document.body.appendChild(mount); root = createRoot(mount);
   act(() => root?.render(<I18nProvider><DockTabSwitcher activeTabId="b" splitTabIds={['a', 'b']}
     items={[
@@ -20,7 +21,7 @@ const setup = async () => {
       { id: 'b', kind: 'link', title: 'Research', url: 'https://research.example' },
     ]}
     closedTabs={[{ id: 'closed', kind: 'link', title: 'Closed article', url: 'https://closed.example' }]}
-    onActivate={onActivate} onReopen={onReopen} /></I18nProvider>));
+    onClose={onClose} onActivate={onActivate} onReopen={onReopen} /></I18nProvider>));
   const trigger = mount.querySelector<HTMLButtonElement>('[aria-label="All tabs"]')!;
   act(() => trigger.click());
   await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())); });
@@ -29,10 +30,25 @@ const setup = async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  return { onActivate, onReopen, trigger, input, type };
+  return { onActivate, onReopen, onClose, trigger, input, type };
 };
 
 describe('DockTabSwitcher search', () => {
+  it('closes a matching open webpage without activating it or dismissing search', async () => {
+    const { type, input, onActivate, onClose, onReopen } = await setup();
+    expect(document.querySelectorAll('.right-dock__tab-search-close')).toHaveLength(2);
+    expect(document.querySelector('[aria-label="Close Closed article"]')).toBeNull();
+    type('docs.example');
+    const close = document.querySelector<HTMLButtonElement>('[aria-label="Close Reading notes"]')!;
+    expect(close.closest('[role="option"]')).toBeNull();
+    act(() => close.click());
+    expect(onClose).toHaveBeenCalledWith('a');
+    expect(onActivate).not.toHaveBeenCalled();
+    expect(onReopen).not.toHaveBeenCalled();
+    expect(document.querySelector('.right-dock__tab-search')).not.toBeNull();
+    expect(input.value).toBe('docs.example');
+    expect(document.activeElement).toBe(input);
+  });
   it('focuses search, shows domains and pane positions, then selects by domain', async () => {
     const { input, type, onActivate } = await setup();
     expect(document.activeElement).toBe(input);

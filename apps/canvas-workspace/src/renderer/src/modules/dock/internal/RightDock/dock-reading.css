@@ -41,3 +41,25 @@
 .right-dock[data-reading="true"] .right-dock__tabs { -webkit-app-region: no-drag; }
 
 .right-dock__reading-toggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+
+.right-dock__tab-search-entry { position: relative; }
+.right-dock__tab-search-entry--closable .right-dock__tab-search-row { padding-right: 38px; }
+.right-dock__tab-search-close.ui-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.right-dock__tab-search-entry:hover .right-dock__tab-search-close,
+.right-dock__tab-search-entry:focus-within .right-dock__tab-search-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .right-dock__tab-search-close.ui-btn { opacity: 1; pointer-events: auto; }
+}
