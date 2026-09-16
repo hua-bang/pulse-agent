@@ -62,6 +62,8 @@
   --surface-2: rgba(255, 255, 255, 0.03);
   --surface-alt: rgba(0, 0, 0, 0.05);
   --surface-subtle: rgba(0, 0, 0, 0.02);
+  --link-text: #365f91;
+  --link-text-hover: #244775;
   --accent: #2383e2;
   --accent-light: rgba(35, 131, 226, 0.08);
   --accent-border: rgba(35, 131, 226, 0.45);
