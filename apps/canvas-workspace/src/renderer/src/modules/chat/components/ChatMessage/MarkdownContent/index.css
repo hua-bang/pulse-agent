@@ -84,12 +84,17 @@
 }
 
 .chat-md a {
-  color: #2eaadc;
-  text-decoration: none;
+  color: var(--link-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
-.chat-md a:hover {
-  text-decoration: underline;
+.chat-md a:hover,
+.chat-md a:focus-visible {
+  color: var(--link-text-hover);
+  text-decoration-color: currentColor;
 }
 
 .chat-md strong {

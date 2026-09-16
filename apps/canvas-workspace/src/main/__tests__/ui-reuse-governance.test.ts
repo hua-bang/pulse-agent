@@ -428,7 +428,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1689→1675: neutral artboard chrome uses shared surface/text tokens.
   // 1675→1670: Library cards reuse the shared surface palette.
   // 1670→1669: Note headers inherit the shared file icon color.
-  hardcodedColorLiterals: 1669,
+  // 1669→1668: Chat links use shared link color tokens.
+  hardcodedColorLiterals: 1668,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
