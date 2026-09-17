@@ -76,6 +76,24 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
 - Keep components **≤ 300 lines**; lift state machines and side effects into a
   `useXxxController` hook or split out sub-components (see file-size governance).
 
+### Readable formatting
+
+- Keep short, simple JSX on one line when it is easy to scan. When a tag has
+  many props or mixes callbacks, conditions, and configuration, put each prop
+  on its own line. Expand nested JSX and conditional branches so the visual
+  hierarchy remains visible.
+- Put each statement in a multi-statement callback on its own line; expand
+  conditionals and async steps. Give complex expressions meaningful local
+  names when that clarifies their purpose.
+- Preserve useful blank lines and comments. If readable formatting exceeds
+  a size limit, extract a cohesive responsibility; do not compress the code,
+  create forwarding-only fragments, or hide explicit props in an object spread
+  solely to lower the line count.
+- Review touched code for these patterns even when the size check passes.
+  `src/main/__tests__/file-size-governance.test.ts` counts physical lines; it
+  does not enforce readable formatting. This remains a manual review check,
+  not an automated formatting gate.
+
 ## Hooks
 
 - Shared hooks live in `src/renderer/src/hooks/` named `useXxx.ts`

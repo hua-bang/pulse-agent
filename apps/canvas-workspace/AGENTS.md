@@ -45,7 +45,7 @@ A matching trigger requires reading its owner before changing code. Keep detaile
 
 - Renderer privileged operations use the typed window.canvasWorkspace preload API; never import Electron, Node, main, or preload into renderer code. Move cross-process contracts toward src/shared; do not add preload-to-renderer imports beyond existing allowlisted debt.
 - Keep main code in domain folders and preserve IPC names/API shape during refactors.
-- New production TS/TSX files stay at or below 500 lines; existing over-limit baseline files must not grow.
+- New production TS/TSX files stay at or below 500 lines; existing over-limit baseline files must not grow. Apply the root anti-compression rule; renderer formatting details live in `harness/knowledge/conventions/frontend.md` (Readable formatting).
 - Tool names/schemas/descriptions ship in the main bundle. Keep descriptions concise and run the bundle gate for tool-surface growth; repeated usage prose belongs in the system prompt.
 - Runtime data stays under user runtime/settings locations, not the source tree. Packaged CLI/skills install and repair must use AgentToolingManager and agent-tooling-queue, never a source checkout, pnpm, or global link.
 - Driver profiles default to temp/demo/clone. Use real --allow-real-writes only with explicit user intent. Reopening demo without --reset preserves fixtures; reseeding is a reset.

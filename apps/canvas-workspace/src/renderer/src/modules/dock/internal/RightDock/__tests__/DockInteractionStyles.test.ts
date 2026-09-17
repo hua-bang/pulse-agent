@@ -35,7 +35,7 @@ describe('RightDock interaction styles', () => {
   });
 
   it('reserves dock width on library routes and lets plugin rows respond to the remaining space', () => {
-    expect(appSource).toMatch(/<RightDock[^>]*reserveSpace capWidth=/s);
+    expect(appSource).toMatch(/<RightDock[^>]*reserveSpace\s+capWidth=/s);
     expect(appSource).not.toContain("reserveSpace={activeView !== 'skills' && activeView !== 'plugins'}");
     expect(pluginMarketListCss).toMatch(
       /\.plugin-market\s*\{[^}]*container-type:\s*inline-size;/s,
