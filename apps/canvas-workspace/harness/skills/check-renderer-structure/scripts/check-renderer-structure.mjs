@@ -15,7 +15,7 @@ const countLines = (text) => {
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   return normalized.split('\n').length - (normalized.endsWith('\n') ? 1 : 0);
 };
-const isTestFile = (path) => path.includes('/__tests__/') || /\.test\.[cm]?[jt]sx?$/.test(path);
+const isTestFile = (path) => path.includes('/__tests__/') || /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
 
 const walkFiles = (root, directory = root) => readdirSync(directory, { withFileTypes: true })
   .flatMap((entry) => {
@@ -151,10 +151,9 @@ export const analyzeRendererStructure = (rendererRoot) => {
     .sort((a, b) => b.lines - a.lines);
 
   const visualOver300 = productionFiles
-    .filter(file => extname(file.path) === '.tsx' && (
-      /^(components|views)\//.test(file.path)
-      || /^modules\/[^/]+\/(components|views)\//.test(file.path)
-    ))
+    // Visual modules also live under app/ and modules/*/internal/. Moving a
+    // component must not remove it from the pressure report.
+    .filter(file => extname(file.path) === '.tsx')
     .filter(file => !/^use[A-Z]/.test(file.path.split('/').pop() ?? ''))
     .map(file => ({ path: file.path, lines: countLines(readFileSync(file.absolutePath, 'utf8')) }))
     .filter(file => file.lines > 300)

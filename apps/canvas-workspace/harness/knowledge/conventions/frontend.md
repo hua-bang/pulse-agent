@@ -62,8 +62,21 @@ Within an owner, each non-trivial component keeps its own folder
 
 Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx`,
 `WorkspaceItem.tsx`, `FolderItem.tsx`, `LayersPanel.tsx`, `utils/`, with
-`index.tsx` only wiring state to children. `AgentNodeBody/` extracts logic into
+`useSidebarEditing`, `useSidebarDrag`, and `useSidebarLayers` owning editing,
+drag targets, and layer interactions; `index.tsx` wires these owners to children.
+`AgentNodeBody/` extracts logic into
 `useAgentNodeController.ts` and renders `AgentPicker` / `AgentTerminal`.
+
+Workbench reference creation, placement, clipboard conversion, and source
+updates belong to its local `useReferenceOperations` hook. Mounted sources
+receive patch requests; unmounted sources retain the snapshot persistence path.
+Keep those operations together rather than duplicating reference policy in
+individual visual hosts.
+
+Read-only Markdown consumers outside Chat use `modules/chat/markdown.ts` and
+its `MarkdownPreview` component. That entry owns rendering and code-copy
+interaction without loading chat sessions or surfaces. Consumers must not
+reach into Chat component paths or query its code-block DOM to implement copying.
 
 ## Component style
 
