@@ -36,6 +36,7 @@ Read `harness/README.md`, the affected workspace AGENTS, and local validation. F
 - Keep TypeScript strict. Canvas tsconfigs are independent. Match each package's module format and scripts.
 - Root `tsconfig.json` owns aliases; do not invent them. Other internal dependencies use `workspace:*`.
 - No lint/format tool is configured. Match local style: two spaces, semicolons, single quotes.
+- Never satisfy file/component line limits by merging statements, JSX, or props onto fewer lines, or removing useful spacing/comments. Keep readable formatting; reduce size through cohesive responsibility boundaries, not line-count-only fragmentation.
 - Read workspace validation for test/build and coverage limitations. Passing tests do not prove untested modules.
 
 ## 3. Auxiliary-workspace boundary

@@ -384,7 +384,13 @@ export function useChatSessions({
   }, [runThreadFetch, scopeKey]);
   const recoverChangedSession = useCallback(async (error: string) => {
     let recoveredSessionId: string | null | undefined;
-    const recovered = await runThreadFetch(async () => { const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current }); if (result.ok) recoveredSessionId = result.activeSessionId; return result; });
+    const recovered = await runThreadFetch(async () => {
+      const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current });
+      if (result.ok) {
+        recoveredSessionId = result.activeSessionId;
+      }
+      return result;
+    });
     return recovered && recoveredSessionId ? { sessionId: recoveredSessionId, error } : null;
   }, [runThreadFetch]);
   const failSessionMutation = useCallback((result: {
