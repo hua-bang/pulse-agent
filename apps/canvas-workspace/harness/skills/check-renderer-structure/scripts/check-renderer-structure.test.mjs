@@ -72,4 +72,23 @@ describe('analyzeRendererStructure', () => {
     expect(output).toContain('Renderer structure health (module-first-migration)');
     expect(output).toContain('modules: chat');
   });
+
+  it('tracks visual pressure across owner directories without counting hooks or tests', () => {
+    const root = makeRenderer();
+    const source = Array.from({ length: 310 }, () => '// line').join('\n');
+    const components = [
+      'app/shell/Sidebar/index.tsx',
+      'modules/dock/internal/RightDock/index.tsx',
+      'modules/dock/internal/FolderDockTab/FileContent.tsx',
+    ];
+    for (const path of components) write(root, path, source);
+    write(root, 'modules/dock/internal/useDockController.tsx', source);
+    write(root, 'modules/dock/internal/RightDock/index.test.tsx', source);
+    write(root, 'modules/dock/internal/RightDock/index.spec.tsx', source);
+    write(root, 'modules/dock/internal/RightDock/__tests__/fixture.tsx', source);
+
+    const report = analyzeRendererStructure(root);
+
+    expect(report.pressure.visualOver300.map(file => file.path).sort()).toEqual(components.sort());
+  });
 });
