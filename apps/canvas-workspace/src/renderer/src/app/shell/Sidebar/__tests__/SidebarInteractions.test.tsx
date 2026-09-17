@@ -6,12 +6,13 @@ import { Sidebar } from '..';
 import type { SidebarProps } from '../types';
 import { I18nProvider } from '../../../../i18n';
 import { AppShellProvider } from '../../AppShellProvider';
+import { createDefaultNode } from '../../../../utils/nodeFactory';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let host: HTMLDivElement;
 let root: Root;
 let props: SidebarProps;
-const render = () => act(() => root.render(
+const render = () => act(async () => root.render(
   <I18nProvider><AppShellProvider><Sidebar {...props} /></AppShellProvider></I18nProvider>,
 ));
 const element = <T extends Element,>(selector: string): T => {
@@ -36,7 +37,7 @@ const drag = (selector: string, eventName: string, mime: string, id: string) => 
   element(selector).dispatchEvent(event);
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -52,7 +53,7 @@ beforeEach(() => {
     onEnterScheduled: vi.fn(), nodesEnabled: false, graphEnabled: false, pluginNavItems: [],
     onNavigate: vi.fn(), onExitChat: vi.fn(),
   };
-  render();
+  await render();
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -60,6 +61,36 @@ afterEach(() => {
 });
 
 describe('Sidebar owner interactions', () => {
+  it('loads layers on the canvas route and retains collapse state across sidebar and route visibility changes', async () => {
+    props.activeNodes = [
+      { ...createDefaultNode('frame', 0, 0), id: 'frame', width: 500, height: 500 },
+      { ...createDefaultNode('text', 100, 100), id: 'text', width: 100, height: 100 },
+    ];
+    props.selectedNodeIds = [];
+    props.activeView = 'chat';
+    await render();
+    expect(host.querySelector('[aria-label="Collapse all frames"]')).toBeNull();
+
+    props.activeView = 'canvas';
+    await render();
+    await vi.waitFor(() => expect(host.querySelector('[aria-label="Collapse all frames"]')).not.toBeNull());
+    click('[aria-label="Collapse all frames"]');
+    expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
+
+    props.collapsed = true;
+    await render();
+    expect(host.querySelector('[aria-label="Expand all frames"]')).toBeNull();
+    props.collapsed = false;
+    await render();
+    expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
+
+    props.activeView = 'chat';
+    await render();
+    props.activeView = 'canvas';
+    await render();
+    expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
+  });
+
   it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', () => {
     click('.sidebar-item-rename');
     expect(document.activeElement).toBe(element('input'));

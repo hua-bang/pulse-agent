@@ -64,6 +64,9 @@ Example (real): `Sidebar/` is split into `SidebarHeader.tsx`, `WorkspaceList.tsx
 `WorkspaceItem.tsx`, `FolderItem.tsx`, `LayersPanel.tsx`, `utils/`, with
 `useSidebarEditing`, `useSidebarDrag`, and `useSidebarLayers` owning editing,
 drag targets, and layer interactions; `index.tsx` wires these owners to children.
+`LayerSection` loads when a populated canvas first needs the visible layer tree
+and stays mounted afterward so sidebar collapse and route changes retain its
+interaction state. Keep the canvas-only layer surface out of the startup entry.
 `AgentNodeBody/` extracts logic into
 `useAgentNodeController.ts` and renders `AgentPicker` / `AgentTerminal`.
 

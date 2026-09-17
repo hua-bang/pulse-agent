@@ -1,18 +1,18 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import './index.css';
 import './interaction-polish.css';
 import { SidebarHeader, SidebarToggleIcon } from './SidebarHeader';
 import { WorkspaceItem } from './WorkspaceItem';
 import { WorkspaceList } from './WorkspaceList';
-import { LayersPanel } from './LayersPanel';
-import { LayerContextMenu } from './LayerContextMenu';
 import { AppLogoIcon, PluginIcon, ScheduledIcon, SettingsIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { useSidebarEditing } from './useSidebarEditing';
 import { useSidebarDrag } from './useSidebarDrag';
-import { useSidebarLayers } from './useSidebarLayers';
 import type { SidebarProps as Props } from './types';
+
+const LayerSection = lazy(() => import('./LayerSection').then((module) => ({ default: module.LayerSection })));
 
 export const Sidebar = ({
   collapsed,
@@ -58,7 +58,13 @@ export const Sidebar = ({
     folders, onCreate, onRename, onCreateFolder, onRenameFolder, onToggleFolder, onImport,
   });
   const drag = useSidebarDrag({ onMoveWorkspace, onReorderWorkspace, onReorderFolder });
-  const layers = useSidebarLayers({ activeId, activeNodes, selectedNodeIds, onNodeRename, onNodeDelete });
+  const layersVisible = !collapsed && activeView === 'canvas' && activeNodes.length > 0;
+  const [layersLoaded, setLayersLoaded] = useState(layersVisible);
+  // Load the canvas-only interaction surface on demand, then keep its state
+  // mounted across sidebar collapse and route changes.
+  useEffect(() => {
+    if (layersVisible) setLayersLoaded(true);
+  }, [layersVisible]);
 
   const renderWorkspaceItem = (ws: WorkspaceEntry) => (
     <WorkspaceItem
@@ -148,39 +154,18 @@ export const Sidebar = ({
         </>
       )}
 
-      {!collapsed && activeView === 'canvas' && activeNodes.length > 0 && (
-        <LayersPanel
-          layerTree={layers.layerTree}
-          frameIds={layers.frameIds}
-          nodeCount={activeNodes.length}
-          anyFrameExpanded={layers.anyFrameExpanded}
-          collapsedLayers={layers.collapsedLayers}
-          selectedNodeIds={layers.selectedLayerIds}
-          primarySelectedNodeId={layers.primarySelectedNodeId}
-          onNodeFocus={(nodeId) => onNodeFocus?.(nodeId)}
-          onContextMenu={layers.handleLayerContextMenu}
-          onToggleCollapse={layers.toggleLayerCollapse}
-          onToggleAll={layers.toggleAllLayers}
-          renamingLayerId={layers.renamingLayerId}
-          renameLayerValue={layers.renameLayerValue}
-          renameLayerInputRef={layers.renameLayerInputRef}
-          onLayerRenameChange={layers.setRenameLayerValue}
-          onLayerRenameCommit={layers.commitLayerRename}
-          onLayerRenameCancel={() => layers.setRenamingLayerId(null)}
-        />
-      )}
-
-      {layers.layerContextMenu && (
-        <LayerContextMenu
-          x={layers.layerContextMenu.x}
-          y={layers.layerContextMenu.y}
-          nodeId={layers.layerContextMenu.nodeId}
-          onFocus={(nodeId) => onNodeFocus?.(nodeId)}
-          onRename={(nodeId) => layers.startLayerRename(nodeId)}
-          onDelete={(nodeId) => { void layers.handleLayerDelete(nodeId); }}
-          onCopyLink={(nodeId) => { void layers.handleLayerCopyLink(nodeId); }}
-          onClose={() => layers.setLayerContextMenu(null)}
-        />
+      {(layersLoaded || layersVisible) && (
+        <Suspense fallback={null}>
+          <LayerSection
+            visible={layersVisible}
+            activeId={activeId}
+            activeNodes={activeNodes}
+            selectedNodeIds={selectedNodeIds}
+            onNodeFocus={onNodeFocus}
+            onNodeRename={onNodeRename}
+            onNodeDelete={onNodeDelete}
+          />
+        </Suspense>
       )}
 
       {collapsed && (
