@@ -4,8 +4,6 @@ import { matchShortcut, type AppShortcutId } from '../../shortcuts/registry';
 import { useWebviewShortcutBridge } from '../../platform/browser/useWebviewShortcutBridge';
 
 interface Options {
-  /** Current route bucket — only 'chat' reacts to the chat-page Escape. */
-  activeView: string;
   /** True while a modal/overlay owns the keyboard. */
   isOverlayOpen: boolean;
   openShortcuts: () => void;
@@ -13,7 +11,6 @@ interface Options {
   toggleSidebar: () => void;
   /** Jump to the nth (1-based) workspace, if it exists. */
   selectWorkspaceByIndex: (index: number) => void;
-  leaveChatPage: () => void;
 }
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
@@ -36,13 +33,11 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
  * and the node pages.
  */
 export const useAppShortcuts = ({
-  activeView,
   isOverlayOpen,
   openShortcuts,
   toggleChatPage,
   toggleSidebar,
   selectWorkspaceByIndex,
-  leaveChatPage,
 }: Options) => {
   const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
   const overlayRef = useRef(isOverlayOpen);
@@ -66,14 +61,6 @@ export const useAppShortcuts = ({
       if (!Number.isFinite(index)) return;
       event.preventDefault();
       selectWorkspaceByIndex(index);
-    },
-    'app.escapeChatPage': () => {
-      if (activeView !== 'chat') return;
-      // Last handler in the Escape chain, so there is nothing downstream to
-      // protect from a double-fire. The canvas layer marks the event when it
-      // consumed Escape, and the dispatcher above skips consumed events — so
-      // reaching here means nothing else claimed it.
-      leaveChatPage();
     },
   };
 
@@ -120,7 +107,6 @@ export const useAppShortcutBindings = ({
 }: AppShortcutBindingsOptions): void => {
   useWebviewShortcutBridge();
   useAppShortcuts({
-    activeView,
     isOverlayOpen,
     openShortcuts,
     toggleChatPage: () => setLocation(activeView === 'chat' ? routes.canvas : routes.chat),
@@ -129,6 +115,5 @@ export const useAppShortcutBindings = ({
       const workspace = workspaces[index - 1];
       if (workspace) selectWorkspace(workspace.id);
     },
-    leaveChatPage: () => setLocation(routes.canvas),
   });
 };

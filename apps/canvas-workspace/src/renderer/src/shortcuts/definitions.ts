@@ -236,13 +236,6 @@ export const SHORTCUTS = {
     // input a keyboard black hole.
     editable: 'allow',
   },
-  'app.escapeChatPage': {
-    owner: 'app',
-    // Documented by `canvas.escape`'s row — this entry exists so the App
-    // layer's Escape handler is declared in the registry like every other
-    // binding, not so it renders a second row.
-    bindings: [{ key: 'Escape', hidden: true }],
-  },
   // ---- Terminal-scoped ---------------------------------------------------
   // Only live while a terminal / coding-agent surface owns focus, so they may
   // deliberately share a chord with a global canvas/app binding — the focused

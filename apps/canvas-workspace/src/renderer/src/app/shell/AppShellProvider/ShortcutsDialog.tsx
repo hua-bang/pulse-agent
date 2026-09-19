@@ -52,7 +52,6 @@ export const SHORTCUT_HELP = {
   'app.toggleChatPage': { section: 'panels', descriptionKey: 'shortcuts.panels.chatPage' },
   'app.toggleSidebar': { section: 'panels', descriptionKey: 'shortcuts.panels.sidebar' },
   'app.switchWorkspace': { section: 'panels', descriptionKey: 'shortcuts.panels.switchWorkspace' },
-  'app.escapeChatPage': { section: 'panels', descriptionKey: 'shortcuts.panels.escape' },
   'app.shortcutsHelp': { section: 'panels', descriptionKey: 'shortcuts.panels.shortcuts' },
   'terminal.mentionPicker': { section: 'panels', descriptionKey: 'shortcuts.panels.terminalMentionPicker' },
 } satisfies Record<ShortcutId, { section: ShortcutSectionId; descriptionKey: I18nKey }>;
