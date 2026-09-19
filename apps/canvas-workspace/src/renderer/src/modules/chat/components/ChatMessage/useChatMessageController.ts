@@ -51,11 +51,14 @@ export const useChatMessageController = ({
   const { t } = useI18n();
   const roleColors = useRoleColors();
   const roleNames = useRoleNameColors();
+  // OrderedChatContent owns block rendering; the compatibility text projection
+  // must not also be parsed into HTML that this message never displays.
+  const usesLegacyAssistantHtml = message.role === 'assistant' && !message.contentBlocks;
   const assistantHtml = useMemo(
-    () => (message.role === 'assistant'
+    () => (usesLegacyAssistantHtml
       ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder, roleColors, roleNames })
       : ''),
-    [message.role, message.content, nodes, isStreaming, rootFolder, roleColors, roleNames],
+    [usesLegacyAssistantHtml, message.content, nodes, isStreaming, rootFolder, roleColors, roleNames],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'
