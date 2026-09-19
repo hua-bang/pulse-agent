@@ -66,7 +66,14 @@ export interface CanvasWorkspaceApi {
     save: (
       id: string,
       data: unknown,
-    ) => Promise<{ ok: boolean; error?: string }>;
+    ) => Promise<{
+      ok: boolean;
+      error?: string;
+      code?: string;
+      revision?: number;
+      storageGeneration?: string;
+      data?: CanvasSaveData | null;
+    }>;
     load: (
       id: string,
     ) => Promise<{ ok: boolean; data?: CanvasSaveData | null; error?: string }>;
@@ -116,6 +123,7 @@ export interface CanvasWorkspaceApi {
         workspaceId: string;
         nodeIds: string[];
         edgeIds?: string[];
+        revision?: number;
         kind?: 'create' | 'update' | 'delete';
         source: string;
       }) => void,

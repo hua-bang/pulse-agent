@@ -1,4 +1,5 @@
 import { ipcMain, type WebContents } from 'electron';
+import { SessionStore } from '../session-store';
 import type { AgentScope, AgentScopeRef } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';
@@ -15,7 +16,10 @@ export function getConversationRuntimeService(
     const agentService = getService() as CanvasAgentService;
     service = new ConversationRuntimeService(
       (scope) => agentService.getAgentForScope(scope),
-      (_storeId, scope) => ({
+      (storeId, scope) => ({
+        create: (sessionId, messages) => agentService.sessionMutations.createStoredConversation(scope, async () => {
+          await new SessionStore(storeId, scope).createConversationById(sessionId, messages);
+        }),
         loadMessages: async (sessionId) => (
           agentService.sessionMutations.readConversation(scope, sessionId)
         ),

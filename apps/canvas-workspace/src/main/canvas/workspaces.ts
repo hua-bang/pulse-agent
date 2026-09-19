@@ -20,7 +20,9 @@ import { STORE_DIR } from './nodes/store';
 export const WORKSPACES_MANIFEST_FILENAME = '__workspaces__.json';
 
 /** Store directory entries that are never workspaces. */
-const NON_WORKSPACE_DIRS = new Set(['skills', '__workspaces__']);
+const NON_WORKSPACE_DIRS = new Set([
+  'skills', '__workspaces__', '__locks__', '__storage-backup__', '__storage_migration__.lock',
+]);
 
 export interface WorkspaceInfo {
   id: string;
@@ -79,7 +81,8 @@ async function listWorkspaceDirIds(root: string = STORE_DIR): Promise<string[]> 
   try {
     const entries = await fs.readdir(root, { withFileTypes: true });
     return entries
-      .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !NON_WORKSPACE_DIRS.has(e.name))
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.')
+        && !e.name.startsWith('__storage_migration__.lock') && !NON_WORKSPACE_DIRS.has(e.name))
       .map((e) => e.name);
   } catch {
     return [];

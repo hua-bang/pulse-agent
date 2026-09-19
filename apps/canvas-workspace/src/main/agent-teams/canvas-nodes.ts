@@ -84,8 +84,8 @@ const loadCanvasOrEmpty = async (workspaceId: string): Promise<CanvasSaveData> =
   const { data } = await readCanvasFull(workspaceId);
   if (!data) return makeDefaultCanvas();
   return {
+    ...(data as CanvasSaveData),
     nodes: (data.nodes ?? []) as CanvasNode[],
-    edges: data.edges as CanvasSaveData['edges'],
     transform: (data.transform as CanvasSaveData['transform']) ?? { x: 0, y: 0, scale: 1 },
     savedAt: data.savedAt ?? new Date().toISOString(),
   };

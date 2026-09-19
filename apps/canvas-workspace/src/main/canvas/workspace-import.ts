@@ -1,31 +1,26 @@
 import { promises as fs } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import type { PulseStorage } from '@pulse-coder/storage';
+import { readLocalStorageStatus, withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import {
   isSafeRelativePath,
   parseWorkspaceExportFile,
 } from './workspace-export-archive';
 import { atomicWriteJson, readJsonWithRecovery } from './storage';
+import { assertSafeNodeId } from './nodes/store';
+import { getLocalCanvasStorage } from './persistence/backend';
+import {
+  commitSqliteWorkspaceImport,
+  relativePathFromPortableUrl,
+  rewriteCanvasFilePaths,
+  rewriteWorkspaceNodeFiles,
+  stageSqliteWorkspaceImport,
+  validateWorkspaceArchiveSchema,
+  WorkspaceImportRecoveryError,
+} from './persistence/sqlite-workspace';
+import { getCanvasSessionArchivePort, isWorkspaceSessionFile } from './persistence/session-archive-port';
 
-const PORTABLE_WORKSPACE_URL_PREFIX = 'pulsecanvas://workspace/';
-
-export const relativePathFromPortableUrl = (value: string): string | null => {
-  if (!value.startsWith(PORTABLE_WORKSPACE_URL_PREFIX)) return null;
-  return decodeURI(value.slice(PORTABLE_WORKSPACE_URL_PREFIX.length));
-};
-
-export const rewriteCanvasFilePaths = (
-  value: unknown,
-  mapper: (filePath: string) => string,
-): unknown => {
-  if (Array.isArray(value)) return value.map((item) => rewriteCanvasFilePaths(item, mapper));
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
-    key,
-    key === 'filePath' && typeof item === 'string'
-      ? mapper(item)
-      : rewriteCanvasFilePaths(item, mapper),
-  ]));
-};
+export { relativePathFromPortableUrl, rewriteCanvasFilePaths } from './persistence/sqlite-workspace';
 
 export interface WorkspaceImportOptions {
   sourcePath: string;
@@ -41,14 +36,41 @@ export interface ImportedWorkspace {
   canvas: unknown;
 }
 
-export const importWorkspaceArchiveToStore = async ({
+async function registerWorkspace(storeDir: string, result: ImportedWorkspace): Promise<void> {
+  const manifestPath = join(storeDir, '__workspaces__.json');
+  const manifestRead = await readJsonWithRecovery(manifestPath);
+  if (manifestRead.kind === 'unrecoverable') throw manifestRead.err;
+  const manifest = manifestRead.kind === 'ok' && manifestRead.data && typeof manifestRead.data === 'object'
+    ? manifestRead.data as {
+      workspaces?: Array<{ id: string; name: string }>;
+      folders?: unknown[];
+      activeId?: string;
+    }
+    : {};
+  const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : [];
+  workspaces.push({ id: result.workspaceId, name: result.workspaceName });
+  await atomicWriteJson(manifestPath, JSON.stringify({
+    ...manifest,
+    workspaces,
+    folders: Array.isArray(manifest.folders) ? manifest.folders : [],
+    activeId: result.workspaceId,
+  }, null, 2), { rollingBackup: true });
+}
+
+const importWorkspaceUnlocked = async ({
   sourcePath,
   storeDir,
   workspaceId,
   agentsTemplate,
-}: WorkspaceImportOptions): Promise<ImportedWorkspace> => {
+}: WorkspaceImportOptions, storage: PulseStorage | null, conversationsActive: boolean): Promise<ImportedWorkspace> => {
   const imported = parseWorkspaceExportFile(await fs.readFile(sourcePath));
+  validateWorkspaceArchiveSchema(imported.canvas);
   const finalDir = join(storeDir, workspaceId);
+  const existing = await fs.lstat(finalDir).catch(error => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  });
+  if (existing) throw new Error(`Workspace directory already exists: ${finalDir}`);
   const stagingDir = join(
     storeDir,
     `.import-${workspaceId}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`,
@@ -56,9 +78,19 @@ export const importWorkspaceArchiveToStore = async ({
 
   await fs.mkdir(storeDir, { recursive: true });
   await fs.mkdir(stagingDir);
+  let ownsFinalDir = false;
   try {
-    for (const file of imported.files) {
-      const targetPath = resolve(stagingDir, file.relativePath);
+    const restorePath = (filePath: string) => {
+      const relativePath = relativePathFromPortableUrl(filePath);
+      if (!relativePath || !isSafeRelativePath(relativePath)) return filePath;
+      return join(finalDir, ...relativePath.split('/').filter(Boolean));
+    };
+    let files = rewriteWorkspaceNodeFiles(imported.files, restorePath);
+    const sessions = files.some(file => isWorkspaceSessionFile(file.relativePath))
+      ? (await getCanvasSessionArchivePort()).prepareImport(workspaceId, files, restorePath) : null;
+    if (sessions) files = sessions.files;
+    for (const file of files) {
+      const targetPath = resolve(stagingDir, file.relativePath.replace(/\\/g, '/'));
       const rel = relative(stagingDir, targetPath);
       if (rel.startsWith('..') || isAbsolute(rel)) {
         throw new Error(`Workspace export contains an unsafe file path: ${file.relativePath}`);
@@ -67,11 +99,10 @@ export const importWorkspaceArchiveToStore = async ({
       await fs.writeFile(targetPath, Buffer.from(file.content, 'base64'));
     }
 
-    const restoredCanvas = rewriteCanvasFilePaths(imported.canvas, (filePath) => {
-      const relativePath = relativePathFromPortableUrl(filePath);
-      if (!relativePath || !isSafeRelativePath(relativePath)) return filePath;
-      return join(finalDir, ...relativePath.split('/').filter(Boolean));
-    });
+    const rewritten = rewriteCanvasFilePaths(imported.canvas, restorePath);
+    const restoredCanvas = rewritten && typeof rewritten === 'object' && !Array.isArray(rewritten)
+      ? Object.fromEntries(Object.entries(rewritten).filter(([key]) => !['revision', 'storageGeneration', 'generation'].includes(key)))
+      : rewritten;
     await fs.writeFile(join(stagingDir, 'canvas.json'), JSON.stringify(restoredCanvas, null, 2));
     const agentsPath = join(stagingDir, 'AGENTS.md');
     try {
@@ -79,36 +110,39 @@ export const importWorkspaceArchiveToStore = async ({
     } catch {
       await fs.writeFile(agentsPath, agentsTemplate, 'utf8');
     }
-    await fs.rename(stagingDir, finalDir);
-
     const result = {
       workspaceId,
       workspaceName: imported.workspace.name.trim() || 'Imported Workspace',
       fileCount: imported.files.length,
       canvas: restoredCanvas,
     };
-    const manifestPath = join(storeDir, '__workspaces__.json');
-    const manifestRead = await readJsonWithRecovery(manifestPath);
-    if (manifestRead.kind === 'unrecoverable') throw manifestRead.err;
-    const manifest = manifestRead.kind === 'ok' && manifestRead.data && typeof manifestRead.data === 'object'
-      ? manifestRead.data as {
-        workspaces?: Array<{ id: string; name: string }>;
-        folders?: unknown[];
-        activeId?: string;
-      }
-      : {};
-    const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : [];
-    workspaces.push({ id: workspaceId, name: result.workspaceName });
-    await atomicWriteJson(manifestPath, JSON.stringify({
-      ...manifest,
-      workspaces,
-      folders: Array.isArray(manifest.folders) ? manifest.folders : [],
-      activeId: workspaceId,
-    }, null, 2), { rollingBackup: true });
+    const prepared = storage ? await stageSqliteWorkspaceImport({
+      workspaceId, workspaceName: result.workspaceName, stagingDir, sourcePath, canvas: restoredCanvas, files,
+    }) : null;
+    await fs.rename(stagingDir, finalDir);
+    ownsFinalDir = true;
+    if (storage && prepared) {
+      result.canvas = await commitSqliteWorkspaceImport(
+        storage, prepared, finalDir, () => registerWorkspace(storeDir, result),
+        conversationsActive && sessions ? sessions : undefined,
+      );
+    } else {
+      await registerWorkspace(storeDir, result);
+    }
     return result;
   } catch (error) {
     await fs.rm(stagingDir, { recursive: true, force: true });
-    await fs.rm(finalDir, { recursive: true, force: true });
+    if (ownsFinalDir && !(error instanceof WorkspaceImportRecoveryError)) {
+      await fs.rm(finalDir, { recursive: true, force: true });
+    }
     throw error;
   }
+};
+
+export const importWorkspaceArchiveToStore = async (options: WorkspaceImportOptions): Promise<ImportedWorkspace> => {
+  assertSafeNodeId(options.workspaceId);
+  const storage = await getLocalCanvasStorage(options.storeDir);
+  const conversationsActive = (await readLocalStorageStatus(options.storeDir))?.domains.includes('conversations') === true;
+  if (conversationsActive && !storage) throw new Error('Finish Canvas storage migration before importing a workspace with SQL conversations');
+  return withLegacyCanvasWrite(options.storeDir, () => importWorkspaceUnlocked(options, storage, conversationsActive), { allowActive: storage !== null });
 };

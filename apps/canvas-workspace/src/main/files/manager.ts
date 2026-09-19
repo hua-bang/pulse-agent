@@ -4,12 +4,13 @@ import { promises as fs } from "fs";
 import { join, basename, resolve, isAbsolute } from "path";
 import { homedir } from "os";
 import { promisify } from "util";
-import { saveFilePreview } from './file-save';
+import { readTextFile, saveFilePreview, saveTextFile } from './file-save';
 import type {
   FileCreateEntryRequest,
   FileRenameEntryRequest,
   FileSaveRequest,
   FileTrashEntryRequest,
+  FileWriteRequest,
 } from '../../shared/files';
 import { createEntry, renameEntry, trashEntry } from './file-operations';
 import { readFilePreview } from './file-preview';
@@ -72,8 +73,18 @@ const vscodeUrlForPath = (filePath: string): string => {
 };
 
 export const setupFileManagerIpc = () => {
+  const broadcastWrite = (filePath: string, content: string) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      try { window.webContents.send('canvas:file-changed', { filePath, content }); }
+      catch (error) { console.warn('[files] file change notification failed:', error); }
+    }
+  };
   // file:save-preview — compare version and atomically save an edited UTF-8 file.
-  ipcMain.handle('file:save-preview', (_event, request: FileSaveRequest) => saveFilePreview(request));
+  ipcMain.handle('file:save-preview', async (_event, request: FileSaveRequest) => {
+    const result = await saveFilePreview(request);
+    if (result.ok) broadcastWrite(request.filePath, request.content);
+    return result;
+  });
   // file:preview — bounded, regular-file-only UTF-8 preview for the Dock browser.
   ipcMain.handle('file:preview', (_event, payload: { filePath: string }) => readFilePreview(payload.filePath));
   // file:create-entry / file:rename-entry / file:trash-entry — root-confined Folder Dock mutations.
@@ -107,26 +118,16 @@ export const setupFileManagerIpc = () => {
   // Read a file
   ipcMain.handle(
     "file:read",
-    async (_event, payload: { filePath: string }) => {
-      try {
-        const content = await fs.readFile(payload.filePath, "utf-8");
-        return { ok: true, content };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    }
+    (_event, payload: { filePath: string }) => readTextFile(payload.filePath)
   );
 
   // Write a file
   ipcMain.handle(
     "file:write",
-    async (_event, payload: { filePath: string; content: string }) => {
-      try {
-        await fs.writeFile(payload.filePath, payload.content, "utf-8");
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
+    async (_event, payload: FileWriteRequest) => {
+      const result = await saveTextFile(payload);
+      if (result.ok) broadcastWrite(payload.filePath, payload.content);
+      return result;
     }
   );
 

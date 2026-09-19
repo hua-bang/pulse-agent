@@ -18,8 +18,12 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
   read: (filePath) =>
     ipcRenderer.invoke("file:read", { filePath }),
 
-  write: (filePath, content) =>
-    ipcRenderer.invoke("file:write", { filePath, content }),
+  write: (filePath, content, expectedVersion) =>
+    ipcRenderer.invoke("file:write", {
+      filePath,
+      content,
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+    }),
 
   listDir: (dirPath, maxDepth, includeHidden) =>
     ipcRenderer.invoke("file:listDir", { dirPath, maxDepth, includeHidden }),

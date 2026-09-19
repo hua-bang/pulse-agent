@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { withLegacySessionWrite } from './sqlite-session-backend';
 import { dirname } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -130,11 +131,11 @@ async function updateDocument(
   update: (document: SessionMetadataDocument) => void,
 ): Promise<void> {
   const previous = writeTails.get(path) ?? Promise.resolve();
-  const run = previous.catch(() => undefined).then(async () => {
+  const run = previous.catch(() => undefined).then(() => withLegacySessionWrite(dirname(dirname(dirname(path))), async () => {
     const document = await readDocument(path);
     update(document);
     await writeDocument(path, document);
-  });
+  }));
   writeTails.set(path, run);
   try {
     await run;

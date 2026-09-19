@@ -1,4 +1,8 @@
 import { promises as fs } from 'fs';
+import type { FileWriteStatus } from '@pulse-coder/storage';
+import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
+import { localStoreRoot, withSqliteCanvas } from './sqlite-store';
+import { inspectSqliteCanvas } from './sqlite-doctor';
 import { dirname, join } from 'path';
 import {
   loadCanvas,
@@ -47,12 +51,19 @@ export type DoctorFindingKind =
   | 'dangling_edge'
   | 'empty_body'
   | 'schema_mismatch'
+  | 'storage_integrity'
+  | 'missing_atom'
+  | 'file_write_pending'
+  | 'file_write_error'
+  | 'file_write_conflict'
   | 'stale_tmp';
 
 export interface DoctorFinding {
   kind: DoctorFindingKind;
   nodeId?: string;
   edgeId?: string;
+  intentId?: string;
+  fileWriteStatus?: FileWriteStatus;
   path?: string;
   detail: string;
   repairable: boolean;
@@ -61,7 +72,8 @@ export interface DoctorFinding {
 
 export interface DoctorReport {
   workspaceId: string;
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
+  revision?: number;
   checkedNodes: number;
   checkedEdges: number;
   findings: DoctorFinding[];
@@ -87,7 +99,15 @@ export async function runDoctor(
   workspaceId: string,
   opts: DoctorOptions = {},
 ): Promise<DoctorReport> {
-  const run = () => analyzeAndMaybeRepair(workspaceId, opts);
+  const run = async () => {
+    const sqlite = await withSqliteCanvas(opts.storeDir, storage => inspectSqliteCanvas(
+      storage, workspaceId, getWorkspaceDir(workspaceId, opts.storeDir), opts.repair === true,
+    ));
+    if (sqlite.active) return sqlite.value;
+    // Fence migration throughout a legacy inspection so it cannot mix an SQL
+    // snapshot with old per-node files after activation publishes its marker.
+    return withLegacyCanvasWrite(localStoreRoot(opts.storeDir), () => analyzeAndMaybeRepair(workspaceId, opts));
+  };
   // Check mode reads without the lock (a torn read at worst mis-reports once);
   // repair mode must hold the workspace lock for its whole read→fix→save
   // cycle, and therefore must NOT call any helper that re-acquires it.
@@ -104,7 +124,6 @@ async function analyzeAndMaybeRepair(
   const storeDir = opts.storeDir;
   const wsDir = getWorkspaceDir(workspaceId, storeDir);
   const findings: DoctorFinding[] = [];
-
   // Schema detection from the raw file — loadCanvas strips the marker.
   let schemaVersion: 1 | 2 = 1;
   try {
@@ -112,8 +131,7 @@ async function analyzeAndMaybeRepair(
       JSON.parse(await fs.readFile(join(wsDir, 'canvas.json'), 'utf-8')),
     );
   } catch {
-    // Unreadable primary: loadCanvas below may still recover via .bak; fall
-    // back to the nodes/ dir as the v2 tell.
+    // Unreadable primary may still recover via .bak; nodes/ is a v2 fallback.
     schemaVersion = (await fs.access(getNodesDir(wsDir)).then(() => true).catch(() => false)) ? 2 : 1;
   }
 

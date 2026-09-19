@@ -6,7 +6,7 @@ import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore,
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
 import { searchSessionTitles } from './session-title-search';
-import { appendActiveSessionGroups, scopeFromServiceKey } from './active-session-groups';
+import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './active-session-groups';
 import { ScopeActivationGate } from './scope-activation-gate';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import type { ResolvedCanvasModel } from '../models/config';
@@ -38,11 +38,6 @@ import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, start
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
-const scopeKey = (scope: AgentScope): string => {
-  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
-  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
-  return 'global';
-};
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
   private agentActivations = new ScopeActivationGate();
@@ -491,12 +486,7 @@ export class CanvasAgentService {
    * Deactivate and archive the Canvas Agent for a workspace.
    */
   async deactivate(workspaceId: string): Promise<void> {
-    const scope = workspaceScope(workspaceId);
-    const key = scopeKey(scope);
-    const agent = this.agents.get(key);
-    if (!agent) return;
-    await agent.destroy();
-    this.agents.delete(key);
+    await this.deactivateScope(workspaceScope(workspaceId));
   }
 
   async deactivateScope(scope: AgentScope): Promise<void> {
@@ -511,6 +501,7 @@ export class CanvasAgentService {
    * Deactivate all agents (called on app shutdown).
    */
   async deactivateAll(): Promise<void> {
+    await this.sessionMutations.stopAndDrain();
     const entries = Array.from(this.agents.entries());
     await Promise.all(entries.map(async ([key, agent]) => {
       await agent.destroy();

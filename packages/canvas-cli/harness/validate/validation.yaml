@@ -15,5 +15,7 @@ pathRules:
     paths:
       - package.json
       - tsup.config.ts
+      - scripts/**
     required:
+      - pnpm --filter @pulse-coder/canvas-cli exec vitest run scripts/prepare-native.test.mjs
       - pnpm --filter @pulse-coder/canvas-cli build

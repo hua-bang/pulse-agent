@@ -1,6 +1,7 @@
 import { createCli } from './cli';
+import { isStorageError } from '@pulse-coder/storage';
+import { errorOutput } from './output';
 
 createCli().parseAsync(process.argv).catch((err: Error) => {
-  console.error(err.message);
-  process.exit(1);
+  errorOutput(err.message, { code: isStorageError(err) ? err.code : 'error' });
 });
