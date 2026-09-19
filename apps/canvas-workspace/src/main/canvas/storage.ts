@@ -1,3 +1,6 @@
+import { getCanvasBackend, resolveStorageNativeBinding } from './persistence/backend';
+import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
+import { writeCanvasFullV2, isLayoutOnlyReferenceNode, stripDataFromNode } from './persistence/write-v2';
 /**
  * Canvas storage helpers.
  *
@@ -28,7 +31,6 @@ import { dirname } from 'path';
 import {
   deleteWorkspaceNode,
   listWorkspaceNodeIds,
-  mutateWorkspaceNode,
   readWorkspaceNode,
   writeWorkspaceNode,
 } from './nodes/store';
@@ -187,6 +189,11 @@ export async function readCanvasFull(
   workspaceId: string,
   root: string = STORE_DIR,
 ): Promise<ReadCanvasResult> {
+  const backend = await getCanvasBackend(root);
+  if (backend && workspaceId !== MANIFEST_ID) {
+    const data = await backend.readCanvas(workspaceId);
+    return { data: data as CanvasSaveData | null, recoveredFromBackup: false, schemaVersion: data ? 2 : null };
+  }
   await recoverInterruptedMigration(workspaceId, root);
 
   const canvasPath = getCanvasJsonPath(workspaceId, root);
@@ -288,6 +295,21 @@ export async function writeCanvasFull(
   data: CanvasSaveData,
   root: string = STORE_DIR,
 ): Promise<void> {
+  const backend = await getCanvasBackend(root);
+  if (backend && workspaceId !== MANIFEST_ID) {
+    await backend.writeCanvas(workspaceId, data, { allowEmpty: true });
+    return;
+  }
+  return withLegacyCanvasWrite(root, () => writeLegacyCanvasFull(workspaceId, data, root), {
+    resolveNativeBinding: resolveStorageNativeBinding,
+  });
+}
+
+async function writeLegacyCanvasFull(
+  workspaceId: string,
+  data: CanvasSaveData,
+  root: string,
+): Promise<void> {
   const canvasPath = getCanvasJsonPath(workspaceId, root);
   await fs.mkdir(dirname(canvasPath), { recursive: true });
 
@@ -328,83 +350,6 @@ export async function writeCanvasFull(
   // v2: split into layout + per-node files. Per-node writes happen first;
   // the canvas.json swap is the commit point.
   await writeCanvasFullV2(workspaceId, data, root);
-}
-
-async function writeCanvasFullV2(
-  workspaceId: string,
-  data: CanvasSaveData,
-  root: string,
-): Promise<void> {
-  const nodes = Array.isArray(data.nodes) ? data.nodes : [];
-  const now = Date.now();
-
-  // 1. Write per-node files for every node. Use updatedAt arbitration: if
-  //    the on-disk per-node file is newer, keep it (defends against a stale
-  //    in-memory snapshot clobbering a fresh CLI-side edit).
-  for (const node of nodes) {
-    const nodeId = node.id;
-    if (!nodeId || !isSafeNodeId(nodeId)) continue;
-    if (isLayoutOnlyReferenceNode(node)) continue;
-
-    await mutateWorkspaceNode(workspaceId, nodeId, (existing) => {
-      const incomingUpdatedAt = typeof node.updatedAt === 'number' ? node.updatedAt : now;
-      const existingUpdatedAt = existing && typeof existing.updatedAt === 'number' ? existing.updatedAt : 0;
-
-      if (existing && existingUpdatedAt > incomingUpdatedAt) {
-        // Disk is newer — preserve it. This arbitration runs under the same
-        // per-node lock as proposal and IPC mutations, so a stale full save
-        // cannot read before a mutation and write after it.
-        return { result: undefined };
-      }
-
-      const file: PerNodeFile = {
-        schemaVersion: PER_NODE_SCHEMA_VERSION,
-        id: nodeId,
-        type: node.type,
-        title: node.title,
-        data: (node.data ?? {}) as Record<string, unknown>,
-        properties: node.properties ?? existing?.properties,
-        links: node.links ?? existing?.links,
-        updatedAt: incomingUpdatedAt,
-        createdAt: existing?.createdAt ?? incomingUpdatedAt,
-      };
-      return { record: file, result: undefined };
-    }, root);
-  }
-
-  // 2. Do not delete per-node files omitted from the incoming layout. In v2,
-  //    nodes/<id>.json is treated as the workspace-scoped atom store; a
-  //    canvas save only updates the current layout projection. Orphan cleanup
-  //    should be an explicit atom-store operation, not a side effect of saving
-  //    a canvas view.
-
-  // 3. Construct the v2 layout: strip data, keep everything else.
-  const layout: CanvasSaveData = {
-    ...data,
-    schemaVersion: 2,
-    nodes: nodes.map((n) => stripDataFromNode(n)),
-  };
-
-  // 4. COMMIT POINT — atomic canvas.json swap. Rolling backup of the
-  //    previous v2 file rotates here.
-  await atomicWriteJson(
-    getCanvasJsonPath(workspaceId, root),
-    JSON.stringify(layout, null, 2),
-    { rollingBackup: true },
-  );
-}
-
-function stripDataFromNode(node: CanvasNode): CanvasNode {
-  if (isLayoutOnlyReferenceNode(node)) return node;
-  const { data: _data, properties: _properties, links: _links, ...rest } = node;
-  return rest;
-}
-
-function isLayoutOnlyReferenceNode(node: CanvasNode): boolean {
-  return !!node
-    && typeof node === 'object'
-    && node.type === 'reference'
-    && node.ref != null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -86,7 +86,13 @@ export const useFileNodeEditor = ({
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const contentCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingEditorRef = useRef<any>(null);
+  const pendingTargetRef = useRef({ nodeId: nodeIdRef.current, filePath: data.filePath });
+  const persistToFileRef = useRef(persistToFile);
+  persistToFileRef.current = persistToFile;
   const latestCommitContentRef = useRef<(flushPersist?: boolean) => void>(() => undefined);
+  const hasPendingFileWrite = Boolean((data.fileWriteIntentId || data.fileWriteStatus) && data.fileWriteStatus !== 'applied');
+  const editorDirtyRef = useRef(!!data.modified || hasPendingFileWrite);
+  const editorTargetRef = useRef({ nodeId: nodeIdRef.current, filePath: data.filePath });
 
   // Serialize the doc and push it into the central nodes array. Debounced from
   // onUpdate; `flushPersist` writes the file now (blur/unmount) vs auto-save.
@@ -97,6 +103,12 @@ export const useFileNodeEditor = ({
     }
     const editor = pendingEditorRef.current;
     if (!editor) return;
+    const target = pendingTargetRef.current;
+    if (target.nodeId !== nodeIdRef.current
+      || (!!target.filePath && target.filePath !== dataRef.current.filePath)) {
+      pendingEditorRef.current = null;
+      return;
+    }
     const markdown = getMarkdown(editor);
     const previous = dataRef.current.content ?? '';
     if (!editor.isFocused && markdown.trim().length === 0 && previous.trim().length > 0) {
@@ -104,12 +116,18 @@ export const useFileNodeEditor = ({
       return;
     }
     const fp = dataRef.current.filePath;
+    const ownerId = nodeIdRef.current;
+    const persist = () => {
+      if (ownerId === nodeIdRef.current && fp === dataRef.current.filePath) {
+        void persistToFileRef.current(markdown, fp);
+      }
+    };
     const changed = markdown !== previous;
     if (!changed) {
       if (flushPersist && fp && (dataRef.current.modified || saveTimerRef.current)) {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
-        void persistToFile(markdown, fp);
+        persist();
       }
       return;
     }
@@ -131,9 +149,12 @@ export const useFileNodeEditor = ({
       return;
     }
     if (flushPersist) {
-      void persistToFile(markdown, fp);
+      persist();
     } else {
-      saveTimerRef.current = setTimeout(() => void persistToFile(markdown, fp), AUTO_SAVE_MS);
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null;
+        persist();
+      }, AUTO_SAVE_MS);
     }
   }, [dataRef, nodeIdRef, prevContentRef, setModified, onUpdate, onCommitState, persistToFile]);
 
@@ -197,9 +218,11 @@ export const useFileNodeEditor = ({
       // them back replaces the whole canvas nodes array for every mounted
       // file node and can collide with unrelated interactions.
       if (!editor.isFocused) return;
+      editorDirtyRef.current = true;
       onContentChange?.();
       // Coalesce the expensive serialize + nodes-array writeback (I-1).
       pendingEditorRef.current = editor;
+      pendingTargetRef.current = { nodeId: nodeIdRef.current, filePath: dataRef.current.filePath };
       if (contentCommitRef.current) clearTimeout(contentCommitRef.current);
       contentCommitRef.current = setTimeout(() => commitContent(), CONTENT_COMMIT_MS);
 
@@ -261,13 +284,41 @@ export const useFileNodeEditor = ({
   // debounce and replacing the full nodes array mid-typing.
   useEffect(() => () => latestCommitContentRef.current(true), []);
 
+  const reloadContent = useCallback((content: string) => {
+    if (!editor) return;
+    if (contentCommitRef.current) clearTimeout(contentCommitRef.current);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    contentCommitRef.current = null;
+    saveTimerRef.current = null;
+    pendingEditorRef.current = null;
+    editorDirtyRef.current = false;
+    prevContentRef.current = content;
+    if (getMarkdown(editor) !== content) editor.commands.setContent(content || '', { emitUpdate: false });
+    setModified(false);
+  }, [editor, prevContentRef, setModified]);
+
   // Sync content when file opens externally
   useEffect(() => {
-    if (!editor || data.content === prevContentRef.current) return;
-    prevContentRef.current = data.content;
-    editor.commands.setContent(data.content || '', { emitUpdate: false });
-    setModified(false);
-  }, [data.content, editor, prevContentRef, setModified]);
+    if (!editor) return;
+    const previousTarget = editorTargetRef.current;
+    const changedTarget = previousTarget.nodeId !== nodeIdRef.current
+      || (!!previousTarget.filePath && !!data.filePath && previousTarget.filePath !== data.filePath);
+    editorTargetRef.current = { nodeId: nodeIdRef.current, filePath: data.filePath };
+    if (changedTarget) { reloadContent(data.content || ''); return; }
+    if (!previousTarget.filePath && data.filePath && editorDirtyRef.current && pendingEditorRef.current) {
+      void persistToFileRef.current(getMarkdown(editor), data.filePath);
+    }
+    if (data.content === prevContentRef.current) {
+      // A file write acknowledgement clears dirty state through reloadContent;
+      // node-index metadata alone cannot prove that its Markdown was saved.
+      if (!data.filePath && !data.modified && !hasPendingFileWrite && !contentCommitRef.current) editorDirtyRef.current = false;
+      return;
+    }
+    // A SQL/file refresh cannot replace keystrokes still inside the debounce
+    // or a draft whose file save failed. Explicit discard uses reloadContent.
+    if (!readOnly && (editorDirtyRef.current || data.modified || hasPendingFileWrite || contentCommitRef.current)) return;
+    reloadContent(data.content || '');
+  }, [data.content, data.filePath, data.modified, editor, hasPendingFileWrite, nodeIdRef, prevContentRef, readOnly, reloadContent]);
 
   useEffect(() => {
     if (!editor) return;
@@ -418,5 +469,6 @@ export const useFileNodeEditor = ({
     outlineOpen,
     toggleOutline,
     closeOutline,
+    reloadContent,
   };
 };

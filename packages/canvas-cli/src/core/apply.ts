@@ -17,6 +17,8 @@ import {
 import { isSafeNodeId } from './storage-v2';
 import { DEFAULT_NODE_DIMENSIONS } from './constants';
 import { notifyCanvasUpdated } from './notifier';
+import { hasSqliteStorage } from './sqlite-store';
+import { prepareCanvasFileWrites } from './sqlite-file-writes';
 import type { CanvasEdge, CanvasNode, NodeType, Result } from './types';
 
 /**
@@ -189,7 +191,7 @@ export async function applyPlan(
           }
           if (op.type === 'file') {
             const noteFile = buildNoteFilePath(wsDir, op.title ?? def.title, id);
-            pendingWrites.push({ path: noteFile, content: String(nodeData.content ?? '') });
+            pendingWrites.push({ nodeId: id, path: noteFile, content: String(nodeData.content ?? '') });
             nodeData.filePath = noteFile;
             nodeData.saved = true;
             nodeData.modified = false;
@@ -281,15 +283,21 @@ export async function applyPlan(
 
     if (opts.dryRun) return { ok: true as const, data: report };
 
-    // Whole plan validated — now the effects, then ONE save.
-    for (const write of pendingWrites) {
-      await fs.mkdir(dirname(write.path), { recursive: true });
-      await fs.writeFile(write.path, write.content, 'utf-8');
+    const sqlite = await hasSqliteStorage(opts.storeDir);
+    const fileWrites = sqlite ? await prepareCanvasFileWrites(canvas.nodes, pendingWrites) : undefined;
+    // Legacy files keep their existing behavior. SQLite stages file intents in
+    // the same CAS as the plan, before any backing-file effect can occur.
+    if (!sqlite) {
+      for (const write of pendingWrites) {
+        await fs.mkdir(dirname(write.path), { recursive: true });
+        await fs.writeFile(write.path, write.content, 'utf-8');
+      }
     }
     canvas.savedAt = new Date().toISOString();
     await saveCanvas(workspaceId, canvas, opts.storeDir, {
       allowEmpty: true,
       removedIds,
+      fileWrites,
     });
     report.revision = typeof canvas.revision === 'number' ? canvas.revision : null;
 

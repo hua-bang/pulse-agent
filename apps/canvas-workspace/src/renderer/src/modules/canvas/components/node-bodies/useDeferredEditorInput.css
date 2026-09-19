@@ -1,0 +1,35 @@
+.deferred-editor-surface {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.deferred-editor-surface > .note-card {
+  min-height: 0;
+}
+
+.deferred-editor-input {
+  position: relative;
+  flex: none;
+  max-height: 12em;
+  box-sizing: border-box;
+  min-height: 2.5em;
+  padding: 6px 10px;
+  overflow: auto;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.deferred-editor-input[hidden] {
+  display: none;
+}

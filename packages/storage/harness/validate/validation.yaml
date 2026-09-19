@@ -1,0 +1,13 @@
+version: 1
+
+pathRules:
+  - name: default
+    paths:
+      - src/**
+      - package.json
+      - tsconfig.json
+      - tsup.config.ts
+    required:
+      - pnpm --filter @pulse-coder/storage typecheck
+      - pnpm --filter @pulse-coder/storage test
+      - pnpm --filter @pulse-coder/storage build

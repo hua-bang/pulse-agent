@@ -3,8 +3,11 @@ import type {
   CanvasAgentMessage,
   CanvasAgentSession,
 } from './types';
+import { scopeServiceKey as scopeMutationKey } from './active-session-groups';
+import { registerWorkspaceSessionDrain, withWorkspaceRun } from './workspace-runtime-guard';
 
 interface SessionMutationAgent {
+  abort?(sessionId?: string): void;
   getCurrentSessionId(): string | null;
   newSession(): Promise<void>;
   branchSession(
@@ -63,12 +66,11 @@ interface StoredSessionLoad {
   activeSessionId: string | null;
 }
 
-const scopeMutationKey = (scope: AgentScope): string => {
-  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
-  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
-  return 'global';
-};
-
+interface PendingSessionRun {
+  scope: AgentScope;
+  sessionId?: string | null;
+  promise: Promise<unknown>;
+}
 
 /**
  * Serializes session replacement per scope. Queue order is intent order, so
@@ -86,6 +88,9 @@ const scopeMutationKey = (scope: AgentScope): string => {
 export class SessionMutationCoordinator {
   private tails = new Map<string, Promise<void>>();
   private activeRuns = new Set<string>();
+  private pendingRuns = new Map<string, PendingSessionRun>();
+  private stopping = false;
+  private detachWorkspaceDrain = registerWorkspaceSessionDrain(scope => this.waitForIdle(scope));
 
   constructor(
     private readonly activateScope: (scope: AgentScope) => Promise<void>,
@@ -212,11 +217,11 @@ export class SessionMutationCoordinator {
 
   reconcileActiveAgent(
     scope: AgentScope,
-    reconcile: (agent: SessionMutationAgent) => Promise<void>,
+    reconcile: (agent: SessionMutationAgent, canRefreshCurrent: boolean) => Promise<void>,
   ): Promise<void> {
     return this.run(scope, async () => {
       const agent = this.getAgent(scope);
-      if (agent) await reconcile(agent);
+      if (agent) await reconcile(agent, !this.isSessionActive(scope, agent.getCurrentSessionId()));
     });
   }
 
@@ -408,21 +413,44 @@ export class SessionMutationCoordinator {
     });
   }
 
+  /** Explicit pointer-neutral creation; ordinary persistence may not recreate deleted sessions. */
+  createStoredConversation(scope: AgentScope, create: () => Promise<void>): Promise<void> {
+    return this.run(scope, create);
+  }
+
   async runChat<T>(
     scope: AgentScope,
     operation: () => Promise<T>,
     conversationSessionId?: string | null,
   ): Promise<T | null> {
-    const key = this.runKey(scope, conversationSessionId);
-    if (this.activeRuns.has(key)) return null;
-    await this.waitForIdle(scope);
-    if (this.activeRuns.has(key)) return null;
-    this.activeRuns.add(key);
-    try {
-      return await operation();
-    } finally {
-      this.activeRuns.delete(key);
+    return withWorkspaceRun(scope, async () => {
+      const key = this.runKey(scope, conversationSessionId);
+      if (this.stopping || this.activeRuns.has(key)) return null;
+      await this.waitForIdle(scope);
+      if (this.stopping || this.activeRuns.has(key)) return null;
+      this.activeRuns.add(key);
+      const promise = Promise.resolve().then(operation);
+      this.pendingRuns.set(key, { scope, sessionId: conversationSessionId, promise });
+      try {
+        return await promise;
+      } finally {
+        this.activeRuns.delete(key);
+        this.pendingRuns.delete(key);
+      }
+    });
+  }
+
+  /** The app bounds this drain; a timed-out provider must not outlive a closed database. */
+  async stopAndDrain(): Promise<void> {
+    this.stopping = true;
+    for (const run of this.pendingRuns.values()) this.getAgent(run.scope)?.abort?.(run.sessionId ?? undefined);
+    while (this.pendingRuns.size || this.tails.size) {
+      await Promise.allSettled([
+        ...Array.from(this.pendingRuns.values(), run => run.promise),
+        ...this.tails.values(),
+      ]);
     }
+    this.detachWorkspaceDrain();
   }
 
   /**

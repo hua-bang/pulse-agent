@@ -9,8 +9,11 @@ export interface DirEntry {
   children?: DirEntry[];
 }
 
-export interface FileSaveRequest { filePath: string; content: string; expectedVersion: string }
+export interface FileWriteRequest { filePath: string; content: string; expectedVersion?: string }
+export interface FileSaveRequest extends FileWriteRequest { expectedVersion: string }
 export type FileSaveResult = { ok: true; version: string } | { ok: false; error: string; conflict?: boolean };
+export interface FileReadResult { ok: boolean; content?: string; version?: string; error?: string }
+export interface FileWriteResult { ok: boolean; version?: string; error?: string; conflict?: boolean }
 
 export interface FileCreateEntryRequest {
   rootPath: string;

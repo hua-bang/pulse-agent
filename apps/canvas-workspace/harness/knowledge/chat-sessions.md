@@ -122,6 +122,54 @@ Key invariants and their guards:
   non-empty streamed response; conversation failures must remain `ok:false`
   through runtime → service → IPC instead of rendering an empty success.
 
+## Durable session storage
+
+Bootstrap activates conversations through `sqlite-session-migration.ts` before
+constructing an Agent. `SessionStore` preserves its public API while using
+`@pulse-coder/storage` repositories after activation. The default session root
+shares the Canvas database; `PULSE_CANVAS_SESSION_STORE_DIR` keeps its own root.
+Current-session pointers and their session mutations commit atomically. Message
+append is incremental; edits/compaction replace messages with revision checks.
+Creation is explicit: an append or save cannot recreate a deleted session.
+
+The first upgrade imports current/archive JSON and display metadata, preserving
+unknown message fields and attachments. Current takes precedence over archived
+copies of the same id. Source snapshots and original files remain available;
+restarts reconcile incomplete staging before activating. Once active, old JSON
+is not re-imported. Corrupt or unsupported data stops activation visibly.
+Conflicting archive copies with equal modification times also stop activation;
+the importer cannot infer which history is authoritative without a current copy.
+Cold rail/list/read paths query storage without starting tools or an Agent.
+
+Workspace export uses a consistent Canvas+conversation snapshot and an injected
+archive codec; Canvas never imports the Agent implementation. Import generates
+fresh revisions and rewrites managed attachment paths. Failed-import compensation
+checks conversation revisions as well as Canvas state before removing its import.
+Full workspace import/export checks the injected archive port before reading or
+writing archive state. A separate `PULSE_CANVAS_SESSION_STORE_DIR` database is
+rejected visibly because one workspace transaction cannot include it. Independent
+session reads and writes still work; paths resolving to the same database are
+accepted. Guards: `workspace-session-archive.test.ts`,
+`sqlite-session-migration.test.ts`, `sqlite-session-store.test.ts`, and the shared
+conversation/workspace repository suites.
+
+With `PULSE_CANVAS_PERF`, successful SQL session mutations report logical JSON
+bytes for metadata plus the appended or replaced messages. Unchanged and failed
+writes do not emit the metric; this measures payload size, not physical WAL bytes.
+
+During application quit, runtime disposal aborts active turns and resolves queued
+waiters as stopped. `SessionMutationCoordinator.stopAndDrain` rejects new runs,
+aborts leased runs, and awaits their final queued writes before Agent archival.
+`teardownCanvasAgent` is awaitable. The service lifecycle retains every pending
+window-close drain, including earlier
+service instances from windows reopened on macOS, for the final quit to await.
+Bootstrap allows five seconds for writer drain. If a provider ignores abort or
+a write remains pending, it logs the timeout and
+leaves database handles open until process exit. Only committed data is durable
+in that case. Closing all windows on macOS does not close the storage handles.
+Guards: `agent-service-lifecycle.test.ts`, `session-mutation-coordinator.test.ts`, conversation runtime tests, and
+`src/main/app/storage-lifecycle.test.ts`.
+
 ## Loading-state flags
 
 Three flags look similar and are not interchangeable.

@@ -19,7 +19,7 @@
     }
   },
   "scripts": {
-    "build": "tsup && cp -r skills dist/",
+    "build": "tsup && node scripts/prepare-native.mjs && cp -r skills dist/",
     "dev": "tsup --watch",
     "test": "vitest run --no-file-parallelism",
     "typecheck": "tsc --noEmit"
@@ -29,6 +29,8 @@
     "skills"
   ],
   "dependencies": {
+    "@pulse-coder/storage": "workspace:*",
+    "better-sqlite3": "12.11.1",
     "commander": "^13.0.0"
   },
   "devDependencies": {

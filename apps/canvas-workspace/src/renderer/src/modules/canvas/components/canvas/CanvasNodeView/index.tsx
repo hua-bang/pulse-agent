@@ -220,6 +220,7 @@ const CanvasNodeViewComponent = ({
       isFullscreen={isFullscreen}
       isResizing={isResizing}
       isSelected={isSelected}
+      renameToken={renameToken}
       makeResizeHandler={viewModel.makeResizeHandler}
       node={node}
       onDragStart={onDragStart}

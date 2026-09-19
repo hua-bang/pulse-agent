@@ -92,6 +92,30 @@ export async function fingerprintCliTree(cliDir: string): Promise<string> {
       // Match bundle discovery: support directories without SKILL.md are ignored.
     }
   }
+  const nativeDir = join(cliDir, 'native');
+  async function hashNativeFiles(directory: string, prefix = 'native'): Promise<void> {
+    const files = (await fs.readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    for (const file of files) {
+      const relative = `${prefix}/${file.name}`;
+      if (file.isDirectory()) {
+        await hashNativeFiles(join(directory, file.name), relative);
+      } else if (file.isFile()) {
+        hash.update(`${relative}\0`);
+        hash.update(await fs.readFile(join(directory, file.name)));
+      } else {
+        throw new Error(`Unsupported native payload entry: ${relative}`);
+      }
+    }
+  }
+  try {
+    await fs.access(nativeDir);
+  } catch (error: any) {
+    // Keep validating pinned bundles produced before the native payload existed.
+    if (error?.code === 'ENOENT') return hash.digest('hex');
+    throw error;
+  }
+  await hashNativeFiles(nativeDir);
   return hash.digest('hex');
 }
 

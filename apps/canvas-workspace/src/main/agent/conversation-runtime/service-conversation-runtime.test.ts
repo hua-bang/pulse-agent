@@ -47,8 +47,13 @@ function makeStoreAdapter(): ConversationStoreAdapter & { writes: Array<[string,
   for (const [id, session] of sessions) stored.set(id, [...session.messages]);
   return {
     writes,
-    loadMessages: async (sessionId) => stored.get(sessionId) ?? [],
+    create: async (sessionId, messages) => {
+      if (stored.has(sessionId)) throw new Error('Session already exists');
+      stored.set(sessionId, [...messages]);
+    },
+    loadMessages: async (sessionId) => stored.get(sessionId) ?? null,
     persist: async (sessionId, messages) => {
+      if (!stored.has(sessionId)) throw new Error('Session not found');
       stored.set(sessionId, [...messages]);
       writes.push([sessionId, [...messages]]);
     },
@@ -67,6 +72,44 @@ afterEach(() => {
 });
 
 describe('ConversationRuntimeService.chat', () => {
+  it('rejects cached runtime reuse and queued turns when the workspace becomes trashed', async () => {
+    let trashed = false;
+    const assertVisible = async () => { if (trashed) throw new Error('Workspace is in the trash'); };
+    const service = new ConversationRuntimeService(
+      () => mockAgent.agent as never, () => makeStoreAdapter(), undefined, undefined, assertVisible,
+    );
+    expect((await service.chat(scope, 'session-a', 'first')).ok).toBe(true);
+    trashed = true;
+    const reused = await service.chat(scope, 'session-a', 'cached');
+    expect(reused).toMatchObject({ ok: false, error: 'Workspace is in the trash' });
+    expect(mockAgent.agent.chat).toHaveBeenCalledTimes(1);
+
+    trashed = false;
+    let started!: () => void;
+    let finish!: () => void;
+    const modelStarted = new Promise<void>(resolve => { started = resolve; });
+    const modelFinish = new Promise<void>(resolve => { finish = resolve; });
+    mockAgent.agent.chat.mockImplementationOnce(async () => { started(); await modelFinish; return { response: 'done' }; });
+    const first = service.chat(scope, 'session-a', 'running');
+    await modelStarted;
+    const queued = service.chat(scope, 'session-a', 'queued');
+    trashed = true;
+    finish();
+    await first;
+    expect(await queued).toMatchObject({ ok: false, error: 'Workspace is in the trash' });
+    expect(mockAgent.agent.chat).toHaveBeenCalledTimes(2);
+    service.disposeAll();
+  });
+
+  it('requires explicit provisioning instead of recreating a missing session during chat', async () => {
+    const adapter = makeStoreAdapter();
+    const service = new ConversationRuntimeService(() => mockAgent.agent as never, () => adapter);
+    const result = await service.chat(scope, 'deleted-session', 'late message');
+    expect(result).toMatchObject({ ok: false, error: 'Session not found' });
+    expect(mockAgent.agent.chat).not.toHaveBeenCalled();
+    expect(await service.hasSession(scope, 'deleted-session')).toBe(false);
+  });
+
   it('holds a per-turn lease through persistence and queues instead of rejecting the next turn', async () => {
     let leased = false;
     const leaseStates: boolean[] = [];
@@ -100,6 +143,7 @@ describe('ConversationRuntimeService.chat', () => {
       () => mockAgent.agent as never,
       () => ({
         loadMessages: async id => stored.get(id) ?? null,
+        create: async (id, messages) => { stored.set(id, [...messages]); },
         persist: async (id, messages) => { stored.set(id, [...messages]); },
       }),
     );
@@ -123,6 +167,7 @@ describe('ConversationRuntimeService.chat', () => {
       () => mockAgent.agent as never,
       () => ({
         loadMessages: async () => null,
+        create: async () => { throw new Error('disk full'); },
         persist: async () => { throw new Error('disk full'); },
       }),
     );

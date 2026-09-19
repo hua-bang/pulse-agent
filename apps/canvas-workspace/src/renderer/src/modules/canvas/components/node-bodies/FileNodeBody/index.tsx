@@ -14,6 +14,8 @@ import { SpinnerIcon } from '../../../../../components/icons';
 import { useRightDock } from '../../../../../shared/dockPort';
 import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
+import { useFilePersistence } from './useFilePersistence';
+import { applyDeferredEditorInput, type DeferredEditorReady } from '../applyDeferredEditorInput';
 
 interface Props {
   node: CanvasNode;
@@ -23,9 +25,10 @@ interface Props {
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
   autoFocus?: boolean;
+  onEditorReady?: DeferredEditorReady;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false, onEditorReady }: Props) => {
   const data = node.data as FileNodeData;
   const { t } = useI18n();
   const { openLink } = useRightDock();
@@ -33,8 +36,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const [statusText, setStatusText] = useState('');
   const [statusTone, setStatusTone] = useState<'saving' | 'saved' | 'error'>('saved');
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveRevisionRef = useRef(0);
-  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const reloadEditorRef = useRef<(content: string) => void>(() => undefined);
   const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -57,51 +59,29 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       : setTimeout(() => setStatusText(''), duration);
   }, []);
 
-  const invalidatePendingSave = useCallback(() => {
-    saveRevisionRef.current += 1;
-  }, []);
+  useEffect(() => {
+    setStatusText('');
+    setStatusTone('saved');
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, [node.id, data.filePath]);
 
-  useEffect(() => () => {
-    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-  }, []);
-
-  const persistToFile = useCallback(
-    async (markdown: string, filePath: string) => {
-      const revision = ++saveRevisionRef.current;
-      const api = window.canvasWorkspace?.file;
-      if (!api || !filePath) {
-        if (revision === saveRevisionRef.current) {
-          showStatus(t('noteToolbar.saveFailed'), 'error', null);
-        }
-        return;
-      }
-      const write = writeQueueRef.current
-        .catch(() => undefined)
-        .then(async () => {
-          const res = await api.write(filePath, markdown).catch(() => ({ ok: false }));
-          // A newer save is already queued. Let it own both the final file
-          // contents and the visible status instead of briefly reporting this
-          // stale revision as Saved/Error.
-          if (revision !== saveRevisionRef.current) return;
-          if (res.ok) {
-            try {
-              await onUpdate(nodeIdRef.current, {
-                data: { ...dataRef.current, content: markdown, saved: true, modified: false },
-              });
-              setModified(false);
-              showStatus(t('noteToolbar.saved'), 'saved');
-            } catch {
-              showStatus(t('noteToolbar.saveFailed'), 'error', null);
-            }
-          } else {
-            showStatus(t('noteToolbar.saveFailed'), 'error', null);
-          }
-        });
-      writeQueueRef.current = write;
-      await write;
+  const { persistToFile, markDirty, refresh, conflicted, discardAndReload } = useFilePersistence({
+    nodeId: node.id,
+    data,
+    readOnly,
+    onUpdate,
+    onReload: (content) => reloadEditorRef.current(content),
+    setModified,
+    onStatus: (state, conflict) => {
+      showStatus(
+        t(conflict ? 'folder.conflict' : state === 'error' ? 'noteToolbar.saveFailed' : 'noteToolbar.saved'),
+        state,
+        state === 'error' ? null : 2000,
+      );
     },
-    [onUpdate, showStatus, t]
-  );
+  });
 
   const {
     editor,
@@ -112,6 +92,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     cancelLink,
     imageInputRef,
     insertImageFromFile,
+    reloadContent,
   } = useFileNodeEditor({
     data,
     nodeIdRef,
@@ -122,8 +103,9 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     persistToFile,
     onUpdate,
     readOnly,
-    onContentChange: invalidatePendingSave,
+    onContentChange: markDirty,
     onCommitState: (state) => {
+      if (conflicted) return;
       if (state === 'saving') {
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
         setStatusTone('saving');
@@ -138,6 +120,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       }
     },
   });
+  reloadEditorRef.current = reloadContent;
 
   const retrySave = useCallback(async () => {
     if (!editor) return;
@@ -163,8 +146,16 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   }, [editor, onUpdate, persistToFile, showStatus, t]);
 
   useEffect(() => {
-    if (autoFocus && editor) editor.commands.focus('end');
-  }, [autoFocus, editor]);
+    if (autoFocus && editor && !readOnly && !onEditorReady) editor.commands.focus('end');
+  }, [autoFocus, editor, onEditorReady, readOnly]);
+
+  useEffect(() => {
+    if (!editor || !onEditorReady) return;
+    return onEditorReady((pending) => {
+      if (readOnly) return false;
+      return applyDeferredEditorInput(editor, pending, cardRef.current?.querySelector('.note-tiptap-editor'));
+    });
+  }, [editor, onEditorReady, readOnly]);
 
   const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
   const { filteredMentions, insertMention, closeMention } = useNoteMentions({
@@ -243,6 +234,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       ref={cardRef}
       className="note-card"
       data-modified={modified ? 'true' : 'false'}
+      onFocusCapture={() => void refresh()}
     >
       {statusText && (
         <div
@@ -264,6 +256,15 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
               onClick={() => void retrySave()}
             >
               {t('noteToolbar.retry')}
+            </Button>
+          )}
+          {conflicted && (
+            <Button
+              size="xs"
+              className="note-save-status__retry"
+              onClick={() => void discardAndReload()}
+            >
+              {t('workspaceNodes.discardChanges')}
             </Button>
           )}
         </div>

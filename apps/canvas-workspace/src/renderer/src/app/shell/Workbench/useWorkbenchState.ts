@@ -80,6 +80,7 @@ export function useWorkbenchState({
   }, [workspaces]);
 
   const ensureWorkspaceNodesLoaded = useCallback((workspaceId: string) => {
+    if (!workspaceId) return;
     if (hasWorkspaceSnapshot(allNodesRef.current, workspaceId)) return;
     const api = window.canvasWorkspace?.store;
     if (!api) return;

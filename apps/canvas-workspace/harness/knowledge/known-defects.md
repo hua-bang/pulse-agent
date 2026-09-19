@@ -119,26 +119,17 @@ so a move to per-conversation drafts is a product decision rather than a claimed
 regression. Broad Canvas acceptance was green during this audit; it does not
 prove these missing interaction paths.
 
-### File-watcher sync is disabled — external edits to file nodes don't propagate
-`src/renderer/src/modules/canvas/document/useCanvasDocument.ts:241-269`. The `fs.watch`-based watcher
-that pushed external file changes into open file nodes is commented out,
-because its `onChanged` callback could call `applyNodes` with a stale
-`nodesRef.current`, reverting the user's in-flight edits (a classic
-read-modify-write race between watcher events and local editing). The
-disable is deliberate and documented in the comment, and it is closed at BOTH
-ends: `FILE_WATCHER_ENABLED = false` in `src/main/files/watcher.ts:14` gates
-the main-process watcher itself (`:37` early-returns), and the renderer-side
-application block in `useCanvasDocument.ts` is commented out. The underlying race is
-unfixed, so today an external edit to a file backing an open node is silently
-invisible until reload. Re-enable = flip the flag AND un-comment the hook
-block. Fix shape: apply watcher events through the same merge path used for
-cross-process updates (compare `updatedAt`, never clobber newer local state)
-rather than raw `applyNodes`.
+### External file edits: preserve the replacement synchronization path
 
----
+The old blanket `FILE_WATCHER_ENABLED` path remains disabled: applying its events
+directly to a captured canvas array could revert a newer local edit. Do not
+re-enable it by uncommenting the old hook.
 
-**Verification.** Confirmed against source on the working branch
-(2026-07-07): disabled block + race explanation at `useCanvasDocument.ts:241-269`;
-main-process gate at `src/main/files/watcher.ts:14,37`.
-Provenance: surfaced by the post-consolidation harness audit; previously the
-defect lived only in that code comment, invisible to harness navigation.
+SQLite workspaces now use `canvas/sync/markdown-index.ts` to observe parent
+directories (including atomic-renamed files), update clean indexes, and retain
+dirty drafts. `FileNodeBody/useFilePersistence.ts` also refreshes on focus and
+file-change notifications, checks the read version when saving, and retains the
+draft on conflict. These paths are covered by the colocated index, persistence,
+and editor tests. External editors still do not participate in a shared filesystem
+transaction; file version checks are optimistic. See `main-domain-modules.md`
+and `node-detail.md` for the maintained storage and editor contracts.

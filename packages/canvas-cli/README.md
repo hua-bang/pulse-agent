@@ -2,7 +2,7 @@
 
 CLI for Pulse Canvas — lets external agents (Claude Code, Codex, etc.) read from and write to canvas workspaces.
 
-Most commands operate directly on the JSON store at `~/.pulse-coder/canvas/` (default) without the Electron app being involved. When the app is running, its `fs.watch` picks up store changes automatically — no IPC required. The `agent`, `team`, and `runtime` command families are the exception: they require a running `apps/canvas-workspace` instance (documented under those commands below).
+Most commands operate on local storage at `~/.pulse-coder/canvas/` without a running Electron app. Existing stores use JSON until the app activates the shared SQLite backend. The CLI follows that activation marker and continues to work offline; Markdown and attachments remain ordinary files that external editors and agents can edit. A running app observes changes through the active backend. The `agent`, `team`, and `runtime` command families require a running `apps/canvas-workspace` instance.
 
 ## Install
 
@@ -40,6 +40,9 @@ stable `code` rather than the message. Common codes: `no_workspace_selected`,
 `workspace_not_found`, `node_not_found`, `edge_not_found`, `invalid_argument`,
 `unsupported`, `path_confined`, `confirmation_required`, and the runtime family
 (`runtime_not_found`, `runtime_unreachable`, `runtime_auth`, …) for live commands.
+SQLite operations also report `revision_conflict`, `storage_busy`,
+`storage_unavailable`, `file_write_pending`, and `file_write_conflict`. File-write
+errors include the durable intent id, which can be inspected through `doctor`.
 
 ## Commands
 
@@ -50,10 +53,16 @@ pulse-canvas workspace list                     # List all workspaces (active on
 pulse-canvas workspace current                  # Show the workspace commands resolve to, and why
 pulse-canvas workspace info <id>                # Node counts, types, last saved
 pulse-canvas workspace create <name>            # Create a new workspace
-pulse-canvas workspace delete <id> --confirm    # Delete (irreversible)
+pulse-canvas workspace delete <id> --confirm    # Move to trash; retain files and conversations
+pulse-canvas workspace trash                   # List workspaces available for restoration
+pulse-canvas workspace restore <id>            # Restore the same workspace and conversation history
 pulse-canvas workspace recover <id>             # Rebuild file nodes from notes/*.md files
 pulse-canvas workspace recover <id> --dry-run   # Preview without writing
 ```
+
+Current SQLite limitation: CLI workspace deletion clears its Canvas records
+and workspace directory, but separately stored SQL conversation history is not
+yet removed by this command.
 
 ### Status & Describe
 
@@ -68,6 +77,9 @@ whether the Electron runtime is up, i.e. whether the live `agent`/`team`/`runtim
 commands are usable. `describe` emits a self-describing capability manifest
 (with `describeVersion` and `contextVersion`) so an agent can plan against the
 CLI without hard-coding its surface.
+The `storage.backend` field reports `json`, `sqlite`, or `unavailable`. An
+unavailable active database is an error; the CLI does not read old JSON as a
+substitute or silently initialize an empty database.
 
 ### Node
 
@@ -141,7 +153,7 @@ The JSON output carries a `contextVersion` field (the output-contract version) s
 
 Returns workspace metadata plus a per-node summary: file paths, frame labels, terminal cwds, agent statuses, text excerpts, and iframe/embed metadata. This is the recommended entry point for agents — run it first to understand the canvas layout. To stay prompt-friendly, `context` deliberately excerpts long `text` bodies and omits heavy fields (an iframe's inlined `html`/`prompt`, a plugin's `payload`); fetch the full content of a specific node with `node read <id> --format json`.
 
-> **Runtime requirement — `agent`, `team`, and `runtime`.** These families do not read the JSON store. They require a running `apps/canvas-workspace` instance and authenticate to its loopback runtime-control server using the bearer secret in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`. Without it they fail with `No active canvas-workspace runtime found.` — open the workspace in Pulse Canvas first. All other command families (`workspace`, `node`, `edge`, `context`, `restore`, `install-skills`) operate directly on the store and need no runtime.
+> **Runtime requirement — `agent`, `team`, and `runtime`.** These families require a running `apps/canvas-workspace` instance and authenticate to its loopback runtime-control server using the bearer secret in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`. Without it they fail with `No active canvas-workspace runtime found.` — open the workspace in Pulse Canvas first. Local workspace/node/edge/context, apply, and doctor commands operate on the selected backend without a runtime connection.
 
 ### Runtime
 
@@ -227,7 +239,21 @@ pulse-canvas restore apply [workspaceId] --from <path> --dry-run   # Print the p
 pulse-canvas restore apply [workspaceId] --from <path> --yes       # Skip the confirmation prompt
 ```
 
-`apply` always writes a pre-restore backup of the current `canvas.json` and archives the live `nodes/` directory out of the way so the app's lazy migration runs cleanly on next open.
+`restore apply` writes a pre-restore backup of the current `canvas.json` and archives the live `nodes/` directory out of the way so the app's lazy migration runs cleanly on next open. Both restore subcommands refuse an active SQLite canvas backend; they cannot recover it by rewriting old JSON.
+
+### Doctor and pending file writes
+
+```bash
+pulse-canvas doctor --format json   # Inspect the selected backend and pending file intents
+pulse-canvas doctor --repair        # Retry recoverable writes and reconcile file indexes
+```
+
+With SQLite, a file edit first commits the canvas change and a durable file
+intent, then writes the Markdown file. If the file step fails or conflicts,
+the command reports that outcome and retains the source/requested snapshots.
+Doctor can retry pending writes and recognize an already-written target after
+interruption. It preserves external edits on conflict. Index repair reads the
+Markdown source; it does not recreate missing Markdown from cached content.
 
 ### Install Skills
 
@@ -262,6 +288,16 @@ const {
 } = require('@pulse-coder/canvas-cli/core');
 ```
 
+For an existing SQLite workspace, retain `revision` and `storageGeneration`
+from `loadCanvas` when calling `saveCanvas`. Node/edge commit helpers likewise
+require the original `expectedRevision` and `expectedGeneration`. On conflict,
+read again and reapply the intended change; do not copy a newer revision onto
+an older snapshot. The app owns migration, so a staging database without an
+activation marker retains legacy behavior only when its database records an
+unfinished import. A missing marker for an active database is recovered from
+database authority; an ambiguous database is an error, never permission to
+overwrite it from old JSON.
+
 ## Agent Integration Flow
 
 1. Agent spawns inside a canvas agent node → `$PULSE_CANVAS_WORKSPACE_ID` is set
@@ -269,7 +305,7 @@ const {
 3. Agent reads relevant file nodes with `pulse-canvas node read <id>`
 4. Agent does its work (code changes, research, etc.)
 5. Agent writes results back with `pulse-canvas node write <id> --content "..."`
-6. Electron main detects the canvas.json change via `fs.watch` and refreshes the UI
+6. Electron main observes committed SQLite changes, or legacy JSON file changes, and refreshes the UI
 
 ## Build & Test
 

@@ -2,6 +2,9 @@ import { promises as fs } from 'fs';
 import { join, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { withStoreMutationLock } from './mutation-lock';
+import type { EntityRecord } from '@pulse-coder/storage';
+import { getCanvasBackend, resolveStorageNativeBinding } from '../persistence/backend';
+import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 
 export const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 export const NODES_DIR_NAME = 'nodes';
@@ -119,6 +122,8 @@ export async function readWorkspaceNode(
   root: string = STORE_DIR,
 ): Promise<WorkspaceNodeRecord | null> {
   if (!isSafeNodeId(nodeId)) return null;
+  const backend = await getCanvasBackend(root);
+  if (backend) return await backend.readNode(workspaceId, nodeId) as unknown as WorkspaceNodeRecord | null;
   try {
     const raw = await fs.readFile(getNodeFilePath(workspaceId, nodeId, root), 'utf-8');
     return JSON.parse(raw) as WorkspaceNodeRecord;
@@ -152,8 +157,18 @@ export async function writeWorkspaceNode(
   root: string = STORE_DIR,
 ): Promise<void> {
   assertSafeNodeId(record.id);
+  const backend = await getCanvasBackend(root);
+  if (backend) {
+    await backend.mutateNode(workspaceId, record.id, () => ({
+      record: JSON.parse(JSON.stringify(record)) as EntityRecord,
+      result: undefined,
+    }));
+    return;
+  }
   const path = getNodeFilePath(workspaceId, record.id, root);
-  await withStoreMutationLock(path, () => writeWorkspaceNodeUnlocked(workspaceId, record, root));
+  await withLegacyCanvasWrite(root, () =>
+    withStoreMutationLock(path, () => writeWorkspaceNodeUnlocked(workspaceId, record, root)),
+  { resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 export async function mutateWorkspaceNode<T>(
@@ -165,8 +180,15 @@ export async function mutateWorkspaceNode<T>(
   root: string = STORE_DIR,
 ): Promise<T> {
   assertSafeNodeId(nodeId);
+  const backend = await getCanvasBackend(root);
+  if (backend) {
+    return backend.mutateNode(workspaceId, nodeId, async current => {
+      const { record, result } = await mutation(current as unknown as WorkspaceNodeRecord | null);
+      return { result, ...(record ? { record: JSON.parse(JSON.stringify(record)) as EntityRecord } : {}) };
+    });
+  }
   const path = getNodeFilePath(workspaceId, nodeId, root);
-  return withStoreMutationLock(path, async () => {
+  return withLegacyCanvasWrite(root, () => withStoreMutationLock(path, async () => {
     const current = await readWorkspaceNode(workspaceId, nodeId, root);
     const { record, result } = await mutation(current);
     if (record) {
@@ -176,7 +198,7 @@ export async function mutateWorkspaceNode<T>(
       await writeWorkspaceNodeUnlocked(workspaceId, record, root);
     }
     return result;
-  });
+  }), { resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 export async function deleteWorkspaceNode(
@@ -185,7 +207,11 @@ export async function deleteWorkspaceNode(
   root: string = STORE_DIR,
 ): Promise<void> {
   if (!isSafeNodeId(nodeId)) return;
-  await fs.unlink(getNodeFilePath(workspaceId, nodeId, root)).catch(() => undefined);
+  const backend = await getCanvasBackend(root);
+  if (backend) return backend.deleteNode(workspaceId, nodeId);
+  await withLegacyCanvasWrite(root, () =>
+    fs.unlink(getNodeFilePath(workspaceId, nodeId, root)).catch(() => undefined),
+  { resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 /** List node ids for every JSON record in the workspace node store. */
@@ -193,6 +219,8 @@ export async function listWorkspaceNodeIds(
   workspaceId: string,
   root: string = STORE_DIR,
 ): Promise<string[]> {
+  const backend = await getCanvasBackend(root);
+  if (backend) return (await backend.listNodes(workspaceId)).map(record => record.id);
   const dir = getNodesDir(workspaceId, root);
   let entries: string[];
   try {

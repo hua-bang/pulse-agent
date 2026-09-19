@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     persistToFile?: (markdown: string, filePath: string) => Promise<void>;
   },
   write: vi.fn(),
+  reloadContent: vi.fn(),
 }));
 
 vi.mock('../../../../note-editor', () => ({
@@ -31,6 +32,7 @@ vi.mock('../../../../note-editor', () => ({
       cancelLink: vi.fn(),
       imageInputRef: { current: null },
       insertImageFromFile: vi.fn(),
+      reloadContent: mocks.reloadContent,
     };
   },
   useNoteMentions: () => ({
@@ -81,9 +83,42 @@ afterEach(() => {
   mocks.options = null;
   mocks.write.mockReset();
   mocks.getMarkdown.mockClear();
+  mocks.reloadContent.mockClear();
 });
 
 describe('FileNodeBody save recovery', () => {
+  it('offers explicit discard on conflict and keeps the draft when that reload fails', async () => {
+    const read = vi.fn().mockResolvedValue({ ok: true, content: '# Previous', version: 'v1' });
+    mocks.write.mockResolvedValue({ ok: false, conflict: true, error: 'External change' });
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: { file: { read, write: mocks.write } },
+    });
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onUpdate = vi.fn();
+    await act(async () => {
+      root?.render(<I18nProvider><FileNodeBody node={node} onUpdate={onUpdate} /></I18nProvider>);
+    });
+    await act(async () => { await mocks.options?.persistToFile?.('# Recovery draft', '/tmp/recovery-note.md'); });
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('draft is retained');
+    const buttons = Array.from(host.querySelectorAll('button'));
+    const retry = buttons.find(button => button.textContent === 'Retry');
+    const discard = buttons.find(button => button.textContent === 'Discard and reload');
+    expect(discard).toBeTruthy();
+    await act(async () => { retry?.click(); });
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+    read.mockResolvedValueOnce({ ok: false, error: 'Cannot read' });
+    await act(async () => { discard?.click(); });
+    expect(mocks.reloadContent).not.toHaveBeenCalled();
+    expect(onUpdate).not.toHaveBeenCalled();
+    read.mockResolvedValueOnce({ ok: true, content: '# External', version: 'v2' });
+    await act(async () => { discard?.click(); });
+    expect(mocks.reloadContent).toHaveBeenCalledWith('# External');
+    expect(onUpdate).toHaveBeenCalledWith('note-1', { data: expect.objectContaining({ content: '# External', modified: false }) });
+  });
+
   it('announces a persistent save error and retries the current editor content', async () => {
     vi.useFakeTimers();
     mocks.write.mockResolvedValue({ ok: true });

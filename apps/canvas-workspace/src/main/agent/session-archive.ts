@@ -1,8 +1,9 @@
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import type { CanvasAgentSession } from './types';
 import { archiveSortKey } from './session-store-scan';
 import { readValidSessionFileIndex, tombstoneIndexedSessionFile, updateIndexedSessionFile } from './session-index';
+import { withLegacySessionWrite } from './sqlite-session-backend';
 
 export interface ResolvedArchivedSession {
   session: CanvasAgentSession | null;
@@ -80,7 +81,11 @@ export async function resolveArchivedSession(
 }
 
 export async function removeArchivePaths(paths: string[]): Promise<void> {
-  await Promise.all(paths.map(path => fs.unlink(path).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-  })));
+  if (!paths.length) return;
+  const root = dirname(dirname(dirname(dirname(paths[0]))));
+  await withLegacySessionWrite(root, async () => {
+    await Promise.all(paths.map(path => fs.unlink(path).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    })));
+  });
 }

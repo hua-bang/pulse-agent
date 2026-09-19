@@ -47,22 +47,74 @@ function makeDeps(key: ConversationKey, runner: ReturnType<typeof makeRunner>): 
 }
 
 describe('ConversationRuntime (main, async owner)', () => {
-  it('persists the user message before the model turn starts', async () => {
+  it('waits for the initial user-message save before starting the model turn', async () => {
     const runner = makeRunner();
     const deps = makeDeps(keyA, runner);
+    const persist = deps.persist;
+    let releaseSave!: () => void;
+    const saveGate = new Promise<void>(resolve => { releaseSave = resolve; });
+    deps.persist = vi.fn().mockImplementationOnce(async messages => {
+      await saveGate;
+      await persist(messages);
+    }).mockImplementation(persist);
+    let leased = false;
+    deps.withTurnLease = async operation => {
+      leased = true;
+      try { return await operation(); } finally { leased = false; }
+    };
     let finish!: (result: TurnRunnerResult) => void;
-    runner.setBehavior(async () => {
-      return new Promise(resolve => { finish = resolve; });
-    });
+    runner.setBehavior(() => new Promise(resolve => { finish = resolve; }));
     const rt = new ConversationRuntime(deps);
     await rt.open();
 
     const pending = rt.sendAndWait({ message: 'hello' });
+    await vi.waitFor(() => expect(deps.persist).toHaveBeenCalledTimes(1));
+    expect(runner.calls).toHaveLength(0);
+    expect(deps.stored).toEqual([]);
+    expect(rt.getSnapshot().status).toBe('running');
+    expect(leased).toBe(true);
+
+    releaseSave();
     await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
-    expect(deps.persisted.at(-1)?.map(message => message.content)).toEqual(['hello']);
+    expect(deps.stored.map(message => message.content)).toEqual(['hello']);
+    expect(leased).toBe(true);
 
     finish({ response: 'done' });
-    await pending;
+    expect(await pending).toEqual({ response: 'done' });
+    expect(deps.stored.map(message => message.content)).toEqual(['hello', 'done']);
+    expect(leased).toBe(false);
+  });
+
+  it('fails without running the model or tools when the initial save rejects', async () => {
+    const runner = makeRunner();
+    const deps = makeDeps(keyA, runner);
+    let rejectSave!: (error: Error) => void;
+    deps.persist = vi.fn().mockImplementationOnce(() => new Promise<void>((_resolve, reject) => {
+      rejectSave = reject;
+    })).mockImplementation(deps.persist);
+    let leased = false;
+    deps.withTurnLease = async operation => {
+      leased = true;
+      try { return await operation(); } finally { leased = false; }
+    };
+    const onToolCall = vi.fn();
+    const rt = new ConversationRuntime(deps);
+    await rt.open();
+
+    const pending = rt.sendAndWait({ message: 'hello' }, { onToolCall });
+    await vi.waitFor(() => expect(deps.persist).toHaveBeenCalledTimes(1));
+    expect(runner.calls).toHaveLength(0);
+    expect(leased).toBe(true);
+
+    rejectSave(new Error('disk full'));
+    expect(await pending).toEqual({ response: '', error: 'disk full' });
+    expect(runner.calls).toHaveLength(0);
+    expect(onToolCall).not.toHaveBeenCalled();
+    expect(deps.persist).toHaveBeenCalledTimes(1);
+    expect(deps.stored).toEqual([]);
+    expect(rt.getSnapshot()).toMatchObject({ status: 'idle', error: 'disk full', streamingTools: [] });
+    expect(rt.getSnapshot().messages.map(message => message.content)).toEqual(['hello']);
+    expect(leased).toBe(false);
   });
 
   it('keeps two conversations in one workspace independent, including streaming state', async () => {
@@ -86,6 +138,10 @@ describe('ConversationRuntime (main, async owner)', () => {
     expect(a.getSnapshot().messages.map(m => m.content)).toEqual(['A']);
     expect(b.getSnapshot().messages.map(m => m.content)).toEqual(['B']);
 
+    await vi.waitFor(() => {
+      expect(runnerA.calls).toHaveLength(1);
+      expect(runnerB.calls).toHaveLength(1);
+    });
     resolveA({ response: 'reply-A' });
     resolveB({ response: 'reply-B' });
     // Let both settle.
@@ -106,13 +162,31 @@ describe('ConversationRuntime (main, async owner)', () => {
 
     expect(rt.send({ message: 'first' })).toBe(true);
     expect(rt.send({ message: 'second' })).toBe(true);
-    expect(runner.calls.length).toBe(1);
+    await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
 
     resolveFirst({ response: 'one' });
     await vi.waitFor(() => expect(runner.calls.length).toBe(2));
 
     // The queued turn starts after the first settles.
     expect(runner.calls.map(c => c.message)).toEqual(['first', 'second']);
+  });
+
+  it('settles queued sendAndWait calls as stopped during disposal', async () => {
+    const runner = makeRunner();
+    let finish!: (result: TurnRunnerResult) => void;
+    runner.setBehavior(() => new Promise(resolve => { finish = resolve; }));
+    const rt = new ConversationRuntime(makeDeps(keyA, runner));
+    await rt.open();
+    const first = rt.sendAndWait({ message: 'running' });
+    await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
+    const queued = rt.sendAndWait({ message: 'queued' });
+
+    rt.dispose();
+    expect(await queued).toEqual({ response: '', stopped: true });
+    expect(runner.calls[0].signal.aborted).toBe(true);
+    finish({ response: '', stopped: true });
+    await first;
+    expect(runner.calls).toHaveLength(1);
   });
 
   it('aborts one conversation without touching another', async () => {
@@ -132,6 +206,10 @@ describe('ConversationRuntime (main, async owner)', () => {
     a.send({ message: 'A' });
     b.send({ message: 'B' });
 
+    await vi.waitFor(() => {
+      expect(runnerA.calls).toHaveLength(1);
+      expect(runnerB.calls).toHaveLength(1);
+    });
     expect(a.abort()).toBe(true);
     expect(b.getSnapshot().status).toBe('running');
 
@@ -290,6 +368,7 @@ describe('ConversationRuntimeRegistry', () => {
     expect((registry as unknown as { runningSessionIds(): string[] }).runningSessionIds())
       .toEqual(['session-a']);
 
+    await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
     finish({ response: 'done' });
     await vi.waitFor(() => {
       expect((registry as unknown as { runningSessionIds(): string[] }).runningSessionIds())

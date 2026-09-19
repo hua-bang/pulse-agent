@@ -10,6 +10,7 @@ import { createConversationRunner } from './conversation-runner';
 
 /** Structural store surface the service drives (injectable for tests). */
 export interface ConversationStoreAdapter {
+  create(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
   loadMessages(sessionId: string): Promise<CanvasAgentMessage[] | null>;
   persist(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
 }
@@ -39,12 +40,17 @@ export class ConversationRuntimeService {
       operation: () => Promise<T>,
     ) => Promise<T | null>,
     private readonly activateScope?: (scope: AgentScope) => Promise<void>,
+    private readonly assertScopeAvailable: (scope: AgentScope) => Promise<void> = async () => undefined,
   ) {}
 
   private async registryFor(scope: AgentScope): Promise<ConversationRuntimeRegistry> {
+    await this.assertScopeAvailable(scope);
     const key = scopeKey(scope);
     const existing = this.registries.get(key);
-    if (existing) return existing;
+    if (existing) {
+      await this.activateScope?.(scope);
+      return existing;
+    }
 
     const pending = this.pendingRegistries.get(key);
     if (pending) return pending;
@@ -70,6 +76,7 @@ export class ConversationRuntimeService {
     if (!this.getAgent(scope) && this.activateScope) {
       await this.activateScope(scope);
     }
+    await this.assertScopeAvailable(scope);
     const agent = this.getAgent(scope);
     if (!agent) throw new Error(`No active agent for scope ${key}`);
     const storeId = scopeSessionStoreId(scope);
@@ -86,11 +93,15 @@ export class ConversationRuntimeService {
           persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
           runTurn,
           withTurnLease: async (operation) => {
-            if (!this.runConversation) return operation();
+            const guarded = async () => {
+              await this.assertScopeAvailable(scope);
+              return operation();
+            };
+            if (!this.runConversation) return guarded();
             const result = await this.runConversation(
               scope,
               conversationKey.sessionId,
-              operation,
+              guarded,
             );
             return result ?? {
               response: '',
@@ -115,7 +126,7 @@ export class ConversationRuntimeService {
       const sessionId = randomUUID();
       const store = this.stores.get(scopeKey(scope));
       if (!store) throw new Error(`No conversation store for scope ${scopeKey(scope)}`);
-      await store.persist(sessionId, messages);
+      await store.create(sessionId, messages);
       return { ok: true, sessionId };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

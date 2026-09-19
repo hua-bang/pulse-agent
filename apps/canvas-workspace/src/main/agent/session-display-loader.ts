@@ -5,6 +5,7 @@ import type { AgentScope, CanvasAgentSession } from './types';
 interface SessionPointerAgent {
   getCurrentSessionId(): string | null;
   loadSession(sessionId: string): Promise<CanvasAgentSession | null>;
+  readSessionById?(sessionId: string, refreshIfClean?: boolean): Promise<CanvasAgentSession | null>;
 }
 
 export async function loadCanvasAgentSessionFromStore(scope: AgentScope, sessionId: string) {
@@ -26,9 +27,14 @@ export async function startCanvasAgentSessionInStore(scope: AgentScope): Promise
 export async function reconcileAgentWithStoredSession(
   scope: AgentScope,
   agent: SessionPointerAgent,
+  canRefreshCurrent = true,
 ): Promise<void> {
   const currentSessionId = await SessionStore.readCurrentSessionId(scopeSessionStoreId(scope));
-  if (!currentSessionId || agent.getCurrentSessionId() === currentSessionId) return;
+  if (!currentSessionId) return;
+  if (agent.getCurrentSessionId() === currentSessionId) {
+    if (canRefreshCurrent) await agent.readSessionById?.(currentSessionId, true);
+    return;
+  }
   const loaded = await agent.loadSession(currentSessionId);
   if (!loaded || agent.getCurrentSessionId() !== currentSessionId) {
     throw new Error(`Could not reconcile Agent to durable session ${currentSessionId}`);

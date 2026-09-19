@@ -3,10 +3,12 @@ import type {
   FileCreateEntryRequest,
   FileEntryOperationResult,
   FilePreviewResult,
+  FileReadResult,
   FileRenameEntryRequest,
   FileSaveRequest,
   FileSaveResult,
   FileTrashEntryRequest,
+  FileWriteResult,
 } from '../../../shared/files';
 
 export type * from '../../../shared/files';
@@ -20,11 +22,12 @@ export interface FileApi {
   ) => Promise<{ ok: boolean; filePath?: string; fileName?: string; error?: string }>;
   read: (
     filePath: string,
-  ) => Promise<{ ok: boolean; content?: string; error?: string }>;
+  ) => Promise<FileReadResult>;
   write: (
     filePath: string,
     content: string,
-  ) => Promise<{ ok: boolean; error?: string }>;
+    expectedVersion?: string,
+  ) => Promise<FileWriteResult>;
   listDir: (
     dirPath: string,
     maxDepth?: number,

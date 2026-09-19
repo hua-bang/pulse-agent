@@ -44,7 +44,7 @@ try {
       .map((entry) => entry.name === 'canvas' ? 'pulse-canvas' : entry.name)
       .sort();
 
-    child = spawn(executable, [], { env, stdio: 'ignore' });
+    child = spawn(executable, [`--user-data-dir=${join(home, 'electron-user-data')}`], { env, stdio: 'ignore' });
     const wrapper = join(home, '.pulse-coder/bin/pulse-canvas');
     const activeState = join(home, '.pulse-coder/tooling/pulse-canvas/active.json');
     await waitFor(wrapper, 30_000);
@@ -56,9 +56,9 @@ try {
     if (active.version !== version.trim()) {
       throw new Error(`Active tooling state does not match CLI version: ${JSON.stringify(active)}`);
     }
-    const status = JSON.parse(await run(wrapper, ['--format', 'json', 'status'], env));
-    if (status.runtime?.reachable !== true) {
-      throw new Error(`Bundled CLI could not reach the packaged app: ${JSON.stringify(status)}`);
+    const status = await waitForRuntime(wrapper, env, 30_000);
+    if (status.storage?.backend !== 'sqlite') {
+      throw new Error(`Bundled CLI did not open the activated SQLite backend: ${JSON.stringify(status)}`);
     }
 
     const parents = [
@@ -100,6 +100,17 @@ async function waitFor(path, timeoutMs) {
     }
   }
   throw new Error(`Timed out waiting for ${path}`);
+}
+
+async function waitForRuntime(wrapper, commandEnv, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let status;
+  while (Date.now() < deadline) {
+    status = JSON.parse(await run(wrapper, ['--format', 'json', 'status'], commandEnv));
+    if (status.runtime?.reachable === true) return status;
+    await new Promise(resolveWait => setTimeout(resolveWait, 100));
+  }
+  throw new Error(`Bundled CLI could not reach the packaged app: ${JSON.stringify(status)}`);
 }
 
 function run(command, args, commandEnv) {

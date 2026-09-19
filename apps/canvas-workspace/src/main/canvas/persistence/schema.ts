@@ -24,6 +24,8 @@ export interface CanvasNode {
 }
 
 export interface CanvasSaveData {
+  storageGeneration?: string;
+  revision?: number;
   schemaVersion?: 1 | 2;
   nodes?: CanvasNode[];
   edges?: unknown[];

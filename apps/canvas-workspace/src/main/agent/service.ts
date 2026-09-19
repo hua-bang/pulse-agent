@@ -1,12 +1,12 @@
-import { join } from 'path';
-import { homedir } from 'os';
-import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
+import type { CanvasAgent, CanvasClarificationRequest } from './canvas-agent';
+import { activateAgentScope } from './scope-agent-activation';
+import { isWorkspaceTrashed } from './workspace-runtime-guard';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './session-store';
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
 import { searchSessionTitles } from './session-title-search';
-import { appendActiveSessionGroups, scopeFromServiceKey } from './active-session-groups';
+import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './active-session-groups';
 import { ScopeActivationGate } from './scope-activation-gate';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import type { ResolvedCanvasModel } from '../models/config';
@@ -36,13 +36,7 @@ import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markC
 import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
 import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './session-display-loader';
 
-const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
-const scopeKey = (scope: AgentScope): string => {
-  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
-  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
-  return 'global';
-};
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
   private agentActivations = new ScopeActivationGate();
@@ -54,25 +48,11 @@ export class CanvasAgentService {
     await this.sessionMutations.waitForIdle(scope);
     await this.activateScopeCore(scope);
     await this.sessionMutations.reconcileActiveAgent(
-      scope, agent => reconcileAgentWithStoredSession(scope, agent),
+      scope, (agent, canRefresh) => reconcileAgentWithStoredSession(scope, agent, canRefresh),
     );
   }
   private async activateScopeCore(scope: AgentScope): Promise<void> {
-    const key = scopeKey(scope);
-    if (this.agents.has(key)) return;
-    await this.agentActivations.run(key, async () => {
-      if (this.agents.has(key)) return;
-      const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined;
-      const agent = new CanvasAgent({
-        scope,
-        sessionStoreId: scopeSessionStoreId(scope),
-        workspaceId,
-        workspaceDir: workspaceId ? join(STORE_DIR, workspaceId) : undefined,
-      });
-
-      await agent.initialize();
-      this.agents.set(key, agent);
-    });
+    await activateAgentScope(scope, this.agents, this.agentActivations);
   }
   getAgentForScope(scope: AgentScope): CanvasAgent | undefined {
     return this.agents.get(scopeKey(scope));
@@ -383,6 +363,7 @@ export class CanvasAgentService {
    * before the agent for that scope is activated.
    */
   async resolveCurrentSessionId(scope: AgentScope): Promise<string | null> {
+    if (await isWorkspaceTrashed(scope)) return null;
     const live = this.getCurrentSessionIdForScope(scope);
     if (live) return live;
     return SessionStore.readCurrentSessionId(scopeSessionStoreId(scope));
@@ -491,12 +472,7 @@ export class CanvasAgentService {
    * Deactivate and archive the Canvas Agent for a workspace.
    */
   async deactivate(workspaceId: string): Promise<void> {
-    const scope = workspaceScope(workspaceId);
-    const key = scopeKey(scope);
-    const agent = this.agents.get(key);
-    if (!agent) return;
-    await agent.destroy();
-    this.agents.delete(key);
+    await this.deactivateScope(workspaceScope(workspaceId));
   }
 
   async deactivateScope(scope: AgentScope): Promise<void> {
@@ -511,6 +487,7 @@ export class CanvasAgentService {
    * Deactivate all agents (called on app shutdown).
    */
   async deactivateAll(): Promise<void> {
+    await this.sessionMutations.stopAndDrain();
     const entries = Array.from(this.agents.entries());
     await Promise.all(entries.map(async ([key, agent]) => {
       await agent.destroy();

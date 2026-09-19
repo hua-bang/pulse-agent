@@ -1,10 +1,12 @@
 import { ipcMain, type WebContents } from 'electron';
+import { SessionStore } from '../session-store';
 import type { AgentScope, AgentScopeRef } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
 import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/agent-chat';
 import { isPerfChatReplayRequest, replayPerfChatStream } from '../perf-chat-replay';
+import { assertWorkspaceAvailable } from '../workspace-runtime-guard';
 
 let service: ConversationRuntimeService | null = null;
 
@@ -15,7 +17,10 @@ export function getConversationRuntimeService(
     const agentService = getService() as CanvasAgentService;
     service = new ConversationRuntimeService(
       (scope) => agentService.getAgentForScope(scope),
-      (_storeId, scope) => ({
+      (storeId, scope) => ({
+        create: (sessionId, messages) => agentService.sessionMutations.createStoredConversation(scope, async () => {
+          await new SessionStore(storeId, scope).createConversationById(sessionId, messages);
+        }),
         loadMessages: async (sessionId) => (
           agentService.sessionMutations.readConversation(scope, sessionId)
         ),
@@ -27,6 +32,7 @@ export function getConversationRuntimeService(
         agentService.sessionMutations.runChat(scope, operation, sessionId)
       ),
       (scope) => agentService.activateScope(scope),
+      assertWorkspaceAvailable,
     );
   }
   return service;
