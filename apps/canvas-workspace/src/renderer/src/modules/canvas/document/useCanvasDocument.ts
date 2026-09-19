@@ -6,6 +6,7 @@ import type {
   CanvasTransform,
 } from '../../../types';
 import { count } from '../../../perf/counters';
+import { registerWorkspacePersistence } from '../../../shared/workspacePersistence';
 import {
   mergeExternalDocumentUpdate,
   shouldReloadForExternalUpdate,
@@ -319,6 +320,14 @@ export const useCanvasDocument = (
       },
     });
     persistenceRef.current = persistence;
+    const unregisterPersistence = registerWorkspacePersistence(canvasId, async () => {
+      if (!active || !loadedRef.current) throw new Error('Workspace is still loading.');
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      persistence.setDraft(captureDraft());
+      await persistence.requestSave();
+      if (persistence.hasChanges) throw new Error('Save failed. Retry before deleting.');
+    });
     void api.load(canvasId).then((result) => {
       if (!active) return;
       if (!result.ok) {
@@ -355,6 +364,7 @@ export const useCanvasDocument = (
     });
     return () => {
       active = false;
+      unregisterPersistence();
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = null;
       if (persistence.hasChanges) void persistence.requestSave();

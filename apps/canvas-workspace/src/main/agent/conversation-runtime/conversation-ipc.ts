@@ -6,6 +6,7 @@ import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
 import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/agent-chat';
 import { isPerfChatReplayRequest, replayPerfChatStream } from '../perf-chat-replay';
+import { assertWorkspaceAvailable } from '../workspace-runtime-guard';
 
 let service: ConversationRuntimeService | null = null;
 
@@ -31,6 +32,7 @@ export function getConversationRuntimeService(
         agentService.sessionMutations.runChat(scope, operation, sessionId)
       ),
       (scope) => agentService.activateScope(scope),
+      assertWorkspaceAvailable,
     );
   }
   return service;

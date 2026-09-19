@@ -70,12 +70,36 @@ interrupted/partial batches, failed replacement, restart recovery, external
 conflicts, index reconciliation, and refusal to recover through corrupt storage.
 Shared repository transaction tests belong in `packages/storage`.
 
-## Current deletion boundary
+## Recoverable workspace deletion
 
-CLI workspace deletion currently removes Canvas SQL records and the workspace
-directory. It does not yet call the workspace bundle API that also removes
-separately stored SQL conversation history. Do not assume the whole SQL workspace
-bundle has been removed merely because the CLI reports Canvas deletion success.
+`workspace delete --confirm` uses the shared workspace trash operation. It hides
+the Canvas and its conversation scope without removing records, current-session
+pointers, Markdown, attachments, or legacy source files. A concurrent conversation
+change rejects the operation rather than hiding newer activity based on an old
+snapshot. Deleted workspaces cannot accept new writes or be recreated from stale
+snapshots. Other workspace and global scopes remain unchanged.
+
+`workspace trash` lists retained workspaces; `workspace restore <id>` restores
+the same identities, name, content and conversation pointer. There is no automatic
+expiry or permanent-delete command. File bytes are never rewritten by restoration;
+external file edits made while a workspace is in trash remain intact.
+
+The database is authoritative for visibility. Manifest reads filter deleted ids,
+including an old primary/backup manifest left after an interrupted deletion.
+Restoration publishes the saved manifest entry before restoring SQL visibility;
+if that write fails, the workspace remains in trash and can be retried. The shared
+root migration fence and workspace lock serialize CLI deletion/restoration.
+The manifest and database are still separate commits, not one filesystem/SQL
+transaction. Reads hide a prematurely published entry until restoration commits.
+
+Legacy-only stores must first be opened in the updated app to activate storage.
+Deletion/restoration refuses those stores without removing files; it never falls
+back to irreversible directory deletion. The top-level `restore` command remains
+the separate legacy v1 snapshot-recovery tool.
+
+Guards: `src/core/__tests__/workspace-trash.test.ts` covers retention/restoration,
+other-scope isolation, old-snapshot rejection, concurrent chat activity, interrupted
+manifest updates, external file preservation, and CLI command output.
 
 ## The incident (parallel writers destroyed each other's nodes)
 

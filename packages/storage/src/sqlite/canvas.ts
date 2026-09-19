@@ -10,6 +10,7 @@ import type {
 import { RevisionConflictError, StorageError } from '../errors.js';
 import type { SqliteContext } from './context.js';
 import { stageFileWrites } from './file-writes.js';
+import { createWorkspaceVisibility } from './workspace-visibility.js';
 import { decodeCursor, decodeJson, encodeCursor, encodeJson, pageLimit, validateId } from './validation.js';
 
 type Collection = 'node' | 'placement' | 'edge';
@@ -72,18 +73,22 @@ export type CanvasOperations = {
 
 /** Synchronous operations reused by workspace bundles; mutations require their transaction. */
 export function createCanvasOperations(ctx: SqliteContext): CanvasOperations {
+  const visibility = createWorkspaceVisibility(ctx);
   const workspace = ctx.db.prepare('SELECT id, revision, metadata FROM workspaces WHERE id = ?');
   const records = ctx.db.prepare(
     'SELECT id, collection, body FROM canvas_records WHERE workspace_id = ? ORDER BY collection, id',
   );
   const oneNode = ctx.db.prepare(
-    "SELECT body FROM canvas_records WHERE workspace_id = ? AND collection = 'node' AND id = ?",
+    `SELECT body FROM canvas_records WHERE workspace_id = ? AND collection = 'node' AND id = ?
+      AND NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = canvas_records.workspace_id)`,
   );
   const workspacePage = ctx.db.prepare(
-    'SELECT id, revision, metadata FROM workspaces WHERE id > ? ORDER BY id LIMIT ?',
+    `SELECT id, revision, metadata FROM workspaces WHERE id > ?
+      AND NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = workspaces.id) ORDER BY id LIMIT ?`,
   );
   const nodePage = ctx.db.prepare(
-    "SELECT id, body FROM canvas_records WHERE workspace_id = ? AND collection = 'node' AND id > ? ORDER BY id LIMIT ?",
+    `SELECT id, body FROM canvas_records WHERE workspace_id = ? AND collection = 'node' AND id > ?
+      AND NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = canvas_records.workspace_id) ORDER BY id LIMIT ?`,
   );
   const createWorkspace = ctx.db.prepare('INSERT INTO workspaces (id, revision, metadata) VALUES (?, ?, ?)');
   const updateWorkspace = ctx.db.prepare('UPDATE workspaces SET revision = ?, metadata = ? WHERE id = ?');
@@ -97,6 +102,7 @@ export function createCanvasOperations(ctx: SqliteContext): CanvasOperations {
   const removeWorkspace = ctx.db.prepare('DELETE FROM workspaces WHERE id = ?');
 
   const readTransaction = ctx.db.transaction((workspaceId: string): CanvasSnapshot | null => {
+    if (visibility.isTrashed(workspaceId)) return null;
     const row = workspace.get(workspaceId) as WorkspaceRow | undefined;
     if (!row) return null;
     const snapshot: CanvasSnapshot = {
@@ -124,6 +130,7 @@ export function createCanvasOperations(ctx: SqliteContext): CanvasOperations {
     }
     validateId(input.workspaceId);
     validateRevision(input.expectedRevision);
+    visibility.assertWritable(input.workspaceId);
     const row = workspace.get(input.workspaceId) as WorkspaceRow | undefined;
     const actualRevision = row?.revision ?? null;
     if (actualRevision !== input.expectedRevision) {
@@ -160,6 +167,7 @@ export function createCanvasOperations(ctx: SqliteContext): CanvasOperations {
     if (!ctx.db.inTransaction) throw new StorageError('storage_unavailable', 'Canvas mutations require a transaction');
     validateId(workspaceId);
     validateRevision(expectedRevision, false);
+    visibility.assertWritable(workspaceId);
     const row = workspace.get(workspaceId) as WorkspaceRow | undefined;
     const actualRevision = row?.revision ?? null;
     if (actualRevision !== expectedRevision) {

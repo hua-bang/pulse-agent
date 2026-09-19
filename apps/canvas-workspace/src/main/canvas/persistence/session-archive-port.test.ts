@@ -3,6 +3,7 @@ import { getCanvasSessionArchivePort, setCanvasSessionArchivePort, type CanvasSe
 
 const createPort = (): CanvasSessionArchivePort => ({
   assertWorkspaceStorage: async () => undefined,
+  withWorkspaceTrashGuard: async (_workspaceId, operation) => operation(),
   exportFiles: () => [],
   prepareImport: (_workspaceId, files) => ({ files, currentSessionId: null, conversations: [] }),
   rewriteAttachmentPaths: files => files,

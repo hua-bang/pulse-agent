@@ -12,6 +12,7 @@ import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacy
 import { sessionUpdatedAt } from './session-file-summary';
 import type { CanvasAgentSession } from './types';
 import { sessionStorageRoot } from './sqlite-session-backend';
+import { withWorkspaceTrashGuard } from './workspace-runtime-guard';
 
 const normalized = (path: string) => path.replace(/\\/g, '/');
 const isSessionBody = (path: string) => isWorkspaceSessionFile(path) && !normalized(path).endsWith('/metadata.json');
@@ -150,6 +151,7 @@ function prepareImport(
 export function createCanvasSessionArchivePort(): CanvasSessionArchivePort {
   return {
     assertWorkspaceStorage,
+    withWorkspaceTrashGuard,
     exportFiles,
     prepareImport,
     rewriteAttachmentPaths: (files, mapper) => files.map(file => isSessionBody(file.relativePath)

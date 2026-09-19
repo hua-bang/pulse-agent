@@ -10,6 +10,7 @@ export interface PreparedCanvasSessionImport {
 /** The composition root injects Agent codecs; Canvas never imports their implementation. */
 export interface CanvasSessionArchivePort {
   assertWorkspaceStorage(root: string): Promise<void>;
+  withWorkspaceTrashGuard<T>(workspaceId: string, operation: () => Promise<T>): Promise<T>;
   exportFiles(bundle: WorkspaceBundle): WorkspaceExportFile[];
   prepareImport(workspaceId: string, files: WorkspaceExportFile[], restoreManagedPath: (path: string) => string): PreparedCanvasSessionImport;
   rewriteAttachmentPaths(files: WorkspaceExportFile[], mapper: (path: string) => string): WorkspaceExportFile[];

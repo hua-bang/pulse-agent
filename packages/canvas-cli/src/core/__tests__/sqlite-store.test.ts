@@ -237,7 +237,7 @@ describe('activated SQLite CLI storage', () => {
     expect((await store.loadCanvas(workspaceId, root))!.revision).toBe(1);
   });
 
-  it('deletes authoritative SQL records, then removes the manifest entry and files', async () => {
+  it('hides a deleted SQL workspace while retaining its directory and legacy source', async () => {
     await store.saveCanvas(workspaceId, initialCanvas() as CanvasSaveData, root);
     await store.saveWorkspaceManifest({ workspaces: [{ id: workspaceId, name: 'Workspace' }], activeId: workspaceId }, root);
     await activate();
@@ -245,7 +245,9 @@ describe('activated SQLite CLI storage', () => {
     expect(await store.loadCanvas(workspaceId, root)).toBeNull();
     expect(await store.listWorkspaceIds(root)).toEqual([]);
     expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([]);
-    await expect(fs.access(join(root, workspaceId))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.access(join(root, workspaceId))).resolves.toBeUndefined();
+    expect(await fs.readFile(join(root, workspaceId, 'canvas.json'), 'utf8')).toContain('Original');
+    expect(await store.listDeletedWorkspaces(root)).toMatchObject([{ workspaceId, metadata: { name: 'Workspace' } }]);
   });
 
   it('reports SQL integrity and Markdown drift without treating retained node files as current', async () => {
@@ -313,7 +315,7 @@ describe('migration fencing for legacy CLI writes', () => {
     await cli(registerRestoreCommand).parseAsync([
       'node', 'pulse-canvas', '--store-dir', root, 'restore', 'apply', workspaceId, '--from', backup, '--yes',
     ]);
-    expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: true });
+    expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: false, code: 'unsupported_schema' });
     expect(resolver).not.toHaveBeenCalled();
   });
 

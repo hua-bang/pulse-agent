@@ -11,6 +11,7 @@ import type {
 import { RevisionConflictError, StorageError } from '../errors.js';
 import type { SqliteContext } from './context.js';
 import { decodeCursor, decodeJson, encodeCursor, encodeJson, pageLimit, validateId } from './validation.js';
+import { createWorkspaceVisibility } from './workspace-visibility.js';
 
 interface ConversationRow {
   scope_id: string;
@@ -71,6 +72,7 @@ export interface ConversationOperations {
 
 export function createConversationOperations(ctx: SqliteContext): ConversationOperations {
   const { db } = ctx;
+  const visibility = createWorkspaceVisibility(ctx);
   const findConversation = db.prepare(`
     SELECT scope_id, session_id, revision, metadata FROM conversations
     WHERE scope_id = ? AND session_id = ?
@@ -103,10 +105,12 @@ export function createConversationOperations(ctx: SqliteContext): ConversationOp
   const listConversations = db.prepare(`
     SELECT scope_id, session_id, revision, metadata FROM conversations
     WHERE scope_id = ? AND (? IS NULL OR session_id > ?)
+      AND NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = conversations.scope_id)
     ORDER BY session_id LIMIT ?
   `);
 
   const readTransaction = db.transaction((scopeId: string, sessionId: string): ConversationSnapshot | null => {
+    if (visibility.isTrashed(scopeId)) return null;
     const row = findConversation.get(scopeId, sessionId) as ConversationRow | undefined;
     if (!row) return null;
     const messages = findMessages.all(scopeId, sessionId) as MessageRow[];
@@ -122,6 +126,7 @@ export function createConversationOperations(ctx: SqliteContext): ConversationOp
     metadata: string | undefined,
   ) => {
     const { scopeId, sessionId, expectedRevision } = input;
+    visibility.assertWritable(scopeId);
     if (input.expectedGeneration !== undefined && input.expectedGeneration !== ctx.generation) {
       throw new StorageError('revision_conflict', 'Conversation belongs to a different storage generation');
     }
@@ -160,6 +165,7 @@ export function createConversationOperations(ctx: SqliteContext): ConversationOp
   };
 
   const removeMutation = (scopeId: string, sessionId: string, expectedRevision: number) => {
+    visibility.assertWritable(scopeId);
     const current = findConversation.get(scopeId, sessionId) as ConversationRow | undefined;
     const actualRevision = current?.revision ?? null;
     if (actualRevision !== expectedRevision) {

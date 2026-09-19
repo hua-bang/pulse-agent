@@ -80,7 +80,7 @@ completed cutovers after backup, source revalidation, and integrity checks.
 `__storage__.json` mirrors that state. Losing the marker restores it from the
 database without re-importing old data; unknown authority fails closed. SQL
 schema v1 upgrades require the surviving marker to establish authority, while
-explicit unfinished imports in schema v2 remain resumable. Legacy JSON is
+explicit unfinished imports in schema v2/v3 remain resumable. Legacy JSON is
 retained but stops receiving writes after activation. Unknown schemas, broken
 records, and missing active databases stop startup with a visible error rather
 than returning an empty workspace. Markdown and attachments remain files.
@@ -102,6 +102,27 @@ versions. Filesystem replacement uses optimistic hash checks and atomic rename,
 not a cross-editor transaction. `canvas/sync/markdown-index.ts` refreshes clean
 indexes from disk and preserves dirty drafts. Guards: `persistence/sqlite-integration.test.ts`,
 `sqlite-ipc.test.ts`, `sync/markdown-index.test.ts`, and the shared storage tests.
+
+Workspace deletion is recoverable. The shared workspace repository records a
+schema-v3 trash entry and atomically hides the Canvas and its conversation scope;
+it retains nodes, edges, message bodies, current-session pointers, file intents,
+and the original manifest entry. Markdown, attachments and retained legacy files
+stay at their existing paths. Normal reads exclude deleted workspaces, writes and
+file-intent recovery reject them, and deletion/restoration advance revisions so
+old drafts cannot overwrite restored state. Global and other workspace scopes
+are unchanged. `removeBundle` is reserved for unpublished import compensation.
+
+The App and CLI use this same repository boundary. Before App deletion, mounted
+Canvas documents flush their pending drafts and await persistence; a failed save
+blocks the operation and retains the draft. Manifest visibility follows
+the database even if a crash left stale entries; an empty active-workspace list
+must not seed a replacement over deleted data. The CLI exposes `workspace trash`
+and `workspace restore <id>`; restoration keeps identities and existing file
+bytes, including external edits made while hidden. There is no automatic expiry
+or permanent-delete command. Legacy-only stores require the normal App upgrade
+before deletion; no caller falls back to irreversible directory removal.
+Workspace deletion/import coordination in the renderer and the main-process
+archive dialogs/actions are loaded on demand for those explicit user actions.
 
 ### `agent/`
 

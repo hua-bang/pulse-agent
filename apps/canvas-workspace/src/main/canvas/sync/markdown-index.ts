@@ -182,12 +182,21 @@ export async function watchWorkspaceMarkdown(root: string, store: PulseStorage, 
   await refresh(state);
 }
 
+function stop(state: WorkspaceWatch): void {
+  state.stopped = true;
+  if (state.timer) clearTimeout(state.timer);
+  state.directories.forEach(watcher => watcher.close());
+  state.directories.clear();
+}
+
+export function stopWorkspaceMarkdown(root: string, workspaceId: string): void {
+  const key = `${resolve(root)}\0${workspaceId}`;
+  const state = workspaces.get(key);
+  if (state) stop(state);
+  workspaces.delete(key);
+}
+
 export function stopMarkdownIndexWatchers(): void {
-  for (const state of workspaces.values()) {
-    state.stopped = true;
-    if (state.timer) clearTimeout(state.timer);
-    state.directories.forEach(watcher => watcher.close());
-    state.directories.clear();
-  }
+  for (const state of workspaces.values()) stop(state);
   workspaces.clear();
 }

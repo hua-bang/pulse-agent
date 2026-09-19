@@ -144,20 +144,21 @@ describe('store', () => {
   });
 
   describe('deleteWorkspace', () => {
-    it('deletes workspace and updates manifest', async () => {
+    it('keeps legacy data until recoverable deletion is available after upgrade', async () => {
       const createResult = await createWorkspace('To Delete', testDir);
       expect(createResult.ok).toBe(true);
       if (!createResult.ok) return;
 
       const wsId = createResult.data.id;
       const deleteResult = await deleteWorkspace(wsId, testDir);
-      expect(deleteResult.ok).toBe(true);
+      expect(deleteResult).toMatchObject({ ok: false, code: 'unsupported_schema' });
 
       const ids = await listWorkspaceIds(testDir);
-      expect(ids).not.toContain(wsId);
+      expect(ids).toContain(wsId);
 
       const manifest = await loadWorkspaceManifest(testDir);
-      expect(manifest.workspaces.find(e => e.id === wsId)).toBeUndefined();
+      expect(manifest.workspaces.find(e => e.id === wsId)?.name).toBe('To Delete');
+      expect(await loadCanvas(wsId, testDir)).not.toBeNull();
     });
 
     it('refuses unsafe workspace ids without deleting the store root', async () => {

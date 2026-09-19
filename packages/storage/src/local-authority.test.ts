@@ -120,7 +120,7 @@ describe('database-owned local activation', () => {
     await existing.canvas.commit({ workspaceId: 'keep', expectedRevision: null });
     await existing.close();
     const driver = new Database(join(root, '__storage__.sqlite'));
-    driver.exec('DROP TABLE local_activations; PRAGMA user_version = 1');
+    driver.exec('DROP TABLE workspace_trash; DROP TABLE local_activations; PRAGMA user_version = 1');
     driver.close();
     if (markerExists) await writeFile(join(root, '__storage__.json'), JSON.stringify({ schemaVersion: 1, backend: 'sqlite', domains: ['canvas'] }));
     const source = vi.fn(async () => legacy);

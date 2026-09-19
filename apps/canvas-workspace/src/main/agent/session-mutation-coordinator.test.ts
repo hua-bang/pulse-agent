@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SessionMutationCoordinator } from './session-mutation-coordinator';
 
+vi.mock('./sqlite-session-backend', async importOriginal => ({
+  ...await importOriginal<typeof import('./sqlite-session-backend')>(),
+  getSqliteSessionStorage: async () => null,
+}));
+
 const scope = { kind: 'workspace', workspaceId: 'ws' } as const;
 
 function gate() {
@@ -10,6 +15,23 @@ function gate() {
 }
 
 describe('SessionMutationCoordinator shutdown', () => {
+  it('allows clean-current refresh only while that conversation has no active run', async () => {
+    const agent = { getCurrentSessionId: () => 'session' };
+    const coordinator = new SessionMutationCoordinator(async () => undefined, () => agent as never);
+    const started = gate();
+    const finish = gate();
+    const run = coordinator.runChat(scope, async () => { started.resolve(); await finish.promise; }, 'session');
+    await started.promise;
+    const reconcile = vi.fn(async () => undefined);
+    await coordinator.reconcileActiveAgent(scope, reconcile);
+    expect(reconcile).toHaveBeenLastCalledWith(agent, false);
+    finish.resolve();
+    await run;
+    await coordinator.reconcileActiveAgent(scope, reconcile);
+    expect(reconcile).toHaveBeenLastCalledWith(agent, true);
+    await coordinator.stopAndDrain();
+  });
+
   it('aborts active runs and waits for their final queued persistence before completing', async () => {
     const abort = vi.fn();
     const coordinator = new SessionMutationCoordinator(async () => undefined, () => ({ abort }) as never);

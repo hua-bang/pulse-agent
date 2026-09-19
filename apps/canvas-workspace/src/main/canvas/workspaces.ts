@@ -16,6 +16,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { STORE_DIR } from './nodes/store';
+import { getLocalCanvasStorage } from './persistence/backend';
 
 export const WORKSPACES_MANIFEST_FILENAME = '__workspaces__.json';
 
@@ -65,15 +66,49 @@ function manifestEntries(parsed: unknown): WorkspaceInfo[] {
   return out;
 }
 
+/** SQL tombstones override stale manifests and retained workspace directories. */
+export async function filterWorkspaceIds(root: string, ids: string[]): Promise<string[]> {
+  const storage = await getLocalCanvasStorage(root);
+  if (!storage) return ids;
+  const visible = await Promise.all(ids.map(async id => !await storage.workspaces.getTrashed(id)));
+  return ids.filter((_id, index) => visible[index]);
+}
+
+export async function hasTrashedWorkspaces(root: string = STORE_DIR): Promise<boolean> {
+  const storage = await getLocalCanvasStorage(root);
+  return !!(await storage?.workspaces.listTrashed({ limit: 1 }))?.items.length;
+}
+
+export async function filterWorkspaceManifest<T extends Record<string, unknown>>(root: string, manifest: T): Promise<T> {
+  const rows = [manifest.workspaces, manifest.entries].filter(Array.isArray).flat() as unknown[];
+  const ids = rows.flatMap(item => item && typeof item === 'object' && 'id' in item && typeof item.id === 'string' ? [item.id] : []);
+  const visible = new Set(await filterWorkspaceIds(root, ids));
+  const filtered: Record<string, unknown> = { ...manifest };
+  for (const key of ['workspaces', 'entries']) {
+    if (!Array.isArray(manifest[key])) continue;
+    const folders = Array.isArray(manifest.folders) ? new Set(manifest.folders.map(folder => folder?.id)) : null;
+    filtered[key] = manifest[key].filter(item => item && visible.has(item.id)).map(item => {
+      if (!item.folderId || !folders || folders.has(item.folderId)) return item;
+      const { folderId: _missingFolder, ...entry } = item;
+      return entry;
+    });
+  }
+  const preferred = (filtered.workspaces ?? filtered.entries) as Array<{ id: string }> | undefined;
+  if (Array.isArray(preferred) && !visible.has(String(filtered.activeId ?? ''))) filtered.activeId = preferred[0]?.id ?? '';
+  return filtered as T;
+}
+
 /** Read the workspace manifest. Returns an empty listing when absent/unreadable. */
 export async function readWorkspaceManifest(root: string = STORE_DIR): Promise<WorkspaceListing> {
+  let parsed: Record<string, unknown>;
   try {
-    const raw = await fs.readFile(join(root, WORKSPACES_MANIFEST_FILENAME), 'utf-8');
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return { activeId: optionalText(parsed.activeId), workspaces: manifestEntries(parsed) };
+    parsed = JSON.parse(await fs.readFile(join(root, WORKSPACES_MANIFEST_FILENAME), 'utf-8'));
   } catch {
-    return { workspaces: [] };
+    parsed = {};
   }
+  // A storage error must propagate, not reveal hidden workspaces via fallback.
+  const manifest = await filterWorkspaceManifest(root, parsed);
+  return { activeId: optionalText(manifest.activeId), workspaces: manifestEntries(manifest) };
 }
 
 /** Directory ids under the store that look like workspaces (best-effort fallback). */
@@ -96,7 +131,7 @@ async function listWorkspaceDirIds(root: string = STORE_DIR): Promise<string[]> 
 export async function listWorkspaces(root: string = STORE_DIR): Promise<WorkspaceListing> {
   const { activeId, workspaces } = await readWorkspaceManifest(root);
   const byId = new Map(workspaces.map((w) => [w.id, w] as const));
-  for (const id of await listWorkspaceDirIds(root)) {
+  for (const id of await filterWorkspaceIds(root, await listWorkspaceDirIds(root))) {
     if (!byId.has(id)) byId.set(id, { id, name: id });
   }
   return { activeId, workspaces: Array.from(byId.values()) };

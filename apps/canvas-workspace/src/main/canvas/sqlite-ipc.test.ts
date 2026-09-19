@@ -16,7 +16,7 @@ vi.mock('./persistence/backend', () => ({
   getCanvasBackend: async () => state.backend,
   getLocalCanvasStorage: async () => state.store,
 }));
-vi.mock('./sync/markdown-index', () => ({ watchWorkspaceMarkdown: vi.fn(), stopMarkdownIndexWatchers: vi.fn() }));
+vi.mock('./sync/markdown-index', () => ({ watchWorkspaceMarkdown: vi.fn(), stopMarkdownIndexWatchers: vi.fn(), stopWorkspaceMarkdown: vi.fn() }));
 
 import { loadSqliteCanvas, saveSqliteCanvas, stopSqliteCanvasObserver } from './sqlite-ipc';
 
@@ -35,6 +35,21 @@ afterEach(async () => {
 });
 
 describe('SQLite Canvas IPC contracts', () => {
+  it('observes restoration after a cold start with only trashed workspaces', async () => {
+    await state.store!.canvas.commit({ workspaceId: 'hidden', expectedRevision: null });
+    const bundle = (await state.store!.workspaces.readBundle('hidden'))!;
+    const deleted = await state.store!.workspaces.trashBundle({
+      workspaceId: 'hidden', expectedCanvasRevision: bundle.canvas.revision,
+      generation: bundle.canvas.generation, expectedConversations: bundle.conversationState,
+    });
+    expect(await loadSqliteCanvas('__workspaces__')).toBeNull();
+    await state.store!.workspaces.restoreBundle('hidden', deleted.revision, deleted.generation);
+    await vi.advanceTimersByTimeAsync(251);
+    expect(state.secondWindow).toHaveBeenCalledWith('canvas:external-update', expect.objectContaining({
+      workspaceId: 'hidden', kind: 'update', source: 'sqlite', revision: 3,
+    }));
+  });
+
   it('returns the generation on create so the next renderer save can succeed', async () => {
     const first = await saveSqliteCanvas('new', { nodes: [], edges: [] });
     expect(first).toMatchObject({ ok: true, revision: 1, storageGeneration: state.store!.generation });

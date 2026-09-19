@@ -12,6 +12,7 @@ import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import type { CanvasNodeRef } from '../../shared/canvas';
 import { getNodeRenderedText } from '../webview/registry';
 import { readCanvasFull } from '../canvas/storage';
+import { filterWorkspaceIds, readWorkspaceManifest } from '../canvas/workspaces';
 import {
   formatPluginNodeFallbackContent,
   getPluginNodeCapabilityKinds,
@@ -211,20 +212,13 @@ async function loadCanvasJson(workspaceId: string): Promise<CanvasSaveData | nul
 }
 
 async function loadManifest(): Promise<WorkspaceManifest> {
-  try {
-    const raw = await fs.readFile(join(STORE_DIR, '__workspaces__.json'), 'utf-8');
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
-    return { workspaces, activeId: parsed.activeId as string | undefined };
-  } catch {
-    return { workspaces: [] };
-  }
+  return readWorkspaceManifest(STORE_DIR);
 }
 
 /**
  * Resolve a set of workspaceIds to `{ id, name }` pairs using the on-disk
  * manifest. IDs that don't exist in the manifest still come back, with their
- * name falling back to the ID itself so the caller can always reference them.
+ * name falling back to the ID itself; explicitly trashed workspaces stay hidden.
  */
 export async function resolveWorkspaceNames(
   workspaceIds: string[],
@@ -232,7 +226,7 @@ export async function resolveWorkspaceNames(
   if (workspaceIds.length === 0) return [];
   const manifest = await loadManifest();
   const byId = new Map(manifest.workspaces.map(w => [w.id, w.name] as const));
-  return workspaceIds.map(id => ({ id, name: byId.get(id) ?? id }));
+  return (await filterWorkspaceIds(STORE_DIR, workspaceIds)).map(id => ({ id, name: byId.get(id) ?? id }));
 }
 
 // ─── Summary builder ───────────────────────────────────────────────

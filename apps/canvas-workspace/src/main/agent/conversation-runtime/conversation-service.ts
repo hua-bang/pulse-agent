@@ -40,12 +40,17 @@ export class ConversationRuntimeService {
       operation: () => Promise<T>,
     ) => Promise<T | null>,
     private readonly activateScope?: (scope: AgentScope) => Promise<void>,
+    private readonly assertScopeAvailable: (scope: AgentScope) => Promise<void> = async () => undefined,
   ) {}
 
   private async registryFor(scope: AgentScope): Promise<ConversationRuntimeRegistry> {
+    await this.assertScopeAvailable(scope);
     const key = scopeKey(scope);
     const existing = this.registries.get(key);
-    if (existing) return existing;
+    if (existing) {
+      await this.activateScope?.(scope);
+      return existing;
+    }
 
     const pending = this.pendingRegistries.get(key);
     if (pending) return pending;
@@ -71,6 +76,7 @@ export class ConversationRuntimeService {
     if (!this.getAgent(scope) && this.activateScope) {
       await this.activateScope(scope);
     }
+    await this.assertScopeAvailable(scope);
     const agent = this.getAgent(scope);
     if (!agent) throw new Error(`No active agent for scope ${key}`);
     const storeId = scopeSessionStoreId(scope);
@@ -87,11 +93,15 @@ export class ConversationRuntimeService {
           persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
           runTurn,
           withTurnLease: async (operation) => {
-            if (!this.runConversation) return operation();
+            const guarded = async () => {
+              await this.assertScopeAvailable(scope);
+              return operation();
+            };
+            if (!this.runConversation) return guarded();
             const result = await this.runConversation(
               scope,
               conversationKey.sessionId,
-              operation,
+              guarded,
             );
             return result ?? {
               response: '',

@@ -9,6 +9,8 @@ import {
   getWorkspaceDir,
   createWorkspace,
   deleteWorkspace,
+  listDeletedWorkspaces,
+  restoreWorkspace,
   ensureWorkspaceDir,
 } from '../core/store';
 import { getNodeCapabilities } from '../core/nodes';
@@ -132,17 +134,47 @@ export function registerWorkspaceCommands(program: Command): void {
   ws.command('delete')
     .argument('<workspaceId>', 'Workspace ID')
     .option('--confirm', 'Skip confirmation')
-    .description('Delete a workspace')
+    .description('Move a workspace to trash, retaining its files and conversation history')
     .action(async function (this: Command, workspaceId: string, cmdOpts: { confirm?: boolean }) {
       const { format, storeDir } = getOpts(this);
       if (!cmdOpts.confirm) {
-        errorOutput('Use --confirm to delete a workspace. This action is irreversible.', { code: 'confirmation_required' });
+        errorOutput('Use --confirm to move a workspace to trash. It can be restored with workspace restore.', { code: 'confirmation_required' });
       }
 
       const result = await deleteWorkspace(workspaceId, storeDir);
-      if (!result.ok) errorOutput(result.error);
+      if (!result.ok) errorOutput(result.error, { code: result.code });
 
-      output({ deleted: workspaceId }, format, () => `Deleted workspace: ${workspaceId}`);
+      output({ deleted: workspaceId, recoverable: true }, format, () => `Moved workspace to trash: ${workspaceId}`);
+    });
+
+  ws.command('trash')
+    .description('List deleted workspaces available for restoration')
+    .action(async function (this: Command) {
+      const { format, storeDir } = getOpts(this);
+      try {
+        const records = await listDeletedWorkspaces(storeDir);
+        const rows = records.map(record => ({
+          id: record.workspaceId,
+          name: typeof record.metadata.name === 'string' ? record.metadata.name : record.workspaceId,
+          deletedAt: record.deletedAt,
+        }));
+        output(rows, format, () => rows.length
+          ? rows.map(row => `${row.id}  ${row.name}  ${row.deletedAt}`).join('\n')
+          : 'No deleted workspaces.');
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'error';
+        errorOutput(String(error), { code });
+      }
+    });
+
+  ws.command('restore')
+    .argument('<workspaceId>', 'Deleted workspace ID')
+    .description('Restore a deleted workspace with its files and conversation history')
+    .action(async function (this: Command, workspaceId: string) {
+      const { format, storeDir } = getOpts(this);
+      const result = await restoreWorkspace(workspaceId, storeDir);
+      if (!result.ok) errorOutput(result.error, { code: result.code });
+      output({ restored: workspaceId }, format, () => `Restored workspace: ${workspaceId}`);
     });
 
   ws.command('recover')

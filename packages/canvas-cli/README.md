@@ -53,7 +53,9 @@ pulse-canvas workspace list                     # List all workspaces (active on
 pulse-canvas workspace current                  # Show the workspace commands resolve to, and why
 pulse-canvas workspace info <id>                # Node counts, types, last saved
 pulse-canvas workspace create <name>            # Create a new workspace
-pulse-canvas workspace delete <id> --confirm    # Delete (irreversible)
+pulse-canvas workspace delete <id> --confirm    # Move to trash; retain files and conversations
+pulse-canvas workspace trash                   # List workspaces available for restoration
+pulse-canvas workspace restore <id>            # Restore the same workspace and conversation history
 pulse-canvas workspace recover <id>             # Rebuild file nodes from notes/*.md files
 pulse-canvas workspace recover <id> --dry-run   # Preview without writing
 ```

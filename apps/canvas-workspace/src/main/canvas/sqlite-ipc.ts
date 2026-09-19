@@ -4,7 +4,7 @@ import { BrowserWindow } from 'electron';
 import { getCanvasBackend, getLocalCanvasStorage } from './persistence/backend';
 import { MANIFEST_ID, STORE_DIR } from './persistence/paths';
 import { observeSqliteChanges, type SqliteChangeObserver } from './sync/sqlite-watcher';
-import { watchWorkspaceMarkdown, stopMarkdownIndexWatchers } from './sync/markdown-index';
+import { watchWorkspaceMarkdown, stopMarkdownIndexWatchers, stopWorkspaceMarkdown } from './sync/markdown-index';
 
 let observerPromise: Promise<SqliteChangeObserver> | null = null;
 
@@ -13,6 +13,7 @@ async function ensureObserver() {
   if (!store) return null;
   if (!observerPromise) {
     observerPromise = observeSqliteChanges(store, change => {
+      if (change.kind === 'removed') stopWorkspaceMarkdown(STORE_DIR, change.scopeId);
       const payload = {
         workspaceId: change.scopeId,
         nodeIds: change.changedIds,
@@ -39,12 +40,13 @@ async function ensureObserver() {
 }
 
 export async function loadSqliteCanvas(id: string, prepare?: () => Promise<void>) {
-  if (id === MANIFEST_ID) return null;
   const backend = await getCanvasBackend(STORE_DIR);
   if (!backend) return null;
-  await prepare?.();
   await ensureObserver();
+  if (id === MANIFEST_ID) return null;
   const storage = await getLocalCanvasStorage(STORE_DIR);
+  if (await storage?.workspaces.getTrashed(id)) return { ok: false, code: 'not_found', error: 'This workspace is deleted; restore it before opening it.' };
+  await prepare?.();
   if (storage) await watchWorkspaceMarkdown(STORE_DIR, storage, id);
   return { ok: true, data: await backend.readCanvas(id) };
 }
@@ -61,15 +63,6 @@ export async function listSqliteCanvases() {
     cursor = page.nextCursor;
   } while (cursor);
   return { ok: true, ids };
-}
-
-export async function deleteSqliteCanvas(id: string): Promise<void> {
-  if (id === MANIFEST_ID) return;
-  if (!await getCanvasBackend(STORE_DIR)) return;
-  const store = await getLocalCanvasStorage(STORE_DIR);
-  if (!store) return;
-  const current = await store.canvas.read(id);
-  if (current) await store.workspaces.removeBundle(id, current.revision, current.generation);
 }
 
 export async function saveSqliteCanvas(id: string, input: unknown) {
