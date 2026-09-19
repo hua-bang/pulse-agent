@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import type { FileWriteStatus } from '@pulse-coder/storage';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { localStoreRoot, withSqliteCanvas } from './sqlite-store';
+import { resolveSqliteNativeBinding } from './native-binding';
 import { inspectSqliteCanvas } from './sqlite-doctor';
 import { dirname, join } from 'path';
 import {
@@ -106,7 +107,9 @@ export async function runDoctor(
     if (sqlite.active) return sqlite.value;
     // Fence migration throughout a legacy inspection so it cannot mix an SQL
     // snapshot with old per-node files after activation publishes its marker.
-    return withLegacyCanvasWrite(localStoreRoot(opts.storeDir), () => analyzeAndMaybeRepair(workspaceId, opts));
+    return withLegacyCanvasWrite(localStoreRoot(opts.storeDir), () => analyzeAndMaybeRepair(workspaceId, opts), {
+      resolveNativeBinding: resolveSqliteNativeBinding,
+    });
   };
   // Check mode reads without the lock (a torn read at worst mis-reports once);
   // repair mode must hold the workspace lock for its whole read→fix→save

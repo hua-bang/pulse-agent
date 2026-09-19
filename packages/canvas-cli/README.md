@@ -291,7 +291,10 @@ from `loadCanvas` when calling `saveCanvas`. Node/edge commit helpers likewise
 require the original `expectedRevision` and `expectedGeneration`. On conflict,
 read again and reapply the intended change; do not copy a newer revision onto
 an older snapshot. The app owns migration, so a staging database without an
-activation marker does not change the CLI's legacy behavior.
+activation marker retains legacy behavior only when its database records an
+unfinished import. A missing marker for an active database is recovered from
+database authority; an ambiguous database is an error, never permission to
+overwrite it from old JSON.
 
 ## Agent Integration Flow
 

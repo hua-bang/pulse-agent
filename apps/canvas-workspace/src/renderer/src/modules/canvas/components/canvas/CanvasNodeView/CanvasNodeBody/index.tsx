@@ -39,6 +39,7 @@ interface Props {
     comments: AgentContextDomReviewComment[],
   ) => Promise<boolean>;
   isSelected: boolean;
+  renameToken?: number;
   isResizing: boolean;
   renderFullFileBody: boolean;
   readOnly: boolean;
@@ -57,6 +58,7 @@ export const CanvasNodeBody = ({
   onAddDomSelectionToChat,
   onSubmitDomReviewComments,
   isSelected,
+  renameToken,
   isResizing,
   renderFullFileBody,
   readOnly,
@@ -97,6 +99,7 @@ export const CanvasNodeBody = ({
         node={node}
         onUpdate={onUpdate}
         isSelected={isSelected}
+        editRequest={renameToken}
         isResizing={isResizing}
         onSelect={onSelect}
         onDragStart={onDragStart}

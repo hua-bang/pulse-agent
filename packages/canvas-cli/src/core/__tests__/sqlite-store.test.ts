@@ -9,6 +9,8 @@ import { activateLocalConversationStorage } from '@pulse-coder/storage/local-con
 import { prepareLegacyCanvasImport, type LegacyCanvas } from '@pulse-coder/storage/canvas';
 import { openSqliteStorage } from '@pulse-coder/storage/sqlite';
 import * as store from '../store';
+import * as nativeBinding from '../native-binding';
+import { hasSqliteStorage } from '../sqlite-store';
 import { createNode, updateNode, writeNode } from '../nodes';
 import { createEdge, deleteEdge } from '../edges';
 import { runDoctor } from '../doctor';
@@ -63,6 +65,30 @@ afterEach(async () => {
 });
 
 describe('activated SQLite CLI storage', () => {
+  it.each(['read', 'list', 'status'] as const)('reconciles a stale marker before choosing the %s backend', async operation => {
+    await store.saveCanvas(workspaceId, initialCanvas() as CanvasSaveData, root);
+    const legacyPath = join(root, workspaceId, 'canvas.json');
+    const oldBytes = await fs.readFile(legacyPath, 'utf8');
+    await activate();
+    const storage = await activateLocalConversationStorage({ root, loadLegacyScopes: async () => [] });
+    try {
+      await storage.canvas.commit({
+        workspaceId, expectedRevision: 1,
+        nodes: { put: [{ id: 'z', type: 'text', title: 'SQL authority', data: { content: 'Latest' } }] },
+      });
+      await storage.canvas.commit({ workspaceId: 'sql-only', expectedRevision: null });
+    } finally { await storage.close(); }
+    await fs.writeFile(join(root, '__storage__.json'), JSON.stringify({
+      schemaVersion: 1, backend: 'sqlite', domains: ['conversations'],
+    }));
+
+    if (operation === 'read') expect((await store.loadCanvas(workspaceId, root))?.nodes[0].title).toBe('SQL authority');
+    else if (operation === 'list') expect(await store.listWorkspaceIds(root)).toEqual(expect.arrayContaining(['sql-only', workspaceId]));
+    else expect(await hasSqliteStorage(root)).toBe(true);
+    expect(JSON.parse(await fs.readFile(join(root, '__storage__.json'), 'utf8')).domains).toEqual(['canvas', 'conversations']);
+    expect(await fs.readFile(legacyPath, 'utf8')).toBe(oldBytes);
+  });
+
   it('reads and writes the active database while leaving old canvas JSON untouched', async () => {
     await store.saveCanvas(workspaceId, initialCanvas() as CanvasSaveData, root);
     const path = join(root, workspaceId, 'canvas.json');
@@ -272,6 +298,39 @@ describe('activated SQLite CLI storage', () => {
 });
 
 describe('migration fencing for legacy CLI writes', () => {
+  it('leaves native resolution lazy for legacy reads, saves, manifests, doctor, restore, and deletion', async () => {
+    const resolver = vi.spyOn(nativeBinding, 'resolveSqliteNativeBinding').mockImplementation(() => {
+      throw new Error('Native loading is forbidden in this legacy fixture');
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await store.saveCanvas(workspaceId, initialCanvas() as CanvasSaveData, root);
+    expect(await store.loadCanvas(workspaceId, root)).not.toBeNull();
+    expect(await store.listWorkspaceIds(root)).toContain(workspaceId);
+    await store.saveWorkspaceManifest({ workspaces: [{ id: workspaceId, name: 'Legacy' }] }, root);
+    expect((await runDoctor(workspaceId, { storeDir: root, repair: true })).findings).toEqual([]);
+    const backup = join(root, 'restore.json');
+    await fs.writeFile(backup, JSON.stringify(initialCanvas()));
+    await cli(registerRestoreCommand).parseAsync([
+      'node', 'pulse-canvas', '--store-dir', root, 'restore', 'apply', workspaceId, '--from', backup, '--yes',
+    ]);
+    expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: true });
+    expect(resolver).not.toHaveBeenCalled();
+  });
+
+  it('passes the native resolver through the manifest write fence when a database lost its marker', async () => {
+    await activate();
+    const manifest = { workspaces: [{ id: workspaceId, name: 'Keep' }] };
+    await store.saveWorkspaceManifest(manifest, root);
+    const oldBytes = await fs.readFile(join(root, '__workspaces__.json'), 'utf8');
+    await fs.unlink(join(root, '__storage__.json'));
+    const resolver = vi.spyOn(nativeBinding, 'resolveSqliteNativeBinding').mockImplementation(() => {
+      throw new Error('Correct packaged native binding is unavailable');
+    });
+    await expect(store.saveWorkspaceManifest({ workspaces: [] }, root)).rejects.toThrow('Correct packaged native binding is unavailable');
+    expect(resolver).toHaveBeenCalledOnce();
+    expect(await fs.readFile(join(root, '__workspaces__.json'), 'utf8')).toBe(oldBytes);
+  });
+
   it('keeps Canvas on JSON when only the conversations domain has been activated', async () => {
     const data = initialCanvas() as CanvasSaveData;
     await store.saveCanvas(workspaceId, data, root);
@@ -303,6 +362,7 @@ describe('migration fencing for legacy CLI writes', () => {
     }));
     const staging = await openSqliteStorage({ path: join(root, '__storage__.sqlite') });
     try {
+      await staging.localActivation.begin('canvas');
       await staging.canvas.commit({ workspaceId, expectedRevision: null, nodes: { put: [{ id: 'staged-only' }] } });
       const loaded = await store.loadCanvas(workspaceId, root);
       expect(loaded!.nodes.map(node => node.id)).toEqual(['z', 'a']);
@@ -316,6 +376,17 @@ describe('migration fencing for legacy CLI writes', () => {
     } finally {
       await staging.close();
     }
+  });
+
+  it('recovers a missing activation marker from SQL authority and retains newer CLI edits', async () => {
+    await store.saveCanvas(workspaceId, initialCanvas() as CanvasSaveData, root);
+    await activate();
+    const current = (await store.loadCanvas(workspaceId, root))!;
+    current.nodes[0].title = 'Committed after upgrade';
+    await store.saveCanvas(workspaceId, current, root);
+    await fs.unlink(join(root, '__storage__.json'));
+    expect((await store.loadCanvas(workspaceId, root))!.nodes[0].title).toBe('Committed after upgrade');
+    expect(JSON.parse(await fs.readFile(join(root, '__storage__.json'), 'utf8')).domains).toEqual(['canvas']);
   });
 
   it('blocks legacy canvas and manifest writes while activation owns the migration lock', async () => {

@@ -75,8 +75,12 @@ node records and tags (`nodes/`).
 `@pulse-coder/storage` owns host-neutral repositories and the SQLite adapter;
 Canvas owns the legacy importer and activation timing. Bootstrap waits for
 Canvas and conversation cutovers before seeding or starting any writers.
-Each data root uses `__storage__.sqlite`; `__storage__.json` activates domains
-only after backup, source revalidation, and integrity checks. Legacy JSON is
+Each data root uses `__storage__.sqlite`; its local activation ledger records
+completed cutovers after backup, source revalidation, and integrity checks.
+`__storage__.json` mirrors that state. Losing the marker restores it from the
+database without re-importing old data; unknown authority fails closed. SQL
+schema v1 upgrades require the surviving marker to establish authority, while
+explicit unfinished imports in schema v2 remain resumable. Legacy JSON is
 retained but stops receiving writes after activation. Unknown schemas, broken
 records, and missing active databases stop startup with a visible error rather
 than returning an empty workspace. Markdown and attachments remain files.

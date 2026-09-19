@@ -15,6 +15,7 @@ import { useRightDock } from '../../../../../shared/dockPort';
 import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 import { useFilePersistence } from './useFilePersistence';
+import { applyDeferredEditorInput, type DeferredEditorReady } from '../applyDeferredEditorInput';
 
 interface Props {
   node: CanvasNode;
@@ -24,9 +25,10 @@ interface Props {
   getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
   autoFocus?: boolean;
+  onEditorReady?: DeferredEditorReady;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false, autoFocus = false, onEditorReady }: Props) => {
   const data = node.data as FileNodeData;
   const { t } = useI18n();
   const { openLink } = useRightDock();
@@ -144,8 +146,16 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   }, [editor, onUpdate, persistToFile, showStatus, t]);
 
   useEffect(() => {
-    if (autoFocus && editor) editor.commands.focus('end');
-  }, [autoFocus, editor]);
+    if (autoFocus && editor && !readOnly && !onEditorReady) editor.commands.focus('end');
+  }, [autoFocus, editor, onEditorReady, readOnly]);
+
+  useEffect(() => {
+    if (!editor || !onEditorReady) return;
+    return onEditorReady((pending) => {
+      if (readOnly) return false;
+      return applyDeferredEditorInput(editor, pending, cardRef.current?.querySelector('.note-tiptap-editor'));
+    });
+  }, [editor, onEditorReady, readOnly]);
 
   const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
   const { filteredMentions, insertMention, closeMention } = useNoteMentions({

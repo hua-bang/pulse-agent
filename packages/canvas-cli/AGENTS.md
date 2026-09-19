@@ -10,8 +10,8 @@
 or mutate Pulse Canvas workspaces.
 
 Most commands operate on the local canvas store under `~/.pulse-coder/canvas/`
-without a running app. Unactivated stores retain v1/v2 JSON; the activation
-marker selects the shared SQLite adapter for the `canvas` domain. Markdown,
+without a running app. Unactivated stores retain v1/v2 JSON; database-owned
+activation selects the shared SQLite adapter for the `canvas` domain. Markdown,
 attachments, and the workspace manifest remain files. The `agent`, `team`, and `runtime`
 command families are different: they require a running `apps/canvas-workspace` instance
 and call its loopback runtime-control server using the bearer secret advertised
@@ -80,8 +80,9 @@ above, then the package source/tests.
   read→mutation→commit. Never stamp an old node or canvas with a later read's
   revision. In legacy JSON, `revision` still counts CLI writes only. Prefer one
   `apply` plan for a batch; do not claim filesystem effects are a DB transaction.
-- The app owns activation. Select SQLite only when `__storage__.json` activates
-  `canvas`; a staging database or another active domain is insufficient. Missing,
+- The app owns activation. Reconcile `__storage__.json` with the database's
+  activation state before selecting Canvas's backend; a staging database or
+  another active domain is insufficient. Missing,
   damaged, or unsupported active storage must fail closed, never fall back to
   old JSON. Legacy writes must hold the shared migration fence. Details and
   first-upgrade guards: `harness/knowledge/storage-concurrency.md`.

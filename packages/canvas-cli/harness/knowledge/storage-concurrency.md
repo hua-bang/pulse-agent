@@ -6,9 +6,17 @@ or a mutating command. `src/core/store.ts` is the compatibility facade;
 
 ## Backend authority and first upgrades
 
-- `__storage__.json` must explicitly activate the `canvas` domain before the
-  CLI opens `__storage__.sqlite`. A staging database without that marker, or a
-  marker activating only conversations, leaves Canvas on its legacy JSON path.
+- SQLite records whether each local domain is staging or active; `__storage__.json`
+  mirrors the completed cutovers. If the marker is missing, an active database
+  restores it without importing old JSON. Only a database explicitly marked staging,
+  or activation limited to conversations, leaves Canvas on its legacy JSON path.
+  Unknown authority (including an old SQL schema with a missing marker) fails closed.
+- Before selecting the Canvas backend, the CLI opens any active database and
+  reconciles its full activated-domain set with the marker. A stale marker that
+  lists only conversations cannot hide active SQL Canvas records from read, list,
+  or status. Native binding resolution is passed lazily into both database opens
+  and legacy write fences, including manifest, doctor, and restore paths. A root
+  without a database does not load a native binding.
 - The app imports and activates data; CLI reads do not migrate it. v1/v2 and
   records without revisions remain readable before activation. After activation,
   old `canvas.json`, `.bak`, and `nodes/` files are not current state and must not

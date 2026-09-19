@@ -66,6 +66,19 @@ describe('Canvas host SQLite cutover', () => {
     expect(JSON.parse(await readFile(join(root, 'ws', 'canvas.json'), 'utf8'))).toEqual({ nodes: [] });
   });
 
+  it('keeps cached and reopened hosts on SQL when the activation marker disappears', async () => {
+    await writeCanvasFull('ws', { nodes: [{ id: 'n', type: 'text', data: { content: 'legacy' } }] }, root);
+    await activateCanvasSqlite(root);
+    const current = (await readCanvasFull('ws', root)).data!;
+    current.nodes![0].data = { content: 'new SQL value' };
+    await writeCanvasFull('ws', current, root);
+    await rm(join(root, '__storage__.json'));
+    expect((await readCanvasFull('ws', root)).data?.nodes?.[0].data?.content).toBe('new SQL value');
+    await closeCanvasStorage();
+    expect((await readCanvasFull('ws', root)).data?.nodes?.[0].data?.content).toBe('new SQL value');
+    expect(JSON.parse(await readFile(join(root, '__storage__.json'), 'utf8')).domains).toEqual(['canvas']);
+  });
+
   it('imports a legacy flat canvas without moving or deleting the source file', async () => {
     const original = JSON.stringify({ nodes: [{ id: 'n', type: 'text', data: { content: 'old format' } }] });
     await writeFile(join(root, 'flat.json'), original);

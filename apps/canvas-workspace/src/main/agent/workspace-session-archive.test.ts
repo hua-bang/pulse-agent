@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -75,6 +75,53 @@ async function seedLegacyAndUpgrade() {
 }
 
 describe('workspace conversation archive port', () => {
+  it.each([true, false])('rejects full export and import with a separate session database before touching archive state (archive has sessions: %s)', async hasSessions => {
+    await seedLegacyAndUpgrade();
+    const separateRoot = join(root, 'separate-sessions');
+    process.env.PULSE_CANVAS_SESSION_STORE_DIR = separateRoot;
+    await activateSqliteSessions(separateRoot);
+    const independent = new SessionStore('source');
+    await independent.startSession();
+    independent.addMessage({ role: 'user', content: 'Independent conversation', timestamp: 12 });
+    const id = independent.getCurrentSession()!.sessionId;
+    expect((await independent.readSession(id))?.messages[0].content).toBe('Independent conversation');
+    const canvasStorage = (await getSqliteSessionStorage(storeDir))!;
+    const sessionStorage = (await getSqliteSessionStorage(separateRoot))!;
+    const archive = join(root, 'separate.pulsecanvas.zip');
+    await writeFile(archive, createWorkspaceExportArchive(createWorkspaceExportPayload({
+      exportedAt: '2026-09-19T00:00:00Z', workspace: { id: 'source', name: 'Copy' },
+      canvas: { nodes: [], edges: [] }, files: hasSessions ? [file('agent-sessions/current.json', history('imported', 'Keep me'))] : [],
+    })));
+    const directoryBefore = (await readdir(storeDir)).sort();
+    const legacyReader = vi.fn();
+
+    await expect(readWorkspaceExportSource(storeDir, 'source', legacyReader))
+      .rejects.toThrow('separate conversation storage root');
+    await expect(importWorkspaceArchiveToStore({ sourcePath: archive, storeDir, workspaceId: 'copy', agentsTemplate: '# Agents' }))
+      .rejects.toThrow('separate conversation storage root');
+
+    expect(legacyReader).not.toHaveBeenCalled();
+    expect((await readdir(storeDir)).sort()).toEqual(directoryBefore);
+    expect(await canvasStorage.workspaces.readBundle('copy')).toBeNull();
+    expect(await sessionStorage.conversationScopes.read('copy')).toBeNull();
+    expect((await independent.readSession(id))?.messages[0].content).toBe('Independent conversation');
+  });
+
+  it('allows a session root symlink that resolves to the same workspace database', async () => {
+    await seedLegacyAndUpgrade();
+    const alias = join(root, 'session-alias');
+    await symlink(storeDir, alias, 'dir');
+    process.env.PULSE_CANVAS_SESSION_STORE_DIR = alias;
+    const source = await readWorkspaceExportSource(storeDir, 'source', async () => null);
+    expect(source.files.some(entry => entry.relativePath === 'agent-sessions/current.json')).toBe(true);
+    const archive = join(root, 'alias.pulsecanvas.zip');
+    await writeFile(archive, createWorkspaceExportArchive(createWorkspaceExportPayload({
+      exportedAt: '2026-09-19T00:00:00Z', workspace: { id: 'source', name: 'Copy' }, canvas: source.canvas, files: source.files,
+    })));
+    await importWorkspaceArchiveToStore({ sourcePath: archive, storeDir, workspaceId: 'copy', agentsTemplate: '# Agents' });
+    expect((await (await getSqliteSessionStorage(storeDir))!.workspaces.readBundle('copy'))?.conversations).toHaveLength(2);
+  });
+
   it('keeps current priority and selects indexed duplicate archives while preserving literal history', () => {
     const port = createCanvasSessionArchivePort();
     const files = [

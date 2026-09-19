@@ -3,7 +3,7 @@ import { join, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { withStoreMutationLock } from './mutation-lock';
 import type { EntityRecord } from '@pulse-coder/storage';
-import { getCanvasBackend } from '../persistence/backend';
+import { getCanvasBackend, resolveStorageNativeBinding } from '../persistence/backend';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 
 export const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
@@ -167,7 +167,8 @@ export async function writeWorkspaceNode(
   }
   const path = getNodeFilePath(workspaceId, record.id, root);
   await withLegacyCanvasWrite(root, () =>
-    withStoreMutationLock(path, () => writeWorkspaceNodeUnlocked(workspaceId, record, root)));
+    withStoreMutationLock(path, () => writeWorkspaceNodeUnlocked(workspaceId, record, root)),
+  { resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 export async function mutateWorkspaceNode<T>(
@@ -197,7 +198,7 @@ export async function mutateWorkspaceNode<T>(
       await writeWorkspaceNodeUnlocked(workspaceId, record, root);
     }
     return result;
-  }));
+  }), { resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 export async function deleteWorkspaceNode(
@@ -209,7 +210,8 @@ export async function deleteWorkspaceNode(
   const backend = await getCanvasBackend(root);
   if (backend) return backend.deleteNode(workspaceId, nodeId);
   await withLegacyCanvasWrite(root, () =>
-    fs.unlink(getNodeFilePath(workspaceId, nodeId, root)).catch(() => undefined));
+    fs.unlink(getNodeFilePath(workspaceId, nodeId, root)).catch(() => undefined),
+  { resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 /** List node ids for every JSON record in the workspace node store. */

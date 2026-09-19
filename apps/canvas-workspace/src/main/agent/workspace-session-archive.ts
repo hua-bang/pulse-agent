@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { JsonObject, WorkspaceBundle } from '@pulse-coder/storage';
 import type { WorkspaceExportFile } from '../canvas/workspace-export-archive';
@@ -9,9 +11,26 @@ import {
 import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, validateLegacySession } from './sqlite-session-codec';
 import { sessionUpdatedAt } from './session-file-summary';
 import type { CanvasAgentSession } from './types';
+import { sessionStorageRoot } from './sqlite-session-backend';
 
 const normalized = (path: string) => path.replace(/\\/g, '/');
 const isSessionBody = (path: string) => isWorkspaceSessionFile(path) && !normalized(path).endsWith('/metadata.json');
+
+async function assertWorkspaceStorage(root: string): Promise<void> {
+  const canvasRoot = resolve(root);
+  const sessionRoot = resolve(sessionStorageRoot());
+  if (canvasRoot === sessionRoot) return;
+  try {
+    const roots = await Promise.all([realpath(canvasRoot), realpath(sessionRoot)]);
+    if (roots[0] === roots[1]) return;
+    const databases = await Promise.all(roots.map(path => realpath(join(path, '__storage__.sqlite'))));
+    if (databases[0] === databases[1]) return;
+  } catch {
+    // An absent or inaccessible path cannot prove the archive will include both stores.
+  }
+  throw new Error('Full workspace import/export requires Canvas and conversations to share the same database; '
+    + 'this profile uses a separate conversation storage root.');
+}
 
 function value(file: WorkspaceExportFile): unknown {
   try { return JSON.parse(Buffer.from(file.content, 'base64').toString('utf8')); }
@@ -130,6 +149,7 @@ function prepareImport(
 
 export function createCanvasSessionArchivePort(): CanvasSessionArchivePort {
   return {
+    assertWorkspaceStorage,
     exportFiles,
     prepareImport,
     rewriteAttachmentPaths: (files, mapper) => files.map(file => isSessionBody(file.relativePath)

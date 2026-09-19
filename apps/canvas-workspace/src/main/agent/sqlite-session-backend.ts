@@ -15,7 +15,7 @@ export async function getSqliteSessionStorage(root = sessionStorageRoot()): Prom
   const key = resolve(root);
   const pending = connections.get(key);
   if (pending) return pending;
-  if (!(await readLocalStorageStatus(key))?.domains.includes('conversations')) return null;
+  if (!await readLocalStorageStatus(key, { resolveNativeBinding: resolveStorageNativeBinding })) return null;
   const opening = openLocalConversationStorage({ root: key, nativeBinding: await resolveStorageNativeBinding() });
   connections.set(key, opening);
   try {
@@ -35,7 +35,7 @@ export async function closeSqliteSessionStorage(): Promise<void> {
 }
 
 export function withLegacySessionWrite<T>(root: string, operation: () => Promise<T>): Promise<T> {
-  return withLegacyCanvasWrite(root, operation, { domain: 'conversations' });
+  return withLegacyCanvasWrite(root, operation, { domain: 'conversations', resolveNativeBinding: resolveStorageNativeBinding });
 }
 
 export async function listSqliteConversations(storage: PulseStorage, scopeId: string) {

@@ -1,14 +1,14 @@
 import { promises as fs } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { PulseStorage } from '@pulse-coder/storage';
-import { readLocalStorageStatus, withLegacyCanvasWrite } from '@pulse-coder/storage/local';
+import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import {
   isSafeRelativePath,
   parseWorkspaceExportFile,
 } from './workspace-export-archive';
 import { atomicWriteJson, readJsonWithRecovery } from './storage';
 import { assertSafeNodeId } from './nodes/store';
-import { getLocalCanvasStorage } from './persistence/backend';
+import { getLocalCanvasStorage, resolveStorageNativeBinding } from './persistence/backend';
 import {
   commitSqliteWorkspaceImport,
   relativePathFromPortableUrl,
@@ -141,8 +141,11 @@ const importWorkspaceUnlocked = async ({
 
 export const importWorkspaceArchiveToStore = async (options: WorkspaceImportOptions): Promise<ImportedWorkspace> => {
   assertSafeNodeId(options.workspaceId);
+  await (await getCanvasSessionArchivePort()).assertWorkspaceStorage(options.storeDir);
   const storage = await getLocalCanvasStorage(options.storeDir);
-  const conversationsActive = (await readLocalStorageStatus(options.storeDir))?.domains.includes('conversations') === true;
+  const conversationsActive = (await storage?.localActivation.read())?.some(row => row.domain === 'conversations' && row.state === 'active') === true;
   if (conversationsActive && !storage) throw new Error('Finish Canvas storage migration before importing a workspace with SQL conversations');
-  return withLegacyCanvasWrite(options.storeDir, () => importWorkspaceUnlocked(options, storage, conversationsActive), { allowActive: storage !== null });
+  return withLegacyCanvasWrite(options.storeDir, () => importWorkspaceUnlocked(options, storage, conversationsActive), {
+    allowActive: storage !== null, resolveNativeBinding: resolveStorageNativeBinding,
+  });
 };

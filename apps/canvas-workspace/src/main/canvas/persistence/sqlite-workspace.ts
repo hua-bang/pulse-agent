@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import type { EntityRecord, PulseStorage } from '@pulse-coder/storage';
-import { readLocalStorageStatus, withLegacyCanvasWrite } from '@pulse-coder/storage/local';
+import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import {
   materializeCanvasSnapshot,
   prepareLegacyCanvasImport,
@@ -11,7 +11,7 @@ import {
 import { isSafeRelativePath, type WorkspaceExportFile } from '../workspace-export-archive';
 import { assertSafeNodeId } from '../nodes/store';
 import { atomicWriteJson } from './atomic-json';
-import { getLocalCanvasStorage } from './backend';
+import { getLocalCanvasStorage, resolveStorageNativeBinding } from './backend';
 import { stripDataFromNode } from './write-v2';
 import type { CanvasNode } from './schema';
 import {
@@ -117,8 +117,9 @@ export async function readWorkspaceExportSource(
   readLegacyCanvas: () => Promise<unknown>,
 ): Promise<{ canvas: unknown; files: WorkspaceExportFile[] }> {
   assertSafeNodeId(workspaceId);
+  await (await getCanvasSessionArchivePort()).assertWorkspaceStorage(root);
   const storage = await getLocalCanvasStorage(root);
-  const conversationsActive = (await readLocalStorageStatus(root))?.domains.includes('conversations') === true;
+  const conversationsActive = (await storage?.localActivation.read())?.some(row => row.domain === 'conversations' && row.state === 'active') === true;
   if (!storage) {
     if (conversationsActive) throw new Error('Finish Canvas storage migration before exporting a workspace with SQL conversations');
     return withLegacyCanvasWrite(root, async () => {
@@ -126,7 +127,7 @@ export async function readWorkspaceExportSource(
       const files = await collectWorkspaceFiles(join(root, workspaceId), false);
       files.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
       return { canvas, files };
-    });
+    }, { resolveNativeBinding: resolveStorageNativeBinding });
   }
   const bundle = await storage.workspaces.readBundle(workspaceId);
   if (!bundle) throw new Error(`Workspace is missing from active SQLite storage: ${workspaceId}`);

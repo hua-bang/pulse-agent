@@ -21,6 +21,7 @@ describe('useCanvasNodeViewModel', () => {
   let onAddToChat: Mock<[string], Promise<ChatDeliveryReceipt>>;
   let onResizeStart: ReturnType<typeof vi.fn>;
   let onUpdate: ReturnType<typeof vi.fn>;
+  let renameToken: number | undefined;
 
   const node = {
     id: 'text-1',
@@ -44,6 +45,7 @@ describe('useCanvasNodeViewModel', () => {
       isHighlighted: false,
       isResizing: false,
       isSelected: true,
+      renameToken,
       node,
       onAddToChat,
       onDragStart: vi.fn(),
@@ -70,6 +72,7 @@ describe('useCanvasNodeViewModel', () => {
   };
 
   beforeEach(() => {
+    renameToken = undefined;
     onParentKeyDown = vi.fn();
     onParentPaste = vi.fn();
     onAddToChat = vi.fn();
@@ -111,6 +114,12 @@ describe('useCanvasNodeViewModel', () => {
     onParentKeyDown.mockClear();
     return event;
   };
+
+  it('leaves Text-node edit requests for the body instead of focusing its hidden title', () => {
+    renameToken = 1;
+    act(() => { root.render(<I18nProvider><AppShellProvider><Probe /></AppShellProvider></I18nProvider>); });
+    expect(viewModel.isEditingTitle).toBe(false);
+  });
 
   it('starts an ephemeral resize without disabling auto-size on mousedown', () => {
     const event = { button: 0 } as React.MouseEvent;
