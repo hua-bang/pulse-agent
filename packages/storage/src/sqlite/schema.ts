@@ -4,7 +4,7 @@ import { StorageError } from '../errors.js';
 import { CONVERSATION_SCOPES_SCHEMA } from './conversation-scopes.js';
 import { FILE_WRITES_SCHEMA } from './file-writes.js';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export function initializeSchema(db: Database.Database): void {
   const current = db.pragma('user_version', { simple: true }) as number;
@@ -16,8 +16,9 @@ export function initializeSchema(db: Database.Database): void {
     // A second opener may have completed the migration while we waited for the lock.
     const lockedVersion = db.pragma('user_version', { simple: true }) as number;
     if (lockedVersion === SCHEMA_VERSION) return;
-    if (lockedVersion !== 0) throw new StorageError('unsupported_schema', 'Unsupported storage schema');
-    db.exec(`
+    if (lockedVersion !== 0 && lockedVersion !== 1) throw new StorageError('unsupported_schema', 'Unsupported storage schema');
+    if (lockedVersion === 0) {
+      db.exec(`
       CREATE TABLE storage_identity (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         generation TEXT NOT NULL
@@ -70,8 +71,21 @@ export function initializeSchema(db: Database.Database): void {
       ) STRICT;
       PRAGMA user_version = 1;
     `);
-    db.exec(CONVERSATION_SCOPES_SCHEMA);
-    db.exec(FILE_WRITES_SCHEMA);
-    db.prepare('INSERT INTO storage_identity (singleton, generation) VALUES (1, ?)').run(randomUUID());
+      db.exec(CONVERSATION_SCOPES_SCHEMA);
+      db.exec(FILE_WRITES_SCHEMA);
+      db.prepare('INSERT INTO storage_identity (singleton, generation) VALUES (1, ?)').run(randomUUID());
+    }
+    db.exec(`
+      CREATE TABLE local_activations (
+        domain TEXT PRIMARY KEY NOT NULL CHECK (domain IN ('canvas', 'conversations')),
+        state TEXT NOT NULL CHECK (state IN ('staging', 'active', 'unknown'))
+      ) STRICT;
+      PRAGMA user_version = 2;
+    `);
+    if (lockedVersion === 1) {
+      // V1 had no in-database authority. A surviving marker may establish it;
+      // without that evidence, neither an empty nor a populated DB is staging.
+      db.exec("INSERT INTO local_activations VALUES ('canvas', 'unknown'), ('conversations', 'unknown')");
+    }
   }).immediate();
 }

@@ -155,8 +155,13 @@ Workspace export uses a consistent Canvas+conversation snapshot and an injected
 archive codec; Canvas never imports the Agent implementation. Import generates
 fresh revisions and rewrites managed attachment paths. Failed-import compensation
 checks conversation revisions as well as Canvas state before removing its import.
-Guards: `sqlite-session-migration.test.ts`, `sqlite-session-store.test.ts`, and
-the shared conversation/workspace repository suites.
+Full workspace import/export checks the injected archive port before reading or
+writing archive state. A separate `PULSE_CANVAS_SESSION_STORE_DIR` database is
+rejected visibly because one workspace transaction cannot include it. Independent
+session reads and writes still work; paths resolving to the same database are
+accepted. Guards: `workspace-session-archive.test.ts`,
+`sqlite-session-migration.test.ts`, `sqlite-session-store.test.ts`, and the shared
+conversation/workspace repository suites.
 
 With `PULSE_CANVAS_PERF`, successful SQL session mutations report logical JSON
 bytes for metadata plus the appended or replaced messages. Unchanged and failed

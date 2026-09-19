@@ -4,7 +4,7 @@ import { lstat, mkdir, open, readFile, rename, rmdir, stat, unlink } from 'node:
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { EntityRecord, JsonObject, PulseStorage, RecordChanges } from './contracts.js';
 import { StorageError, isStorageError } from './errors.js';
-import { openSqliteStorage } from './sqlite/index.js';
+import { openSqliteStorage, type SqliteStorage } from './sqlite/index.js';
 import { encodeJson, validateId } from './sqlite/validation.js';
 
 export type LocalStorageDomain = 'canvas' | 'conversations';
@@ -18,6 +18,7 @@ export interface LocalStorageStatus {
 export interface LocalStorageOptions {
   root: string;
   nativeBinding?: string;
+  resolveNativeBinding?: () => string | undefined | Promise<string | undefined>;
 }
 
 export interface LegacyCanvasWorkspace {
@@ -32,7 +33,7 @@ export interface ActivateLocalCanvasStorageOptions extends LocalStorageOptions {
   loadLegacyWorkspaces: () => Promise<LegacyCanvasWorkspace[]>;
 }
 
-export interface LegacyCanvasWriteOptions {
+export interface LegacyCanvasWriteOptions extends Pick<LocalStorageOptions, 'nativeBinding' | 'resolveNativeBinding'> {
   domain?: LocalStorageDomain;
   /** For host manifests/tags that remain file-backed after Canvas activation. */
   allowActive?: boolean;
@@ -58,14 +59,33 @@ function localError(message: string, cause: unknown): StorageError {
   return isStorageError(cause) ? cause : new StorageError('storage_unavailable', message, { cause });
 }
 
-/** An absent marker means the host must keep using its legacy backend. */
-export async function readLocalStorageStatus(root: string): Promise<LocalStorageStatus | null> {
+/** Missing filesystem metadata never makes an existing authoritative database a legacy store. */
+export async function readLocalStorageStatus(
+  root: string,
+  options: Pick<LocalStorageOptions, 'nativeBinding' | 'resolveNativeBinding'> = {},
+): Promise<LocalStorageStatus | null> {
   validateRoot(root);
   let text: string;
   try {
     text = await readFile(join(root, MARKER_FILE), 'utf8');
   } catch (error) {
-    if (hasCode(error, 'ENOENT')) return null;
+    if (hasCode(error, 'ENOENT')) {
+      try { await stat(join(root, DATABASE_FILE)); }
+      catch (missing) { if (hasCode(missing, 'ENOENT')) return null; throw missing; }
+      const storage = await openSqliteStorage({
+        path: join(root, DATABASE_FILE),
+        nativeBinding: options.nativeBinding ?? await options.resolveNativeBinding?.(),
+        fileMustExist: true,
+      });
+      try {
+        const states = await storage.localActivation.read();
+        if (!states.length || states.some(state => state.state === 'unknown')) {
+          throw new StorageError('corrupt_data', 'Activation marker is missing and database authority is unknown; restore verified activation metadata before continuing');
+        }
+        const domains = states.filter(state => state.state === 'active').map(state => state.domain);
+        return domains.length ? { schemaVersion: 1, backend: 'sqlite', domains } : null;
+      } finally { await storage.close(); }
+    }
     throw localError('Could not read the local storage activation marker', error);
   }
   let marker: unknown;
@@ -87,9 +107,10 @@ export async function readLocalStorageStatus(root: string): Promise<LocalStorage
   return { schemaVersion: 1, backend: 'sqlite', domains: value.domains as LocalStorageDomain[] };
 }
 
-/** Open an independent connection only after migration has published its marker. */
-export async function openLocalStorage(options: LocalStorageOptions): Promise<PulseStorage | null> {
-  if (!await readLocalStorageStatus(options.root)) return null;
+/** Open completed database authority, repairing a missing or stale marker under the shared lock. */
+export async function openLocalStorage(options: LocalStorageOptions): Promise<SqliteStorage | null> {
+  const status = await readLocalStorageStatus(options.root, options);
+  if (!status) return null;
   const path = join(options.root, DATABASE_FILE);
   try {
     const info = await stat(path);
@@ -99,15 +120,50 @@ export async function openLocalStorage(options: LocalStorageOptions): Promise<Pu
   } catch (error) {
     throw localError('Active SQLite storage is unavailable; restore it before continuing', error);
   }
-  return openSqliteStorage({ path, nativeBinding: options.nativeBinding, fileMustExist: true });
+  const storage = await openSqliteStorage({
+    path, nativeBinding: options.nativeBinding ?? await options.resolveNativeBinding?.(), fileMustExist: true,
+  });
+  try {
+    await storage.localActivation.adoptLegacyMarker(status.domains);
+    const activeDomains = (await storage.localActivation.read()).filter(state => state.state === 'active').map(state => state.domain);
+    const markerMissing = await stat(join(options.root, MARKER_FILE)).then(() => false, error => {
+      if (hasCode(error, 'ENOENT')) return true;
+      throw error;
+    });
+    if (markerMissing || encodeJson([...status.domains].sort()) !== encodeJson(activeDomains)) {
+      const repair = async () => {
+        const domains = (await storage.localActivation.read()).filter(state => state.state === 'active').map(state => state.domain);
+        await writeJsonAtomic(join(options.root, MARKER_FILE), { schemaVersion: 1, backend: 'sqlite', domains });
+      };
+      if (activeLegacyWriter(options.root)) await repair();
+      else await enqueueLegacyWrite(options.root, () => withStorageLock(options.root, repair));
+    }
+    return storage;
+  } catch (error) {
+    await storage.close();
+    throw error;
+  }
 }
 
 function activeLegacyWriter(root: string): boolean {
   return legacyWriters.getStore()?.get(resolve(root))?.active === true;
 }
 
-async function assertLegacyBackend(root: string, allowActive: boolean, domain: LocalStorageDomain = 'canvas'): Promise<void> {
-  if ((await readLocalStorageStatus(root))?.domains.includes(domain) && !allowActive) {
+async function assertLegacyBackend(
+  root: string,
+  allowActive: boolean,
+  domain: LocalStorageDomain = 'canvas',
+  options: Pick<LocalStorageOptions, 'nativeBinding' | 'resolveNativeBinding'> = {},
+): Promise<void> {
+  let status = await readLocalStorageStatus(root, options);
+  if (!allowActive && status && !status.domains.includes(domain)) {
+    // A crash can leave a valid marker for only the first activated domain.
+    // Verify that projection before allowing legacy writes to another domain.
+    const storage = await openLocalStorage({ root, ...options });
+    await storage?.close();
+    status = await readLocalStorageStatus(root, options);
+  }
+  if (status?.domains.includes(domain) && !allowActive) {
     throw new StorageError('storage_unavailable', `${domain} uses SQLite storage; select the active backend before writing`);
   }
 }
@@ -145,7 +201,11 @@ async function withStorageLock<T>(root: string, operation: () => Promise<T>): Pr
   }
   try {
     await writeJsonAtomic(join(lockPath, 'owner.json'), { pid: process.pid, token: randomUUID() });
-    return await operation();
+    const owners = new Map(legacyWriters.getStore());
+    const owner = { active: true };
+    owners.set(resolve(root), owner);
+    try { return await legacyWriters.run(owners, operation); }
+    finally { owner.active = false; }
   } finally {
     try {
       await unlink(join(lockPath, 'owner.json')).catch(error => {
@@ -214,22 +274,12 @@ export async function withLegacyCanvasWrite<T>(
 ): Promise<T> {
   validateRoot(root);
   if (activeLegacyWriter(root)) {
-    await assertLegacyBackend(root, options.allowActive === true, options.domain);
+    await assertLegacyBackend(root, options.allowActive === true, options.domain, options);
     return operation();
   }
   return enqueueLegacyWrite(root, () => withStorageLock(root, async () => {
-    const owners = new Map(legacyWriters.getStore());
-    const owner = { active: true };
-    owners.set(resolve(root), owner);
-    try {
-      return await legacyWriters.run(owners, async () => {
-        await assertLegacyBackend(root, options.allowActive === true, options.domain);
-        return operation();
-      });
-    } finally {
-      // Detached descendants must not retain permission after their parent released the lock.
-      owner.active = false;
-    }
+    await assertLegacyBackend(root, options.allowActive === true, options.domain, options);
+    return operation();
   }));
 }
 
@@ -318,21 +368,21 @@ async function importSnapshots(storage: PulseStorage, snapshots: LegacyCanvasWor
 /**
  * The App owns the legacy reader and decides when to activate. This first-stage
  * migration covers Canvas structure only; host manifests/tags and Markdown or
- * attachment files stay untouched. A marker is the sole backend switch. Older
- * binaries cannot honor this lock and must stop before activation; the second
+ * attachment files stay untouched. The DB records completed cutovers; the file
+ * marker is a mirror. Older binaries cannot honor this lock and must stop before activation; the second
  * source read detects changes but cannot replace their participation in locking.
  */
 export async function activateLocalCanvasStorage(options: ActivateLocalCanvasStorageOptions): Promise<PulseStorage> {
-  if ((await readLocalStorageStatus(options.root))?.domains.includes('canvas')) {
+  if ((await readLocalStorageStatus(options.root, options))?.domains.includes('canvas')) {
     return (await openLocalStorage(options))!;
   }
-  const connection: { storage: PulseStorage | null } = { storage: null };
+  const connection: { storage: SqliteStorage | null } = { storage: null };
   try {
     return await withStorageLock(options.root, async () => {
       // Another activation may have finished between the first check and our lock.
       let storage = await openLocalStorage(options);
       connection.storage = storage;
-      const status = await readLocalStorageStatus(options.root);
+      const status = await readLocalStorageStatus(options.root, options);
       if (storage && status?.domains.includes('canvas')) return storage;
       const snapshots = freezeLegacySnapshots(await options.loadLegacyWorkspaces());
       const backupDirectory = join(options.root, '__storage-backup__');
@@ -345,9 +395,10 @@ export async function activateLocalCanvasStorage(options: ActivateLocalCanvasSto
       });
       storage ??= await openSqliteStorage({
         path: join(options.root, DATABASE_FILE),
-        nativeBinding: options.nativeBinding,
+        nativeBinding: options.nativeBinding ?? await options.resolveNativeBinding?.(),
       });
       connection.storage = storage;
+      await storage.localActivation.begin('canvas');
       await importSnapshots(storage, snapshots);
       const integrity = await storage.checkIntegrity();
       if (!integrity.ok) {
@@ -357,6 +408,7 @@ export async function activateLocalCanvasStorage(options: ActivateLocalCanvasSto
       if (encodeJson(latest) !== encodeJson(snapshots)) {
         throw new StorageError('revision_conflict', 'Legacy Canvas changed during migration; retry from the latest files');
       }
+      await storage.localActivation.complete('canvas');
       await writeJsonAtomic(join(options.root, MARKER_FILE), {
         schemaVersion: 1, backend: 'sqlite', domains: [...(status?.domains ?? []), 'canvas'],
       } satisfies LocalStorageStatus);

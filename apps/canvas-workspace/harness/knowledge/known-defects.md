@@ -133,15 +133,3 @@ draft on conflict. These paths are covered by the colocated index, persistence,
 and editor tests. External editors still do not participate in a shared filesystem
 transaction; file version checks are optimistic. See `main-domain-modules.md`
 and `node-detail.md` for the maintained storage and editor contracts.
-
-### SQLite startup still needs a renderer performance fix
-
-The 100-node warm-reload scenario currently fails `startup.loaded_to_lcp_kb`
-after SQLite hydration. The same-machine master comparison loads the same
-resource set, but the rich-text editor work and the chat input commit in a
-different order. This has not been attributed to synchronous file reconciliation:
-Canvas resources arrive well before the delayed React work. A first-hydration
-transition did not pass the gate and was reverted. Keep this as an open release
-acceptance item; do not raise the baseline to hide it. Reproduce through the
-existing `perf:report` workflow and preserve storage hydration/save guards while
-investigating the renderer scheduling boundary.

@@ -60,6 +60,13 @@ const markdown = new MarkdownIt({
   breaks: true,
 });
 
+const defaultSoftBreak = markdown.renderer.rules.softbreak!;
+markdown.renderer.rules.softbreak = (tokens, index, options, env, renderer) => (
+  env?.softBreaks === false
+    ? '\n'
+    : defaultSoftBreak(tokens, index, options, env, renderer)
+);
+
 // GitHub-style task lists (`- [x] done`, `- [ ] todo`). Checkboxes stay
 // disabled — toggling state in chat replies isn't a useful interaction
 // for the assistant's output.
@@ -153,6 +160,8 @@ markdown.renderer.rules.image = (tokens, idx, options, env, self) => {
 };
 
 export interface RenderMarkdownOptions {
+  /** Preserve ordinary Markdown soft line breaks for passive note previews. */
+  softBreaks?: boolean;
   /**
    * True while the source message is still streaming. Skips highlight.js
    * auto-detection for unhinted code blocks — the caller re-renders without
@@ -172,19 +181,20 @@ const SETTLED_RENDER_CACHE_MAX = 100;
 export function renderMarkdown(content: string, options?: RenderMarkdownOptions): string {
   if (options?.streaming === true) {
     count('chat-md-stream-render');
-    return markdown.render(content, { streaming: true });
+    return markdown.render(content, { streaming: true, softBreaks: options.softBreaks });
   }
-  const cached = settledRenderCache.get(content);
+  const cacheKey = `${options?.softBreaks === false ? 'soft' : 'break'}\0${content}`;
+  const cached = settledRenderCache.get(cacheKey);
   if (cached !== undefined) {
     count('chat-md-cache-hit');
     // Re-insert to keep recently used entries away from eviction.
-    settledRenderCache.delete(content);
-    settledRenderCache.set(content, cached);
+    settledRenderCache.delete(cacheKey);
+    settledRenderCache.set(cacheKey, cached);
     return cached;
   }
   count('chat-md-render');
-  const html = markdown.render(content);
-  settledRenderCache.set(content, html);
+  const html = markdown.render(content, { softBreaks: options?.softBreaks });
+  settledRenderCache.set(cacheKey, html);
   if (settledRenderCache.size > SETTLED_RENDER_CACHE_MAX) {
     const oldest = settledRenderCache.keys().next().value;
     if (oldest !== undefined) settledRenderCache.delete(oldest);

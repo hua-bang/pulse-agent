@@ -1,7 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, TextNodeData } from '../../../../../types';
+import { useI18n } from '../../../../../i18n';
+import { useTextNodeSize } from '../TextNodeBody/useTextNodeSize';
+import { renderTextPreview } from './textPreview';
+import { DeferredEditorBoundary, useDeferredEditorInput } from '../useDeferredEditorInput';
 import '../TextNodeBody/index.css';
-import './index.css';
 
 interface Props {
   node: CanvasNode;
@@ -11,46 +14,48 @@ interface Props {
   onSelect: (id: string) => void;
   onDragStart: (event: React.MouseEvent, node: CanvasNode) => void;
   readOnly?: boolean;
+  editRequest?: number;
 }
 
 const TextNodeEditor = lazy(() =>
   import('../TextNodeBody').then((module) => ({ default: module.TextNodeBody })),
 );
 
-export const htmlToPreviewText = (html: string): string => {
-  if (typeof DOMParser !== 'undefined') {
-    return new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '';
-  }
-  return html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
-};
-
 export const TextNodeBodyLazy = (props: Props) => {
+  const { t } = useI18n();
   const data = props.node.data as TextNodeData;
-  // Mirrors FileNodeBodyLazy: mount the real (Tiptap-backed) body as soon as
-  // the node is interactive at all, not just once selected. TextNodeBody's own
-  // idle state is already non-editable and cheap to look at — gating it behind
-  // selection bought nothing but a flattened plain-text flash on every unselected
-  // node (rich marks like color/bold/headings only rendered after a click).
-  const [editorLoaded, setEditorLoaded] = useState(() => !props.readOnly);
-  const text = useMemo(() => htmlToPreviewText(data.content ?? ''), [data.content]);
+  const readOnly = props.readOnly ?? false;
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const editRequestRef = useRef<number | undefined>();
+  const [editorLoaded, setEditorLoaded] = useState(false);
+  const pendingInput = useDeferredEditorInput({ identity: props.node.id, label: t('noteEditor.label') });
+  const preview = useMemo(() => renderTextPreview(data.content ?? ''), [data.content]);
+  const beginEditing = useCallback((point?: { x: number; y: number; scrollTop: number }) => {
+    if (readOnly) return;
+    props.onSelect(props.node.id);
+    pendingInput.begin(point);
+    setEditorLoaded(true);
+  }, [pendingInput.begin, props.node.id, props.onSelect, readOnly]);
 
-  useEffect(() => {
-    if (!props.readOnly) setEditorLoaded(true);
-  }, [props.readOnly]);
+  useTextNodeSize({ ...props, readOnly, wrapperRef });
 
-  if (editorLoaded) {
-    return (
-      <Suspense fallback={<div className="text-node-preview">{text}</div>}>
-        <TextNodeEditor {...props} />
-      </Suspense>
-    );
-  }
+  useLayoutEffect(() => {
+    if (!editorLoaded && !readOnly && props.isSelected && data.content === '') beginEditing();
+  }, [beginEditing, props.isSelected, readOnly, data.content, editorLoaded]);
 
-  return (
+  // Keep an editor mounted after the first edit so selection changes retain drafts.
+  useLayoutEffect(() => {
+    if (!props.editRequest || props.editRequest === editRequestRef.current) return;
+    editRequestRef.current = props.editRequest;
+    if (props.isSelected && !readOnly) beginEditing();
+  }, [beginEditing, props.editRequest, props.isSelected, readOnly]);
+
+  const body = (
     <div
-      className="text-node-preview"
+      ref={wrapperRef}
+      className="text-node-body"
       onMouseDown={(event) => {
-        if (props.readOnly) {
+        if (readOnly) {
           event.stopPropagation();
           return;
         }
@@ -59,15 +64,35 @@ export const TextNodeBodyLazy = (props: Props) => {
       }}
       onDoubleClick={(event) => {
         event.stopPropagation();
-        if (!props.readOnly) setEditorLoaded(true);
+        beginEditing({ x: event.clientX, y: event.clientY, scrollTop: 0 });
       }}
+
       style={{
         color: data.textColor,
         backgroundColor: data.backgroundColor,
         fontSize: data.fontSize ?? 18,
       }}
     >
-      {text}
+      <div>
+        <div className="ProseMirror">
+          {data.content ? preview : (
+            <p className="is-editor-empty" data-placeholder={t('canvas.textPlaceholder')}>
+              <br />
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
+
+  return <div className="deferred-editor-surface">
+    {editorLoaded ? (
+      <DeferredEditorBoundary fallback={body}>
+        <Suspense fallback={body}>
+          <TextNodeEditor {...props} startEditing onEditorReady={pendingInput.ready} />
+        </Suspense>
+      </DeferredEditorBoundary>
+    ) : body}
+    {pendingInput.input}
+  </div>;
 };

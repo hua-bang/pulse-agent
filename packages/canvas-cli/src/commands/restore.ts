@@ -33,6 +33,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { localStoreRoot, requireLegacyCanvasStorage, storageErrorCode } from '../core/sqlite-store';
+import { resolveSqliteNativeBinding } from '../core/native-binding';
 import {
   getWorkspaceDir,
   ensureWorkspaceDir,
@@ -413,7 +414,9 @@ export function registerRestoreCommand(program: Command): void {
         }
       }
 
-      await withLegacyCanvasWrite(localStoreRoot(storeDir), () => applyRestorePlan(plan));
+      await withLegacyCanvasWrite(localStoreRoot(storeDir), () => applyRestorePlan(plan), {
+        resolveNativeBinding: resolveSqliteNativeBinding,
+      });
 
       output({ ...planSummary, applied: true }, format, (data) => {
         const p = data as typeof planSummary & { applied: boolean };

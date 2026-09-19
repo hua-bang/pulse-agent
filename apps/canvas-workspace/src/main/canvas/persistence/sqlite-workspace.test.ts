@@ -8,6 +8,7 @@ import { importWorkspaceArchiveToStore } from '../workspace-import';
 import { createWorkspaceExportArchive, createWorkspaceExportPayload, type WorkspaceExportFile } from '../workspace-export-archive';
 import { closeCanvasStorage } from './backend';
 import * as atomicJson from './atomic-json';
+import { setCanvasSessionArchivePort } from './session-archive-port';
 import {
   readWorkspaceExportSource,
   rewriteCanvasFilePaths,
@@ -64,6 +65,13 @@ async function importArchive(payload = oldArchive(2), workspaceId = 'imported') 
 }
 
 beforeEach(async () => {
+  setCanvasSessionArchivePort({
+    assertWorkspaceStorage: async () => undefined,
+    exportFiles: () => [],
+    prepareImport: () => { throw new Error('This Canvas fixture has no conversation archive'); },
+    rewriteAttachmentPaths: files => files,
+    attachmentPaths: () => [],
+  });
   root = await mkdtemp(join(tmpdir(), 'pulse-sqlite-workspace-'));
   storeDir = join(root, 'canvas');
   storage = await activateLocalCanvasStorage({ root: storeDir, loadLegacyWorkspaces: async () => [] });
@@ -71,6 +79,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  setCanvasSessionArchivePort(null);
   await closeCanvasStorage();
   await storage.close();
   await rm(root, { recursive: true, force: true });

@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { PulseStorage } from '@pulse-coder/storage';
+import type { SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { createCanvasCompatibilityStore } from '@pulse-coder/storage/canvas';
 import { openLocalStorage, readLocalStorageStatus } from '@pulse-coder/storage/local';
 
-const connections = new Map<string, Promise<PulseStorage | null>>();
+const connections = new Map<string, Promise<SqliteStorage | null>>();
 
 export async function resolveStorageNativeBinding(): Promise<string | undefined> {
   if (!process.versions.electron) return undefined;
@@ -20,11 +20,11 @@ export async function resolveStorageNativeBinding(): Promise<string | undefined>
 }
 
 /** Negative results are not cached: another process may activate the backend. */
-export async function getLocalCanvasStorage(root: string): Promise<PulseStorage | null> {
+export async function getLocalCanvasStorage(root: string): Promise<SqliteStorage | null> {
   const key = resolve(root);
   const current = connections.get(key);
   if (current) return current;
-  if (!await readLocalStorageStatus(key)) return null;
+  if (!await readLocalStorageStatus(key, { resolveNativeBinding: resolveStorageNativeBinding })) return null;
   const pending = openLocalStorage({ root: key, nativeBinding: await resolveStorageNativeBinding() });
   connections.set(key, pending);
   try {
@@ -38,9 +38,9 @@ export async function getLocalCanvasStorage(root: string): Promise<PulseStorage 
 }
 
 export async function getCanvasBackend(root: string) {
-  if (!(await readLocalStorageStatus(root))?.domains.includes('canvas')) return null;
   const store = await getLocalCanvasStorage(root);
-  return store ? createCanvasCompatibilityStore(store.canvas) : null;
+  if (!store || !(await store.localActivation.read()).some(row => row.domain === 'canvas' && row.state === 'active')) return null;
+  return createCanvasCompatibilityStore(store.canvas);
 }
 
 export async function closeCanvasStorage(): Promise<void> {

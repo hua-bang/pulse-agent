@@ -13,6 +13,7 @@ import {
 } from './storage-v2';
 import { hasSqliteStorage, listSqliteWorkspaceIds, localStoreRoot, storageErrorCode, withSqliteCanvas } from './sqlite-store';
 import { recoverSubmittedFileWrites, requireAppliedFileWrites } from './sqlite-file-writes';
+import { resolveSqliteNativeBinding } from './native-binding';
 
 function resolveDir(storeDir?: string): string {
   return storeDir ?? DEFAULT_STORE_DIR;
@@ -260,7 +261,7 @@ export async function saveWorkspaceManifest(manifest: WorkspaceManifest, storeDi
     const dir = resolveDir(storeDir);
     await fs.mkdir(dir, { recursive: true });
     await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(manifest, null, 2));
-  }), { allowActive: true });
+  }), { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding });
 }
 
 async function updateWorkspaceManifest(
@@ -272,7 +273,7 @@ async function updateWorkspaceManifest(
     const next = updater(manifest) ?? manifest;
     await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(next, null, 2));
     return next;
-  }), { allowActive: true });
+  }), { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding });
 }
 
 export async function listWorkspaceIds(storeDir?: string): Promise<string[]> {
@@ -500,7 +501,9 @@ export async function saveCanvas(
     }
   });
   if (sqlite.active) return;
-  await withLegacyCanvasWrite(localStoreRoot(storeDir), () => saveLegacyCanvas(workspaceId, data, storeDir, opts));
+  await withLegacyCanvasWrite(localStoreRoot(storeDir), () => saveLegacyCanvas(workspaceId, data, storeDir, opts), {
+    resolveNativeBinding: resolveSqliteNativeBinding,
+  });
 }
 
 async function saveLegacyCanvas(
@@ -805,7 +808,7 @@ export async function deleteWorkspace(
         return manifest;
       });
       await fs.rm(getWorkspaceDir(workspaceId, storeDir), { recursive: true, force: true });
-    }, { allowActive: true }));
+    }, { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding }));
 
     return { ok: true, data: undefined };
   } catch (err) {

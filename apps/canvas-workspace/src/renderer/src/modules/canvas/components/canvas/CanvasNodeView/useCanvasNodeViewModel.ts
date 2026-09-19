@@ -264,9 +264,9 @@ export const useCanvasNodeViewModel = ({
   // focus are separate in a canvas — a mouse-selected node holds no focus —
   // so the shortcut cannot simply rely on the title span's own key handling.
   useEffect(() => {
-    if (!renameToken) return;
+    if (!renameToken || node.type === 'text') return;
     beginTitleEditing();
-  }, [renameToken, beginTitleEditing]);
+  }, [renameToken, beginTitleEditing, node.type]);
 
   const handleTitleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLSpanElement>) => {

@@ -1,7 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type { CanvasNode, FileNodeData } from '../../../../../types';
 import { dispatchOpenNode, parseNodeLinkHref } from '../../../../../utils/openNodeBridge';
 import { useRightDock } from '../../../../../shared/dockPort';
+import { useFileNodeEditorRegistry } from '../../../../../shared/fileNodeEditorRegistry';
+import { useI18n } from '../../../../../i18n';
+import { matchShortcut } from '../../../../../shortcuts/registry';
+import { isImeComposing } from '../../../../../utils/ime';
+import { PassiveFilePreview } from './PassiveFilePreview';
+import { DeferredEditorBoundary, useDeferredEditorInput } from '../useDeferredEditorInput';
+import '../FileNodeBody/index.css';
 import './index.css';
 
 interface Props {
@@ -17,77 +24,54 @@ const FileNodeEditor = lazy(() =>
   import('../FileNodeBody').then((module) => ({ default: module.FileNodeBody })),
 );
 
-const renderInline = (text: string): ReactNode[] => {
-  const parts = text.split(/(`[^`]+`|!?\[[^\]]*\]\([^)]+\))/g).filter(Boolean);
-  return parts.map((part, index) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={index}>{part.slice(1, -1)}</code>;
-    }
-    const match = part.match(/^(!?)\[([^\]]*)\]\(([^)]+)\)$/);
-    if (!match) return part;
-    if (match[1]) return <span key={index} className="file-preview__image">🖼 {match[2] || 'Image'}</span>;
-    return <a key={index} href={match[3]}>{match[2] || match[3]}</a>;
-  });
-};
+/** Keep recovery and interactive document blocks on their established renderer. */
+export function requiresFileEditor(data: FileNodeData, readOnly: boolean): boolean {
+  const content = data.content ?? '';
+  return (!readOnly && !data.filePath) || !!data.modified
+    || (!!(data.fileWriteIntentId || data.fileWriteStatus) && data.fileWriteStatus !== 'applied')
+    || /<\/?[a-z][^>]*>/i.test(content)
+    || /^\s*(?:[-+*]|\d+\.)\s+\[[ xX]\]/m.test(content)
+    || /!\[|pulse-canvas:\/\/node\//.test(content)
+    || /^\s*(?:```|~~~)\s*(?:mermaid|math)\b/im.test(content);
+}
 
-export const MarkdownPreview = ({ content }: { content: string }) => {
-  const rows: ReactNode[] = [];
-  let inCode = false;
-  let code: string[] = [];
-  const flushCode = () => {
-    if (code.length > 0) rows.push(<pre key={`code-${rows.length}`}><code>{code.join('\n')}</code></pre>);
-    code = [];
-  };
-
-  for (const line of content.split('\n')) {
-    if (line.trimStart().startsWith('```')) {
-      if (inCode) flushCode();
-      inCode = !inCode;
-      continue;
-    }
-    if (inCode) {
-      code.push(line);
-      continue;
-    }
-    const heading = line.match(/^(#{1,4})\s+(.+)$/);
-    if (heading) {
-      const Tag = `h${heading[1].length}` as 'h1' | 'h2' | 'h3' | 'h4';
-      rows.push(<Tag key={rows.length}>{renderInline(heading[2])}</Tag>);
-      continue;
-    }
-    const task = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.+)$/);
-    if (task) {
-      rows.push(<div key={rows.length} className="file-preview__list">{task[1] === ' ' ? '☐' : '☑'} {renderInline(task[2])}</div>);
-      continue;
-    }
-    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
-    if (bullet) {
-      rows.push(<div key={rows.length} className="file-preview__list">• {renderInline(bullet[1])}</div>);
-      continue;
-    }
-    if (line.trim()) rows.push(<p key={rows.length}>{renderInline(line)}</p>);
-  }
-  if (inCode) flushCode();
-  return <>{rows}</>;
-};
+interface FreshContent {
+  nodeId: string;
+  filePath: string;
+  source: string;
+  content: string;
+}
 
 export const FileNodeBodyLazy = (props: Props) => {
-  const [editorLoaded, setEditorLoaded] = useState(() => props.renderFullEditor || !props.readOnly);
+  const { t } = useI18n();
   const { openLink } = useRightDock();
-  const content = (props.node.data as FileNodeData).content ?? '';
+  const registry = useFileNodeEditorRegistry();
+  const data = props.node.data as FileNodeData;
+  const readOnly = props.readOnly ?? false;
+  const required = !!props.renderFullEditor || requiresFileEditor(data, readOnly);
+  const [editorLoaded, setEditorLoaded] = useState(required);
+  const pendingInput = useDeferredEditorInput({ identity: `${props.node.id}\0${data.filePath}`, label: t('noteEditor.label') });
+  const [fresh, setFresh] = useState<FreshContent | null>(null);
+  const activateWithoutFocus = useCallback(() => { setEditorLoaded(true); }, []);
 
-  useEffect(() => {
-    if (props.renderFullEditor || !props.readOnly) setEditorLoaded(true);
-  }, [props.readOnly, props.renderFullEditor]);
+  useEffect(() => { if (required) setEditorLoaded(true); }, [required]);
+  useEffect(() => registry?.registerActivator(props.node.id, activateWithoutFocus),
+    [activateWithoutFocus, props.node.id, registry]);
 
-  const activateEditor = useCallback(() => {
-    if (!props.readOnly) setEditorLoaded(true);
-  }, [props.readOnly]);
+  const activateEditor = useCallback((point?: { x: number; y: number; scrollTop: number }) => {
+    if (readOnly) return;
+    pendingInput.begin(point);
+    setEditorLoaded(true);
+  }, [pendingInput.begin, readOnly]);
   const handlePreviewClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    const anchor = (event.target as HTMLElement).closest?.('a');
-    const href = anchor?.getAttribute('href')?.trim();
+    const target = event.target as HTMLElement;
+    // The shared Markdown renderer owns code-copy controls; using one is not
+    // an edit gesture and must not remove the button under the pointer.
+    if (target.closest('[data-action]')) return;
+    const href = target.closest('a')?.getAttribute('href')?.trim();
     if (!href) {
-      activateEditor();
+      const viewport = event.currentTarget.querySelector('.note-tiptap-editor');
+      activateEditor({ x: event.clientX, y: event.clientY, scrollTop: viewport?.scrollTop ?? 0 });
       return;
     }
     event.preventDefault();
@@ -100,23 +84,46 @@ export const FileNodeBodyLazy = (props: Props) => {
     }
   }, [activateEditor, openLink, props.workspaceId]);
 
-  if (editorLoaded) {
-    return (
-      <Suspense fallback={<div className="file-preview file-preview--loading"><MarkdownPreview content={content} /></div>}>
-        <FileNodeEditor {...props} />
-      </Suspense>
-    );
-  }
-
-  return (
+  const onContent = useCallback((content: string) => {
+    setFresh({ nodeId: props.node.id, filePath: data.filePath, source: data.content ?? '', content });
+  }, [data.content, data.filePath, props.node.id]);
+  const node = fresh?.nodeId === props.node.id && fresh.filePath === data.filePath && fresh.source === data.content
+    ? { ...props.node, data: { ...data, content: fresh.content } } as CanvasNode : props.node;
+  const preview = (
     <div
-      className={`file-preview${props.readOnly ? '' : ' file-preview--editable'}`}
+      className={`note-card file-preview${readOnly ? '' : ' file-preview--editable'}`}
       onClick={handlePreviewClick}
-      onKeyDown={(event) => { if (event.key === 'Enter') activateEditor(); }}
-      tabIndex={props.readOnly ? undefined : 0}
-      aria-label={props.readOnly ? undefined : 'Edit note'}
+      onKeyDown={(event) => {
+        if (!isImeComposing(event) && matchShortcut(event, 'canvas')?.id === 'canvas.renameSelection') {
+          event.preventDefault();
+          activateEditor();
+        }
+      }}
+      tabIndex={readOnly ? undefined : 0}
+      aria-label={readOnly ? undefined : t('noteEditor.label')}
     >
-      <MarkdownPreview content={content} />
+      <div className="note-tiptap-editor">
+        <div className="ProseMirror">
+          <PassiveFilePreview
+            node={props.node}
+            readOnly={readOnly}
+            onUpdate={props.onUpdate}
+            onContent={onContent}
+            onError={activateWithoutFocus}
+          />
+        </div>
+      </div>
     </div>
   );
+
+  return <div className="deferred-editor-surface">
+    {editorLoaded ? (
+      <DeferredEditorBoundary fallback={preview}>
+        <Suspense fallback={preview}>
+          <FileNodeEditor {...props} node={node} onEditorReady={pendingInput.ready} />
+        </Suspense>
+      </DeferredEditorBoundary>
+    ) : preview}
+    {pendingInput.input}
+  </div>;
 };

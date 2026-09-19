@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getCanvasSessionArchivePort, setCanvasSessionArchivePort, type CanvasSessionArchivePort } from './session-archive-port';
 
 const createPort = (): CanvasSessionArchivePort => ({
+  assertWorkspaceStorage: async () => undefined,
   exportFiles: () => [],
   prepareImport: (_workspaceId, files) => ({ files, currentSessionId: null, conversations: [] }),
   rewriteAttachmentPaths: files => files,

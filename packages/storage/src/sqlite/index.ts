@@ -8,6 +8,7 @@ import { createConversationRepository } from './conversations.js';
 import { createConversationScopeRepository } from './conversation-scopes.js';
 import { createFileWriteRepository } from './file-writes.js';
 import { createWorkspaceRepository } from './workspaces.js';
+import { createLocalActivationRepository, type LocalActivationRepository } from './local-activation.js';
 import { createChangeRepository } from './changes.js';
 import { storageError, type SqliteContext } from './context.js';
 import { initializeSchema } from './schema.js';
@@ -30,7 +31,12 @@ function supportsSafeWal(version: string): boolean {
   ));
 }
 
-export async function openSqliteStorage(options: SqliteStorageOptions): Promise<PulseStorage> {
+export interface SqliteStorage extends PulseStorage {
+  /** Adapter-owned migration authority; never inferred from an absent filesystem marker. */
+  localActivation: LocalActivationRepository;
+}
+
+export async function openSqliteStorage(options: SqliteStorageOptions): Promise<SqliteStorage> {
   if (!options || typeof options.path !== 'string'
     || (options.path !== ':memory:' && !isAbsolute(options.path))) {
     throw new StorageError('invalid_argument', 'SQLite storage requires an absolute path');
@@ -105,6 +111,7 @@ export async function openSqliteStorage(options: SqliteStorageOptions): Promise<
 
   return {
     generation,
+    localActivation: createLocalActivationRepository(ctx),
     canvas: createCanvasRepository(ctx),
     workspaces: createWorkspaceRepository(ctx),
     conversations: createConversationRepository(ctx),

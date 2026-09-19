@@ -1,4 +1,4 @@
-import { getCanvasBackend } from './persistence/backend';
+import { getCanvasBackend, resolveStorageNativeBinding } from './persistence/backend';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { writeCanvasFullV2, isLayoutOnlyReferenceNode, stripDataFromNode } from './persistence/write-v2';
 /**
@@ -300,7 +300,9 @@ export async function writeCanvasFull(
     await backend.writeCanvas(workspaceId, data, { allowEmpty: true });
     return;
   }
-  return withLegacyCanvasWrite(root, () => writeLegacyCanvasFull(workspaceId, data, root));
+  return withLegacyCanvasWrite(root, () => writeLegacyCanvasFull(workspaceId, data, root), {
+    resolveNativeBinding: resolveStorageNativeBinding,
+  });
 }
 
 async function writeLegacyCanvasFull(

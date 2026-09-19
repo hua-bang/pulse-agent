@@ -2,7 +2,7 @@ import { resolve } from 'path';
 import type { PulseStorage } from '@pulse-coder/storage';
 import { StorageError } from '@pulse-coder/storage';
 import { createCanvasCompatibilityStore } from '@pulse-coder/storage/canvas';
-import { openLocalStorage, readLocalStorageStatus } from '@pulse-coder/storage/local';
+import { openLocalStorage } from '@pulse-coder/storage/local';
 import { DEFAULT_STORE_DIR } from './constants';
 import { resolveSqliteNativeBinding } from './native-binding';
 
@@ -14,7 +14,7 @@ export function localStoreRoot(storeDir?: string): string {
 }
 
 export async function hasSqliteStorage(storeDir?: string): Promise<boolean> {
-  return (await readLocalStorageStatus(localStoreRoot(storeDir)))?.domains.includes('canvas') ?? false;
+  return (await withSqliteCanvas(storeDir, async () => undefined)).active;
 }
 
 /** No migration or native loading for legacy roots; active roots never fall back. */
@@ -23,12 +23,14 @@ export async function withSqliteCanvas<T>(
   operation: (storage: PulseStorage, canvas: CompatibilityStore) => Promise<T>,
 ): Promise<SqliteStoreResult<T>> {
   const root = localStoreRoot(storeDir);
-  if (!(await readLocalStorageStatus(root))?.domains.includes('canvas')) return { active: false };
-  const storage = await openLocalStorage({ root, nativeBinding: resolveSqliteNativeBinding() });
-  if (!storage) {
-    throw new StorageError('storage_unavailable', 'The active storage marker changed while opening SQLite. Retry after checking storage.');
-  }
+  const storage = await openLocalStorage({
+    root,
+    resolveNativeBinding: resolveSqliteNativeBinding,
+  });
+  if (!storage) return { active: false };
   try {
+    const states = await storage.localActivation.read();
+    if (!states.some(state => state.domain === 'canvas' && state.state === 'active')) return { active: false };
     return { active: true, value: await operation(storage, createCanvasCompatibilityStore(storage.canvas)) };
   } finally {
     await storage.close();
