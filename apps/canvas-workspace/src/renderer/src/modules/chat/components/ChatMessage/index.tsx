@@ -184,10 +184,10 @@ export const ChatMessage = ({
       {message.role === 'assistant' ? (
         isStreaming ? (
           message.content ? (
-            <MarkdownContent bodyRef={bodyRef} html={assistantHtml} streaming />
+            <MarkdownContent imagePreview bodyRef={bodyRef} html={assistantHtml} streaming />
           ) : null
         ) : (
-          <MarkdownContent bodyRef={bodyRef} html={assistantHtml} />
+          <MarkdownContent imagePreview bodyRef={bodyRef} html={assistantHtml} />
         )
       ) : isEditing ? (
         <div className="chat-message-edit">
@@ -219,7 +219,7 @@ export const ChatMessage = ({
           </div>
         </div>
       ) : (
-        <MarkdownContent bodyRef={bodyRef} html={userHtml} />
+        <MarkdownContent imagePreview bodyRef={bodyRef} html={userHtml} />
       )}
       {message.role === 'assistant' && !(hideStoppedOutcome && message.turnStatus === 'stopped') && (
         <ChatTurnOutcome

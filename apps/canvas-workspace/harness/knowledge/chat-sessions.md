@@ -352,7 +352,11 @@ visual verification must include a populated cold chat route, not only canvas-fi
 it on `chatTabEnabled` is what previously let a link tab overlay and cover
 the AI Chat page.
 
-**Exits.** Esc and ⌘/Ctrl+Shift+L remain the exits from the AI Chat route.
+**Exits.** ⌘/Ctrl+Shift+L toggles out of the AI Chat route. Bare Escape stays
+with local controls (image previews, menus, message editing); it must never
+navigate out of chat, whether the composer or the page owns focus. Both the
+app shortcut registry and `useChatNavigation` must preserve this boundary;
+regressions are covered by their respective shortcut/navigation tests.
 
 Tests: `RightDock/__tests__/dock-content-tabs.test.ts`, plus the no-chat-tab
 inset case inside `RightDock/index.test.tsx`.

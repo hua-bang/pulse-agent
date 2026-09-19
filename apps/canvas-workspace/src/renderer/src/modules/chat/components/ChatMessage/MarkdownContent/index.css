@@ -341,3 +341,22 @@
   min-width: 0;
 }
 
+
+/* Transcript images are previews, not full-size document illustrations. */
+.chat-md--image-preview img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 360px);
+  max-height: 240px;
+  object-fit: contain;
+  box-sizing: border-box;
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius-md);
+  cursor: zoom-in;
+}
+
+.chat-md--image-preview img:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

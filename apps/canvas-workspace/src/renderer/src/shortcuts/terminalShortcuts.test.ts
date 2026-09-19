@@ -24,13 +24,11 @@ afterEach(() => {
 /** Mounts the REAL app dispatcher, so this pins the actual collision. */
 const mountAppShortcuts = () => {
   const options: Parameters<typeof useAppShortcuts>[0] = {
-    activeView: 'canvas',
     isOverlayOpen: false,
     openShortcuts: vi.fn(),
     toggleChatPage: vi.fn(),
     toggleSidebar: vi.fn(),
     selectWorkspaceByIndex: vi.fn(),
-    leaveChatPage: vi.fn(),
   };
   const Harness = () => {
     useAppShortcuts(options);

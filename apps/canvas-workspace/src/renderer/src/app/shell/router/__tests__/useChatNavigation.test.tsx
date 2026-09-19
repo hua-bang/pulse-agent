@@ -210,7 +210,7 @@ describe('useChatNavigation', () => {
     act(() => root.unmount());
   });
 
-  it('lets Escape leave full-page chat while the composer owns focus', async () => {
+  it.each(['composer', 'page'])('keeps full-page chat open on Escape from %s', async (focus) => {
     const setLocation = vi.fn();
     const broker = {
       deliver: vi.fn(async () => ({ status: 'unavailable' as const, target: null })),
@@ -236,13 +236,13 @@ describe('useChatNavigation', () => {
     };
     await act(async () => root.render(<Harness />));
     const composer = host.querySelector<HTMLElement>('[contenteditable="true"]')!;
-    act(() => composer.dispatchEvent(new KeyboardEvent('keydown', {
+    act(() => (focus === 'composer' ? composer : window).dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape',
       bubbles: true,
       cancelable: true,
     })));
 
-    expect(setLocation).toHaveBeenCalledWith('/');
+    expect(setLocation).not.toHaveBeenCalled();
     act(() => root.unmount());
     host.remove();
   });

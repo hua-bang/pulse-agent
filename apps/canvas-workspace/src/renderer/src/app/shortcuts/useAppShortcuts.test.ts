@@ -2,6 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { matchShortcut } from '../../shortcuts/registry';
 import { useAppShortcuts } from './useAppShortcuts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,13 +20,11 @@ afterEach(() => {
 describe('useAppShortcuts', () => {
   const mount = (overrides: Partial<Parameters<typeof useAppShortcuts>[0]> = {}) => {
     const options: Parameters<typeof useAppShortcuts>[0] = {
-      activeView: 'canvas',
       isOverlayOpen: false,
       openShortcuts: vi.fn(),
       toggleChatPage: vi.fn(),
       toggleSidebar: vi.fn(),
       selectWorkspaceByIndex: vi.fn(),
-      leaveChatPage: vi.fn(),
       ...overrides,
     };
     const Harness = () => {
@@ -95,27 +94,23 @@ describe('useAppShortcuts', () => {
     expect(options.selectWorkspaceByIndex).toHaveBeenCalledWith(2);
   });
 
-  it('returns from the chat page on Escape, and only there', () => {
-    const onChat = mount({ activeView: 'chat' });
-    press({ key: 'Escape' });
-    expect(onChat.leaveChatPage).toHaveBeenCalledTimes(1);
-
-    act(() => root?.unmount());
-    const onCanvas = mount({ activeView: 'canvas' });
-    press({ key: 'Escape' });
-    expect(onCanvas.leaveChatPage).not.toHaveBeenCalled();
+  it('leaves Escape to local controls, never app navigation', () => {
+    const options = mount();
+    const event = press({ key: 'Escape' });
+    expect(matchShortcut(event, 'app')).toBeNull();
+    expect(options.toggleChatPage).not.toHaveBeenCalled();
+    expect(options.selectWorkspaceByIndex).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
   });
 
-  // The canvas layer marks Escape as consumed when it closed something, so
-  // one press can no longer close a canvas overlay AND leave the chat page.
-  it('ignores an event another layer already consumed', () => {
-    const options = mount({ activeView: 'chat' });
-
-    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+  it('ignores a navigation chord another layer already consumed', () => {
+    const options = mount();
+    const event = new KeyboardEvent('keydown', {
+      key: 'l', metaKey: true, shiftKey: true, bubbles: true, cancelable: true,
+    });
     event.preventDefault();
     act(() => { window.dispatchEvent(event); });
-
-    expect(options.leaveChatPage).not.toHaveBeenCalled();
+    expect(options.toggleChatPage).not.toHaveBeenCalled();
   });
 
   it('stands down while an overlay owns the keyboard', () => {

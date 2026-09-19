@@ -25,7 +25,7 @@ const EMPTY_WORKSPACES: WorkspaceOption[] = [];
  */
 export const ChatSessionsRail = ({
   allSessions,
-  workspaces = EMPTY_WORKSPACES,
+  workspaces,
   loading = false,
   disabled = false,
   newSessionDisabled = disabled,
@@ -48,7 +48,7 @@ export const ChatSessionsRail = ({
       sessions: UnifiedSession[];
       canCreateDraft: boolean;
     }>();
-    for (const workspace of workspaces) {
+    for (const workspace of workspaces ?? EMPTY_WORKSPACES) {
       groups.set(workspace.id, {
         id: workspace.id,
         name: workspace.name,
@@ -59,7 +59,9 @@ export const ChatSessionsRail = ({
     for (const session of allSessions) {
       const group = groups.get(session.workspaceId);
       if (group) group.sessions.push(session);
-      else groups.set(session.workspaceId, {
+      // A supplied workspace list is authoritative; history must not restore
+      // removed/filtered workspaces. Global chat is independent of that list.
+      else if (workspaces === undefined || session.workspaceId === GLOBAL_CHAT_ID) groups.set(session.workspaceId, {
         id: session.workspaceId,
         name: session.workspaceName,
         sessions: [session],

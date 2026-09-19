@@ -118,10 +118,6 @@ export const useChatNavigation = ({
         }
       }
 
-      if (event.key === 'Escape' && activeView === 'chat') {
-        event.preventDefault();
-        exitChatView();
-      }
     };
 
     window.addEventListener('keydown', handler);
