@@ -58,19 +58,21 @@ export const ChatInputAttachments = ({
                     <ImageIcon size={16} strokeWidth={1.35} />
                   </span>
                 )}
-                <span className="chat-attachment-details">
-                  <span className="chat-attachment-name">{attachmentLabel}</span>
-                  {status === 'uploading' && (
-                    <span className="chat-attachment-status" role="status">
-                      {t('chat.attachmentUploading')}
-                    </span>
-                  )}
-                  {status === 'failed' && (
-                    <span className="chat-attachment-error" role="alert">
-                      {attachment.error ?? t('chat.attachmentFailed')}
-                    </span>
-                  )}
-                </span>
+                {status !== 'ready' && (
+                  <span className="chat-attachment-details">
+                    <span className="chat-attachment-name">{attachmentLabel}</span>
+                    {status === 'uploading' && (
+                      <span className="chat-attachment-status" role="status">
+                        {t('chat.attachmentUploading')}
+                      </span>
+                    )}
+                    {status === 'failed' && (
+                      <span className="chat-attachment-error" role="alert">
+                        {attachment.error ?? t('chat.attachmentFailed')}
+                      </span>
+                    )}
+                  </span>
+                )}
                 {status === 'failed' && attachment.retryable !== false && onRetryAttachment && (
                   <button
                     type="button"

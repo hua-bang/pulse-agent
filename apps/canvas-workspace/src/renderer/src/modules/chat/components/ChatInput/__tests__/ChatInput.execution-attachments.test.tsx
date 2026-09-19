@@ -149,6 +149,34 @@ describe('ChatInput execution and attachment states', () => {
     act(() => root.unmount());
   });
 
+  it('shows ready images as thumbnails while preserving filename hints, preview and removal', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const remove = vi.fn();
+    act(() => root.render(
+      <I18nProvider>
+        <ChatInput
+          {...baseProps}
+          attachments={[{ id: 'image-a', path: '/tmp/a.png', fileName: 'Pasted image 2026.png' }]}
+          onRemoveAttachment={remove}
+        />
+      </I18nProvider>,
+    ));
+
+    expect(host.querySelector('.chat-attachment-details')).toBeNull();
+    const preview = host.querySelector<HTMLButtonElement>('.chat-attachment-preview')!;
+    expect(preview.title).toBe('Pasted image 2026.png');
+    expect(preview.getAttribute('aria-label')).toContain('Pasted image 2026.png');
+    act(() => preview.click());
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    act(() => host.querySelector<HTMLButtonElement>('.chat-attachment-remove')?.click());
+    expect(remove).toHaveBeenCalledWith('image-a');
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
   it('only exposes image upload when the current scope supplies the capability', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
