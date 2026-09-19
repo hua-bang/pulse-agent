@@ -22,10 +22,12 @@ export interface ExternalDocumentUpdateEvent {
   nodeIds: string[];
   edgeIds?: string[];
   source: string;
+  revision?: number;
 }
 
 export const shouldReloadForExternalUpdate = (event: ExternalDocumentUpdateEvent): boolean => (
   event.nodeIds.length > 0 || (event.edgeIds?.length ?? 0) > 0
+  || (event.source === 'sqlite' && Number.isSafeInteger(event.revision) && event.revision! > 0)
 );
 
 const mergeExternalEdges = (

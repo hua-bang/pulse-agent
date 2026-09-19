@@ -67,10 +67,37 @@ internals or agent sessions beyond calling domain setup/teardown functions.
 
 ### `canvas/`
 
-Workspace canvas ownership: workspace list/load/save IPC, canvas JSON layout
-data, v1/v2 storage migration, per-node files, canvas update broadcasting,
+Workspace canvas ownership: workspace list/load/save IPC, domain repositories,
+legacy v1/v2 storage migration, canvas update broadcasting,
 workspace export (archive + external files), welcome workspace, knowledge
 node records and tags (`nodes/`).
+
+`@pulse-coder/storage` owns host-neutral repositories and the SQLite adapter;
+Canvas owns the legacy importer and activation timing. Bootstrap waits for
+Canvas and conversation cutovers before seeding or starting any writers.
+Each data root uses `__storage__.sqlite`; `__storage__.json` activates domains
+only after backup, source revalidation, and integrity checks. Legacy JSON is
+retained but stops receiving writes after activation. Unknown schemas, broken
+records, and missing active databases stop startup with a visible error rather
+than returning an empty workspace. Markdown and attachments remain files.
+Retained JSON is a pre-cutover recovery source, not a live downgrade target:
+an older binary cannot see later SQLite edits through those files.
+
+Canvas mutations atomically commit records, a revision, and a change event.
+Both app and CLI compare the revision and database generation; matching numeric
+revisions from an old backend do not authorize an overwrite. The app polls the
+commit log instead of watching SQLite/WAL files. Renderer persistence owns a
+durable baseline, serializes saves, and rebases independent edits; conflicting
+fields retain the local draft and show a save error. Drafts held only by the
+renderer are not a cross-restart recovery guarantee.
+
+CLI file writes record an intent with base and target contents in the same
+transaction as their node change. Recovery applies a target only while the file
+still matches the base and the node still owns the intent; it retains conflicting
+versions. Filesystem replacement uses optimistic hash checks and atomic rename,
+not a cross-editor transaction. `canvas/sync/markdown-index.ts` refreshes clean
+indexes from disk and preserves dirty drafts. Guards: `persistence/sqlite-integration.test.ts`,
+`sqlite-ipc.test.ts`, `sync/markdown-index.test.ts`, and the shared storage tests.
 
 ### `agent/`
 
@@ -114,7 +141,9 @@ module through exported session helpers.
 Local file helper ownership: open/save dialogs, renderer-exposed read/write
 helpers, file watching, skill installation file operations. `file:preview`
 uses `file-preview.ts` for bounded (512 KiB), regular-file-only UTF-8 reads;
-legacy `file:read` is unchanged. `file:listDir` accepts an optional
+`file:read` returns full UTF-8 text and its SHA-256 version for ordinary notes,
+without the preview size cap. `file:write` accepts an optional expected version;
+FileNodeBody always sends the version it read. `file:listDir` accepts an optional
 `includeHidden` flag for the shallow Dock browser. Guard:
 `src/main/files/file-preview.test.ts`. Text previews include a SHA-256 byte
 version. `file:save-preview` checks that version, stages a sibling temporary
@@ -245,11 +274,12 @@ move has passed typecheck and tests.
 
 ## Document transactions and artifact pinning
 
-- External canvas-store synchronization must treat edges as first-class state:
-  watcher events carry edge ids, renderer reloads must accept edge-only events,
-  and stale saves merge edges by `updatedAt` without dropping unsaved local
-  edges. Guards: `src/main/canvas/__tests__/store-merge.test.ts` and
-  `src/renderer/src/modules/canvas/document/__tests__/externalMerge.test.ts`.
+- External canvas-store synchronization must treat edges as first-class state.
+  SQLite rejects stale saves and uses baseline-based renderer merges for nodes,
+  edges, and metadata; `updatedAt` is not a substitute for a revision. The legacy
+  fallback retains its timestamp merge. Guards: the document
+  `CanvasDocumentPersistence.test.ts` / `revisionMerge.test.ts`, plus legacy
+  `src/main/canvas/__tests__/store-merge.test.ts` / document `externalMerge.test.ts`.
 
 - Cross-mindmap topic transfers are canvas-level atomic transactions: rekey
   every moved topic subtree, update both maps in one history snapshot, and

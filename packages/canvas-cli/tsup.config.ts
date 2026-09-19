@@ -12,7 +12,7 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   platform: 'node',
-  noExternal: ['commander'],
+  noExternal: ['commander', '@pulse-coder/storage', 'better-sqlite3', 'bindings', 'file-uri-to-path'],
   banner: { js: '#!/usr/bin/env node' },
   outExtension: () => ({ js: '.cjs' }),
 });

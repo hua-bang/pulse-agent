@@ -140,13 +140,13 @@ export interface CanvasSaveData {
    */
   schemaVersion?: 1 | 2;
   /**
-   * Monotonic write counter, bumped by every CLI `saveCanvas`. Powers
-   * `apply --atomic`'s optimistic-concurrency `baseRevision` check. The app
-   * preserves unknown top-level fields on save but does not bump this —
-   * revision equality guarantees "no CLI write happened in between", not
-   * "no write at all".
+   * Monotonic write counter. Legacy JSON counts CLI writes only; active SQLite
+   * counts every shared-repository commit. SQLite revisions are meaningful
+   * together with storageGeneration, never across different databases.
    */
   revision?: number;
+  /** Opaque identity of the active database; absent in legacy JSON snapshots. */
+  storageGeneration?: string;
   nodes: CanvasNode[];
   edges?: CanvasEdge[];
   transform: CanvasTransform;

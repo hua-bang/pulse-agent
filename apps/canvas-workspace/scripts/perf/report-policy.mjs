@@ -30,7 +30,11 @@ export const runFinalReportStep = ({
   };
 };
 
-const sharedDependencyFiles = new Set(['package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']);
+const sharedDependencyFiles = new Set([
+  'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml',
+  'apps/canvas-workspace/scripts/setup/prepare-sqlite-native.mjs',
+]);
+const sharedDependencyDirectories = ['packages/storage', 'packages/canvas-cli'];
 const runtimeFiles = new Set([
   '.github/workflows/perf.yml',
   'apps/canvas-workspace/electron.vite.config.ts',
@@ -40,6 +44,7 @@ const runtimeDirectories = [
   'apps/canvas-workspace/perf',
   'apps/canvas-workspace/scripts/perf',
   'apps/canvas-workspace/src/main/app',
+  'apps/canvas-workspace/src/main/canvas',
   'apps/canvas-workspace/src/main/webview',
   'apps/canvas-workspace/src/renderer/src/app/App',
   'apps/canvas-workspace/src/renderer/src/app/shell/Workbench',
@@ -59,7 +64,8 @@ export const classifyPerformanceChanges = ({
   performanceLabel = false,
 }) => {
   if (eventName !== 'pull_request' || performanceLabel) return { runtime: true, packaging: true };
-  const shared = paths.some((file) => sharedDependencyFiles.has(file));
+  const shared = paths.some((file) => sharedDependencyFiles.has(file) ||
+    sharedDependencyDirectories.some((directory) => within(file, directory)));
   return {
     runtime: shared || paths.some((file) => runtimeFiles.has(file) ||
       runtimeDirectories.some((directory) => within(file, directory))),

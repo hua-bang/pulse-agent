@@ -157,6 +157,8 @@ export interface FileNodeData {
   content: string;
   saved?: boolean;
   modified?: boolean;
+  fileWriteIntentId?: string;
+  fileWriteStatus?: 'pending' | 'applied' | 'conflict' | 'error';
 }
 
 export interface TerminalNodeData {
@@ -434,6 +436,9 @@ export interface CanvasEdge {
 }
 
 export interface CanvasSaveData {
+  storageGeneration?: string;
+  /** Version of the complete persisted snapshot; required for SQLite updates. */
+  revision?: number;
   nodes: CanvasNode[];
   /** Connections between nodes. Optional for backwards compatibility. */
   edges?: CanvasEdge[];

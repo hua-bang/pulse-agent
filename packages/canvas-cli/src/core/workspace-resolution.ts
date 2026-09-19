@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { getWorkspaceDir, isSafeWorkspaceId, loadWorkspaceManifest } from './store';
+import { withSqliteCanvas } from './sqlite-store';
 
 /**
  * Environment variable the canvas app sets for launched agents so they can
@@ -78,6 +79,22 @@ async function validateWorkspace(
   // so it opts out of the readability check — a safe id is enough there.
   if (!requireReadableCanvas) {
     return { workspaceId, source };
+  }
+
+  try {
+    const sqlite = await withSqliteCanvas(storeDir, storage => storage.canvas.read(workspaceId));
+    if (sqlite.active) {
+      if (!sqlite.value) {
+        throw new WorkspaceResolutionError(`Workspace "${workspaceId}" was not found in active SQLite storage.`, 'workspace_not_found');
+      }
+      return { workspaceId, source };
+    }
+  } catch (error) {
+    if (error instanceof WorkspaceResolutionError) throw error;
+    throw new WorkspaceResolutionError(
+      `Workspace "${workspaceId}" has unavailable storage: ${error instanceof Error ? error.message : String(error)}`,
+      'workspace_unreadable',
+    );
   }
 
   const canvasFile = join(dir, 'canvas.json');

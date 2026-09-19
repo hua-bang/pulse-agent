@@ -10,6 +10,7 @@ import { createConversationRunner } from './conversation-runner';
 
 /** Structural store surface the service drives (injectable for tests). */
 export interface ConversationStoreAdapter {
+  create(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
   loadMessages(sessionId: string): Promise<CanvasAgentMessage[] | null>;
   persist(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
 }
@@ -115,7 +116,7 @@ export class ConversationRuntimeService {
       const sessionId = randomUUID();
       const store = this.stores.get(scopeKey(scope));
       if (!store) throw new Error(`No conversation store for scope ${scopeKey(scope)}`);
-      await store.persist(sessionId, messages);
+      await store.create(sessionId, messages);
       return { ok: true, sessionId };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

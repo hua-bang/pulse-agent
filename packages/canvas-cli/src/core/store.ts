@@ -1,5 +1,9 @@
 import { promises as fs } from 'fs';
 import { join, dirname, basename, resolve, relative, isAbsolute } from 'path';
+import { RevisionConflictError, StorageError } from '@pulse-coder/storage';
+import type { FileWriteInput } from '@pulse-coder/storage';
+import type { LegacyCanvas } from '@pulse-coder/storage/canvas';
+import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { DEFAULT_STORE_DIR, AGENTS_MD_TEMPLATE } from './constants';
 import type { CanvasNode, CanvasEdge, CanvasSaveData, WorkspaceManifest, Result } from './types';
 import {
@@ -7,6 +11,8 @@ import {
   assembleV2,
   splitV2,
 } from './storage-v2';
+import { hasSqliteStorage, listSqliteWorkspaceIds, localStoreRoot, storageErrorCode, withSqliteCanvas } from './sqlite-store';
+import { recoverSubmittedFileWrites, requireAppliedFileWrites } from './sqlite-file-writes';
 
 function resolveDir(storeDir?: string): string {
   return storeDir ?? DEFAULT_STORE_DIR;
@@ -250,26 +256,28 @@ export async function loadWorkspaceManifest(storeDir?: string): Promise<Workspac
 }
 
 export async function saveWorkspaceManifest(manifest: WorkspaceManifest, storeDir?: string): Promise<void> {
-  await withManifestLock(storeDir, async () => {
+  await withLegacyCanvasWrite(localStoreRoot(storeDir), () => withManifestLock(storeDir, async () => {
     const dir = resolveDir(storeDir);
     await fs.mkdir(dir, { recursive: true });
     await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(manifest, null, 2));
-  });
+  }), { allowActive: true });
 }
 
 async function updateWorkspaceManifest(
   storeDir: string | undefined,
   updater: (manifest: WorkspaceManifest) => WorkspaceManifest | void,
 ): Promise<WorkspaceManifest> {
-  return withManifestLock(storeDir, async () => {
+  return withLegacyCanvasWrite(localStoreRoot(storeDir), () => withManifestLock(storeDir, async () => {
     const manifest = await loadWorkspaceManifest(storeDir);
     const next = updater(manifest) ?? manifest;
     await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(next, null, 2));
     return next;
-  });
+  }), { allowActive: true });
 }
 
 export async function listWorkspaceIds(storeDir?: string): Promise<string[]> {
+  const sqlite = await listSqliteWorkspaceIds(storeDir);
+  if (sqlite.active) return sqlite.value.filter(isSafeWorkspaceId);
   const dir = resolveDir(storeDir);
   const ids = new Set<string>();
   try {
@@ -330,6 +338,9 @@ function isEnoent(err: unknown): boolean {
 }
 
 export async function loadCanvas(workspaceId: string, storeDir?: string): Promise<CanvasSaveData | null> {
+  assertSafeWorkspaceId(workspaceId);
+  const sqlite = await withSqliteCanvas(storeDir, (_storage, canvas) => canvas.readCanvas(workspaceId));
+  if (sqlite.active) return sqlite.value as CanvasSaveData | null;
   const primary = canvasPath(workspaceId, storeDir);
   const backup = `${primary}.bak`;
 
@@ -403,6 +414,8 @@ async function materialize(
 }
 
 export interface SaveCanvasOptions {
+  /** Files are staged in the Canvas CAS transaction and then recovered locally. */
+  fileWrites?: readonly FileWriteInput[];
   /**
    * Allow the save to proceed even when `data.nodes` is empty and the on-disk
    * canvas currently has nodes. Default `false`: the save throws to protect
@@ -453,6 +466,48 @@ export async function saveCanvas(
   data: CanvasSaveData,
   storeDir?: string,
   opts: SaveCanvasOptions = {},
+): Promise<void> {
+  assertSafeWorkspaceId(workspaceId);
+  const sqlite = await withSqliteCanvas(storeDir, async (storage, canvas) => {
+    if (opts.pruneUnknownNodeFiles) {
+      throw new StorageError('invalid_argument', 'SQLite knowledge records require explicit removedIds; orphan-file pruning is legacy-only.');
+    }
+    await ensureWorkspaceDir(workspaceId, storeDir);
+    await canvas.writeCanvas(workspaceId, data as unknown as LegacyCanvas, {
+      allowEmpty: opts.allowEmpty,
+      removedNodeIds: opts.removedIds,
+      fileWrites: opts.fileWrites,
+    });
+    if (opts.fileWrites?.length) {
+      let outcomes: Awaited<ReturnType<typeof recoverSubmittedFileWrites>> = [];
+      let recoveryError: unknown;
+      try { outcomes = await recoverSubmittedFileWrites(storage, workspaceId, opts.fileWrites); }
+      catch (error) { recoveryError = error; }
+      try {
+        const current = await canvas.readCanvas(workspaceId);
+        if (current) {
+          // A newer revision must travel with its complete matching snapshot,
+          // including observable pending/error flags even when recovery failed.
+          const mutable = data as unknown as Record<string, unknown>;
+          for (const key of Object.keys(mutable)) delete mutable[key];
+          Object.assign(mutable, current);
+        }
+      } catch (error) {
+        throw recoveryError ?? error;
+      }
+      if (recoveryError) throw recoveryError;
+      requireAppliedFileWrites(outcomes);
+    }
+  });
+  if (sqlite.active) return;
+  await withLegacyCanvasWrite(localStoreRoot(storeDir), () => saveLegacyCanvas(workspaceId, data, storeDir, opts));
+}
+
+async function saveLegacyCanvas(
+  workspaceId: string,
+  data: CanvasSaveData,
+  storeDir: string | undefined,
+  opts: SaveCanvasOptions,
 ): Promise<void> {
   await ensureWorkspaceDir(workspaceId, storeDir);
 
@@ -557,6 +612,31 @@ async function writeMatchingSchema(
 export interface NodeMutation {
   upsert?: CanvasNode;
   removeId?: string;
+  /** Required with SQLite: revision of the snapshot used to prepare the mutation. */
+  expectedRevision?: number | null;
+  /** Identity captured alongside expectedRevision, never inferred from a later read. */
+  expectedGeneration?: string;
+  fileWrites?: readonly FileWriteInput[];
+}
+
+async function requireMutationRevision(
+  workspaceId: string,
+  expectedRevision: number | null | undefined,
+  expectedGeneration: string | undefined,
+  fresh: CanvasSaveData,
+  storeDir?: string,
+): Promise<void> {
+  if (!await hasSqliteStorage(storeDir)) return;
+  if (expectedGeneration !== fresh.storageGeneration) {
+    throw new StorageError('revision_conflict', 'Storage changed since this mutation was prepared. Re-read the workspace before retrying.');
+  }
+  if (expectedRevision === undefined) {
+    throw new StorageError('invalid_argument', 'SQLite mutations require the revision of their original read.');
+  }
+  const actualRevision = fresh.revision ?? null;
+  if (expectedRevision !== actualRevision) {
+    throw new RevisionConflictError(workspaceId, expectedRevision, actualRevision);
+  }
 }
 
 /**
@@ -584,6 +664,7 @@ export async function commitNodeMutation(
       transform: { x: 0, y: 0, scale: 1 },
       savedAt: new Date().toISOString(),
     };
+    await requireMutationRevision(workspaceId, mutation.expectedRevision, mutation.expectedGeneration, fresh, storeDir);
 
     if (mutation.upsert) {
       const target = mutation.upsert;
@@ -603,6 +684,7 @@ export async function commitNodeMutation(
     await saveCanvas(workspaceId, fresh, storeDir, {
       allowEmpty: true,
       removedIds: mutation.removeId ? [mutation.removeId] : undefined,
+      fileWrites: mutation.fileWrites,
     });
     return fresh;
   });
@@ -617,6 +699,10 @@ export async function commitNodeMutation(
 export interface EdgeMutation {
   upsert?: CanvasEdge;
   removeId?: string;
+  /** Required with SQLite: revision used to validate endpoints or locate the edge. */
+  expectedRevision?: number | null;
+  /** Database identity from the same initial read as expectedRevision. */
+  expectedGeneration?: string;
 }
 
 /**
@@ -639,6 +725,7 @@ export async function commitEdgeMutation(
       transform: { x: 0, y: 0, scale: 1 },
       savedAt: new Date().toISOString(),
     };
+    await requireMutationRevision(workspaceId, mutation.expectedRevision, mutation.expectedGeneration, fresh, storeDir);
 
     const edges = fresh.edges ?? [];
 
@@ -705,20 +792,23 @@ export async function deleteWorkspace(
 ): Promise<Result> {
   try {
     assertSafeWorkspaceId(workspaceId);
-    const dir = getWorkspaceDir(workspaceId, storeDir);
-
-    await updateWorkspaceManifest(storeDir, (manifest) => {
-      manifest.workspaces = (manifest.workspaces ?? []).filter(e => e.id !== workspaceId);
-      if (manifest.activeId === workspaceId) {
-        manifest.activeId = manifest.workspaces[0]?.id;
-      }
-      return manifest;
-    });
-
-    await fs.rm(dir, { recursive: true, force: true });
+    await withWorkspaceLock(workspaceId, storeDir, () => withLegacyCanvasWrite(localStoreRoot(storeDir), async () => {
+      await withSqliteCanvas(storeDir, async storage => {
+        const current = await storage.canvas.read(workspaceId);
+        if (current) await storage.canvas.remove(workspaceId, current.revision);
+      });
+      await updateWorkspaceManifest(storeDir, (manifest) => {
+        manifest.workspaces = (manifest.workspaces ?? []).filter(e => e.id !== workspaceId);
+        if (manifest.activeId === workspaceId) {
+          manifest.activeId = manifest.workspaces[0]?.id;
+        }
+        return manifest;
+      });
+      await fs.rm(getWorkspaceDir(workspaceId, storeDir), { recursive: true, force: true });
+    }, { allowActive: true }));
 
     return { ok: true, data: undefined };
   } catch (err) {
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err), code: storageErrorCode(err) };
   }
 }

@@ -9,14 +9,15 @@
 `@pulse-coder/canvas-cli/core` helpers for external agents that need to inspect
 or mutate Pulse Canvas workspaces.
 
-Most commands operate directly on the canvas store under
-`~/.pulse-coder/canvas/`: workspace manifests, per-workspace `canvas.json`,
-edges, nodes, backups, and v2 per-node files. The `agent`, `team`, and `runtime`
+Most commands operate on the local canvas store under `~/.pulse-coder/canvas/`
+without a running app. Unactivated stores retain v1/v2 JSON; the activation
+marker selects the shared SQLite adapter for the `canvas` domain. Markdown,
+attachments, and the workspace manifest remain files. The `agent`, `team`, and `runtime`
 command families are different: they require a running `apps/canvas-workspace` instance
 and call its loopback runtime-control server using the bearer secret advertised
 in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`.
 
-Keep this package a thin bridge over store files and runtime endpoints. The
+Keep this package a thin bridge over storage contracts and runtime endpoints. The
 Electron UI, active PTY lifecycle, storage migration, runtime server, and
 runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
 
@@ -38,6 +39,7 @@ runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
 | Atomic batch mutation from a plan file | `src/commands/apply.ts`, `src/core/apply.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
+| SQLite activation, revisions, file recovery, native runtime | `src/core/sqlite-store.ts`, `src/core/sqlite-file-writes.ts`, `src/core/sqlite-doctor.ts`, `src/core/native-binding.ts`, `../storage/AGENTS.md` |
 | Store-concurrency incident + lock rationale | `harness/knowledge/storage-concurrency.md` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
 | Bundled agent skills | `skills/`, `src/commands/install-skills.ts` |
@@ -58,9 +60,10 @@ above, then the package source/tests.
   and use per-file temporary homes; never back up or rewrite a live user's
   runtime descriptor as test setup. Their HTTP stubs need loopback listeners.
 - The Electron app ships `dist/index.cjs` as an external-agent executable. Keep
-  its runtime dependencies bundled (currently `commander` via tsup
-  `noExternal`) so a packaged app can run it with Electron's Node runtime on a
-  machine without Node, pnpm, or this monorepo.
+  JavaScript dependencies bundled and ship the matching Node/Electron SQLite
+  native assets. Never rebuild a shared pnpm native dependency for another ABI.
+  `src/core/native-binding.ts` and `scripts/prepare-native.mjs` own resolution
+  and the Node asset; the app prepares its isolated Electron asset.
 - Preserve store safety: workspace/node id validation, manifest locking,
   atomic writes, rolling `.bak` recovery, v2 per-node compatibility, and the
   guard that refuses accidental empty-node overwrites.
@@ -71,19 +74,25 @@ above, then the package source/tests.
   (`pruneUnknownNodeFiles`) is reserved for restore/repair flows. Both rules
   exist because parallel CLI writers used to drop and even delete each
   other's nodes; regression suite: `src/core/__tests__/storage-race.test.ts`.
-  The lock serializes CLI↔CLI only — the app does not take it; app↔CLI
-  concurrency still relies on per-node `updatedAt` arbitration.
-- `saveCanvas` bumps `canvas.revision` on every write (monotonic CLI write
-  counter). `apply --atomic`'s `baseRevision` compares against it: equality
-  means "no CLI write intervened", not "no write at all" — the app preserves
-  the field on save (spread-through) but does not bump it. Batch mutations
-  should prefer one `apply` plan (one lock, one save, all-or-nothing with
-  deferred fs effects) over loops of single-node commands.
-- Do not make this CLI trigger v2 migrations. `canvas-workspace` owns
-  migration; the CLI adapts to the on-disk schema it finds.
+  These file-lock and `updatedAt` arbitration rules remain for legacy stores;
+  active SQLite writes use shared transactions and conditional revisions.
+- For SQLite, preserve the original `revision` AND `storageGeneration` through
+  read→mutation→commit. Never stamp an old node or canvas with a later read's
+  revision. In legacy JSON, `revision` still counts CLI writes only. Prefer one
+  `apply` plan for a batch; do not claim filesystem effects are a DB transaction.
+- The app owns activation. Select SQLite only when `__storage__.json` activates
+  `canvas`; a staging database or another active domain is insufficient. Missing,
+  damaged, or unsupported active storage must fail closed, never fall back to
+  old JSON. Legacy writes must hold the shared migration fence. Details and
+  first-upgrade guards: `harness/knowledge/storage-concurrency.md`.
+- Keep Markdown authoritative and externally editable. SQL file writes stage
+  recovery intents in the Canvas transaction; incomplete writes fail with an
+  intent id and retain recovery snapshots. `doctor --repair` retries safely and
+  refreshes indexes from files; it must not overwrite external conflicts or
+  manufacture missing Markdown from a cached index.
 - Keep `restore` narrow: it recovers from v1 snapshots and archives live
   `nodes/` data so the app can migrate cleanly later; it is not a general
-  migration tool.
+  migration tool and must refuse an active SQLite canvas backend.
 - Node types split into `CreatableNodeType` (what `node create` accepts:
   `file`, `terminal`, `frame`, `group`, `agent`, `mindmap`) and the wider
   `KnownNodeType` read set (`text`, `iframe`, `image`, `shape`, `reference`,
@@ -137,8 +146,9 @@ above, then the package source/tests.
   (`src/commands/options.ts`), not by reading `opts.workspace` directly. The
   fixed discovery order is `--workspace` → `$PULSE_CANVAS_WORKSPACE_ID` →
   `__workspaces__.json.activeId` → hard error; it never guesses (no
-  "most recent" / "first in list"). Disk commands require a readable
-  `canvas.json`; runtime-mediated (`agent`/`team`/`runtime`) and `restore` pass
+  "most recent" / "first in list"). Local commands require a readable canvas
+  in the selected backend; SQL workspaces need no `canvas.json`.
+  Runtime-mediated (`agent`/`team`/`runtime`) and `restore` pass
   `{ requireReadableCanvas: false }` since the workspace lives in the app or is
   the thing being recovered.
 - Changes to command payloads, core exports, node/edge schemas, runtime routes,
@@ -164,16 +174,17 @@ with "No active canvas-workspace runtime found."
 - `src/cli.ts`: top-level command registration and global options.
 - `src/commands/`: workspace, node, edge, context, agent, team, runtime,
   restore, and skill-install commands.
-- `src/core/doctor.ts`: consistency analysis + conservative repair (markdown
-  wins on drift; orphans adopted, never deleted); CLI face in
+- `src/core/doctor.ts`: backend-aware diagnostics; legacy repair adopts orphan
+  files, while `sqlite-doctor.ts` handles intents, integrity, and source-file
+  index reconciliation. CLI face in
   `src/commands/doctor.ts`.
 - `src/core/layout.ts`: geometry summary, layout validation (overlaps, frame
   containment, readability, aspect ratio), and frame-grid arrangement;
   containment is geometric (smallest frame holding a node's center). CLI face
   in `src/commands/layout.ts`.
-- `src/core/apply.ts`: atomic plan application — validate every op against an
-  in-memory copy, defer all fs effects, then one locked save; optimistic
-  concurrency via `baseRevision`. CLI face in `src/commands/apply.ts`.
+- `src/core/apply.ts`: validate a complete plan before mutation; SQLite commits
+  graph changes and file intents together, then recovers files. Legacy writes
+  retain their file flow. CLI face in `src/commands/apply.ts`.
 - `src/core/store.ts`: workspace manifests, canvas load/save, locks, backups,
   wipe guard, and node/edge mutation commits.
 - `src/core/storage-v2.ts`: compatibility layer for layout-only `canvas.json`

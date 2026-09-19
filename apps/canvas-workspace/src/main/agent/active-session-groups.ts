@@ -19,6 +19,12 @@ export const scopeFromServiceKey = (key: string): AgentScope => {
   return { kind: 'workspace', workspaceId: key.slice('workspace:'.length) };
 };
 
+export const scopeServiceKey = (scope: AgentScope): string => {
+  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
+  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
+  return 'global';
+};
+
 const scopeDisplayName = (
   scope: AgentScope,
   scheduledTitles: Map<string, string>,

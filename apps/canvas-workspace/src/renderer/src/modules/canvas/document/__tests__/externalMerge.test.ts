@@ -22,6 +22,15 @@ describe('shouldReloadForExternalUpdate', () => {
       source: 'fs-watch',
     })).toBe(false);
   });
+
+  it('reloads committed SQLite metadata changes without changed entity ids', () => {
+    expect(shouldReloadForExternalUpdate({
+      workspaceId: 'ws', nodeIds: [], edgeIds: [], source: 'sqlite', revision: 2,
+    })).toBe(true);
+    expect(shouldReloadForExternalUpdate({
+      workspaceId: 'ws', nodeIds: [], source: 'sqlite', revision: NaN,
+    })).toBe(false);
+  });
 });
 
 describe('mergeExternalDocumentUpdate', () => {
