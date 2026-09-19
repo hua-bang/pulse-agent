@@ -1,3 +1,4 @@
+import { appendContentText, appendContentTool, contentText, finishContentBlocks } from '../../../shared/chat-content-blocks';
 import type {
   AgentChatMessage,
   AgentChatToolCall,
@@ -60,6 +61,7 @@ export interface TurnRunnerContext {
 
 export interface TurnRunnerResult {
   response: string;
+  assistantMessages?: AgentChatMessage[];
   code?: string;
   runId?: string;
   stopped?: boolean;
@@ -278,7 +280,7 @@ export class ConversationRuntime {
     // away during generation cannot hide the session from the rail.
     const userMessagePersist = this.deps.persist([...this.messages]).catch(() => undefined);
 
-    const assistant: AgentChatMessage = { role: 'assistant', content: '', timestamp: Date.now() };
+    const assistant: AgentChatMessage = { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() };
     let result: TurnRunnerResult = { response: '' };
     try {
       result = await this.deps.runTurn({
@@ -291,11 +293,13 @@ export class ConversationRuntime {
         attachments: input.attachments,
         onText: (delta) => {
           assistant.content += delta;
+          assistant.contentBlocks = appendContentText(assistant.contentBlocks!, delta);
           external?.onText?.(delta);
           this.publish();
         },
         onToolCall: (data) => {
           this.upsertTool(data);
+          assistant.contentBlocks = this.streamingTools.reduce(appendContentTool, assistant.contentBlocks!);
           external?.onToolCall?.(data);
           this.publish();
         },
@@ -321,6 +325,7 @@ export class ConversationRuntime {
               inputStreaming: true,
             });
           }
+          assistant.contentBlocks = this.streamingTools.reduce(appendContentTool, assistant.contentBlocks!);
           external?.onToolInputStart?.(data);
           this.publish();
         },
@@ -350,7 +355,8 @@ export class ConversationRuntime {
         onRoleTurnStart: external?.onRoleTurnStart,
         onRoleTurnEnd: external?.onRoleTurnEnd,
       });
-      assistant.content = result.response;
+      assistant.contentBlocks = finishContentBlocks(assistant.contentBlocks!, result.response);
+      assistant.content = contentText(assistant.contentBlocks);
       assistant.toolCalls = this.streamingTools.length ? [...this.streamingTools] : undefined;
       assistant.runId = result.runId;
       assistant.speakerRoleId = result.speakerRole?.id;
@@ -358,13 +364,26 @@ export class ConversationRuntime {
       assistant.speakerRoleColor = result.speakerRole?.color;
       this.runId = result.runId ?? null;
       if (result.stopped) assistant.turnStatus = 'stopped';
+      if (result.error) {
+        this.error = result.error;
+        if (!result.stopped) assistant.turnStatus = 'failed';
+      }
     } catch (err) {
       assistant.turnStatus = 'failed';
       this.error = err instanceof Error ? err.message : String(err);
       result = { response: '', error: this.error };
     }
 
-    if (assistant.content.length > 0 || assistant.toolCalls?.length || assistant.turnStatus) {
+    assistant.toolCalls = this.streamingTools.length ? this.streamingTools.map(tool => ({
+      ...tool,
+      ...(tool.status === 'running' || tool.status === 'queued' ? {
+        status: assistant.turnStatus === 'stopped' ? 'cancelled' as const : 'failed' as const,
+        inputStreaming: false,
+      } : {}),
+    })) : undefined;
+    if (result.assistantMessages?.length) {
+      this.messages.push(...result.assistantMessages);
+    } else if (assistant.content.length > 0 || assistant.toolCalls?.length || assistant.turnStatus) {
       this.messages.push(assistant);
     }
     await userMessagePersist;

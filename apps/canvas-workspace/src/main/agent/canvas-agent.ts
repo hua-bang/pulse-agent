@@ -791,7 +791,7 @@ export class CanvasAgent {
           runState.clarifications.wait(req, onClarificationRequest, abortController.signal)
       : undefined;
     const failedTurnTools = createFailedTurnToolTracker({
-      onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd,
+      onText, onToolCall, onToolResult, onToolInputStart, onToolInputDelta, onToolInputEnd,
     });
 
     const segments: Array<AgentRoleDefinition | null> = activeRoles.length > 0 ? activeRoles : [null];
@@ -855,7 +855,6 @@ export class CanvasAgent {
           abortSignal: abortController.signal,
           executionMode: requestContext?.executionMode ?? 'auto',
           onClarificationRequest: engineClarificationHandler,
-          onText,
           ...failedTurnTools.callbacks,
           modelConfig,
           configuredModel: this.config.model,
@@ -906,9 +905,8 @@ export class CanvasAgent {
         const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace, stopped ? 'stopped' : 'success');
         appendRunMessages([{
           role: 'assistant',
-          content: responseText,
+          ...failedTurnTools.finalize(responseText, toolCalls, responseText !== rawText),
           timestamp: Date.now(),
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
           runId: finalizedTrace?.runId,
           speakerRoleId: role?.id,
           speakerRoleName: role?.name,
@@ -971,7 +969,7 @@ export class CanvasAgent {
         speakerRole: roleTurnRef(last?.role ?? null) ?? undefined,
       };
     } catch (error) {
-      appendRunMessages([failedAssistantMessage(error, failedTurnTools.snapshot())]);
+      appendRunMessages([failedAssistantMessage(error, failedTurnTools.snapshot(), failedTurnTools.contentBlocks())]);
       throw error;
     } finally {
       unlinkRunAbort();

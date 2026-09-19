@@ -174,6 +174,7 @@ export interface CanvasAgentMessage {
   timestamp: number;
   attachments?: CanvasAgentImageAttachment[];
   toolCalls?: CanvasAgentToolCall[];
+  contentBlocks?: import('../../shared/agent-chat').AgentChatContentBlock[];
   // Stable identifier of the agent turn that produced this message.
   // Plugins (e.g. devtools) look up turn-scoped data — such as the
   // captured debug trace — by this id via their own storage.
@@ -320,6 +321,7 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
+  assistantMessages?: CanvasAgentMessage[];
   ok: boolean;
   code?: string;
   activeSessionId?: string | null;

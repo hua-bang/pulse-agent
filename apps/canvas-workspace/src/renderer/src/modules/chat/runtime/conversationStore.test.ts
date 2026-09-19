@@ -3,6 +3,7 @@ import { conversationKey } from '../../../../../shared/conversation-runtime';
 import {
   appendConversationText,
   appendConversationTextAt,
+  appendConversationToolsAt,
   pushConversationMessage,
   readConversationSnapshot,
   resetConversation,
@@ -96,5 +97,36 @@ describe('renderer conversation store', () => {
     pushConversationMessage(keyA, { role: 'assistant', content: 'two', timestamp: 0 });
 
     expect(readConversationSnapshot(keyA).messages.map(m => m.content)).toEqual(['one', 'two']);
+  });
+});
+
+
+describe('ordered conversation content', () => {
+  it('does not retrofit legacy messages with guessed ordering', () => {
+    setConversationMessages(keyA, [{ role: 'assistant', content: 'legacy', timestamp: 0 }]);
+    appendConversationToolsAt(keyA, 0, [{ id: 1, name: 'read', status: 'running' }]);
+    appendConversationTextAt(keyA, 0, ' text');
+    expect(readConversationSnapshot(keyA).messages[0].contentBlocks).toBeUndefined();
+  });
+
+  it('keeps tools at their first position and updates text in the current block', () => {
+    setConversationMessages(keyA, [{
+      role: 'assistant', content: '', contentBlocks: [], timestamp: 0,
+    }]);
+    const tool = { id: 1, name: 'read', toolCallId: 'a', status: 'running' as const };
+    appendConversationTextAt(keyA, 0, 'Before');
+    appendConversationToolsAt(keyA, 0, [tool]);
+    const before = readConversationSnapshot(keyA).messages[0];
+    appendConversationTextAt(keyA, 0, 'After');
+    appendConversationToolsAt(keyA, 0, [{ ...tool, status: 'succeeded' }]);
+    expect(before.contentBlocks).toHaveLength(2);
+    expect(readConversationSnapshot(keyA).messages[0]).toMatchObject({
+      content: 'BeforeAfter',
+      contentBlocks: [
+        { type: 'text', text: 'Before' },
+        { type: 'tool', toolId: 1, toolCallId: 'a' },
+        { type: 'text', text: 'After' },
+      ],
+    });
   });
 });

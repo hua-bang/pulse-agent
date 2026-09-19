@@ -236,12 +236,18 @@ export interface AgentDebugRunDetail extends AgentDebugRunSummary {
   trace: AgentDebugTrace;
 }
 
+/** Ordered public output; tool results remain keyed in toolCalls. Missing on legacy messages. */
+export type AgentChatContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'tool'; toolCallId?: string; toolId: number };
+
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   attachments?: ChatImageAttachment[];
   toolCalls?: AgentChatToolCall[];
+  contentBlocks?: AgentChatContentBlock[];
   /** Stable identifier of the agent turn that produced this message. */
   runId?: string;
   /** Multi-role chat: id of the role that spoke this assistant message. */

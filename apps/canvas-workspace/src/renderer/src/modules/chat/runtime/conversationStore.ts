@@ -1,3 +1,4 @@
+import { appendContentText, appendContentTool } from '../../../../../shared/chat-content-blocks';
 import { useSyncExternalStore } from 'react';
 import type {
   AgentChatMessage,
@@ -224,10 +225,31 @@ export function appendConversationTextAt(
   const messages = [...state.messages];
   const target = messages[messageIndex];
   if (target?.role !== 'assistant') return false;
-  messages[messageIndex] = { ...target, content: target.content + delta };
+  messages[messageIndex] = {
+    ...target,
+    content: target.content + delta,
+    ...(target.contentBlocks ? { contentBlocks: appendContentText(target.contentBlocks, delta) } : {}),
+  };
   state.messages = messages;
   publish(key);
   return true;
+}
+
+/** Register calls at their first observed position without moving completed calls. */
+export function appendConversationToolsAt(
+  key: ConversationKey,
+  messageIndex: number,
+  tools: AgentChatToolCall[],
+): void {
+  const state = getState(key);
+  const target = state.messages[messageIndex];
+  if (!target?.contentBlocks) return;
+  const contentBlocks = tools.reduce(appendContentTool, target.contentBlocks);
+  if (contentBlocks === target.contentBlocks) return;
+  state.messages = state.messages.map((message, index) => index === messageIndex
+    ? { ...target, contentBlocks }
+    : message);
+  publish(key);
 }
 
 export function setConversationLoading(key: ConversationKey, loading: boolean): void {

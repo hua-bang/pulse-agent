@@ -808,3 +808,23 @@ or a second percentage width cap on `.chat-message-content`: folder previews
 can load Markdown CSS before Chat CSS, reversing their previous order and
 turning serialized HTML newlines into blank lines. Code blocks retain their own
 whitespace rule. Guard: `MarkdownContent/__tests__/MarkdownStyleIsolation.test.ts`.
+
+
+## Ordered assistant content
+
+New assistant messages carry optional `contentBlocks`: public text blocks and
+stable references to entries in `toolCalls`, in first-observed event order.
+`src/shared/chat-content-blocks.ts` owns immutable block updates and adjacent-tool
+grouping. Tool results resolve by call ID in their original position, never by
+completion order. The text batcher must flush before recording a tool start.
+
+`content` remains the plain-text projection for existing history/search/copy
+consumers. Messages without `contentBlocks` use the legacy grouped-tools display;
+never infer chronology for old sessions. The runtime persists the agent's final
+assistant messages (including role sanitization), and completion delivers those
+same messages to the renderer so reload cannot restore discarded text. Failure
+snapshots preserve observed text/tool ordering while settling unfinished tools.
+
+Guards: `src/shared/chat-content-blocks.test.ts`,
+`src/main/agent/chat-failure-persistence.test.ts`, conversation-runtime tests,
+and renderer conversationStore/useConversationRuntimeStream tests.

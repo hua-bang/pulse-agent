@@ -55,3 +55,44 @@ describe('failedAssistantMessage', () => {
     })]);
   });
 });
+
+
+describe('ordered turn persistence', () => {
+  it('preserves parallel calls and intervening prose on failure and reload', () => {
+    const tracker = createFailedTurnToolTracker();
+    tracker.callbacks.onText?.('Inspect');
+    tracker.callbacks.onToolCall?.({ name: 'read', args: {}, toolCallId: 'a' });
+    tracker.callbacks.onToolCall?.({ name: 'read', args: {}, toolCallId: 'b' });
+    tracker.callbacks.onText?.('Verify');
+    const message = failedAssistantMessage(
+      new Error('network timeout'), tracker.snapshot(), tracker.contentBlocks(),
+    );
+    const reloaded = JSON.parse(JSON.stringify(message));
+    expect(reloaded.content).toBe('InspectVerify');
+    expect(reloaded.contentBlocks).toEqual([
+      { type: 'text', text: 'Inspect' },
+      { type: 'tool', toolId: 1, toolCallId: 'a' },
+      { type: 'tool', toolId: 2, toolCallId: 'b' },
+      { type: 'text', text: 'Verify' },
+    ]);
+    expect(reloaded.toolCalls.map((tool: { status: string }) => tool.status))
+      .toEqual(['failed', 'failed']);
+  });
+
+  it('keeps event IDs when final tool snapshots arrive in reverse order', () => {
+    const tracker = createFailedTurnToolTracker();
+    tracker.callbacks.onText?.('Inspect');
+    tracker.callbacks.onToolCall?.({ name: 'read', args: {}, toolCallId: 'a' });
+    tracker.callbacks.onToolCall?.({ name: 'read', args: {}, toolCallId: 'b' });
+    tracker.callbacks.onText?.('Done');
+    const final = tracker.finalize('Done', [
+      { id: 1, toolCallId: 'b', name: 'read', status: 'succeeded' },
+      { id: 2, toolCallId: 'a', name: 'read', status: 'succeeded' },
+    ]);
+    expect(final.content).toBe('InspectDone');
+    expect(final.toolCalls).toMatchObject([
+      { id: 1, toolCallId: 'a', status: 'succeeded' },
+      { id: 2, toolCallId: 'b', status: 'succeeded' },
+    ]);
+  });
+});

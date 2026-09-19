@@ -1,3 +1,4 @@
+import { contentText, finishContentBlocks } from '../../../../../shared/chat-content-blocks';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AgentChatMessage,
@@ -12,6 +13,7 @@ import type {
 import type { ConversationKey } from '../../../../../shared/conversation-runtime';
 import {
   appendConversationTextAt,
+  appendConversationToolsAt,
   pushConversationMessage,
   readConversationSnapshot,
   setConversationClarification,
@@ -26,7 +28,7 @@ import { markAgentMilestone } from './markAgentMilestone';
 import { count } from '../../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
 import { createConversationTextBatcher } from './conversationTextBatcher';
-import { friendlyChatFailure } from './chatTurnOutcome';
+import { friendlyChatFailure, settleStreamTools } from './chatTurnOutcome';
 import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
 
 export interface UseConversationRuntimeStreamOptions {
@@ -137,10 +139,11 @@ export function useConversationRuntimeStream({
         if (assistantIndex >= 0) return;
         const current = readConversationSnapshot(key).messages;
         assistantIndex = current.length;
-        setConversationMessages(key, [...current, { role: 'assistant', content: '', timestamp: Date.now() }]);
+        setConversationMessages(key, [...current, { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() }]);
       };
 
       const publishTools = () => {
+        appendConversationToolsAt(key, assistantIndex, segmentTools);
         setConversationStreamingTools(key, [...segmentTools]);
         if (assistantIndex >= 0) {
           setMessageTools(prev => new Map(prev).set(assistantIndex, [...segmentTools]));
@@ -166,6 +169,7 @@ export function useConversationRuntimeStream({
           textBatcher.push(delta);
         }),
         window.canvasWorkspace.agent.onToolCall(sessionId, data => {
+          textBatcher.flush();
           ensureAssistant();
           const existing = data.toolCallId
             ? segmentTools.find(t => t.toolCallId === data.toolCallId)
@@ -197,6 +201,8 @@ export function useConversationRuntimeStream({
           publishTools();
         }),
         window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
+          textBatcher.flush();
+          ensureAssistant();
           const existing = data.id
             ? segmentTools.find(t => t.toolCallId === data.id)
             : undefined;
@@ -246,18 +252,13 @@ export function useConversationRuntimeStream({
             return;
           }
           textBatcher.flush();
-          // Settle unfinished tools.
-          for (const tool of segmentTools) {
-            if (tool.status === 'running' || tool.status === 'queued') {
-              tool.status = completeResult.stopped ? 'cancelled' : 'failed';
-              tool.error = completeResult.stopped ? 'cancelled' : 'no result'; tool.finishedAt = Date.now();
-            }
-          }
+          settleStreamTools(segmentTools, completeResult.stopped);
           const current = readConversationSnapshot(key).messages;
           const target = current[assistantIndex];
           const finalContent = completeResult.stopped || !completeResult.ok
             ? assistantText || completeResult.response || target?.content || ''
             : completeResult.response || assistantText || target?.content || '';
+          const contentBlocks = finishContentBlocks(target?.contentBlocks ?? [], finalContent);
           const turnStatus = completeResult.stopped
             ? 'stopped' as const
             : !completeResult.ok ? 'failed' as const : undefined;
@@ -269,32 +270,33 @@ export function useConversationRuntimeStream({
             speakerRoleName: completeResult.speakerRole.name,
             speakerRoleColor: completeResult.speakerRole.color,
           } : {};
-          if (target?.role === 'assistant') {
-            const finalAssistant: AgentChatMessage = {
-              ...target,
-              content: finalContent,
-              toolCalls: segmentTools.length > 0 ? segmentTools : undefined,
-              turnStatus,
-              errorDetails: failure?.details,
-              failureKind: failure?.kind,
-              retryable: completeResult.stopped ? true : failure?.retryable,
-              runId: completeResult.runId,
-              ...roleMetadata,
-            };
-            current[assistantIndex] = finalAssistant;
-          } else {
+          const finalAssistant: AgentChatMessage = {
+            ...(target?.role === 'assistant' ? target : {}),
+            role: 'assistant',
+            timestamp: target?.timestamp ?? Date.now(),
+            content: contentText(contentBlocks),
+            contentBlocks,
+            toolCalls: segmentTools.length > 0 ? segmentTools : undefined,
+            turnStatus,
+            errorDetails: failure?.details,
+            failureKind: failure?.kind,
+            retryable: completeResult.stopped ? true : failure?.retryable,
+            runId: completeResult.runId,
+            ...roleMetadata,
+          };
+          if (target?.role === 'assistant') current[assistantIndex] = finalAssistant;
+          else {
             assistantIndex = current.length;
-            current.push({
-              role: 'assistant',
-              content: finalContent,
-              timestamp: Date.now(),
-              toolCalls: segmentTools.length > 0 ? segmentTools : undefined,
-              turnStatus,
-              errorDetails: failure?.details,
-              failureKind: failure?.kind,
-              retryable: completeResult.stopped ? true : failure?.retryable,
-              runId: completeResult.runId,
-              ...roleMetadata,
+            current.push(finalAssistant);
+          }
+          if (completeResult.assistantMessages?.length) {
+            current.splice(assistantIndex, 1, ...completeResult.assistantMessages);
+            setMessageTools(previous => {
+              const next = new Map(previous);
+              completeResult.assistantMessages!.forEach((message, offset) => {
+                next.set(assistantIndex + offset, message.toolCalls ?? []);
+              });
+              return next;
             });
           }
           setConversationMessages(key, current);

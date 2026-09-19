@@ -310,3 +310,10 @@
   line-height: 1;
   user-select: none;
 }
+
+.chat-ordered-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
