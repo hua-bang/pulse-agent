@@ -2,6 +2,7 @@ import { GLOBAL_CHAT_WORKSPACE_NAME } from './session-store';
 import { scopeSessionStoreId } from '../../shared/agent-chat';
 import type { CanvasAgent } from './canvas-agent';
 import type { AgentScope, CrossWorkspaceSessionGroup } from './types';
+import { isWorkspaceTrashed } from './workspace-runtime-guard';
 
 interface AppendActiveSessionGroupsOptions {
   agents: Map<string, CanvasAgent>;
@@ -52,6 +53,7 @@ export async function appendActiveSessionGroups({
   for (const [key, agent] of agents) {
     const scope = scopeFromServiceKey(key);
     if (scope.kind === 'workspace' && !Object.prototype.hasOwnProperty.call(workspaceNames, scope.workspaceId)) continue;
+    if (await isWorkspaceTrashed(scope)) continue;
     const storeId = scopeSessionStoreId(scope);
     if (includedStoreIds.has(storeId)) continue;
     const sessions = await agent.listSessions();

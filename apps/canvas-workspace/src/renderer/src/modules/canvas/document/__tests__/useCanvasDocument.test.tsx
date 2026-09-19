@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode, CanvasSaveData } from '../../../../types';
 import { useCanvasDocument } from '../..';
+import { flushWorkspacePersistence } from '../../../../shared/workspacePersistence';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -150,6 +151,32 @@ describe('useCanvasDocument text resize commit', () => {
     expect(save.mock.calls.at(-1)?.[1]).toMatchObject({
       transform: { x: 91, y: -37, scale: 0.75 },
     });
+  });
+
+  it('flushes a pending debounce before deletion and waits for its durable acknowledgement', async () => {
+    let acknowledge!: (value: { ok: boolean; revision: number }) => void;
+    save.mockImplementationOnce(() => new Promise(resolve => { acknowledge = resolve; }));
+    act(() => hook.updateNode('text-1', { title: 'Last edit before deletion' }));
+    let finished = false;
+    const pending = flushWorkspacePersistence(selectedCanvas).then(() => { finished = true; });
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0][1].nodes[0].title).toBe('Last edit before deletion');
+    expect(finished).toBe(false);
+    await act(async () => { acknowledge({ ok: true, revision: 6 }); await pending; });
+    expect(finished).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it('refuses deletion when the final draft cannot be saved', async () => {
+    save.mockResolvedValue({ ok: false, error: 'Disk unavailable' });
+    act(() => hook.updateNode('text-1', { title: 'Keep this draft' }));
+    await act(async () => {
+      await expect(flushWorkspacePersistence(selectedCanvas)).rejects.toThrow('Save failed. Retry before deleting.');
+    });
+    expect(hook.nodes[0].title).toBe('Keep this draft');
+    expect(saveError).toHaveBeenCalled();
   });
 
   const remote = (patch: Partial<CanvasNode>, revision = 6): CanvasSaveData => ({

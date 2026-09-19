@@ -15,4 +15,5 @@ export type {
 } from './file-contracts.js';
 export type {
   WorkspaceConversationState, WorkspaceBundle, WorkspaceBundleImport, WorkspaceBundleReceipt, WorkspaceRepository,
+  WorkspaceTrashRecord, TrashWorkspaceInput,
 } from './workspace-contracts.js';

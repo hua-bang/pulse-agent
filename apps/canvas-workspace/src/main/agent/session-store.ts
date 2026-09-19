@@ -157,9 +157,9 @@ export class SessionStore {
   }
 
   /** Read a session (current or newest archive) without moving the pointer. */
-  async readSession(sessionId: string): Promise<CanvasAgentSession | null> {
+  async readSession(sessionId: string, refreshIfClean = false): Promise<CanvasAgentSession | null> {
     const sql = await this.sql();
-    if (sql) return sql.readSession(sessionId);
+    if (sql) return sql.readSession(sessionId, refreshIfClean);
     return readSessionFile(this.sessionFileIo(), sessionId);
   }
 

@@ -3,6 +3,7 @@ import { RevisionConflictError, StorageError } from '../errors.js';
 import type { SqliteContext } from './context.js';
 import { createConversationOperations } from './conversations.js';
 import { decodeCursor, encodeCursor, pageLimit, validateId } from './validation.js';
+import { createWorkspaceVisibility } from './workspace-visibility.js';
 
 export const CONVERSATION_SCOPES_SCHEMA = `
   CREATE TABLE conversation_scopes (
@@ -65,10 +66,15 @@ export type ConversationScopeOperations = {
 };
 
 export function createConversationScopeOperations(ctx: SqliteContext): ConversationScopeOperations {
-  const readScope = ctx.db.prepare('SELECT scope_id, current_session_id, revision FROM conversation_scopes WHERE scope_id = ?');
+  const visibility = createWorkspaceVisibility(ctx);
+  const readScope = ctx.db.prepare(`
+    SELECT scope_id, current_session_id, revision FROM conversation_scopes WHERE scope_id = ?
+    AND NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = conversation_scopes.scope_id)
+  `);
   const listScopes = ctx.db.prepare(`
     SELECT scope_id, current_session_id, revision FROM conversation_scopes
-    WHERE scope_id > ? ORDER BY scope_id LIMIT ?
+    WHERE scope_id > ? AND NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = conversation_scopes.scope_id)
+    ORDER BY scope_id LIMIT ?
   `);
   const readRevision = ctx.db.prepare('SELECT revision FROM conversations WHERE scope_id = ? AND session_id = ?');
   const putScope = ctx.db.prepare(`
@@ -85,6 +91,7 @@ export function createConversationScopeOperations(ctx: SqliteContext): Conversat
   const commit = (input: ConversationScopeCommit) => {
     if (!ctx.db.inTransaction) throw new StorageError('storage_unavailable', 'Conversation scope mutations require a transaction');
     validateInput(input);
+    visibility.assertWritable(input.scopeId);
     if (input.expectedGeneration !== undefined && input.expectedGeneration !== ctx.generation) {
       throw new StorageError('revision_conflict', 'Conversation scope belongs to a different storage generation');
     }

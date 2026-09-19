@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { selectActiveAfterDeletion } from '../../shared/workspaces';
 import type {
   FolderEntry,
   WorkspaceDeleteResult,
@@ -14,26 +15,7 @@ interface WorkspaceManifest {
 const MANIFEST_ID = '__workspaces__';
 const DEFAULT_WORKSPACE: WorkspaceEntry = { id: 'default', name: 'Workspace' };
 
-/**
- * Choose which workspace becomes active after `deletedId` is removed. When the
- * deleted workspace was the active one we move to the entry that now occupies
- * its slot — its next sibling — and fall back to the new last entry when the
- * last workspace was deleted. This mirrors tab-close behaviour instead of
- * always jumping back to the first workspace.
- */
-export const selectActiveAfterDeletion = (
-  workspaces: WorkspaceEntry[],
-  deletedId: string,
-  currentActiveId: string,
-): { newActiveId: string; switchedActive: boolean } => {
-  const remaining = workspaces.filter((w) => w.id !== deletedId);
-  if (currentActiveId !== deletedId || remaining.length === 0) {
-    return { newActiveId: currentActiveId, switchedActive: false };
-  }
-  const deletedIndex = workspaces.findIndex((w) => w.id === deletedId);
-  const adjacentIndex = Math.min(Math.max(deletedIndex, 0), remaining.length - 1);
-  return { newActiveId: remaining[adjacentIndex].id, switchedActive: true };
-};
+export { selectActiveAfterDeletion } from '../../shared/workspaces';
 
 export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([DEFAULT_WORKSPACE]);
@@ -46,6 +28,7 @@ export const useWorkspaces = () => {
   const [activeIdReady, setActiveIdReady] = useState(false);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
+  const activeIntentRef = useRef(0);
   const workspacesRef = useRef(workspaces);
   workspacesRef.current = workspaces;
   const foldersRef = useRef(folders);
@@ -57,24 +40,42 @@ export const useWorkspaces = () => {
       setActiveIdReady(true);
       return;
     }
-    void api.load(MANIFEST_ID).then((res) => {
-      if (res.ok && res.data) {
-        const manifest = res.data as unknown as WorkspaceManifest;
-        if (Array.isArray(manifest.workspaces) && manifest.workspaces.length > 0) {
-          setWorkspaces(manifest.workspaces);
-          if (Array.isArray(manifest.folders)) {
-            setFolders(manifest.folders);
-          }
-          // Restore last active workspace if still in list
-          const savedActiveId = (res.data as unknown as { activeId?: string }).activeId;
-          if (savedActiveId && manifest.workspaces.some((w) => w.id === savedActiveId)) {
-            setActiveId(savedActiveId);
-          }
-        }
-      } else {
-        void api.save(MANIFEST_ID, { workspaces: [DEFAULT_WORKSPACE], folders: [], activeId: 'default' });
+    let mounted = true;
+    let sequence = 0;
+    const refresh = async (initial = false) => {
+      const request = ++sequence;
+      try {
+        const result = await api.load(MANIFEST_ID);
+        if (!mounted || request !== sequence || !result.ok || !result.data) return;
+        const manifest = result.data as unknown as WorkspaceManifest & { activeId?: string };
+        if (!Array.isArray(manifest.workspaces)) return;
+        const next = manifest.workspaces;
+        const preferred = (initial ? manifest.activeId : activeIdRef.current) ?? '';
+        const visibleIds = new Set(next.map(workspace => workspace.id));
+        const previous = workspacesRef.current.filter(workspace => workspace.id === preferred || visibleIds.has(workspace.id));
+        const adjacent = selectActiveAfterDeletion(previous, preferred, preferred).newActiveId;
+        const active = visibleIds.has(preferred) ? preferred : visibleIds.has(adjacent) ? adjacent : next[0]?.id ?? '';
+        workspacesRef.current = next;
+        activeIdRef.current = active;
+        setWorkspaces(next);
+        setActiveId(active);
+        const nextFolders = Array.isArray(manifest.folders) ? manifest.folders : [];
+        foldersRef.current = nextFolders;
+        setFolders(nextFolders);
+      } finally {
+        if (mounted && request === sequence) setActiveIdReady(true);
       }
-    }).catch(() => undefined).finally(() => setActiveIdReady(true));
+    };
+    void refresh(true).catch(() => undefined);
+    const unsubscribe = api.onExternalUpdate?.((event) => {
+      if (event.source !== 'sqlite') return;
+      // Existing canvas events also carry workspace trash/restore. Ordinary
+      // document updates must not overwrite local list edits on every save.
+      if (event.kind === 'delete' || !workspacesRef.current.some(workspace => workspace.id === event.workspaceId)) {
+        void refresh().catch(() => undefined);
+      }
+    });
+    return () => { mounted = false; unsubscribe?.(); };
   }, []);
 
   const saveManifest = useCallback(
@@ -92,6 +93,8 @@ export const useWorkspaces = () => {
 
   const selectWorkspace = useCallback(
     (id: string) => {
+      activeIntentRef.current += 1;
+      activeIdRef.current = id;
       setActiveId(id);
       setWorkspaces((prev) => {
         saveManifest(prev, id);
@@ -109,6 +112,8 @@ export const useWorkspaces = () => {
         name: name.trim() || 'Untitled',
         ...(folderId ? { folderId } : {}),
       };
+      activeIntentRef.current += 1;
+      activeIdRef.current = id;
       setWorkspaces((prev) => {
         const next = [...prev, entry];
         saveManifest(next, id);
@@ -133,46 +138,10 @@ export const useWorkspaces = () => {
     [saveManifest]
   );
 
-  const deleteWorkspace = useCallback(
-    async (id: string): Promise<WorkspaceDeleteResult> => {
-      const api = window.canvasWorkspace?.store;
-      const current = workspacesRef.current;
-      if (current.length <= 1) {
-        return { ok: false, error: 'Cannot delete the only workspace.' };
-      }
-
-      if (api) {
-        const result = await api.delete(id);
-        if (!result.ok) {
-          return { ok: false, error: result.error };
-        }
-      }
-
-      const next = current.filter((w) => w.id !== id);
-      const { newActiveId, switchedActive } = selectActiveAfterDeletion(
-        current,
-        id,
-        activeIdRef.current,
-      );
-
-      setWorkspaces(next);
-      saveManifest(next, newActiveId);
-      if (switchedActive) setActiveId(newActiveId);
-
-      // When the workspace we switched to has no saved nodes the canvas would
-      // only show the empty welcome hint, so report it back and let the caller
-      // route to AI chat instead of stranding the user on a blank canvas.
-      let switchedToEmpty = false;
-      if (switchedActive && api) {
-        const snapshot = await api.load(newActiveId);
-        const nodes = snapshot.ok ? snapshot.data?.nodes : undefined;
-        switchedToEmpty = !(Array.isArray(nodes) && nodes.length > 0);
-      }
-
-      return { ok: true, switchedActive, newActiveId, switchedToEmpty };
-    },
-    [saveManifest]
-  );
+  const deleteWorkspace = useCallback(async (id: string): Promise<WorkspaceDeleteResult> => {
+    const actions = await import('./workspaceLifecycle');
+    return actions.deleteWorkspace(id, { workspacesRef, activeIdRef, activeIntentRef, setWorkspaces, setActiveId, saveManifest });
+  }, [saveManifest]);
 
   const setRootFolder = useCallback(
     (id: string, folderPath: string) => {
@@ -247,28 +216,8 @@ export const useWorkspaces = () => {
 
 
   const importWorkspace = useCallback(async (): Promise<WorkspaceImportResult> => {
-    const api = window.canvasWorkspace?.store;
-    if (!api) return { ok: false, error: 'Canvas store API is unavailable.' };
-
-    const result = await api.importWorkspace();
-    if (!result.ok) {
-      return { ok: false, canceled: result.canceled, error: result.error };
-    }
-    if (!result.workspaceId || !result.workspaceName) {
-      return { ok: false, error: 'Import completed without workspace metadata.' };
-    }
-
-    const entry: WorkspaceEntry = {
-      id: result.workspaceId,
-      name: result.workspaceName,
-    };
-    setWorkspaces((prev) => {
-      const next = [...prev, entry];
-      saveManifest(next, entry.id);
-      return next;
-    });
-    setActiveId(entry.id);
-    return { ok: true, workspace: entry, fileCount: result.fileCount };
+    const actions = await import('./workspaceLifecycle');
+    return actions.importWorkspace({ workspacesRef, activeIdRef, activeIntentRef, setWorkspaces, setActiveId, saveManifest });
   }, [saveManifest]);
 
   /** Move a workspace into a folder (or to root if folderId is undefined) */

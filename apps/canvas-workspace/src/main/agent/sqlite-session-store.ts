@@ -21,6 +21,7 @@ export class SqliteSessionStore {
   private records = new Map<string, ConversationSnapshot>();
   private tail: Promise<void> = Promise.resolve();
   private persistenceError: unknown;
+  private pendingSaves = 0;
 
   constructor(private storage: PulseStorage, private workspaceId: string, private scope: AgentScope) {}
 
@@ -31,10 +32,20 @@ export class SqliteSessionStore {
     };
   }
 
+  private async clearTrashedCache(): Promise<boolean> {
+    if (this.scope.kind !== 'workspace' || !await this.storage.workspaces.getTrashed(this.workspaceId)) return false;
+    this.session = null;
+    this.records.clear();
+    return true;
+  }
+
   private async record(sessionId: string): Promise<ConversationSnapshot | null> {
     const record = await this.storage.conversations.read(this.workspaceId, sessionId);
     if (record) this.records.set(sessionId, record);
-    else this.records.delete(sessionId);
+    else {
+      this.records.delete(sessionId);
+      if (this.session?.sessionId === sessionId) this.session = null;
+    }
     return record;
   }
 
@@ -45,9 +56,12 @@ export class SqliteSessionStore {
   }
 
   private enqueue(operation: () => Promise<void>): Promise<void> {
+    this.pendingSaves += 1;
     const pending = this.tail.then(operation).catch(error => {
       this.persistenceError ??= error;
       throw error;
+    }).finally(() => {
+      this.pendingSaves -= 1;
     });
     this.tail = pending.catch(() => undefined);
     return pending;
@@ -59,6 +73,7 @@ export class SqliteSessionStore {
     });
     const frozen = sessionJson({ ...session, messages }) as unknown as CanvasAgentSession;
     return this.enqueue(async () => {
+      if (await this.clearTrashedCache()) throw new StorageError('not_found', 'Workspace is in the trash; restore it before writing.');
       const previous = this.records.get(session.sessionId) ?? await this.record(session.sessionId);
       if (!previous) throw new StorageError('not_found', 'This conversation no longer exists; create or reopen a conversation before writing');
       const metadata = encodeSessionMetadata(frozen, previous.metadata);
@@ -84,11 +99,12 @@ export class SqliteSessionStore {
 
   private async flush(): Promise<void> {
     await this.tail;
+    await this.clearTrashedCache();
     const failure = this.persistenceError;
     if (!failure) return;
     this.persistenceError = undefined;
     // Never repair a stale snapshot over a newer revision. A subsequent reload can recover.
-    if (this.session && !(isStorageError(failure) && failure.code === 'revision_conflict')) {
+    if (this.session && !(isStorageError(failure) && ['revision_conflict', 'not_found'].includes(failure.code))) {
       await this.save(this.session).catch(() => undefined);
     }
     throw failure;
@@ -142,7 +158,39 @@ export class SqliteSessionStore {
   getMessages(): CanvasAgentMessage[] { return this.session?.messages ?? []; }
   getCurrentSession(): CanvasAgentSession | null { return this.session; }
 
-  async readSession(sessionId: string): Promise<CanvasAgentSession | null> {
+  private async refreshCleanSession(sessionId: string): Promise<CanvasAgentSession | null> {
+    const cached = this.records.get(sessionId);
+    const current = this.session?.sessionId === sessionId ? this.session : null;
+    const tail = this.tail;
+    const assertClean = () => {
+      const unchanged = !current || (this.session === current && cached
+        && isDeepStrictEqual(sessionJson(current), sessionJson(decodeSession(cached))));
+      if (this.pendingSaves || this.persistenceError || this.tail !== tail
+        || this.records.get(sessionId) !== cached || !unchanged) {
+        throw new StorageError('storage_busy', 'Conversation has pending changes; finish or reload them before refreshing its stored revision.');
+      }
+    };
+    assertClean();
+    const fresh = await this.storage.conversations.read(this.workspaceId, sessionId);
+    assertClean();
+    if (!fresh) {
+      this.records.delete(sessionId);
+      if (current) this.session = null;
+      return null;
+    }
+    if (fresh.revision !== cached?.revision || fresh.generation !== cached?.generation) {
+      if (!cached || !isDeepStrictEqual(fresh.metadata, cached.metadata)
+        || !isDeepStrictEqual(fresh.messages, cached.messages)) {
+        throw new StorageError('revision_conflict', 'Stored conversation content changed; reload it before continuing.');
+      }
+      this.records.set(sessionId, fresh);
+      if (current) this.session = decodeSession(fresh);
+    }
+    return decodeSession(fresh);
+  }
+
+  async readSession(sessionId: string, refreshIfClean = false): Promise<CanvasAgentSession | null> {
+    if (refreshIfClean) return this.refreshCleanSession(sessionId);
     await this.flush();
     const record = await this.record(sessionId);
     return record ? decodeSession(record) : null;

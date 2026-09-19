@@ -4,6 +4,7 @@ import type {
   CanvasAgentSession,
 } from './types';
 import { scopeServiceKey as scopeMutationKey } from './active-session-groups';
+import { registerWorkspaceSessionDrain, withWorkspaceRun } from './workspace-runtime-guard';
 
 interface SessionMutationAgent {
   abort?(sessionId?: string): void;
@@ -89,6 +90,7 @@ export class SessionMutationCoordinator {
   private activeRuns = new Set<string>();
   private pendingRuns = new Map<string, PendingSessionRun>();
   private stopping = false;
+  private detachWorkspaceDrain = registerWorkspaceSessionDrain(scope => this.waitForIdle(scope));
 
   constructor(
     private readonly activateScope: (scope: AgentScope) => Promise<void>,
@@ -215,11 +217,11 @@ export class SessionMutationCoordinator {
 
   reconcileActiveAgent(
     scope: AgentScope,
-    reconcile: (agent: SessionMutationAgent) => Promise<void>,
+    reconcile: (agent: SessionMutationAgent, canRefreshCurrent: boolean) => Promise<void>,
   ): Promise<void> {
     return this.run(scope, async () => {
       const agent = this.getAgent(scope);
-      if (agent) await reconcile(agent);
+      if (agent) await reconcile(agent, !this.isSessionActive(scope, agent.getCurrentSessionId()));
     });
   }
 
@@ -421,19 +423,21 @@ export class SessionMutationCoordinator {
     operation: () => Promise<T>,
     conversationSessionId?: string | null,
   ): Promise<T | null> {
-    const key = this.runKey(scope, conversationSessionId);
-    if (this.stopping || this.activeRuns.has(key)) return null;
-    await this.waitForIdle(scope);
-    if (this.stopping || this.activeRuns.has(key)) return null;
-    this.activeRuns.add(key);
-    const promise = Promise.resolve().then(operation);
-    this.pendingRuns.set(key, { scope, sessionId: conversationSessionId, promise });
-    try {
-      return await promise;
-    } finally {
-      this.activeRuns.delete(key);
-      this.pendingRuns.delete(key);
-    }
+    return withWorkspaceRun(scope, async () => {
+      const key = this.runKey(scope, conversationSessionId);
+      if (this.stopping || this.activeRuns.has(key)) return null;
+      await this.waitForIdle(scope);
+      if (this.stopping || this.activeRuns.has(key)) return null;
+      this.activeRuns.add(key);
+      const promise = Promise.resolve().then(operation);
+      this.pendingRuns.set(key, { scope, sessionId: conversationSessionId, promise });
+      try {
+        return await promise;
+      } finally {
+        this.activeRuns.delete(key);
+        this.pendingRuns.delete(key);
+      }
+    });
   }
 
   /** The app bounds this drain; a timed-out provider must not outlive a closed database. */
@@ -446,6 +450,7 @@ export class SessionMutationCoordinator {
         ...this.tails.values(),
       ]);
     }
+    this.detachWorkspaceDrain();
   }
 
   /**

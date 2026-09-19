@@ -10,6 +10,7 @@ import type {
 } from '../file-contracts.js';
 import { StorageError } from '../errors.js';
 import type { SqliteContext } from './context.js';
+import { createWorkspaceVisibility } from './workspace-visibility.js';
 import { decodeCursor, decodeJson, encodeCursor, encodeJson, pageLimit, validateId } from './validation.js';
 
 export const FILE_WRITES_SCHEMA = `
@@ -145,6 +146,7 @@ export function stageFileWrites(
 }
 
 export function createFileWriteRepository(ctx: SqliteContext): FileWriteRepository {
+  const visibility = createWorkspaceVisibility(ctx);
   const select = ctx.db.prepare('SELECT * FROM file_write_intents WHERE id = ?');
   const settle = ctx.db.transaction((id: string, outcome: FileWriteSettlement): FileWriteResolution => {
     validateId(id, 'file write id');
@@ -154,6 +156,7 @@ export function createFileWriteRepository(ctx: SqliteContext): FileWriteReposito
     }
     const row = select.get(id) as IntentRow | undefined;
     if (!row) throw new StorageError('not_found', `File write intent ${id} was not found.`);
+    visibility.assertWritable(row.workspace_id);
     if (row.status === 'applied' || (row.status === outcome.status && row.error === (outcome.error ?? null))) {
       return { record: fromRow(row) };
     }
@@ -195,7 +198,7 @@ export function createFileWriteRepository(ctx: SqliteContext): FileWriteReposito
       return ctx.guard(() => {
         validateId(id, 'file write id');
         const row = select.get(id) as IntentRow | undefined;
-        return row ? fromRow(row) : null;
+        return row && !visibility.isTrashed(row.workspace_id) ? fromRow(row) : null;
       });
     },
     async list(request = {}) {
@@ -205,7 +208,7 @@ export function createFileWriteRepository(ctx: SqliteContext): FileWriteReposito
         if (!/^(0|[1-9][0-9]*)$/.test(cursor) || !Number.isSafeInteger(Number(cursor))) {
           throw new StorageError('invalid_argument', 'Invalid file write cursor.');
         }
-        const conditions = ['sequence > ?'];
+        const conditions = ['sequence > ?', 'NOT EXISTS (SELECT 1 FROM workspace_trash WHERE workspace_id = file_write_intents.workspace_id)'];
         const parameters: Array<string | number> = [Number(cursor)];
         if (request.workspaceId !== undefined) {
           validateId(request.workspaceId, 'workspace id');

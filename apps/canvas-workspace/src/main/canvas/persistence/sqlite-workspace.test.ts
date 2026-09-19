@@ -67,6 +67,7 @@ async function importArchive(payload = oldArchive(2), workspaceId = 'imported') 
 beforeEach(async () => {
   setCanvasSessionArchivePort({
     assertWorkspaceStorage: async () => undefined,
+  withWorkspaceTrashGuard: async (_workspaceId, operation) => operation(),
     exportFiles: () => [],
     prepareImport: () => { throw new Error('This Canvas fixture has no conversation archive'); },
     rewriteAttachmentPaths: files => files,

@@ -4,7 +4,7 @@ import { StorageError } from '../errors.js';
 import { CONVERSATION_SCOPES_SCHEMA } from './conversation-scopes.js';
 import { FILE_WRITES_SCHEMA } from './file-writes.js';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export function initializeSchema(db: Database.Database): void {
   const current = db.pragma('user_version', { simple: true }) as number;
@@ -16,7 +16,7 @@ export function initializeSchema(db: Database.Database): void {
     // A second opener may have completed the migration while we waited for the lock.
     const lockedVersion = db.pragma('user_version', { simple: true }) as number;
     if (lockedVersion === SCHEMA_VERSION) return;
-    if (lockedVersion !== 0 && lockedVersion !== 1) throw new StorageError('unsupported_schema', 'Unsupported storage schema');
+    if (![0, 1, 2].includes(lockedVersion)) throw new StorageError('unsupported_schema', 'Unsupported storage schema');
     if (lockedVersion === 0) {
       db.exec(`
       CREATE TABLE storage_identity (
@@ -75,7 +75,7 @@ export function initializeSchema(db: Database.Database): void {
       db.exec(FILE_WRITES_SCHEMA);
       db.prepare('INSERT INTO storage_identity (singleton, generation) VALUES (1, ?)').run(randomUUID());
     }
-    db.exec(`
+    if (lockedVersion < 2) db.exec(`
       CREATE TABLE local_activations (
         domain TEXT PRIMARY KEY NOT NULL CHECK (domain IN ('canvas', 'conversations')),
         state TEXT NOT NULL CHECK (state IN ('staging', 'active', 'unknown'))
@@ -87,5 +87,13 @@ export function initializeSchema(db: Database.Database): void {
       // without that evidence, neither an empty nor a populated DB is staging.
       db.exec("INSERT INTO local_activations VALUES ('canvas', 'unknown'), ('conversations', 'unknown')");
     }
+    db.exec(`
+      CREATE TABLE workspace_trash (
+        workspace_id TEXT PRIMARY KEY NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        deleted_at TEXT NOT NULL,
+        metadata TEXT NOT NULL CHECK (json_valid(metadata))
+      ) STRICT;
+      PRAGMA user_version = 3;
+    `);
   }).immediate();
 }

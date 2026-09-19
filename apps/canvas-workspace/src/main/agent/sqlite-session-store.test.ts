@@ -7,6 +7,7 @@ import { SessionStore } from './session-store';
 import { activateSqliteSessions } from './sqlite-session-migration';
 import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite-session-backend';
 import { readCanvasAgentHistorySnapshot } from './history-snapshot';
+import { reconcileAgentWithStoredSession } from './session-display-loader';
 import type { CanvasAgentMessage } from './types';
 
 let root: string;
@@ -29,6 +30,118 @@ afterEach(async () => {
 });
 
 describe('SessionStore with the SQLite strategy', () => {
+  it('does not refresh an old runtime baseline over an external message append', async () => {
+    const store = new SessionStore('ws');
+    await store.startSession();
+    store.addMessage(message('baseline'));
+    const id = store.getCurrentSession()!.sessionId;
+    await store.readSession(id);
+    const storage = (await getSqliteSessionStorage(root))!;
+    const previous = (await storage.conversations.read('ws', id))!;
+    await storage.conversations.commit({
+      scopeId: 'ws', sessionId: id, expectedRevision: previous.revision,
+      appendMessages: [{ id: 'external-message', role: 'user', content: 'external append', timestamp: 2 }],
+    });
+    await expect(reconcileAgentWithStoredSession({ kind: 'workspace', workspaceId: 'ws' }, {
+      getCurrentSessionId: () => store.getCurrentSession()?.sessionId ?? null,
+      loadSession: sessionId => store.loadSession(sessionId),
+      readSessionById: (sessionId, refreshIfClean) => store.readSession(sessionId, refreshIfClean),
+    })).rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(store.getMessages().map(item => item.content)).toEqual(['baseline']);
+    await expect(store.replaceMessagesInSession(id, [...store.getMessages(), message('stale runtime turn', 3)]))
+      .rejects.toMatchObject({ code: 'revision_conflict' });
+    expect((await storage.conversations.read('ws', id))?.messages.map(item => item.content))
+      .toEqual(['baseline', 'external append']);
+  });
+
+  it('refuses to adopt a new stored revision over an unsaved current-session draft', async () => {
+    const storage = (await getSqliteSessionStorage(root))!;
+    await storage.canvas.commit({ workspaceId: 'ws', expectedRevision: null });
+    const store = new SessionStore('ws');
+    await store.startSession();
+    store.addMessage(message('baseline'));
+    const id = store.getCurrentSession()!.sessionId;
+    await store.readSession(id);
+    const bundle = (await storage.workspaces.readBundle('ws'))!;
+    const trashed = await storage.workspaces.trashBundle({
+      workspaceId: 'ws', expectedCanvasRevision: bundle.canvas.revision,
+      generation: bundle.canvas.generation, expectedConversations: bundle.conversationState,
+    });
+    await storage.workspaces.restoreBundle('ws', trashed.revision, trashed.generation);
+    store.getMessages().push(message('unsaved draft', 2));
+    await expect(store.readSession(id, true)).rejects.toMatchObject({ code: 'storage_busy' });
+    expect(store.getMessages().map(item => item.content)).toEqual(['baseline', 'unsaved draft']);
+    await expect(store.appendToSession(id, [message('later', 3)])).rejects.toMatchObject({ code: 'revision_conflict' });
+    expect((await storage.conversations.read('ws', id))?.messages.map(item => item.content)).toEqual(['baseline']);
+  });
+
+  it('does not adopt or clear a pending save while reconciling the same session', async () => {
+    const store = new SessionStore('ws');
+    await store.startSession();
+    const id = store.getCurrentSession()!.sessionId;
+    const storage = (await getSqliteSessionStorage(root))!;
+    const commit = storage.conversations.commit.bind(storage.conversations);
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    vi.spyOn(storage.conversations, 'commit').mockImplementationOnce(async input => {
+      await pending;
+      return commit(input);
+    });
+    store.addMessage(message('pending draft'));
+    await expect(store.readSession(id, true)).rejects.toMatchObject({ code: 'storage_busy' });
+    expect(store.getMessages().map(item => item.content)).toEqual(['pending draft']);
+    finish();
+    expect((await store.readSession(id))?.messages.map(item => item.content)).toEqual(['pending draft']);
+  });
+
+  it('continues a cached session after trash and restore without an intermediate read', async () => {
+    const storage = (await getSqliteSessionStorage(root))!;
+    await storage.canvas.commit({ workspaceId: 'ws', expectedRevision: null });
+    const store = new SessionStore('ws');
+    await store.startSession();
+    store.addMessage(message('preserved history'));
+    const id = store.getCurrentSession()!.sessionId;
+    await store.readSession(id);
+    const bundle = (await storage.workspaces.readBundle('ws'))!;
+    const trashed = await storage.workspaces.trashBundle({
+      workspaceId: 'ws', expectedCanvasRevision: bundle.canvas.revision,
+      generation: bundle.canvas.generation, expectedConversations: bundle.conversationState,
+    });
+    await storage.workspaces.restoreBundle('ws', trashed.revision, trashed.generation);
+    await reconcileAgentWithStoredSession({ kind: 'workspace', workspaceId: 'ws' }, {
+      getCurrentSessionId: () => store.getCurrentSession()?.sessionId ?? null,
+      loadSession: sessionId => store.loadSession(sessionId),
+      readSessionById: (sessionId, refreshIfClean) => store.readSession(sessionId, refreshIfClean),
+    });
+    await expect(store.appendToSession(id, [message('continued after restore', 2)])).resolves.toBeUndefined();
+    expect((await store.readSession(id))?.messages.map(item => item.content))
+      .toEqual(['preserved history', 'continued after restore']);
+  });
+
+  it('hides a cached session after external workspace trash and cannot recreate or rewrite it', async () => {
+    const storage = (await getSqliteSessionStorage(root))!;
+    await storage.canvas.commit({ workspaceId: 'ws', expectedRevision: null });
+    const store = new SessionStore('ws');
+    await store.startSession();
+    store.addMessage(message('preserved history'));
+    const id = store.getCurrentSession()!.sessionId;
+    await store.readSession(id);
+    const bundle = (await storage.workspaces.readBundle('ws'))!;
+    const trashed = await storage.workspaces.trashBundle({
+      workspaceId: 'ws', expectedCanvasRevision: bundle.canvas.revision,
+      generation: bundle.canvas.generation, expectedConversations: bundle.conversationState,
+    });
+    expect(await store.readSession(id)).toBeNull();
+    expect(store.getCurrentSession()).toBeNull();
+    expect(store.getMessages()).toEqual([]);
+    await expect(store.startSession()).rejects.toMatchObject({ code: 'not_found' });
+    await expect(store.appendToSession(id, [message('must not reappear')])).rejects.toMatchObject({ code: 'not_found' });
+    expect(await storage.conversationScopes.read('ws')).toBeNull();
+    await storage.workspaces.restoreBundle('ws', trashed.revision, trashed.generation);
+    expect((await new SessionStore('ws').restoreCurrentSession())?.messages.map(item => item.content))
+      .toEqual(['preserved history']);
+  });
+
   it('measures only committed incremental JSON bytes and excludes failed or unchanged writes', async () => {
     const previousPerfFlag = process.env.PULSE_CANVAS_PERF;
     process.env.PULSE_CANVAS_PERF = '1';
