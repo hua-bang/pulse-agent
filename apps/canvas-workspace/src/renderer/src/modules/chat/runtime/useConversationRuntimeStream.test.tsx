@@ -197,6 +197,51 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     expect(latest?.relay).toBeNull();
   });
 
+  it('flushes text before tool starts and preserves order through completion', async () => {
+    const callbacks = new Map<string, (payload: any) => void>();
+    const listen = (name: string) => (_sessionId: string, callback: (payload: any) => void) => {
+      callbacks.set(name, callback);
+      return () => undefined;
+    };
+    const agent = {
+      onTextDelta: listen('text'),
+      onToolCall: listen('call'),
+      onToolResult: listen('result'),
+      onToolInputStart: listen('start'),
+      onToolInputDelta: listen('delta'),
+      onToolInputEnd: listen('end'),
+      onClarifyRequest: listen('clarify'),
+      onChatComplete: listen('complete'),
+      onRoleTurnStart: listen('role-start'),
+      onRoleTurnEnd: listen('role-end'),
+      conversationChat: vi.fn(async () => ({ ok: true, sessionId: keyA.sessionId })),
+    };
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
+    mount(keyA);
+    await act(async () => { await latest?.sendMessage('inspect'); });
+    act(() => {
+      callbacks.get('text')?.('Before');
+      callbacks.get('start')?.({ id: 'a', toolName: 'read' });
+      callbacks.get('call')?.({ toolCallId: 'a', name: 'read', args: {} });
+      callbacks.get('text')?.('Between');
+      callbacks.get('call')?.({ toolCallId: 'b', name: 'read', args: {} });
+      callbacks.get('result')?.({ toolCallId: 'b', name: 'read', result: 'second' });
+      callbacks.get('result')?.({ toolCallId: 'a', name: 'read', result: 'first' });
+      callbacks.get('text')?.('Done');
+      callbacks.get('complete')?.({ ok: true, response: 'Done' });
+    });
+    const message = latest?.messages.find(item => item.role === 'assistant');
+    expect(message?.content).toBe('BeforeBetweenDone');
+    expect(message?.contentBlocks).toEqual([
+      { type: 'text', text: 'Before' },
+      { type: 'tool', toolId: 1, toolCallId: 'a' },
+      { type: 'text', text: 'Between' },
+      { type: 'tool', toolId: 2, toolCallId: 'b' },
+      { type: 'text', text: 'Done' },
+    ]);
+    expect(message?.toolCalls?.map(tool => tool.toolCallId)).toEqual(['a', 'b']);
+  });
+
   it('targets run controls at the selected conversation after switching', async () => {
     const conversationAbort = vi.fn(async () => ({ ok: true }));
     const conversationStopRelay = vi.fn(async () => ({ ok: true }));

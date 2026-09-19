@@ -297,3 +297,33 @@ describe('ConversationRuntimeRegistry', () => {
     });
   });
 });
+
+
+describe('ordered reply persistence', () => {
+  it('preserves ordered blocks after a returned runner failure', async () => {
+    const deps = makeDeps(keyA, makeRunner());
+    deps.runTurn = async ctx => {
+      ctx.onText?.('Before');
+      ctx.onToolCall?.({ toolCallId: 'a', name: 'read', args: {} });
+      ctx.onText?.('After');
+      return { response: '', error: 'provider disconnected' };
+    };
+    const runtime = new ConversationRuntime(deps);
+    await runtime.open();
+    await runtime.sendAndWait({ message: 'inspect' });
+    expect(runtime.getSnapshot().error).toBe('provider disconnected');
+    expect(deps.stored[1]).toMatchObject({
+      content: 'BeforeAfter',
+      turnStatus: 'failed',
+      contentBlocks: [
+        { type: 'text', text: 'Before' },
+        { type: 'tool', toolCallId: 'a' },
+        { type: 'text', text: 'After' },
+      ],
+      toolCalls: [{ toolCallId: 'a', status: 'failed' }],
+    });
+    const reopened = new ConversationRuntime(deps);
+    await reopened.open();
+    expect(reopened.getSnapshot().messages).toEqual(deps.stored);
+  });
+});

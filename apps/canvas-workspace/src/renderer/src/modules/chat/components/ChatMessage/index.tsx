@@ -1,4 +1,5 @@
 import './index.css';
+import { OrderedChatContent } from './OrderedChatContent';
 import type { AgentChatMessage, CanvasNode } from '../../../../types';
 import { toFileUrl } from '../../../../utils/fileUrl';
 import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../../../../components/icons';
@@ -102,6 +103,28 @@ export const ChatMessage = ({
     onEditUserMessage,
     onRegenerate,
   });
+  const renderTools = (groupTools: ToolCallStatus[], groupCollapsed: boolean, toggleGroup: () => void) => (
+    <ChatMessageToolResults
+      tools={groupTools}
+      collapsed={groupCollapsed}
+      expandedTools={expandedTools}
+      loading={message.contentBlocks ? false : loading}
+      isStreaming={isStreaming}
+      liveToolDetailsOpen={message.contentBlocks ? !groupCollapsed : liveToolDetailsOpen}
+      onToggleSection={toggleGroup}
+      onToggleToolExpand={onToggleToolExpand}
+      onSessionJump={onSessionJump}
+      workspaceId={workspaceId}
+      messageTimestamp={message.timestamp}
+      messageIndex={index}
+      generatedImages={generatedImages.filter(image => groupTools.some(tool => image.key === `generated-${tool.id}`))}
+      generatedImageIndices={generatedImages.flatMap((image, imageIndex) =>
+        groupTools.some(tool => image.key === `generated-${tool.id}`) ? [imageIndex] : [])}
+      attachmentCount={attachmentCount}
+      setLightboxIndex={setLightboxIndex}
+      onAddImageToCanvas={onAddImageToCanvas}
+    />
+  );
   return (
     <div
       className={`chat-message chat-message-${message.role}`}
@@ -161,28 +184,20 @@ export const ChatMessage = ({
           onToggleDetails={() => setLiveToolDetailsOpen(current => !current)}
         />
       )}
-      {message.role === 'assistant' && tools && tools.length > 0 && (
-        <ChatMessageToolResults
-          tools={tools}
-          collapsed={collapsed}
-          expandedTools={expandedTools}
-          loading={loading}
-          isStreaming={isStreaming}
-          liveToolDetailsOpen={liveToolDetailsOpen}
-          onToggleSection={onToggleSection}
-          onToggleToolExpand={onToggleToolExpand}
-          onSessionJump={onSessionJump}
-          workspaceId={workspaceId}
-          messageTimestamp={message.timestamp}
-          messageIndex={index}
-          generatedImages={generatedImages}
-          attachmentCount={attachmentCount}
-          setLightboxIndex={setLightboxIndex}
-          onAddImageToCanvas={onAddImageToCanvas}
-        />
+      {message.role === 'assistant' && !message.contentBlocks && tools && tools.length > 0 && (
+        renderTools(tools, collapsed, onToggleSection)
       )}
       {message.role === 'assistant' ? (
-        isStreaming ? (
+        message.contentBlocks ? (
+          <OrderedChatContent
+            blocks={message.contentBlocks}
+            tools={tools ?? []}
+            streaming={isStreaming}
+            nodes={nodes}
+            rootFolder={rootFolder}
+            renderTools={renderTools}
+          />
+        ) : isStreaming ? (
           message.content ? (
             <MarkdownContent imagePreview bodyRef={bodyRef} html={assistantHtml} streaming />
           ) : null

@@ -18,53 +18,63 @@ import type {
  */
 export function createConversationRunner(agent: CanvasAgent): ConversationRuntimeDeps['runTurn'] {
   return async (ctx: TurnRunnerContext) => {
-    const result = await agent.chat(
-      ctx.message,
-      ctx.onText,
-      (data) => ctx.onToolCall?.(data),
-      (data) => ctx.onToolResult?.(data),
-      ctx.mentionedWorkspaceIds,
-      (request) => {
-        // CanvasAgent.chat treats this callback as a notification and waits in
-        // its run registry. Forward the conversation-owned answer back to that
-        // registry; returning the promise alone leaves the engine blocked.
-        const answer = ctx.onClarificationRequest?.(request);
-        if (answer) {
-          void answer.then(
-            value => { agent.answerClarification(request.id, value); },
-            () => { agent.answerClarification(request.id, request.defaultAnswer ?? 'No'); },
-          );
-        }
-      },
-      {
-        ...ctx.requestContext,
-        expectedConversationSessionId: ctx.expectedSessionId,
-      },
-      ctx.attachments ?? [],
-      (data) => ctx.onToolInputStart?.(data),
-      (data) => ctx.onToolInputDelta?.(data),
-      (data) => ctx.onToolInputEnd?.(data),
-      ctx.onRoleTurnStart,
-      ctx.onRoleTurnEnd,
-      ctx.signal,
-      undefined, // modelConfigOverride
-      undefined, // performanceTiming
-      // The runtime owns persistence: do not let agent.chat double-append.
-      () => undefined,
-    );
-    if (result.sessionChanged) {
+    const assistantMessages: AgentChatMessage[] = [];
+    try {
+      const result = await agent.chat(
+        ctx.message,
+        ctx.onText,
+        (data) => ctx.onToolCall?.(data),
+        (data) => ctx.onToolResult?.(data),
+        ctx.mentionedWorkspaceIds,
+        (request) => {
+          // CanvasAgent.chat treats this callback as a notification and waits in
+          // its run registry. Forward the conversation-owned answer back to that
+          // registry; returning the promise alone leaves the engine blocked.
+          const answer = ctx.onClarificationRequest?.(request);
+          if (answer) {
+            void answer.then(
+              value => { agent.answerClarification(request.id, value); },
+              () => { agent.answerClarification(request.id, request.defaultAnswer ?? 'No'); },
+            );
+          }
+        },
+        {
+          ...ctx.requestContext,
+          expectedConversationSessionId: ctx.expectedSessionId,
+        },
+        ctx.attachments ?? [],
+        (data) => ctx.onToolInputStart?.(data),
+        (data) => ctx.onToolInputDelta?.(data),
+        (data) => ctx.onToolInputEnd?.(data),
+        ctx.onRoleTurnStart,
+        ctx.onRoleTurnEnd,
+        ctx.signal,
+        undefined, // modelConfigOverride
+        undefined, // performanceTiming
+        // The runtime owns persistence: do not let agent.chat double-append.
+        (_sessionId, messages) => assistantMessages.push(...messages.filter(message => message.role === 'assistant')),
+      );
+      if (result.sessionChanged) {
+        return {
+          response: '',
+          code: 'CHAT_SESSION_CHANGED',
+          error: result.sessionChanged.error,
+        };
+      }
+      return {
+        response: result.response,
+        assistantMessages: assistantMessages.length ? assistantMessages : undefined,
+        runId: result.runId,
+        stopped: result.stopped,
+        speakerRole: result.speakerRole,
+      };
+    } catch (error) {
       return {
         response: '',
-        code: 'CHAT_SESSION_CHANGED',
-        error: result.sessionChanged.error,
+        error: error instanceof Error ? error.message : String(error),
+        assistantMessages: assistantMessages.length ? assistantMessages : undefined,
       };
     }
-    return {
-      response: result.response,
-      runId: result.runId,
-      stopped: result.stopped,
-      speakerRole: result.speakerRole,
-    };
   };
 }
 

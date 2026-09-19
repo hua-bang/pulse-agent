@@ -230,6 +230,7 @@ export interface AgentApi {
       ok: boolean;
       code?: string;
       activeSessionId?: string | null;
+      assistantMessages?: AgentChatMessage[];
       response?: string;
       runId?: string;
       error?: string;

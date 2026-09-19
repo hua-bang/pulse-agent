@@ -1,12 +1,15 @@
+import { appendContentText, appendContentTool, contentText, finishContentBlocks, retainContentText } from '../../shared/chat-content-blocks';
+import type { AgentChatContentBlock } from '../../shared/agent-chat';
 import { friendlyChatFailure } from '../../shared/chat-failure';
 import type { EngineStreamCallbacks } from './engine-stream-callbacks';
 import type { CanvasAgentMessage, CanvasAgentToolCall } from './types';
 
 export function createFailedTurnToolTracker(forward: EngineStreamCallbacks = {}) {
   let tools: CanvasAgentToolCall[] = [];
+  let blocks: AgentChatContentBlock[] = [];
   const find = (toolCallId?: string, name?: string) => (
     (toolCallId ? tools.find(tool => tool.toolCallId === toolCallId) : undefined)
-    ?? (name ? tools.find(tool => tool.name === name && tool.status === 'running') : undefined)
+    ?? (!toolCallId && name ? tools.find(tool => tool.name === name && tool.status === 'running') : undefined)
   );
   const upsert = (toolCallId: string | undefined, name: string) => {
     const existing = find(toolCallId, name);
@@ -18,10 +21,15 @@ export function createFailedTurnToolTracker(forward: EngineStreamCallbacks = {})
       status: 'running',
     };
     tools.push(tool);
+    blocks = appendContentTool(blocks, tool);
     return tool;
   };
 
   const callbacks: EngineStreamCallbacks = {
+    onText: delta => {
+      blocks = appendContentText(blocks, delta);
+      forward.onText?.(delta);
+    },
     onToolCall: data => {
       const tool = upsert(data.toolCallId, data.name);
       tool.args = data.args;
@@ -58,7 +66,27 @@ export function createFailedTurnToolTracker(forward: EngineStreamCallbacks = {})
 
   return {
     callbacks,
-    reset: () => { tools = []; },
+    reset: () => { tools = []; blocks = []; },
+    contentBlocks: () => blocks,
+    finalize: (response: string, finalTools: CanvasAgentToolCall[], sanitized = false) => {
+      // Persist the event IDs, not a second reconstruction's numeric IDs.
+      const mergedTools = tools.map(tool => ({
+        ...tool,
+        ...(tool.toolCallId ? finalTools.find(final => final.toolCallId === tool.toolCallId) : undefined),
+        id: tool.id,
+      }));
+      for (const tool of finalTools) {
+        if (!mergedTools.some(existing => tool.toolCallId
+          ? existing.toolCallId === tool.toolCallId
+          : existing.id === tool.id)) {
+          const added = { ...tool, id: mergedTools.length + 1 };
+          mergedTools.push(added);
+          blocks = appendContentTool(blocks, added);
+        }
+      }
+      const contentBlocks = sanitized ? retainContentText(blocks, response) : finishContentBlocks(blocks, response);
+      return { content: contentText(contentBlocks), contentBlocks, toolCalls: mergedTools.length ? mergedTools : undefined };
+    },
     snapshot: () => tools.map(tool => ({ ...tool })),
   };
 }
@@ -66,6 +94,7 @@ export function createFailedTurnToolTracker(forward: EngineStreamCallbacks = {})
 export function failedAssistantMessage(
   error: unknown,
   toolCalls: CanvasAgentToolCall[] = [],
+  contentBlocks?: AgentChatContentBlock[],
 ): CanvasAgentMessage {
   const failure = friendlyChatFailure(error);
   const settledTools = toolCalls.map(tool => (
@@ -80,7 +109,8 @@ export function failedAssistantMessage(
   ));
   return {
     role: 'assistant',
-    content: '',
+    content: contentBlocks ? contentText(contentBlocks) : '',
+    contentBlocks,
     timestamp: Date.now(),
     toolCalls: settledTools.length > 0 ? settledTools : undefined,
     turnStatus: 'failed',

@@ -168,11 +168,12 @@ export class ConversationRuntimeService {
         return { ok: false, code: 'CHAT_SCOPE_BUSY', error: 'This conversation is already running.' };
       }
       if (result.error) {
-        return { ok: false, code: result.code, error: result.error };
+        return { ok: false, code: result.code, error: result.error, assistantMessages: result.assistantMessages };
       }
       return {
         ok: true,
         response: result.response,
+        assistantMessages: result.assistantMessages,
         runId: result.runId,
         stopped: result.stopped,
       };

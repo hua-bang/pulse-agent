@@ -24,6 +24,7 @@ interface Props {
   messageTimestamp: number;
   messageIndex: number;
   generatedImages: GeneratedChatImage[];
+  generatedImageIndices?: number[];
   attachmentCount: number;
   setLightboxIndex: Dispatch<SetStateAction<number | null>>;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -43,6 +44,7 @@ export const ChatMessageToolResults = ({
   messageTimestamp,
   messageIndex,
   generatedImages,
+  generatedImageIndices,
   attachmentCount,
   setLightboxIndex,
   onAddImageToCanvas,
@@ -66,7 +68,7 @@ export const ChatMessageToolResults = ({
     {generatedImages.length > 0 && (
       <div className="chat-generated-images">
         {generatedImages.map((image, generatedIndex) => {
-          const openIndex = attachmentCount + generatedIndex;
+          const openIndex = attachmentCount + (generatedImageIndices?.[generatedIndex] ?? generatedIndex);
           return (
             <figure key={image.key} className="chat-generated-image-card">
               <img
