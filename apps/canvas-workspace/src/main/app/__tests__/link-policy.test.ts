@@ -72,6 +72,25 @@ describe('link policy', () => {
     registryMocks.surfaceKinds.clear();
   });
 
+  it('reports a forwarded popup with the exact registered opener identity', async () => {
+    const created = await installPolicy();
+    const { observePageLinkRequests } = await import('../../webview/page-link-events');
+    const receive = vi.fn();
+    const wrongScope = vi.fn();
+    registryMocks.surfaceKinds.set(42, 'dock-browser');
+    const off = observePageLinkRequests({ workspaceId: 'ws-1', nodeId: 'dock-tab-1', webContentsId: 42 }, receive);
+    const offWrong = observePageLinkRequests({ workspaceId: 'ws-2', nodeId: 'dock-tab-1', webContentsId: 42 }, wrongScope);
+    try {
+      const { contents, hostWebContents } = createContents('https://video.test/');
+      created({}, contents);
+      const open = contents.setWindowOpenHandler.mock.calls[0][0] as WindowOpenHandler;
+      expect(open({ url: 'https://video.test/detail/1', disposition: 'foreground-tab' })).toEqual({ action: 'deny' });
+      expect(hostWebContents.send).toHaveBeenCalledWith('link:open', expect.objectContaining({ url: 'https://video.test/detail/1' }));
+      expect(receive).toHaveBeenCalledWith('https://video.test/detail/1');
+      expect(wrongScope).not.toHaveBeenCalled();
+    } finally { off(); offWrong(); }
+  });
+
   it('opens Google auth popups in an in-app window so the session flows back', async () => {
     // Google's embedded-browser policy blocks <webview> sign-in, and the system
     // browser can't share its session back to the app. A real BrowserWindow

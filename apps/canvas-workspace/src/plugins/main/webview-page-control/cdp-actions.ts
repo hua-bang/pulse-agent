@@ -23,8 +23,9 @@
  * JS source — so injection is not a concern on this path.
  */
 
-import { withCdp, type CdpHost, type CdpSender } from '../../../main/webview/cdp-session';
+import type { CdpHost, CdpSender } from '../../../main/webview/cdp-session';
 import { resolveKeySpec, type PageActionResult, type PageRunner } from './js-primitives';
+import { checkInput, withGuardedCdp, type CdpInputGuard } from './input-guard';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
@@ -192,7 +193,7 @@ async function selectorCenter(wc: PageRunner, selector: string): Promise<CenterR
 // Primitives
 // ---------------------------------------------------------------------------
 
-export interface CdpClickOptions {
+export interface CdpClickOptions extends CdpInputGuard {
   button?: 'left' | 'middle' | 'right';
   clickCount?: number;
   modifiers?: ReadonlyArray<string>;
@@ -211,7 +212,7 @@ export async function cdpClickAt(
   const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
     return await runWithTimeout(
-      withCdp(wc, async (send: CdpSender) => {
+      withGuardedCdp(wc, opts, async (send: CdpSender) => {
         // Move the synthetic cursor first so hover handlers fire correctly
         // before the button-down event. Without this, pages that swap a
         // button's onClick on hover would miss the swap.
@@ -253,6 +254,7 @@ export async function cdpClickSelector(
   selector: string,
   opts: CdpClickOptions = {},
 ): Promise<PageActionResult> {
+  await checkInput(opts);
   const centre = await selectorCenter(wc, selector);
   if (!centre.ok) return { ok: false, error: centre.error ?? 'selector resolution failed' };
   const result = await cdpClickAt(wc, centre.x!, centre.y!, opts);
@@ -262,7 +264,7 @@ export async function cdpClickSelector(
   return result;
 }
 
-export interface CdpPressOptions {
+export interface CdpPressOptions extends CdpInputGuard {
   selector?: string;
   modifiers?: ReadonlyArray<string>;
   timeoutMs?: number;
@@ -286,6 +288,7 @@ export async function cdpPressKey(
   // Best-effort focus before pressing — JS focus is cheap and avoids
   // bouncing through the debugger when the agent didn't ask for a
   // specific target.
+  await checkInput(opts);
   if (opts.selector) {
     const focusScript = `(function(){
   try {
@@ -316,7 +319,7 @@ export async function cdpPressKey(
 
   try {
     return await runWithTimeout(
-      withCdp(wc, async (send: CdpSender) => {
+      withGuardedCdp(wc, opts, async (send: CdpSender) => {
         await bringPageTargetToFront(send);
         await focusOwningWebview(wc);
         const baseInit: Record<string, unknown> = {
@@ -350,7 +353,7 @@ export async function cdpPressKey(
   }
 }
 
-export interface CdpFillOptions {
+export interface CdpFillOptions extends CdpInputGuard {
   /**
    * Whether to clear the existing value before inserting. Default true —
    * mirrors the previous fillSelector contract that fully replaced the
@@ -411,6 +414,8 @@ export async function cdpFillSelector(
   }
 })()`;
 
+  await checkInput(opts);
+  opts.onInput?.('DOM.fill');
   const prep = (await wc.executeJavaScript(prepScript, false)) as {
     ok: boolean;
     tag?: string;
@@ -434,7 +439,7 @@ export async function cdpFillSelector(
 
   try {
     return await runWithTimeout(
-      withCdp(wc, async (send: CdpSender) => {
+      withGuardedCdp(wc, opts, async (send: CdpSender) => {
         await bringPageTargetToFront(send);
         await focusOwningWebview(wc);
         await send('Input.insertText', { text: value });

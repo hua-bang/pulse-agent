@@ -183,9 +183,11 @@ export function createGlobalCanvasTools(
     dock_read_tab: options.allowWorkspaceTargetedTools
       ? requireWorkspaceIdOrActiveDock(tabTools.dock_read_tab)!
       : requireWorkspaceId(tabTools.dock_read_tab),
-    // Dock-tab open + browsing-history search work without an ambient
-    // workspace (the dock and history are app-level), so they stay unwrapped.
-    dock_open_tab: tabTools.dock_open_tab,
+    // Opening delegates to a workspace-qualified capability just like list
+    // and activate. Only history search is independent of the visible Dock.
+    dock_open_tab: options.allowWorkspaceTargetedTools
+      ? requireWorkspaceIdOrActiveDock(tabTools.dock_open_tab)!
+      : requireWorkspaceId(tabTools.dock_open_tab),
     browser_search_history: tabTools.browser_search_history,
     canvas_read_layout: requireWorkspaceId(layoutTools.canvas_read_layout),
     canvas_search_nodes: requireWorkspaceId(searchTools.canvas_search_nodes),

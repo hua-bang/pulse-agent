@@ -2,7 +2,8 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join, resolve } from 'path';
 
-export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily';
+import type { BuiltInToolCredentialId } from '../../shared/settings-config';
+export type { BuiltInToolCredentialId } from '../../shared/settings-config';
 
 export interface BuiltInToolCredentialDef {
   id: BuiltInToolCredentialId;
@@ -11,6 +12,7 @@ export interface BuiltInToolCredentialDef {
   envKey: string;
   baseUrlEnvKey: string;
   defaultBaseUrl: string;
+  baseUrlEditable?: boolean;
   tools: string[];
 }
 
@@ -41,6 +43,16 @@ interface BuiltInToolsConfigFile {
 }
 
 export const BUILT_IN_TOOL_CREDENTIALS: BuiltInToolCredentialDef[] = [
+  {
+    id: 'typesafe',
+    name: 'TypeSafe Jev',
+    description: 'Browser action decisions for page_run. Text entry uses the chat model configured in Models.',
+    envKey: 'TYPESAFE_API_KEY',
+    baseUrlEnvKey: 'TYPESAFE_API_BASE_URL',
+    defaultBaseUrl: 'https://api.typesafe.ai/v1',
+    baseUrlEditable: false,
+    tools: ['page_run'],
+  },
   {
     id: 'openai',
     name: 'OpenAI Images & Vision',
@@ -85,7 +97,8 @@ function normalizeStr(value: unknown): string | undefined {
 function normalizeCredentialId(value: unknown): BuiltInToolCredentialId {
   const id = normalizeStr(value);
   if (!id) throw new Error('Tool credential id is required');
-  if (id === 'openai' || id === 'gemini' || id === 'tavily') return id;
+  const credential = BUILT_IN_TOOL_CREDENTIALS.find((entry) => entry.id === id);
+  if (credential) return credential.id;
   throw new Error(`Unknown built-in tool credential: ${id}`);
 }
 
@@ -159,8 +172,8 @@ function credentialStatus(
 ): BuiltInToolCredentialStatus {
   const encrypted = normalizeStr(config.credentials?.[def.id]?.encrypted_api_key);
   const stored = decryptApiKey(encrypted);
-  const storedBaseUrl = getStoredBaseUrl(config, def.id);
-  const envBaseUrl = getEnvValue(def.baseUrlEnvKey);
+  const storedBaseUrl = def.baseUrlEditable === false ? undefined : getStoredBaseUrl(config, def.id);
+  const envBaseUrl = def.baseUrlEditable === false ? undefined : getEnvValue(def.baseUrlEnvKey);
   const baseUrl = storedBaseUrl ?? envBaseUrl ?? def.defaultBaseUrl;
   const baseUrlSource = storedBaseUrl ? 'stored' : envBaseUrl ? 'env' : 'default';
 
@@ -211,6 +224,9 @@ export async function setBuiltInToolCredential(
   const apiKey = normalizeStr(input.apiKey);
   const baseUrl = normalizeStr(input.baseUrl);
   const hasBaseUrlInput = Object.prototype.hasOwnProperty.call(input, 'baseUrl');
+  if (hasBaseUrlInput && BUILT_IN_TOOL_CREDENTIALS.find((entry) => entry.id === id)?.baseUrlEditable === false) {
+    throw new Error('This tool uses a fixed official API endpoint. Only its API key can be configured.');
+  }
   if (!apiKey && !hasBaseUrlInput) throw new Error('API key or Base URL is required');
 
   const config = await readConfig();
@@ -269,6 +285,7 @@ function applyBuiltInToolsConfigToEnv(config: BuiltInToolsConfigFile): void {
       }
     }
 
+    if (def.baseUrlEditable === false) continue;
     const storedBaseUrl = getStoredBaseUrl(config, def.id);
     if (storedBaseUrl) {
       process.env[def.baseUrlEnvKey] = storedBaseUrl;

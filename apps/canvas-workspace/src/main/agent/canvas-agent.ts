@@ -1088,10 +1088,8 @@ export class CanvasAgent {
   async loadSession(sessionId: string): Promise<CanvasAgentSession | null> {
     const session = await this.sessionStore.loadSession(sessionId);
     if (!session) return null;
-    // Rebuild in-memory model context from loaded session. Stored UI
-    // tool-call metadata is intentionally excluded here; the AI SDK response
-    // messages already carry tool frames while a run is active, but persisted
-    // sessions only need text turns for follow-up context.
+    // Restore text and bounded historical tool evidence. Provider-specific
+    // tool frames are not replayed; follow-ups still receive the saved results.
     this.messages = session.messages.map(sessionMessageToModelMessage);
     return session;
   }

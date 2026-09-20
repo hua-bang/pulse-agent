@@ -730,3 +730,31 @@ describe('deferred tool partition', () => {
     ]);
   });
 });
+
+describe('Global Dock open routing', () => {
+  it('routes an omitted workspace to the visible Global Dock and keeps explicit targets in the schema', async () => {
+    activeDockWorkspaceId.value = '__global_chat__';
+    const call = vi.fn(async (_name: string, _input: unknown, context: { workspaceId: string }) => context.workspaceId
+      ? { ok: true as const, value: { url: 'https://example.test/docs' } }
+      : { ok: false as const, error: { code: 'invalid_input', message: 'workspaceId is required' } });
+    setAgentCapabilityPort({ call });
+    try {
+      const tool = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true }).dock_open_tab;
+      const input = tool.inputSchema.parse({ url: 'https://example.test/docs' });
+      expect(JSON.parse(await tool.execute(input))).toMatchObject({ ok: true });
+      expect(call).toHaveBeenLastCalledWith('browser.tabs.open', expect.anything(),
+        expect.objectContaining({ workspaceId: '__global_chat__' }));
+      const explicit = tool.inputSchema.parse({ url: 'https://example.test/docs', workspaceId: 'ws-other' });
+      expect(explicit).toMatchObject({ workspaceId: 'ws-other' });
+      await tool.execute(explicit);
+      expect(call).toHaveBeenLastCalledWith('browser.tabs.open', expect.anything(),
+        expect.objectContaining({ workspaceId: 'ws-other' }));
+    } finally { setAgentCapabilityPort(getCanvasCapabilityRuntime()); }
+  });
+
+  it('keeps scheduled/headless Global opening explicit and rejects a missing visible Dock', async () => {
+    expect(createGlobalCanvasTools().dock_open_tab.inputSchema.safeParse({ url: 'https://example.test' }).success).toBe(false);
+    const result = await createGlobalCanvasTools({ allowWorkspaceTargetedTools: true }).dock_open_tab.execute({ url: 'https://example.test' });
+    expect(result).toContain('no active Dock workspace');
+  });
+});
