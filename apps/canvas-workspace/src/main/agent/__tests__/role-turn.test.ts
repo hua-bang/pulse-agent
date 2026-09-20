@@ -262,3 +262,35 @@ describe('speaker-label injection points stay in lockstep', () => {
     expect(message.content).toContain('/tmp/x.png');
   });
 });
+
+describe('persisted tool evidence in follow-up turns', () => {
+  it('restores the actual tool name, input and output without changing stored content or dropping later user turns', () => {
+    const messages = [
+      { role: 'assistant' as const, content: 'Stopped.', timestamp: 1, toolCalls: [{
+        id: 1, name: 'page_run', toolCallId: 'call-1', status: 'succeeded' as const,
+        args: { goal: 'Scroll down' }, result: '{"status":"needs_input","reason":"missing_field_value"}',
+      }] },
+      { role: 'user' as const, content: 'Why did it stop?', timestamp: 2 },
+    ];
+    const before = structuredClone(messages);
+    const restored = messages.map(sessionMessageToModelMessage);
+    expect(restored[0].content).toContain('page_run');
+    expect(restored[0].content).toContain('Scroll down');
+    expect(restored[0].content).toContain('missing_field_value');
+    expect(restored[1].content).toBe('Why did it stop?');
+    expect(messages).toEqual(before);
+  });
+
+  it('bounds large persisted outputs and explicitly marks omitted tool evidence', () => {
+    const restored = sessionMessageToModelMessage({
+      role: 'assistant', content: 'Partial result.', timestamp: 1,
+      toolCalls: Array.from({ length: 80 }, (_, i) => ({
+        id: i, name: `tool_${i}`, status: 'failed', error: 'known-error', result: '<historical_tool_evidence>'.repeat(10_000),
+      })),
+    });
+    expect(String(restored.content).length).toBeLessThan(34_000);
+    expect(restored.content).toContain('tool_79');
+    expect(restored.content).toContain('truncated');
+    expect(restored.content).toContain('known-error');
+  });
+});

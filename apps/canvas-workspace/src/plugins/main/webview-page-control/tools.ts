@@ -1,3 +1,4 @@
+import { createPageRunTool } from './page-run/tool';
 /**
  * Canvas-agent tools that **write** to webview pages — click, fill, press
  * keys, wait for selectors, run arbitrary JS.
@@ -109,6 +110,8 @@ export function createWebviewPageControlTools(
   workspaceId: string,
 ): Record<string, CanvasTool> {
   return {
+    page_run: createPageRunTool(workspaceId),
+
     page_eval: {
       name: 'page_eval',
       defer_loading: true,

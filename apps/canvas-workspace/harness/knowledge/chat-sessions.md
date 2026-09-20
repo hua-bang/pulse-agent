@@ -112,6 +112,16 @@ Key invariants and their guards:
   payload, including an MCP App descriptor; otherwise the settled snapshot
   replaces the live tool event and silently removes its inline UI. A persistence
   failure is a failed turn, never an empty success.
+- Follow-up, cold-load, fork, delete/reload and cross-workspace model history
+  use `sessionMessageToModelMessage` in `role-turn.ts`. It restores stored
+  tool names, call IDs, inputs, statuses, results and errors as explicitly
+  historical, untrusted evidence alongside assistant text. Provider-specific
+  tool frames are not reissued. The projection keeps the latest 20 calls per
+  assistant message with a 30k-character serialized evidence bound, marks
+  omitted calls/excerpts, and leaves stored content and later user turns intact.
+  UI activity being visible is not enough: `run-session-context.test.ts` and
+  `__tests__/role-turn.test.ts` assert that the next model context receives the
+  actual saved outcome, including a stopped `page_run`.
 - Conversation-runtime reads and full-state writes use the same per-scope
   `SessionMutationCoordinator` tail as load/new/delete. Its run lease remains
   active through persistence, so pointer changes cannot redirect a completed

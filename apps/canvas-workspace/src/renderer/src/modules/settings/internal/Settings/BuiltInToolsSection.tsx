@@ -71,10 +71,10 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
     const apiKey = draft?.apiKey.trim() ?? '';
     const storedBaseUrl = credential.baseUrlSource === 'stored' ? credential.baseUrl : '';
     const baseUrl = (draft?.baseUrl ?? storedBaseUrl).trim();
-    const baseUrlChanged = baseUrl !== storedBaseUrl;
+    const baseUrlChanged = credential.baseUrlEditable !== false && baseUrl !== storedBaseUrl;
 
     if (!apiKey && !baseUrlChanged) {
-      setError(t('toolsConfig.apiKeyOrBaseUrlRequired'));
+      setError(t(credential.baseUrlEditable === false ? 'toolsConfig.apiKeyRequired' : 'toolsConfig.apiKeyOrBaseUrlRequired'));
       return;
     }
 
@@ -83,7 +83,7 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
     try {
       const result = await window.canvasWorkspace.builtInTools.setCredential(credential.id, {
         apiKey: apiKey || undefined,
-        baseUrl,
+        ...(credential.baseUrlEditable !== false ? { baseUrl } : {}),
       });
       if (!result.ok || !result.status) {
         throw new Error(result.error ?? t('toolsConfig.saveFailed'));
@@ -208,12 +208,14 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
                     }
                     onChange={(event) => setDraftField(credential.id, 'apiKey', event.target.value)}
                   />
-                  <TextField
-                    label={t('toolsConfig.baseUrl')}
-                    value={baseUrlDraft}
-                    placeholder={credential.baseUrl}
-                    onChange={(event) => setDraftField(credential.id, 'baseUrl', event.target.value)}
-                  />
+                  {credential.baseUrlEditable !== false && (
+                    <TextField
+                      label={t('toolsConfig.baseUrl')}
+                      value={baseUrlDraft}
+                      placeholder={credential.baseUrl}
+                      onChange={(event) => setDraftField(credential.id, 'baseUrl', event.target.value)}
+                    />
+                  )}
                   <div className="built-in-tool-actions">
                     {hasStoredConfig && (
                       // Bespoke ghost/borderless style (`.built-in-tool-actions

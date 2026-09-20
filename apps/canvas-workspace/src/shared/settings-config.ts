@@ -56,7 +56,7 @@ export interface ShellPathResult {
   error?: string;
 }
 
-export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily';
+export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily' | 'typesafe';
 
 export interface BuiltInToolCredentialStatus {
   id: BuiltInToolCredentialId;
@@ -65,6 +65,7 @@ export interface BuiltInToolCredentialStatus {
   envKey: string;
   baseUrlEnvKey: string;
   defaultBaseUrl: string;
+  baseUrlEditable?: boolean;
   tools: string[];
   apiKeyPresent: boolean;
   apiKeyLength?: number;

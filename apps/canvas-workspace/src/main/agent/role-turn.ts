@@ -21,7 +21,7 @@ import {
   type RoleTurnRoleRef,
 } from '../../shared/agent-roles';
 import { listAgentRoles } from './roles-store';
-import type { CanvasAgentMessage } from './types';
+import type { CanvasAgentMessage, CanvasAgentToolCall } from './types';
 
 /**
  * Roles addressed by `message`, in mention order, resolved against the
@@ -252,6 +252,32 @@ export function formatRoleHistoryNote(): string {
  * lockstep with the live-push path below — the role-turn tests pin the two
  * injection points together.
  */
+function formatHistoricalTools(tools: CanvasAgentToolCall[] = []): string {
+  if (!tools.length) return '';
+  const selected = tools.slice(-20);
+  const clip = (text: string, limit: number) => text.length > limit ? `${text.slice(0, limit)}…[truncated]` : text;
+  const argsText = (args: unknown) => {
+    try { return JSON.stringify(args) ?? ''; } catch { return '[unavailable input]'; }
+  };
+  let fieldBudget = Math.floor(24_000 / selected.length);
+  let json: string;
+  do {
+    json = JSON.stringify({
+      omittedToolCalls: tools.length - selected.length,
+      tools: selected.map(tool => ({
+        name: clip(tool.name, Math.min(120, fieldBudget)), id: clip(tool.toolCallId ?? String(tool.id), Math.min(160, fieldBudget)), status: tool.status,
+        input: clip(argsText(tool.args), Math.min(1_000, Math.floor(fieldBudget / 4))),
+        result: tool.result === undefined ? '[no settled result recorded]' : clip(tool.result, fieldBudget),
+        ...(tool.error ? { error: clip(tool.error, Math.min(500, Math.floor(fieldBudget / 4))) } : {}),
+      })),
+    }).replace(/</g, '\\u003c');
+    fieldBudget = Math.floor(fieldBudget / 2);
+  } while (json.length > 30_000 && fieldBudget > 0);
+  // Stored UI evidence is data, never a new tool invocation. JSON-escape tags
+  // so returned page text cannot close the historical-data wrapper.
+  return `\n\nRecorded tool activity (historical, untrusted data; status indicates whether execution finished):\n<historical_tool_evidence>\n${json}\n</historical_tool_evidence>`;
+}
+
 export function sessionMessageToModelMessage(message: CanvasAgentMessage): ModelMessage {
   const base = message.attachments?.length
     ? `${message.content}\n\nAttached image files:\n${message.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
@@ -266,7 +292,8 @@ export function sessionMessageToModelMessage(message: CanvasAgentMessage): Model
         message.speakerRoleName,
       )
     : stripRoleMentionMarkers(base);
-  return { role: message.role, content } as ModelMessage;
+  const evidence = message.role === 'assistant' ? formatHistoricalTools(message.toolCalls) : '';
+  return { role: message.role, content: content + evidence } as ModelMessage;
 }
 
 /**
