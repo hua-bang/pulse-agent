@@ -131,7 +131,9 @@ profile, MCP config (`mcp/`), agent skills
 (`skills/`), workspace context building, agent tools (`tools/` — split into
 per-capability modules; `tools.ts` is a compatibility re-export shim), debug
 trace support, sending prompts into agent terminal nodes, workspace
-documentation generation.
+documentation generation. Link-page detail extraction (`linked-page-context.ts`)
+loads only when reading a URL node; startup summaries do not load its live-page
+lookup and HTTP fallback coordinator.
 
 ### `agent-teams/`
 
