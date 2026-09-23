@@ -77,21 +77,27 @@ function expectedPartialIds(data: LegacyCanvas, sentinel: MigrationSentinel): Se
 export async function readLegacyCanvasWorkspace(root: string, workspaceId: string) {
   const layoutPath = join(root, workspaceId, 'canvas.json');
   const primary = await optionalText(layoutPath);
+  let primaryIsJson = false;
   // Reject future primary layouts before considering any older backup.
   if (primary !== null) {
-    try { validateLegacyCanvas(JSON.parse(primary), layoutPath); }
-    catch (error) { if (error instanceof StorageError) throw error; }
+    try {
+      validateLegacyCanvas(JSON.parse(primary), layoutPath);
+      primaryIsJson = true;
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+    }
   }
   const sentinel = await readSentinel(root, workspaceId);
   const backupPath = join(root, workspaceId, 'canvas.json.v1.bak');
   let data: LegacyCanvas | null = null;
-  if (primary === null && sentinel) {
+  // An interrupted split can leave a missing or torn layout. Use only the
+  // v1 backup verified against its sentinel below; never repair source files.
+  if (!primaryIsJson && sentinel) {
     const backup = await optionalText(backupPath);
     if (backup === null) throw new StorageError('corrupt_data', `Missing interrupted-migration source in ${workspaceId}`);
     data = validateLegacyCanvas(parseJson(backup, backupPath), backupPath);
     if (data.schemaVersion === 2) throw new StorageError('corrupt_data', `Expected an intact v1 backup in ${workspaceId}`);
   } else {
-    if (sentinel && primary !== null) parseJson(primary, layoutPath);
     const source = await readJsonWithRecovery(layoutPath);
     if (source.kind === 'unrecoverable') throw source.err;
     if (source.kind === 'ok') data = validateLegacyCanvas(source.data, layoutPath);

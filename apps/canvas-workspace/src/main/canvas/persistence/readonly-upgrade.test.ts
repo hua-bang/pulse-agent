@@ -57,6 +57,65 @@ describe('read-only Canvas upgrade', () => {
     expect(await readFile(join(root, 'ws', 'nodes/n.json'), 'utf8')).toBe(partial);
   });
 
+  it('imports a verified v1 backup after an interrupted migration corrupted the layout, preserving every source byte', async () => {
+    const files = {
+      'canvas.json': await seed('canvas.json', '{broken layout'),
+      'canvas.json.v1.bak': await seed('canvas.json.v1.bak', source),
+      '.migrating': await seed('.migrating', sentinel),
+      'nodes/n.json': await seed('nodes/n.json', '{partial node'),
+      'nodes/off.json': await seed('nodes/off.json', { schemaVersion: 1, id: 'off', type: 'plugin', data: { payload: { keep: true } } }),
+      'note.md': await seed('note.md', 'Keep external Markdown'),
+    };
+    await activateCanvasSqlite(root);
+    expect((await readCanvasFull('ws', root)).data).toMatchObject({
+      nodes: [{ id: 'n', data: { content: 'complete v1 body' } }], future: { preserve: true },
+    });
+    expect((await readWorkspaceNode('ws', 'off', root))?.data).toEqual({ payload: { keep: true } });
+
+    const storage = (await getLocalCanvasStorage(root))!;
+    const snapshot = (await storage.canvas.read('ws'))!;
+    const original = snapshot.nodes.find(node => node.id === 'n')!;
+    await storage.canvas.commit({
+      workspaceId: 'ws', expectedRevision: snapshot.revision,
+      nodes: { put: [{ ...original, data: { content: 'New SQL edit' } }] },
+    });
+    await closeCanvasStorage();
+    await activateCanvasSqlite(root);
+    expect((await readCanvasFull('ws', root)).data?.nodes?.[0].data?.content).toBe('New SQL edit');
+    for (const [name, bytes] of Object.entries(files)) {
+      expect(await readFile(join(root, 'ws', name), 'utf8')).toBe(bytes);
+    }
+  });
+
+  it.each(['missing', 'malformed', 'future', 'v2', 'ids', 'timestamp'] as const)(
+    'rejects a %s v1 backup when the interrupted primary is malformed', async kind => {
+      const layout = await seed('canvas.json', '{broken layout');
+      const marker = await seed('.migrating', sentinel);
+      const backup = kind === 'missing' ? null : await seed('canvas.json.v1.bak',
+        kind === 'malformed' ? '{broken backup'
+          : kind === 'future' ? { ...source, schemaVersion: 99 }
+            : kind === 'v2' ? { ...source, schemaVersion: 2 }
+              : kind === 'ids' ? { ...source, nodes: [{ ...source.nodes[0], id: 'different' }] }
+                : { ...source, nodes: [{ ...source.nodes[0], updatedAt: 8 }] });
+      await expect(activateCanvasSqlite(root)).rejects.toMatchObject({
+        code: kind === 'future' ? 'unsupported_schema' : 'corrupt_data',
+      });
+      expect(await getLocalCanvasStorage(root)).toBeNull();
+      expect(await readFile(join(root, 'ws', 'canvas.json'), 'utf8')).toBe(layout);
+      expect(await readFile(join(root, 'ws', '.migrating'), 'utf8')).toBe(marker);
+      if (backup !== null) expect(await readFile(join(root, 'ws', 'canvas.json.v1.bak'), 'utf8')).toBe(backup);
+    },
+  );
+
+  it('does not replace a structurally invalid primary with an older v1 backup', async () => {
+    const layout = await seed('canvas.json', { schemaVersion: 1, nodes: 'invalid records' });
+    await seed('.migrating', sentinel);
+    await seed('canvas.json.v1.bak', source);
+    await expect(activateCanvasSqlite(root)).rejects.toMatchObject({ code: 'corrupt_data' });
+    expect(await getLocalCanvasStorage(root)).toBeNull();
+    expect(await readFile(join(root, 'ws', 'canvas.json'), 'utf8')).toBe(layout);
+  });
+
   it.each([{}, { content: 'stale nonempty inline body' }])('rejects v1/atom disagreement without a valid migration witness: %j', async data => {
     const layout = await seed('canvas.json', { nodes: [{ id: 'n', type: 'text', data }] });
     const atom = await seed('nodes/n.json', { schemaVersion: 1, id: 'n', type: 'text', data: { content: 'canonical atom' } });

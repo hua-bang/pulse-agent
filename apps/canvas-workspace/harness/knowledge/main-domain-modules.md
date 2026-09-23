@@ -87,6 +87,13 @@ than returning an empty workspace. Markdown and attachments remain files.
 Retained JSON is a pre-cutover recovery source, not a live downgrade target:
 an older binary cannot see later SQLite edits through those files.
 
+For an interrupted v1 split, a missing or syntactically broken `canvas.json`
+can use `canvas.json.v1.bak` only when the v1 schema, complete node bodies,
+node ids and source timestamp match the valid `.migrating` witness. Import
+reads the backup without restoring files or cleaning partial atoms. Future
+schemas and structurally invalid primary layouts still fail closed. Guards:
+`persistence/readonly-upgrade.test.ts`.
+
 Canvas mutations atomically commit records, a revision, and a change event.
 Both app and CLI compare the revision and database generation; matching numeric
 revisions from an old backend do not authorize an overwrite. The app polls the
