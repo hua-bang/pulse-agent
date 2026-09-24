@@ -94,3 +94,17 @@ export async function recoverInterruptedWorkspaceImports(root: string, storage: 
     return results;
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
 }
+
+/** Best effort: an unrecovered import is no worse than before recovery existed. */
+export async function recoverImportsAtStartup(
+  root: string,
+  storage: PulseStorage,
+  writeLog: (scope: string, message: string, detail?: string) => unknown,
+): Promise<void> {
+  try {
+    const results = await recoverInterruptedWorkspaceImports(root, storage);
+    if (results.length) await writeLog('storage', 'Recovered interrupted workspace imports', JSON.stringify(results));
+  } catch (error) {
+    await writeLog('storage', 'Interrupted workspace import recovery failed', String(error));
+  }
+}

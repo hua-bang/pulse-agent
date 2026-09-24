@@ -1,10 +1,10 @@
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { PulseStorage } from '@pulse-coder/storage';
 import { activateLocalCanvasStorage } from '@pulse-coder/storage/local';
-import { recoverInterruptedWorkspaceImports } from './import-recovery';
+import { recoverImportsAtStartup, recoverInterruptedWorkspaceImports } from './import-recovery';
 import { IMPORT_JOURNAL } from './sqlite-workspace';
 
 let root: string;
@@ -92,4 +92,20 @@ it('leaves untrustworthy journals and their workspaces untouched', async () => {
   expect(await readdir(join(root, 'ws-broken'))).toContain(IMPORT_JOURNAL);
   expect(await readdir(root)).toContain('ws-mismatch');
   expect(await readManifest()).toEqual(manifest);
+});
+
+it('logs startup recovery results and swallows failures', async () => {
+  await commit('ws-logged');
+  await stageImport('ws-logged');
+  const writeLog = vi.fn();
+  await recoverImportsAtStartup(root, storage, writeLog);
+  expect(writeLog).toHaveBeenCalledWith('storage', 'Recovered interrupted workspace imports',
+    JSON.stringify([{ workspaceId: 'ws-logged', outcome: 'published' }]));
+  await rm(join(root, '__workspaces__.json'));
+  await rm(join(root, '__workspaces__.json.bak'), { force: true });
+  await mkdir(join(root, '__workspaces__.json'));
+  await stageImport('ws-failing', { schemaVersion: 1, workspaceId: 'ws-failing', workspaceName: 'F' });
+  await commit('ws-failing');
+  await expect(recoverImportsAtStartup(root, storage, writeLog)).resolves.toBeUndefined();
+  expect(writeLog).toHaveBeenLastCalledWith('storage', 'Interrupted workspace import recovery failed', expect.any(String));
 });

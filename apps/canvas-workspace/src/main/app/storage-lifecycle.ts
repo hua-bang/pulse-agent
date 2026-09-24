@@ -1,5 +1,4 @@
 import { app, dialog } from 'electron';
-import type { PulseStorage } from '@pulse-coder/storage';
 import { recoverLocalFileWrites } from '@pulse-coder/storage/local-files';
 import { closeCanvasStorage, getCanvasBackend, getLocalCanvasStorage } from '../canvas/persistence/backend';
 import { STORE_DIR } from '../canvas/persistence/paths';
@@ -40,7 +39,9 @@ export async function startStorage(writeLog: WriteLog): Promise<boolean> {
         conflicts: recovery.conflicts, errors: recovery.errors,
       }));
     }
-    await recoverImports(store, writeLog);
+    // Lazy chunk: keeps recovery out of the main bundle; it logs and never blocks startup.
+    await import('../canvas/persistence/import-recovery')
+      .then(module => module.recoverImportsAtStartup(STORE_DIR, store, writeLog)).catch(() => undefined);
     return true;
   } catch (error) {
     await writeLog('storage', 'Storage upgrade failed', String(error));
@@ -51,17 +52,6 @@ export async function startStorage(writeLog: WriteLog): Promise<boolean> {
       + `\n\n${error instanceof Error ? error.message : String(error)}`);
     app.quit();
     return false;
-  }
-}
-
-/** Best effort: an unrecovered import is no worse than before recovery existed. */
-async function recoverImports(store: PulseStorage, writeLog: WriteLog): Promise<void> {
-  try {
-    const { recoverInterruptedWorkspaceImports } = await import('../canvas/persistence/import-recovery');
-    const results = await recoverInterruptedWorkspaceImports(STORE_DIR, store);
-    if (results.length) await writeLog('storage', 'Recovered interrupted workspace imports', JSON.stringify(results));
-  } catch (error) {
-    await writeLog('storage', 'Interrupted workspace import recovery failed', String(error));
   }
 }
 
