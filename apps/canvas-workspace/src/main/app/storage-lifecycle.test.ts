@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: { quit: mocks.quit }, dialog: { showErrorBox: mocks.showErrorBox, showMessageBox: mocks.showMessageBox },
 }));
-vi.mock('../canvas/persistence/activate-sqlite', () => ({ activateCanvasSqlite: mocks.canvas }));
+vi.mock('../canvas/persistence/activate-sqlite', () => ({ activateCanvasSqliteAtStartup: mocks.canvas }));
 vi.mock('../canvas/persistence/backend', () => ({
   getLocalCanvasStorage: mocks.open, getCanvasBackend: mocks.canvasBackend, closeCanvasStorage: mocks.closeCanvas,
 }));

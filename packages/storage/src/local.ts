@@ -56,7 +56,10 @@ function hasCode(error: unknown, code: string): boolean {
 }
 
 function localError(message: string, cause: unknown): StorageError {
-  return isStorageError(cause) ? cause : new StorageError('storage_unavailable', message, { cause });
+  if (isStorageError(cause)) return cause;
+  // Keep the underlying reason visible: hosts show this message to the user.
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return new StorageError('storage_unavailable', `${message}: ${detail}`, { cause });
 }
 
 /** Missing filesystem metadata never makes an existing authoritative database a legacy store. */

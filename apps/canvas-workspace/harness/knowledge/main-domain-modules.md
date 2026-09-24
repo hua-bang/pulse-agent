@@ -94,6 +94,15 @@ reads the backup without restoring files or cleaning partial atoms. Future
 schemas and structurally invalid primary layouts still fail closed. Guards:
 `persistence/readonly-upgrade.test.ts`.
 
+A v1 `canvas.json` (no `schemaVersion: 2`) beside `nodes/<id>.json` files whose
+content differs does not stop the cutover. `persistence/legacy-node-arbitration.ts`
+applies the v1→v2 migration's rule: the node file wins when the inline copy has
+no content or its `updatedAt` is strictly newer; otherwise `canvas.json` wins.
+Both files stay untouched, both copies of each differing field are recorded in
+`__storage-backup__/canvas-conflicts-*.json`, and startup logs them and shows a
+non-blocking notice. Guards: `persistence/legacy-conflicts.test.ts`, including
+parity with `migrateToV2`.
+
 Canvas mutations atomically commit records, a revision, and a change event.
 Both app and CLI compare the revision and database generation; matching numeric
 revisions from an old backend do not authorize an overwrite. The app polls the

@@ -11,8 +11,8 @@ import type { WriteLog } from './logging';
 export async function startStorage(writeLog: WriteLog): Promise<boolean> {
   try {
     if (!await getCanvasBackend(STORE_DIR)) {
-      const { activateCanvasSqlite } = await import('../canvas/persistence/activate-sqlite');
-      await activateCanvasSqlite();
+      const { activateCanvasSqliteAtStartup } = await import('../canvas/persistence/activate-sqlite');
+      await activateCanvasSqliteAtStartup(writeLog);
     }
     if (!await getSqliteSessionStorage()) {
       const { activateSqliteSessions } = await import('../agent/sqlite-session-migration');

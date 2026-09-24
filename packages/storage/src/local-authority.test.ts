@@ -122,6 +122,15 @@ describe('database-owned local activation', () => {
     expect((await storage.canvas.readNode('original', 'n'))?.data).toEqual({ content: 'legacy' });
   });
 
+  it('keeps the underlying reason in a failed migration message', async () => {
+    await expect(activateLocalCanvasStorage({
+      root, loadLegacyWorkspaces: async () => { throw new Error('workspace ws-7 has 3 conflicting nodes'); },
+    })).rejects.toMatchObject({
+      code: 'storage_unavailable',
+      message: expect.stringContaining('workspace ws-7 has 3 conflicting nodes'),
+    });
+  });
+
   it('still refuses a foreign database that has tables but no Pulse schema', async () => {
     const driver = new Database(join(root, '__storage__.sqlite'));
     driver.exec('CREATE TABLE unrelated (id TEXT)');

@@ -116,15 +116,6 @@ describe('read-only Canvas upgrade', () => {
     expect(await readFile(join(root, 'ws', 'canvas.json'), 'utf8')).toBe(layout);
   });
 
-  it.each([{}, { content: 'stale nonempty inline body' }])('rejects v1/atom disagreement without a valid migration witness: %j', async data => {
-    const layout = await seed('canvas.json', { nodes: [{ id: 'n', type: 'text', data }] });
-    const atom = await seed('nodes/n.json', { schemaVersion: 1, id: 'n', type: 'text', data: { content: 'canonical atom' } });
-    await expect(activateCanvasSqlite(root)).rejects.toMatchObject({ cause: { name: 'CanvasPollutionDetectedError' } });
-    expect(await getLocalCanvasStorage(root)).toBeNull();
-    expect(await readFile(join(root, 'ws', 'canvas.json'), 'utf8')).toBe(layout);
-    expect(await readFile(join(root, 'ws', 'nodes/n.json'), 'utf8')).toBe(atom);
-  });
-
   it.each(['future-layout', 'future-backup', 'future-atom'])('does not downgrade %s through an older recovery snapshot', async kind => {
     await seed('.migrating', sentinel);
     await seed('canvas.json.v1.bak', kind === 'future-backup' ? { ...source, schemaVersion: 99 } : source);

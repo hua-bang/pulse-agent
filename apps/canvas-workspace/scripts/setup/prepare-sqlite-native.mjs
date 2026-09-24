@@ -23,6 +23,9 @@ function inspectBinding(electronPath, sqliteRoot, nativeBinding) {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     encoding: 'utf8',
     timeout: 30_000,
+    // A missing cached binding is expected on first run; the caller rebuilds it,
+    // so its MODULE_NOT_FOUND must not reach the console as if it were fatal.
+    stdio: ['ignore', 'pipe', 'pipe'],
   }));
 }
 

@@ -81,3 +81,23 @@ why each choice was made and what was rejected.
   a second source of truth tied to each vendor's private format.
 - **Left open:** the chat-role id map in `external-agent-state.json` is still a
   JSON file (spec S2/S4).
+
+## Resolve divergent v1 node copies like the v1→v2 migration
+
+Found by a real-data dry run: 6 workspaces kept a v1 `canvas.json` with full
+node bodies while 63 of those nodes also had different `nodes/<id>.json`
+files. The first cutover stopped startup on this state.
+
+- **Chosen:** apply the rule `migrateToV2` already used when the app opened
+  such a workspace. The node file wins when the inline copy is empty or its
+  `updatedAt` is strictly newer; otherwise `canvas.json` wins. The result
+  matches what users would have seen after opening the workspace in the
+  previous release.
+- **Rejected:** stopping startup, which blocked every workspace for a state the
+  previous release handled; and always preferring `canvas.json`, which would
+  diverge from that release whenever the node file was newer.
+- **Kept safe:** neither file is changed, both copies of each differing field
+  are recorded under `__storage-backup__`, and the user is told which
+  workspaces were affected. Migration failures now also carry the underlying
+  reason instead of a generic message.
+

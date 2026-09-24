@@ -5,8 +5,8 @@ import { StorageError, type EntityRecord } from '@pulse-coder/storage';
 import { prepareLegacyCanvasImport, type LegacyCanvas } from '@pulse-coder/storage/canvas';
 import { getNodeFilePath, listWorkspaceNodeIds, isSafeNodeId } from '../nodes/store';
 import { readJsonWithRecovery } from './atomic-json';
-import { CanvasPollutionDetectedError, detectV1Pollution } from './pollution';
-import type { CanvasNode, MigrationSentinel } from './schema';
+import { arbitrateLegacyNode, type LegacyNodeConflict } from './legacy-node-arbitration';
+import type { MigrationSentinel } from './schema';
 
 const object = (value: unknown): value is Record<string, unknown> => (
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -74,7 +74,11 @@ function expectedPartialIds(data: LegacyCanvas, sentinel: MigrationSentinel): Se
 }
 
 /** Read migration inputs only. Never invoke the legacy loader's cleanup/recovery writes. */
-export async function readLegacyCanvasWorkspace(root: string, workspaceId: string) {
+export async function readLegacyCanvasWorkspace(
+  root: string,
+  workspaceId: string,
+  conflicts: LegacyNodeConflict[] = [],
+) {
   const layoutPath = join(root, workspaceId, 'canvas.json');
   const primary = await optionalText(layoutPath);
   let primaryIsJson = false;
@@ -154,15 +158,18 @@ export async function readLegacyCanvasWorkspace(root: string, workspaceId: strin
     // The projection now contains inline bodies, just like the legacy loader.
     delete data.schemaVersion;
   } else if (!sentinel) {
-    const conflicts = new Set(await detectV1Pollution(workspaceId, (data.nodes ?? []) as CanvasNode[], root));
-    for (const node of data.nodes ?? []) {
-      const atom = byId.get(node.id!);
-      if (node.type === 'reference' && node.ref || !atom) continue;
-      if (['type', 'title', 'data', 'properties', 'links'].some(field => (
-        node[field] !== undefined && atom[field] !== undefined && !isDeepStrictEqual(node[field], atom[field])
-      ))) conflicts.add(node.id!);
-    }
-    if (conflicts.size) throw new CanvasPollutionDetectedError(workspaceId, [...conflicts]);
+    // A v1 canvas.json beside v2 node files: resolve each divergent node the
+    // way the v1→v2 migration does and report the copy that was not kept.
+    data = {
+      ...data,
+      nodes: (data.nodes ?? []).map(node => {
+        const atom = byId.get(node.id!);
+        if (node.type === 'reference' && node.ref || !atom) return node;
+        const resolved = arbitrateLegacyNode(workspaceId, node as EntityRecord, atom);
+        if (resolved.conflict) conflicts.push(resolved.conflict);
+        return resolved.node as typeof node;
+      }),
+    };
   }
   return prepareLegacyCanvasImport(workspaceId, data, atoms);
 }
