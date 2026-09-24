@@ -47,6 +47,26 @@ function makeDeps(key: ConversationKey, runner: ReturnType<typeof makeRunner>): 
 }
 
 describe('ConversationRuntime (main, async owner)', () => {
+  it('replaces history from a user turn for edit/regenerate and refuses a stale index', async () => {
+    const runner = makeRunner();
+    const deps = makeDeps(keyA, runner);
+    const history = [user('first'), assistant('one'), user('second'), { ...assistant('partial'), turnStatus: 'stopped' as const }];
+    deps.loadMessages = async () => [...history];
+    const rt = new ConversationRuntime(deps);
+    await rt.open();
+
+    const stale = await rt.sendAndWait({ message: 'again', truncateAt: 1 });
+    expect(stale.error).toMatch(/no longer in this conversation/);
+    expect(runner.calls).toHaveLength(0);
+    expect(deps.persisted).toHaveLength(0);
+
+    const result = await rt.sendAndWait({ message: 'second', truncateAt: 2 });
+    expect(result.error).toBeUndefined();
+    expect(deps.stored.map(message => [message.role, message.content])).toEqual([
+      ['user', 'first'], ['assistant', 'one'], ['user', 'second'], ['assistant', 'echo:second'],
+    ]);
+  });
+
   it('waits for the initial user-message save before starting the model turn', async () => {
     const runner = makeRunner();
     const deps = makeDeps(keyA, runner);

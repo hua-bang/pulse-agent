@@ -266,6 +266,14 @@ export class ConversationRuntime {
     input: ConversationSendInput,
     external?: ConversationTurnExternal,
   ): Promise<TurnRunnerResult> {
+    if (input.truncateAt !== undefined) {
+      // Edit/regenerate replace a user turn in place; refuse a stale index
+      // rather than cutting unrelated history.
+      if (!Number.isInteger(input.truncateAt) || this.messages[input.truncateAt]?.role !== 'user') {
+        throw new Error('The message to resend is no longer in this conversation.');
+      }
+      this.messages.length = input.truncateAt;
+    }
     this.messages.push({
       role: 'user',
       content: input.message,

@@ -140,6 +140,9 @@ export function useChatComposerController({
     () => sessionLoadingRef.current || sessionErrorRef.current,
     [],
   );
+  const runningRef = useRef(false);
+  runningRef.current = chatStream.loading;
+  const isRunning = useCallback(() => runningRef.current, []);
 
   const prewarmTimerRef = useRef<number | undefined>(undefined);
   const prewarmedConversationRef = useRef<string | null>(null);
@@ -194,6 +197,7 @@ export function useChatComposerController({
     onSubmitDuringRun: chatStream.submitRunInput,
     getRequestContext,
     isSubmitBlocked,
+    isRunning,
   });
 
   const handleInput = useCallback(() => {

@@ -306,6 +306,17 @@ Guards: `modules/chat/components/ChatMessages/__tests__/ChatMessages.accessibili
 `modules/chat/components/ChatMessage/ChatToolCalls/__tests__/ChatToolCalls.test.tsx`, and
 `modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
+## Long-thread rendering
+
+Every message in a thread is mounted (no virtualization yet), so an 800-turn
+thread keeps about 12,000 elements in the DOM. `ChatMessage` is memoized, and
+`ChatMessages` passes identity-stable forwarders from `useStableRowHandlers`
+instead of inline or per-render callbacks. A row prop that changes identity on
+every composer keystroke or stream delta re-renders the whole history
+(measured: 72 ms per keystroke at 800 turns, versus 18 ms memoized). Opening such
+a thread still takes several seconds; virtualization is the remaining fix.
+Guard: `ChatMessages/__tests__/useStableRowHandlers.test.tsx`.
+
 ## Stopped-turn outcome lifecycle
 
 A stopped turn keeps a compact recovery marker while it remains the latest
@@ -754,9 +765,24 @@ active turn to settle, then uses the ordinary prepared-turn path.
 Pending text and its context snapshot are kept by scope + conversation across
 chat-surface remounts. Delivery pauses while that conversation has no mounted
 chat host and resumes when it returns; it is not a durable app-restart queue.
-Manual Stop clears pending input. Draft attachments stay untouched because run
-input is text-only. Guard:
-`src/renderer/src/modules/chat/runtime/useChatRunQueue.test.tsx`.
+Enter takes the same run-input path as the Queue button while a turn runs,
+behind the same session-loading veto. Manual Stop clears pending input (both
+surfaces pass `abortAndClearQueue`, never the raw abort); Steer keeps its
+stop-and-continue behavior. Draft attachments stay untouched because run
+input is text-only. Guards:
+`src/renderer/src/modules/chat/runtime/useChatRunQueue.test.tsx` and
+`ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`.
+
+### Edit and regenerate
+
+Edit and regenerate replace a user turn inside the same conversation; they do
+not branch or move the scope pointer. Regenerate maps the clicked assistant
+(or stopped/failed) message to the user turn it answered. The renderer sends
+that turn with `truncateAt`, and `ConversationRuntime` cuts its own history at
+that index under the turn lease, so the pre-turn save replaces the durable
+messages. An index that no longer points at a user message fails the turn
+instead of cutting unrelated history. The turn's attachments are resent.
+Guards: `useConversationRecovery.test.tsx` and `conversation-runtime.test.ts`.
 
 ### Clarification serialization
 
