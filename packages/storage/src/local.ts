@@ -4,7 +4,7 @@ import { lstat, mkdir, open, readFile, rename, rmdir, stat, unlink } from 'node:
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { EntityRecord, JsonObject, PulseStorage, RecordChanges } from './contracts.js';
 import { StorageError, isStorageError } from './errors.js';
-import { openSqliteStorage, type SqliteStorage } from './sqlite/index.js';
+import { isUninitializedSqliteFile, openSqliteStorage, type SqliteStorage } from './sqlite/index.js';
 import { encodeJson, validateId } from './sqlite/validation.js';
 
 export type LocalStorageDomain = 'canvas' | 'conversations';
@@ -73,11 +73,14 @@ export async function readLocalStorageStatus(
       let database;
       try { database = await stat(join(root, DATABASE_FILE)); }
       catch (missing) { if (hasCode(missing, 'ENOENT')) return null; throw missing; }
-      // A crash while creating the database leaves an empty file; legacy files remain authoritative.
+      // A crash while creating the database leaves an empty or uninitialized
+      // file; nothing was cut over, so legacy files remain authoritative.
       if (database.isFile() && database.size === 0) return null;
+      const nativeBinding = options.nativeBinding ?? await options.resolveNativeBinding?.();
+      if (await isUninitializedSqliteFile(join(root, DATABASE_FILE), nativeBinding)) return null;
       const storage = await openSqliteStorage({
         path: join(root, DATABASE_FILE),
-        nativeBinding: options.nativeBinding ?? await options.resolveNativeBinding?.(),
+        nativeBinding,
         fileMustExist: true,
       });
       try {

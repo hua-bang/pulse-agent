@@ -24,6 +24,14 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
     SELECT t.workspace_id, w.revision, t.deleted_at, t.metadata
     FROM workspace_trash t JOIN workspaces w ON w.id = t.workspace_id WHERE t.workspace_id = ?
   `);
+  const setSessionRevision = ctx.db.prepare('UPDATE conversations SET revision = ? WHERE scope_id = ? AND session_id = ?');
+  const messageIds = ctx.db.prepare('SELECT id FROM conversation_messages WHERE scope_id = ? AND session_id = ?');
+  const scopeExists = ctx.db.prepare('SELECT 1 FROM conversation_scopes WHERE scope_id = ?');
+  const setScopeRevision = ctx.db.prepare('UPDATE conversation_scopes SET revision = ? WHERE scope_id = ?');
+  const setWorkspaceRevision = ctx.db.prepare('UPDATE workspaces SET revision = ? WHERE id = ?');
+  const recordIds = ctx.db.prepare('SELECT id FROM canvas_records WHERE workspace_id = ?');
+  const insertTrash = ctx.db.prepare('INSERT INTO workspace_trash (workspace_id, deleted_at, metadata) VALUES (?, ?, ?)');
+  const deleteTrash = ctx.db.prepare('DELETE FROM workspace_trash WHERE workspace_id = ?');
   const trashedPage = ctx.db.prepare(`
     SELECT t.workspace_id, w.revision, t.deleted_at, t.metadata
     FROM workspace_trash t JOIN workspaces w ON w.id = t.workspace_id
@@ -48,20 +56,18 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
     const sessions = sessionRevisions.all(workspaceId) as SessionRevision[];
     for (const session of sessions) {
       const revision = ctx.nextRevision('conversation', workspaceId, session.session_id);
-      ctx.db.prepare('UPDATE conversations SET revision = ? WHERE scope_id = ? AND session_id = ?')
-        .run(revision, workspaceId, session.session_id);
-      const ids = ctx.db.prepare('SELECT id FROM conversation_messages WHERE scope_id = ? AND session_id = ?')
-        .all(workspaceId, session.session_id) as Array<{ id: string }>;
+      setSessionRevision.run(revision, workspaceId, session.session_id);
+      const ids = messageIds.all(workspaceId, session.session_id) as Array<{ id: string }>;
       ctx.change('conversation', workspaceId, session.session_id, revision, kind, ids.map(row => row.id));
     }
-    if (ctx.db.prepare('SELECT 1 FROM conversation_scopes WHERE scope_id = ?').get(workspaceId)) {
+    if (scopeExists.get(workspaceId)) {
       const revision = ctx.nextRevision('conversation-scope', workspaceId, workspaceId);
-      ctx.db.prepare('UPDATE conversation_scopes SET revision = ? WHERE scope_id = ?').run(revision, workspaceId);
+      setScopeRevision.run(revision, workspaceId);
       ctx.change('conversation-scope', workspaceId, workspaceId, revision, kind, sessions.map(session => session.session_id));
     }
     const revision = ctx.nextRevision('canvas', workspaceId, workspaceId);
-    ctx.db.prepare('UPDATE workspaces SET revision = ? WHERE id = ?').run(revision, workspaceId);
-    const ids = ctx.db.prepare('SELECT id FROM canvas_records WHERE workspace_id = ?').all(workspaceId) as Array<{ id: string }>;
+    setWorkspaceRevision.run(revision, workspaceId);
+    const ids = recordIds.all(workspaceId) as Array<{ id: string }>;
     const changeCursor = ctx.change('canvas', workspaceId, workspaceId, revision, kind, ids.map(row => row.id));
     return { revision, generation: ctx.generation, changeCursor };
   }
@@ -164,8 +170,7 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
     const body = encodeJson(metadata);
     const deletedAt = new Date().toISOString();
     advanceBundle(input.workspaceId, 'removed');
-    ctx.db.prepare('INSERT INTO workspace_trash (workspace_id, deleted_at, metadata) VALUES (?, ?, ?)')
-      .run(input.workspaceId, deletedAt, body);
+    insertTrash.run(input.workspaceId, deletedAt, body);
     return trashRecord(trashed.get(input.workspaceId) as TrashRow);
   });
 
@@ -176,7 +181,7 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
       throw new RevisionConflictError(workspaceId, revision, row?.revision ?? null);
     }
     const receipt = advanceBundle(workspaceId, 'updated');
-    ctx.db.prepare('DELETE FROM workspace_trash WHERE workspace_id = ?').run(workspaceId);
+    deleteTrash.run(workspaceId);
     return receipt;
   });
 

@@ -1,7 +1,7 @@
 # Unified Storage
 
-Status: phase S1 is implemented on `codex/unified-storage` (PR #1035, pending
-merge); later phases are planned targets. Current behavior is owned by the
+Status: phases S1 and S2 are implemented on `codex/unified-storage` (PR #1035,
+pending merge); later phases are planned targets. Current behavior is owned by the
 Knowledge resources routed below — this spec owns the intended end state and
 the delivery order, not a second description of what already exists.
 Decision trail: [history/](history/).
@@ -61,7 +61,7 @@ The end state these phases converge on:
 | Phase | Deliverable | Status | Completion condition |
 |---|---|---|---|
 | S1 | SQLite for Canvas structure and Canvas Agent conversations | Implemented, PR #1035 | Merged with CI green; standard acceptance and storage consumer checks pass |
-| S2 | Hardening of the S1 boundaries | Planned, next | Each item below lands with a regression test |
+| S2 | Hardening of the S1 boundaries | Implemented, PR #1035 | Each item below landed with a regression test |
 | S3 | File repository for Markdown and attachments | Direction agreed, design pending | Markdown and attachment access in Canvas main goes through it |
 | S4 | Remaining JSON domains | Needs decision | Each domain either migrated or explicitly kept as a file with a stated reason |
 | S5 | Remote adapter or multi-device sync | Not planned | Starts only with a product decision to sync |
@@ -87,15 +87,15 @@ Each phase must be independently mergeable. S2 does not wait for S3.
   - The change log is bounded and expired cursors fail.
   - Unreadable legacy session files are skipped and reported.
 
-### S2 — Hardening (planned)
+### S2 — Hardening (implemented)
 
-| Item | Owner | Done when |
+| Gap closed | Owner | Guard |
 |---|---|---|
-| A crash before the first schema transaction commits (`user_version` 0 with no tables) still stops startup | `packages/storage` (`local.ts`) | Treated as pristine; covered in `local-authority.test.ts` |
-| A hard interrupt between the database commit and manifest publication of a workspace import needs manual recovery | `apps/canvas-workspace` (`workspace-import.ts`) | Startup completes or compensates the journaled import |
-| `external-agent-state.json` loses role session ids under concurrent writes (see known-defects) | `apps/canvas-workspace` | Resolved by S4 or by an atomic, serialized writer |
-| The CLI opens the database several times per command | `packages/canvas-cli` | One connection per command invocation |
-| Trash and restore prepare SQL statements inside per-session loops | `packages/storage` (`sqlite/workspaces.ts`) | Statements prepared once per repository |
+| A crash before the first schema transaction committed stopped every later startup | `packages/storage` (`local.ts`, `sqlite/index.ts`) | `local-authority.test.ts`; foreign databases still fail closed |
+| A hard interrupt between the import's database commit and manifest publication needed manual recovery | `apps/canvas-workspace` (`persistence/import-recovery.ts`) | `import-recovery.test.ts`, `storage-lifecycle.test.ts` |
+| Concurrent chat-role saves could drop CLI session ids in `external-agent-state.json` | `apps/canvas-workspace` (`agent/external/state-store.ts`) | `state-store.test.ts`; the file stays JSON until S4 |
+| The CLI opened the database several times per command | `packages/canvas-cli` (`core/sqlite-store.ts`) | `storage-session.test.ts` |
+| Trash, restore, and every commit recompiled SQL statements | `packages/storage` (`sqlite/workspaces.ts`, `sqlite/index.ts`) | Existing trash/restore and commit suites |
 
 ### S3 — File repository (direction agreed)
 
@@ -116,7 +116,7 @@ and a remote adapter. Optional follow-up once S3 lands: a full-text index
 
 | Domain | Current store | Proposed direction |
 |---|---|---|
-| External chat-role CLI session ids | `~/.pulse-coder/canvas/external-agent-state.json` | Store in the owning conversation's metadata so it commits, trashes, and restores with the conversation |
+| External chat-role CLI session ids | `~/.pulse-coder/canvas/external-agent-state.json` (serialized, atomic since S2) | Store in the owning conversation's metadata so it commits, trashes, and restores with the conversation |
 | Scheduled tasks, Task, Goal | `scheduled-tasks.json` and related files | Decide per domain; not part of the S1 scope |
 | Workspace manifest (names, folders, order) | `__workspaces__.json` | Keep as a file unless S5 needs it in the database |
 

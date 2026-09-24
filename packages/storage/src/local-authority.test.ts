@@ -113,6 +113,25 @@ describe('database-owned local activation', () => {
     expect(await storage.localActivation.read()).toEqual([{ domain: 'canvas', state: 'active' }]);
   });
 
+  it('restarts a cutover that crashed before the first schema transaction committed', async () => {
+    const driver = new Database(join(root, '__storage__.sqlite'));
+    driver.pragma('journal_mode = WAL');
+    driver.close();
+    expect(await readLocalStorageStatus(root)).toBeNull();
+    const storage = track(await activateLocalCanvasStorage({ root, loadLegacyWorkspaces: async () => legacy })) as SqliteStorage;
+    expect((await storage.canvas.readNode('original', 'n'))?.data).toEqual({ content: 'legacy' });
+  });
+
+  it('still refuses a foreign database that has tables but no Pulse schema', async () => {
+    const driver = new Database(join(root, '__storage__.sqlite'));
+    driver.exec('CREATE TABLE unrelated (id TEXT)');
+    driver.close();
+    await expect(readLocalStorageStatus(root)).rejects.toMatchObject({ code: 'corrupt_data' });
+    const source = vi.fn(async () => legacy);
+    await expect(activateLocalCanvasStorage({ root, loadLegacyWorkspaces: source })).rejects.toMatchObject({ code: 'corrupt_data' });
+    expect(source).not.toHaveBeenCalled();
+  });
+
   it('restarts a cutover that crashed while creating an empty database file', async () => {
     await writeFile(join(root, '__storage__.sqlite'), '');
     expect(await readLocalStorageStatus(root)).toBeNull();

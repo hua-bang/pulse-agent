@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   canvas: vi.fn(), sessions: vi.fn(), recover: vi.fn(), open: vi.fn(),
   canvasBackend: vi.fn(), sessionBackend: vi.fn(), registerArchive: vi.fn(), createArchive: vi.fn(),
   closeCanvas: vi.fn(), closeSessions: vi.fn(), stopObserver: vi.fn(),
-  quit: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn(),
+  quit: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn(), recoverImports: vi.fn(),
 }));
 vi.mock('electron', () => ({
   app: { quit: mocks.quit }, dialog: { showErrorBox: mocks.showErrorBox, showMessageBox: mocks.showMessageBox },
@@ -22,6 +22,7 @@ vi.mock('../agent/sqlite-session-backend', () => ({
 vi.mock('../agent/workspace-session-archive', () => ({ createCanvasSessionArchivePort: mocks.createArchive }));
 vi.mock('../canvas/persistence/session-archive-port', () => ({ setCanvasSessionArchivePort: mocks.registerArchive }));
 vi.mock('@pulse-coder/storage/local-files', () => ({ recoverLocalFileWrites: mocks.recover }));
+vi.mock('../canvas/persistence/import-recovery', () => ({ recoverInterruptedWorkspaceImports: mocks.recoverImports }));
 
 import { startStorage, stopStorageAfterWriters } from './storage-lifecycle';
 
@@ -35,6 +36,7 @@ beforeEach(() => {
   mocks.closeCanvas.mockResolvedValue(undefined);
   mocks.closeSessions.mockResolvedValue(undefined);
   mocks.recover.mockResolvedValue({ ok: true, items: [], conflicts: 0, errors: 0 });
+  mocks.recoverImports.mockResolvedValue([]);
 });
 
 describe('first-upgrade startup boundary', () => {
@@ -56,6 +58,19 @@ describe('first-upgrade startup boundary', () => {
     expect(mocks.recover).toHaveBeenCalledOnce();
     expect(mocks.quit).not.toHaveBeenCalled();
     expect(mocks.showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('recovers interrupted imports before IPC and keeps starting when that recovery fails', async () => {
+    const results = [{ workspaceId: 'ws', outcome: 'published' }];
+    mocks.recoverImports.mockResolvedValueOnce(results);
+    const writeLog = vi.fn();
+    expect(await startStorage(writeLog)).toBe(true);
+    expect(mocks.recoverImports).toHaveBeenCalledWith('/test-storage', {});
+    expect(writeLog).toHaveBeenCalledWith('storage', expect.stringContaining('Recovered'), JSON.stringify(results));
+    mocks.recoverImports.mockRejectedValueOnce(new Error('manifest locked'));
+    expect(await startStorage(writeLog)).toBe(true);
+    expect(writeLog).toHaveBeenCalledWith('storage', expect.stringContaining('recovery failed'), expect.stringContaining('manifest locked'));
+    expect(mocks.quit).not.toHaveBeenCalled();
   });
 
   it('starts after skipping unreadable session files, logging and announcing them without waiting', async () => {

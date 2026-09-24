@@ -20,7 +20,7 @@ import {
 } from './session-archive-port';
 
 const PORTABLE_PREFIX = 'pulsecanvas://workspace/';
-const IMPORT_JOURNAL = '.workspace-import.json';
+export const IMPORT_JOURNAL = '.workspace-import.json';
 const isNodeFile = (path: string): boolean => /^nodes\/[^/]+\.json$/.test(path.replace(/\\/g, '/'));
 
 export const relativePathFromPortableUrl = (value: string): string | null => (

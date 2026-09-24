@@ -10,11 +10,16 @@ or a mutating command. `src/core/store.ts` is the compatibility facade;
   mirrors the completed cutovers. If the marker is missing, an active database
   restores it without importing old JSON. Only a database explicitly marked staging,
   or activation limited to conversations, leaves Canvas on its legacy JSON path.
-  So does a pristine database (empty file, or no activation state and no domain
-  records), which only a crash before the first `begin()` can leave behind.
+  So does a pristine database (an empty file, a file with no Pulse schema and no
+  tables, or no activation state and no domain records), which only a crash
+  before the first `begin()` can leave behind. A database with foreign tables
+  still fails closed.
   Unknown authority (including an old SQL schema with a missing marker) fails closed.
 - Before selecting the Canvas backend, the CLI opens any active database and
-  reconciles its full activated-domain set with the marker. A stale marker that
+  reconciles its full activated-domain set with the marker. The CLI entry wraps
+  each command in `withStorageSession`, so one command opens a data root's
+  database once and closes it on exit; library callers outside a session open
+  and close per access. Inactive roots are never cached within a command. A stale marker that
   lists only conversations cannot hide active SQL Canvas records from read, list,
   or status. Native binding resolution is passed lazily into both database opens
   and legacy write fences, including manifest, doctor, and restore paths. A root

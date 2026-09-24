@@ -40,6 +40,28 @@ export interface SqliteStorage extends PulseStorage {
   localActivation: LocalActivationRepository;
 }
 
+/**
+ * True only for a file SQLite created but no Pulse schema transaction ever
+ * committed to (a crash between creating the file and initializing it).
+ * Foreign or damaged databases are never reported as uninitialized.
+ */
+export async function isUninitializedSqliteFile(path: string, nativeBinding?: string): Promise<boolean> {
+  if (typeof path !== 'string' || !isAbsolute(path)) {
+    throw new StorageError('invalid_argument', 'SQLite inspection requires an absolute path');
+  }
+  let db: Database.Database | undefined;
+  try {
+    db = new Database(path, { nativeBinding, fileMustExist: true });
+    const version = db.pragma('user_version', { simple: true }) as number;
+    const objects = (db.prepare('SELECT COUNT(*) AS count FROM sqlite_master').get() as { count: number }).count;
+    return version === 0 && objects === 0;
+  } catch (error) {
+    throw storageError(error);
+  } finally {
+    db?.close();
+  }
+}
+
 export async function openSqliteStorage(options: SqliteStorageOptions): Promise<SqliteStorage> {
   if (!options || typeof options.path !== 'string'
     || (options.path !== ':memory:' && !isAbsolute(options.path))) {
@@ -90,6 +112,18 @@ export async function openSqliteStorage(options: SqliteStorageOptions): Promise<
 
   const connection = db;
   let closed = false;
+  // Every commit allocates a revision and appends a change; compile these once.
+  const allocateRevision = connection.prepare(`
+    INSERT INTO resource_versions (domain, scope_id, resource_id, revision)
+    VALUES (?, ?, ?, 1)
+    ON CONFLICT(domain, scope_id, resource_id) DO UPDATE SET revision = revision + 1
+    RETURNING revision
+  `);
+  const insertChange = connection.prepare(`
+    INSERT INTO storage_changes (domain, scope_id, resource_id, revision, kind, changed_ids)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const pruneChanges = connection.prepare('DELETE FROM storage_changes WHERE sequence <= ?');
   const ctx: SqliteContext = {
     generation,
     db: connection,
@@ -102,23 +136,15 @@ export async function openSqliteStorage(options: SqliteStorageOptions): Promise<
       if (!connection.inTransaction) {
         throw new StorageError('storage_unavailable', 'Revision allocation requires a transaction');
       }
-      const row = connection.prepare(`
-        INSERT INTO resource_versions (domain, scope_id, resource_id, revision)
-        VALUES (?, ?, ?, 1)
-        ON CONFLICT(domain, scope_id, resource_id) DO UPDATE SET revision = revision + 1
-        RETURNING revision
-      `).get(domain, scopeId, resourceId) as { revision: number };
+      const row = allocateRevision.get(domain, scopeId, resourceId) as { revision: number };
       return row.revision;
     },
     change(domain, scopeId, resourceId, revision, kind, ids) {
-      const result = connection.prepare(`
-        INSERT INTO storage_changes (domain, scope_id, resource_id, revision, kind, changed_ids)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(domain, scopeId, resourceId, revision, kind, encodeJson([...new Set(ids)]));
+      const result = insertChange.run(domain, scopeId, resourceId, revision, kind, encodeJson([...new Set(ids)]));
       const sequence = Number(result.lastInsertRowid);
       if (sequence % pruneInterval === 0) {
         // AUTOINCREMENT never reuses pruned sequences, so retained cursors stay valid.
-        connection.prepare('DELETE FROM storage_changes WHERE sequence <= ?').run(sequence - retention);
+        pruneChanges.run(sequence - retention);
       }
       return encodeCursor(String(sequence));
     },
