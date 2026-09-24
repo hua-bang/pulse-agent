@@ -10,7 +10,8 @@ by Canvas, its CLI, and other hosts. Read the root AGENTS and harness/README.md.
 - SQLite is an adapter. Keep transaction callbacks internal and synchronous;
   public operations are asynchronous so remote adapters can implement them.
 - A mutation's records, revision, and change notification commit together.
-  Reject stale revisions instead of silently overwriting newer state.
+  Reject stale revisions instead of silently overwriting newer state. The change
+  log is bounded; an expired cursor must fail, never silently skip changes.
 - User workspace deletion uses `workspaces.trashBundle`; preserve records,
   current pointers, and file intents until explicit restoration. Keep permanent
   `removeBundle` for import compensation, not user deletion. Trashed reads are

@@ -113,6 +113,33 @@ describe('SQLite lifecycle and recovery contract', () => {
     await expect(store.changes.read({ cursor: '!!!' })).rejects.toMatchObject({ code: 'invalid_argument' });
   });
 
+  it('bounds the change log without reusing sequences or silently skipping pruned changes', async () => {
+    const path = join(root, 'pulse.sqlite');
+    const store = await openSqliteStorage({ path, changeRetention: 3 });
+    stores.push(store);
+    const receipts = [];
+    let revision: number | null = null;
+    for (let index = 0; index < 7; index += 1) {
+      const receipt = await store.canvas.commit({ workspaceId: 'ws', expectedRevision: revision });
+      revision = receipt.revision;
+      receipts.push(receipt);
+    }
+    const driver = new Database(path, { readonly: true });
+    try {
+      const rows = driver.prepare('SELECT sequence FROM storage_changes ORDER BY sequence').all() as Array<{ sequence: number }>;
+      expect(rows.map(row => row.sequence)).toEqual([4, 5, 6, 7]);
+    } finally { driver.close(); }
+    expect(await store.changes.latestCursor()).toBe(receipts[6].changeCursor);
+    const resumed = await store.changes.read({ cursor: receipts[2].changeCursor });
+    expect(resumed.items.map(change => change.revision)).toEqual([4, 5, 6, 7]);
+    await expect(store.changes.read({ cursor: receipts[1].changeCursor }))
+      .rejects.toMatchObject({ code: 'revision_conflict' });
+    const next = await store.canvas.commit({ workspaceId: 'ws', expectedRevision: revision });
+    expect(next.changeCursor).not.toBe(receipts[0].changeCursor);
+    expect((await store.changes.read({ cursor: receipts[6].changeCursor })).items.map(change => change.revision)).toEqual([8]);
+    await expect(openSqliteStorage({ path, changeRetention: 0 })).rejects.toMatchObject({ code: 'invalid_argument' });
+  });
+
   it('closes idempotently and rejects later operations consistently', async () => {
     const store = await openStore();
     await store.close();

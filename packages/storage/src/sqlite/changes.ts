@@ -22,9 +22,18 @@ export function createChangeRepository(ctx: SqliteContext): ChangeRepository {
         if (!/^(0|[1-9][0-9]*)$/.test(after) || !Number.isSafeInteger(Number(after))) {
           throw new StorageError('invalid_argument', 'Invalid change cursor');
         }
-        const rows = ctx.db.prepare(
-          'SELECT * FROM storage_changes WHERE sequence > ? ORDER BY sequence LIMIT ?',
-        ).all(Number(after), limit + 1) as ChangeRow[];
+        const readPage = ctx.db.transaction(() => {
+          if (request.cursor !== undefined) {
+            const oldest = ctx.db.prepare('SELECT MIN(sequence) AS value FROM storage_changes').get() as { value: number | null };
+            if (oldest.value !== null && Number(after) < oldest.value - 1) {
+              throw new StorageError('revision_conflict', 'Change cursor predates the retained change log; resynchronize from the latest cursor');
+            }
+          }
+          return ctx.db.prepare(
+            'SELECT * FROM storage_changes WHERE sequence > ? ORDER BY sequence LIMIT ?',
+          ).all(Number(after), limit + 1) as ChangeRow[];
+        });
+        const rows = readPage.deferred();
         const items = rows.slice(0, limit).map(row => ({
           cursor: encodeCursor(String(row.sequence)),
           domain: row.domain,

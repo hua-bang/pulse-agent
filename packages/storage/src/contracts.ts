@@ -103,6 +103,10 @@ export interface StorageChange {
 
 /** Every change becomes visible in the same transaction as its domain records. */
 export interface ChangeRepository {
+  /**
+   * The log retains only recent changes. A cursor older than the retained log
+   * rejects with `revision_conflict`; resynchronize from `latestCursor()`.
+   */
   read(request?: PageRequest): Promise<Page<StorageChange>>;
   latestCursor(): Promise<string>;
 }

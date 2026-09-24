@@ -1,4 +1,4 @@
-import type { PulseStorage, StorageChange } from '@pulse-coder/storage';
+import { isStorageError, type PulseStorage, type StorageChange } from '@pulse-coder/storage';
 
 export interface SqliteChangeObserver {
   poll(): Promise<void>;
@@ -19,7 +19,16 @@ export async function observeSqliteChanges(
     polling = true;
     try {
       for (;;) {
-        const page = await store.changes.read({ cursor, limit: 100 });
+        let page;
+        try {
+          page = await store.changes.read({ cursor, limit: 100 });
+        } catch (error) {
+          if (!isStorageError(error) || error.code !== 'revision_conflict') throw error;
+          // The retained log moved past us; resume instead of failing every later poll.
+          console.warn('[canvas-storage] change cursor expired; resuming from the latest change', error);
+          cursor = await store.changes.latestCursor();
+          break;
+        }
         for (const change of page.items) {
           if (stopped) return;
           if (change.domain === 'canvas') await onChange(change);

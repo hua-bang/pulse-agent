@@ -10,8 +10,8 @@ afterEach(async () => {
   for (const store of stores.splice(0)) await store.close();
 });
 
-async function fixture(onChange = vi.fn()) {
-  const store = await openSqliteStorage({ path: ':memory:' });
+async function fixture(onChange = vi.fn(), changeRetention?: number) {
+  const store = await openSqliteStorage({ path: ':memory:', changeRetention });
   stores.push(store);
   const observer = await observeSqliteChanges(store, onChange, 60000);
   stops.push(() => observer.stop());
@@ -48,5 +48,22 @@ describe('SQLite committed-change observer', () => {
     await observer.poll();
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange.mock.calls[0][0]).toMatchObject({ domain: 'canvas' });
+  });
+
+  it('resumes from the latest change after its cursor falls out of the retained log', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { store, observer, onChange } = await fixture(vi.fn(), 2);
+    let revision: number | null = null;
+    for (let index = 0; index < 4; index += 1) {
+      revision = (await store.canvas.commit({ workspaceId: 'ws', expectedRevision: revision })).revision;
+    }
+    await observer.poll();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    const next = await store.canvas.commit({ workspaceId: 'ws', expectedRevision: revision });
+    await observer.poll();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toMatchObject({ revision: next.revision });
+    warn.mockRestore();
   });
 });

@@ -50,7 +50,10 @@ Canvas placements and knowledge atoms are separate. Removing a placement does
 not prune off-canvas atoms; only explicit atom removals do. Plugin payloads,
 properties, links, and draw order round-trip through the shared compatibility
 adapter. The app observes committed changes rather than watching SQLite/WAL
-files; the CLI notifier remains a no-op and no runtime socket is needed.
+files; the CLI notifier remains a no-op and no runtime socket is needed. The
+change log keeps only its newest entries (default 10,000, pruned inside the
+inserting transaction); a cursor older than that rejects with
+`revision_conflict`, and the app observer resumes from the latest cursor.
 
 Markdown remains the source of truth. `sqlite-file-writes.ts` prepares hashes
 and recovery snapshots before mutation; Canvas CAS and file intent staging

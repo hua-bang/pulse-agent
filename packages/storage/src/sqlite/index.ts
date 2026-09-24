@@ -21,7 +21,11 @@ export interface SqliteStorageOptions {
   busyTimeoutMs?: number;
   /** Open an already initialized Pulse database; never create a replacement. */
   fileMustExist?: boolean;
+  /** Newest change-log entries kept for cursor readers; older entries are pruned. */
+  changeRetention?: number;
 }
+
+const DEFAULT_CHANGE_RETENTION = 10_000;
 
 function supportsSafeWal(version: string): boolean {
   const [major, minor, patch] = version.split('.').map(Number);
@@ -45,6 +49,12 @@ export async function openSqliteStorage(options: SqliteStorageOptions): Promise<
   if (!Number.isSafeInteger(timeout) || timeout < 0 || timeout > 60000) {
     throw new StorageError('invalid_argument', 'Invalid storage lock timeout');
   }
+  const retention = options.changeRetention ?? DEFAULT_CHANGE_RETENTION;
+  if (!Number.isSafeInteger(retention) || retention < 1) {
+    throw new StorageError('invalid_argument', 'Invalid change-log retention');
+  }
+  // Pruning in the inserting transaction keeps the log bounded at retention + interval rows.
+  const pruneInterval = Math.min(1000, retention);
   let db: Database.Database | undefined;
   let generation: string;
   try {
@@ -105,7 +115,12 @@ export async function openSqliteStorage(options: SqliteStorageOptions): Promise<
         INSERT INTO storage_changes (domain, scope_id, resource_id, revision, kind, changed_ids)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(domain, scopeId, resourceId, revision, kind, encodeJson([...new Set(ids)]));
-      return encodeCursor(String(result.lastInsertRowid));
+      const sequence = Number(result.lastInsertRowid);
+      if (sequence % pruneInterval === 0) {
+        // AUTOINCREMENT never reuses pruned sequences, so retained cursors stay valid.
+        connection.prepare('DELETE FROM storage_changes WHERE sequence <= ?').run(sequence - retention);
+      }
+      return encodeCursor(String(sequence));
     },
   };
 
