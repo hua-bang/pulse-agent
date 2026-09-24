@@ -9,43 +9,6 @@ test and delete its entry.
 
 ## LIVE (user-visible behavior is degraded today)
 
-### Chat recovery still branches and sends against the source conversation
-
-`src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.ts` calls
-`branchSession` in both recovery handlers, then writes the returned prefix into
-the old conversation key without adopting the branch id. Edit/resend appends
-to the source runtime's untruncated history and drops the edited message's
-attachments. Regenerate receives an assistant index but only sends when that
-message is a user; stopped/failed retry uses the same handler. Confirmed in the
-real Electron app: regenerate changes the durable id without another model
-request; editing leaves an empty current conversation and appends the new turn
-to the old archive. Edit/resend and regenerate must keep the conversation id,
-truncate at the corresponding user turn, and preserve its attachments/context.
-Do not substitute the legacy scope-only rewind: it does not update the keyed
-runtime's cached history. Guard the public recovery paths and durable reload.
-
-### Manual Stop drains queued input instead of cancelling it
-
-Both `ChatPanel/useChatPanelController.tsx` and
-`ChatPageBody/useChatPageBodyController.tsx` under renderer chat components pass
-the raw `abort` to the composer. The existing
-`src/renderer/src/modules/chat/runtime/useChatRunQueue.ts` provides
-`abortAndClearQueue`, but neither surface uses it. When the stopped event makes
-the runtime idle, the queue immediately dispatches its next entry. Reproduced
-with a slow response, a queued follow-up, and the Stop button: the second model
-request starts immediately after the stopped event. Preserve Steer's separate
-stop-and-continue behavior while testing manual Stop through both controllers.
-
-### Enter cannot queue a message during generation
-
-`src/renderer/src/modules/chat/components/ChatComposer/useChatComposerInput.ts`
-always routes Enter to `submitCurrentInput`. The keyed stream rejects that send
-while running, so the draft remains with no feedback. `ChatInput/index.tsx`
-instead routes the visible Queue message button to `onQueue`. Both behaviors
-were exercised in Electron on the same draft. The keyboard path needs the same
-run-input decision as the button while preserving IME, mention selection,
-attachment bounds, and the session-loading veto.
-
 ### Keyed failed-turn persistence loses recovery metadata and executed tools
 
 `src/main/agent/conversation-runtime/conversation-runner.ts` disables the rich

@@ -64,6 +64,8 @@ export interface ConversationSendInput {
   mentionedWorkspaceIds?: string[];
   requestContext?: AgentRequestContext;
   attachments?: ChatImageAttachment[];
+  /** Edit/regenerate: drop history from this user-message index before the turn. */
+  truncateAt?: number;
 }
 
 export interface ConversationFinishResult {

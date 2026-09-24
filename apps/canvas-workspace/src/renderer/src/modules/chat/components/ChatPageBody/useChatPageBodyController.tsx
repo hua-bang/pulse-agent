@@ -393,7 +393,7 @@ export const useChatPageBodyController = ({
       onSubmit: handleSubmit, onQueue: () => submitCurrentInputDuringRun('follow-up'),
       queuedInputs: runQueue?.queuedInputs, steeringInputId: runQueue?.steeringInputId,
       onSteerQueued: runQueue?.steerQueuedInput, onRemoveQueued: runQueue?.removeQueuedInput,
-      onAbort: abort, modelStatus: canvasModels.status, modelSelection: canvasModels.selection,
+      onAbort: runQueue?.abortAndClearQueue ?? abort, modelStatus: canvasModels.status, modelSelection: canvasModels.selection,
       modelLabel: canvasModels.selectedLabel, onSelectModel: canvasModels.selectModel,
       onOpenModelSettings: openModelSettingsFromSwitcher, contextComposer: true,
     },

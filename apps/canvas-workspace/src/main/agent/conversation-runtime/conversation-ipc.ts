@@ -60,6 +60,7 @@ export interface ConversationRuntimeChatPayload {
   mentionedWorkspaceIds?: string[];
   requestContext?: AgentRequestContext;
   attachments?: ChatImageAttachment[];
+  truncateAt?: number;
 }
 
 /**
@@ -78,7 +79,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
       payload: ConversationRuntimeChatPayload,
     ) => {
       const runtime = ensure();
-      const { scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments } = payload;
+      const { scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments, truncateAt } = payload;
       if (isPerfChatReplayRequest(message, process.env.PULSE_CANVAS_PERF === '1')) {
         void replayPerfChatStream(event.sender, sessionId);
         return { ok: true, sessionId };
@@ -97,6 +98,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
         mentionedWorkspaceIds,
         requestContext,
         attachments,
+        truncateAt,
       });
       void completion.then(
         result => send(event.sender, 'chat-complete', sessionId, result),

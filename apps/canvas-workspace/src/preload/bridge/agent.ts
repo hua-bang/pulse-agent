@@ -56,7 +56,7 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       attachments
     }),
 
-  conversationChat: (scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments) =>
+  conversationChat: (scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments, truncateAt) =>
     ipcRenderer.invoke("canvas-agent:conversation-chat", {
       scope,
       sessionId,
@@ -64,6 +64,7 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       mentionedWorkspaceIds,
       requestContext,
       attachments,
+      truncateAt,
     }),
 
   conversationAbort: (scope, sessionId) =>

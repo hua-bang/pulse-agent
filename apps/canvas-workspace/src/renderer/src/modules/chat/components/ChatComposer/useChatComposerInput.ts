@@ -28,6 +28,7 @@ export function useChatComposerInput({
   onSubmitDuringRun,
   getRequestContext,
   isSubmitBlocked,
+  isRunning,
 }: UseChatComposerInputOptions) {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
@@ -259,9 +260,22 @@ export function useChatComposerInput({
 
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      void submitCurrentInput();
+      if (!isRunning?.()) {
+        void submitCurrentInput();
+      } else if (!isSubmitBlocked?.()) {
+        void submitCurrentInputDuringRun('follow-up');
+      }
     }
-  }, [mentionIndex, mentionItems, mentionOpen, selectMention, submitCurrentInput]);
+  }, [
+    isRunning,
+    isSubmitBlocked,
+    mentionIndex,
+    mentionItems,
+    mentionOpen,
+    selectMention,
+    submitCurrentInput,
+    submitCurrentInputDuringRun,
+  ]);
 
   const handlePaste = useCallback((event: React.ClipboardEvent) => {
     const imageFiles = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
