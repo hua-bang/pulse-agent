@@ -1,4 +1,6 @@
+import { execFile } from 'node:child_process';
 import { cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -116,3 +118,34 @@ describe('arbitrateLegacyNode', () => {
     expect(result.conflict).toMatchObject({ kept: 'node-file', canvas: { data: {} }, nodeFile: { data: { content: 'file' } } });
   });
 });
+
+describe('check-legacy-canvas-conflicts harness tool', () => {
+  it('reports the same kept copy and reason as the migration, without writing', async () => {
+    const cases = [
+      [inline({ content: 'inline' }, 5), atom({ content: 'file' }, 9)],
+      [inline({ content: 'inline' }, 9), atom({ content: 'file' }, 5)],
+      [inline({ content: 'inline' }, 5), atom({ content: 'file' }, 5)],
+      [inline({ content: 'inline' }), atom({ content: 'file' })],
+      [inline({}, 9), atom({ content: 'file' }, 5)],
+    ];
+    for (const [index, [canvasNode, atomRecord]] of cases.entries()) {
+      const id = `ws-${index}`;
+      await mkdir(join(root, id, 'nodes'), { recursive: true });
+      await writeFile(join(root, id, 'canvas.json'), JSON.stringify({ nodes: [canvasNode], edges: [] }));
+      await writeFile(join(root, id, 'nodes', 'n.json'), JSON.stringify(atomRecord));
+    }
+    await rm(join(root, 'ws'), { recursive: true });
+    const tool = join(__dirname, '../../../../harness/tools/check-legacy-canvas-conflicts.mjs');
+    const { stdout } = await promisify(execFile)(process.execPath, [tool, root, '--json']);
+    const reported = (JSON.parse(stdout).conflicts as Array<{ workspace: string; kept: string; reason: string }>)
+      .map(({ workspace, kept, reason }) => ({ workspaceId: workspace, kept, reason }))
+      .sort((a, b) => a.workspaceId.localeCompare(b.workspaceId));
+    expect(await readdir(root)).not.toContain('__storage__.sqlite');
+    const migrated = (await activateCanvasSqlite(root))
+      .map(({ workspaceId, kept, reason }) => ({ workspaceId, kept, reason }))
+      .sort((a, b) => a.workspaceId.localeCompare(b.workspaceId));
+    expect(reported).toEqual(migrated);
+    expect(reported).toHaveLength(cases.length);
+  });
+});
+

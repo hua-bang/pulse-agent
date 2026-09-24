@@ -101,7 +101,9 @@ no content or its `updatedAt` is strictly newer; otherwise `canvas.json` wins.
 Both files stay untouched, both copies of each differing field are recorded in
 `__storage-backup__/canvas-conflicts-*.json`, and startup logs them and shows a
 non-blocking notice. Guards: `persistence/legacy-conflicts.test.ts`, including
-parity with `migrateToV2`.
+parity with `migrateToV2`. To preview the outcome on a data root before
+upgrading, run the read-only `harness/tools/check-legacy-canvas-conflicts.mjs`
+(`--json` adds both copies); the same test keeps its decisions aligned.
 
 Canvas mutations atomically commit records, a revision, and a change event.
 Both app and CLI compare the revision and database generation; matching numeric
