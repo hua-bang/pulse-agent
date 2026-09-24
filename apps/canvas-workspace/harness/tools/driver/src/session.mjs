@@ -29,9 +29,16 @@ export async function writeSession(session) {
 
 export async function stopSession(session, { cleanup }) {
   if (isPidAlive(session.pid)) {
-    process.kill(session.pid, 'SIGTERM');
+    // Dev sessions signal the detached group so electron-vite's Electron
+    // child and dev server die with it instead of outliving the session.
+    const signal = (name) => {
+      try {
+        process.kill(session.processGroup ? -session.pid : session.pid, name);
+      } catch { /* already gone */ }
+    };
+    signal('SIGTERM');
     await waitFor(() => !isPidAlive(session.pid), 5_000).catch(() => {
-      if (isPidAlive(session.pid)) process.kill(session.pid, 'SIGKILL');
+      if (isPidAlive(session.pid)) signal('SIGKILL');
     });
   }
   // Reap the Xvfb we spawned for a headless session (never an external DISPLAY).

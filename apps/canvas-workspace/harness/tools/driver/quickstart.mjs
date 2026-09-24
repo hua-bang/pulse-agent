@@ -6,9 +6,14 @@
  * only relaunches the app:
  *   1. system packages for headless Linux (Xvfb, certutil) via apt when root
  *   2. `pnpm install` when node_modules, the Electron binary or node-pty is missing
- *   3. rebuild engine → agent-teams → canvas-cli → app from the first stale one
+ *   3. rebuild engine → agent-teams → canvas-cli (→ app with --built) from
+ *      the first stale one
  *   4. start harness/mock-llm.mjs unless a real model key is configured
  *   5. `harness start` with --headless / --ca-cert chosen for this host
+ *
+ * Default is dev mode (electron-vite dev): no app build, renderer edits
+ * hot-reload, main/preload edits restart Electron. `--built` launches the
+ * production bundle instead, for performance or packaging-accurate checks.
  *
  * `harness:down` closes the session and stops the mock LLM.
  * Uses Node builtins only: it must run before dependencies are installed.
@@ -20,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildTargets,
   hasCommand,
+  isBuildStale,
   missingSystemPackages,
   planBuilds,
   resolveQuickstartCa,
@@ -30,6 +36,7 @@ const APP_DIR = resolve(DRIVER_DIR, '../../..');
 const REPO_ROOT = resolve(APP_DIR, '../..');
 const CLI = join(DRIVER_DIR, 'cli.mjs');
 const MOCK_STATE = join(APP_DIR, '.harness', 'mock-llm.json');
+const DEV_DIST_MARKER = join(APP_DIR, '.harness', 'dist-has-dev-build');
 const MODEL_KEYS = ['OPENAI_API_KEY', 'PULSE_OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'PULSE_ANTHROPIC_API_KEY'];
 
 const startedAt = Date.now();
@@ -50,6 +57,7 @@ function parseArgs(argv) {
     if (arg === '--no-mock-llm') opts.noMock = true;
     else if (arg === '--no-ca') opts.noCa = true;
     else if (arg === '--skip-build') opts.skipBuild = true;
+    else if (arg === '--built') opts.built = true;
     else if (arg === '--profile') opts.profile = args.shift();
     else if (arg === '--mock-port') opts.mockPort = Number(args.shift());
     else if (arg === '--ca-cert') opts['ca-cert'] = args.shift();
@@ -109,8 +117,15 @@ function ensureDependencies() {
   }
 }
 
-function ensureBuilds(skip) {
-  const builds = planBuilds(buildTargets(REPO_ROOT));
+function ensureBuilds({ skip, dev }) {
+  const targets = buildTargets(REPO_ROOT);
+  const app = targets.at(-1);
+  // Dev serves the app from source, but it still resolves the workspace
+  // packages from their dist. Dev also writes dev bundles into dist/main and
+  // dist/preload, so the next built launch must rebuild the app.
+  const builds = dev
+    ? planBuilds(targets.slice(0, -1))
+    : planBuilds(targets, (target) => (target === app && existsSync(DEV_DIST_MARKER)) || isBuildStale(target));
   if (!builds.length) return;
   if (skip) {
     log(`--skip-build: ${builds.map((target) => target.filter).join(', ')} may be stale`);
@@ -121,6 +136,7 @@ function ensureBuilds(skip) {
     if (!run('pnpm', ['--filter', target.filter, 'build'], { stdio: ['ignore', 'ignore', 'inherit'] })) {
       fail(`build failed: pnpm --filter ${target.filter} build`);
     }
+    if (target === app) rmSync(DEV_DIST_MARKER, { force: true });
   }
 }
 
@@ -169,7 +185,8 @@ async function up(opts) {
   if (caFile && !caUsable) log('certutil unavailable: HTTPS webviews may fail behind the proxy');
 
   ensureDependencies();
-  ensureBuilds(opts.skipBuild);
+  const dev = !opts.built;
+  ensureBuilds({ skip: opts.skipBuild, dev });
 
   const env = { ...process.env };
   const useMock = !opts.noMock && !MODEL_KEYS.some((key) => process.env[key]);
@@ -178,9 +195,15 @@ async function up(opts) {
     Object.assign(env, { OPENAI_API_URL: `http://127.0.0.1:${opts.mockPort}/v1`, OPENAI_API_KEY: 'mock' });
   }
 
-  log(`launching profile=${opts.profile}${headless ? ' headless' : ''}${caFile && caUsable ? ` ca=${caFile}` : ''}`);
+  log(`launching ${dev ? 'dev (HMR)' : 'built'} profile=${opts.profile}${headless ? ' headless' : ''}`
+    + `${caFile && caUsable ? ` ca=${caFile}` : ''}`);
+  if (dev) {
+    mkdirSync(dirname(DEV_DIST_MARKER), { recursive: true });
+    writeFileSync(DEV_DIST_MARKER, '');
+  }
   const startArgs = [
     CLI, 'start', '--profile', opts.profile, '--force',
+    ...(dev ? ['--dev'] : []),
     ...(headless ? ['--headless'] : []),
     ...(caFile && caUsable ? ['--ca-cert', caFile] : []),
     ...opts.passthrough,
@@ -188,6 +211,7 @@ async function up(opts) {
   if (!run(process.execPath, startArgs, { cwd: APP_DIR, env })) fail('harness start failed (see stderr above).');
 
   log(`ready${useMock ? ` · chat uses mock LLM on :${opts.mockPort}` : ''}`);
+  if (dev) log('renderer edits hot-reload; main/preload edits restart Electron (same CDP port)');
   console.log([
     '',
     'Next: pnpm --filter canvas-workspace harness screenshot | snapshot-ui | eval-renderer <js> | logs',

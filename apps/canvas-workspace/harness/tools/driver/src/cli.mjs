@@ -44,6 +44,7 @@ Start options:
   --route <hash-route>          open a hash route, e.g. '/chat'
   --flag <id>                   enable an experimental flag, repeatable
   --enable-webview-page-control shortcut for --flag webview-page-control
+  --dev                         run electron-vite dev: renderer HMR, main/preload restart on change
   --headless                    Linux only: own an Xvfb display and pass CI-safe Chromium flags
   --ca-cert <pem>               Linux only: trust these CAs in the profile HOME's NSS db
                                 (env: PULSE_CANVAS_HARNESS_CA_CERT; refused for profile=real)

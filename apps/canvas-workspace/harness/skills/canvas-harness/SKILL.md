@@ -14,17 +14,28 @@ Prefer this over `dev:temp-home` when the task needs repeatable launch, renderer
 ## Quick start (default entry, including fresh cloud containers)
 
 ```bash
-pnpm --filter canvas-workspace harness:up     # prepare + launch; ~100s cold, ~4s warm
-pnpm --filter canvas-workspace harness:down   # close session + stop mock LLM
+pnpm --filter canvas-workspace harness:up           # dev mode (default): ~16s to a usable UI
+pnpm --filter canvas-workspace harness:up --built   # production bundle: +~67s app build when stale
+pnpm --filter canvas-workspace harness:down         # close session + stop mock LLM
 ```
+
+Dev mode runs `electron-vite dev --watch` behind the same CDP session:
+renderer edits hot-update in place (~2s, no page reload), and main/preload
+edits rebuild and restart Electron (~12s) on the same CDP port, so
+harness commands keep working without re-running `harness:up`. Use `--built`
+for performance, bundle, or packaging-sensitive checks; it rebuilds the app
+after a dev session because dev writes dev bundles into `dist/main` and
+`dist/preload`. Engine/agent-teams/canvas-cli are consumed from their `dist`,
+so after editing them, re-run `harness:up` (it rebuilds the stale chain).
 
 `harness:up` is idempotent and skips satisfied steps: apt-installs Xvfb/certutil
 when root on display-less Linux, runs `pnpm install` when dependencies, the
-Electron binary, or node-pty are missing, rebuilds engine → agent-teams →
-canvas-cli → app from the first stale output, starts `harness/mock-llm.mjs`
-unless a model key is set, then runs `start` with `--headless` (Linux without
-DISPLAY or as root) and `--ca-cert` (behind an HTTPS proxy, reusing
-NODE_EXTRA_CA_CERTS). Defaults to profile `demo`; `--profile`, `--no-mock-llm`,
+Electron binary, or node-pty are missing, rebuilds stale workspace packages,
+starts `harness/mock-llm.mjs` unless a model key is set, then runs `start`
+with `--headless` (Linux without DISPLAY or as root) and `--ca-cert` (behind
+an HTTPS proxy, reusing NODE_EXTRA_CA_CERTS). It returns once React has
+replaced the boot splash. A fresh container costs about 2-4 minutes more for
+dependency download. Defaults to profile `demo`; `--profile`, `--no-mock-llm`,
 `--no-ca`, `--skip-build`, and other `start` options (for example
 `--route /chat`) pass through. Then continue with steps 4-7 below.
 
