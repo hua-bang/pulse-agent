@@ -39,6 +39,7 @@
     "perf:report": "node scripts/perf/report.mjs"
   },
   "build": {
+    "beforePack": "./scripts/setup/assert-packaged-native.mjs",
     "npmRebuild": false,
     "appId": "com.pulse-coder.canvas-workspace",
     "productName": "Pulse Canvas",

@@ -104,6 +104,25 @@ describe('database-owned local activation', () => {
     expect((await readLocalStorageStatus(root))?.domains).toEqual(['canvas', 'conversations']);
   });
 
+  it('restarts a cutover that crashed after creating the database but before recording any state', async () => {
+    const created = track(await openSqliteStorage({ path: join(root, '__storage__.sqlite') }));
+    await created.close();
+    expect(await readLocalStorageStatus(root)).toBeNull();
+    const storage = track(await activateLocalCanvasStorage({ root, loadLegacyWorkspaces: async () => legacy })) as SqliteStorage;
+    expect((await storage.canvas.readNode('original', 'n'))?.data).toEqual({ content: 'legacy' });
+    expect(await storage.localActivation.read()).toEqual([{ domain: 'canvas', state: 'active' }]);
+  });
+
+  it('restarts a cutover that crashed while creating an empty database file', async () => {
+    await writeFile(join(root, '__storage__.sqlite'), '');
+    expect(await readLocalStorageStatus(root)).toBeNull();
+    const storage = track(await activateLocalConversationStorage({ root, loadLegacyScopes: async () => [{
+      scopeId: 'ws', currentSessionId: 's', conversations: [{ sessionId: 's', metadata: {}, messages: [{ id: 'm', content: 'legacy' }] }],
+    }] }));
+    expect((await storage.conversations.read('ws', 's'))?.messages[0].content).toBe('legacy');
+    expect((await readLocalStorageStatus(root))?.domains).toEqual(['conversations']);
+  });
+
   it('fails closed for an existing database with no evidence of an unfinished import', async () => {
     const existing = track(await openSqliteStorage({ path: join(root, '__storage__.sqlite') }));
     await existing.canvas.commit({ workspaceId: 'keep', expectedRevision: null });

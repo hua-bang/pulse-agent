@@ -68,7 +68,7 @@ export async function deleteWorkspace(id: string, state: WorkspaceLifecycleState
 }
 
 export async function importWorkspace(state: WorkspaceLifecycleState): Promise<WorkspaceImportResult> {
-  const { activeIdRef, activeIntentRef, setWorkspaces, setActiveId, saveManifest } = state;
+  const { workspacesRef, activeIdRef, activeIntentRef, setWorkspaces, setActiveId, saveManifest } = state;
   const api = window.canvasWorkspace?.store;
   if (!api) return { ok: false, error: 'Canvas store API is unavailable.' };
 
@@ -84,13 +84,15 @@ export async function importWorkspace(state: WorkspaceLifecycleState): Promise<W
     id: result.workspaceId,
     name: result.workspaceName,
   };
+  // A SQLite change refresh may already have loaded the published manifest
+  // entry before this IPC resolved; appending again would persist a duplicate.
+  const latest = workspacesRef.current;
+  const next = latest.some(workspace => workspace.id === entry.id) ? latest : [...latest, entry];
   activeIntentRef.current += 1;
+  workspacesRef.current = next;
   activeIdRef.current = entry.id;
-  setWorkspaces((prev) => {
-    const next = [...prev, entry];
-    saveManifest(next, entry.id);
-    return next;
-  });
+  setWorkspaces(next);
+  saveManifest(next, entry.id);
   setActiveId(entry.id);
   return { ok: true, workspace: entry, fileCount: result.fileCount };
 }

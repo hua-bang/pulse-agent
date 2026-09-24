@@ -34,6 +34,7 @@ describe('workspace lifecycle synchronization', () => {
   const load = vi.fn(async (id: string): Promise<LoadResult> => ({
     ok: true, data: id === '__workspaces__' ? manifest : { nodes: [] },
   }));
+  const importWorkspace = vi.fn();
   const unsubscribe = vi.fn();
 
   const Probe = () => { state = useWorkspaces(); return null; };
@@ -47,10 +48,11 @@ describe('workspace lifecycle synchronization', () => {
     save.mockClear();
     remove.mockReset().mockResolvedValue({ ok: true });
     load.mockReset().mockImplementation(async id => ({ ok: true, data: id === '__workspaces__' ? manifest : { nodes: [] } }));
+    importWorkspace.mockReset();
     unsubscribe.mockClear();
     (globalThis as { canvasWorkspace?: unknown }).canvasWorkspace = {
       store: {
-        load, save, delete: remove,
+        load, save, delete: remove, importWorkspace,
         onExternalUpdate: (listener: typeof onUpdate) => { onUpdate = listener; return unsubscribe; },
       },
     };
@@ -215,5 +217,32 @@ describe('workspace lifecycle synchronization', () => {
     await act(async () => { acknowledgement.resolve({ ok: true }); result = await pending; });
     expect(state.activeId).toBe('a');
     expect(result).toMatchObject({ switchedActive: false, newActiveId: 'a', switchedToEmpty: false });
+  });
+
+  it('does not duplicate an import that an observer refresh already loaded from the manifest', async () => {
+    await mount();
+    const acknowledgement = gate<{ ok: boolean; workspaceId: string; workspaceName: string; fileCount: number }>();
+    importWorkspace.mockReturnValueOnce(acknowledgement.promise);
+    let pending!: ReturnType<typeof state.importWorkspace>;
+    await act(async () => { pending = state.importWorkspace(); });
+    manifest = { workspaces: [ws('a'), ws('b'), ws('c'), ws('imported')], activeId: 'b' };
+    await emit('imported');
+    await act(async () => {
+      acknowledgement.resolve({ ok: true, workspaceId: 'imported', workspaceName: 'IMPORTED', fileCount: 0 });
+      await pending;
+    });
+    expect(state.workspaces.map(workspace => workspace.id)).toEqual(['a', 'b', 'c', 'imported']);
+    expect(state.activeId).toBe('imported');
+    expect(save).toHaveBeenLastCalledWith('__workspaces__', {
+      workspaces: [ws('a'), ws('b'), ws('c'), ws('imported')], folders: [], activeId: 'imported',
+    });
+  });
+
+  it('appends an import whose manifest refresh has not arrived yet', async () => {
+    await mount();
+    importWorkspace.mockResolvedValueOnce({ ok: true, workspaceId: 'imported', workspaceName: 'IMPORTED', fileCount: 0 });
+    await act(async () => { await state.importWorkspace(); });
+    expect(state.workspaces.map(workspace => workspace.id)).toEqual(['a', 'b', 'c', 'imported']);
+    expect(state.activeId).toBe('imported');
   });
 });

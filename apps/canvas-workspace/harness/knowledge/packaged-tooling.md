@@ -178,7 +178,11 @@ rebuild scripts use `electron-rebuild -f -o node-pty`; `-w` adds modules to
 the normal rebuild set and would also overwrite SQLite's Node binary with
 the Electron ABI. These build paths prepare the local runtime and
 architecture; cross-platform native compilation is not established by this
-workflow. Native payloads are included in `extraResources` and the bundle
+workflow. The Electron Builder `beforePack` hook
+(`scripts/setup/assert-packaged-native.mjs`) therefore refuses any target,
+including `universal`, whose platform/arch differs from the single staged
+binding, instead of emitting a package that quits at storage activation.
+Native payloads are included in `extraResources` and the bundle
 fingerprint, so missing or corrupt binaries trigger the existing repair path.
 
 Electron Builder follows workspace links more broadly than package `files`.
@@ -226,7 +230,8 @@ skill-installer, shell-path, and the Settings UI files above) to:
   src/main/files/agent-tooling-files.test.ts
   src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts
   src/main/__tests__/agent-tooling-package.test.ts
-  scripts/setup/prepare-sqlite-native.test.mjs`
+  scripts/setup/prepare-sqlite-native.test.mjs
+  scripts/setup/assert-packaged-native.test.mjs`
 - manual (release-level, actually packages the app): `pnpm --filter
   canvas-workspace package:mac:arm64 && node
   apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs`

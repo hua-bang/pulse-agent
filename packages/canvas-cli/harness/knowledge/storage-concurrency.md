@@ -10,6 +10,8 @@ or a mutating command. `src/core/store.ts` is the compatibility facade;
   mirrors the completed cutovers. If the marker is missing, an active database
   restores it without importing old JSON. Only a database explicitly marked staging,
   or activation limited to conversations, leaves Canvas on its legacy JSON path.
+  So does a pristine database (empty file, or no activation state and no domain
+  records), which only a crash before the first `begin()` can leave behind.
   Unknown authority (including an old SQL schema with a missing marker) fails closed.
 - Before selecting the Canvas backend, the CLI opens any active database and
   reconciles its full activated-domain set with the marker. A stale marker that
@@ -26,7 +28,9 @@ or a mutating command. `src/core/store.ts` is the compatibility facade;
   still respect the migration lock. `restore` is a v1 recovery tool and refuses
   active SQLite storage.
 - SQL workspace discovery uses repository records, not the existence of a
-  `canvas.json` file. `status` reports `json`, `sqlite`, or unavailable storage.
+  `canvas.json` file, so `workspace create` removes its SQL workspace (at the
+  created revision) when manifest publication fails. `status` reports `json`,
+  `sqlite`, or unavailable storage; its manifest read sits inside that guard.
 
 Guards: `src/core/__tests__/sqlite-store.test.ts` covers v1/v2 with no revision,
 unpublished staging databases, SQL-only workspaces, corrupt markers, missing

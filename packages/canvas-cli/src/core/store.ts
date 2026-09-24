@@ -776,8 +776,9 @@ export async function createWorkspace(
   storeDir?: string,
 ): Promise<Result<{ id: string }>> {
   let createdDir: string | null = null;
+  let created: { revision: number; generation: string } | null = null;
+  const id = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
-    const id = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     await ensureWorkspaceDir(id, storeDir);
     createdDir = getWorkspaceDir(id, storeDir);
 
@@ -790,6 +791,10 @@ export async function createWorkspace(
     // Brand-new workspace: the canvas file shouldn't exist yet, but opt in
     // explicitly so the wipe guard is never tripped by this bootstrap step.
     await saveCanvas(id, emptyCanvas, storeDir, { allowEmpty: true });
+    const sqlite = await withSqliteCanvas(storeDir, storage => storage.canvas.read(id));
+    if (sqlite.active && sqlite.value) {
+      created = { revision: sqlite.value.revision, generation: sqlite.value.generation };
+    }
 
     await updateWorkspaceManifest(storeDir, (manifest) => {
       const workspaces = manifest.workspaces ?? [];
@@ -802,6 +807,23 @@ export async function createWorkspace(
 
     return { ok: true, data: { id } };
   } catch (err) {
+    let compensationError: unknown;
+    if (created) {
+      // SQL listing is authoritative: an unpublished row must not outlive the failed creation.
+      const receipt = created;
+      await withSqliteCanvas(storeDir, async storage => {
+        const bundle = await storage.workspaces.readBundle(id);
+        if (bundle) {
+          await storage.workspaces.removeBundle(id, receipt.revision, receipt.generation, bundle.conversationState);
+        }
+      }).catch(error => { compensationError = error; });
+    }
+    if (compensationError) {
+      return {
+        ok: false,
+        error: `${String(err)}; the unpublished workspace ${id} was changed and was kept: ${String(compensationError)}`,
+      };
+    }
     if (createdDir) {
       await fs.rm(createdDir, { recursive: true, force: true }).catch(() => undefined);
     }

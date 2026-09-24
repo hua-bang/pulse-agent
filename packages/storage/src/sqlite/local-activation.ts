@@ -9,6 +9,8 @@ export interface LocalActivationRepository {
   adoptLegacyMarker(domains: readonly LocalDomain[]): Promise<void>;
   begin(domain: LocalDomain): Promise<void>;
   complete(domain: LocalDomain): Promise<void>;
+  /** True only before any cutover began and before any domain record or revision exists. */
+  isPristine(): Promise<boolean>;
 }
 
 export function createLocalActivationRepository(ctx: SqliteContext): LocalActivationRepository {
@@ -67,5 +69,9 @@ export function createLocalActivationRepository(ctx: SqliteContext): LocalActiva
     async adoptLegacyMarker(domains) { ctx.guard(() => adopt.immediate(domains)); },
     async begin(domain) { ctx.guard(() => begin.immediate(domain)); },
     async complete(domain) { ctx.guard(() => complete.immediate(domain)); },
+    async isPristine() {
+      return ctx.guard(() => ctx.db.transaction(() => read().length === 0
+        && !domainHasData('canvas') && !domainHasData('conversations')).deferred());
+    },
   };
 }

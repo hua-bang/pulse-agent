@@ -70,8 +70,11 @@ export async function readLocalStorageStatus(
     text = await readFile(join(root, MARKER_FILE), 'utf8');
   } catch (error) {
     if (hasCode(error, 'ENOENT')) {
-      try { await stat(join(root, DATABASE_FILE)); }
+      let database;
+      try { database = await stat(join(root, DATABASE_FILE)); }
       catch (missing) { if (hasCode(missing, 'ENOENT')) return null; throw missing; }
+      // A crash while creating the database leaves an empty file; legacy files remain authoritative.
+      if (database.isFile() && database.size === 0) return null;
       const storage = await openSqliteStorage({
         path: join(root, DATABASE_FILE),
         nativeBinding: options.nativeBinding ?? await options.resolveNativeBinding?.(),
@@ -79,6 +82,8 @@ export async function readLocalStorageStatus(
       });
       try {
         const states = await storage.localActivation.read();
+        // A crash before the first begin() leaves no state and no records: nothing was cut over.
+        if (!states.length && await storage.localActivation.isPristine()) return null;
         if (!states.length || states.some(state => state.state === 'unknown')) {
           throw new StorageError('corrupt_data', 'Activation marker is missing and database authority is unknown; restore verified activation metadata before continuing');
         }

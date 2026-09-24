@@ -173,6 +173,16 @@ describe('activated SQLite CLI storage', () => {
       .rejects.toMatchObject({ code: 'workspace_not_found' });
   });
 
+  it('removes the SQL workspace when manifest publication fails after creation', async () => {
+    await activate();
+    await fs.mkdir(join(root, '__workspaces__.json'));
+    await fs.writeFile(join(root, '__workspaces__.json', 'blocker'), 'not a manifest');
+    const result = await store.createWorkspace('Unpublished', root);
+    expect(result.ok).toBe(false);
+    expect(await store.listWorkspaceIds(root)).toEqual([workspaceId]);
+    expect((await fs.readdir(root)).filter(name => name.startsWith('ws-') && name !== workspaceId)).toEqual([]);
+  });
+
   it('routes node and edge commands through the original SQL revision and preserves Markdown editing', async () => {
     await activate();
     const created = await createNode(workspaceId, { type: 'file', title: 'Note', data: { content: 'First' } }, root);

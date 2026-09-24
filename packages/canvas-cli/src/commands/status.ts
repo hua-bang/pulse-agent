@@ -32,10 +32,12 @@ export function registerStatusCommand(program: Command): void {
     .action(async function (this: Command) {
       const { format, storeDir, workspace: explicitId } = getRootOptions(this);
 
-      const manifest = await loadWorkspaceManifest(storeDir);
+      let activeWorkspaceId: string | null = null;
       let workspaceCount = 0;
       let storage: StatusReport['storage'];
       try {
+        // The manifest is filtered through SQL trash state, so it fails with the backend.
+        activeWorkspaceId = (await loadWorkspaceManifest(storeDir)).activeId ?? null;
         storage = { backend: await hasSqliteStorage(storeDir) ? 'sqlite' : 'json' };
         workspaceCount = (await listWorkspaceIds(storeDir)).length;
       } catch (error) {
@@ -58,7 +60,7 @@ export function registerStatusCommand(program: Command): void {
 
       const report: StatusReport = {
         storeDir: storeDir ?? DEFAULT_STORE_DIR,
-        activeWorkspaceId: manifest.activeId ?? null,
+        activeWorkspaceId,
         workspaceCount,
         storage,
         resolved,

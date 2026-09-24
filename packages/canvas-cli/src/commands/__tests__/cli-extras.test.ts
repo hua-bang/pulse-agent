@@ -118,6 +118,17 @@ describe('status', () => {
     expect(s.runtime.reachable).toBe(false);
   });
 
+  it('reports unavailable storage instead of failing when the active database is missing', async () => {
+    await seedActive('ws-a');
+    await fs.writeFile(join(testDir, '__storage__.json'), JSON.stringify({ schemaVersion: 1, backend: 'sqlite', domains: ['canvas'] }));
+    const { stdout, exitCode } = await runCli(['--store-dir', testDir, '--format', 'json', 'status']);
+    expect(exitCode).toBe(null);
+    const s = JSON.parse(stdout);
+    expect(s.storage).toMatchObject({ backend: 'unavailable', code: 'storage_unavailable' });
+    expect(s.activeWorkspaceId).toBeNull();
+    expect(s.workspaceCount).toBe(0);
+  });
+
   it('does not exit non-zero when no workspace is selected', async () => {
     const { stdout, exitCode } = await runCli(['--store-dir', testDir, '--format', 'json', 'status']);
     expect(exitCode).toBe(null);
