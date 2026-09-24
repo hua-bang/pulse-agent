@@ -1,7 +1,8 @@
-import type { Dirent } from "fs";
-import { ipcMain, BrowserWindow, dialog } from "electron";
+import { readCanvasForMerge } from './sync/read-canvas';
+import { loadSqliteCanvas, saveSqliteCanvas, listSqliteCanvases, stopSqliteCanvasObserver } from './sqlite-ipc';
+import { ipcMain, BrowserWindow } from "electron";
 import { promises as fs } from "fs";
-import { join, basename, dirname, relative, sep, isAbsolute } from "path";
+import { join, basename } from "path";
 import {
   MANIFEST_ID,
   STORE_DIR,
@@ -17,6 +18,7 @@ import {
   type ReadJsonResult,
 } from "./storage";
 import { getWorkspaceDir } from './persistence/paths';
+import { stopWorkspaceMarkdown } from './sync/markdown-index';
 import { preserveMainOwnedQueueFields } from './sync/queue-merge';
 import { diffSnapshots, itemsToMap } from './sync/snapshots';
 import {
@@ -34,23 +36,7 @@ import {
   stopNodeFileWatcher,
   watchedNodeFileWorkspaceIds,
 } from './sync/node-file-watcher';
-import {
-  createWorkspaceExportArchive,
-  createWorkspaceExportPayload,
-  isSafeRelativePath,
-  type WorkspaceExportFile,
-} from "./workspace-export-archive";
-import {
-  chooseExternalFilesExportMode,
-  collectExternalFilePaths,
-  collectExternalWorkspaceFiles,
-  confirmSkippedExternalFilesExport,
-} from "./workspace-export-external-files";
-import {
-  importWorkspaceArchiveToStore,
-  relativePathFromPortableUrl,
-  rewriteCanvasFilePaths,
-} from './workspace-import';
+import { getLocalCanvasStorage } from './persistence/backend';
 import { edgesToMap, mergeExternalEdges, type SyncableEdge } from './edge-sync';
 
 /**
@@ -120,57 +106,7 @@ const AGENTS_MD_TEMPLATE = `# Canvas Agent Config
 `;
 
 
-const PORTABLE_WORKSPACE_URL_PREFIX = 'pulsecanvas://workspace/';
-
-const sanitizeFileName = (name: string): string => {
-  const safe = name.replace(/[^a-zA-Z0-9_\- .]/g, '').trim();
-  return safe || 'workspace';
-};
-
-const toPortableRelativePath = (filePath: string, workspaceDir: string): string | null => {
-  const rel = relative(workspaceDir, filePath);
-  if (!rel || rel.startsWith('..') || isAbsolute(rel)) return null;
-  return rel.split(sep).join('/');
-};
-
-const portableUrlForRelativePath = (relativePath: string): string =>
-  `${PORTABLE_WORKSPACE_URL_PREFIX}${encodeURI(relativePath)}`;
-
-const collectWorkspaceFiles = async (workspaceDir: string): Promise<WorkspaceExportFile[]> => {
-  const files: WorkspaceExportFile[] = [];
-
-  const walk = async (dir: string): Promise<void> => {
-    let entries: Dirent[];
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return;
-      throw err;
-    }
-
-    for (const entry of entries) {
-      if (entry.name === 'canvas.json' || entry.name === 'canvas.json.bak' || entry.name.endsWith('.tmp')) {
-        continue;
-      }
-      const fullPath = join(dir, entry.name);
-      const relativePath = toPortableRelativePath(fullPath, workspaceDir);
-      if (!relativePath || !isSafeRelativePath(relativePath)) continue;
-      if (entry.isDirectory()) {
-        await walk(fullPath);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      const buffer = await fs.readFile(fullPath);
-      files.push({ relativePath, encoding: 'base64', content: buffer.toString('base64') });
-    }
-  };
-
-  await walk(workspaceDir);
-  files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  return files;
-};
-
-const readWorkspaceCanvasForExport = async (workspaceId: string): Promise<unknown> => {
+const readLegacyWorkspaceCanvasForExport = async (workspaceId: string): Promise<unknown> => {
   await migrateIfNeeded(workspaceId);
   await ensureWorkspaceDir(workspaceId);
   const filePath = getFilePath(workspaceId);
@@ -186,8 +122,10 @@ const readWorkspaceCanvasForExport = async (workspaceId: string): Promise<unknow
 };
 
 const createUniqueImportedWorkspaceId = async (): Promise<string> => {
+  const storage = await getLocalCanvasStorage(STORE_DIR);
   for (let i = 0; i < 100; i += 1) {
     const id = `ws-imported-${Date.now()}${i ? `-${i}` : ''}`;
+    if (storage && await storage.canvas.read(id)) continue;
     try {
       await fs.access(getWorkspaceDir(id));
     } catch {
@@ -198,6 +136,7 @@ const createUniqueImportedWorkspaceId = async (): Promise<string> => {
 };
 
 export const importWorkspaceFromPath = async (sourcePath: string) => {
+  const { importWorkspaceArchiveToStore } = await import('./workspace-import');
   const workspaceId = await createUniqueImportedWorkspaceId();
   const imported = await importWorkspaceArchiveToStore({
     sourcePath, storeDir: STORE_DIR, workspaceId, agentsTemplate: AGENTS_MD_TEMPLATE,
@@ -362,49 +301,8 @@ const isEnoent = (err: unknown): boolean =>
 const SKIP_WRITE = Symbol('canvas-store:skip-write');
 type MergeResult = CanvasSaveData | typeof SKIP_WRITE;
 
-type DiskReadOutcome =
-  | { kind: 'ok'; nodes: CanvasNode[]; edges: CanvasEdge[] }
-  | { kind: 'missing' }
-  | { kind: 'unparseable'; err: unknown }
-  | { kind: 'ioerror'; err: unknown };
-
-/**
- * Read and parse the workspace's canvas.json, retrying a few times when
- * the read lands on an in-progress write from canvas-cli or another
- * writer. A truncated/half-written file surfaces as a JSON.parse error
- * (typically "Unexpected end of JSON input"); a brief backoff almost
- * always catches the completed write on the next attempt.
- */
-const readDiskCanvas = async (
-  id: string,
-  attempts = 3,
-  delayMs = 30,
-): Promise<DiskReadOutcome> => {
-  let lastErr: unknown = null;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      // `readCanvasFull` always returns v1-shape regardless of on-disk
-      // schema: for v2 workspaces it reads `canvas.json` (layout) plus
-      // `nodes/<id>.json` and assembles them back into inline `data`.
-      // The merge logic below works on v1-shape and doesn't need to
-      // know about v2 storage details.
-      const result = await readCanvasFull(id);
-      if (result.data === null) return { kind: 'missing' };
-      const nodes = Array.isArray(result.data.nodes) ? (result.data.nodes as CanvasNode[]) : [];
-      const edges = Array.isArray(result.data.edges) ? (result.data.edges as CanvasEdge[]) : [];
-      return { kind: 'ok', nodes, edges };
-    } catch (err) {
-      // Parse failure almost always means we caught another writer
-      // (canvas-cli mid-flush). A brief backoff almost always lands on
-      // the completed write.
-      lastErr = err;
-      if (i < attempts - 1) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-  return { kind: 'unparseable', err: lastErr };
-};
+const readDiskCanvas = (id: string, attempts = 3, delayMs = 30) =>
+  readCanvasForMerge<CanvasNode, CanvasEdge>(() => readCanvasFull(id), attempts, delayMs);
 
 /**
  * Broadcast a migration progress event to every renderer window. Powers
@@ -703,11 +601,13 @@ const withSaveLock = async <T>(id: string, fn: () => Promise<T>): Promise<T> => 
 };
 
 const stopWorkspaceWatcher = (workspaceId: string): void => {
+  stopWorkspaceMarkdown(STORE_DIR, workspaceId);
   stopCanvasJsonWatcher(workspaceId);
   stopNodeFileWatcher(workspaceId);
 };
 
 export const teardownCanvasWatchers = (): void => {
+  stopSqliteCanvasObserver();
   for (const id of watchedWorkspaceIds()) stopWorkspaceWatcher(id);
   // Defensive: any nodes/ watchers without a paired canvas.json watcher
   // (theoretically impossible) also get cleaned up.
@@ -719,12 +619,12 @@ export const setupCanvasStoreIpc = () => {
     'canvas:save',
     async (_event, payload: { id: string; data: unknown }) => {
       try {
+        const sqlite = await saveSqliteCanvas(payload.id, payload.data);
+        if (sqlite) return sqlite;
         await fs.mkdir(STORE_DIR, { recursive: true });
         if (payload.id === MANIFEST_ID) {
-          await atomicWriteCanvasJson(
-            getFilePath(MANIFEST_ID),
-            JSON.stringify(payload.data, null, 2),
-          );
+          const { saveWorkspaceManifest } = await import('./persistence/workspace-trash');
+          await saveWorkspaceManifest(STORE_DIR, payload.data);
         } else {
           await ensureWorkspaceDir(payload.id);
           // Lazy migration: if this is a v1 workspace, transparently
@@ -860,6 +760,8 @@ export const setupCanvasStoreIpc = () => {
     'canvas:load',
     async (_event, payload: { id: string }) => {
       try {
+        const sqlite = await loadSqliteCanvas(payload.id, () => ensureWorkspaceDir(payload.id));
+        if (sqlite) return sqlite;
         if (payload.id !== MANIFEST_ID) {
           await migrateIfNeeded(payload.id);
           await ensureWorkspaceDir(payload.id);
@@ -873,11 +775,12 @@ export const setupCanvasStoreIpc = () => {
         let recoveredFromBackup = false;
         if (payload.id === MANIFEST_ID) {
           const readResult = await readCanvasJsonWithRecovery(filePath);
-          if (readResult.kind === 'missing') return { ok: true, data: null };
+          if (readResult.kind === 'missing') return { ok: true, data: { workspaces: [], folders: [], activeId: '' } };
           if (readResult.kind === 'unrecoverable') {
             return { ok: false, error: String(readResult.err) };
           }
-          data = readResult.data as CanvasSaveData;
+          const { filterWorkspaceManifest } = await import('./workspaces');
+          data = await filterWorkspaceManifest(STORE_DIR, readResult.data as Record<string, unknown>) as unknown as CanvasSaveData;
           recoveredFromBackup = readResult.recoveredFromBackup;
         } else {
           // `readCanvasFull` returns v1-shape (with inline node.data)
@@ -940,6 +843,8 @@ export const setupCanvasStoreIpc = () => {
 
   ipcMain.handle('canvas:list', async () => {
     try {
+      const sqlite = await listSqliteCanvases();
+      if (sqlite) return sqlite;
       await fs.mkdir(STORE_DIR, { recursive: true });
       const entries = await fs.readdir(STORE_DIR, { withFileTypes: true });
       const ids = entries
@@ -960,114 +865,19 @@ export const setupCanvasStoreIpc = () => {
     }
   });
 
-  ipcMain.handle(
-    'canvas:exportWorkspace',
-    async (_event, payload: { id: string; name: string }) => {
-      try {
-        if (!payload.id || payload.id === MANIFEST_ID) {
-          return { ok: false, error: 'Invalid workspace id.' };
-        }
-
-        const workspaceDir = getWorkspaceDir(payload.id);
-        const canvas = await readWorkspaceCanvasForExport(payload.id);
-        const files = await collectWorkspaceFiles(workspaceDir);
-
-        const win = BrowserWindow.getFocusedWindow();
-        const externalFilePaths = collectExternalFilePaths(canvas, workspaceDir);
-        let externalFilePathMap = new Map<string, string>();
-        let skippedExternalFileCount = 0;
-        if (externalFilePaths.length > 0) {
-          const mode = await chooseExternalFilesExportMode(externalFilePaths.length, win);
-          if (mode === 'cancel') {
-            return { ok: false, canceled: true };
-          }
-          if (mode === 'copy') {
-            const externalBundle = await collectExternalWorkspaceFiles(
-              externalFilePaths,
-              files.map((file) => file.relativePath),
-            );
-            files.push(...externalBundle.files);
-            externalFilePathMap = externalBundle.pathMap;
-            skippedExternalFileCount = externalBundle.skipped.length;
-            if (skippedExternalFileCount > 0 && !(await confirmSkippedExternalFilesExport(skippedExternalFileCount, win))) {
-              return { ok: false, canceled: true };
-            }
-          }
-        }
-
-        const portableCanvas = rewriteCanvasFilePaths(canvas, (filePath) => {
-          const relativePath = toPortableRelativePath(filePath, workspaceDir) ?? externalFilePathMap.get(filePath);
-          return relativePath ? portableUrlForRelativePath(relativePath) : filePath;
-        });
-        const result = win
-          ? await dialog.showSaveDialog(win, {
-            title: 'Export Workspace',
-            defaultPath: `${sanitizeFileName(payload.name)}.pulsecanvas.zip`,
-            filters: [
-              { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
-              { name: 'All Files', extensions: ['*'] },
-            ],
-          })
-          : await dialog.showSaveDialog({
-            title: 'Export Workspace',
-            defaultPath: `${sanitizeFileName(payload.name)}.pulsecanvas.zip`,
-            filters: [
-              { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
-              { name: 'All Files', extensions: ['*'] },
-            ],
-          });
-        if (result.canceled || !result.filePath) {
-          return { ok: false, canceled: true };
-        }
-
-        const exportPayload = createWorkspaceExportPayload({
-          exportedAt: new Date().toISOString(),
-          workspace: { id: payload.id, name: payload.name },
-          canvas: portableCanvas,
-          files,
-        });
-        await fs.writeFile(result.filePath, createWorkspaceExportArchive(exportPayload));
-        return {
-          ok: true,
-          filePath: result.filePath,
-          fileCount: files.length,
-          externalFileCount: externalFilePathMap.size,
-          skippedExternalFileCount,
-        };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
+  ipcMain.handle('canvas:exportWorkspace', async (_event, payload: { id: string; name: string }) => {
+    try {
+      const { exportWorkspaceWithDialog } = await import('./workspace-archive-actions');
+      return await exportWorkspaceWithDialog(STORE_DIR, payload, () => readLegacyWorkspaceCanvasForExport(payload.id));
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
-  );
+  });
 
   ipcMain.handle('canvas:importWorkspace', async () => {
     try {
-      const win = BrowserWindow.getFocusedWindow();
-      const result = win
-        ? await dialog.showOpenDialog(win, {
-          title: 'Import Workspace',
-          filters: [
-            { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
-            { name: 'Legacy Pulse Canvas Workspace JSON', extensions: ['pulsecanvas.json', 'json'] },
-            { name: 'All Files', extensions: ['*'] },
-          ],
-          properties: ['openFile'],
-        })
-        : await dialog.showOpenDialog({
-          title: 'Import Workspace',
-          filters: [
-            { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
-            { name: 'Legacy Pulse Canvas Workspace JSON', extensions: ['pulsecanvas.json', 'json'] },
-            { name: 'All Files', extensions: ['*'] },
-          ],
-          properties: ['openFile'],
-        });
-      if (result.canceled || result.filePaths.length === 0) {
-        return { ok: false, canceled: true };
-      }
-
-      const { canvas: _canvas, ...imported } = await importWorkspaceFromPath(result.filePaths[0]);
-      return { ok: true, ...imported };
+      const { importWorkspaceWithDialog } = await import('./workspace-archive-actions');
+      return await importWorkspaceWithDialog(importWorkspaceFromPath);
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -1093,14 +903,11 @@ export const setupCanvasStoreIpc = () => {
     async (_event, payload: { id: string }) => {
       try {
         if (payload.id === MANIFEST_ID) return { ok: false, error: 'Cannot delete manifest' };
+        const { trashWorkspace } = await import('./persistence/workspace-trash');
+        await trashWorkspace(STORE_DIR, payload.id);
         stopWorkspaceWatcher(payload.id);
         knownNodeIds.delete(payload.id);
         knownEdgeIds.delete(payload.id);
-        const dir = getWorkspaceDir(payload.id);
-        await fs.rm(dir, { recursive: true, force: true });
-        // Also remove old flat file if it still exists
-        const oldPath = join(STORE_DIR, `${payload.id.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
-        await fs.unlink(oldPath).catch(() => undefined);
         return { ok: true };
       } catch (err: unknown) {
         const code = (err as NodeJS.ErrnoException).code;

@@ -8,10 +8,10 @@ name: Performance
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
+    paths: ['apps/canvas-workspace/**', 'packages/storage/**', 'packages/canvas-cli/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
   push:
     branches: [master]
-    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
+    paths: ['apps/canvas-workspace/**', 'packages/storage/**', 'packages/canvas-cli/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
 
 permissions:
   contents: read
@@ -137,6 +137,9 @@ jobs:
       - name: Build workspace dependencies
         run: pnpm run build:core
 
+      - name: Prepare Electron SQLite runtime
+        run: pnpm --filter canvas-workspace prepare:agent-tooling
+
       # perf:report builds, runs the bundle gate, launches the app headless
       # (self-managed Xvfb), runs the runtime scenarios, and assembles the
       # report. Exit 1 on any gate failure → this job goes red.
@@ -227,6 +230,9 @@ jobs:
 
       - name: Build workspace dependencies
         run: pnpm run build:core
+
+      - name: Prepare Electron SQLite runtime
+        run: pnpm --filter canvas-workspace prepare:agent-tooling
 
       # Same pipeline as the perf job but at the 90-node/40-webpage shape.
       # Timing profiles don't match the pinned baseline (rendered 不适用),

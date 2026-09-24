@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import "./index.css";
 import { TextSelectionBubble } from "./TextSelectionBubble";
+import { useTextNodeSize } from "./useTextNodeSize";
+import { applyDeferredEditorInput, type DeferredEditorReady } from "../applyDeferredEditorInput";
 import { createTextNodeExtensions } from "./textNodeExtensions";
 import type { CanvasNode, TextNodeData } from "../../../../../types";
 import { isImeComposing } from "../../../../../utils/ime";
@@ -15,6 +17,8 @@ interface Props {
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   readOnly?: boolean;
+  startEditing?: boolean;
+  onEditorReady?: DeferredEditorReady;
 }
 
 /* ---------------------------------------------------------------------------
@@ -50,12 +54,14 @@ export const TextNodeBody = ({
   onSelect,
   onDragStart,
   readOnly = false,
+  startEditing = false,
+  onEditorReady,
 }: Props) => {
   const { t } = useI18n();
   const data = node.data as TextNodeData;
-  const autoSize = data.autoSize !== false;
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => startEditing && isSelected && !readOnly);
+  const initialFocusPendingRef = useRef(startEditing);
   const [, rerenderStyleControls] = useState(0);
 
   // Refs that onUpdate / editor callbacks need without re-registering on every
@@ -104,7 +110,7 @@ export const TextNodeBody = ({
   // captured once, so we toggle imperatively.
   useEffect(() => {
     if (!editor) return;
-    editor.setEditable(!readOnly && editing);
+    editor.setEditable(!readOnly && editing, false);
   }, [editor, editing, readOnly]);
 
   // External content change (undo/redo, CLI edit, duplicate-paste) — reset
@@ -122,7 +128,7 @@ export const TextNodeBody = ({
   // node on the canvas mounts an editable ProseMirror instance and paints a
   // stray caret/placeholder artifact.
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || onEditorReady) return;
     if (!readOnly && isSelected && data.content === "") {
       setEditing(true);
       // Defer focus until editable=true has applied to the DOM.
@@ -130,7 +136,7 @@ export const TextNodeBody = ({
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [editor, isSelected, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, isSelected, onEditorReady, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deselection commits the edit — matches tldraw's click-away-to-finalize feel.
   useEffect(() => {
@@ -140,55 +146,26 @@ export const TextNodeBody = ({
     }
   }, [isSelected, editing, editor]);
 
-  // Enter / F2 on a selected (but not yet editing) text node → drop into edit
-  // mode with the caret at the end. Matches Figma / tldraw / Excalidraw. Without
-  // this, a user who single-clicks a populated text node and tries to type sees
-  // nothing happen: drag mode swallows the click, the "Double-click to edit"
-  // placeholder only shows on empty nodes, and no other hint exists. Capture
-  // phase + defaultPrevented dedupe means multi-select picks one winner.
   useEffect(() => {
-    if (!editor || !isSelected || editing || readOnly) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key !== "Enter" && e.key !== "F2") return;
-      const active = document.activeElement as HTMLElement | null;
-      if (active && (
-        active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable
-      )) return;
-      e.preventDefault();
+    if (!editor || !onEditorReady) return;
+    return onEditorReady((pending) => {
+      if (readOnly) return false;
       setEditing(true);
-      requestAnimationFrame(() => editor.commands.focus("end"));
-    };
-    window.addEventListener("keydown", handler, { capture: true });
-    return () => window.removeEventListener("keydown", handler, { capture: true });
-  }, [editor, isSelected, editing, readOnly]);
+      editor.setEditable(true, false);
+      return applyDeferredEditorInput(editor, pending);
+    });
+  }, [editor, onEditorReady, readOnly]);
 
-  // Auto-size the wrapper to fit content. Height ALWAYS tracks content so a
-  // text node can never clip or scroll (prosemirror's auto-scroll-into-view
-  // would otherwise push the top of the text off-screen). Width is
-  // content-driven only while `autoSize` is true; once the user drags the
-  // right handle it becomes the authoritative wrap width.
-  useLayoutEffect(() => {
-    if (isResizing) return;
-    const el = wrapperRef.current;
-    if (!el) return;
-    if (!autoSize && node.height === el.offsetHeight) return;
-    const measuredW = Math.max(40, Math.ceil(el.offsetWidth));
-    const measuredH = Math.max(28, Math.ceil(el.offsetHeight));
-    const patch: Partial<CanvasNode> = {};
-    if (autoSize && Math.abs(measuredW - node.width) > 1) {
-      patch.width = measuredW;
-    }
-    if (Math.abs(measuredH - node.height) > 1) {
-      patch.height = measuredH;
-    }
-    if (!readOnly && (patch.width !== undefined || patch.height !== undefined)) {
-      onUpdate(node.id, patch);
-    }
-  });
+  useTextNodeSize({ node, onUpdate, isResizing, readOnly, wrapperRef });
+
+  // A preview may have consumed the edit gesture while the chunk was loading.
+  useEffect(() => {
+    if (!editor || onEditorReady || !initialFocusPendingRef.current) return;
+    initialFocusPendingRef.current = false;
+    if (!isSelected || readOnly) return;
+    const frame = requestAnimationFrame(() => editor.commands.focus('end'));
+    return () => cancelAnimationFrame(frame);
+  }, [editor, isSelected, onEditorReady, readOnly]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {

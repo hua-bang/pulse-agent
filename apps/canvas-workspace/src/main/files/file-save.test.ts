@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile, stat, chmod, symlink, readli
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readFilePreview, FILE_PREVIEW_MAX_BYTES } from './file-preview';
-import { saveFilePreview } from './file-save';
+import { readTextFile, saveFilePreview, saveTextFile } from './file-save';
 let directory: string;
 let path: string;
 beforeEach(async () => { directory = await mkdtemp(join(tmpdir(), 'file-editor-')); path = join(directory, 'source.ts'); await writeFile(path, 'original\n'); });
@@ -51,5 +51,36 @@ describe('version-checked local file save', () => {
     await rm(path);
     expect(await saveFilePreview({ filePath: path, expectedVersion, content: 'draft' })).toMatchObject({ ok: false });
     expect(await readdir(directory)).toEqual([]);
+  });
+
+  it('reads and conditionally saves full notes larger than the preview limit', async () => {
+    const content = '\uFEFF# 大笔记\r\n' + '中文'.repeat(FILE_PREVIEW_MAX_BYTES);
+    await writeFile(path, content);
+    const original = await readTextFile(path);
+    expect(original).toMatchObject({ ok: true, content, version: expect.any(String) });
+    expect(await readFilePreview(path)).toMatchObject({ ok: true, kind: 'too-large' });
+    const updated = content + '\nend';
+    const result = await saveTextFile({ filePath: path, content: updated, expectedVersion: original.version });
+    expect(result).toMatchObject({ ok: true, version: expect.any(String) });
+    expect(await readTextFile(path)).toMatchObject({ content: updated, version: result.ok ? result.version : '' });
+  });
+
+  it('preserves unversioned create/overwrite callers while returning the written version', async () => {
+    const created = join(directory, 'new-note.md');
+    const first = await saveTextFile({ filePath: created, content: 'one' });
+    expect(first).toMatchObject({ ok: true, version: expect.any(String) });
+    expect(await saveTextFile({ filePath: created, content: 'two' })).toMatchObject({ ok: true });
+    expect(await readFile(created, 'utf8')).toBe('two');
+  });
+
+  it('shares the same CAS lane between ordinary notes and preview edits', async () => {
+    const expectedVersion = (await readTextFile(path)).version!;
+    const results = await Promise.all([
+      saveTextFile({ filePath: path, content: 'note edit', expectedVersion }),
+      saveFilePreview({ filePath: path, content: 'preview edit', expectedVersion }),
+    ]);
+    expect(results.filter(result => result.ok)).toHaveLength(1);
+    expect(results.filter(result => !result.ok && result.conflict)).toHaveLength(1);
+    expect(await readdir(directory)).toEqual(['source.ts']);
   });
 });

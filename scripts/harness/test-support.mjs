@@ -63,6 +63,9 @@ export function gitFixture(root, ...args) {
   const result = spawnSync('git', [
     '-c', 'user.name=Harness Fixture', '-c', 'user.email=harness@example.invalid',
     '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=' + path.join(root, '.git/hooks'),
+    // Git >= 2.47 detaches auto-maintenance after commits; a background writer
+    // in .git races fixture cleanup (ENOTEMPTY). Fixtures never need it.
+    '-c', 'maintenance.auto=false', '-c', 'gc.auto=0',
     ...args,
   ], { cwd: root, encoding: 'utf8' });
   if (result.status !== 0) throw new Error(result.stderr);

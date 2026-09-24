@@ -182,9 +182,9 @@ describe('SessionStore', () => {
       store.addMessage(message);
     }
 
-    // Wait for the queued chain to drain by issuing one more persist-backed
-    // call and reading the state back from a fresh store instance.
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // The session-addressed read drains this store's queue before a fresh
+    // instance verifies the durable result; elapsed time is not a write barrier.
+    await store.readSession(store.getCurrentSession()!.sessionId);
 
     const reloaded = new SessionStore('ws-1');
     const session = await reloaded.loadSession(store.getCurrentSession()!.sessionId);

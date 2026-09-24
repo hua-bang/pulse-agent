@@ -95,6 +95,9 @@ describe('performance change classification', () => {
   const workbench = 'apps/canvas-workspace/src/renderer/src/app/shell/Workbench/index.tsx';
   const iframe = 'apps/canvas-workspace/src/renderer/src/modules/canvas/components/node-bodies/IframeNodeBody/index.tsx';
   const settings = 'apps/canvas-workspace/src/renderer/src/modules/settings/internal/Settings/AgentSection.tsx';
+  const storage = 'packages/storage/src/sqlite/canvas.ts';
+  const cliNative = 'packages/canvas-cli/scripts/prepare-native.mjs';
+  const electronNative = 'apps/canvas-workspace/scripts/setup/prepare-sqlite-native.mjs';
   const workflow = () => parse(fs.readFileSync(path.join(repoRoot, '.github/workflows/perf.yml'), 'utf8'));
 
   it.each([canvas, workbench, iframe])('recognizes the current hot path %s', (file) => {
@@ -106,6 +109,34 @@ describe('performance change classification', () => {
     expect(classifyPerformanceChanges({ paths: [file] })).toEqual({ runtime: true, packaging: true });
     expect(workflow().on.pull_request.paths).toContain(file);
     expect(workflow().on.push.paths).toContain(file);
+  });
+
+  it.each([
+    [storage, 'packages/storage/**'],
+    ['packages/storage/package.json', 'packages/storage/**'],
+    ['packages/canvas-cli/src/core/sqlite-store.ts', 'packages/canvas-cli/**'],
+    [cliNative, 'packages/canvas-cli/**'],
+    [electronNative, 'apps/canvas-workspace/**'],
+  ])('runs runtime and packaging checks for %s', (file, trigger) => {
+    expect(fs.existsSync(path.join(repoRoot, file)), file).toBe(true);
+    expect(classifyPerformanceChanges({ paths: [file] })).toEqual({ runtime: true, packaging: true });
+    expect(workflow().on.pull_request.paths).toContain(trigger);
+    expect(workflow().on.push.paths).toContain(trigger);
+  });
+
+  it('runs runtime checks for the Canvas storage adapter without forcing a package build', () => {
+    expect(classifyPerformanceChanges({ paths: ['apps/canvas-workspace/src/main/canvas/persistence/backend.ts'] }))
+      .toEqual({ runtime: true, packaging: false });
+  });
+
+  it.each(['perf', 'large-canvas'])('prepares the Electron ABI after workspace builds and before %s launches', job => {
+    const steps = workflow().jobs[job].steps;
+    const build = steps.findIndex(step => step.run === 'pnpm run build:core');
+    const prepare = steps.findIndex(step => step.run === 'pnpm --filter canvas-workspace prepare:agent-tooling');
+    const launch = steps.findIndex(step => step.run?.startsWith('pnpm --filter canvas-workspace perf:report'));
+    expect(build).toBeGreaterThan(-1);
+    expect(prepare).toBeGreaterThan(build);
+    expect(launch).toBeGreaterThan(prepare);
   });
 
   it('keeps ordinary settings UI changes on the bundle-only path', () => {
@@ -122,11 +153,15 @@ describe('performance change classification', () => {
   it('keeps the existing package-only trigger and rejects lookalike directory prefixes', () => {
     expect(classifyPerformanceChanges({ paths: ['apps/canvas-workspace/package.json'] }))
       .toEqual({ runtime: false, packaging: true });
-    expect(classifyPerformanceChanges({ paths: ['apps/canvas-workspace/src/renderer/src/modules/canvas-extra/index.tsx'] }))
-      .toEqual({ runtime: false, packaging: false });
+    for (const file of [
+      'apps/canvas-workspace/src/renderer/src/modules/canvas-extra/index.tsx',
+      'packages/storage-extra/src/index.ts', 'packages/canvas-cli-extra/src/index.ts',
+    ]) {
+      expect(classifyPerformanceChanges({ paths: [file] })).toEqual({ runtime: false, packaging: false });
+    }
   });
 
-  it.each(['canvas', 'lockfile', 'rename'])('executes the real workflow classifier for a %s change', (kind) => {
+  it.each(['canvas', 'lockfile', 'rename', 'storage', 'cli-native', 'electron-native'])('executes the real workflow classifier for a %s change', (kind) => {
     const root = createFixture();
     writeFixture(root, 'apps/canvas-workspace/scripts/perf/report-policy.mjs',
       fs.readFileSync(path.join(repoRoot, 'apps/canvas-workspace/scripts/perf/report-policy.mjs')));
@@ -135,7 +170,10 @@ describe('performance change classification', () => {
     if (kind === 'rename') {
       fs.mkdirSync(path.dirname(path.join(root, settings)), { recursive: true });
       gitFixture(root, 'mv', canvas, settings);
-    } else writeFixture(root, kind === 'canvas' ? canvas : 'pnpm-lock.yaml', 'fixture-change');
+    } else {
+      const files = { canvas, lockfile: 'pnpm-lock.yaml', storage, 'cli-native': cliNative, 'electron-native': electronNative };
+      writeFixture(root, files[kind], 'fixture-change');
+    }
     const head = commitFixture(root);
     const output = path.join(root, 'github-output.txt');
     const step = workflow().jobs.changes.steps.find((candidate) => candidate.id === 'classify');
@@ -148,6 +186,7 @@ describe('performance change classification', () => {
       },
     });
     expect(result.status, result.stderr).toBe(0);
-    expect(fs.readFileSync(output, 'utf8')).toBe('runtime=true\npackaging=' + (kind === 'lockfile') + '\n');
+    const packaging = !['canvas', 'rename'].includes(kind);
+    expect(fs.readFileSync(output, 'utf8')).toBe('runtime=true\npackaging=' + packaging + '\n');
   });
 });

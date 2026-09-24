@@ -294,6 +294,7 @@ pathRules:
       - src/main/files/agent-tooling-manager.ts
       - src/main/files/agent-tooling-manager.test.ts
       - src/main/files/agent-tooling-files.ts
+      - src/main/files/agent-tooling-files.test.ts
       - src/main/files/agent-tooling-deployment.ts
       - src/main/files/agent-tooling-queue.ts
       - src/main/files/agent-tooling-queue.test.ts
@@ -308,12 +309,17 @@ pathRules:
       - src/renderer/src/modules/settings/internal/Settings/AgentSection.css
       - src/main/__tests__/agent-tooling-package.test.ts
       - harness/tools/smoke-packaged-agent-tooling.mjs
+      - scripts/setup/prepare-sqlite-native.mjs
+      - scripts/setup/prepare-sqlite-native.test.mjs
+      - scripts/setup/assert-packaged-native.mjs
+      - scripts/setup/assert-packaged-native.test.mjs
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/__tests__/agent-tooling-package.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-files.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/__tests__/agent-tooling-package.test.ts scripts/setup/prepare-sqlite-native.test.mjs scripts/setup/assert-packaged-native.test.mjs
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/__tests__/agent-tooling-package.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-files.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/__tests__/agent-tooling-package.test.ts scripts/setup/prepare-sqlite-native.test.mjs scripts/setup/assert-packaged-native.test.mjs
     manual:
+      - pnpm --filter canvas-workspace prepare:agent-tooling
       - pnpm --filter canvas-workspace package:mac:arm64 && node apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs
 
   # This plain-React visual fixture has an isolated tsconfig and Linux-only

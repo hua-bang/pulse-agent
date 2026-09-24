@@ -131,8 +131,15 @@ function makeRuntime(plan: AgentPlan): ConversationRuntimeService {
   return new ConversationRuntimeService(
     () => agent,
     () => ({
+      create: async (sessionId, messages) => {
+        if (sessions.has(sessionId)) throw new Error('Session already exists');
+        sessions.set(sessionId, [...messages]);
+      },
       loadMessages: async sessionId => sessions.get(sessionId) as never ?? null,
-      persist: async (sessionId, messages) => { sessions.set(sessionId, [...messages]); },
+      persist: async (sessionId, messages) => {
+        if (!sessions.has(sessionId)) throw new Error('Session not found');
+        sessions.set(sessionId, [...messages]);
+      },
     }),
     async (_scope, sessionId, operation) => {
       if (activeSessions.has(sessionId)) return null;

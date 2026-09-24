@@ -3,6 +3,8 @@ import { dirname, join, resolve, relative, isAbsolute } from 'path';
 import { NODE_CAPABILITIES, DEFAULT_NODE_DIMENSIONS } from './constants';
 import { loadCanvas, saveCanvas, ensureWorkspaceDir, getWorkspaceDir, commitNodeMutation } from './store';
 import { notifyCanvasUpdated } from './notifier';
+import { hasSqliteStorage } from './sqlite-store';
+import { prepareCanvasFileWrites } from './sqlite-file-writes';
 import type {
   NodeType,
   NodeCapability,
@@ -258,6 +260,7 @@ export interface WriteNodeOptions {
 
 /** A deferred backing-file write produced by {@link prepareNodeContent}. */
 export interface PreparedContentWrite {
+  nodeId?: string;
   path: string;
   content: string;
 }
@@ -285,7 +288,7 @@ export function prepareNodeContent(
             code: 'path_confined',
           };
         }
-        fileWrite = { path: node.data.filePath, content };
+        fileWrite = { nodeId: node.id, path: node.data.filePath, content };
       }
       node.data.content = content;
       node.updatedAt = Date.now();
@@ -338,13 +341,19 @@ export async function writeNode(
 
   const prep = prepareNodeContent(node, content, getWorkspaceDir(workspaceId, storeDir), opts);
   if (!prep.ok) return prep;
-  if (prep.data.fileWrite) {
+  const sqlite = await hasSqliteStorage(storeDir);
+  const fileWrites = sqlite && prep.data.fileWrite
+    ? await prepareCanvasFileWrites([node], [prep.data.fileWrite]) : undefined;
+  if (prep.data.fileWrite && !sqlite) {
     await fs.writeFile(prep.data.fileWrite.path, prep.data.fileWrite.content, 'utf-8');
   }
   // Re-read canvas.json just before writing so concurrent changes
   // from the Electron renderer (or other canvas-cli invocations) to
   // other nodes are preserved. Only our target node is replaced.
-  await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
+  await commitNodeMutation(workspaceId, {
+    upsert: node, expectedRevision: canvas.revision, expectedGeneration: canvas.storageGeneration,
+    fileWrites,
+  }, storeDir);
   await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
   return { ok: true, data: undefined };
 }
@@ -460,12 +469,15 @@ export async function createNode(
   const y = opts.y ?? auto.y;
 
   const nodeData = buildInitialNodeData(opts.type, opts.data ?? {}, opts.title ?? '');
+  const sqlite = await hasSqliteStorage(storeDir);
 
   // For file nodes, always create a notes file so the node has a valid filePath
   if (opts.type === 'file') {
     const noteFile = buildNoteFilePath(getWorkspaceDir(workspaceId, storeDir), opts.title ?? def.title, nodeId);
-    await fs.mkdir(dirname(noteFile), { recursive: true });
-    await fs.writeFile(noteFile, String(nodeData.content ?? ''), 'utf-8');
+    if (!sqlite) {
+      await fs.mkdir(dirname(noteFile), { recursive: true });
+      await fs.writeFile(noteFile, String(nodeData.content ?? ''), 'utf-8');
+    }
     nodeData.filePath = noteFile;
     nodeData.saved = true;
     nodeData.modified = false;
@@ -482,11 +494,17 @@ export async function createNode(
     data: nodeData,
     updatedAt: Date.now(),
   };
+  const fileWrites = sqlite && opts.type === 'file' ? await prepareCanvasFileWrites([newNode], [{
+    nodeId, path: String(nodeData.filePath), content: String(nodeData.content ?? ''),
+  }]) : undefined;
 
   // Re-read canvas.json and append our new node so any nodes added by
   // the renderer (or another CLI call) between our initial loadCanvas and
   // this write are preserved.
-  await commitNodeMutation(workspaceId, { upsert: newNode }, storeDir);
+  await commitNodeMutation(workspaceId, {
+    upsert: newNode, expectedRevision: canvas.revision, expectedGeneration: canvas.storageGeneration,
+    fileWrites,
+  }, storeDir);
   await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'create' });
 
   return {
@@ -532,7 +550,9 @@ export async function updateNode(
   if (patch.title !== undefined) node.title = patch.title;
   node.updatedAt = Date.now();
 
-  await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
+  await commitNodeMutation(workspaceId, {
+    upsert: node, expectedRevision: canvas.revision, expectedGeneration: canvas.storageGeneration,
+  }, storeDir);
   await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
   return { ok: true, data: undefined };
 }
@@ -550,7 +570,9 @@ export async function deleteNode(
 
   // Re-read canvas.json just before writing to preserve concurrent changes
   // to other nodes from the renderer or other canvas-cli invocations.
-  const result = await commitNodeMutation(workspaceId, { removeId: nodeId }, storeDir);
+  const result = await commitNodeMutation(workspaceId, {
+    removeId: nodeId, expectedRevision: canvas.revision, expectedGeneration: canvas.storageGeneration,
+  }, storeDir);
   if (!result) return { ok: false, error: `Node not found: ${nodeId}`, code: 'node_not_found' };
   await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'delete' });
 

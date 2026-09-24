@@ -6,6 +6,7 @@ import type {
   CanvasTransform,
 } from '../../../types';
 import { count } from '../../../perf/counters';
+import { registerWorkspacePersistence } from '../../../shared/workspacePersistence';
 import {
   mergeExternalDocumentUpdate,
   shouldReloadForExternalUpdate,
@@ -14,6 +15,8 @@ import { useCanvasDocumentHistory } from './useCanvasDocumentHistory';
 import { useCanvasContentCommands } from './useCanvasContentCommands';
 import { useCanvasCoreCommands } from './useCanvasCoreCommands';
 import { useMindmapTransfers } from './useMindmapTransfers';
+import { CanvasDocumentPersistence } from './CanvasDocumentPersistence';
+import { copyDocument } from './revisionMerge';
 export type { AddNodeOptions } from './useCanvasContentCommands';
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -62,52 +65,36 @@ export const useCanvasDocument = (
    */
   const persistedIdsRef = useRef<Set<string>>(new Set());
   const persistedEdgeIdsRef = useRef<Set<string>>(new Set());
+  const persistenceRef = useRef<CanvasDocumentPersistence | null>(null);
+
+  const captureDraft = useCallback((): CanvasSaveData => ({
+    nodes: nodesRef.current,
+    edges: edgesRef.current,
+    transform: transformRef.current,
+    savedAt: new Date().toISOString(),
+  }), []);
 
   const doSave = useCallback(() => {
     if (!loadedRef.current) {
       console.debug(`[canvas] save skipped for ${canvasId}: not yet loaded`);
       return;
     }
-    const api = window.canvasWorkspace?.store;
-    if (!api) {
+    if (!persistenceRef.current) {
       console.warn('[canvas] save skipped: store API unavailable');
       return;
     }
-    const snapshot = nodesRef.current;
-    const edgeSnapshot = edgesRef.current;
-    const payload: CanvasSaveData = {
-      nodes: snapshot,
-      edges: edgeSnapshot,
-      transform: transformRef.current,
-      savedAt: new Date().toISOString(),
-    };
-    console.debug(
-      `[canvas] saving ${canvasId}: ${payload.nodes.length} nodes, ${edgeSnapshot.length} edges`,
-    );
-    count('canvas-save-ipc');
-    void api.save(canvasId, payload).then((res) => {
-      if (!res.ok) {
-        console.warn('[canvas] save failed:', res.error);
-        onSaveErrorRef.current?.();
-        return;
-      }
-      // Save succeeded — every id we just persisted is now on disk, so
-      // it's safe for the external-update handler to treat future
-      // disk-absence of these ids as "deleted elsewhere".
-      for (const n of snapshot) persistedIdsRef.current.add(n.id);
-      for (const edge of edgeSnapshot) persistedEdgeIdsRef.current.add(edge.id);
-    }).catch((err) => {
-      console.warn('[canvas] save failed:', err);
-      onSaveErrorRef.current?.();
-    });
-  }, [canvasId]);
+    persistenceRef.current.setDraft(captureDraft());
+    if (persistenceRef.current.hasChanges) void persistenceRef.current.requestSave();
+  }, [canvasId, captureDraft]);
 
   const scheduleSave = useCallback(() => {
+    persistenceRef.current?.setDraft(captureDraft());
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
       doSave();
     }, SAVE_DEBOUNCE_MS);
-  }, [doSave]);
+  }, [captureDraft, doSave]);
 
   /** Flush any pending debounced save immediately. */
   const flushSave = useCallback(() => {
@@ -155,6 +142,7 @@ export const useCanvasDocument = (
     const storeApi = window.canvasWorkspace?.store;
     if (!storeApi?.onExternalUpdate) return;
 
+    let subscribed = true;
     const unsubscribe = storeApi.onExternalUpdate(async (event) => {
       if (event.workspaceId !== canvasId) return;
       if (!shouldReloadForExternalUpdate(event)) return;
@@ -163,7 +151,10 @@ export const useCanvasDocument = (
       // operating on an empty nodesRef here would corrupt the view.
       if (!loadedRef.current) return;
 
-      const result = await storeApi.load(canvasId);
+      const persistence = persistenceRef.current;
+      const result = await storeApi.load(canvasId).catch(() => null);
+      if (!subscribed || persistenceRef.current !== persistence) return;
+      if (!result) return;
       if (!result.ok || !result.data || !Array.isArray(result.data.nodes)) return;
       const diskNodes = result.data.nodes;
       // Any id we can read from disk is by definition persisted.
@@ -195,9 +186,18 @@ export const useCanvasDocument = (
         persistedEdgeIds: persistedEdgeIdsRef.current,
       });
 
-      // Apply directly without history / scheduleSave to avoid a write-back loop.
-      for (const edge of diskEdges) persistedEdgeIdsRef.current.add(edge.id);
-      replaceState({ nodes: merged.nodes, edges: merged.edges });
+      const versioned = result.data.revision !== undefined
+        || result.data.storageGeneration !== undefined || persistence?.storageGeneration !== undefined;
+      if (versioned) {
+        // The complete baseline is merged before adopting a newer revision.
+        // In-flight saves defer this until their actual commit is known.
+        await persistence?.receiveExternal(copyDocument(result.data));
+      } else {
+        // Legacy file storage retains its event-specific merge behavior.
+        for (const edge of diskEdges) persistedEdgeIdsRef.current.add(edge.id);
+        replaceState({ nodes: merged.nodes, edges: merged.edges });
+        persistence?.setLegacyDraft(captureDraft());
+      }
 
       // Mark the affected nodes as externally-edited for 2.5s so the Canvas
       // component can render a transient highlight.
@@ -225,12 +225,13 @@ export const useCanvasDocument = (
       // been applied, so handlers that re-read state (e.g. a viewport
       // visibility check) see the new nodes already in nodesRef.
       const notify = onAgentCreatedRef.current;
-      if (notify) {
+      if (notify && !versioned) {
         for (const node of merged.createdNodes) notify(node);
       }
     });
 
     return () => {
+      subscribed = false;
       unsubscribe();
       for (const t of externalClearTimers.current.values()) clearTimeout(t);
       externalClearTimers.current.clear();
@@ -270,6 +271,8 @@ export const useCanvasDocument = (
   useEffect(() => {
     // New canvas selected — block saves until this load finishes.
     loadedRef.current = false;
+    setLoaded(false);
+    transformRef.current = { x: 0, y: 0, scale: 1 };
     const api = window.canvasWorkspace?.store;
     if (!api) {
       const empty: CanvasNode[] = [];
@@ -281,7 +284,56 @@ export const useCanvasDocument = (
     }
     persistedIdsRef.current = new Set();
     persistedEdgeIdsRef.current = new Set();
+    let active = true;
+    const persistence = new CanvasDocumentPersistence({
+      workspaceId: canvasId,
+      save: async (payload) => {
+        count('canvas-save-ipc');
+        return api.save(canvasId, payload);
+      },
+      load: async () => {
+        const result = await api.load(canvasId);
+        if (!result.ok || !result.data) throw new Error('Cannot load the latest canvas revision');
+        return result.data;
+      },
+      publish: (data) => {
+        if (!active || persistenceRef.current !== persistence) return;
+        const knownIds = new Set(nodesRef.current.map(node => node.id));
+        transformRef.current = data.transform;
+        replaceState({ nodes: data.nodes, edges: data.edges ?? [] });
+        for (const node of data.nodes) {
+          if (!knownIds.has(node.id)) onAgentCreatedRef.current?.(node);
+        }
+      },
+      persisted: (data) => {
+        if (!active || persistenceRef.current !== persistence) return;
+        for (const node of data.nodes) persistedIdsRef.current.add(node.id);
+        for (const edge of data.edges ?? []) persistedEdgeIdsRef.current.add(edge.id);
+      },
+      failed: (error) => {
+        console.warn(`[canvas] save failed for ${canvasId}:`, error);
+        if (active) {
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+          onSaveErrorRef.current?.();
+        }
+      },
+    });
+    persistenceRef.current = persistence;
+    const unregisterPersistence = registerWorkspacePersistence(canvasId, async () => {
+      if (!active || !loadedRef.current) throw new Error('Workspace is still loading.');
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      persistence.setDraft(captureDraft());
+      await persistence.requestSave();
+      if (persistence.hasChanges) throw new Error('Save failed. Retry before deleting.');
+    });
     void api.load(canvasId).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        onSaveErrorRef.current?.();
+        return;
+      }
       if (result.ok && result.data) {
         const saved = result.data;
         const loadedNodes = Array.isArray(saved.nodes) ? saved.nodes : [];
@@ -303,9 +355,22 @@ export const useCanvasDocument = (
       } else {
         resetState({ nodes: [], edges: [] });
       }
+      persistence.initialize(copyDocument(result.data ?? captureDraft()));
       loadedRef.current = true;
       setLoaded(true);
+    }).catch((error) => {
+      console.warn(`[canvas] load failed for ${canvasId}:`, error);
+      if (active) onSaveErrorRef.current?.();
     });
+    return () => {
+      active = false;
+      unregisterPersistence();
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      if (persistence.hasChanges) void persistence.requestSave();
+      if (persistenceRef.current === persistence) persistenceRef.current = null;
+      loadedRef.current = false;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasId, resetState]);
 

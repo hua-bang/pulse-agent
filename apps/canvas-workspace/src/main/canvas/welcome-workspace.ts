@@ -5,6 +5,7 @@ import { saveCanvas } from './service';
 import {
   WORKSPACES_MANIFEST_FILENAME,
   listWorkspaces,
+  hasTrashedWorkspaces,
 } from './workspaces';
 
 export const WELCOME_WORKSPACE_ID = 'default';
@@ -96,6 +97,8 @@ export async function ensureWelcomeWorkspaceSeeded(
     }
     return { seeded: false };
   }
+
+  if (await hasTrashedWorkspaces(root)) return { seeded: false };
 
   const seededAt = new Date().toISOString();
   await saveCanvas(

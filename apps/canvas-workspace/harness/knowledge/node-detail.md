@@ -150,6 +150,15 @@ The fix, in `commitPatch` / `retryFailedSave` / `discardFailedSave`
 — a disjoint failure from the *record* write above, so both can be visible
 at once without one hiding the other.
 
+`useFilePersistence` owns the Markdown read version and serial save queue.
+Focus/file-change refreshes replace only clean text; dirty or debounced edits
+remain visible on conflict. Every file save sends the SHA-256 version actually
+read, and a late read or acknowledgement from another file cannot retarget the
+current editor. Explicit discard/reload replaces a draft only after a successful
+read. Ordinary note reads are not limited by the bounded Dock preview size.
+Guards: `FileNodeBody/useFilePersistence.test.tsx` and
+`modules/note-editor/editor/useFileNodeEditor.test.tsx`.
+
 Bound test:
 `src/renderer/src/modules/workspace-nodes/internal/__tests__/NodeCanvasPreview.test.tsx`
 (save-failure + rich-presentation guards).

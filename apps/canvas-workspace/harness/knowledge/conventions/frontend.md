@@ -76,6 +76,31 @@ receive patch requests; unmounted sources retain the snapshot persistence path.
 Keep those operations together rather than duplicating reference policy in
 individual visual hosts.
 
+Idle Text nodes use `TextNodeBodyLazy`'s rich preview with the same body CSS and
+size measurement as the editor. Stored HTML and raw Markdown pass through
+markdown-it and DOMPurify before a restricted React projection; active markup,
+unsafe links, and arbitrary styles never enter the canvas DOM. Double-click,
+the Canvas shortcut owner's `renameToken`, or selecting a new empty node loads
+Tiptap. Keep that editor mounted after entry so deselection retains its draft;
+changing editability alone must not emit a content update. The preview and
+editor tests pin formatting, geometry, and entry behavior; sanitizer changes
+also need a real Chromium fixture because happy-dom is not a security oracle.
+
+Clean, saved file notes use that shared Markdown preview with the note editor's
+soft-break behavior and typography. New notes, retained drafts, pending file
+writes, HTML, images, task lists, node mentions, and explicit full-renderer
+surfaces keep the established editor. Passive notes still use the versioned
+file-read/focus/event hook; Canvas search requests an editor through the file
+registry and reapplies its current inline query when registration completes.
+File link clicks retain the Dock intent, and Text links retain the popup policy.
+
+The shared deferred-input boundary retains first input while an editor module
+loads, including IME and sanitized rich-text paste. Drop is rejected at this
+brief loading surface. The buffer stays visible/copyable on load failure;
+ready input enters the existing editor schema with synchronous focus before
+its normal onUpdate/save path. Keep the buffer outside Suspense/error fallback
+and avoid any alternate persistence path.
+
 Read-only Markdown consumers outside Chat use `modules/chat/markdown.ts` and
 its `MarkdownPreview` component. That entry owns rendering and code-copy
 interaction without loading chat sessions or surfaces. Consumers must not

@@ -95,6 +95,7 @@ import { setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 import { resolveProfileCachePolicy, runProfileCacheMaintenance } from './profile-cache-maintenance';
+import { startStorage, stopStorageAfterWriters } from './storage-lifecycle';
 
 export interface BootstrapOptions {
   mainDir: string;
@@ -191,6 +192,13 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupRendererLogIpc(writeLog);
     setupFatalErrorLogging(writeLog);
 
+    const {
+      ensureAgentToolingAtStartup,
+      setupSkillInstallerIpc,
+    } = await import("../files/skill-installer");
+    await ensureAgentToolingAtStartup(writeLog);
+    if (!await startStorage(writeLog)) return;
+
     setupPtyIpc();
     setupScrollbackCapture();
     setupDockTabsIpc();
@@ -210,12 +218,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     void auditPollutedWorkspacesAtStartup();
     setupFileManagerIpc();
     setupFileWatcherIpc();
-    const {
-      ensureAgentToolingAtStartup,
-      setupSkillInstallerIpc,
-    } = await import("../files/skill-installer");
     setupSkillInstallerIpc();
-    await ensureAgentToolingAtStartup(writeLog);
     setupCanvasAgentIpc();
     const conversationRuntimeIpc = await import('../agent/conversation-runtime/conversation-ipc');
     conversationRuntimeIpc.setupConversationRuntimeIpc(getCanvasAgentService);
@@ -315,9 +318,17 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       pluginTeardownStarted = true;
       quitting = true;
       if (cacheTimer) clearTimeout(cacheTimer);
+      scheduled.stop();
+      powerMonitor.removeListener('resume', runScheduledCatchUp);
+      teardownConversationRuntime();
       void teardownCanvasPlugins()
         .catch(error => writeLog('main', 'plugin teardown failed', String(error)))
         .then(() => cacheMaintenance)
+        .then(() => stopStorageAfterWriters(async () => {
+          await teardownCanvasAgent();
+          await stopRuntimeControlServer();
+        }, writeLog))
+        .catch(error => writeLog('main', 'storage shutdown failed', String(error)))
         .then(() => flushLogs())
         .finally(() => {
           pluginTeardownComplete = true;
@@ -392,7 +403,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     killAllPty();
     teardownFileWatcher();
     teardownCanvasWatchers();
-    teardownCanvasAgent();
+    void teardownCanvasAgent().catch(error => writeLog('main', 'agent teardown failed', String(error)));
     teardownConversationRuntime();
     if (process.platform !== "darwin") {
       // Only on platforms where closing all windows quits the app do we tear
