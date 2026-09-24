@@ -19,14 +19,11 @@ import { assertDisplayAvailable, ensureHeadlessDisplay, shouldRunHeadless } from
 import { collectFlags, prepareProfile, writeExperimentalFlags } from './profiles.mjs';
 import { resolveCaCertFile, trustCaCertificates } from './trust.mjs';
 import { pruneRunDirectories } from './retention.mjs';
-import { evaluateRenderer } from './renderer.mjs';
-import { getFreePort, isPidAlive, waitFor } from './utils.mjs';
+import { waitForAppRendered, waitForContentSettled } from './readiness.mjs';
+import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
 
 const DEV_START_TIMEOUT_MS = 120_000;
-// Positive match on React output: the initial about:blank also has no
-// .boot-screen, so an absence-only check passes before index.html loads.
-const APP_RENDERED_EXPRESSION = "document.querySelector('#root > :not(.boot-screen)') !== null";
 
 // Headless Linux (CI/containers): Chromium flags so the renderer actually
 // comes up — opt-in only, via --headless.
@@ -175,11 +172,13 @@ export async function startCommand(rawArgs) {
     // Dev first bundles main/preload and starts the dev server before a page exists.
     const readyTimeout = dev ? DEV_START_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
     await waitForPageTarget(session, readyTimeout);
-    // index.html's static .boot-screen lives until React's first render
-    // replaces #root's children; returning earlier lets a screenshot catch
-    // the splash (dev mode compiles modules on demand, so this takes seconds).
-    await waitFor(() => evaluateRenderer(session, APP_RENDERED_EXPRESSION), readyTimeout);
+    await waitForAppRendered(session, readyTimeout);
     await applyStartupNavigation(session, opts);
+    const settle = await waitForContentSettled(session);
+    if (!settle.settled) {
+      session.settlePending = settle.pending;
+      console.error(`[harness] content still loading after settle timeout: ${settle.pending.join(', ')}`);
+    }
   } catch (err) {
     // Surface the Electron stderr so CI shows the real launch failure
     // (missing system libs, sandbox crash, renderer JS error, etc.) instead

@@ -74,8 +74,9 @@ everything in this section, installing, building and launching in one idempotent
 `harness:down` undoes it. The details below are what it automates. It
 launches `start --dev` by default (electron-vite dev: renderer HMR,
 main/preload restart on the same CDP port); `--built` uses the production
-bundle. `start` itself waits until React replaces the boot splash, not just
-until a page target exists.
+bundle. `start` itself waits until React replaces the boot splash and
+first-paint content settles (`src/readiness.mjs`), not just until a page
+target exists.
 
 Opt-in with `--headless`: the harness then spawns its own Xvfb, passes
 `--no-sandbox --disable-gpu --disable-dev-shm-usage` to Electron, and reaps

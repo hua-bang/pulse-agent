@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { HarnessError } from './errors.mjs';
+import { resolveUserPath } from './utils.mjs';
 
 /**
  * Extra CA trust for the launched app's Chromium network stack.
@@ -19,8 +20,10 @@ import { HarnessError } from './errors.mjs';
 
 const PEM_CERT = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
 
-export const resolveCaCertFile = (opts, env = process.env) =>
-  opts['ca-cert'] ?? env.PULSE_CANVAS_HARNESS_CA_CERT ?? undefined;
+export const resolveCaCertFile = (opts, env = process.env) => {
+  const file = opts['ca-cert'] ?? env.PULSE_CANVAS_HARNESS_CA_CERT;
+  return file ? resolveUserPath(file, env) : undefined;
+};
 
 export const splitPemCertificates = (pem) => pem.match(PEM_CERT) ?? [];
 
