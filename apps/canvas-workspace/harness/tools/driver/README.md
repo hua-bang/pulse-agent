@@ -69,20 +69,36 @@ pnpm --filter canvas-workspace harness start --profile real --workspace ws-123 -
 
 ## Headless Linux (CI / containers / cloud sandboxes)
 
-Opt-in with `--headless`: the harness then spawns its own Xvfb, sets
-`ELECTRON_DISABLE_SANDBOX=1` for the child, and reaps the Xvfb process on
-`close`. This never happens implicitly — on a display-less Linux host,
-`start` without the flag fails fast with a hint instead of spawning an X
-server behind your back. Requirements on the host:
+Opt-in with `--headless`: the harness then spawns its own Xvfb, passes
+`--no-sandbox --disable-gpu --disable-dev-shm-usage` to Electron, and reaps
+the Xvfb process on `close`. This never happens implicitly — on a
+display-less Linux host, `start` without the flag fails fast with a hint
+instead of spawning an X server behind your back. Requirements on the host:
 
 - `Xvfb` installed (debian/ubuntu: `apt-get install -y xvfb`)
 - the Electron binary present — if the postinstall download was skipped or
-  blocked (proxy, offline image), run:
+  blocked (proxy, offline image), run `pnpm --filter canvas-workspace setup:electron`
+  (falls back to the npmmirror CDN)
+- node-pty built for terminals — the postinstall (`scripts/setup/rebuild-native.mjs`)
+  falls back to a host-Node build when Electron headers are unreachable;
+  node-pty is N-API, so that binary loads in Electron
+
+Behind a TLS-intercepting egress proxy, Chromium ignores `NODE_EXTRA_CA_CERTS`
+and every HTTPS webview fails with `net_error -202`. Pass the proxy CA with
+`--ca-cert <pem>` (or `PULSE_CANVAS_HARNESS_CA_CERT`): it is imported into the
+profile HOME's `.pki/nssdb` (needs `certutil`, debian/ubuntu:
+`apt-get install -y libnss3-tools`). profile=real is refused. Hosts the proxy
+policy denies still fail with `ERR_TUNNEL_CONNECTION_FAILED`; that is network
+policy, not the app.
+
+Chat without a paid key: run `node harness/mock-llm.mjs 18100` and start the
+harness with `OPENAI_API_URL=http://127.0.0.1:18100/v1 OPENAI_API_KEY=mock`
+(the harness passes its environment to Electron).
 
 ```bash
-pnpm --filter canvas-workspace setup:electron   # falls back to the npmmirror CDN
 pnpm --filter canvas-workspace build
-pnpm --filter canvas-workspace harness start --profile temp --headless
+pnpm --filter canvas-workspace harness start --profile temp --headless \
+  --ca-cert /path/to/proxy-ca.pem
 ```
 
 ## Session Commands

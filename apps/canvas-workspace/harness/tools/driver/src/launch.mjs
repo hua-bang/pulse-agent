@@ -17,6 +17,7 @@ import { applyStartupNavigation } from './navigation.mjs';
 import { readSession, stopSession, writeSession } from './session.mjs';
 import { assertDisplayAvailable, ensureHeadlessDisplay, shouldRunHeadless } from './headless.mjs';
 import { collectFlags, prepareProfile, writeExperimentalFlags } from './profiles.mjs';
+import { resolveCaCertFile, trustCaCertificates } from './trust.mjs';
 import { pruneRunDirectories } from './retention.mjs';
 import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
@@ -50,6 +51,11 @@ export async function startCommand(rawArgs) {
   await pruneRunDirectories(join(HARNESS_DIR, 'runs'));
 
   const profileInfo = await prepareProfile(profile, opts, artifactsDir);
+  const trustedCaCount = await trustCaCertificates({
+    profile,
+    home: profileInfo.home,
+    caFile: resolveCaCertFile(opts),
+  });
   const flags = collectFlags(opts);
   const flagsPath = flags.length ? await writeExperimentalFlags(flags, artifactsDir) : undefined;
   const cdpPort = await getFreePort();
@@ -118,6 +124,7 @@ export async function startCommand(rawArgs) {
     target: opts.target ?? undefined,
     route: opts.route ?? undefined,
     logFiles: { stdout: stdoutPath, stderr: stderrPath },
+    ...(trustedCaCount ? { trustedCaCount } : {}),
     ...(headlessDisplay
       ? { headless: true, display: headlessDisplay.display, xvfbPid: headlessDisplay.xvfbPid }
       : {}),
