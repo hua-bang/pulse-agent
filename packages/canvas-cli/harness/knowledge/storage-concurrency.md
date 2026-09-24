@@ -122,7 +122,9 @@ concurrent CLI writers would:
 
 ## Legacy JSON guards
 
-- Unique tmp names per write (no shared `<path>.tmp`).
+- Unique tmp names per write (no shared `<path>.tmp`). Known gap:
+  `atomicWriteCanvasJson` leaves its temp file behind when the final rename
+  fails (observed with a directory at the manifest path, 2026-09-24).
 - `withWorkspaceLock` around `commitNodeMutation`/`commitEdgeMutation`
   (`src/core/store.ts`): every full load→mutate→save cycle holds the
   per-workspace lock (`<storeRoot>/__locks__/<id>.lock`).

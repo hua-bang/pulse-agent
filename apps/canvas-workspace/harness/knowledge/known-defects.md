@@ -119,6 +119,18 @@ so a move to per-conversation drafts is a product decision rather than a claimed
 regression. Broad Canvas acceptance was green during this audit; it does not
 prove these missing interaction paths.
 
+### Concurrent external-role saves can drop CLI session ids
+
+`src/main/agent/external/state-store.ts` updates
+`~/.pulse-coder/canvas/external-agent-state.json` with an unserialized
+read-modify-write and a direct `fs.writeFile`, with no lock and no atomic
+replace. Two roles saving at once can overwrite each other's entry; a torn
+write reads back as an empty map, and the next save then persists only one
+entry. Confirmed from source (2026-09-24), not yet reproduced. The loss is
+limited to resume: the role re-reads the rendered context instead. The planned
+fix moves the map into conversation metadata (`harness/spec/unified-storage/`
+S4); until then, serialize writes and replace the file atomically.
+
 ### External file edits: preserve the replacement synchronization path
 
 The old blanket `FILE_WATCHER_ENABLED` path remains disabled: applying its events

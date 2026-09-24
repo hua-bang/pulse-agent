@@ -2,6 +2,8 @@
 
 This package owns host-neutral persistence contracts and local adapters shared
 by Canvas, its CLI, and other hosts. Read the root AGENTS and harness/README.md.
+Before planning storage work beyond a local fix, read the target and phase order
+in `harness/spec/unified-storage/README.md`.
 
 ## Boundaries
 
