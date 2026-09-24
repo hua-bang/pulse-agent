@@ -1,7 +1,7 @@
 # Unified Storage
 
-Status: phases S1 and S2 are implemented on `codex/unified-storage` (PR #1035,
-pending merge); later phases are planned targets. Current behavior is owned by the
+Status: phases S1 and S2 are merged (PR #1035, 2026-09-24); S3 is shelved and
+later phases are planned targets. Current behavior is owned by the
 Knowledge resources routed below — this spec owns the intended end state and
 the delivery order, not a second description of what already exists.
 Decision trail: [history/](history/).
@@ -60,15 +60,15 @@ The end state these phases converge on:
 
 | Phase | Deliverable | Status | Completion condition |
 |---|---|---|---|
-| S1 | SQLite for Canvas structure and Canvas Agent conversations | Implemented, PR #1035 | Merged with CI green; standard acceptance and storage consumer checks pass |
-| S2 | Hardening of the S1 boundaries | Implemented, PR #1035 | Each item below landed with a regression test |
-| S3 | File repository for Markdown and attachments | Direction agreed, design pending | Markdown and attachment access in Canvas main goes through it |
+| S1 | SQLite for Canvas structure and Canvas Agent conversations | Merged, PR #1035 | Merged with CI green; standard acceptance and storage consumer checks pass |
+| S2 | Hardening of the S1 boundaries | Merged, PR #1035 | Each item below landed with a regression test |
+| S3 | File repository for Markdown and attachments | Shelved; direction agreed, no design yet | Markdown and attachment access in Canvas main goes through it |
 | S4 | Remaining JSON domains | Needs decision | Each domain either migrated or explicitly kept as a file with a stated reason |
 | S5 | Remote adapter or multi-device sync | Not planned | Starts only with a product decision to sync |
 
 Each phase must be independently mergeable. S2 does not wait for S3.
 
-### S1 — Implemented (PR #1035)
+### S1 — Merged (PR #1035)
 
 - `@pulse-coder/storage` with the SQLite (WAL) adapter: domain repositories,
   revision and generation checks, change log, backups, and integrity checks.
@@ -87,7 +87,7 @@ Each phase must be independently mergeable. S2 does not wait for S3.
   - The change log is bounded and expired cursors fail.
   - Unreadable legacy session files are skipped and reported.
 
-### S2 — Hardening (implemented)
+### S2 — Hardening (merged)
 
 | Gap closed | Owner | Guard |
 |---|---|---|
@@ -97,7 +97,11 @@ Each phase must be independently mergeable. S2 does not wait for S3.
 | The CLI opened the database several times per command | `packages/canvas-cli` (`core/sqlite-store.ts`) | `storage-session.test.ts` |
 | Trash, restore, and every commit recompiled SQL statements | `packages/storage` (`sqlite/workspaces.ts`, `sqlite/index.ts`) | Existing trash/restore and commit suites |
 
-### S3 — File repository (direction agreed)
+### S3 — File repository (shelved)
+
+Shelved on 2026-09-24: with no sync on the roadmap, the immediate gain (one
+version scheme for file reads and writes, easier testing) does not yet justify
+the cost. Revisit when Markdown access is reworked anyway or when S5 starts.
 
 Introduce a `WorkspaceFiles` repository in `packages/storage` beside the
 existing repositories: read with content version, compare-and-swap write,
