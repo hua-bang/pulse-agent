@@ -306,6 +306,17 @@ Guards: `modules/chat/components/ChatMessages/__tests__/ChatMessages.accessibili
 `modules/chat/components/ChatMessage/ChatToolCalls/__tests__/ChatToolCalls.test.tsx`, and
 `modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
+## Long-thread rendering
+
+Every message in a thread is mounted (no virtualization yet), so an 800-turn
+thread keeps about 12,000 elements in the DOM. `ChatMessage` is memoized, and
+`ChatMessages` passes identity-stable forwarders from `useStableRowHandlers`
+instead of inline or per-render callbacks. A row prop that changes identity on
+every composer keystroke or stream delta re-renders the whole history
+(measured: 72 ms per keystroke at 800 turns, versus 18 ms memoized). Opening such
+a thread still takes several seconds; virtualization is the remaining fix.
+Guard: `ChatMessages/__tests__/useStableRowHandlers.test.tsx`.
+
 ## Stopped-turn outcome lifecycle
 
 A stopped turn keeps a compact recovery marker while it remains the latest

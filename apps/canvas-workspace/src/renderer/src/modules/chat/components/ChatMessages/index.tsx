@@ -10,6 +10,7 @@ import { buildAnchorElementId } from '../utils/anchors';
 import { useI18n } from '../../../../i18n';
 import { ChatClarificationCard } from './ChatClarificationCard';
 import { useChatMessagesController } from './useChatMessagesController';
+import { useStableRowHandlers } from './useStableRowHandlers';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -124,6 +125,14 @@ export const ChatMessages = ({
     onSessionJump,
     onNodeFocus,
   });
+  const rowHandlers = useStableRowHandlers({
+    onToggleSection,
+    onToggleToolExpand,
+    onAddImageToCanvas,
+    onEditUserMessage,
+    onRegenerate,
+    onSessionJump,
+  });
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
     && messages[messages.length - 1].role === 'assistant';
@@ -180,15 +189,15 @@ export const ChatMessages = ({
               nodes={nodes}
               workspaceId={workspaceId}
               rootFolder={rootFolder}
-              onToggleSection={() => onToggleSection(index)}
-              onToggleToolExpand={onToggleToolExpand}
-              onAddImageToCanvas={onAddImageToCanvas}
+              onToggleSection={rowHandlers.onToggleSection}
+              onToggleToolExpand={rowHandlers.onToggleToolExpand}
+              onAddImageToCanvas={rowHandlers.onAddImageToCanvas}
               anchorId={buildAnchorElementId(workspaceId, index)}
-              onEditUserMessage={onEditUserMessage}
-              onRegenerate={onRegenerate}
+              onEditUserMessage={rowHandlers.onEditUserMessage}
+              onRegenerate={rowHandlers.onRegenerate}
               hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
               turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
-              onSessionJump={onSessionJump}
+              onSessionJump={rowHandlers.onSessionJump}
             />
           );
         })}
