@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import './index.css';
 import { OrderedChatContent } from './OrderedChatContent';
 import type { AgentChatMessage, CanvasNode } from '../../../../types';
@@ -26,7 +27,8 @@ interface ChatMessageProps {
   nodes?: CanvasNode[];
   workspaceId: string;
   rootFolder?: string;
-  onToggleSection: () => void;
+  /** Called with this message's index, so the list can pass one stable handler. */
+  onToggleSection: (index: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   /** DOM id used by ChatAnchors to scroll this message into view. */
@@ -43,7 +45,7 @@ interface ChatMessageProps {
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
-export const ChatMessage = ({
+const ChatMessageView = ({
   message,
   index,
   isStreaming,
@@ -103,6 +105,7 @@ export const ChatMessage = ({
     onEditUserMessage,
     onRegenerate,
   });
+  const toggleSection = useCallback(() => onToggleSection(index), [index, onToggleSection]);
   const renderTools = (groupTools: ToolCallStatus[], groupCollapsed: boolean, toggleGroup: () => void) => (
     <ChatMessageToolResults
       tools={groupTools}
@@ -185,7 +188,7 @@ export const ChatMessage = ({
         />
       )}
       {message.role === 'assistant' && !message.contentBlocks && tools && tools.length > 0 && (
-        renderTools(tools, collapsed, onToggleSection)
+        renderTools(tools, collapsed, toggleSection)
       )}
       {message.role === 'assistant' ? (
         message.contentBlocks ? (
@@ -293,3 +296,9 @@ export const ChatMessage = ({
   </div>
   );
 };
+
+/**
+ * Long threads mount every message; memoized rows keep composer keystrokes and
+ * streaming deltas from re-rendering the whole history.
+ */
+export const ChatMessage = memo(ChatMessageView);
