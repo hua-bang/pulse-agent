@@ -16,7 +16,18 @@ export async function startStorage(writeLog: WriteLog): Promise<boolean> {
     }
     if (!await getSqliteSessionStorage()) {
       const { activateSqliteSessions } = await import('../agent/sqlite-session-migration');
-      await activateSqliteSessions();
+      const skipped = await activateSqliteSessions();
+      if (skipped.length) {
+        await writeLog('storage', 'Skipped unreadable legacy session files', JSON.stringify(skipped));
+        // Informational only: startup must not wait for the user to dismiss it.
+        void dialog.showMessageBox({
+          type: 'warning',
+          title: 'Pulse Canvas',
+          message: `有 ${skipped.length} 个聊天记录文件无法读取，未被迁移`,
+          detail: '其余聊天记录已正常迁移。以下原始文件保持原样，未被修改或删除：\n\n'
+            + skipped.map(file => file.path).join('\n'),
+        }).catch(() => undefined);
+      }
     }
     setCanvasSessionArchivePort(() => import('../agent/workspace-session-archive')
       .then(module => module.createCanvasSessionArchivePort()));

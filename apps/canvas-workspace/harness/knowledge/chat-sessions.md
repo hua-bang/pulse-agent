@@ -146,8 +146,13 @@ The first upgrade imports current/archive JSON and display metadata, preserving
 unknown message fields and attachments. Current takes precedence over archived
 copies of the same id. Source snapshots and original files remain available;
 restarts reconcile incomplete staging before activating. Once active, old JSON
-is not re-imported. Corrupt or unsupported data stops activation visibly.
-Conflicting archive copies with equal modification times also stop activation;
+is not re-imported. An unreadable file (invalid JSON or session shape, in
+current, archive, or display metadata) is skipped: the rest migrates, the source
+stays in place, the list is written to `__storage-backup__/conversations-skipped-*.json`
+and logged, and startup shows a non-blocking warning. Because SQL is then
+authoritative, a later repair of that file is not picked up automatically.
+Unsupported future schemas, I/O errors, and files that vanish mid-read still stop
+activation visibly. Conflicting archive copies with equal modification times also stop activation;
 the importer cannot infer which history is authoritative without a current copy.
 Cold rail/list/read paths query storage without starting tools or an Agent.
 

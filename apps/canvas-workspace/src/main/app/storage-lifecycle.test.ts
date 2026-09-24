@@ -4,9 +4,11 @@ const mocks = vi.hoisted(() => ({
   canvas: vi.fn(), sessions: vi.fn(), recover: vi.fn(), open: vi.fn(),
   canvasBackend: vi.fn(), sessionBackend: vi.fn(), registerArchive: vi.fn(), createArchive: vi.fn(),
   closeCanvas: vi.fn(), closeSessions: vi.fn(), stopObserver: vi.fn(),
-  quit: vi.fn(), showErrorBox: vi.fn(),
+  quit: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn(),
 }));
-vi.mock('electron', () => ({ app: { quit: mocks.quit }, dialog: { showErrorBox: mocks.showErrorBox } }));
+vi.mock('electron', () => ({
+  app: { quit: mocks.quit }, dialog: { showErrorBox: mocks.showErrorBox, showMessageBox: mocks.showMessageBox },
+}));
 vi.mock('../canvas/persistence/activate-sqlite', () => ({ activateCanvasSqlite: mocks.canvas }));
 vi.mock('../canvas/persistence/backend', () => ({
   getLocalCanvasStorage: mocks.open, getCanvasBackend: mocks.canvasBackend, closeCanvasStorage: mocks.closeCanvas,
@@ -28,7 +30,7 @@ beforeEach(() => {
   mocks.canvasBackend.mockResolvedValue(null);
   mocks.sessionBackend.mockResolvedValue(null);
   mocks.canvas.mockResolvedValue(undefined);
-  mocks.sessions.mockResolvedValue(undefined);
+  mocks.sessions.mockResolvedValue([]);
   mocks.open.mockResolvedValue({});
   mocks.closeCanvas.mockResolvedValue(undefined);
   mocks.closeSessions.mockResolvedValue(undefined);
@@ -38,9 +40,9 @@ beforeEach(() => {
 describe('first-upgrade startup boundary', () => {
   it('does not release startup until Canvas and conversation migrations finish', async () => {
     let finishCanvas!: () => void;
-    let finish!: () => void;
+    let finish!: (skipped: never[]) => void;
     mocks.canvas.mockReturnValueOnce(new Promise<void>(resolve => { finishCanvas = resolve; }));
-    mocks.sessions.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve; }));
+    mocks.sessions.mockReturnValueOnce(new Promise<never[]>(resolve => { finish = resolve; }));
     const startup = startStorage(vi.fn());
     await vi.waitFor(() => expect(mocks.canvas).toHaveBeenCalledOnce());
     expect(mocks.sessionBackend).not.toHaveBeenCalled();
@@ -49,8 +51,23 @@ describe('first-upgrade startup boundary', () => {
     await vi.waitFor(() => expect(mocks.sessions).toHaveBeenCalledOnce());
     expect(mocks.open).not.toHaveBeenCalled();
     expect(mocks.recover).not.toHaveBeenCalled();
-    finish();
+    finish([]);
     expect(await startup).toBe(true);
+    expect(mocks.recover).toHaveBeenCalledOnce();
+    expect(mocks.quit).not.toHaveBeenCalled();
+    expect(mocks.showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('starts after skipping unreadable session files, logging and announcing them without waiting', async () => {
+    const skipped = [{ path: '/sessions/ws/agent-sessions/archive/broken.json', reason: 'Cannot migrate corrupted session JSON' }];
+    mocks.sessions.mockResolvedValueOnce(skipped);
+    mocks.showMessageBox.mockReturnValueOnce(new Promise(() => undefined));
+    const writeLog = vi.fn();
+    expect(await startStorage(writeLog)).toBe(true);
+    expect(writeLog).toHaveBeenCalledWith('storage', expect.stringContaining('Skipped'), JSON.stringify(skipped));
+    expect(mocks.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'warning', detail: expect.stringContaining(skipped[0].path),
+    }));
     expect(mocks.recover).toHaveBeenCalledOnce();
     expect(mocks.quit).not.toHaveBeenCalled();
   });

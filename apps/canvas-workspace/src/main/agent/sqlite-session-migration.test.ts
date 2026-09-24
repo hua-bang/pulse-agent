@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -91,15 +91,42 @@ describe('first session upgrade', () => {
     expect((await SessionStore.readSessionFromWorkspace('ws', 'current'))?.messages[0].content).toBe('authoritative current');
   });
 
-  it.each(['current', 'archive', 'metadata', 'future'])('refuses to activate on corrupted or unsupported %s data', async kind => {
+  it.each(['session', 'metadata'])('refuses to activate on an unsupported future %s schema', async kind => {
     const directory = join(root, 'ws', 'agent-sessions');
     await writeFile(join(directory, 'current.json'), JSON.stringify(session('current', 'keep')));
-    if (kind === 'current') await writeFile(join(directory, 'current.json'), '{broken');
-    if (kind === 'archive') await writeFile(join(directory, 'archive', 'broken.json'), '{broken');
-    if (kind === 'metadata') await writeFile(join(directory, 'metadata.json'), '{broken');
-    if (kind === 'future') await writeFile(join(directory, 'current.json'), JSON.stringify({ ...session('current', 'keep'), schemaVersion: 99 }));
-    await expect(activateSqliteSessions(root)).rejects.toThrow();
+    if (kind === 'session') await writeFile(join(directory, 'current.json'), JSON.stringify({ ...session('current', 'keep'), schemaVersion: 99 }));
+    if (kind === 'metadata') await writeFile(join(directory, 'metadata.json'), JSON.stringify({ version: 99, sessions: {} }));
+    await expect(activateSqliteSessions(root)).rejects.toThrow('Unsupported');
     expect(await readLocalStorageStatus(root)).toBeNull();
+  });
+
+  it('skips unreadable current, archive and metadata files, migrates the rest and leaves sources untouched', async () => {
+    const directory = join(root, 'ws', 'agent-sessions');
+    await mkdir(join(root, 'other', 'agent-sessions', 'archive'), { recursive: true });
+    const brokenCurrent = join(directory, 'current.json');
+    const brokenArchive = join(directory, 'archive', 'broken.json');
+    const invalidArchive = join(directory, 'archive', 'invalid.json');
+    const brokenMetadata = join(directory, 'metadata.json');
+    await writeFile(brokenCurrent, '{broken');
+    await writeFile(brokenArchive, '{broken');
+    await writeFile(invalidArchive, JSON.stringify({ sessionId: 'no-header' }));
+    await writeFile(brokenMetadata, '{broken');
+    await writeFile(join(directory, 'archive', 'good.json'), JSON.stringify(session('good', 'kept archive')));
+    await writeFile(join(root, 'other', 'agent-sessions', 'current.json'), JSON.stringify(session('other', 'other scope')));
+    const skipped = await activateSqliteSessions(root);
+    expect(skipped.map(file => file.path).sort()).toEqual([brokenArchive, brokenCurrent, invalidArchive, brokenMetadata].sort());
+    expect((await readLocalStorageStatus(root))?.domains).toContain('conversations');
+    const storage = (await getSqliteSessionStorage(root))!;
+    expect(await storage.conversationScopes.read('ws')).toMatchObject({ currentSessionId: null });
+    expect((await storage.conversations.read('ws', 'good'))?.messages[0].content).toBe('kept archive');
+    expect(await storage.conversationScopes.read('other')).toMatchObject({ currentSessionId: 'other' });
+    expect(await readFile(brokenCurrent, 'utf8')).toBe('{broken');
+    expect(await readFile(brokenMetadata, 'utf8')).toBe('{broken');
+    const records = (await readdir(join(root, '__storage-backup__'))).filter(name => name.startsWith('conversations-skipped-'));
+    expect(records).toHaveLength(1);
+    const record = JSON.parse(await readFile(join(root, '__storage-backup__', records[0]), 'utf8'));
+    expect(record.files).toEqual(skipped);
+    expect(await activateSqliteSessions(root)).toEqual([]);
   });
 
   it('keeps the old JSON SessionStore writable before migration and prevents late JSON persistence after activation', async () => {

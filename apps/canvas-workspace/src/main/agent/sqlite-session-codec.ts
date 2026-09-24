@@ -105,33 +105,41 @@ export function sessionListEntry(
   };
 }
 
+/** A legacy file whose content cannot be read as a session; unsupported schemas are not this. */
+export class UnreadableSessionFileError extends Error {
+  constructor(readonly path: string, message: string) {
+    super(message);
+    this.name = 'UnreadableSessionFileError';
+  }
+}
+
 export function validateLegacySession(value: unknown, path: string): CanvasAgentSession {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid session at ${path}`);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new UnreadableSessionFileError(path, `Invalid session at ${path}`);
   const session = value as CanvasAgentSession & { schemaVersion?: unknown };
   if (session.schemaVersion !== undefined && session.schemaVersion !== 1) throw new Error(`Unsupported session schema at ${path}`);
   if (typeof session.sessionId !== 'string' || !session.sessionId || typeof session.workspaceId !== 'string'
     || typeof session.startedAt !== 'string' || !Number.isFinite(Date.parse(session.startedAt)) || !Array.isArray(session.messages)) {
-    throw new Error(`Invalid session header at ${path}`);
+    throw new UnreadableSessionFileError(path, `Invalid session header at ${path}`);
   }
   for (const message of session.messages) {
     if (!message || (message.role !== 'user' && message.role !== 'assistant') || typeof message.content !== 'string'
-      || !Number.isFinite(message.timestamp)) throw new Error(`Invalid message in session at ${path}`);
+      || !Number.isFinite(message.timestamp)) throw new UnreadableSessionFileError(path, `Invalid message in session at ${path}`);
   }
   return session;
 }
 
 export function readLegacySessionDisplayMetadata(value: unknown, path: string): Record<string, JsonObject> {
   if (value === undefined) return {};
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid session metadata: ${path}`);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new UnreadableSessionFileError(path, `Invalid session metadata: ${path}`);
   const document = value as Record<string, unknown>;
   if (document.version !== undefined && document.version !== 2) throw new Error(`Unsupported session metadata schema: ${path}`);
   const entries = document.version === 2 ? document.sessions : document;
-  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) throw new Error(`Invalid session metadata entries: ${path}`);
+  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) throw new UnreadableSessionFileError(path, `Invalid session metadata entries: ${path}`);
   for (const metadata of Object.values(entries)) {
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new Error(`Invalid session display metadata: ${path}`);
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new UnreadableSessionFileError(path, `Invalid session display metadata: ${path}`);
     const entry = metadata as Record<string, unknown>;
     if ((entry.title !== undefined && typeof entry.title !== 'string') || (entry.pinned !== undefined && typeof entry.pinned !== 'boolean')) {
-      throw new Error(`Invalid session title or pin: ${path}`);
+      throw new UnreadableSessionFileError(path, `Invalid session title or pin: ${path}`);
     }
   }
   return entries as Record<string, JsonObject>;
