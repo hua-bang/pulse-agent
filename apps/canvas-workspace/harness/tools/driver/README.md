@@ -69,6 +69,10 @@ pnpm --filter canvas-workspace harness start --profile real --workspace ws-123 -
 
 ## Headless Linux (CI / containers / cloud sandboxes)
 
+`pnpm --filter canvas-workspace harness:up` (`quickstart.mjs`) automates
+everything in this section, installing, building and launching in one idempotent command;
+`harness:down` undoes it. The details below are what it automates.
+
 Opt-in with `--headless`: the harness then spawns its own Xvfb, passes
 `--no-sandbox --disable-gpu --disable-dev-shm-usage` to Electron, and reaps
 the Xvfb process on `close`. This never happens implicitly — on a

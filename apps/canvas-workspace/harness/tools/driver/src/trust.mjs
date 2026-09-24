@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { HarnessError } from './errors.mjs';
@@ -33,6 +34,7 @@ const runCertutil = (args, input) => {
   if (result.status !== 0) {
     throw new HarnessError(`certutil ${args[0]} failed: ${(result.stderr || result.stdout).trim()}`);
   }
+  return result.stdout;
 };
 
 /** Returns the number of imported certificates, or 0 when not requested. */
@@ -57,8 +59,12 @@ export async function trustCaCertificates({ profile, home, caFile, platform = pr
     await fs.mkdir(nssDir, { recursive: true });
     runCertutil(['-N', '-d', db, '--empty-password']);
   }
-  certs.forEach((cert, index) => {
-    runCertutil(['-A', '-d', db, '-t', 'C,,', '-n', `pulse-harness-ca-${index}`], cert);
+  // Content-addressed nicknames make reruns on a persistent HOME (demo) skip
+  // certificates that are already trusted instead of re-importing a bundle.
+  const existing = runCertutil(['-L', '-d', db]);
+  certs.forEach((cert) => {
+    const nickname = `pulse-harness-ca-${createHash('sha256').update(cert).digest('hex').slice(0, 16)}`;
+    if (!existing.includes(nickname)) runCertutil(['-A', '-d', db, '-t', 'C,,', '-n', nickname], cert);
   });
   return certs.length;
 }

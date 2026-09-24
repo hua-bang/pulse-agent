@@ -75,6 +75,6 @@ describe('trustCaCertificates', () => {
     await expect(trustCaCertificates({ profile: 'temp', home, caFile: certFile })).resolves.toBe(1);
 
     const list = spawnSync('certutil', ['-L', '-d', `sql:${join(home, '.pki', 'nssdb')}`], { encoding: 'utf-8' });
-    expect(list.stdout).toMatch(/pulse-harness-ca-0\s+C,,/);
+    expect(list.stdout.match(/pulse-harness-ca-[0-9a-f]{16}\s+C,,/g)).toHaveLength(1);
   });
 });

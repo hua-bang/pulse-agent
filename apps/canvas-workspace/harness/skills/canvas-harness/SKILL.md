@@ -11,9 +11,27 @@ Use the harness as the default agent-facing entrypoint for operating `apps/canva
 
 Prefer this over `dev:temp-home` when the task needs repeatable launch, renderer inspection, screenshots, UI actions, logs, or cleanup.
 
+## Quick start (default entry, including fresh cloud containers)
+
+```bash
+pnpm --filter canvas-workspace harness:up     # prepare + launch; ~100s cold, ~4s warm
+pnpm --filter canvas-workspace harness:down   # close session + stop mock LLM
+```
+
+`harness:up` is idempotent and skips satisfied steps: apt-installs Xvfb/certutil
+when root on display-less Linux, runs `pnpm install` when dependencies, the
+Electron binary, or node-pty are missing, rebuilds engine → agent-teams →
+canvas-cli → app from the first stale output, starts `harness/mock-llm.mjs`
+unless a model key is set, then runs `start` with `--headless` (Linux without
+DISPLAY or as root) and `--ca-cert` (behind an HTTPS proxy, reusing
+NODE_EXTRA_CA_CERTS). Defaults to profile `demo`; `--profile`, `--no-mock-llm`,
+`--no-ca`, `--skip-build`, and other `start` options (for example
+`--route /chat`) pass through. Then continue with steps 4-7 below.
+
 ## Workflow
 
-Run from the repository root unless the user asks otherwise.
+Run from the repository root unless the user asks otherwise. Use this manual
+sequence when you need control that `harness:up` does not expose.
 
 1. Build before launch when code changed or `dist/` may be stale:
 
