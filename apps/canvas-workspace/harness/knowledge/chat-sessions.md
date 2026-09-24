@@ -780,8 +780,11 @@ not branch or move the scope pointer. Regenerate maps the clicked assistant
 (or stopped/failed) message to the user turn it answered. The renderer sends
 that turn with `truncateAt`, and `ConversationRuntime` cuts its own history at
 that index under the turn lease, so the pre-turn save replaces the durable
-messages. An index that no longer points at a user message fails the turn
-instead of cutting unrelated history. The turn's attachments are resent.
+messages. The turn's attachments and its recorded `contextSnapshot` (selection,
+tabs, plugins, execution mode) are resent, not the current selection. A stale
+index, or a failed pre-turn save, returns `CHAT_RECOVERY_REJECTED`. Main then
+restores its previous history, so a later send cannot persist the cut. The
+renderer restores its optimistic truncation.
 Guards: `useConversationRecovery.test.tsx` and `conversation-runtime.test.ts`.
 
 ### Clarification serialization

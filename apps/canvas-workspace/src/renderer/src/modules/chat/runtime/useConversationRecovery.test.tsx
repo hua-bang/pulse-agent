@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversationKey } from '../../../../../shared/conversation-runtime';
 import type { AgentChatMessage } from '../../../types';
 import { resetConversationStoreForTests, setConversationMessages } from './conversationStore';
-import { findAnsweredUserIndex, useConversationRecovery } from './useConversationRecovery';
+import { findAnsweredUserIndex, recoveryRequestContext, useConversationRecovery } from './useConversationRecovery';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -68,5 +68,21 @@ describe('conversation recovery', () => {
     expect(await latest.editUserMessage(1, 'revised')).toBe(false);
     expect(await latest.editUserMessage(2, '   ')).toBe(false);
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('resends with the context recorded on the original turn, not the current one', () => {
+    const snapshot = {
+      scope: { kind: 'workspace' as const, workspaceId: 'ws-a' },
+      scopeLabel: 'WS',
+      executionMode: 'ask' as const,
+      modelLabel: 'model',
+      capturedAt: 1,
+      selectedNodes: [{ id: 'node-1', title: 'Old node', type: 'file' }] as never,
+    };
+    const current = { executionMode: 'auto' as const, selectedNodes: [{ id: 'node-2' }] as never };
+
+    expect(recoveryRequestContext({ role: 'user', content: 'x', timestamp: 1, contextSnapshot: snapshot }, current))
+      .toMatchObject({ executionMode: 'ask', scope: 'selected_nodes', selectedNodes: snapshot.selectedNodes, contextSnapshot: snapshot });
+    expect(recoveryRequestContext({ role: 'user', content: 'x', timestamp: 1 }, current)).toBe(current);
   });
 });

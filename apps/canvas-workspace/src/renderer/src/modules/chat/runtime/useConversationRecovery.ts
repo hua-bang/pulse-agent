@@ -23,6 +23,31 @@ export function findAnsweredUserIndex(messages: AgentChatMessage[], index: numbe
 }
 
 /**
+ * The resent turn keeps the context it was first sent with: its recorded
+ * selection, tabs, plugins and execution mode, not whatever is selected now.
+ */
+export function recoveryRequestContext(
+  source: AgentChatMessage,
+  fallback?: AgentRequestContext,
+): AgentRequestContext | undefined {
+  const snapshot = source.contextSnapshot;
+  if (!snapshot) return fallback;
+  const scoped = [snapshot.selectedNodes, snapshot.tags, snapshot.canvases, snapshot.domSelections]
+    .some(refs => (refs?.length ?? 0) > 0);
+  return {
+    executionMode: snapshot.executionMode,
+    ...(scoped ? { scope: 'selected_nodes' as const } : {}),
+    selectedNodes: snapshot.selectedNodes,
+    tags: snapshot.tags,
+    canvases: snapshot.canvases,
+    domSelections: snapshot.domSelections,
+    tabs: snapshot.tabs,
+    plugins: snapshot.plugins,
+    contextSnapshot: snapshot,
+  };
+}
+
+/**
  * Edit and regenerate replace a user turn in the same conversation: the
  * runtime drops history from that turn and runs it again, keeping the
  * turn's attachments. No branch or pointer change is involved.
@@ -35,7 +60,7 @@ export function useConversationRecovery(key: ConversationKey, sendMessage: SendM
   ): Promise<boolean> => {
     const source = readConversationSnapshot(key).messages[index];
     if (source?.role !== 'user' || !newContent.trim()) return Promise.resolve(false);
-    return sendMessage(newContent, requestContext, source.attachments ?? [], index);
+    return sendMessage(newContent, recoveryRequestContext(source, requestContext), source.attachments ?? [], index);
   }, [key, sendMessage]);
 
   const regenerateAssistantMessage = useCallback((
@@ -46,7 +71,12 @@ export function useConversationRecovery(key: ConversationKey, sendMessage: SendM
     const userIndex = findAnsweredUserIndex(messages, index);
     const source = messages[userIndex];
     if (!source) return Promise.resolve(false);
-    return sendMessage(source.content, requestContext, source.attachments ?? [], userIndex);
+    return sendMessage(
+      source.content,
+      recoveryRequestContext(source, requestContext),
+      source.attachments ?? [],
+      userIndex,
+    );
   }, [key, sendMessage]);
 
   return { editUserMessage, regenerateAssistantMessage };
