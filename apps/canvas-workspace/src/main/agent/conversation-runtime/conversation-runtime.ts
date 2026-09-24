@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/agent-chat';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
 import {
+  CHAT_RECOVERY_REJECTED,
   type ConversationKey,
   type ConversationSendInput,
   type ConversationSnapshot,
@@ -266,12 +267,18 @@ export class ConversationRuntime {
     input: ConversationSendInput,
     external?: ConversationTurnExternal,
   ): Promise<TurnRunnerResult> {
+    const rejectRecovery = (error: string): TurnRunnerResult => {
+      this.error = error;
+      return { response: '', code: CHAT_RECOVERY_REJECTED, error };
+    };
+    let beforeRecovery: AgentChatMessage[] | null = null;
     if (input.truncateAt !== undefined) {
       // Edit/regenerate replace a user turn in place; refuse a stale index
       // rather than cutting unrelated history.
       if (!Number.isInteger(input.truncateAt) || this.messages[input.truncateAt]?.role !== 'user') {
-        throw new Error('The message to resend is no longer in this conversation.');
+        return rejectRecovery('The message to resend is no longer in this conversation.');
       }
+      beforeRecovery = [...this.messages];
       this.messages.length = input.truncateAt;
     }
     this.messages.push({
@@ -286,7 +293,15 @@ export class ConversationRuntime {
     // Materialize the user turn before invoking the model. This makes a new
     // conversation durable/listable as soon as the user sends, so switching
     // away during generation cannot hide the session from the rail.
-    await this.deps.persist([...this.messages]);
+    try {
+      await this.deps.persist([...this.messages]);
+    } catch (err) {
+      if (!beforeRecovery) throw err;
+      // The replacement was never committed: a later send must not persist the cut.
+      this.messages = beforeRecovery;
+      this.publish();
+      return rejectRecovery(err instanceof Error ? err.message : String(err));
+    }
 
     const assistant: AgentChatMessage = { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() };
     let result: TurnRunnerResult = { response: '' };

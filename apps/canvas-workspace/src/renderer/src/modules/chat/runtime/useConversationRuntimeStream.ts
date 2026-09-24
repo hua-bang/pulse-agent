@@ -10,7 +10,7 @@ import type {
   ToolCallStatus,
   WorkspaceOption,
 } from '../../../types';
-import type { ConversationKey } from '../../../../../shared/conversation-runtime';
+import { CHAT_RECOVERY_REJECTED, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import {
   appendConversationTextAt,
   appendConversationToolsAt,
@@ -112,9 +112,10 @@ export function useConversationRuntimeStream({
       timestamp: Date.now(),
       attachments: attachments.length > 0 ? attachments : undefined,
     };
-    if (truncateAt !== undefined) {
-      setConversationMessages(key, readConversationSnapshot(key).messages.slice(0, truncateAt));
-    }
+    // Edit/regenerate cut the thread optimistically; restore it if main refuses.
+    const beforeRecovery = truncateAt === undefined ? null : readConversationSnapshot(key).messages;
+    const restoreRecovery = () => { if (beforeRecovery) setConversationMessages(key, beforeRecovery); };
+    if (beforeRecovery) setConversationMessages(key, beforeRecovery.slice(0, truncateAt));
     pushConversationMessage(key, userMessage);
     clearConversationCompletion(key);
     setConversationLoading(key, true);
@@ -247,13 +248,14 @@ export function useConversationRuntimeStream({
         window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
           if (settled) return;
           settled = true;
-          if (completeResult.code === 'CHAT_SESSION_CHANGED') {
+          if (completeResult.code === CHAT_RECOVERY_REJECTED) restoreRecovery();
+          if (completeResult.code === CHAT_RECOVERY_REJECTED || completeResult.code === 'CHAT_SESSION_CHANGED') {
             const error = completeResult.error ?? 'Conversation changed';
             setConversationError(key, error);
             setConversationLoading(key, false);
             recordConversationCompletion(key, 'failed', completeResult.runId ?? `${key.storeId}:${sessionId}:${userMessage.timestamp}`, trimmed.slice(0, 60));
             cleanupRunListeners();
-            void onSessionChangedRef.current?.(error);
+            if (completeResult.code === 'CHAT_SESSION_CHANGED') void onSessionChangedRef.current?.(error);
             return;
           }
           textBatcher.flush();
@@ -341,6 +343,7 @@ export function useConversationRuntimeStream({
         truncateAt,
       );
       if (!started.ok) {
+        restoreRecovery();
         setConversationError(key, started.error ?? 'Chat turn failed to start');
         setConversationLoading(key, false);
         cleanupRunListeners();
@@ -348,6 +351,7 @@ export function useConversationRuntimeStream({
       }
       return true;
     } catch (error) {
+      restoreRecovery();
       cleanupRunListeners();
       setConversationError(key, error instanceof Error ? error.message : String(error));
       setConversationLoading(key, false);

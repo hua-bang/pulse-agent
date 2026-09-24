@@ -47,6 +47,24 @@ function makeDeps(key: ConversationKey, runner: ReturnType<typeof makeRunner>): 
 }
 
 describe('ConversationRuntime (main, async owner)', () => {
+  it('keeps the original history when the replacement turn cannot be saved', async () => {
+    const runner = makeRunner();
+    const deps = makeDeps(keyA, runner);
+    const history = [user('first'), assistant('one'), user('second'), assistant('two')];
+    deps.loadMessages = async () => [...history];
+    const persist = deps.persist;
+    deps.persist = vi.fn().mockRejectedValueOnce(new Error('disk full')).mockImplementation(persist);
+    const rt = new ConversationRuntime(deps);
+    await rt.open();
+
+    expect(await rt.sendAndWait({ message: 'second', truncateAt: 2 }))
+      .toMatchObject({ code: 'CHAT_RECOVERY_REJECTED', error: 'disk full' });
+    expect(runner.calls).toHaveLength(0);
+
+    await rt.sendAndWait({ message: 'third' });
+    expect(deps.stored.map(message => message.content)).toEqual(['first', 'one', 'second', 'two', 'third', 'echo:third']);
+  });
+
   it('replaces history from a user turn for edit/regenerate and refuses a stale index', async () => {
     const runner = makeRunner();
     const deps = makeDeps(keyA, runner);
@@ -56,6 +74,7 @@ describe('ConversationRuntime (main, async owner)', () => {
     await rt.open();
 
     const stale = await rt.sendAndWait({ message: 'again', truncateAt: 1 });
+    expect(stale).toMatchObject({ code: 'CHAT_RECOVERY_REJECTED' });
     expect(stale.error).toMatch(/no longer in this conversation/);
     expect(runner.calls).toHaveLength(0);
     expect(deps.persisted).toHaveLength(0);

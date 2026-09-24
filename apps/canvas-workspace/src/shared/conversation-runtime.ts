@@ -68,6 +68,9 @@ export interface ConversationSendInput {
   truncateAt?: number;
 }
 
+/** Edit/regenerate was not applied; the conversation keeps its previous history. */
+export const CHAT_RECOVERY_REJECTED = 'CHAT_RECOVERY_REJECTED';
+
 export interface ConversationFinishResult {
   messages?: AgentChatMessage[];
   stopped?: boolean;
