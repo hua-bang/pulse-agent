@@ -17,3 +17,9 @@ export function registerWorkspacePersistence(workspaceId: string, flush: FlushWo
 export async function flushWorkspacePersistence(workspaceId: string): Promise<void> {
   for (const flush of [...(writers.get(workspaceId) ?? [])]) await flush();
 }
+
+/** Finish every mounted workspace's edits before the app quits; each document reports its own failure. */
+export async function flushAllWorkspacePersistence(): Promise<void> {
+  const flushes = [...writers.values()].flatMap(callbacks => [...callbacks]);
+  await Promise.allSettled(flushes.map(flush => flush()));
+}

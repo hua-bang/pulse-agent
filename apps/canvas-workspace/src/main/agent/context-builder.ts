@@ -466,8 +466,8 @@ async function populateNodeDetail(
     }
     case 'terminal':
     case 'agent':
-      // Agent output is never saved on the canvas; main holds the live text.
-      detailed.scrollback = readSessionOutput(node.data.sessionId, node.data.scrollback);
+      // Main holds the live text; the saved copy is absent (agents) or up to a minute old.
+      detailed.scrollback = readSessionOutput(node.data.sessionId || node.id, node.data.scrollback);
       detailed.cwd = (node.data.cwd as string) ?? '';
       break;
     case 'frame':

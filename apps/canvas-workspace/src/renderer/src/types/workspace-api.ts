@@ -132,6 +132,10 @@ export interface CanvasWorkspaceApi {
         source: string;
       }) => void,
     ) => () => void;
+    /** Main asks for a final save before it closes storage on quit. */
+    onFlushBeforeQuit: (callback: (requestId: string) => void) => () => void;
+    /** Answer a flush request once the final save has finished. */
+    flushedBeforeQuit: (requestId: string) => void;
     /**
      * Subscribe to canvas storage migration progress events.
      *

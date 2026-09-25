@@ -3,6 +3,7 @@ export {
   type CanvasDocumentSnapshot,
 } from './document/CanvasDocumentHistory';
 export { useCanvasDocumentHistory } from './document/useCanvasDocumentHistory';
+export { BEFORE_QUIT_EVENT, installBeforeQuitFlush } from './document/beforeQuit';
 export {
   useCanvasDocument,
   type AddNodeOptions,

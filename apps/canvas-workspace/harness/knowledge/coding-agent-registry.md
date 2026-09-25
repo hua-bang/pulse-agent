@@ -169,14 +169,29 @@ writes failed with `revision_conflict`.
 - Output saved by earlier releases is dropped on the node's next launch, so
   it is never read as current. After an app restart, output is back only once
   the CLI resumes and redraws; a Codex node without a captured id has none.
-- Plain terminal nodes still save their output; they have no conversation to
-  resume.
+- Plain terminal nodes have no conversation to resume, so they still save
+  their output, but only at most once a minute, on process exit, on unmount,
+  and when the window goes away (`TerminalNodeBody/useTerminalNodeRuntime`);
+  every tick in between only publishes to main. A crash can lose up to a
+  minute of output. The runtime MCP server's node read also prefers main.
+  - Closing a window: a `beforeunload` listener writes the node, and the
+    canvas flushes again on `pagehide`, which follows every `beforeunload`
+    listener (listeners run in registration order, so the canvas's own
+    `beforeunload` flush may run first).
+  - Quitting: `before-quit` closes storage before windows close, so main
+    first asks each window to save (`canvas:flush-before-quit` /
+    `canvas:flushed`, `main/canvas/flush-before-quit.ts`, 1.5s timeout). The
+    renderer (`canvas/document/beforeQuit.ts`) fires `BEFORE_QUIT_EVENT` for
+    node bodies, then flushes every workspace registered in
+    `shared/workspacePersistence.ts`.
 
 Tests: `AgentNodeBody/index.test.tsx` (output published, never persisted;
 legacy output dropped), `session/sessionLifecycle.test.ts` (auto-resume
 without saved output), `main/terminal/session-output.test.ts`,
 `main/agent/context-builder-agent-output.test.ts`,
-`AgentDetail/useLiveAgentOutput.test.tsx`.
+`AgentDetail/useLiveAgentOutput.test.tsx`, `TerminalNodeBody/index.test.tsx`
+(per-tick publish, once-a-minute save, exit and unload saves),
+`canvas/document/beforeQuit.test.ts`, and `main/canvas/flush-before-quit.test.ts`.
 
 ## Not automatic
 

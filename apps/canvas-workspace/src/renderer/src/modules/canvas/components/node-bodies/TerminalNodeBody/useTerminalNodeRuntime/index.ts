@@ -10,6 +10,7 @@ import {
   isCodingAgentCommand,
 } from '../../../../../../utils/codingAgentCommand';
 import { buildNodeMentionInsertion } from '../../../../../../utils/nodeMention';
+import { BEFORE_QUIT_EVENT } from '../../../../document/beforeQuit';
 import {
   SCROLLBACK_SAVE_INTERVAL,
   claimTerminalSessionOwner,
@@ -24,6 +25,14 @@ import {
   syncTerminalFontSizeToCanvas,
   writeTerminalOutput,
 } from '../../../../../coding-agent/terminal';
+
+/**
+ * Running output goes to main (in memory) on every save tick. The canvas copy,
+ * the only one that survives a restart, is written at most this often, plus on
+ * exit, unmount, and window unload: saving it every tick committed the whole
+ * canvas and moved its revision under concurrent `pulse-canvas` writes.
+ */
+const CANVAS_SAVE_INTERVAL = 60_000;
 
 interface Options {
   node: CanvasNode;
@@ -189,12 +198,20 @@ export function useTerminalNodeRuntime({
       }),
     });
     snapshotPersisterRef.current = snapshotPersister;
+    let publishPending = false;
+    const outputMarker = {
+      ...snapshotPersister,
+      markDirty: () => {
+        snapshotPersister.markDirty();
+        publishPending = true;
+      },
+    };
 
     if (!api) {
       writeTerminalOutput(
         term,
         '\x1b[31mError: pty API not available (preload missing)\x1b[0m',
-        snapshotPersister,
+        outputMarker,
         true,
       );
       return;
@@ -215,7 +232,7 @@ export function useTerminalNodeRuntime({
       writeTerminalOutput(
         term,
         `\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`,
-        snapshotPersister,
+        outputMarker,
         true,
       );
       return;
@@ -225,9 +242,13 @@ export function useTerminalNodeRuntime({
       writeTerminalOutput(
         term,
         `\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`,
-        snapshotPersister,
+        outputMarker,
         true,
       );
+      // Queued behind the exit line, so the saved copy includes it.
+      term.write('', () => {
+        void snapshotPersister.flush().catch(() => undefined);
+      });
     });
     let removeData: (() => void) | null = null;
     let removePrompt: (() => void) | null = null;
@@ -236,13 +257,13 @@ export function useTerminalNodeRuntime({
     if (command) {
       let prompted = false;
       const promptRemove = api.onData(sessionId, (output: string) => {
-        writeTerminalOutput(term, output, snapshotPersister);
+        writeTerminalOutput(term, output, outputMarker);
         if (prompted) return;
         prompted = true;
         promptRemove();
         removePrompt = null;
         removeData = api.onData(sessionId, (nextOutput: string) => {
-          writeTerminalOutput(term, nextOutput, snapshotPersister);
+          writeTerminalOutput(term, nextOutput, outputMarker);
           captureTerminalOutput(nextOutput);
         });
         setTimeout(() => {
@@ -254,7 +275,7 @@ export function useTerminalNodeRuntime({
       removePrompt = promptRemove;
     } else {
       removeData = api.onData(sessionId, (output: string) => {
-        writeTerminalOutput(term, output, snapshotPersister);
+        writeTerminalOutput(term, output, outputMarker);
         captureTerminalOutput(output);
       });
     }
@@ -266,7 +287,14 @@ export function useTerminalNodeRuntime({
     term.onResize(({ cols, rows }) => {
       api.resize(sessionId, cols, rows);
     });
+    let lastCanvasSave = Date.now();
     saveTimerRef.current = setInterval(() => {
+      if (publishPending) {
+        publishPending = false;
+        api.publishSnapshot?.(sessionId, serializeBuffer(term));
+      }
+      if (Date.now() - lastCanvasSave < CANVAS_SAVE_INTERVAL) return;
+      lastCanvasSave = Date.now();
       void snapshotPersister.flush().catch(() => undefined);
     }, SCROLLBACK_SAVE_INTERVAL);
     cleanupRef.current = () => {
@@ -320,6 +348,29 @@ export function useTerminalNodeRuntime({
     // The terminal session is intentionally bound to its first mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (readOnly) return;
+    // Closing a window: the canvas flushes again on pagehide, after every
+    // beforeunload listener. Quitting: main asks for a final save first
+    // (BEFORE_QUIT_EVENT precedes the canvas flush). Either way the latest
+    // output joins that final save.
+    const saveBeforeUnload = () => {
+      const term = termRef.current;
+      if (!term || !snapshotPersisterRef.current) return;
+      const scrollback = serializeBuffer(term);
+      if (scrollback === (dataRef.current.scrollback ?? '')) return;
+      onUpdateRef.current(nodeIdRef.current, {
+        data: { sessionId: dataRef.current.sessionId, scrollback, cwd: dataRef.current.cwd ?? '' },
+      }, { history: false });
+    };
+    window.addEventListener('beforeunload', saveBeforeUnload);
+    window.addEventListener(BEFORE_QUIT_EVENT, saveBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', saveBeforeUnload);
+      window.removeEventListener(BEFORE_QUIT_EVENT, saveBeforeUnload);
+    };
+  }, [readOnly]);
 
   useEffect(() => {
     if (!fitRef.current) return;

@@ -97,6 +97,7 @@ import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 import { resolveProfileCachePolicy, runProfileCacheMaintenance } from './profile-cache-maintenance';
 import { startStorage, stopStorageAfterWriters } from './storage-lifecycle';
+import { flushRenderersBeforeQuit } from '../canvas/flush-before-quit';
 
 export interface BootstrapOptions {
   mainDir: string;
@@ -325,7 +326,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       scheduled.stop();
       powerMonitor.removeListener('resume', runScheduledCatchUp);
       teardownConversationRuntime();
-      void teardownCanvasPlugins()
+      // Renderers save their last canvas state while storage is still open.
+      void flushRenderersBeforeQuit()
+        .then(() => teardownCanvasPlugins())
         .catch(error => writeLog('main', 'plugin teardown failed', String(error)))
         .then(() => cacheMaintenance)
         .then(() => stopStorageAfterWriters(async () => {

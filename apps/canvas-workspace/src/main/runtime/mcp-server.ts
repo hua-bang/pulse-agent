@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { readWorkspaceText, writeWorkspaceText } from '../files/workspace-files';
 import { homedir } from 'os';
-import { execInSession, hasSession } from '../terminal/pty-manager';
+import { execInSession, hasSession, readSessionOutput } from '../terminal/pty-manager';
 import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 
 export const MCP_PORT = 3333;
@@ -174,7 +174,7 @@ async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         type: 'terminal',
         capabilities,
         cwd: node.data.cwd ?? '',
-        scrollback: node.data.scrollback ?? '',
+        scrollback: readSessionOutput(node.data.sessionId || node.id, node.data.scrollback),
       };
     case 'frame':
     case 'group': {
