@@ -413,6 +413,34 @@ describe('CanvasAgentService session mutations', () => {
     }
   });
 
+  it('refuses to branch a different active conversation', async () => {
+    agentState.sessions.set('session-current', makeSession('session-current', 'original'));
+    const service = new CanvasAgentService();
+    const result = await service.branchSessionForScope({ kind: 'global' }, 1, 'stale-session');
+    expect(result.ok).toBe(false);
+    expect(agentState.currentSessionId).toBe('session-current');
+    expect(agentState.sessions.has('session-new')).toBe(false);
+  });
+
+  it('branches through the selected reply and leaves the full source intact', async () => {
+    const source = makeSession('session-current', 'first');
+    source.messages.push({ role: 'assistant', content: 'reply', timestamp: 2 });
+    source.messages.push({ role: 'user', content: 'later', timestamp: 3 });
+    agentState.sessions.set(source.sessionId, source);
+    const service = new CanvasAgentService();
+    const result = await service.branchSessionForScope({ kind: 'global' }, 2, source.sessionId);
+    expect(result).toMatchObject({ ok: true, sourceSessionId: source.sessionId, messages: source.messages.slice(0, 2) });
+    expect(agentState.sessions.get(source.sessionId)?.messages).toHaveLength(3);
+  });
+
+  it('rejects a stale branch message index', async () => {
+    agentState.sessions.set('session-current', makeSession('session-current', 'original'));
+    const service = new CanvasAgentService();
+    const result = await service.branchSessionForScope({ kind: 'global' }, 9, 'session-current');
+    expect(result.ok).toBe(false);
+    expect(agentState.currentSessionId).toBe('session-current');
+  });
+
   it('branches the current conversation and acknowledges both session ids', async () => {
     const source = makeSession('session-current', 'first');
     source.messages.push({

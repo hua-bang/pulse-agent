@@ -95,6 +95,32 @@ afterEach(() => {
 });
 
 describe('useChatComposerController', () => {
+  it('branches inclusively from the displayed reply, hydrates the new conversation, and does not send a prompt', async () => {
+    const messages = [
+      { role: 'user' as const, content: 'question', timestamp: 1 },
+      { role: 'assistant' as const, content: 'reply', timestamp: 2 },
+      { role: 'user' as const, content: 'later', timestamp: 3 },
+    ];
+    const branchSession = vi.fn(async () => ({ ok: true, activeSessionId: 'branch', sourceSessionId: 'session-a', messages: messages.slice(0, 2) }));
+    const startConversationChat = vi.fn();
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: {
+        getHistory: vi.fn(async () => ({ ok: true, activeSessionId: 'session-a', messages })),
+        branchSession,
+        listSessions: vi.fn(async () => ({ ok: true, sessions: [] })),
+        startConversationChat,
+      },
+    };
+    root = createRoot(host!);
+    await act(async () => root!.render(createElement(I18nProvider, null, createElement(HistoryHarness))));
+    await act(async () => { expect(await latest!.forkMessage(1)).toBe(true); });
+    expect(branchSession).toHaveBeenCalledWith({ scope }, 2, 'session-a');
+    expect(latest!.activeSessionId).toBe('branch');
+    expect(latest!.messages).toEqual(messages.slice(0, 2));
+    expect(readConversationSnapshot(keyA).messages).toEqual(messages);
+    expect(startConversationChat).not.toHaveBeenCalled();
+  });
+
   it('silently prewarms an empty conversation after a short delay', async () => {
     vi.useFakeTimers();
     const warmScope = vi.fn();

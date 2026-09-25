@@ -49,6 +49,7 @@ export const ChatToolCalls = ({
     failed: displayTools.filter(({ status }) => status === 'failed').length,
     cancelled: displayTools.filter(({ status }) => status === 'cancelled').length,
   }), [displayTools]);
+  const single = displayTools.length === 1 ? displayTools[0] : undefined;
   const completedLabel = counts.running > 0 || counts.queued > 0
     ? t('chat.toolCalls.runningSummary', {
         running: counts.running + counts.queued,
@@ -59,6 +60,9 @@ export const ChatToolCalls = ({
       ? t('chat.toolCalls.summary', counts)
       : t('chat.toolCalls.completed', { count: counts.succeeded });
   const hasLiveTools = counts.running > 0 || counts.queued > 0;
+  const summaryLabel = single && (hasLiveTools || single.status === 'succeeded')
+    ? formatToolDescription(single.tool) ?? formatToolLabel(single.tool.name, single.status, t)
+    : completedLabel;
 
   if (collapsed) {
     return (
@@ -72,13 +76,17 @@ export const ChatToolCalls = ({
         <span className="chat-tool-call-icon">
           {hasLiveTools ? (
             <SpinnerIcon size={12} className="chat-tool-call-spinner" />
+          ) : counts.failed > 0 ? (
+            <span aria-hidden="true">!</span>
+          ) : counts.cancelled > 0 ? (
+            <span aria-hidden="true">×</span>
           ) : (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
         </span>
-        <span className="chat-tool-calls-summary">{completedLabel}</span>
+        <span className="chat-tool-calls-summary">{summaryLabel}</span>
         <span className="chat-tool-call-chevron">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -98,7 +106,7 @@ export const ChatToolCalls = ({
           aria-label={t('chat.toolCalls.collapseSection', { count: tools.length })}
           onClick={onToggleSection}
         >
-          <span className="chat-tool-calls-summary">{completedLabel}</span>
+          <span className="chat-tool-calls-summary">{summaryLabel}</span>
           <span className="chat-tool-call-chevron chat-tool-call-chevron--open">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />

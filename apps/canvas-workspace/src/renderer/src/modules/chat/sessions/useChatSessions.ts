@@ -358,22 +358,17 @@ export function useChatSessions({
     );
   }, [agentScope, runThreadFetch, workspaceId]);
 
-  /** Adopt the session created by an authoritative main-process branch mutation. */
-  const adoptActiveSession = useCallback((sessionId: string) => {
-    sessionListRequestRef.current += 1;
-    setSessionsLoading(false);
-    threadRequestRef.current += 1;
-    setSessionLoading(false);
-    setActiveSessionId(sessionId);
-    setSessions(previous => {
-      const next = previous.map(session => ({
-        ...session,
-        isCurrent: session.sessionId === sessionId,
-      }));
-      patchSessionsCache(scopeKey, { sessions: next });
-      return next;
-    });
-  }, [scopeKey]);
+  const handleBranchSession = useCallback(async (fromIndex: number, sourceSessionId: string) => {
+    setSessionMenuOpen(false);
+    const result = await runThreadFetch(
+      async () => {
+        const result = await window.canvasWorkspace.agent.branchSession({ scope: agentScope }, fromIndex, sourceSessionId);
+        return result.ok ? result : { ok: false, error: result.error, code: result.code };
+      },
+    );
+    if (result === true) await loadSessions();
+    return result === true;
+  }, [agentScope, loadSessions, runThreadFetch]);
   const retrySession = useCallback(async () => {
     const retry = threadRetryRef.current;
     if (retry?.scopeKey === scopeKey) {
@@ -470,7 +465,7 @@ export function useChatSessions({
     }
   }, [agentScope, failSessionMutation, loadSessions, mutationRef, onConversationLoaded, onConversationMutationStart, onMessagesLoaded, t]);
   return {
-    adoptActiveSession,
+    handleBranchSession,
     otherSessions: visibleSessionLists.otherSessions,
     sessionsStoreId,
     activeSessionId,

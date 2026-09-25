@@ -289,9 +289,9 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:branch-session',
-    async (_event, payload: AgentScopeRef & { fromIndex: number }) => {
+    async (_event, payload: AgentScopeRef & { fromIndex: number; sourceSessionId?: string }) => {
       const scope = resolveAgentScope(payload);
-      return svc.branchSessionForScope(scope, payload.fromIndex);
+      return svc.branchSessionForScope(scope, payload.fromIndex, payload.sourceSessionId);
     },
   );
 

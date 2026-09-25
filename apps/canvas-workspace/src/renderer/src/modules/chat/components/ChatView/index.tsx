@@ -21,7 +21,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
     streamingTools, messageTools, collapsedSections, expandedTools, pendingClarify, clarifyInput,
     clarificationAnswering = false, clarificationError = null, onClarifyInputChange,
     onAnswerClarification, relay, onStopRelay, onToggleSection, onToggleToolExpand,
-    onAddImageToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onSessionJump, conversationKey,
+    onAddImageToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onFork, onSessionJump, conversationKey,
   } = thread;
   const {
     nodes, selectedContext, showContextChips = true, onRemoveContext, onQuickAction, emptyState,
@@ -54,6 +54,10 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
   const handleRegenerate = useCallback((index: number) => (
     runRecoveryAction(() => onRegenerate?.(index))
   ), [onRegenerate, runRecoveryAction]);
+
+  const handleFork = useCallback((index: number) => (
+    runRecoveryAction(() => onFork?.(index))
+  ), [onFork, runRecoveryAction]);
 
   return (
     <div className={className ?? 'chat-view'}>
@@ -89,6 +93,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
             onNodeFocus={onNodeFocus}
             onEditUserMessage={onEditUserMessage ? handleEditUserMessage : undefined}
             onRegenerate={onRegenerate ? handleRegenerate : undefined}
+            onFork={onFork ? handleFork : undefined}
             onSessionJump={onSessionJump}
             pendingLabel={pendingLabel}
             conversationKey={conversationKey}

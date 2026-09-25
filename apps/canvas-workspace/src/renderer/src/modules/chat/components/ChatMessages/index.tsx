@@ -35,6 +35,7 @@ interface ChatMessagesProps {
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  onFork?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
   pendingLabel?: string;
   /**
@@ -97,6 +98,7 @@ export const ChatMessages = ({
   onNodeFocus,
   onEditUserMessage,
   onRegenerate,
+  onFork,
   onSessionJump,
   pendingLabel,
   sessionLoading = false,
@@ -131,6 +133,7 @@ export const ChatMessages = ({
     onAddImageToCanvas,
     onEditUserMessage,
     onRegenerate,
+    onFork,
     onSessionJump,
   });
   const hasStreamingAssistantMessage = loading
@@ -195,6 +198,7 @@ export const ChatMessages = ({
               anchorId={buildAnchorElementId(workspaceId, index)}
               onEditUserMessage={rowHandlers.onEditUserMessage}
               onRegenerate={rowHandlers.onRegenerate}
+              onFork={rowHandlers.onFork}
               hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
               turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
               onSessionJump={rowHandlers.onSessionJump}
