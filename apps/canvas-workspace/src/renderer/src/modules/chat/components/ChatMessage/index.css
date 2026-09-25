@@ -43,8 +43,10 @@
    children) means dragging a text selection to the bottom edge of a
    bubble never gets hijacked by the invisible toolbar. Only the actual
    controls opt back in — and only once the toolbar is revealed. */
+.chat-message:hover .chat-message-toolbar .ui-btn,
 .chat-message:hover .chat-message-toolbar-btn,
 .chat-message:hover .chat-message-timestamp,
+.chat-message-toolbar:focus-within .ui-btn,
 .chat-message-toolbar:focus-within .chat-message-toolbar-btn,
 .chat-message-toolbar:focus-within .chat-message-timestamp {
   pointer-events: auto;

@@ -25,6 +25,7 @@ const renderToolCalls = (
   expandedTools = new Set<number>(),
   isStreaming = false,
   liveDetailsOpen = false,
+  collapsed = false,
 ) => {
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -33,7 +34,7 @@ const renderToolCalls = (
     <I18nProvider>
       <ChatToolCalls
         tools={tools}
-        collapsed={false}
+        collapsed={collapsed}
         expandedTools={expandedTools}
         showSectionHeader={false}
         isStreaming={isStreaming}
@@ -54,6 +55,28 @@ const tabToolNames = [
 ] as const;
 
 describe('ChatToolCalls tab tool labels', () => {
+  it.each(['running', 'succeeded'] as const)('shows the concrete action for a single collapsed %s tool', status => {
+    renderToolCalls([{
+      id: 1, name: 'bash', status, args: { description: 'Check release history' },
+    }], new Set(), status === 'running', false, true);
+    expect(host!.querySelector('.chat-tool-calls-summary')?.textContent).toBe('Check release history');
+    expect(host!.querySelector('.chat-tool-call-spinner') !== null).toBe(status === 'running');
+  });
+
+  it('keeps adjacent completed calls summarized as one group', () => {
+    renderToolCalls([
+      { id: 1, name: 'session_search', status: 'succeeded' },
+      { id: 2, name: 'session_summary', status: 'succeeded' },
+    ], new Set(), false, false, true);
+    expect(host!.querySelector('.chat-tool-calls-summary')?.textContent).toBe('Completed 2 operations');
+  });
+
+  it.each(['failed', 'cancelled'] as const)('does not show a success check for a collapsed %s tool', status => {
+    renderToolCalls([{ id: 1, name: 'bash', status }], new Set(), false, false, true);
+    expect(host!.querySelector('.chat-tool-call-icon')?.textContent).toBe(status === 'failed' ? '!' : '×');
+    expect(host!.querySelector('.chat-tool-call-icon svg')).toBeNull();
+  });
+
   it('describes each running and completed tab action instead of using generic execution copy', () => {
     const tools: ToolCallStatus[] = tabToolNames.flatMap((name, index) => ([
       { id: index * 2 + 1, name, status: 'running' },

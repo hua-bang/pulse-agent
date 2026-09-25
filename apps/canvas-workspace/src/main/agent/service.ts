@@ -281,7 +281,7 @@ export class CanvasAgentService {
     return this.sessionMutations.newStoredSession(scope, () => startCanvasAgentSessionInStore(scope));
   }
 
-  async branchSessionForScope(scope: AgentScope, fromIndex: number): Promise<BranchSessionResult> { return this.sessionMutations.branchSession(scope, fromIndex); }
+  async branchSessionForScope(scope: AgentScope, fromIndex: number, sourceSessionId?: string): Promise<BranchSessionResult> { return this.sessionMutations.branchSession(scope, fromIndex, sourceSessionId); }
   renameSessionForScope(scope: AgentScope, sessionId: string, title: string): Promise<SessionActionResult> { return this.sessionMutations.renameSession(scope, sessionId, title); }
   setSessionPinnedForScope(scope: AgentScope, sessionId: string, pinned: boolean): Promise<SessionActionResult> { return this.sessionMutations.setSessionPinned(scope, sessionId, pinned); }
   deleteSessionForScope(scope: AgentScope, sessionId: string): Promise<DeleteSessionResult> { return this.sessionMutations.deleteSession(scope, sessionId); }

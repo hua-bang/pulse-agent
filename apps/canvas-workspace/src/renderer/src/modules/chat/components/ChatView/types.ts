@@ -54,6 +54,7 @@ export interface ChatViewThread {
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  onFork?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
   conversationKey?: string;
 }

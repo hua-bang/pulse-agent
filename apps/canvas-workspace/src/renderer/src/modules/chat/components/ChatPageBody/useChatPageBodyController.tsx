@@ -111,6 +111,7 @@ export const useChatPageBodyController = ({
     editableRef,
     editUserMessage,
     expandedTools,
+    forkMessage,
     focusInput,
     handleAttachFiles,
     handleInput,
@@ -369,7 +370,7 @@ export const useChatPageBodyController = ({
       onToggleSection: toggleSection, onToggleToolExpand: toggleToolExpand,
       onAddImageToCanvas: addImageToCanvas, onNodeFocus: handleNodeFocus,
       conversationKey: activeSessionId ?? scopeId, onEditUserMessage: handleEditUserMessage,
-      onRegenerate: handleRegenerate, onSessionJump: handleSessionJump,
+      onRegenerate: handleRegenerate, onFork: forkMessage, onSessionJump: handleSessionJump,
     },
     context: {
       nodes, selectedContext: inheritedContextChips, showContextChips: true,

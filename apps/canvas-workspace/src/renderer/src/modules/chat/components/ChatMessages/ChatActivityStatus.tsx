@@ -3,7 +3,7 @@ import { useI18n, type I18nKey } from '../../../../i18n';
 import { SpinnerIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
 import type { ToolCallStatus } from '../../../../types';
-import { displayToolStatus, formatToolDescription, formatToolLabel } from '../ChatMessage/ChatToolCalls';
+import { formatToolDescription, formatToolLabel } from '../ChatMessage/ChatToolCalls';
 
 type Translate = (key: I18nKey, params?: Record<string, string | number>) => string;
 
@@ -44,9 +44,8 @@ export const describeChatActivity = (
 
   if (tools.length > 0) {
     const latest = tools[tools.length - 1]!;
-    const status = displayToolStatus(latest);
     return {
-      label: formatToolDescription(latest) ?? formatToolLabel(latest.name, status, t),
+      label: t('chat.activity.working'),
       startedAt: latest.startedAt,
     };
   }

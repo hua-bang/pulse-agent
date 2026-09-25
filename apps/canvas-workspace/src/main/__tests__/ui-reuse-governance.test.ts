@@ -129,7 +129,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // disappeared as product visuals gained one owning component each.
   // ChatAnchors owns its trigger styling via ui/Button, independent of lazy ChatPanel CSS.
   // 272→269: Library navigation and cards use Button.
-  rawButtonTags: 269,
+  rawButtonTags: 268,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

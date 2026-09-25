@@ -6,6 +6,7 @@ interface RowHandlers {
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  onFork?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
@@ -28,6 +29,7 @@ export function useStableRowHandlers(handlers: RowHandlers): RowHandlers {
     (index: number, newContent: string) => latest.current.onEditUserMessage?.(index, newContent),
     [],
   );
+  const onFork = useCallback((index: number) => latest.current.onFork?.(index), []);
   const onRegenerate = useCallback((index: number) => latest.current.onRegenerate?.(index), []);
   const onSessionJump = useCallback(
     (sessionId: string, workspaceId: string, messageIndex?: number) => (
@@ -40,6 +42,7 @@ export function useStableRowHandlers(handlers: RowHandlers): RowHandlers {
     onToggleToolExpand,
     onAddImageToCanvas: handlers.onAddImageToCanvas ? onAddImageToCanvas : undefined,
     onEditUserMessage: handlers.onEditUserMessage ? onEditUserMessage : undefined,
+    onFork: handlers.onFork ? onFork : undefined,
     onRegenerate: handlers.onRegenerate ? onRegenerate : undefined,
     onSessionJump: handlers.onSessionJump ? onSessionJump : undefined,
   };

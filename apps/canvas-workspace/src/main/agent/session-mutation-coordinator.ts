@@ -6,71 +6,11 @@ import type {
 import { scopeServiceKey as scopeMutationKey } from './active-session-groups';
 import { registerWorkspaceSessionDrain, withWorkspaceRun } from './workspace-runtime-guard';
 
-interface SessionMutationAgent {
-  abort?(sessionId?: string): void;
-  getCurrentSessionId(): string | null;
-  newSession(): Promise<void>;
-  branchSession(
-    fromIndex: number,
-  ): Promise<{ sourceSessionId: string; session: CanvasAgentSession } | null>;
-  renameSession(sessionId: string, title: string): Promise<boolean>;
-  setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean>;
-  deleteSession(sessionId: string): Promise<{
-    deletedCurrent: boolean;
-    activeSession: CanvasAgentSession;
-  } | null>;
-  rewindTo(fromIndex: number): void;
-  loadSession(sessionId: string): Promise<CanvasAgentSession | null>;
-  loadCrossWorkspaceSession(messages: CanvasAgentMessage[]): Promise<void>;
-  appendToSession(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
-  readSessionById(sessionId: string): Promise<CanvasAgentSession | null>;
-  replaceSessionMessagesById(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
-}
-export type SessionMutationFailure = {
-  ok: false;
-  activeSessionId: string | null;
-  code: 'CHAT_SCOPE_BUSY' | 'SESSION_MUTATION_FAILED' | 'SESSION_NOT_FOUND';
-  error: string;
-};
-
-export type SessionActionResult =
-  | { ok: true; activeSessionId: string }
-  | SessionMutationFailure;
-
-export type NewSessionResult = SessionActionResult;
-
-export type LoadSessionResult =
-  | { ok: true; activeSessionId: string; messages: CanvasAgentMessage[] }
-  | SessionMutationFailure;
-
-export type BranchSessionResult =
-  | {
-      ok: true;
-      sourceSessionId: string;
-      activeSessionId: string;
-      messages: CanvasAgentMessage[];
-    }
-  | SessionMutationFailure;
-
-export type DeleteSessionResult =
-  | {
-      ok: true;
-      deletedCurrent: boolean;
-      activeSessionId: string;
-      messages: CanvasAgentMessage[];
-    }
-  | SessionMutationFailure;
-
-interface StoredSessionLoad {
-  session: CanvasAgentSession | null;
-  activeSessionId: string | null;
-}
-
-interface PendingSessionRun {
-  scope: AgentScope;
-  sessionId?: string | null;
-  promise: Promise<unknown>;
-}
+import type {
+  BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSessionResult,
+  PendingSessionRun, SessionActionResult, SessionMutationAgent, SessionMutationFailure, StoredSessionLoad,
+} from './session-mutation-types';
+export type { BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSessionResult, SessionActionResult, SessionMutationFailure } from './session-mutation-types';
 
 /**
  * Serializes session replacement per scope. Queue order is intent order, so
@@ -247,12 +187,21 @@ export class SessionMutationCoordinator {
     });
   }
 
-  branchSession(scope: AgentScope, fromIndex: number): Promise<BranchSessionResult> {
+  branchSession(scope: AgentScope, fromIndex: number, sourceSessionId?: string): Promise<BranchSessionResult> {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
         if (this.isSessionActive(scope, agent.getCurrentSessionId())) {
           return this.scopeBusyFailure(scope);
+        }
+        if (sourceSessionId) {
+          if (agent.getCurrentSessionId() !== sourceSessionId) {
+            return this.failure(scope, 'The source conversation changed. Reopen it before branching.');
+          }
+          const source = await agent.loadSession(sourceSessionId);
+          if (!source || !Number.isInteger(fromIndex) || fromIndex < 1 || fromIndex > source.messages.length) {
+            return this.failure(scope, 'The message to branch from is no longer available.');
+          }
         }
         const branch = await agent.branchSession(fromIndex);
         if (!branch) {

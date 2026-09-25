@@ -216,10 +216,23 @@ export function useChatComposerController({
     mentions.handleAttachFiles(files);
   }, [mentions.handleAttachFiles, requestAgentPrewarm]);
 
+  const branchingRef = useRef(false);
+  const forkMessage = useCallback(async (index: number) => {
+    if (branchingRef.current || chatStream.loading || chatSessions.sessionLoading
+      || !conversationSessionId || chatStream.messages[index]?.role !== 'assistant') return false;
+    branchingRef.current = true;
+    try {
+      return await chatSessions.handleBranchSession(index + 1, conversationSessionId);
+    } finally {
+      branchingRef.current = false;
+    }
+  }, [chatSessions.handleBranchSession, chatSessions.sessionLoading, chatStream.loading, chatStream.messages, conversationSessionId]);
+
   return {
     ...chatStream,
     ...chatSessions,
     ...mentions,
+    forkMessage,
     sendMessage,
     handleInput,
     handlePaste,

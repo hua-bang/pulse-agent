@@ -54,7 +54,7 @@
   align-items: center;
   gap: 5px;
   min-height: 24px;
-  padding: 2px 4px;
+  padding: 2px 0;
   border-radius: var(--radius-xs);
   cursor: pointer;
   color: rgba(55, 53, 47, 0.4);
@@ -81,7 +81,7 @@
   min-height: 16px;
   color: rgba(55, 53, 47, 0.4);
   font-family: var(--font-ui);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 16px;
 }
 
@@ -94,8 +94,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 22px;
-  padding: 1px 4px;
+  min-height: 24px;
+  padding: 2px 0;
   border-radius: var(--radius-xs);
   cursor: pointer;
   line-height: 20px;

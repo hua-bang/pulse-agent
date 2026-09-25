@@ -1,10 +1,11 @@
-import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SpinnerIcon } from '../../../../components/icons';
 import type { OtherWorkspaceSession } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { useMenuKeyboardNav } from '../../../../hooks/useMenuKeyboardNav';
 import { SessionTitle } from '../SessionTitle';
 import { Button } from '../../../../components/ui';
+import { ChatSessionRailItem } from '../ChatSessionsRail/ChatSessionRailItem';
 
 interface ChatHeaderProps {
   title: ReactNode;
@@ -21,14 +22,19 @@ interface ChatHeaderProps {
     isCurrent: boolean;
     preview?: string;
     title?: string;
+    isPinned?: boolean;
   }>;
   otherSessions: OtherWorkspaceSession[];
   /** User-facing owner label used to distinguish the current scope. */
   scopeLabel?: string;
+  scopeStoreId?: string;
   onToggleSessionMenu: () => Promise<void>;
   onCloseSessionMenu: () => void;
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
+  onRenameSession?: (sessionId: string, title: string) => Promise<unknown>;
+  onDeleteSession?: (sessionId: string) => Promise<unknown>;
+  onToggleSessionPinned?: (sessionId: string, pinned: boolean) => Promise<unknown>;
   onOpenOriginalSession?: (session: OtherWorkspaceSession) => void;
   onCopyOtherSession?: (session: OtherWorkspaceSession) => Promise<void>;
   onOpenSettings: () => void;
@@ -50,10 +56,14 @@ export const ChatHeader = ({
   sessions,
   otherSessions,
   scopeLabel,
+  scopeStoreId = '',
   onToggleSessionMenu,
   onCloseSessionMenu,
   onNewSession,
   onLoadSession,
+  onRenameSession,
+  onDeleteSession,
+  onToggleSessionPinned,
   onOpenOriginalSession,
   onCopyOtherSession,
   onClose,
@@ -61,6 +71,16 @@ export const ChatHeader = ({
 }: ChatHeaderProps) => {
   const { t } = useI18n();
   const menuId = useId();
+  const [editingSessionIds, setEditingSessionIds] = useState<Set<string>>(() => new Set());
+  const handleEditingChange = useCallback((sessionId: string, editing: boolean) => {
+    setEditingSessionIds(current => {
+      if (current.has(sessionId) === editing) return current;
+      const next = new Set(current);
+      if (editing) next.add(sessionId);
+      else next.delete(sessionId);
+      return next;
+    });
+  }, []);
   const titleButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +89,7 @@ export const ChatHeader = ({
     titleButtonRef.current?.focus();
   }, [onCloseSessionMenu]);
 
-  useMenuKeyboardNav(menuRef, closeSessionMenuAndRestoreFocus, sessionMenuOpen);
+  useMenuKeyboardNav(menuRef, closeSessionMenuAndRestoreFocus, sessionMenuOpen && editingSessionIds.size === 0);
 
   const handleTitleButtonKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -146,30 +166,31 @@ export const ChatHeader = ({
                 </div>
                 <div className="chat-session-menu-list">
                   {sessions.map(session => (
-                    <button
+                    <ChatSessionRailItem
                       key={session.sessionId}
-                      type="button"
-                      className={`chat-session-menu-item${session.isCurrent ? ' chat-session-menu-item--active' : ''}`}
-                      role="menuitem"
-                      aria-current={session.isCurrent ? 'true' : undefined}
-                      data-menu-autofocus={session.isCurrent ? 'true' : undefined}
-                      disabled={disabled}
-                      onClick={() => {
-                        if (!session.isCurrent) {
-                          void onLoadSession(session.sessionId);
-                          return;
-                        }
-                        onCloseSessionMenu();
+                      session={{
+                        ...session,
+                        preview: session.title || session.preview,
+                        workspaceId: scopeStoreId,
+                        workspaceName: scopeLabel ?? '',
                       }}
-                    >
-                      <ListLinesIcon size={14} />
-                      <span className="chat-session-menu-item-text">
-                        {session.title || session.preview
-                          ? <SessionTitle value={session.title ?? session.preview ?? ''} />
-                          : (session.isCurrent ? t('chat.currentChat') : session.date)}
-                      </span>
-                      <span className="chat-session-menu-item-count">{session.messageCount}</span>
-                    </button>
+                      menuItem
+                      disabled={disabled}
+                      onEditingChange={handleEditingChange}
+                      onSelectSession={() => {
+                        if (session.isCurrent) onCloseSessionMenu();
+                        else void onLoadSession(session.sessionId);
+                      }}
+                      onRenameSession={onRenameSession
+                        ? async (item, title) => { await onRenameSession(item.sessionId, title); }
+                        : undefined}
+                      onDeleteSession={onDeleteSession
+                        ? async item => { await onDeleteSession(item.sessionId); }
+                        : undefined}
+                      onTogglePinSession={onToggleSessionPinned
+                        ? async item => { await onToggleSessionPinned(item.sessionId, !item.isPinned); }
+                        : undefined}
+                    />
                   ))}
                 </div>
               </>

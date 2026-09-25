@@ -731,28 +731,34 @@ PULSE_CANVAS_PERF_INTERVAL_MS=250` keeps a `__pulse_perf_chat_stream__` turn
 streaming ~2.5min, long enough to exercise the switch (see
 `perf-chat-replay.ts` for the env overrides).
 
-Renderer branch recovery must hand the acknowledged branch id to the send
-path synchronously before React adopts the new session. Delayed branch results
-are guarded by monotonic mutation, scope, and conversation epochs so a scope or
-session switch — including leaving and returning — cannot overwrite the newly
-visible thread.
+### Explicit conversation branching and naming
 
-Starting any renderer-side pointer mutation must also retire the active turn
-lease synchronously. A late `prepareChat` or `startChat` result may dispose only
-its own subscriptions; it must not release the scope or reset state owned by a
-newer turn. Superseding a turn rolls its optimistic message suffix back to the
-pre-turn baseline if the pointer mutation fails; authoritative branch messages
-must update the synchronous message ref before their immediate replacement send.
-While a branch mutation owns the pointer, ordinary composer sends are vetoed;
-only that branch's replacement send may bypass the busy gate with its still-current
-mutation generation.
+The reply toolbar branches through the selected assistant message (`index + 1`
+as the exclusive prefix end). It never sends a replacement prompt. The composer
+vetoes duplicate clicks and running/loading conversations. Main serializes the
+mutation, verifies the supplied source session is still current, reloads its
+durable messages, and rejects stale indices before creating the branch. The
+original conversation remains intact.
 
-Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
-`chat-protocol.test.ts`, and `__tests__/service-session-mutation.test.ts` (all
-under `src/main/agent/`), `useChatScopeActivity.test.tsx`,
-`useChatPagePendingSession.test.tsx`, `useChatComposerState.session-handoff.test.tsx`
-`chatRunReattach.test.ts`, `useChatRunReattach.test.tsx`, and
-`useConversationBranching.test.tsx` under renderer chat hooks.
+`useChatSessions.handleBranchSession` uses the ordinary guarded thread fetch to
+hydrate and select the acknowledged branch, then refreshes the list. A late
+acknowledgement cannot replace a newer selected conversation; a rejected branch
+must not adopt the different current pointer returned with the error.
+
+The Dock session menu and full-page rail share `ChatSessionRailItem`: hover or
+keyboard focus reveals pin/rename/delete, rename stays inline, and delete needs
+inline confirmation. Menu navigation pauses during row editing so Escape cancels
+the edit rather than closing the menu; IME confirmation must not submit a rename.
+Failed saves retain the draft, and saved titles take precedence over first-message
+previews in the header. Shared toolbar buttons must opt into the existing
+hover/focus pointer-event rule; the toolbar container remains non-interactive
+so it does not intercept text selection.
+
+Guards: `__tests__/service-session-mutation.test.ts` under `src/main/agent/`,
+`modules/chat/sessions/useChatSessions.test.tsx`,
+`ChatComposer/__tests__/useChatComposerController.test.tsx`,
+`ChatPanel/__tests__/ChatHeader.rename.test.tsx`, and
+`ChatMessages/__tests__/ChatMessages.accessibility.test.tsx` under renderer chat.
 
 ### Input during a running turn
 

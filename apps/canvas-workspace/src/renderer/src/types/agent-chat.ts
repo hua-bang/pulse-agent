@@ -326,6 +326,7 @@ export interface AgentApi {
   branchSession: (
     scopeRef: AgentScopeRef,
     fromIndex: number,
+    sourceSessionId?: string,
   ) => Promise<{
     ok: boolean;
     sourceSessionId?: string;

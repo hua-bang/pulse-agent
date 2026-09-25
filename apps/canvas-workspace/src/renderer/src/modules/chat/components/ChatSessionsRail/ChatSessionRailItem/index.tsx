@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CheckIcon,
   CloseIcon,
@@ -11,6 +11,7 @@ import { useI18n } from '../../../../../i18n';
 import { SessionTitle } from '../../SessionTitle';
 import type { ChatSessionsRailProps, UnifiedSession } from '../types';
 import { sessionTitleText } from '../../utils/sessionTitle';
+import { isImeComposing } from '../../../../../utils/ime';
 import './index.css';
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
   onTogglePinSession?: ChatSessionsRailProps['onTogglePinSession'];
   disabled?: boolean;
   pending?: boolean;
+  menuItem?: boolean;
+  onEditingChange?: (sessionId: string, editing: boolean) => void;
 }
 
 const PinIcon = ({ filled = false }: { filled?: boolean }) => (
@@ -42,12 +45,19 @@ export const ChatSessionRailItem = ({
   onTogglePinSession,
   disabled = false,
   pending = false,
+  menuItem = false,
+  onEditingChange,
 }: Props) => {
   const { t } = useI18n();
   const title = session.preview ? sessionTitleText(session.preview) : session.date;
   const [mode, setMode] = useState<'idle' | 'rename' | 'delete'>('idle');
   const [renameValue, setRenameValue] = useState(title);
   const [busy, setBusy] = useState(false);
+  const changeMode = (next: typeof mode) => {
+    setMode(next);
+    onEditingChange?.(session.sessionId, next !== 'idle');
+  };
+  useEffect(() => () => onEditingChange?.(session.sessionId, false), [onEditingChange, session.sessionId]);
   const hasActions = Boolean(onRenameSession || onDeleteSession || onTogglePinSession);
 
   const submitRename = async () => {
@@ -56,7 +66,7 @@ export const ChatSessionRailItem = ({
     setBusy(true);
     try {
       await onRenameSession(session, nextTitle);
-      setMode('idle');
+      changeMode('idle');
     } catch {
       // The owner reports persistence failures; keep the draft available.
     } finally {
@@ -69,7 +79,7 @@ export const ChatSessionRailItem = ({
     setBusy(true);
     try {
       await onDeleteSession(session);
-      setMode('idle');
+      changeMode('idle');
     } catch {
       // The owner reports persistence failures; keep confirmation available.
     } finally {
@@ -102,9 +112,13 @@ export const ChatSessionRailItem = ({
           value={renameValue}
           onChange={(event) => setRenameValue(event.target.value)}
           onKeyDown={(event) => {
+            if (isImeComposing(event.nativeEvent)) {
+              if (event.key === 'Enter') event.preventDefault();
+              return;
+            }
             if (event.key === 'Escape') {
               event.preventDefault();
-              setMode('idle');
+              changeMode('idle');
             }
           }}
           aria-label={t('chat.renameSession', { title })}
@@ -124,7 +138,7 @@ export const ChatSessionRailItem = ({
           variant="icon"
           size="sm"
           aria-label={t('chat.cancelSessionRename')}
-          onClick={() => setMode('idle')}
+          onClick={() => changeMode('idle')}
           disabled={busy || disabled}
         >
           <CloseIcon size={13} />
@@ -144,11 +158,11 @@ export const ChatSessionRailItem = ({
         <Button
           variant="secondary"
           size="xs"
-          onClick={() => setMode('idle')}
+          onClick={() => changeMode('idle')}
           disabled={busy || disabled}
           aria-label={t('chat.cancelDeleteSession', { title })}
         >
-          {t('chat.cancelSessionRename')}
+          {t('shell.cancel')}
         </Button>
         <Button
           variant="danger"
@@ -172,6 +186,8 @@ export const ChatSessionRailItem = ({
           if (disabled) return;
           onSelectSession(session);
         }}
+        role={menuItem ? 'menuitem' : undefined}
+        data-menu-autofocus={menuItem && session.isCurrent ? 'true' : undefined}
         title={title}
         aria-current={session.isCurrent ? 'page' : undefined}
         aria-busy={pending ? true : undefined}
@@ -207,6 +223,7 @@ export const ChatSessionRailItem = ({
           {onTogglePinSession && (
             <Button
               variant="icon"
+              role={menuItem ? 'menuitem' : undefined}
               size="sm"
               className="chat-page-rail-item-action"
               aria-label={t(session.isPinned ? 'chat.unpinSession' : 'chat.pinSession', { title })}
@@ -220,12 +237,13 @@ export const ChatSessionRailItem = ({
           {onRenameSession && (
             <Button
               variant="icon"
+              role={menuItem ? 'menuitem' : undefined}
               size="sm"
               className="chat-page-rail-item-action"
               aria-label={t('chat.renameSession', { title })}
               onClick={() => {
                 setRenameValue(title);
-                setMode('rename');
+                changeMode('rename');
               }}
               disabled={busy || disabled}
             >
@@ -235,10 +253,11 @@ export const ChatSessionRailItem = ({
           {onDeleteSession && (
             <Button
               variant="icon"
+              role={menuItem ? 'menuitem' : undefined}
               size="sm"
               className="chat-page-rail-item-action chat-page-rail-item-action--danger"
               aria-label={t('chat.deleteSession', { title })}
-              onClick={() => setMode('delete')}
+              onClick={() => changeMode('delete')}
               disabled={busy || disabled}
             >
               <TrashIcon size={13} />
