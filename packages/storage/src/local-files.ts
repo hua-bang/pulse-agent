@@ -1,10 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { constants, promises as fs } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { CommitReceipt, PulseStorage } from './contracts.js';
 import type { FileWriteInput, FileWriteRecord, FileWriteRepository, FileWriteStatus } from './file-contracts.js';
 import { StorageError } from './errors.js';
+import { fileContentVersion } from './local-workspace-files.js';
 
 type RecoveryStorage = Pick<PulseStorage, 'canvas'> & { fileWrites: FileWriteRepository };
 
@@ -44,7 +45,7 @@ function validateText(content: string): void {
 
 export function localFileVersion(content: string): string {
   validateText(content);
-  return `sha256:${createHash('sha256').update(content, 'utf8').digest('hex')}`;
+  return fileContentVersion(Buffer.from(content, 'utf8'));
 }
 
 /** Resolve existing parent symlinks while allowing a not-yet-created notes folder. */

@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { writeWorkspaceText } from '../../files/workspace-files';
 import { z } from 'zod';
 import { generateHTML } from '../../generation/html-generator';
 import type { CanvasNode, CanvasTool, NodeType, RawMindmapTopic } from './types';
@@ -259,11 +260,9 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
 
         // For file nodes, create a backing notes file
         if (nodeType === 'file') {
-          const notesDir = join(STORE_DIR, workspaceId, 'notes');
-          await fs.mkdir(notesDir, { recursive: true });
           const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
-          const noteFile = join(notesDir, `${safeTitle}-${nodeId}.md`);
-          await fs.writeFile(noteFile, content, 'utf-8');
+          const noteFile = join(STORE_DIR, workspaceId, 'notes', `${safeTitle}-${nodeId}.md`);
+          await writeWorkspaceText(noteFile, content);
           nodeData.filePath = noteFile;
           nodeData.saved = true;
           nodeData.modified = false;

@@ -113,6 +113,14 @@ durable baseline, serializes saves, and rebases independent edits; conflicting
 fields retain the local draft and show a save error. Drafts held only by the
 renderer are not a cross-restart recovery guarantee.
 
+Markdown and attachment content in main goes through `files/workspace-files.ts`,
+the shared `WorkspaceFiles` repository from `@pulse-coder/storage`. Reads carry
+a `sha256:` content version, saves compare and swap on it, and image saves are
+create-only. The Markdown index watches directories through it. Real-path
+consumers (`AGENTS.md`, terminal agents, save-dialog exports, import staging)
+stay direct. Guard: `files/workspace-files.test.ts`; scope and decisions:
+`harness/spec/unified-storage/README.md` (S3).
+
 CLI file writes record an intent with base and target contents in the same
 transaction as their node change. Recovery applies a target only while the file
 still matches the base and the node still owns the intent; it retains conflicting

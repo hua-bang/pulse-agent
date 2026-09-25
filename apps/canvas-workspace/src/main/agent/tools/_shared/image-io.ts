@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs';
-import { extname } from 'path';
+import { extname, resolve } from 'path';
+import { workspaceFiles } from '../../../files/workspace-files';
 
 export const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -37,7 +37,9 @@ export function readJpegDimensions(buffer: Buffer): { width: number; height: num
 
 export async function readImageDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
   try {
-    const buffer = await fs.readFile(filePath);
+    const file = await workspaceFiles.readBytes(workspaceFiles.uriForPath(resolve(filePath)));
+    if (!file) return null;
+    const buffer = Buffer.from(file.bytes);
     return readPngDimensions(buffer) ?? readJpegDimensions(buffer);
   } catch {
     return null;

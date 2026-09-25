@@ -13,6 +13,7 @@ import type {
   FileWriteRequest,
 } from '../../shared/files';
 import { createEntry, renameEntry, trashEntry } from './file-operations';
+import { workspaceFiles } from './workspace-files';
 import { readFilePreview } from './file-preview';
 import { ensureImagePreview } from './image-preview';
 import { deleteSavedImage, saveBase64Image } from './image-save';
@@ -107,7 +108,7 @@ export const setupFileManagerIpc = () => {
           ? `${safeName}.md`
           : `note-${timestamp}.md`;
         const filePath = join(notesDir, fileName);
-        await fs.writeFile(filePath, "", "utf-8");
+        await workspaceFiles.write(workspaceFiles.uriForPath(filePath), "");
         return { ok: true, filePath, fileName };
       } catch (err) {
         return { ok: false, error: String(err) };
@@ -233,7 +234,9 @@ export const setupFileManagerIpc = () => {
     }
     const filePath = result.filePaths[0];
     try {
-      const content = await fs.readFile(filePath, "utf-8");
+      const file = await workspaceFiles.readText(workspaceFiles.uriForPath(filePath));
+      if (!file) return { ok: false, error: `File not found: ${filePath}` };
+      const { content } = file;
       const fileName = basename(filePath);
       return { ok: true, filePath, fileName, content };
     } catch (err) {

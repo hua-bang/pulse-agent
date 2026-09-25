@@ -1,7 +1,7 @@
 # Unified Storage
 
-Status: phases S1 and S2 are merged (PR #1035, 2026-09-24); S3 is shelved and
-later phases are planned targets. Current behavior is owned by the
+Status: phases S1 and S2 are merged (PR #1035, 2026-09-24); S3 is delivered
+on branch `codex/unified-storage` (2026-09-25); later phases are planned targets. Current behavior is owned by the
 Knowledge resources routed below — this spec owns the intended end state and
 the delivery order, not a second description of what already exists.
 Decision trail: [history/](history/).
@@ -62,7 +62,7 @@ The end state these phases converge on:
 |---|---|---|---|
 | S1 | SQLite for Canvas structure and Canvas Agent conversations | Merged, PR #1035 | Merged with CI green; standard acceptance and storage consumer checks pass |
 | S2 | Hardening of the S1 boundaries | Merged, PR #1035 | Each item below landed with a regression test |
-| S3 | File repository for Markdown and attachments | Shelved; direction agreed, no design yet | Markdown and attachment access in Canvas main goes through it |
+| S3 | File repository for Markdown and attachments | Delivered, pending merge | Markdown and attachment access in Canvas main goes through it |
 | S4 | Remaining JSON domains | Needs decision | Each domain either migrated or explicitly kept as a file with a stated reason |
 | S5 | Remote adapter or multi-device sync | Not planned | Starts only with a product decision to sync |
 
@@ -97,24 +97,32 @@ Each phase must be independently mergeable. S2 does not wait for S3.
 | The CLI opened the database several times per command | `packages/canvas-cli` (`core/sqlite-store.ts`) | `storage-session.test.ts` |
 | Trash, restore, and every commit recompiled SQL statements | `packages/storage` (`sqlite/workspaces.ts`, `sqlite/index.ts`) | Existing trash/restore and commit suites |
 
-### S3 — File repository (shelved)
+### S3 — File repository (delivered)
 
-Shelved on 2026-09-24: with no sync on the roadmap, the immediate gain (one
-version scheme for file reads and writes, easier testing) does not yet justify
-the cost. Revisit when Markdown access is reworked anyway or when S5 starts.
+`WorkspaceFiles` in `packages/storage` (`workspace-files.ts`, local adapter
+`local-workspace-files.ts`): text and byte reads with a content version,
+compare-and-swap or create-only writes, conditional removal, directory
+watching, and an explicit `localPath` escape hatch. Versions are
+`sha256:<hex>` of the bytes, the same scheme as file write intents; bare
+digests stored by earlier releases compare equal. Decisions:
+[history/2026-09-25-s3-file-repository.md](history/2026-09-25-s3-file-repository.md).
 
-Introduce a `WorkspaceFiles` repository in `packages/storage` beside the
-existing repositories: read with content version, compare-and-swap write,
-watch, list, and an explicit local-path escape hatch. Its first adapter wraps
-the current local file adapter and watcher.
+| Routed through it | Guard |
+|---|---|
+| Note editor and dock preview read/save (`files/file-save.ts`, `file-preview.ts`) | `file-save.test.ts`, `file-io-ipc.test.ts` |
+| Markdown index reads and watcher (`canvas/sync/markdown-index.ts`) | `markdown-index.test.ts` (including legacy digests) |
+| Note creation and content writes: `file:createNote`, `canvas_create_node`, node updates, runtime MCP node read/write, agent context reads | Existing tool and node suites |
+| Attachments: image save (create-only) and delete, image dimension reads, export reads | `image-save.test.ts`, export suites |
 
-1. Route Markdown node reads, writes, and external-edit indexing through it,
-   sharing one version scheme with file write intents.
-2. Route attachments and the remaining main-process file reads.
+`files/workspace-files.test.ts` keeps the content-owning modules free of
+direct `fs` content I/O. Real-path consumers stay direct by design:
+`AGENTS.md`, terminal-agent prompt files, save-dialog exports, import staging,
+and legacy layout migration.
 
-Out of scope for S3: moving file content into SQLite (rejected, see history),
-and a remote adapter. Optional follow-up once S3 lands: a full-text index
-(SQLite FTS5) derived from files, rebuildable from them.
+Out of scope: moving file content into SQLite (rejected, see history), a
+remote adapter, and a directory `list` (no Canvas content consumer needs one
+yet). Optional follow-up: a full-text index (SQLite FTS5) derived from files,
+rebuildable from them.
 
 ### S4 — Remaining JSON domains (needs decision)
 
@@ -129,8 +137,8 @@ and a remote adapter. Optional follow-up once S3 lands: a full-text index
 - Should skipped legacy session files get a re-import path? Add one only if
   users report needing it; today a repaired file is not picked up after cutover.
 - Which S4 domains move, and in what order?
-- Is S5 (sync) on the product roadmap at all? S3's interface should not assume
-  it.
+- Is S5 (sync) on the product roadmap at all? S3's interface does not assume
+  it: URIs and content versions are the only contract a remote adapter needs.
 
 ## Verification
 

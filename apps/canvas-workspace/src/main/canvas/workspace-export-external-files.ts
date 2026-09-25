@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog } from 'electron';
-import { promises as fs } from 'fs';
-import { basename, isAbsolute, relative } from 'path';
+import { basename, isAbsolute, relative, resolve } from 'path';
+import { workspaceFiles } from '../files/workspace-files';
 import { isSafeRelativePath, type WorkspaceExportFile } from './workspace-export-archive';
 
 export interface ExternalWorkspaceFileBundle {
@@ -118,14 +118,14 @@ export const collectExternalWorkspaceFiles = async (
 
   for (const filePath of filePaths) {
     try {
-      const stat = await fs.stat(filePath);
-      if (!stat.isFile()) {
+      // Non-regular files are rejected by the repository and land in `skipped`.
+      const file = await workspaceFiles.readBytes(workspaceFiles.uriForPath(resolve(filePath)));
+      if (!file) {
         skipped.push(filePath);
         continue;
       }
       const relativePath = uniqueExternalRelativePath(filePath, files.length, usedRelativePaths);
-      const content = await fs.readFile(filePath);
-      files.push({ relativePath, encoding: 'base64', content: content.toString('base64') });
+      files.push({ relativePath, encoding: 'base64', content: Buffer.from(file.bytes).toString('base64') });
       pathMap.set(filePath, relativePath);
     } catch {
       skipped.push(filePath);
