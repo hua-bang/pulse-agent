@@ -150,18 +150,21 @@ export const mountOwnerTerminal = ({
   const QUIESCENCE_MS = 500;
   const FAILSAFE_MS = 15_000;
 
+  // Output is handed to main's in-memory capture, never saved on the canvas:
+  // the CLI resumes its own conversation, and saving the text made every
+  // output burst commit the whole canvas. Only a changed CWD is persisted.
   const snapshotPersister = createTerminalSnapshotPersister({
-    initialSnapshot: {
-      scrollback: state.get().scrollback ?? '',
-      cwd: state.get().cwd ?? '',
-    },
+    initialSnapshot: { scrollback: '', cwd: state.get().cwd ?? '' },
     readSnapshot: () => readTerminalSnapshot(
       term,
       () => api.getCwd(request.sessionId),
       state.get().cwd ?? '',
     ),
     persist: (snapshot) => sessionOwner.persistIfCurrent(snapshot, ({ scrollback, cwd }) => {
-      state.update((current) => ({ ...current, scrollback, cwd }), { history: false });
+      api.publishSnapshot?.(request.sessionId, scrollback);
+      if (cwd && cwd !== state.get().cwd) {
+        state.update((current) => ({ ...current, cwd }), { history: false });
+      }
     }),
   });
 
@@ -346,6 +349,8 @@ export const mountOwnerTerminal = ({
       cwd: spawnCwd ?? '',
       status: 'running',
       sessionId: request.sessionId,
+      // Output saved by earlier versions would read as current; drop it.
+      scrollback: undefined,
       cliSessionId: request.agentType === 'claude-code' ? current.cliSessionId : undefined,
       codexSessionId: request.agentType === 'codex' && request.resume
         ? current.codexSessionId

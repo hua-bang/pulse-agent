@@ -12,6 +12,7 @@ import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import type { CanvasNodeRef } from '../../shared/canvas';
 import { readCanvasFull } from '../canvas/storage';
 import { filterWorkspaceIds, readWorkspaceManifest } from '../canvas/workspaces';
+import { readSessionOutput } from '../terminal/session-output';
 import {
   formatPluginNodeFallbackContent,
   getPluginNodeCapabilityKinds,
@@ -464,11 +465,9 @@ async function populateNodeDetail(
       break;
     }
     case 'terminal':
-      detailed.scrollback = (node.data.scrollback as string) ?? '';
-      detailed.cwd = (node.data.cwd as string) ?? '';
-      break;
     case 'agent':
-      detailed.scrollback = (node.data.scrollback as string) ?? '';
+      // Agent output is never saved on the canvas; main holds the live text.
+      detailed.scrollback = readSessionOutput(node.data.sessionId, node.data.scrollback);
       detailed.cwd = (node.data.cwd as string) ?? '';
       break;
     case 'frame':

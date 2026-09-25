@@ -150,6 +150,34 @@ silently share a conversation.
 Tests: `AgentNodeBody/__tests__/piSessionBinding.test.tsx` and
 `modules/coding-agent/session/piSession.test.ts`.
 
+## Output is not saved on the canvas
+
+A Coding Agent node persists its CWD, never its terminal output. The CLI
+resumes its own conversation (above), so saved output was redundant, and
+saving it every two seconds committed the whole canvas on each output burst:
+the workspace revision moved continuously and concurrent `pulse-canvas`
+writes failed with `revision_conflict`.
+
+- The owner terminal (`session/ownerTerminal.ts`) hands xterm's rendered text
+  to main (`pty:snapshot`) instead. `main/terminal/session-output.ts` keeps it
+  in memory, preferred over the raw PTY stream, whose TUI redraws read as
+  repeated frames. Snapshots outlive the process, bounded to the newest 64.
+- Readers go through main: node detail (`readSessionOutput` in
+  `agent/context-builder.ts`), `dock_read_tab`, and the Agent Team detail
+  panel (`pty:getScrollback` via `AgentDetail/useLiveAgentOutput.ts`).
+  `pulse-canvas node read` reads storage and sees no agent output.
+- Output saved by earlier releases is dropped on the node's next launch, so
+  it is never read as current. After an app restart, output is back only once
+  the CLI resumes and redraws; a Codex node without a captured id has none.
+- Plain terminal nodes still save their output; they have no conversation to
+  resume.
+
+Tests: `AgentNodeBody/index.test.tsx` (output published, never persisted;
+legacy output dropped), `session/sessionLifecycle.test.ts` (auto-resume
+without saved output), `main/terminal/session-output.test.ts`,
+`main/agent/context-builder-agent-output.test.ts`,
+`AgentDetail/useLiveAgentOutput.test.tsx`.
+
 ## Not automatic
 
 Two neighboring surfaces have their own rosters and do not pick up a new

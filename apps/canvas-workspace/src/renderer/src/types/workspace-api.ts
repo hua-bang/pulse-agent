@@ -58,6 +58,10 @@ export interface CanvasWorkspaceApi {
     resize: (id: string, cols: number, rows: number) => void;
     kill: (id: string, leaseId?: string) => void;
     getCwd: (id: string) => Promise<{ ok: boolean; cwd?: string | null }>;
+    /** Hand main the rendered text of a session; it is kept in memory, never saved. */
+    publishSnapshot: (id: string, text: string) => void;
+    /** Plain-text tail of a session's output held by main. */
+    getScrollback: (id: string, maxChars?: number) => Promise<{ ok: boolean; text?: string; error?: string }>;
     checkCommand: (command: string) => Promise<{ ok: boolean; available: boolean; path?: string; error?: string }>;
     onData: (id: string, callback: (data: string) => void) => () => void;
     onExit: (id: string, callback: (exitCode: number) => void) => () => void;

@@ -26,7 +26,7 @@ permanent damage: a coding agent renders its OWN layout to the PTY width, so
 applying that 3–5 column fit hard-wraps every line it prints at that moment
 into a 4-character ribbon that no later re-fit can undo — xterm reflows only
 its own soft wraps, not text a remote program already hard-wrapped — and the
-scrollback persists it that way.
+buffer keeps it that way.
 
 Refusing a nonsense fit costs nothing: the terminal simply keeps its
 previous geometry, and the staged re-fits plus the `ResizeObserver` apply
