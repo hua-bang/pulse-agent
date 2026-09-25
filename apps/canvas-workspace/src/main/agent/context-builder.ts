@@ -5,8 +5,8 @@
  * and a detailed context (loaded on demand via canvas_read_context tool).
  */
 
-import { promises as fs } from 'fs';
 import { join } from 'path';
+import { readWorkspaceText } from '../files/workspace-files';
 import { homedir } from 'os';
 import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import type { CanvasNodeRef } from '../../shared/canvas';
@@ -454,7 +454,7 @@ async function populateNodeDetail(
       const filePath = node.data.filePath as string;
       if (filePath) {
         try {
-          detailed.content = await fs.readFile(filePath, 'utf-8');
+          detailed.content = (await readWorkspaceText(filePath)) ?? (node.data.content as string) ?? '';
         } catch {
           detailed.content = (node.data.content as string) ?? '';
         }
@@ -547,7 +547,7 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
   // Read AGENTS.md if present
   let agentsMd: string | undefined;
   try {
-    agentsMd = await fs.readFile(join(canvasDir, 'AGENTS.md'), 'utf-8');
+    agentsMd = (await readWorkspaceText(join(canvasDir, 'AGENTS.md'))) ?? undefined;
   } catch {
     // not present
   }

@@ -1,10 +1,11 @@
-import { createHash } from 'node:crypto';
 import { open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { fileContentVersion } from '@pulse-coder/storage/local-workspace-files';
 import type { FilePreviewResult } from '../../shared/files';
 
-export const fileVersion = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
+/** Same content version scheme as Markdown reads, saves and write intents. */
+export const fileVersion = (data: Uint8Array): string => fileContentVersion(data);
 
 export const FILE_PREVIEW_MAX_BYTES = 512 * 1024;
 

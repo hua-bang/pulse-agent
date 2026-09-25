@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import { writeWorkspaceText } from '../files/workspace-files';
 
 import type { CanvasNode } from './storage';
 import { loadCanvas, saveCanvas } from './service';
@@ -121,7 +121,7 @@ export async function updateCanvasNode(
 
   const initialData = initialNode.data as Record<string, unknown>;
   if (initialNode.type === 'file' && input.content != null && initialData.filePath) {
-    await fs.writeFile(String(initialData.filePath), input.content, 'utf-8');
+    await writeWorkspaceText(String(initialData.filePath), input.content);
   }
 
   const fresh = (await loadCanvas(workspaceId)) ?? initial;

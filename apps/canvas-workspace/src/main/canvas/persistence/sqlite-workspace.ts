@@ -10,6 +10,7 @@ import {
 } from '@pulse-coder/storage/canvas';
 import { isSafeRelativePath, type WorkspaceExportFile } from '../workspace-export-archive';
 import { assertSafeNodeId } from '../nodes/store';
+import { workspaceFiles } from '../../files/workspace-files';
 import { atomicWriteJson } from './atomic-json';
 import { getLocalCanvasStorage, resolveStorageNativeBinding } from './backend';
 import { stripDataFromNode } from './write-v2';
@@ -103,7 +104,8 @@ async function collectWorkspaceFiles(workspaceDir: string, excludeLegacyNodes: b
       if (entry.isDirectory()) await walk(path);
       else if (entry.isFile()) {
         if (excludeLegacyNodes && /^nodes\/[^/]+\.json(?:\.bak)?$/.test(relativePath)) continue;
-        files.push({ relativePath, encoding: 'base64', content: (await fs.readFile(path)).toString('base64') });
+        const file = await workspaceFiles.readBytes(workspaceFiles.uriForPath(path));
+        if (file) files.push({ relativePath, encoding: 'base64', content: Buffer.from(file.bytes).toString('base64') });
       }
     }
   };
