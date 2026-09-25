@@ -58,12 +58,12 @@ describe('ChatMessages accessibility', () => {
       { role: 'user', content: 'question', timestamp: 1 },
       { role: 'assistant', content: 'reply', timestamp: 2 },
     ], { onFork });
-    const fork = el.querySelector<HTMLButtonElement>('[aria-label="Branch into a new chat from here"]');
+    const fork = el.querySelector<HTMLButtonElement>('[aria-label="Fork chat from here"]');
     expect(fork).not.toBeNull();
     await act(async () => fork?.click());
     expect(onFork).toHaveBeenCalledWith(1);
     await act(async () => root?.render(<I18nProvider><ChatMessages {...baseProps} messages={[{ role: 'assistant', content: 'reply', timestamp: 2 }]} loading onFork={onFork} /></I18nProvider>));
-    expect(el.querySelector('[aria-label="Branch into a new chat from here"]')).toBeNull();
+    expect(el.querySelector('[aria-label="Fork chat from here"]')).toBeNull();
   });
 
   it('opens an absolute local Markdown link with the system file handler', async () => {

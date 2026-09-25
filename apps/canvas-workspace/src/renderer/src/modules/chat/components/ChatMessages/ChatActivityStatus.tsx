@@ -51,7 +51,7 @@ export const describeChatActivity = (
   }
 
   return {
-    label: t('chat.activity.preparing'),
+    label: t('chat.activity.working'),
   };
 };
 
