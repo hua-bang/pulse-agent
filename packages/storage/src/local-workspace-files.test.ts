@@ -83,4 +83,26 @@ describe('local workspace files', () => {
     expect(() => files.localPath('https://example.com/a.md')).toThrow(/file:/);
     expect(() => files.uriForPath('relative.md')).toThrow(/absolute/);
   });
+
+  it('removes a symlinked attachment entry, never the file it points to', async () => {
+    const outside = await fs.mkdtemp(join(tmpdir(), 'pulse-outside-'));
+    try {
+      await fs.writeFile(join(outside, 'secret.txt'), 'keep me');
+      await fs.symlink(join(outside, 'secret.txt'), join(directory, 'img-link.png'));
+      await files.remove(uri('img-link.png'));
+      await expect(fs.lstat(join(directory, 'img-link.png'))).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(await fs.readFile(join(outside, 'secret.txt'), 'utf8')).toBe('keep me');
+    } finally {
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it.runIf(process.platform !== 'win32')('rejects remote hosts outside Windows', () => {
+    expect(() => files.localPath('file://server/share/note.md')).toThrow(/file:/);
+  });
+
+  it.runIf(process.platform === 'win32')('round-trips Windows UNC share paths', () => {
+    const unc = '\\\\server\\share\\note.md';
+    expect(files.localPath(files.uriForPath(unc))).toBe(unc);
+  });
 });

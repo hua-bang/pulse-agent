@@ -26,7 +26,9 @@ function pathFromUri(uri: string): string {
   let url: URL;
   try { url = new URL(uri); }
   catch (cause) { throw new StorageError('invalid_argument', 'Invalid local file URI.', { cause }); }
-  if (url.protocol !== 'file:' || url.search || url.hash || (url.host && url.host !== 'localhost')) {
+  // A host is only meaningful as a Windows UNC share, e.g. \\server\share\note.md.
+  const remoteHost = !!url.host && url.host !== 'localhost' && process.platform !== 'win32';
+  if (url.protocol !== 'file:' || url.search || url.hash || remoteHost) {
     throw new StorageError('invalid_argument', 'The local file adapter only accepts file: resources.');
   }
   return fileURLToPath(url);
@@ -157,19 +159,24 @@ export function createLocalWorkspaceFiles(): WorkspaceFiles {
     },
 
     async remove(uri, options = {}) {
+      // Remove the addressed entry itself: a symlink is unlinked, never the
+      // file it points to, which may live outside the workspace.
       const path = pathFromUri(uri);
-      let target: string;
-      try { target = await targetPath(path, false); }
-      catch (error) {
-        if (!hasCode(error, 'ENOENT')) throw error;
+      const entry = await fs.lstat(path).catch(error => {
+        if (hasCode(error, 'ENOENT')) return null;
+        throw error;
+      });
+      if (!entry) {
         if (options.expectedVersion !== undefined) throw conflict('The file no longer exists.');
         return;
       }
-      await inLane(target, async () => {
-        if (options.expectedVersion !== undefined && !(await matches(target, options.expectedVersion))) {
+      if (entry.isDirectory()) throw new StorageError('invalid_argument', 'Expected a file, not a directory.');
+      const lane = entry.isSymbolicLink() ? await fs.realpath(path).catch(() => path) : path;
+      await inLane(lane, async () => {
+        if (options.expectedVersion !== undefined && !(await matches(path, options.expectedVersion))) {
           throw conflict('The file changed before it could be removed.');
         }
-        await fs.unlink(target).catch(error => {
+        await fs.unlink(path).catch(error => {
           if (!hasCode(error, 'ENOENT') || options.expectedVersion !== undefined) throw error;
         });
       });
