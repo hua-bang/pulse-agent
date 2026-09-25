@@ -116,14 +116,21 @@ export function useStableSessionRail({
     const scopeChanged = stableScopeRef.current !== nextScopeId;
     if (scopeChanged) stableScopeRef.current = nextScopeId;
     if ((scopeChanged || loading) && stableSessionsRef.current.length > 0) {
-      return stableSessionsRef.current.map((session) => ({
-        ...session,
-        isCurrent: selectedSessionKey
+      return stableSessionsRef.current.map((session) => {
+        const isCurrent = selectedSessionKey
           ? selectedSessionKey === `${session.workspaceId}:${session.sessionId}`
-          : session.isCurrent,
-      }));
+          : session.isCurrent;
+        const belongsToActiveScope = session.workspaceId === nextScopeId;
+        return {
+          ...session,
+          isCurrent,
+          running: belongsToActiveScope
+            ? runningSessionIds?.has(session.sessionId) && !isCurrent
+            : session.running,
+        };
+      });
     }
     stableSessionsRef.current = computedSessions;
     return computedSessions;
-  }, [agentScope, computedSessions, loading, selectedSessionKey]);
+  }, [agentScope, computedSessions, loading, runningSessionIds, selectedSessionKey]);
 }

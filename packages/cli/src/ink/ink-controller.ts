@@ -8,6 +8,7 @@ import type { TuiHelpItem } from '../shared/tui-types.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import { formatRelativeTime, truncateLabel, type InkCliController, type InkCliSnapshot, type CliInteractionMode } from './ink-app.js';
 import type { EngineLogSink } from '../shared/log-sink.js';
+import { HostLogPolicy } from '../shared/host-log-policy.js';
 import { createPulseCliTools } from '../tools/runtime-tools.js';
 import { formatModelSpec, parseModelSpec, shortModelLabel, type ModelChoice } from '../models/model-spec.js';
 import { PreferencesStore } from '../models/preferences.js';
@@ -39,8 +40,9 @@ export class InkCoderController implements InkCliController {
   totalInputTokens = 0;
   totalCachedTokens = 0;
   readonly logSink: EngineLogSink | null;
+  readonly logPolicy: HostLogPolicy | null;
   debugLogs: boolean;
-  readonly seenWarnTexts = new Set<string>();
+  startupComplete = false;
   modelOverride: ModelChoice | null = null;
   activePicker: 'session' | 'model' | null = null;
   pickerModelChoices = new Map<string, ModelChoice>();
@@ -75,7 +77,7 @@ export class InkCoderController implements InkCliController {
       contextWindowTokens: currentContextWindow(this),
       modelLabel: shortModelLabel(this.modelOverride?.model ?? DEFAULT_MODEL),
     });
-    this.sessionCommands = new SessionCommands(message => this.ui.info(message ?? ''));
+    this.sessionCommands = new SessionCommands(message => this.reportHostMessage('log', message ?? ''));
     // Every session save records the model it ran under, so /resume can bring
     // the session back on that model instead of whatever was chosen since.
     this.sessionCommands.setModelSpecProvider(() =>
@@ -85,28 +87,33 @@ export class InkCoderController implements InkCliController {
     });
     this.skillCommands = new SkillCommands(this.agent, message => this.ui.info(message ?? ''));
 
-    // Engine log layer policy: errors always surface as dim lines; warns
-    // surface once per unique text per session (an SDK warning repeated on
-    // every LLM call must not flood the transcript — the log file keeps all
-    // occurrences). info/debug stay in the log file unless /debug (or
-    // --verbose) is on.
-    this.logSink?.subscribe(entry => {
-      if (entry.level === 'error') {
-        this.ui.log(`[error] ${entry.text}`);
-        return;
+    this.logPolicy = this.logSink
+      ? new HostLogPolicy({
+          logFile: this.logSink.filePath,
+          isVerbose: () => this.debugLogs,
+          render: (level, message) => this.ui.log(level === 'log' ? message : `[${level}] ${message}`),
+        })
+      : null;
+    this.logSink?.subscribe(entry => this.logPolicy?.handle(entry));
+  }
+
+  reportHostMessage(level: 'log' | 'warn' | 'error', message: string): void {
+    if (!this.startupComplete) {
+      if (this.logSink) {
+        this.logSink.record(level, [message]);
+      } else if (level !== 'log' || this.debugLogs) {
+        this.ui.log(level === 'log' ? message : `[${level}] ${message}`);
       }
-      if (entry.level === 'warn') {
-        if (this.seenWarnTexts.has(entry.text)) {
-          return;
-        }
-        this.seenWarnTexts.add(entry.text);
-        this.ui.log(`[warn] ${entry.text}`);
-        return;
-      }
-      if (this.debugLogs) {
-        this.ui.log(entry.text);
-      }
-    });
+      return;
+    }
+
+    if (level === 'error') {
+      this.ui.error(message);
+    } else if (level === 'warn') {
+      this.ui.warn(message);
+    } else {
+      this.ui.info(message);
+    }
   }
 
   async initialize(options: { continueLast?: boolean } = {}): Promise<void> {
@@ -115,6 +122,8 @@ export class InkCoderController implements InkCliController {
     await memoryIntegration.initialize();
     await goalIntegration.initialize();
     await this.agent.initialize();
+    const pluginStatus = this.agent.getPluginStatus();
+    this.reportHostMessage('log', `Built-in plugins loaded: ${pluginStatus.enginePlugins.length} plugins`);
 
     // Surface planning-mode tool rejections (hard-blocked mutating tools /
     // non-read-only bash commands) so the user knows why nothing happened.
@@ -124,9 +133,6 @@ export class InkCoderController implements InkCliController {
         this.ui.warn(`Planning mode blocked ${toolName}${category ? ` (${category})` : ''}`);
       }
     });
-
-    const pluginStatus = this.agent.getPluginStatus();
-    this.ui.showPluginStatus(pluginStatus.enginePlugins.length);
 
     await resolveStartupModel(this);
 
@@ -151,6 +157,8 @@ export class InkCoderController implements InkCliController {
     }
     await syncSessionTaskListBinding(this);
     await syncSessionGoalBinding(this);
+    this.logPolicy?.finishStartup();
+    this.startupComplete = true;
     publishSession(this, 'Ready');
   }
 

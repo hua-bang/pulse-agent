@@ -19,6 +19,19 @@ export interface ReadlineHost {
   readonly tui: TuiRenderer;
   modelChoice: ModelChoice | null;
   readonly modelSpec?: string;
+  reportHostMessage?: (level: 'log' | 'warn' | 'error', message: string) => void;
+}
+
+function reportHostMessage(host: ReadlineHost, level: 'log' | 'warn' | 'error', message: string): void {
+  if (host.reportHostMessage) {
+    host.reportHostMessage(level, message);
+  } else if (level === 'error') {
+    host.tui.error(message);
+  } else if (level === 'warn') {
+    host.tui.warn(message);
+  } else {
+    host.tui.info(message);
+  }
 }
 
 function safeStringify(value: unknown): string {
@@ -79,10 +92,10 @@ export async function syncSessionTaskListBinding(host: ReadlineHost): Promise<vo
   try {
     const result = await service.setTaskListId(taskListId);
     if (result.switched) {
-      host.tui.success(`Switched task list to ${result.taskListId}`);
+      reportHostMessage(host, 'log', `Switched task list to ${result.taskListId}`);
     }
   } catch (error: any) {
-    host.tui.warn(`Failed to switch task list binding: ${error?.message ?? String(error)}`);
+    reportHostMessage(host, 'warn', `Failed to switch task list binding: ${error?.message ?? String(error)}`);
   }
 }
 
@@ -96,18 +109,18 @@ export async function syncSessionGoalBinding(host: ReadlineHost): Promise<void> 
     if (service?.setScope) {
       const result = await service.setScope(scope);
       if (result.switched) {
-        host.tui.info(`Goal scope: ${result.scope}`);
+        reportHostMessage(host, 'log', `Goal scope: ${result.scope}`);
       }
       return;
     }
   } catch (error: any) {
-    host.tui.warn(`Failed to switch goal scope: ${error?.message ?? String(error)}`);
+    reportHostMessage(host, 'warn', `Failed to switch goal scope: ${error?.message ?? String(error)}`);
   }
 
   await goalIntegration.initialize();
   const result = await goalIntegration.service.setScope(scope);
   if (result.switched) {
-    host.tui.info(`Goal scope: ${result.scope}`);
+    reportHostMessage(host, 'log', `Goal scope: ${result.scope}`);
   }
 }
 
@@ -129,10 +142,10 @@ export async function restoreSessionModel(host: ReadlineHost): Promise<void> {
   const registry = await loadModelRegistry();
   const restored = resolveKnownModelSpec(spec, registry);
   if (!restored) {
-    host.tui.warn(`Session model "${spec}" is no longer in models.json — keeping the current model`);
+    reportHostMessage(host, 'warn', `Session model "${spec}" is no longer in models.json — keeping the current model`);
     return;
   }
 
   host.modelChoice = restored;
-  host.tui.info(`Model restored from session: ${formatModelSpec(restored)}`);
+  reportHostMessage(host, 'log', `Model restored from session: ${formatModelSpec(restored)}`);
 }

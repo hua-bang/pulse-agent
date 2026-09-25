@@ -74,6 +74,7 @@ import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
 import {
   activateWorkspaceWindow,
   getCanvasWindow,
+  getLiveCanvasWindow,
   setWindowFactory,
 } from "./window-manager";
 import { setAgentWindowPort } from "../agent/window-port";
@@ -125,7 +126,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // of going through the main entry module.
   configureAppIdentity();
   setAgentWindowPort({ getCanvasWindow, activateWorkspaceWindow });
-  setRuntimeWindowPort({ activateWorkspaceWindow });
+  setRuntimeWindowPort({
+    getCanvasWindow: getLiveCanvasWindow,
+    activateWorkspaceWindow,
+  });
   setPluginMarketAgentPort({
     reloadMcp: () => getCanvasAgentService().reloadMcp(),
     getMcpOAuthStatus: getCanvasMcpOAuthStatus,
