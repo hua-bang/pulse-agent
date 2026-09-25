@@ -1,7 +1,7 @@
 {
   "name": "canvas-workspace",
   "private": true,
-  "version": "0.1.61",
+  "version": "0.1.62",
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
@@ -20,8 +20,8 @@
     "harness:down": "node ./harness/tools/driver/quickstart.mjs down",
     "visual": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts",
     "visual:update": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts --update-snapshots",
-    "prepare:workspace-runtime": "pnpm --filter pulse-coder-engine build && pnpm --filter pulse-coder-agent-teams build",
-    "prepare:agent-tooling": "pnpm --filter @pulse-coder/canvas-cli build",
+    "prepare:workspace-runtime": "pnpm --filter @pulse-coder/storage build && pnpm --filter pulse-coder-engine build && pnpm --filter pulse-coder-agent-teams build",
+    "prepare:agent-tooling": "pnpm --filter @pulse-coder/storage build && pnpm --filter @pulse-coder/canvas-cli build && node scripts/setup/prepare-sqlite-native.mjs",
     "prepare:package": "pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling",
     "package": "pnpm run prepare:package && electron-vite build && electron-builder",
     "package:mac": "pnpm run prepare:package && electron-vite build && electron-builder --mac",
@@ -41,6 +41,8 @@
     "perf:report": "node scripts/perf/report.mjs"
   },
   "build": {
+    "beforePack": "./scripts/setup/assert-packaged-native.mjs",
+    "npmRebuild": false,
     "appId": "com.pulse-coder.canvas-workspace",
     "productName": "Pulse Canvas",
     "copyright": "Copyright © 2025",
@@ -64,7 +66,13 @@
       "!resources/pulse.png",
       "!resources/icon@2x.png",
       "!**/*.map",
-      "package.json"
+      "!node_modules/{pulse-coder-engine,pulse-coder-agent-teams,@pulse-coder/storage}/{src,harness,docs}/**/*",
+      "!node_modules/{pulse-coder-engine,pulse-coder-agent-teams,@pulse-coder/storage}/{AGENTS.md,CLAUDE.md,tsconfig.json,tsup.config.ts}",
+      "!node_modules/**/*.d.{cts,mts}",
+      "package.json",
+      "!node_modules/better-sqlite3/deps/**/*",
+      "!node_modules/better-sqlite3/src/**/*",
+      "!node_modules/better-sqlite3/build/**/*"
     ],
     "extraResources": [
       {
@@ -73,6 +81,13 @@
         "filter": [
           "index.cjs",
           "skills/**/*"
+        ]
+      },
+      {
+        "from": "node_modules/.cache/pulse-sqlite/package-native",
+        "to": "agent-tooling/canvas-cli/native",
+        "filter": [
+          "*.node"
         ]
       },
       {
@@ -130,6 +145,8 @@
     }
   },
   "dependencies": {
+    "dompurify": "3.4.5",
+    "@pulse-coder/storage": "workspace:*",
     "@ai-sdk/openai": "^3.0.21",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "ai": "^6.0.57",
@@ -138,7 +155,8 @@
     "node-pty": "^1.1.0",
     "pulse-coder-agent-teams": "workspace:*",
     "pulse-coder-engine": "workspace:*",
-    "zod": "^4.0.0"
+    "zod": "^4.0.0",
+    "better-sqlite3": "12.11.1"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "0.83.0",

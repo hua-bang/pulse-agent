@@ -22,8 +22,10 @@ const require = createRequire(join(appRoot, 'package.json'));
 const run = (command, args, cwd, shell = false) =>
   spawnSync(command, args, { cwd, shell, stdio: 'inherit' }).status === 0;
 
+// `-o` (only), not `-w`: `-w` adds node-pty to the normal rebuild set, which
+// would also overwrite the shared SQLite Node binary (see packaged-tooling.md).
 // Windows resolves the electron-rebuild .cmd shim only through a shell.
-if (run('electron-rebuild', ['-f', '-w', 'node-pty'], appRoot, process.platform === 'win32')) process.exit(0);
+if (run('electron-rebuild', ['-f', '-o', 'node-pty'], appRoot, process.platform === 'win32')) process.exit(0);
 
 console.warn('[rebuild-native] electron-rebuild failed; falling back to an N-API build with host Node headers.');
 const rebuildDir = realpathSync(join(appRoot, 'node_modules', '@electron', 'rebuild'));

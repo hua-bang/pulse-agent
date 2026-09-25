@@ -70,6 +70,40 @@ afterEach(() => {
 });
 
 describe('useConversationRuntimeStream (keyed mode)', () => {
+  it('restores the thread when main rejects an edit/regenerate replacement', async () => {
+    const history = [
+      { role: 'user' as const, content: 'first', timestamp: 1 },
+      { role: 'assistant' as const, content: 'one', timestamp: 2 },
+      { role: 'user' as const, content: 'second', timestamp: 3 },
+      { role: 'assistant' as const, content: 'two', timestamp: 4 },
+    ];
+    setConversationMessages(keyA, history);
+    let complete: ((payload: unknown) => void) | undefined;
+    const noop = () => () => undefined;
+    const agent = {
+      onTextDelta: noop, onToolCall: noop, onToolResult: noop, onToolInputStart: noop,
+      onToolInputDelta: noop, onToolInputEnd: noop, onClarifyRequest: noop,
+      onRoleTurnStart: noop, onRoleTurnEnd: noop,
+      onChatComplete: (_sessionId: string, callback: (payload: unknown) => void) => {
+        complete = callback;
+        return () => undefined;
+      },
+      conversationChat: vi.fn(async () => ({ ok: true, sessionId: keyA.sessionId })),
+    };
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
+    mount(keyA);
+
+    await act(async () => { await latest!.regenerateAssistantMessage(3); });
+    expect(agent.conversationChat).toHaveBeenCalledWith(
+      scope, keyA.sessionId, 'second', expect.anything(), expect.anything(), [], 2,
+    );
+    expect(readConversationSnapshot(keyA).messages.map(m => m.content)).toEqual(['first', 'one', 'second']);
+
+    act(() => complete?.({ ok: false, code: 'CHAT_RECOVERY_REJECTED', error: 'gone' }));
+    expect(readConversationSnapshot(keyA).messages).toEqual(history);
+    expect(latest?.loading).toBe(false);
+  });
+
   it('renders the store snapshot for the selected conversation (switch = selector)', () => {
     // A sibling surface wrote to conversation A's store.
     setConversationMessages(keyA, [{ role: 'user', content: 'A-message', timestamp: 0 }]);

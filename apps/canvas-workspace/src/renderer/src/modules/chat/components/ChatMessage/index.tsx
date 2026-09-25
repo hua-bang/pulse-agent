@@ -1,15 +1,15 @@
+import { memo, useCallback } from 'react';
 import './index.css';
 import { OrderedChatContent } from './OrderedChatContent';
-import type { AgentChatMessage, CanvasNode } from '../../../../types';
+import type { AgentChatMessage, CanvasNode, ToolCallStatus } from '../../../../types';
 import { toFileUrl } from '../../../../utils/fileUrl';
-import { BotAvatarIcon, PencilIcon, RefreshIcon } from '../../../../components/icons';
-import type { ToolCallStatus } from '../../../../types';
+import { BotAvatarIcon } from '../../../../components/icons';
 import { roleColorSoft } from '../../../../utils/roleColors';
 import { ChatActivityStatus } from '../ChatMessages/ChatActivityStatus';
 import { ChatImageLightbox } from '../ChatImageLightbox';
 import { PluginChatCardForMessage } from '../../../../../../plugins/renderer';
 import { ChatTurnOutcome } from './ChatTurnMeta';
-import { CopyMessageButton } from './ChatMessageActions';
+import { ChatMessageToolbar } from './ChatMessageToolbar';
 import { useChatMessageController } from './useChatMessageController';
 import { ChatMessageToolResults } from './ChatMessageToolResults';
 import { MarkdownContent } from './MarkdownContent';
@@ -26,7 +26,8 @@ interface ChatMessageProps {
   nodes?: CanvasNode[];
   workspaceId: string;
   rootFolder?: string;
-  onToggleSection: () => void;
+  /** Called with this message's index, so the list can pass one stable handler. */
+  onToggleSection: (index: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   /** DOM id used by ChatAnchors to scroll this message into view. */
@@ -35,6 +36,7 @@ interface ChatMessageProps {
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   /** Re-run the user turn that produced this assistant message. */
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  onFork?: (index: number) => Promise<boolean> | void;
   /** Old stopped turns become transcript history once a later user turn exists. */
   hideStoppedOutcome?: boolean;
   /** Start of the current user turn, used for the overall Working timer. */
@@ -43,7 +45,7 @@ interface ChatMessageProps {
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
-export const ChatMessage = ({
+const ChatMessageView = ({
   message,
   index,
   isStreaming,
@@ -60,6 +62,7 @@ export const ChatMessage = ({
   anchorId,
   onEditUserMessage,
   onRegenerate,
+  onFork,
   hideStoppedOutcome = false,
   turnStartedAt,
   onSessionJump,
@@ -103,14 +106,16 @@ export const ChatMessage = ({
     onEditUserMessage,
     onRegenerate,
   });
+  const showActivity = message.role === 'assistant' && isStreaming && !message.content;
+  const toggleSection = useCallback(() => onToggleSection(index), [index, onToggleSection]);
   const renderTools = (groupTools: ToolCallStatus[], groupCollapsed: boolean, toggleGroup: () => void) => (
     <ChatMessageToolResults
       tools={groupTools}
-      collapsed={groupCollapsed}
+      collapsed={showActivity ? false : groupCollapsed}
       expandedTools={expandedTools}
-      loading={message.contentBlocks ? false : loading}
+      loading={showActivity || (!message.contentBlocks && loading)}
       isStreaming={isStreaming}
-      liveToolDetailsOpen={message.contentBlocks ? !groupCollapsed : liveToolDetailsOpen}
+      liveToolDetailsOpen={showActivity || !message.contentBlocks ? liveToolDetailsOpen : !groupCollapsed}
       onToggleSection={toggleGroup}
       onToggleToolExpand={onToggleToolExpand}
       onSessionJump={onSessionJump}
@@ -176,7 +181,7 @@ export const ChatMessage = ({
           ))}
         </div>
       )}
-      {message.role === 'assistant' && isStreaming && !message.content && (
+      {showActivity && (
         <ChatActivityStatus
           tools={tools ?? []}
           startedAt={turnStartedAt}
@@ -185,7 +190,7 @@ export const ChatMessage = ({
         />
       )}
       {message.role === 'assistant' && !message.contentBlocks && tools && tools.length > 0 && (
-        renderTools(tools, collapsed, onToggleSection)
+        renderTools(tools, collapsed, toggleSection)
       )}
       {message.role === 'assistant' ? (
         message.contentBlocks ? (
@@ -246,41 +251,19 @@ export const ChatMessage = ({
         />
       )}
       <PluginChatCardForMessage message={message} />
-      {!isEditing && (showCopyToolbar || canEdit || canRegenerate || (!isStreaming && relativeTime)) && (
-        <div className="chat-message-toolbar">
-          {!isStreaming && relativeTime && (
-            <time
-              className="chat-message-timestamp"
-              dateTime={new Date(message.timestamp).toISOString()}
-              title={absoluteTime}
-            >
-              {relativeTime}
-            </time>
-          )}
-          {canEdit && (
-            <button
-              type="button"
-              className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-              title="Edit & resend"
-              aria-label="Edit and resend"
-              onClick={handleStartEdit}
-            >
-              <PencilIcon size={12} />
-            </button>
-          )}
-          {canRegenerate && (
-            <button
-              type="button"
-              className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-              title="Regenerate response"
-              aria-label="Regenerate response"
-              onClick={handleRegenerate}
-            >
-              <RefreshIcon size={12} />
-            </button>
-          )}
-          {showCopyToolbar && <CopyMessageButton content={message.content} />}
-        </div>
+      {!isEditing && (
+        <ChatMessageToolbar
+          content={message.content}
+          timestamp={message.timestamp}
+          relativeTime={relativeTime}
+          absoluteTime={absoluteTime}
+          isStreaming={isStreaming}
+          showCopy={showCopyToolbar}
+          onEdit={canEdit ? handleStartEdit : undefined}
+          onRegenerate={canRegenerate ? handleRegenerate : undefined}
+          onFork={onFork && message.role === 'assistant' && !loading && !isStreaming
+            ? () => onFork(index) : undefined}
+        />
       )}
     </div>
     {lightboxIndex !== null && lightboxImages[lightboxIndex] && (
@@ -293,3 +276,9 @@ export const ChatMessage = ({
   </div>
   );
 };
+
+/**
+ * Long threads mount every message; memoized rows keep composer keystrokes and
+ * streaming deltas from re-rendering the whole history.
+ */
+export const ChatMessage = memo(ChatMessageView);

@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { DEFAULT_STORE_DIR } from '../core/constants';
-import { loadWorkspaceManifest } from '../core/store';
+import { listWorkspaceIds, loadWorkspaceManifest } from '../core/store';
+import { hasSqliteStorage, storageErrorCode } from '../core/sqlite-store';
 import {
   resolveWorkspaceId,
   WorkspaceResolutionError,
@@ -14,6 +15,7 @@ interface StatusReport {
   storeDir: string;
   activeWorkspaceId: string | null;
   workspaceCount: number;
+  storage: { backend: 'json' | 'sqlite' | 'unavailable'; error?: string; code?: string };
   resolved: {
     workspaceId: string | null;
     source: WorkspaceResolutionSource | null;
@@ -30,7 +32,17 @@ export function registerStatusCommand(program: Command): void {
     .action(async function (this: Command) {
       const { format, storeDir, workspace: explicitId } = getRootOptions(this);
 
-      const manifest = await loadWorkspaceManifest(storeDir);
+      let activeWorkspaceId: string | null = null;
+      let workspaceCount = 0;
+      let storage: StatusReport['storage'];
+      try {
+        // The manifest is filtered through SQL trash state, so it fails with the backend.
+        activeWorkspaceId = (await loadWorkspaceManifest(storeDir)).activeId ?? null;
+        storage = { backend: await hasSqliteStorage(storeDir) ? 'sqlite' : 'json' };
+        workspaceCount = (await listWorkspaceIds(storeDir)).length;
+      } catch (error) {
+        storage = { backend: 'unavailable', error: error instanceof Error ? error.message : String(error), code: storageErrorCode(error) };
+      }
 
       // Best-effort resolution — this command must never exit non-zero just
       // because no workspace is selected; it reports that as data.
@@ -48,8 +60,9 @@ export function registerStatusCommand(program: Command): void {
 
       const report: StatusReport = {
         storeDir: storeDir ?? DEFAULT_STORE_DIR,
-        activeWorkspaceId: manifest.activeId ?? null,
-        workspaceCount: (manifest.workspaces ?? []).length,
+        activeWorkspaceId,
+        workspaceCount,
+        storage,
         resolved,
         runtime: { ...runtime, file: runtimeFilePath() },
       };
@@ -58,6 +71,7 @@ export function registerStatusCommand(program: Command): void {
         const d = data as StatusReport;
         const lines = [
           `Store dir:        ${d.storeDir}`,
+          `Storage:          ${d.storage.backend}${d.storage.error ? ` — ${d.storage.error}` : ''}`,
           `Workspaces:       ${d.workspaceCount}`,
           `Active workspace: ${d.activeWorkspaceId ?? '(none)'}`,
           d.resolved.workspaceId

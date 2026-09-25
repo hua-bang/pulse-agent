@@ -63,6 +63,16 @@ pathRules:
       - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
 escalationRules:
+  storagePublicApiChange:
+    paths:
+      - packages/storage/package.json
+      - packages/storage/src/**
+    required:
+      - pnpm --filter @pulse-coder/storage build
+      - pnpm --filter @pulse-coder/canvas-cli typecheck
+      - pnpm --filter @pulse-coder/canvas-cli test
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
   # Reminder-only (printed, never auto-run). Explicit paths select the
   # relevant reminders; legacy rules without paths use the workspace name.
   # Trigger criteria for each engine class live in

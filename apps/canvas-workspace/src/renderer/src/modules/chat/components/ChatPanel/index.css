@@ -290,3 +290,9 @@
   opacity: 0.35;
   pointer-events: none;
 }
+
+.chat-session-menu-list .chat-page-rail-item,
+.chat-session-menu-list .chat-page-rail-item-editor,
+.chat-session-menu-list .chat-page-rail-item-confirm {
+  padding-left: 8px;
+}

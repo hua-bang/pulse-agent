@@ -56,7 +56,9 @@ export async function createEdge(
     updatedAt: Date.now(),
   };
 
-  await commitEdgeMutation(workspaceId, { upsert: newEdge }, storeDir);
+  await commitEdgeMutation(workspaceId, {
+    upsert: newEdge, expectedRevision: canvas.revision, expectedGeneration: canvas.storageGeneration,
+  }, storeDir);
   await notifyCanvasUpdated({ workspaceId, nodeIds: [], kind: 'update' });
 
   return { ok: true, data: { edgeId } };
@@ -74,7 +76,9 @@ export async function deleteEdge(
   const exists = edges.some(e => e.id === edgeId);
   if (!exists) return { ok: false, error: `Edge not found: ${edgeId}`, code: 'edge_not_found' };
 
-  const result = await commitEdgeMutation(workspaceId, { removeId: edgeId }, storeDir);
+  const result = await commitEdgeMutation(workspaceId, {
+    removeId: edgeId, expectedRevision: canvas.revision, expectedGeneration: canvas.storageGeneration,
+  }, storeDir);
   if (!result) return { ok: false, error: `Edge not found: ${edgeId}`, code: 'edge_not_found' };
   await notifyCanvasUpdated({ workspaceId, nodeIds: [], kind: 'delete' });
 

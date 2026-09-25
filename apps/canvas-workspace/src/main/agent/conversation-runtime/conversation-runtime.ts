@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/agent-chat';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../../shared/agent-roles';
 import {
+  CHAT_RECOVERY_REJECTED,
   type ConversationKey,
   type ConversationSendInput,
   type ConversationSnapshot,
@@ -73,7 +74,7 @@ export interface ConversationRuntimeDeps {
   key: ConversationKey;
   /** Load the conversation's durable messages on first open. */
   loadMessages: () => Promise<AgentChatMessage[]>;
-  /** Persist the conversation's full message list after each settled turn. */
+  /** Persist before executing a user turn and again after it settles. */
   persist: (messages: AgentChatMessage[]) => Promise<void>;
   /** Hold the host mutation lease across a complete turn, including persistence. */
   withTurnLease?: (operation: () => Promise<TurnRunnerResult>) => Promise<TurnRunnerResult>;
@@ -233,7 +234,7 @@ export class ConversationRuntime {
     this.disposed = true;
     this.controller?.abort();
     this.listeners.clear();
-    this.queue.length = 0;
+    for (const queued of this.queue.splice(0)) queued._resolve?.({ response: '', stopped: true });
   }
 
   private async startTurn(
@@ -266,6 +267,20 @@ export class ConversationRuntime {
     input: ConversationSendInput,
     external?: ConversationTurnExternal,
   ): Promise<TurnRunnerResult> {
+    const rejectRecovery = (error: string): TurnRunnerResult => {
+      this.error = error;
+      return { response: '', code: CHAT_RECOVERY_REJECTED, error };
+    };
+    let beforeRecovery: AgentChatMessage[] | null = null;
+    if (input.truncateAt !== undefined) {
+      // Edit/regenerate replace a user turn in place; refuse a stale index
+      // rather than cutting unrelated history.
+      if (!Number.isInteger(input.truncateAt) || this.messages[input.truncateAt]?.role !== 'user') {
+        return rejectRecovery('The message to resend is no longer in this conversation.');
+      }
+      beforeRecovery = [...this.messages];
+      this.messages.length = input.truncateAt;
+    }
     this.messages.push({
       role: 'user',
       content: input.message,
@@ -278,7 +293,15 @@ export class ConversationRuntime {
     // Materialize the user turn before invoking the model. This makes a new
     // conversation durable/listable as soon as the user sends, so switching
     // away during generation cannot hide the session from the rail.
-    const userMessagePersist = this.deps.persist([...this.messages]).catch(() => undefined);
+    try {
+      await this.deps.persist([...this.messages]);
+    } catch (err) {
+      if (!beforeRecovery) throw err;
+      // The replacement was never committed: a later send must not persist the cut.
+      this.messages = beforeRecovery;
+      this.publish();
+      return rejectRecovery(err instanceof Error ? err.message : String(err));
+    }
 
     const assistant: AgentChatMessage = { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() };
     let result: TurnRunnerResult = { response: '' };
@@ -386,7 +409,6 @@ export class ConversationRuntime {
     } else if (assistant.content.length > 0 || assistant.toolCalls?.length || assistant.turnStatus) {
       this.messages.push(assistant);
     }
-    await userMessagePersist;
     try {
       await this.deps.persist([...this.messages]);
     } catch (err) {

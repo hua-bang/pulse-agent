@@ -64,7 +64,12 @@ export interface ConversationSendInput {
   mentionedWorkspaceIds?: string[];
   requestContext?: AgentRequestContext;
   attachments?: ChatImageAttachment[];
+  /** Edit/regenerate: drop history from this user-message index before the turn. */
+  truncateAt?: number;
 }
+
+/** Edit/regenerate was not applied; the conversation keeps its previous history. */
+export const CHAT_RECOVERY_REJECTED = 'CHAT_RECOVERY_REJECTED';
 
 export interface ConversationFinishResult {
   messages?: AgentChatMessage[];

@@ -8,3 +8,4 @@ export * from './context';
 export * from './notifier';
 export * from './runtime-control';
 export * from './runtime-capabilities';
+export * from './native-binding';

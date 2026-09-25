@@ -1021,7 +1021,7 @@ export class CanvasAgent {
     return this.sessionStore.getCurrentSession()?.sessionId ?? null;
   }
 
-  readSessionById(sessionId: string): Promise<CanvasAgentSession | null> { return this.sessionStore.readSession(sessionId); }
+  readSessionById(sessionId: string, refreshIfClean = false): Promise<CanvasAgentSession | null> { return this.sessionStore.readSession(sessionId, refreshIfClean); }
 
   /**
    * Get the message count for the current session.

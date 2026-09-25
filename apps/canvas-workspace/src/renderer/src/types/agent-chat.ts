@@ -202,6 +202,8 @@ export interface AgentApi {
     mentionedWorkspaceIds?: string[],
     requestContext?: AgentRequestContext,
     attachments?: ChatImageAttachment[],
+    /** Edit/regenerate: replace history from this user-message index. */
+    truncateAt?: number,
   ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
   /** Abort a conversation's active turn. */
   conversationAbort: (
@@ -324,6 +326,7 @@ export interface AgentApi {
   branchSession: (
     scopeRef: AgentScopeRef,
     fromIndex: number,
+    sourceSessionId?: string,
   ) => Promise<{
     ok: boolean;
     sourceSessionId?: string;

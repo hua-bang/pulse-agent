@@ -1,0 +1,64 @@
+{
+  "name": "@pulse-coder/storage",
+  "version": "0.0.1",
+  "description": "Host-neutral persistence contracts and SQLite adapter for Pulse",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "import": "./dist/sqlite.js",
+      "require": "./dist/sqlite.cjs"
+    },
+    "./canvas": {
+      "types": "./dist/canvas.d.ts",
+      "import": "./dist/canvas.js",
+      "require": "./dist/canvas.cjs"
+    },
+    "./local": {
+      "types": "./dist/local.d.ts",
+      "import": "./dist/local.js",
+      "require": "./dist/local.cjs"
+    },
+    "./local-files": {
+      "types": "./dist/local-files.d.ts",
+      "import": "./dist/local-files.js",
+      "require": "./dist/local-files.cjs"
+    },
+    "./local-conversations": {
+      "types": "./dist/local-conversations.d.ts",
+      "import": "./dist/local-conversations.js",
+      "require": "./dist/local-conversations.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^25.0.10",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "better-sqlite3": "12.11.1"
+  },
+  "peerDependencies": {
+    "better-sqlite3": "^12.11.1"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  }
+}

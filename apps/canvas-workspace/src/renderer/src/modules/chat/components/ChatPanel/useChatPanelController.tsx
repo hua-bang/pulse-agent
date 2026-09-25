@@ -109,6 +109,7 @@ export const useChatPanelController = ({
     collapsedSections,
     editableRef,
     expandedTools,
+    forkMessage,
     focusInput,
     handleAttachFiles,
     handleInput,
@@ -134,6 +135,9 @@ export const useChatPanelController = ({
     otherSessions,
     pendingClarify,
     removeAttachment,
+    renameSession,
+    deleteSession,
+    toggleSessionPinned,
     retryAttachment,
     retrySession,
     runInputSubmitting,
@@ -206,7 +210,8 @@ export const useChatPanelController = ({
   });
   requestContextRef.current = requestContext;
 
-  const firstUserMessage = useMemo(() => messages.find(message => message.role === 'user')?.content.trim(), [messages]);
+  const firstUserMessage = useMemo(() => sessions.find(session => session.sessionId === activeSessionId)?.title
+    || messages.find(message => message.role === 'user')?.content.trim(), [activeSessionId, messages, sessions]);
 
   const sessionTitle = useMemo(() => {
     if (!firstUserMessage) return t('chat.newAiChat');
@@ -390,6 +395,7 @@ export const useChatPanelController = ({
           disabled={loading || sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
           scopeLabel={scopeLabel}
+          scopeStoreId={scopeId}
           title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onCloseSessionMenu={closeSessionMenu}
@@ -399,6 +405,9 @@ export const useChatPanelController = ({
           onOpenPromptSettings={() => onOpenAppSettings('reply-style')}
           onOpenRolesSettings={() => onOpenAppSettings('chat-roles')}
           onLoadSession={handleLoadSessionFromMenu}
+          onRenameSession={renameSession}
+          onDeleteSession={deleteSession}
+          onToggleSessionPinned={toggleSessionPinned}
           onOpenOriginalSession={onOpenSessionInScope ? handleOpenOriginalSession : undefined}
           onCopyOtherSession={scopeWorkspaceId ? handleCopyOtherSession : undefined}
           onClose={onClose}
@@ -426,7 +435,7 @@ export const useChatPanelController = ({
         onClarifyInputChange: setClarifyInput, onAnswerClarification: answerClarification,
         onToggleSection: toggleSection, onToggleToolExpand: toggleToolExpand,
         onAddImageToCanvas: addImageToCanvas, onNodeFocus, conversationKey: activeSessionId ?? scopeId,
-        onEditUserMessage: handleEditUserMessage, onRegenerate: handleRegenerate,
+        onEditUserMessage: handleEditUserMessage, onRegenerate: handleRegenerate, onFork: forkMessage,
         onSessionJump: handleSessionJump,
     },
     context: {
@@ -445,7 +454,7 @@ export const useChatPanelController = ({
         onSubmit: handleSubmit, onQueue: () => submitCurrentInputDuringRun('follow-up'),
         queuedInputs: runQueue?.queuedInputs, steeringInputId: runQueue?.steeringInputId,
         onSteerQueued: runQueue?.steerQueuedInput, onRemoveQueued: runQueue?.removeQueuedInput,
-        onAbort: abort, modelStatus: canvasModels.status, modelSelection: canvasModels.selection,
+        onAbort: runQueue?.abortAndClearQueue ?? abort, modelStatus: canvasModels.status, modelSelection: canvasModels.selection,
         modelLabel: canvasModels.selectedLabel, onSelectModel: canvasModels.selectModel,
         onOpenModelSettings: openModelSettingsFromSwitcher, contextComposer: true,
     },

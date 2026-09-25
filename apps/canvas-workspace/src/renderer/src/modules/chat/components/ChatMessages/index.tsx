@@ -10,6 +10,7 @@ import { buildAnchorElementId } from '../utils/anchors';
 import { useI18n } from '../../../../i18n';
 import { ChatClarificationCard } from './ChatClarificationCard';
 import { useChatMessagesController } from './useChatMessagesController';
+import { useStableRowHandlers } from './useStableRowHandlers';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -34,6 +35,7 @@ interface ChatMessagesProps {
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  onFork?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
   pendingLabel?: string;
   /**
@@ -96,6 +98,7 @@ export const ChatMessages = ({
   onNodeFocus,
   onEditUserMessage,
   onRegenerate,
+  onFork,
   onSessionJump,
   pendingLabel,
   sessionLoading = false,
@@ -123,6 +126,15 @@ export const ChatMessages = ({
     interactionDisabled,
     onSessionJump,
     onNodeFocus,
+  });
+  const rowHandlers = useStableRowHandlers({
+    onToggleSection,
+    onToggleToolExpand,
+    onAddImageToCanvas,
+    onEditUserMessage,
+    onRegenerate,
+    onFork,
+    onSessionJump,
   });
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
@@ -180,15 +192,16 @@ export const ChatMessages = ({
               nodes={nodes}
               workspaceId={workspaceId}
               rootFolder={rootFolder}
-              onToggleSection={() => onToggleSection(index)}
-              onToggleToolExpand={onToggleToolExpand}
-              onAddImageToCanvas={onAddImageToCanvas}
+              onToggleSection={rowHandlers.onToggleSection}
+              onToggleToolExpand={rowHandlers.onToggleToolExpand}
+              onAddImageToCanvas={rowHandlers.onAddImageToCanvas}
               anchorId={buildAnchorElementId(workspaceId, index)}
-              onEditUserMessage={onEditUserMessage}
-              onRegenerate={onRegenerate}
+              onEditUserMessage={rowHandlers.onEditUserMessage}
+              onRegenerate={rowHandlers.onRegenerate}
+              onFork={rowHandlers.onFork}
               hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
               turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
-              onSessionJump={onSessionJump}
+              onSessionJump={rowHandlers.onSessionJump}
             />
           );
         })}

@@ -45,7 +45,8 @@
 
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
-import { CanvasAgentService } from './service';
+import type { CanvasAgentService } from './service';
+import { getCanvasAgentService, teardownCanvasAgentServices } from './agent-service-lifecycle';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { generateScheduledPrompt } from './scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
@@ -60,15 +61,9 @@ import type { AgentObservabilityMarkInput } from '../../shared/agent-observabili
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';
 import { resolveAgentScope, setupMcpAppIpc } from './mcp-app-ipc';
-let service: CanvasAgentService | null = null;
+export { getCanvasAgentService } from './agent-service-lifecycle';
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();
-export function getCanvasAgentService(): CanvasAgentService {
-  if (!service) {
-    service = new CanvasAgentService();
-  }
-  return service;
-}
 
 function getService(): CanvasAgentService {
   return getCanvasAgentService();
@@ -294,9 +289,9 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:branch-session',
-    async (_event, payload: AgentScopeRef & { fromIndex: number }) => {
+    async (_event, payload: AgentScopeRef & { fromIndex: number; sourceSessionId?: string }) => {
       const scope = resolveAgentScope(payload);
-      return svc.branchSessionForScope(scope, payload.fromIndex);
+      return svc.branchSessionForScope(scope, payload.fromIndex, payload.sourceSessionId);
     },
   );
 
@@ -490,11 +485,8 @@ export function setupCanvasAgentIpc(): void {
   );
 }
 
-export function teardownCanvasAgent(): void {
+export function teardownCanvasAgent(): Promise<void> {
   preparedChats.clear();
   activeChats.clear();
-  if (service) {
-    void service.deactivateAll();
-    service = null;
-  }
+  return teardownCanvasAgentServices();
 }

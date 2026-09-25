@@ -30,7 +30,10 @@ so after editing them, re-run `harness:up` (it rebuilds the stale chain).
 
 `harness:up` is idempotent and skips satisfied steps: apt-installs Xvfb/certutil
 when root on display-less Linux, runs `pnpm install` when dependencies, the
-Electron binary, or node-pty are missing, rebuilds stale workspace packages,
+Electron binary, or node-pty are missing, rebuilds stale workspace packages
+(storage → engine → agent-teams → canvas-cli) plus canvas-cli's Electron SQLite
+binding (`prepare-sqlite-native.mjs`, GitHub prebuild when Electron headers
+are blocked),
 starts `harness/mock-llm.mjs` unless a model key is set, then runs `start`
 with `--headless` (Linux without DISPLAY or as root) and `--ca-cert` (behind
 an HTTPS proxy, reusing NODE_EXTRA_CA_CERTS). It returns once first-paint

@@ -34,6 +34,7 @@ function makeAgentMocks() {
       async () => ({ ok: true, messages: [] }),
     ),
     newSession: vi.fn<[unknown], Promise<{ ok: boolean }>>(async () => ({ ok: true })),
+    branchSession: vi.fn<[unknown, number, string], Promise<ThreadResult>>(async () => ({ ok: true, activeSessionId: 'branch', messages: [] })),
     renameSession: vi.fn(async () => ({ ok: true, activeSessionId: 'session-current' })),
     setSessionPinned: vi.fn(async () => ({ ok: true, activeSessionId: 'session-current' })),
     deleteSession: vi.fn(async () => ({
@@ -127,6 +128,40 @@ afterEach(() => {
 });
 
 describe('useChatSessions — session detail loading', () => {
+
+  it('adopts the acknowledged branch and refreshes the session list', async () => {
+    agent.branchSession.mockResolvedValue({ ok: true, activeSessionId: 'branch', messages: [message('prefix')] });
+    await mount();
+    await act(async () => { expect(await latest!.handleBranchSession(2, 'source')).toBe(true); });
+    expect(agent.branchSession).toHaveBeenCalledWith({ scope: { kind: 'global' } }, 2, 'source');
+    expect(latest!.activeSessionId).toBe('branch');
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('prefix')]);
+    expect(agent.listSessions).toHaveBeenCalled();
+  });
+
+  it('keeps the visible conversation when main rejects a stale branch source', async () => {
+    agent.getHistory.mockResolvedValue({ ok: true, activeSessionId: 'source', messages: [message('original')] });
+    agent.branchSession.mockResolvedValue({ ok: false, activeSessionId: 'other', error: 'Source changed' });
+    await mount();
+    onMessagesLoaded.mockClear();
+    await act(async () => { expect(await latest!.handleBranchSession(2, 'source')).toBe(false); });
+    expect(latest!.activeSessionId).toBe('source');
+    expect(onMessagesLoaded).not.toHaveBeenCalled();
+    expect(latest!.sessionError?.message).toBe('Source changed');
+  });
+
+  it('ignores a branch acknowledgement after another conversation was selected', async () => {
+    const pending = deferred<ThreadResult>();
+    agent.branchSession.mockReturnValue(pending.promise);
+    agent.loadSession.mockResolvedValue({ ok: true, activeSessionId: 'other', messages: [message('other')] });
+    await mount();
+    let branching: Promise<boolean>;
+    await act(async () => { branching = latest!.handleBranchSession(2, 'source'); });
+    await act(async () => { await latest!.handleLoadSession('other'); });
+    await act(async () => { pending.resolve({ ok: true, activeSessionId: 'branch', messages: [message('prefix')] }); await branching!; });
+    expect(latest!.activeSessionId).toBe('other');
+    expect(onMessagesLoaded).toHaveBeenLastCalledWith([message('other')]);
+  });
 
   it('shows a newly running conversation before its first reply completes', async () => {
     const key = conversationKey({ kind: 'global' }, 'session-live');

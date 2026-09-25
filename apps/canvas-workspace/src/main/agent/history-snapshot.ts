@@ -1,6 +1,7 @@
 import { scopeSessionStoreId } from '../../shared/agent-chat';
 import { SessionStore } from './session-store';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from './types';
+import { isWorkspaceTrashed } from './workspace-runtime-guard';
 
 interface HistoryAgent {
   getHistory(): CanvasAgentMessage[];
@@ -21,6 +22,7 @@ export async function readCanvasAgentHistorySnapshot(
   scope: AgentScope,
   activeAgent: HistoryAgent | undefined,
 ): Promise<CanvasAgentHistorySnapshot> {
+  if (await isWorkspaceTrashed(scope)) return { messages: [], activeSessionId: null };
   if (activeAgent) {
     return {
       messages: activeAgent.getHistory(),

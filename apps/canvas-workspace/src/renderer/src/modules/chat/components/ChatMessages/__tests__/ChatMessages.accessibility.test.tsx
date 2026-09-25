@@ -52,6 +52,20 @@ async function renderMessages(
 }
 
 describe('ChatMessages accessibility', () => {
+  it('forks from the selected assistant reply and hides branching while busy', async () => {
+    const onFork = vi.fn(async () => true);
+    const el = await renderMessages([
+      { role: 'user', content: 'question', timestamp: 1 },
+      { role: 'assistant', content: 'reply', timestamp: 2 },
+    ], { onFork });
+    const fork = el.querySelector<HTMLButtonElement>('[aria-label="Fork chat from here"]');
+    expect(fork).not.toBeNull();
+    await act(async () => fork?.click());
+    expect(onFork).toHaveBeenCalledWith(1);
+    await act(async () => root?.render(<I18nProvider><ChatMessages {...baseProps} messages={[{ role: 'assistant', content: 'reply', timestamp: 2 }]} loading onFork={onFork} /></I18nProvider>));
+    expect(el.querySelector('[aria-label="Fork chat from here"]')).toBeNull();
+  });
+
   it('opens an absolute local Markdown link with the system file handler', async () => {
     const openPath = vi.fn().mockResolvedValue({ ok: true });
     Object.defineProperty(window, 'canvasWorkspace', {
@@ -121,7 +135,7 @@ describe('ChatMessages accessibility', () => {
     );
 
     expect(el.querySelector('.chat-activity-status__label')?.textContent)
-      .toBe('Ran command');
+      .toBe('Working');
     expect(el.querySelector('.chat-activity-status__elapsed')?.textContent)
       .toBe('3m 0s');
     expect(el.querySelector('.chat-activity-status__spinner')).not.toBeNull();
@@ -137,6 +151,31 @@ describe('ChatMessages accessibility', () => {
     expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
     expect(el.querySelector('.chat-tool-details-reveal')?.classList.contains('chat-tool-details-reveal--open')).toBe(true);
     expect(el.querySelector('.chat-tool-call')).not.toBeNull();
+  });
+
+  it('uses one details toggle for ordered tools before text arrives', async () => {
+    const el = await renderMessages(
+      [{
+        role: 'assistant',
+        content: '',
+        contentBlocks: [{ type: 'tool', toolId: 1 }],
+        timestamp: Date.now(),
+      }],
+      {
+        loading: true,
+        streamingTools: [{ id: 1, name: 'bash', status: 'succeeded', result: 'done' }],
+      },
+    );
+
+    expect(el.querySelector('.chat-tool-calls--collapsed')).toBeNull();
+    expect(el.querySelector('.chat-tool-calls-section-header')).toBeNull();
+    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
+    const toggle = el.querySelector<HTMLButtonElement>('.chat-activity-status__details');
+    await act(async () => toggle?.click());
+    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('false');
+    expect(el.querySelector('.chat-tool-call-label')?.textContent).toBe('Ran command');
+    await act(async () => toggle?.click());
+    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('shows the overall Working status before the first stream event arrives', async () => {
@@ -179,7 +218,7 @@ describe('ChatMessages accessibility', () => {
     expect(el.querySelector('.chat-activity-status__elapsed')?.textContent).toMatch(/^8s$/);
   });
 
-  it('keeps a settled command description visible in the activity row', async () => {
+  it('returns to Working after a command settles', async () => {
     const el = await renderMessages(
       [{ role: 'assistant', content: '', timestamp: Date.now() }],
       {
@@ -197,7 +236,7 @@ describe('ChatMessages accessibility', () => {
     );
 
     expect(el.querySelector('.chat-activity-status__label')?.textContent)
-      .toBe('Inspect command result summary');
+      .toBe('Working');
   });
 
   it.each([

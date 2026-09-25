@@ -132,6 +132,59 @@ Key invariants and their guards:
   non-empty streamed response; conversation failures must remain `ok:false`
   through runtime → service → IPC instead of rendering an empty success.
 
+## Durable session storage
+
+Bootstrap activates conversations through `sqlite-session-migration.ts` before
+constructing an Agent. `SessionStore` preserves its public API while using
+`@pulse-coder/storage` repositories after activation. The default session root
+shares the Canvas database; `PULSE_CANVAS_SESSION_STORE_DIR` keeps its own root.
+Current-session pointers and their session mutations commit atomically. Message
+append is incremental; edits/compaction replace messages with revision checks.
+Creation is explicit: an append or save cannot recreate a deleted session.
+
+The first upgrade imports current/archive JSON and display metadata, preserving
+unknown message fields and attachments. Current takes precedence over archived
+copies of the same id. Source snapshots and original files remain available;
+restarts reconcile incomplete staging before activating. Once active, old JSON
+is not re-imported. An unreadable file (invalid JSON or session shape, in
+current, archive, or display metadata) is skipped: the rest migrates, the source
+stays in place, the list is written to `__storage-backup__/conversations-skipped-*.json`
+and logged, and startup shows a non-blocking warning. Because SQL is then
+authoritative, a later repair of that file is not picked up automatically.
+Unsupported future schemas, I/O errors, and files that vanish mid-read still stop
+activation visibly. Conflicting archive copies with equal modification times also stop activation;
+the importer cannot infer which history is authoritative without a current copy.
+Cold rail/list/read paths query storage without starting tools or an Agent.
+
+Workspace export uses a consistent Canvas+conversation snapshot and an injected
+archive codec; Canvas never imports the Agent implementation. Import generates
+fresh revisions and rewrites managed attachment paths. Failed-import compensation
+checks conversation revisions as well as Canvas state before removing its import.
+Full workspace import/export checks the injected archive port before reading or
+writing archive state. A separate `PULSE_CANVAS_SESSION_STORE_DIR` database is
+rejected visibly because one workspace transaction cannot include it. Independent
+session reads and writes still work; paths resolving to the same database are
+accepted. Guards: `workspace-session-archive.test.ts`,
+`sqlite-session-migration.test.ts`, `sqlite-session-store.test.ts`, and the shared
+conversation/workspace repository suites.
+
+With `PULSE_CANVAS_PERF`, successful SQL session mutations report logical JSON
+bytes for metadata plus the appended or replaced messages. Unchanged and failed
+writes do not emit the metric; this measures payload size, not physical WAL bytes.
+
+During application quit, runtime disposal aborts active turns and resolves queued
+waiters as stopped. `SessionMutationCoordinator.stopAndDrain` rejects new runs,
+aborts leased runs, and awaits their final queued writes before Agent archival.
+`teardownCanvasAgent` is awaitable. The service lifecycle retains every pending
+window-close drain, including earlier
+service instances from windows reopened on macOS, for the final quit to await.
+Bootstrap allows five seconds for writer drain. If a provider ignores abort or
+a write remains pending, it logs the timeout and
+leaves database handles open until process exit. Only committed data is durable
+in that case. Closing all windows on macOS does not close the storage handles.
+Guards: `agent-service-lifecycle.test.ts`, `session-mutation-coordinator.test.ts`, conversation runtime tests, and
+`src/main/app/storage-lifecycle.test.ts`.
+
 ## Loading-state flags
 
 Three flags look similar and are not interchangeable.
@@ -252,6 +305,17 @@ shifts the transcript.
 Guards: `modules/chat/components/ChatMessages/__tests__/ChatMessages.accessibility.test.tsx`,
 `modules/chat/components/ChatMessage/ChatToolCalls/__tests__/ChatToolCalls.test.tsx`, and
 `modules/chat/components/ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
+
+## Long-thread rendering
+
+Every message in a thread is mounted (no virtualization yet), so an 800-turn
+thread keeps about 12,000 elements in the DOM. `ChatMessage` is memoized, and
+`ChatMessages` passes identity-stable forwarders from `useStableRowHandlers`
+instead of inline or per-render callbacks. A row prop that changes identity on
+every composer keystroke or stream delta re-renders the whole history
+(measured: 72 ms per keystroke at 800 turns, versus 18 ms memoized). Opening such
+a thread still takes several seconds; virtualization is the remaining fix.
+Guard: `ChatMessages/__tests__/useStableRowHandlers.test.tsx`.
 
 ## Stopped-turn outcome lifecycle
 
@@ -667,28 +731,34 @@ PULSE_CANVAS_PERF_INTERVAL_MS=250` keeps a `__pulse_perf_chat_stream__` turn
 streaming ~2.5min, long enough to exercise the switch (see
 `perf-chat-replay.ts` for the env overrides).
 
-Renderer branch recovery must hand the acknowledged branch id to the send
-path synchronously before React adopts the new session. Delayed branch results
-are guarded by monotonic mutation, scope, and conversation epochs so a scope or
-session switch — including leaving and returning — cannot overwrite the newly
-visible thread.
+### Explicit conversation branching and naming
 
-Starting any renderer-side pointer mutation must also retire the active turn
-lease synchronously. A late `prepareChat` or `startChat` result may dispose only
-its own subscriptions; it must not release the scope or reset state owned by a
-newer turn. Superseding a turn rolls its optimistic message suffix back to the
-pre-turn baseline if the pointer mutation fails; authoritative branch messages
-must update the synchronous message ref before their immediate replacement send.
-While a branch mutation owns the pointer, ordinary composer sends are vetoed;
-only that branch's replacement send may bypass the busy gate with its still-current
-mutation generation.
+The reply toolbar branches through the selected assistant message (`index + 1`
+as the exclusive prefix end). It never sends a replacement prompt. The composer
+vetoes duplicate clicks and running/loading conversations. Main serializes the
+mutation, verifies the supplied source session is still current, reloads its
+durable messages, and rejects stale indices before creating the branch. The
+original conversation remains intact.
 
-Guards: `active-chat-registry.test.ts`, `prepared-chat.test.ts`,
-`chat-protocol.test.ts`, and `__tests__/service-session-mutation.test.ts` (all
-under `src/main/agent/`), `useChatScopeActivity.test.tsx`,
-`useChatPagePendingSession.test.tsx`, `useChatComposerState.session-handoff.test.tsx`
-`chatRunReattach.test.ts`, `useChatRunReattach.test.tsx`, and
-`useConversationBranching.test.tsx` under renderer chat hooks.
+`useChatSessions.handleBranchSession` uses the ordinary guarded thread fetch to
+hydrate and select the acknowledged branch, then refreshes the list. A late
+acknowledgement cannot replace a newer selected conversation; a rejected branch
+must not adopt the different current pointer returned with the error.
+
+The Dock session menu and full-page rail share `ChatSessionRailItem`: hover or
+keyboard focus reveals pin/rename/delete, rename stays inline, and delete needs
+inline confirmation. Menu navigation pauses during row editing so Escape cancels
+the edit rather than closing the menu; IME confirmation must not submit a rename.
+Failed saves retain the draft, and saved titles take precedence over first-message
+previews in the header. Shared toolbar buttons must opt into the existing
+hover/focus pointer-event rule; the toolbar container remains non-interactive
+so it does not intercept text selection.
+
+Guards: `__tests__/service-session-mutation.test.ts` under `src/main/agent/`,
+`modules/chat/sessions/useChatSessions.test.tsx`,
+`ChatComposer/__tests__/useChatComposerController.test.tsx`,
+`ChatPanel/__tests__/ChatHeader.rename.test.tsx`, and
+`ChatMessages/__tests__/ChatMessages.accessibility.test.tsx` under renderer chat.
 
 ### Input during a running turn
 
@@ -701,9 +771,27 @@ active turn to settle, then uses the ordinary prepared-turn path.
 Pending text and its context snapshot are kept by scope + conversation across
 chat-surface remounts. Delivery pauses while that conversation has no mounted
 chat host and resumes when it returns; it is not a durable app-restart queue.
-Manual Stop clears pending input. Draft attachments stay untouched because run
-input is text-only. Guard:
-`src/renderer/src/modules/chat/runtime/useChatRunQueue.test.tsx`.
+Enter takes the same run-input path as the Queue button while a turn runs,
+behind the same session-loading veto. Manual Stop clears pending input (both
+surfaces pass `abortAndClearQueue`, never the raw abort); Steer keeps its
+stop-and-continue behavior. Draft attachments stay untouched because run
+input is text-only. Guards:
+`src/renderer/src/modules/chat/runtime/useChatRunQueue.test.tsx` and
+`ChatComposer/__tests__/useChatComposerInput.submit-veto.test.tsx`.
+
+### Edit and regenerate
+
+Edit and regenerate replace a user turn inside the same conversation; they do
+not branch or move the scope pointer. Regenerate maps the clicked assistant
+(or stopped/failed) message to the user turn it answered. The renderer sends
+that turn with `truncateAt`, and `ConversationRuntime` cuts its own history at
+that index under the turn lease, so the pre-turn save replaces the durable
+messages. The turn's attachments and its recorded `contextSnapshot` (selection,
+tabs, plugins, execution mode) are resent, not the current selection. A stale
+index, or a failed pre-turn save, returns `CHAT_RECOVERY_REJECTED`. Main then
+restores its previous history, so a later send cannot persist the cut. The
+renderer restores its optimistic truncation.
+Guards: `useConversationRecovery.test.tsx` and `conversation-runtime.test.ts`.
 
 ### Clarification serialization
 

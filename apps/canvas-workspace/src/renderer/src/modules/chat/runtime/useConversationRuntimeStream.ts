@@ -10,7 +10,7 @@ import type {
   ToolCallStatus,
   WorkspaceOption,
 } from '../../../types';
-import type { ConversationKey } from '../../../../../shared/conversation-runtime';
+import { CHAT_RECOVERY_REJECTED, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import {
   appendConversationTextAt,
   appendConversationToolsAt,
@@ -30,6 +30,7 @@ import { useChatRunQueue } from './useChatRunQueue';
 import { createConversationTextBatcher } from './conversationTextBatcher';
 import { friendlyChatFailure, settleStreamTools } from './chatTurnOutcome';
 import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
+import { useConversationRecovery } from './useConversationRecovery';
 
 export interface UseConversationRuntimeStreamOptions {
   agentScope: AgentScope;
@@ -98,6 +99,7 @@ export function useConversationRuntimeStream({
     text: string,
     requestContext?: AgentRequestContext,
     attachments: ChatImageAttachment[] = [],
+    truncateAt?: number,
   ): Promise<boolean> => {
     const trimmed = text.trim();
     if (!trimmed && attachments.length === 0) return false;
@@ -110,6 +112,10 @@ export function useConversationRuntimeStream({
       timestamp: Date.now(),
       attachments: attachments.length > 0 ? attachments : undefined,
     };
+    // Edit/regenerate cut the thread optimistically; restore it if main refuses.
+    const beforeRecovery = truncateAt === undefined ? null : readConversationSnapshot(key).messages;
+    const restoreRecovery = () => { if (beforeRecovery) setConversationMessages(key, beforeRecovery); };
+    if (beforeRecovery) setConversationMessages(key, beforeRecovery.slice(0, truncateAt));
     pushConversationMessage(key, userMessage);
     clearConversationCompletion(key);
     setConversationLoading(key, true);
@@ -242,13 +248,14 @@ export function useConversationRuntimeStream({
         window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
           if (settled) return;
           settled = true;
-          if (completeResult.code === 'CHAT_SESSION_CHANGED') {
+          if (completeResult.code === CHAT_RECOVERY_REJECTED) restoreRecovery();
+          if (completeResult.code === CHAT_RECOVERY_REJECTED || completeResult.code === 'CHAT_SESSION_CHANGED') {
             const error = completeResult.error ?? 'Conversation changed';
             setConversationError(key, error);
             setConversationLoading(key, false);
             recordConversationCompletion(key, 'failed', completeResult.runId ?? `${key.storeId}:${sessionId}:${userMessage.timestamp}`, trimmed.slice(0, 60));
             cleanupRunListeners();
-            void onSessionChangedRef.current?.(error);
+            if (completeResult.code === 'CHAT_SESSION_CHANGED') void onSessionChangedRef.current?.(error);
             return;
           }
           textBatcher.flush();
@@ -333,8 +340,10 @@ export function useConversationRuntimeStream({
         mentionedWorkspaceIds,
         { ...requestContext, expectedConversationSessionId: key.sessionId },
         attachments,
+        truncateAt,
       );
       if (!started.ok) {
+        restoreRecovery();
         setConversationError(key, started.error ?? 'Chat turn failed to start');
         setConversationLoading(key, false);
         cleanupRunListeners();
@@ -342,6 +351,7 @@ export function useConversationRuntimeStream({
       }
       return true;
     } catch (error) {
+      restoreRecovery();
       cleanupRunListeners();
       setConversationError(key, error instanceof Error ? error.message : String(error));
       setConversationLoading(key, false);
@@ -415,33 +425,7 @@ export function useConversationRuntimeStream({
 
   const conversationError = snapshot.error;
 
-  const editUserMessage = useCallback(async (
-    index: number,
-    newContent: string,
-    requestContext?: AgentRequestContext,
-  ): Promise<boolean> => {
-    const result = await window.canvasWorkspace.agent.branchSession({ scope: agentScope }, index);
-    if (!result.ok || !result.messages) return false;
-    setConversationMessages(key, result.messages as AgentChatMessage[]);
-    if (newContent.trim()) {
-      await sendMessage(newContent.trim(), requestContext);
-    }
-    return true;
-  }, [agentScope, key, sendMessage]);
-
-  const regenerateAssistantMessage = useCallback(async (
-    index: number,
-    requestContext?: AgentRequestContext,
-  ): Promise<boolean> => {
-    const source = snapshot.messages[index];
-    const result = await window.canvasWorkspace.agent.branchSession({ scope: agentScope }, index);
-    if (!result.ok || !result.messages) return false;
-    setConversationMessages(key, result.messages as AgentChatMessage[]);
-    if (source?.role === 'user' && source.content.trim()) {
-      await sendMessage(source.content.trim(), requestContext);
-    }
-    return true;
-  }, [agentScope, key, sendMessage, snapshot.messages]);
+  const { editUserMessage, regenerateAssistantMessage } = useConversationRecovery(key, sendMessage);
 
   const sendQueuedMessage = useCallback(async (
     text: string,

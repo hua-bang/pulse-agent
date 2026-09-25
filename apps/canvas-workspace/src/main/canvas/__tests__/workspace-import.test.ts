@@ -1,16 +1,27 @@
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createWorkspaceExportArchive,
   createWorkspaceExportPayload,
 } from '../workspace-export-archive';
 import { importWorkspaceArchiveToStore } from '../workspace-import';
+import { setCanvasSessionArchivePort } from '../persistence/session-archive-port';
 
 const roots: string[] = [];
 
+beforeEach(() => setCanvasSessionArchivePort({
+  assertWorkspaceStorage: async () => undefined,
+  withWorkspaceTrashGuard: async (_workspaceId, operation) => operation(),
+  exportFiles: () => [],
+  prepareImport: () => { throw new Error('This Canvas fixture has no conversation archive'); },
+  rewriteAttachmentPaths: files => files,
+  attachmentPaths: () => [],
+}));
+
 afterEach(async () => {
+  setCanvasSessionArchivePort(null);
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 

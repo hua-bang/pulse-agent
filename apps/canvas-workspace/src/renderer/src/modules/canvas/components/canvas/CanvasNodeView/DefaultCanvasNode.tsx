@@ -45,6 +45,7 @@ interface DefaultCanvasNodeProps {
   isFullscreen: boolean;
   isResizing: boolean;
   isSelected: boolean;
+  renameToken?: number;
   makeResizeHandler: ResizeHandlerFactory;
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
@@ -90,6 +91,7 @@ export const DefaultCanvasNode = ({
   isFullscreen,
   isResizing,
   isSelected,
+  renameToken,
   makeResizeHandler,
   node,
   onDragStart,
@@ -266,6 +268,7 @@ export const DefaultCanvasNode = ({
           onAddDomSelectionToChat={onAddDomSelectionToChat}
           onSubmitDomReviewComments={onSubmitDomReviewComments}
           isSelected={isSelected}
+          renameToken={renameToken}
           isResizing={isResizing}
           renderFullFileBody={renderFullFileBody}
           readOnly={readOnly}

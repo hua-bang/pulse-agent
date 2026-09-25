@@ -129,7 +129,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // disappeared as product visuals gained one owning component each.
   // ChatAnchors owns its trigger styling via ui/Button, independent of lazy ChatPanel CSS.
   // 272→269: Library navigation and cards use Button.
-  rawButtonTags: 269,
+  rawButtonTags: 268,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -429,7 +429,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1675→1670: Library cards reuse the shared surface palette.
   // 1670→1669: Note headers inherit the shared file icon color.
   // 1669→1668: Chat links use shared link color tokens.
-  hardcodedColorLiterals: 1668,
+  // 1668→1666: RightDock's active tab-dot ring and TeamCommand's briefing
+  // textarea focus ring each repeated the --shadow-focus literal verbatim
+  // as one layer of a multi-value box-shadow; both now read var(--shadow-focus)
+  // (byte-identical resolved value — exact-value tokenization, same class as
+  // the earlier radius/shadow token minting in ui-reuse-burndown.md's C2 batch).
+  hardcodedColorLiterals: 1666,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

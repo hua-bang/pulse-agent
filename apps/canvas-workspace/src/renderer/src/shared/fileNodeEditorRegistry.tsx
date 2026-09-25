@@ -26,6 +26,12 @@ interface EditorRegistryApi {
   /** Stable snapshot of currently-registered ids. Mostly useful for
    *  the find bar to clear stale highlights on close. */
   getAll: () => Map<string, Editor>;
+  /** Register a passive node's focus-free transition to its real editor. */
+  registerActivator: (nodeId: string, activate: () => void) => () => void;
+  /** Request that transition once; false means the node is not mounted. */
+  requestActivation: (nodeId: string) => boolean;
+  /** Editor readiness and passive-node changes; no provider rerender. */
+  subscribe: (listener: (nodeId: string) => void) => () => void;
 }
 
 const FileNodeEditorRegistryContext = createContext<EditorRegistryApi | null>(null);
@@ -39,14 +45,22 @@ export const FileNodeEditorRegistryProvider = ({ children }: { children: React.R
   // happen during render-effect cycles and we don't want them to
   // trigger re-renders. The find bar reads on-demand via `get()`.
   const mapRef = useRef<Map<string, Editor>>(new Map());
+  const activatorsRef = useRef(new Map<string, { activate: () => void; requested: boolean }>());
+  const listenersRef = useRef(new Set<(nodeId: string) => void>());
+
+  const notify = useCallback((nodeId: string) => {
+    for (const listener of listenersRef.current) listener(nodeId);
+  }, []);
 
   const register = useCallback((nodeId: string, editor: Editor) => {
+    if (mapRef.current.get(nodeId) === editor) return;
     mapRef.current.set(nodeId, editor);
-  }, []);
+    notify(nodeId);
+  }, [notify]);
 
   const unregister = useCallback((nodeId: string) => {
-    mapRef.current.delete(nodeId);
-  }, []);
+    if (mapRef.current.delete(nodeId)) notify(nodeId);
+  }, [notify]);
 
   const get = useCallback((nodeId: string) => {
     return mapRef.current.get(nodeId) ?? null;
@@ -54,9 +68,36 @@ export const FileNodeEditorRegistryProvider = ({ children }: { children: React.R
 
   const getAll = useCallback(() => mapRef.current, []);
 
+  const registerActivator = useCallback((nodeId: string, activate: () => void) => {
+    const registration = { activate, requested: false };
+    activatorsRef.current.set(nodeId, registration);
+    notify(nodeId);
+    return () => {
+      if (activatorsRef.current.get(nodeId) !== registration) return;
+      activatorsRef.current.delete(nodeId);
+      notify(nodeId);
+    };
+  }, [notify]);
+
+  const requestActivation = useCallback((nodeId: string) => {
+    if (mapRef.current.has(nodeId)) return true;
+    const registration = activatorsRef.current.get(nodeId);
+    if (!registration) return false;
+    if (!registration.requested) {
+      registration.requested = true;
+      registration.activate();
+    }
+    return true;
+  }, []);
+
+  const subscribe = useCallback((listener: (nodeId: string) => void) => {
+    listenersRef.current.add(listener);
+    return () => { listenersRef.current.delete(listener); };
+  }, []);
+
   const api = useMemo<EditorRegistryApi>(
-    () => ({ register, unregister, get, getAll }),
-    [register, unregister, get, getAll],
+    () => ({ register, unregister, get, getAll, registerActivator, requestActivation, subscribe }),
+    [register, unregister, get, getAll, registerActivator, requestActivation, subscribe],
   );
 
   return (

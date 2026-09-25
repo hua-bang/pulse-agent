@@ -96,7 +96,8 @@ referenced by the launcher. Concretely (`prepareCliPayload` in
 `src/main/files/agent-tooling-deployment.ts`): each deployed bundle lives
 under `<toolingRoot>/.cache/<fingerprint>/` and
 `<toolingRoot>/.runtime/<fingerprint>/`, where `<fingerprint>` is a sha256
-over the CLI entrypoint plus every bundled skill's `SKILL.md`
+over the CLI entrypoint, every bundled skill's `SKILL.md`, and the paths and
+contents of all `native/` payload files
 (`fingerprintCliTree` in `agent-tooling-files.ts`). A new deployment writes a
 new fingerprint directory instead of mutating an existing one, so the active
 launcher keeps pointing at the fingerprint directory it was built against
@@ -131,7 +132,7 @@ automatic install/update.
 
 Electron Builder packages the built `dist` entrypoints of workspace runtime
 dependencies. Every `package:*` command must therefore run
-`prepare:package`, which rebuilds `pulse-coder-engine`,
+`prepare:package`, which rebuilds `@pulse-coder/storage`, `pulse-coder-engine`,
 `pulse-coder-agent-teams`, and the bundled Canvas CLI before Electron is
 built. Skipping that preparation can ship an ignored, stale Engine `dist`
 whose external imports no longer match current package metadata.
@@ -141,6 +142,56 @@ The packaged-tooling smoke imports the Engine entry directly from
 runs that import preflight after building the macOS package, so a missing
 runtime dependency fails with its exact module-resolution error instead of
 surfacing later as a startup timeout.
+
+## SQLite native runtime preparation
+
+The CLI bundles the storage adapter and SQLite JavaScript, and carries native
+bindings in `dist/native/<platform>-<arch>-<modules>.node`. The filename uses
+the runtime's Node module ABI, not its major Node version. CLI `build` copies
+and loads the installed Node binding; `prepare:agent-tooling` then runs
+`scripts/setup/prepare-sqlite-native.mjs` to prepare Electron's separate ABI.
+The Electron script copies the driver into a temporary directory before
+rebuilding, smoke-loads the result in Electron, verifies the installed Node
+binary did not change, and caches the result beneath the app's local
+`node_modules/.cache/pulse-sqlite/`. It does not rebuild pnpm's shared driver.
+
+The same preparation also replaces a dedicated `package-native/` staging
+directory with only the current Electron ABI. Electron Builder copies that
+single binding into `agent-tooling/canvas-cli/native/`; it does not package
+the CLI's entire multi-ABI development tree. Development and standalone CLI
+builds retain their Node binding and prepared Electron binding in `dist/native/`.
+The app retains the SQLite JavaScript driver but excludes its `deps/`, `src/`,
+and `build/` compilation trees, including the unused default Node binary.
+Canvas and its managed CLI both use the explicit resource binding above;
+a host that relies on the driver's default native lookup needs its own payload.
+
+`resolveSqliteNativeBinding` in the CLI chooses only the matching ABI from
+the bundled `native/` directory. An ordinary Node installation can fall back
+to its installed `better-sqlite3` dependency. Electron cannot take that
+fallback: a missing matching payload requires repair or another build.
+Canvas main must explicitly pass the corresponding file beneath
+`process.resourcesPath/agent-tooling/canvas-cli/native/` to the storage
+factory in packaged builds; development uses the CLI's `dist/native/`.
+
+Electron Builder has `npmRebuild: false`. The app's install and explicit
+rebuild scripts run `scripts/setup/rebuild-native.mjs`, which uses
+`electron-rebuild -f -o node-pty`; `-w` adds modules to the normal rebuild set
+and would also overwrite SQLite's Node binary with the Electron ABI. When
+Electron headers are unreachable it falls back to node-gyp inside node-pty only
+(N-API, so the host-Node build loads in Electron). These build paths prepare the local runtime and
+architecture; cross-platform native compilation is not established by this
+workflow. The Electron Builder `beforePack` hook
+(`scripts/setup/assert-packaged-native.mjs`) therefore refuses any target,
+including `universal`, whose platform/arch differs from the single staged
+binding, instead of emitting a package that quits at storage activation.
+Native payloads are included in `extraResources` and the bundle
+fingerprint, so missing or corrupt binaries trigger the existing repair path.
+
+Electron Builder follows workspace links more broadly than package `files`.
+The app therefore excludes the internal packages' source/tests, harness/docs,
+build configuration, and TypeScript-only `.d.cts`/`.d.mts` declarations from
+the installed artifact. Runtime `dist` entries and package export maps remain
+available; packaged import and live CLI smoke checks validate that boundary.
 
 ## Key files
 
@@ -178,8 +229,11 @@ skill-installer, shell-path, and the Settings UI files above) to:
 
 - quick/required: `pnpm --filter canvas-workspace exec vitest run
   src/main/files/agent-tooling-manager.test.ts
+  src/main/files/agent-tooling-files.test.ts
   src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts
-  src/main/__tests__/agent-tooling-package.test.ts`
+  src/main/__tests__/agent-tooling-package.test.ts
+  scripts/setup/prepare-sqlite-native.test.mjs
+  scripts/setup/assert-packaged-native.test.mjs`
 - manual (release-level, actually packages the app): `pnpm --filter
   canvas-workspace package:mac:arm64 && node
   apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs`

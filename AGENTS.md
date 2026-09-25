@@ -23,6 +23,7 @@ Read `harness/README.md`, the affected workspace AGENTS, and local validation. F
 | Terminal CLI / host behavior | `packages/cli/AGENTS.md` |
 | Canvas app, renderer, shortcuts, embedded browser | `apps/canvas-workspace/AGENTS.md` |
 | Canvas CLI / storage concurrency | `packages/canvas-cli/AGENTS.md` |
+| Shared storage contracts, SQLite adapter, storage migration phases | `packages/storage/AGENTS.md`; roadmap `harness/spec/unified-storage/README.md` |
 | Remote adapters, dispatcher, internal routes | `apps/remote-server/AGENTS.md` |
 | Team coordination / ACP / plugin infrastructure | `packages/agent-teams/AGENTS.md`, `packages/acp/AGENTS.md`, or `packages/plugin-kit/AGENTS.md`, according to the changed package |
 | Canvas capability shared by Tool + CLI | `harness/skills/add-canvas-capability/SKILL.md` |

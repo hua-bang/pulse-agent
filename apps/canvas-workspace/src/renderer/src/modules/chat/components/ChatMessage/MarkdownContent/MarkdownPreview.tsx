@@ -6,13 +6,14 @@ import { MarkdownContent } from '.';
 
 interface Props {
   content: string;
+  softBreaks?: boolean;
 }
 
 /** Read-only Markdown preview, including the renderer's code-copy interaction. */
-export const MarkdownPreview = ({ content }: Props) => {
+export const MarkdownPreview = ({ content, softBreaks }: Props) => {
   const { t } = useI18n();
   const bodyRef = useRef<HTMLDivElement>(null);
-  const html = useMemo(() => renderMarkdown(content), [content]);
+  const html = useMemo(() => renderMarkdown(content, { softBreaks }), [content, softBreaks]);
   const copyCode: MouseEventHandler<HTMLDivElement> = (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-action="copy-code"]');
     if (!button) return;

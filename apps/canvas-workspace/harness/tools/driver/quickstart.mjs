@@ -6,8 +6,8 @@
  * only relaunches the app:
  *   1. system packages for headless Linux (Xvfb, certutil) via apt when root
  *   2. `pnpm install` when node_modules, the Electron binary or node-pty is missing
- *   3. rebuild engine → agent-teams → canvas-cli (→ app with --built) from
- *      the first stale one
+ *   3. rebuild storage → engine → agent-teams → canvas-cli → Electron SQLite
+ *      binding (→ app with --built) from the first stale one
  *   4. start harness/mock-llm.mjs unless a real model key is configured
  *   5. `harness start` with --headless / --ca-cert chosen for this host
  *
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildTargets,
   hasCommand,
-  isBuildStale,
+  defaultStale,
   missingSystemPackages,
   planBuilds,
   resolveQuickstartCa,
@@ -125,16 +125,17 @@ function ensureBuilds({ skip, dev }) {
   // dist/preload, so the next built launch must rebuild the app.
   const builds = dev
     ? planBuilds(targets.slice(0, -1))
-    : planBuilds(targets, (target) => (target === app && existsSync(DEV_DIST_MARKER)) || isBuildStale(target));
+    : planBuilds(targets, (target) => (target === app && existsSync(DEV_DIST_MARKER)) || defaultStale(target));
   if (!builds.length) return;
   if (skip) {
-    log(`--skip-build: ${builds.map((target) => target.filter).join(', ')} may be stale`);
+    log(`--skip-build: ${builds.map((target) => target.name).join(', ')} may be stale`);
     return;
   }
   for (const target of builds) {
-    log(`building ${target.filter}`);
-    if (!run('pnpm', ['--filter', target.filter, 'build'], { stdio: ['ignore', 'ignore', 'inherit'] })) {
-      fail(`build failed: pnpm --filter ${target.filter} build`);
+    log(`building ${target.name}`);
+    const [command, args, cwd] = target.command;
+    if (!run(command, args, { cwd, stdio: ['ignore', 'ignore', 'inherit'] })) {
+      fail(`build failed: ${command} ${args.join(' ')}`);
     }
     if (target === app) rmSync(DEV_DIST_MARKER, { force: true });
   }

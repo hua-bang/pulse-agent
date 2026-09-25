@@ -9,43 +9,6 @@ test and delete its entry.
 
 ## LIVE (user-visible behavior is degraded today)
 
-### Chat recovery still branches and sends against the source conversation
-
-`src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.ts` calls
-`branchSession` in both recovery handlers, then writes the returned prefix into
-the old conversation key without adopting the branch id. Edit/resend appends
-to the source runtime's untruncated history and drops the edited message's
-attachments. Regenerate receives an assistant index but only sends when that
-message is a user; stopped/failed retry uses the same handler. Confirmed in the
-real Electron app: regenerate changes the durable id without another model
-request; editing leaves an empty current conversation and appends the new turn
-to the old archive. Edit/resend and regenerate must keep the conversation id,
-truncate at the corresponding user turn, and preserve its attachments/context.
-Do not substitute the legacy scope-only rewind: it does not update the keyed
-runtime's cached history. Guard the public recovery paths and durable reload.
-
-### Manual Stop drains queued input instead of cancelling it
-
-Both `ChatPanel/useChatPanelController.tsx` and
-`ChatPageBody/useChatPageBodyController.tsx` under renderer chat components pass
-the raw `abort` to the composer. The existing
-`src/renderer/src/modules/chat/runtime/useChatRunQueue.ts` provides
-`abortAndClearQueue`, but neither surface uses it. When the stopped event makes
-the runtime idle, the queue immediately dispatches its next entry. Reproduced
-with a slow response, a queued follow-up, and the Stop button: the second model
-request starts immediately after the stopped event. Preserve Steer's separate
-stop-and-continue behavior while testing manual Stop through both controllers.
-
-### Enter cannot queue a message during generation
-
-`src/renderer/src/modules/chat/components/ChatComposer/useChatComposerInput.ts`
-always routes Enter to `submitCurrentInput`. The keyed stream rejects that send
-while running, so the draft remains with no feedback. `ChatInput/index.tsx`
-instead routes the visible Queue message button to `onQueue`. Both behaviors
-were exercised in Electron on the same draft. The keyboard path needs the same
-run-input decision as the button while preserving IME, mention selection,
-attachment bounds, and the session-loading veto.
-
 ### Keyed failed-turn persistence loses recovery metadata and executed tools
 
 `src/main/agent/conversation-runtime/conversation-runner.ts` disables the rich
@@ -119,26 +82,17 @@ so a move to per-conversation drafts is a product decision rather than a claimed
 regression. Broad Canvas acceptance was green during this audit; it does not
 prove these missing interaction paths.
 
-### File-watcher sync is disabled — external edits to file nodes don't propagate
-`src/renderer/src/modules/canvas/document/useCanvasDocument.ts:241-269`. The `fs.watch`-based watcher
-that pushed external file changes into open file nodes is commented out,
-because its `onChanged` callback could call `applyNodes` with a stale
-`nodesRef.current`, reverting the user's in-flight edits (a classic
-read-modify-write race between watcher events and local editing). The
-disable is deliberate and documented in the comment, and it is closed at BOTH
-ends: `FILE_WATCHER_ENABLED = false` in `src/main/files/watcher.ts:14` gates
-the main-process watcher itself (`:37` early-returns), and the renderer-side
-application block in `useCanvasDocument.ts` is commented out. The underlying race is
-unfixed, so today an external edit to a file backing an open node is silently
-invisible until reload. Re-enable = flip the flag AND un-comment the hook
-block. Fix shape: apply watcher events through the same merge path used for
-cross-process updates (compare `updatedAt`, never clobber newer local state)
-rather than raw `applyNodes`.
+### External file edits: preserve the replacement synchronization path
 
----
+The old blanket `FILE_WATCHER_ENABLED` path remains disabled: applying its events
+directly to a captured canvas array could revert a newer local edit. Do not
+re-enable it by uncommenting the old hook.
 
-**Verification.** Confirmed against source on the working branch
-(2026-07-07): disabled block + race explanation at `useCanvasDocument.ts:241-269`;
-main-process gate at `src/main/files/watcher.ts:14,37`.
-Provenance: surfaced by the post-consolidation harness audit; previously the
-defect lived only in that code comment, invisible to harness navigation.
+SQLite workspaces now use `canvas/sync/markdown-index.ts` to observe parent
+directories (including atomic-renamed files), update clean indexes, and retain
+dirty drafts. `FileNodeBody/useFilePersistence.ts` also refreshes on focus and
+file-change notifications, checks the read version when saving, and retains the
+draft on conflict. These paths are covered by the colocated index, persistence,
+and editor tests. External editors still do not participate in a shared filesystem
+transaction; file version checks are optimistic. See `main-domain-modules.md`
+and `node-detail.md` for the maintained storage and editor contracts.

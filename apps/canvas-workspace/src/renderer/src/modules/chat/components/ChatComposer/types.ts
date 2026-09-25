@@ -36,4 +36,6 @@ export interface UseChatComposerInputOptions {
   ) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
   isSubmitBlocked?: () => boolean;
+  /** While a turn runs, Enter queues the draft like the Queue message button. */
+  isRunning?: () => boolean;
 }

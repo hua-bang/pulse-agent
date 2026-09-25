@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildTargets,
+  hasElectronSqliteBinding,
   isBuildStale,
   missingSystemPackages,
   newestMtime,
@@ -50,6 +52,29 @@ describe('build staleness', () => {
     const targets = ['engine', 'teams', 'cli', 'app'];
     expect(planBuilds(targets, (t) => t === 'teams')).toEqual(['teams', 'cli', 'app']);
     expect(planBuilds(targets, () => false)).toEqual([]);
+  });
+});
+
+describe('hasElectronSqliteBinding', () => {
+  const opts = (names) => ({ platform: 'linux', arch: 'x64', hostAbi: '127', list: () => names });
+
+  it('needs a binding for this platform/arch whose ABI is not the host Node one', () => {
+    expect(hasElectronSqliteBinding('/n', opts(['linux-x64-127.node', 'linux-x64-123.node']))).toBe(true);
+    expect(hasElectronSqliteBinding('/n', opts(['linux-x64-127.node']))).toBe(false);
+    expect(hasElectronSqliteBinding('/n', opts(['darwin-arm64-123.node']))).toBe(false);
+    expect(hasElectronSqliteBinding('/n', opts([]))).toBe(false);
+  });
+
+  it('orders the binding step after canvas-cli, whose clean build wipes dist/native', () => {
+    const names = buildTargets('/repo').map((target) => target.name);
+    expect(names).toEqual([
+      '@pulse-coder/storage',
+      'pulse-coder-engine',
+      'pulse-coder-agent-teams',
+      '@pulse-coder/canvas-cli',
+      'electron-sqlite-binding',
+      'canvas-workspace',
+    ]);
   });
 });
 

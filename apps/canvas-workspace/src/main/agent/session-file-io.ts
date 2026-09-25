@@ -3,6 +3,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from './types';
 import { archiveSortKey } from './session-store-scan';
+import { withLegacySessionWrite } from './sqlite-session-backend';
 
 /**
  * Session-addressed file I/O for session-anchored runs: read and append to a
@@ -14,6 +15,7 @@ import { archiveSortKey } from './session-store-scan';
 
 /** Structural surface of SessionStore that these helpers need. */
 export interface SessionFileIo {
+  root: string;
   currentPath: string;
   archiveDir: string;
   session: CanvasAgentSession | null;
@@ -114,7 +116,7 @@ export async function appendSessionMessages(
     ...found.session,
     messages: [...found.session.messages, ...messages],
   };
-  await writeFileAtomic(found.path, JSON.stringify(updated, null, 2));
+  await writeFileAtomic(found.path, JSON.stringify(updated, null, 2), store.root);
   await store.onSessionFileWritten(found.path, updated);
 }
 
@@ -150,7 +152,7 @@ export async function replaceSessionMessages(
     ...found.session,
     messages: [...messages],
   };
-  await writeFileAtomic(found.path, JSON.stringify(updated, null, 2));
+  await writeFileAtomic(found.path, JSON.stringify(updated, null, 2), store.root);
   await store.onSessionFileWritten(found.path, updated);
 }
 
@@ -184,7 +186,9 @@ export async function readCurrentSessionFileAt(
 export async function writeFileAtomic(
   targetPath: string,
   serialized: string,
+  root?: string,
 ): Promise<void> {
+  if (root) return withLegacySessionWrite(root, () => writeFileAtomic(targetPath, serialized));
   // Unique per-write temp name (pid + random) so two writers for the same
   // file never collide on one temp file.
   const tmp = `${targetPath}.${process.pid}.${randomUUID()}.tmp`;

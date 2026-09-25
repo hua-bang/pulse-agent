@@ -56,7 +56,7 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       attachments
     }),
 
-  conversationChat: (scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments) =>
+  conversationChat: (scope, sessionId, message, mentionedWorkspaceIds, requestContext, attachments, truncateAt) =>
     ipcRenderer.invoke("canvas-agent:conversation-chat", {
       scope,
       sessionId,
@@ -64,6 +64,7 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       mentionedWorkspaceIds,
       requestContext,
       attachments,
+      truncateAt,
     }),
 
   conversationAbort: (scope, sessionId) =>
@@ -143,8 +144,8 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   newSession: (scopeRef) =>
     ipcRenderer.invoke("canvas-agent:new-session", scopeRef),
 
-  branchSession: (scopeRef, fromIndex) =>
-    ipcRenderer.invoke("canvas-agent:branch-session", { ...scopeRef, fromIndex }),
+  branchSession: (scopeRef, fromIndex, sourceSessionId) =>
+    ipcRenderer.invoke("canvas-agent:branch-session", { ...scopeRef, fromIndex, sourceSessionId }),
 
   rewindMessages: (scopeRef, fromIndex) =>
     ipcRenderer.invoke("canvas-agent:rewind-messages", { ...scopeRef, fromIndex }),

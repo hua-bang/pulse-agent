@@ -26,6 +26,7 @@ async function mount(options: {
   onSubmit: (text: string) => Promise<boolean>;
   isSubmitBlocked: () => boolean;
   onSubmitDuringRun?: (mode: 'steer' | 'follow-up', text: string) => Promise<boolean>;
+  isRunning?: () => boolean;
 }): Promise<void> {
   const Probe = () => {
     latest = useChatComposerInput({
@@ -33,6 +34,7 @@ async function mount(options: {
       onSubmit: options.onSubmit,
       onSubmitDuringRun: options.onSubmitDuringRun,
       isSubmitBlocked: options.isSubmitBlocked,
+      isRunning: options.isRunning,
     });
     return null;
   };
@@ -109,5 +111,21 @@ describe('composer submit veto', () => {
     expect(await second).toBe(false);
     await act(async () => { resolveDelivery(true); await first; });
     expect(latest?.runInputSubmitting).toBe(false);
+  });
+
+  it('queues the draft on Enter while a turn runs, honoring the veto', async () => {
+    const onSubmit = vi.fn(async () => true);
+    const onSubmitDuringRun = vi.fn(async () => true);
+    let blocked = true;
+    await mount({ onSubmit, isSubmitBlocked: () => blocked, onSubmitDuringRun, isRunning: () => true });
+    act(() => latest?.replaceInput('next step'));
+
+    await act(async () => { latest!.handleKeyDown(enterKeyEvent()); });
+    expect(onSubmitDuringRun).not.toHaveBeenCalled();
+
+    blocked = false;
+    await act(async () => { latest!.handleKeyDown(enterKeyEvent()); });
+    expect(onSubmitDuringRun).toHaveBeenCalledWith('follow-up', 'next step', undefined);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

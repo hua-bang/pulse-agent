@@ -3,72 +3,14 @@ import type {
   CanvasAgentMessage,
   CanvasAgentSession,
 } from './types';
+import { scopeServiceKey as scopeMutationKey } from './active-session-groups';
+import { registerWorkspaceSessionDrain, withWorkspaceRun } from './workspace-runtime-guard';
 
-interface SessionMutationAgent {
-  getCurrentSessionId(): string | null;
-  newSession(): Promise<void>;
-  branchSession(
-    fromIndex: number,
-  ): Promise<{ sourceSessionId: string; session: CanvasAgentSession } | null>;
-  renameSession(sessionId: string, title: string): Promise<boolean>;
-  setSessionPinned(sessionId: string, pinned: boolean): Promise<boolean>;
-  deleteSession(sessionId: string): Promise<{
-    deletedCurrent: boolean;
-    activeSession: CanvasAgentSession;
-  } | null>;
-  rewindTo(fromIndex: number): void;
-  loadSession(sessionId: string): Promise<CanvasAgentSession | null>;
-  loadCrossWorkspaceSession(messages: CanvasAgentMessage[]): Promise<void>;
-  appendToSession(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
-  readSessionById(sessionId: string): Promise<CanvasAgentSession | null>;
-  replaceSessionMessagesById(sessionId: string, messages: CanvasAgentMessage[]): Promise<void>;
-}
-export type SessionMutationFailure = {
-  ok: false;
-  activeSessionId: string | null;
-  code: 'CHAT_SCOPE_BUSY' | 'SESSION_MUTATION_FAILED' | 'SESSION_NOT_FOUND';
-  error: string;
-};
-
-export type SessionActionResult =
-  | { ok: true; activeSessionId: string }
-  | SessionMutationFailure;
-
-export type NewSessionResult = SessionActionResult;
-
-export type LoadSessionResult =
-  | { ok: true; activeSessionId: string; messages: CanvasAgentMessage[] }
-  | SessionMutationFailure;
-
-export type BranchSessionResult =
-  | {
-      ok: true;
-      sourceSessionId: string;
-      activeSessionId: string;
-      messages: CanvasAgentMessage[];
-    }
-  | SessionMutationFailure;
-
-export type DeleteSessionResult =
-  | {
-      ok: true;
-      deletedCurrent: boolean;
-      activeSessionId: string;
-      messages: CanvasAgentMessage[];
-    }
-  | SessionMutationFailure;
-
-interface StoredSessionLoad {
-  session: CanvasAgentSession | null;
-  activeSessionId: string | null;
-}
-
-const scopeMutationKey = (scope: AgentScope): string => {
-  if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;
-  if (scope.kind === 'scheduled') return `scheduled:${scope.taskId}`;
-  return 'global';
-};
-
+import type {
+  BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSessionResult,
+  PendingSessionRun, SessionActionResult, SessionMutationAgent, SessionMutationFailure, StoredSessionLoad,
+} from './session-mutation-types';
+export type { BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSessionResult, SessionActionResult, SessionMutationFailure } from './session-mutation-types';
 
 /**
  * Serializes session replacement per scope. Queue order is intent order, so
@@ -86,6 +28,9 @@ const scopeMutationKey = (scope: AgentScope): string => {
 export class SessionMutationCoordinator {
   private tails = new Map<string, Promise<void>>();
   private activeRuns = new Set<string>();
+  private pendingRuns = new Map<string, PendingSessionRun>();
+  private stopping = false;
+  private detachWorkspaceDrain = registerWorkspaceSessionDrain(scope => this.waitForIdle(scope));
 
   constructor(
     private readonly activateScope: (scope: AgentScope) => Promise<void>,
@@ -212,11 +157,11 @@ export class SessionMutationCoordinator {
 
   reconcileActiveAgent(
     scope: AgentScope,
-    reconcile: (agent: SessionMutationAgent) => Promise<void>,
+    reconcile: (agent: SessionMutationAgent, canRefreshCurrent: boolean) => Promise<void>,
   ): Promise<void> {
     return this.run(scope, async () => {
       const agent = this.getAgent(scope);
-      if (agent) await reconcile(agent);
+      if (agent) await reconcile(agent, !this.isSessionActive(scope, agent.getCurrentSessionId()));
     });
   }
 
@@ -242,12 +187,21 @@ export class SessionMutationCoordinator {
     });
   }
 
-  branchSession(scope: AgentScope, fromIndex: number): Promise<BranchSessionResult> {
+  branchSession(scope: AgentScope, fromIndex: number, sourceSessionId?: string): Promise<BranchSessionResult> {
     return this.run(scope, async () => {
       try {
         const agent = await this.activeAgent(scope);
         if (this.isSessionActive(scope, agent.getCurrentSessionId())) {
           return this.scopeBusyFailure(scope);
+        }
+        if (sourceSessionId) {
+          if (agent.getCurrentSessionId() !== sourceSessionId) {
+            return this.failure(scope, 'The source conversation changed. Reopen it before branching.');
+          }
+          const source = await agent.loadSession(sourceSessionId);
+          if (!source || !Number.isInteger(fromIndex) || fromIndex < 1 || fromIndex > source.messages.length) {
+            return this.failure(scope, 'The message to branch from is no longer available.');
+          }
         }
         const branch = await agent.branchSession(fromIndex);
         if (!branch) {
@@ -408,21 +362,44 @@ export class SessionMutationCoordinator {
     });
   }
 
+  /** Explicit pointer-neutral creation; ordinary persistence may not recreate deleted sessions. */
+  createStoredConversation(scope: AgentScope, create: () => Promise<void>): Promise<void> {
+    return this.run(scope, create);
+  }
+
   async runChat<T>(
     scope: AgentScope,
     operation: () => Promise<T>,
     conversationSessionId?: string | null,
   ): Promise<T | null> {
-    const key = this.runKey(scope, conversationSessionId);
-    if (this.activeRuns.has(key)) return null;
-    await this.waitForIdle(scope);
-    if (this.activeRuns.has(key)) return null;
-    this.activeRuns.add(key);
-    try {
-      return await operation();
-    } finally {
-      this.activeRuns.delete(key);
+    return withWorkspaceRun(scope, async () => {
+      const key = this.runKey(scope, conversationSessionId);
+      if (this.stopping || this.activeRuns.has(key)) return null;
+      await this.waitForIdle(scope);
+      if (this.stopping || this.activeRuns.has(key)) return null;
+      this.activeRuns.add(key);
+      const promise = Promise.resolve().then(operation);
+      this.pendingRuns.set(key, { scope, sessionId: conversationSessionId, promise });
+      try {
+        return await promise;
+      } finally {
+        this.activeRuns.delete(key);
+        this.pendingRuns.delete(key);
+      }
+    });
+  }
+
+  /** The app bounds this drain; a timed-out provider must not outlive a closed database. */
+  async stopAndDrain(): Promise<void> {
+    this.stopping = true;
+    for (const run of this.pendingRuns.values()) this.getAgent(run.scope)?.abort?.(run.sessionId ?? undefined);
+    while (this.pendingRuns.size || this.tails.size) {
+      await Promise.allSettled([
+        ...Array.from(this.pendingRuns.values(), run => run.promise),
+        ...this.tails.values(),
+      ]);
     }
+    this.detachWorkspaceDrain();
   }
 
   /**

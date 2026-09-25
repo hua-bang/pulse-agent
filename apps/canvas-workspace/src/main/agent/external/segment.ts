@@ -12,7 +12,8 @@ import type { ExternalStreamHandlers } from './tool-events';
 import { resolveExternalCwd } from './cwd';
 import { renderExternalSegmentPrompt } from './prompt';
 import { runExternalSegment } from './runner';
-import { clearExternalSessionId, getExternalSessionId, saveExternalSessionId } from './state-store';
+// Loaded on first external-role run; keeps the session-id store out of the main bundle.
+const sessionIds = () => import('./state-store');
 import { requestAskModeApproval } from '../tool-policy';
 
 const RESUME_FAILURE_RE = /session|conversation|resume/i;
@@ -74,7 +75,8 @@ export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
     workspaceRootFolder: opts.workspaceRootFolder,
   });
   const roleWithDriver = { id: role.id, external: { family: external.family, cwd } };
-  const sessionId = await getExternalSessionId(chatSessionId, roleWithDriver);
+  const store = await sessionIds();
+  const sessionId = await store.getExternalSessionId(chatSessionId, roleWithDriver);
 
   // Tool activity is mirrored into a persistable list as it streams, so a
   // reloaded session keeps the chips the live run showed.
@@ -129,12 +131,12 @@ export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (!sessionId || opts.abortSignal.aborted || !RESUME_FAILURE_RE.test(message)) throw err;
-    await clearExternalSessionId(chatSessionId, role.id);
+    await store.clearExternalSessionId(chatSessionId, role.id);
     result = await runOnce(undefined);
   }
 
   if (result.sessionId) {
-    await saveExternalSessionId(chatSessionId, roleWithDriver, result.sessionId);
+    await store.saveExternalSessionId(chatSessionId, roleWithDriver, result.sessionId);
   }
   return { text: result.text, toolCalls };
 }

@@ -35,30 +35,61 @@ export function isBuildStale({ output, inputs }) {
 }
 
 /**
- * Build chain in dependency order. The app bundles engine/agent-teams and
- * packages canvas-cli, so a stale upstream forces every later step.
+ * Electron's SQLite binding lives beside the host-Node one in canvas-cli's
+ * dist/native as `<platform>-<arch>-<abi>.node`. Any ABI other than the host
+ * Node's is the Electron binding prepare-sqlite-native.mjs produced.
+ */
+export function hasElectronSqliteBinding(nativeDir, {
+  platform = process.platform,
+  arch = process.arch,
+  hostAbi = process.versions.modules,
+  list = (dir) => (existsSync(dir) ? readdirSync(dir) : []),
+} = {}) {
+  const pattern = new RegExp(`^${platform}-${arch}-(\\d+)\\.node$`);
+  return list(nativeDir).some((name) => {
+    const abi = pattern.exec(name)?.[1];
+    return abi !== undefined && abi !== String(hostAbi);
+  });
+}
+
+/**
+ * Build chain in dependency order: storage feeds engine/agent-teams and
+ * canvas-cli, the app bundles them, so a stale upstream forces every later
+ * step. canvas-cli builds with tsup `clean`, which wipes dist/native, so the
+ * Electron SQLite binding step sits right after it.
  */
 export function buildTargets(repoRoot) {
+  const app = join(repoRoot, 'apps', 'canvas-workspace');
   const pkg = (dir, output, filter) => ({
-    filter,
+    name: filter,
+    command: ['pnpm', ['--filter', filter, 'build'], repoRoot],
     output: join(repoRoot, dir, output),
     inputs: [join(repoRoot, dir, 'src'), join(repoRoot, dir, 'package.json')],
   });
-  const app = join(repoRoot, 'apps', 'canvas-workspace');
+  const nativeDir = join(repoRoot, 'packages', 'canvas-cli', 'dist', 'native');
   return [
+    pkg('packages/storage', 'dist/index.js', '@pulse-coder/storage'),
     pkg('packages/engine', 'dist/index.js', 'pulse-coder-engine'),
     pkg('packages/agent-teams', 'dist/index.js', 'pulse-coder-agent-teams'),
     pkg('packages/canvas-cli', 'dist/index.cjs', '@pulse-coder/canvas-cli'),
     {
-      filter: 'canvas-workspace',
+      name: 'electron-sqlite-binding',
+      command: ['node', ['scripts/setup/prepare-sqlite-native.mjs'], app],
+      isStale: () => !hasElectronSqliteBinding(nativeDir),
+    },
+    {
+      name: 'canvas-workspace',
+      command: ['pnpm', ['--filter', 'canvas-workspace', 'build'], repoRoot],
       output: join(app, 'dist', 'main', 'index.js'),
       inputs: [join(app, 'src'), join(app, 'package.json'), join(app, 'electron.vite.config.ts')],
     },
   ];
 }
 
+export const defaultStale = (target) => (target.isStale ? target.isStale() : isBuildStale(target));
+
 /** Targets to rebuild: the first stale one and everything after it. */
-export function planBuilds(targets, stale = isBuildStale) {
+export function planBuilds(targets, stale = defaultStale) {
   const first = targets.findIndex((target) => stale(target));
   return first === -1 ? [] : targets.slice(first);
 }
