@@ -15,6 +15,8 @@ import { executeAgentTurn } from './agent-turn.js';
 import { routeSlashInput } from './command-surface.js';
 import { ReadlineCommands } from './host-commands.js';
 import { restoreSessionModel, syncSessionGoalBinding, syncSessionTaskListBinding } from './host-context.js';
+import { EngineLogSink } from '../shared/log-sink.js';
+import { HostLogPolicy } from '../shared/host-log-policy.js';
 
 export class CoderCLI {
   agent: PulseAgent;
@@ -24,9 +26,24 @@ export class CoderCLI {
   skillCommands: SkillCommands;
   tui: TuiRenderer;
   modelChoice: ModelChoice | null = null;
+  readonly logSink: EngineLogSink;
+  readonly logPolicy: HostLogPolicy;
+  readonly verbose: boolean;
+  startupComplete = false;
   private readonly commands: ReadlineCommands;
 
-  constructor(readonly modelSpec?: string) {
+  constructor(readonly modelSpec?: string, options: { verbose?: boolean } = {}) {
+    this.verbose = options.verbose ?? false;
+    this.tui = new TuiRenderer();
+    this.logSink = new EngineLogSink();
+    this.logPolicy = new HostLogPolicy({
+      logFile: this.logSink.filePath,
+      verbose: this.verbose,
+      render: (level, message) => this.renderLog(level, message),
+    });
+    this.logSink.install();
+    this.logSink.subscribe(entry => this.logPolicy.handle(entry));
+
     // 🎯 现在引擎自动包含内置插件，无需显式配置！
     this.agent = new PulseAgent({
       enginePlugins: {
@@ -43,15 +60,32 @@ export class CoderCLI {
       // 注意：不再需要 plugins: [...] 配置
     });
     this.context = { messages: [] };
-    this.sessionCommands = new SessionCommands();
+    this.sessionCommands = new SessionCommands(message => this.reportHostMessage('log', message ?? ''));
     // Mirrors the Ink host: saves record the active model so a resumed session
     // comes back on the model it was using.
     this.sessionCommands.setModelSpecProvider(() =>
       this.modelChoice ? formatModelSpec(this.modelChoice) : null);
     this.inputManager = new InputManager();
     this.skillCommands = new SkillCommands(this.agent);
-    this.tui = new TuiRenderer();
     this.commands = new ReadlineCommands(this);
+  }
+
+  reportHostMessage(level: 'log' | 'warn' | 'error', message: string): void {
+    if (!this.startupComplete) {
+      this.logSink.record(level, [message]);
+      return;
+    }
+    this.renderLog(level, message);
+  }
+
+  private renderLog(level: 'log' | 'warn' | 'error', message: string): void {
+    if (level === 'error') {
+      this.tui.error(message);
+    } else if (level === 'warn') {
+      this.tui.warn(message);
+    } else {
+      this.tui.info(message);
+    }
   }
 
   async start(options: { continueLast?: boolean } = {}) {
@@ -59,9 +93,9 @@ export class CoderCLI {
 
     // Resolve --model once, against the same merged home+project registry the Ink
     // host uses, so a provider-bound spec reaches the engine with its connection.
-    this.modelChoice = await resolveModelChoice(this.modelSpec, warning => this.tui.info(warning));
+    this.modelChoice = await resolveModelChoice(this.modelSpec, warning => this.reportHostMessage('warn', warning));
     if (this.modelSpec && this.modelChoice) {
-      this.tui.info(`Model: ${formatModelSpec(this.modelChoice)}`);
+      this.reportHostMessage('log', `Model: ${formatModelSpec(this.modelChoice)}`);
     }
 
     await this.sessionCommands.initialize();
@@ -78,9 +112,8 @@ export class CoderCLI {
       }
     });
 
-    // 显示插件状态
     const pluginStatus = this.agent.getPluginStatus();
-    this.tui.showPluginStatus(pluginStatus.enginePlugins.length);
+    this.reportHostMessage('log', `Built-in plugins loaded: ${pluginStatus.enginePlugins.length} plugins`);
 
     // Resume the most recent session with --continue, otherwise auto-create one
     if (options.continueLast && await this.sessionCommands.resumeLatest()) {
@@ -91,6 +124,8 @@ export class CoderCLI {
     }
     await syncSessionTaskListBinding(this);
     await syncSessionGoalBinding(this);
+    this.logPolicy.finishStartup();
+    this.startupComplete = true;
 
     const rl = readline.createInterface({
       input: process.stdin,
@@ -160,8 +195,9 @@ export class CoderCLI {
       }
 
       this.tui.info('Saving current session...');
-      this.sessionCommands.saveContext(this.context).finally(() => {
+      void this.sessionCommands.saveContext(this.context).finally(async () => {
         this.tui.success('Goodbye!');
+        await this.logSink.restore().catch(() => {});
         process.exit(0);
       });
     };
@@ -266,6 +302,7 @@ export class CoderCLI {
       this.tui.info('Saving current session...');
       await this.sessionCommands.saveContext(this.context);
       this.tui.success('Goodbye!');
+      await this.logSink.restore();
       process.exit(0);
     });
   }

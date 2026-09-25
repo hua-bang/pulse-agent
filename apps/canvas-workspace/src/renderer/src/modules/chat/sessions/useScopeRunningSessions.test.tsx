@@ -54,6 +54,84 @@ describe('useScopeRunningSessions', () => {
     act(() => root?.unmount());
   });
 
+  it('does not relight a locally completed run from a stale in-flight poll', async () => {
+    const scope = { kind: 'workspace' as const, workspaceId: 'ws' };
+    const key = conversationKey(scope, 'conv-local');
+    setConversationMessages(key, [{ role: 'user', content: 'hello', timestamp: 1 }]);
+    setConversationLoading(key, true);
+    let resolvePoll!: (result: { ok: true; conversationSessionIds: string[] }) => void;
+    vi.spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions').mockImplementation(
+      () => new Promise(resolve => {
+        resolvePoll = resolve;
+      }),
+    );
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<Probe scope={scope} scopeKey="ws" />);
+    });
+    expect(latest).toEqual(new Set(['conv-local']));
+
+    act(() => setConversationLoading(key, false));
+    expect(latest.size).toBe(0);
+
+    await act(async () => {
+      resolvePoll({ ok: true, conversationSessionIds: ['conv-local'] });
+      await Promise.resolve();
+    });
+    expect(latest.size).toBe(0);
+  });
+
+  it('does not relight a run that starts and completes during an in-flight poll', async () => {
+    const scope = { kind: 'workspace' as const, workspaceId: 'ws' };
+    const key = conversationKey(scope, 'conv-local');
+    setConversationMessages(key, [{ role: 'user', content: 'previous', timestamp: 1 }]);
+    let resolvePoll!: (result: { ok: true; conversationSessionIds: string[] }) => void;
+    vi.spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions').mockImplementation(
+      () => new Promise(resolve => {
+        resolvePoll = resolve;
+      }),
+    );
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<Probe scope={scope} scopeKey="ws" />);
+    });
+    expect(latest.size).toBe(0);
+
+    act(() => setConversationLoading(key, true));
+    expect(latest).toEqual(new Set(['conv-local']));
+    act(() => setConversationLoading(key, false));
+    expect(latest.size).toBe(0);
+
+    await act(async () => {
+      resolvePoll({ ok: true, conversationSessionIds: ['conv-local'] });
+      await Promise.resolve();
+    });
+    expect(latest.size).toBe(0);
+  });
+
+  it('shows a new remote run even when an idle local snapshot already exists', async () => {
+    const scope = { kind: 'workspace' as const, workspaceId: 'ws' };
+    const key = conversationKey(scope, 'conv-remote');
+    setConversationMessages(key, [{ role: 'user', content: 'previous', timestamp: 1 }]);
+    vi.spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions').mockResolvedValue({
+      ok: true,
+      conversationSessionIds: ['conv-remote'],
+    });
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<Probe scope={scope} scopeKey="ws" />);
+      await Promise.resolve();
+    });
+
+    expect(latest).toEqual(new Set(['conv-remote']));
+  });
+
   it('reports the conversation session ids with an active run', async () => {
     const spy = vi
       .spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions')

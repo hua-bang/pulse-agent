@@ -103,17 +103,29 @@
 
 .plugin-market__installed-button.ui-btn {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  justify-content: flex-start;
+  min-width: 0;
+  max-width: 180px;
+  height: 40px;
+  padding: 5px 10px 5px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
 .plugin-market__installed-button .plugin-market__glyph {
+  flex: 0 0 auto;
   width: 28px;
   height: 28px;
   border: 0;
+}
+
+.plugin-market__installed-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plugin-market__installed-empty {

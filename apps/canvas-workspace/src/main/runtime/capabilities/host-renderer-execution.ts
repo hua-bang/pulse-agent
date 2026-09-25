@@ -1,10 +1,36 @@
 import { getRuntimeWindowPort } from '../window-port';
-import { getPublishedDockWorkspaceId } from '../../dock/tab-store';
-import { evalInPage } from '../../../plugins/main/webview-page-control/js-primitives';
+import {
+  evalInPage,
+  type PageRunner,
+} from '../../../plugins/main/webview-page-control/js-primitives';
 import { CapabilityError, type CapabilityContext } from './types';
 import type { HostRendererEvalInput } from './host-renderer-capabilities';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
+const WORKSPACE_MANIFEST_ID = '__workspaces__';
+const HOST_RENDERER_CONTEXT_SCRIPT = `
+(async function () {
+  var hashLocation = window.location.hash.replace(/^#/, '') || '/';
+  var routePath = hashLocation.split('?')[0] || '/';
+  if (routePath !== '/') return { routePath: routePath, workspaceId: null };
+
+  var store = window.canvasWorkspace && window.canvasWorkspace.store;
+  if (!store || typeof store.load !== 'function') {
+    return { routePath: routePath, workspaceId: null };
+  }
+  var result = await store.load('${WORKSPACE_MANIFEST_ID}');
+  var workspaceId = result && result.ok && result.data
+    && typeof result.data.activeId === 'string'
+    ? result.data.activeId
+    : null;
+  return { routePath: routePath, workspaceId: workspaceId };
+})()
+`;
+
+interface HostRendererContext {
+  routePath: string;
+  workspaceId: string | null;
+}
 
 export async function executeHostRendererEval(
   input: HostRendererEvalInput,
@@ -21,29 +47,22 @@ export async function executeHostRendererEval(
 }
 
 async function execute(input: HostRendererEvalInput, context: CapabilityContext): Promise<unknown> {
-  const activation = await getRuntimeWindowPort().activateWorkspaceWindow(context.workspaceId);
-  if (!activation.ok) {
-    throw new CapabilityError(
-      'host_renderer_unavailable',
-      activation.error ?? 'Canvas window is unavailable',
-    );
-  }
-  const runner = activation.window?.webContents;
+  const runner = getRuntimeWindowPort().getCanvasWindow()?.webContents;
   if (!runner) {
     throw new CapabilityError('host_renderer_unavailable', 'Canvas renderer is unavailable');
   }
 
-  const deadline = Date.now() + 3_000;
-  while (
-    getPublishedDockWorkspaceId(runner.id) !== context.workspaceId
-    && Date.now() < deadline
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  if (getPublishedDockWorkspaceId(runner.id) !== context.workspaceId) {
+  const rendererContext = await readHostRendererContext(runner);
+  if (rendererContext.routePath !== '/') {
     throw new CapabilityError(
       'host_renderer_unavailable',
-      `Canvas renderer did not activate workspace ${context.workspaceId}.`,
+      `Canvas renderer is showing route ${rendererContext.routePath}, not workspace ${context.workspaceId}.`,
+    );
+  }
+  if (rendererContext.workspaceId !== context.workspaceId) {
+    throw new CapabilityError(
+      'host_renderer_unavailable',
+      `Canvas renderer is showing workspace ${rendererContext.workspaceId ?? 'unknown'}, not ${context.workspaceId}.`,
     );
   }
 
@@ -57,6 +76,29 @@ async function execute(input: HostRendererEvalInput, context: CapabilityContext)
     );
   }
   return { action: 'host_renderer_eval', ...result.data };
+}
+
+async function readHostRendererContext(runner: PageRunner): Promise<HostRendererContext> {
+  let value: unknown;
+  try {
+    value = await runner.executeJavaScript(HOST_RENDERER_CONTEXT_SCRIPT);
+  } catch (error) {
+    throw new CapabilityError(
+      'host_renderer_unavailable',
+      `Canvas renderer context could not be read: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!value || typeof value !== 'object') {
+    throw new CapabilityError('host_renderer_unavailable', 'Canvas renderer context is unavailable');
+  }
+  const context = value as Partial<HostRendererContext>;
+  if (typeof context.routePath !== 'string') {
+    throw new CapabilityError('host_renderer_unavailable', 'Canvas renderer route is unavailable');
+  }
+  return {
+    routePath: context.routePath,
+    workspaceId: typeof context.workspaceId === 'string' ? context.workspaceId : null,
+  };
 }
 
 function audit(context: CapabilityContext, ok: boolean): void {

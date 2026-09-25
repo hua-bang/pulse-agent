@@ -1,5 +1,6 @@
 import { parseCliArgs } from './ui-mode.js';
 import { CoderCLI } from './readline/readline-host.js';
+import { formatStartupFailure } from './shared/host-log-policy.js';
 
 async function main(): Promise<void> {
   const parsed = parseCliArgs();
@@ -24,7 +25,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const cli = new CoderCLI(parsed.model);
+  const cli = new CoderCLI(parsed.model, { verbose: parsed.verbose });
   await cli.start({ continueLast: parsed.continueLast });
 }
 
@@ -32,6 +33,6 @@ main().catch(error => {
   // Write straight to stderr: with the Ink host's EngineLogSink installed,
   // console.error is captured into the log file and a startup crash would
   // otherwise be silent.
-  process.stderr.write(`Failed to start CLI: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  process.stderr.write(`${formatStartupFailure(error)}\n`);
   process.exit(1);
 });

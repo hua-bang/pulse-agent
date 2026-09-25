@@ -18,7 +18,7 @@ import { buildModelRunOptions, type ModelRunOptions } from '../models/model-run-
  */
 export async function resolveStartupModel(controller: InkCoderController): Promise<void> {
   const registry = await loadModelRegistry();
-  registry.warnings.forEach(warning => controller.ui.log(`[models.json] ${warning}`));
+  registry.warnings.forEach(warning => controller.reportHostMessage('warn', `[models.json] ${warning}`));
 
   if (controller.modelPinnedByFlag) {
     // Re-resolve the flag against the registry so it picks up the entry's
@@ -40,7 +40,7 @@ export async function resolveStartupModel(controller: InkCoderController): Promi
       applyModelOverride(controller, `Model restored from last session: ${restored.model}`);
       return;
     }
-    controller.ui.log(`[warn] last model "${preferences.lastModel}" is no longer in models.json — using the default`);
+    controller.reportHostMessage('warn', `Last model "${preferences.lastModel}" is no longer in models.json — using the default`);
   }
 
   const fallback = findDefaultModel(registry);
@@ -71,9 +71,12 @@ export function applyModelOverride(controller: InkCoderController, note: string,
   });
   const keyEnv = controller.modelOverride?.apiKeyEnv;
   if (keyEnv && !process.env[keyEnv]) {
-    controller.ui.log(`[warn] ${keyEnv} is not set — falling back to the channel's default API key env`);
+    controller.reportHostMessage('warn', `${keyEnv} is not set — falling back to the channel's default API key env`);
   }
-  controller.ui.info(`${note} · ctx window ${Math.round(currentContextWindow(controller) / 1000)}k · applies to new runs in this process`);
+  controller.reportHostMessage(
+    'log',
+    `${note} · ctx window ${Math.round(currentContextWindow(controller) / 1000)}k · applies to new runs in this process`,
+  );
   publishSession(controller, 'Ready');
 }
 
@@ -105,7 +108,7 @@ export async function restoreSessionModel(controller: InkCoderController): Promi
   const registry = await loadModelRegistry();
   const restored = resolveKnownModelSpec(spec, registry);
   if (!restored) {
-    controller.ui.log(`[warn] session model "${spec}" is no longer in models.json — keeping the current model`);
+    controller.reportHostMessage('warn', `Session model "${spec}" is no longer in models.json — keeping the current model`);
     return;
   }
 
