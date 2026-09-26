@@ -14,6 +14,10 @@ export type {
   FileWriteSettlement, FileWriteResolution, FileWriteRepository,
 } from './file-contracts.js';
 export type {
+  FileContentVersion, FileBytes, FileText, FileWriteOptions, FileWriteReceipt, WorkspaceFiles,
+} from './workspace-files.js';
+export { sameFileVersion } from './workspace-files.js';
+export type {
   WorkspaceConversationState, WorkspaceBundle, WorkspaceBundleImport, WorkspaceBundleReceipt, WorkspaceRepository,
   WorkspaceTrashRecord, TrashWorkspaceInput,
 } from './workspace-contracts.js';

@@ -7,6 +7,7 @@ export default defineConfig({
     canvas: 'src/canvas-compat.ts',
     local: 'src/local.ts',
     'local-files': 'src/local-files.ts',
+    'local-workspace-files': 'src/local-workspace-files.ts',
     'local-conversations': 'src/local-conversations.ts',
   },
   format: ['esm', 'cjs'],

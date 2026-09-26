@@ -9,6 +9,9 @@ import { delimiter, dirname, join, resolve } from "path";
 import { PtySessionLeaseRegistry } from "./session-lease";
 import { commonPosixBinDirs, mergePath } from "../shell-path";
 
+/** Session output held in memory; readers of terminal nodes prefer it to saved text. */
+export { readSessionOutput } from "./session-output";
+
 const sessions = new Map<string, pty.IPty>();
 const sessionLeases = new PtySessionLeaseRegistry();
 const nodeRequire = createRequire(import.meta.url);

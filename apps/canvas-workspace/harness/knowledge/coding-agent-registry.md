@@ -150,6 +150,60 @@ silently share a conversation.
 Tests: `AgentNodeBody/__tests__/piSessionBinding.test.tsx` and
 `modules/coding-agent/session/piSession.test.ts`.
 
+## Output is not saved on the canvas
+
+A Coding Agent node persists its CWD, never its terminal output. The CLI
+resumes its own conversation (above), so saved output was redundant, and
+saving it every two seconds committed the whole canvas on each output burst:
+the workspace revision moved continuously and concurrent `pulse-canvas`
+writes failed with `revision_conflict`.
+
+- The owner terminal (`session/ownerTerminal.ts`) hands xterm's rendered text
+  to main (`pty:snapshot`) instead. `main/terminal/session-output.ts` keeps it
+  in memory, preferred over the raw PTY stream, whose TUI redraws read as
+  repeated frames. Snapshots outlive the process, bounded to the newest 64.
+- Readers go through main: node detail (`readSessionOutput` in
+  `agent/context-builder.ts`), `dock_read_tab`, and the Agent Team detail
+  panel (`pty:getScrollback` via `AgentDetail/useLiveAgentOutput.ts`), and
+  read-only agent previews (dock canvas preview, reference drawer), which
+  read it once on mount (`readLiveAgentOutput` in `session/ownerTerminal.ts`).
+  `pulse-canvas node read` reads storage and sees no agent output.
+- Output saved by earlier releases is dropped on the node's next launch, so
+  it is never read as current. After an app restart, output is back only once
+  the CLI resumes and redraws; a Codex node without a captured id has none.
+- Plain terminal nodes have no conversation to resume, so they still save
+  their output, but only at most once a minute, on process exit, on unmount,
+  and when the window goes away (`TerminalNodeBody/useTerminalNodeRuntime`);
+  every tick in between only publishes to main (and refreshes the live CWD
+  that unload saves use). Exit and unmount also publish the final lines. A crash can lose up to a
+  minute of output. The runtime MCP server's node read also prefers main.
+  - Closing a window: the terminal's `beforeunload` listener writes the node
+    and flushes its own workspace (`flushWorkspacePersistence`). It cannot
+    rely on the canvas's own `beforeunload` flush, which may run first
+    (listeners run in registration order).
+  - Quitting: `before-quit` closes storage before windows close, so main
+    first asks each window to save (`canvas:flush-before-quit` /
+    `canvas:flushed`, `main/canvas/flush-before-quit.ts`, loaded on quit,
+    1.5s timeout). The renderer side (`canvas/document/beforeQuit.ts`) runs
+    the tasks mounted terminal nodes registered, each writing its output and
+    flushing its workspace, then answers. Workspaces without a terminal are
+    not flushed, so a quit still loses their edits inside the 800ms save
+    debounce, as before.
+  - The IPC for main's output store (`terminal/scrollback-ipc.ts`) and the
+    quit handshake load lazily, and nothing is added to the entry chunk:
+    the entry-chunk and main-bundle gates had under 1 KB of headroom when
+    this landed, and lazy-chunk hash changes alone move the entry gzip by a
+    few bytes.
+
+Tests: `AgentNodeBody/index.test.tsx` (output published, never persisted;
+legacy output dropped), `session/sessionLifecycle.test.ts` (auto-resume
+without saved output), `main/terminal/session-output.test.ts`,
+`main/agent/context-builder-agent-output.test.ts`,
+`AgentDetail/useLiveAgentOutput.test.tsx`, `TerminalNodeBody/index.test.tsx`
+(per-tick publish, once-a-minute save, exit and unload saves),
+`session/ownerTerminal.test.ts` (read-only previews prefer live output),
+`canvas/document/beforeQuit.test.ts`, and `main/canvas/flush-before-quit.test.ts`.
+
 ## Not automatic
 
 Two neighboring surfaces have their own rosters and do not pick up a new

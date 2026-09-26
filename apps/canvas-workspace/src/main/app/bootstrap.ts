@@ -275,10 +275,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // App-lifetime service; the interval dies with the process.
     startWebviewDiscardMonitor();
     setupHtmlGeneratorIpc();
-    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }] = await Promise.all([
+    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }, { setupScrollbackIpc }] = await Promise.all([
       import('../canvas/nodes/ipc'),
       import('./update-ipc'),
+      import('../terminal/scrollback-ipc'),
     ]);
+    setupScrollbackIpc();
     setupArtifactIpc();
     setupReferenceIpc();
     {
@@ -325,7 +327,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       scheduled.stop();
       powerMonitor.removeListener('resume', runScheduledCatchUp);
       teardownConversationRuntime();
-      void teardownCanvasPlugins()
+      // Renderers save their last canvas state while storage is still open.
+      void import('../canvas/flush-before-quit')
+        .then(module => module.flushRenderersBeforeQuit())
+        .then(() => teardownCanvasPlugins())
         .catch(error => writeLog('main', 'plugin teardown failed', String(error)))
         .then(() => cacheMaintenance)
         .then(() => stopStorageAfterWriters(async () => {

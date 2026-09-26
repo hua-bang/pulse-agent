@@ -58,6 +58,10 @@ export interface CanvasWorkspaceApi {
     resize: (id: string, cols: number, rows: number) => void;
     kill: (id: string, leaseId?: string) => void;
     getCwd: (id: string) => Promise<{ ok: boolean; cwd?: string | null }>;
+    /** Hand main the rendered text of a session; it is kept in memory, never saved. */
+    publishSnapshot: (id: string, text: string) => void;
+    /** Plain-text tail of a session's output held by main. */
+    getScrollback: (id: string, maxChars?: number) => Promise<{ ok: boolean; text?: string; error?: string }>;
     checkCommand: (command: string) => Promise<{ ok: boolean; available: boolean; path?: string; error?: string }>;
     onData: (id: string, callback: (data: string) => void) => () => void;
     onExit: (id: string, callback: (exitCode: number) => void) => () => void;
@@ -128,6 +132,10 @@ export interface CanvasWorkspaceApi {
         source: string;
       }) => void,
     ) => () => void;
+    /** Main asks for a final save before it closes storage on quit. */
+    onFlushBeforeQuit: (callback: (requestId: string) => void) => () => void;
+    /** Answer a flush request once the final save has finished. */
+    flushedBeforeQuit: (requestId: string) => void;
     /**
      * Subscribe to canvas storage migration progress events.
      *

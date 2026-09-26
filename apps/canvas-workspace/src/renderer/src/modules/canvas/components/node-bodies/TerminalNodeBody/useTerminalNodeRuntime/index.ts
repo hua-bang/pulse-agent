@@ -10,6 +10,7 @@ import {
   isCodingAgentCommand,
 } from '../../../../../../utils/codingAgentCommand';
 import { buildNodeMentionInsertion } from '../../../../../../utils/nodeMention';
+import { flushWorkspace, registerBeforeQuit } from '../../../../document/beforeQuit';
 import {
   SCROLLBACK_SAVE_INTERVAL,
   claimTerminalSessionOwner,
@@ -24,6 +25,14 @@ import {
   syncTerminalFontSizeToCanvas,
   writeTerminalOutput,
 } from '../../../../../coding-agent/terminal';
+
+/**
+ * Running output goes to main (in memory) on every save tick. The canvas copy,
+ * the only one that survives a restart, is written at most this often, plus on
+ * exit, unmount, and window unload: saving it every tick committed the whole
+ * canvas and moved its revision under concurrent `pulse-canvas` writes.
+ */
+const CANVAS_SAVE_INTERVAL = 60_000;
 
 interface Options {
   node: CanvasNode;
@@ -58,6 +67,9 @@ export function useTerminalNodeRuntime({
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const snapshotPersisterRef = useRef<ReturnType<typeof createTerminalSnapshotPersister> | null>(null);
+  // The shell's CWD as of the last publish tick; unload saves use it because
+  // the canvas copy only refreshes on the once-a-minute save.
+  const liveCwdRef = useRef<string | null>(null);
   const codingAgentActiveRef = useRef(false);
   const commandInputRef = useRef('');
   const terminalOutputTailRef = useRef('');
@@ -189,12 +201,20 @@ export function useTerminalNodeRuntime({
       }),
     });
     snapshotPersisterRef.current = snapshotPersister;
+    let publishPending = false;
+    const outputMarker = {
+      ...snapshotPersister,
+      markDirty: () => {
+        snapshotPersister.markDirty();
+        publishPending = true;
+      },
+    };
 
     if (!api) {
       writeTerminalOutput(
         term,
         '\x1b[31mError: pty API not available (preload missing)\x1b[0m',
-        snapshotPersister,
+        outputMarker,
         true,
       );
       return;
@@ -215,7 +235,7 @@ export function useTerminalNodeRuntime({
       writeTerminalOutput(
         term,
         `\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`,
-        snapshotPersister,
+        outputMarker,
         true,
       );
       return;
@@ -225,9 +245,14 @@ export function useTerminalNodeRuntime({
       writeTerminalOutput(
         term,
         `\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`,
-        snapshotPersister,
+        outputMarker,
         true,
       );
+      // Queued behind the exit line, so the saved copy includes it.
+      term.write('', () => {
+        api.publishSnapshot?.(sessionId, serializeBuffer(term));
+        void snapshotPersister.flush().catch(() => undefined);
+      });
     });
     let removeData: (() => void) | null = null;
     let removePrompt: (() => void) | null = null;
@@ -236,13 +261,13 @@ export function useTerminalNodeRuntime({
     if (command) {
       let prompted = false;
       const promptRemove = api.onData(sessionId, (output: string) => {
-        writeTerminalOutput(term, output, snapshotPersister);
+        writeTerminalOutput(term, output, outputMarker);
         if (prompted) return;
         prompted = true;
         promptRemove();
         removePrompt = null;
         removeData = api.onData(sessionId, (nextOutput: string) => {
-          writeTerminalOutput(term, nextOutput, snapshotPersister);
+          writeTerminalOutput(term, nextOutput, outputMarker);
           captureTerminalOutput(nextOutput);
         });
         setTimeout(() => {
@@ -254,7 +279,7 @@ export function useTerminalNodeRuntime({
       removePrompt = promptRemove;
     } else {
       removeData = api.onData(sessionId, (output: string) => {
-        writeTerminalOutput(term, output, snapshotPersister);
+        writeTerminalOutput(term, output, outputMarker);
         captureTerminalOutput(output);
       });
     }
@@ -266,7 +291,17 @@ export function useTerminalNodeRuntime({
     term.onResize(({ cols, rows }) => {
       api.resize(sessionId, cols, rows);
     });
+    let lastCanvasSave = Date.now();
     saveTimerRef.current = setInterval(() => {
+      if (publishPending) {
+        publishPending = false;
+        api.publishSnapshot?.(sessionId, serializeBuffer(term));
+        void api.getCwd(sessionId).then((result) => {
+          if (result.ok && result.cwd) liveCwdRef.current = result.cwd;
+        }, () => undefined);
+      }
+      if (Date.now() - lastCanvasSave < CANVAS_SAVE_INTERVAL) return;
+      lastCanvasSave = Date.now();
       void snapshotPersister.flush().catch(() => undefined);
     }, SCROLLBACK_SAVE_INTERVAL);
     cleanupRef.current = () => {
@@ -303,6 +338,8 @@ export function useTerminalNodeRuntime({
       cleanupRef.current?.();
       if (!readOnly && persister && term) {
         finalizeTerminalSnapshotBeforeDispose(term, persister, () => {
+          // Main keeps this text after the node goes away; give it the last lines.
+          window.canvasWorkspace?.pty?.publishSnapshot?.(sessionId, serializeBuffer(term));
           killSession?.();
           term.dispose();
         });
@@ -320,6 +357,34 @@ export function useTerminalNodeRuntime({
     // The terminal session is intentionally bound to its first mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (readOnly) return;
+    // Closing a window: beforeunload listeners run in registration order, so
+    // the canvas's own flush may already have run; flush this workspace here.
+    // Quitting: main asks for a final save before it closes storage.
+    const writeLatestOutput = () => {
+      const term = termRef.current;
+      if (!term || !snapshotPersisterRef.current) return false;
+      const scrollback = serializeBuffer(term);
+      const cwd = liveCwdRef.current || dataRef.current.cwd || '';
+      if (scrollback === (dataRef.current.scrollback ?? '') && cwd === (dataRef.current.cwd ?? '')) return false;
+      onUpdateRef.current(nodeIdRef.current, {
+        data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
+      }, { history: false });
+      return true;
+    };
+    const saveLatestOutput = () => (
+      writeLatestOutput() ? flushWorkspace(workspaceIdRef.current) : undefined
+    );
+    const saveBeforeUnload = () => { void saveLatestOutput(); };
+    const unregisterBeforeQuit = registerBeforeQuit(saveLatestOutput);
+    window.addEventListener('beforeunload', saveBeforeUnload);
+    return () => {
+      unregisterBeforeQuit();
+      window.removeEventListener('beforeunload', saveBeforeUnload);
+    };
+  }, [readOnly]);
 
   useEffect(() => {
     if (!fitRef.current) return;

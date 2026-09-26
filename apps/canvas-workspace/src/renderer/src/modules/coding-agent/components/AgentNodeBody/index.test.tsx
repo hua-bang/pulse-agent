@@ -71,11 +71,12 @@ let getCwd: ReturnType<typeof vi.fn>;
 let kill: ReturnType<typeof vi.fn>;
 let spawn: ReturnType<typeof vi.fn>;
 let write: ReturnType<typeof vi.fn>;
+let publishSnapshot: ReturnType<typeof vi.fn>;
 let onData = vi.fn((_sessionId: string, _callback: (data: string) => void) => () => undefined);
 let onExit = vi.fn(() => () => undefined);
 
-// This branch persists terminal scrollback churn without occupying an undo
-// slot (see useCanvasDocument.test.tsx); every persister write carries this option.
+// The persister's CWD writes do not occupy an undo slot
+// (see useCanvasDocument.test.tsx); every persister write carries this option.
 const NO_HISTORY = { history: false };
 
 const agentNode: CanvasNode = {
@@ -114,6 +115,7 @@ beforeEach(() => {
   kill = vi.fn();
   spawn = vi.fn().mockResolvedValue({ ok: true, leaseId: 'lease-default' });
   write = vi.fn();
+  publishSnapshot = vi.fn();
   onData = vi.fn((_sessionId: string, callback: (data: string) => void) => {
     emitPtyData = callback;
     return () => undefined;
@@ -144,6 +146,7 @@ beforeEach(() => {
         write,
         resize: vi.fn(),
         kill,
+        publishSnapshot,
       },
     },
   });
@@ -240,7 +243,42 @@ describe('AgentNodeBody PTY ownership', () => {
     }));
   });
 
-  it('hands final output to a remounted owner without letting stale cleanup kill or overwrite it', async () => {
+  it('hands output to main instead of the canvas and drops output saved by earlier versions', async () => {
+    const legacyNode: CanvasNode = {
+      ...agentNode,
+      data: { ...agentNode.data, scrollback: 'output saved by an older release' },
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<AgentNodeBody node={legacyNode} onUpdate={onUpdate} />);
+      await Promise.resolve();
+    });
+    await flushPromises();
+    expect(onUpdate).toHaveBeenCalledWith('agent-1', {
+      data: expect.objectContaining({ status: 'running', scrollback: undefined }),
+    });
+
+    getCwd.mockResolvedValue({ ok: true, cwd: '/workspace/sub' });
+    act(() => emitPtyData?.('agent output'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    await flushPromises();
+    expect(onUpdate).toHaveBeenLastCalledWith('agent-1', {
+      data: expect.objectContaining({ cwd: '/workspace/sub' }),
+    }, NO_HISTORY);
+    expect(publishSnapshot).toHaveBeenLastCalledWith('agent-session-1', expect.stringContaining('agent output'));
+
+    await unmountAgent();
+    await flushPromises();
+    const calls = onUpdate.mock.calls.map(([, patch]) => patch.data ?? {});
+    const cleared = calls.findIndex((data) => data.status === 'running' && 'scrollback' in data && !data.scrollback);
+    expect(cleared).toBeGreaterThanOrEqual(0);
+    for (const data of calls.slice(cleared)) expect(data.scrollback ?? '').toBe('');
+    expect(JSON.stringify(calls)).not.toContain('agent output');
+  });
+
+  it('hands the final CWD to a remounted owner without letting stale cleanup kill or overwrite it', async () => {
     let resolveOldCwd: ((value: { ok: boolean; cwd: string }) => void) | undefined;
     let activeLease: string | undefined;
     const terminate = vi.fn();
@@ -275,7 +313,7 @@ describe('AgentNodeBody PTY ownership', () => {
     expect(kill).toHaveBeenCalledWith('agent-session-1', 'lease-old');
     expect(terminate).not.toHaveBeenCalled();
     expect(onUpdate).not.toHaveBeenCalledWith('agent-1', expect.objectContaining({
-      data: expect.objectContaining({ scrollback: 'old agent chunk' }),
+      data: expect.objectContaining({ cwd: '/workspace/old-owner' }),
     }), NO_HISTORY);
 
     act(() => emitPtyData?.('new agent chunk'));
@@ -283,11 +321,12 @@ describe('AgentNodeBody PTY ownership', () => {
     await flushPromises();
 
     expect(onUpdate).toHaveBeenCalledWith('agent-1', {
-      data: expect.objectContaining({
-        scrollback: 'old agent chunk\nnew agent chunk',
-        cwd: '/workspace/new-owner',
-      }),
+      data: expect.objectContaining({ cwd: '/workspace/new-owner' }),
     }, NO_HISTORY);
+    expect(publishSnapshot).toHaveBeenLastCalledWith('agent-session-1', 'old agent chunk\nnew agent chunk');
+    for (const [, patch] of onUpdate.mock.calls) {
+      expect(patch.data?.scrollback ?? '').toBe('');
+    }
     expect(kill).toHaveBeenCalledWith('agent-session-1', 'lease-new');
     expect(terminate).toHaveBeenCalledTimes(1);
   });

@@ -25,7 +25,7 @@ A matching trigger requires reading its owner before changing code. Keep detaile
 | Multi-role chat, external drivers, relay, stopped-versus-failed behavior | `harness/knowledge/agent-roles.md` |
 | Keyboard shortcuts, menu accelerators, terminal/webview key ownership | `harness/knowledge/keyboard-shortcuts.md` |
 | Agent/terminal xterm fit and sizing | `harness/knowledge/terminal-surfaces.md` |
-| Coding Agent roster, branding, launch flags, session binding | `harness/knowledge/coding-agent-registry.md` |
+| Coding Agent roster, branding, launch flags, session binding, output persistence | `harness/knowledge/coding-agent-registry.md` |
 | Dock browser, focus/navigation, retention/capture, overflow | `harness/knowledge/dock-browser.md` |
 | Knowledge-node detail panels and cross-surface behavior | `harness/knowledge/node-detail.md` |
 | Storage, edges, mindmap transactions, artifact pins | `harness/knowledge/main-domain-modules.md`, `src/shared/canvas.ts` |
