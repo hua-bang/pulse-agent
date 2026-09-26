@@ -107,10 +107,24 @@ Use this order:
    preparation. Scope activation is split into nested `Scope ›` steps
    (`canvas.scope.*`, published through `traceScopeActivationStep`):
    workspace availability (SQLite trash check), wait for session writes, agent
-   init (engine init + session restore) or waiting for an in-flight init such
-   as the composer warm-up, and session reconcile. Steps overlap their parent;
-   the parent minus its steps is unattributed time.
-2. Large activity wait with one generation: suspect provider latency, network,
+   init or waiting for an in-flight init such as the composer warm-up, and
+   session reconcile. Agent init is broken down into engine init (one
+   `Engine plugin · <name>` step per plugin and one `MCP server · <name>` step
+   per server, with connect/list-tools split, from the Engine's
+   `pluginInitTiming` / `mcpServerTiming` events) and session restore. Init
+   steps are collected once and replayed to every run that awaited the init,
+   so a message that joined an untraced warm-up still shows the breakdown.
+   Steps overlap their parent; the parent minus its steps is unattributed time.
+2. Large activity wait with one generation: when the runtime reports provider
+   boundaries (Engine does), the generation is split into `Generation ›`
+   request preparation, wait for first chunk (provider queue, network, prefill
+   of the input), output before text (reasoning or tool input), and text
+   streaming. The generation detail carries input/cached/output/reasoning
+   tokens. A long first-chunk wait with a large uncached input points at
+   prompt size or cache misses; a long pre-text segment with reasoning tokens
+   points at model reasoning. Providers that do not stream reasoning content
+   put reasoning time inside the first-chunk wait instead, so read that
+   segment together with the reasoning token count. Otherwise suspect provider latency, network,
    model queueing, or delayed runtime callbacks. Compare the same prompt across
    providers only as a separately named experiment.
 3. Small TTFA but large text wait: inspect tool-first behavior, multiple model

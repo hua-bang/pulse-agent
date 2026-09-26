@@ -10,6 +10,8 @@ export type AgentTraceScopeActivationStep =
   | 'canvas.scope.agent-init'
   | 'canvas.scope.agent-init-wait'
   | 'canvas.scope.engine-init'
+  | 'canvas.scope.engine-plugin-init'
+  | 'canvas.scope.mcp-server'
   | 'canvas.scope.session-restore'
   | 'canvas.scope.session-reconcile';
 
@@ -23,6 +25,22 @@ export type AgentTracePhase =
   | 'runtime.execution'
   | 'canvas.response-processing'
   | 'canvas.persistence';
+
+export interface AgentTraceGenerationTimings {
+  /** Request handed to the provider SDK, after hooks and tool wrapping. */
+  requestStartedAt?: number;
+  /** First streamed chunk of any kind (reasoning, tool input, or text). */
+  firstChunkAt?: number;
+  firstTextAt?: number;
+  lastChunkAt?: number;
+}
+
+export interface AgentTraceGenerationUsage {
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+}
 
 export type AgentTraceMilestone =
   | 'ui.request-dispatched'
@@ -51,6 +69,8 @@ export type AgentTraceEvent =
       finishedAt: number;
       /** Set on nested steps; the parent phase's duration already includes them. */
       parentPhase?: AgentTracePhase;
+      /** Which plugin / MCP server a repeated step covers. Metadata only, never content. */
+      detail?: string;
     })
   | (AgentTraceEventBase & {
       type: 'runtime.resolved';
@@ -69,6 +89,9 @@ export type AgentTraceEvent =
       owner: 'engine' | 'pi';
       finishReason?: string;
       error?: string;
+      /** Provider-call boundaries when the runtime reports them (Engine does). */
+      timings?: AgentTraceGenerationTimings;
+      usage?: AgentTraceGenerationUsage;
     })
   | (AgentTraceEventBase & {
       type: 'tool.started';

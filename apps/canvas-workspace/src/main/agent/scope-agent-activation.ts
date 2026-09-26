@@ -5,7 +5,11 @@ import { scopeSessionStoreId } from '../../shared/agent-chat';
 import { scopeServiceKey } from './active-session-groups';
 import type { ScopeActivationGate } from './scope-activation-gate';
 import type { AgentScope } from './types';
-import { traceScopeActivationStep } from './observability/host-run';
+import {
+  collectScopeActivationSteps,
+  replayScopeActivationSteps,
+  traceScopeActivationStep,
+} from './observability/host-run';
 import { tracedAssertWorkspaceAvailable } from './traced-workspace-availability';
 
 /** Durable visibility is checked even when the Agent or its initialization is cached. */
@@ -18,9 +22,10 @@ export async function activateAgentScope(
   const key = scopeServiceKey(scope);
   if (agents.has(key)) return;
   // Joining an in-flight activation (usually the composer warm-up) is waiting,
-  // not initialization owned by this run.
+  // not initialization owned by this run. Either way the init's own steps are
+  // collected once and replayed to every run that awaited them.
   const step = gate.isPending(key) ? 'canvas.scope.agent-init-wait' : 'canvas.scope.agent-init';
-  await traceScopeActivationStep(step, () => gate.run(key, async () => {
+  const initSteps = await traceScopeActivationStep(step, () => gate.run(key, () => collectScopeActivationSteps(async () => {
     await tracedAssertWorkspaceAvailable(scope);
     if (agents.has(key)) return;
     const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined;
@@ -38,6 +43,7 @@ export async function activateAgentScope(
       await agent.destroy?.().catch(() => undefined);
       throw error;
     }
-  }));
+  })));
+  replayScopeActivationSteps(initSteps);
   await tracedAssertWorkspaceAvailable(scope);
 }

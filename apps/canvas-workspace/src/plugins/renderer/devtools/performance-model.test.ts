@@ -92,6 +92,40 @@ describe('performance diagnosis model', () => {
     expect(timeline.milestones).toEqual({ ttfa: 260, render: 470 });
     expect(timeline.bottleneck?.label).toBe('LLM generation');
   });
+
+  it('splits a generation at reported provider boundaries and labels repeated steps', () => {
+    const input = trace();
+    input.observabilityEvents = [
+      { type: 'run.started', runId: 'run-1', timestamp: 1_000, scope: 'workspace', host: 'canvas' },
+      {
+        type: 'phase.completed', runId: 'run-1', timestamp: 1_080, phase: 'canvas.scope.mcp-server',
+        owner: 'canvas-host', startedAt: 1_010, finishedAt: 1_080,
+        parentPhase: 'canvas.scope-activation', detail: 'exa · connect 50ms · tools 20ms',
+      },
+      { type: 'generation.started', runId: 'run-1', timestamp: 1_200, generationId: 'g1', owner: 'engine' },
+      {
+        type: 'generation.completed', runId: 'run-1', timestamp: 2_000, generationId: 'g1', owner: 'engine',
+        finishReason: 'stop',
+        timings: { requestStartedAt: 1_210, firstChunkAt: 1_700, firstTextAt: 1_900 },
+        usage: { inputTokens: 8_100, cachedInputTokens: 7_900, outputTokens: 300, reasoningTokens: 120 },
+      },
+    ];
+
+    const timeline = buildTraceTimeline(input)!;
+    const segments = timeline.items
+      .filter(item => item.label.startsWith('Generation ›'))
+      .map(item => [item.label, item.startMs, item.durationMs]);
+    expect(segments).toEqual([
+      ['Generation › Request preparation', 200, 10],
+      ['Generation › Wait for first chunk', 210, 490],
+      ['Generation › Output before text', 700, 200],
+      ['Generation › Text streaming', 900, 100],
+    ]);
+    expect(timeline.items.find(item => item.label === 'LLM generation')?.detail)
+      .toBe('800ms · in 8.1k (cached 7.9k) · out 300 (reasoning 120) · stop');
+    expect(timeline.items.some(item => item.label === 'Scope › MCP server · exa · connect 50ms · tools 20ms'))
+      .toBe(true);
+  });
 });
 
 

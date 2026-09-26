@@ -31,6 +31,18 @@ interface RunState {
 
 const at = (timestamp: number): Date => new Date(timestamp);
 
+type GenerationUsage = Extract<AgentTraceEvent, { type: 'generation.completed' }>['usage'];
+
+const langfuseUsageDetails = (usage: GenerationUsage): Record<string, number> | undefined => {
+  if (!usage) return undefined;
+  const details: Record<string, number> = {};
+  if (usage.inputTokens !== undefined) details.input = usage.inputTokens;
+  if (usage.outputTokens !== undefined) details.output = usage.outputTokens;
+  if (usage.cachedInputTokens !== undefined) details.input_cached_tokens = usage.cachedInputTokens;
+  if (usage.reasoningTokens !== undefined) details.output_reasoning_tokens = usage.reasoningTokens;
+  return Object.keys(details).length ? details : undefined;
+};
+
 export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscriber {
   readonly id = 'langfuse';
   private readonly runs = new Map<string, RunState>();
@@ -63,6 +75,7 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
               owner: event.owner,
               phase: event.phase,
               ...(event.parentPhase ? { parentPhase: event.parentPhase } : {}),
+              ...(event.detail ? { detail: event.detail } : {}),
             },
           });
           phase.end(at(event.finishedAt));
@@ -79,8 +92,14 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
       case 'generation.completed': {
         const generation = run.generations.get(event.generationId);
         if (!generation) break;
+        const usageDetails = langfuseUsageDetails(event.usage);
+        const metadata = {
+          ...(event.finishReason ? { finishReason: event.finishReason } : {}),
+          ...(event.timings ? { timings: event.timings } : {}),
+        };
         generation.update({
-          ...(event.finishReason ? { metadata: { finishReason: event.finishReason } } : {}),
+          ...(Object.keys(metadata).length ? { metadata } : {}),
+          ...(usageDetails ? { usageDetails } : {}),
           ...(event.error ? { level: 'ERROR', statusMessage: event.error } : {}),
         });
         generation.end(at(event.timestamp));

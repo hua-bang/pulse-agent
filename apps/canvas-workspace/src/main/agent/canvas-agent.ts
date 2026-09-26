@@ -79,6 +79,7 @@ import {
 } from './engine-stream-callbacks';
 import { executeCanvasAgentSegment } from './segment-execution';
 import { markCanvasHostContextReady, traceScopeActivationStep } from './observability/host-run';
+import { traceEngineInitialize } from './observability/engine-init-trace';
 import type { PendingClarificationRequest } from './clarification-registry';
 import { CanvasRunRegistry } from './canvas-run-registry';
 import { prepareRunSession } from './run-session-context';
@@ -563,7 +564,7 @@ export class CanvasAgent {
   async initialize(): Promise<void> {
     console.info(`[canvas-agent] Initializing for ${this.label}`);
 
-    await traceScopeActivationStep('canvas.scope.engine-init', () => this.engine.initialize());
+    await traceEngineInitialize(this.engine);
 
     await traceScopeActivationStep('canvas.scope.session-restore', async () => {
       const restoredSession = await this.sessionStore.restoreLastSession();

@@ -14,7 +14,7 @@ vi.mock('./canvas-agent', () => ({
 }));
 
 import type { CanvasAgent } from './canvas-agent';
-import { traceCanvasScopeActivation } from './observability/host-run';
+import { traceCanvasScopeActivation, traceScopeActivationStep } from './observability/host-run';
 import type { CanvasAgentPerformanceTiming } from './debug-trace';
 import { ScopeActivationGate } from './scope-activation-gate';
 import { activateAgentScope } from './scope-agent-activation';
@@ -35,7 +35,10 @@ describe('scope activation step tracing', () => {
 
   it('separates owned initialization from joining an in-flight warm-up', async () => {
     let finishInit!: () => void;
-    state.initialize.mockImplementation(() => new Promise<void>(done => { finishInit = done; }));
+    state.initialize.mockImplementation(() => traceScopeActivationStep(
+      'canvas.scope.engine-init',
+      () => new Promise<void>(done => { finishInit = done; }),
+    ));
     const agents = new Map<string, CanvasAgent>();
     const gate = new ScopeActivationGate();
     const scope = { kind: 'workspace', workspaceId: 'ws' } as const;
@@ -51,6 +54,32 @@ describe('scope activation step tracing', () => {
     expect(stepsFor('chat')).toContain('canvas.scope.agent-init-wait');
     expect(stepsFor('chat')).not.toContain('canvas.scope.agent-init');
     expect(stepsFor('chat')).toContain('canvas.scope.availability-check');
+    // The run that only waited still sees what the shared init spent its time on.
+    expect(stepsFor('chat')).toContain('canvas.scope.engine-init');
+    expect(stepsFor('warmup')).toContain('canvas.scope.engine-init');
+  });
+
+  it('reports a warm-up without its own trace through the run that waits on it', async () => {
+    let finishInit!: () => void;
+    state.initialize.mockImplementation(() => traceScopeActivationStep(
+      'canvas.scope.engine-init',
+      () => new Promise<void>(done => { finishInit = done; }),
+    ));
+    const agents = new Map<string, CanvasAgent>();
+    const gate = new ScopeActivationGate();
+    const scope = { kind: 'workspace', workspaceId: 'ws-2' } as const;
+
+    const untracedWarmup = activateAgentScope(scope, agents, gate);
+    await vi.waitFor(() => expect(state.initialize).toHaveBeenCalled());
+    const chat = traceCanvasScopeActivation(timing('chat-2'), () => activateAgentScope(scope, agents, gate));
+    await Promise.resolve();
+    finishInit();
+    await Promise.all([untracedWarmup, chat]);
+
+    expect(stepsFor('chat-2')).toEqual(expect.arrayContaining([
+      'canvas.scope.agent-init-wait',
+      'canvas.scope.engine-init',
+    ]));
   });
 
   it('does not time availability checks for scopes without durable trash state', async () => {

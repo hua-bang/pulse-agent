@@ -275,6 +275,21 @@ export type MCPServerStatus =
   | { ok: false; error: string };
 
 /**
+ * Emitted as `mcpServerTiming` on the engine event bus once per configured
+ * server during plugin initialization. `connectMs` covers transport + client
+ * creation; `listToolsMs` covers `tools()`; either is absent when that stage
+ * was not reached.
+ */
+export interface McpServerTiming {
+  serverName: string;
+  startedAt: number;
+  durationMs: number;
+  ok: boolean;
+  connectMs?: number;
+  listToolsMs?: number;
+}
+
+/**
  * 管理本插件创建的所有 MCP client，便于宿主在重建 Engine 前统一关闭，
  * 避免 stdio 子进程 / 长连接泄漏。注册为服务 `mcp:__manager__`。
  */
@@ -461,6 +476,8 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
       let loadedCount = 0;
 
       for (const [serverName, rawServerConfig] of Object.entries(config.servers)) {
+        // Per-server timing for hosts diagnosing slow startup; servers load serially.
+        const timing: McpServerTiming = { serverName, startedAt: Date.now(), durationMs: 0, ok: false };
         try {
           const normalizedConfig = normalizeServerConfig(serverName, rawServerConfig);
           if (!normalizedConfig) {
@@ -475,8 +492,10 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           );
           const client = await createMCPClient({ transport });
           clients.push(client as { close?: () => Promise<void> | void });
+          timing.connectMs = Date.now() - timing.startedAt;
 
           const tools = await client.tools();
+          timing.listToolsMs = Date.now() - timing.startedAt - timing.connectMs;
           const shouldDeferTools = normalizedConfig.deferTools === true;
           const disabledTools = new Set(normalizedConfig.disabledTools ?? []);
 
@@ -515,6 +534,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           serverRuntimes[serverName] = { client };
 
           const toolCount = Object.keys(namespacedTools).length;
+          timing.ok = true;
           loadedCount++;
           statuses[serverName] = { ok: true, toolCount, tools: toolInfos };
           console.log(`[MCP] Server "${serverName}" loaded (${toolCount}/${toolInfos.length} tools)`);
@@ -526,6 +546,13 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           const message = error instanceof Error ? error.message : 'Unknown error';
           statuses[serverName] = { ok: false, error: message };
           console.warn(`[MCP] Failed to load server "${serverName}": ${message}`);
+        } finally {
+          timing.durationMs = Date.now() - timing.startedAt;
+          try {
+            context.events.emit('mcpServerTiming', timing);
+          } catch {
+            // best-effort only
+          }
         }
       }
 

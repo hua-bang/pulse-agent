@@ -21,7 +21,7 @@ How to author, register, and reason about `EnginePlugin`s. Facts verified agains
 | `afterLLMCall` | after every LLM call, including the error path | — |
 | `afterRun` | once after the loop exits | — |
 
-Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `PluginManager`). `beforeToolCall`/`afterToolCall` observe read/ls output with the dedup note already appended (see `architecture.md` Runtime Invariants).
+Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `PluginManager`). Each engine plugin's initialization emits `pluginInitTiming` (`pluginName`, `startedAt`, `durationMs`, `ok`), and the MCP built-in emits `mcpServerTiming` (`McpServerTiming`) per configured server; both are best-effort diagnostics on `engine.events`. `beforeToolCall`/`afterToolCall` observe read/ls output with the dedup note already appended (see `architecture.md` Runtime Invariants).
 
 ## Lifecycle
 

@@ -1,4 +1,5 @@
 import { publishAgentTraceEvent } from '../../../plugins/main';
+import type { AgentTraceGenerationTimings, AgentTraceGenerationUsage } from '../../../shared/agent-observability';
 
 interface RunState {
   runId: string;
@@ -15,6 +16,30 @@ const runtimeOwner = (runtimeId: unknown): 'engine' | 'pi' =>
 
 const contextObject = (value: unknown): object | undefined =>
   value != null && typeof value === 'object' ? value : undefined;
+
+const finiteNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+const withDefinedValues = <T extends object>(value: T): T | undefined => {
+  const entries = Object.entries(value).filter(([, entry]) => entry !== undefined);
+  return entries.length ? Object.fromEntries(entries) as T : undefined;
+};
+
+/** Engine `afterLLMCall` timings, renamed to the trace contract. */
+export const generationTimings = (timings: any): AgentTraceGenerationTimings | undefined => withDefinedValues({
+  requestStartedAt: finiteNumber(timings?.requestStartAt),
+  firstChunkAt: finiteNumber(timings?.firstChunkAt),
+  firstTextAt: finiteNumber(timings?.firstTextAt),
+  lastChunkAt: finiteNumber(timings?.lastChunkAt),
+});
+
+/** AI SDK v6 usage (nested details) with the flat legacy fields as fallback. */
+export const generationUsage = (usage: any): AgentTraceGenerationUsage | undefined => withDefinedValues({
+  inputTokens: finiteNumber(usage?.inputTokens),
+  cachedInputTokens: finiteNumber(usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens),
+  outputTokens: finiteNumber(usage?.outputTokens),
+  reasoningTokens: finiteNumber(usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens),
+});
 
 export const canvasAgentObservabilityEnginePlugin = {
   name: 'canvas-agent-observability',
@@ -60,6 +85,8 @@ export const canvasAgentObservabilityEnginePlugin = {
         type: 'generation.completed', runId: state.runId,
         timestamp: Date.now(), generationId, owner: state.owner,
         finishReason: typeof input.finishReason === 'string' ? input.finishReason : undefined,
+        timings: generationTimings(input.timings),
+        usage: generationUsage(input.usage),
       });
     });
 

@@ -1,4 +1,5 @@
 import type { AgentDebugTrace } from '../../../renderer/src/types';
+import type { AgentTraceEvent } from '../../../shared/agent-observability';
 
 export type PerformanceOwner = 'canvas-host' | 'engine' | 'pi' | 'runtime';
 
@@ -189,6 +190,8 @@ const phaseLabel = (phase: string): string => ({
   'canvas.scope.agent-init': 'Scope › Agent init',
   'canvas.scope.agent-init-wait': 'Scope › Wait for in-flight agent init',
   'canvas.scope.engine-init': 'Scope › Engine init',
+  'canvas.scope.engine-plugin-init': 'Scope › Engine plugin',
+  'canvas.scope.mcp-server': 'Scope › MCP server',
   'canvas.scope.session-restore': 'Scope › Session restore',
   'canvas.scope.session-reconcile': 'Scope › Session reconcile',
   'canvas.context-preparation': 'Context preparation',
@@ -197,6 +200,63 @@ const phaseLabel = (phase: string): string => ({
   'canvas.response-processing': 'Response processing',
   'canvas.persistence': 'Save conversation',
 }[phase] ?? phase);
+
+type GenerationCompletedEvent = Extract<AgentTraceEvent, { type: 'generation.completed' }>;
+
+const formatTokens = (value: number): string => (
+  value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
+);
+
+/** Duration stays first because an item's detail replaces its duration in the waterfall. */
+const generationDetail = (
+  durationMs: number,
+  finishReason: string | undefined,
+  usage: GenerationCompletedEvent['usage'],
+): string => {
+  const parts = [durationMs >= 1000 ? `${(durationMs / 1000).toFixed(2)}s` : `${durationMs}ms`];
+  if (usage?.inputTokens !== undefined) {
+    const cached = usage.cachedInputTokens ? ` (cached ${formatTokens(usage.cachedInputTokens)})` : '';
+    parts.push(`in ${formatTokens(usage.inputTokens)}${cached}`);
+  }
+  if (usage?.outputTokens !== undefined) {
+    const reasoning = usage.reasoningTokens ? ` (reasoning ${formatTokens(usage.reasoningTokens)})` : '';
+    parts.push(`out ${formatTokens(usage.outputTokens)}${reasoning}`);
+  }
+  if (finishReason) parts.push(finishReason);
+  return parts.join(' · ');
+};
+
+/**
+ * Split one provider call at the boundaries the runtime reported: request
+ * preparation, waiting for the first chunk (provider queue + prefill), output
+ * before any text (reasoning or tool input), and text streaming.
+ */
+const generationSegments = (
+  event: GenerationCompletedEvent,
+  startedAt: number,
+  origin: number,
+): TraceTimelineItem[] => {
+  const timings = event.timings;
+  if (!timings) return [];
+  const bounds: Array<[string, number | undefined, number | undefined]> = [
+    ['Request preparation', startedAt, timings.requestStartedAt],
+    ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
+    ['Output before text', timings.firstChunkAt, timings.firstTextAt],
+    ['Text streaming', timings.firstTextAt, event.timestamp],
+  ];
+  return bounds.flatMap(([label, from, to]) => {
+    if (from === undefined || to === undefined || to <= from) return [];
+    return [{
+      id: `generation:${event.generationId}:${label}`,
+      label: `Generation › ${label}`,
+      owner: eventOwner(event.owner),
+      kind: 'generation' as const,
+      startMs: Math.max(0, from - origin),
+      durationMs: to - from,
+      endMs: Math.max(0, to - origin),
+    }];
+  });
+};
 
 export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | undefined {
   const events = trace.observabilityEvents ?? [];
@@ -245,7 +305,8 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
       items.push({
         // Nested steps (e.g. repeated availability checks) can share a start millisecond.
         id: `phase:${event.phase}:${event.startedAt}:${items.length}`,
-        label: phaseLabel(event.phase), owner: eventOwner(event.owner), kind: 'phase',
+        label: event.detail ? `${phaseLabel(event.phase)} · ${event.detail}` : phaseLabel(event.phase),
+        owner: eventOwner(event.owner), kind: 'phase',
         startMs: Math.max(0, event.startedAt - origin),
         durationMs: Math.max(0, event.finishedAt - event.startedAt),
         endMs: Math.max(0, event.finishedAt - origin),
@@ -260,9 +321,10 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
         startMs: Math.max(0, startedAt - origin),
         durationMs: Math.max(0, event.timestamp - startedAt),
         endMs: Math.max(0, event.timestamp - origin),
-        detail: event.finishReason,
+        detail: generationDetail(event.timestamp - startedAt, event.finishReason, event.usage),
         status: event.error ? 'error' : 'success',
       });
+      items.push(...generationSegments(event, startedAt, origin));
     }
     if (event.type === 'tool.completed') {
       const start = starts.get(`tool:${event.toolCallId}`);

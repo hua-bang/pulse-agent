@@ -51,7 +51,11 @@ The duration spans should be exclusive phases so their widths add up to the
 turn. The exception is `canvas.scope.*` steps: they carry
 `parentPhase: 'canvas.scope-activation'`, overlap that phase, and must not be
 summed with it. They are exported as sibling spans because the parent span is
-only known once activation finishes. TTFA and TTFT are milestones inside the runtime, not additive phases.
+only known once activation finishes; a repeated step (one per engine plugin or
+MCP server) names its subject in `metadata.detail`. Engine generations also
+export `usageDetails` (`input`, `output`, `input_cached_tokens`,
+`output_reasoning_tokens`) and the provider-call boundaries in
+`metadata.timings`. TTFA and TTFT are milestones inside the runtime, not additive phases.
 For TTFT analytics, set `completionStartTime` on the relevant generation; also
 store turn-level `ttfaMs`/`ttftMs` in root metadata because a tool-using Engine
 turn may contain several generations.

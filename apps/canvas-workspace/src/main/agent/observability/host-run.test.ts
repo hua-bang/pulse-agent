@@ -8,6 +8,9 @@ import {
   completeCanvasHostRun,
   markCanvasRuntimeCompleted,
   markCanvasRuntimeStarted,
+  collectScopeActivationSteps,
+  recordScopeActivationStep,
+  replayScopeActivationSteps,
   traceCanvasScopeActivation,
   traceScopeActivationStep,
 } from './host-run';
@@ -64,5 +67,34 @@ describe('Canvas host observability lifecycle', () => {
       traceScopeActivationStep('canvas.scope.agent-init', async () => { throw new Error('init failed'); })
     ))).rejects.toThrow('init failed');
     expect(publish.mock.calls[0][0]).toMatchObject({ phase: 'canvas.scope.agent-init', runId: 'run-3' });
+  });
+
+  it('collects shared-work steps once and replays them to each awaiting run', async () => {
+    let lateRecord!: () => void;
+    const steps = await collectScopeActivationSteps(async () => {
+      await traceScopeActivationStep('canvas.scope.engine-init', async () => undefined);
+      recordScopeActivationStep({
+        step: 'canvas.scope.mcp-server', startedAt: 1_000, finishedAt: 1_200, detail: 'exa',
+      });
+      lateRecord = () => recordScopeActivationStep({
+        step: 'canvas.scope.mcp-server', startedAt: 2_000, finishedAt: 2_100, detail: 'late',
+      });
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(steps.map(step => step.step)).toEqual(['canvas.scope.engine-init', 'canvas.scope.mcp-server']);
+
+    // A callback created during collection must not write into the closed collector.
+    lateRecord();
+    expect(steps).toHaveLength(2);
+
+    for (const runId of ['owner', 'joiner']) {
+      const timing = beginCanvasHostRun('workspace', runId);
+      publish.mockReset();
+      await traceCanvasScopeActivation(timing, async () => replayScopeActivationSteps(steps));
+      expect(publish.mock.calls.map(([event]) => [event.runId, event.phase, event.detail])).toEqual([
+        [runId, 'canvas.scope.engine-init', undefined],
+        [runId, 'canvas.scope.mcp-server', 'exa'],
+      ]);
+    }
   });
 });

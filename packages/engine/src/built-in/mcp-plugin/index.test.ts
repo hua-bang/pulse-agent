@@ -243,3 +243,27 @@ describe('createMcpPlugin disabledTools', () => {
     });
   });
 });
+
+describe('createMcpPlugin startup timing', () => {
+  it('emits one mcpServerTiming per configured server, including failures', async () => {
+    const cfgPath = await writeConfig({
+      exa: { transport: 'http', url: 'https://mcp.exa.ai/mcp' },
+      broken: { transport: 'http' },
+    });
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx } = makeContext();
+    const emitted: Array<[string, any]> = [];
+    ctx.events = { emit: (name: string, payload: unknown) => emitted.push([name, payload]), on: () => {} } as any;
+
+    await plugin.initialize(ctx);
+
+    const timings = emitted.filter(([name]) => name === 'mcpServerTiming').map(([, payload]) => payload);
+    expect(timings.map(timing => timing.serverName).sort()).toEqual(['broken', 'exa']);
+    const exa = timings.find(timing => timing.serverName === 'exa');
+    expect(exa).toMatchObject({ ok: true });
+    expect(exa.connectMs).toBeGreaterThanOrEqual(0);
+    expect(exa.listToolsMs).toBeGreaterThanOrEqual(0);
+    expect(exa.durationMs).toBeGreaterThanOrEqual(exa.connectMs + exa.listToolsMs);
+    expect(timings.find(timing => timing.serverName === 'broken')).toMatchObject({ ok: false });
+  });
+});

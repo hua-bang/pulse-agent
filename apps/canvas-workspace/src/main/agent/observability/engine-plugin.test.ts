@@ -47,4 +47,39 @@ describe('canvas Engine observability plugin', () => {
 
     expect(publish).not.toHaveBeenCalled();
   });
+
+  it('carries provider timings and token usage on completed Engine generations', async () => {
+    const hooks = await setup();
+    const context = {};
+    hooks.get('beforeRun')!({ context, runContext: { runId: 'run-2', runtimeId: 'engine' } });
+    hooks.get('beforeLLMCall')!({ context, model: 'gpt-test' });
+    hooks.get('afterLLMCall')!({
+      context,
+      finishReason: 'stop',
+      timings: { requestStartAt: 10, firstChunkAt: 40, firstTextAt: 55, lastChunkAt: 90 },
+      usage: {
+        inputTokens: 900,
+        inputTokenDetails: { cacheReadTokens: 800 },
+        outputTokens: 60,
+        outputTokenDetails: { reasoningTokens: 20 },
+      },
+    });
+
+    expect(publish.mock.calls[1][0]).toMatchObject({
+      type: 'generation.completed',
+      timings: { requestStartedAt: 10, firstChunkAt: 40, firstTextAt: 55, lastChunkAt: 90 },
+      usage: { inputTokens: 900, cachedInputTokens: 800, outputTokens: 60, reasoningTokens: 20 },
+    });
+  });
+
+  it('omits timings and usage the runtime did not report', async () => {
+    const hooks = await setup();
+    const context = {};
+    hooks.get('beforeRun')!({ context, runContext: { runId: 'run-3', runtimeId: 'engine' } });
+    hooks.get('beforeLLMCall')!({ context });
+    hooks.get('afterLLMCall')!({ context, finishReason: 'stop', timings: { requestStartAt: undefined } });
+
+    expect(publish.mock.calls[1][0].timings).toBeUndefined();
+    expect(publish.mock.calls[1][0].usage).toBeUndefined();
+  });
 });
