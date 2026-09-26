@@ -76,7 +76,7 @@ See [`harness/knowledge/main-domain-modules.md`](./harness/knowledge/main-domain
 ## Dev & Build Commands
 
 ```bash
-# Install (also runs electron-rebuild for node-pty)
+# Install (also builds node-pty: electron-rebuild, host-Node N-API fallback)
 pnpm install
 
 # Development (hot reload)

@@ -1,0 +1,280 @@
+#!/usr/bin/env node
+/**
+ * One-command real-app debugging: `pnpm --filter canvas-workspace harness:up`.
+ *
+ * Idempotent; every step is skipped when already satisfied, so a warm rerun
+ * only relaunches the app:
+ *   1. system packages for headless Linux (Xvfb, certutil) via apt when root
+ *   2. `pnpm bootstrap:worktree` when node_modules, the Electron binary or
+ *      node-pty is missing (refusing node_modules linked into another
+ *      checkout), then Electron's system libraries via Playwright when root
+ *   3. rebuild storage → engine → agent-teams → canvas-cli → Electron SQLite
+ *      binding (→ app with --built) from the first stale one
+ *   4. start harness/mock-llm.mjs unless a real model key is configured
+ *   5. `harness start` with --headless / --ca-cert chosen for this host
+ *
+ * Default is dev mode (electron-vite dev): no app build, renderer edits
+ * hot-reload, main/preload edits restart Electron. `--built` launches the
+ * production bundle instead, for performance or packaging-accurate checks.
+ *
+ * `harness:down` closes the session and stops the mock LLM.
+ * Uses Node builtins only: it must run before dependencies are installed.
+ */
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { assertLocalNodeModules } from '../../../../../scripts/bootstrap-worktree-deps.mjs';
+import {
+  buildTargets,
+  hasCommand,
+  defaultStale,
+  isMockProcess,
+  missingSharedLibraries,
+  missingSystemPackages,
+  planBuilds,
+  resolveQuickstartCa,
+} from './src/bootstrap.mjs';
+
+const DRIVER_DIR = dirname(fileURLToPath(import.meta.url));
+const APP_DIR = resolve(DRIVER_DIR, '../../..');
+const REPO_ROOT = resolve(APP_DIR, '../..');
+const CLI = join(DRIVER_DIR, 'cli.mjs');
+const MOCK_STATE = join(APP_DIR, '.harness', 'mock-llm.json');
+const DEV_DIST_MARKER = join(APP_DIR, '.harness', 'dist-has-dev-build');
+const MODEL_KEYS = ['OPENAI_API_KEY', 'PULSE_OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'PULSE_ANTHROPIC_API_KEY'];
+
+const startedAt = Date.now();
+const log = (message) => console.log(`[harness:up +${((Date.now() - startedAt) / 1000).toFixed(1)}s] ${message}`);
+const fail = (message) => {
+  console.error(`[harness:up] ${message}`);
+  process.exit(1);
+};
+const run = (command, args, options = {}) =>
+  spawnSync(command, args, { stdio: 'inherit', cwd: REPO_ROOT, ...options }).status === 0;
+
+function parseArgs(argv) {
+  const opts = { command: 'up', profile: 'demo', mockPort: 18100, passthrough: [] };
+  const args = [...argv];
+  if (args[0] === 'up' || args[0] === 'down') opts.command = args.shift();
+  while (args.length) {
+    const arg = args.shift();
+    if (arg === '--no-mock-llm') opts.noMock = true;
+    else if (arg === '--no-ca') opts.noCa = true;
+    else if (arg === '--skip-build') opts.skipBuild = true;
+    else if (arg === '--built') opts.built = true;
+    else if (arg === '--profile') opts.profile = args.shift();
+    else if (arg === '--mock-port') opts.mockPort = Number(args.shift());
+    else if (arg === '--ca-cert') opts['ca-cert'] = args.shift();
+    else opts.passthrough.push(arg);
+  }
+  return opts;
+}
+
+function ensureSystemPackages({ needXvfb, needCa }) {
+  const missing = missingSystemPackages({ needXvfb, needCa });
+  if (!missing.length) return true;
+  const canApt = process.platform === 'linux' && process.getuid?.() === 0 && hasCommand('apt-get');
+  if (!canApt) {
+    if (missing.includes('xvfb')) fail(`Missing system packages: ${missing.join(' ')}. Install them and rerun.`);
+    return false;
+  }
+  log(`installing system packages: ${missing.join(' ')}`);
+  const install = () => run('apt-get', ['install', '-y', '-q', ...missing], { stdio: 'ignore' });
+  if (!install()) {
+    // Stale package index (404 on the pinned .deb) is the common failure.
+    run('apt-get', ['update', '-q'], { stdio: 'ignore' });
+    if (!install()) {
+      if (missing.includes('xvfb')) fail(`apt-get could not install ${missing.join(' ')}.`);
+      return false;
+    }
+  }
+  return true;
+}
+
+function dependenciesReady() {
+  const modulesYaml = join(REPO_ROOT, 'node_modules', '.modules.yaml');
+  const lockfile = join(REPO_ROOT, 'pnpm-lock.yaml');
+  if (!existsSync(modulesYaml) || statSync(modulesYaml).mtimeMs < statSync(lockfile).mtimeMs) return false;
+  try {
+    const nodePty = realpathSync(join(APP_DIR, 'node_modules', 'node-pty'));
+    return existsSync(join(nodePty, 'build', 'Release', 'pty.node')) && electronReady();
+  } catch {
+    return false;
+  }
+}
+
+function electronReady() {
+  try {
+    const electron = realpathSync(join(APP_DIR, 'node_modules', 'electron'));
+    return existsSync(join(electron, 'path.txt')) && existsSync(join(electron, 'dist'));
+  } catch {
+    return false;
+  }
+}
+
+async function ensureDependencies() {
+  // Root AGENTS: a linked worktree must never build or run against another
+  // checkout's node_modules, so check locality before trusting the fast path.
+  await assertLocalNodeModules(REPO_ROOT).catch((error) => fail(error.message));
+  if (dependenciesReady()) return;
+  log('installing dependencies (pnpm bootstrap:worktree)');
+  if (!run('pnpm', ['bootstrap:worktree'])) fail('pnpm bootstrap:worktree failed.');
+  if (!electronReady() && !run('pnpm', ['--filter', 'canvas-workspace', 'setup:electron'])) {
+    fail('Electron binary is missing and setup:electron could not download it.');
+  }
+}
+
+const electronBinary = () => {
+  const electron = realpathSync(join(APP_DIR, 'node_modules', 'electron'));
+  return join(electron, 'dist', readFileSync(join(electron, 'path.txt'), 'utf-8').trim());
+};
+
+const missingElectronLibraries = () =>
+  missingSharedLibraries(spawnSync('ldd', [electronBinary()], { encoding: 'utf-8' }).stdout ?? '');
+
+// Minimal Linux images lack Electron's GTK/ATK/GBM/audio libraries, and the
+// loader exits before CDP starts. Playwright (a canvas-workspace devDependency)
+// owns the per-distro Chromium dependency list, which covers Electron's.
+function ensureElectronLibraries() {
+  if (process.platform !== 'linux' || !hasCommand('ldd')) return;
+  let missing = missingElectronLibraries();
+  if (!missing.length) return;
+  if (process.getuid?.() === 0 && hasCommand('apt-get')) {
+    log(`installing Electron system libraries (missing: ${missing.join(' ')})`);
+    run('pnpm', ['exec', 'playwright', 'install-deps', 'chromium'], { cwd: APP_DIR, stdio: 'ignore' });
+    missing = missingElectronLibraries();
+    if (missing.length) {
+      // apt refuses the whole Playwright transaction when the image already
+      // has unmet dependencies (a partly upgraded or force-removed package
+      // set); fix-broken is apt's own repair and restores such libraries.
+      run('apt-get', ['-f', 'install', '-y', '-q'], { stdio: 'ignore' });
+      missing = missingElectronLibraries();
+    }
+  }
+  if (missing.length) {
+    fail(`Electron cannot load: missing ${missing.join(' ')}. `
+      + 'Install them (debian/ubuntu: `pnpm --filter canvas-workspace exec playwright install-deps chromium`).');
+  }
+}
+
+function ensureBuilds({ skip, dev }) {
+  const targets = buildTargets(REPO_ROOT);
+  const app = targets.at(-1);
+  // Dev serves the app from source, but it still resolves the workspace
+  // packages from their dist. Dev also writes dev bundles into dist/main and
+  // dist/preload, so the next built launch must rebuild the app.
+  const builds = dev
+    ? planBuilds(targets.slice(0, -1))
+    : planBuilds(targets, (target) => (target === app && existsSync(DEV_DIST_MARKER)) || defaultStale(target));
+  if (!builds.length) return;
+  if (skip) {
+    log(`--skip-build: ${builds.map((target) => target.name).join(', ')} may be stale`);
+    return;
+  }
+  for (const target of builds) {
+    log(`building ${target.name}`);
+    const [command, args, cwd] = target.command;
+    if (!run(command, args, { cwd, stdio: ['ignore', 'ignore', 'inherit'] })) {
+      fail(`build failed: ${command} ${args.join(' ')}`);
+    }
+    if (target === app) rmSync(DEV_DIST_MARKER, { force: true });
+  }
+}
+
+const readMockState = () => {
+  try { return JSON.parse(readFileSync(MOCK_STATE, 'utf-8')); } catch { return null; }
+};
+
+const mockResponds = async (port) => {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/v1/models`, { signal: AbortSignal.timeout(1000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+async function ensureMockLlm(port) {
+  if (await mockResponds(port)) return;
+  const child = spawn(process.execPath, [join(APP_DIR, 'harness', 'mock-llm.mjs'), String(port)], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+  mkdirSync(dirname(MOCK_STATE), { recursive: true });
+  writeFileSync(MOCK_STATE, JSON.stringify({ pid: child.pid, port }));
+  for (let i = 0; i < 50; i++) {
+    if (await mockResponds(port)) return;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  fail(`mock LLM did not answer on port ${port}.`);
+}
+
+function stopMockLlm() {
+  const state = readMockState();
+  if (!state) return;
+  // The state file can outlive the mock (crash, reboot) while its pid is
+  // reused, so signal only a process that is still running mock-llm.mjs.
+  if (isMockProcess(state.pid)) {
+    try { process.kill(state.pid, 'SIGTERM'); } catch { /* already gone */ }
+    // Wait for exit so an immediate harness:up cannot find the dying mock
+    // still answering on the port and reuse it.
+    const sleeper = new Int32Array(new SharedArrayBuffer(4));
+    for (let i = 0; i < 30 && isMockProcess(state.pid); i++) Atomics.wait(sleeper, 0, 0, 100);
+  }
+  rmSync(MOCK_STATE, { force: true });
+}
+
+async function up(opts) {
+  const linux = process.platform === 'linux';
+  // Root cannot start Electron without --no-sandbox, which only --headless adds.
+  const headless = linux && (!process.env.DISPLAY || process.getuid?.() === 0);
+  const caFile = opts.noCa || !linux ? undefined : resolveQuickstartCa(opts);
+  const caUsable = ensureSystemPackages({ needXvfb: linux && !process.env.DISPLAY, needCa: Boolean(caFile) });
+  if (caFile && !caUsable) log('certutil unavailable: HTTPS webviews may fail behind the proxy');
+
+  await ensureDependencies();
+  ensureElectronLibraries();
+  const dev = !opts.built;
+  ensureBuilds({ skip: opts.skipBuild, dev });
+
+  const env = { ...process.env };
+  const useMock = !opts.noMock && !MODEL_KEYS.some((key) => process.env[key]);
+  if (useMock) {
+    await ensureMockLlm(opts.mockPort);
+    Object.assign(env, { OPENAI_API_URL: `http://127.0.0.1:${opts.mockPort}/v1`, OPENAI_API_KEY: 'mock' });
+  }
+
+  log(`launching ${dev ? 'dev (HMR)' : 'built'} profile=${opts.profile}${headless ? ' headless' : ''}`
+    + `${caFile && caUsable ? ` ca=${caFile}` : ''}`);
+  if (dev) {
+    mkdirSync(dirname(DEV_DIST_MARKER), { recursive: true });
+    writeFileSync(DEV_DIST_MARKER, '');
+  }
+  const startArgs = [
+    CLI, 'start', '--profile', opts.profile, '--force',
+    ...(dev ? ['--dev'] : []),
+    ...(headless ? ['--headless'] : []),
+    ...(caFile && caUsable ? ['--ca-cert', caFile] : []),
+    ...opts.passthrough,
+  ];
+  if (!run(process.execPath, startArgs, { cwd: APP_DIR, env })) fail('harness start failed (see stderr above).');
+
+  log(`ready${useMock ? ` · chat uses mock LLM on :${opts.mockPort}` : ''}`);
+  if (dev) log('renderer edits hot-reload; main/preload edits restart Electron (same CDP port)');
+  console.log([
+    '',
+    'Next: pnpm --filter canvas-workspace harness screenshot | snapshot-ui | eval-renderer <js> | logs',
+    'Stop: pnpm --filter canvas-workspace harness:down',
+  ].join('\n'));
+}
+
+function down() {
+  run(process.execPath, [CLI, 'close', '--cleanup'], { cwd: APP_DIR });
+  stopMockLlm();
+}
+
+const opts = parseArgs(process.argv.slice(2));
+if (opts.command === 'down') down();
+else await up(opts);

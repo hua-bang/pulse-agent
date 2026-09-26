@@ -74,7 +74,14 @@ describe('packaged agent tooling', () => {
   it('does not rebuild the shared SQLite dependency for Electron during install or packaging', () => {
     expect(packageJson.build?.npmRebuild).toBe(false);
     for (const script of ['postinstall', 'rebuild']) {
-      expect(packageJson.scripts?.[script]).toBe('electron-rebuild -f -o node-pty');
+      expect(packageJson.scripts?.[script]).toBe('node scripts/setup/rebuild-native.mjs');
     }
+    // `-o` restricts electron-rebuild to node-pty; `-w` would add it to the
+    // normal set and overwrite SQLite's Node binary. The host-header fallback
+    // runs node-gyp only inside node-pty's own directory.
+    const rebuildScript = readFileSync(resolve(process.cwd(), 'scripts/setup/rebuild-native.mjs'), 'utf8');
+    expect(rebuildScript).toContain("['-f', '-o', 'node-pty']");
+    expect(rebuildScript).not.toMatch(/'-w'|better-sqlite3/);
+    expect(rebuildScript).toContain("[nodeGyp, 'rebuild'], nodePtyDir");
   });
 });

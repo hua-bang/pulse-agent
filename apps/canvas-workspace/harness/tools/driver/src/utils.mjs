@@ -1,10 +1,20 @@
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { createServer } from 'node:net';
+import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { HarnessError } from './errors.mjs';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Resolve a path the user typed against the directory they typed it in.
+ * `pnpm --filter canvas-workspace harness ...` runs with cwd = the app dir,
+ * so plain resolve() would turn `out.png` from the repo root into
+ * apps/canvas-workspace/out.png; pnpm records the invocation dir in INIT_CWD.
+ */
+export const resolveUserPath = (path, env = process.env) =>
+  resolve(env.INIT_CWD ?? process.cwd(), path);
 
 export function isPidAlive(pid) {
   if (!pid) return false;

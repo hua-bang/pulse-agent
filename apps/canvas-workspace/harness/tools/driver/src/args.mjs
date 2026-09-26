@@ -9,6 +9,7 @@ const BOOLEAN_FLAGS = new Set([
   'cleanup',
   'enable-webview-page-control',
   'headless',
+  'dev',
 ]);
 
 export function parseArgs(rawArgs) {

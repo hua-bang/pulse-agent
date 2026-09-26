@@ -11,9 +11,45 @@ Use the harness as the default agent-facing entrypoint for operating `apps/canva
 
 Prefer this over `dev:temp-home` when the task needs repeatable launch, renderer inspection, screenshots, UI actions, logs, or cleanup.
 
+## Quick start (default entry, including fresh cloud containers)
+
+```bash
+pnpm --filter canvas-workspace harness:up           # dev mode (default): ~19s to a settled UI
+pnpm --filter canvas-workspace harness:up --built   # production bundle: +~67s app build when stale
+pnpm --filter canvas-workspace harness:down         # close session + stop mock LLM
+```
+
+Dev mode runs `electron-vite dev --watch` behind the same CDP session:
+renderer edits hot-update in place (~2s, no page reload), and main/preload
+edits rebuild and restart Electron (~12s) on the same CDP port, so
+harness commands keep working without re-running `harness:up`. Use `--built`
+for performance, bundle, or packaging-sensitive checks; it rebuilds the app
+after a dev session because dev writes dev bundles into `dist/main` and
+`dist/preload`. Engine/agent-teams/canvas-cli are consumed from their `dist`,
+so after editing them, re-run `harness:up` (it rebuilds the stale chain).
+
+`harness:up` is idempotent and skips satisfied steps: apt-installs Xvfb/certutil
+when root on display-less Linux, runs `pnpm bootstrap:worktree` when
+dependencies, the Electron binary, or node-pty are missing (refusing
+node_modules linked into another checkout), installs Electron's missing Linux
+system libraries via `playwright install-deps chromium` when root (`ldd`
+preflight), rebuilds stale workspace packages
+(storage → engine → agent-teams → canvas-cli) plus canvas-cli's Electron SQLite
+binding (`prepare-sqlite-native.mjs`, GitHub prebuild when Electron headers
+are blocked),
+starts `harness/mock-llm.mjs` unless a model key is set, then runs `start`
+with `--headless` (Linux without DISPLAY or as root) and `--ca-cert` (behind
+an HTTPS proxy, reusing NODE_EXTRA_CA_CERTS). It returns once first-paint
+content has settled (see `start` readiness below), so an immediate screenshot is
+complete. A fresh container costs about 2-4 minutes more for
+dependency download. Defaults to profile `demo`; `--profile`, `--no-mock-llm`,
+`--no-ca`, `--skip-build`, and other `start` options (for example
+`--route /chat`) pass through. Then continue with steps 4-7 below.
+
 ## Workflow
 
-Run from the repository root unless the user asks otherwise.
+Run from the repository root unless the user asks otherwise. Use this manual
+sequence when you need control that `harness:up` does not expose.
 
 1. Build before launch when code changed or `dist/` may be stale:
 
@@ -96,4 +132,6 @@ pnpm --filter canvas-workspace harness close --cleanup
 - Treat visible content as product state. If the screenshot shows an old onboarding or different workspace, first check whether the current branch or built output actually contains the expected product change.
 - If `dist/` is missing or stale, rebuild or start with `--build`.
 - If a session is already running, use `--force` to replace it or `close --cleanup` to stop it.
+- `start` returns after React replaces the boot splash and first-paint content settles (lazy node bodies, file previews, chat history, webview loads; `src/readiness.mjs`). Settling is best effort: after 15s it warns with what is still pending instead of failing.
+- Relative `--output` / `--ca-cert` paths resolve from where you ran pnpm (`INIT_CWD`), not the app directory.
 - Do not leave temporary sessions running after a verification task.

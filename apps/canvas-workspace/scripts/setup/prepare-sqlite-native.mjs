@@ -29,6 +29,23 @@ function inspectBinding(electronPath, sqliteRoot, nativeBinding) {
   }));
 }
 
+export function prebuildInstallArgs(bin, electronVersion, platform = process.platform, arch = process.arch) {
+  return [bin, '--runtime', 'electron', '--target', electronVersion, '--platform', platform, '--arch', arch];
+}
+
+function installElectronPrebuild(sqliteRoot, copiedRoot, electronVersion, sourceError) {
+  const bin = createRequire(join(sqliteRoot, 'package.json')).resolve('prebuild-install/bin.js');
+  try {
+    execFileSync(process.execPath, prebuildInstallArgs(bin, electronVersion), {
+      cwd: copiedRoot,
+      stdio: 'inherit',
+      timeout: 120_000,
+    });
+  } catch (prebuildError) {
+    throw new AggregateError([sourceError, prebuildError], 'Electron SQLite binding: source rebuild and prebuild both failed');
+  }
+}
+
 /** Package only the current Electron ABI; keep the development CLI's multi-ABI tree intact. */
 export async function stagePackagedNative(
   source,
@@ -85,14 +102,23 @@ export async function prepareElectronNative() {
       dependencies: { 'better-sqlite3': driverVersion },
     }));
     const { rebuild } = await import(pathToFileURL(appRequire.resolve('@electron/rebuild')).href);
-    await rebuild({
-      buildPath: staging,
-      electronVersion,
-      arch: process.arch,
-      onlyModules: ['better-sqlite3'],
-      force: true,
-      buildFromSource: true,
-    });
+    try {
+      await rebuild({
+        buildPath: staging,
+        electronVersion,
+        arch: process.arch,
+        onlyModules: ['better-sqlite3'],
+        force: true,
+        buildFromSource: true,
+      });
+    } catch (sourceError) {
+      // Source builds need Electron headers from electronjs.org, which egress
+      // proxies commonly deny. The driver's own install already trusts its
+      // GitHub-hosted prebuilds (prebuild-install); fetch the Electron one into
+      // the staging copy only. inspectBinding below still verifies it loads.
+      console.warn(`[prepare-sqlite-native] source rebuild failed; trying the Electron prebuild: ${sourceError.message}`);
+      installElectronPrebuild(sqliteRoot, copiedRoot, electronVersion, sourceError);
+    }
     const rebuilt = join(copiedRoot, 'build', 'Release', 'better_sqlite3.node');
     const inspected = inspectBinding(electronPath, sqliteRoot, rebuilt);
     await mkdir(cacheDir, { recursive: true });

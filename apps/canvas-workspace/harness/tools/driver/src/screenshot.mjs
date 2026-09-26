@@ -1,16 +1,18 @@
 import { promises as fs } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parseArgs } from './args.mjs';
 import { HarnessError } from './errors.mjs';
 import { printResult } from './output.mjs';
 import { requireLiveSession } from './session.mjs';
-import { execFileText } from './utils.mjs';
+import { execFileText, resolveUserPath } from './utils.mjs';
 import { withPage } from './cdp.mjs';
 
 export async function screenshotCommand(rawArgs) {
   const { opts } = parseArgs(rawArgs);
   const session = await requireLiveSession();
-  const output = resolve(opts.output ?? join(session.artifactsDir, `screenshot-${Date.now()}.png`));
+  const output = opts.output
+    ? resolveUserPath(opts.output)
+    : join(session.artifactsDir, `screenshot-${Date.now()}.png`);
   const methods = screenshotMethods(opts.method ?? 'auto');
   const errors = [];
 

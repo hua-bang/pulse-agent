@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { stagePackagedNative } from './prepare-sqlite-native.mjs';
+import { prebuildInstallArgs, stagePackagedNative } from './prepare-sqlite-native.mjs';
 
 it('stages one Electron binding without removing either development ABI', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pulse-native-package-'));
@@ -29,4 +29,10 @@ it('stages one Electron binding without removing either development ABI', async 
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+it('asks prebuild-install for the Electron runtime build, never the host Node one', () => {
+  expect(prebuildInstallArgs('/bin.js', '30.5.1', 'linux', 'x64')).toEqual([
+    '/bin.js', '--runtime', 'electron', '--target', '30.5.1', '--platform', 'linux', '--arch', 'x64',
+  ]);
 });

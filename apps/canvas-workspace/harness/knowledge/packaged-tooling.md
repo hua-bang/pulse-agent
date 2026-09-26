@@ -174,9 +174,11 @@ Canvas main must explicitly pass the corresponding file beneath
 factory in packaged builds; development uses the CLI's `dist/native/`.
 
 Electron Builder has `npmRebuild: false`. The app's install and explicit
-rebuild scripts use `electron-rebuild -f -o node-pty`; `-w` adds modules to
-the normal rebuild set and would also overwrite SQLite's Node binary with
-the Electron ABI. These build paths prepare the local runtime and
+rebuild scripts run `scripts/setup/rebuild-native.mjs`, which uses
+`electron-rebuild -f -o node-pty`; `-w` adds modules to the normal rebuild set
+and would also overwrite SQLite's Node binary with the Electron ABI. When
+Electron headers are unreachable it falls back to node-gyp inside node-pty only
+(N-API, so the host-Node build loads in Electron). These build paths prepare the local runtime and
 architecture; cross-platform native compilation is not established by this
 workflow. The Electron Builder `beforePack` hook
 (`scripts/setup/assert-packaged-native.mjs`) therefore refuses any target,

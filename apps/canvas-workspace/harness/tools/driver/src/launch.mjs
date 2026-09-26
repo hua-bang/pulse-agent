@@ -17,26 +17,77 @@ import { applyStartupNavigation } from './navigation.mjs';
 import { readSession, stopSession, writeSession } from './session.mjs';
 import { assertDisplayAvailable, ensureHeadlessDisplay, shouldRunHeadless } from './headless.mjs';
 import { collectFlags, prepareProfile, writeExperimentalFlags } from './profiles.mjs';
+import { resolveCaCertFile, trustCaCertificates } from './trust.mjs';
 import { pruneRunDirectories } from './retention.mjs';
+import { waitForAppRendered, waitForContentSettled } from './readiness.mjs';
 import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
+
+const DEV_START_TIMEOUT_MS = 120_000;
+
+// Headless Linux (CI/containers): Chromium flags so the renderer actually
+// comes up — opt-in only, via --headless.
+//   --no-sandbox            CI runners lack the setuid helper / user
+//                           namespaces the Chromium sandbox needs; without
+//                           it the renderer crashes on launch and CDP never
+//                           sees a page target ("No renderer page target
+//                           found"). ELECTRON_DISABLE_SANDBOX is NOT a real
+//                           Electron env var, so the flag is required.
+//   --disable-gpu           no GPU device on CI; a GPU-process crash
+//                           destabilizes the renderer.
+//   --disable-dev-shm-usage CI runners ship a tiny /dev/shm; without this
+//                           the renderer crashes on shared-memory alloc.
+export function electronCommand({ dev, cdpPort, electronUserDataDir, headless }) {
+  const chromiumArgs = [
+    `--user-data-dir=${electronUserDataDir}`,
+    ...(headless ? ['--disable-gpu', '--disable-dev-shm-usage'] : []),
+  ];
+  if (!dev) {
+    return {
+      command: electronPath,
+      args: [
+        `--remote-debugging-port=${cdpPort}`,
+        ...chromiumArgs,
+        ...(headless ? ['--no-sandbox'] : []),
+        APP_DIR,
+      ],
+    };
+  }
+  // electron-vite owns the Electron spawn: it maps these options to the same
+  // flags and forwards everything after `--` to Electron.
+  return {
+    command: join(APP_DIR, 'node_modules', '.bin', 'electron-vite'),
+    args: [
+      'dev',
+      '--watch',
+      '--remoteDebuggingPort', String(cdpPort),
+      ...(headless ? ['--noSandbox'] : []),
+      '--',
+      ...chromiumArgs,
+    ],
+  };
+}
 
 export async function startCommand(rawArgs) {
   const { opts } = parseArgs(rawArgs);
   const existing = await readSession().catch(() => null);
-  if (existing && isPidAlive(existing.pid)) {
-    if (!opts.force) {
-      throw new HarnessError(`Harness session already running (pid ${existing.pid}). Use --force or close it first.`);
-    }
-    await stopSession(existing, { cleanup: false });
+  if (existing && isPidAlive(existing.pid) && !opts.force) {
+    throw new HarnessError(`Harness session already running (pid ${existing.pid}). Use --force or close it first.`);
   }
+  // The record is about to be overwritten, which drops the only handle to
+  // the old session's disposable HOME (temp, or clone's copy of real data).
+  // stopSession removes only harness-created pulse-canvas-harness-* homes.
+  if (existing) await stopSession(existing, { cleanup: true });
 
-  if (opts.build) {
+  // --dev runs electron-vite dev: the renderer is served with HMR and main/
+  // preload rebuild + restart on change (-w), so no production build is needed.
+  const dev = opts.dev === true;
+  if (opts.build && !dev) {
     const result = spawnSync('pnpm', ['run', 'build'], { cwd: APP_DIR, stdio: 'inherit' });
     if (result.status !== 0) throw new HarnessError('Build failed; harness launch aborted.');
   }
 
-  if (!existsSync(DIST_MAIN) || !existsSync(DIST_RENDERER)) {
+  if (!dev && (!existsSync(DIST_MAIN) || !existsSync(DIST_RENDERER))) {
     throw new HarnessError(
       'Built canvas-workspace files are missing. Run `pnpm --filter canvas-workspace build` or start with `--build`.',
     );
@@ -50,6 +101,11 @@ export async function startCommand(rawArgs) {
   await pruneRunDirectories(join(HARNESS_DIR, 'runs'));
 
   const profileInfo = await prepareProfile(profile, opts, artifactsDir);
+  const trustedCaCount = await trustCaCertificates({
+    profile,
+    home: profileInfo.home,
+    caFile: resolveCaCertFile(opts),
+  });
   const flags = collectFlags(opts);
   const flagsPath = flags.length ? await writeExperimentalFlags(flags, artifactsDir) : undefined;
   const cdpPort = await getFreePort();
@@ -59,20 +115,9 @@ export async function startCommand(rawArgs) {
   const stderrPath = join(artifactsDir, 'electron.stderr.log');
   const stdoutFd = openSync(stdoutPath, 'a');
   const stderrFd = openSync(stderrPath, 'a');
-  // Headless Linux (CI/containers): own an Xvfb display and pass Chromium
-  // flags so the renderer actually comes up — opt-in only, via --headless.
-  //   --no-sandbox            CI runners lack the setuid helper / user
-  //                           namespaces the Chromium sandbox needs; without
-  //                           it the renderer crashes on launch and CDP never
-  //                           sees a page target ("No renderer page target
-  //                           found"). ELECTRON_DISABLE_SANDBOX is NOT a real
-  //                           Electron env var, so the flag is required.
-  //   --disable-gpu           no GPU device on CI; a GPU-process crash
-  //                           destabilizes the renderer.
-  //   --disable-dev-shm-usage CI runners ship a tiny /dev/shm; without this
-  //                           the renderer crashes on shared-memory alloc.
-  // Without --headless a display-less host fails fast with the fix instead
-  // of a cryptic Electron crash.
+  // Headless Linux owns an Xvfb display (flags: electronCommand). Without
+  // --headless a display-less host fails fast with the fix instead of a
+  // cryptic Electron crash.
   const headless = shouldRunHeadless(opts);
   if (!headless) assertDisplayAvailable();
   const headlessDisplay = headless ? await ensureHeadlessDisplay() : null;
@@ -84,15 +129,12 @@ export async function startCommand(rawArgs) {
   };
   delete env.ELECTRON_RENDERER_URL;
   delete env.VITE_DEV_SERVER_URL;
-  const child = spawn(electronPath, [
-    `--remote-debugging-port=${cdpPort}`,
-    `--user-data-dir=${electronUserDataDir}`,
-    ...(headless ? ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] : []),
-    APP_DIR,
-  ], {
+  const { command, args } = electronCommand({ dev, cdpPort, electronUserDataDir, headless });
+  const child = spawn(command, args, {
     cwd: APP_DIR,
     env,
     detached: true,
+    shell: dev && process.platform === 'win32',
     stdio: ['ignore', stdoutFd, stderrFd],
   });
   closeSync(stdoutFd);
@@ -103,8 +145,11 @@ export async function startCommand(rawArgs) {
     schemaVersion: 1,
     id,
     profile,
-    mode: 'built',
+    mode: dev ? 'dev' : 'built',
     pid: child.pid,
+    // dev pid is electron-vite; Electron is its child and restarts on main
+    // changes, so stop must signal the whole detached process group.
+    ...(dev ? { processGroup: true } : {}),
     cdpPort,
     appDir: APP_DIR,
     electronUserDataDir,
@@ -118,14 +163,23 @@ export async function startCommand(rawArgs) {
     target: opts.target ?? undefined,
     route: opts.route ?? undefined,
     logFiles: { stdout: stdoutPath, stderr: stderrPath },
+    ...(trustedCaCount ? { trustedCaCount } : {}),
     ...(headlessDisplay
       ? { headless: true, display: headlessDisplay.display, xvfbPid: headlessDisplay.xvfbPid }
       : {}),
   };
 
   try {
-    await waitForPageTarget(session, DEFAULT_TIMEOUT_MS);
+    // Dev first bundles main/preload and starts the dev server before a page exists.
+    const readyTimeout = dev ? DEV_START_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+    await waitForPageTarget(session, readyTimeout);
+    await waitForAppRendered(session, readyTimeout);
     await applyStartupNavigation(session, opts);
+    const settle = await waitForContentSettled(session);
+    if (!settle.settled) {
+      session.settlePending = settle.pending;
+      console.error(`[harness] content still loading after settle timeout: ${settle.pending.join(', ')}`);
+    }
   } catch (err) {
     // Surface the Electron stderr so CI shows the real launch failure
     // (missing system libs, sandbox crash, renderer JS error, etc.) instead
