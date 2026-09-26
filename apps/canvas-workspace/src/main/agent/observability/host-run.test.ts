@@ -8,6 +8,8 @@ import {
   completeCanvasHostRun,
   markCanvasRuntimeCompleted,
   markCanvasRuntimeStarted,
+  traceCanvasScopeActivation,
+  traceScopeActivationStep,
 } from './host-run';
 
 describe('Canvas host observability lifecycle', () => {
@@ -31,5 +33,36 @@ describe('Canvas host observability lifecycle', () => {
     ]);
     expect(publish.mock.calls[0][0]).toMatchObject({ runId: 'run-1', sessionId: 'session-1' });
     expect(publish.mock.calls[2][0]).toMatchObject({ phase: 'runtime.execution', owner: 'pi' });
+  });
+
+  it('attributes nested scope-activation steps to the traced run only', async () => {
+    const timing = beginCanvasHostRun('workspace', 'run-2');
+    publish.mockReset();
+
+    await traceScopeActivationStep('canvas.scope.engine-init', async () => undefined);
+    expect(publish).not.toHaveBeenCalled();
+
+    await traceCanvasScopeActivation(timing, async () => {
+      await Promise.resolve();
+      await traceScopeActivationStep('canvas.scope.engine-init', async () => {
+        vi.setSystemTime(1_400);
+      });
+    });
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0]).toEqual({
+      type: 'phase.completed', runId: 'run-2', timestamp: 1_400,
+      phase: 'canvas.scope.engine-init', owner: 'canvas-host',
+      startedAt: 1_000, finishedAt: 1_400, parentPhase: 'canvas.scope-activation',
+    });
+  });
+
+  it('still records a step whose operation fails', async () => {
+    const timing = beginCanvasHostRun('global', 'run-3');
+    publish.mockReset();
+    await expect(traceCanvasScopeActivation(timing, () => (
+      traceScopeActivationStep('canvas.scope.agent-init', async () => { throw new Error('init failed'); })
+    ))).rejects.toThrow('init failed');
+    expect(publish.mock.calls[0][0]).toMatchObject({ phase: 'canvas.scope.agent-init', runId: 'run-3' });
   });
 });

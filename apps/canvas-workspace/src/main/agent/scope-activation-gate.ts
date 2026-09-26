@@ -5,6 +5,10 @@
 export class ScopeActivationGate {
   private pending = new Map<string, Promise<void>>();
 
+  isPending(scopeKey: string): boolean {
+    return this.pending.has(scopeKey);
+  }
+
   async run(scopeKey: string, initialize: () => Promise<void>): Promise<void> {
     const active = this.pending.get(scopeKey);
     if (active) {

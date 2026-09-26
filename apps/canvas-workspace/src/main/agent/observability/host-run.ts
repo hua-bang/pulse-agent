@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { publishAgentTraceEvent } from '../../../plugins/main';
+import type { AgentTraceScopeActivationStep } from '../../../shared/agent-observability';
 import type { CanvasAgentPerformanceTiming } from '../debug-trace';
 
 export const beginCanvasHostRun = (
@@ -34,6 +36,38 @@ export const markCanvasHostScopeReady = (timing: CanvasAgentPerformanceTiming): 
     phase: 'canvas.scope-activation', owner: 'canvas-host',
     startedAt: timing.laneEnteredAt, finishedAt: timing.scopeReadyAt,
   });
+};
+
+const scopeActivationRun = new AsyncLocalStorage<CanvasAgentPerformanceTiming>();
+
+/**
+ * Attribute nested scope-activation steps to this run. Steps reached from
+ * deep activation code (agent init, storage guards) find the run through
+ * async context instead of a threaded parameter.
+ */
+export const traceCanvasScopeActivation = <T>(
+  timing: CanvasAgentPerformanceTiming | undefined,
+  operation: () => Promise<T>,
+): Promise<T> => (timing ? scopeActivationRun.run(timing, operation) : operation());
+
+/** Time one step inside scope activation; a no-op outside a traced activation. */
+export const traceScopeActivationStep = async <T>(
+  step: AgentTraceScopeActivationStep,
+  operation: () => Promise<T>,
+): Promise<T> => {
+  const timing = scopeActivationRun.getStore();
+  if (!timing) return operation();
+  const startedAt = Date.now();
+  try {
+    return await operation();
+  } finally {
+    const finishedAt = Date.now();
+    publishAgentTraceEvent({
+      type: 'phase.completed', runId: timing.runId, timestamp: finishedAt,
+      phase: step, owner: 'canvas-host', startedAt, finishedAt,
+      parentPhase: 'canvas.scope-activation',
+    });
+  }
 };
 
 export const markConversationLaneEntered = (timing?: CanvasAgentPerformanceTiming): void => {

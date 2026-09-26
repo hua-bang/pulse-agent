@@ -78,7 +78,7 @@ import {
   type CanvasToolResultEvent,
 } from './engine-stream-callbacks';
 import { executeCanvasAgentSegment } from './segment-execution';
-import { markCanvasHostContextReady } from './observability/host-run';
+import { markCanvasHostContextReady, traceScopeActivationStep } from './observability/host-run';
 import type { PendingClarificationRequest } from './clarification-registry';
 import { CanvasRunRegistry } from './canvas-run-registry';
 import { prepareRunSession } from './run-session-context';
@@ -563,15 +563,17 @@ export class CanvasAgent {
   async initialize(): Promise<void> {
     console.info(`[canvas-agent] Initializing for ${this.label}`);
 
-    await this.engine.initialize();
+    await traceScopeActivationStep('canvas.scope.engine-init', () => this.engine.initialize());
 
-    const restoredSession = await this.sessionStore.restoreLastSession();
-    if (restoredSession) {
-      this.messages = restoredSession.messages.map(sessionMessageToModelMessage);
-    } else {
-      await this.sessionStore.startSession();
-      this.messages = [];
-    }
+    await traceScopeActivationStep('canvas.scope.session-restore', async () => {
+      const restoredSession = await this.sessionStore.restoreLastSession();
+      if (restoredSession) {
+        this.messages = restoredSession.messages.map(sessionMessageToModelMessage);
+      } else {
+        await this.sessionStore.startSession();
+        this.messages = [];
+      }
+    });
 
     console.info('[canvas-agent] Initialized');
   }

@@ -184,6 +184,13 @@ const phaseLabel = (phase: string): string => ({
   'renderer.request-dispatch': 'Request dispatch',
   'canvas.queue': 'Session queue',
   'canvas.scope-activation': 'Scope activation',
+  'canvas.scope.availability-check': 'Scope › Workspace availability',
+  'canvas.scope.wait-idle': 'Scope › Wait for session writes',
+  'canvas.scope.agent-init': 'Scope › Agent init',
+  'canvas.scope.agent-init-wait': 'Scope › Wait for in-flight agent init',
+  'canvas.scope.engine-init': 'Scope › Engine init',
+  'canvas.scope.session-restore': 'Scope › Session restore',
+  'canvas.scope.session-reconcile': 'Scope › Session reconcile',
   'canvas.context-preparation': 'Context preparation',
   'canvas.runtime-dispatch': 'Runtime dispatch',
   'runtime.execution': 'Runtime execution',
@@ -236,7 +243,8 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
     if (event.type === 'tool.started') starts.set(`tool:${event.toolCallId}`, event);
     if (event.type === 'phase.completed') {
       items.push({
-        id: `phase:${event.phase}:${event.startedAt}`,
+        // Nested steps (e.g. repeated availability checks) can share a start millisecond.
+        id: `phase:${event.phase}:${event.startedAt}:${items.length}`,
         label: phaseLabel(event.phase), owner: eventOwner(event.owner), kind: 'phase',
         startMs: Math.max(0, event.startedAt - origin),
         durationMs: Math.max(0, event.finishedAt - event.startedAt),

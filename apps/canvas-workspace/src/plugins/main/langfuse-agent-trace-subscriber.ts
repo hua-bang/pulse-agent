@@ -59,7 +59,11 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
           run.runtime = undefined;
         } else {
           const phase = this.start(run.root, event.phase, 'span', event.startedAt, {
-            metadata: { owner: event.owner, phase: event.phase },
+            metadata: {
+              owner: event.owner,
+              phase: event.phase,
+              ...(event.parentPhase ? { parentPhase: event.parentPhase } : {}),
+            },
           });
           phase.end(at(event.finishedAt));
         }

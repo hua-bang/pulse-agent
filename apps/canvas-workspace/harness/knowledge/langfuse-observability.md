@@ -37,6 +37,7 @@ children beneath that host-owned root, not create separate traces.
 trace: canvas.agent.turn                 sessionId = Canvas chat session
   span: canvas.host.queue
   span: canvas.host.scope-activation
+  span: canvas.scope.<step>              (nested step; metadata.parentPhase)
   span: canvas.host.context-preparation
   agent: runtime.engine | runtime.pi-agent-harness
     generation: model-call              (one per actual provider call)
@@ -47,7 +48,10 @@ trace: canvas.agent.turn                 sessionId = Canvas chat session
 ```
 
 The duration spans should be exclusive phases so their widths add up to the
-turn. TTFA and TTFT are milestones inside the runtime, not additive phases.
+turn. The exception is `canvas.scope.*` steps: they carry
+`parentPhase: 'canvas.scope-activation'`, overlap that phase, and must not be
+summed with it. They are exported as sibling spans because the parent span is
+only known once activation finishes. TTFA and TTFT are milestones inside the runtime, not additive phases.
 For TTFT analytics, set `completionStartTime` on the relevant generation; also
 store turn-level `ttfaMs`/`ttftMs` in root metadata because a tool-using Engine
 turn may contain several generations.

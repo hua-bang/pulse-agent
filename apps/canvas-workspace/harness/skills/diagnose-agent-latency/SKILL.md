@@ -104,7 +104,12 @@ Use this order:
 
 1. Large queue, scope, or context phase: inspect Canvas Host work before the
    runtime. Check context size, canvas reads, synchronous work, and duplicated
-   preparation.
+   preparation. Scope activation is split into nested `Scope ›` steps
+   (`canvas.scope.*`, published through `traceScopeActivationStep`):
+   workspace availability (SQLite trash check), wait for session writes, agent
+   init (engine init + session restore) or waiting for an in-flight init such
+   as the composer warm-up, and session reconcile. Steps overlap their parent;
+   the parent minus its steps is unattributed time.
 2. Large activity wait with one generation: suspect provider latency, network,
    model queueing, or delayed runtime callbacks. Compare the same prompt across
    providers only as a separately named experiment.

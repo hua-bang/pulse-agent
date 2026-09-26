@@ -1,5 +1,10 @@
 import { randomUUID } from 'crypto';
-import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostScopeReady } from '../observability/host-run';
+import {
+  beginCanvasHostRun,
+  failCanvasHostRun,
+  markCanvasHostScopeReady,
+  traceCanvasScopeActivation,
+} from '../observability/host-run';
 import { publishAgentTraceEvent } from '../../../plugins/main';
 import type { AgentScope, CanvasAgentMessage, ChatResponse } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
@@ -181,7 +186,7 @@ export class ConversationRuntimeService {
       });
     }
     try {
-      const registry = await this.registryFor(scope);
+      const registry = await traceCanvasScopeActivation(timing, () => this.registryFor(scope));
       markCanvasHostScopeReady(timing);
       const runtime = await registry.open(conversationKey(scope, sessionId));
       const operation = () => runtime.sendAndWait({ message, ...input }, { ...external, performanceTiming: timing });

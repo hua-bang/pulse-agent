@@ -1,9 +1,23 @@
 export type AgentTraceOwner = 'renderer' | 'canvas-host' | 'engine' | 'pi';
 
+/**
+ * Nested steps inside `canvas.scope-activation`. They overlap their parent,
+ * so they are not additive turn phases.
+ */
+export type AgentTraceScopeActivationStep =
+  | 'canvas.scope.availability-check'
+  | 'canvas.scope.wait-idle'
+  | 'canvas.scope.agent-init'
+  | 'canvas.scope.agent-init-wait'
+  | 'canvas.scope.engine-init'
+  | 'canvas.scope.session-restore'
+  | 'canvas.scope.session-reconcile';
+
 export type AgentTracePhase =
   | 'renderer.request-dispatch'
   | 'canvas.queue'
   | 'canvas.scope-activation'
+  | AgentTraceScopeActivationStep
   | 'canvas.context-preparation'
   | 'canvas.runtime-dispatch'
   | 'runtime.execution'
@@ -35,6 +49,8 @@ export type AgentTraceEvent =
       owner: AgentTraceOwner;
       startedAt: number;
       finishedAt: number;
+      /** Set on nested steps; the parent phase's duration already includes them. */
+      parentPhase?: AgentTracePhase;
     })
   | (AgentTraceEventBase & {
       type: 'runtime.resolved';
