@@ -10,7 +10,7 @@ import {
   isCodingAgentCommand,
 } from '../../../../../../utils/codingAgentCommand';
 import { buildNodeMentionInsertion } from '../../../../../../utils/nodeMention';
-import { BEFORE_QUIT_EVENT } from '../../../../document/beforeQuit';
+import { BEFORE_QUIT_EVENT, flushAllWorkspaces, installBeforeQuitFlush } from '../../../../document/beforeQuit';
 import {
   SCROLLBACK_SAVE_INTERVAL,
   claimTerminalSessionOwner,
@@ -351,24 +351,29 @@ export function useTerminalNodeRuntime({
 
   useEffect(() => {
     if (readOnly) return;
-    // Closing a window: the canvas flushes again on pagehide, after every
-    // beforeunload listener. Quitting: main asks for a final save first
-    // (BEFORE_QUIT_EVENT precedes the canvas flush). Either way the latest
-    // output joins that final save.
-    const saveBeforeUnload = () => {
+    // Installed here, not at startup, to keep it out of the entry chunk.
+    installBeforeQuitFlush();
+    // Quitting: main asks for a final save first, and BEFORE_QUIT_EVENT
+    // precedes that flush. Closing a window: beforeunload listeners run in
+    // registration order, so this one flushes the canvas itself.
+    const writeLatestOutput = () => {
       const term = termRef.current;
-      if (!term || !snapshotPersisterRef.current) return;
+      if (!term || !snapshotPersisterRef.current) return false;
       const scrollback = serializeBuffer(term);
-      if (scrollback === (dataRef.current.scrollback ?? '')) return;
+      if (scrollback === (dataRef.current.scrollback ?? '')) return false;
       onUpdateRef.current(nodeIdRef.current, {
         data: { sessionId: dataRef.current.sessionId, scrollback, cwd: dataRef.current.cwd ?? '' },
       }, { history: false });
+      return true;
+    };
+    const saveBeforeUnload = () => {
+      if (writeLatestOutput()) void flushAllWorkspaces();
     };
     window.addEventListener('beforeunload', saveBeforeUnload);
-    window.addEventListener(BEFORE_QUIT_EVENT, saveBeforeUnload);
+    window.addEventListener(BEFORE_QUIT_EVENT, writeLatestOutput);
     return () => {
       window.removeEventListener('beforeunload', saveBeforeUnload);
-      window.removeEventListener(BEFORE_QUIT_EVENT, saveBeforeUnload);
+      window.removeEventListener(BEFORE_QUIT_EVENT, writeLatestOutput);
     };
   }, [readOnly]);
 

@@ -17,22 +17,16 @@
  * Snapshots outlive their process so a finished agent's last output stays
  * readable; the oldest are evicted beyond MAX_RETAINED_SNAPSHOTS.
  */
-import { ipcMain } from 'electron';
 import { registerPtyObserver, type PtySessionInfo } from './pty-manager';
-import {
-  appendScrollback,
-  dropRawScrollback,
-  getSessionScrollback,
-  publishSessionSnapshot,
-} from './session-output';
+import { appendScrollback, dropRawScrollback } from './session-output';
 
 export { getSessionScrollback, readSessionOutput } from './session-output';
 
 let installed = false;
 
 /**
- * Register the scrollback-capturing PTY observer and its IPC (idempotent).
- * Channels: `pty:snapshot` (send, renderer → main), `pty:getScrollback` (invoke).
+ * Register the scrollback-capturing PTY observer (idempotent). Its IPC lives
+ * in `scrollback-ipc.ts`, loaded lazily by bootstrap.
  */
 export function setupScrollbackCapture(): void {
   if (installed) return;
@@ -42,14 +36,5 @@ export function setupScrollbackCapture(): void {
     onExit: (info: PtySessionInfo) => {
       dropRawScrollback(info.id);
     },
-  });
-  ipcMain.on('pty:snapshot', (_event, payload: { id?: unknown; text?: unknown }) => {
-    if (typeof payload?.id !== 'string' || !payload.id || typeof payload.text !== 'string') return;
-    publishSessionSnapshot(payload.id, payload.text);
-  });
-  ipcMain.handle('pty:getScrollback', (_event, payload: { id?: unknown; maxChars?: unknown }) => {
-    if (typeof payload?.id !== 'string' || !payload.id) return { ok: false, error: 'Expected a session id' };
-    const maxChars = typeof payload.maxChars === 'number' && payload.maxChars > 0 ? payload.maxChars : undefined;
-    return getSessionScrollback(payload.id, maxChars);
   });
 }

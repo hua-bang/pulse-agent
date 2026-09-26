@@ -174,16 +174,20 @@ writes failed with `revision_conflict`.
   and when the window goes away (`TerminalNodeBody/useTerminalNodeRuntime`);
   every tick in between only publishes to main. A crash can lose up to a
   minute of output. The runtime MCP server's node read also prefers main.
-  - Closing a window: a `beforeunload` listener writes the node, and the
-    canvas flushes again on `pagehide`, which follows every `beforeunload`
-    listener (listeners run in registration order, so the canvas's own
-    `beforeunload` flush may run first).
+  - Closing a window: the terminal's `beforeunload` listener writes the node
+    and flushes every workspace itself. It cannot rely on the canvas's own
+    `beforeunload` flush, which may run first (registration order).
   - Quitting: `before-quit` closes storage before windows close, so main
     first asks each window to save (`canvas:flush-before-quit` /
-    `canvas:flushed`, `main/canvas/flush-before-quit.ts`, 1.5s timeout). The
-    renderer (`canvas/document/beforeQuit.ts`) fires `BEFORE_QUIT_EVENT` for
-    node bodies, then flushes every workspace registered in
-    `shared/workspacePersistence.ts`.
+    `canvas:flushed`, `main/canvas/flush-before-quit.ts`, loaded on quit,
+    1.5s timeout). The renderer side (`canvas/document/beforeQuit.ts`) fires
+    `BEFORE_QUIT_EVENT` for terminal nodes, then flushes every workspace
+    registered in `shared/workspacePersistence.ts`. Terminal nodes install
+    it on mount, which keeps it out of the entry chunk; before any terminal
+    mounts, a quit still loses canvas edits inside the 800ms save debounce.
+  - The IPC for main's output store (`terminal/scrollback-ipc.ts`) and the
+    quit handshake load lazily: the entry-chunk and main-bundle gates had
+    under 1 KB of headroom when this landed.
 
 Tests: `AgentNodeBody/index.test.tsx` (output published, never persisted;
 legacy output dropped), `session/sessionLifecycle.test.ts` (auto-resume

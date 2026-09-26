@@ -1,4 +1,4 @@
-import { flushAllWorkspacePersistence } from '../../../shared/workspacePersistence';
+import { workspaceFlushes } from '../../../shared/workspacePersistence';
 
 /**
  * Final save on quit. Main closes storage before windows close, so it asks
@@ -8,14 +8,20 @@ import { flushAllWorkspacePersistence } from '../../../shared/workspacePersisten
  */
 export const BEFORE_QUIT_EVENT = 'pulse-canvas:before-quit';
 
+/** Save every mounted workspace now; each document reports its own failure. */
+export const flushAllWorkspaces = async (): Promise<void> => {
+  const flushes = [...workspaceFlushes()].flatMap(callbacks => [...callbacks]);
+  await Promise.allSettled(flushes.map(flush => flush()));
+};
+
 export const runBeforeQuitFlush = async (): Promise<void> => {
   window.dispatchEvent(new Event(BEFORE_QUIT_EVENT));
-  await flushAllWorkspacePersistence();
+  await flushAllWorkspaces();
 };
 
 let installed = false;
 
-/** Answer main's quit handshake for this window (idempotent). */
+/** Answer main's quit handshake for this window (idempotent; terminal nodes install it). */
 export const installBeforeQuitFlush = (): void => {
   const store = window.canvasWorkspace?.store;
   if (installed || !store?.onFlushBeforeQuit) return;

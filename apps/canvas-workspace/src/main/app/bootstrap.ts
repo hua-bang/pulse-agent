@@ -97,7 +97,6 @@ import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 import { resolveProfileCachePolicy, runProfileCacheMaintenance } from './profile-cache-maintenance';
 import { startStorage, stopStorageAfterWriters } from './storage-lifecycle';
-import { flushRenderersBeforeQuit } from '../canvas/flush-before-quit';
 
 export interface BootstrapOptions {
   mainDir: string;
@@ -276,10 +275,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // App-lifetime service; the interval dies with the process.
     startWebviewDiscardMonitor();
     setupHtmlGeneratorIpc();
-    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }] = await Promise.all([
+    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }, { setupScrollbackIpc }] = await Promise.all([
       import('../canvas/nodes/ipc'),
       import('./update-ipc'),
+      import('../terminal/scrollback-ipc'),
     ]);
+    setupScrollbackIpc();
     setupArtifactIpc();
     setupReferenceIpc();
     {
@@ -327,7 +328,8 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
       powerMonitor.removeListener('resume', runScheduledCatchUp);
       teardownConversationRuntime();
       // Renderers save their last canvas state while storage is still open.
-      void flushRenderersBeforeQuit()
+      void import('../canvas/flush-before-quit')
+        .then(module => module.flushRenderersBeforeQuit())
         .then(() => teardownCanvasPlugins())
         .catch(error => writeLog('main', 'plugin teardown failed', String(error)))
         .then(() => cacheMaintenance)

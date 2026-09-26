@@ -91,16 +91,12 @@ export const useCanvasSyncEffects = ({
   nodePatchRequest,
   onNodePatchComplete,
 }: Options) => {
-  // Flush pending saves on window close or component unmount. pagehide fires
-  // after every beforeunload listener, so node state written during
-  // beforeunload (terminal output) joins a final save.
+  // Flush pending saves on window close or component unmount
   useEffect(() => {
     const handler = () => { flushSave(); };
     window.addEventListener('beforeunload', handler);
-    window.addEventListener('pagehide', handler);
     return () => {
       window.removeEventListener('beforeunload', handler);
-      window.removeEventListener('pagehide', handler);
       flushSave();
     };
   }, [flushSave]);

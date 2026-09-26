@@ -18,8 +18,6 @@ export async function flushWorkspacePersistence(workspaceId: string): Promise<vo
   for (const flush of [...(writers.get(workspaceId) ?? [])]) await flush();
 }
 
-/** Finish every mounted workspace's edits before the app quits; each document reports its own failure. */
-export async function flushAllWorkspacePersistence(): Promise<void> {
-  const flushes = [...writers.values()].flatMap(callbacks => [...callbacks]);
-  await Promise.allSettled(flushes.map(flush => flush()));
-}
+
+/** Mounted documents' flushes by workspace, for the unload and quit paths in canvas/document/beforeQuit.ts. */
+export const workspaceFlushes = (): Iterable<Set<FlushWorkspace>> => writers.values();
