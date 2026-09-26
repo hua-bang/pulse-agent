@@ -71,12 +71,13 @@ export function electronCommand({ dev, cdpPort, electronUserDataDir, headless })
 export async function startCommand(rawArgs) {
   const { opts } = parseArgs(rawArgs);
   const existing = await readSession().catch(() => null);
-  if (existing && isPidAlive(existing.pid)) {
-    if (!opts.force) {
-      throw new HarnessError(`Harness session already running (pid ${existing.pid}). Use --force or close it first.`);
-    }
-    await stopSession(existing, { cleanup: false });
+  if (existing && isPidAlive(existing.pid) && !opts.force) {
+    throw new HarnessError(`Harness session already running (pid ${existing.pid}). Use --force or close it first.`);
   }
+  // The record is about to be overwritten, which drops the only handle to
+  // the old session's disposable HOME (temp, or clone's copy of real data).
+  // stopSession removes only harness-created pulse-canvas-harness-* homes.
+  if (existing) await stopSession(existing, { cleanup: true });
 
   // --dev runs electron-vite dev: the renderer is served with HMR and main/
   // preload rebuild + restart on change (-w), so no production build is needed.

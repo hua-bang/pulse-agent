@@ -29,8 +29,11 @@ after a dev session because dev writes dev bundles into `dist/main` and
 so after editing them, re-run `harness:up` (it rebuilds the stale chain).
 
 `harness:up` is idempotent and skips satisfied steps: apt-installs Xvfb/certutil
-when root on display-less Linux, runs `pnpm install` when dependencies, the
-Electron binary, or node-pty are missing, rebuilds stale workspace packages
+when root on display-less Linux, runs `pnpm bootstrap:worktree` when
+dependencies, the Electron binary, or node-pty are missing (refusing
+node_modules linked into another checkout), installs Electron's missing Linux
+system libraries via `playwright install-deps chromium` when root (`ldd`
+preflight), rebuilds stale workspace packages
 (storage → engine → agent-teams → canvas-cli) plus canvas-cli's Electron SQLite
 binding (`prepare-sqlite-native.mjs`, GitHub prebuild when Electron headers
 are blocked),

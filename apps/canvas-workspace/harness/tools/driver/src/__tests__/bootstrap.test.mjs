@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildTargets,
+  isMockProcess,
+  missingSharedLibraries,
   hasElectronSqliteBinding,
   isBuildStale,
   missingSystemPackages,
@@ -106,5 +108,35 @@ describe('missingSystemPackages', () => {
     expect(missingSystemPackages({ needXvfb: true, needCa: true, has: none })).toEqual(['xvfb', 'libnss3-tools']);
     expect(missingSystemPackages({ needXvfb: false, needCa: true, has: none })).toEqual(['libnss3-tools']);
     expect(missingSystemPackages({ needXvfb: true, needCa: true, has: () => true })).toEqual([]);
+  });
+});
+
+describe('canvas-cli build inputs', () => {
+  it('includes skills/, which its build copies into dist for unpackaged tooling', () => {
+    const cli = buildTargets('/repo').find((target) => target.name === '@pulse-coder/canvas-cli');
+    expect(cli.inputs).toContain(join('/repo', 'packages', 'canvas-cli', 'skills'));
+  });
+});
+
+describe('missingSharedLibraries', () => {
+  it('lists only libraries ldd reports as not found', () => {
+    const ldd = [
+      '\tlinux-vdso.so.1 (0x00007ffc)',
+      '\tlibatk-1.0.so.0 => not found',
+      '\tlibnss3.so => /lib/x86_64-linux-gnu/libnss3.so (0x00007f)',
+      '\tlibgbm.so.1 => not found',
+      '\tlibatk-1.0.so.0 => not found',
+    ].join('\n');
+    expect(missingSharedLibraries(ldd)).toEqual(['libatk-1.0.so.0', 'libgbm.so.1']);
+    expect(missingSharedLibraries('')).toEqual([]);
+  });
+});
+
+describe('isMockProcess', () => {
+  it('signals only a pid still running mock-llm.mjs, not a reused pid', () => {
+    expect(isMockProcess(42, () => 'node /repo/harness/mock-llm.mjs 18100')).toBe(true);
+    expect(isMockProcess(42, () => '/usr/bin/vim notes.txt')).toBe(false);
+    expect(isMockProcess(42, () => '')).toBe(false);
+    expect(isMockProcess(undefined, () => 'mock-llm.mjs')).toBe(false);
   });
 });

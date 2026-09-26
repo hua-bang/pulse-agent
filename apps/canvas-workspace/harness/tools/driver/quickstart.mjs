@@ -5,7 +5,9 @@
  * Idempotent; every step is skipped when already satisfied, so a warm rerun
  * only relaunches the app:
  *   1. system packages for headless Linux (Xvfb, certutil) via apt when root
- *   2. `pnpm install` when node_modules, the Electron binary or node-pty is missing
+ *   2. `pnpm bootstrap:worktree` when node_modules, the Electron binary or
+ *      node-pty is missing (refusing node_modules linked into another
+ *      checkout), then Electron's system libraries via Playwright when root
  *   3. rebuild storage → engine → agent-teams → canvas-cli → Electron SQLite
  *      binding (→ app with --built) from the first stale one
  *   4. start harness/mock-llm.mjs unless a real model key is configured
@@ -22,10 +24,13 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertLocalNodeModules } from '../../../../../scripts/bootstrap-worktree-deps.mjs';
 import {
   buildTargets,
   hasCommand,
   defaultStale,
+  isMockProcess,
+  missingSharedLibraries,
   missingSystemPackages,
   planBuilds,
   resolveQuickstartCa,
@@ -108,12 +113,48 @@ function electronReady() {
   }
 }
 
-function ensureDependencies() {
+async function ensureDependencies() {
+  // Root AGENTS: a linked worktree must never build or run against another
+  // checkout's node_modules, so check locality before trusting the fast path.
+  await assertLocalNodeModules(REPO_ROOT).catch((error) => fail(error.message));
   if (dependenciesReady()) return;
-  log('installing dependencies (pnpm install --frozen-lockfile)');
-  if (!run('pnpm', ['install', '--frozen-lockfile'])) fail('pnpm install failed.');
+  log('installing dependencies (pnpm bootstrap:worktree)');
+  if (!run('pnpm', ['bootstrap:worktree'])) fail('pnpm bootstrap:worktree failed.');
   if (!electronReady() && !run('pnpm', ['--filter', 'canvas-workspace', 'setup:electron'])) {
     fail('Electron binary is missing and setup:electron could not download it.');
+  }
+}
+
+const electronBinary = () => {
+  const electron = realpathSync(join(APP_DIR, 'node_modules', 'electron'));
+  return join(electron, 'dist', readFileSync(join(electron, 'path.txt'), 'utf-8').trim());
+};
+
+const missingElectronLibraries = () =>
+  missingSharedLibraries(spawnSync('ldd', [electronBinary()], { encoding: 'utf-8' }).stdout ?? '');
+
+// Minimal Linux images lack Electron's GTK/ATK/GBM/audio libraries, and the
+// loader exits before CDP starts. Playwright (a canvas-workspace devDependency)
+// owns the per-distro Chromium dependency list, which covers Electron's.
+function ensureElectronLibraries() {
+  if (process.platform !== 'linux' || !hasCommand('ldd')) return;
+  let missing = missingElectronLibraries();
+  if (!missing.length) return;
+  if (process.getuid?.() === 0 && hasCommand('apt-get')) {
+    log(`installing Electron system libraries (missing: ${missing.join(' ')})`);
+    run('pnpm', ['exec', 'playwright', 'install-deps', 'chromium'], { cwd: APP_DIR, stdio: 'ignore' });
+    missing = missingElectronLibraries();
+    if (missing.length) {
+      // apt refuses the whole Playwright transaction when the image already
+      // has unmet dependencies (a partly upgraded or force-removed package
+      // set); fix-broken is apt's own repair and restores such libraries.
+      run('apt-get', ['-f', 'install', '-y', '-q'], { stdio: 'ignore' });
+      missing = missingElectronLibraries();
+    }
+  }
+  if (missing.length) {
+    fail(`Electron cannot load: missing ${missing.join(' ')}. `
+      + 'Install them (debian/ubuntu: `pnpm --filter canvas-workspace exec playwright install-deps chromium`).');
   }
 }
 
@@ -173,7 +214,15 @@ async function ensureMockLlm(port) {
 function stopMockLlm() {
   const state = readMockState();
   if (!state) return;
-  try { process.kill(state.pid, 'SIGTERM'); } catch { /* already gone */ }
+  // The state file can outlive the mock (crash, reboot) while its pid is
+  // reused, so signal only a process that is still running mock-llm.mjs.
+  if (isMockProcess(state.pid)) {
+    try { process.kill(state.pid, 'SIGTERM'); } catch { /* already gone */ }
+    // Wait for exit so an immediate harness:up cannot find the dying mock
+    // still answering on the port and reuse it.
+    const sleeper = new Int32Array(new SharedArrayBuffer(4));
+    for (let i = 0; i < 30 && isMockProcess(state.pid); i++) Atomics.wait(sleeper, 0, 0, 100);
+  }
   rmSync(MOCK_STATE, { force: true });
 }
 
@@ -185,7 +234,8 @@ async function up(opts) {
   const caUsable = ensureSystemPackages({ needXvfb: linux && !process.env.DISPLAY, needCa: Boolean(caFile) });
   if (caFile && !caUsable) log('certutil unavailable: HTTPS webviews may fail behind the proxy');
 
-  ensureDependencies();
+  await ensureDependencies();
+  ensureElectronLibraries();
   const dev = !opts.built;
   ensureBuilds({ skip: opts.skipBuild, dev });
 

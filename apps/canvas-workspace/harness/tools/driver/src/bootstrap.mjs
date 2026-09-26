@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -60,19 +60,20 @@ export function hasElectronSqliteBinding(nativeDir, {
  */
 export function buildTargets(repoRoot) {
   const app = join(repoRoot, 'apps', 'canvas-workspace');
-  const pkg = (dir, output, filter) => ({
+  // tsup.config.ts owns the entry list: a new entry can land there alone.
+  const pkg = (dir, output, filter, extraInputs = []) => ({
     name: filter,
     command: ['pnpm', ['--filter', filter, 'build'], repoRoot],
     output: join(repoRoot, dir, output),
-    // tsup.config.ts owns the entry list: a new entry can land there alone.
-    inputs: ['src', 'package.json', 'tsup.config.ts'].map((input) => join(repoRoot, dir, input)),
+    inputs: ['src', 'package.json', 'tsup.config.ts', ...extraInputs].map((input) => join(repoRoot, dir, input)),
   });
   const nativeDir = join(repoRoot, 'packages', 'canvas-cli', 'dist', 'native');
   return [
     pkg('packages/storage', 'dist/index.js', '@pulse-coder/storage'),
     pkg('packages/engine', 'dist/index.js', 'pulse-coder-engine'),
     pkg('packages/agent-teams', 'dist/index.js', 'pulse-coder-agent-teams'),
-    pkg('packages/canvas-cli', 'dist/index.cjs', '@pulse-coder/canvas-cli'),
+    // Its build copies skills/ into dist, where unpackaged Canvas tooling reads them.
+    pkg('packages/canvas-cli', 'dist/index.cjs', '@pulse-coder/canvas-cli', ['skills']),
     {
       name: 'electron-sqlite-binding',
       command: ['node', ['scripts/setup/prepare-sqlite-native.mjs'], app],
@@ -116,3 +117,26 @@ export function missingSystemPackages({ needXvfb, needCa, has = hasCommand }) {
   const binaries = [...(needXvfb ? ['Xvfb'] : []), ...(needCa ? ['certutil'] : [])];
   return binaries.filter((bin) => !has(bin)).map((bin) => SYSTEM_PACKAGES[bin]);
 }
+
+/** Library names `ldd` reports as `libfoo.so.1 => not found`. */
+export function missingSharedLibraries(lddOutput) {
+  const names = [...lddOutput.matchAll(/^\s*(\S+)\s+=>\s+not found/gm)].map((match) => match[1]);
+  return [...new Set(names)];
+}
+
+/** Command line of a live pid, or '' when unknown (gone, or no way to read it). */
+export function processCommandLine(pid, platform = process.platform) {
+  try {
+    if (platform === 'linux') return readFileSync(`/proc/${pid}/cmdline`, 'utf-8').replaceAll('\0', ' ');
+    if (platform === 'win32') {
+      const query = `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").CommandLine`;
+      return spawnSync('powershell', ['-NoProfile', '-Command', query], { encoding: 'utf-8' }).stdout ?? '';
+    }
+    return spawnSync('ps', ['-o', 'args=', '-p', String(Number(pid))], { encoding: 'utf-8' }).stdout ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export const isMockProcess = (pid, commandLine = processCommandLine) =>
+  Number.isInteger(pid) && pid > 0 && commandLine(pid).includes('mock-llm.mjs');
