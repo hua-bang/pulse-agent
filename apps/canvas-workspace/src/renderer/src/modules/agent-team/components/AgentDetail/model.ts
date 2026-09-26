@@ -16,6 +16,8 @@ interface CreateAgentDetailModelOptions {
   artifacts: AgentTeamArtifactRecord[];
   agentNode?: CanvasNode;
   rootFolder?: string;
+  /** Live output held by main; agent output is not saved on the node. */
+  liveOutput?: string;
 }
 
 const terminalLineText = (value: string): string =>
@@ -59,6 +61,7 @@ export const createAgentDetailModel = ({
   artifacts,
   agentNode,
   rootFolder,
+  liveOutput,
 }: CreateAgentDetailModelOptions): AgentDetailModel => {
   const agentData = agentNode?.data as AgentNodeData | undefined;
   return {
@@ -66,7 +69,7 @@ export const createAgentDetailModel = ({
     tasks,
     artifacts,
     agentNode,
-    activityLines: recentAgentActivity(agentData?.scrollback),
+    activityLines: recentAgentActivity(liveOutput ?? agentData?.scrollback),
     workspaceLabel: agentData?.cwd || rootFolder || 'No workspace',
   };
 };

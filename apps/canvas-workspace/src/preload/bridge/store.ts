@@ -38,6 +38,11 @@ export const createStoreApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["st
   onExternalUpdate: (callback) =>
     subscribe<ExternalUpdate>(ipcRenderer, "canvas:external-update", callback),
 
+  onFlushBeforeQuit: (callback) =>
+    subscribe<string>(ipcRenderer, "canvas:flush-before-quit", callback),
+
+  flushedBeforeQuit: (requestId) => ipcRenderer.send("canvas:flushed", requestId),
+
   onMigrationProgress: (callback) =>
     subscribe<MigrationProgress>(ipcRenderer, "canvas:migration-progress", callback)
 });

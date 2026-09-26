@@ -40,6 +40,11 @@ export function getCanvasWindow(): BrowserWindow | null {
   return liveWindow();
 }
 
+/** The registered live Canvas window, without focusing, showing, or navigating it. */
+export function getLiveCanvasWindow(): BrowserWindow | null {
+  return liveWindow();
+}
+
 function getOrCreateWindow(): BrowserWindow | null {
   return liveWindow() ?? (canvasWindow = windowFactory?.() ?? null);
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'path';
+import { workspaceFiles } from './workspace-files';
 
 export const MAX_SAVED_IMAGE_BYTES = 12 * 1024 * 1024;
 
@@ -40,7 +41,8 @@ export async function saveBase64Image(options: {
   const ext = sanitizeImageExtension(options.ext);
   const fileName = `img-${(options.now ?? Date.now)()}-${(options.uuid ?? randomUUID)()}.${ext}`;
   const filePath = join(imagesDir, fileName);
-  await fs.writeFile(filePath, buffer, { flag: 'wx' });
+  // Create only: a generated name must never replace an existing attachment.
+  await workspaceFiles.write(workspaceFiles.uriForPath(filePath), buffer, { expectedVersion: null });
   return { filePath, fileName };
 }
 
@@ -54,5 +56,5 @@ export async function deleteSavedImage(options: {
   if (dirname(filePath) !== imagesDir || !basename(filePath).startsWith('img-')) {
     throw new Error('Refusing to delete an image outside this workspace');
   }
-  await fs.unlink(filePath);
+  await workspaceFiles.remove(workspaceFiles.uriForPath(filePath));
 }

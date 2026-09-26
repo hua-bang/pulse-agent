@@ -16,6 +16,10 @@ export const createPtyApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["pty"
 
   getCwd: (id) => ipcRenderer.invoke("pty:getCwd", { id }),
 
+  publishSnapshot: (id, text) => ipcRenderer.send("pty:snapshot", { id, text }),
+
+  getScrollback: (id, maxChars) => ipcRenderer.invoke("pty:getScrollback", { id, maxChars }),
+
   checkCommand: (command) => ipcRenderer.invoke("pty:checkCommand", { command }),
 
   onData: (id, callback) => subscribe<string>(ipcRenderer, `pty:data:${id}`, callback),

@@ -130,7 +130,7 @@
 
 .agent-debug-diagnosis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(105px, 1fr)) minmax(175px, 1.5fr);
+  grid-template-columns: repeat(5, minmax(95px, 1fr)) minmax(175px, 1.5fr);
   border: 1px solid var(--debug-border);
   border-radius: 8px;
   overflow: hidden;

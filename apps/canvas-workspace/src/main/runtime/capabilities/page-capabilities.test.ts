@@ -29,7 +29,10 @@ describe('Page capabilities', () => {
       await options.activate();
       return null;
     });
-    setRuntimeWindowPort({ activateWorkspaceWindow: defaults.activateWorkspaceWindow });
+    setRuntimeWindowPort({
+      getCanvasWindow: () => null,
+      activateWorkspaceWindow: defaults.activateWorkspaceWindow,
+    });
     const runtime = new CapabilityRuntime(createPageCapabilities());
 
     await expect(runtime.call(

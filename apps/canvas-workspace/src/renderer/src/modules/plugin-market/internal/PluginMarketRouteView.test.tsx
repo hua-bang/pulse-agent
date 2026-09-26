@@ -114,6 +114,37 @@ describe('PluginMarketRouteView', () => {
     expect(host?.querySelector('[data-plugin-id="github"]')).not.toBeNull();
   });
 
+  it('shows installed plugin names and exposes the full long name', async () => {
+    const longName = 'A Very Long Installed Plugin Name That Needs Truncation';
+    await render(createApi(snapshot([
+      listing({
+        id: 'generic-one',
+        name: 'Generic One',
+        featured: false,
+        installState: 'installed',
+        iconKey: 'plugin',
+      }),
+      listing({
+        id: 'generic-long',
+        name: longName,
+        featured: false,
+        installState: 'installed',
+        iconKey: 'plugin',
+      }),
+    ])));
+
+    const installedButtons = [
+      ...(host?.querySelectorAll<HTMLButtonElement>('.plugin-market__installed-button') ?? []),
+    ];
+    expect(installedButtons.map((button) => button.textContent)).toEqual([
+      'Generic One',
+      longName,
+    ]);
+    expect(installedButtons[1]?.querySelector('.plugin-market__installed-name')?.textContent)
+      .toBe(longName);
+    expect(installedButtons[1]?.title).toBe(longName);
+  });
+
   it('surfaces catalog failures and retries through the refresh API', async () => {
     const api = createApi(snapshot([listing()]));
     vi.mocked(api.list).mockResolvedValue({ ok: false, error: 'Catalog offline' });

@@ -125,14 +125,14 @@ export const PluginMarketRouteView = ({
               {installed.map((listing) => (
                 <Button
                   key={listing.id}
-                  variant="icon"
-                  size="lg"
+                  size="md"
                   className="plugin-market__installed-button"
                   aria-label={t(keys.openDetails, { name: listing.name })}
                   title={listing.name}
                   onClick={() => openListing(listing)}
                 >
                   <PluginGlyph listing={listing} size={21} />
+                  <span className="plugin-market__installed-name">{listing.name}</span>
                 </Button>
               ))}
             </div>

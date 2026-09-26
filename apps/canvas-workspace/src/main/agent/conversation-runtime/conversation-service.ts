@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostScopeReady } from '../observability/host-run';
+import { publishAgentTraceEvent } from '../../../plugins/main';
 import type { AgentScope, CanvasAgentMessage, ChatResponse } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import { scopeSessionStoreId } from '../../../shared/agent-chat';
@@ -170,26 +172,40 @@ export class ConversationRuntimeService {
     external?: ConversationTurnExternal,
     input?: Omit<ConversationSendInput, 'message'>,
   ): Promise<ChatResponse> {
+    const timing = beginCanvasHostRun(scope.kind, input?.trace?.runId, sessionId);
+    timing.deferCompletion = true;
+    if (input?.trace) {
+      publishAgentTraceEvent({
+        type: 'milestone', runId: timing.runId, timestamp: input.trace.submittedAt,
+        milestone: 'ui.request-dispatched', owner: 'renderer',
+      });
+    }
     try {
       const registry = await this.registryFor(scope);
+      markCanvasHostScopeReady(timing);
       const runtime = await registry.open(conversationKey(scope, sessionId));
-      const operation = () => runtime.sendAndWait({ message, ...input }, external);
+      const operation = () => runtime.sendAndWait({ message, ...input }, { ...external, performanceTiming: timing });
       const result = await operation();
+      publishAgentTraceEvent({
+        type: 'run.completed', runId: timing.runId, timestamp: Date.now(),
+        status: result?.error || !result ? 'error' : result.stopped ? 'stopped' : 'success',
+      });
       if (!result) {
-        return { ok: false, code: 'CHAT_SCOPE_BUSY', error: 'This conversation is already running.' };
+        return { ok: false, runId: timing.runId, code: 'CHAT_SCOPE_BUSY', error: 'This conversation is already running.' };
       }
       if (result.error) {
-        return { ok: false, code: result.code, error: result.error, assistantMessages: result.assistantMessages };
+        return { ok: false, runId: timing.runId, code: result.code, error: result.error, assistantMessages: result.assistantMessages };
       }
       return {
         ok: true,
         response: result.response,
         assistantMessages: result.assistantMessages,
-        runId: result.runId,
+        runId: timing.runId,
         stopped: result.stopped,
       };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      failCanvasHostRun(timing, err);
+      return { ok: false, runId: timing.runId, error: err instanceof Error ? err.message : String(err) };
     }
   }
 

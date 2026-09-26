@@ -44,7 +44,7 @@ export interface TraceTimelineItem {
 export interface TraceTimeline {
   totalMs: number;
   items: TraceTimelineItem[];
-  milestones: Partial<Record<'ttfa' | 'ttft' | 'render', number>>;
+  milestones: Partial<Record<'ttfa' | 'ttft' | 'render' | 'completed', number>>;
   bottleneck?: TraceTimelineItem;
 }
 
@@ -188,15 +188,20 @@ const phaseLabel = (phase: string): string => ({
   'canvas.runtime-dispatch': 'Runtime dispatch',
   'runtime.execution': 'Runtime execution',
   'canvas.response-processing': 'Response processing',
+  'canvas.persistence': 'Save conversation',
 }[phase] ?? phase);
 
 export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | undefined {
   const events = trace.observabilityEvents ?? [];
   const diagnosis = buildPerformanceDiagnosis(trace);
-  const origin = events.find(event => event.type === 'run.started')?.timestamp
+  const origin = events.find(event => event.type === 'milestone' && event.milestone === 'ui.request-dispatched')?.timestamp
+    ?? events.find(event => event.type === 'run.started')?.timestamp
     ?? trace.performance?.requestStartedAt
     ?? trace.startedAt;
-  const totalMs = diagnosis?.totalMs ?? Math.max(0, (trace.finishedAt ?? origin) - origin);
+  const completedAt = events.find(event => event.type === 'run.completed')?.timestamp;
+  const totalMs = completedAt === undefined
+    ? diagnosis?.totalMs ?? Math.max(0, (trace.finishedAt ?? origin) - origin)
+    : Math.max(0, completedAt - origin);
 
   if (events.length === 0) {
     if (!diagnosis) return undefined;
@@ -267,6 +272,7 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
       const atMs = Math.max(0, event.timestamp - origin);
       if (event.milestone === 'runtime.first-activity' && milestones.ttfa == null) milestones.ttfa = atMs;
       if (event.milestone === 'runtime.first-text' && milestones.ttft == null) milestones.ttft = atMs;
+      if (event.milestone === 'ui.response-completed' && milestones.completed == null) milestones.completed = atMs;
       if (event.milestone === 'ui.first-content-rendered' && milestones.render == null) milestones.render = atMs;
       items.push({
         id: `milestone:${event.milestone}:${event.timestamp}`,

@@ -96,6 +96,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     await act(async () => { await latest!.regenerateAssistantMessage(3); });
     expect(agent.conversationChat).toHaveBeenCalledWith(
       scope, keyA.sessionId, 'second', expect.anything(), expect.anything(), [], 2,
+      { runId: expect.any(String), submittedAt: expect.any(Number) },
     );
     expect(readConversationSnapshot(keyA).messages.map(m => m.content)).toEqual(['first', 'one', 'second']);
 

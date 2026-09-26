@@ -1,17 +1,18 @@
-import { watch, type FSWatcher } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow } from 'electron';
-import { isStorageError, type EntityRecord, type JsonObject, type PulseStorage } from '@pulse-coder/storage';
+import { isStorageError, sameFileVersion, type EntityRecord, type JsonObject, type PulseStorage } from '@pulse-coder/storage';
 import { readTextFile } from '../../files/file-save';
+import { workspaceFiles } from '../../files/workspace-files';
 
 interface ObservedFile { filePath: string; content: string; version: string }
 interface WorkspaceWatch {
   stopped: boolean;
   store: PulseStorage;
   workspaceId: string;
-  directories: Map<string, FSWatcher>;
+  /** Directory → stop function of its repository watch. */
+  directories: Map<string, () => void>;
   timer?: NodeJS.Timeout;
   pending?: Promise<void>;
 }
@@ -87,7 +88,9 @@ export async function reconcileMarkdownIndex(
       const file = read.ok && read.content !== undefined && read.version
         ? { filePath, content: read.content, version: read.version } : undefined;
       const previousSource = fileSource(node);
-      if (file && previousSource.version !== file.version) files.set(filePath, file);
+      // Versions stored by earlier releases are bare digests of the same bytes.
+      const sourceChanged = !!file && !sameFileVersion(previousSource.version as string | undefined, file.version);
+      if (file && sourceChanged) files.set(filePath, file);
       const intent = await reconcileIntent(store, workspaceId, node, data, file);
       if (!file) {
         const next = {
@@ -100,7 +103,11 @@ export async function reconcileMarkdownIndex(
       const hasDraft = intent.protected || (intent.data.modified === true && intent.data.content !== file.content);
       const next = {
         ...node,
-        fileSource: { ...previousSource, version: file.version, conflict: intent.protected ? intent.conflict : hasDraft },
+        fileSource: {
+          ...previousSource,
+          version: sourceChanged ? file.version : previousSource.version,
+          conflict: intent.protected ? intent.conflict : hasDraft,
+        },
         data: hasDraft ? intent.data : { ...intent.data, content: file.content, modified: false, saved: true },
         ...(!hasDraft && intent.data.content !== file.content ? { updatedAt: Date.now() } : {}),
       };
@@ -139,28 +146,24 @@ async function refresh(state: WorkspaceWatch): Promise<void> {
     if (state.stopped) return;
     for (const file of result.files) broadcastFile(file);
     const retained = new Set(result.directories);
-    for (const [directory, watcher] of state.directories) {
+    for (const [directory, stopWatch] of state.directories) {
       if (!retained.has(directory)) {
-        watcher.close();
+        stopWatch();
         state.directories.delete(directory);
       }
     }
     for (const directory of retained) {
       if (state.directories.has(directory)) continue;
       try {
-        const watcher = watch(directory, { persistent: false }, () => {
+        const stopWatch = workspaceFiles.watchDirectory(workspaceFiles.uriForPath(directory), () => {
           if (state.stopped) return;
           if (state.timer) clearTimeout(state.timer);
           state.timer = setTimeout(() => {
             state.timer = undefined;
             void refresh(state).catch(error => console.warn('[canvas-storage] Markdown refresh failed', error));
           }, 150);
-        });
-        watcher.on('error', () => {
-          watcher.close();
-          state.directories.delete(directory);
-        });
-        state.directories.set(directory, watcher);
+        }, () => state.directories.delete(directory));
+        state.directories.set(directory, stopWatch);
       } catch {
         // Missing/unavailable backing paths remain visible as cached drafts.
         // A future load/focus refresh can attach the watcher after recovery.
@@ -185,7 +188,7 @@ export async function watchWorkspaceMarkdown(root: string, store: PulseStorage, 
 function stop(state: WorkspaceWatch): void {
   state.stopped = true;
   if (state.timer) clearTimeout(state.timer);
-  state.directories.forEach(watcher => watcher.close());
+  state.directories.forEach(stopWatch => stopWatch());
   state.directories.clear();
 }
 

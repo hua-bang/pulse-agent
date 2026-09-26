@@ -63,10 +63,12 @@ let getCwd: ReturnType<typeof vi.fn>;
 let kill: ReturnType<typeof vi.fn>;
 let spawn: ReturnType<typeof vi.fn>;
 let onData = vi.fn((_sessionId: string, _callback: (data: string) => void) => () => undefined);
-let onExit = vi.fn(() => () => undefined);
+let onExit = vi.fn((_sessionId: string, _callback: (code: number) => void) => () => undefined);
+let publishSnapshot: ReturnType<typeof vi.fn>;
+let emitPtyExit: ((code: number) => void) | null = null;
 
-// This branch persists terminal scrollback churn without occupying an undo
-// slot (see useCanvasDocument.test.tsx); every persister write carries this option.
+// Saved terminal output does not occupy an undo slot
+// (see useCanvasDocument.test.tsx); every persister write carries this option.
 const NO_HISTORY = { history: false };
 
 const terminalNode: CanvasNode = {
@@ -99,7 +101,12 @@ beforeEach(() => {
     emitPtyData = callback;
     return () => undefined;
   });
-  onExit = vi.fn(() => () => undefined);
+  publishSnapshot = vi.fn();
+  emitPtyExit = null;
+  onExit = vi.fn((_sessionId: string, callback: (code: number) => void) => {
+    emitPtyExit = callback;
+    return () => undefined;
+  });
   Object.defineProperty(globalThis, 'ResizeObserver', {
     configurable: true,
     value: class {
@@ -125,6 +132,7 @@ beforeEach(() => {
         write: vi.fn(),
         resize: vi.fn(),
         kill,
+        publishSnapshot,
       },
     },
   });
@@ -194,7 +202,7 @@ describe('TerminalNodeBody scrollback persistence', () => {
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it('coalesces a PTY output burst into one update', async () => {
+  it('hands a PTY output burst to main each tick and saves it on the canvas once a minute', async () => {
     await renderTerminal();
 
     act(() => {
@@ -204,7 +212,13 @@ describe('TerminalNodeBody scrollback persistence', () => {
     });
     await advanceSaveTick();
 
-    expect(getCwd).toHaveBeenCalledTimes(1);
+    expect(publishSnapshot).toHaveBeenCalledTimes(1);
+    expect(publishSnapshot).toHaveBeenCalledWith('session-1', 'one two three');
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    // Once on the publish tick (tracks the live CWD), once for the canvas save.
+    expect(getCwd).toHaveBeenCalledTimes(2);
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenCalledWith('terminal-1', {
       data: {
@@ -213,15 +227,59 @@ describe('TerminalNodeBody scrollback persistence', () => {
         cwd: '/workspace',
       },
     }, NO_HISTORY);
+    expect(publishSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves the final output on the canvas when the process exits', async () => {
+    await renderTerminal();
+    act(() => emitPtyData?.('build done'));
+    act(() => emitPtyExit?.(0));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate.mock.calls[0][1].data.scrollback).toContain('build done');
+    expect(onUpdate.mock.calls[0][1].data.scrollback).toContain('[Process exited with code 0]');
+    expect(publishSnapshot).toHaveBeenLastCalledWith('session-1', expect.stringContaining('[Process exited with code 0]'));
+  });
+
+  it('saves the CWD seen on the last publish tick when the window unloads', async () => {
+    await renderTerminal();
+    getCwd.mockResolvedValue({ ok: true, cwd: '/workspace/moved' });
+    act(() => emitPtyData?.('cd moved'));
+    await advanceSaveTick();
+
+    act(() => { window.dispatchEvent(new Event('beforeunload')); });
+    expect(onUpdate).toHaveBeenLastCalledWith('terminal-1', {
+      data: { sessionId: 'session-1', scrollback: 'cd moved', cwd: '/workspace/moved' },
+    }, NO_HISTORY);
+  });
+
+  it('publishes the last output to main when unmounted', async () => {
+    await renderTerminal();
+    act(() => emitPtyData?.('final words'));
+    await unmountTerminal();
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(publishSnapshot).toHaveBeenLastCalledWith('session-1', 'final words');
+  });
+
+  it('adds unsaved output to the canvas before the window unloads', async () => {
+    await renderTerminal();
+    act(() => emitPtyData?.('unsaved tail'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    act(() => { window.dispatchEvent(new Event('beforeunload')); });
+    expect(onUpdate).toHaveBeenCalledWith('terminal-1', {
+      data: { sessionId: 'session-1', scrollback: 'unsaved tail', cwd: '/workspace' },
+    }, NO_HISTORY);
   });
 
   it('skips an update when dirty output leaves the serialized snapshot unchanged', async () => {
     await renderTerminal();
 
     act(() => emitPtyData?.('\x07'));
-    await advanceSaveTick();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
 
-    expect(getCwd).toHaveBeenCalledTimes(1);
+    expect(getCwd).toHaveBeenCalledTimes(2);
     expect(onUpdate).not.toHaveBeenCalled();
   });
 

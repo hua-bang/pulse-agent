@@ -20,11 +20,13 @@ const sessions: AgentSessionInfo[] = [
 ];
 
 const Probe = ({
+  loading = false,
   otherSessions,
   selectedSessionKey,
   sessionRows,
   runningSessionIds,
 }: {
+  loading?: boolean;
   otherSessions?: OtherWorkspaceSession[];
   selectedSessionKey?: string | null;
   sessionRows?: AgentSessionInfo[];
@@ -34,7 +36,7 @@ const Probe = ({
     agentScope: scope,
     allWorkspaces: [],
     currentScopeName: null,
-    loading: false,
+    loading,
     otherSessions: otherSessions ?? [],
     selectedSessionKey: selectedSessionKey ?? null,
     sessions: sessionRows ?? sessions,
@@ -72,6 +74,54 @@ describe('useStableSessionRail running markers', () => {
     expect(byId['session-a']!.running).toBe(false);
     // session-b runs in the background → badge.
     expect(byId['session-b']!.running).toBe(true);
+  });
+
+  it('reprojects parallel running markers while a session switch is loading', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <Probe
+            selectedSessionKey="workspace-a:session-a"
+            runningSessionIds={new Set(['session-a', 'session-b'])}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <Probe
+            loading
+            selectedSessionKey="workspace-a:session-b"
+            runningSessionIds={new Set(['session-a', 'session-b'])}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    let byId = Object.fromEntries(latest!.map((entry) => [entry.sessionId, entry]));
+    expect(byId['session-a']!.running).toBe(true);
+    expect(byId['session-b']!.running).toBe(false);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <Probe
+            loading
+            selectedSessionKey="workspace-a:session-b"
+            runningSessionIds={new Set(['session-b'])}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    byId = Object.fromEntries(latest!.map((entry) => [entry.sessionId, entry]));
+    expect(byId['session-a']!.running).toBe(false);
+    expect(byId['session-b']!.running).toBe(false);
   });
 
   it('shows the badge for a running session when NO session is selected as current', async () => {

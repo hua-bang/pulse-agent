@@ -1,3 +1,4 @@
+import type { ConversationSendInput } from '../../../shared/conversation-runtime';
 import { ipcMain, type WebContents } from 'electron';
 import { SessionStore } from '../session-store';
 import type { AgentScope, AgentScopeRef } from '../types';
@@ -61,6 +62,7 @@ export interface ConversationRuntimeChatPayload {
   requestContext?: AgentRequestContext;
   attachments?: ChatImageAttachment[];
   truncateAt?: number;
+  trace?: ConversationSendInput['trace'];
 }
 
 /**
@@ -99,6 +101,12 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
         requestContext,
         attachments,
         truncateAt,
+        trace: payload.trace
+          && typeof payload.trace.runId === 'string'
+          && /^[a-zA-Z0-9-]{1,100}$/.test(payload.trace.runId)
+          && Number.isFinite(payload.trace.submittedAt)
+          && payload.trace.submittedAt <= Date.now()
+          ? payload.trace : undefined,
       });
       void completion.then(
         result => send(event.sender, 'chat-complete', sessionId, result),

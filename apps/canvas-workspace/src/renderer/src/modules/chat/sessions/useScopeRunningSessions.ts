@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 import type { AgentScope } from '../../../types';
-import { useConversationSnapshots } from '../runtime/conversationStore';
+import {
+  readConversationSnapshots,
+  useConversationSnapshots,
+} from '../runtime/conversationStore';
 
 /**
  * Polls main for every conversation session that currently has an active run
@@ -15,7 +18,8 @@ export function useScopeRunningSessions(
   pollMs = 800,
 ): Set<string> {
   const [running, setRunning] = useState<Set<string>>(new Set());
-  const localSnapshots = useConversationSnapshots(scopeSessionStoreId(scope));
+  const storeId = scopeSessionStoreId(scope);
+  const localSnapshots = useConversationSnapshots(storeId);
   const localRunning = useMemo(
     () => new Set(
       localSnapshots
@@ -31,11 +35,27 @@ export function useScopeRunningSessions(
     const poll = async () => {
       const agent = window.canvasWorkspace?.agent;
       if (!agent) return;
+      const startedSnapshots = new Map(
+        readConversationSnapshots(storeId).map(snapshot => [snapshot.key.sessionId, snapshot]),
+      );
       const result = await agent
         .getScopeRunningSessions({ scope })
         .catch(() => ({ ok: false, conversationSessionIds: [] as string[] }));
       if (cancelled) return;
-      setRunning(result.ok ? new Set(result.conversationSessionIds) : new Set());
+      const currentSnapshots = new Map(
+        readConversationSnapshots(storeId).map(snapshot => [snapshot.key.sessionId, snapshot]),
+      );
+      setRunning(result.ok
+        ? new Set(result.conversationSessionIds.filter(sessionId => {
+            const started = startedSnapshots.get(sessionId);
+            const current = currentSnapshots.get(sessionId);
+            return !(
+              started !== undefined
+              && current?.status === 'idle'
+              && current.sequence !== started.sequence
+            );
+          }))
+        : new Set());
       timer = window.setTimeout(() => void poll(), pollMs);
     };
     void poll();
@@ -43,7 +63,11 @@ export function useScopeRunningSessions(
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [pollMs, scope, scopeKey]);
+  }, [pollMs, scope, scopeKey, storeId]);
 
-  return useMemo(() => new Set([...running, ...localRunning]), [localRunning, running]);
+  return useMemo(() => {
+    const merged = new Set(running);
+    localRunning.forEach(sessionId => merged.add(sessionId));
+    return merged;
+  }, [localRunning, running]);
 }

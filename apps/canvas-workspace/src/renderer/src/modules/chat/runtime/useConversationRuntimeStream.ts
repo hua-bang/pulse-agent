@@ -24,7 +24,6 @@ import {
   useConversationSnapshot,
 } from './conversationStore';
 import { extractMentionedWorkspaceIds } from '../mentions/extractMentionedWorkspaceIds';
-import { markAgentMilestone } from './markAgentMilestone';
 import { count } from '../../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
 import { createConversationTextBatcher } from './conversationTextBatcher';
@@ -106,6 +105,7 @@ export function useConversationRuntimeStream({
     if (!keyed) return false;
     if (readConversationSnapshot(key).status === 'running') return false;
 
+    const runId = crypto.randomUUID();
     const userMessage: AgentChatMessage = {
       role: 'user',
       content: trimmed,
@@ -128,7 +128,7 @@ export function useConversationRuntimeStream({
     // stream events are keyed by the conversation's own sessionId (no separate
     // prepared run id), so listeners install BEFORE starting.
     const sessionId = key.sessionId;
-    markAgentMilestone(sessionId, 'ui.request-dispatched', userMessage.timestamp);
+
     let unsubs: Array<() => void> = [];
     const cleanupRunListeners = () => {
       const active = unsubs;
@@ -145,7 +145,7 @@ export function useConversationRuntimeStream({
         if (assistantIndex >= 0) return;
         const current = readConversationSnapshot(key).messages;
         assistantIndex = current.length;
-        setConversationMessages(key, [...current, { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() }]);
+        setConversationMessages(key, [...current, { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now(), runId }]);
       };
 
       const publishTools = () => {
@@ -341,6 +341,7 @@ export function useConversationRuntimeStream({
         { ...requestContext, expectedConversationSessionId: key.sessionId },
         attachments,
         truncateAt,
+        { runId, submittedAt: userMessage.timestamp },
       );
       if (!started.ok) {
         restoreRecovery();

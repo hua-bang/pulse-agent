@@ -13,6 +13,7 @@ import {
   createAgentTeamWorkspaceModel,
 } from '../../../model/workspaceModel';
 import { createAgentDetailModel } from '../../AgentDetail';
+import { useLiveAgentOutput } from '../../AgentDetail/useLiveAgentOutput';
 import { hasConcreteHumanGatePrompt } from '../../HumanGateCard';
 import { createAgentTeamFramePresentation } from '../presentation';
 import { useAgentTeamFrameSelection } from '../useAgentTeamFrameSelection';
@@ -134,6 +135,7 @@ export function useAgentTeamFrameModel({
     : selectedGraphAgent?.nodeId
       ? teamAgentNodes.find((candidate) => candidate.id === selectedGraphAgent.nodeId)
       : undefined;
+  const liveOutput = useLiveAgentOutput(selectedAgentNode?.data.sessionId || undefined);
   const selectedAgentDetail = selectedGraphAgent
     ? createAgentDetailModel({
         agent: selectedGraphAgent,
@@ -143,6 +145,7 @@ export function useAgentTeamFrameModel({
           : [],
         agentNode: selectedAgentNode,
         rootFolder,
+        liveOutput,
       })
     : undefined;
   const agentTypeByOwnerKey = useMemo(

@@ -13,6 +13,8 @@ import {
   type ConversationSendInput,
   type ConversationSnapshot,
 } from '../../../shared/conversation-runtime';
+import type { CanvasAgentPerformanceTiming } from '../debug-trace';
+import { markConversationLaneEntered, observeConversationPersistence } from '../observability/host-run';
 import { ClarificationRegistry } from '../clarification-registry';
 
 /** Tool-call start emitted by the engine while a turn streams. */
@@ -41,6 +43,7 @@ export interface TurnToolResult {
  * the user's answer — matching the engine's `PendingClarificationRequest` wait.
  */
 export interface TurnRunnerContext {
+  performanceTiming?: CanvasAgentPerformanceTiming;
   message: string;
   history: AgentChatMessage[];
   signal: AbortSignal;
@@ -89,6 +92,7 @@ export interface ConversationRuntimeDeps {
  * can be driven through the conversation runtime without losing events.
  */
 export interface ConversationTurnExternal {
+  performanceTiming?: CanvasAgentPerformanceTiming;
   onText?: (delta: string) => void;
   onToolCall?: (data: TurnToolCall) => void;
   onToolResult?: (data: TurnToolResult) => void;
@@ -267,6 +271,7 @@ export class ConversationRuntime {
     input: ConversationSendInput,
     external?: ConversationTurnExternal,
   ): Promise<TurnRunnerResult> {
+    markConversationLaneEntered(external?.performanceTiming);
     const rejectRecovery = (error: string): TurnRunnerResult => {
       this.error = error;
       return { response: '', code: CHAT_RECOVERY_REJECTED, error };
@@ -307,6 +312,7 @@ export class ConversationRuntime {
     let result: TurnRunnerResult = { response: '' };
     try {
       result = await this.deps.runTurn({
+        performanceTiming: external?.performanceTiming,
         message: input.message,
         history: this.messages.slice(0, -1),
         signal: this.controller!.signal,
@@ -410,7 +416,7 @@ export class ConversationRuntime {
       this.messages.push(assistant);
     }
     try {
-      await this.deps.persist([...this.messages]);
+      await observeConversationPersistence(external?.performanceTiming, () => this.deps.persist([...this.messages]));
     } catch (err) {
       this.error = this.error ?? (err instanceof Error ? err.message : String(err));
       result = { ...result, error: this.error };

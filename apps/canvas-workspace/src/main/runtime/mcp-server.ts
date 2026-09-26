@@ -1,8 +1,9 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { readWorkspaceText, writeWorkspaceText } from '../files/workspace-files';
 import { homedir } from 'os';
-import { execInSession, hasSession } from '../terminal/pty-manager';
+import { execInSession, hasSession, readSessionOutput } from '../terminal/pty-manager';
 import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 
 export const MCP_PORT = 3333;
@@ -160,7 +161,7 @@ async function readNode(node: CanvasNode): Promise<NodeReadResult> {
       let content = node.data.content ?? '';
       if (node.data.filePath) {
         try {
-          content = await fs.readFile(node.data.filePath, 'utf-8');
+          content = (await readWorkspaceText(node.data.filePath)) ?? content;
         } catch {
           // fall through to in-memory content
         }
@@ -173,7 +174,7 @@ async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         type: 'terminal',
         capabilities,
         cwd: node.data.cwd ?? '',
-        scrollback: node.data.scrollback ?? '',
+        scrollback: readSessionOutput(node.data.sessionId || node.id, node.data.scrollback),
       };
     case 'frame':
     case 'group': {
@@ -205,7 +206,7 @@ async function writeNode(
   switch (node.type) {
     case 'file': {
       if (node.data.filePath) {
-        await fs.writeFile(node.data.filePath, content, 'utf-8');
+        await writeWorkspaceText(node.data.filePath, content);
       }
       node.data.content = content;
       canvas.savedAt = new Date().toISOString();
@@ -502,10 +503,8 @@ async function handleToolCall(
 
         // If file node, create a workspace note file
         if (nodeType === 'file' && data.content) {
-          const notesDir = join(STORE_DIR, workspaceId, 'notes');
-          await fs.mkdir(notesDir, { recursive: true });
-          const noteFile = join(notesDir, `${nodeId}.md`);
-          await fs.writeFile(noteFile, data.content, 'utf-8');
+          const noteFile = join(STORE_DIR, workspaceId, 'notes', `${nodeId}.md`);
+          await writeWorkspaceText(noteFile, data.content);
           data.filePath = noteFile;
           canvas.savedAt = new Date().toISOString();
           await saveCanvas(workspaceId, canvas);

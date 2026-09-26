@@ -23,6 +23,25 @@ afterEach(async () => {
 });
 
 describe('Markdown source reconciliation', () => {
+  it('treats a bare digest stored by earlier releases as the current file version', async () => {
+    const filePath = join(root, 'note.md');
+    await writeFile(filePath, 'same content');
+    const version = (await readTextFile(filePath)).version!;
+    expect(version).toMatch(/^sha256:/);
+    const legacy = version.slice('sha256:'.length);
+    await store.canvas.commit({
+      workspaceId: 'ws', expectedRevision: null,
+      nodes: { put: [{
+        id: 'n', type: 'file', fileSource: { version: legacy, conflict: false },
+        data: { filePath, content: 'same content', modified: false, saved: true },
+      }] },
+    });
+    const revision = (await store.canvas.read('ws'))!.revision;
+    const result = await reconcileMarkdownIndex(store, 'ws');
+    expect(result.files).toEqual([]);
+    expect((await store.canvas.read('ws'))!.revision).toBe(revision);
+  });
+
   it('refreshes an outdated cache from the source file and avoids repeat writes', async () => {
     const filePath = join(root, 'note.md');
     await writeFile(filePath, 'disk wins');

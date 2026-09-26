@@ -5,13 +5,14 @@
  * and a detailed context (loaded on demand via canvas_read_context tool).
  */
 
-import { promises as fs } from 'fs';
 import { join } from 'path';
+import { readWorkspaceText } from '../files/workspace-files';
 import { homedir } from 'os';
 import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import type { CanvasNodeRef } from '../../shared/canvas';
 import { readCanvasFull } from '../canvas/storage';
 import { filterWorkspaceIds, readWorkspaceManifest } from '../canvas/workspaces';
+import { readSessionOutput } from '../terminal/session-output';
 import {
   formatPluginNodeFallbackContent,
   getPluginNodeCapabilityKinds,
@@ -454,7 +455,7 @@ async function populateNodeDetail(
       const filePath = node.data.filePath as string;
       if (filePath) {
         try {
-          detailed.content = await fs.readFile(filePath, 'utf-8');
+          detailed.content = (await readWorkspaceText(filePath)) ?? (node.data.content as string) ?? '';
         } catch {
           detailed.content = (node.data.content as string) ?? '';
         }
@@ -464,11 +465,9 @@ async function populateNodeDetail(
       break;
     }
     case 'terminal':
-      detailed.scrollback = (node.data.scrollback as string) ?? '';
-      detailed.cwd = (node.data.cwd as string) ?? '';
-      break;
     case 'agent':
-      detailed.scrollback = (node.data.scrollback as string) ?? '';
+      // Main holds the live text; the saved copy is absent (agents) or up to a minute old.
+      detailed.scrollback = readSessionOutput(node.data.sessionId || node.id, node.data.scrollback);
       detailed.cwd = (node.data.cwd as string) ?? '';
       break;
     case 'frame':
@@ -547,7 +546,7 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
   // Read AGENTS.md if present
   let agentsMd: string | undefined;
   try {
-    agentsMd = await fs.readFile(join(canvasDir, 'AGENTS.md'), 'utf-8');
+    agentsMd = (await readWorkspaceText(join(canvasDir, 'AGENTS.md'))) ?? undefined;
   } catch {
     // not present
   }

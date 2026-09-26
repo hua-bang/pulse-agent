@@ -64,23 +64,53 @@ function buildStoredRun(payload: TurnTracePayload): StoredRun {
 // later from Settings → Experimental + window reload, with no full app
 // restart. If we gated activation on the flag's startup value we'd never
 // register the `turnEnd` listener or `list-runs`/`get-run` IPC handlers
-// for users who turned it on after launching. The plugin is inert when
-// the flag is off: canvas-agent doesn't emit `turnEnd` without a trace
-// (canvas-agent.ts) and the renderer half isn't activated, so nobody
-// invokes the IPC handlers.
+// for users who turned it on after launching. The built-in plugin loader keeps
+// this entire plugin development-only and behind the observability master switch.
 export const DevtoolsMainPlugin: MainCanvasPlugin = {
   id: 'devtools',
   activate(ctx) {
     const traceSink = new LocalAgentTraceSink();
+    let writes: Promise<void> = Promise.resolve();
+    const serialize = <T,>(operation: () => Promise<T>): Promise<T> => {
+      const next = writes.then(operation);
+      writes = next.then(() => undefined, error => console.error('[devtools] trace persistence failed', error));
+      return next;
+    };
     ctx.registerAgentObservabilitySubscriber({
       id: traceSink.id,
       async onEvent(event) {
         traceSink.onEvent(event);
-        if (event.type !== 'run.completed') return;
-        const stored = await ctx.store.get<StoredRun>(runKey(event.runId));
-        if (!stored) return;
-        stored.detail.trace.observabilityEvents = traceSink.snapshot(event.runId);
-        await ctx.store.set(runKey(event.runId), stored);
+        if (event.type !== 'run.completed' && event.type !== 'milestone') return;
+        await serialize(async () => {
+          let stored = await ctx.store.get<StoredRun>(runKey(event.runId));
+          const events = traceSink.snapshot(event.runId);
+          const start = events.find(item => item.type === 'run.started');
+          if (!stored && start?.type === 'run.started' && event.type === 'run.completed') {
+            stored = buildStoredRun({
+              workspaceId: '', workspaceName: start.scope, assistantPreview: '',
+              trace: {
+                runId: event.runId, turnId: event.runId, sessionId: start.sessionId ?? '',
+                createdAt: start.timestamp, startedAt: start.timestamp, finishedAt: event.timestamp,
+                durationMs: event.timestamp - start.timestamp,
+                request: { userPromptPreview: '', attachmentCount: 0, selectedNodes: [], mentionedCanvases: [] },
+                prompt: { systemPromptPreview: '', systemPromptChars: 0 },
+                toolCalls: [], readNodes: [], contextReads: [],
+              },
+            });
+          }
+          if (!stored) return;
+          stored.detail.trace.observabilityEvents = events;
+          const completed = events.find(item => item.type === 'run.completed');
+          if (completed) {
+            const submitted = events.find(item => item.type === 'milestone' && item.milestone === 'ui.request-dispatched');
+            const durationMs = Math.max(0, completed.timestamp - (submitted?.timestamp ?? start?.timestamp ?? stored.summary.startedAt));
+            stored.summary.durationMs = durationMs;
+            stored.detail.durationMs = durationMs;
+            stored.detail.trace.durationMs = durationMs;
+            stored.detail.trace.finishedAt = completed.timestamp;
+          }
+          await ctx.store.set(runKey(event.runId), stored);
+        });
       },
     });
     ctx.onAgent('turnEnd', async (turn) => {
@@ -89,13 +119,13 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
       payload.trace.observabilityEvents = traceSink.snapshot(payload.trace.runId);
       const stored = buildStoredRun(payload);
       try {
-        await ctx.store.set(runKey(turn.runId), stored);
+        await serialize(() => ctx.store.set(runKey(turn.runId), stored));
       } catch (err) {
         console.error('[devtools] failed to persist trace', err);
       }
     });
 
-    ctx.handle('list-runs', async () => {
+    ctx.handle('list-runs', () => serialize(async () => {
       const keys = await ctx.store.list('runs/');
       const records = await Promise.all(
         keys.map((key) => ctx.store.get<StoredRun>(key)),
@@ -104,9 +134,9 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
         .filter((r): r is StoredRun => Boolean(r))
         .map((r) => r.summary)
         .sort((a, b) => b.startedAt - a.startedAt);
-    });
+    }));
 
-    ctx.handle('get-run', async (_event, runId) => {
+    ctx.handle('get-run', (_event, runId) => serialize(async () => {
       if (typeof runId !== 'string') {
         throw new Error('devtools.get-run: runId must be a string');
       }
@@ -115,6 +145,6 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
       const latestEvents = traceSink.snapshot(runId);
       if (latestEvents.length > 0) stored.detail.trace.observabilityEvents = latestEvents;
       return stored.detail;
-    });
+    }));
   },
 };

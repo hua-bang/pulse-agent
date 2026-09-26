@@ -3,6 +3,7 @@ import type { AgentObservabilityMarkInput } from '../../../shared/agent-observab
 const ALLOWED_MILESTONES = new Set([
   'ui.request-dispatched',
   'ui.first-content-rendered',
+  'ui.response-completed',
 ]);
 
 export const isAgentObservabilityMark = (

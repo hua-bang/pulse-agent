@@ -41,6 +41,8 @@ export interface CanvasAgentPerformanceTiming {
   laneEnteredAt: number;
   scopeReadyAt: number;
   contextReadyAt: number;
+  /** Conversation service finishes after its final durable write. */
+  deferCompletion?: boolean;
 }
 
 interface ToolResultInput {

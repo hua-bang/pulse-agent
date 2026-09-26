@@ -6,6 +6,7 @@ import {
   nextTeamAutoResumeState,
   planCodingAgentLaunchCommand,
   resolveCodingAgentView,
+  shouldAutoResumeCodingAgentSession,
 } from '..';
 
 const agent = (patch: Partial<AgentNodeData> = {}): AgentNodeData => ({
@@ -21,6 +22,11 @@ describe('coding-agent session lifecycle', () => {
     expect(resolveCodingAgentView(agent({ viewMode: undefined, status: 'idle', scrollback: 'prior output' }))).toBe('restart');
     expect(resolveCodingAgentView(agent({ viewMode: undefined, status: 'running', sessionId: '', scrollback: '' }))).toBe('running');
     expect(resolveCodingAgentView(agent({ viewMode: undefined, status: 'idle', sessionId: '', scrollback: '' }))).toBe('setup');
+  });
+
+  it('auto-resumes a running node from its session ids alone, without saved output', () => {
+    expect(shouldAutoResumeCodingAgentSession(agent({ cliSessionId: 'claude-1', scrollback: undefined }))).toBe(true);
+    expect(shouldAutoResumeCodingAgentSession(agent({ cliSessionId: undefined, scrollback: undefined }))).toBe(false);
   });
 
   it('addresses each CLI conversation only through its persisted binding', () => {

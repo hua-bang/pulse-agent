@@ -10,6 +10,9 @@ import { conversationKey } from '../../../shared/conversation-runtime';
  * and a second turn against the SAME conversation is serialized.
  */
 
+const traceEvents = vi.hoisted(() => [] as import('../../../shared/agent-observability').AgentTraceEvent[]);
+vi.mock('../../../plugins/main', () => ({ publishAgentTraceEvent: (event: import('../../../shared/agent-observability').AgentTraceEvent) => traceEvents.push(event) }));
+
 const sessions = new Map<string, CanvasAgentSession>();
 
 const makeSession = (id: string, messages: CanvasAgentMessage[]): CanvasAgentSession => ({
@@ -61,6 +64,7 @@ function makeStoreAdapter(): ConversationStoreAdapter & { writes: Array<[string,
 }
 
 beforeEach(() => {
+  traceEvents.length = 0;
   sessions.clear();
   sessions.set('session-a', makeSession('session-a', []));
   sessions.set('session-b', makeSession('session-b', []));
@@ -407,5 +411,48 @@ describe('ConversationRuntimeService.chat', () => {
       ok: false,
       error: 'disk full',
     });
+  });
+});
+
+
+describe('conversation timing', () => {
+  it('correlates UI submission through the runner and completes after durable persistence', async () => {
+    const adapter = makeStoreAdapter();
+    let releaseSave!: () => void;
+    const persist = adapter.persist;
+    adapter.persist = async (id, messages) => {
+      if (messages.some(message => message.role === 'assistant')) {
+        await new Promise<void>(resolve => { releaseSave = resolve; });
+      }
+      await persist(id, messages);
+    };
+    const service = new ConversationRuntimeService(() => mockAgent.agent as never, () => adapter);
+    const pending = service.chat(scope, 'session-a', 'hello', undefined, {
+      trace: { runId: 'submission-1', submittedAt: Date.now() - 100 },
+    });
+    await vi.waitFor(() => expect(releaseSave).toBeTypeOf('function'));
+    expect(traceEvents.some(event => event.type === 'run.completed')).toBe(false);
+    expect(mockAgent.agent.chat.mock.calls.at(-1)?.[15]).toMatchObject({
+      runId: 'submission-1', deferCompletion: true,
+    });
+    releaseSave();
+    expect(await pending).toMatchObject({ ok: true, runId: 'submission-1' });
+    expect(traceEvents.filter(event => event.type === 'run.completed')).toEqual([
+      expect.objectContaining({ runId: 'submission-1', status: 'success' }),
+    ]);
+    expect(traceEvents).toContainEqual(expect.objectContaining({
+      type: 'milestone', runId: 'submission-1', milestone: 'ui.request-dispatched',
+    }));
+    expect(traceEvents).toContainEqual(expect.objectContaining({ phase: 'canvas.persistence' }));
+    service.disposeAll();
+  });
+
+  it('closes a trace when scope activation fails before the model starts', async () => {
+    const service = new ConversationRuntimeService(() => undefined, () => makeStoreAdapter(),
+      undefined, async () => { throw new Error('activation failed'); });
+    expect(await service.chat(scope, 'session-a', 'hello')).toMatchObject({ ok: false });
+    expect(traceEvents.filter(event => event.type === 'run.completed')).toEqual([
+      expect.objectContaining({ status: 'error' }),
+    ]);
   });
 });

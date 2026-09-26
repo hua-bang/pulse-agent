@@ -23,10 +23,10 @@ export async function syncSessionTaskListBinding(controller: InkCoderController)
   try {
     const result = await service.setTaskListId(taskListId);
     if (result.switched) {
-      controller.ui.success(`Switched task list to ${result.taskListId}`);
+      controller.reportHostMessage('log', `Switched task list to ${result.taskListId}`);
     }
   } catch (error: any) {
-    controller.ui.warn(`Failed to switch task list binding: ${error?.message ?? String(error)}`);
+    controller.reportHostMessage('warn', `Failed to switch task list binding: ${error?.message ?? String(error)}`);
   }
 }
 
@@ -44,12 +44,12 @@ export async function syncSessionGoalBinding(controller: InkCoderController): Pr
     if (service?.setScope) {
       const result = await service.setScope(scope);
       if (result.switched) {
-        controller.ui.info(`Goal scope: ${result.scope}`);
+        controller.reportHostMessage('log', `Goal scope: ${result.scope}`);
       }
       return;
     }
   } catch (error: any) {
-    controller.ui.warn(`Failed to switch goal scope: ${error?.message ?? String(error)}`);
+    controller.reportHostMessage('warn', `Failed to switch goal scope: ${error?.message ?? String(error)}`);
   }
 
   // Engine plugin unavailable (e.g. hand-assembled host without goal plugin):
@@ -57,7 +57,7 @@ export async function syncSessionGoalBinding(controller: InkCoderController): Pr
   await goalIntegration.initialize();
   const result = await goalIntegration.service.setScope(scope);
   if (result.switched) {
-    controller.ui.info(`Goal scope: ${result.scope}`);
+    controller.reportHostMessage('log', `Goal scope: ${result.scope}`);
   }
 }
 

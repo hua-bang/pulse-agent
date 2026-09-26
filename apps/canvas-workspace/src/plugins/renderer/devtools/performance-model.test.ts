@@ -93,3 +93,19 @@ describe('performance diagnosis model', () => {
     expect(timeline.bottleneck?.label).toBe('LLM generation');
   });
 });
+
+
+it('measures submission to durable host completion and UI completion separately', () => {
+  const input = trace();
+  input.observabilityEvents = [
+    { type: 'run.started', runId: 'run-1', timestamp: 1000, scope: 'global', host: 'canvas' },
+    { type: 'milestone', runId: 'run-1', timestamp: 900, milestone: 'ui.request-dispatched', owner: 'renderer' },
+    { type: 'milestone', runId: 'run-1', timestamp: 1200, milestone: 'runtime.first-text', owner: 'engine' },
+    { type: 'milestone', runId: 'run-1', timestamp: 1250, milestone: 'ui.first-content-rendered', owner: 'renderer' },
+    { type: 'run.completed', runId: 'run-1', timestamp: 1700, status: 'success' },
+    { type: 'milestone', runId: 'run-1', timestamp: 1800, milestone: 'ui.response-completed', owner: 'renderer' },
+  ];
+  expect(buildTraceTimeline(input)).toMatchObject({
+    totalMs: 800, milestones: { ttft: 300, render: 350, completed: 900 },
+  });
+});

@@ -105,6 +105,14 @@ Key invariants and their guards:
   effect is keyed by its intent, not by callback identity: renderer state
   updates during hydration must not restart the same `loadSession` request.
   Per-turn IPC listeners are released on every terminal path.
+- Each renderer submission supplies a fresh trace run ID and submission timestamp.
+  The conversation service starts host timing before scope activation, forwards it
+  through the runtime/runner, and completes it only after final persistence.
+  The session ID remains the stream routing key, never the timing correlation ID.
+  Renderer text/terminal marks observe React commits; missing marks (for example,
+  a turn completed off-screen) remain missing rather than becoming zero.
+  Guards: conversation service timing tests, `useChatRenderTiming.test.tsx`, and
+  the DevTools performance-model tests.
 - The conversation input contract carries request context, attachments, and
   mentioned workspaces through renderer → IPC → runtime → engine. Persistence
   retains user context/attachments and assistant tools, run id, and role

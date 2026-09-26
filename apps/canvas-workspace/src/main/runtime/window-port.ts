@@ -7,6 +7,7 @@ export interface RuntimeWindowActivation {
 }
 
 export interface RuntimeWindowPort {
+  getCanvasWindow: () => BrowserWindow | null;
   activateWorkspaceWindow: (workspaceId: string) => Promise<RuntimeWindowActivation>;
 }
 
