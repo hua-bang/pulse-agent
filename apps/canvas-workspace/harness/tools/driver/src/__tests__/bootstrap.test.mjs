@@ -65,6 +65,11 @@ describe('hasElectronSqliteBinding', () => {
     expect(hasElectronSqliteBinding('/n', opts([]))).toBe(false);
   });
 
+  it('treats a package tsup.config.ts as a build input, since it owns the entry list', () => {
+    const storage = buildTargets('/repo').find((target) => target.name === '@pulse-coder/storage');
+    expect(storage.inputs).toContain(join('/repo', 'packages', 'storage', 'tsup.config.ts'));
+  });
+
   it('orders the binding step after canvas-cli, whose clean build wipes dist/native', () => {
     const names = buildTargets('/repo').map((target) => target.name);
     expect(names).toEqual([

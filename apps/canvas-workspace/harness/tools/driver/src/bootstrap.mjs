@@ -64,7 +64,8 @@ export function buildTargets(repoRoot) {
     name: filter,
     command: ['pnpm', ['--filter', filter, 'build'], repoRoot],
     output: join(repoRoot, dir, output),
-    inputs: [join(repoRoot, dir, 'src'), join(repoRoot, dir, 'package.json')],
+    // tsup.config.ts owns the entry list: a new entry can land there alone.
+    inputs: ['src', 'package.json', 'tsup.config.ts'].map((input) => join(repoRoot, dir, input)),
   });
   const nativeDir = join(repoRoot, 'packages', 'canvas-cli', 'dist', 'native');
   return [
