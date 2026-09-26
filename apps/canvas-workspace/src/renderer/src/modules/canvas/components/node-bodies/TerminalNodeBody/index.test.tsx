@@ -217,7 +217,8 @@ describe('TerminalNodeBody scrollback persistence', () => {
     expect(onUpdate).not.toHaveBeenCalled();
 
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
-    expect(getCwd).toHaveBeenCalledTimes(1);
+    // Once on the publish tick (tracks the live CWD), once for the canvas save.
+    expect(getCwd).toHaveBeenCalledTimes(2);
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenCalledWith('terminal-1', {
       data: {
@@ -238,6 +239,27 @@ describe('TerminalNodeBody scrollback persistence', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate.mock.calls[0][1].data.scrollback).toContain('build done');
     expect(onUpdate.mock.calls[0][1].data.scrollback).toContain('[Process exited with code 0]');
+    expect(publishSnapshot).toHaveBeenLastCalledWith('session-1', expect.stringContaining('[Process exited with code 0]'));
+  });
+
+  it('saves the CWD seen on the last publish tick when the window unloads', async () => {
+    await renderTerminal();
+    getCwd.mockResolvedValue({ ok: true, cwd: '/workspace/moved' });
+    act(() => emitPtyData?.('cd moved'));
+    await advanceSaveTick();
+
+    act(() => { window.dispatchEvent(new Event('beforeunload')); });
+    expect(onUpdate).toHaveBeenLastCalledWith('terminal-1', {
+      data: { sessionId: 'session-1', scrollback: 'cd moved', cwd: '/workspace/moved' },
+    }, NO_HISTORY);
+  });
+
+  it('publishes the last output to main when unmounted', async () => {
+    await renderTerminal();
+    act(() => emitPtyData?.('final words'));
+    await unmountTerminal();
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(publishSnapshot).toHaveBeenLastCalledWith('session-1', 'final words');
   });
 
   it('adds unsaved output to the canvas before the window unloads', async () => {
@@ -257,7 +279,7 @@ describe('TerminalNodeBody scrollback persistence', () => {
     act(() => emitPtyData?.('\x07'));
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
 
-    expect(getCwd).toHaveBeenCalledTimes(1);
+    expect(getCwd).toHaveBeenCalledTimes(2);
     expect(onUpdate).not.toHaveBeenCalled();
   });
 

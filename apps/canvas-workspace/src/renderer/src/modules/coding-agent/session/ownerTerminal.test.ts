@@ -80,6 +80,29 @@ describe('owner terminal lifecycle', () => {
     mount.dispose();
   });
 
+  it('shows main\'s live output in read-only mode, falling back to saved output', async () => {
+    const live = mountReadonlyTerminal({
+      container: document.createElement('div'),
+      scrollback: 'stale',
+      readLiveOutput: async () => 'live line',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(terminalHarness.instances.at(-1)?.output.join('\n')).toContain('live line');
+    expect(terminalHarness.instances.at(-1)?.output.join('\n')).not.toContain('stale');
+    live.dispose();
+
+    const fallback = mountReadonlyTerminal({
+      container: document.createElement('div'),
+      scrollback: 'saved line',
+      readLiveOutput: async () => undefined,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(terminalHarness.instances.at(-1)?.output.join('\n')).toContain('saved line');
+    fallback.dispose();
+  });
+
   it('mounts saved output without requiring a PTY bridge in read-only mode', () => {
     const mount = mountReadonlyTerminal({
       container: document.createElement('div'),

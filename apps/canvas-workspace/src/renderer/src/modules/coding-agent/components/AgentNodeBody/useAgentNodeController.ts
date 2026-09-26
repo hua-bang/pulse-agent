@@ -11,7 +11,7 @@ import {
   shouldAutoResumeCodingAgentSession,
 } from '../../session/sessionLifecycle';
 import { mountMirrorTerminal } from '../../session/mirrorTerminal';
-import { mountOwnerTerminal, mountReadonlyTerminal } from '../../session/ownerTerminal';
+import { mountOwnerTerminal, mountReadonlyTerminal, readLiveAgentOutput } from '../../session/ownerTerminal';
 import {
   useAgentSessionActivation,
   type AgentSessionActivationIntent,
@@ -205,6 +205,7 @@ export const useAgentNodeController = ({
         const mount = mountReadonlyTerminal({
           container: containerRef.current,
           scrollback: dataRef.current.scrollback,
+          readLiveOutput: () => readLiveAgentOutput(dataRef.current.sessionId || nodeIdRef.current),
         });
         termRef.current = mount.term;
         fitRef.current = mount.fitAddon;

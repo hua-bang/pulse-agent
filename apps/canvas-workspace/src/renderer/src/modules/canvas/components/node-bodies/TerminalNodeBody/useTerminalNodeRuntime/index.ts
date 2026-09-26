@@ -10,7 +10,7 @@ import {
   isCodingAgentCommand,
 } from '../../../../../../utils/codingAgentCommand';
 import { buildNodeMentionInsertion } from '../../../../../../utils/nodeMention';
-import { BEFORE_QUIT_EVENT, flushAllWorkspaces, installBeforeQuitFlush } from '../../../../document/beforeQuit';
+import { flushWorkspace, registerBeforeQuit } from '../../../../document/beforeQuit';
 import {
   SCROLLBACK_SAVE_INTERVAL,
   claimTerminalSessionOwner,
@@ -67,6 +67,9 @@ export function useTerminalNodeRuntime({
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const snapshotPersisterRef = useRef<ReturnType<typeof createTerminalSnapshotPersister> | null>(null);
+  // The shell's CWD as of the last publish tick; unload saves use it because
+  // the canvas copy only refreshes on the once-a-minute save.
+  const liveCwdRef = useRef<string | null>(null);
   const codingAgentActiveRef = useRef(false);
   const commandInputRef = useRef('');
   const terminalOutputTailRef = useRef('');
@@ -247,6 +250,7 @@ export function useTerminalNodeRuntime({
       );
       // Queued behind the exit line, so the saved copy includes it.
       term.write('', () => {
+        api.publishSnapshot?.(sessionId, serializeBuffer(term));
         void snapshotPersister.flush().catch(() => undefined);
       });
     });
@@ -292,6 +296,9 @@ export function useTerminalNodeRuntime({
       if (publishPending) {
         publishPending = false;
         api.publishSnapshot?.(sessionId, serializeBuffer(term));
+        void api.getCwd(sessionId).then((result) => {
+          if (result.ok && result.cwd) liveCwdRef.current = result.cwd;
+        }, () => undefined);
       }
       if (Date.now() - lastCanvasSave < CANVAS_SAVE_INTERVAL) return;
       lastCanvasSave = Date.now();
@@ -331,6 +338,8 @@ export function useTerminalNodeRuntime({
       cleanupRef.current?.();
       if (!readOnly && persister && term) {
         finalizeTerminalSnapshotBeforeDispose(term, persister, () => {
+          // Main keeps this text after the node goes away; give it the last lines.
+          window.canvasWorkspace?.pty?.publishSnapshot?.(sessionId, serializeBuffer(term));
           killSession?.();
           term.dispose();
         });
@@ -351,29 +360,29 @@ export function useTerminalNodeRuntime({
 
   useEffect(() => {
     if (readOnly) return;
-    // Installed here, not at startup, to keep it out of the entry chunk.
-    installBeforeQuitFlush();
-    // Quitting: main asks for a final save first, and BEFORE_QUIT_EVENT
-    // precedes that flush. Closing a window: beforeunload listeners run in
-    // registration order, so this one flushes the canvas itself.
+    // Closing a window: beforeunload listeners run in registration order, so
+    // the canvas's own flush may already have run; flush this workspace here.
+    // Quitting: main asks for a final save before it closes storage.
     const writeLatestOutput = () => {
       const term = termRef.current;
       if (!term || !snapshotPersisterRef.current) return false;
       const scrollback = serializeBuffer(term);
-      if (scrollback === (dataRef.current.scrollback ?? '')) return false;
+      const cwd = liveCwdRef.current || dataRef.current.cwd || '';
+      if (scrollback === (dataRef.current.scrollback ?? '') && cwd === (dataRef.current.cwd ?? '')) return false;
       onUpdateRef.current(nodeIdRef.current, {
-        data: { sessionId: dataRef.current.sessionId, scrollback, cwd: dataRef.current.cwd ?? '' },
+        data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
       }, { history: false });
       return true;
     };
-    const saveBeforeUnload = () => {
-      if (writeLatestOutput()) void flushAllWorkspaces();
-    };
+    const saveLatestOutput = () => (
+      writeLatestOutput() ? flushWorkspace(workspaceIdRef.current) : undefined
+    );
+    const saveBeforeUnload = () => { void saveLatestOutput(); };
+    const unregisterBeforeQuit = registerBeforeQuit(saveLatestOutput);
     window.addEventListener('beforeunload', saveBeforeUnload);
-    window.addEventListener(BEFORE_QUIT_EVENT, writeLatestOutput);
     return () => {
+      unregisterBeforeQuit();
       window.removeEventListener('beforeunload', saveBeforeUnload);
-      window.removeEventListener(BEFORE_QUIT_EVENT, writeLatestOutput);
     };
   }, [readOnly]);
 

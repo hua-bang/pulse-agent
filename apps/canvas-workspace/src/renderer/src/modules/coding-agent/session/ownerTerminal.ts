@@ -72,27 +72,53 @@ interface MountOwnerTerminalOptions {
   events: OwnerTerminalEvents;
 }
 
+/** Main's in-memory output for a session, or undefined when main has none. */
+export const readLiveAgentOutput = async (sessionId: string): Promise<string | undefined> => {
+  const read = window.canvasWorkspace?.pty?.getScrollback;
+  if (!read) return undefined;
+  const result = await read(sessionId);
+  return result.ok ? result.text : undefined;
+};
+
 export const mountReadonlyTerminal = ({
   container,
   scrollback,
+  readLiveOutput,
 }: {
   container: HTMLElement;
   scrollback?: string;
+  /** Main's in-memory output; agent output is no longer saved on the node. */
+  readLiveOutput?: () => Promise<string | undefined>;
 }): OwnerTerminalMount => {
   const term = new Terminal(TERMINAL_OPTIONS);
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
   container.replaceChildren();
   term.open(container);
-  if (scrollback) {
-    term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
-    term.write(scrollback.split('\n').join('\r\n'));
-    term.writeln('');
+  let disposed = false;
+  const show = (text?: string) => {
+    term.writeln(`\x1b[2m--- ${text ? 'agent output' : 'no saved agent output'} ---\x1b[0m`);
+    if (text) {
+      term.write(text.split('\n').join('\r\n'));
+      term.writeln('');
+    }
+    scheduleTerminalFit(fitAddon, term, container);
+  };
+  if (readLiveOutput) {
+    void readLiveOutput().catch(() => undefined).then((live) => {
+      if (!disposed) show(live || scrollback);
+    });
   } else {
-    term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
+    show(scrollback);
   }
-  scheduleTerminalFit(fitAddon, term, container);
-  return { term, fitAddon, dispose: () => term.dispose() };
+  return {
+    term,
+    fitAddon,
+    dispose: () => {
+      disposed = true;
+      term.dispose();
+    },
+  };
 };
 
 export const mountOwnerTerminal = ({

@@ -17,7 +17,3 @@ export function registerWorkspacePersistence(workspaceId: string, flush: FlushWo
 export async function flushWorkspacePersistence(workspaceId: string): Promise<void> {
   for (const flush of [...(writers.get(workspaceId) ?? [])]) await flush();
 }
-
-
-/** Mounted documents' flushes by workspace, for the unload and quit paths in canvas/document/beforeQuit.ts. */
-export const workspaceFlushes = (): Iterable<Set<FlushWorkspace>> => writers.values();

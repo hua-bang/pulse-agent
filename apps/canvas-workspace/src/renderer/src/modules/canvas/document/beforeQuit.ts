@@ -1,32 +1,38 @@
-import { workspaceFlushes } from '../../../shared/workspacePersistence';
+import { flushWorkspacePersistence } from '../../../shared/workspacePersistence';
 
 /**
  * Final save on quit. Main closes storage before windows close, so it asks
- * each window to save first (see main/canvas/flush-before-quit.ts). Node
- * bodies write their last state on BEFORE_QUIT_EVENT, synchronously; every
- * mounted workspace then flushes, and main is answered once they settle.
+ * each window to save first (see main/canvas/flush-before-quit.ts). Nodes
+ * that hold unsaved state register a task that writes it and flushes their
+ * workspace; main is answered once every task settles. Lives outside the
+ * entry chunk: terminal nodes install it when they mount.
  */
-export const BEFORE_QUIT_EVENT = 'pulse-canvas:before-quit';
+type BeforeQuitTask = () => Promise<void> | void;
 
-/** Save every mounted workspace now; each document reports its own failure. */
-export const flushAllWorkspaces = async (): Promise<void> => {
-  const flushes = [...workspaceFlushes()].flatMap(callbacks => [...callbacks]);
-  await Promise.allSettled(flushes.map(flush => flush()));
-};
-
-export const runBeforeQuitFlush = async (): Promise<void> => {
-  window.dispatchEvent(new Event(BEFORE_QUIT_EVENT));
-  await flushAllWorkspaces();
-};
-
+const tasks = new Set<BeforeQuitTask>();
 let installed = false;
 
-/** Answer main's quit handshake for this window (idempotent; terminal nodes install it). */
-export const installBeforeQuitFlush = (): void => {
+export const runBeforeQuitTasks = async (): Promise<void> => {
+  await Promise.allSettled([...tasks].map(task => Promise.resolve().then(task)));
+};
+
+const installBeforeQuitFlush = (): void => {
   const store = window.canvasWorkspace?.store;
   if (installed || !store?.onFlushBeforeQuit) return;
   installed = true;
   store.onFlushBeforeQuit((requestId) => {
-    void runBeforeQuitFlush().finally(() => store.flushedBeforeQuit(requestId));
+    void runBeforeQuitTasks().finally(() => store.flushedBeforeQuit(requestId));
   });
+};
+
+/** Run `task` before the app quits; returns an unregister function. */
+export const registerBeforeQuit = (task: BeforeQuitTask): (() => void) => {
+  installBeforeQuitFlush();
+  tasks.add(task);
+  return () => { tasks.delete(task); };
+};
+
+/** Save a workspace now; its document reports its own failures. */
+export const flushWorkspace = async (workspaceId: string | undefined): Promise<void> => {
+  if (workspaceId) await flushWorkspacePersistence(workspaceId).catch(() => undefined);
 };

@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerWorkspacePersistence } from '../../../shared/workspacePersistence';
-import { BEFORE_QUIT_EVENT, installBeforeQuitFlush } from './beforeQuit';
+import { flushWorkspace, registerBeforeQuit } from './beforeQuit';
 
 afterEach(() => {
   Reflect.deleteProperty(window, 'canvasWorkspace');
 });
 
 describe('before-quit flush', () => {
-  it('lets node bodies write first, flushes every workspace, then answers main', async () => {
+  it('runs every registered task before answering main, even when one fails', async () => {
     const order: string[] = [];
     let request: ((requestId: string) => void) | undefined;
     const flushedBeforeQuit = vi.fn(() => order.push('answered'));
@@ -21,18 +21,28 @@ describe('before-quit flush', () => {
         },
       },
     });
-    const onEvent = () => order.push('node state');
-    window.addEventListener(BEFORE_QUIT_EVENT, onEvent);
-    const unregisterA = registerWorkspacePersistence('a', async () => { order.push('flush a'); });
-    const unregisterB = registerWorkspacePersistence('b', async () => { throw new Error('save failed'); });
+    const unregisterWorkspace = registerWorkspacePersistence('ws', async () => { order.push('flush ws'); });
+    const unregisterA = registerBeforeQuit(async () => {
+      order.push('write node');
+      await flushWorkspace('ws');
+    });
+    const unregisterB = registerBeforeQuit(() => { throw new Error('write failed'); });
+    const unregisterC = registerBeforeQuit(() => { order.push('unregistered'); });
+    unregisterC();
 
-    installBeforeQuitFlush();
     request?.('quit-1');
     await vi.waitFor(() => expect(flushedBeforeQuit).toHaveBeenCalledWith('quit-1'));
 
-    expect(order).toEqual(['node state', 'flush a', 'answered']);
-    window.removeEventListener(BEFORE_QUIT_EVENT, onEvent);
+    expect(order).toEqual(['write node', 'flush ws', 'answered']);
     unregisterA();
     unregisterB();
+    unregisterWorkspace();
+  });
+
+  it('swallows a workspace flush failure and ignores a missing workspace id', async () => {
+    const unregister = registerWorkspacePersistence('broken', async () => { throw new Error('still loading'); });
+    await expect(flushWorkspace('broken')).resolves.toBeUndefined();
+    await expect(flushWorkspace(undefined)).resolves.toBeUndefined();
+    unregister();
   });
 });
