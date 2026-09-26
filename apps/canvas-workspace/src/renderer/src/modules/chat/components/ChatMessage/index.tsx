@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import { useChatRenderTiming } from '../../runtime/useChatRenderTiming';
 import './index.css';
 import { OrderedChatContent } from './OrderedChatContent';
 import type { AgentChatMessage, CanvasNode, ToolCallStatus } from '../../../../types';
@@ -67,6 +68,7 @@ const ChatMessageView = ({
   turnStartedAt,
   onSessionJump,
 }: ChatMessageProps) => {
+  useChatRenderTiming(message, isStreaming);
   const {
     absoluteTime,
     assistantHtml,
@@ -250,7 +252,7 @@ const ChatMessageView = ({
           onRetry={canRecoverTurn ? handleRegenerate : undefined}
         />
       )}
-      <PluginChatCardForMessage message={message} />
+      <PluginChatCardForMessage message={isStreaming ? { ...message, runId: undefined } : message} />
       {!isEditing && (
         <ChatMessageToolbar
           content={message.content}

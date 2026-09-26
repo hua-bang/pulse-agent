@@ -7,13 +7,15 @@ export type AgentTracePhase =
   | 'canvas.context-preparation'
   | 'canvas.runtime-dispatch'
   | 'runtime.execution'
-  | 'canvas.response-processing';
+  | 'canvas.response-processing'
+  | 'canvas.persistence';
 
 export type AgentTraceMilestone =
   | 'ui.request-dispatched'
   | 'runtime.first-activity'
   | 'runtime.first-text'
-  | 'ui.first-content-rendered';
+  | 'ui.first-content-rendered'
+  | 'ui.response-completed';
 
 interface AgentTraceEventBase {
   runId: string;
@@ -97,7 +99,7 @@ export interface AgentObservabilityMarkInput {
   runId: string;
   milestone: Extract<
     AgentTraceMilestone,
-    'ui.request-dispatched' | 'ui.first-content-rendered'
+    'ui.request-dispatched' | 'ui.first-content-rendered' | 'ui.response-completed'
   >;
   timestamp: number;
 }

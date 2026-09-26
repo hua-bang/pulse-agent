@@ -25,14 +25,33 @@ packaged production builds.
 Enable the local trace subscriber:
 
 ```bash
-PULSE_CANVAS_AGENT_OBSERVABILITY=1 pnpm --filter canvas-workspace dev
+PULSE_CANVAS_AGENT_OBSERVABILITY=1 CANVAS_AGENT_DEBUG_TRACE=1 pnpm --filter canvas-workspace dev
 ```
 
-Also enable `canvas-agent-debug-trace` in Settings → Experimental, then reload
-the renderer. `CANVAS_AGENT_DEBUG_TRACE=1` enables main-process detail capture
-for scripted runs, but the renderer DevTools route still requires the
-experimental flag. Open `#/debug` or use the Debug Trace card on an assistant
-message.
+The second environment variable enables detail capture in main and the preload
+DevTools flag, so this command exposes the sidebar DevTools entry directly.
+Alternatively, enable `canvas-agent-debug-trace` in Settings → Experimental and
+reload the renderer when that legacy flag is visible. Open `#/debug` or use the
+Debug Trace card on an assistant message.
+
+For a local record, select the run in Agent DevTools and click **Export timing
+JSON**. The export includes run/model/runtime identity, timeline and structural
+events, without prompt/response or tool input/output payloads. Preserve the file
+when reporting a slow request. Host and UI totals have separate end boundaries;
+the waterfall extends to the last observed event.
+
+For isolated development launches, set both a temporary `HOME` and Electron's
+`--user-data-dir` (the plugin store uses Electron userData, not HOME). Use the
+installed electron-vite entry after dependency preparation so changing HOME does
+not trigger a separate Corepack download:
+
+```bash
+task_home=$(mktemp -d /tmp/pulse-latency.XXXXXX)
+HOME="$task_home" PULSE_CANVAS_AGENT_OBSERVABILITY=1 CANVAS_AGENT_DEBUG_TRACE=1 \
+  ./node_modules/.bin/electron-vite dev -- --user-data-dir="$task_home/electron-user-data"
+```
+
+Run that command from `apps/canvas-workspace`. Close only the instance you launched.
 
 Use Langfuse when the task needs cross-run filters, cohorts, percentiles, or a
 shared remote trace. Add `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and
@@ -58,10 +77,12 @@ Treat the lanes as ownership boundaries:
 
 Interpret the summary metrics as follows:
 
-- `Total`: request start through host completion.
+- `Host total`: UI submission (when recorded) through final conversation persistence.
+- `UI total`: UI submission through the committed end of generation. Missing for
+  turns without an observed live-to-settled UI transition.
 - `TTFA`: first stream activity, which may be a tool call rather than text.
 - `TTFT`: first user-visible text. It can legitimately be later than TTFA.
-- `First render`: first assistant content committed by the renderer.
+- `First render`: first assistant text committed by the renderer (not tool-only activity).
 - `Bottleneck`: longest exclusive duration, not proof of root cause by itself.
 
 TTFA and TTFT are point milestones inside runtime execution. Do not add them to

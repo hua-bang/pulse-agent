@@ -50,7 +50,7 @@ export function createConversationRunner(agent: CanvasAgent): ConversationRuntim
         ctx.onRoleTurnEnd,
         ctx.signal,
         undefined, // modelConfigOverride
-        undefined, // performanceTiming
+        ctx.performanceTiming,
         // The runtime owns persistence: do not let agent.chat double-append.
         (_sessionId, messages) => assistantMessages.push(...messages.filter(message => message.role === 'assistant')),
       );

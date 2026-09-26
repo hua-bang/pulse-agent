@@ -1,3 +1,4 @@
+import type { ConversationSendInput } from '../../../shared/conversation-runtime';
 import type {
   AgentChatMessage,
   AgentChatMcpApp,
@@ -204,6 +205,7 @@ export interface AgentApi {
     attachments?: ChatImageAttachment[],
     /** Edit/regenerate: replace history from this user-message index. */
     truncateAt?: number,
+    trace?: ConversationSendInput['trace'],
   ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
   /** Abort a conversation's active turn. */
   conversationAbort: (

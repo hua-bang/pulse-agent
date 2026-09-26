@@ -30,6 +30,7 @@ const milestoneLabel = (label: string) => ({
   'runtime.first-activity': 'TTFA · first activity',
   'runtime.first-text': 'TTFT · first text',
   'ui.first-content-rendered': 'UI first content rendered',
+  'ui.response-completed': 'UI response completed',
 }[label] ?? label);
 
 export const AgentDebugPage = ({ invoke, selectedRunId, onSelectRun, onBackToCanvas }: AgentDebugPageProps) => {
@@ -134,7 +135,10 @@ const RunDetail = ({ detail }: { detail: AgentDebugRunDetail }) => {
   const trace = detail.trace;
   const timeline = buildTraceTimeline(trace);
   const runtime = runtimeDisplayName(trace.runtime?.id);
-  const status = trace.finishedAt ? 'Complete' : 'Running';
+  const completion = trace.observabilityEvents?.find(event => event.type === 'run.completed');
+  const status = completion?.type === 'run.completed'
+    ? completion.status === 'success' ? 'Complete' : completion.status === 'stopped' ? 'Stopped' : 'Failed'
+    : trace.finishedAt ? 'Complete' : 'Running';
   return (
     <div className="agent-debug-detail">
       <header className="agent-debug-run-header">
@@ -148,12 +152,28 @@ const RunDetail = ({ detail }: { detail: AgentDebugRunDetail }) => {
               <span>{formatTime(trace.startedAt)}</span>
             </div>
           </div>
+          <button type="button" className="agent-debug-copy" onClick={() => {
+            const blob = new Blob([JSON.stringify({
+              runId: trace.runId,
+              model: trace.model,
+              runtime: trace.runtime,
+              timeline,
+              events: trace.observabilityEvents ?? [],
+            }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `latency-${trace.runId}.json`;
+            link.click();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }}>Export timing JSON</button>
           <button type="button" className="agent-debug-copy" onClick={() => void navigator.clipboard?.writeText(trace.runId)}>Copy run ID</button>
         </div>
       </header>
 
       <section className="agent-debug-diagnosis">
-        <Stat label="Total" value={formatDuration(timeline?.totalMs ?? trace.durationMs)} />
+        <Stat label="Host total" value={formatDuration(timeline?.totalMs ?? trace.durationMs)} />
+        <Stat label="UI total" value={formatDuration(timeline?.milestones.completed)} />
         <Stat label="TTFA" value={formatDuration(timeline?.milestones.ttfa ?? trace.performance?.timeToFirstEventMs)} accent="cyan" />
         <Stat label="TTFT" value={formatDuration(timeline?.milestones.ttft ?? trace.performance?.timeToFirstTextMs)} accent="green" />
         <Stat label="First render" value={formatDuration(timeline?.milestones.render)} accent="purple" />
@@ -182,7 +202,7 @@ const Stat = ({ label, value, detail, accent }: { label: string; value: string; 
 const Waterfall = ({ trace, timeline }: { trace: AgentDebugTrace; timeline: NonNullable<ReturnType<typeof buildTraceTimeline>> }) => {
   const runtime = runtimeOwner(trace.runtime?.id);
   const lanes: Array<PerformanceOwner | 'renderer'> = ['canvas-host', runtime, 'renderer'];
-  const total = Math.max(1, timeline.totalMs);
+  const total = Math.max(1, timeline.totalMs, ...timeline.items.map(item => item.endMs));
   return (
     <section className="agent-debug-panel agent-debug-waterfall">
       <div className="agent-debug-panel-title">
@@ -216,7 +236,7 @@ const TimelineRow = ({ item, total }: { item: TraceTimelineItem; total: number }
     <div className="agent-debug-timeline-row">
       <div className="agent-debug-event-label">
         <strong>{item.kind === 'milestone' ? milestoneLabel(item.label) : item.label}</strong>
-        <span>{item.detail ?? (item.durationMs > 0 ? formatDuration(item.durationMs) : `+${formatDuration(item.startMs)}`)}</span>
+        <span>{item.detail ?? (item.kind === 'milestone' || item.kind === 'compaction' ? `+${formatDuration(item.startMs)}` : formatDuration(item.durationMs))}</span>
       </div>
       <div className="agent-debug-track">
         {item.kind === 'milestone' || item.kind === 'compaction' ? (

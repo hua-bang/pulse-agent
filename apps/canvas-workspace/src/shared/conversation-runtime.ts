@@ -66,6 +66,8 @@ export interface ConversationSendInput {
   attachments?: ChatImageAttachment[];
   /** Edit/regenerate: drop history from this user-message index before the turn. */
   truncateAt?: number;
+  /** Correlates one UI submission with its host/runtime trace. */
+  trace?: { runId: string; submittedAt: number };
 }
 
 /** Edit/regenerate was not applied; the conversation keeps its previous history. */

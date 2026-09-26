@@ -36,6 +36,32 @@ export const markCanvasHostScopeReady = (timing: CanvasAgentPerformanceTiming): 
   });
 };
 
+export const markConversationLaneEntered = (timing?: CanvasAgentPerformanceTiming): void => {
+  if (!timing) return;
+  const timestamp = Date.now();
+  publishAgentTraceEvent({
+    type: 'phase.completed', runId: timing.runId, timestamp,
+    phase: 'canvas.queue', owner: 'canvas-host',
+    startedAt: timing.scopeReadyAt, finishedAt: timestamp,
+  });
+  timing.scopeReadyAt = timestamp;
+};
+
+export const observeConversationPersistence = async (
+  timing: CanvasAgentPerformanceTiming | undefined,
+  persist: () => Promise<void>,
+): Promise<void> => {
+  const startedAt = Date.now();
+  try {
+    await persist();
+  } finally {
+    if (timing) publishAgentTraceEvent({
+      type: 'phase.completed', runId: timing.runId, timestamp: Date.now(),
+      phase: 'canvas.persistence', owner: 'canvas-host', startedAt, finishedAt: Date.now(),
+    });
+  }
+};
+
 export const markCanvasHostContextReady = (timing?: CanvasAgentPerformanceTiming): void => {
   if (!timing) return;
   timing.contextReadyAt = Date.now();
@@ -83,7 +109,9 @@ export const completeCanvasHostRun = (
     phase: 'canvas.response-processing', owner: 'canvas-host',
     startedAt: responseStartedAt, finishedAt: timestamp,
   });
-  publishAgentTraceEvent({ type: 'run.completed', runId: timing.runId, timestamp, status });
+  if (!timing.deferCompletion) {
+    publishAgentTraceEvent({ type: 'run.completed', runId: timing.runId, timestamp, status });
+  }
 };
 
 export const failCanvasHostRun = (
