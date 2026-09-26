@@ -3,7 +3,8 @@
  *
  * `save-as-skill` / `promote-skill` are meta-skills for in-chat skill
  * management; `suggest-tags` drives the "find which nodes should carry a tag"
- * advisory workflow. All three are plain SKILL.md files in
+ * advisory workflow; `visual-style` is the style guide the workspace prompt
+ * tells the agent to load before writing visual HTML/SVG. They are plain SKILL.md files in
  * the global scope — the agent's behavior is defined by these (user-editable)
  * markdown files, not by hard-coded prompts. Each one leans on a companion
  * tool for the resulting action (`skill_save` / `skill_promote`
@@ -17,8 +18,9 @@ import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { scopeSkillsDir } from './config-scope';
+import { VISUAL_STYLE_SKILL } from './visual-style-skill';
 
-interface DefaultSkill {
+export interface DefaultSkill {
   slug: string;
   name: string;
   description: string;
@@ -169,7 +171,13 @@ Build a period report from chat history, propose memory candidates, and persist 
   ],
 };
 
-const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS, MEMORY_REVIEW];
+const DEFAULT_SKILLS: DefaultSkill[] = [
+  SAVE_AS_SKILL,
+  PROMOTE_SKILL,
+  SUGGEST_TAGS,
+  MEMORY_REVIEW,
+  VISUAL_STYLE_SKILL,
+];
 
 // Exact SHA-256 of the previously bundled suggest-tags SKILL.md. Updating only
 // this byte-for-byte default migrates the obsolete direct-write workflow while
