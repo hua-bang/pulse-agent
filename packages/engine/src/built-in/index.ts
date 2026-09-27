@@ -42,6 +42,7 @@ export type {
   MCPAppToolDescriptor,
   MCPPluginConfig,
   MCPServerStatus,
+  McpServerTiming,
   McpToolInfo,
   HTTPOrSSEServerConfig,
   MCPAuthProviderFactory,

@@ -21,7 +21,7 @@ How to author, register, and reason about `EnginePlugin`s. Facts verified agains
 | `afterLLMCall` | after every LLM call, including the error path | — |
 | `afterRun` | once after the loop exits | — |
 
-Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `PluginManager`). `beforeToolCall`/`afterToolCall` observe read/ls output with the dedup note already appended (see `architecture.md` Runtime Invariants).
+Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `PluginManager`). Each engine plugin's initialization emits `pluginInitTiming` (`pluginName`, `startedAt`, `durationMs`, `ok`), and the MCP built-in emits `mcpServerTiming` (`McpServerTiming`) per configured server; both are best-effort diagnostics on `engine.events`. `beforeToolCall`/`afterToolCall` observe read/ls output with the dedup note already appended (see `architecture.md` Runtime Invariants).
 
 ## Lifecycle
 
@@ -57,7 +57,7 @@ Pitfalls (all evidenced):
 ## Plugin Facts Worth Knowing
 
 - **Construction is fail-fast**: `PluginManager.initialize` rethrows and `Engine.ts` has no try/catch around it, so ANY single plugin's init failure aborts the entire Engine build — one bad plugin means MCP/skills/plan-mode that would have loaded fine never do. Common cause: a misspelled `dependencies` entry (throws `Dependency not found` at init).
-- **MCP registers statically at init only**: config changes need a full Engine rebuild (the `closeAll()`/reload path is a code comment, not an implementation); OAuth applies to `http`/`sse` transports only, never `stdio`; a `disabledTools` entry is still listed in `status.tools` with `enabled:false`. MCP server/tool punctuation is normalized to `[a-zA-Z0-9_-]` at registration because model providers can reject the wider MCP naming surface.
+- **MCP registers statically at init only**: config changes need a full Engine rebuild (the `closeAll()`/reload path is a code comment, not an implementation); OAuth applies to `http`/`sse` transports only, never `stdio`; a `disabledTools` entry is still listed in `status.tools` with `enabled:false`. Servers start in parallel (each bounded by `startupTimeoutMs`, default 30s, per-server override); tools register afterwards in config order so the model-visible tool list does not depend on completion order. MCP server/tool punctuation is normalized to `[a-zA-Z0-9_-]` at registration because model providers can reject the wider MCP naming surface.
 - **Skills precedence**: project before user, `.pulse-coder` before other roots; dedup is realpath-based then case-insensitive-name with FIRST-scanned winning. Skills support `rescan()` hot-reload; sub-agents do NOT, and sub-agents only scan `.pulse-coder/agents`/`.coder/agents` (no home-dir location, unlike skills/MCP).
 - **Startup file scanning is async**: Skills and Role Soul discovery use async glob/realpath/read operations. These plugins initialize inside hosts such as Electron's GUI main process, so reintroducing any `*Sync` filesystem/glob API blocks unrelated IPC and is guarded by `src/built-in/nonblocking-scan.test.ts`; ordered awaits preserve source precedence and deterministic first/last-wins behavior.
 - **Sub-agent frontmatter is regex-parsed, not YAML**: `.md` agent configs use a hand-rolled `key: value` line matcher — quotes, multi-line, and nested YAML constructs silently mis-parse; `deferLoading` must be the literal string `'true'`/`'false'`.

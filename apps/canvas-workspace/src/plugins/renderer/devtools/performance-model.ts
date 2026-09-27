@@ -1,4 +1,5 @@
 import type { AgentDebugTrace } from '../../../renderer/src/types';
+import type { AgentTraceEvent } from '../../../shared/agent-observability';
 
 export type PerformanceOwner = 'canvas-host' | 'engine' | 'pi' | 'runtime';
 
@@ -184,12 +185,92 @@ const phaseLabel = (phase: string): string => ({
   'renderer.request-dispatch': 'Request dispatch',
   'canvas.queue': 'Session queue',
   'canvas.scope-activation': 'Scope activation',
+  'canvas.scope.availability-check': 'Scope › Workspace availability',
+  'canvas.scope.wait-idle': 'Scope › Wait for session writes',
+  'canvas.scope.agent-init': 'Scope › Agent init',
+  'canvas.scope.agent-init-wait': 'Scope › Wait for in-flight agent init',
+  'canvas.scope.engine-init': 'Scope › Engine init',
+  'canvas.scope.engine-plugin-init': 'Scope › Engine plugin',
+  'canvas.scope.mcp-server': 'Scope › MCP server',
+  'canvas.scope.session-restore': 'Scope › Session restore',
+  'canvas.scope.session-reconcile': 'Scope › Session reconcile',
   'canvas.context-preparation': 'Context preparation',
   'canvas.runtime-dispatch': 'Runtime dispatch',
   'runtime.execution': 'Runtime execution',
   'canvas.response-processing': 'Response processing',
   'canvas.persistence': 'Save conversation',
 }[phase] ?? phase);
+
+type GenerationCompletedEvent = Extract<AgentTraceEvent, { type: 'generation.completed' }>;
+
+const formatMs = (value: number): string => (
+  value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${value}ms`
+);
+
+const formatTokens = (value: number): string => (
+  value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
+);
+
+/** Duration stays first because an item's detail replaces its duration in the waterfall. */
+const generationDetail = (
+  durationMs: number,
+  finishReason: string | undefined,
+  usage: GenerationCompletedEvent['usage'],
+  toolCount?: number,
+): string => {
+  const parts = [formatMs(durationMs)];
+  if (toolCount !== undefined) parts.push(`${toolCount} tools`);
+  if (usage?.inputTokens !== undefined) {
+    const cached = usage.cachedInputTokens ? ` (cached ${formatTokens(usage.cachedInputTokens)})` : '';
+    parts.push(`in ${formatTokens(usage.inputTokens)}${cached}`);
+  }
+  if (usage?.outputTokens !== undefined) {
+    const reasoning = usage.reasoningTokens ? ` (reasoning ${formatTokens(usage.reasoningTokens)})` : '';
+    parts.push(`out ${formatTokens(usage.outputTokens)}${reasoning}`);
+  }
+  if (finishReason) parts.push(finishReason);
+  return parts.join(' · ');
+};
+
+/**
+ * Split one provider call at the boundaries the runtime reported: request
+ * preparation, waiting for the first chunk (provider queue + prefill), output
+ * before any text (reasoning or tool input), and text streaming.
+ */
+const generationSegments = (
+  event: GenerationCompletedEvent,
+  startedAt: number,
+  origin: number,
+): TraceTimelineItem[] => {
+  const timings = event.timings;
+  if (!timings) return [];
+  // Tool-call-only or reasoning-only calls stream no text; their whole
+  // output phase still belongs in the breakdown.
+  const bounds: Array<[string, number | undefined, number | undefined]> = timings.firstTextAt === undefined
+    ? [
+      ['Request preparation', startedAt, timings.requestStartedAt],
+      ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
+      ['Non-text output', timings.firstChunkAt, event.timestamp],
+    ]
+    : [
+      ['Request preparation', startedAt, timings.requestStartedAt],
+      ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
+      ['Output before text', timings.firstChunkAt, timings.firstTextAt],
+      ['Text streaming', timings.firstTextAt, event.timestamp],
+    ];
+  return bounds.flatMap(([label, from, to]) => {
+    if (from === undefined || to === undefined || to <= from) return [];
+    return [{
+      id: `generation:${event.generationId}:${label}`,
+      label: `Generation › ${label}`,
+      owner: eventOwner(event.owner),
+      kind: 'generation' as const,
+      startMs: Math.max(0, from - origin),
+      durationMs: to - from,
+      endMs: Math.max(0, to - origin),
+    }];
+  });
+};
 
 export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | undefined {
   const events = trace.observabilityEvents ?? [];
@@ -235,12 +316,23 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
     if (event.type === 'generation.started') starts.set(`generation:${event.generationId}`, event);
     if (event.type === 'tool.started') starts.set(`tool:${event.toolCallId}`, event);
     if (event.type === 'phase.completed') {
+      // Steps replayed from a shared init (e.g. the composer warm-up) can
+      // begin before this run. Clip them to the run so bars and bottleneck
+      // reflect time this run spent, and keep the full span in the detail.
+      const startedAt = Math.max(event.startedAt, origin);
+      const durationMs = Math.max(0, event.finishedAt - startedAt);
+      const earlyMs = origin - event.startedAt;
       items.push({
-        id: `phase:${event.phase}:${event.startedAt}`,
-        label: phaseLabel(event.phase), owner: eventOwner(event.owner), kind: 'phase',
-        startMs: Math.max(0, event.startedAt - origin),
-        durationMs: Math.max(0, event.finishedAt - event.startedAt),
+        // Nested steps (e.g. repeated availability checks) can share a start millisecond.
+        id: `phase:${event.phase}:${event.startedAt}:${items.length}`,
+        label: event.detail ? `${phaseLabel(event.phase)} · ${event.detail}` : phaseLabel(event.phase),
+        owner: eventOwner(event.owner), kind: 'phase',
+        startMs: startedAt - origin,
+        durationMs,
         endMs: Math.max(0, event.finishedAt - origin),
+        ...(earlyMs > 0 ? {
+          detail: `${formatMs(durationMs)} in this run · began ${formatMs(earlyMs)} earlier, ${formatMs(event.finishedAt - event.startedAt)} total`,
+        } : {}),
       });
     }
     if (event.type === 'generation.completed') {
@@ -252,9 +344,15 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
         startMs: Math.max(0, startedAt - origin),
         durationMs: Math.max(0, event.timestamp - startedAt),
         endMs: Math.max(0, event.timestamp - origin),
-        detail: event.finishReason,
+        detail: generationDetail(
+          event.timestamp - startedAt,
+          event.finishReason,
+          event.usage,
+          start?.type === 'generation.started' ? start.prompt?.toolCount : undefined,
+        ),
         status: event.error ? 'error' : 'success',
       });
+      items.push(...generationSegments(event, startedAt, origin));
     }
     if (event.type === 'tool.completed') {
       const start = starts.get(`tool:${event.toolCallId}`);

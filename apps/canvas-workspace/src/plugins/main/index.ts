@@ -1,6 +1,7 @@
 export {
   agentBus,
   agentObservabilityBus,
+  hasAgentTraceSubscribers,
   publishAgentTraceEvent,
   subscribeAgentTrace,
 } from './agent-bus';

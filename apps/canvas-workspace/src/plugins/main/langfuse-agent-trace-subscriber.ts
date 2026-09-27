@@ -31,6 +31,18 @@ interface RunState {
 
 const at = (timestamp: number): Date => new Date(timestamp);
 
+type GenerationUsage = Extract<AgentTraceEvent, { type: 'generation.completed' }>['usage'];
+
+const langfuseUsageDetails = (usage: GenerationUsage): Record<string, number> | undefined => {
+  if (!usage) return undefined;
+  const details: Record<string, number> = {};
+  if (usage.inputTokens !== undefined) details.input = usage.inputTokens;
+  if (usage.outputTokens !== undefined) details.output = usage.outputTokens;
+  if (usage.cachedInputTokens !== undefined) details.input_cached_tokens = usage.cachedInputTokens;
+  if (usage.reasoningTokens !== undefined) details.output_reasoning_tokens = usage.reasoningTokens;
+  return Object.keys(details).length ? details : undefined;
+};
+
 export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscriber {
   readonly id = 'langfuse';
   private readonly runs = new Map<string, RunState>();
@@ -59,7 +71,12 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
           run.runtime = undefined;
         } else {
           const phase = this.start(run.root, event.phase, 'span', event.startedAt, {
-            metadata: { owner: event.owner, phase: event.phase },
+            metadata: {
+              owner: event.owner,
+              phase: event.phase,
+              ...(event.parentPhase ? { parentPhase: event.parentPhase } : {}),
+              ...(event.detail ? { detail: event.detail } : {}),
+            },
           });
           phase.end(at(event.finishedAt));
         }
@@ -67,7 +84,11 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
       case 'generation.started': {
         const generation = this.start(run.runtime ?? run.root, `${event.owner}.generation`, 'generation', event.timestamp, {
           model: event.model,
-          metadata: { generationId: event.generationId, owner: event.owner },
+          metadata: {
+            generationId: event.generationId,
+            owner: event.owner,
+            ...(event.prompt ? { prompt: event.prompt } : {}),
+          },
         });
         run.generations.set(event.generationId, generation);
         break;
@@ -75,8 +96,14 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
       case 'generation.completed': {
         const generation = run.generations.get(event.generationId);
         if (!generation) break;
+        const usageDetails = langfuseUsageDetails(event.usage);
+        const metadata = {
+          ...(event.finishReason ? { finishReason: event.finishReason } : {}),
+          ...(event.timings ? { timings: event.timings } : {}),
+        };
         generation.update({
-          ...(event.finishReason ? { metadata: { finishReason: event.finishReason } } : {}),
+          ...(Object.keys(metadata).length ? { metadata } : {}),
+          ...(usageDetails ? { usageDetails } : {}),
           ...(event.error ? { level: 'ERROR', statusMessage: event.error } : {}),
         });
         generation.end(at(event.timestamp));

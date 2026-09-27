@@ -38,6 +38,8 @@ export const publishAgentTraceEvent = (event: AgentTraceEvent): void => {
   agentObservabilityBus.publish(event);
 };
 
+export const hasAgentTraceSubscribers = (): boolean => agentObservabilityBus.hasSubscribers();
+
 export const subscribeAgentTrace = (
   subscriber: AgentObservabilitySubscriber,
 ): (() => void) => agentObservabilityBus.subscribe(subscriber);

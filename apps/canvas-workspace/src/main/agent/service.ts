@@ -32,7 +32,14 @@ import type {
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
 } from './types';
-import { beginCanvasHostRun, failCanvasHostRun, markCanvasHostLaneEntered, markCanvasHostScopeReady } from './observability/host-run';
+import {
+  beginCanvasHostRun,
+  failCanvasHostRun,
+  markCanvasHostLaneEntered,
+  markCanvasHostScopeReady,
+  traceCanvasScopeActivation,
+  traceScopeActivationStep,
+} from './observability/host-run';
 import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
 import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './session-display-loader';
 
@@ -45,11 +52,11 @@ export class CanvasAgentService {
     (scope) => this.getAgentForScope(scope),
   );
   async activateScope(scope: AgentScope): Promise<void> {
-    await this.sessionMutations.waitForIdle(scope);
+    await traceScopeActivationStep('canvas.scope.wait-idle', () => this.sessionMutations.waitForIdle(scope));
     await this.activateScopeCore(scope);
-    await this.sessionMutations.reconcileActiveAgent(
+    await traceScopeActivationStep('canvas.scope.session-reconcile', () => this.sessionMutations.reconcileActiveAgent(
       scope, (agent, canRefresh) => reconcileAgentWithStoredSession(scope, agent, canRefresh),
-    );
+    ));
   }
   private async activateScopeCore(scope: AgentScope): Promise<void> {
     await activateAgentScope(scope, this.agents, this.agentActivations);
@@ -116,7 +123,7 @@ export class CanvasAgentService {
     const result = await this.sessionMutations.runChat(scope, async () => {
       markCanvasHostLaneEntered(timing);
       try {
-        await this.activateScope(scope);
+        await traceCanvasScopeActivation(timing, () => this.activateScope(scope));
         markCanvasHostScopeReady(timing);
         const agent = this.getAgentForScope(scope)!;
         const persistTo = (sessionId: string, messages: CanvasAgentMessage[]) =>

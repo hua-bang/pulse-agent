@@ -38,7 +38,16 @@ describe('ensureDefaultSkillsSeeded', () => {
     const skills = await listCanvasSkills({ level: 'global' });
     const byName = Object.fromEntries(skills.map((s) => [s.name, s]));
 
-    expect(Object.keys(byName).sort()).toEqual(['memory-review', 'promote-skill', 'save-as-skill', 'suggest-tags']);
+    expect(Object.keys(byName).sort()).toEqual([
+      'memory-review',
+      'promote-skill',
+      'save-as-skill',
+      'suggest-tags',
+      'visual-style',
+    ]);
+    expect(byName['visual-style'].body).toMatch(/Archetype router/);
+    expect(byName['visual-style'].body).toMatch(/Shared tokens/);
+    expect(byName['visual-style'].body).toMatch(/`visual_render`/);
     expect(byName['memory-review'].body).toMatch(/memory_adopt/);
     expect(byName['memory-review'].body).toMatch(/session_summary/);
     expect(byName['memory-review'].body).toMatch(/候选 skills/);
@@ -112,5 +121,12 @@ describe('ensureDefaultSkillsSeeded', () => {
     await ensureDefaultSkillsSeeded();
     const skills = await listCanvasSkills({ level: 'global' });
     expect(skills.some((s) => s.name === 'save-as-skill')).toBe(true);
+  });
+
+  it('keeps the visual style guide out of the workspace system prompt and points at the skill', async () => {
+    const prompt = await fs.readFile(join(process.cwd(), 'src/main/agent/canvas-agent.ts'), 'utf8');
+    expect(prompt).toMatch(/load the \\`visual-style\\` skill with the \\`skill\\` tool/);
+    expect(prompt).not.toMatch(/Archetype router/);
+    expect(prompt).not.toMatch(/Shared tokens/);
   });
 });

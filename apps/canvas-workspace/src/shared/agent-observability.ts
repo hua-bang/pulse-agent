@@ -1,14 +1,63 @@
 export type AgentTraceOwner = 'renderer' | 'canvas-host' | 'engine' | 'pi';
 
+/**
+ * Nested steps inside `canvas.scope-activation`. They overlap their parent,
+ * so they are not additive turn phases.
+ */
+export type AgentTraceScopeActivationStep =
+  | 'canvas.scope.availability-check'
+  | 'canvas.scope.wait-idle'
+  | 'canvas.scope.agent-init'
+  | 'canvas.scope.agent-init-wait'
+  | 'canvas.scope.engine-init'
+  | 'canvas.scope.engine-plugin-init'
+  | 'canvas.scope.mcp-server'
+  | 'canvas.scope.session-restore'
+  | 'canvas.scope.session-reconcile';
+
 export type AgentTracePhase =
   | 'renderer.request-dispatch'
   | 'canvas.queue'
   | 'canvas.scope-activation'
+  | AgentTraceScopeActivationStep
   | 'canvas.context-preparation'
   | 'canvas.runtime-dispatch'
   | 'runtime.execution'
   | 'canvas.response-processing'
   | 'canvas.persistence';
+
+export interface AgentTraceGenerationTimings {
+  /** Request handed to the provider SDK, after hooks and tool wrapping. */
+  requestStartedAt?: number;
+  /** First streamed chunk of any kind (reasoning, tool input, or text). */
+  firstChunkAt?: number;
+  firstTextAt?: number;
+  lastChunkAt?: number;
+}
+
+/**
+ * Stability fingerprint of what precedes the conversation in a provider
+ * request. Equal hashes across two runs mean the cacheable prefix did not
+ * change; hashes only, never prompt or schema content.
+ */
+export interface AgentTracePromptFingerprint {
+  systemHash: string;
+  systemChars: number;
+  toolsHash: string;
+  toolCount: number;
+  /** Serialized size of names, descriptions and input schemas. */
+  toolsChars: number;
+  /** Subset contributed by MCP servers (registered as `mcp_*`). */
+  mcpToolCount: number;
+  mcpToolsChars: number;
+}
+
+export interface AgentTraceGenerationUsage {
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+}
 
 export type AgentTraceMilestone =
   | 'ui.request-dispatched'
@@ -35,6 +84,10 @@ export type AgentTraceEvent =
       owner: AgentTraceOwner;
       startedAt: number;
       finishedAt: number;
+      /** Set on nested steps; the parent phase's duration already includes them. */
+      parentPhase?: AgentTracePhase;
+      /** Which plugin / MCP server a repeated step covers. Metadata only, never content. */
+      detail?: string;
     })
   | (AgentTraceEventBase & {
       type: 'runtime.resolved';
@@ -46,6 +99,7 @@ export type AgentTraceEvent =
       generationId: string;
       owner: 'engine' | 'pi';
       model?: string;
+      prompt?: AgentTracePromptFingerprint;
     })
   | (AgentTraceEventBase & {
       type: 'generation.completed';
@@ -53,6 +107,9 @@ export type AgentTraceEvent =
       owner: 'engine' | 'pi';
       finishReason?: string;
       error?: string;
+      /** Provider-call boundaries when the runtime reports them (Engine does). */
+      timings?: AgentTraceGenerationTimings;
+      usage?: AgentTraceGenerationUsage;
     })
   | (AgentTraceEventBase & {
       type: 'tool.started';

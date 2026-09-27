@@ -129,4 +129,28 @@ describe('PluginManager', () => {
       }
     }
   });
+
+  it('emits pluginInitTiming for successful and failing plugin initialization', async () => {
+    const manager = new PluginManager(createLogger());
+    const timings: any[] = [];
+    manager.getEvents().on('pluginInitTiming', (payload) => timings.push(payload));
+    const ok: EnginePlugin = { name: 'ok', version: '1.0.0', initialize: async () => undefined };
+    const broken: EnginePlugin = {
+      name: 'broken',
+      version: '1.0.0',
+      dependencies: ['ok'],
+      initialize: async () => { throw new Error('boom'); },
+    };
+
+    await expect(manager.initialize({
+      enginePlugins: { plugins: [ok, broken], scan: false },
+      userConfigPlugins: { scan: false },
+    })).rejects.toThrow('boom');
+
+    expect(timings.map(({ pluginName, ok: succeeded }) => [pluginName, succeeded])).toEqual([
+      ['ok', true],
+      ['broken', false],
+    ]);
+    expect(timings.every(timing => timing.durationMs >= 0 && typeof timing.startedAt === 'number')).toBe(true);
+  });
 });

@@ -41,6 +41,8 @@ interface NormalizedServerConfigBase {
   deferTools?: boolean;
   /** Bare tool names (without the `mcp_<server>_` prefix) the host has turned off. */
   disabledTools?: string[];
+  /** Per-server override of the connect + list-tools startup budget. */
+  startupTimeoutMs?: number;
 }
 
 type NormalizedMCPServerConfig = (HTTPOrSSEServerConfig | StdioServerConfig) & NormalizedServerConfigBase;
@@ -135,7 +137,28 @@ function readDisabledTools(raw: RawMCPServerConfig, serverName: string): string[
 }
 
 
+const isPositiveFinite = (value: unknown): value is number => (
+  typeof value === 'number' && Number.isFinite(value) && value > 0
+);
+
+function readStartupTimeoutMs(raw: RawMCPServerConfig, serverName: string): number | undefined {
+  const value = raw.startupTimeoutMs;
+  if (value === undefined) return undefined;
+  if (!isPositiveFinite(value)) {
+    console.warn(`[MCP] Server "${serverName}" has invalid startupTimeoutMs; expected a positive number, ignoring`);
+    return undefined;
+  }
+  return value;
+}
+
 function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): NormalizedMCPServerConfig | null {
+  const normalized = normalizeServerTransport(serverName, raw);
+  if (!normalized) return null;
+  const startupTimeoutMs = readStartupTimeoutMs(raw, serverName);
+  return startupTimeoutMs === undefined ? normalized : { ...normalized, startupTimeoutMs };
+}
+
+function normalizeServerTransport(serverName: string, raw: RawMCPServerConfig): NormalizedMCPServerConfig | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     console.warn(`[MCP] Server "${serverName}" config must be an object, skipping`);
     return null;
@@ -275,6 +298,21 @@ export type MCPServerStatus =
   | { ok: false; error: string };
 
 /**
+ * Emitted as `mcpServerTiming` on the engine event bus once per configured
+ * server during plugin initialization. `connectMs` covers transport + client
+ * creation; `listToolsMs` covers `tools()`; either is absent when that stage
+ * was not reached.
+ */
+export interface McpServerTiming {
+  serverName: string;
+  startedAt: number;
+  durationMs: number;
+  ok: boolean;
+  connectMs?: number;
+  listToolsMs?: number;
+}
+
+/**
  * 管理本插件创建的所有 MCP client，便于宿主在重建 Engine 前统一关闭，
  * 避免 stdio 子进程 / 长连接泄漏。注册为服务 `mcp:__manager__`。
  */
@@ -368,6 +406,55 @@ export interface MCPPluginOptions {
   configPaths?: string[];
   cwd?: string;
   authProviderFactory?: MCPAuthProviderFactory;
+  /**
+   * Budget for one server's connect + list-tools during initialize. Servers
+   * start in parallel, so this bounds a hung server rather than the sum.
+   * Defaults to 30s; a server's own `startupTimeoutMs` overrides it.
+   */
+  startupTimeoutMs?: number;
+}
+
+export const DEFAULT_MCP_STARTUP_TIMEOUT_MS = 30_000;
+
+interface StartedServer {
+  client: MCPClient;
+  tools: Record<string, unknown>;
+}
+
+type ServerStartup =
+  | { serverName: string; ok: true; config: NormalizedMCPServerConfig; started: StartedServer }
+  | { serverName: string; ok: false; error: string };
+
+const closeQuietly = (client: { close?: () => Promise<void> | void }): void => {
+  Promise.resolve()
+    .then(() => client.close?.())
+    .catch(() => undefined);
+};
+
+/**
+ * Race startup against a budget. `onTimeout` must release whatever the
+ * startup already opened: the startup promise itself may never settle (a
+ * server that accepts the connection but never answers tools/list).
+ */
+async function withStartupTimeout(
+  startup: Promise<StartedServer>,
+  timeoutMs: number,
+  onTimeout: () => void,
+): Promise<StartedServer> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      onTimeout();
+      reject(new Error(`startup timed out after ${timeoutMs}ms (set startupTimeoutMs to raise it)`));
+    }, timeoutMs);
+  });
+  // An abandoned startup may still reject later; nobody awaits it anymore.
+  startup.catch(() => undefined);
+  try {
+    return await Promise.race([startup, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -458,75 +545,135 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
         return;
       }
 
-      let loadedCount = 0;
-
-      for (const [serverName, rawServerConfig] of Object.entries(config.servers)) {
+      const startServer = async (serverName: string, rawServerConfig: RawMCPServerConfig): Promise<ServerStartup> => {
+        // Per-server timing for hosts diagnosing slow startup.
+        const timing: McpServerTiming = { serverName, startedAt: Date.now(), durationMs: 0, ok: false };
         try {
           const normalizedConfig = normalizeServerConfig(serverName, rawServerConfig);
           if (!normalizedConfig) {
-            statuses[serverName] = { ok: false, error: 'invalid config (see warnings)' };
-            continue;
+            return { serverName, ok: false, error: 'invalid config (see warnings)' };
           }
-
-          const transport = await createTransport(
-            serverName,
-            normalizedConfig,
-            options.authProviderFactory
-          );
-          const client = await createMCPClient({ transport });
-          clients.push(client as { close?: () => Promise<void> | void });
-
-          const tools = await client.tools();
-          const shouldDeferTools = normalizedConfig.deferTools === true;
-          const disabledTools = new Set(normalizedConfig.disabledTools ?? []);
-
-          // 逐个工具决定是否注册：被禁用的工具不进引擎工具表（agent 不可见），
-          // 但仍记入 status.tools（enabled:false），供宿主展示与切换。
-          const toolInfos: McpToolInfo[] = [];
-          const namespacedTools: Record<string, any> = {};
-          registeredToolNames[serverName] = {};
-          for (const [toolName, tool] of Object.entries(tools)) {
-            const enabled = !disabledTools.has(toolName);
-            const description = typeof (tool as any)?.description === 'string'
-              ? ((tool as any).description as string)
-              : undefined;
-            toolInfos.push({ name: toolName, description, enabled });
-            if (!enabled) continue;
-            // MCP permits punctuation that some model providers reject in
-            // tools[].name. Normalize at the shared registration boundary so
-            // every host and MCP source receives a provider-safe tool name.
-            const registeredName = providerSafeToolName(`mcp_${serverName}_${toolName}`);
-            registeredToolNames[serverName][toolName] = registeredName;
-            const resourceUri = toolResourceUri(tool);
-            namespacedTools[registeredName] = shouldDeferTools
-              ? { ...(tool as any), defer_loading: true }
-              : (tool as any);
-            if (resourceUri) {
-              appTools[registeredName] = {
-                serverName,
-                toolName,
-                registeredToolName: registeredName,
-                resourceUri,
-              };
+          // Handles live outside the startup promise so a timeout can close
+          // them even while a stage is still pending.
+          let openTransport: MCPClientConfig['transport'] | undefined;
+          let openClient: MCPClient | undefined;
+          let abandoned = false;
+          const release = () => {
+            if (openClient) closeQuietly(openClient);
+            else if (openTransport) closeQuietly(openTransport as { close?: () => Promise<void> | void });
+          };
+          const startup = (async (): Promise<StartedServer> => {
+            openTransport = await createTransport(
+              serverName,
+              normalizedConfig,
+              options.authProviderFactory
+            );
+            if (abandoned) {
+              release();
+              throw new Error('startup abandoned');
             }
-          }
-
-          context.registerTools(namespacedTools);
-          serverRuntimes[serverName] = { client };
-
-          const toolCount = Object.keys(namespacedTools).length;
-          loadedCount++;
-          statuses[serverName] = { ok: true, toolCount, tools: toolInfos };
-          console.log(`[MCP] Server "${serverName}" loaded (${toolCount}/${toolInfos.length} tools)`);
-
-          // 注册服务供其他插件使用
-          context.registerService(`mcp:${serverName}`, client);
-
+            const client = await createMCPClient({ transport: openTransport });
+            openClient = client;
+            if (abandoned) {
+              release();
+              throw new Error('startup abandoned');
+            }
+            timing.connectMs = Date.now() - timing.startedAt;
+            try {
+              const tools = await client.tools();
+              timing.listToolsMs = Date.now() - timing.startedAt - timing.connectMs;
+              return { client, tools };
+            } catch (error) {
+              closeQuietly(client);
+              throw error;
+            }
+          })();
+          const configuredTimeout = normalizedConfig.startupTimeoutMs
+            ?? (isPositiveFinite(options.startupTimeoutMs) ? options.startupTimeoutMs : undefined)
+            ?? DEFAULT_MCP_STARTUP_TIMEOUT_MS;
+          const started = await withStartupTimeout(startup, configuredTimeout, () => {
+            abandoned = true;
+            release();
+          });
+          timing.ok = true;
+          return { serverName, ok: true, config: normalizedConfig, started };
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          statuses[serverName] = { ok: false, error: message };
-          console.warn(`[MCP] Failed to load server "${serverName}": ${message}`);
+          return { serverName, ok: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        } finally {
+          timing.durationMs = Date.now() - timing.startedAt;
+          try {
+            context.events.emit('mcpServerTiming', timing);
+          } catch {
+            // best-effort only
+          }
         }
+      };
+
+      // Start every server at once so startup costs the slowest server, not
+      // the sum. Register afterwards in config order: the model-visible tool
+      // list (and with it the provider's prompt-cache prefix) must not depend
+      // on which server happened to answer first.
+      const startups = await Promise.all(
+        Object.entries(config.servers).map(([serverName, rawServerConfig]) => startServer(serverName, rawServerConfig)),
+      );
+
+      let loadedCount = 0;
+
+      for (const startup of startups) {
+        const { serverName } = startup;
+        if (!startup.ok) {
+          statuses[serverName] = { ok: false, error: startup.error };
+          if (startup.error !== 'invalid config (see warnings)') {
+            console.warn(`[MCP] Failed to load server "${serverName}": ${startup.error}`);
+          }
+          continue;
+        }
+        const { config: normalizedConfig, started: { client, tools } } = startup;
+        clients.push(client as { close?: () => Promise<void> | void });
+        const shouldDeferTools = normalizedConfig.deferTools === true;
+        const disabledTools = new Set(normalizedConfig.disabledTools ?? []);
+
+        // 逐个工具决定是否注册：被禁用的工具不进引擎工具表（agent 不可见），
+        // 但仍记入 status.tools（enabled:false），供宿主展示与切换。
+        const toolInfos: McpToolInfo[] = [];
+        const namespacedTools: Record<string, any> = {};
+        registeredToolNames[serverName] = {};
+        for (const [toolName, tool] of Object.entries(tools)) {
+          const enabled = !disabledTools.has(toolName);
+          const description = typeof (tool as any)?.description === 'string'
+            ? ((tool as any).description as string)
+            : undefined;
+          toolInfos.push({ name: toolName, description, enabled });
+          if (!enabled) continue;
+          // MCP permits punctuation that some model providers reject in
+          // tools[].name. Normalize at the shared registration boundary so
+          // every host and MCP source receives a provider-safe tool name.
+          const registeredName = providerSafeToolName(`mcp_${serverName}_${toolName}`);
+          registeredToolNames[serverName][toolName] = registeredName;
+          const resourceUri = toolResourceUri(tool);
+          namespacedTools[registeredName] = shouldDeferTools
+            ? { ...(tool as any), defer_loading: true }
+            : (tool as any);
+          if (resourceUri) {
+            appTools[registeredName] = {
+              serverName,
+              toolName,
+              registeredToolName: registeredName,
+              resourceUri,
+            };
+          }
+        }
+
+        context.registerTools(namespacedTools);
+        serverRuntimes[serverName] = { client };
+
+        const toolCount = Object.keys(namespacedTools).length;
+        loadedCount++;
+        statuses[serverName] = { ok: true, toolCount, tools: toolInfos };
+        console.log(`[MCP] Server "${serverName}" loaded (${toolCount}/${toolInfos.length} tools)`);
+
+        // 注册服务供其他插件使用
+        context.registerService(`mcp:${serverName}`, client);
       }
 
       if (loadedCount > 0) {

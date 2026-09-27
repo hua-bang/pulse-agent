@@ -163,11 +163,12 @@ export function useChatComposerController({
   useEffect(() => {
     if (prewarmTimerRef.current !== undefined) window.clearTimeout(prewarmTimerRef.current);
     prewarmTimerRef.current = undefined;
+    // Resumed conversations prewarm too: after an app restart their scope is
+    // as cold as a new chat's, and the first send would otherwise pay it.
     if (
       !prewarmConversationId
       || conversationVisible === false
       || chatSessions.sessionLoading
-      || chatStream.messages.length > 0
     ) return;
     prewarmTimerRef.current = window.setTimeout(() => {
       prewarmTimerRef.current = undefined;
@@ -177,7 +178,7 @@ export function useChatComposerController({
       if (prewarmTimerRef.current !== undefined) window.clearTimeout(prewarmTimerRef.current);
       prewarmTimerRef.current = undefined;
     };
-  }, [chatSessions.sessionLoading, chatStream.messages.length, conversationVisible, prewarmConversationId, requestAgentPrewarm]);
+  }, [chatSessions.sessionLoading, conversationVisible, prewarmConversationId, requestAgentPrewarm]);
 
   const sendMessage = useCallback((...args: Parameters<typeof chatStream.sendMessage>) => {
     requestAgentPrewarm();

@@ -147,6 +147,33 @@ describe('useChatComposerController', () => {
     expect(warmScope).toHaveBeenCalledWith({ scope });
   });
 
+  it('prewarms a resumed conversation that already has messages', async () => {
+    vi.useFakeTimers();
+    const warmScope = vi.fn();
+    const getHistory = vi.fn(async () => ({
+      ok: true,
+      activeSessionId: 'session-a',
+      messages: [
+        { role: 'user', content: 'hello', timestamp: 1 },
+        { role: 'assistant', content: 'hi', timestamp: 2 },
+      ],
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: { warmScope, getHistory },
+    };
+    const nextRoot = createRoot(host!);
+    root = nextRoot;
+    await act(async () => {
+      nextRoot.render(createElement(I18nProvider, null, createElement(HistoryHarness)));
+      await Promise.resolve();
+    });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(750); });
+
+    expect(warmScope).toHaveBeenCalledOnce();
+    expect(warmScope).toHaveBeenCalledWith({ scope });
+  });
+
   it('starts the same prewarm immediately on the first input', async () => {
     vi.useFakeTimers();
     const warmScope = vi.fn();

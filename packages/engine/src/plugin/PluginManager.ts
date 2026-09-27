@@ -157,6 +157,8 @@ export class PluginManager {
    * 初始化单个引擎插件
    */
   private async initializeEnginePlugin(plugin: EnginePlugin): Promise<void> {
+    const startedAt = Date.now();
+    let ok = false;
     try {
       // 检查依赖
       if (plugin.dependencies) {
@@ -231,9 +233,21 @@ export class PluginManager {
       }
 
       this.enginePlugins.set(plugin.name, plugin);
+      ok = true;
 
     } catch (error) {
       throw new Error(`Failed to initialize engine plugin ${plugin.name}: ${error}`);
+    } finally {
+      try {
+        this.events.emit('pluginInitTiming', {
+          pluginName: plugin.name,
+          startedAt,
+          durationMs: Date.now() - startedAt,
+          ok,
+        });
+      } catch {
+        // best-effort only
+      }
     }
   }
 

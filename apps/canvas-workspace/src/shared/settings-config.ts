@@ -153,6 +153,8 @@ export interface CanvasMcpServer {
   deferTools?: boolean;
   /** Bare tool names the user has turned off; the engine skips registering these. */
   disabledTools?: string[];
+  /** Per-server connect + list-tools budget; the engine defaults to 30s. */
+  startupTimeoutMs?: number;
 }
 
 /** One tool exposed by a connected MCP server, with its enabled state. */

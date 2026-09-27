@@ -66,6 +66,7 @@ export const builtInPlugins = [builtInMCPPlugin, /* ...其他内置插件 */];
 | `oauth` | `Record<string, unknown>` | 否 | OAuth provider 配置，原样透传给 `authProviderFactory` |
 | `deferTools` | `boolean` | 否 | 为 `true` 时给注册的工具加 `defer_loading: true` |
 | `disabledTools` | `string[]` | 否 | 被禁用的工具名（裸名，不带前缀） |
+| `startupTimeoutMs` | `number` | 否 | 该 server 连接 + 拉取工具列表的超时（毫秒），覆盖插件级 `startupTimeoutMs`（默认 30000） |
 
 **stdio**
 
@@ -78,6 +79,7 @@ export const builtInPlugins = [builtInMCPPlugin, /* ...其他内置插件 */];
 | `cwd` | `string` | 否 | 子进程工作目录 |
 | `deferTools` | `boolean` | 否 | 同上 |
 | `disabledTools` | `string[]` | 否 | 同上 |
+| `startupTimeoutMs` | `number` | 否 | 同上 |
 
 > 字段类型与校验逻辑见 `index.ts` 的 `HTTPOrSSEServerConfig` / `StdioServerConfig` 与 `normalizeServerConfig()`；本表仅为概述，以源码为准。
 
@@ -203,6 +205,7 @@ MCP 工具在 `initialize` 期**静态**注册进引擎工具表，没有 per-ru
 - 配置文件格式错误 / 缺少 `servers`：打印 `[MCP]` 警告，返回空 servers。
 - server 配置非法（缺 `url` / `command`、字段类型不符等）：跳过该 server，状态记为 `{ ok: false, error }`。
 - server 连接失败：单个服务器失败不影响其他 server；失败记入状态。
+- 启动方式：所有 server **并行**连接，启动耗时取决于最慢的 server；工具在全部完成后**按配置顺序**注册，保证模型看到的工具顺序稳定（不影响 prompt 缓存前缀）。单个 server 超过 `startupTimeoutMs` 记为失败，迟到的 client 会被关闭。
 - client 关闭失败：打印 `[MCP]` 警告，继续关闭其余 client。
 
 ## 测试
