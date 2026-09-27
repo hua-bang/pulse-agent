@@ -230,5 +230,3 @@ export const PluginMarketRouteView = ({
     </main>
   );
 };
-
-export default PluginMarketRouteView;
