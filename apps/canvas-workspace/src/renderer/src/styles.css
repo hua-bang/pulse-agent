@@ -126,12 +126,10 @@
   --canvas-node-border: rgba(20, 20, 18, 0.07);
   --canvas-node-border-hover: rgba(20, 20, 18, 0.12);
   --frame-nested-bg: #f7f7f5;
-  /* Floating canvas chrome (toolbar, zoom): translucent glass + ink selection. */
+  /* Floating canvas chrome (toolbar, zoom): translucent glass surface. */
   --radius-chrome: 16px;
   --chrome-glass: rgba(255, 255, 255, 0.86);
   --chrome-border: rgba(20, 20, 18, 0.07);
-  --chrome-active-bg: var(--text);
-  --chrome-active-text: #ffffff;
   /* Product typography: Lexend is bundled by Vite from Fontsource, while
    * PingFang remains the native macOS CJK face. Code, paths, and terminal
    * surfaces opt into the separate mono token. --font stays as a compatibility

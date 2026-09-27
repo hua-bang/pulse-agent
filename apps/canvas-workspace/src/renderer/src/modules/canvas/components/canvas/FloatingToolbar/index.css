@@ -96,13 +96,13 @@
 }
 
 .toolbar-btn--active {
-  background: var(--chrome-active-bg);
-  color: var(--chrome-active-text);
+  background: var(--accent-light);
+  color: var(--accent);
 }
 
 .toolbar-btn--active:hover {
-  background: var(--chrome-active-bg);
-  color: var(--chrome-active-text);
+  background: var(--accent-light);
+  color: var(--accent);
 }
 
 .toolbar-btn--create {
