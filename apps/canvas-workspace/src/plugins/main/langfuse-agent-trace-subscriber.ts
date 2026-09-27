@@ -84,7 +84,11 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
       case 'generation.started': {
         const generation = this.start(run.runtime ?? run.root, `${event.owner}.generation`, 'generation', event.timestamp, {
           model: event.model,
-          metadata: { generationId: event.generationId, owner: event.owner },
+          metadata: {
+            generationId: event.generationId,
+            owner: event.owner,
+            ...(event.prompt ? { prompt: event.prompt } : {}),
+          },
         });
         run.generations.set(event.generationId, generation);
         break;

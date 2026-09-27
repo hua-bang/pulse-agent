@@ -36,6 +36,8 @@ export interface CanvasMcpServer {
   deferTools?: boolean;
   /** Bare tool names the user has turned off; the engine skips registering these. */
   disabledTools?: string[];
+  /** Per-server connect + list-tools budget; the engine defaults to 30s. */
+  startupTimeoutMs?: number;
 }
 
 /** One tool exposed by a connected MCP server, with its enabled state. */
@@ -92,6 +94,10 @@ function normalizeStringArray(value: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+function normalizeTimeoutMs(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 function normalizeAuth(value: unknown): CanvasMcpAuth | undefined {
   const auth = normalizeStr(value).toLowerCase();
   if (auth === 'oauth') return 'oauth';
@@ -125,6 +131,8 @@ function normalizeServer(server: CanvasMcpServer): { name: string; config: Recor
   if (server.deferTools === true) config.deferTools = true;
   const disabledTools = normalizeStringArray(server.disabledTools);
   if (disabledTools) config.disabledTools = disabledTools;
+  const startupTimeoutMs = normalizeTimeoutMs(server.startupTimeoutMs);
+  if (startupTimeoutMs) config.startupTimeoutMs = startupTimeoutMs;
 
   if (transport === 'http' || transport === 'sse') {
     const url = normalizeStr(server.url);
@@ -160,6 +168,8 @@ function readServer(name: string, raw: Record<string, unknown>): CanvasMcpServer
   if (raw.deferTools === true) server.deferTools = true;
   const disabledTools = normalizeStringArray(raw.disabledTools);
   if (disabledTools) server.disabledTools = disabledTools;
+  const startupTimeoutMs = normalizeTimeoutMs(raw.startupTimeoutMs);
+  if (startupTimeoutMs) server.startupTimeoutMs = startupTimeoutMs;
   if (transport === 'stdio') {
     server.command = normalizeStr(raw.command);
     const args = normalizeStringArray(raw.args);
@@ -218,6 +228,10 @@ export async function upsertCanvasMcpServer(
   const file = await readFile(scope);
   const servers = { ...(file.servers ?? {}) };
   const prev = normalizeStr(originalName);
+  // The settings editor has no timeout field; keep a hand-set override
+  // instead of dropping it on every edit.
+  const previousTimeout = normalizeTimeoutMs(servers[prev || name]?.startupTimeoutMs);
+  if (config.startupTimeoutMs === undefined && previousTimeout) config.startupTimeoutMs = previousTimeout;
   if (prev && prev !== name) delete servers[prev];
   servers[name] = config;
   await writeFile(scope, { servers });
@@ -328,6 +342,8 @@ function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServe
   if (raw.deferTools === true) server.deferTools = true;
   const disabledTools = normalizeStringArray(raw.disabledTools);
   if (disabledTools) server.disabledTools = disabledTools;
+  const startupTimeoutMs = normalizeTimeoutMs(raw.startupTimeoutMs);
+  if (startupTimeoutMs) server.startupTimeoutMs = startupTimeoutMs;
   if (transport === 'stdio') {
     if (typeof raw.command === 'string') server.command = raw.command;
     if (Array.isArray(raw.args)) {

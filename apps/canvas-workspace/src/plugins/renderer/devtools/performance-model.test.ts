@@ -142,4 +142,42 @@ it('measures submission to durable host completion and UI completion separately'
   expect(buildTraceTimeline(input)).toMatchObject({
     totalMs: 800, milestones: { ttft: 300, render: 350, completed: 900 },
   });
+
+});
+
+describe('timeline clipping and generation segments', () => {
+  it('clips steps that began before the run and keeps their full span in the detail', () => {
+    const input = trace();
+    input.observabilityEvents = [
+      { type: 'milestone', runId: 'run-1', timestamp: 1_000, milestone: 'ui.request-dispatched', owner: 'renderer' },
+      {
+        type: 'phase.completed', runId: 'run-1', timestamp: 1_500, phase: 'canvas.scope.engine-init',
+        owner: 'canvas-host', startedAt: 400, finishedAt: 1_500, parentPhase: 'canvas.scope-activation',
+      },
+    ];
+
+    const item = buildTraceTimeline(input)!.items.find(entry => entry.label === 'Scope › Engine init')!;
+    expect(item).toMatchObject({ startMs: 0, durationMs: 500, endMs: 500 });
+    expect(item.detail).toBe('500ms in this run · began 600ms earlier, 1.10s total');
+  });
+
+  it('keeps the output phase of a generation that streams no text', () => {
+    const input = trace();
+    input.observabilityEvents = [
+      { type: 'run.started', runId: 'run-1', timestamp: 1_000, scope: 'workspace', host: 'canvas' },
+      { type: 'generation.started', runId: 'run-1', timestamp: 1_100, generationId: 'g1', owner: 'engine' },
+      {
+        type: 'generation.completed', runId: 'run-1', timestamp: 1_900, generationId: 'g1', owner: 'engine',
+        finishReason: 'tool-calls', timings: { requestStartedAt: 1_100, firstChunkAt: 1_300, lastChunkAt: 1_880 },
+      },
+    ];
+
+    const segments = buildTraceTimeline(input)!.items
+      .filter(item => item.label.startsWith('Generation ›'))
+      .map(item => [item.label, item.durationMs]);
+    expect(segments).toEqual([
+      ['Generation › Wait for first chunk', 200],
+      ['Generation › Non-text output', 600],
+    ]);
+  });
 });

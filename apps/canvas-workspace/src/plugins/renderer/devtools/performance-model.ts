@@ -203,6 +203,10 @@ const phaseLabel = (phase: string): string => ({
 
 type GenerationCompletedEvent = Extract<AgentTraceEvent, { type: 'generation.completed' }>;
 
+const formatMs = (value: number): string => (
+  value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${value}ms`
+);
+
 const formatTokens = (value: number): string => (
   value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
 );
@@ -214,7 +218,7 @@ const generationDetail = (
   usage: GenerationCompletedEvent['usage'],
   toolCount?: number,
 ): string => {
-  const parts = [durationMs >= 1000 ? `${(durationMs / 1000).toFixed(2)}s` : `${durationMs}ms`];
+  const parts = [formatMs(durationMs)];
   if (toolCount !== undefined) parts.push(`${toolCount} tools`);
   if (usage?.inputTokens !== undefined) {
     const cached = usage.cachedInputTokens ? ` (cached ${formatTokens(usage.cachedInputTokens)})` : '';
@@ -240,12 +244,20 @@ const generationSegments = (
 ): TraceTimelineItem[] => {
   const timings = event.timings;
   if (!timings) return [];
-  const bounds: Array<[string, number | undefined, number | undefined]> = [
-    ['Request preparation', startedAt, timings.requestStartedAt],
-    ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
-    ['Output before text', timings.firstChunkAt, timings.firstTextAt],
-    ['Text streaming', timings.firstTextAt, event.timestamp],
-  ];
+  // Tool-call-only or reasoning-only calls stream no text; their whole
+  // output phase still belongs in the breakdown.
+  const bounds: Array<[string, number | undefined, number | undefined]> = timings.firstTextAt === undefined
+    ? [
+      ['Request preparation', startedAt, timings.requestStartedAt],
+      ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
+      ['Non-text output', timings.firstChunkAt, event.timestamp],
+    ]
+    : [
+      ['Request preparation', startedAt, timings.requestStartedAt],
+      ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
+      ['Output before text', timings.firstChunkAt, timings.firstTextAt],
+      ['Text streaming', timings.firstTextAt, event.timestamp],
+    ];
   return bounds.flatMap(([label, from, to]) => {
     if (from === undefined || to === undefined || to <= from) return [];
     return [{
@@ -304,14 +316,23 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
     if (event.type === 'generation.started') starts.set(`generation:${event.generationId}`, event);
     if (event.type === 'tool.started') starts.set(`tool:${event.toolCallId}`, event);
     if (event.type === 'phase.completed') {
+      // Steps replayed from a shared init (e.g. the composer warm-up) can
+      // begin before this run. Clip them to the run so bars and bottleneck
+      // reflect time this run spent, and keep the full span in the detail.
+      const startedAt = Math.max(event.startedAt, origin);
+      const durationMs = Math.max(0, event.finishedAt - startedAt);
+      const earlyMs = origin - event.startedAt;
       items.push({
         // Nested steps (e.g. repeated availability checks) can share a start millisecond.
         id: `phase:${event.phase}:${event.startedAt}:${items.length}`,
         label: event.detail ? `${phaseLabel(event.phase)} · ${event.detail}` : phaseLabel(event.phase),
         owner: eventOwner(event.owner), kind: 'phase',
-        startMs: Math.max(0, event.startedAt - origin),
-        durationMs: Math.max(0, event.finishedAt - event.startedAt),
+        startMs: startedAt - origin,
+        durationMs,
         endMs: Math.max(0, event.finishedAt - origin),
+        ...(earlyMs > 0 ? {
+          detail: `${formatMs(durationMs)} in this run · began ${formatMs(earlyMs)} earlier, ${formatMs(event.finishedAt - event.startedAt)} total`,
+        } : {}),
       });
     }
     if (event.type === 'generation.completed') {

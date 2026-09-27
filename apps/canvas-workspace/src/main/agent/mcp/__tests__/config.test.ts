@@ -197,3 +197,39 @@ describe('importCanvasMcpJson', () => {
     expect(raw.servers.eido.disabledTools).toEqual(['danger_tool']);
   });
 });
+
+describe('startupTimeoutMs persistence', () => {
+  it('round-trips a per-server startup budget through upsert, status and import', async () => {
+    await upsertCanvasMcpServer(GLOBAL, {
+      name: 'slow',
+      transport: 'stdio',
+      command: 'npx',
+      startupTimeoutMs: 60_000,
+    });
+    expect((await readRaw()).servers.slow.startupTimeoutMs).toBe(60_000);
+    expect((await getCanvasMcpStatus(GLOBAL)).servers.find(s => s.name === 'slow')?.startupTimeoutMs).toBe(60_000);
+
+    await importCanvasMcpJson(GLOBAL, JSON.stringify({
+      mcpServers: { imported: { command: 'node', startupTimeoutMs: 45_000 } },
+    }));
+    expect((await readRaw()).servers.imported.startupTimeoutMs).toBe(45_000);
+  });
+
+  it('keeps a hand-set budget when the settings editor saves the server without one', async () => {
+    await fs.writeFile(mcpPath, JSON.stringify({
+      servers: { slow: { transport: 'stdio', command: 'npx', startupTimeoutMs: 60_000 } },
+    }), 'utf8');
+
+    await upsertCanvasMcpServer(GLOBAL, { name: 'renamed', transport: 'stdio', command: 'npx -y' }, 'slow');
+
+    const raw = await readRaw();
+    expect(raw.servers.slow).toBeUndefined();
+    expect(raw.servers.renamed).toMatchObject({ command: 'npx -y', startupTimeoutMs: 60_000 });
+  });
+
+  it('drops an invalid budget instead of persisting it', async () => {
+    await upsertCanvasMcpServer(GLOBAL, { name: 'bad', transport: 'stdio', command: 'x', startupTimeoutMs: -1 });
+    expect((await readRaw()).servers.bad.startupTimeoutMs).toBeUndefined();
+  });
+});
+

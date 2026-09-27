@@ -21,6 +21,7 @@ const { fakeTools, mcpCalls, serverBehaviour, createdClients, mcpResponses } = v
     connectDelayMs?: number;
     toolsDelayMs?: number;
     toolsError?: string;
+    toolsHang?: boolean;
     tools?: Record<string, { description?: string }>;
   }>,
   createdClients: [] as Array<{ url?: string; close: ReturnType<typeof vi.fn> }>,
@@ -40,6 +41,7 @@ vi.mock('@ai-sdk/mcp', () => ({
     createdClients.push({ url, close });
     return {
       tools: async () => {
+        if (behaviour.toolsHang) return new Promise(() => undefined);
         if (behaviour.toolsDelayMs) await sleep(behaviour.toolsDelayMs);
         if (behaviour.toolsError) throw new Error(behaviour.toolsError);
         return behaviour.tools ?? fakeTools;
@@ -346,6 +348,32 @@ describe('createMcpPlugin parallel startup', () => {
       expect(late?.close).toHaveBeenCalled();
     });
   });
+
+  it('closes a connected client whose tools/list never answers once its budget expires', async () => {
+    const cfgPath = await writeConfig({ stuck: { transport: 'http', url: url('stuck'), startupTimeoutMs: 30 } });
+    serverBehaviour[url('stuck')] = { toolsHang: true };
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, services } = makeContext();
+
+    await plugin.initialize(ctx);
+
+    expect((services['mcp:__manager__'] as MCPClientManager).getStatuses().stuck).toMatchObject({ ok: false });
+    await vi.waitFor(() => expect(createdClients[0].close).toHaveBeenCalled());
+  });
+
+  it.each([0, -5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'falls back to the default budget for an invalid plugin-level startupTimeoutMs (%s)',
+    async (startupTimeoutMs) => {
+      const cfgPath = await writeConfig({ a: { transport: 'http', url: url('a') } });
+      serverBehaviour[url('a')] = { connectDelayMs: 20 };
+      const plugin = createMcpPlugin({ configPaths: [cfgPath], startupTimeoutMs });
+      const { ctx, services } = makeContext();
+
+      await plugin.initialize(ctx);
+
+      expect((services['mcp:__manager__'] as MCPClientManager).getStatuses().a).toMatchObject({ ok: true });
+    },
+  );
 
   it('closes the client when listing tools fails', async () => {
     const cfgPath = await writeConfig({ broken: { transport: 'http', url: url('broken') } });

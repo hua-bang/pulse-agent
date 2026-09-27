@@ -137,10 +137,14 @@ function readDisabledTools(raw: RawMCPServerConfig, serverName: string): string[
 }
 
 
+const isPositiveFinite = (value: unknown): value is number => (
+  typeof value === 'number' && Number.isFinite(value) && value > 0
+);
+
 function readStartupTimeoutMs(raw: RawMCPServerConfig, serverName: string): number | undefined {
   const value = raw.startupTimeoutMs;
   if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+  if (!isPositiveFinite(value)) {
     console.warn(`[MCP] Server "${serverName}" has invalid startupTimeoutMs; expected a positive number, ignoring`);
     return undefined;
   }
@@ -428,26 +432,26 @@ const closeQuietly = (client: { close?: () => Promise<void> | void }): void => {
 };
 
 /**
- * Race startup against a budget. A startup that finishes after its budget has
- * a client nobody will register, so it is closed as soon as it arrives.
+ * Race startup against a budget. `onTimeout` must release whatever the
+ * startup already opened: the startup promise itself may never settle (a
+ * server that accepts the connection but never answers tools/list).
  */
 async function withStartupTimeout(
   startup: Promise<StartedServer>,
   timeoutMs: number,
+  onTimeout: () => void,
 ): Promise<StartedServer> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let timedOut = false;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
-      timedOut = true;
+      onTimeout();
       reject(new Error(`startup timed out after ${timeoutMs}ms (set startupTimeoutMs to raise it)`));
     }, timeoutMs);
   });
+  // An abandoned startup may still reject later; nobody awaits it anymore.
+  startup.catch(() => undefined);
   try {
     return await Promise.race([startup, timeout]);
-  } catch (error) {
-    if (timedOut) startup.then(({ client }) => closeQuietly(client), () => undefined);
-    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -549,13 +553,31 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           if (!normalizedConfig) {
             return { serverName, ok: false, error: 'invalid config (see warnings)' };
           }
+          // Handles live outside the startup promise so a timeout can close
+          // them even while a stage is still pending.
+          let openTransport: MCPClientConfig['transport'] | undefined;
+          let openClient: MCPClient | undefined;
+          let abandoned = false;
+          const release = () => {
+            if (openClient) closeQuietly(openClient);
+            else if (openTransport) closeQuietly(openTransport as { close?: () => Promise<void> | void });
+          };
           const startup = (async (): Promise<StartedServer> => {
-            const transport = await createTransport(
+            openTransport = await createTransport(
               serverName,
               normalizedConfig,
               options.authProviderFactory
             );
-            const client = await createMCPClient({ transport });
+            if (abandoned) {
+              release();
+              throw new Error('startup abandoned');
+            }
+            const client = await createMCPClient({ transport: openTransport });
+            openClient = client;
+            if (abandoned) {
+              release();
+              throw new Error('startup abandoned');
+            }
             timing.connectMs = Date.now() - timing.startedAt;
             try {
               const tools = await client.tools();
@@ -566,10 +588,13 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
               throw error;
             }
           })();
-          const started = await withStartupTimeout(
-            startup,
-            normalizedConfig.startupTimeoutMs ?? options.startupTimeoutMs ?? DEFAULT_MCP_STARTUP_TIMEOUT_MS,
-          );
+          const configuredTimeout = normalizedConfig.startupTimeoutMs
+            ?? (isPositiveFinite(options.startupTimeoutMs) ? options.startupTimeoutMs : undefined)
+            ?? DEFAULT_MCP_STARTUP_TIMEOUT_MS;
+          const started = await withStartupTimeout(startup, configuredTimeout, () => {
+            abandoned = true;
+            release();
+          });
           timing.ok = true;
           return { serverName, ok: true, config: normalizedConfig, started };
         } catch (error) {
