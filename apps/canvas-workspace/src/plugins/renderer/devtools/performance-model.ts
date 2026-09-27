@@ -212,8 +212,10 @@ const generationDetail = (
   durationMs: number,
   finishReason: string | undefined,
   usage: GenerationCompletedEvent['usage'],
+  toolCount?: number,
 ): string => {
   const parts = [durationMs >= 1000 ? `${(durationMs / 1000).toFixed(2)}s` : `${durationMs}ms`];
+  if (toolCount !== undefined) parts.push(`${toolCount} tools`);
   if (usage?.inputTokens !== undefined) {
     const cached = usage.cachedInputTokens ? ` (cached ${formatTokens(usage.cachedInputTokens)})` : '';
     parts.push(`in ${formatTokens(usage.inputTokens)}${cached}`);
@@ -321,7 +323,12 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
         startMs: Math.max(0, startedAt - origin),
         durationMs: Math.max(0, event.timestamp - startedAt),
         endMs: Math.max(0, event.timestamp - origin),
-        detail: generationDetail(event.timestamp - startedAt, event.finishReason, event.usage),
+        detail: generationDetail(
+          event.timestamp - startedAt,
+          event.finishReason,
+          event.usage,
+          start?.type === 'generation.started' ? start.prompt?.toolCount : undefined,
+        ),
         status: event.error ? 'error' : 'success',
       });
       items.push(...generationSegments(event, startedAt, origin));

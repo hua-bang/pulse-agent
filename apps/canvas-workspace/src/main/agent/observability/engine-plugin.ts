@@ -1,4 +1,5 @@
-import { publishAgentTraceEvent } from '../../../plugins/main';
+import { hasAgentTraceSubscribers, publishAgentTraceEvent } from '../../../plugins/main';
+import { promptFingerprint } from './prompt-fingerprint';
 import type { AgentTraceGenerationTimings, AgentTraceGenerationUsage } from '../../../shared/agent-observability';
 
 interface RunState {
@@ -72,6 +73,8 @@ export const canvasAgentObservabilityEnginePlugin = {
         type: 'generation.started', runId: state.runId,
         timestamp: Date.now(), generationId, owner: state.owner,
         model: typeof input.model === 'string' ? input.model : undefined,
+        // Tools as filtered by earlier beforeLLMCall hooks (tool search).
+        ...(hasAgentTraceSubscribers() ? { prompt: promptFingerprint(input.systemPrompt, input.tools) } : {}),
       });
     });
 

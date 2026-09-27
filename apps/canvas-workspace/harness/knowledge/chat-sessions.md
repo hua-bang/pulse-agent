@@ -238,7 +238,10 @@ newer UI pointer change.
 Guards: `src/main/agent/__tests__/service-history.test.ts` and
 `src/main/agent/__tests__/session-store.test.ts`.
 
-An empty selected conversation schedules a silent scope warmup after 750ms.
+A selected conversation, empty or resumed with history, schedules a silent
+scope warmup after 750ms (a resumed conversation's scope is cold after an app
+restart). Warmups are keyed by conversation, and scope activation is idempotent,
+so an already-active scope costs nothing.
 The first effective composer input, paste, attachment, quick action, or send
 starts that warmup immediately and cancels the delay. Warmup is fire-and-forget
 from renderer to main; failures stay out of the composer until a real send,

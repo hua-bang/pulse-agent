@@ -22,6 +22,11 @@ export class AgentObservabilityBus {
     };
   }
 
+  /** Lets emitters skip building costly event payloads nobody will receive. */
+  hasSubscribers(): boolean {
+    return this.subscribers.size > 0;
+  }
+
   publish(event: AgentTraceEvent): void {
     const subscribers = [...this.subscribers.values()];
     this.delivery = this.delivery.then(async () => {

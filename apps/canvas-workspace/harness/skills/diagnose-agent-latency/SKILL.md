@@ -124,7 +124,12 @@ Use this order:
    prompt size or cache misses; a long pre-text segment with reasoning tokens
    points at model reasoning. Providers that do not stream reasoning content
    put reasoning time inside the first-chunk wait instead, so read that
-   segment together with the reasoning token count. Otherwise suspect provider latency, network,
+   segment together with the reasoning token count. `generation.started`
+   carries a prompt fingerprint (system and tool-list hashes, tool count,
+   serialized size, and the MCP share) when a trace subscriber is attached.
+   Zero cached input with equal hashes across two runs points at the
+   provider or gateway (no cache, or no `prompt_cache_key` routing affinity);
+   changing hashes point at a prompt prefix that varies. Otherwise suspect provider latency, network,
    model queueing, or delayed runtime callbacks. Compare the same prompt across
    providers only as a separately named experiment.
 3. Small TTFA but large text wait: inspect tool-first behavior, multiple model

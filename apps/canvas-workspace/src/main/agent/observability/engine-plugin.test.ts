@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { publish } = vi.hoisted(() => ({ publish: vi.fn() }));
-vi.mock('../../../plugins/main', () => ({ publishAgentTraceEvent: publish }));
+const { publish, tracing } = vi.hoisted(() => ({ publish: vi.fn(), tracing: { on: false } }));
+vi.mock('../../../plugins/main', () => ({
+  publishAgentTraceEvent: publish,
+  hasAgentTraceSubscribers: () => tracing.on,
+}));
 
 import { canvasAgentObservabilityEnginePlugin } from './engine-plugin';
 
@@ -14,7 +17,10 @@ const setup = async () => {
 };
 
 describe('canvas Engine observability plugin', () => {
-  beforeEach(() => publish.mockReset());
+  beforeEach(() => {
+    publish.mockReset();
+    tracing.on = false;
+  });
 
   it('records Engine generations and tools against the shared run id', async () => {
     const hooks = await setup();
@@ -81,5 +87,17 @@ describe('canvas Engine observability plugin', () => {
 
     expect(publish.mock.calls[1][0].timings).toBeUndefined();
     expect(publish.mock.calls[1][0].usage).toBeUndefined();
+  });
+
+  it('fingerprints the prompt prefix only while someone is listening', async () => {
+    const hooks = await setup();
+    const context = {};
+    hooks.get('beforeRun')!({ context, runContext: { runId: 'run-4', runtimeId: 'engine' } });
+    hooks.get('beforeLLMCall')!({ context, systemPrompt: 'system', tools: { a: { description: 'A' } } });
+    expect(publish.mock.calls[0][0].prompt).toBeUndefined();
+
+    tracing.on = true;
+    hooks.get('beforeLLMCall')!({ context, systemPrompt: 'system', tools: { a: { description: 'A' } } });
+    expect(publish.mock.calls[1][0].prompt).toMatchObject({ toolCount: 1, systemChars: 6 });
   });
 });

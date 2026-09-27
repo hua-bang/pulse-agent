@@ -35,6 +35,23 @@ export interface AgentTraceGenerationTimings {
   lastChunkAt?: number;
 }
 
+/**
+ * Stability fingerprint of what precedes the conversation in a provider
+ * request. Equal hashes across two runs mean the cacheable prefix did not
+ * change; hashes only, never prompt or schema content.
+ */
+export interface AgentTracePromptFingerprint {
+  systemHash: string;
+  systemChars: number;
+  toolsHash: string;
+  toolCount: number;
+  /** Serialized size of names, descriptions and input schemas. */
+  toolsChars: number;
+  /** Subset contributed by MCP servers (registered as `mcp_*`). */
+  mcpToolCount: number;
+  mcpToolsChars: number;
+}
+
 export interface AgentTraceGenerationUsage {
   inputTokens?: number;
   cachedInputTokens?: number;
@@ -82,6 +99,7 @@ export type AgentTraceEvent =
       generationId: string;
       owner: 'engine' | 'pi';
       model?: string;
+      prompt?: AgentTracePromptFingerprint;
     })
   | (AgentTraceEventBase & {
       type: 'generation.completed';
