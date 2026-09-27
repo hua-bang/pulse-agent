@@ -218,24 +218,29 @@ export const computeContainerDepths = (nodes: CanvasNode[]): Map<string, number>
 
 export const computeFrameDepths = computeContainerDepths;
 
-/** Frames with a frame ancestor need a boundary on the same white surface.
- * Reuse container parenthood, including intervening transparent groups. */
-export const collectNestedFrameIds = (nodes: CanvasNode[]): Set<string> => {
+/** Frame nesting level for every frame with at least one frame ancestor
+ * (1 = inside a root frame, 2 = one level deeper, ...). Nested surfaces
+ * alternate by this level. Reuses container parenthood, looking through
+ * intervening transparent groups without counting them. */
+export const collectNestedFrameDepths = (nodes: CanvasNode[]): Map<string, number> => {
   const containers = nodes.filter(isContainerNode);
   const parents = computeParentContainerMap(containers);
   const frames = new Set(containers.filter((node) => node.type === 'frame').map((node) => node.id));
-  const nested = new Set<string>();
+  const depths = new Map<string, number>();
   for (const id of frames) {
     const visited = new Set([id]);
+    let depth = 0;
     let parent = parents.get(id);
     while (parent && !visited.has(parent)) {
-      if (frames.has(parent)) {
-        nested.add(id);
-        break;
-      }
+      if (frames.has(parent)) depth += 1;
       visited.add(parent);
       parent = parents.get(parent);
     }
+    if (depth > 0) depths.set(id, depth);
   }
-  return nested;
+  return depths;
 };
+
+/** Frames with a frame ancestor need a boundary against their parent surface. */
+export const collectNestedFrameIds = (nodes: CanvasNode[]): Set<string> =>
+  new Set(collectNestedFrameDepths(nodes).keys());

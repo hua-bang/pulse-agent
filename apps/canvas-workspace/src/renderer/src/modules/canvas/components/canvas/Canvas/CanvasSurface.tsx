@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import type { CanvasNode } from '../../../../../types';
-import { collectNestedFrameIds } from '../../../../../utils/frameHierarchy';
+import { collectNestedFrameDepths } from '../../../../../utils/frameHierarchy';
 import { markOnce } from '../../../../../perf/monitor';
 import { OVERVIEW_SCALE_THRESHOLD } from '../../../runtime/useCanvas';
 import {
@@ -130,7 +130,7 @@ export const CanvasSurface = ({
     () => applyResizePreviewToNodes(nodes, resizePreview),
     [nodes, resizePreview],
   );
-  const nestedFrameIds = useMemo(() => collectNestedFrameIds(edgeNodes), [edgeNodes]);
+  const nestedFrameDepths = useMemo(() => collectNestedFrameDepths(edgeNodes), [edgeNodes]);
   const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => {
     const nodeIsDragging = draggingIds.has(node.id) || draggingId === node.id;
     const renderedNode = applyNodeResizePreview(node, resizePreview);
@@ -138,7 +138,7 @@ export const CanvasSurface = ({
     <CanvasNodeView
       key={`${node.id}:${renderMode}`}
       node={renderedNode}
-      isNestedFrame={nestedFrameIds.has(node.id)}
+      frameNestingDepth={nestedFrameDepths.get(node.id) ?? 0}
       getAllNodes={getAllNodes}
       rootFolder={rootFolder}
       workspaceId={canvasId}

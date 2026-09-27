@@ -6,7 +6,7 @@
   --_h: var(--frame-hue, 250);
   background: var(--surface);
   border: 2px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-frame);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
   overflow: visible;
@@ -20,6 +20,18 @@
   .canvas-node--fullscreen) {
   outline: calc(1px / var(--canvas-scale, 1)) solid var(--note-border);
   outline-offset: calc(-1px / var(--canvas-scale, 1));
+}
+
+/* Nested frames alternate surfaces by depth: odd levels (a frame inside the
+ * root artboard) take the gray wash, even levels flip back to white, so every
+ * boundary is a surface change rather than white-on-white. */
+.canvas-node--frame.canvas-node--nested-frame:not(.canvas-node--frame-title-overlay) {
+  background: var(--frame-nested-bg);
+  border-radius: var(--radius-frame-nested);
+}
+
+.canvas-node--frame.canvas-node--nested-frame-even:not(.canvas-node--frame-title-overlay) {
+  background: var(--surface);
 }
 
 .canvas-node--frame>* {
