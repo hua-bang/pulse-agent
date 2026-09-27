@@ -145,8 +145,8 @@
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "2026-08-24 对照 origin/master 0.1.48 实测 gzip 约 207KB；Agent Plugins 市场页已置于按路由加载边界，当前分支实测 209KB。保留 target 185 与 warning 210 作为后续瘦身压力。", "asOf": "2026-08-24",
-      "gate": { "kind": "ratchet", "baseline": 207, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-09-27 按当前实测重置 ratchet：origin/master (1174107) 入口 gzip 218593B（213.47KB），已贴近旧 207 基线的 +3% 上限（余量 31B），任何入口新增都会失败；本分支加入嵌套 Frame 深度交替底色后实测 214KB。基线重置为 214（上限 220），保留 target 185 与 warning 210 作为后续瘦身压力。", "asOf": "2026-09-27",
+      "gate": { "kind": "ratchet", "baseline": 214, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,

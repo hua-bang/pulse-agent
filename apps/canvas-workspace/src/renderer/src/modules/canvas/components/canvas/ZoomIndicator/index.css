@@ -25,10 +25,11 @@
 .zoom-indicator {
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: var(--radius);
+  border: 1px solid var(--chrome-border);
+  background: var(--chrome-glass);
+  border-radius: var(--radius-pill);
   box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px) saturate(1.4);
   cursor: pointer;
   font-size: 11px;
   font-weight: 500;

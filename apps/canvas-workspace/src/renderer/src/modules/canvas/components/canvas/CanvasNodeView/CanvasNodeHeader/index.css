@@ -5,7 +5,9 @@
   padding: 5px 8px 5px 10px;
   cursor: grab;
   user-select: none;
-  border-bottom: 1px solid var(--border-light);
+  /* Transparent rule keeps the 32px chrome height body layouts rely on while
+   * the header blends into the card instead of reading as a separate strip. */
+  border-bottom: 1px solid transparent;
   min-height: 32px;
   background: var(--surface);
 }

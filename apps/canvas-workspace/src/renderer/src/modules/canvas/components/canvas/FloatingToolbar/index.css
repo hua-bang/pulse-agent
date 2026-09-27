@@ -7,11 +7,12 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  padding: 5px;
+  background: var(--chrome-glass);
+  border: 1px solid var(--chrome-border);
+  border-radius: var(--radius-chrome);
   box-shadow: var(--shadow-float);
+  backdrop-filter: blur(12px) saturate(1.4);
   z-index: var(--layer-canvas-chrome);
 }
 
@@ -49,7 +50,7 @@
   min-width: 32px;
   border: none;
   background: transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   display: inline-flex;
   align-items: center;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CanvasNode } from '../types';
 import {
   collectCollapsedFrameDescendantIds,
+  collectNestedFrameDepths,
   collectNestedFrameIds,
   filterCollapsedFrameDescendants,
 } from './frameHierarchy';
@@ -93,6 +94,19 @@ describe('nested frame boundaries', () => {
     const inner = frameNode('inner', 50, 50, 150, 150);
     expect(collectNestedFrameIds([outer, inner]).has(inner.id)).toBe(true);
     expect(collectNestedFrameIds([{ ...outer, x: 800 }, inner]).has(inner.id)).toBe(false);
+  });
+
+  it('reports frame nesting depth, skipping groups, so surfaces can alternate', () => {
+    const outer = frameNode('outer', 0, 0, 800, 800);
+    const inner = frameNode('inner', 40, 40, 600, 600);
+    const group = makeNode('group', 'group', 80, 80, 500, 500, { childIds: ['deeper'] });
+    const deeper = frameNode('deeper', 120, 120, 300, 300);
+    const deepest = frameNode('deepest', 160, 160, 100, 100);
+    const depths = collectNestedFrameDepths([outer, inner, group, deeper, deepest]);
+    expect(depths.has('outer')).toBe(false);
+    expect(depths.get('inner')).toBe(1);
+    expect(depths.get('deeper')).toBe(2);
+    expect(depths.get('deepest')).toBe(3);
   });
 
   it('looks through groups but does not treat a root group as a white frame', () => {
