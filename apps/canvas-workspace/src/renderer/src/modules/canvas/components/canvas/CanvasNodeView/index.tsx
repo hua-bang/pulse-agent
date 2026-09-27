@@ -10,7 +10,6 @@ import { ReferenceSourcePreview } from './ReferenceSourcePreview';
 import { ShapeCanvasNode } from './ShapeCanvasNode';
 import type { CanvasNodeViewProps } from './types';
 import { useCanvasNodeViewModel } from './useCanvasNodeViewModel';
-import { getNestedFrameClasses } from './utils';
 
 const CanvasNodeViewComponent = ({
   node,
@@ -22,7 +21,7 @@ const CanvasNodeViewComponent = ({
   dragOffset,
   isResizing,
   isSelected,
-  frameNestingDepth = 0,
+  frameDepth,
   renameToken,
   isHighlighted,
   isAgentEdited,
@@ -199,7 +198,10 @@ const CanvasNodeViewComponent = ({
 
   return (
     <DefaultCanvasNode
-      classes={`${viewModel.classes}${getNestedFrameClasses(node.type, frameNestingDepth)}`}
+      // Only nested frames carry a depth; even depths flip back to white.
+      classes={`${viewModel.classes}${frameDepth
+        ? ` canvas-node--nested-frame${frameDepth % 2 ? '' : ' canvas-node--nested-even'}`
+        : ''}`}
       fullscreenButton={fullscreenButton}
       focusAction={focusAction}
       getAllNodes={getAllNodes}
@@ -256,7 +258,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.dragOffset === next.dragOffset &&
   prev.isResizing === next.isResizing &&
   prev.isSelected === next.isSelected &&
-  prev.frameNestingDepth === next.frameNestingDepth &&
+  prev.frameDepth === next.frameDepth &&
   prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&

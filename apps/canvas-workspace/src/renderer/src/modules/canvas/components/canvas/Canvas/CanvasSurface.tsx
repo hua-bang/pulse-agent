@@ -138,7 +138,7 @@ export const CanvasSurface = ({
     <CanvasNodeView
       key={`${node.id}:${renderMode}`}
       node={renderedNode}
-      frameNestingDepth={nestedFrameDepths.get(node.id) ?? 0}
+      frameDepth={nestedFrameDepths.get(node.id)}
       getAllNodes={getAllNodes}
       rootFolder={rootFolder}
       workspaceId={canvasId}

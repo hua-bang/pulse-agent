@@ -30,7 +30,7 @@
   border-radius: var(--radius-frame-nested);
 }
 
-.canvas-node--frame.canvas-node--nested-frame-even:not(.canvas-node--frame-title-overlay) {
+.canvas-node--frame.canvas-node--nested-even:not(.canvas-node--frame-title-overlay) {
   background: var(--surface);
 }
 

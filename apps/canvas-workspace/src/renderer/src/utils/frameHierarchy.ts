@@ -232,11 +232,11 @@ export const collectNestedFrameDepths = (nodes: CanvasNode[]): Map<string, numbe
     let depth = 0;
     let parent = parents.get(id);
     while (parent && !visited.has(parent)) {
-      if (frames.has(parent)) depth += 1;
+      if (frames.has(parent)) depth++;
       visited.add(parent);
       parent = parents.get(parent);
     }
-    if (depth > 0) depths.set(id, depth);
+    if (depth) depths.set(id, depth);
   }
   return depths;
 };

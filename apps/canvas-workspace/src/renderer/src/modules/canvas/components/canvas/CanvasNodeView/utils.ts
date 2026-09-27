@@ -118,14 +118,6 @@ const resolveFrameHue = (color: string): { hue: number; chroma: number } => {
   return { hue: DEFAULT_FRAME_HUE, chroma: DEFAULT_FRAME_CHROMA };
 };
 
-/** Nested frames alternate surfaces by depth; even depths flip back to white. */
-export const getNestedFrameClasses = (type: CanvasNode['type'], depth: number): string => {
-  if (type !== 'frame' || depth <= 0) return '';
-  return depth % 2 === 0
-    ? ' canvas-node--nested-frame canvas-node--nested-frame-even'
-    : ' canvas-node--nested-frame';
-};
-
 export const getNodeWrapperStyle = (node: CanvasNode, dragOffset?: NodeDragOffset | null): CSSProperties => {
   const size: CSSProperties = {
     width: node.width,
