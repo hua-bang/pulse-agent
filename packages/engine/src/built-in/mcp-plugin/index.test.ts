@@ -5,7 +5,7 @@ import { join } from 'path';
 
 // Fake MCP client tools shared with the hoisted module mock. `plain` has no
 // description so we also cover the "description omitted" branch.
-const { fakeTools, mcpCalls, mcpResponses } = vi.hoisted(() => ({
+const { fakeTools, mcpCalls, serverBehaviour, createdClients, mcpResponses } = vi.hoisted(() => ({
   fakeTools: {
     search: {
       description: 'Search the web',
@@ -16,6 +16,14 @@ const { fakeTools, mcpCalls, mcpResponses } = vi.hoisted(() => ({
     plain: {},
   } as Record<string, { description?: string }>,
   mcpCalls: [] as any[],
+  // Per-URL startup behaviour for concurrency / timeout tests.
+  serverBehaviour: {} as Record<string, {
+    connectDelayMs?: number;
+    toolsDelayMs?: number;
+    toolsError?: string;
+    tools?: Record<string, { description?: string }>;
+  }>,
+  createdClients: [] as Array<{ url?: string; close: ReturnType<typeof vi.fn> }>,
   mcpResponses: {
     resource: { contents: [{ uri: 'ui://exa/search.html', text: '<main>app</main>' }] } as unknown,
   },
@@ -24,11 +32,21 @@ const { fakeTools, mcpCalls, mcpResponses } = vi.hoisted(() => ({
 vi.mock('@ai-sdk/mcp', () => ({
   createMCPClient: vi.fn(async (config) => {
     mcpCalls.push(config);
+    const url = config?.transport?.url as string | undefined;
+    const behaviour = (url && serverBehaviour[url]) || {};
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    if (behaviour.connectDelayMs) await sleep(behaviour.connectDelayMs);
+    const close = vi.fn();
+    createdClients.push({ url, close });
     return {
-      tools: async () => fakeTools,
+      tools: async () => {
+        if (behaviour.toolsDelayMs) await sleep(behaviour.toolsDelayMs);
+        if (behaviour.toolsError) throw new Error(behaviour.toolsError);
+        return behaviour.tools ?? fakeTools;
+      },
       listResources: vi.fn(async () => ({ resources: [] })),
       readResource: vi.fn(async () => mcpResponses.resource),
-      close: vi.fn(),
+      close,
     };
   }),
 }));
@@ -77,6 +95,8 @@ async function writeConfig(servers: Record<string, unknown>): Promise<string> {
 beforeEach(async () => {
   dir = await fs.mkdtemp(join(tmpdir(), 'mcp-plugin-test-'));
   mcpCalls.length = 0;
+  createdClients.length = 0;
+  for (const key of Object.keys(serverBehaviour)) delete serverBehaviour[key];
   mcpResponses.resource = {
     contents: [{ uri: 'ui://exa/search.html', text: '<main>app</main>' }],
   };
@@ -265,5 +285,91 @@ describe('createMcpPlugin startup timing', () => {
     expect(exa.listToolsMs).toBeGreaterThanOrEqual(0);
     expect(exa.durationMs).toBeGreaterThanOrEqual(exa.connectMs + exa.listToolsMs);
     expect(timings.find(timing => timing.serverName === 'broken')).toMatchObject({ ok: false });
+  });
+});
+
+describe('createMcpPlugin parallel startup', () => {
+  const url = (name: string) => `https://${name}.example.com/mcp`;
+
+  it('starts servers concurrently so startup costs the slowest server, not the sum', async () => {
+    const cfgPath = await writeConfig({
+      a: { transport: 'http', url: url('a') },
+      b: { transport: 'http', url: url('b') },
+      c: { transport: 'http', url: url('c') },
+    });
+    for (const name of ['a', 'b', 'c']) serverBehaviour[url(name)] = { connectDelayMs: 150 };
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx } = makeContext();
+
+    const startedAt = Date.now();
+    await plugin.initialize(ctx);
+
+    // Serial startup would take >= 450ms.
+    expect(Date.now() - startedAt).toBeLessThan(400);
+  });
+
+  it('registers tools in config order regardless of which server finishes first', async () => {
+    const cfgPath = await writeConfig({
+      slow: { transport: 'http', url: url('slow') },
+      fast: { transport: 'http', url: url('fast') },
+    });
+    serverBehaviour[url('slow')] = { connectDelayMs: 80, tools: { one: {} } };
+    serverBehaviour[url('fast')] = { tools: { two: {} } };
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, tools } = makeContext();
+
+    await plugin.initialize(ctx);
+
+    expect(Object.keys(tools)).toEqual(['mcp_slow_one', 'mcp_fast_two']);
+  });
+
+  it('fails a server that exceeds its startup budget and closes its client when it arrives late', async () => {
+    const cfgPath = await writeConfig({
+      hung: { transport: 'http', url: url('hung'), startupTimeoutMs: 30 },
+      ok: { transport: 'http', url: url('ok') },
+    });
+    serverBehaviour[url('hung')] = { connectDelayMs: 120 };
+    serverBehaviour[url('ok')] = { tools: { ping: {} } };
+    const plugin = createMcpPlugin({ configPaths: [cfgPath], startupTimeoutMs: 5_000 });
+    const { ctx, tools, services } = makeContext();
+
+    await plugin.initialize(ctx);
+
+    const statuses = (services['mcp:__manager__'] as MCPClientManager).getStatuses();
+    expect(statuses.hung).toMatchObject({ ok: false });
+    expect((statuses.hung as { error: string }).error).toMatch(/timed out after 30ms/);
+    expect(statuses.ok).toMatchObject({ ok: true, toolCount: 1 });
+    expect(Object.keys(tools)).toEqual(['mcp_ok_ping']);
+
+    await vi.waitFor(() => {
+      const late = createdClients.find(client => client.url === url('hung'));
+      expect(late?.close).toHaveBeenCalled();
+    });
+  });
+
+  it('closes the client when listing tools fails', async () => {
+    const cfgPath = await writeConfig({ broken: { transport: 'http', url: url('broken') } });
+    serverBehaviour[url('broken')] = { toolsError: 'tools/list failed' };
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, services } = makeContext();
+
+    await plugin.initialize(ctx);
+
+    expect((services['mcp:__manager__'] as MCPClientManager).getStatuses().broken)
+      .toEqual({ ok: false, error: 'tools/list failed' });
+    await vi.waitFor(() => expect(createdClients[0].close).toHaveBeenCalled());
+  });
+
+  it('ignores an invalid startupTimeoutMs and keeps the default budget', async () => {
+    const cfgPath = await writeConfig({ a: { transport: 'http', url: url('a'), startupTimeoutMs: -1 } });
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, services } = makeContext();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await plugin.initialize(ctx);
+
+    expect((services['mcp:__manager__'] as MCPClientManager).getStatuses().a).toMatchObject({ ok: true });
+    expect(warn.mock.calls.some(([message]) => String(message).includes('invalid startupTimeoutMs'))).toBe(true);
+    warn.mockRestore();
   });
 });
