@@ -1,85 +1,55 @@
 /**
- * Keyword lookup over session TITLES — the first user message (the same
- * text the session rail shows as preview) plus the workspace name. Powers
- * the chat composer's @-mention popup, which only surfaces sessions when
- * the user has typed a query — so an empty/blank query returns nothing by
- * design.
+ * Keyword lookup over session TITLES — the stored list preview (first user
+ * message, truncated like the session rail), any user-given title, and the
+ * workspace name. Powers the chat composer's @-mention popup, which only
+ * surfaces sessions when the user has typed a query — so an empty/blank
+ * query returns nothing by design.
  *
  * Deliberately NOT a full-content search: this runs on every keystroke
- * after `@`, so it stays cheap and predictable. Deep content search is the
- * agent-side `session_search` tool's job. (Extracted from service.ts for
- * the 500-line governance gate.)
- *
- * Building the index reads and decodes every stored session, which is far
- * too slow to repeat per keystroke. The index is therefore cached briefly:
- * one `@` query burst reuses a single scan, and a new session shows up at
- * most `INDEX_TTL_MS` later.
+ * after `@`, so it reads only the list metadata the session rail already
+ * uses (SQLite conversation headers / the legacy metadata index) and never
+ * loads message bodies. Deep content search is the agent-side
+ * `session_search` tool's job. (Extracted from service.ts for the 500-line
+ * governance gate.)
  */
 
-import { SessionStore } from './session-store';
-import { sessionPreview } from './session-preview';
+import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, workspaceNames } from './session-store-lookups';
+import { scanAllWorkspaceSessions } from './session-store-scan';
+import { sessionStorageRoot } from './sqlite-session-backend';
 import type { SessionSearchHit } from './types';
-
-const INDEX_TTL_MS = 10_000;
-
-interface TitleIndexEntry {
-  haystack: string;
-  hit: SessionSearchHit;
-}
-
-let cachedIndex: { expiresAt: number; entries: TitleIndexEntry[] } | null = null;
-let pendingIndex: Promise<TitleIndexEntry[]> | null = null;
-
-async function buildTitleIndex(): Promise<TitleIndexEntry[]> {
-  const entries: TitleIndexEntry[] = [];
-  for (const entry of await SessionStore.readAllSessionsWithMeta()) {
-    const { session } = entry;
-    const firstUserMsg = session.messages.find(m => m.role === 'user');
-    const title = firstUserMsg ? firstUserMsg.content.replace(/\s+/g, ' ').trim() : '';
-    entries.push({
-      haystack: `${title}\n${entry.workspaceName}`.toLowerCase(),
-      hit: {
-        sessionId: session.sessionId,
-        workspaceId: session.workspaceId,
-        workspaceName: entry.workspaceName,
-        date: session.startedAt?.slice(0, 10) ?? '',
-        isCurrent: entry.isCurrent,
-        messageCount: session.messages.length,
-        preview: sessionPreview(title, 60),
-      },
-    });
-  }
-  return entries;
-}
-
-function loadTitleIndex(): Promise<TitleIndexEntry[]> {
-  if (cachedIndex && cachedIndex.expiresAt > Date.now()) return Promise.resolve(cachedIndex.entries);
-  // Keystrokes that arrive mid-scan share the one in-flight read.
-  if (!pendingIndex) {
-    pendingIndex = buildTitleIndex().then((entries) => {
-      cachedIndex = { expiresAt: Date.now() + INDEX_TTL_MS, entries };
-      return entries;
-    }).finally(() => {
-      pendingIndex = null;
-    });
-  }
-  return pendingIndex;
-}
 
 export async function searchSessionTitles(query: string, limit = 8): Promise<SessionSearchHit[]> {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
 
+  const root = sessionStorageRoot();
+  const [groups, names] = await Promise.all([scanAllWorkspaceSessions(root), workspaceNames(root)]);
+  const candidates = groups.flatMap(({ workspaceId, sessions }) => {
+    const workspaceName = workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
+      ? GLOBAL_CHAT_WORKSPACE_NAME
+      : names.get(workspaceId) ?? workspaceId;
+    return sessions.map(session => ({ workspaceId, workspaceName, session }));
+  });
+  // Most relevant first: live sessions, then most recently updated.
+  candidates.sort((left, right) => Number(right.session.isCurrent) - Number(left.session.isCurrent)
+    || right.session.updatedAt - left.session.updatedAt);
+
   const hits: SessionSearchHit[] = [];
-  for (const { haystack, hit } of await loadTitleIndex()) {
+  for (const { workspaceId, workspaceName, session } of candidates) {
+    const preview = session.preview.replace(/\s+/g, ' ').trim();
+    const haystack = `${preview}\n${session.title ?? ''}\n${workspaceName}`.toLowerCase();
     if (!haystack.includes(normalized)) continue;
-    hits.push({ ...hit });
+
+    hits.push({
+      sessionId: session.sessionId,
+      workspaceId,
+      workspaceName,
+      date: session.date,
+      isCurrent: session.isCurrent,
+      messageCount: session.messageCount,
+      preview,
+    });
     if (hits.length >= limit) break;
   }
   return hits;
-}
-
-export function resetSessionTitleSearchForTests(): void {
-  cachedIndex = null;
-  pendingIndex = null;
 }

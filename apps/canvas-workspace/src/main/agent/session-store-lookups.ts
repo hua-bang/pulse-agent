@@ -52,7 +52,7 @@ export async function readSessionFromWorkspace(root: string, storeId: string, se
   return matched;
 }
 
-async function workspaceNames(root: string): Promise<Map<string, string>> {
+export async function workspaceNames(root: string): Promise<Map<string, string>> {
   try {
     const manifest = JSON.parse(await fs.readFile(join(root, '__workspaces__.json'), 'utf8')) as {
       workspaces?: Array<{ id: string; name: string }>;
