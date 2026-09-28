@@ -251,7 +251,9 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
 Role accents everywhere come from ONE renderer cache,
 `src/renderer/src/modules/chat/mentions/roleMentionItems.ts`: it caches the
 `@` popup entries plus an id → accent-color map with a 5-SECOND TTL
-(`loadRoleMentionItems`, `cache.at`), exposed to components as
+(`loadRoleMentionItems`, `cache.at`; stale-while-revalidate, so an expired
+cache still answers the `@` keystroke at once while the refresh publishes
+new colors), exposed to components as
 `useRoleColors()` (and `useRoleNameColors()` for the plain-text `@Name`
 form an agent writes when handing off), and invalidated immediately by
 Settings save/delete (`invalidateRoleMentionItems()`, called from
@@ -424,8 +426,9 @@ tools (`chat_role_save`'s own description: "Deleting stays in Settings.").
 `chat_role_save`'s description also restricts it to what the user asked
 for in their own words: "ONLY when the user asked for the role in their
 own words." A role the agent creates this way becomes @-mentionable in the
-popup once the mention cache's 5-second TTL elapses (see the role-color
-cache above).
+popup on the first `@` read after the mention cache's 5-second TTL
+elapses, or the one after it when that read is served stale (see the
+role-color cache above).
 
 ## Stopped-vs-failed turn rule (external-role abort)
 

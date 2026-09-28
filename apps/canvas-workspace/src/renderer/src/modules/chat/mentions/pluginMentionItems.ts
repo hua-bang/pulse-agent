@@ -35,7 +35,9 @@ export function loadInstalledPluginMentionItems(): Promise<MentionItem[]> {
       pending = null;
     });
   }
-  return pending;
+  // Stale-while-revalidate: the market snapshot re-reads plugin packages, so
+  // an expired cache answers now and the refresh lands for the next keystroke.
+  return cached ? Promise.resolve(cached.items) : pending;
 }
 
 export function collectPluginRefsFromEditable(editable: HTMLElement): AgentContextPluginRef[] {

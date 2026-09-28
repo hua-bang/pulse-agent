@@ -38,6 +38,26 @@ interface Args {
 const SNIPPET_RADIUS = 24;
 
 /**
+ * Tag-stripped text of a file node's HTML content, keyed by the node's data
+ * object. Node updates replace `data`, so an entry is valid for exactly as
+ * long as its content; unchanged notes skip the regex on every keystroke.
+ */
+const fileSearchTextCache = new WeakMap<FileNodeData, { text: string; lower: string }>();
+
+const fileSearchText = (data: FileNodeData): { text: string; lower: string } => {
+  let cached = fileSearchTextCache.get(data);
+  if (!cached) {
+    // Tiptap stores HTML in `content`. Strip tags cheaply for the text
+    // search — we don't need ProseMirror-level accuracy at the find-bar
+    // level (inline highlighting lives in noteSearchExtension).
+    const text = (data.content ?? '').replace(/<[^>]+>/g, ' ');
+    cached = { text, lower: text.toLowerCase() };
+    fileSearchTextCache.set(data, cached);
+  }
+  return cached;
+};
+
+/**
  * Find-in-canvas state machine.
  *
  * Why a dedicated hook (instead of folding it into CommandPalette):
@@ -49,10 +69,11 @@ const SNIPPET_RADIUS = 24;
  *    "3/12" + result rows) and the canvas (drawing the highlight ring
  *    on the active node).
  *
- * Performance: with ≤ ~100 nodes and short text content, a full re-scan
- * per keystroke is well under a millisecond. We use `useDeferredValue`
- * on the query just to keep the input frame from blocking on huge
- * file-node content.
+ * Performance: SearchBar debounces keystrokes before calling `setQuery`,
+ * so a scan (and the editor activation / highlight pass it feeds) runs
+ * once per settled query rather than per key. Geometry ordering is
+ * memoized on `nodes`, and stripped file text is cached per data object.
+ * `useDeferredValue` still keeps a large scan off the committing frame.
  */
 export const useCanvasSearch = ({ nodes }: Args) => {
   const [open, setOpen] = useState(false);
@@ -64,20 +85,21 @@ export const useCanvasSearch = ({ nodes }: Args) => {
 
   const deferredQuery = useDeferredValue(query);
 
+  // Stable, geometry-based ordering: top-to-bottom, then left-to-right.
+  // This matches how a user scans a canvas, so next/prev feels
+  // predictable instead of following whatever insertion order the
+  // store happens to hold. Independent of the query, so not re-sorted
+  // per search.
+  const ordered = useMemo(() => [...nodes].sort((a, b) => {
+    if (a.y !== b.y) return a.y - b.y;
+    return a.x - b.x;
+  }), [nodes]);
+
   const matches = useMemo<SearchMatch[]>(() => {
     const raw = deferredQuery;
     if (!raw.trim()) return [];
     const q = caseSensitive ? raw : raw.toLowerCase();
     const out: SearchMatch[] = [];
-
-    // Stable, geometry-based ordering: top-to-bottom, then left-to-right.
-    // This matches how a user scans a canvas, so next/prev feels
-    // predictable instead of following whatever insertion order the
-    // store happens to hold.
-    const ordered = [...nodes].sort((a, b) => {
-      if (a.y !== b.y) return a.y - b.y;
-      return a.x - b.x;
-    });
 
     const norm = (s: string) => (caseSensitive ? s : s.toLowerCase());
     const snippetAround = (text: string, idx: number) => {
@@ -101,14 +123,9 @@ export const useCanvasSearch = ({ nodes }: Args) => {
         if (fp && norm(fp).includes(q)) {
           out.push({ nodeId: node.id, field: 'filePath', snippet: fp });
         }
-        const content = data.content ?? '';
-        if (content) {
-          // Tiptap stores HTML in `content`. Strip tags cheaply for the
-          // text search — we don't need ProseMirror-level accuracy at
-          // the find-bar level (that lives in the future MR2 inline-
-          // highlight extension).
-          const text = content.replace(/<[^>]+>/g, ' ');
-          const hay = norm(text);
+        if (data.content) {
+          const { text, lower } = fileSearchText(data);
+          const hay = caseSensitive ? text : lower;
           const idx = hay.indexOf(q);
           if (idx !== -1) {
             out.push({ nodeId: node.id, field: 'content', snippet: snippetAround(text, idx) });
@@ -127,11 +144,16 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     }
 
     return out;
-  }, [deferredQuery, caseSensitive, nodes]);
+  }, [deferredQuery, caseSensitive, ordered]);
 
-  // Reset cursor whenever the result set shape changes. We don't reset
-  // on every keystroke — only when match count actually drops below
-  // the current index (e.g. results shrink as the user types more).
+  // A new query (or case mode) starts from its first match. Keystrokes are
+  // already debounced by SearchBar, so this runs once per settled query.
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [deferredQuery, caseSensitive]);
+
+  // Also clamp when the result set shrinks under the cursor for the same
+  // query (e.g. a matched node was edited or deleted).
   useEffect(() => {
     if (activeIndex >= matches.length) setActiveIndex(0);
   }, [matches.length, activeIndex]);

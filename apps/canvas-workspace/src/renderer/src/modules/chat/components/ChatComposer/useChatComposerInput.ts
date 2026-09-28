@@ -7,6 +7,7 @@ import {
 import type { MentionItem } from '../../../../types';
 import { isImeComposing } from '../../../../utils/ime';
 import { createMentionChipElement, serializeEditable } from '../utils/mentions';
+import { sortAndCapMentionItems } from '../ChatMentionPopup/constants';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
 import { useContextMentionInsertions } from './useContextMentionInsertions';
@@ -34,6 +35,9 @@ export function useChatComposerInput({
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionLoading, setMentionLoading] = useState(false);
   const [mentionIndex, setMentionIndex] = useState(0);
+  /** Latest open state, read inside handleInput without re-creating it. */
+  const mentionOpenRef = useRef(false);
+  mentionOpenRef.current = mentionOpen;
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const {
     attachmentController: chatAttachments,
@@ -60,7 +64,7 @@ export function useChatComposerInput({
   /** Prevents stale async popup builds from repainting or reopening. */
   const mentionBuildSeqRef = useRef(0);
 
-  const { buildMentionItems, describeTab } = useMentionItems({
+  const { buildMentionItems, describeTab, searchSessionMentionItems } = useMentionItems({
     agentScope,
     allWorkspaces,
     dockTabs,
@@ -128,20 +132,38 @@ export function useChatComposerInput({
     const trigger: '@' | '/' = match === atMatch ? '@' : '/';
     mentionTriggerRef.current = trigger;
 
+    const query = match[1];
+    const isStale = () => buildSeq !== mentionBuildSeqRef.current;
+    // Refining an open popup keeps the current rows on screen until the new
+    // ones land; clearing them per keystroke made the list flash a spinner.
+    if (!mentionOpenRef.current) {
+      setMentionItems([]);
+      setMentionLoading(true);
+    }
     setMentionIndex(0);
-    setMentionItems([]);
-    setMentionLoading(true);
     setMentionOpen(true);
-    void buildMentionItems(match[1], trigger).then(items => {
-      if (buildSeq !== mentionBuildSeqRef.current) return;
+    // Start the cross-workspace session search alongside the local build,
+    // but never let it hold back the local rows.
+    const sessionSearch = trigger === '@' && query.trim()
+      ? searchSessionMentionItems(query)
+      : null;
+    void buildMentionItems(query, trigger).then(async (items) => {
+      if (isStale()) return;
       setMentionItems(items);
+      // Only report loading while there is nothing to show, so "no results"
+      // never appears before the session search has answered.
+      setMentionLoading(Boolean(sessionSearch) && items.length === 0);
+      if (!sessionSearch) return;
+      const sessions = await sessionSearch;
+      if (isStale()) return;
+      if (sessions.length > 0) setMentionItems(sortAndCapMentionItems([...items, ...sessions]));
       setMentionLoading(false);
     }).catch(() => {
-      if (buildSeq !== mentionBuildSeqRef.current) return;
+      if (isStale()) return;
       setMentionItems([]);
       setMentionLoading(false);
     });
-  }, [buildMentionItems]);
+  }, [buildMentionItems, searchSessionMentionItems]);
 
   // Dismiss when focus moves outside the composer/popup.
   useEffect(() => {
