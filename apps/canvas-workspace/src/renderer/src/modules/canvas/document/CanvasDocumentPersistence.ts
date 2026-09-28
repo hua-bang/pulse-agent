@@ -1,5 +1,5 @@
-import type { CanvasSaveData } from '../../../types';
-import { copyDocument, mergeDocumentRevision, sameDocumentContent } from './revisionMerge';
+import type { CanvasNode, CanvasSaveData } from '../../../types';
+import { copyDocument, equalDocumentValue, mergeDocumentRevision, sameDocumentContent } from './revisionMerge';
 
 interface SaveResult {
   ok: boolean;
@@ -37,6 +37,8 @@ export class CanvasDocumentPersistence {
   private baseline: CanvasSaveData | null = null;
   private draft: CanvasSaveData | null = null;
   private external: CanvasSaveData | null = null;
+  /** The payload of a save whose acknowledgement has not arrived yet. */
+  private inFlight: CanvasSaveData | null = null;
   private editVersion = 0;
   private savedVersion = 0;
   private requested = false;
@@ -67,6 +69,29 @@ export class CanvasDocumentPersistence {
     // clone only at persistence/merge boundaries, not on every pointer event.
     this.draft = data;
     this.editVersion += 1;
+  }
+
+  /**
+   * Changed nodes whose disk state this client did not write. The storage
+   * change feed carries no writer, so every save of ours comes back as a
+   * change event; a node matching what we acknowledged, are still saving, or
+   * hold as the draft is that echo. Call before `receiveExternal`, which
+   * rebases the baseline onto a foreign change.
+   */
+  foreignNodeIds(diskNodes: readonly CanvasNode[], changedIds: Iterable<string>): string[] {
+    const diskById = new Map(diskNodes.map(node => [node.id, node]));
+    const ownStates = [this.baseline, this.inFlight, this.draft];
+    const foreign: string[] = [];
+    for (const id of changedIds) {
+      const disk = diskById.get(id);
+      if (!disk) continue;
+      const own = ownStates.some(document => {
+        const node = document?.nodes.find(candidate => candidate.id === id);
+        return node !== undefined && equalDocumentValue(node, disk);
+      });
+      if (!own) foreign.push(id);
+    }
+    return foreign;
   }
 
   /** The unversioned backend keeps its existing event-specific merge policy. */
@@ -165,7 +190,8 @@ export class CanvasDocumentPersistence {
         savedAt: new Date().toISOString(),
       });
       try {
-        const result = await this.options.save(payload);
+        this.inFlight = payload;
+        const result = await this.options.save(payload).finally(() => { this.inFlight = null; });
         if (result.ok) {
           this.baseline = {
             ...payload,
