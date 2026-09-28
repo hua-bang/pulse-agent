@@ -257,6 +257,8 @@ async function up(opts) {
     ...(dev ? ['--dev'] : []),
     ...(headless ? ['--headless'] : []),
     ...(caFile && caUsable ? ['--ca-cert', caFile] : []),
+    // --skip-build already warned which targets may be stale.
+    ...(opts.skipBuild ? ['--skip-preflight'] : []),
     ...opts.passthrough,
   ];
   if (!run(process.execPath, startArgs, { cwd: APP_DIR, env })) fail('harness start failed (see stderr above).');

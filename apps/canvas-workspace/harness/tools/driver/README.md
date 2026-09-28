@@ -78,6 +78,13 @@ bundle. `start` itself waits until React replaces the boot splash and
 first-paint content settles (`src/readiness.mjs`), not just until a page
 target exists.
 
+Plain `start` builds nothing. It first checks the prerequisites it loads
+(workspace package dists and the Electron SQLite binding, the same
+`buildTargets` quickstart uses) and fails fast with a pointer to `harness:up`
+when one is stale: without them Electron's main process wedges instead of
+erroring, and CDP stops answering. `--skip-preflight` launches anyway; each
+CDP poll is bounded, so a wedged launch still fails at the ready timeout.
+
 Opt-in with `--headless`: the harness then spawns its own Xvfb, passes
 `--no-sandbox --disable-gpu --disable-dev-shm-usage` to Electron, and reaps
 the Xvfb process on `close`. This never happens implicitly — on a

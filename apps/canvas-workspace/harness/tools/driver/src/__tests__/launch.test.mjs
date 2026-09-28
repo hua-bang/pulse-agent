@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { electronCommand } from '../launch.mjs';
+import { assertLaunchPrerequisites, electronCommand } from '../launch.mjs';
 
 const base = { cdpPort: 9333, electronUserDataDir: '/tmp/ud' };
 
@@ -29,5 +29,13 @@ describe('electronCommand', () => {
     expect(electronCommand({ ...base, dev: true, headless: false }).args).toEqual([
       'dev', '--watch', '--remoteDebuggingPort', '9333', '--', '--user-data-dir=/tmp/ud',
     ]);
+  });
+});
+
+describe('assertLaunchPrerequisites', () => {
+  it('fails fast and points at harness:up instead of letting Electron hang', () => {
+    expect(() => assertLaunchPrerequisites(['electron-sqlite-binding']))
+      .toThrow(/electron-sqlite-binding.*harness:up.*--skip-preflight/);
+    expect(() => assertLaunchPrerequisites([])).not.toThrow();
   });
 });

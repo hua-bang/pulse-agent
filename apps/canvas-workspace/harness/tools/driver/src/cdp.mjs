@@ -164,8 +164,21 @@ export async function getPageTarget(session) {
   return page;
 }
 
-export async function getTargets(session) {
-  const res = await fetch(`http://127.0.0.1:${session.cdpPort}/json/list`);
+// Bounded per request: a wedged Electron main process accepts the connection
+// but never answers /json/list, and an unbounded fetch then pins waitFor on
+// its first attempt so the launch timeout never fires.
+export const CDP_HTTP_TIMEOUT_MS = 2_000;
+
+export async function getTargets(session, { timeoutMs = CDP_HTTP_TIMEOUT_MS } = {}) {
+  let res;
+  try {
+    res = await fetch(`http://127.0.0.1:${session.cdpPort}/json/list`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err?.name !== 'TimeoutError') throw err;
+    throw new Error(`CDP endpoint did not answer within ${timeoutMs}ms; the Electron main process may be hung.`);
+  }
   if (!res.ok) throw new Error(`CDP target list failed: HTTP ${res.status}`);
   return res.json();
 }

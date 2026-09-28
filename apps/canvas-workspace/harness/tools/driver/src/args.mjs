@@ -10,6 +10,7 @@ const BOOLEAN_FLAGS = new Set([
   'enable-webview-page-control',
   'headless',
   'dev',
+  'skip-preflight',
 ]);
 
 export function parseArgs(rawArgs) {
