@@ -173,6 +173,11 @@ export const useCanvasDocument = (
       //                                            nodes the user just added
       //                                            via the toolbar/context menu.
       const changedIds = new Set(event.nodeIds);
+      // Our own saves also arrive here (the SQLite change feed has no writer),
+      // so only nodes someone else changed get the "agent edited" highlight.
+      const editedIds = persistence
+        ? persistence.foreignNodeIds(diskNodes, changedIds)
+        : diskNodes.filter(node => changedIds.has(node.id)).map(node => node.id);
       const diskEdges = Array.isArray(result.data.edges) ? result.data.edges : [];
       const changedEdgeIds = new Set(event.edgeIds ?? []);
       const merged = mergeExternalDocumentUpdate({
@@ -201,12 +206,14 @@ export const useCanvasDocument = (
 
       // Mark the affected nodes as externally-edited for 2.5s so the Canvas
       // component can render a transient highlight.
-      setExternallyEditedIds((prev) => {
-        const next = new Set(prev);
-        for (const id of changedIds) next.add(id);
-        return next;
-      });
-      for (const id of changedIds) {
+      if (editedIds.length) {
+        setExternallyEditedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of editedIds) next.add(id);
+          return next;
+        });
+      }
+      for (const id of editedIds) {
         const existing = externalClearTimers.current.get(id);
         if (existing) clearTimeout(existing);
         const t = setTimeout(() => {

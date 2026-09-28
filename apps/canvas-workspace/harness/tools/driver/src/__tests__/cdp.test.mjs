@@ -60,4 +60,16 @@ describe('getTargets', () => {
 
     vi.unstubAllGlobals();
   });
+
+  it('fails a request the endpoint never answers instead of hanging the launch wait', async () => {
+    // Electron with a wedged main process: the socket accepts, nothing replies.
+    vi.stubGlobal('fetch', vi.fn((_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason));
+    })));
+
+    await expect(getTargets({ cdpPort: 9222 }, { timeoutMs: 20 }))
+      .rejects.toThrow('CDP endpoint did not answer within 20ms');
+
+    vi.unstubAllGlobals();
+  });
 });

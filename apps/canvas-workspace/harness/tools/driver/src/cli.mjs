@@ -17,6 +17,11 @@ import {
 export const HELP = `
 Pulse Canvas harness
 
+First launch, cloud containers, or after pulling: use the one-command setup,
+which installs, builds the packages and native bindings, then starts:
+  pnpm --filter canvas-workspace harness:up [--built]   (stop: harness:down)
+The commands below drive a session; \`start\` alone builds nothing.
+
 Usage:
   pnpm --filter canvas-workspace harness start [--profile temp|demo|clone|real] [options]
   pnpm --filter canvas-workspace harness status [--json]
@@ -44,6 +49,7 @@ Start options:
   --route <hash-route>          open a hash route, e.g. '/chat'
   --flag <id>                   enable an experimental flag, repeatable
   --enable-webview-page-control shortcut for --flag webview-page-control
+  --skip-preflight              launch even if workspace packages / SQLite binding are stale
   --dev                         run electron-vite dev: renderer HMR, main/preload restart on change
   --headless                    Linux only: own an Xvfb display and pass CI-safe Chromium flags
   --ca-cert <pem>               Linux only: trust these CAs in the profile HOME's NSS db

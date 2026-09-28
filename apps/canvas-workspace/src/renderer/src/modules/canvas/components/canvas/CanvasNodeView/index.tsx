@@ -198,10 +198,8 @@ const CanvasNodeViewComponent = ({
 
   return (
     <DefaultCanvasNode
-      // Only nested frames carry a depth; even depths flip back to white.
-      classes={`${viewModel.classes}${frameDepth
-        ? ` canvas-node--nested-frame${frameDepth % 2 ? '' : ' canvas-node--nested-even'}`
-        : ''}`}
+      // Only nested frames carry a depth; every depth renders the same region.
+      classes={`${viewModel.classes}${frameDepth ? ' canvas-node--nested-frame' : ''}`}
       fullscreenButton={fullscreenButton}
       focusAction={focusAction}
       getAllNodes={getAllNodes}

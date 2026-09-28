@@ -29,6 +29,29 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const baseTask = {
+  id: 'daily-brief',
+  title: 'Daily brief',
+  prompt: 'Summarize what needs my attention.',
+  schedule: { kind: 'daily', timeOfDay: '09:00' },
+  enabled: true,
+  source: 'user',
+  createdAt: 1,
+  updatedAt: 1,
+  nextRunAt: Date.now() + 60_000,
+  runCount: 0,
+  status: 'idle',
+};
+
+const mount = async () => {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  await act(async () => {
+    root?.render(renderPage());
+  });
+};
+
 describe('ScheduledPage', () => {
   it('lists scheduled tasks without any navigation target in the row', async () => {
     Object.defineProperty(window, 'canvasWorkspace', {
@@ -69,8 +92,67 @@ describe('ScheduledPage', () => {
     // The row is presentational: no row-wide button, and no per-row chat
     // entry. Every control is one of the explicit task actions.
     expect(row?.querySelector('.scheduled-page__row-main')?.tagName).toBe('DIV');
-    expect([...host.querySelectorAll('button')].map((button) => button.textContent?.trim()))
-      .toEqual(['Create task', 'Pause', 'Run now', 'Edit task', 'Delete task']);
+    expect([...host.querySelectorAll('button')].map((button) =>
+      button.textContent?.trim() || button.getAttribute('aria-label')))
+      .toEqual(['Create task', 'Run now', 'Pause', 'Edit task', 'Delete task']);
+  });
+
+  it('opens the latest successful run from the last-run cell', async () => {
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [{
+              ...baseTask,
+              lastAttemptAt: 5,
+              lastSuccessAt: 5,
+              lastSessionId: 'latest-session',
+              runCount: 1,
+            }],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+        },
+      },
+    });
+
+    await mount();
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>('[title="Open this run’s conversation"]')?.click();
+    });
+    expect(openSessionInScope).toHaveBeenCalledWith(
+      { kind: 'scheduled', taskId: 'daily-brief' },
+      'latest-session',
+      'Daily brief',
+    );
+  });
+
+  it('shows the failure reason and never links a failed run to an older result', async () => {
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [{
+              ...baseTask,
+              lastAttemptAt: 9,
+              lastSuccessAt: 5,
+              lastSessionId: 'older-session',
+              lastError: 'Model quota exceeded',
+              runCount: 2,
+            }],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+        },
+      },
+    });
+
+    await mount();
+    const lastRun = host?.querySelector('.scheduled-page__last-run--failed');
+    expect(lastRun?.textContent).toContain('Model quota exceeded');
+    expect(host?.querySelector('[title="Open this run’s conversation"]')).toBeNull();
   });
 
   it('starts a fresh scheduled session and opens it in Pulse AI', async () => {

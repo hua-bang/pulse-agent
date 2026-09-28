@@ -2,7 +2,7 @@ import electronPath from 'electron';
 import { spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, openSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   APP_DIR,
   DEFAULT_TIMEOUT_MS,
@@ -22,8 +22,25 @@ import { pruneRunDirectories } from './retention.mjs';
 import { waitForAppRendered, waitForContentSettled } from './readiness.mjs';
 import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
+import { buildTargets, stalePrerequisites } from './bootstrap.mjs';
 
 const DEV_START_TIMEOUT_MS = 120_000;
+const REPO_ROOT = resolve(APP_DIR, '..', '..');
+const HARNESS_UP_HINT = 'Run `pnpm --filter canvas-workspace harness:up`, which builds them and then starts.';
+
+/**
+ * Fails before spawning when a prerequisite start does not build is stale:
+ * without it Electron hangs instead of erroring. `harness:up` builds the
+ * chain first; --skip-preflight is for launches that accept a stale chain.
+ */
+export function assertLaunchPrerequisites(stale = stalePrerequisites(buildTargets(REPO_ROOT))) {
+  if (!stale.length) return;
+  throw new HarnessError(
+    `Launch prerequisites are missing or stale: ${stale.join(', ')}. `
+    + `\`harness start\` does not build them. ${HARNESS_UP_HINT} `
+    + 'Pass --skip-preflight to launch anyway.',
+  );
+}
 
 // Headless Linux (CI/containers): Chromium flags so the renderer actually
 // comes up — opt-in only, via --headless.
@@ -92,6 +109,8 @@ export async function startCommand(rawArgs) {
       'Built canvas-workspace files are missing. Run `pnpm --filter canvas-workspace build` or start with `--build`.',
     );
   }
+
+  if (!opts['skip-preflight']) assertLaunchPrerequisites();
 
   await fs.mkdir(HARNESS_DIR, { recursive: true });
   const profile = opts.profile ?? 'temp';
@@ -190,6 +209,7 @@ export async function startCommand(rawArgs) {
       const tail = stderr.trim().slice(-4000);
       if (tail) console.error(`[harness] electron stderr (tail):\n${tail}`);
     } catch { /* stderr file unreadable */ }
+    console.error(`[harness] launch did not become ready. If packages or native bindings may be stale: ${HARNESS_UP_HINT}`);
     await stopSession(session, { cleanup: profileInfo.cleanupHome });
     throw err;
   }

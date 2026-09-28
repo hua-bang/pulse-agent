@@ -12,26 +12,44 @@
   overflow: visible;
 }
 
-/* Keep nested white regions distinguishable even at overview zoom. An inset
- * outline does not change layout; selection and focus keep their blue border. */
+/* Only the root frame is a surface. Nested frames are regions on it:
+ * transparent, with a hairline that stays ~1 screen pixel at any zoom, so
+ * hierarchy comes from the outline, the outside label and spacing. Stacking
+ * fills per depth (gray wash / white alternation) read as boxes in boxes and
+ * pushed the cards inside down to the fourth layer of chrome. The outline is
+ * inset so it does not change layout; selection and focus keep their blue
+ * border. */
+.canvas-node--frame.canvas-node--nested-frame:not(.canvas-node--frame-title-overlay) {
+  background: transparent;
+  border-radius: var(--radius-frame-nested);
+}
+
 .canvas-node--frame.canvas-node--nested-frame:not(.canvas-node--selected,
   .canvas-node--focus-mode-focused,
   .canvas-node--frame-title-overlay,
   .canvas-node--fullscreen) {
-  outline: calc(1px / var(--canvas-scale, 1)) solid var(--note-border);
+  outline: calc(1px / var(--canvas-scale, 1)) solid var(--frame-nested-outline);
   outline-offset: calc(-1px / var(--canvas-scale, 1));
 }
 
-/* Nested frames alternate surfaces by depth: odd levels (a frame inside the
- * root artboard) take the gray wash, even levels flip back to white, so every
- * boundary is a surface change rather than white-on-white. */
-.canvas-node--frame.canvas-node--nested-frame:not(.canvas-node--frame-title-overlay) {
-  background: var(--frame-nested-bg);
-  border-radius: var(--radius-frame-nested);
+/* Hover darkens the hairline instead of adding the root frame's 2px border
+ * inside it, which would draw a second edge. */
+.canvas-node--frame.canvas-node--nested-frame:hover:not(.canvas-node--selected,
+  .canvas-node--focus-mode-focused,
+  .canvas-node--frame-title-overlay,
+  .canvas-node--fullscreen) {
+  border-color: transparent;
+  outline-color: var(--frame-nested-outline-hover);
 }
 
-.canvas-node--frame.canvas-node--nested-even:not(.canvas-node--frame-title-overlay) {
-  background: var(--surface);
+/* A nested label ranks below its parent's, so the outline is not the only
+ * cue for depth. */
+.canvas-node--frame.canvas-node--nested-frame .node-header .node-title {
+  font-size: 14px;
+}
+
+.canvas-node--frame.canvas-node--nested-frame .node-header {
+  color: var(--text-secondary);
 }
 
 .canvas-node--frame>* {

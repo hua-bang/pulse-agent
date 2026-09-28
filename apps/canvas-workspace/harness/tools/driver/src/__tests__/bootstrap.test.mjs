@@ -12,6 +12,7 @@ import {
   newestMtime,
   planBuilds,
   resolveQuickstartCa,
+  stalePrerequisites,
 } from '../bootstrap.mjs';
 
 const dirs = [];
@@ -54,6 +55,13 @@ describe('build staleness', () => {
     const targets = ['engine', 'teams', 'cli', 'app'];
     expect(planBuilds(targets, (t) => t === 'teams')).toEqual(['teams', 'cli', 'app']);
     expect(planBuilds(targets, () => false)).toEqual([]);
+  });
+
+  it('lists every stale launch prerequisite except the app bundle start guards itself', () => {
+    const targets = ['storage', 'canvas-cli', 'electron-sqlite-binding', 'app'].map((name) => ({ name }));
+    const stale = (target) => target.name !== 'canvas-cli';
+    expect(stalePrerequisites(targets, stale)).toEqual(['storage', 'electron-sqlite-binding']);
+    expect(stalePrerequisites(targets, () => false)).toEqual([]);
   });
 });
 

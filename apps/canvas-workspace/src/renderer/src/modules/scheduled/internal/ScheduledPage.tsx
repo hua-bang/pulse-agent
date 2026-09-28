@@ -1,21 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  CalendarBlank,
-  CalendarCheck,
-  Pause,
-  PencilSimple,
-  Play,
-  Plus,
-  SpinnerGap,
-  Trash,
-} from '@phosphor-icons/react';
+import { CalendarBlank, Plus } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../../shared/scheduled';
 import type { AgentScope } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
 import { Button, EmptyState } from '../../../components/ui';
-import { scheduleLabel, timeLabel } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
+import { TaskRow } from './TaskRow';
 import './index.css';
 
 interface Props {
@@ -23,7 +14,7 @@ interface Props {
 }
 
 export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const { notify, confirm } = useAppShell();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +98,10 @@ export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
     }
   };
 
+  const openResult = (task: ScheduledTask, sessionId: string) => {
+    void onOpenSessionInScope({ kind: 'scheduled', taskId: task.id }, sessionId, task.title);
+  };
+
   const openCreate = () => {
     setEditingTask(undefined);
     setEditorOpen(true);
@@ -140,68 +135,18 @@ export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
         />
       ) : (
         <ul className="scheduled-page__list">
-          {tasks.map((task) => {
-            const running = task.status === 'running' || runningTaskIds.has(task.id);
-            return (
-              <li key={task.id} className="scheduled-page__row" data-task-id={task.id}>
-                {/* Presentational only. The whole row used to be one button, so
-                    every stray click on the title or the cadence text opened a
-                    chat; actions now live exclusively in the button group. */}
-                <div className="scheduled-page__row-main">
-                  <span className={`scheduled-page__status${task.enabled ? ' scheduled-page__status--enabled' : ''}`} />
-                  <span className="scheduled-page__row-copy">
-                    <strong>{task.title}</strong>
-                    <small>{task.prompt}</small>
-                  </span>
-                  <span className="scheduled-page__meta">
-                    <span>{scheduleLabel(task.schedule, t, language)}</span>
-                    <small>
-                      {task.enabled
-                        ? t('scheduled.nextRun', { time: timeLabel(task.nextRunAt, t('scheduled.never')) })
-                        : t('scheduled.paused')}
-                    </small>
-                  </span>
-                  <span className="scheduled-page__last-run">
-                    {task.lastError
-                      ? t('scheduled.lastFailed', { time: timeLabel(task.lastAttemptAt, t('scheduled.never')) })
-                      : task.lastSuccessAt
-                        ? t('scheduled.lastSuccess', { time: timeLabel(task.lastSuccessAt, t('scheduled.never')) })
-                        : t('scheduled.neverRun')}
-                  </span>
-                </div>
-                <div className="scheduled-page__row-actions">
-                  <Button
-                    size="xs"
-                    title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
-                    onClick={() => void toggleTask(task)}
-                  >
-                    {task.enabled ? <Pause size={13} /> : <CalendarCheck size={13} />}
-                    {task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
-                  </Button>
-                  <Button
-                    size="xs"
-                    aria-label={running ? t('scheduled.running') : t('scheduled.runNow')}
-                    title={running ? t('scheduled.running') : t('scheduled.runNow')}
-                    disabled={running}
-                    onClick={() => void runNow(task)}
-                  >
-                    {running ? <SpinnerGap className="scheduled-spin" size={13} /> : <Play size={13} />}
-                    {running ? t('scheduled.runningShort') : t('scheduled.runNow')}
-                  </Button>
-                  <Button size="xs" title={t('scheduled.editTask')} onClick={() => openEdit(task)}>
-                    <PencilSimple size={13} />
-                    {t('scheduled.editTask')}
-                  </Button>
-                  {task.source === 'user' && (
-                    <Button variant="danger" size="xs" title={t('scheduled.deleteTask')} onClick={() => void removeTask(task)}>
-                      <Trash size={13} />
-                      {t('scheduled.deleteTask')}
-                    </Button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+          {tasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              starting={runningTaskIds.has(task.id)}
+              onToggle={(target) => void toggleTask(target)}
+              onRunNow={(target) => void runNow(target)}
+              onEdit={openEdit}
+              onDelete={(target) => void removeTask(target)}
+              onOpenResult={openResult}
+            />
+          ))}
         </ul>
       )}
 

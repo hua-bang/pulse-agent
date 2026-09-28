@@ -278,6 +278,37 @@ describe('useCanvasDocument text resize commit', () => {
     });
   });
 
+  it('does not flag the echo of our own acknowledged save as an agent edit', async () => {
+    save.mockResolvedValueOnce({ ok: true, revision: 6 });
+    act(() => hook.updateNode('text-1', { x: 120 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const written = save.mock.calls[0][1] as CanvasSaveData;
+    await deliverExternal({ ...written, revision: 6 });
+    expect(hook.externallyEditedIds.size).toBe(0);
+  });
+
+  it('does not flag an echo that arrives before its save acknowledgement, mid-drag', async () => {
+    let finish!: (value: { ok: boolean; revision: number }) => void;
+    save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+      .mockResolvedValue({ ok: true, revision: 7 });
+    act(() => hook.updateNode('text-1', { x: 120 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const inFlight = save.mock.calls[0][1] as CanvasSaveData;
+    // The drag continues, so neither the baseline nor the draft match the echo.
+    act(() => hook.updateNode('text-1', { x: 160 }));
+    await deliverExternal({ ...inFlight, revision: 6 });
+    const flagged = hook.externallyEditedIds.size;
+    // Release the save before asserting: a stuck save would block the
+    // workspace-wide save queue for every later test.
+    await act(async () => { finish({ ok: true, revision: 6 }); });
+    expect(flagged).toBe(0);
+  });
+
+  it('still flags a node another writer changed', async () => {
+    await deliverExternal(remote({ x: 999 }));
+    expect([...hook.externallyEditedIds]).toEqual(['text-1']);
+  });
+
   it('merges a rejected save with fresh data and retries once with the actual revision', async () => {
     save.mockResolvedValueOnce({ ok: false, code: 'revision_conflict', data: remote({ x: 90 }) })
       .mockResolvedValueOnce({ ok: true, revision: 7 });

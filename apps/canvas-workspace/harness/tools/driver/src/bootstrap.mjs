@@ -90,6 +90,16 @@ export function buildTargets(repoRoot) {
 
 export const defaultStale = (target) => (target.isStale ? target.isStale() : isBuildStale(target));
 
+/**
+ * Prerequisites `harness start` loads but never builds: every target except
+ * the app bundle, which start guards itself (dist check / --build). Missing
+ * any of them does not fail loudly: Electron's main process wedges and CDP
+ * stops answering, so start checks them up front.
+ */
+export function stalePrerequisites(targets, stale = defaultStale) {
+  return targets.slice(0, -1).filter((target) => stale(target)).map((target) => target.name);
+}
+
 /** Targets to rebuild: the first stale one and everything after it. */
 export function planBuilds(targets, stale = defaultStale) {
   const first = targets.findIndex((target) => stale(target));
