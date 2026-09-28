@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../../../../types';
 import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
 import { isImeComposing } from '../../../../../utils/ime';
 import { useI18n } from '../../../../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
+
+/** Quiet period before a typed query is committed to the canvas scan. */
+export const CANVAS_FIND_DEBOUNCE_MS = 150;
 
 interface Props {
   search: UseCanvasSearchReturn;
@@ -29,6 +32,11 @@ interface Props {
  *    + next/prev, but the list is there for cross-canvas surveying.
  *  - Esc closes and returns focus to where the user came from
  *    (handled by `useCanvasSearch.closeBar`).
+ *  - The input keeps its own draft and commits it after
+ *    `CANVAS_FIND_DEBOUNCE_MS` of quiet. `setQuery` re-renders the whole
+ *    canvas controller and may mount note editors for highlighting, so it
+ *    must not run per keystroke. Navigation keys commit a pending draft
+ *    immediately.
  *
  * Why a separate overlay (vs. reusing CommandPalette):
  *  - The palette dismisses on Enter — incompatible with iterative find.
@@ -40,6 +48,7 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
   const { query, setQuery, matches, activeIndex, setActiveIndex,
     activeMatch, caseSensitive, setCaseSensitive, closeBar, next, prev } = search;
 
+  const [draft, setDraft] = useState(query);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +56,22 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
+
+  useEffect(() => {
+    if (draft === query) return;
+    const timer = window.setTimeout(() => setQuery(draft), CANVAS_FIND_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+    // Only a new draft restarts the quiet period; `query` catching up to it
+    // needs no timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
+  /** Commit a pending draft now; true when the caller's step should wait for its results. */
+  const flushDraft = useCallback((): boolean => {
+    if (draft === query) return false;
+    setQuery(draft);
+    return true;
+  }, [draft, query, setQuery]);
 
   // The results list scrolls past ~7 rows — keep the active match visible
   // while the user pages with Enter / arrows.
@@ -82,22 +107,27 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
       }
       if (e.key === 'Enter') {
         e.preventDefault();
+        // A pending draft lands on its first match instead of stepping
+        // through the previous query's results.
+        if (flushDraft()) return;
         if (e.shiftKey) prev();
         else next();
         return;
       }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        if (flushDraft()) return;
         next();
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
+        if (flushDraft()) return;
         prev();
         return;
       }
     },
-    [closeBar, next, prev],
+    [closeBar, flushDraft, next, prev],
   );
 
   const visibleMatches = useMemo(() => matches.slice(0, 30), [matches]);
@@ -136,8 +166,8 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
           aria-activedescendant={activeResultId}
           aria-expanded={matches.length > 0}
           aria-haspopup="listbox"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           spellCheck={false}
         />
@@ -159,7 +189,7 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
           className="canvas-search-bar__nav"
           title={t('canvas.find.previous')}
           aria-label={t('canvas.find.previous')}
-          onClick={prev}
+          onClick={() => { if (!flushDraft()) prev(); }}
           disabled={matches.length === 0}
         >
           ↑
@@ -169,7 +199,7 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
           className="canvas-search-bar__nav"
           title={t('canvas.find.next')}
           aria-label={t('canvas.find.next')}
-          onClick={next}
+          onClick={() => { if (!flushDraft()) next(); }}
           disabled={matches.length === 0}
         >
           ↓
