@@ -152,6 +152,10 @@ UI rules for that renderer surface:
   row used to be one big button, so a stray click on the title or the
   cadence text opened a chat; the current layout and the reasoning are in
   `src/renderer/src/modules/scheduled/internal/ScheduledPage.tsx`.)
+- The last-run cell (`TaskRow.tsx` in the same folder) is the list's entry
+  to results: it links to `lastSessionId` only when the LATEST attempt
+  succeeded. After a failure `lastSessionId` still names an older success,
+  so a failed row shows the error text instead of a link to the wrong run.
 - The time picker is hour/minute `ui/Select`s, never a native
   `<input type="time">`
   (`src/renderer/src/modules/scheduled/internal/TimeOfDaySelect.tsx`).

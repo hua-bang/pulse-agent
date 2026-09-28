@@ -60,7 +60,9 @@
 
 .scheduled-page__row-main {
   display: grid;
-  grid-template-columns: 8px minmax(220px, 1fr) minmax(140px, auto) minmax(140px, auto);
+  /* Fixed meta/last-run tracks: each row is its own grid, so content-sized
+     tracks drifted between rows and the columns stopped lining up. */
+  grid-template-columns: 8px minmax(200px, 1fr) 150px 190px;
   align-items: center;
   gap: 14px;
   min-width: 0;
@@ -101,6 +103,7 @@
 .scheduled-page__meta,
 .scheduled-page__last-run {
   display: grid;
+  min-width: 0;
   gap: 4px;
   color: var(--text-secondary);
   font-size: 11px;
@@ -112,14 +115,86 @@
 }
 
 .scheduled-page__last-run {
+  justify-items: start;
   color: var(--text-muted);
+}
+
+.scheduled-page__last-run-label,
+.scheduled-page__last-run--running {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.scheduled-page__last-run-label > svg {
+  flex: 0 0 auto;
+  color: var(--success);
+}
+
+.scheduled-page__last-run--running {
+  color: var(--accent);
+}
+
+.scheduled-page__last-run--failed,
+.scheduled-page__last-run--failed .scheduled-page__last-run-label > svg {
+  color: var(--error);
+}
+
+.scheduled-page__last-run--failed small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The last-run cell doubles as the entry to that run's conversation, so it
+   reads as a link rather than a fifth bordered button. */
+.scheduled-page__result-link.ui-btn {
+  gap: 5px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.scheduled-page__result-link.ui-btn > svg:first-child {
+  color: var(--success);
+}
+
+.scheduled-page__result-link.ui-btn:hover:not(:disabled) {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.scheduled-page__row--paused .scheduled-page__row-copy,
+.scheduled-page__row--paused .scheduled-page__meta {
+  opacity: 0.6;
 }
 
 .scheduled-page__row-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   padding-right: 12px;
+}
+
+/* Fixed width so "Running…" does not shift that row's columns. */
+.scheduled-page__row-actions > .ui-btn--secondary {
+  justify-content: center;
+  width: 92px;
+  margin-right: 6px;
+}
+
+.scheduled-page__delete.ui-btn--icon:hover:not(:disabled) {
+  color: var(--error);
+}
+
+.scheduled-page__action-spacer {
+  width: 24px;
 }
 
 .scheduled-page > .ui-empty-state {
@@ -253,16 +328,24 @@
   background: color-mix(in srgb, var(--error) 8%, transparent);
 }
 
+/* Narrow layouts (expanded dock or a small window) stack the actions under
+   the task and move cadence + last run onto a second line. Last run stays
+   visible: it is where a failure shows up. */
 .app:has(.right-dock[data-expanded='true']) .scheduled-page__row {
   grid-template-columns: minmax(0, 1fr);
 }
 
 .app:has(.right-dock[data-expanded='true']) .scheduled-page__row-main {
-  grid-template-columns: 8px minmax(0, 1fr) minmax(110px, auto);
+  grid-template-columns: 8px minmax(0, 1fr) minmax(0, 1fr);
+  row-gap: 8px;
 }
 
-.app:has(.right-dock[data-expanded='true']) .scheduled-page__last-run {
-  display: none;
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__row-copy {
+  grid-column: 2 / -1;
+}
+
+.app:has(.right-dock[data-expanded='true']) .scheduled-page__meta {
+  grid-column: 2;
 }
 
 .app:has(.right-dock[data-expanded='true']) .scheduled-page__row-actions {
@@ -276,12 +359,16 @@
   }
 
   .scheduled-page__row-main {
-    grid-template-columns: 8px minmax(0, 1fr);
+    grid-template-columns: 8px minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: 8px;
   }
 
-  .scheduled-page__meta,
-  .scheduled-page__last-run {
-    display: none;
+  .scheduled-page__row-copy {
+    grid-column: 2 / -1;
+  }
+
+  .scheduled-page__meta {
+    grid-column: 2;
   }
 
   .scheduled-page__row-actions {
