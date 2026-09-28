@@ -229,6 +229,25 @@ describe('global chat dock-tab mentions', () => {
     expect(onSubmit).toHaveBeenCalledWith('@missing', undefined, []);
   });
 
+  it('paints local matches without waiting for the session search', async () => {
+    const search = deferred<ReturnType<typeof sessionResult>>();
+    await renderHook({ searchSessions: async () => search.promise });
+
+    await setMentionQuery('Not');
+
+    expect(latest?.mentionLoading).toBe(false);
+    expect(latest?.mentionItems).toEqual([
+      expect.objectContaining({ type: 'plugin', label: 'Notion' }),
+    ]);
+
+    await act(async () => search.resolve(sessionResult('Not')));
+
+    expect(latest?.mentionItems).toEqual([
+      expect.objectContaining({ type: 'plugin', label: 'Notion' }),
+      expect.objectContaining({ type: 'session', sessionId: 'session-Not' }),
+    ]);
+  });
+
   it('keeps newer loading and results authoritative across rapid query changes', async () => {
     const oldSearch = deferred<ReturnType<typeof sessionResult>>();
     const newSearch = deferred<ReturnType<typeof sessionResult>>();

@@ -43,10 +43,8 @@
    children) means dragging a text selection to the bottom edge of a
    bubble never gets hijacked by the invisible toolbar. Only the actual
    controls opt back in — and only once the toolbar is revealed. */
-.chat-message:hover .chat-message-toolbar .ui-btn,
 .chat-message:hover .chat-message-toolbar-btn,
 .chat-message:hover .chat-message-timestamp,
-.chat-message-toolbar:focus-within .ui-btn,
 .chat-message-toolbar:focus-within .chat-message-toolbar-btn,
 .chat-message-toolbar:focus-within .chat-message-timestamp {
   pointer-events: auto;
@@ -61,7 +59,10 @@
   padding-right: 2px;
 }
 
-.chat-message-toolbar-btn {
+/* The fork action reuses ui/Button; the compound selector outranks the
+   chrome `.ui-btn--icon` strips so it matches its copy / regenerate siblings. */
+.chat-message-toolbar-btn,
+.chat-message-toolbar-btn.ui-btn--icon {
   border: 1px solid rgba(55, 53, 47, 0.1);
   background: #fff;
   color: rgba(55, 53, 47, 0.55);
@@ -76,7 +77,8 @@
   justify-content: center;
 }
 
-.chat-message-toolbar-btn:hover {
+.chat-message-toolbar-btn:hover,
+.chat-message-toolbar .chat-message-toolbar-btn.ui-btn--icon:hover {
   background: rgba(55, 53, 47, 0.05);
   color: #37352f;
   border-color: rgba(55, 53, 47, 0.18);
@@ -97,6 +99,10 @@
 .chat-message-toolbar-btn--icon {
   width: 22px;
   height: 22px;
+  padding: 0;
+}
+
+.chat-message-toolbar-btn--icon.ui-btn--icon {
   padding: 0;
 }
 

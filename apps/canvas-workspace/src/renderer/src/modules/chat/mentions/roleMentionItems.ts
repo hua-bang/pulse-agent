@@ -81,7 +81,11 @@ export function loadRoleMentionItems(): Promise<MentionItem[]> {
   if (!pending) {
     pending = readRoleMentionItems().finally(() => { pending = null; });
   }
-  return pending;
+  // Stale-while-revalidate: an expired cache still answers immediately so
+  // `@` keystrokes never wait on IPC; the refresh repaints chip colors via
+  // `publishRoleColors`. `invalidateRoleMentionItems` drops the cache first,
+  // so Settings edits still wait for the fresh read.
+  return cache ? Promise.resolve(cache.items) : pending;
 }
 
 /** Drop the TTL cache and re-read so popup entries + chip colors reflect a Settings edit now. */

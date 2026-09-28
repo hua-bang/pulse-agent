@@ -61,12 +61,13 @@ export const ChatMessageToolbar = ({
       {onFork && (
         <Button
           variant="icon"
-          size="xs"
+          size="sm"
+          className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
           title={t('chat.forkMessage')}
           aria-label={t('chat.forkMessage')}
           onClick={() => void onFork()}
         >
-          <GitBranch size={13} />
+          <GitBranch size={12} />
         </Button>
       )}
       {showCopy && <CopyMessageButton content={content} />}

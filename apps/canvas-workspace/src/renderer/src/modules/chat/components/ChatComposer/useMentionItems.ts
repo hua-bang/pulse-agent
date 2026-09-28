@@ -91,10 +91,12 @@ export const useMentionItems = ({
       return filtered.slice(0, MENTION_MAX_ITEMS);
     }
 
-    const items: MentionItem[] = [
-      ...await loadRoleMentionItems(),
-      ...await loadInstalledPluginMentionItems(),
-    ];
+    // Independent IPC reads: load them concurrently, not back to back.
+    const [roleItems, pluginItems] = await Promise.all([
+      loadRoleMentionItems(),
+      loadInstalledPluginMentionItems(),
+    ]);
+    const items: MentionItem[] = [...roleItems, ...pluginItems];
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs, describeTab));
     items.push(...buildStaticMentionItems({
       allWorkspaces,
@@ -124,26 +126,30 @@ export const useMentionItems = ({
       ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery)
         || item.description?.toLowerCase().includes(normalizedQuery))
       : items;
-    if (normalizedQuery) {
-      try {
-        const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
-        if (result.ok && result.hits) {
-          for (const hit of result.hits) {
-            filtered.push({
-              type: 'session',
-              label: hit.preview || hit.date,
-              sessionId: hit.sessionId,
-              workspaceId: hit.workspaceId,
-              description: `${hit.workspaceName} · ${hit.date}`,
-            });
-          }
-        }
-      } catch {
-        // Session search is additive.
-      }
-    }
     return sortAndCapMentionItems(filtered);
   }, [allWorkspaces, describeTab, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
 
-  return { buildMentionItems, describeTab };
+  /**
+   * Session hits for an `@` query. Kept separate from `buildMentionItems` so
+   * the local items can paint without waiting on the cross-workspace search.
+   */
+  const searchSessionMentionItems = useCallback(async (query: string): Promise<MentionItem[]> => {
+    if (!query.trim()) return [];
+    try {
+      const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
+      if (!result.ok || !result.hits) return [];
+      return result.hits.map(hit => ({
+        type: 'session' as const,
+        label: hit.preview || hit.date,
+        sessionId: hit.sessionId,
+        workspaceId: hit.workspaceId,
+        description: `${hit.workspaceName} · ${hit.date}`,
+      }));
+    } catch {
+      // Session search is additive.
+      return [];
+    }
+  }, []);
+
+  return { buildMentionItems, describeTab, searchSessionMentionItems };
 };
