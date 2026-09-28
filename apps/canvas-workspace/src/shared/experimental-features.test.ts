@@ -24,7 +24,6 @@ const promotedFeatureIds = [
 
 const grandfatheredFeatureIds = [
   EXPERIMENTAL_FLAG_DYNAMIC_APP,
-  EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
   EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
 ];
@@ -78,6 +77,16 @@ describe('experimental feature lifecycle', () => {
       [EXPERIMENTAL_FLAG_AGENT_TEAMS]: true,
     })).toBe(true);
     expect(canConfigureExperimentalFeature(piHarness, {})).toBe(true);
+    const defaultBrowser = EXPERIMENTAL_FEATURES.find(
+      (feature) => feature.id === EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
+    )!;
+    // Opt-in toggle: must stay re-enableable after a user turns it off.
+    expect(canConfigureExperimentalFeature(defaultBrowser, {
+      [EXPERIMENTAL_FLAG_DEFAULT_BROWSER]: false,
+    })).toBe(true);
+    expect(getVisibleExperimentalFeatures({}).map((feature) => feature.id))
+      .toContain(EXPERIMENTAL_FLAG_DEFAULT_BROWSER);
+    expect(resolveFeatureValues({})[EXPERIMENTAL_FLAG_DEFAULT_BROWSER]).toBe(false);
     expect(resolveFeatureValues({})[EXPERIMENTAL_FLAG_PI_AGENT_HARNESS]).toBe(false);
     expect(resolveFeatureValues({
       [EXPERIMENTAL_FLAG_PI_AGENT_HARNESS]: true,
