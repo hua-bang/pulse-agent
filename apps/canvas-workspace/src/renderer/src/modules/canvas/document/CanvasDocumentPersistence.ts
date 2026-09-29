@@ -19,7 +19,8 @@ interface PersistenceOptions {
   failed: (error: unknown) => void;
 }
 
-const workspaceQueues = new Map<string, Promise<void>>();
+const RECENT_WRITE_LIMIT = 8;
+const workspaceQueues =new Map<string, Promise<void>>();
 
 function serialize(workspaceId: string, operation: () => Promise<void>): Promise<void> {
   const previous = workspaceQueues.get(workspaceId) ?? Promise.resolve();
@@ -39,6 +40,12 @@ export class CanvasDocumentPersistence {
   private external: CanvasSaveData | null = null;
   /** The payload of a save whose acknowledgement has not arrived yet. */
   private inFlight: CanvasSaveData | null = null;
+  /**
+   * Payloads this client already wrote. A change event reloads the disk
+   * asynchronously, so while the user keeps typing it can resolve with an
+   * older save of ours that no longer matches baseline/in-flight/draft.
+   */
+  private recentWrites: CanvasSaveData[] = [];
   private editVersion = 0;
   private savedVersion = 0;
   private requested = false;
@@ -51,6 +58,7 @@ export class CanvasDocumentPersistence {
   initialize(data: CanvasSaveData): void {
     this.baseline = copyDocument(data);
     this.draft = copyDocument(data);
+    this.recentWrites = [];
     this.editVersion = 0;
     this.savedVersion = 0;
   }
@@ -80,7 +88,7 @@ export class CanvasDocumentPersistence {
    */
   foreignNodeIds(diskNodes: readonly CanvasNode[], changedIds: Iterable<string>): string[] {
     const diskById = new Map(diskNodes.map(node => [node.id, node]));
-    const ownStates = [this.baseline, this.inFlight, this.draft];
+    const ownStates = [this.baseline, this.inFlight, this.draft, ...this.recentWrites];
     const foreign: string[] = [];
     for (const id of changedIds) {
       const disk = diskById.get(id);
@@ -191,6 +199,7 @@ export class CanvasDocumentPersistence {
       });
       try {
         this.inFlight = payload;
+        this.recentWrites = [...this.recentWrites, payload].slice(-RECENT_WRITE_LIMIT);
         const result = await this.options.save(payload).finally(() => { this.inFlight = null; });
         if (result.ok) {
           this.baseline = {
