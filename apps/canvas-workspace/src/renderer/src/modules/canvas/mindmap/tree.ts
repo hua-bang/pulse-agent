@@ -1,6 +1,18 @@
 import type { MindmapTopic } from '../../../types';
 
 /**
+ * Repair a topic tree whose nodes lack a `children` array (hand-edited or
+ * externally written canvas data). Returns the input untouched when it is
+ * already well-formed, so memoized consumers keep referential equality.
+ */
+export const ensureTopicChildren = (topic: MindmapTopic): MindmapTopic => {
+  const raw = topic.children as MindmapTopic[] | undefined;
+  if (!Array.isArray(raw)) return { ...topic, children: [] };
+  const children = raw.map(ensureTopicChildren);
+  return children.every((child, i) => child === raw[i]) ? topic : { ...topic, children };
+};
+
+/**
  * Find a topic by id and return a path from root → topic. Returns null
  * when the id is not present. The path is used by every mutation below
  * so the caller doesn't have to re-traverse.
