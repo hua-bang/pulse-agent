@@ -26,6 +26,7 @@ interface Options {
   ) => void;
   fitAllNodes: (nodes: CanvasNode[]) => void;
   resetTransform: () => void;
+  refreshCanvas: () => void | Promise<unknown>;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
@@ -55,6 +56,7 @@ export const useCanvasPaletteCommands = ({
   handleToolbarAddNode,
   fitAllNodes,
   resetTransform,
+  refreshCanvas,
   chatPanelOpen,
   onChatToggle,
   referenceDrawerOpen,
@@ -225,6 +227,15 @@ export const useCanvasPaletteCommands = ({
         aliases: ['zoom', 'overview', 'show all'],
         enabled: nodesRef.current.length > 0,
         run: () => fitAllNodes(nodesRef.current),
+      },
+      {
+        id: 'refresh-canvas',
+        shortcut: formatShortcutId('canvas.refresh'),
+        group: 'navigate',
+        title: t('canvas.palette.command.refresh'),
+        hint: t('canvas.palette.command.refreshHint'),
+        aliases: ['reload', 'refresh'],
+        run: () => { void refreshCanvas(); },
       },
       {
         id: 'reset-zoom',

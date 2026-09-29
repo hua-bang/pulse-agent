@@ -102,6 +102,8 @@ interface Options {
   zoomBy: (factor: number) => void;
   resetZoom: () => void;
   fitNodes: (nodes: CanvasNode[]) => void;
+  /** Re-read the current canvas from disk (F5). */
+  refreshCanvas?: () => void | Promise<unknown>;
   /** Start inline title editing on a node (Enter / F2 on the selection). */
   renameNode: (nodeId: string) => void;
   focusModeEnabled?: boolean;
@@ -139,7 +141,7 @@ export const useCanvasKeyboard = ({
   contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
   activeTool, setActiveTool,
-  zoomBy, resetZoom, fitNodes, renameNode,
+  zoomBy, resetZoom, fitNodes, refreshCanvas, renameNode,
   focusModeEnabled = false,
   canToggleFocusMode = false,
   onToggleFocusMode,
@@ -266,6 +268,10 @@ export const useCanvasKeyboard = ({
     'canvas.fitAll': (event) => {
       event.preventDefault();
       fitNodes(nodes);
+    },
+    'canvas.refresh': (event) => {
+      event.preventDefault();
+      void refreshCanvas?.();
     },
     'canvas.fitSelection': (event) => {
       const idSet = new Set(selectedNodeIds);

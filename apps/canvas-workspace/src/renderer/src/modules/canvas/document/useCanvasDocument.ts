@@ -106,6 +106,8 @@ export const useCanvasDocument = (
   }, [doSave]);
 
   const [loaded, setLoaded] = useState(false);
+  /** Bumped by `reloadCanvas` to re-run the load effect for the same canvas. */
+  const [reloadToken, setReloadToken] = useState(0);
 
   const {
     nodes, edges, nodesRef, edgesRef,
@@ -379,7 +381,24 @@ export const useCanvasDocument = (
       loadedRef.current = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasId, resetState]);
+  }, [canvasId, resetState, reloadToken]);
+
+  /**
+   * Re-read the current canvas from disk (the "refresh" shortcut). Pending
+   * edits are saved first so the reload can never drop them; when that save
+   * fails the reload is skipped and `false` is returned.
+   */
+  const reloadCanvas = useCallback(async (): Promise<boolean> => {
+    const persistence = persistenceRef.current;
+    if (!loadedRef.current || !persistence) return false;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    persistence.setDraft(captureDraft());
+    await persistence.requestSave();
+    if (persistence.hasChanges) return false;
+    setReloadToken((token) => token + 1);
+    return true;
+  }, [captureDraft]);
 
   const contentCommands = useCanvasContentCommands({ canvasId, nodesRef, applyNodes });
   const coreCommands = useCanvasCoreCommands({
@@ -401,6 +420,7 @@ export const useCanvasDocument = (
     splitMindmapTopic,
     setTransformForSave,
     flushSave,
+    reloadCanvas,
     commitHistory,
     undo,
     redo,
