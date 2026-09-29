@@ -24,6 +24,7 @@ export const SHORTCUT_HELP = {
   'canvas.find': { section: 'canvas', descriptionKey: 'shortcuts.canvas.find' },
   'canvas.findNext': { section: 'canvas', descriptionKey: 'shortcuts.canvas.findNext' },
   'canvas.cycleNodes': { section: 'canvas', descriptionKey: 'shortcuts.canvas.cycleNodes' },
+  'canvas.refresh': { section: 'canvas', descriptionKey: 'shortcuts.canvas.refresh' },
   'canvas.focusMode': { section: 'canvas', descriptionKey: 'shortcuts.canvas.focusMode' },
   'canvas.zoomIn': { section: 'view', descriptionKey: 'shortcuts.view.zoomIn' },
   'canvas.zoomOut': { section: 'view', descriptionKey: 'shortcuts.view.zoomOut' },

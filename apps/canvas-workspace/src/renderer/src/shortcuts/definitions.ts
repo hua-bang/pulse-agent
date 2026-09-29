@@ -51,6 +51,13 @@ export const SHORTCUTS = {
     // input a keyboard black hole.
     editable: 'allow',
   },
+  'canvas.refresh': {
+    owner: 'canvas',
+    // F5 is unclaimed by the Electron menu (only Cmd/Ctrl+R is, in dev builds),
+    // and refreshing the canvas has no text-editing meaning.
+    bindings: [{ key: 'F5' }],
+    editable: 'allow',
+  },
   'canvas.focusMode': {
     owner: 'canvas',
     bindings: [{ key: 'f' }],

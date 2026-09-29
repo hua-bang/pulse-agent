@@ -10,6 +10,7 @@ import type { MindmapNodeData, MindmapTopic } from '../../../../../types';
 import { genTopicId } from '../../../../../utils/nodeFactory';
 import {
   deleteTopic,
+  ensureTopicChildren,
   findParent,
   findTopicPath,
   insertChild,
@@ -42,7 +43,7 @@ export const useMindmapController = ({
   | 'readOnly'
 >) => {
   const data = node.data as MindmapNodeData;
-  const root = data.root;
+  const root = useMemo(() => ensureTopicChildren(data.root), [data.root]);
   const [selectedId, setSelectedId] = useState<string>(root.id);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingInitialInput, setEditingInitialInput] = useState<string | undefined>();
