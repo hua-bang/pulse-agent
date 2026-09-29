@@ -9,8 +9,10 @@ import {
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
 
 const MAX_CONCURRENT_REQUESTS = 8;
+const MAX_QUEUED_REQUESTS = 64;
 const TOOL_TIMEOUT_MS = 30_000;
 const activeRequests = new Map<number, number>();
+const waitingRequests = new Map<number, Array<() => void>>();
 interface PendingMcpAppApproval {
   requestId: string;
   scope: AgentScope;
@@ -72,17 +74,41 @@ function sameScope(left: AgentScope, right: AgentScope): boolean {
   return left.kind === 'global' && right.kind === 'global';
 }
 
+async function acquireSlot(senderId: number): Promise<void> {
+  const active = activeRequests.get(senderId) ?? 0;
+  if (active < MAX_CONCURRENT_REQUESTS) {
+    activeRequests.set(senderId, active + 1);
+    return;
+  }
+  const queue = waitingRequests.get(senderId) ?? [];
+  if (queue.length >= MAX_QUEUED_REQUESTS) throw new Error('Too many concurrent MCP App requests');
+  // The slot is handed over by releaseSlot, so the active count stays unchanged here.
+  await new Promise<void>((resolve) => {
+    queue.push(resolve);
+    waitingRequests.set(senderId, queue);
+  });
+}
+
+function releaseSlot(senderId: number): void {
+  const queue = waitingRequests.get(senderId);
+  const next = queue?.shift();
+  if (queue && queue.length === 0) waitingRequests.delete(senderId);
+  if (next) {
+    next();
+    return;
+  }
+  const remaining = (activeRequests.get(senderId) ?? 1) - 1;
+  if (remaining > 0) activeRequests.set(senderId, remaining);
+  else activeRequests.delete(senderId);
+}
+
 async function boundedRequest<T>(event: IpcMainInvokeEvent, run: () => Promise<T>): Promise<T> {
   const id = event.sender.id;
-  const active = activeRequests.get(id) ?? 0;
-  if (active >= MAX_CONCURRENT_REQUESTS) throw new Error('Too many concurrent MCP App requests');
-  activeRequests.set(id, active + 1);
+  await acquireSlot(id);
   try {
     return await run();
   } finally {
-    const remaining = (activeRequests.get(id) ?? 1) - 1;
-    if (remaining > 0) activeRequests.set(id, remaining);
-    else activeRequests.delete(id);
+    releaseSlot(id);
   }
 }
 
