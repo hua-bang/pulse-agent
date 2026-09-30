@@ -245,17 +245,36 @@ Pulse declares its own entrypoint type in its own `_meta` namespace, next to
 - Opening a new node calls the tool with `{}`, matching OpenAI's rule for
   global/thread entrypoints ("the server MUST accept `{}`"). The app renders
   from that initial result instead of calling the tool again.
-- Instance identity and state live in host context, not in tool arguments, so
-  ecosystem servers still only need to accept `{}`:
-  `hostContext["pulse/node"] = { nodeId, payload }` on initialize, with changes
-  delivered through `ui/notifications/host-context-changed`.
-- Persisting instance state back to `node.data.payload` needs a Pulse bridge
-  method (working name `pulse/node/update`). The host validates it like
-  `write`.
-- `read` / `write` / `action` may be declared in `pulse/ui` by pointing at tool
-  names. Without a declaration, infer: tools annotated `readOnlyHint` map to
-  `read`, other tools map to `action`, and `write` is the host-owned payload
-  write.
+- Instance identity lives in host context, not in tool arguments, so
+  ecosystem servers still only need to accept `{}`. Changes are delivered
+  through `ui/notifications/host-context-changed`.
+
+### Node state layers
+
+On the MCP Apps path the host does not interpret or rewrite plugin state. The
+MF2-era `payload` contract (host-validated `write`, actions returning payload
+patches) does not carry over.
+
+| Layer | Content | Owner |
+| --- | --- | --- |
+| Instance binding | Server, entrypoint tool, deep-link `path`, size and position | Pulse host; the only target of `write` |
+| UI snapshot | Opaque view state, like the Apps SDK `widgetState` | App writes it; host stores and restores it, never validates or edits it |
+| Business data | Board items, records, documents | Plugin MCP server; reached only through tools |
+
+- The MCP Apps spec leaves "State persistence and restoration" as a future
+  consideration. Until it is standardized, Pulse offers the snapshot through
+  its own namespace: `hostContext["pulse/node"] = { nodeId, snapshot }` on
+  initialize, saved through a Pulse bridge method (working name
+  `pulse/node/saveSnapshot`). Apps that ignore it still work; they only lose
+  per-instance view restore.
+- `read` and `action` map to MCP tools: server tools always, and app-registered
+  tools (the MCP Apps `tools` capability) only while the view is loaded. They
+  may be declared in `pulse/ui` by tool name; without a declaration, tools
+  annotated `readOnlyHint` map to `read` and other tools map to `action`.
+- `write` is host-only: it edits the instance binding (rebind server or tool,
+  change `path`). Plugins do not implement it.
+- Undo, history, duplicate, and templates cover the instance binding and the
+  snapshot. Undo for business data is the plugin's responsibility.
 
 ### Compatibility with OpenAI entrypoints
 
@@ -367,7 +386,8 @@ Goal: make software lego feel alive.
 ## Open Questions
 
 - How much should plugin `write` be allowed to mutate: only payload, or any
-  canvas node field?
+  canvas node field? Direction for MCP Apps nodes: plugins do not write; the
+  host `write` edits only the instance binding.
 - Should actions declare input/output schemas in manifest, or only in main code?
 - Should renderer plugins be MF2-only, or also support iframe/web-component
   renderers for stronger isolation? Direction: MCP Apps iframes for new
@@ -376,8 +396,10 @@ Goal: make software lego feel alive.
   Direction: external capabilities run as out-of-process MCP servers.
 - How should plugin capabilities map to MCP tools or future external protocols?
   Direction: explicit `pulse/ui` mapping, falling back to tool annotations.
-- Exact shape of the `pulse/node` host context and `pulse/node/update` method,
-  including validation, conflict handling, and restore after app restart.
+- Exact shape of the `pulse/node` host context and `pulse/node/saveSnapshot`,
+  including snapshot size limits and restore after app restart.
+- Whether the MF2 `payload` field is renamed or split once MCP Apps nodes store
+  an opaque snapshot instead.
 - How a node discovers which MCP server provides its tool when the same server
   is installed in more than one scope.
 
