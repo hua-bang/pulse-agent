@@ -14,9 +14,6 @@ import {
 } from "../canvas/store";
 import { ensureWelcomeWorkspaceSeeded } from "../canvas/welcome-workspace";
 import { setupFileManagerIpc } from "../files/manager";
-// MCP server disabled: canvas-cli is the preferred agent interface now.
-// import { startMCPServer } from "../runtime/mcp-server";
-// import { ensureMCPRegistered } from "../runtime/mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
 import {
   getCanvasAgentService,
@@ -354,10 +351,6 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         );
       }
     });
-    // MCP server disabled: canvas-cli is the preferred agent interface now.
-    // startMCPServer();
-    // void ensureMCPRegistered();
-
     const openWindow = () =>
       createWindow({
         preloadPath: paths.preloadPath,

@@ -275,6 +275,36 @@ Target directories (when run without `--dir`):
 - `~/.claude/skills/`
 - `~/.codex/skills/`
 
+### MCP Server (and the canvas MCP App)
+
+```bash
+pulse-canvas mcp                    # stdio MCP server for agent hosts
+pulse-canvas mcp --plugin-api 1     # as launched by the pulse-canvas agent plugin
+```
+
+Runs an MCP server over stdio (no ports). Most users get it through the
+[`pulse-canvas` agent plugin](../../plugins/pulse-canvas/README.md) rather than
+configuring it by hand.
+
+| Tool | Purpose |
+|------|---------|
+| `canvas_open` | Opens a workspace in the interactive canvas view (an MCP App at `ui://pulse-canvas/workspace.html`). Accepts `{}` for the active workspace; with none active, the view shows a picker. |
+| `canvas_list_workspaces` | Workspaces with names and the active flag |
+| `canvas_context` | Same payload as `pulse-canvas context --format json` |
+| `canvas_search` | Same matching as `node search` |
+| `canvas_read_nodes` | Full bodies for up to 20 node ids |
+| `canvas_apply` | Atomic batch of node/edge operations (same plan format as `pulse-canvas apply`) |
+
+`canvas_ui_snapshot` and `canvas_ui_version` are app-only (`_meta.ui.visibility: ["app"]`): the view uses them to render and to notice
+changes from the app, the CLI, or the agent. The view edits through `canvas_apply`, so every
+edit keeps the store's locking, SQLite revisions, and file-intent recovery. All MCP reads and writes
+are confined to the workspace directory (as with `--confine-to-workspace`).
+
+The view renders file, text, frame, group, mindmap, and shape nodes plus edges; you can drag, resize,
+edit, rename, create notes and frames, connect, and delete. Live nodes (terminal, agent, web, plugin)
+show as cards that point back to the app. It publishes the current workspace and selection to the model
+through `ui/update-model-context`.
+
 ## Programmatic API
 
 The `./core` subpath export provides store and node operations without the CLI layer. This package is CommonJS (`"type": "commonjs"`, built as `cjs` only); the `./core` export exposes a `require` condition:

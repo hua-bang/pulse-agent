@@ -45,7 +45,7 @@ src/main/
   files/              # manager, watcher, skill-installer
   generation/         # html-generator + ipc
   models/             # provider/model config, resolution, secret storage + IPC
-  runtime/            # control-server, mcp-server, mcp-registration
+  runtime/            # control-server, capabilities
   plugin-market/      # package readers, config + IPC, install/remove service
   settings/           # experimental-ipc,
                       # built-in-tools-config/-ipc, plugin-manifest-icons
@@ -227,9 +227,11 @@ storage, environment resolution, provider model discovery, and the
 
 ### `runtime/`
 
-Local runtime integration ownership: runtime control HTTP server, local MCP
-server, MCP registration. Keeps optional local service endpoints out of the
-Electron app shell.
+Local runtime integration ownership: the authenticated runtime control HTTP
+server and its capability registry. Keeps optional local service endpoints out
+of the Electron app shell. The app exposes no MCP server of its own: external
+agents use `pulse-canvas mcp` (stdio, owned by `packages/canvas-cli`), which
+the `plugins/pulse-canvas` agent plugin launches.
 
 ### `plugin-market/`
 

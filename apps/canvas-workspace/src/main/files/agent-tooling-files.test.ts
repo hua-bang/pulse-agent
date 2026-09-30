@@ -42,6 +42,23 @@ describe('native agent tooling integrity', () => {
     expect(await fs.readFile(binary, 'utf8')).toBe('valid binary');
   });
 
+  it('fingerprints the MCP App view so a view-only change redeploys the bundle', async () => {
+    const root = await fs.mkdtemp(join(tmpdir(), 'agent-tooling-mcp-app-'));
+    roots.push(root);
+    await fs.mkdir(join(root, 'skills'));
+    await fs.writeFile(join(root, 'index.cjs'), 'unchanged CLI');
+    const withoutView = await fingerprintCliTree(root);
+
+    await fs.writeFile(join(root, 'mcp-app.html'), '<html>v1</html>');
+    const withView = await fingerprintCliTree(root);
+    expect(withView).not.toBe(withoutView);
+    await fs.writeFile(join(root, BUNDLE_MARKER), JSON.stringify({ fingerprint: withView }));
+    expect(await isBundleCurrent(root, withView)).toBe(true);
+
+    await fs.writeFile(join(root, 'mcp-app.html'), '<html>v2</html>');
+    expect(await isBundleCurrent(root, withView)).toBe(false);
+  });
+
   it('detects damaged, missing and substituted ABI payloads with unchanged CLI code', async () => {
     const root = await fs.mkdtemp(join(tmpdir(), 'agent-tooling-native-'));
     roots.push(root);

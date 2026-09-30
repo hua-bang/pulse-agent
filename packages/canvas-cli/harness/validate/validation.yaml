@@ -4,6 +4,8 @@ pathRules:
   - name: default
     paths:
       - src/**
+      - mcp-app/**
+      - skills/**
       - package.json
       - tsconfig.json
       - tsup.config.ts
@@ -16,6 +18,21 @@ pathRules:
       - package.json
       - tsup.config.ts
       - scripts/**
+      - mcp-app/**
     required:
       - pnpm --filter @pulse-coder/canvas-cli exec vitest run scripts/prepare-native.test.mjs
       - pnpm --filter @pulse-coder/canvas-cli build
+
+  # The MCP App view only runs inside an MCP Apps host. The E2E tool hosts the
+  # built view in Chromium with the official AppBridge and verifies every edit
+  # on disk; it needs a browser, so it stays manual.
+  - name: mcp-app-view
+    paths:
+      - mcp-app/**
+      - src/mcp/**
+      - harness/tools/mcp-app-e2e/**
+    required:
+      - pnpm --filter @pulse-coder/canvas-cli exec vitest run mcp-app/src/view.test.ts src/mcp/__tests__/server.test.ts src/mcp/__tests__/plugin-package.test.ts
+      - pnpm --filter @pulse-coder/canvas-cli typecheck
+    manual:
+      - pnpm --filter @pulse-coder/canvas-cli build && node packages/canvas-cli/harness/tools/mcp-app-e2e/run.mjs

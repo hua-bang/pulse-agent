@@ -12,6 +12,16 @@ The current workspace ID is available via `$PULSE_CANVAS_WORKSPACE_ID` environme
 
 Whenever `$PULSE_CANVAS_WORKSPACE_ID` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run `pulse-canvas context --format json` and use that result alongside repository files.
 
+## Pulse Canvas MCP tools
+
+When the host exposes the Pulse Canvas MCP tools (the `pulse-canvas` agent plugin or `pulse-canvas mcp`), prefer them over shelling out:
+
+- `canvas_open` shows the canvas to the user in an interactive view (`{}` opens the active workspace). Use it when the user asks to open, see, or edit their canvas.
+- `canvas_context`, `canvas_search`, and `canvas_read_nodes` read; `canvas_apply` batches node and edge changes atomically.
+- The view shares the user's current selection as model context, including node ids, so "these nodes" refers to that selection.
+
+If `pulse-canvas` is not on `PATH`, the Pulse Canvas app installs it at `~/.pulse-coder/bin/pulse-canvas`.
+
 ## Core Commands
 
 ### Read workspace context (start here)

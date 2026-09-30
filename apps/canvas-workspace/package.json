@@ -80,6 +80,7 @@
         "to": "agent-tooling/canvas-cli",
         "filter": [
           "index.cjs",
+          "mcp-app.html",
           "skills/**/*"
         ]
       },

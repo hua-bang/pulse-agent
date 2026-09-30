@@ -36,7 +36,7 @@ describe('packaged agent tooling', () => {
       expect.objectContaining({
         from: '../../packages/canvas-cli/dist',
         to: 'agent-tooling/canvas-cli',
-        filter: ['index.cjs', 'skills/**/*'],
+        filter: ['index.cjs', 'mcp-app.html', 'skills/**/*'],
       }),
       expect.objectContaining({
         from: 'node_modules/.cache/pulse-sqlite/package-native',

@@ -62,6 +62,15 @@ pathRules:
     required:
       - node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 
+  # plugins/pulse-canvas packages canvas-cli's `pulse-canvas mcp` server and
+  # skills; its manifest/launcher/skill-drift guard lives in the CLI suite.
+  - name: pulse-canvas-agent-plugin
+    paths:
+      - plugins/pulse-canvas/**
+      - .agents/plugins/**
+    required:
+      - pnpm --filter @pulse-coder/canvas-cli exec vitest run src/mcp/__tests__/plugin-package.test.ts
+
 escalationRules:
   storagePublicApiChange:
     paths:

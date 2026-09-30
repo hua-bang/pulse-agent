@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pulse-canvas",
+  "version": "0.1.0",
+  "description": "Open, edit, and drive your local Pulse Canvas workspaces from your agent: an interactive canvas view plus canvas tools and skills.",
+  "homepage": "https://github.com/hua-bang/pulse-agent/tree/main/plugins/pulse-canvas",
+  "repository": "https://github.com/hua-bang/pulse-agent",
+  "license": "MIT",
+  "keywords": ["canvas", "whiteboard", "mcp", "mcp-apps", "pulse-canvas"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Pulse Canvas",
+        "composerIcon": "./assets/icon.png"
+      }
+    }
+  }
+}

@@ -322,6 +322,11 @@ Not yet built: persisted `pulse/node` snapshots (`saveSnapshot`), deep links,
 file entrypoints, and chat-scoped or binary-image model context. Facts live in
 `harness/knowledge/plugin-market.md` (Canvas MCP App nodes).
 
+The reverse direction also exists: Pulse Canvas is itself an MCP App provider.
+`pulse-canvas mcp` serves a canvas view with a `global` entrypoint so agent
+hosts such as Codex can open and edit a workspace, packaged as the
+`plugins/pulse-canvas` agent plugin (owner: `packages/canvas-cli/AGENTS.md`).
+
 ### Constraints
 
 - Agent `read` must work with the node's UI closed, so it goes through MCP

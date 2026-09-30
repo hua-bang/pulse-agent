@@ -17,6 +17,12 @@ command families are different: they require a running `apps/canvas-workspace` i
 and call its loopback runtime-control server using the bearer secret advertised
 in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`.
 
+`pulse-canvas mcp` is the same bridge as a stdio MCP server: model tools over
+the core APIs plus an MCP App view (`mcp-app/`, bundled into
+`dist/mcp-app.html`) that lets agent hosts such as Codex open and edit a
+canvas. The `plugins/pulse-canvas` agent plugin launches it through the
+app-installed CLI; the app itself exposes no MCP server.
+
 Keep this package a thin bridge over storage contracts and runtime endpoints. The
 Electron UI, active PTY lifecycle, storage migration, runtime server, and
 runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
@@ -43,11 +49,15 @@ runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
 | Store-concurrency incident + lock rationale | `harness/knowledge/storage-concurrency.md` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
 | Bundled agent skills | `skills/`, `src/commands/install-skills.ts` |
-| Tests | `src/core/__tests__/`, `src/commands/__tests__/` |
+| MCP server, tools, view snapshot/wire types | `src/mcp/`, `src/commands/mcp.ts` |
+| MCP App canvas view (browser bundle) and its manual E2E | `mcp-app/src/`, `scripts/build-mcp-app.mjs`, `harness/tools/mcp-app-e2e/run.mjs` |
+| Agent plugin package and its drift guard | `../../plugins/pulse-canvas/README.md`, `src/mcp/__tests__/plugin-package.test.ts` |
+| Tests | `src/core/__tests__/`, `src/commands/__tests__/`, `src/mcp/__tests__/`, `mcp-app/src/*.test.ts` |
 | Local validation | `harness/validate/validation.yaml` |
 
 Package-local documentation: `harness/knowledge/storage-concurrency.md` (the
-store-concurrency incident behind the locking constraints) and
+store-concurrency incident behind the locking constraints),
+`harness/tools/mcp-app-e2e/` (manual browser check of the MCP App view), and
 `harness/validate/validation.yaml`. Beyond those, use the root harness files
 above, then the package source/tests.
 
@@ -152,6 +162,24 @@ above, then the package source/tests.
   Runtime-mediated (`agent`/`team`/`runtime`) and `restore` pass
   `{ requireReadableCanvas: false }` since the workspace lives in the app or is
   the thing being recovered.
+- `pulse-canvas mcp` speaks stdio only (no ports) and writes nothing but
+  protocol to stdout. Each tool call runs in its own `withStorageSession`,
+  because the app may activate SQLite between calls. Tools always confine
+  file reads/writes to the workspace directory, and all mutations go through
+  `applyPlan`; never add a whole-canvas save path for the view.
+- Keep model-visible MCP tools few and prompt-sized; bulk view reads use
+  app-only tools (`_meta.ui.visibility: ["app"]`). `canvas_open` must accept
+  `{}` (OpenAI `global` entrypoint rule) and fall back to a workspace picker.
+  Tool names, `_meta`, and structured shapes are a contract with the view and
+  hosts: change `src/mcp/view-types.ts` and the view together.
+- The view is escape-first: node text reaches the DOM only through
+  `textContent` or `mcp-app/src/markdown.ts`, links open via the host
+  (`ui/open-link`), and its resource CSP declares no network domains. Keep it
+  free of Node imports; it typechecks under `mcp-app/tsconfig.json`.
+- `plugins/pulse-canvas/skills` is generated from `skills/`
+  (`sync:plugin-skills` after a build). Bump `PLUGIN_API` in the plugin
+  launcher together with `MCP_PLUGIN_API_VERSION` when a plugin release needs
+  newer server behavior; older servers answer with an upgrade-only tool.
 - Changes to command payloads, core exports, node/edge schemas, runtime routes,
   or storage shape are contract changes; use local validation plus the root
   impact overlay when hosts are affected.
@@ -197,3 +225,6 @@ with "No active canvas-workspace runtime found."
 - `src/core/runtime-capabilities.ts`: authenticated capability discovery/call
   client for external agent hosts.
 - `skills/`: bundled Pulse Canvas skills copied by `install-skills`.
+- `src/mcp/server.ts`: `pulse-canvas mcp` server, plugin API gate; tools in
+  `src/mcp/tools.ts`, view projection in `src/mcp/snapshot.ts`.
+- `mcp-app/src/main.ts`: MCP App view entry (render, interactions, sync).

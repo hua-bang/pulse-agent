@@ -1,0 +1,16 @@
+{
+  "name": "pulse-agent",
+  "plugins": [
+    {
+      "name": "pulse-canvas",
+      "source": {
+        "source": "local",
+        "path": "./plugins/pulse-canvas"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

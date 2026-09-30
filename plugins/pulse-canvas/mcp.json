@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "pulse-canvas": {
+      "type": "stdio",
+      "command": "./bin/pulse-canvas-mcp",
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

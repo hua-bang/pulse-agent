@@ -12,7 +12,22 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   platform: 'node',
-  noExternal: ['commander', '@pulse-coder/storage', 'better-sqlite3', 'bindings', 'file-uri-to-path'],
+  // The app ships dist/index.cjs as a standalone executable: bundle every
+  // JavaScript dependency (the MCP SDK pulls in zod, ajv, and friends).
+  noExternal: [
+    'commander',
+    '@pulse-coder/storage',
+    'better-sqlite3',
+    'bindings',
+    'file-uri-to-path',
+    /^@modelcontextprotocol\/sdk(\/|$)/,
+    /^zod(\/|$)/,
+    /^ajv(-formats)?(\/|$)/,
+    'fast-deep-equal',
+    'fast-uri',
+    'json-schema-traverse',
+    'require-from-string',
+  ],
   banner: { js: '#!/usr/bin/env node' },
   outExtension: () => ({ js: '.cjs' }),
 });

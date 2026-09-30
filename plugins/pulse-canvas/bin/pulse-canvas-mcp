@@ -1,0 +1,26 @@
+#!/bin/sh
+# Start the Pulse Canvas MCP server shipped with the Pulse Canvas app.
+#
+# The plugin carries no server code: the app installs a versioned CLI plus a
+# no-system-Node wrapper at ~/.pulse-coder/bin/pulse-canvas, and this
+# launcher execs it. stdout is the MCP stream, so diagnostics go to stderr.
+set -eu
+
+# Contract version with `pulse-canvas mcp`; must match MCP_PLUGIN_API_VERSION
+# in packages/canvas-cli/src/mcp/server.ts when a release depends on it.
+PLUGIN_API=1
+
+if [ -n "${PULSE_CANVAS_BIN:-}" ]; then
+  bin=$PULSE_CANVAS_BIN
+elif [ -x "${HOME:-}/.pulse-coder/bin/pulse-canvas" ]; then
+  bin="$HOME/.pulse-coder/bin/pulse-canvas"
+elif command -v pulse-canvas >/dev/null 2>&1; then
+  bin=$(command -v pulse-canvas)
+else
+  echo "pulse-canvas plugin: the Pulse Canvas CLI was not found." >&2
+  echo "Install and open the Pulse Canvas app once (it installs ~/.pulse-coder/bin/pulse-canvas)," >&2
+  echo "or set PULSE_CANVAS_BIN to a pulse-canvas executable, then restart your agent." >&2
+  exit 127
+fi
+
+exec "$bin" mcp --plugin-api "$PLUGIN_API"
