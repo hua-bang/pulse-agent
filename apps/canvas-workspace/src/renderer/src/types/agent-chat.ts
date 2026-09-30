@@ -23,6 +23,7 @@ import type {
 import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
 import type {
   McpAppEntrypointListing,
+  McpAppNodeContextApi,
   McpAppEntrypointOpenResult,
   McpAppToolApprovalResponse,
   McpAppToolCallResponse,
@@ -100,7 +101,7 @@ export interface RelayProgress {
 }
 
 export interface AgentApi {
-  mcpApps: {
+  mcpApps: McpAppNodeContextApi & {
     listEntrypoints: (
       scope: AgentScope,
     ) => Promise<{ ok: boolean; value?: McpAppEntrypointListing[]; error?: string }>;

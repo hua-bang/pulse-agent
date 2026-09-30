@@ -27,6 +27,9 @@ describe('MCP App node capabilities', () => {
 
     expect(result.content).toContain('mcp_bits_bits-and-bolts_*');
     expect(result.binding).toMatchObject({ serverName: 'bits.bits-and-bolts', kind: 'global' });
+    expect(result.content).toContain('current visible-ui/model-context first');
+    expect(result.content).toContain('The entrypoint "cad.library" opens an App');
+    expect(result.content).toContain('do not call it merely to read or summarize this existing node');
     expect(capabilities.write).toBeUndefined();
     expect(capabilities.actions).toBeUndefined();
   });

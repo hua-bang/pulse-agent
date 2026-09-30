@@ -8,6 +8,7 @@ import {
 } from '../../shared/mcp-apps';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
 import { listMcpAppEntrypoints } from './mcp-app-entrypoints';
+import { setupMcpAppNodeContextIpc } from './mcp-app-node-context-ipc';
 
 const MAX_CONCURRENT_REQUESTS = 8;
 const MAX_QUEUED_REQUESTS = 64;
@@ -168,6 +169,7 @@ function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
 }
 
 export function setupMcpAppIpc(service: CanvasAgentService): void {
+  setupMcpAppNodeContextIpc();
   setupMcpAppEntrypointIpc(service);
   ipcMain.handle(
     'canvas-agent:mcp-app-list-resources',

@@ -24,6 +24,11 @@ export const McpAppNodeView = ({ node, workspaceId }: PluginNodeViewProps) => {
     [workspaceId],
   );
   const hostContextExtras = useMemo(() => ({ 'pulse/node': { nodeId: node.id } }), [node.id]);
+  const nodeContextTarget = useMemo(() => (
+    workspaceId && serverName && toolName && resourceUri
+      ? { workspaceId, nodeId: node.id, serverName, toolName, resourceUri }
+      : undefined
+  ), [workspaceId, node.id, serverName, toolName, resourceUri]);
 
   useEffect(() => {
     if (!serverName || !toolName) return;
@@ -78,6 +83,7 @@ export const McpAppNodeView = ({ node, workspaceId }: PluginNodeViewProps) => {
         args={{}}
         scope={scope}
         hostContextExtras={hostContextExtras}
+        nodeContextTarget={nodeContextTarget}
       />
     </div>
   );

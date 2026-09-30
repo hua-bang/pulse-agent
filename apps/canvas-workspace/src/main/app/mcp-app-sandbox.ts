@@ -1,3 +1,5 @@
+import { MCP_APP_VIEW_CONTEXT_SCRIPT } from './mcp-app-view-context';
+
 const DEFAULT_CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
@@ -23,12 +25,13 @@ const SANDBOX_HTML = `<!doctype html>
   document.body.appendChild(inner);
   const proxyReady = 'ui/notifications/sandbox-proxy-ready';
   const resourceReady = 'ui/notifications/sandbox-resource-ready';
+  const viewContextScript = '<script>' + ${JSON.stringify(MCP_APP_VIEW_CONTEXT_SCRIPT)} + '<' + '/script>';
   const hostControls = "<script data-pulse-mcp-app-host-controls>(()=>{const installStorage=name=>{try{window[name].length;return}catch{}const data=new Map(),storage={get length(){return data.size},key:index=>[...data.keys()][index]??null,getItem:key=>data.get(String(key))??null,setItem:(key,value)=>data.set(String(key),String(value)),removeItem:key=>data.delete(String(key)),clear:()=>data.clear()};Object.defineProperty(window,name,{configurable:true,value:storage})};installStorage('localStorage');installStorage('sessionStorage');const send=action=>window.parent.postMessage({type:'pulse-mcp-app-host-event',action},'*');window.addEventListener('keydown',event=>{if(event.key==='Escape')send('escape')},true);window.addEventListener('pointerdown',()=>send('activate'),true);window.addEventListener('focusin',()=>send('activate'),true)})();<\\/script>";
   const notifyReady = () => window.parent.postMessage({ jsonrpc: '2.0', method: proxyReady, params: {} }, '*');
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {
       if (event.data?.method === resourceReady) {
-        if (typeof event.data.params?.html === 'string') inner.srcdoc = event.data.params.html + hostControls;
+        if (typeof event.data.params?.html === 'string') inner.srcdoc = event.data.params.html + hostControls + viewContextScript;
       } else if (event.data?.method === 'pulse/sandbox-probe') {
         notifyReady();
       } else {

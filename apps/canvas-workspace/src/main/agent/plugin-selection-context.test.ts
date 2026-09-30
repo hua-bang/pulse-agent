@@ -9,6 +9,8 @@ describe('formatSelectedPluginsBlock', () => {
     expect(block).toContain('**Notion** (plugin id: `notion`)');
     expect(block).toContain('not as an instruction to call a tool unnecessarily');
     expect(block).toContain('prefer its skills or MCP tools');
+    expect(block).toContain('their content remains the primary source');
+    expect(block).toContain('does not require reopening an App');
   });
 
   it('does not add plugin guidance when the user did not select one', () => {

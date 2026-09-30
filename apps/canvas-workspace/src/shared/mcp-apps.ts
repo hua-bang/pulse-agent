@@ -1,6 +1,24 @@
 export const MCP_APP_TOOL_ARGUMENT_LIMIT = 16 * 1024 * 1024;
 export const MCP_APP_TOOL_ARGUMENT_PREVIEW_LIMIT = 4_000;
 
+export type McpAppContextSource = 'tool-result' | 'model-context' | 'visible-ui';
+
+export interface McpAppNodeContextTarget {
+  workspaceId: string;
+  nodeId: string;
+  serverName: string;
+  toolName: string;
+  resourceUri: string;
+}
+
+export interface McpAppNodeContextApi {
+  openNodeContext(target: McpAppNodeContextTarget): Promise<{
+    ok: boolean; token?: string; error?: string; code?: 'node-not-persisted';
+  }>;
+  updateNodeContext(token: string, source: McpAppContextSource, context: unknown): Promise<{ ok: boolean; error?: string }>;
+  closeNodeContext(token: string): Promise<{ ok: boolean; error?: string }>;
+}
+
 export type McpAppToolApprovalDecision = 'once' | 'session' | 'cancel';
 
 export interface McpAppToolApprovalRequest {

@@ -3,7 +3,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { buildMcpAppCsp } from '..';
+import { buildMcpAppCsp, McpAppFrame } from '..';
 import { McpAppsProvider } from '../../McpAppsProvider';
 import { McpAppFrames } from '../../../../../modules/chat/components/ChatMessage/McpAppFrames';
 import { RightDockProvider, useDockContext, useRightDockState } from '../../../../dock/internal/RightDock/context';
@@ -34,6 +34,50 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('buildMcpAppCsp', () => {
+  it('publishes node UI and model-context updates and closes the mount lease', async () => {
+    const updateNodeContext = vi.fn().mockResolvedValue({ ok: true });
+    const closeNodeContext = vi.fn().mockResolvedValue({ ok: true });
+    const openNodeContext = vi.fn().mockResolvedValue({ ok: true, token: 'node-lease' });
+    (window as any).canvasWorkspace = { agent: { mcpApps: {
+      openNodeContext, updateNodeContext, closeNodeContext,
+      readResource: async () => ({ ok: true, value: { contents: [{
+        mimeType: 'text/html;profile=mcp-app', text: '<main>Parts Library</main>',
+      }] } }),
+    } } };
+    const target = { workspaceId: 'ws-1', nodeId: 'n1', serverName: 'bits', toolName: 'library', resourceUri: 'ui://bits/app' };
+    const app = { serverName: 'bits', toolName: 'library', resourceUri: 'ui://bits/app', result: { structuredContent: { parts: ['keycap'] } } };
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(<I18nProvider><RightDockProvider>
+        <McpAppFrame embedded instanceId="n1" app={app} scope={{ kind: 'workspace', workspaceId: 'ws-1' }} nodeContextTarget={target} />
+      </RightDockProvider></I18nProvider>);
+    });
+    expect(openNodeContext).toHaveBeenCalledWith(target);
+    expect(updateNodeContext).toHaveBeenCalledWith('node-lease', 'tool-result', app.result);
+    const frame = host.querySelector('iframe')!;
+    await act(async () => { frame.dispatchEvent(new Event('load')); });
+    const context = { structuredContent: { part: 'keycap', selection: 'top' } };
+    await act(async () => { await bridgeState.current.onupdatemodelcontext(context); });
+    expect(updateNodeContext).toHaveBeenCalledWith('node-lease', 'model-context', context);
+    const visible = { content: [{ type: 'text', text: 'Parts Library: keycap' }] };
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        source: frame.contentWindow!, data: { type: 'pulse-mcp-app-host-event', action: 'context', context: visible },
+      }));
+    });
+    expect(updateNodeContext).toHaveBeenCalledWith('node-lease', 'visible-ui', visible);
+    const count = updateNodeContext.mock.calls.length;
+    window.dispatchEvent(new MessageEvent('message', {
+      source: null, data: { type: 'pulse-mcp-app-host-event', action: 'context', context: visible },
+    }));
+    expect(updateNodeContext).toHaveBeenCalledTimes(count);
+    await act(async () => { root.unmount(); });
+    expect(closeNodeContext).toHaveBeenCalledWith('node-lease');
+    host.remove();
+  });
+
   it('denies undeclared network and frame access by default', () => {
     const csp = buildMcpAppCsp();
     expect(csp).toContain('connect-src data:');

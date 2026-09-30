@@ -315,8 +315,11 @@ The first slice is implemented: the engine parses entrypoints, the canvas
 right-click menu lists them, and each node runs the MCP App in place via the
 chat `McpAppFrame` host. Verified in the real app with `bits-and-bolts`
 configured in `mcp.json`: create, two instances, and restore after restart.
-Not yet built: `pulse/node` snapshots (`saveSnapshot`), deep links, file
-entrypoints, and `ui/update-model-context` into Agent context. Facts live in
+Mounted nodes now expose bounded, volatile Agent view context: opening tool
+data, visible UI text, and `ui/update-model-context` text/structured updates.
+Explicit node mentions focus summaries on that node without reopening its App.
+Not yet built: persisted `pulse/node` snapshots (`saveSnapshot`), deep links,
+file entrypoints, and chat-scoped or binary-image model context. Facts live in
 `harness/knowledge/plugin-market.md` (Canvas MCP App nodes).
 
 ### Constraints
