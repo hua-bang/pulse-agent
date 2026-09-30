@@ -2,6 +2,8 @@ import { useLayoutEffect, type RefObject } from 'react';
 import { mcpAppDockHostElementId } from '../../../../shared/dock/dock-tab-ids';
 type McpAppDisplayMode = 'inline' | 'fullscreen';
 interface Options {
+  /** False when the frame is laid out in place (canvas nodes), not portaled. */
+  enabled?: boolean;
   displayMode: McpAppDisplayMode;
   dockHost: HTMLElement | null;
   dockTabVisible: boolean;
@@ -12,6 +14,7 @@ interface Options {
   surfaceRef: RefObject<HTMLDivElement>;
 }
 export const useMcpAppSurfacePlacement = ({
+  enabled = true,
   displayMode,
   dockHost,
   dockTabVisible,
@@ -23,7 +26,7 @@ export const useMcpAppSurfacePlacement = ({
 }: Options) => {
   useLayoutEffect(() => {
     const surface = surfaceRef.current;
-    if (!surface) return;
+    if (!enabled || !surface) return;
     surface.dataset.displayMode = displayMode;
     const resolveTarget = (): HTMLElement | null => displayMode === 'fullscreen'
       ? document.getElementById(mcpAppDockHostElementId(instanceId)) ?? dockHost
@@ -175,5 +178,5 @@ export const useMcpAppSurfacePlacement = ({
       window.removeEventListener('resize', finishTargetTransition);
       document.removeEventListener('scroll', placeOverTarget, true);
     };
-  }, [displayMode, dockHost, dockTabVisible, height, inlineHostRef, instanceId, resourceKey, surfaceRef]);
+  }, [enabled, displayMode, dockHost, dockTabVisible, height, inlineHostRef, instanceId, resourceKey, surfaceRef]);
 };

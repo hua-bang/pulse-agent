@@ -301,10 +301,23 @@ context for the owning node or chat session.
   previews for offscreen or unfocused nodes is a later optimization, driven by
   measured cost rather than decided up front.
 - Permissions:
-  - Tool calls the user triggers from a node view are allowed without a prompt.
+  - Opening a node's entrypoint (the `{}` call) needs no prompt. Calls the app
+    makes from inside its view keep the existing first-call approval (once or
+    for the session), because the host cannot tell a user click inside the
+    iframe from an app-initiated call.
   - Agent calls to non-read-only `action` tools go through the existing
     approval flow.
   - A view's network access is capped at the CSP its UI resource declares.
+
+### Implementation status
+
+The first slice is implemented: the engine parses entrypoints, the canvas
+right-click menu lists them, and each node runs the MCP App in place via the
+chat `McpAppFrame` host. Verified in the real app with `bits-and-bolts`
+configured in `mcp.json`: create, two instances, and restore after restart.
+Not yet built: `pulse/node` snapshots (`saveSnapshot`), deep links, file
+entrypoints, and `ui/update-model-context` into Agent context. Facts live in
+`harness/knowledge/plugin-market.md` (Canvas MCP App nodes).
 
 ### Constraints
 

@@ -57,3 +57,28 @@ export function serializeMcpAppToolArguments(value: unknown): SerializedMcpAppTo
     truncated,
   };
 }
+
+/**
+ * Static entrypoints Pulse can open without a model tool call. `node` comes
+ * from `_meta["pulse/ui"]`; `global` and `thread` are OpenAI entrypoints that
+ * Pulse opens as canvas nodes without per-instance state.
+ */
+export type McpAppEntrypointKind = 'node' | 'global' | 'thread';
+
+export interface McpAppEntrypointListing {
+  serverName: string;
+  toolName: string;
+  resourceUri: string;
+  title: string;
+  kind: McpAppEntrypointKind;
+  /** Pulse node type declared by a `node` entrypoint. */
+  nodeType?: string;
+  defaultSize?: { width: number; height: number };
+}
+
+export interface McpAppEntrypointOpenResult {
+  ok: boolean;
+  /** Full MCP tools/call result envelope for the `{}` entrypoint call. */
+  value?: unknown;
+  error?: string;
+}

@@ -4,6 +4,10 @@ import { subscribe } from "./ipc";
 
 export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   mcpApps: {
+    listEntrypoints: (scope) =>
+      ipcRenderer.invoke('canvas-agent:mcp-app-list-entrypoints', { scope }),
+    openEntrypoint: (scope, serverName, toolName) =>
+      ipcRenderer.invoke('canvas-agent:mcp-app-open-entrypoint', { scope, serverName, toolName }),
     listResources: (scope, serverName, cursor) =>
       ipcRenderer.invoke('canvas-agent:mcp-app-list-resources', { scope, serverName, cursor }),
     readResource: (scope, serverName, uri) =>

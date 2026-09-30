@@ -30,7 +30,9 @@ export interface CanvasOverlaysProps {
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
-  onCreateNode: (type: CreatableCanvasNodeType) => void;
+  onCreateNode: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
+  /** Canvas workspace id; scopes MCP App entrypoints in the create menu. */
+  workspaceId?: string;
   onCreateDemo?: () => void;
   onCreateAgentTeam?: () => void;
   onCloseContextMenu: () => void;

@@ -7,6 +7,7 @@ import {
   type McpAppToolApprovalResponse,
 } from '../../shared/mcp-apps';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
+import { listMcpAppEntrypoints } from './mcp-app-entrypoints';
 
 const MAX_CONCURRENT_REQUESTS = 8;
 const MAX_QUEUED_REQUESTS = 64;
@@ -112,7 +113,62 @@ async function boundedRequest<T>(event: IpcMainInvokeEvent, run: () => Promise<T
   }
 }
 
+async function executeWithTimeout(
+  agent: Awaited<ReturnType<typeof managerFor>>['agent'],
+  registeredName: string,
+  args: unknown,
+): Promise<unknown> {
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), TOOL_TIMEOUT_MS);
+  try {
+    return await agent.executeMcpAppTool(registeredName, args, abortController.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
+  ipcMain.handle('canvas-agent:mcp-app-list-entrypoints', async (event, payload: AgentScopeRef) => {
+    try {
+      return await boundedRequest(event, async () => {
+        const { manager } = await managerFor(service, resolveAgentScope(payload ?? {}));
+        return { ok: true, value: listMcpAppEntrypoints(manager.listToolApps()) };
+      });
+    } catch (error) {
+      return errorResult(error);
+    }
+  });
+
+  // Opening a declared entrypoint is a user action in host UI, not an
+  // app-initiated call, so it runs without the in-app approval prompt. Only
+  // tools that declare a supported entrypoint are callable, and only with `{}`.
+  ipcMain.handle(
+    'canvas-agent:mcp-app-open-entrypoint',
+    async (event, payload: AgentScopeRef & { serverName?: string; toolName?: string }) => {
+      const serverName = payload?.serverName?.trim();
+      const toolName = payload?.toolName?.trim();
+      if (!serverName || !toolName || !validMcpName(serverName) || !validMcpName(toolName)) {
+        return { ok: false, error: 'valid serverName and toolName are required' };
+      }
+      try {
+        return await boundedRequest(event, async () => {
+          const { agent, manager } = await managerFor(service, resolveAgentScope(payload));
+          const registeredName = manager.getRegisteredToolName(serverName, toolName);
+          const app = registeredName ? manager.getToolApp(registeredName) : undefined;
+          if (!registeredName || !app || listMcpAppEntrypoints([app]).length === 0) {
+            throw new Error('MCP App entrypoint is not available');
+          }
+          return { ok: true, value: await executeWithTimeout(agent, registeredName, {}) };
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+}
+
 export function setupMcpAppIpc(service: CanvasAgentService): void {
+  setupMcpAppEntrypointIpc(service);
   ipcMain.handle(
     'canvas-agent:mcp-app-list-resources',
     async (event, payload: AgentScopeRef & { serverName?: string; cursor?: string }) => {
@@ -220,20 +276,10 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
           const { agent, manager } = await managerFor(service, scope);
           const registeredName = manager.getRegisteredToolName(serverName, toolName);
           if (!registeredName) throw new Error('Unknown or disabled MCP App tool');
-          const abortController = new AbortController();
-          const timeout = setTimeout(() => abortController.abort(), TOOL_TIMEOUT_MS);
-          try {
-            return {
-              ok: true,
-              value: await agent.executeMcpAppTool(
-                registeredName,
-                payload.arguments ?? {},
-                abortController.signal,
-              ),
-            };
-          } finally {
-            clearTimeout(timeout);
-          }
+          return {
+            ok: true,
+            value: await executeWithTimeout(agent, registeredName, payload.arguments ?? {}),
+          };
         });
       } catch (error) {
         return errorResult(error);

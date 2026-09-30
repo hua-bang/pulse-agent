@@ -153,7 +153,7 @@ export const useCanvasContextMenu = ({
   );
 
   const handleCreateNode = useCallback(
-    (type: CreatableCanvasNodeType) => {
+    (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => {
       if (!contextMenu) return;
       // Right-click drop point becomes the new node's top-left so the
       // node grows down-right from the cursor — matches typical
@@ -163,11 +163,12 @@ export const useCanvasContextMenu = ({
         contextMenu.canvasX,
         contextMenu.canvasY,
       );
-      const node = addNode(type, slot.x, slot.y);
+      const node = addNode(type, slot.x, slot.y, options);
       finalizeAddedNode(
         node,
         type,
         slot.cascaded ? t('canvas.nodeAddedOffset') : t('canvas.nodeAddedAtCursor'),
+        options?.label,
       );
       setContextMenu(null);
     },

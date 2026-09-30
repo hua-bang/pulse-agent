@@ -24,12 +24,21 @@ export const useViewportClampedPosition = <T extends HTMLElement>(
       setPos({ left: x, top: y });
       return;
     }
-    const maxLeft = window.innerWidth - el.offsetWidth - VIEWPORT_MARGIN_PX;
-    const maxTop = window.innerHeight - el.offsetHeight - VIEWPORT_MARGIN_PX;
-    setPos({
-      left: Math.max(VIEWPORT_MARGIN_PX, Math.min(x, maxLeft)),
-      top: Math.max(VIEWPORT_MARGIN_PX, Math.min(y, maxTop)),
-    });
+    const clamp = () => {
+      const maxLeft = window.innerWidth - el.offsetWidth - VIEWPORT_MARGIN_PX;
+      const maxTop = window.innerHeight - el.offsetHeight - VIEWPORT_MARGIN_PX;
+      setPos({
+        left: Math.max(VIEWPORT_MARGIN_PX, Math.min(x, maxLeft)),
+        top: Math.max(VIEWPORT_MARGIN_PX, Math.min(y, maxTop)),
+      });
+    };
+    clamp();
+    // Menus may grow after opening (e.g. rows loaded asynchronously); clamp
+    // again so the added rows are not pushed past the viewport edge.
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(clamp);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [x, y]);
 
   return { ref, pos };

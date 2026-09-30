@@ -224,6 +224,7 @@ export const CanvasRootView = ({
         referenceDrawerOpen={referenceDrawerOpen}
         onReferenceToggle={onReferenceToggle}
         onCreateNode={ctxMenu.handleCreateNode}
+        workspaceId={canvasId}
         onCreateDemo={handleCreateDemoCanvas}
         onCreateAgentTeam={handleCreateAgentTeam}
         onCloseContextMenu={ctxMenu.closeContextMenu}

@@ -108,6 +108,57 @@ afterEach(async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+describe('createMcpPlugin MCP App entrypoints', () => {
+  it('parses namespaced entrypoints and titles for app tools', async () => {
+    const cfgPath = await writeConfig({
+      cad: { transport: 'http', url: 'https://cad.example/mcp' },
+    });
+    serverBehaviour['https://cad.example/mcp'] = {
+      tools: {
+        library: {
+          title: 'Parts Library',
+          _meta: {
+            ui: { resourceUri: 'ui://cad/app' },
+            'openai/ui': { entrypoints: [{ type: 'global', quickAction: { title: 'Ref' } }, { bad: true }] },
+            'pulse/ui': { entrypoints: [{ type: 'node', nodeType: 'cad.library' }] },
+            'openai/iconStyle': 'monochrome',
+          },
+        } as any,
+        tray: {
+          annotations: { title: 'Tray' },
+          _meta: { ui: { resourceUri: 'ui://cad/app' } },
+        } as any,
+      },
+    };
+
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, services } = makeContext();
+    await plugin.initialize(ctx);
+
+    const apps = services['mcp:__apps__'] as MCPAppsManager;
+    expect(apps.listToolApps()).toEqual([
+      {
+        serverName: 'cad',
+        toolName: 'library',
+        registeredToolName: 'mcp_cad_library',
+        resourceUri: 'ui://cad/app',
+        title: 'Parts Library',
+        entrypoints: [
+          { namespace: 'openai/ui', type: 'global', options: { quickAction: { title: 'Ref' } } },
+          { namespace: 'pulse/ui', type: 'node', options: { nodeType: 'cad.library' } },
+        ],
+      },
+      {
+        serverName: 'cad',
+        toolName: 'tray',
+        registeredToolName: 'mcp_cad_tray',
+        resourceUri: 'ui://cad/app',
+        title: 'Tray',
+      },
+    ]);
+  });
+});
+
 describe('createMcpPlugin disabledTools', () => {
   it('registers provider-safe tool names when an MCP server name contains punctuation', async () => {
     const cfgPath = await writeConfig({

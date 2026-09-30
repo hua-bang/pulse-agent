@@ -325,6 +325,8 @@ export interface MCPClientManager {
 export interface MCPAppsManager {
   /** Resolve an engine-registered tool to its optional MCP Apps UI. */
   getToolApp(registeredToolName: string): MCPAppToolDescriptor | undefined;
+  /** Every loaded MCP App tool, including its user-openable entrypoints. */
+  listToolApps(): MCPAppToolDescriptor[];
   getRegisteredToolName(serverName: string, toolName: string): string | undefined;
   getToolResult(toolCallId: string): unknown | undefined;
   captureToolResult(registeredToolName: string, toolCallId: string, result: unknown): void;
@@ -338,6 +340,23 @@ export interface MCPAppToolDescriptor {
   toolName: string;
   registeredToolName: string;
   resourceUri: string;
+  /** MCP tool title, falling back to `annotations.title`. */
+  title?: string;
+  /** Static entrypoints declared under `_meta["<namespace>/ui"].entrypoints`. */
+  entrypoints?: MCPAppEntrypoint[];
+}
+
+/**
+ * A static entrypoint that lets a user open an MCP App without a model tool
+ * call, e.g. OpenAI's `{ type: "global" }`. The engine only parses the shape;
+ * hosts decide which namespaces and types they support.
+ */
+export interface MCPAppEntrypoint {
+  /** `_meta` key that declared it, such as `openai/ui` or `pulse/ui`. */
+  namespace: string;
+  type: string;
+  /** Remaining JSON fields of the declaration, interpreted by the host. */
+  options: Record<string, unknown>;
 }
 
 interface MCPAppServerRuntime {
@@ -394,6 +413,39 @@ function toolResourceUri(tool: unknown): string | undefined {
   const candidate = nested ?? record['ui/resourceUri'] ?? record['openai/outputTemplate'];
   return typeof candidate === 'string' && candidate.startsWith('ui://')
     ? candidate
+    : undefined;
+}
+
+const MAX_ENTRYPOINTS_PER_TOOL = 8;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function toolEntrypoints(tool: unknown): MCPAppEntrypoint[] {
+  const meta = isRecord(tool) ? tool._meta : undefined;
+  if (!isRecord(meta)) return [];
+  const entrypoints: MCPAppEntrypoint[] = [];
+  for (const [namespace, value] of Object.entries(meta)) {
+    if (!/^[a-z0-9.-]+\/ui$/.test(namespace) || !isRecord(value)) continue;
+    const declared = value.entrypoints;
+    if (!Array.isArray(declared)) continue;
+    for (const entry of declared) {
+      if (!isRecord(entry) || typeof entry.type !== 'string' || !entry.type) continue;
+      const { type, ...options } = entry;
+      entrypoints.push({ namespace, type, options });
+      if (entrypoints.length >= MAX_ENTRYPOINTS_PER_TOOL) return entrypoints;
+    }
+  }
+  return entrypoints;
+}
+
+function toolTitle(tool: unknown): string | undefined {
+  if (!isRecord(tool)) return undefined;
+  if (typeof tool.title === 'string' && tool.title) return tool.title;
+  const annotations = tool.annotations;
+  return isRecord(annotations) && typeof annotations.title === 'string' && annotations.title
+    ? annotations.title
     : undefined;
 }
 
@@ -506,6 +558,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
       };
       const appsManager: MCPAppsManager = {
         getToolApp: (registeredToolName) => appTools[registeredToolName],
+        listToolApps: () => Object.values(appTools),
         getRegisteredToolName: (serverName, toolName) => registeredToolNames[serverName]?.[toolName],
         getToolResult: (toolCallId) => appResults.get(toolCallId),
         captureToolResult: (registeredToolName, toolCallId, result) => {
@@ -655,11 +708,15 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
             ? { ...(tool as any), defer_loading: true }
             : (tool as any);
           if (resourceUri) {
+            const title = toolTitle(tool);
+            const entrypoints = toolEntrypoints(tool);
             appTools[registeredName] = {
               serverName,
               toolName,
               registeredToolName: registeredName,
               resourceUri,
+              ...(title ? { title } : {}),
+              ...(entrypoints.length ? { entrypoints } : {}),
             };
           }
         }

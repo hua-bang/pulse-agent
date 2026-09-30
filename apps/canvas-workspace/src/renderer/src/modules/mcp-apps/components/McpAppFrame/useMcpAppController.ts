@@ -27,6 +27,13 @@ export interface McpAppFrameProps {
   args?: unknown;
   fallbackResult?: string;
   scope: AgentScope;
+  /**
+   * Render inside a host-sized container (a canvas node) instead of the chat
+   * portal: inline only, no Dock fullscreen, and app size requests are ignored.
+   */
+  embedded?: boolean;
+  /** Extra namespaced host context fields, e.g. `pulse/node`. */
+  hostContextExtras?: Record<string, unknown>;
 }
 
 type McpAppDisplayMode = 'inline' | 'fullscreen';
@@ -145,10 +152,16 @@ async function closeAppBridge(bridge: AppBridge): Promise<void> {
   await bridge.close();
 }
 
-const mcpAppHostContext = (displayMode: McpAppDisplayMode, container?: HTMLElement | null) => ({
+const mcpAppHostContext = (
+  displayMode: McpAppDisplayMode,
+  container?: HTMLElement | null,
+  embedded = false,
+  extras?: Record<string, unknown>,
+) => ({
+  ...extras,
   theme: document.documentElement.classList.contains('dark') ? 'dark' as const : 'light' as const,
   displayMode,
-  availableDisplayModes: ['inline', 'fullscreen'] as McpAppDisplayMode[],
+  availableDisplayModes: (embedded ? ['inline'] : ['inline', 'fullscreen']) as McpAppDisplayMode[],
   ...(container && container.clientWidth > 0 && container.clientHeight > 0
     ? { containerDimensions: { width: container.clientWidth, height: container.clientHeight } }
     : {}),
@@ -164,6 +177,8 @@ export const useMcpAppController = ({
   args,
   fallbackResult,
   scope,
+  embedded = false,
+  hostContextExtras,
 }: McpAppFrameProps): McpAppController => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -203,6 +218,7 @@ export const useMcpAppController = ({
   }, [dock, instanceId]);
 
   useMcpAppSurfacePlacement({
+    enabled: !embedded,
     displayMode,
     dockHost,
     dockTabVisible,
@@ -250,14 +266,15 @@ export const useMcpAppController = ({
     const bridge = bridgeRef.current;
     const target = displayMode === 'fullscreen' ? dockHost : inlineHostRef.current;
     if (!bridge) return;
-    bridge.setHostContext(mcpAppHostContext(displayMode, target));
+    const context = () => mcpAppHostContext(displayMode, target, embedded, hostContextExtras);
+    bridge.setHostContext(context());
     if (!target || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
-      bridge.setHostContext(mcpAppHostContext(displayMode, target));
+      bridge.setHostContext(context());
     });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [displayMode, dockHost]);
+  }, [displayMode, dockHost, embedded, hostContextExtras]);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,6 +333,8 @@ export const useMcpAppController = ({
           ...mcpAppHostContext(
             displayMode,
             displayMode === 'fullscreen' ? dockHost : inlineHostRef.current,
+            embedded,
+            hostContextExtras,
           ),
         },
       },
@@ -365,6 +384,7 @@ export const useMcpAppController = ({
       return result.value as ReadResourceResult;
     };
     bridge.onrequestdisplaymode = async ({ mode }) => {
+      if (embedded) return { mode: 'inline' };
       if (mode === 'fullscreen') enterFullscreen();
       if (mode === 'inline') returnInline();
       return { mode: mode === 'fullscreen' || mode === 'inline' ? mode : displayModeRef.current };
@@ -382,6 +402,7 @@ export const useMcpAppController = ({
     bridge.addEventListener('sizechange', ({ height: nextHeight }) => {
       // Viewport-filling apps can report zero when the SDK measures max-content.
       // Keep the last usable viewport instead of collapsing it to the minimum.
+      if (embedded) return;
       if (typeof nextHeight === 'number' && Number.isFinite(nextHeight) && nextHeight > 0) {
         setHeight(Math.max(120, Math.min(720, Math.ceil(nextHeight))));
       }
