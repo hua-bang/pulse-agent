@@ -291,6 +291,21 @@ Pulse has no matching surface:
 `ui/update-model-context` from any of these surfaces feeds the Canvas Agent
 context for the owning node or chat session.
 
+### Initial decisions
+
+- First vertical slice: run OpenAI's
+  [`bits-and-bolts`](https://github.com/openai/mcp-extensions/tree/main/plugins/bits-and-bolts)
+  example unchanged as canvas nodes, to prove ecosystem compatibility. Migrating
+  the mock plugin comes later.
+- View lifetime: start with every MCP Apps node view kept live. Showing static
+  previews for offscreen or unfocused nodes is a later optimization, driven by
+  measured cost rather than decided up front.
+- Permissions:
+  - Tool calls the user triggers from a node view are allowed without a prompt.
+  - Agent calls to non-read-only `action` tools go through the existing
+    approval flow.
+  - A view's network access is capped at the CSP its UI resource declares.
+
 ### Constraints
 
 - Agent `read` must work with the node's UI closed, so it goes through MCP
