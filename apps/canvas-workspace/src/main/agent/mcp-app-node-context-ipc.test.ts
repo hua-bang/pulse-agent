@@ -30,21 +30,21 @@ describe('MCP App node context IPC to semantic node reads', () => {
     const opened = await mocks.handlers.get('canvas-agent:mcp-app-context-open')!(event, target);
     expect(opened.ok).toBe(true);
     const update = mocks.handlers.get('canvas-agent:mcp-app-context-update')!;
-    expect(update(event, { token: opened.token, source: 'visible-ui', context: {
+    expect(await update(event, { token: opened.token, source: 'visible-ui', context: {
       content: [{ type: 'text', text: 'Parts Library\nTranslucent agent keycap (1U)\nCodex Micro sculpted dial' }],
     } })).toEqual({ ok: true });
     const registerNodeCapabilities = vi.fn();
     void McpAppNodeMainPlugin.activate({ registerNodeCapabilities } as never);
     const read = registerNodeCapabilities.mock.calls[0][1].read;
-    expect(read({ workspaceId: 'ws-1', node }).content).toContain('Translucent agent keycap');
-    expect(read({ workspaceId: 'ws-2', node }).content).not.toContain('Translucent agent keycap');
-    expect(read({ workspaceId: 'ws-1', node }).content).toContain('untrusted data');
-    const content = read({ workspaceId: 'ws-1', node }).content;
+    expect((await read({ workspaceId: 'ws-1', node })).content).toContain('Translucent agent keycap');
+    expect((await read({ workspaceId: 'ws-2', node })).content).not.toContain('Translucent agent keycap');
+    expect((await read({ workspaceId: 'ws-1', node })).content).toContain('untrusted data');
+    const content = (await read({ workspaceId: 'ws-1', node })).content;
     expect(content.indexOf('Translucent agent keycap')).toBeLessThan(content.indexOf('If specific information is missing'));
     expect(content).toContain('respond directly without additional tool calls');
     expect(content).toContain('do not call it merely to read or summarize this existing node');
     event.sender.once.mock.calls[0][1]();
-    expect(read({ workspaceId: 'ws-1', node }).content).toContain('No live App view context');
+    expect((await read({ workspaceId: 'ws-1', node })).content).toContain('No live App view context');
   });
 
   it('rejects publications for another app binding, missing nodes, and closed renderers', async () => {
@@ -63,7 +63,7 @@ describe('MCP App node context IPC to semantic node reads', () => {
     const current = await open(event, target);
     resolveOld({ nodes: [node] });
     expect(await old).toMatchObject({ ok: false, error: expect.stringContaining('replaced') });
-    expect(mocks.handlers.get('canvas-agent:mcp-app-context-update')!(event, {
+    expect(await mocks.handlers.get('canvas-agent:mcp-app-context-update')!(event, {
       token: current.token, source: 'visible-ui', context: { content: [{ type: 'text', text: 'current' }] },
     })).toEqual({ ok: true });
   });

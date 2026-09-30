@@ -1,5 +1,4 @@
 import type { MainCanvasPlugin, PluginNodeCapabilityRef } from '../../types';
-import { getMcpAppNodeContextStore } from '../../../main/agent/mcp-app-node-context';
 import {
   MCP_APP_NODE_PLUGIN_ID,
   MCP_APP_NODE_TYPE,
@@ -11,12 +10,13 @@ const toolPrefix = (serverName: string): string => (
   `mcp_${serverName}_`.replace(/[^a-zA-Z0-9_-]/g, '_')
 );
 
-function readMcpAppNode({ node, workspaceId }: PluginNodeCapabilityRef) {
+async function readMcpAppNode({ node, workspaceId }: PluginNodeCapabilityRef) {
   const payload = (node.data as { payload?: unknown }).payload;
   const binding = parseMcpAppNodeBinding(payload);
   if (!binding) {
     return { content: 'MCP App node with an invalid binding; it cannot be opened.' };
   }
+  const { getMcpAppNodeContextStore } = await import('../../../main/agent/mcp-app-node-context');
   const context = getMcpAppNodeContextStore().read({ workspaceId, nodeId: node.id, ...binding });
   // The mounted view is the primary source for questions about this node.
   // Server tools can supplement it without reopening an already visible App.

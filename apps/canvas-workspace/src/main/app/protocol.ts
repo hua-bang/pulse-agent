@@ -2,7 +2,6 @@ import { app, net, protocol } from "electron";
 import { isAbsolute, join, normalize, sep } from "path";
 import { pathToFileURL } from "url";
 import type { WriteLog } from "./logging";
-import { createMcpAppSandboxResponse } from './mcp-app-sandbox';
 
 // Custom scheme for serving local image/file assets to the renderer.
 // Chromium blocks `file://` URLs in renderer-loaded pages for security
@@ -40,6 +39,7 @@ export function registerPulseCanvasProtocol(writeLog: WriteLog): void {
     if (url.hostname !== 'sandbox' || url.pathname !== '/index.html') {
       return new Response('Not found', { status: 404 });
     }
+    const { createMcpAppSandboxResponse } = await import('./mcp-app-sandbox');
     return createMcpAppSandboxResponse(request.url);
   });
   protocol.handle("pulse-canvas", async (request) => {
