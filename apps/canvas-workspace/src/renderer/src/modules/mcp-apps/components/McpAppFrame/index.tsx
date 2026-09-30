@@ -21,6 +21,28 @@ export const McpAppFrame = (props: McpAppFrameProps) => {
     return <div className="chat-mcp-app chat-mcp-app--loading">Loading MCP App…</div>;
   }
 
+  if (props.embedded) {
+    // Laid out in place so canvas zoom, clipping, and node stacking apply.
+    return (
+      <div ref={controller.inlineHostRef} className="mcp-app-embedded">
+        <div ref={controller.surfaceRef} className="mcp-app-embedded__surface">
+          <iframe
+            ref={controller.iframeRef}
+            title={controller.title}
+            src={`pulse-mcp-app://sandbox/index.html?csp=${encodeURIComponent(controller.resource.csp)}`}
+            sandbox="allow-scripts allow-same-origin"
+            allow="clipboard-write *"
+            onLoad={() => { void controller.connectBridge(); }}
+          />
+        </div>
+        <McpAppApprovalDialog
+          request={controller.approval.request}
+          onDecision={controller.approval.answer}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="chat-mcp-app" data-display-mode={controller.displayMode}>
       <div

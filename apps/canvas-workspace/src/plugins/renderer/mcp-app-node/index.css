@@ -1,0 +1,27 @@
+.mcp-app-node {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.mcp-app-node--status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.mcp-app-node .chat-mcp-app--loading,
+.mcp-app-node .chat-mcp-app--error {
+  height: 100%;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+}

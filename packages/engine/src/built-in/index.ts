@@ -40,6 +40,7 @@ export type {
   MCPClientManager,
   MCPAppsManager,
   MCPAppToolDescriptor,
+  MCPAppEntrypoint,
   MCPPluginConfig,
   MCPServerStatus,
   McpServerTiming,

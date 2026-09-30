@@ -52,7 +52,8 @@ export const useChatComposerSubmission = ({
       if (collected.nodes.length || collected.tags.length || collected.canvases.length || collected.domSelections.length) {
         context = {
           ...(context ?? {}),
-          selectedNodes: [...(context?.selectedNodes ?? []), ...collected.nodes],
+          // Explicit node mentions define this turn's focus, ahead of ambient canvas selection.
+          selectedNodes: collected.nodes.length ? collected.nodes : (context?.selectedNodes ?? []),
           tags: [...(context?.tags ?? []), ...collected.tags],
           canvases: [...(context?.canvases ?? []), ...collected.canvases],
           domSelections: [...(context?.domSelections ?? []), ...collected.domSelections],

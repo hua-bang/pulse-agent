@@ -63,6 +63,7 @@ export const CanvasOverlays = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onCreateNode,
+  workspaceId,
   onCreateDemo,
   onCreateAgentTeam,
   onCloseContextMenu,
@@ -115,6 +116,7 @@ export const CanvasOverlays = ({
           x={contextMenu.screenX}
           y={contextMenu.screenY}
           onCreate={onCreateNode}
+          workspaceId={workspaceId}
           onClose={onCloseContextMenu}
         />
       )}

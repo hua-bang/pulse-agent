@@ -1,6 +1,24 @@
 export const MCP_APP_TOOL_ARGUMENT_LIMIT = 16 * 1024 * 1024;
 export const MCP_APP_TOOL_ARGUMENT_PREVIEW_LIMIT = 4_000;
 
+export type McpAppContextSource = 'tool-result' | 'model-context' | 'visible-ui';
+
+export interface McpAppNodeContextTarget {
+  workspaceId: string;
+  nodeId: string;
+  serverName: string;
+  toolName: string;
+  resourceUri: string;
+}
+
+export interface McpAppNodeContextApi {
+  openNodeContext(target: McpAppNodeContextTarget): Promise<{
+    ok: boolean; token?: string; error?: string; code?: 'node-not-persisted';
+  }>;
+  updateNodeContext(token: string, source: McpAppContextSource, context: unknown): Promise<{ ok: boolean; error?: string }>;
+  closeNodeContext(token: string): Promise<{ ok: boolean; error?: string }>;
+}
+
 export type McpAppToolApprovalDecision = 'once' | 'session' | 'cancel';
 
 export interface McpAppToolApprovalRequest {
@@ -56,4 +74,29 @@ export function serializeMcpAppToolArguments(value: unknown): SerializedMcpAppTo
     size,
     truncated,
   };
+}
+
+/**
+ * Static entrypoints Pulse can open without a model tool call. `node` comes
+ * from `_meta["pulse/ui"]`; `global` and `thread` are OpenAI entrypoints that
+ * Pulse opens as canvas nodes without per-instance state.
+ */
+export type McpAppEntrypointKind = 'node' | 'global' | 'thread';
+
+export interface McpAppEntrypointListing {
+  serverName: string;
+  toolName: string;
+  resourceUri: string;
+  title: string;
+  kind: McpAppEntrypointKind;
+  /** Pulse node type declared by a `node` entrypoint. */
+  nodeType?: string;
+  defaultSize?: { width: number; height: number };
+}
+
+export interface McpAppEntrypointOpenResult {
+  ok: boolean;
+  /** Full MCP tools/call result envelope for the `{}` entrypoint call. */
+  value?: unknown;
+  error?: string;
 }

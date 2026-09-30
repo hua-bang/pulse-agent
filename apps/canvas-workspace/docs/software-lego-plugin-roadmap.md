@@ -189,6 +189,153 @@ The current MVP proves the first vertical slice:
 This is enough to validate the mental model: a custom node is both visible UI
 and composable capability.
 
+## Direction: MCP Apps as the External UI Path
+
+Status: direction agreed, not implemented. Nothing in this section changes the
+current MF2 slice yet.
+
+The lego model stays: plugins contribute node types, each node type can have
+many instances, and every node exposes human UI plus `read` / `write` /
+`action` for the Agent. What changes is the UI transport for **new external
+plugins**: prefer [MCP Apps](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+over MF2, mainly for ecosystem reuse. MF2 stays supported for existing and
+trusted built-in plugins.
+
+| Dimension | MF2 (current) | MCP Apps (new external plugins) |
+| --- | --- | --- |
+| UI loading | Component loaded into the host renderer | Standalone `ui://` resource in an isolated iframe |
+| Communication | Props, invoke, Pulse bridge | MCP Apps bridge and MCP tool calls |
+| Audience | Pulse-only integration | Cross-host plugin ecosystem |
+| Lego semantics | `read` / `write` / `action` | Same semantics, mapped onto MCP tools |
+
+Reasoning references: OpenAI's [Plugin Extensions](https://developers.openai.com/plugins/build/extensions)
+and its [extension spec](https://github.com/openai/mcp-extensions/blob/main/docs/spec.md)
+show that an MCP App can be opened by the user from static entrypoints rather
+than only as a reply to a model tool call. Pulse does not need a sidebar to get
+that: the canvas node is the entrypoint.
+
+### `node` entrypoint (Pulse extension)
+
+Pulse declares its own entrypoint type in its own `_meta` namespace, next to
+(never inside) `"openai/ui"`:
+
+```json
+{
+  "name": "acme.board",
+  "inputSchema": { "type": "object" },
+  "_meta": {
+    "ui": { "resourceUri": "ui://acme/board" },
+    "openai/ui": { "entrypoints": [{ "type": "global" }] },
+    "pulse/ui": {
+      "entrypoints": [
+        {
+          "type": "node",
+          "nodeType": "acme.board",
+          "title": "Board",
+          "defaultSize": [480, 360]
+        }
+      ]
+    }
+  }
+}
+```
+
+- One entrypoint tool per node type; a plugin contributes several node types by
+  exposing several tools.
+- Opening a new node calls the tool with `{}`, matching OpenAI's rule for
+  global/thread entrypoints ("the server MUST accept `{}`"). The app renders
+  from that initial result instead of calling the tool again.
+- Instance identity lives in host context, not in tool arguments, so
+  ecosystem servers still only need to accept `{}`. Changes are delivered
+  through `ui/notifications/host-context-changed`.
+
+### Node state layers
+
+On the MCP Apps path the host does not interpret or rewrite plugin state. The
+MF2-era `payload` contract (host-validated `write`, actions returning payload
+patches) does not carry over.
+
+| Layer | Content | Owner |
+| --- | --- | --- |
+| Instance binding | Server, entrypoint tool, deep-link `path`, size and position | Pulse host; the only target of `write` |
+| UI snapshot | Opaque view state, like the Apps SDK `widgetState` | App writes it; host stores and restores it, never validates or edits it |
+| Business data | Board items, records, documents | Plugin MCP server; reached only through tools |
+
+- The MCP Apps spec leaves "State persistence and restoration" as a future
+  consideration. Until it is standardized, Pulse offers the snapshot through
+  its own namespace: `hostContext["pulse/node"] = { nodeId, snapshot }` on
+  initialize, saved through a Pulse bridge method (working name
+  `pulse/node/saveSnapshot`). Apps that ignore it still work; they only lose
+  per-instance view restore.
+- `read` and `action` map to MCP tools: server tools always, and app-registered
+  tools (the MCP Apps `tools` capability) only while the view is loaded. They
+  may be declared in `pulse/ui` by tool name; without a declaration, tools
+  annotated `readOnlyHint` map to `read` and other tools map to `action`.
+- `write` is host-only: it edits the instance binding (rebind server or tool,
+  change `path`). Plugins do not implement it.
+- Undo, history, duplicate, and templates cover the instance binding and the
+  snapshot. Undo for business data is the plugin's responsibility.
+
+### Compatibility with OpenAI entrypoints
+
+Plugins that only declare `"openai/ui"` should still work, degraded where
+Pulse has no matching surface:
+
+| OpenAI entrypoint | Pulse mapping |
+| --- | --- |
+| `global` (sidebar, fullscreen) | Listed in the plugin surface and openable fullscreen; also droppable onto the canvas as a node initialized with `{}` and no instance state. |
+| `thread` (per-thread side tab) | One instance per Canvas Agent chat session as a side tab; also droppable as a node. |
+| `file` (`extensions: [...]`) | Later phase. Requires Pulse to serve `resources/read` / `resources/subscribe` for the opened file and support `openai/resources/write`. |
+| Deep links (`?path=`) | Pass the app-relative URL through `hostContext["openai/deepLink"]`, so node-to-page references can reuse it. |
+
+`ui/update-model-context` from any of these surfaces feeds the Canvas Agent
+context for the owning node or chat session.
+
+### Initial decisions
+
+- First vertical slice: run OpenAI's
+  [`bits-and-bolts`](https://github.com/openai/mcp-extensions/tree/main/plugins/bits-and-bolts)
+  example unchanged as canvas nodes, to prove ecosystem compatibility. Migrating
+  the mock plugin comes later.
+- View lifetime: start with every MCP Apps node view kept live. Showing static
+  previews for offscreen or unfocused nodes is a later optimization, driven by
+  measured cost rather than decided up front.
+- Permissions:
+  - Opening a node's entrypoint (the `{}` call) needs no prompt. Calls the app
+    makes from inside its view keep the existing first-call approval (once or
+    for the session), because the host cannot tell a user click inside the
+    iframe from an app-initiated call.
+  - Agent calls to non-read-only `action` tools go through the existing
+    approval flow.
+  - A view's network access is capped at the CSP its UI resource declares.
+
+### Implementation status
+
+The first slice is implemented: the engine parses entrypoints, the canvas
+right-click menu lists them, and each node runs the MCP App in place via the
+chat `McpAppFrame` host. Verified in the real app with `bits-and-bolts`
+configured in `mcp.json`: create, two instances, and restore after restart.
+Mounted nodes now expose bounded, volatile Agent view context: opening tool
+data, visible UI text, and `ui/update-model-context` text/structured updates.
+Explicit node mentions focus summaries on that node without reopening its App.
+Not yet built: persisted `pulse/node` snapshots (`saveSnapshot`), deep links,
+file entrypoints, and chat-scoped or binary-image model context. Facts live in
+`harness/knowledge/plugin-market.md` (Canvas MCP App nodes).
+
+### Constraints
+
+- Agent `read` must work with the node's UI closed, so it goes through MCP
+  tools. WebMCP (page-exposed tools) is optional and only valid while the
+  page is alive; offscreen, collapsed, or unmounted nodes lose those tools.
+- Reuse the engine's MCP client and the plugin-market activation/reload path
+  (`harness/knowledge/plugin-market.md`); the canvas owns only the UI container
+  and node binding.
+- Iframe/webview lifetime follows the existing guards in
+  `harness/knowledge/dock-browser.md`.
+- "MCP Apps becomes the main ecosystem path" is a product bet, not an
+  established industry outcome. OpenAI's sidebar/file/deep-link entrypoints are
+  OpenAI extensions and may never reach the shared MCP Apps spec.
+
 ## Roadmap
 
 ### Phase 0: Concept and Local Mock
@@ -270,12 +417,22 @@ Goal: make software lego feel alive.
 ## Open Questions
 
 - How much should plugin `write` be allowed to mutate: only payload, or any
-  canvas node field?
+  canvas node field? Direction for MCP Apps nodes: plugins do not write; the
+  host `write` edits only the instance binding.
 - Should actions declare input/output schemas in manifest, or only in main code?
 - Should renderer plugins be MF2-only, or also support iframe/web-component
-  renderers for stronger isolation?
+  renderers for stronger isolation? Direction: MCP Apps iframes for new
+  external plugins, MF2 for existing and trusted built-ins.
 - What is the right trust boundary for user-installed main plugins in Electron?
+  Direction: external capabilities run as out-of-process MCP servers.
 - How should plugin capabilities map to MCP tools or future external protocols?
+  Direction: explicit `pulse/ui` mapping, falling back to tool annotations.
+- Exact shape of the `pulse/node` host context and `pulse/node/saveSnapshot`,
+  including snapshot size limits and restore after app restart.
+- Whether the MF2 `payload` field is renamed or split once MCP Apps nodes store
+  an opaque snapshot instead.
+- How a node discovers which MCP server provides its tool when the same server
+  is installed in more than one scope.
 
 ## North Star
 

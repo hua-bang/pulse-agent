@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import type { MainCanvasPlugin } from '../types';
 import { MockNodeMainPlugin } from '../mock-node/main';
+import { McpAppNodeMainPlugin } from './mcp-app-node';
 import { getExperimentalFlagSync } from '../../main/settings/experimental-ipc';
 import {
   EXPERIMENTAL_FLAG_CHANNELS,
@@ -79,4 +80,5 @@ export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
   DynamicAppPlugin,
   ChannelMainPlugin,
   MockNodeMainPlugin,
+  McpAppNodeMainPlugin,
 ];

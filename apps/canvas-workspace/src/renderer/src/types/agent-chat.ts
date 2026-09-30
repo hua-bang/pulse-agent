@@ -22,6 +22,9 @@ import type {
 } from '../../../shared/agent-roles';
 import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
 import type {
+  McpAppEntrypointListing,
+  McpAppNodeContextApi,
+  McpAppEntrypointOpenResult,
   McpAppToolApprovalResponse,
   McpAppToolCallResponse,
 } from '../../../shared/mcp-apps';
@@ -98,7 +101,15 @@ export interface RelayProgress {
 }
 
 export interface AgentApi {
-  mcpApps: {
+  mcpApps: McpAppNodeContextApi & {
+    listEntrypoints: (
+      scope: AgentScope,
+    ) => Promise<{ ok: boolean; value?: McpAppEntrypointListing[]; error?: string }>;
+    openEntrypoint: (
+      scope: AgentScope,
+      serverName: string,
+      toolName: string,
+    ) => Promise<McpAppEntrypointOpenResult>;
     listResources: (
       scope: AgentScope,
       serverName: string,
