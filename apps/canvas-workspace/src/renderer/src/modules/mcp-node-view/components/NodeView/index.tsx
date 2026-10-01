@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { NodeTypeIcon } from '../../../../components/icons';
+import { Button } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import type { CanvasNode } from '../../../../types';
 import type { NodeViewHost } from '../../internal/nodeViewHost';
@@ -50,8 +51,8 @@ export const NodeView = ({ host }: Props) => {
             <li className="node-view-muted">{t('mcpNodeView.noNodes')}</li>
           ) : state.candidates.map(candidate => (
             <li key={candidate.id}>
-              <button
-                type="button"
+              <Button
+                className="node-view-picker-item"
                 onClick={() => void host.open({ workspaceId: state.workspaceId, nodeId: candidate.id })}
               >
                 <NodeTypeIcon type={candidate.type as CanvasNode['type']} size={14} colorize />
@@ -59,7 +60,7 @@ export const NodeView = ({ host }: Props) => {
                 {candidate.description ? (
                   <span className="node-view-picker-description">{candidate.description}</span>
                 ) : null}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

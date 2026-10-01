@@ -195,9 +195,10 @@ await waitFor(async () => (await terminal.view.locator('.node-view-unsupported')
 
 const picker = await openInHost({});
 await waitFor(async () => (await picker.view.locator('.node-view-picker button').count()) === 3, 'picker lists mindmap, text, and note nodes');
+await picker.page.screenshot({ path: join(shots, '5-picker.png') });
 await picker.view.locator('.node-view-picker button', { hasText: 'Topics' }).click();
 await waitFor(async () => (await picker.view.locator('.mindmap-node-body').count()) === 1, 'picking a node opens it');
-await picker.page.screenshot({ path: join(shots, '5-picker-opened.png') });
+await picker.page.screenshot({ path: join(shots, '6-picker-opened.png') });
 
 await browser.close();
 await client.close();

@@ -48,7 +48,7 @@ body {
 
 .node-view-status[data-error='true'],
 .node-view-error {
-  color: var(--danger, #c2410c);
+  color: var(--error);
 }
 
 .node-view-pad {
@@ -93,22 +93,26 @@ body {
   list-style: none;
 }
 
-.node-view-picker button {
+/* A list row, not a CTA: flatten the blessed button's chrome. */
+.node-view-picker .node-view-picker-item {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   column-gap: 8px;
   width: 100%;
   padding: 8px 10px;
+  height: auto;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
   text-align: left;
-  cursor: pointer;
+  white-space: normal;
 }
 
-.node-view-picker button:hover {
+.node-view-picker .node-view-picker-item:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 
