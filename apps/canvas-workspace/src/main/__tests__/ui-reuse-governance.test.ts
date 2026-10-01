@@ -435,7 +435,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (byte-identical resolved value — exact-value tokenization, same class as
   // the earlier radius/shadow token minting in ui-reuse-burndown.md's C2 batch).
   // 1666→1664: canvas node border/hover read the new canvas-node-border tokens.
-  hardcodedColorLiterals: 1664,
+  // 1664→1620: exact-value hex literals (accent, text, text-secondary,
+  // text-muted, border, bg, surface-hover) read their palette tokens;
+  // resolved values are identical and none of these tokens is re-scoped.
+  hardcodedColorLiterals: 1620,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

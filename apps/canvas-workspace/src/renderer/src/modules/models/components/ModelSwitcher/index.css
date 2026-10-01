@@ -44,7 +44,7 @@
 .chat-model-switcher-btn:hover {
   background: rgba(35, 131, 226, 0.07);
   border-color: rgba(35, 131, 226, 0.2);
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .chat-model-switcher-btn--warning {
@@ -61,7 +61,7 @@
 }
 
 .chat-model-switcher-btn--warning .chat-model-switcher-dot {
-  background: #2383e2;
+  background: var(--accent);
   opacity: 0.9;
 }
 
@@ -237,7 +237,7 @@
 
 .chat-model-menu-check {
   width: 16px;
-  color: #2383e2;
+  color: var(--accent);
   display: inline-flex;
   justify-content: center;
   flex-shrink: 0;
@@ -286,5 +286,5 @@
   justify-content: center;
   font-size: 12px;
   font-weight: 500;
-  color: #2383e2;
+  color: var(--accent);
 }

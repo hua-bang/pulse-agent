@@ -71,7 +71,7 @@
   flex: 0 0 auto;
   border-radius: var(--radius-md);
   background: rgba(35, 131, 226, 0.09);
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .updates-section-status--error .updates-section-status-icon {

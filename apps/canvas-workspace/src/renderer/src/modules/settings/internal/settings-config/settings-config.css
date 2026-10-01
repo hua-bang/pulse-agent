@@ -93,7 +93,7 @@
 }
 
 .cfg-checkbox input {
-  accent-color: #2383e2;
+  accent-color: var(--accent);
 }
 
 .cfg-form-actions {
@@ -279,7 +279,7 @@
 }
 
 .cfg-tool-toggle input {
-  accent-color: #2383e2;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 

@@ -174,7 +174,7 @@
 }
 
 .experimental-section-switch--on .experimental-section-switch-track {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .experimental-section-switch--on .experimental-section-switch-thumb {

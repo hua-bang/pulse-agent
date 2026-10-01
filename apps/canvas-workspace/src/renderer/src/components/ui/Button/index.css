@@ -85,8 +85,8 @@
 }
 
 .ui-btn--primary {
-  border: 1px solid #2383e2;
-  background: #2383e2;
+  border: 1px solid var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 

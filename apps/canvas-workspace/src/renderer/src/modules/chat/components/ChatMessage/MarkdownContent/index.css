@@ -332,7 +332,7 @@
   flex-shrink: 0;
   width: 13px;
   height: 13px;
-  accent-color: #2383e2;
+  accent-color: var(--accent);
   cursor: default;
 }
 

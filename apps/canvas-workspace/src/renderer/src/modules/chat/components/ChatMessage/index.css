@@ -107,8 +107,8 @@
 }
 
 .chat-message-toolbar-btn--primary {
-  background: #2383e2;
-  border-color: #2383e2;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 

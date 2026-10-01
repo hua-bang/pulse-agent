@@ -319,7 +319,7 @@
 .chat-clarify-card {
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: var(--radius-lg);
-  background: #fafaf9;
+  background: var(--bg);
   padding: 12px 14px;
   max-width: 100%;
   box-sizing: border-box;
