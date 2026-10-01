@@ -11,6 +11,8 @@ import type {
   CanvasSkillInput,
   CanvasSkillPromoteResult,
   CanvasSkillsStatus,
+  CodexPluginConnectResult,
+  CodexPluginStatus,
   SkillsCleanupResult,
   SkillsInstallResult,
   SkillsStatusResult,
@@ -27,6 +29,8 @@ export interface SkillsApi {
   setUpdatePolicy: (policy: AgentToolingUpdatePolicy) => Promise<SkillsStatusResult>;
   configurePath: () => Promise<ShellPathResult>;
   cleanupLegacy: () => Promise<SkillsCleanupResult>;
+  codexStatus: () => Promise<CodexPluginStatus>;
+  connectCodex: () => Promise<CodexPluginConnectResult>;
 }
 
 export interface BuiltInToolsConfigApi {

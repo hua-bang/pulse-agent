@@ -23,7 +23,9 @@ export const createSkillsApi = (ipcRenderer: IpcRenderer): SkillsApi => ({
   status: () => ipcRenderer.invoke("skills:status"),
   setUpdatePolicy: (policy) => ipcRenderer.invoke("skills:set-update-policy", { policy }),
   configurePath: () => ipcRenderer.invoke("skills:configure-path"),
-  cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy")
+  cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy"),
+  codexStatus: () => ipcRenderer.invoke("skills:codex-status"),
+  connectCodex: () => ipcRenderer.invoke("skills:connect-codex")
 });
 
 export const createCanvasSkillsApi = (ipcRenderer: IpcRenderer): CanvasSkillsApi => ({

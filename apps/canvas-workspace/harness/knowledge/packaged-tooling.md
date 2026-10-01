@@ -129,6 +129,25 @@ appends one marked `~/.pulse-coder/bin` entry (for example
 "$HOME/.pulse-coder/bin"` for fish) only after a user click, never during
 automatic install/update.
 
+## Connecting Codex is opt-in, never automatic
+
+Settings → External Agents shows a Codex card once the CLI is installed
+(`AgentCodexCard.tsx`, IPC `skills:codex-status` / `skills:connect-codex`,
+service `src/main/files/codex-plugin.ts`). Only a user click touches Codex:
+it copies the `plugins/pulse-canvas` agent plugin the app ships
+(`agent-tooling/codex-plugin/pulse-canvas` in packaged resources) into a
+local marketplace at `~/.pulse-coder/tooling/codex-marketplace/`, then runs
+`codex plugin marketplace add <dir>` and
+`codex plugin add pulse-canvas@pulse-canvas-app`. A local marketplace keeps
+the plugin in lockstep with the installed app, works offline, and survives
+the app bundle moving. `codex plugin add` needs Codex 0.153.0 or later; older
+or missing Codex, Windows (the plugin launcher is a shell script), and failed
+connects show a reason, and failures also show the equivalent manual
+commands. The plugin itself only launches the app-installed CLI, so later app
+updates reach Codex without reconnecting; Reconnect refreshes the staged
+plugin copy (skills, launcher). The old startup MCP auto-registration that
+edited Claude/Codex config was removed; do not reintroduce silent writes.
+
 ## Package workspace runtimes from fresh builds
 
 Electron Builder packages the built `dist` entrypoints of workspace runtime

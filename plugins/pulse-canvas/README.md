@@ -40,7 +40,12 @@ not yet.
 
 ## Install
 
-This repository publishes a marketplace at `.agents/plugins/marketplace.json`.
+Easiest: in Pulse Canvas open Settings → External Agents and press
+**Connect to Codex**. The app registers the copy of this plugin it ships as a
+local marketplace and installs it (needs Codex 0.153.0 or later), so the
+plugin always matches the installed app.
+
+This repository also publishes a marketplace at `.agents/plugins/marketplace.json`.
 Add the repository as a plugin marketplace in your agent, then install
 `pulse-canvas`. Hosts that render MCP Apps (Codex desktop among them) show the
 node view; hosts without MCP Apps support still get the tools and skills.

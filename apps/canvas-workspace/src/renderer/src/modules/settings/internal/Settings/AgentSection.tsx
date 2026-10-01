@@ -11,6 +11,7 @@ import { Button, FieldRow, Select } from '../../../../components/ui';
 import './AgentSection.css';
 
 const AgentShellPathCard = lazy(() => import('./AgentShellPathCard'));
+const AgentCodexCard = lazy(() => import('./AgentCodexCard'));
 
 interface AgentSectionProps {
   onClose: () => void;
@@ -255,6 +256,12 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
             </div>
           </details>}
         </div>
+
+        {status?.cliInstalled && (
+          <Suspense fallback={null}>
+            <AgentCodexCard />
+          </Suspense>
+        )}
       </div>
 
       <div className="agent-section-footer">

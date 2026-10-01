@@ -21,6 +21,7 @@ import {
   configurePulseCanvasShellPath,
   inspectPulseCanvasShellPath,
 } from './shell-path';
+import { createCodexPluginService } from './codex-plugin';
 
 const SKILL_PARENT_DIRS = [
   join(homedir(), '.pulse-coder', 'skills'),
@@ -30,13 +31,15 @@ const SKILL_PARENT_DIRS = [
 
 const LEGACY_SKILL_DIRS = SKILL_PARENT_DIRS.map((dir) => join(dir, 'canvas'));
 
+const INSTALL_ROOT = join(homedir(), '.pulse-coder');
+
 let manager: AgentToolingManager | null = null;
 const toolingQueue = createAgentToolingQueue(getAgentToolingManager);
 
 function getAgentToolingManager(): AgentToolingManager {
   manager ??= createAgentToolingManager({
     bundleRoot: resolveBundleRoot(),
-    installRoot: join(homedir(), '.pulse-coder'),
+    installRoot: INSTALL_ROOT,
     skillParents: SKILL_PARENT_DIRS,
     hostExecutable: process.execPath,
     preserveLauncherHost: !app.isPackaged,
@@ -52,6 +55,20 @@ function resolveBundleRoot(): string {
     ? join(repoRoot, 'packages', 'canvas-cli')
     : join(app.getAppPath(), 'resources', 'agent-tooling');
 }
+
+/** The `pulse-canvas` agent plugin shipped with the app (see codex-plugin.ts). */
+function resolveCodexPluginSource(): string {
+  if (app.isPackaged) return join(process.resourcesPath, 'agent-tooling', 'codex-plugin', 'pulse-canvas');
+  const repoRoot = findRepoRoot();
+  return repoRoot
+    ? join(repoRoot, 'plugins', 'pulse-canvas')
+    : join(app.getAppPath(), 'resources', 'agent-tooling', 'codex-plugin', 'pulse-canvas');
+}
+
+const codexPlugin = () => createCodexPluginService({
+  pluginSource: resolveCodexPluginSource(),
+  installRoot: INSTALL_ROOT,
+});
 
 /**
  * Walk upwards to find the development checkout. Packaged applications never
@@ -187,6 +204,11 @@ export function setupSkillInstallerIpc(): void {
       );
     },
   );
+
+  // User-initiated only: connect copies the bundled plugin into a local
+  // marketplace and registers it with the Codex CLI (codex-plugin.ts).
+  ipcMain.handle('skills:codex-status', async () => codexPlugin().status());
+  ipcMain.handle('skills:connect-codex', async () => codexPlugin().connect());
 
   ipcMain.handle('skills:cleanup-legacy', async () => {
     const present = (await Promise.all(LEGACY_SKILL_DIRS.map(checkLegacyDir)))

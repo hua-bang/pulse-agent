@@ -70,6 +70,8 @@ pathRules:
       - .agents/plugins/**
     required:
       - pnpm --filter @pulse-coder/canvas-cli exec vitest run src/mcp/__tests__/plugin-package.test.ts
+      # The app ships this directory and stages it for "Connect to Codex".
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/codex-plugin.test.ts
 
   # `canvas_ui_node` (canvas-cli) is consumed by the app-built MCP node view;
   # keep the view's tests and build in the loop when the server side moves.

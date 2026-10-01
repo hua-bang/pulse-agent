@@ -56,6 +56,40 @@ export interface ShellPathResult {
   error?: string;
 }
 
+/**
+ * Whether the bundled `pulse-canvas` agent plugin is installed in the user's
+ * Codex CLI. `connect` is only ever user-initiated (Settings → Agent).
+ */
+export type CodexPluginState =
+  | 'connected'
+  | 'disconnected'
+  | 'codex-missing'
+  | 'codex-outdated'
+  | 'unsupported-platform'
+  | 'plugin-missing'
+  | 'error';
+
+export interface CodexPluginStatus {
+  state: CodexPluginState;
+  codexVersion: string | null;
+  /** First Codex version with `codex plugin add`. */
+  minCodexVersion: string;
+  /** Commands that do the same by hand (shown for missing/outdated/error states). */
+  manualCommands: string[];
+  error?: string;
+}
+
+export interface CodexPluginConnectStep {
+  command: string;
+  ok: boolean;
+  output: string;
+}
+
+export interface CodexPluginConnectResult extends CodexPluginStatus {
+  ok: boolean;
+  steps: CodexPluginConnectStep[];
+}
+
 export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily' | 'typesafe';
 
 export interface BuiltInToolCredentialStatus {

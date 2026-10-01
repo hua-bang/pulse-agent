@@ -89,6 +89,10 @@
         "to": "agent-tooling/canvas-cli/node-view.html"
       },
       {
+        "from": "../../plugins/pulse-canvas",
+        "to": "agent-tooling/codex-plugin/pulse-canvas"
+      },
+      {
         "from": "node_modules/.cache/pulse-sqlite/package-native",
         "to": "agent-tooling/canvas-cli/native",
         "filter": [

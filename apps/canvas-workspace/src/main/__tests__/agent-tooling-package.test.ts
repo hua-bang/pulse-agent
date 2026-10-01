@@ -43,6 +43,10 @@ describe('packaged agent tooling', () => {
         to: 'agent-tooling/canvas-cli/node-view.html',
       }),
       expect.objectContaining({
+        from: '../../plugins/pulse-canvas',
+        to: 'agent-tooling/codex-plugin/pulse-canvas',
+      }),
+      expect.objectContaining({
         from: 'node_modules/.cache/pulse-sqlite/package-native',
         to: 'agent-tooling/canvas-cli/native',
         filter: ['*.node'],
