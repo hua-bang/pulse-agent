@@ -27,7 +27,7 @@ describe('packaged agent tooling', () => {
       'node scripts/setup/prepare-sqlite-native.mjs',
     );
     expect(packageJson.scripts?.['prepare:package']).toBe(
-      'pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling',
+      'pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling && pnpm run build:node-view',
     );
     for (const script of ['package', 'package:mac', 'package:mac:arm64', 'package:win', 'package:linux']) {
       expect(packageJson.scripts?.[script]).toMatch(/^pnpm run prepare:package && /);
@@ -36,7 +36,11 @@ describe('packaged agent tooling', () => {
       expect.objectContaining({
         from: '../../packages/canvas-cli/dist',
         to: 'agent-tooling/canvas-cli',
-        filter: ['index.cjs', 'mcp-app.html', 'skills/**/*'],
+        filter: ['index.cjs', 'skills/**/*'],
+      }),
+      expect.objectContaining({
+        from: 'dist/node-view/node-view.html',
+        to: 'agent-tooling/canvas-cli/node-view.html',
       }),
       expect.objectContaining({
         from: 'node_modules/.cache/pulse-sqlite/package-native',

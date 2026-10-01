@@ -96,9 +96,9 @@ referenced by the launcher. Concretely (`prepareCliPayload` in
 `src/main/files/agent-tooling-deployment.ts`): each deployed bundle lives
 under `<toolingRoot>/.cache/<fingerprint>/` and
 `<toolingRoot>/.runtime/<fingerprint>/`, where `<fingerprint>` is a sha256
-over the CLI entrypoint, the `pulse-canvas mcp` view (`mcp-app.html`, when
-present), every bundled skill's `SKILL.md`, and the paths and contents of all
-`native/` payload files
+over the CLI entrypoint, the MCP node view (`node-view.html`, when present;
+built by `build:node-view` during `prepare:package`), every bundled skill's
+`SKILL.md`, and the paths and contents of all `native/` payload files
 (`fingerprintCliTree` in `agent-tooling-files.ts`). A new deployment writes a
 new fingerprint directory instead of mutating an existing one, so the active
 launcher keeps pointing at the fingerprint directory it was built against

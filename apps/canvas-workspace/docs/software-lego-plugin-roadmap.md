@@ -323,9 +323,13 @@ file entrypoints, and chat-scoped or binary-image model context. Facts live in
 `harness/knowledge/plugin-market.md` (Canvas MCP App nodes).
 
 The reverse direction also exists: Pulse Canvas is itself an MCP App provider.
-`pulse-canvas mcp` serves a canvas view with a `global` entrypoint so agent
-hosts such as Codex can open and edit a workspace, packaged as the
-`plugins/pulse-canvas` agent plugin (owner: `packages/canvas-cli/AGENTS.md`).
+`pulse-canvas mcp`'s `canvas_open` shows one node inline in agent hosts such
+as Codex, rendered with the app's own node bodies (mindmap and text
+editable), packaged as the `plugins/pulse-canvas` agent plugin. A whole-canvas
+view was tried and dropped: reusing the canvas surface outside the app costs
+a chat/dock decoupling the node bodies do not need. Owners:
+`packages/canvas-cli/AGENTS.md` (server) and `harness/knowledge/renderer-surfaces.md`
+(node view).
 
 ### Constraints
 

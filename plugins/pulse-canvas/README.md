@@ -14,14 +14,14 @@ layout:
 
 ## What you get
 
-- **Canvas view (MCP App).** `canvas_open` opens the workspace in an interactive
-  view: pan and zoom, drag and resize nodes, edit notes and text in place, rename
-  frames, add notes and frames, connect and delete nodes. Edits save to the same
-  local store the app uses, and changes made by the app, the CLI, or the agent
-  appear in the view within a few seconds. Terminal, agent, web, and plugin
-  nodes appear as cards; open them in Pulse Canvas to use them.
-- **Selection as context.** The view tells the agent which workspace is shown
-  and which nodes are selected (with ids), so "summarize these" just works.
+- **Node view (MCP App).** `canvas_open` shows one canvas node inline in the
+  conversation, rendered with Pulse Canvas's own node components so it looks
+  the way it does in the app. Mindmaps and text nodes are editable there and
+  save straight to the canvas; notes render read-only; terminal, agent, web,
+  and plugin nodes point back to the app. Edits made in the app, the CLI, or
+  by the agent show up in an open view within a few seconds.
+- **Context.** After the user edits a node, the view tells the agent the
+  node's current content, so "expand this branch" just works.
 - **Tools.** `canvas_list_workspaces`, `canvas_context`, `canvas_search`,
   `canvas_read_nodes`, and `canvas_apply` (atomic batch of node/edge changes).
 - **Skills.** The same Pulse Canvas skills the app installs for CLI workflows.
@@ -42,8 +42,8 @@ not yet.
 
 This repository publishes a marketplace at `.agents/plugins/marketplace.json`.
 Add the repository as a plugin marketplace in your agent, then install
-`pulse-canvas`. Codex desktop renders the canvas view; hosts without MCP Apps
-support still get the tools and skills.
+`pulse-canvas`. Hosts that render MCP Apps (Codex desktop among them) show the
+node view; hosts without MCP Apps support still get the tools and skills.
 
 ## Compatibility
 
@@ -57,12 +57,16 @@ needs an update, instead of failing to connect.
 - The server speaks MCP over stdio only; it opens no ports.
 - Reads and writes are confined to each workspace directory: a file node that
   points elsewhere is shown from its cached text and cannot be edited.
-- The view has no network access (empty CSP domain lists). Links in notes open
-  through the host.
+- The view has no network access (empty CSP domain lists), and it can only
+  change the fields the server whitelists per node type (text styling, mindmap
+  topics).
 
 ## Maintenance
 
-- Server and view: `packages/canvas-cli/src/mcp/` and `packages/canvas-cli/mcp-app/`.
+- Server: `packages/canvas-cli/src/mcp/`. Node view:
+  `apps/canvas-workspace/src/renderer/src/modules/mcp-node-view/`, built by
+  `pnpm --filter canvas-workspace build:node-view` and packaged next to the
+  bundled CLI.
 - After editing `packages/canvas-cli/skills/`, run
   `pnpm --filter @pulse-coder/canvas-cli build && pnpm --filter @pulse-coder/canvas-cli sync:plugin-skills`.
   `src/mcp/__tests__/plugin-package.test.ts` fails while the copy is stale.

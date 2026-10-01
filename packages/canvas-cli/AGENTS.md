@@ -18,9 +18,11 @@ and call its loopback runtime-control server using the bearer secret advertised
 in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`.
 
 `pulse-canvas mcp` is the same bridge as a stdio MCP server: model tools over
-the core APIs plus an MCP App view (`mcp-app/`, bundled into
-`dist/mcp-app.html`) that lets agent hosts such as Codex open and edit a
-canvas. The `plugins/pulse-canvas` agent plugin launches it through the
+the core APIs, plus `canvas_open`, which shows one node inline in an agent
+host (Codex and other MCP Apps hosts) as an MCP App. That node view is built
+by `apps/canvas-workspace` from the app's own node bodies and packaged beside
+the bundled CLI; this package only serves it (`src/mcp/resource.ts`). The
+`plugins/pulse-canvas` agent plugin launches the server through the
 app-installed CLI; the app itself exposes no MCP server.
 
 Keep this package a thin bridge over storage contracts and runtime endpoints. The
@@ -49,15 +51,14 @@ runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
 | Store-concurrency incident + lock rationale | `harness/knowledge/storage-concurrency.md` |
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
 | Bundled agent skills | `skills/`, `src/commands/install-skills.ts` |
-| MCP server, tools, view snapshot/wire types | `src/mcp/`, `src/commands/mcp.ts` |
-| MCP App canvas view (browser bundle) and its manual E2E | `mcp-app/src/`, `scripts/build-mcp-app.mjs`, `harness/tools/mcp-app-e2e/run.mjs` |
+| MCP server, tools, single-node projection | `src/mcp/`, `src/commands/mcp.ts` |
+| MCP node view (owned by the app) and its manual E2E | `../../apps/canvas-workspace/src/renderer/src/modules/mcp-node-view/`, `../../apps/canvas-workspace/harness/tools/mcp-node-view-e2e/run.mjs` |
 | Agent plugin package and its drift guard | `../../plugins/pulse-canvas/README.md`, `src/mcp/__tests__/plugin-package.test.ts` |
-| Tests | `src/core/__tests__/`, `src/commands/__tests__/`, `src/mcp/__tests__/`, `mcp-app/src/*.test.ts` |
+| Tests | `src/core/__tests__/`, `src/commands/__tests__/`, `src/mcp/__tests__/` |
 | Local validation | `harness/validate/validation.yaml` |
 
 Package-local documentation: `harness/knowledge/storage-concurrency.md` (the
-store-concurrency incident behind the locking constraints),
-`harness/tools/mcp-app-e2e/` (manual browser check of the MCP App view), and
+store-concurrency incident behind the locking constraints) and
 `harness/validate/validation.yaml`. Beyond those, use the root harness files
 above, then the package source/tests.
 
@@ -167,15 +168,16 @@ above, then the package source/tests.
   because the app may activate SQLite between calls. Tools always confine
   file reads/writes to the workspace directory, and all mutations go through
   `applyPlan`; never add a whole-canvas save path for the view.
-- Keep model-visible MCP tools few and prompt-sized; bulk view reads use
-  app-only tools (`_meta.ui.visibility: ["app"]`). `canvas_open` must accept
-  `{}` (OpenAI `global` entrypoint rule) and fall back to a workspace picker.
-  Tool names, `_meta`, and structured shapes are a contract with the view and
-  hosts: change `src/mcp/view-types.ts` and the view together.
-- The view is escape-first: node text reaches the DOM only through
-  `textContent` or `mcp-app/src/markdown.ts`, links open via the host
-  (`ui/open-link`), and its resource CSP declares no network domains. Keep it
-  free of Node imports; it typechecks under `mcp-app/tsconfig.json`.
+- Keep model-visible MCP tools few and prompt-sized. Only `canvas_open` carries
+  UI (one node per call, inline); do not attach the view to read or apply
+  tools, which would pop cards for the model's own work. The view reads
+  through the app-only `canvas_ui_node` (`_meta.ui.visibility: ["app"]`).
+  `canvas_ui_node`'s payload (`node`, `version`, `writableFields`) is a
+  contract with the app's node view: change both together.
+- External `data` writes go only through `prepareNodeDataPatch`'s per-type
+  whitelist (text styling, mindmap tree); `writableDataFields` is the single
+  list the node view receives. Never widen it to app-owned fields (file
+  paths, session ids, plugin payloads, iframe html).
 - `plugins/pulse-canvas/skills` is generated from `skills/`
   (`sync:plugin-skills` after a build). Bump `PLUGIN_API` in the plugin
   launcher together with `MCP_PLUGIN_API_VERSION` when a plugin release needs
@@ -226,5 +228,5 @@ with "No active canvas-workspace runtime found."
   client for external agent hosts.
 - `skills/`: bundled Pulse Canvas skills copied by `install-skills`.
 - `src/mcp/server.ts`: `pulse-canvas mcp` server, plugin API gate; tools in
-  `src/mcp/tools.ts`, view projection in `src/mcp/snapshot.ts`.
-- `mcp-app/src/main.ts`: MCP App view entry (render, interactions, sync).
+  `src/mcp/tools.ts`, node projection in `src/mcp/node-projection.ts`, the
+  app-built view served by `src/mcp/resource.ts`.

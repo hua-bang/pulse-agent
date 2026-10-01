@@ -1,0 +1,129 @@
+/* The MCP App host sizes this iframe to the reported content height. */
+html,
+body {
+  overflow: auto;
+  background: var(--bg);
+}
+
+.node-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.node-view-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.node-view-title {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-view-workspace,
+.node-view-status,
+.node-view-muted {
+  color: var(--text-secondary);
+}
+
+.node-view-workspace::before {
+  content: '·';
+  margin-right: 8px;
+}
+
+.node-view-status {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.node-view-status[data-error='true'],
+.node-view-error {
+  color: var(--danger, #c2410c);
+}
+
+.node-view-pad {
+  padding: 16px;
+}
+
+/* Canvas nodes are absolutely positioned on the canvas; here they flow. */
+.node-view-stage {
+  overflow: auto;
+  max-height: 720px;
+  padding: 20px;
+  background: var(--bg-canvas);
+}
+
+.node-view-stage .canvas-node {
+  position: relative;
+  max-width: 100%;
+}
+
+.node-view-stage .canvas-node--mindmap {
+  max-width: none;
+}
+
+.node-view-file {
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.node-view-unsupported {
+  padding: 16px;
+  color: var(--text-secondary);
+}
+
+.node-view-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+.node-view-picker button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-view-picker button:hover {
+  background: var(--surface-hover);
+}
+
+.node-view-picker-title {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-view-picker-description {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

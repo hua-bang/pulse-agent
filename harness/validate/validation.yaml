@@ -71,6 +71,15 @@ pathRules:
     required:
       - pnpm --filter @pulse-coder/canvas-cli exec vitest run src/mcp/__tests__/plugin-package.test.ts
 
+  # `canvas_ui_node` (canvas-cli) is consumed by the app-built MCP node view;
+  # keep the view's tests and build in the loop when the server side moves.
+  - name: mcp-node-view-contract
+    paths:
+      - packages/canvas-cli/src/mcp/**
+    required:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-node-view
+      - pnpm --filter canvas-workspace build:node-view
+
 escalationRules:
   storagePublicApiChange:
     paths:

@@ -9,8 +9,8 @@ import {
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { withStorageSession } from '../core/sqlite-store';
-import { CANVAS_APP_RESOURCE, readCanvasAppResource } from './resource';
-import { CANVAS_APP_RESOURCE_URI, CANVAS_TOOLS, callCanvasTool, toolError, type CanvasToolContext } from './tools';
+import { NODE_VIEW_RESOURCE, readNodeViewResource } from './resource';
+import { NODE_VIEW_RESOURCE_URI, CANVAS_TOOLS, callCanvasTool, toolError, type CanvasToolContext } from './tools';
 
 /**
  * Version of the contract between the agent plugin launcher and this server
@@ -27,9 +27,9 @@ export interface CanvasMcpServerOptions extends CanvasToolContext {
 
 const INSTRUCTIONS = [
   'Pulse Canvas tools read and change the user\'s local canvas workspaces.',
-  'Call canvas_open to show the canvas to the user; it accepts {} for the active workspace.',
   'Read with canvas_context, canvas_search, and canvas_read_nodes before changing anything,',
   'then batch edits into one canvas_apply call.',
+  'Call canvas_open with a nodeId to show that node to the user (for example a mindmap you just built).',
 ].join(' ');
 
 const UPGRADE_TOOL: Tool = {
@@ -74,14 +74,14 @@ export function createCanvasMcpServer(options: CanvasMcpServerOptions): Server {
   });
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: unsupportedApi !== undefined ? [] : [CANVAS_APP_RESOURCE],
+    resources: unsupportedApi !== undefined ? [] : [NODE_VIEW_RESOURCE],
   }));
 
   server.setRequestHandler(ReadResourceRequestSchema, async request => {
-    if (request.params.uri !== CANVAS_APP_RESOURCE_URI || unsupportedApi !== undefined) {
+    if (request.params.uri !== NODE_VIEW_RESOURCE_URI || unsupportedApi !== undefined) {
       throw new Error(`Unknown resource: ${request.params.uri}`);
     }
-    return readCanvasAppResource();
+    return readNodeViewResource();
   });
 
   return server;

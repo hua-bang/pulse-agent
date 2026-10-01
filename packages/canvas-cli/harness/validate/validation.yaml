@@ -4,7 +4,6 @@ pathRules:
   - name: default
     paths:
       - src/**
-      - mcp-app/**
       - skills/**
       - package.json
       - tsconfig.json
@@ -18,21 +17,17 @@ pathRules:
       - package.json
       - tsup.config.ts
       - scripts/**
-      - mcp-app/**
     required:
       - pnpm --filter @pulse-coder/canvas-cli exec vitest run scripts/prepare-native.test.mjs
       - pnpm --filter @pulse-coder/canvas-cli build
 
-  # The MCP App view only runs inside an MCP Apps host. The E2E tool hosts the
-  # built view in Chromium with the official AppBridge and verifies every edit
-  # on disk; it needs a browser, so it stays manual.
-  - name: mcp-app-view
+  # `pulse-canvas mcp` tool surface, node projection, and the agent plugin
+  # package. The node view itself is built and E2E-checked by
+  # apps/canvas-workspace (rule `mcp-node-view`).
+  - name: mcp-server
     paths:
-      - mcp-app/**
       - src/mcp/**
-      - harness/tools/mcp-app-e2e/**
+      - src/core/apply.ts
+      - src/core/nodes.ts
     required:
-      - pnpm --filter @pulse-coder/canvas-cli exec vitest run mcp-app/src/view.test.ts src/mcp/__tests__/server.test.ts src/mcp/__tests__/plugin-package.test.ts
-      - pnpm --filter @pulse-coder/canvas-cli typecheck
-    manual:
-      - pnpm --filter @pulse-coder/canvas-cli build && node packages/canvas-cli/harness/tools/mcp-app-e2e/run.mjs
+      - pnpm --filter @pulse-coder/canvas-cli exec vitest run src/mcp/__tests__/server.test.ts src/mcp/__tests__/plugin-package.test.ts src/core/__tests__/apply.test.ts

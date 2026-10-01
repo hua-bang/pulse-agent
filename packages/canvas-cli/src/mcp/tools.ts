@@ -5,24 +5,20 @@ import { readNode, searchNodes } from '../core/nodes';
 import { getWorkspaceDir, loadCanvas } from '../core/store';
 import { resolveWorkspaceId, WorkspaceResolutionError } from '../core/workspace-resolution';
 import { storageErrorCode } from '../core/sqlite-store';
-import {
-  buildSnapshot,
-  listWorkspaceSummaries,
-  readCanvasVersion,
-  workspaceName,
-} from './snapshot';
+import { buildNodeView, findCanvasNode, listWorkspaceSummaries, workspaceName } from './node-projection';
 
 /**
  * Tool surface of `pulse-canvas mcp`.
  *
- * Model-visible tools stay few and prompt-sized; the view's bulk reads use
- * app-only tools (`_meta.ui.visibility: ["app"]`) so full snapshots never
- * enter the model context. Every read and write is confined to the
- * workspace directory: canvases may be untrusted and tool output reaches
- * the model.
+ * Model-visible tools stay few and prompt-sized. `canvas_open` is the one
+ * tool that shows UI: it embeds a single node, rendered with the app's own
+ * node bodies, in the conversation. The view's reads use an app-only tool
+ * (`_meta.ui.visibility: ["app"]`) so node payloads never enter the model
+ * context. Every read and write is confined to the workspace directory:
+ * canvases may be untrusted and tool output reaches the model.
  */
 
-export const CANVAS_APP_RESOURCE_URI = 'ui://pulse-canvas/workspace.html';
+export const NODE_VIEW_RESOURCE_URI = 'ui://pulse-canvas/node.html';
 
 /** Upper bound for one `canvas_apply` call from a model or the view. */
 export const MAX_APPLY_OPERATIONS = 200;
@@ -81,46 +77,42 @@ const appOnly = { ui: { visibility: ['app'] } };
 const openCanvas: CanvasTool = {
   definition: {
     name: 'canvas_open',
-    title: 'Open Pulse Canvas',
+    title: 'Show canvas node',
     description:
-      'Open a Pulse Canvas workspace in an interactive view where the user can see and edit nodes and edges. ' +
-      'Accepts {} to open the active workspace.',
-    inputSchema: { type: 'object', properties: { workspaceId: workspaceIdProperty } },
-    annotations: { title: 'Open Pulse Canvas', ...readOnly },
-    _meta: {
-      ui: { resourceUri: CANVAS_APP_RESOURCE_URI },
-      'ui/resourceUri': CANVAS_APP_RESOURCE_URI,
-      'openai/outputTemplate': CANVAS_APP_RESOURCE_URI,
-      'openai/ui': {
-        entrypoints: [{ type: 'global' }],
-        preferredDisplayMode: 'fullscreen',
-        availableDisplayModes: ['fullscreen', 'inline'],
+      'Show one Pulse Canvas node to the user inline, rendered as in the app. Mindmap and text nodes are ' +
+      'editable there; notes are read-only. Without nodeId, the user picks a node.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspaceId: workspaceIdProperty,
+        nodeId: { type: 'string', description: 'Node to show (see canvas_context or canvas_search).' },
       },
+    },
+    annotations: { title: 'Show canvas node', ...readOnly },
+    _meta: {
+      ui: { resourceUri: NODE_VIEW_RESOURCE_URI },
+      'ui/resourceUri': NODE_VIEW_RESOURCE_URI,
+      'openai/outputTemplate': NODE_VIEW_RESOURCE_URI,
+      'openai/ui': { preferredDisplayMode: 'inline', availableDisplayModes: ['inline', 'fullscreen'] },
     },
   },
   async handler(args, ctx) {
-    const workspaces = await listWorkspaceSummaries(ctx.storeDir);
-    let workspaceId: string | null = null;
-    try {
-      workspaceId = await resolveTarget(args, ctx);
-    } catch (err) {
-      // `{}` must always open: with no resolvable workspace the view shows a picker.
-      if (optionalString(args, 'workspaceId')) throw err;
-    }
-    if (!workspaceId) {
+    const workspaceId = await resolveTarget(args, ctx);
+    const name = await workspaceName(workspaceId, ctx.storeDir);
+    const nodeId = optionalString(args, 'nodeId');
+    if (!nodeId) {
       return toolOk(
-        { workspaceId: null, workspaces },
-        `Opened Pulse Canvas. No workspace is active; ${workspaces.length} workspace(s) are available to pick.`,
+        { workspaceId, workspaceName: name, nodeId: null },
+        `Showing a node picker for Pulse Canvas workspace "${name}" (${workspaceId}).`,
       );
     }
-    const canvas = await loadCanvas(workspaceId, ctx.storeDir);
-    const name = await workspaceName(workspaceId, ctx.storeDir);
-    const nodeCount = canvas?.nodes.length ?? 0;
-    const edgeCount = canvas?.edges?.length ?? 0;
+    const found = await findCanvasNode(workspaceId, nodeId, ctx.storeDir);
+    if (!found.found) return toolError(found.code, `Node not found: ${nodeId}`);
+    const { node } = found;
     return toolOk(
-      { workspaceId, workspaceName: name, nodeCount, edgeCount, workspaces },
-      `Opened Pulse Canvas workspace "${name}" (${workspaceId}): ${nodeCount} nodes, ${edgeCount} edges. ` +
-      'Use canvas_context to read its content and canvas_apply to change it.',
+      { workspaceId, workspaceName: name, nodeId, type: node.type, title: node.title },
+      `Showing the ${node.type} node "${node.title}" (${nodeId}) from workspace "${name}" to the user. ` +
+      'Their edits save to the canvas; read it again with canvas_read_nodes before relying on its content.',
     );
   },
 };
@@ -238,7 +230,8 @@ const applyChanges: CanvasTool = {
     description:
       'Atomically apply node/edge operations. Actions: create {type:file|frame|group|mindmap, title?, x?, y?, ' +
       'width?, height?, content?, data?}; update {id, title?, x?, y?, width?, height?, content?} (file/text: ' +
-      'markdown; frame/group: JSON {label?,color?}); delete {id}; createEdge {from, to, label?, kind?}; ' +
+      'markdown; frame/group: JSON {label?,color?}; data: text styling or mindmap {root}); delete {id}; ' +
+      'createEdge {from, to, label?, kind?}; ' +
       'deleteEdge {id}. Pass baseRevision to reject stale plans.',
     inputSchema: {
       type: 'object',
@@ -276,45 +269,31 @@ const applyChanges: CanvasTool = {
       operations: operations as ApplyOperation[],
     }, { storeDir: ctx.storeDir, confineToWorkspace: true });
     if (!result.ok) return toolError(result.code ?? 'error', result.error);
-    const version = await readCanvasVersion(workspaceId, ctx.storeDir);
-    return toolOk({ ...result.data, version: version?.version ?? null });
+    return toolOk({ ...result.data });
   },
 };
 
-const uiSnapshot: CanvasTool = {
+const uiNode: CanvasTool = {
   definition: {
-    name: 'canvas_ui_snapshot',
-    title: 'Canvas view snapshot',
-    description: 'Render snapshot for the Pulse Canvas view.',
-    inputSchema: { type: 'object', properties: { workspaceId: workspaceIdProperty } },
-    annotations: { title: 'Canvas view snapshot', ...readOnly },
+    name: 'canvas_ui_node',
+    title: 'Canvas node view data',
+    description: 'Node data for the Pulse Canvas node view.',
+    inputSchema: {
+      type: 'object',
+      properties: { workspaceId: workspaceIdProperty, nodeId: { type: 'string' } },
+      required: ['nodeId'],
+    },
+    annotations: { title: 'Canvas node view data', ...readOnly },
     _meta: appOnly,
   },
   async handler(args, ctx) {
+    const nodeId = optionalString(args, 'nodeId');
+    if (!nodeId) return toolError('invalid_argument', 'nodeId is required.');
     const workspaceId = await resolveTarget(args, ctx);
-    const snapshot = await buildSnapshot(workspaceId, ctx.storeDir);
-    if (!snapshot) return toolError('workspace_not_found', `Workspace not found: ${workspaceId}`);
-    return toolOk(
-      { snapshot, workspaces: await listWorkspaceSummaries(ctx.storeDir) },
-      `Snapshot of ${workspaceId}: ${snapshot.nodes.length} nodes.`,
-    );
-  },
-};
-
-const uiVersion: CanvasTool = {
-  definition: {
-    name: 'canvas_ui_version',
-    title: 'Canvas view version',
-    description: 'Change token for the Pulse Canvas view.',
-    inputSchema: { type: 'object', properties: { workspaceId: workspaceIdProperty }, required: ['workspaceId'] },
-    annotations: { title: 'Canvas view version', ...readOnly },
-    _meta: appOnly,
-  },
-  async handler(args, ctx) {
-    const workspaceId = await resolveTarget(args, ctx);
-    const version = await readCanvasVersion(workspaceId, ctx.storeDir);
-    if (!version) return toolError('workspace_not_found', `Workspace not found: ${workspaceId}`);
-    return toolOk({ workspaceId, ...version });
+    const found = await findCanvasNode(workspaceId, nodeId, ctx.storeDir);
+    if (!found.found) return toolError(found.code, `Node not found: ${nodeId}`);
+    const payload = await buildNodeView(workspaceId, found.node, ctx.storeDir);
+    return toolOk(payload as unknown as Record<string, unknown>, `Node ${nodeId} (${found.node.type}).`);
   },
 };
 
@@ -325,8 +304,7 @@ export const CANVAS_TOOLS: CanvasTool[] = [
   searchCanvas,
   readNodes,
   applyChanges,
-  uiSnapshot,
-  uiVersion,
+  uiNode,
 ];
 
 export async function callCanvasTool(

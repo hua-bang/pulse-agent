@@ -78,12 +78,12 @@ export async function isBundleCurrent(
 export async function fingerprintCliTree(cliDir: string): Promise<string> {
   const hash = createHash('sha256');
   hash.update(await fs.readFile(join(cliDir, 'index.cjs')));
-  // The `pulse-canvas mcp` view ships beside the entrypoint; bundles built
-  // before it existed keep their fingerprint.
-  const mcpApp = await fs.readFile(join(cliDir, 'mcp-app.html')).catch(() => null);
-  if (mcpApp) {
-    hash.update('mcp-app.html\0');
-    hash.update(mcpApp);
+  // The MCP node view (built by this app) ships beside the entrypoint;
+  // bundles without it keep their fingerprint.
+  const nodeView = await fs.readFile(join(cliDir, 'node-view.html')).catch(() => null);
+  if (nodeView) {
+    hash.update('node-view.html\0');
+    hash.update(nodeView);
   }
   const skillsDir = join(cliDir, 'skills');
   const entries = (await fs.readdir(skillsDir, { withFileTypes: true }))

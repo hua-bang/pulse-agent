@@ -275,7 +275,7 @@ Target directories (when run without `--dir`):
 - `~/.claude/skills/`
 - `~/.codex/skills/`
 
-### MCP Server (and the canvas MCP App)
+### MCP Server (with the node view)
 
 ```bash
 pulse-canvas mcp                    # stdio MCP server for agent hosts
@@ -288,22 +288,23 @@ configuring it by hand.
 
 | Tool | Purpose |
 |------|---------|
-| `canvas_open` | Opens a workspace in the interactive canvas view (an MCP App at `ui://pulse-canvas/workspace.html`). Accepts `{}` for the active workspace; with none active, the view shows a picker. |
+| `canvas_open` | Shows one node inline in the conversation as an MCP App (`ui://pulse-canvas/node.html`). Mindmap and text nodes render with the app's own components and are editable; notes render read-only; other types point back to the app. Without `nodeId` the view lists nodes to pick. |
 | `canvas_list_workspaces` | Workspaces with names and the active flag |
 | `canvas_context` | Same payload as `pulse-canvas context --format json` |
 | `canvas_search` | Same matching as `node search` |
 | `canvas_read_nodes` | Full bodies for up to 20 node ids |
 | `canvas_apply` | Atomic batch of node/edge operations (same plan format as `pulse-canvas apply`) |
 
-`canvas_ui_snapshot` and `canvas_ui_version` are app-only (`_meta.ui.visibility: ["app"]`): the view uses them to render and to notice
-changes from the app, the CLI, or the agent. The view edits through `canvas_apply`, so every
-edit keeps the store's locking, SQLite revisions, and file-intent recovery. All MCP reads and writes
-are confined to the workspace directory (as with `--confine-to-workspace`).
+`canvas_ui_node` is app-only (`_meta.ui.visibility: ["app"]`): the view uses it to load
+the node and notice edits made by the app, the CLI, or the agent. The view saves through
+`canvas_apply`, whose `update` operation also takes a whitelisted `data` patch (text
+`content`/`textColor`/`backgroundColor`/`fontSize`/`autoSize`; mindmap `root`/`layout`/`rev`).
+All MCP reads and writes are confined to the workspace directory (as with
+`--confine-to-workspace`).
 
-The view renders file, text, frame, group, mindmap, and shape nodes plus edges; you can drag, resize,
-edit, rename, create notes and frames, connect, and delete. Live nodes (terminal, agent, web, plugin)
-show as cards that point back to the app. It publishes the current workspace and selection to the model
-through `ui/update-model-context`.
+The node view itself is built by `apps/canvas-workspace` (`build:node-view`) and packaged
+next to the bundled CLI as `node-view.html`. A CLI without it serves a short fallback page;
+the tools keep working.
 
 ## Programmatic API
 

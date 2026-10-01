@@ -12,6 +12,7 @@ import {
   buildInitialNodeData,
   buildNoteFilePath,
   prepareNodeContent,
+  prepareNodeDataPatch,
   type PreparedContentWrite,
 } from './nodes';
 import { isSafeNodeId } from './storage-v2';
@@ -56,6 +57,9 @@ export interface ApplyUpdateNodeOp {
   /** Same per-type semantics as `node write` (file → markdown + data.content,
    * text → data.content, frame/group → JSON label/color patch). */
   content?: string;
+  /** Whitelisted typed data patch (text styling, mindmap topic tree); see
+   * `prepareNodeDataPatch`. Applied after `content`. */
+  data?: Record<string, unknown>;
 }
 
 export interface ApplyDeleteNodeOp {
@@ -225,6 +229,10 @@ export async function applyPlan(
             });
             if (!prep.ok) return opFail(i, op.action, prep.error, prep.code ?? 'error');
             if (prep.data.fileWrite) pendingWrites.push(prep.data.fileWrite);
+          }
+          if (op.data !== undefined) {
+            const patched = prepareNodeDataPatch(node, op.data);
+            if (!patched.ok) return opFail(i, op.action, patched.error, patched.code ?? 'error');
           }
           node.updatedAt = Date.now();
           report.updated.push(op.id);

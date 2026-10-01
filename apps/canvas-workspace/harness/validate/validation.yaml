@@ -288,6 +288,22 @@ pathRules:
       - pnpm --filter canvas-workspace build
       - pnpm --filter canvas-workspace smoke:pi-electron
 
+  # Standalone MCP App entry reusing canvas node bodies. Its build has its
+  # own inlining and sandbox workarounds, and the real check needs a browser
+  # plus the built pulse-canvas server, so the E2E stays manual.
+  - name: mcp-node-view
+    paths:
+      - node-view.vite.config.ts
+      - src/renderer/node-view.html
+      - src/renderer/src/modules/mcp-node-view/**
+      - src/renderer/src/modules/canvas/node-bodies.ts
+      - harness/tools/mcp-node-view-e2e/**
+    required:
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-node-view
+      - pnpm --filter canvas-workspace build:node-view
+    manual:
+      - pnpm --filter @pulse-coder/canvas-cli build && pnpm --filter canvas-workspace build:node-view && node apps/canvas-workspace/harness/tools/mcp-node-view-e2e/run.mjs
+
   - name: packaged-agent-tooling
     paths:
       - package.json

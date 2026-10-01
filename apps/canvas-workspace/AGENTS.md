@@ -32,6 +32,7 @@ A matching trigger requires reading its owner before changing code. Keep detaile
 | Runtime security, memory/adoption, artifact capabilities, headless runs | `harness/knowledge/security-posture.md` |
 | Schedules, catch-up/DST, completion notification flow | `harness/knowledge/scheduled-tasks.md` |
 | Agent plugins market, package/trust state, MCP adaptation | `harness/knowledge/plugin-market.md` |
+| MCP node view served by `pulse-canvas mcp` (agent plugin) | `harness/knowledge/renderer-surfaces.md` (Renderer entry reference), `../../packages/canvas-cli/AGENTS.md` |
 | Add node capability / plugin node contract | `harness/skills/add-canvas-node/SKILL.md`, `harness/knowledge/plugin-node-mf2.md` |
 | Add agent tool / built-in main plugin | `harness/skills/add-agent-tool/SKILL.md`, `harness/skills/add-builtin-main-plugin/SKILL.md` |
 | Capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md` |

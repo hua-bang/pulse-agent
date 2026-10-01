@@ -5,8 +5,8 @@ import { tmpdir } from 'os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createCanvasMcpServer, MCP_PLUGIN_API_VERSION } from '../server';
-import { CANVAS_APP_RESOURCE_URI } from '../tools';
-import { MCP_APP_MIME_TYPE } from '../resource';
+import { NODE_VIEW_RESOURCE_URI } from '../tools';
+import { MCP_APP_MIME_TYPE, NODE_VIEW_PATH_ENV } from '../resource';
 import { loadCanvas, getWorkspaceDir } from '../../core/store';
 import type { CanvasNode } from '../../core/types';
 
@@ -52,48 +52,59 @@ async function connect(pluginApi?: number): Promise<Client> {
 }
 
 describe('pulse-canvas mcp server', () => {
-  it('declares the MCP App entrypoint and hides view-only tools from the model', async () => {
+  it('shows nodes inline through canvas_open and hides view-only tools from the model', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
     const open = tools.find(tool => tool.name === 'canvas_open');
-    expect(open?._meta?.ui).toEqual({ resourceUri: CANVAS_APP_RESOURCE_URI });
-    expect(open?._meta?.['openai/ui']).toMatchObject({
-      entrypoints: [{ type: 'global' }],
-      preferredDisplayMode: 'fullscreen',
+    expect(open?._meta?.ui).toEqual({ resourceUri: NODE_VIEW_RESOURCE_URI });
+    expect(open?._meta?.['openai/ui']).toEqual({
+      preferredDisplayMode: 'inline',
+      availableDisplayModes: ['inline', 'fullscreen'],
     });
-    for (const name of ['canvas_ui_snapshot', 'canvas_ui_version']) {
-      expect(tools.find(tool => tool.name === name)?._meta?.ui).toEqual({ visibility: ['app'] });
-    }
+    expect(tools.find(tool => tool.name === 'canvas_ui_node')?._meta?.ui).toEqual({ visibility: ['app'] });
+    expect(tools.map(tool => tool.name)).not.toContain('canvas_ui_snapshot');
     expect(tools.find(tool => tool.name === 'canvas_apply')?.annotations?.readOnlyHint).toBe(false);
   });
 
-  it('serves the view as an MCP App resource', async () => {
-    const client = await connect();
-    const { resources } = await client.listResources();
-    expect(resources.map(resource => resource.uri)).toEqual([CANVAS_APP_RESOURCE_URI]);
-    const read = await client.readResource({ uri: CANVAS_APP_RESOURCE_URI });
-    expect(read.contents[0].mimeType).toBe(MCP_APP_MIME_TYPE);
-    expect(String(read.contents[0].text)).toContain('<html');
+  it('serves the app-built node view, or a fallback page without one', async () => {
+    const viewPath = join(storeDir, 'node-view.html');
+    await fs.writeFile(viewPath, '<!doctype html><html><body>app node view</body></html>');
+    const previous = process.env[NODE_VIEW_PATH_ENV];
+    process.env[NODE_VIEW_PATH_ENV] = viewPath;
+    try {
+      const client = await connect();
+      const { resources } = await client.listResources();
+      expect(resources.map(resource => resource.uri)).toEqual([NODE_VIEW_RESOURCE_URI]);
+      const read = await client.readResource({ uri: NODE_VIEW_RESOURCE_URI });
+      expect(read.contents[0].mimeType).toBe(MCP_APP_MIME_TYPE);
+      expect(String(read.contents[0].text)).toContain('app node view');
+    } finally {
+      if (previous === undefined) delete process.env[NODE_VIEW_PATH_ENV];
+      else process.env[NODE_VIEW_PATH_ENV] = previous;
+    }
   });
 
-  it('opens the active workspace with {} and falls back to a picker without one', async () => {
-    await seed([node('a', 'text', { content: 'hello' }), node('b', 'frame', { label: 'Frame' })], false);
-    const client = await connect();
-    const picker = await client.callTool({ name: 'canvas_open', arguments: {} });
-    expect(picker.isError).toBeFalsy();
-    expect(picker.structuredContent).toMatchObject({ workspaceId: null, workspaces: [{ id: wsId, name: 'Research' }] });
-
+  it('opens a node, or a picker without nodeId', async () => {
     await seed([node('a', 'text', { content: 'hello' }), node('b', 'frame', { label: 'Frame' })]);
-    const opened = await client.callTool({ name: 'canvas_open', arguments: {} });
-    expect(opened.structuredContent).toMatchObject({ workspaceId: wsId, workspaceName: 'Research', nodeCount: 2, edgeCount: 1 });
+    const client = await connect();
+    const opened = await client.callTool({ name: 'canvas_open', arguments: { nodeId: 'a' } });
+    expect(opened.isError).toBeFalsy();
+    expect(opened.structuredContent).toEqual({
+      workspaceId: wsId, workspaceName: 'Research', nodeId: 'a', type: 'text', title: 'A',
+    });
+    const picker = await client.callTool({ name: 'canvas_open', arguments: {} });
+    expect(picker.structuredContent).toEqual({ workspaceId: wsId, workspaceName: 'Research', nodeId: null });
+    const missing = await client.callTool({ name: 'canvas_open', arguments: { nodeId: 'nope' } });
+    expect(missing.structuredContent).toMatchObject({ code: 'node_not_found' });
   });
 
-  it('projects a render snapshot with explicit edit modes and no heavy fields', async () => {
+  it('projects only the fields node bodies render, confined to the workspace', async () => {
     const wsDir = await seed([
       node('a', 'file', { filePath: 'placeholder', content: 'stale' }),
       node('b', 'iframe', { url: 'https://example.com', html: '<script>big</script>' }),
-      node('c', 'mindmap', { root: { id: 'r', text: 'Root', children: [{ id: 'k', text: 'Kid', children: [] }] } }),
+      node('c', 'mindmap', { root: { id: 'r', text: 'Root', children: [] }, layout: 'right', rev: 3, extra: 'x' }),
       node('d', 'file', { filePath: '/etc/hosts', content: 'inline only' }),
+      node('e', 'text', { content: '<p>Hi</p>', textColor: '#111', sessionId: 'nope' }),
     ]);
     const notePath = join(wsDir, 'notes', 'a.md');
     await fs.mkdir(join(wsDir, 'notes'), { recursive: true });
@@ -104,22 +115,54 @@ describe('pulse-canvas mcp server', () => {
     await fs.writeFile(canvasPath, JSON.stringify(raw));
 
     const client = await connect();
-    const result = await client.callTool({ name: 'canvas_ui_snapshot', arguments: { workspaceId: wsId } });
-    const snapshot = (result.structuredContent as { snapshot: { nodes: Array<Record<string, unknown>>; edges: unknown[] } }).snapshot;
-    const byId = Object.fromEntries(snapshot.nodes.map(entry => [entry.id, entry]));
-    expect(byId.a).toMatchObject({ content: '# From disk', editable: 'content', meta: 'a.md' });
-    expect(byId.b).toMatchObject({ editable: 'none', meta: 'https://example.com' });
-    expect(JSON.stringify(byId.b)).not.toContain('<script>');
-    expect(byId.c.outline).toBe('- Root\n  - Kid');
-    // Outside the workspace dir: disk is never read and the node is not editable.
-    expect(byId.d).toMatchObject({ content: 'inline only', editable: 'none' });
-    expect(snapshot.edges).toHaveLength(1);
+    const read = async (nodeId: string) => (await client.callTool({
+      name: 'canvas_ui_node', arguments: { workspaceId: wsId, nodeId },
+    })).structuredContent as {
+      node: { data: Record<string, unknown> };
+      version: string;
+      workspaceName: string;
+      writableFields: string[];
+    };
+
+    expect((await read('a')).node.data).toEqual({ content: '# From disk' });
+    expect((await read('b')).node.data).toEqual({});
+    expect((await read('c')).node.data).toEqual({ root: { id: 'r', text: 'Root', children: [] }, layout: 'right', rev: 3 });
+    // Outside the workspace dir: disk is never read and the path never leaves the store.
+    expect((await read('d')).node.data).toEqual({ content: 'inline only' });
+    const text = await read('e');
+    expect(text.node.data).toEqual({ content: '<p>Hi</p>', textColor: '#111' });
+    expect(text.writableFields).toEqual(['content', 'textColor', 'backgroundColor', 'fontSize', 'autoSize']);
+    expect((await read('a')).writableFields).toEqual([]);
+    expect(text.workspaceName).toBe('Research');
+    expect(text.version).toMatch(/^[0-9a-f]{40}$/);
   });
 
-  it('applies view edits atomically and reports a new version', async () => {
+  it('persists node view edits as typed data patches and changes the node version', async () => {
+    await seed([node('m', 'mindmap', { root: { id: 'r', text: 'Root', children: [] }, layout: 'right', rev: 1 })]);
+    const client = await connect();
+    const version = async () => ((await client.callTool({
+      name: 'canvas_ui_node', arguments: { workspaceId: wsId, nodeId: 'm' },
+    })).structuredContent as { version: string }).version;
+    const before = await version();
+    const applied = await client.callTool({
+      name: 'canvas_apply',
+      arguments: {
+        workspaceId: wsId,
+        operations: [{
+          action: 'update', id: 'm', width: 500,
+          data: { root: { id: 'r', text: 'Root', children: [{ id: 'k', text: 'Kid', children: [] }] }, rev: 2 },
+        }],
+      },
+    });
+    expect(applied.isError).toBeFalsy();
+    expect(await version()).not.toBe(before);
+    const canvas = await loadCanvas(wsId, storeDir);
+    expect(canvas?.nodes[0]).toMatchObject({ width: 500, data: { rev: 2, root: { children: [{ id: 'k', text: 'Kid' }] } } });
+  });
+
+  it('applies batched node and edge edits atomically', async () => {
     await seed([node('a', 'text', { content: 'hello' }), node('b', 'frame', { label: 'Frame' })]);
     const client = await connect();
-    const before = await client.callTool({ name: 'canvas_ui_version', arguments: { workspaceId: wsId } });
     const applied = await client.callTool({
       name: 'canvas_apply',
       arguments: {
@@ -128,17 +171,15 @@ describe('pulse-canvas mcp server', () => {
           { action: 'update', id: 'a', x: 40, y: 50, content: 'edited' },
           { action: 'update', id: 'b', content: JSON.stringify({ label: 'Renamed' }) },
           { action: 'deleteEdge', id: 'e1' },
-          // The view's own frame create + label patch, as coalesced.
           { action: 'create', type: 'frame', id: 'node-view-1', title: 'Frame', x: 0, y: 0, data: { label: 'Frame' } },
           { action: 'update', id: 'node-view-1', content: JSON.stringify({ label: 'Plan' }) },
         ],
       },
     });
     expect(applied.isError).toBeFalsy();
-    const report = applied.structuredContent as { updated: string[]; created: string[]; version: string };
+    const report = applied.structuredContent as { updated: string[]; created: string[] };
     expect(report.created).toEqual(['node-view-1']);
     expect(report.updated).toEqual(['a', 'b', 'node-view-1']);
-    expect(report.version).not.toBe((before.structuredContent as { version: string }).version);
 
     const canvas = await loadCanvas(wsId, storeDir);
     expect(canvas?.nodes.find(n => n.id === 'a')).toMatchObject({ x: 40, y: 50, data: { content: 'edited' } });

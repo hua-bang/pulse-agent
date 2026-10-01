@@ -1,59 +1,67 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { ReadResourceResult, Resource } from '@modelcontextprotocol/sdk/types.js';
-import { CANVAS_APP_RESOURCE_URI } from './tools';
+import { NODE_VIEW_RESOURCE_URI } from './tools';
 
 export const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app';
 
-/** Built by `scripts/build-mcp-app.mjs` next to `dist/index.cjs`. */
-export const MCP_APP_BUNDLE_FILE = 'mcp-app.html';
+/**
+ * The node view is built by apps/canvas-workspace (`build:node-view`) from the
+ * app's own node bodies; packaging places it next to `dist/index.cjs`. This
+ * package only serves it, so it never depends on the app at build time.
+ */
+export const NODE_VIEW_FILE = 'node-view.html';
+
+/** Lets tests and the E2E tool point at a specific build. */
+export const NODE_VIEW_PATH_ENV = 'PULSE_CANVAS_NODE_VIEW_HTML';
 
 const FALLBACK_HTML = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Pulse Canvas</title></head>
-<body style="font-family: system-ui, sans-serif; padding: 24px;">
-<p>The Pulse Canvas view is not bundled in this build. Rebuild <code>@pulse-coder/canvas-cli</code>
-or update Pulse Canvas; the canvas tools still work without the view.</p>
+<body style="font-family: system-ui, sans-serif; padding: 16px;">
+<p>This Pulse Canvas CLI was installed without its node view. Update the Pulse Canvas app;
+the canvas tools keep working meanwhile.</p>
 </body></html>`;
 
-function bundleCandidates(): string[] {
+function viewCandidates(): string[] {
+  const appBuild = ['apps', 'canvas-workspace', 'dist', 'node-view', NODE_VIEW_FILE];
   return [
-    join(__dirname, MCP_APP_BUNDLE_FILE),
-    // Source runs (tests, tsx) resolve the last package build.
-    join(__dirname, '..', '..', 'dist', MCP_APP_BUNDLE_FILE),
-  ];
+    process.env[NODE_VIEW_PATH_ENV] ?? '',
+    // Packaged app: copied beside the bundled CLI.
+    join(__dirname, NODE_VIEW_FILE),
+    // Monorepo runs from packages/canvas-cli/dist or src/mcp.
+    join(__dirname, '..', '..', '..', ...appBuild),
+    join(__dirname, '..', '..', '..', '..', ...appBuild),
+  ].filter(Boolean);
 }
 
-let cachedHtml: string | undefined;
-
-export function loadCanvasAppHtml(): string {
-  if (cachedHtml !== undefined) return cachedHtml;
-  const path = bundleCandidates().find(candidate => existsSync(candidate));
-  cachedHtml = path ? readFileSync(path, 'utf-8') : FALLBACK_HTML;
-  return cachedHtml;
+export function loadNodeViewHtml(): string {
+  const path = viewCandidates().find(candidate => existsSync(candidate));
+  return path ? readFileSync(path, 'utf-8') : FALLBACK_HTML;
 }
 
 const resourceMeta = {
-  // The view is self-contained: no network, fonts, or nested frames.
-  ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false },
-  'openai/widgetDescription': 'Interactive Pulse Canvas workspace: nodes, edges, and notes the user can edit.',
-  'openai/widgetPrefersBorder': false,
+  // Self-contained: no network, fonts, or nested frames.
+  ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true },
+  'openai/widgetDescription': 'A Pulse Canvas node (mindmap, text, or note) shown as it appears in the app.',
+  'openai/widgetPrefersBorder': true,
 };
 
-export const CANVAS_APP_RESOURCE: Resource = {
-  uri: CANVAS_APP_RESOURCE_URI,
-  name: 'pulse-canvas-workspace',
-  title: 'Pulse Canvas',
-  description: 'Interactive view of a Pulse Canvas workspace.',
+export const NODE_VIEW_RESOURCE: Resource = {
+  uri: NODE_VIEW_RESOURCE_URI,
+  name: 'pulse-canvas-node',
+  title: 'Pulse Canvas node',
+  description: 'One Pulse Canvas node rendered with the app\'s own components.',
   mimeType: MCP_APP_MIME_TYPE,
   _meta: resourceMeta,
 };
 
-export function readCanvasAppResource(): ReadResourceResult {
+export function readNodeViewResource(): ReadResourceResult {
   return {
     contents: [{
-      uri: CANVAS_APP_RESOURCE_URI,
+      uri: NODE_VIEW_RESOURCE_URI,
       mimeType: MCP_APP_MIME_TYPE,
-      text: loadCanvasAppHtml(),
+      // Read per request so an app update is picked up without restarting the server.
+      text: loadNodeViewHtml(),
       _meta: resourceMeta,
     }],
   };

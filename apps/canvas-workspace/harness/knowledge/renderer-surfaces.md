@@ -248,3 +248,17 @@ This structure came out of a 2026-06 container cleanup, in three steps:
 - `src/renderer/src/modules/dock/internal/RightDock/`: tabbed right dock for chat and
   previews (link, artifact, node-detail, canvas-preview, terminal tabs).
   Behavior: `harness/knowledge/dock-browser.md`.
+- `src/renderer/node-view.html` → `src/renderer/src/modules/mcp-node-view/`: a
+  second, standalone entry (not part of the app window) built by
+  `build:node-view` (`node-view.vite.config.ts`) into one inlined
+  `dist/node-view/node-view.html`. `pulse-canvas mcp` serves it as the MCP App
+  for `canvas_open`, so agent hosts show a single node with the real node
+  bodies, imported through `modules/canvas/node-bodies.ts` (never the canvas
+  surface, chat, or dock). It runs in an opaque-origin sandbox: no
+  `window.canvasWorkspace`, no network, no `localStorage` (shimmed in memory),
+  and `import.meta.url` is `about:srcdoc`, which is why the build drops the
+  app-icon URL. Saves go through `canvas_apply` using the `writableFields` the
+  server returns; nothing else a body changes persists. Packaging copies the
+  file next to the bundled CLI and the tooling fingerprint covers it
+  (`packaged-tooling.md`). Browser check:
+  `harness/tools/mcp-node-view-e2e/run.mjs`.

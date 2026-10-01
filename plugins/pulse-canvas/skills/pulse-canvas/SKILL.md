@@ -16,9 +16,9 @@ Whenever `$PULSE_CANVAS_WORKSPACE_ID` is set, treat the canvas as required user-
 
 When the host exposes the Pulse Canvas MCP tools (the `pulse-canvas` agent plugin or `pulse-canvas mcp`), prefer them over shelling out:
 
-- `canvas_open` shows the canvas to the user in an interactive view (`{}` opens the active workspace). Use it when the user asks to open, see, or edit their canvas.
-- `canvas_context`, `canvas_search`, and `canvas_read_nodes` read; `canvas_apply` batches node and edge changes atomically.
-- The view shares the user's current selection as model context, including node ids, so "these nodes" refers to that selection.
+- `canvas_context`, `canvas_search`, and `canvas_read_nodes` read; `canvas_apply` batches node and edge changes atomically (`update` also takes a `data` patch for text styling or a mindmap `root`).
+- `canvas_open` with a `nodeId` shows that node to the user inline, rendered as in the app. Mindmap and text nodes are editable there; notes are read-only. Use it to present a mindmap or note you just created, or when the user asks to see or edit a node.
+- After the user edits a shown node, the view shares its current content as model context; re-read it with `canvas_read_nodes` before changing it.
 
 If `pulse-canvas` is not on `PATH`, the Pulse Canvas app installs it at `~/.pulse-coder/bin/pulse-canvas`.
 

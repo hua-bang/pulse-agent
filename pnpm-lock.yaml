@@ -349,9 +349,6 @@ importers:
         specifier: ^13.0.0
         version: 13.1.0
     devDependencies:
-      '@modelcontextprotocol/ext-apps':
-        specifier: 1.7.5
-        version: 1.7.5(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(react-dom@18.3.1(react@19.2.5))(react@19.2.5)(zod@4.3.6)
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10
@@ -5950,15 +5947,6 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.30.0(zod@4.3.6))(react-dom@18.3.1(react@19.2.5))(react@19.2.5)(zod@4.3.6)':
-    dependencies:
-      '@modelcontextprotocol/sdk': 1.30.0(zod@4.3.6)
-      '@standard-schema/spec': 1.1.0
-      zod: 4.3.6
-    optionalDependencies:
-      react: 19.2.5
-      react-dom: 18.3.1(react@19.2.5)
-
   '@modelcontextprotocol/sdk@1.30.0(zod@4.3.6)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.11.9)
@@ -9215,13 +9203,6 @@ snapshots:
       loose-envify: 1.4.0
       react: 18.3.1
       scheduler: 0.23.2
-
-  react-dom@18.3.1(react@19.2.5):
-    dependencies:
-      loose-envify: 1.4.0
-      react: 19.2.5
-      scheduler: 0.23.2
-    optional: true
 
   react-force-graph-2d@1.29.1(react@18.3.1):
     dependencies:

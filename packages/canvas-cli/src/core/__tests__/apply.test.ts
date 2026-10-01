@@ -238,3 +238,57 @@ describe('applyPlan: deletes on v2 workspaces', () => {
     expect(canvas?.edges?.map(e => e.id)).toEqual(['e-kept']);
   });
 });
+
+describe('applyPlan: typed data patches', () => {
+  it('merges whitelisted text styling and mindmap topic trees', async () => {
+    await seedV1([
+      textNode('t', '<p>old</p>'),
+      {
+        id: 'm', type: 'mindmap', title: 'm', x: 0, y: 0, width: 300, height: 200,
+        data: { root: { id: 'r', text: 'Root', children: [] }, layout: 'right', rev: 1 }, updatedAt: 1,
+      } as CanvasNode,
+    ]);
+
+    const result = await applyPlan(wsId, {
+      operations: [
+        { action: 'update', id: 't', data: { content: '<p>new</p>', textColor: '#111', fontSize: 24, autoSize: false } },
+        { action: 'update', id: 'm', width: 420, data: { root: { id: 'r', text: 'Root', children: [{ text: 'Child' }] }, rev: 2 } },
+      ],
+    }, { storeDir: testDir });
+
+    expect(result.ok).toBe(true);
+    const canvas = await loadCanvas(wsId, testDir);
+    expect(canvas?.nodes.find(n => n.id === 't')?.data).toMatchObject({
+      content: '<p>new</p>', textColor: '#111', fontSize: 24, autoSize: false,
+    });
+    const mindmap = canvas?.nodes.find(n => n.id === 'm');
+    expect(mindmap?.width).toBe(420);
+    expect(mindmap?.data).toMatchObject({ layout: 'right', rev: 2, root: { id: 'r', children: [{ text: 'Child' }] } });
+    // Normalization gives new topics stable ids.
+    expect((mindmap?.data.root as { children: Array<{ id: string }> }).children[0].id).toMatch(/^topic-/);
+  });
+
+  it('rejects fields outside the per-type whitelist without writing anything', async () => {
+    await seedV1([textNode('t', 'keep')]);
+    for (const data of [{ filePath: '/etc/passwd' }, { fontSize: 'big' }, { root: { text: 'x' } }]) {
+      const result = await applyPlan(wsId, {
+        operations: [{ action: 'update', id: 't', data }],
+      }, { storeDir: testDir });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe('invalid_argument');
+    }
+    const canvas = await loadCanvas(wsId, testDir);
+    expect(canvas?.nodes[0].data).toEqual({ content: 'keep' });
+  });
+
+  it('refuses data patches on node types the app owns', async () => {
+    await seedV1([{ id: 'f', type: 'frame', title: 'f', x: 0, y: 0, width: 1, height: 1, data: { label: 'x' } } as CanvasNode]);
+    const result = await applyPlan(wsId, {
+      operations: [{ action: 'update', id: 'f', data: { label: 'y' } }],
+    }, { storeDir: testDir });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('unsupported');
+  });
+});

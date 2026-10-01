@@ -326,6 +326,59 @@ export function prepareNodeContent(
   }
 }
 
+/**
+ * Typed `data` fields an external writer may patch, per node type. Anything
+ * else (file paths, PTY/session ids, plugin payloads, iframe html) stays
+ * owned by the app and its dedicated write paths.
+ */
+const DATA_PATCH_FIELDS: Record<string, Record<string, 'string' | 'number' | 'boolean' | 'mindmapRoot' | 'mindmapLayout'>> = {
+  text: { content: 'string', textColor: 'string', backgroundColor: 'string', fontSize: 'number', autoSize: 'boolean' },
+  mindmap: { root: 'mindmapRoot', layout: 'mindmapLayout', rev: 'number' },
+};
+
+/** `data` fields `prepareNodeDataPatch` accepts for a node type (empty: none). */
+export function writableDataFields(type: NodeType): string[] {
+  return Object.keys(DATA_PATCH_FIELDS[type] ?? {});
+}
+
+/**
+ * Merge a whitelisted `data` patch into a node (text styling, mindmap
+ * topic tree) so views built from the app's own node components can
+ * persist their edits. Validates the whole patch before touching the node.
+ */
+export function prepareNodeDataPatch(node: CanvasNode, patch: unknown): Result {
+  const fields = DATA_PATCH_FIELDS[node.type];
+  if (!fields) {
+    return { ok: false, error: `Node type "${node.type}" does not accept data patches.`, code: 'unsupported' };
+  }
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    return { ok: false, error: 'data must be an object.', code: 'invalid_argument' };
+  }
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    const kind = fields[key];
+    if (!kind) {
+      return { ok: false, error: `data.${key} is not writable on ${node.type} nodes.`, code: 'invalid_argument' };
+    }
+    if (kind === 'mindmapRoot') {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return { ok: false, error: 'data.root must be a topic object.', code: 'invalid_argument' };
+      }
+      next[key] = normalizeMindmapTopic(value as RawMindmapTopic);
+    } else if (kind === 'mindmapLayout') {
+      if (value !== 'right') return { ok: false, error: 'data.layout must be "right".', code: 'invalid_argument' };
+      next[key] = value;
+    } else if (typeof value !== kind || (kind === 'number' && !Number.isFinite(value))) {
+      return { ok: false, error: `data.${key} must be a ${kind}.`, code: 'invalid_argument' };
+    } else {
+      next[key] = value;
+    }
+  }
+  Object.assign(node.data, next);
+  node.updatedAt = Date.now();
+  return { ok: true, data: undefined };
+}
+
 export async function writeNode(
   workspaceId: string,
   nodeId: string,

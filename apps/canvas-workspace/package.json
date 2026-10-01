@@ -22,7 +22,8 @@
     "visual:update": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts --update-snapshots",
     "prepare:workspace-runtime": "pnpm --filter @pulse-coder/storage build && pnpm --filter pulse-coder-engine build && pnpm --filter pulse-coder-agent-teams build",
     "prepare:agent-tooling": "pnpm --filter @pulse-coder/storage build && pnpm --filter @pulse-coder/canvas-cli build && node scripts/setup/prepare-sqlite-native.mjs",
-    "prepare:package": "pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling",
+    "prepare:package": "pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling && pnpm run build:node-view",
+    "build:node-view": "vite build --config node-view.vite.config.ts",
     "package": "pnpm run prepare:package && electron-vite build && electron-builder",
     "package:mac": "pnpm run prepare:package && electron-vite build && electron-builder --mac",
     "package:mac:arm64": "pnpm run prepare:package && electron-vite build && electron-builder --mac --arm64",
@@ -80,9 +81,12 @@
         "to": "agent-tooling/canvas-cli",
         "filter": [
           "index.cjs",
-          "mcp-app.html",
           "skills/**/*"
         ]
+      },
+      {
+        "from": "dist/node-view/node-view.html",
+        "to": "agent-tooling/canvas-cli/node-view.html"
       },
       {
         "from": "node_modules/.cache/pulse-sqlite/package-native",
