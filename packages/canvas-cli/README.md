@@ -303,8 +303,9 @@ All MCP reads and writes are confined to the workspace directory (as with
 `--confine-to-workspace`).
 
 The node view itself is built by `apps/canvas-workspace` (`build:node-view`) and packaged
-next to the bundled CLI as `node-view.html`. A CLI without it serves a short fallback page;
-the tools keep working.
+next to the bundled CLI as `node-view.html`; the app's `dev` and `preview` scripts stage it
+into this package's `dist/` (`prepare:node-view`). A CLI without it serves a short fallback
+page; the tools keep working.
 
 ## Programmatic API
 

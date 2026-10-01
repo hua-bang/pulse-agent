@@ -29,6 +29,15 @@ describe('packaged agent tooling', () => {
     expect(packageJson.scripts?.['prepare:package']).toBe(
       'pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling && pnpm run build:node-view',
     );
+    // Dev installs the CLI from packages/canvas-cli/dist, so the node view must be staged there.
+    expect(packageJson.scripts?.['prepare:node-view']).toBe(
+      'pnpm run build:node-view && node scripts/setup/stage-node-view.mjs',
+    );
+    for (const script of ['dev', 'dev:temp-home', 'preview']) {
+      expect(packageJson.scripts?.[script]).toMatch(
+        /^pnpm run prepare:agent-tooling && pnpm run prepare:node-view && /,
+      );
+    }
     for (const script of ['package', 'package:mac', 'package:mac:arm64', 'package:win', 'package:linux']) {
       expect(packageJson.scripts?.[script]).toMatch(/^pnpm run prepare:package && /);
     }

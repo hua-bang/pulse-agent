@@ -97,7 +97,9 @@ referenced by the launcher. Concretely (`prepareCliPayload` in
 under `<toolingRoot>/.cache/<fingerprint>/` and
 `<toolingRoot>/.runtime/<fingerprint>/`, where `<fingerprint>` is a sha256
 over the CLI entrypoint, the MCP node view (`node-view.html`, when present;
-built by `build:node-view` during `prepare:package`), every bundled skill's
+built by `build:node-view` during `prepare:package`, and staged into
+`packages/canvas-cli/dist` by `prepare:node-view` for `dev`/`preview`, whose
+unpackaged bundle root is that directory), every bundled skill's
 `SKILL.md`, and the paths and contents of all `native/` payload files
 (`fingerprintCliTree` in `agent-tooling-files.ts`). A new deployment writes a
 new fingerprint directory instead of mutating an existing one, so the active

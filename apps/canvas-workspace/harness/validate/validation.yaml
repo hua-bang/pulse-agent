@@ -332,11 +332,13 @@ pathRules:
       - scripts/setup/prepare-sqlite-native.test.mjs
       - scripts/setup/assert-packaged-native.mjs
       - scripts/setup/assert-packaged-native.test.mjs
+      - scripts/setup/stage-node-view.mjs
+      - scripts/setup/stage-node-view.test.mjs
     quick:
-      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-files.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/files/codex-plugin.test.ts src/main/__tests__/agent-tooling-package.test.ts scripts/setup/prepare-sqlite-native.test.mjs scripts/setup/assert-packaged-native.test.mjs
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-files.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/files/codex-plugin.test.ts src/main/__tests__/agent-tooling-package.test.ts scripts/setup/prepare-sqlite-native.test.mjs scripts/setup/assert-packaged-native.test.mjs scripts/setup/stage-node-view.test.mjs
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-files.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/files/codex-plugin.test.ts src/main/__tests__/agent-tooling-package.test.ts scripts/setup/prepare-sqlite-native.test.mjs scripts/setup/assert-packaged-native.test.mjs
+      - pnpm --filter canvas-workspace exec vitest run src/main/files/agent-tooling-manager.test.ts src/main/files/agent-tooling-files.test.ts src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts src/main/files/codex-plugin.test.ts src/main/__tests__/agent-tooling-package.test.ts scripts/setup/prepare-sqlite-native.test.mjs scripts/setup/assert-packaged-native.test.mjs scripts/setup/stage-node-view.test.mjs
     manual:
       - pnpm --filter canvas-workspace prepare:agent-tooling
       - pnpm --filter canvas-workspace package:mac:arm64 && node apps/canvas-workspace/harness/tools/smoke-packaged-agent-tooling.mjs
