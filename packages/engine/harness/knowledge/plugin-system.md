@@ -120,7 +120,10 @@ Limits: source 64 KiB UTF-8, wall clock 60 seconds (including tools), heap 64 Mi
 arguments 1 MiB, each result 2 MiB, cumulative results 16 MiB,
 and explicit output plus return 30,000 characters. Hosts may set positive
 `timeoutMs` / `memoryLimitBytes`. `runtimeModulePath` lets bundled hosts supply
-an absolute quickjs-emscripten entry; the trusted worker bootstrap ships inside
+an absolute quickjs-emscripten-core entry, and `wasmVariantModulePath` selects
+the release-sync variant entry. `wasmLoaderModulePath` supplies its CommonJS
+Emscripten loader. Only that WASM variant is a runtime dependency;
+debug and asyncify variants are not shipped. The trusted worker bootstrap ships inside
 the engine bundle, while the dependency resolves its own WASM resources.
 Installed Electron compatibility remains a host acceptance requirement.
 

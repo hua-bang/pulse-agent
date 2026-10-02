@@ -29,8 +29,12 @@ export interface CodemodeResult {
 export interface CodemodeRuntimeOptions {
   timeoutMs?: number;
   memoryLimitBytes?: number;
-  /** Absolute quickjs-emscripten module entry for bundled hosts. */
+  /** Absolute quickjs-emscripten-core module entry for bundled hosts. */
   runtimeModulePath?: string;
+  /** Absolute release-sync variant entry for bundled hosts. */
+  wasmVariantModulePath?: string;
+  /** Absolute CommonJS Emscripten loader entry for bundled hosts. */
+  wasmLoaderModulePath?: string;
 }
 
 export async function runCodemode(options: CodemodeRuntimeOptions & {
@@ -53,8 +57,12 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
   if (options.signal?.aborted) return failure('Codemode aborted');
   const require = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
   let modulePath: string;
+  let variantPath: string;
+  let loaderPath: string;
   try {
-    modulePath = options.runtimeModulePath ?? require.resolve('quickjs-emscripten');
+    modulePath = options.runtimeModulePath ?? require.resolve('quickjs-emscripten-core');
+    variantPath = options.wasmVariantModulePath ?? require.resolve('@jitl/quickjs-wasmfile-release-sync');
+    loaderPath = options.wasmLoaderModulePath ?? require.resolve('@jitl/quickjs-wasmfile-release-sync/emscripten-module');
   } catch (error) {
     return failure(`Codemode runtime unavailable: ${String(error)}`);
   }
@@ -63,7 +71,7 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
     eval: true,
     execArgv: [], // Trusted JS bootstrap must not inherit ESM/TS loader flags.
     workerData: {
-      code: options.code, catalog: options.catalog, modulePath,
+      code: options.code, catalog: options.catalog, modulePath, variantPath, loaderPath,
       memoryLimitBytes, deadline: Date.now() + timeoutMs,
       maxCalls: 100, maxOutputChars: 30_000,
     },

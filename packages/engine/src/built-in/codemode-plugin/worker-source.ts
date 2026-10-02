@@ -1,10 +1,15 @@
 /** Trusted Node bootstrap. Model code is evaluated only inside QuickJS. */
 export const CODEMODE_WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
-const { getQuickJS } = require(workerData.modulePath);
+const { newQuickJSWASMModuleFromVariant } = require(workerData.modulePath);
+const variant = require(workerData.variantPath).default;
 
 async function main() {
-  const QuickJS = await getQuickJS();
+  const QuickJS = await newQuickJSWASMModuleFromVariant({
+    ...variant,
+    // Resolve the CJS loader explicitly; the variant's dynamic import picks ESM.
+    importModuleLoader: async () => require(workerData.loaderPath),
+  });
   const vm = QuickJS.newContext();
   vm.runtime.setMemoryLimit(workerData.memoryLimitBytes);
   vm.runtime.setMaxStackSize(512 * 1024);

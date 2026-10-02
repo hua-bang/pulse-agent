@@ -36,7 +36,7 @@ Pulse 拥有并维护 Codemode 的脚本接口、worker 运行器、异步工具
 
 借鉴 Pi 的能力注入与结果隔离：脚本只调用获授权的工具，中间结果留在脚本，显式输出和返回值进入模型上下文。官方 [README](https://github.com/earendil-works/pi/blob/main/packages/codemode/README.md) 是设计参考，不是 Pulse 的运行时依赖或接口规范。
 
-底层采用 `quickjs-emscripten@0.32.0`，其 Node 声明为 >=16；Pulse 自己编写 QuickJS/WASM 运行与桥接层，不自行实现 JavaScript 解释器。Node 引擎测试不代替当前 Electron 与安装产物的资源加载验证。
+底层采用 `quickjs-emscripten-core@0.32.0` 与 `@jitl/quickjs-wasmfile-release-sync@0.32.0`；只分发实际使用的发布版同步 WASM，不带入调试和 asyncify 变体。Pulse 自己编写 QuickJS/WASM 运行与桥接层，不自行实现 JavaScript 解释器。Node 引擎测试不代替当前 Electron 与安装产物的资源加载验证。
 
 脚本在独立 worker 的隔离 VM 中执行，仅通过传递 JSON 的消息协议请求宿主工具。worker 用于避免阻塞主线程和控制进程内生命周期；能力隔离由 VM 与受限桥接承担，不能把 worker 本身视为安全沙箱。不得把 Node vm 或主进程 eval 当作能力隔离替代。
 
