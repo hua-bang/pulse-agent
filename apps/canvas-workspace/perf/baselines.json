@@ -194,8 +194,8 @@
     },
     "package.app_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 250, "warning": 275,
-      "confidence": "high", "basis": "历史 arm64 .app 参考值 234.6MiB；2026-10-02 CI 完整 Codemode/Canvas 安装包实测 242.7MiB，容差调整为 3.5%，对应 243MiB 门槛。", "asOf": "2026-10-02",
-      "gate": { "kind": "ratchet", "baseline": 234.6, "tolerancePct": 3.5, "scope": "bundle" }
+      "confidence": "high", "basis": "历史 arm64 .app 参考值 234.6MiB；2026-10-02 CI 完整 Codemode/Canvas 安装包实测 242.7MiB，app 门槛按维护者要求设为 256MiB；其他安装包门槛保持不变。", "asOf": "2026-10-02",
+      "gate": { "kind": "max", "value": 256, "scope": "bundle" }
     },
     "package.asar_mib": {
       "profile": "darwin-arm64-package", "target": 50, "warning": 60,
