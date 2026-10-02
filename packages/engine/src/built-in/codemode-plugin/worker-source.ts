@@ -23,7 +23,12 @@ async function main() {
   const fail = error => {
     if (finished) return;
     finished = true;
-    parentPort.postMessage({ type: 'done', ok: false, error: String(error) });
+    let message = String(error);
+    if (message.startsWith('ReferenceError:')) {
+      const tool = workerData.catalog.find(item => message.includes("'" + item.name + "' is not defined"));
+      if (tool) message += '; tools are only available on tools: use await tools[' + JSON.stringify(tool.name) + '](args)';
+    }
+    parentPort.postMessage({ type: 'done', ok: false, error: message });
   };
   const bridge = vm.newFunction('callTool', (name, args) => {
     if (++nextId > workerData.maxCalls) throw new Error('Codemode tool call limit exceeded');
@@ -51,11 +56,11 @@ async function main() {
   const setup = vm.evalCode('(() => {' +
     'const call = __bridge, emit = __output, stringify = JSON.stringify, parse = JSON.parse;' +
     'delete globalThis.__bridge; delete globalThis.__output;' +
-    'const catalog = ' + JSON.stringify(workerData.catalog) + ';' +
+    'const catalog = ' + JSON.stringify(workerData.catalog) + '.map(item => ({...item,callExpression: "tools[" + JSON.stringify(item.name) + "]"}));' +
     'const tools = Object.create(null);' +
     'for (const item of catalog) tools[item.name] = async args => parse(await call(item.name, stringify(args)));' +
     'globalThis.tools = Object.freeze(tools);' +
-    'globalThis.ALL_TOOLS = Object.freeze(catalog.map(item => Object.freeze({name:item.name,description:item.description})));' +
+    'globalThis.ALL_TOOLS = Object.freeze(catalog.map(item => Object.freeze({name:item.name,description:item.description,callExpression:item.callExpression})));' +
     'globalThis.describeTools = names => names.map(name => {' +
       'const item = catalog.find(item => item.name === name);' +
       'if (!item) throw new Error("Unknown or unavailable tool: " + name);' +

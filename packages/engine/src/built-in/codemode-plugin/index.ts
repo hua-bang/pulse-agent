@@ -21,7 +21,15 @@ export function createCodemodePlugin(options: CodemodePluginOptions = {}): Engin
     async initialize(context) {
       const tool: Tool<{ code: string }> = {
         name: 'codemode',
-        description: 'Run JavaScript with await tools[name](args). Calls execute serially. Discover allowed tools with ALL_TOOLS and describeTools(names). Output only needed results with text(value) or return. No filesystem or network globals; no automatic retries.',
+        description: [
+          'Run an async JavaScript function body with top-level await and return.',
+          'Tool functions exist only on tools: use await tools["tool_name"](args), never a bare tool_name(args).',
+          'Example: const ctx = await tools["canvas_read_context"]({detail: "full"}); text(ctx);',
+          'Discover authorized names and callExpression with ALL_TOOLS; inspect schemas with describeTools(names).',
+          'Copy the callExpression exactly, including brackets for names containing punctuation. Do not invent tool names.',
+          'Calls execute serially. Output only needed results with text(value) or return.',
+          'No filesystem or network globals; no automatic retries.',
+        ].join(' '),
         inputSchema: z.object({ code: z.string() }).strict(),
         async execute({ code }, executionContext) {
           const executor = executionContext?.nestedTools;

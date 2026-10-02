@@ -35,6 +35,38 @@ describe('Codemode isolated runtime', () => {
     expect(hidden.calls).toEqual([]);
   });
 
+  it('includes executable tool references in discovery, including punctuated MCP names', async () => {
+    const name = 'mcp_bits-and-bolts_cad_search';
+    const result = await run(`
+      const entry = ALL_TOOLS.find(item => item.name === '${name}');
+      const description = describeTools([entry.name])[0];
+      return { listed: entry.callExpression, described: description.callExpression };
+    `, { catalog: [{ name, description: 'Search parts', inputSchema: {} }] });
+    expect(result).toMatchObject({ ok: true, value: {
+      listed: 'tools["mcp_bits-and-bolts_cad_search"]',
+      described: 'tools["mcp_bits-and-bolts_cad_search"]',
+    } });
+  });
+
+  it('explains bare tool names without executing or retrying the screenshot script', async () => {
+    const executeTool = vi.fn(async () => 'context');
+    const catalog = [{ name: 'canvas_read_context', description: 'Read canvas', inputSchema: {} }];
+    const failed = await run(`
+      const ctx = await canvas_read_context({ detail: 'full' });
+      text(typeof ctx === 'string' ? ctx.slice(0, 500) : JSON.stringify(Object.keys(ctx)));
+    `, { catalog, executeTool });
+    expect(failed.ok).toBe(false);
+    expect(failed.error).toContain('tools["canvas_read_context"]');
+    expect(failed.calls).toEqual([]);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(await run('return await tools.canvas_read_context({ detail: "full" });', {
+      catalog, executeTool,
+    })).toMatchObject({ ok: true, value: 'context' });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    const unrelated = await run('return other_missing_name;', { catalog });
+    expect(unrelated.error).not.toContain('tools["canvas_read_context"]');
+  });
+
   it('serializes Promise.all tool calls', async () => {
     let live = 0;
     let peak = 0;

@@ -90,7 +90,11 @@ createCodemodePlugin({ allowedTools: ['read', 'grep', 'ls'] })
 ```
 
 Scripts use `tools[name](args)`, `ALL_TOOLS`, `describeTools(names)`, `text(value)`
-and return. Discovery returns JSON schemas, not TypeScript source. Each script
+and return. Both discovery APIs include a `callExpression`, for example
+`tools["canvas_read_context"]`, alongside the tool name. Tool functions are not
+bare globals; punctuated MCP names require bracket notation. A bare known tool
+name produces a ReferenceError with the correct invocation hint, without executing
+or retrying a tool. Discovery returns JSON schemas, not TypeScript source. Each script
 gets a fresh VM; no Node, network, filesystem or cross-script storage globals
 are injected. Tool names retain their original spelling. Even Promise.all calls
 execute serially. No tool retries are performed.
