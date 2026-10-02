@@ -59,6 +59,10 @@ host actually does and does not gate. Facts verified against source
   mode leaves them ungated, so one script can repeat an MCP write up to the
   100-call limit. Canvas writes, agent messaging, terminals and plugin actions
   stay direct-only. Guard: `src/main/agent/__tests__/engine-plugins.test.ts`.
+  Chat renders script calls from the persisted Codemode result (`calls`), so
+  completed and reloaded turns show each nested name, status and error; live
+  per-call progress is not streamed yet. Trace events carry
+  `parentToolCallId` for script calls.
 
 ## Auto-loaded disk surfaces (evaluated when an agent is built)
 

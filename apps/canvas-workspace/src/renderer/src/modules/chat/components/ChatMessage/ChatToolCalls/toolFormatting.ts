@@ -111,6 +111,7 @@ export const TOOL_LABEL_SLUGS: Record<string, string> = {
   tavily_map: 'searchWeb',
   session_search: 'searchSession',
   session_summary: 'summarizeSession',
+  codemode: 'runScript',
 };
 
 export function displayToolStatus(tool: ToolCallStatus): ToolCallStatus['status'] {

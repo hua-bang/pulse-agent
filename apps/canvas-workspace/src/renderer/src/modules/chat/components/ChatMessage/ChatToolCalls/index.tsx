@@ -24,7 +24,19 @@ import {
   formatToolLabel,
   formatToolSignature,
 } from './toolFormatting';
+import { parseCodemodeResult } from './codemodeResult';
 export { displayToolStatus, formatToolDescription, formatToolLabel } from './toolFormatting';
+
+type Translate = ReturnType<typeof useI18n>['t'];
+
+/** Completed Codemode calls summarize their script calls, failures included. */
+const formatCodemodeSummary = (tool: ToolCallStatus, t: Translate): string | null => {
+  const view = parseCodemodeResult(tool);
+  if (!view) return null;
+  return view.failedCalls > 0
+    ? t('chat.codemode.summaryWithFailures', { count: view.calls.length, failed: view.failedCalls })
+    : t('chat.codemode.summary', { count: view.calls.length });
+};
 
 export const ChatToolCalls = ({
   tools,
@@ -60,9 +72,12 @@ export const ChatToolCalls = ({
       ? t('chat.toolCalls.summary', counts)
       : t('chat.toolCalls.completed', { count: counts.succeeded });
   const hasLiveTools = counts.running > 0 || counts.queued > 0;
-  const summaryLabel = single && (hasLiveTools || single.status === 'succeeded')
-    ? formatToolDescription(single.tool) ?? formatToolLabel(single.tool.name, single.status, t)
-    : completedLabel;
+  const singleCodemodeSummary = single ? formatCodemodeSummary(single.tool, t) : null;
+  const summaryLabel = single && singleCodemodeSummary
+    ? singleCodemodeSummary
+    : single && (hasLiveTools || single.status === 'succeeded')
+      ? formatToolDescription(single.tool) ?? formatToolLabel(single.tool.name, single.status, t)
+      : completedLabel;
 
   if (collapsed) {
     return (
@@ -119,7 +134,7 @@ export const ChatToolCalls = ({
           && status !== 'queued'
           && !!(tool.result || tool.error || tool.args !== undefined);
         const expanded = expandedTools.has(tool.id);
-        const description = formatToolDescription(tool);
+        const description = formatCodemodeSummary(tool, t) ?? formatToolDescription(tool);
         const label = description ?? formatToolLabel(tool.name, status, t);
         const signature = formatToolSignature(tool.name, tool.args);
         const showRawName = !description && (

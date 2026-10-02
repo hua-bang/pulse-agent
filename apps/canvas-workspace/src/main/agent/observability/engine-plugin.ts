@@ -18,6 +18,12 @@ const runtimeOwner = (runtimeId: unknown): 'engine' | 'pi' =>
 const contextObject = (value: unknown): object | undefined =>
   value != null && typeof value === 'object' ? value : undefined;
 
+/** Codemode nests script calls under the outer tool call that ran the script. */
+const parentToolCall = (toolContext: any): { parentToolCallId?: string } =>
+  typeof toolContext?.parentToolCallId === 'string'
+    ? { parentToolCallId: toolContext.parentToolCallId }
+    : {};
+
 const finiteNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
@@ -106,6 +112,7 @@ export const canvasAgentObservabilityEnginePlugin = {
       publishAgentTraceEvent({
         type: 'tool.started', runId: state.runId, timestamp: Date.now(),
         toolCallId, toolName: input.name, owner: state.owner,
+        ...parentToolCall(input.toolContext),
       });
     });
 
@@ -119,6 +126,7 @@ export const canvasAgentObservabilityEnginePlugin = {
       publishAgentTraceEvent({
         type: 'tool.completed', runId: state.runId, timestamp: Date.now(),
         toolCallId, toolName: input.name, owner: state.owner, status: 'done',
+        ...parentToolCall(input.toolContext),
       });
     });
 

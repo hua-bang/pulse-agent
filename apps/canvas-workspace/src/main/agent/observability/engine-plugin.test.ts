@@ -42,6 +42,24 @@ describe('canvas Engine observability plugin', () => {
     expect(publish.mock.calls.every(([item]) => item.runId === 'run-1')).toBe(true);
   });
 
+  it('links Codemode script calls to the outer tool call', async () => {
+    const hooks = await setup();
+    const context = {};
+    hooks.get('beforeRun')!({ context, runContext: { runId: 'run-1', runtimeId: 'engine' } });
+    const nested = { toolCallId: 'call_1:1', parentToolCallId: 'call_1', resultTarget: 'script' };
+    hooks.get('beforeToolCall')!({ context, name: 'codemode', toolContext: { toolCallId: 'call_1' } });
+    hooks.get('beforeToolCall')!({ context, name: 'canvas_read_node', toolContext: nested });
+    hooks.get('afterToolCall')!({ context, name: 'canvas_read_node', toolContext: nested });
+    hooks.get('afterToolCall')!({ context, name: 'codemode', toolContext: { toolCallId: 'call_1' } });
+
+    expect(publish.mock.calls.map(([item]) => [item.type, item.toolCallId, item.parentToolCallId])).toEqual([
+      ['tool.started', 'call_1', undefined],
+      ['tool.started', 'call_1:1', 'call_1'],
+      ['tool.completed', 'call_1:1', 'call_1'],
+      ['tool.completed', 'call_1', undefined],
+    ]);
+  });
+
   it('does not misreport Pi policy refreshes as model generations', async () => {
     const hooks = await setup();
     const context = {};

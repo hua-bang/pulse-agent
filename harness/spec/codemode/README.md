@@ -1,6 +1,6 @@
 # Pulse Codemode Spec
 
-状态：Engine 插件与嵌套执行契约已实现；Canvas 已接入 `agent-codemode` 开关与只读工具名单（见 [Canvas security posture](../../../apps/canvas-workspace/harness/knowledge/security-posture.md)）；嵌套调用展示、tracing、安装产物验收与真实模型收益验收仍待完成。已实现行为由 [Engine plugin knowledge](../../../packages/engine/harness/knowledge/plugin-system.md#opt-in-codemode) 维护；下文保留整体目标与宿主验收要求。
+状态：Engine 插件与嵌套执行契约已实现；Canvas 已接入 `agent-codemode` 开关与只读工具名单（见 [Canvas security posture](../../../apps/canvas-workspace/harness/knowledge/security-posture.md)）；已完成调用的嵌套明细与 tracing 父子关系已接入；运行中逐条进度、Mac 安装产物验收与真实模型收益验收仍待完成。已实现行为由 [Engine plugin knowledge](../../../packages/engine/harness/knowledge/plugin-system.md#opt-in-codemode) 维护；下文保留整体目标与宿主验收要求。
 
 已确认方向：Pulse 自己实现 Codemode 的运行器、工具桥接与生命周期，不依赖 Pi Codemode 包。Pi 仅作为设计参考。
 
