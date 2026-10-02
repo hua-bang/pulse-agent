@@ -145,7 +145,8 @@ with `log_corrupt`. `--log-dir` selects a custom profile's runs directory.
 reusing `AgentDebugPage` and its styles rather than starting Electron. It embeds
 only the requested run/session; run selection and timing export remain local.
 The page labels itself a snapshot and has no live refresh or Canvas navigation.
-The CLI build embeds the renderer in `index.cjs`, so the existing tooling
+The CLI build embeds the renderer as Brotli-compressed data in `index.cjs`,
+inflating it only when generating a snapshot, so the existing tooling
 fingerprint, install, and repair mechanisms cover it without extra asset rules.
 `packages/canvas-cli/scripts/build-log-viewer.mjs` generates the ignored module;
 the declaration stays available to a fresh checkout's typecheck. CLI build/dev

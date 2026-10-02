@@ -4,7 +4,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { promisify } from 'util';
-import { viewerScript, viewerStyles } from '../generated/log-viewer';
+import { brotliDecompressSync } from 'zlib';
+import { viewerAssetsBrotli } from '../generated/log-viewer';
 import { LogError, type LogSelector, type RecordedLogRun } from './logs';
 
 const execFileAsync = promisify(execFile);
@@ -15,13 +16,18 @@ export function buildLogViewerHtml(payload: {
   sessionId?: string;
   workspaceId: string;
 }): string {
+  // Inflate only when opening a snapshot; ordinary CLI commands keep the
+  // renderer compressed in the packaged entrypoint.
+  const { script, styles } = JSON.parse(
+    brotliDecompressSync(Buffer.from(viewerAssetsBrotli, 'base64')).toString('utf8'),
+  ) as { script: string; styles: string };
   const json = JSON.stringify(payload).replace(/[<>&\u2028\u2029]/g,
     character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pulse Canvas DevTools</title><style>${viewerStyles}</style></head>
+<title>Pulse Canvas DevTools</title><style>${styles}</style></head>
 <body><div id="root"></div><script id="trace-data" type="application/json">${json}</script>
-<script>${viewerScript.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
+<script>${script.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
 }
 
 export async function openLogViewer(
