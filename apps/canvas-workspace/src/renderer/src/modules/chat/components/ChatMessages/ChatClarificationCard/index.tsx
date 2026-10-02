@@ -1,10 +1,14 @@
 import './index.css';
-import { useId } from 'react';
+import { lazy, Suspense, useId } from 'react';
 import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
 import { BotAvatarIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
 import type { PendingClarification } from '../../../../../types';
+
+const CanvasApprovalNodePreview = lazy(() => import('../../../../canvas/preview').then(module => ({
+  default: module.CanvasApprovalNodePreview,
+})));
 
 interface ChatClarificationCardProps {
   pendingClarify: PendingClarification;
@@ -48,7 +52,17 @@ export const ChatClarificationCard = ({
             {t(approval ? 'chat.approvalRequired' : 'chat.needsClarification')}
           </div>
           <div className="chat-clarify-question">{pendingClarify.question}</div>
-          {pendingClarify.context && (
+          {approval && pendingClarify.nodePreview && (
+            <Suspense fallback={null}>
+              <CanvasApprovalNodePreview node={pendingClarify.nodePreview} />
+            </Suspense>
+          )}
+          {approval && pendingClarify.context ? (
+            <details key={pendingClarify.id} className="chat-clarify-approval-details">
+              <summary>{t('chat.turn.technicalDetails')}</summary>
+              <div className="chat-clarify-context">{pendingClarify.context}</div>
+            </details>
+          ) : pendingClarify.context && (
             <div className="chat-clarify-context">{pendingClarify.context}</div>
           )}
           {approval ? (
@@ -119,4 +133,3 @@ export const ChatClarificationCard = ({
     </div>
   );
 };
-

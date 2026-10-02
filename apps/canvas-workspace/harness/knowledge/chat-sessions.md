@@ -806,6 +806,13 @@ Guards: `useConversationRecovery.test.tsx` and `conversation-runtime.test.ts`.
 
 ### Clarification serialization
 
+Node-creation approvals carry an optional `nodePreview` through the shared
+clarification request and renderer snapshot. The preview is separate from the
+truncated parameter excerpt and reuses passive, read-only node bodies; terminal,
+agent, webview and plugin runtimes must not mount before approval. Parameter
+details start collapsed and scroll independently of the approval actions.
+Guard: `approval-node-preview.test.ts` (`src/main/agent/`).
+
 The renderer has one visible approval card, so main must serialize
 concurrent clarification requests and start each timeout only when that
 request becomes visible. Answering one request must reveal, not clear, the

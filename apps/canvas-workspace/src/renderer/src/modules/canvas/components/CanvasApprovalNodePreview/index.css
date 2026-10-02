@@ -1,0 +1,34 @@
+.canvas-approval-preview {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.canvas-approval-preview__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.canvas-approval-preview__title svg {
+  flex-shrink: 0;
+}
+
+.canvas-approval-preview__viewport {
+  max-height: min(280px, 30vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.canvas-approval-preview__viewport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}

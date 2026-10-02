@@ -57,6 +57,7 @@ export interface PendingClarification {
   question: string;
   context?: string;
   kind?: 'clarification' | 'approval';
+  nodePreview?: CanvasNode;
   defaultAnswer?: string;
 }
 

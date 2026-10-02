@@ -27,6 +27,8 @@ export interface AgentClarificationRequest {
   question: string;
   context?: string;
   kind?: 'clarification' | 'approval';
+  /** Read-only proposed node; never persisted or activated before approval. */
+  nodePreview?: CanvasNode;
   defaultAnswer?: string;
   timeout?: number;
 }

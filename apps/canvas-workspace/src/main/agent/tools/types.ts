@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AgentClarificationRequest } from '../../../shared/agent-chat';
 
 // ─── Types mirrored from canvas-cli ────────────────────────────────
 
@@ -76,14 +77,7 @@ export interface CanvasSaveData {
  */
 export interface CanvasToolExecutionContext {
   /** Called when a tool needs to ask the user a clarifying question. */
-  onClarificationRequest?: (request: {
-    id: string;
-    question: string;
-    context?: string;
-    kind?: 'clarification' | 'approval';
-    defaultAnswer?: string;
-    timeout: number;
-  }) => Promise<string>;
+  onClarificationRequest?: (request: AgentClarificationRequest & { timeout: number }) => Promise<string>;
   /** Abort signal for the current engine run. */
   abortSignal?: AbortSignal;
   /** Per-turn metadata supplied by CanvasAgent (for example ask/auto mode). */

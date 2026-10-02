@@ -15,3 +15,27 @@
   line-height: 1.4;
 }
 
+.chat-clarify-approval-details {
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.chat-clarify-approval-details summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.chat-clarify-approval-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.chat-clarify-approval-details .chat-clarify-context {
+  max-height: min(240px, 30vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
