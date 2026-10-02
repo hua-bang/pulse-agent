@@ -704,9 +704,13 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           const registeredName = providerSafeToolName(`mcp_${serverName}_${toolName}`);
           registeredToolNames[serverName][toolName] = registeredName;
           const resourceUri = toolResourceUri(tool);
-          namespacedTools[registeredName] = shouldDeferTools
-            ? { ...(tool as any), defer_loading: true }
-            : (tool as any);
+          namespacedTools[registeredName] = {
+            ...(tool as any),
+            // MCP App tools stay direct-only: a script call would yield data
+            // without the host's App instance, UI card or confirmation flow.
+            codemode: !resourceUri,
+            ...(shouldDeferTools ? { defer_loading: true } : {}),
+          };
           if (resourceUri) {
             const title = toolTitle(tool);
             const entrypoints = toolEntrypoints(tool);

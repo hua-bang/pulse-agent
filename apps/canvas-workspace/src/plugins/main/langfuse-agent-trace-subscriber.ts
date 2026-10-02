@@ -111,8 +111,15 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
         break;
       }
       case 'tool.started': {
-        const tool = this.start(run.runtime ?? run.root, event.toolName, 'tool', event.timestamp, {
-          metadata: { owner: event.owner, toolCallId: event.toolCallId },
+        // Codemode script calls nest under the still-open outer tool span.
+        const parent = (event.parentToolCallId && run.tools.get(event.parentToolCallId))
+          || run.runtime || run.root;
+        const tool = this.start(parent, event.toolName, 'tool', event.timestamp, {
+          metadata: {
+            owner: event.owner,
+            toolCallId: event.toolCallId,
+            ...(event.parentToolCallId ? { parentToolCallId: event.parentToolCallId } : {}),
+          },
         });
         run.tools.set(event.toolCallId, tool);
         break;

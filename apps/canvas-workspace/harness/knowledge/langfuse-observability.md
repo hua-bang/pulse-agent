@@ -42,6 +42,7 @@ trace: canvas.agent.turn                 sessionId = Canvas chat session
   agent: runtime.engine | runtime.pi-agent-harness
     generation: model-call              (one per actual provider call)
     tool: <tool-name>                    (nested under its runtime/model step)
+      tool: <script-call>                (Codemode call; metadata.parentToolCallId)
     event: first-stream-activity         (TTFA, with event type)
     event: first-text                    (optional visual milestone)
   span: canvas.host.response-processing

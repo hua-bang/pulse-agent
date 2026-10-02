@@ -172,8 +172,8 @@ function createRegexTool(context: EnginePluginContext, config: ToolSearchConfig)
     name: 'tool_search_tool_regex',
     description: 'Search available tools using a Python-style regex query.',
     inputSchema: searchToolSchema,
-    execute: async (input: SearchToolInput) => {
-      const tools = context.getEngineInstance().tools;
+    execute: async (input: SearchToolInput, executionContext) => {
+      const tools = executionContext?.nestedTools?.getTools() ?? context.getEngineInstance().tools;
       return buildSearchResult(tools, input, 'regex', config);
     },
   };
@@ -184,8 +184,8 @@ function createBm25Tool(context: EnginePluginContext, config: ToolSearchConfig):
     name: 'tool_search_tool_bm25',
     description: 'Search available tools using natural language queries.',
     inputSchema: searchToolSchema,
-    execute: async (input: SearchToolInput) => {
-      const tools = context.getEngineInstance().tools;
+    execute: async (input: SearchToolInput, executionContext) => {
+      const tools = executionContext?.nestedTools?.getTools() ?? context.getEngineInstance().tools;
       return buildSearchResult(tools, input, 'bm25', config);
     },
   };
@@ -347,7 +347,7 @@ export const builtInToolSearchPlugin: EnginePlugin = {
       service.resetLoadedTools();
     });
 
-    context.registerHook('beforeLLMCall', ({ tools, systemPrompt }) => {
+    context.registerHook('prepareToolPresentation', ({ tools, systemPrompt }) => {
       const toolSearchService = context.getService<ToolSearchService>(TOOL_SEARCH_SERVICE_NAME) ?? service;
 
       // Auto threshold: when deferred schemas fit comfortably in the context
@@ -381,8 +381,8 @@ export const builtInToolSearchPlugin: EnginePlugin = {
         tools: {
           ...split.immediate,
           ...loadedTools,
-          [regexTool.name]: regexTool,
-          [bm25Tool.name]: bm25Tool,
+          ...(tools[regexTool.name] ? { [regexTool.name]: tools[regexTool.name] } : {}),
+          ...(tools[bm25Tool.name] ? { [bm25Tool.name]: tools[bm25Tool.name] } : {}),
         },
         systemPrompt: nextPrompt,
       };
@@ -397,7 +397,7 @@ export const builtInToolSearchPlugin: EnginePlugin = {
       service.addLoadedTools(references.map(reference => reference.tool_name));
     });
 
-    // Track which deferred tools the model discovered so the next beforeLLMCall
+    // Track which deferred tools the model discovered so the next prepareToolPresentation
     // can inject them back into the top-level tool list (defer + search path).
     // No system message is appended: announcing tools via message history would
     // mutate the prompt prefix every turn and defeat provider prompt caching.

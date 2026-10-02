@@ -65,8 +65,17 @@ export const EXPERIMENTAL_FLAG_AGENT_TEAMS = 'agent-teams';
 export const EXPERIMENTAL_FLAG_DEFAULT_BROWSER = 'default-browser';
 export const EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL = 'agent-runtime-control';
 export const EXPERIMENTAL_FLAG_PI_AGENT_HARNESS = 'pi-agent-harness';
+export const EXPERIMENTAL_FLAG_AGENT_CODEMODE = 'agent-codemode';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
+  {
+    id: EXPERIMENTAL_FLAG_AGENT_CODEMODE,
+    label: 'Agent Codemode',
+    description:
+      'Adds a codemode tool that lets the Canvas Agent run a sandboxed script which calls read-only Canvas tools and enabled MCP tools serially, returning only the script output. Takes effect for newly created agent sessions.',
+    defaultEnabled: false,
+    exposure: 'experimental',
+  },
   {
     id: EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
     label: 'Pi AgentHarness runtime',

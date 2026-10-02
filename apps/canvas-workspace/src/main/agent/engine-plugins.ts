@@ -1,6 +1,7 @@
 import { join } from 'path';
 
 import {
+  createCodemodePlugin,
   createSkillsPlugin,
   createMcpPlugin,
   createToolOffloadPlugin,
@@ -13,6 +14,28 @@ import { getPluginMarketMcpConfigPathsSync } from '../plugin-market/store';
 import { createCanvasMcpOAuthProvider, getCanvasMcpOAuthStatus } from './mcp/oauth';
 import type { AgentScope } from './types';
 import { canvasAgentObservabilityEnginePlugin } from './observability/engine-plugin';
+import { getExperimentalFlagSync } from '../settings/experimental-ipc';
+import { EXPERIMENTAL_FLAG_AGENT_CODEMODE } from '../../shared/experimental-features';
+
+/**
+ * Ordinary Canvas tools a Codemode script may call. Read-only by design:
+ * scripts run without per-call review, so writes, deletes, agent messaging,
+ * terminal creation and plugin actions stay on the direct tool path. Enabled
+ * MCP tools are script-eligible by the engine's own default and keep their
+ * existing scope, permission and approval checks.
+ */
+export const CANVAS_CODEMODE_TOOLS = [
+  'canvas_read_context',
+  'canvas_read_node',
+  'canvas_search_nodes',
+  'canvas_list_edges',
+  'canvas_read_layout',
+] as const;
+
+export interface CanvasEnginePluginOptions {
+  /** Overrides the `agent-codemode` experimental flag (off by default). */
+  codemode?: boolean;
+}
 
 /**
  * Engine plugin list for a Canvas Agent scope.
@@ -23,7 +46,10 @@ import { canvasAgentObservabilityEnginePlugin } from './observability/engine-plu
  * place a built-in plugin can enter the Canvas Agent — anything omitted here is
  * silently absent, which is why the list is extracted and covered by tests.
  */
-export function createCanvasEnginePlugins(scope: AgentScope): unknown[] {
+export function createCanvasEnginePlugins(
+  scope: AgentScope,
+  options: CanvasEnginePluginOptions = {},
+): unknown[] {
   const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined;
   const globalScope = { level: 'global' as const };
   const wsScope = workspaceId ? { level: 'workspace' as const, workspaceId } : undefined;
@@ -65,6 +91,9 @@ export function createCanvasEnginePlugins(scope: AgentScope): unknown[] {
         return createCanvasMcpOAuthProvider(serverName, config.oauth);
       },
     }),
+    ...((options.codemode ?? getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_CODEMODE))
+      ? [createCodemodePlugin({ allowedTools: CANVAS_CODEMODE_TOOLS })]
+      : []),
     canvasAgentObservabilityEnginePlugin,
     // Keep model-only offloading last: it captures the policy-approved MCP
     // envelope for Apps before replacing oversized model output with a stub.

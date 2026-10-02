@@ -358,8 +358,10 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
       const start = starts.get(`tool:${event.toolCallId}`);
       const startedAt = start?.timestamp ?? event.timestamp;
       items.push({
-        id: `tool:${event.toolCallId}`, label: event.toolName,
+        id: `tool:${event.toolCallId}`,
+        label: event.parentToolCallId ? `↳ ${event.toolName}` : event.toolName,
         owner: eventOwner(event.owner), kind: 'tool',
+        ...(event.parentToolCallId ? { detail: `Script call inside ${event.parentToolCallId}` } : {}),
         startMs: Math.max(0, startedAt - origin),
         durationMs: Math.max(0, event.timestamp - startedAt),
         endMs: Math.max(0, event.timestamp - origin),

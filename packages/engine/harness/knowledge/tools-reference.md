@@ -26,3 +26,29 @@ The default tool set every host inherits (unless overridden). Verified against `
 - `defer_loading` / `deferLoading` (both casings honored by the tool-search plugin's filters) hides a tool UNTIL tool-search loads it — but only when the plugin is in defer mode. With the default `PULSE_CODER_TOOL_SEARCH_THRESHOLD=10` (percent of `CONTEXT_WINDOW_TOKENS`), deferred schemas totalling below the threshold load ALL upfront, so `defer_loading` tools are directly visible and the search tools are not exposed.
 - `truncateOutput` (`utils.ts`): caps at `MAX_TOOL_OUTPUT_LENGTH` = 30 000 chars, keeping head + tail and inserting `... [truncated N characters] ...` in the middle — never a blind cutoff. Used by read/edit/grep/bash and all Tavily tools.
 - The loop wraps only `read`/`ls` with access dedup for the lifetime of one `loop()` call — a soft "already accessed" note appended to repeat reads, not a block (see `loop-lifecycle.md`).
+
+### Ordinary tool suitability
+
+Host allowlists remain explicit; composability is separate from permission to
+perform a side effect. Existing Engine tools were checked for result shape and
+interaction requirements:
+
+| Tools | Recommendation |
+|---|---|
+| `read`, `grep`, `ls`, `deferred_demo` | Suitable for script reads and aggregation. |
+| `tavily`, `tavily_extract`, `tavily_crawl`, `tavily_map` | Suitable data results; network requests do not consistently honor the outer AbortSignal. |
+| `write`, `edit`, `bash` | Callable with existing host approvals; shell execution honors cancellation. Do not grant automatically with query tools. |
+| `generate_image` | Structured file result is callable; long request timeout and cancellation need host consideration. |
+| `clarify` | Keep direct: human interaction can outlast the script deadline. |
+
+For Canvas, read/search/list/count and DOM/page readers are good allowlist
+candidates. Node/edge/artifact/memory mutations can compose when host approval is
+preserved. Many Canvas tools return JSON strings; scripts must parse those
+strings before accessing fields. Keep human questions, streamed visual rendering,
+and launching/messaging other agents direct until their interaction and completion
+contracts support nested calls. Creating a terminal node returns creation status,
+not completed command output; terminal execution currently lacks abort propagation.
+MCP App tools register with `codemode: false`: Codemode returns JSON/text only
+and cannot create the App instance or UI card, so they stay direct-only.
+The default 60-second script budget includes approvals and tools; a host's
+300-second approval wait is not guaranteed to finish within it.
