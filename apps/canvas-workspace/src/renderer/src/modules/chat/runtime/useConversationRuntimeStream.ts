@@ -48,8 +48,7 @@ export interface UseConversationRuntimeStreamOptions {
   visible?: boolean;
 }
 
-const toPending = (c: { id: string; question: string; context?: string; kind?: string; defaultAnswer?: string } | null): PendingClarification | null =>
-  c ? { id: c.id, question: c.question, context: c.context, kind: c.kind as PendingClarification['kind'], defaultAnswer: c.defaultAnswer } : null;
+const toPending = (c: PendingClarification | null): PendingClarification | null => c;
 
 const EMPTY_KEY: ConversationKey = { storeId: '', sessionId: '' };
 

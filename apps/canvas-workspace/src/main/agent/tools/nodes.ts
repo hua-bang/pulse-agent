@@ -3,7 +3,7 @@ import { join } from 'path';
 import { writeWorkspaceText } from '../../files/workspace-files';
 import { z } from 'zod';
 import { generateHTML } from '../../generation/html-generator';
-import type { CanvasNode, CanvasTool, NodeType, RawMindmapTopic } from './types';
+import type { CanvasNode, CanvasTool, NodeType } from './types';
 import { STORE_DIR, loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
 import {
@@ -13,7 +13,7 @@ import {
   resolvePlacement,
   type PlacementIntent,
 } from './_shared/placement';
-import { genTopicId, normalizeMindmapTopic } from './_shared/mindmap';
+import { createPassiveNodeData } from './_shared/passive-node-data';
 import { normalizeIframeUrl, shouldCreateIframeForHtml } from './_shared/iframe';
 import {
   MOCK_CARD_DEFAULT_PAYLOAD,
@@ -167,15 +167,10 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
             break;
           }
           case 'text':
-            nodeData = {
-              content,
-              textColor: (extraData.textColor as string) ?? '#1f2328',
-              backgroundColor: (extraData.backgroundColor as string) ?? 'transparent',
-              fontSize: (extraData.fontSize as number) ?? 18,
-            };
-            break;
           case 'image':
-            nodeData = { filePath: (extraData.filePath as string) ?? '' };
+          case 'shape':
+          case 'mindmap':
+            nodeData = { ...createPassiveNodeData(nodeType, content, extraData, input.title as string | undefined) };
             break;
           case 'iframe': {
             const rawMode = extraData.mode as string | undefined;
@@ -200,37 +195,6 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
                 mode: iframeMode,
               };
             }
-            break;
-          }
-          case 'shape': {
-            const validKinds = ['rect', 'rounded-rect', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'];
-            const rawKind = extraData.kind as string | undefined;
-            const shapeKind = rawKind && validKinds.includes(rawKind) ? rawKind : 'rect';
-            nodeData = {
-              kind: shapeKind,
-              fill: (extraData.fill as string) ?? '#E8EEF7',
-              stroke: (extraData.stroke as string) ?? '#5B7CBF',
-              strokeWidth: (extraData.strokeWidth as number) ?? 2,
-              text: (extraData.text as string) ?? (content || ''),
-              textColor: extraData.textColor as string | undefined,
-              fontSize: extraData.fontSize as number | undefined,
-            };
-            break;
-          }
-          case 'mindmap': {
-            const rawRoot = extraData.root as RawMindmapTopic | undefined;
-            const root = rawRoot
-              ? normalizeMindmapTopic(rawRoot)
-              : {
-                  id: genTopicId(),
-                  text: input.title ? title : 'Central topic',
-                  children: [],
-                };
-            nodeData = {
-              root,
-              layout: 'right',
-              rev: 0,
-            };
             break;
           }
           case 'plugin': {

@@ -3,6 +3,7 @@ import { BuiltinToolsMap } from 'pulse-coder-engine';
 import type { AgentScope } from './types';
 import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import type { CanvasTool, CanvasToolExecutionContext } from './tools';
+import { createApprovalNodePreview } from './approval-node-preview';
 
 /**
  * Built-ins available in interactive global chat. Global chat has no ambient
@@ -188,6 +189,7 @@ export async function requestAskModeApproval(options: {
   const answer = await requestApproval({
     id: `tool-approval:${toolCallId}`,
     kind: 'approval',
+    nodePreview: createApprovalNodePreview(name, input, toolCallId),
     question,
     context: `Proposed input:\n${previewToolInput(input)}`,
     defaultAnswer: 'No',
