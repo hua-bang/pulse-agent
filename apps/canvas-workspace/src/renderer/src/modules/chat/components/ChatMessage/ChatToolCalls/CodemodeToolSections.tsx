@@ -48,7 +48,7 @@ const truncate = (text: string, max = 2000): string => (
   text.length > max ? `${text.slice(0, max)}\n…` : text
 );
 
-/** Nested calls first; the script source stays folded at the end. */
+/** Folded script source first, then nested calls, output and errors. */
 export const CodemodeToolSections = ({ tool, view }: Props) => {
   const { t } = useI18n();
   const source = codemodeSource(tool.args);
@@ -60,6 +60,12 @@ export const CodemodeToolSections = ({ tool, view }: Props) => {
 
   return (
     <>
+      {source && (
+        <details className="chat-tool-call-section chat-codemode-script">
+          <summary className="chat-tool-call-section-label">{t('chat.codemode.script')}</summary>
+          <pre>{truncate(source)}</pre>
+        </details>
+      )}
       <div className="chat-tool-call-section">
         <div className="chat-tool-call-section-label">
           {t('chat.codemode.calls', { count: view.calls.length })}
@@ -101,12 +107,6 @@ export const CodemodeToolSections = ({ tool, view }: Props) => {
           <div className="chat-tool-call-section-label">{t('chat.toolCalls.error')}</div>
           <pre>{view.error}</pre>
         </div>
-      )}
-      {source && (
-        <details className="chat-tool-call-section chat-codemode-script">
-          <summary className="chat-tool-call-section-label">{t('chat.codemode.script')}</summary>
-          <pre>{truncate(source)}</pre>
-        </details>
       )}
     </>
   );

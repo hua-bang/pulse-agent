@@ -122,5 +122,9 @@ describe('Codemode tool row', () => {
     expect(text).toContain('completed calls were not undone');
     // The generic raw JSON dump is replaced, not duplicated.
     expect(text).not.toContain('"parentToolCallId"');
+    // The script source leads the details but stays folded.
+    const firstSection = host?.querySelector('.chat-tool-call-result > .chat-tool-call-section');
+    expect(firstSection?.tagName).toBe('DETAILS');
+    expect(firstSection?.hasAttribute('open')).toBe(false);
   });
 });
