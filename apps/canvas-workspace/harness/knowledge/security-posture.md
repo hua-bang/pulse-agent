@@ -54,7 +54,7 @@ host actually does and does not gate. Facts verified against source
   built in `src/main/agent/engine-plugins.ts`) installs the Engine Codemode
   plugin. Scripts run in QuickJS and may call only `CANVAS_CODEMODE_TOOLS`
   (Canvas read/search/list/layout tools) plus enabled MCP tools, which the
-  Engine marks script-eligible by default. Every nested call passes the same
+  Engine marks script-eligible by default (MCP App tools excepted). Every nested call passes the same
   `beforeToolCall` hooks, so Ask mode still pauses MCP writes per call; Auto
   mode leaves them ungated, so one script can repeat an MCP write up to the
   100-call limit. Canvas writes, agent messaging, terminals and plugin actions

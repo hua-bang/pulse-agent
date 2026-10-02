@@ -97,7 +97,7 @@ execute serially. No tool retries are performed.
 
 The authorized catalog uses the current policy table after `beforeLLMCall`,
 before `prepareToolPresentation` defers model declarations. Enabled MCP tools
-carry `codemode: true`; ordinary tools require `allowedTools` or an explicit
+carry `codemode: true`, except MCP App tools, which carry `false`; ordinary tools require `allowedTools` or an explicit
 true marker. `codemode: false` overrides both. Tool names never infer provenance.
 Caller rules remain enforced even without PTC. Deferred eligible tools can be
 called without first searching; policy-removed tools cannot. Presentation hooks
