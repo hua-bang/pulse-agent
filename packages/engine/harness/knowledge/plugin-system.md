@@ -13,7 +13,8 @@ How to author, register, and reason about `EnginePlugin`s. Facts verified agains
 | Hook | Fires | Can mutate |
 |---|---|---|
 | `beforeRun` | once at `Engine.run()` start | systemPrompt, tools |
-| `beforeLLMCall` | before every LLM call, retries included | systemPrompt, tools |
+| `beforeLLMCall` | before every LLM call, retries included | policy: systemPrompt, tools |
+| `prepareToolPresentation` | after all beforeLLMCall policy hooks | model prompt, descriptions, tool subset; preserves policy execution |
 | `beforeToolCall` | before each tool execution (inside the wrapped tool) | input; throw to abort |
 | `onToolCall` | when the LLM emits a tool-call chunk (fire-and-forget) | — |
 | `afterToolCall` | after each tool execution | output |
@@ -64,7 +65,7 @@ Pitfalls (all evidenced):
 
 ## The Tools Pipeline (keystone)
 
-During each LLM call the loop threads ONE mutable `tools` object through every `beforeLLMCall` hook in plugin registration order (`core/loop.ts`): `tools = result.tools` reassigns it per hook, so each plugin sees only what earlier plugins left and can add, remove, or hide entries. It is a pipeline, not a merge. The built-in order (`built-in/index.ts`) is: MCP → Skills → ToolSearch → PlanMode → TaskTracking → SubAgent → AgentTeams → RoleSoul → PTC.
+During each LLM call the loop threads ONE mutable `tools` object through every `beforeLLMCall` hook in plugin registration order (`core/loop.ts`): `tools = result.tools` reassigns it per hook, so each plugin sees only what earlier plugins left and can add, remove, or hide entries. It is a pipeline, not a merge. ToolSearch filters only in the subsequent `prepareToolPresentation` phase, which cannot restore policy-denied tools or replace their execution wrappers. The built-in registration order (`built-in/index.ts`) is: MCP → Skills → ToolSearch → PlanMode → TaskTracking → SubAgent → AgentTeams → RoleSoul → PTC.
 
 This one mechanism explains most "gating weaker than its name" behavior:
 
@@ -79,8 +80,8 @@ Because it is sequential, a tool a downstream plugin relies on may already be go
 ## Opt-in Codemode
 
 `createCodemodePlugin` is exported from both public barrels but is not in
-`builtInPlugins`. Hosts install it explicitly with an `allowedTools` list of
-reviewed query tools. It registers the `codemode` tool with `{ code: string }`
+`builtInPlugins`. Hosts install it explicitly. Enabled MCP tools are eligible
+by default; optional `allowedTools` adds reviewed ordinary tools. It registers the `codemode` tool with `{ code: string }`
 input. The plugin owns its worker, QuickJS/WASM VM, JSON bridge, serial queue,
 resource limits and cancellation; it does not use a Pi runtime package.
 
@@ -94,10 +95,13 @@ gets a fresh VM; no Node, network, filesystem or cross-script storage globals
 are injected. Tool names retain their original spelling. Even Promise.all calls
 execute serially. No tool retries are performed.
 
-The authorized catalog is the intersection of the host list and the current
-model step's policy-visible table, with caller rules enforced even without the
-PTC plugin. Deferred tools discovered by search become available at the next
-model step, not partway through an existing script. Both native loop and external
+The authorized catalog uses the current policy table after `beforeLLMCall`,
+before `prepareToolPresentation` defers model declarations. Enabled MCP tools
+carry `codemode: true`; ordinary tools require `allowedTools` or an explicit
+true marker. `codemode: false` overrides both. Tool names never infer provenance.
+Caller rules remain enforced even without PTC. Deferred eligible tools can be
+called without first searching; policy-removed tools cannot. Presentation hooks
+cannot restore names or replace policy execution wrappers. Both native loop and external
 ToolSession provide the same `ToolExecutionContext.nestedTools` capability.
 Nested execution validates input (including MCP JSON schemas with the compact
 schemasafe compiler), runs tool hooks,

@@ -8,13 +8,13 @@ import { runCodemode, type CodemodeRuntimeOptions } from './runtime.js';
 export type { CodemodeCall, CodemodeResult, CodemodeRuntimeOptions } from './runtime.js';
 
 export interface CodemodePluginOptions extends CodemodeRuntimeOptions {
-  /** Explicit host-reviewed tools. No tools are implicitly authorized. */
-  allowedTools: readonly string[];
+  /** Additional host-reviewed ordinary tools. MCP tools are eligible by default. */
+  allowedTools?: readonly string[];
 }
 
 /** Opt-in plugin: never installed by the default built-in list. */
-export function createCodemodePlugin(options: CodemodePluginOptions): EnginePlugin {
-  const allowed = new Set(options.allowedTools.filter(name => name !== 'codemode'));
+export function createCodemodePlugin(options: CodemodePluginOptions = {}): EnginePlugin {
+  const allowed = new Set((options.allowedTools ?? []).filter(name => name !== 'codemode'));
   return {
     name: 'pulse-coder-engine/codemode',
     version: '0.1.0',
@@ -28,7 +28,8 @@ export function createCodemodePlugin(options: CodemodePluginOptions): EnginePlug
           if (!executor) throw new Error('Codemode requires an active Engine tool execution context');
           const tools = executor.getTools();
           const catalog = Object.entries(tools)
-            .filter(([name]) => allowed.has(name))
+            .filter(([name, item]) => name !== 'codemode' && item.codemode !== false
+              && (item.codemode === true || allowed.has(name)))
             .map(([name, item]) => ({
               name,
               description: item.description,

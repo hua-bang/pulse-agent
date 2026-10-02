@@ -195,7 +195,7 @@ describe('createMcpPlugin disabledTools', () => {
     // Disabled tool is not registered with the engine; the agent can't see it.
     expect(tools['mcp_eido_danger_tool']).toBeUndefined();
     // Enabled tools are registered under the namespaced key.
-    expect(tools['mcp_eido_search']).toBeDefined();
+    expect(tools['mcp_eido_search']).toMatchObject({ codemode: true });
     expect(tools['mcp_eido_plain']).toBeDefined();
 
     const manager = services['mcp:__manager__'] as MCPClientManager;
@@ -221,7 +221,7 @@ describe('createMcpPlugin disabledTools', () => {
     const { ctx, tools, services } = makeContext();
     await plugin.initialize(ctx);
 
-    expect(tools['mcp_eido_search']).toBeDefined();
+    expect(tools['mcp_eido_search']).toMatchObject({ codemode: true });
     expect(tools['mcp_eido_danger_tool']).toBeDefined();
     expect(tools['mcp_eido_plain']).toBeDefined();
 

@@ -228,17 +228,93 @@ describe('Codemode Engine plugin', () => {
     }
   });
 
-  it('keeps deferred and policy-hidden tools unavailable until the next model step', async () => {
+  it('allows explicitly reviewed deferred tools without a model search step', async () => {
     vi.stubEnv('PULSE_CODER_TOOL_SEARCH_THRESHOLD', '0');
     const engine = await engineWith({ query: { ...query(async () => 42), defer_loading: true } }, [builtInToolSearchPlugin]);
     const session = await engine.createToolSession({ messages: [] });
     try {
       const hidden: any = await session.executeTool('codemode', { code: 'text(ALL_TOOLS); await tools.query({value: 1});' });
-      expect(hidden.ok).toBe(false);
-      expect(hidden.output).toEqual(['[]']);
+      expect(hidden.ok).toBe(true);
+      expect(hidden.output[0]).toContain('query');
       await session.executeTool('tool_search_tool_bm25', { query: 'Read values' });
       const loaded: any = await session.executeTool('codemode', { code: 'return await tools.query({value: 1});' });
       expect(loaded).toMatchObject({ ok: true, value: 42 });
+    } finally { await session.dispose(); }
+  });
+
+  it('defaults marked MCP tools to script access, without trusting name prefixes', async () => {
+    vi.stubEnv('PULSE_CODER_TOOL_SEARCH_THRESHOLD', '0');
+    const engine = new Engine({
+      disableBuiltInPlugins: true, builtInTools: {},
+      tools: {
+        mcp_real: { ...query(async () => 42), codemode: true, defer_loading: true },
+        mcp_fake: query(async () => 'fake'),
+        opted_out: { ...query(async () => 'denied'), codemode: false },
+      },
+      enginePlugins: { plugins: [builtInToolSearchPlugin, createCodemodePlugin({ allowedTools: ['opted_out'] })], scan: false },
+      userConfigPlugins: { scan: false },
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    });
+    await engine.initialize();
+    const session = await engine.createToolSession({ messages: [] });
+    try {
+      expect(session.getTools()).not.toHaveProperty('mcp_real');
+      expect(await session.executeTool('codemode', {
+        code: 'return [await tools.mcp_real({value: 1}), typeof tools.mcp_fake, typeof tools.opted_out];',
+      })).toMatchObject({ ok: true, value: [42, 'undefined', 'undefined'] });
+    } finally { await session.dispose(); }
+  });
+
+  it.each(['session', 'native'])('preserves policy removal and execution wrappers in %s', async mode => {
+    vi.stubEnv('PULSE_CODER_TOOL_SEARCH_THRESHOLD', '0');
+    const forbidden = vi.fn(async () => 'must not run');
+    const engine = await engineWith({
+      query: { ...query(forbidden), codemode: true, defer_loading: true },
+      denied: { ...query(forbidden), codemode: true, defer_loading: true },
+    }, [builtInToolSearchPlugin, {
+      name: 'policy', version: '1', async initialize(ctx) {
+        ctx.registerHook('beforeLLMCall', ({ tools }) => {
+          const { denied, ...permitted } = tools;
+          return { tools: { ...permitted, query: { ...permitted.query, execute: async () => ({ approvalDenied: true }) } } };
+        });
+        // Presentation must neither resurrect tools nor substitute policy execution.
+        ctx.registerHook('prepareToolPresentation', ({ tools }) => ({ tools: {
+          ...tools, denied: query(forbidden), query: query(forbidden),
+        } }));
+      },
+    }]);
+    const code = 'return [await tools.query({value: 1}), typeof tools.denied];';
+    if (mode === 'session') {
+      const session = await engine.createToolSession({ messages: [] });
+      try {
+        expect(session.getTools()).not.toHaveProperty('denied');
+        expect(await session.executeTool('codemode', { code })).toMatchObject({ ok: true, value: [{ approvalDenied: true }, 'undefined'] });
+      } finally { await session.dispose(); }
+    } else {
+      streamMock.mockImplementation((_messages, tools, options) => {
+        expect(tools).not.toHaveProperty('denied');
+        const text = tools.codemode.execute({ code }, options.toolExecutionContext).then(JSON.stringify);
+        return { text, steps: Promise.resolve([]), finishReason: Promise.resolve('stop'), usage: Promise.resolve({}) };
+      });
+      expect(JSON.parse(await engine.run({ messages: [] }))).toMatchObject({ ok: true, value: [{ approvalDenied: true }, 'undefined'] });
+    }
+    expect(forbidden).not.toHaveBeenCalled();
+  });
+
+  it('keeps beforeRun scope removals out of script discovery', async () => {
+    const execute = vi.fn(async () => 'out of scope');
+    const engine = await engineWith({ query: { ...query(execute), codemode: true } }, [{
+      name: 'scope', version: '1', async initialize(ctx) {
+        ctx.registerHook('beforeRun', ({ tools }) => {
+          const { query, ...scoped } = tools;
+          return { tools: scoped };
+        });
+      },
+    }]);
+    const session = await engine.createToolSession({ messages: [] });
+    try {
+      expect(await session.executeTool('codemode', { code: 'return ALL_TOOLS;' })).toMatchObject({ ok: true, value: [] });
+      expect(execute).not.toHaveBeenCalled();
     } finally { await session.dispose(); }
   });
 

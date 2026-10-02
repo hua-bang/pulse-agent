@@ -121,7 +121,7 @@ export function createNestedToolExecutor(options: {
     async executeTool(name, input, childContext, onIntercepted) {
       const tools = getTools();
       const tool = Object.hasOwn(tools, name) ? tools[name] : undefined;
-      if (!tool) throw new Error(`Unknown or unavailable tool: ${name}`);
+      if (!tool || tool.codemode === false) throw new Error(`Unknown or unavailable tool: ${name}`);
       const signals = [...new Set([options.toolContext?.abortSignal, childContext?.abortSignal]
         .filter((signal): signal is AbortSignal => signal !== undefined))];
       const controller = new AbortController();
@@ -146,4 +146,24 @@ export function createNestedToolExecutor(options: {
       }
     },
   };
+}
+
+/** Presentation cannot restore policy-denied tools or replace their execution wrappers. */
+export async function prepareToolPresentation(
+  input: Parameters<EngineHookMap['beforeLLMCall']>[0],
+  hooks: Array<EngineHookMap['prepareToolPresentation']> = [],
+) {
+  let tools = input.tools;
+  let systemPrompt = input.systemPrompt;
+  for (const hook of hooks) {
+    const result = await hook({ ...input, tools, systemPrompt });
+    if (result?.systemPrompt !== undefined) systemPrompt = result.systemPrompt;
+    if (result?.tools !== undefined) {
+      const previous = tools;
+      tools = Object.fromEntries(Object.entries(result.tools)
+        .filter(([name]) => Object.hasOwn(previous, name))
+        .map(([name, presented]) => [name, { ...previous[name], description: presented.description }]));
+    }
+  }
+  return { tools, systemPrompt };
 }

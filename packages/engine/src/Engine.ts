@@ -6,7 +6,7 @@ import type { UserConfigPluginLoadOptions } from './plugin/UserConfigPlugin.js';
 import type { PlanMode, PlanModeService } from './built-in/index.js';
 
 import { loop } from './core/loop.js';
-import { createNestedToolExecutor, executeToolWithHooks } from './core/tool-execution.js';
+import { createNestedToolExecutor, executeToolWithHooks, prepareToolPresentation } from './core/tool-execution.js';
 import { maybeCompactContext } from './context/index.js';
 import { BuiltinToolsMap } from './tools/index.js';
 import { PluginManager } from './plugin/PluginManager.js';
@@ -245,6 +245,7 @@ export class Engine {
   private collectLoopHooks(): LoopHooks {
     const loopHooks: LoopHooks = {
       beforeLLMCall: this.pluginManager.getHooks('beforeLLMCall'),
+      prepareToolPresentation: this.pluginManager.getHooks('prepareToolPresentation'),
       afterLLMCall: this.pluginManager.getHooks('afterLLMCall'),
       beforeToolCall: [...this.pluginManager.getHooks('beforeToolCall')],
       afterToolCall: [...this.pluginManager.getHooks('afterToolCall')],
@@ -394,6 +395,7 @@ export class Engine {
     let systemPrompt = options.systemPrompt ?? this.options.systemPrompt;
     const hooks = this.collectLoopHooks();
     let visibleTools: Record<string, Tool> = {};
+    let policyTools: Record<string, Tool> = {};
     let visibleSystemPrompt = systemPrompt;
     let llmCallOpen = false;
     let disposed = false;
@@ -436,8 +438,13 @@ export class Engine {
           nextTools = result.tools;
         }
       }
-      visibleTools = nextTools;
-      visibleSystemPrompt = nextPrompt;
+      policyTools = nextTools;
+      const presentation = await prepareToolPresentation({
+        context: policyContext, tools: policyTools, systemPrompt: nextPrompt,
+        runContext: options.runContext, model: options.model ?? this.options.model,
+      }, hooks.prepareToolPresentation);
+      visibleTools = presentation.tools;
+      visibleSystemPrompt = presentation.systemPrompt;
       llmCallOpen = true;
     };
 
@@ -483,7 +490,7 @@ export class Engine {
           output = await this.executeResolvedTool(tool, name, input, {
             context: policyContext,
             toolContext: { ...toolContext, runContext: toolContext?.runContext ?? options.runContext },
-            getTools: () => disposed ? {} : visibleTools,
+            getTools: () => disposed ? {} : policyTools,
           });
         } catch (error) {
           await refreshVisibleTools();
@@ -515,7 +522,7 @@ export class Engine {
           output = await this.executeResolvedTool(tool, name, input, {
             context: policyContext,
             toolContext: { ...toolContext, runContext: toolContext?.runContext ?? options.runContext },
-            getTools: () => disposed ? {} : visibleTools,
+            getTools: () => disposed ? {} : policyTools,
           });
         } catch (error) {
           await refreshVisibleTools();

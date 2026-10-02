@@ -704,9 +704,11 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           const registeredName = providerSafeToolName(`mcp_${serverName}_${toolName}`);
           registeredToolNames[serverName][toolName] = registeredName;
           const resourceUri = toolResourceUri(tool);
-          namespacedTools[registeredName] = shouldDeferTools
-            ? { ...(tool as any), defer_loading: true }
-            : (tool as any);
+          namespacedTools[registeredName] = {
+            ...(tool as any),
+            codemode: true,
+            ...(shouldDeferTools ? { defer_loading: true } : {}),
+          };
           if (resourceUri) {
             const title = toolTitle(tool);
             const entrypoints = toolEntrypoints(tool);

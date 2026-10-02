@@ -99,6 +99,8 @@ export interface Tool<Input = any, Output = any> {
   description: string;
   inputSchema: FlexibleSchema<Input>;
   outputSchema?: FlexibleSchema<Output>;
+  /** true: script eligible by default; false: direct-only; unset: host allowlist. */
+  codemode?: boolean;
   allowed_callers?: string[];
   defer_loading?: boolean;
   deferLoading?: boolean;

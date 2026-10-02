@@ -24,6 +24,7 @@ export class PluginManager {
     beforeRun: [],
     afterRun: [],
     beforeLLMCall: [],
+    prepareToolPresentation: [],
     afterLLMCall: [],
     beforeToolCall: [],
     afterToolCall: [],

@@ -142,6 +142,9 @@ export interface EngineHookMap {
   /** Fires before each LLM call inside the loop (including retries after tool-calls). */
   beforeLLMCall: (input: BeforeLLMCallInput) => Promisable<BeforeLLMCallResult | void>;
 
+  /** After policy hooks: filter model presentation only; cannot add tools or replace execution. */
+  prepareToolPresentation: (input: BeforeLLMCallInput) => Promisable<BeforeLLMCallResult | void>;
+
   /** Fires after each LLM call completes. Read-only. */
   afterLLMCall: (input: AfterLLMCallInput) => Promisable<void>;
 

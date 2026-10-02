@@ -32,7 +32,8 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 - `Engine.createToolSession()` is the policy-safe boundary for an external
   model harness. `getRegisteredTools()` exposes the post-`beforeRun` registry
   (including deferred definitions), while `getTools()` exposes only the
-  current `beforeLLMCall`-filtered table. The session also exposes the
+  current model presentation table after `beforeLLMCall` policy and
+  `prepareToolPresentation` filters. The session also exposes the
   policy-adjusted prompt; execution still performs schema validation and the
   normal before/after tool hooks. Callers must always `dispose()` it so
   `afterLLMCall` / `afterRun` lifecycle hooks close.
@@ -43,19 +44,29 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 ### Nested tools
 
 `ToolExecutionContext.nestedTools` is the current run's policy-safe tool
-capability. `getTools()` exposes only the current model step's visible table
-with caller rules applied; `executeTool()` validates inputs and runs tool hooks
+capability. `getTools()` exposes the current policy table after `beforeLLMCall`,
+before presentation-only deferral, with caller rules applied; `executeTool()` validates inputs and runs tool hooks
 without appending model history or opening/closing model lifecycle steps.
 Nested authority comes from the outer invocation; child calls can only supply
 their cancellation signal and correlation ID. An optional interception callback
 distinguishes hook-generated results from actual underlying execution.
 `parentToolCallId` and `resultTarget` are host metadata; script calls use the
 `script` target so model-only offload does not replace their intermediate data.
-Visibility refreshes at real model steps, preserving deferred-tool behavior.
+Policy and presentation refresh at real model steps, preserving deferred-tool behavior.
 The opt-in Codemode factory and result/event contracts are described in
 [plugin-system.md](plugin-system.md#opt-in-codemode).
 
 Use these before editing the loop:
+
+`prepareToolPresentation` runs after all `beforeLLMCall` policy hooks. It can
+filter model declarations and change descriptions/prompts, but cannot restore
+removed tools or replace policy execution, schemas or caller metadata. ToolSearch
+uses this hook: deferral affects model display, not script eligibility. Tools
+removed by policy remain unavailable to scripts. `Tool.codemode: true` opts into
+default script eligibility; `false` prohibits nested execution even with an
+explicit Codemode host allowlist; unset requires that allowlist. Enabled tools
+registered by the MCP plugin default to true; names alone confer no eligibility.
+
 
 - Plugin tools for new capabilities.
 - Hooks for lifecycle behavior.

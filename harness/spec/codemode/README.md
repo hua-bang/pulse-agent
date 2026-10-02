@@ -26,9 +26,9 @@ Pulse 已有统一工具注册、工具搜索、工具 hooks 和外部模型执�
 
 第一版应同时适用于 Canvas 的 Engine 后端和实验性 Pi 后端，使用同一工具策略。原有直接工具调用继续可用；单次小查询无需使用 Codemode。
 
-典型任务是批量查询节点或 MCP 数据，输出数量、分组统计或有限的匹配记录。首发宿主授权集仅包含明确选定的只读查询工具，继续执行既有 scope 和权限检查。
+典型任务是批量查询节点或 MCP 数据，输出数量、分组统计或有限的匹配记录。已启用且属于当前 scope 的 MCP 工具默认可编排，继续执行既有 scope、权限和审批检查。普通工具由宿主明确选定，优先接入读取和查询类。
 
-第一版不提供：嵌套工具并发、跨脚本状态、远程 JS 执行器、崩溃恢复、自动重放、Durable 集成、Anthropic 托管 PTC、修改默认 agent runtime、直接调用模型、后台脱离当前 turn 的任务。文件写入、shell、发送消息和部署等操作不进入首发授权集。
+第一版不提供：嵌套工具并发、跨脚本状态、远程 JS 执行器、崩溃恢复、自动重放、Durable 集成、Anthropic 托管 PTC、修改默认 agent runtime、直接调用模型、后台脱离当前 turn 的任务。普通工具中的文件写入、shell、发送消息和部署等操作不自动授权；MCP 中的副作用操作继续经过原有审批。
 
 ## 自有实现与运行时兼容门槛
 
@@ -71,22 +71,22 @@ Pulse 拥有并维护 Codemode 的脚本接口、worker 运行器、异步工具
 | 接口 | 契约 |
 |---|---|
 | `tools[原始工具名](参数)` | 调用当前允许的工具；第一版不提供名称归一化别名，避免碰撞 |
-| `ALL_TOOLS` | 当前可见且获宿主授权的工具名称与简短描述；不暴露秘密或所有已注册工具 |
+| `ALL_TOOLS` | 当前通过策略且获编排授权的工具名称与简短描述；不暴露秘密或所有已注册工具 |
 | `describeTools(名称数组)` | 返回允许工具的参数与输出 JSON Schema；仅供发现，不执行工具 |
 | `text(value)` | 显式输出文本或 JSON 可序列化值 |
 | `return value` | 返回最后的 JSON 可序列化值 |
 
-不注入 process、require、fetch、文件句柄、凭证、任意宿主 eval、store/load 或宿主全局对象。第一版输出限于文本与 JSON；需要图像、MCP App 或交互审批的操作走直接工具路径。
+不注入 process、require、fetch、文件句柄、凭证、任意宿主 eval、store/load 或宿主全局对象。第一版输出限于文本与 JSON；图像和 MCP App 的富展示仍使用直接工具路径；脚本仅接收其数据结果，审批仍由宿主管理。
 
-Codemode 工具描述只介绍执行规则，不重复整个工具库 schema。模型可先运行脚本筛选 `ALL_TOOLS` 并输出 `describeTools`，再提交执行脚本。已有工具搜索仍是唯一延迟加载机制。
+Codemode 工具描述只介绍执行规则，不重复整个工具库 schema。模型可先运行脚本筛选 `ALL_TOOLS` 并输出 `describeTools`，再提交执行脚本。工具搜索控制直接调用的模型展示；脚本发现不需要先把延迟工具激活到模型工具列表。
 
 ## 工具发现与权限
 
-每次嵌套调用的允许集是当前 run 的策略可见工具与宿主 Codemode 授权集的交集，且排除 `codemode` 自身。首发只读名单由宿主显式提供，不能按名称猜测只读，也不创建第二套 schema 注册表。
+每次嵌套调用使用 `beforeLLMCall` 策略处理后的工具表，再与编排资格求交，排除 `codemode` 自身。MCP 注册边界标记 `Tool.codemode: true`，不按名字前缀推断；普通工具通过宿主 `allowedTools` 或显式 true 标记接入。`codemode: false` 优先禁止编排。
 
-隐藏或被过滤的工具不能通过猜名字、ALL_TOOLS、类型声明或底层注册表调用。脚本不能自行设置 callerSelectors、scope、权限回执或 resultTarget。
+`prepareToolPresentation` 在所有策略 hooks 之后处理模型展示和延迟声明，只能过滤名称或更新描述，不能恢复被拒绝的工具或替换执行包装。仅因延迟展示而隐藏的 MCP 工具可直接编排；被策略过滤或禁用的工具不能通过猜名字、ALL_TOOLS 或底层注册表调用。脚本不能自行设置 callerSelectors、scope、权限回执或 resultTarget。
 
-工具搜索沿用现有加载状态；发现结果在下一次真实模型步骤刷新可见表，不在正在执行的脚本中途激活。模型应先搜索，再提交使用所发现工具的 Codemode 脚本。搜索返回的 references 不自动构成授权，仍须与当前策略和宿主授权集求交。工具加载不重启 run，也不新增模型生命周期。
+工具搜索沿用加载状态，直接调用在下一次真实模型步骤刷新展示。搜索不构成授权；其发现范围也使用当前策略表。编排资格不依赖搜索激活，不新增模型生命周期。普通工具的具体适用性和已知取消/展示限制由 [Engine tools reference](../../../packages/engine/harness/knowledge/tools-reference.md#ordinary-tool-suitability) 维护。
 
 每次执行继承宿主原始 runContext、abortSignal 和工具上下文；嵌套关联信息由宿主添加。参数校验、beforeToolCall 的重写或拒绝、afterToolCall 的结果重写各发生一次，不能直接调用原始 `tool.execute` 绕过这些行为。
 

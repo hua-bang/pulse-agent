@@ -2,7 +2,7 @@ import { ToolSet, type StepResult, type ModelMessage } from "ai";
 import type { Context, ClarificationRequest, Tool, LLMProviderFactory, SystemPromptOption, ModelType } from "../shared/types";
 import type { EngineHookMap, OnCompactedEvent } from "../plugin/EnginePlugin.js";
 import { streamTextAI } from "../ai";
-import { createNestedToolExecutor, executeToolWithHooks } from './tool-execution.js';
+import { createNestedToolExecutor, executeToolWithHooks, prepareToolPresentation } from './tool-execution.js';
 import { maybeCompactContext, type CompactStats } from "../context";
 import {
   LLM_CALL_TIMEOUT_MS,
@@ -164,6 +164,7 @@ function previewToolInput(input: unknown): string | undefined {
  */
 export interface LoopHooks {
   beforeLLMCall?: Array<EngineHookMap['beforeLLMCall']>;
+  prepareToolPresentation?: Array<EngineHookMap['prepareToolPresentation']>;
   afterLLMCall?: Array<EngineHookMap['afterLLMCall']>;
   beforeToolCall?: Array<EngineHookMap['beforeToolCall']>;
   afterToolCall?: Array<EngineHookMap['afterToolCall']>;
@@ -282,6 +283,7 @@ function wrapToolsWithHooks(
   context: Context,
   onToolExecutionStart?: (tool: ActiveToolExecution) => symbol,
   onToolExecutionEnd?: (token: symbol) => void,
+  policyTools: Record<string, Tool> = tools,
 ): Record<string, Tool> {
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
@@ -306,7 +308,7 @@ function wrapToolsWithHooks(
             validate: false, // Direct tool input is validated by the AI SDK.
             toolContext: ctx,
             createNestedTools: toolContext => createNestedToolExecutor({
-              getTools: () => tools,
+              getTools: () => policyTools,
               context,
               beforeHooks,
               afterHooks,
@@ -464,6 +466,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
       // Inject read/ls deduplication warnings
       tools = wrapToolsWithReadDedup(tools, seenPaths);
+      const policyTools = tools;
+      const presentation = await prepareToolPresentation({
+        context, tools, systemPrompt, runContext: options?.runContext, model: options?.model,
+      }, loopHooks.prepareToolPresentation);
+      tools = presentation.tools;
+      systemPrompt = presentation.systemPrompt;
 
       const activeToolExecutions = new Map<symbol, ActiveToolExecution>();
       const getActiveToolExecution = (): ActiveToolExecution | undefined => {
@@ -494,6 +502,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         context,
         onToolExecutionStart,
         onToolExecutionEnd,
+        policyTools,
       );
 
       // Prepare tool execution context
