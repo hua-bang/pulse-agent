@@ -32,8 +32,7 @@ below) — never ship a change that updates one without the other.
 
 The optional Engine Codemode worker uses the release-sync QuickJS/WASM variant
 and explicitly resolves its CommonJS Emscripten loader. App packaging excludes
-Ajv's TypeScript `lib` sources, unused JTD/standalone generators, and the unused
-QuickJS ESM/browser/Cloudflare builds and separate FFI export (the variant's CJS
+unused QuickJS ESM/browser/Cloudflare builds and separate FFI export (the variant's CJS
 entry bundles FFI). The required CommonJS modules, JSON Schema resources and
 WASM remain in the app. Any
 loader or filter change must execute the plugin from the actual packaged ASAR,

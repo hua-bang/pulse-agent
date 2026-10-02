@@ -69,8 +69,6 @@
       "!node_modules/{pulse-coder-engine,pulse-coder-agent-teams,@pulse-coder/storage}/{src,harness,docs}/**/*",
       "!node_modules/{pulse-coder-engine,pulse-coder-agent-teams,@pulse-coder/storage}/{AGENTS.md,CLAUDE.md,tsconfig.json,tsup.config.ts}",
       "!node_modules/**/*.d.{cts,mts}",
-      "!node_modules/ajv/lib/**/*",
-      "!node_modules/ajv/dist/{jtd.js,compile/jtd/**/*,vocabularies/jtd/**/*,standalone/**/*}",
       "!node_modules/quickjs-emscripten-core/dist/*.mjs",
       "!node_modules/@jitl/quickjs-wasmfile-release-sync/dist/*.mjs",
       "!node_modules/@jitl/quickjs-wasmfile-release-sync/dist/{ffi.js,emscripten-module.cloudflare.cjs}",

@@ -16,6 +16,15 @@ This file records current implementation facts for `pulse-coder-engine`. It is a
 | Built-in plugins | `src/built-in/` | MCP, skills, tool search, plan mode, task tracking, sub-agents, agent teams, role soul, PTC. |
 | Built-in tools | `src/tools/` | File, shell, Tavily, image, clarification, and deferred demo tools. |
 
+## Distribution
+
+The distribution shares code between entrypoints in both ESM and CJS rather
+than copying the complete runtime into each barrel. Builds minify generated
+JavaScript while retaining function/class names and source maps. CJS lowers
+optional/nullish syntax to ES2019 before tsup's splitting transform and resolves
+import.meta.url as __filename. The existing describe-engine gate loads both
+formats and checks export parity, catching invalid generated CJS chunks.
+
 ## Initialization Flow
 
 1. `new Engine(options)` creates a `PluginManager`.

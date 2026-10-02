@@ -99,7 +99,8 @@ model step's policy-visible table, with caller rules enforced even without the
 PTC plugin. Deferred tools discovered by search become available at the next
 model step, not partway through an existing script. Both native loop and external
 ToolSession provide the same `ToolExecutionContext.nestedTools` capability.
-Nested execution validates input (including MCP JSON schemas), runs tool hooks,
+Nested execution validates input (including MCP JSON schemas with the compact
+schemasafe compiler), runs tool hooks,
 and preserves run authority without emitting model lifecycle hooks or adding
 intermediate results to model history. Hook-generated synthetic results are
 recorded as `intercepted`, rather than claiming the underlying tool ran.

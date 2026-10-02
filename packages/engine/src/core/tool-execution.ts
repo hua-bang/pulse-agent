@@ -1,6 +1,5 @@
 import { asSchema } from 'ai';
-import { Ajv, type ValidateFunction } from 'ajv';
-import { Ajv2020 } from 'ajv/dist/2020.js';
+import { validator, type Json, type Validate } from '@exodus/schemasafe';
 import type { EngineHookMap } from '../plugin/EnginePlugin.js';
 import type { Context, NestedToolExecutor, Tool, ToolExecutionContext } from '../shared/types.js';
 
@@ -14,10 +13,7 @@ interface ExecutionOptions {
   createNestedTools?: (context?: ToolExecutionContext) => NestedToolExecutor;
 }
 
-const validators = new WeakMap<object, ValidateFunction>();
-const schemaOptions = { strict: false, validateFormats: false, ownProperties: true, addUsedSchema: false };
-const draft7 = new Ajv(schemaOptions);
-const draft2020 = new Ajv2020(schemaOptions);
+const validators = new WeakMap<object, Validate>();
 
 function validateJsonInput(schema: object, input: unknown, name: string): void {
   if ('$async' in schema && schema.$async === true) {
@@ -25,11 +21,19 @@ function validateJsonInput(schema: object, input: unknown, name: string): void {
   }
   let validate = validators.get(schema);
   if (!validate) {
-    const dialect = (schema as { $schema?: string }).$schema;
-    validate = (dialect?.includes('2020-12') ? draft2020 : draft7).compile(schema);
+    validate = validator(schema, {
+      includeErrors: true,
+      formatAssertion: false,
+      mode: 'lax',
+      allowUnusedKeywords: true,
+      contentValidation: false,
+      $schemaDefault: 'http://json-schema.org/draft-07/schema#',
+    });
     validators.set(schema, validate);
   }
-  if (!validate(input)) throw new Error(`Invalid input for tool ${name}: ${JSON.stringify(validate.errors)}`);
+  // The library's experimental types assume JSON input; validation itself
+  // accepts unknown values and rejects those incompatible with the schema.
+  if (!validate(input as Json)) throw new Error(`Invalid input for tool ${name}: ${JSON.stringify(validate.errors)}`);
 }
 
 /** Shared execution only: no model requests, history writes or run hooks. */

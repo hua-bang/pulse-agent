@@ -3,7 +3,7 @@
 // about to add/modify a built-in plugin or tool reads the CURRENT reality
 // instead of prose that drifts (this session hand-fixed three such drifts:
 // the two-barrel export asymmetry, the plugin dependency edges, and the
-// defer_loading tool list). Orientation aid, not a pass/fail check.
+// defer_loading tool list). Also checks dependency and distribution parity.
 //
 //   node packages/engine/harness/tools/describe-engine.mjs [--json]
 //
@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const engineRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const distMain = path.join(engineRoot, 'dist', 'index.js');
@@ -35,6 +36,20 @@ const unsilence = () => { process.stdout.write = realOut; process.stderr.write =
 silence();
 const main = await import(distMain);
 const builtIn = await import(distBuiltIn);
+// Load both CJS barrels too: syntax errors in shared chunks must fail this gate.
+try {
+  const require = createRequire(import.meta.url);
+  for (const [entry, esm] of [[distMain, main], [distBuiltIn, builtIn]]) {
+    const cjs = require(entry.replace(/\.js$/, '.cjs'));
+    const keys = value => Object.keys(value).filter(key => key !== '__esModule').sort();
+    if (JSON.stringify(keys(cjs)) !== JSON.stringify(keys(esm))) {
+      throw new Error(`ESM/CJS export mismatch: ${entry}`);
+    }
+  }
+} catch (error) {
+  unsilence();
+  throw error;
+}
 
 // --- 1. plugin order + dependency edges ---
 const plugins = builtIn.builtInPlugins.map((p) => ({

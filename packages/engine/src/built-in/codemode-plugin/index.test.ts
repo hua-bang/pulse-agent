@@ -169,6 +169,65 @@ describe('Codemode Engine plugin', () => {
     } finally { await session.dispose(); }
   });
 
+  it('enforces conditional constraints and local references in JSON schemas', async () => {
+    const execute = vi.fn(async input => input.value);
+    const engine = await engineWith({ query: {
+      ...query(execute), inputSchema: jsonSchema({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object', $defs: { positive: { type: 'number', minimum: 0 } },
+        properties: { value: { $ref: '#/$defs/positive' }, bounded: { type: 'boolean' } },
+        required: ['value', 'bounded'],
+        if: { properties: { bounded: { const: true } } },
+        then: { properties: { value: { maximum: 10 } } },
+      }),
+    } });
+    const session = await engine.createToolSession({ messages: [] });
+    try {
+      expect(await session.executeTool('codemode', { code: 'return await tools.query({value: 8, bounded: true});' })).toMatchObject({ ok: true, value: 8 });
+      expect(await session.executeTool('codemode', { code: 'await tools.query({value: 11, bounded: true});' })).toMatchObject({ ok: false });
+      expect(await session.executeTool('codemode', { code: 'await tools.query({value: -1, bounded: false});' })).toMatchObject({ ok: false });
+      expect(execute).toHaveBeenCalledTimes(1);
+    } finally { await session.dispose(); }
+  });
+
+  it('rejects an input matching multiple oneOf branches', async () => {
+    const execute = vi.fn(async input => input.value);
+    const engine = await engineWith({ query: {
+      ...query(execute), inputSchema: jsonSchema({
+        type: 'object', properties: { value: { oneOf: [{ type: 'number' }, { type: 'integer' }] } }, required: ['value'],
+      }),
+    } });
+    const session = await engine.createToolSession({ messages: [] });
+    try {
+      expect(await session.executeTool('codemode', { code: 'await tools.query({value: 5});' })).toMatchObject({ ok: false });
+      expect(execute).not.toHaveBeenCalled();
+    } finally { await session.dispose(); }
+  });
+
+  it('accepts valid redundant constraints and annotations without weakening const/enum', async () => {
+    for (const test of [
+      { schema: { type: 'string', const: 'a', enum: ['a', 'b'] }, value: 'a', valid: true },
+      { schema: { type: 'string', const: 'a', enum: ['b'] }, value: 'a', valid: false },
+      { schema: { type: 'array', additionalItems: false }, value: [1, 2], valid: true },
+      { schema: { type: 'string', contentMediaType: 'text/plain' }, value: 'hello', valid: true },
+    ]) {
+      const execute = vi.fn(async input => input.value);
+      const engine = await engineWith({ query: {
+        ...query(execute), inputSchema: jsonSchema({
+          type: 'object', properties: { value: test.schema }, required: ['value'],
+        }),
+      } });
+      const session = await engine.createToolSession({ messages: [] });
+      try {
+        const result: any = await session.executeTool('codemode', {
+          code: `return await tools.query({value: ${JSON.stringify(test.value)}});`,
+        });
+        expect(result.ok).toBe(test.valid);
+        expect(execute).toHaveBeenCalledTimes(test.valid ? 1 : 0);
+      } finally { await session.dispose(); }
+    }
+  });
+
   it('keeps deferred and policy-hidden tools unavailable until the next model step', async () => {
     vi.stubEnv('PULSE_CODER_TOOL_SEARCH_THRESHOLD', '0');
     const engine = await engineWith({ query: { ...query(async () => 42), defer_loading: true } }, [builtInToolSearchPlugin]);
