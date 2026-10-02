@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../i18n';
 import type { ToolCallStatus } from '../../../../../types';
+import { parseCodemodeResult } from './codemodeResult';
+import { CodemodeToolSections } from './CodemodeToolSections';
 
 interface SessionRef {
   sessionId: string;
@@ -69,6 +71,7 @@ const parseSessionRefs = (tool: ToolCallStatus): SessionRef[] | null => {
 export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
   const { t } = useI18n();
   const sessionRefs = parseSessionRefs(tool);
+  const codemode = parseCodemodeResult(tool);
   const hasDetails = Boolean(tool.result || tool.error || tool.args !== undefined);
   const [shouldRenderDetails, setShouldRenderDetails] = useState(() => expanded);
 
@@ -126,7 +129,8 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
         >
           <div className="chat-tool-call-result-reveal__inner">
             <div className="chat-tool-call-result">
-              {tool.args !== undefined && (
+              {codemode ? <CodemodeToolSections tool={tool} view={codemode} /> : null}
+              {!codemode && tool.args !== undefined && (
                 <div className="chat-tool-call-section">
                   <div className="chat-tool-call-section-label">
                     {tool.name} · {t('chat.toolCalls.input')}
@@ -134,7 +138,7 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
                   <pre>{formatArgs(tool.args)}</pre>
                 </div>
               )}
-              {tool.result && (
+              {!codemode && tool.result && (
                 <div className="chat-tool-call-section">
                   <div className="chat-tool-call-section-label">{t('chat.toolCalls.output')}</div>
                   <pre>
@@ -144,7 +148,7 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
                   </pre>
                 </div>
               )}
-              {tool.error && tool.error !== tool.result && (
+              {!codemode && tool.error && tool.error !== tool.result && (
                 <div className="chat-tool-call-section chat-tool-call-section--error">
                   <div className="chat-tool-call-section-label">{t('chat.toolCalls.error')}</div>
                   <pre>{tool.error}</pre>

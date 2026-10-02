@@ -116,12 +116,15 @@ export type AgentTraceEvent =
       toolCallId: string;
       toolName: string;
       owner: 'engine' | 'pi';
+      /** Set for calls a Codemode script made inside an outer tool call. */
+      parentToolCallId?: string;
     })
   | (AgentTraceEventBase & {
       type: 'tool.completed';
       toolCallId: string;
       toolName: string;
       owner: 'engine' | 'pi';
+      parentToolCallId?: string;
       status: 'done' | 'error';
     })
   | (AgentTraceEventBase & {

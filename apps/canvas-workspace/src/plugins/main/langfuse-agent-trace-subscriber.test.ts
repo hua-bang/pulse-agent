@@ -14,12 +14,17 @@ const makeHandle = (): LangfuseObservationHandle => ({
 
 const setup = () => {
   const root = makeHandle();
-  const children: Array<{ kind: string; name: string; handle: LangfuseObservationHandle }> = [];
+  const children: Array<{
+    kind: string;
+    name: string;
+    handle: LangfuseObservationHandle;
+    parent: LangfuseObservationHandle;
+  }> = [];
   const adapter: LangfuseTraceAdapter = {
     createRoot: vi.fn(async () => root),
-    start: vi.fn((_parent, name, kind) => {
+    start: vi.fn((parent, name, kind) => {
       const handle = makeHandle();
-      children.push({ kind, name, handle });
+      children.push({ kind, name, handle, parent });
       return handle;
     }),
     shutdown: vi.fn(async () => undefined),
@@ -63,5 +68,21 @@ describe('LangfuseAgentTraceSubscriber', () => {
     expect(children[1].handle.update).toHaveBeenCalledWith(expect.objectContaining({ level: 'ERROR' }));
     expect(root.end).toHaveBeenCalledOnce();
     expect(adapter.shutdown).toHaveBeenCalledOnce();
+  });
+
+  it('nests Codemode script calls under the outer tool observation', async () => {
+    const { children, root, subscriber } = setup();
+    await subscriber.onEvent({
+      type: 'run.started', runId: 'run-3', timestamp: 100, sessionId: 'session-3', scope: 'workspace', host: 'canvas',
+    });
+    await subscriber.onEvent({ type: 'tool.started', runId: 'run-3', timestamp: 110, toolCallId: 'call_1', toolName: 'codemode', owner: 'engine' });
+    await subscriber.onEvent({
+      type: 'tool.started', runId: 'run-3', timestamp: 120, toolCallId: 'call_1:1', toolName: 'canvas_read_node', owner: 'engine', parentToolCallId: 'call_1',
+    });
+
+    const outer = children.find(child => child.name === 'codemode')!;
+    const nested = children.find(child => child.name === 'canvas_read_node')!;
+    expect(outer.parent).toBe(root);
+    expect(nested.parent).toBe(outer.handle);
   });
 });

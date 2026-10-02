@@ -706,7 +706,9 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           const resourceUri = toolResourceUri(tool);
           namespacedTools[registeredName] = {
             ...(tool as any),
-            codemode: true,
+            // MCP App tools stay direct-only: a script call would yield data
+            // without the host's App instance, UI card or confirmation flow.
+            codemode: !resourceUri,
             ...(shouldDeferTools ? { defer_loading: true } : {}),
           };
           if (resourceUri) {

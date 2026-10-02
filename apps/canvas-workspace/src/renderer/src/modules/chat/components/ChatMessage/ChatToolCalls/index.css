@@ -295,3 +295,71 @@
 .chat-tool-calls-section-header .chat-tool-calls-summary {
   color: #73726e;
 }
+
+.chat-codemode-script > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.chat-codemode-script > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-codemode-script > summary::before {
+  content: "▸ ";
+}
+
+.chat-codemode-script[open] > summary::before {
+  content: "▾ ";
+}
+
+.chat-codemode-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-codemode-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.chat-codemode-call-icon {
+  flex: none;
+  width: 10px;
+  text-align: center;
+}
+
+.chat-codemode-call-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-codemode-call-count,
+.chat-codemode-call-meta,
+.chat-codemode-empty {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.chat-codemode-call--failed,
+.chat-codemode-call-error {
+  color: var(--error);
+}
+
+.chat-codemode-call-error {
+  flex-basis: 100%;
+  padding-left: 16px;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}

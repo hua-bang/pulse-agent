@@ -194,9 +194,10 @@ describe('createMcpPlugin disabledTools', () => {
 
     // Disabled tool is not registered with the engine; the agent can't see it.
     expect(tools['mcp_eido_danger_tool']).toBeUndefined();
-    // Enabled tools are registered under the namespaced key.
-    expect(tools['mcp_eido_search']).toMatchObject({ codemode: true });
-    expect(tools['mcp_eido_plain']).toBeDefined();
+    // Enabled tools are registered under the namespaced key. Plain MCP tools
+    // are script-eligible; MCP App tools (ui:// resource) are direct-only.
+    expect(tools['mcp_eido_search']).toMatchObject({ codemode: false });
+    expect(tools['mcp_eido_plain']).toMatchObject({ codemode: true });
 
     const manager = services['mcp:__manager__'] as MCPClientManager;
     const status = manager.getStatuses()['eido'];
@@ -221,8 +222,8 @@ describe('createMcpPlugin disabledTools', () => {
     const { ctx, tools, services } = makeContext();
     await plugin.initialize(ctx);
 
-    expect(tools['mcp_eido_search']).toMatchObject({ codemode: true });
-    expect(tools['mcp_eido_danger_tool']).toBeDefined();
+    expect(tools['mcp_eido_search']).toMatchObject({ codemode: false });
+    expect(tools['mcp_eido_danger_tool']).toMatchObject({ codemode: true });
     expect(tools['mcp_eido_plain']).toBeDefined();
 
     const manager = services['mcp:__manager__'] as MCPClientManager;

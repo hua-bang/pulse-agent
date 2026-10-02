@@ -48,7 +48,7 @@ strings before accessing fields. Keep human questions, streamed visual rendering
 and launching/messaging other agents direct until their interaction and completion
 contracts support nested calls. Creating a terminal node returns creation status,
 not completed command output; terminal execution currently lacks abort propagation.
-MCP App calls remain eligible for data, but Codemode returns JSON/text only and
-does not create a nested App UI card. A host may opt such tools out with false.
+MCP App tools register with `codemode: false`: Codemode returns JSON/text only
+and cannot create the App instance or UI card, so they stay direct-only.
 The default 60-second script budget includes approvals and tools; a host's
 300-second approval wait is not guaranteed to finish within it.

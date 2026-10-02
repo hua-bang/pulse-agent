@@ -65,7 +65,8 @@ uses this hook: deferral affects model display, not script eligibility. Tools
 removed by policy remain unavailable to scripts. `Tool.codemode: true` opts into
 default script eligibility; `false` prohibits nested execution even with an
 explicit Codemode host allowlist; unset requires that allowlist. Enabled tools
-registered by the MCP plugin default to true; names alone confer no eligibility.
+registered by the MCP plugin default to true, except MCP App tools (those with a
+`ui://` resource), which register as false; names alone confer no eligibility.
 
 
 - Plugin tools for new capabilities.
