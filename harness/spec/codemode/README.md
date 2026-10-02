@@ -1,6 +1,6 @@
 # Pulse Codemode Spec
 
-状态：Engine 插件与嵌套执行契约已实现；Canvas 开关、展示、打包与真实模型收益验收仍待接入。已实现行为由 [Engine plugin knowledge](../../../packages/engine/harness/knowledge/plugin-system.md#opt-in-codemode) 维护；下文保留整体目标与宿主验收要求。
+状态：Engine 插件与嵌套执行契约已实现；Canvas 已接入 `agent-codemode` 开关与只读工具名单（见 [Canvas security posture](../../../apps/canvas-workspace/harness/knowledge/security-posture.md)）；嵌套调用展示、tracing、安装产物验收与真实模型收益验收仍待完成。已实现行为由 [Engine plugin knowledge](../../../packages/engine/harness/knowledge/plugin-system.md#opt-in-codemode) 维护；下文保留整体目标与宿主验收要求。
 
 已确认方向：Pulse 自己实现 Codemode 的运行器、工具桥接与生命周期，不依赖 Pi Codemode 包。Pi 仅作为设计参考。
 
@@ -149,6 +149,6 @@ worker 与 WASM 资源必须在开发、生产打包与安装产物中使用宿�
 
 ## 决策与完成边界
 
-自有 Codemode、串行执行与显式宿主授权方向已经确认。Engine 插件已经可显式安装，Canvas 产品开关与只读首发名单仍由宿主接入负责。尚未取得安装产物中的 Electron 运行证据，也未测量真实模型收益；Canvas 接入者负责完成这些验收，不兼容时提交独立决策。
+自有 Codemode、串行执行与显式宿主授权方向已经确认。Engine 插件已经可显式安装，Canvas 产品开关与只读首发名单已接入。尚未取得安装产物中的 Electron 运行证据，也未测量真实模型收益；Canvas 接入者负责完成这些验收，不兼容时提交独立决策。
 
 实现完成后，已实现的契约迁入各 owner 的 Knowledge，行为由测试与本地 validation 约束；按 harness 规则退役已解决 spec。Codemode 不因保存宿主记录便获得 Durable 恢复语义。

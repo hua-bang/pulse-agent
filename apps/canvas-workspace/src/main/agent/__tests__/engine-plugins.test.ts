@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCanvasEnginePlugins } from '../engine-plugins';
+import { CANVAS_CODEMODE_TOOLS, createCanvasEnginePlugins } from '../engine-plugins';
+import { classifyCanvasToolOperation, createCanvasAgentToolPolicy } from '../tool-policy';
 
 // CanvasAgent builds its Engine with `disableBuiltInPlugins: true`, so this list
 // is the ONLY way a built-in engine plugin reaches the Canvas Agent — a plugin
@@ -34,4 +38,46 @@ describe('canvas engine plugin list', () => {
       expect(names).toContain('canvas-agent-observability');
     });
   }
+});
+
+describe('canvas Codemode opt-in', () => {
+  const codemode = 'pulse-coder-engine/codemode';
+  const scope = { kind: 'workspace' as const, workspaceId: 'ws-1' };
+  const dirs: string[] = [];
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  const stubFlags = (overrides?: Record<string, boolean>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'canvas-codemode-flags-'));
+    dirs.push(dir);
+    const path = join(dir, 'experimental-features.json');
+    if (overrides) writeFileSync(path, JSON.stringify(overrides));
+    vi.stubEnv('PULSE_CANVAS_EXPERIMENTAL_FEATURES', path);
+  };
+
+  it('stays off without a user override', () => {
+    stubFlags();
+
+    expect(createCanvasEnginePlugins(scope).map(pluginName)).not.toContain(codemode);
+  });
+
+  it('follows the agent-codemode experimental flag', () => {
+    stubFlags({ 'agent-codemode': true });
+
+    expect(createCanvasEnginePlugins(scope).map(pluginName)).toContain(codemode);
+    expect(createCanvasEnginePlugins(scope, { codemode: false }).map(pluginName)).not.toContain(codemode);
+  });
+
+  it('authorizes only read-only Canvas tools that exist in every interactive scope', () => {
+    for (const toolScope of [scope, { kind: 'global' as const }]) {
+      const { canvasTools } = createCanvasAgentToolPolicy(toolScope);
+      for (const name of CANVAS_CODEMODE_TOOLS) {
+        expect(canvasTools[name], `${name} in ${toolScope.kind}`).toBeDefined();
+        expect(classifyCanvasToolOperation(name)).toBe('read');
+      }
+    }
+  });
 });
