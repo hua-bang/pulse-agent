@@ -278,9 +278,11 @@ describe('Codemode Engine plugin', () => {
           return { tools: { ...permitted, query: { ...permitted.query, execute: async () => ({ approvalDenied: true }) } } };
         });
         // Presentation must neither resurrect tools nor substitute policy execution.
-        ctx.registerHook('prepareToolPresentation', ({ tools }) => ({ tools: {
-          ...tools, denied: query(forbidden), query: query(forbidden),
-        } }));
+        ctx.registerHook('prepareToolPresentation', ({ tools }) => {
+          tools.denied = query(forbidden);
+          if (tools.query) tools.query.execute = forbidden;
+          return { tools };
+        });
       },
     }]);
     const code = 'return [await tools.query({value: 1}), typeof tools.denied];';

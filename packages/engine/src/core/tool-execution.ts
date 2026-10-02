@@ -156,10 +156,12 @@ export async function prepareToolPresentation(
   let tools = input.tools;
   let systemPrompt = input.systemPrompt;
   for (const hook of hooks) {
-    const result = await hook({ ...input, tools, systemPrompt });
+    const previous = tools;
+    const presentedTools = Object.fromEntries(Object.entries(previous)
+      .map(([name, tool]) => [name, { ...tool }]));
+    const result = await hook({ ...input, tools: presentedTools, systemPrompt });
     if (result?.systemPrompt !== undefined) systemPrompt = result.systemPrompt;
     if (result?.tools !== undefined) {
-      const previous = tools;
       tools = Object.fromEntries(Object.entries(result.tools)
         .filter(([name]) => Object.hasOwn(previous, name))
         .map(([name, presented]) => [name, { ...previous[name], description: presented.description }]));
