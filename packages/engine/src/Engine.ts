@@ -1,4 +1,3 @@
-import { asSchema } from 'ai';
 import type { EventEmitter } from 'events';
 import type { Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
 import type { LoopOptions, LoopHooks } from './core/loop';
@@ -7,6 +6,7 @@ import type { UserConfigPluginLoadOptions } from './plugin/UserConfigPlugin.js';
 import type { PlanMode, PlanModeService } from './built-in/index.js';
 
 import { loop } from './core/loop.js';
+import { createNestedToolExecutor, executeToolWithHooks } from './core/tool-execution.js';
 import { maybeCompactContext } from './context/index.js';
 import { BuiltinToolsMap } from './tools/index.js';
 import { PluginManager } from './plugin/PluginManager.js';
@@ -482,7 +482,8 @@ export class Engine {
         try {
           output = await this.executeResolvedTool(tool, name, input, {
             context: policyContext,
-            toolContext,
+            toolContext: { ...toolContext, runContext: toolContext?.runContext ?? options.runContext },
+            getTools: () => disposed ? {} : visibleTools,
           });
         } catch (error) {
           await refreshVisibleTools();
@@ -513,7 +514,8 @@ export class Engine {
         try {
           output = await this.executeResolvedTool(tool, name, input, {
             context: policyContext,
-            toolContext,
+            toolContext: { ...toolContext, runContext: toolContext?.runContext ?? options.runContext },
+            getTools: () => disposed ? {} : visibleTools,
           });
         } catch (error) {
           await refreshVisibleTools();
@@ -538,53 +540,23 @@ export class Engine {
     tool: Tool,
     name: string,
     input: unknown,
-    options: { context: Context; toolContext?: ToolExecutionContext },
+    options: { context: Context; toolContext?: ToolExecutionContext; getTools(): Record<string, Tool> },
   ): Promise<unknown> {
-    const schema = asSchema(tool.inputSchema);
-    let validatedInput = input;
-    if (schema.validate) {
-      const result = await schema.validate(input);
-      if (!result.success) {
-        throw new Error(`Invalid input for tool ${name}: ${result.error.message}`);
-      }
-      validatedInput = result.value;
-    }
-
     const hooks = this.collectLoopHooks();
-    let finalInput = validatedInput;
-    let finalToolContext = options.toolContext;
-    let shortCircuitOutput: unknown;
-    let shortCircuited = false;
-    for (const hook of hooks.beforeToolCall ?? []) {
-      const result = await hook({
-        context: options.context,
-        name,
-        input: finalInput,
-        toolContext: finalToolContext,
-      });
-      if (result && 'input' in result) finalInput = result.input;
-      if (result && 'toolContext' in result) finalToolContext = result.toolContext;
-      if (result && 'output' in result) {
-        shortCircuitOutput = result.output;
-        shortCircuited = true;
-        break;
-      }
-    }
-
-    let output = shortCircuited
-      ? shortCircuitOutput
-      : await tool.execute(finalInput, finalToolContext);
-    for (const hook of hooks.afterToolCall ?? []) {
-      const result = await hook({
-        context: options.context,
-        name,
-        input: finalInput,
-        output,
-        toolContext: finalToolContext,
-      });
-      if (result && 'output' in result) output = result.output;
-    }
-    return output;
+    const execution = {
+      context: options.context,
+      beforeHooks: hooks.beforeToolCall ?? [],
+      afterHooks: hooks.afterToolCall ?? [],
+      toolContext: options.toolContext,
+    };
+    return executeToolWithHooks(tool, name, input, {
+      ...execution,
+      createNestedTools: toolContext => createNestedToolExecutor({
+        ...execution,
+        getTools: options.getTools,
+        toolContext,
+      }),
+    });
   }
 
   /**

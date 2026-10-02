@@ -76,6 +76,54 @@ This one mechanism explains most "gating weaker than its name" behavior:
 
 Because it is sequential, a tool a downstream plugin relies on may already be gone; nothing re-checks what a later stage removed.
 
+## Opt-in Codemode
+
+`createCodemodePlugin` is exported from both public barrels but is not in
+`builtInPlugins`. Hosts install it explicitly with an `allowedTools` list of
+reviewed query tools. It registers the `codemode` tool with `{ code: string }`
+input. The plugin owns its worker, QuickJS/WASM VM, JSON bridge, serial queue,
+resource limits and cancellation; it does not use a Pi runtime package.
+
+```ts
+createCodemodePlugin({ allowedTools: ['read', 'grep', 'ls'] })
+```
+
+Scripts use `tools[name](args)`, `ALL_TOOLS`, `describeTools(names)`, `text(value)`
+and return. Discovery returns JSON schemas, not TypeScript source. Each script
+gets a fresh VM; no Node, network, filesystem or cross-script storage globals
+are injected. Tool names retain their original spelling. Even Promise.all calls
+execute serially. No tool retries are performed.
+
+The authorized catalog is the intersection of the host list and the current
+model step's policy-visible table, with caller rules enforced even without the
+PTC plugin. Deferred tools discovered by search become available at the next
+model step, not partway through an existing script. Both native loop and external
+ToolSession provide the same `ToolExecutionContext.nestedTools` capability.
+Nested execution validates input (including MCP JSON schemas), runs tool hooks,
+and preserves run authority without emitting model lifecycle hooks or adding
+intermediate results to model history. Hook-generated synthetic results are
+recorded as `intercepted`, rather than claiming the underlying tool ran.
+
+`resultTarget: 'script'` preserves policy-processed output for the VM; the
+offload plugin captures MCP results but skips model-only stub replacement for
+that target. Final Codemode results still pass through ordinary offload. Existing
+tool-internal truncation remains effective.
+
+Results include `ok`, explicit `output`, optional `value` / `error`, and bounded
+`calls` metadata. `codemodeTool` engine events carry child IDs, parent IDs, names,
+states and elapsed times without raw results. This does not provide host UI
+integration or durable recovery. Stopping cancels pending/active calls and
+terminates the worker; host tools must honor AbortSignal to stop their own I/O.
+
+Limits: source 64 KiB UTF-8, wall clock 60 seconds (including tools), heap 64 MiB,
+100 tool calls, arguments 64 KiB (checked before worker transport), queued
+arguments 1 MiB, each result 2 MiB, cumulative results 16 MiB,
+and explicit output plus return 30,000 characters. Hosts may set positive
+`timeoutMs` / `memoryLimitBytes`. `runtimeModulePath` lets bundled hosts supply
+an absolute quickjs-emscripten entry; the trusted worker bootstrap ships inside
+the engine bundle, while the dependency resolves its own WASM resources.
+Installed Electron compatibility remains a host acceptance requirement.
+
 ## Registration Sources & Config Paths
 
 - Engine plugin disk scan (`scan !== false`): `.pulse-coder/engine-plugins`, `.coder/engine-plugins`, `~/.pulse-coder/engine-plugins`, `~/.coder/engine-plugins`, `./plugins/engine` — pattern `**/*.plugin.{js,ts}`.

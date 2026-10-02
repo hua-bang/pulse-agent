@@ -1,5 +1,7 @@
 export { Engine } from './Engine.js';
 export { Engine as PulseAgent } from './Engine.js'; // 添加 PulseAgent 别名
+export { createCodemodePlugin } from './built-in/codemode-plugin/index.js';
+export type { CodemodePluginOptions, CodemodeCall, CodemodeResult, CodemodeRuntimeOptions } from './built-in/codemode-plugin/index.js';
 export type { EngineToolSession } from './Engine.js';
 
 // 插件系统导出

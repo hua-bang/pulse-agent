@@ -50,11 +50,13 @@
     "@ai-sdk/mcp": "^1.0.19",
     "@ai-sdk/openai": "^3.0.21",
     "ai": "^6.0.57",
+    "ajv": "8.17.1",
     "dotenv": "^17.2.3",
     "glob": "^11.0.0",
     "gray-matter": "^4.0.3",
-    "yaml": "^2.8.2",
+    "quickjs-emscripten": "0.32.0",
     "undici": "^6.23.0",
+    "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {

@@ -82,6 +82,16 @@ export interface ToolExecutionContext {
    * IPC) with the tool-call frame the renderer is tracking.
    */
   toolCallId?: string;
+  /** Host-owned destination; scripts cannot choose this value. */
+  resultTarget?: 'model' | 'script';
+  parentToolCallId?: string;
+  /** Current run's policy-safe tool capability, without model lifecycle steps. */
+  nestedTools?: NestedToolExecutor;
+}
+
+export interface NestedToolExecutor {
+  getTools(): Record<string, Tool>;
+  executeTool(name: string, input: unknown, context?: ToolExecutionContext, onIntercepted?: () => void): Promise<unknown>;
 }
 
 export interface Tool<Input = any, Output = any> {

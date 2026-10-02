@@ -40,6 +40,21 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 
 ## Extension Boundary
 
+### Nested tools
+
+`ToolExecutionContext.nestedTools` is the current run's policy-safe tool
+capability. `getTools()` exposes only the current model step's visible table
+with caller rules applied; `executeTool()` validates inputs and runs tool hooks
+without appending model history or opening/closing model lifecycle steps.
+Nested authority comes from the outer invocation; child calls can only supply
+their cancellation signal and correlation ID. An optional interception callback
+distinguishes hook-generated results from actual underlying execution.
+`parentToolCallId` and `resultTarget` are host metadata; script calls use the
+`script` target so model-only offload does not replace their intermediate data.
+Visibility refreshes at real model steps, preserving deferred-tool behavior.
+The opt-in Codemode factory and result/event contracts are described in
+[plugin-system.md](plugin-system.md#opt-in-codemode).
+
 Use these before editing the loop:
 
 - Plugin tools for new capabilities.

@@ -4,6 +4,8 @@ Start with root AGENTS.md, then this index and the affected workspace's AGENTS.m
 
 The architecture and ownership rules live in [DESIGN.md](DESIGN.md); delivery status and remaining work live in [ROADMAP.md](ROADMAP.md).
 
+Cross-workspace intended behavior: [Codemode draft](spec/codemode/README.md) defines the shared Engine/Canvas script execution contract and acceptance boundaries.
+
 ## Find the Owner
 
 | Need | Source of truth |

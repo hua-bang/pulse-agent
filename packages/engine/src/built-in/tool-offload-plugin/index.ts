@@ -109,6 +109,7 @@ export function createToolOffloadPlugin(options: ToolOffloadPluginOptions = {}):
           if (toolContext?.toolCallId) {
             apps?.captureToolResult?.(name, toolContext.toolCallId, output);
           }
+          if (toolContext?.resultTarget === 'script') return;
           const result = await offloadToolOutput(output, { toolName: name, threshold, store });
           if (!result) return;
           context.logger.info('[ToolOffload] offloaded oversized tool output', {

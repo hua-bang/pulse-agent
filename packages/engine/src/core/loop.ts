@@ -2,6 +2,7 @@ import { ToolSet, type StepResult, type ModelMessage } from "ai";
 import type { Context, ClarificationRequest, Tool, LLMProviderFactory, SystemPromptOption, ModelType } from "../shared/types";
 import type { EngineHookMap, OnCompactedEvent } from "../plugin/EnginePlugin.js";
 import { streamTextAI } from "../ai";
+import { createNestedToolExecutor, executeToolWithHooks } from './tool-execution.js';
 import { maybeCompactContext, type CompactStats } from "../context";
 import {
   LLM_CALL_TIMEOUT_MS,
@@ -292,60 +293,28 @@ function wrapToolsWithHooks(
     wrapped[name] = {
       ...t,
       execute: async (input: any, ctx: any) => {
-        // Run all beforeToolCall hooks sequentially
-        let finalInput = input;
-        let finalToolContext = ctx;
-        let shortCircuitOutput: { value: any } | undefined;
-        for (const hook of beforeHooks) {
-          const result = await hook({
-            context,
-            name,
-            input: finalInput,
-            toolContext: finalToolContext,
-          });
-          if (result && 'input' in result) {
-            finalInput = result.input;
-          }
-          if (result && 'toolContext' in result) {
-            finalToolContext = result.toolContext;
-          }
-          if (result && 'output' in result) {
-            shortCircuitOutput = { value: result.output };
-            break;
-          }
-        }
-
         const executionToken = onToolExecutionStart?.({
           name,
           startedAt: Date.now(),
-          inputPreview: previewToolInput(finalInput),
+          inputPreview: previewToolInput(input),
         });
-
         try {
-          const output = shortCircuitOutput
-            ? shortCircuitOutput.value
-            : await t.execute(finalInput, finalToolContext);
-
-          // Run all afterToolCall hooks sequentially
-          let finalOutput = output;
-          for (const hook of afterHooks) {
-            const result = await hook({
+          return await executeToolWithHooks(t, name, input, {
+            context,
+            beforeHooks,
+            afterHooks,
+            validate: false, // Direct tool input is validated by the AI SDK.
+            toolContext: ctx,
+            createNestedTools: toolContext => createNestedToolExecutor({
+              getTools: () => tools,
               context,
-              name,
-              input: finalInput,
-              output: finalOutput,
-              toolContext: finalToolContext,
-            });
-            if (result && 'output' in result) {
-              finalOutput = result.output;
-            }
-          }
-
-          return finalOutput;
+              beforeHooks,
+              afterHooks,
+              toolContext,
+            }),
+          });
         } finally {
-          if (executionToken) {
-            onToolExecutionEnd?.(executionToken);
-          }
+          if (executionToken) onToolExecutionEnd?.(executionToken);
         }
       },
     };

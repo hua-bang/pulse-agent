@@ -83,3 +83,6 @@ export type {
 export { SubAgentPlugin } from './sub-agent-plugin';
 
 export default builtInPlugins;
+
+export { createCodemodePlugin } from './codemode-plugin';
+export type { CodemodePluginOptions, CodemodeCall, CodemodeResult, CodemodeRuntimeOptions } from './codemode-plugin';
