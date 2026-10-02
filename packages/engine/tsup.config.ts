@@ -9,16 +9,7 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,
-  splitting: true,
-  minify: true,
-  keepNames: true,
-  esbuildOptions(options, { format }) {
-    if (format === 'cjs') {
-      // Lower optional/nullish syntax before tsup's CJS splitting transform.
-      options.target = 'es2019';
-      options.define = { ...options.define, 'import.meta.url': '__filename' };
-    }
-  },
+  splitting: false,
   sourcemap: true,
   target: 'es2022'
 });
