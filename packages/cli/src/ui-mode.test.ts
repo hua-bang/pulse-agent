@@ -81,10 +81,18 @@ describe('parseCliArgs', () => {
   });
 
   it('rejects invalid benchmark controls', () => {
-    expect(() => parseCliArgs(['-p', '--timeout', '0', 'hi'], {}, true)).toThrow('--timeout');
+    expect(() => parseCliArgs(['-p', '--timeout', '-1', 'hi'], {}, true)).toThrow('--timeout');
     expect(() => parseCliArgs(['-p', '--max-steps=nope', 'hi'], {}, true)).toThrow('--max-steps');
     expect(() => parseCliArgs(['-p', '--output-format', 'xml', 'hi'], {}, true)).toThrow('--output-format');
     expect(() => parseCliArgs(['-p', '--trace-file'], {}, true)).toThrow('--trace-file');
     expect(() => parseCliArgs(['--isolated'], {}, true)).toThrow('require -p');
+  });
+
+  it('accepts zero timeout as an explicit request to disable the CLI timer', () => {
+    expect(parseCliArgs(['-p', '--timeout', '0', 'hi'], {}, true)).toMatchObject({
+      print: true,
+      prompt: 'hi',
+      timeoutSeconds: 0,
+    });
   });
 });
