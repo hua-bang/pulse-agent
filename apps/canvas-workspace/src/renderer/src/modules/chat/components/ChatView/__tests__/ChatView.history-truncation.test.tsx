@@ -135,3 +135,62 @@ describe('ChatView history truncation', () => {
     expect(onEditUserMessage).toHaveBeenCalledWith(2, 'Second question');
   });
 });
+
+describe('ChatView interrupted turns', () => {
+  const renderMessages = async (
+    messages: AgentChatMessage[],
+    threadOverrides: Partial<ComponentProps<typeof ChatView>['thread']> = {},
+  ) => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatView {...baseProps} thread={{ ...baseProps.thread, ...threadOverrides, messages }} />
+        </I18nProvider>,
+      );
+    });
+    return host;
+  };
+
+  it('offers a retry when the thread ends without a reply', async () => {
+    const onRegenerate = vi.fn(async () => true);
+    const view = await renderMessages([
+      { role: 'user', content: 'First question', timestamp: 1 },
+      { role: 'assistant', content: 'First answer', timestamp: 2 },
+      { role: 'user', content: 'Lost question', timestamp: 3 },
+    ], { onRegenerate });
+
+    expect(view.textContent).toContain('Response interrupted');
+    expect(view.textContent).toContain('This reply was interrupted before it finished.');
+    await act(async () => buttons(view, 'Try again')[0]?.click());
+    expect(onRegenerate).toHaveBeenCalledWith(2);
+  });
+
+  it('does not mark a running turn as interrupted', async () => {
+    const view = await renderMessages([
+      { role: 'user', content: 'Running question', timestamp: 1 },
+    ], { loading: true, onRegenerate: vi.fn() });
+
+    expect(view.textContent).not.toContain('interrupted');
+  });
+
+  it('describes a checkpointed partial reply as interrupted', async () => {
+    const view = await renderMessages([
+      { role: 'user', content: 'Question', timestamp: 1 },
+      {
+        role: 'assistant',
+        content: 'Half an answer',
+        timestamp: 2,
+        turnStatus: 'failed',
+        failureKind: 'interrupted',
+        retryable: true,
+      },
+    ], { onRegenerate: vi.fn() });
+
+    expect(view.textContent).toContain('Half an answer');
+    expect(view.textContent).toContain('This reply was interrupted before it finished.');
+    expect(buttons(view, 'Try again')).toHaveLength(1);
+  });
+});

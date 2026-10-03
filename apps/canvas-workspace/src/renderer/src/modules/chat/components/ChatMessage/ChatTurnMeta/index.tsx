@@ -23,7 +23,9 @@ export const ChatTurnOutcome = ({
   if (!status) return null;
 
   const stopped = status === 'stopped';
-  const statusLabel = stopped ? t('chat.turn.stopped') : t('chat.turn.failed');
+  const statusLabel = stopped
+    ? t('chat.turn.stopped')
+    : failureKind === 'interrupted' ? t('chat.turn.interrupted') : t('chat.turn.failed');
   const failureDescription = failureKind
     ? t(`chat.turn.failure.${failureKind}`)
     : undefined;

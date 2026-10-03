@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   chat: vi.fn(),
   replay: vi.fn(),
   runningSessionIds: vi.fn(),
+  liveSnapshot: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -19,6 +20,7 @@ vi.mock('./conversation-service', () => ({
   ConversationRuntimeService: vi.fn().mockImplementation(() => ({
     chat: mocks.chat,
     runningSessionIds: mocks.runningSessionIds,
+    liveSnapshot: mocks.liveSnapshot,
     abort: vi.fn(),
     stopRelay: vi.fn(),
     answerClarification: vi.fn(),
@@ -37,6 +39,7 @@ describe('conversation runtime IPC', () => {
     mocks.handlers.clear();
     mocks.chat.mockReset();
     mocks.runningSessionIds.mockReset();
+    mocks.liveSnapshot.mockReset();
   });
 
   it('acknowledges an accepted turn before its completion event', async () => {
@@ -69,6 +72,45 @@ describe('conversation runtime IPC', () => {
         { ok: true, response: 'done' },
       );
     });
+  });
+
+  it('streams the rest of a running turn to a window that attaches later', async () => {
+    let onText!: (delta: string) => void;
+    let finish!: (result: { ok: boolean; response: string }) => void;
+    mocks.chat.mockImplementation((_scope, _sessionId, _message, external) => {
+      onText = external.onText;
+      return new Promise(resolve => { finish = resolve; });
+    });
+    const snapshot = { status: 'running', messages: [], draft: { role: 'assistant', content: 'Par' } };
+    mocks.liveSnapshot.mockReturnValue(snapshot);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    const original = { isDestroyed: () => false, send: vi.fn() };
+    const reloaded = { isDestroyed: () => false, send: vi.fn() };
+    const payload = { scope: { kind: 'workspace', workspaceId: 'ws-a' }, sessionId: 'session-a' };
+
+    mocks.handlers.get('canvas-agent:conversation-chat')?.({ sender: original }, { ...payload, message: 'hello' });
+    onText('Par');
+    expect(mocks.handlers.get('canvas-agent:conversation-attach')?.({ sender: reloaded }, payload))
+      .toEqual({ ok: true, running: true, snapshot });
+    onText('tial');
+    finish({ ok: true, response: 'Partial' });
+
+    await vi.waitFor(() => {
+      expect(reloaded.send).toHaveBeenCalledWith('canvas-agent:chat-complete:session-a', { ok: true, response: 'Partial' });
+    });
+    expect(reloaded.send).toHaveBeenCalledWith('canvas-agent:text-delta:session-a', 'tial');
+    expect(reloaded.send).not.toHaveBeenCalledWith('canvas-agent:text-delta:session-a', 'Par');
+    expect(original.send).toHaveBeenCalledWith('canvas-agent:text-delta:session-a', 'tial');
+  });
+
+  it('reports an idle conversation without subscribing the window', () => {
+    mocks.liveSnapshot.mockReturnValue(null);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+
+    expect(mocks.handlers.get('canvas-agent:conversation-attach')?.(
+      { sender: { isDestroyed: () => false, send: vi.fn() } },
+      { scope: { kind: 'global' }, sessionId: 'session-z' },
+    )).toEqual({ ok: true, running: false });
   });
 
   it('reports running sessions from the conversation runtime registry', () => {

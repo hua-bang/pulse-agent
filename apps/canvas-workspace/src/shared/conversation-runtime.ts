@@ -53,6 +53,8 @@ export interface ConversationSnapshot {
   messages: AgentChatMessage[];
   /** Tool calls currently streaming in the active turn (not yet persisted). */
   streamingTools: AgentChatToolCall[];
+  /** The active turn's assistant reply so far; absent or null when idle. */
+  draft?: AgentChatMessage | null;
   clarification: AgentClarificationRequest | null;
   error: string | null;
   runId: string | null;

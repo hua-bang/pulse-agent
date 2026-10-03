@@ -140,6 +140,46 @@ Key invariants and their guards:
   non-empty streamed response; conversation failures must remain `ok:false`
   through runtime → service → IPC instead of rendering an empty success.
 
+## Turn recovery
+
+A turn can outlive the renderer stream that started it, and the app can stop
+before a turn settles. These rules keep the visible thread and the saved thread
+the same.
+
+- **Reattach.** While a turn runs, the main runtime keeps the reply so far as
+  the snapshot `draft`. `canvas-agent:conversation-attach` returns that snapshot
+  and adds the calling window to the conversation's stream subscribers. It never
+  activates a scope, so a cold or idle conversation returns `running: false`.
+  The handler is synchronous: the events a window receives before the reply are
+  already in the snapshot. Renderer `runtime/conversationTurnObserver.ts`
+  installs a paused observer, applies the snapshot when the reply arrives, then
+  resumes. Each keyed surface calls `attachConversationTurn` when a conversation
+  opens; a conversation this renderer already observes is skipped.
+- **Subscribers.** Stream events go to every subscribed window: the window that
+  sent the turn and each window that attached. Destroyed windows are pruned on
+  send. Guards: `conversation-ipc.test.ts`, `conversationTurnObserver.test.tsx`.
+- **Draft checkpoints.** While a turn streams, the runtime saves the changed
+  reply every `DRAFT_CHECKPOINT_MS` (5 s) as an assistant message with
+  `turnStatus: 'failed'`, `failureKind: 'interrupted'` and `retryable: true`.
+  The final write replaces it, and no checkpoint can land after the final write.
+  After a crash, at most the last interval of output is lost. Guard:
+  `conversation-runtime.recovery.test.ts`.
+- **Interrupted turns.** A thread that ends with a user message while no turn
+  runs shows `ChatInterruptedTurn` with Try again: the app stopped before the
+  first checkpoint, or the turn never started. `startConversationTurn` adds the
+  user message and sets running in one store publish, so a sent turn never
+  renders as interrupted. After a renderer reload the marker can show briefly
+  until attach answers.
+- **History truncation.** Edit, regenerate and Try again cut the conversation at
+  their turn. When later user turns exist, regenerate and Try again ask first
+  (`ChatRecoveryConfirm`, which also offers Fork instead), and the edit form
+  states how many later messages resending removes. The latest turn keeps
+  one-click recovery. Guard: `ChatView.history-truncation.test.tsx`.
+- **Failure display.** Only the failed message shows a failed reply (outcome,
+  details, retry). The conversation banner is for errors without a message:
+  start failures, rejected recovery, and a changed session. Guards:
+  `useConversationRuntimeStream.test.tsx`, `conversation-runner.test.ts`.
+
 ## Durable session storage
 
 Bootstrap activates conversations through `sqlite-session-migration.ts` before

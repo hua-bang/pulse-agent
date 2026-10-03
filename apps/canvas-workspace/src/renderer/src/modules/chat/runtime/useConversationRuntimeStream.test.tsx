@@ -224,6 +224,44 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     });
   });
 
+  it('shows a tool-first reply while its input streams', async () => {
+    const callbacks = new Map<string, (payload: any) => void>();
+    const listen = (name: string) => (_sessionId: string, callback: (payload: any) => void) => {
+      callbacks.set(name, callback);
+      return () => undefined;
+    };
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: {
+        onTextDelta: listen('text'),
+        onToolCall: listen('tool-call'),
+        onToolResult: listen('tool-result'),
+        onToolInputStart: listen('tool-input-start'),
+        onToolInputDelta: listen('tool-input-delta'),
+        onToolInputEnd: listen('tool-input-end'),
+        onClarifyRequest: listen('clarify'),
+        onChatComplete: listen('complete'),
+        onRoleTurnStart: listen('role-start'),
+        onRoleTurnEnd: listen('role-end'),
+        conversationChat: vi.fn(async () => ({ ok: true, sessionId: keyA.sessionId })),
+      },
+    };
+    mount(keyA);
+
+    await act(async () => {
+      await latest?.sendMessage('run a tool');
+      callbacks.get('tool-input-start')?.({ id: 'call-1', toolName: 'bash' });
+      callbacks.get('tool-input-delta')?.({ id: 'call-1', delta: '{"command":' });
+    });
+
+    expect(readConversationSnapshot(keyA).messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      contentBlocks: [{ type: 'tool', toolCallId: 'call-1' }],
+    });
+    expect(latest?.streamingTools).toMatchObject([
+      { name: 'bash', inputStreaming: true, partialInput: '{"command":' },
+    ]);
+  });
+
   it('tracks relay progress when a handoff expands the queue mid-turn', async () => {
     const callbacks = new Map<string, (payload: any) => void>();
     const listen = (name: string) => (_sessionId: string, callback: (payload: any) => void) => {

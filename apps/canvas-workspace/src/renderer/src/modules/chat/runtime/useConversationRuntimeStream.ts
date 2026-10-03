@@ -1,5 +1,4 @@
-import { contentText, finishContentBlocks } from '../../../../../shared/chat-content-blocks';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AgentChatMessage,
   AgentRequestContext,
@@ -10,26 +9,21 @@ import type {
   ToolCallStatus,
   WorkspaceOption,
 } from '../../../types';
-import { CHAT_RECOVERY_REJECTED, type ConversationKey } from '../../../../../shared/conversation-runtime';
+import type { ConversationKey } from '../../../../../shared/conversation-runtime';
 import {
-  appendConversationTextAt,
-  appendConversationToolsAt,
-  pushConversationMessage,
   readConversationSnapshot,
   setConversationClarification,
   setConversationError,
   setConversationLoading,
   setConversationMessages,
-  setConversationStreamingTools,
+  startConversationTurn,
   useConversationSnapshot,
 } from './conversationStore';
 import { extractMentionedWorkspaceIds } from '../mentions/extractMentionedWorkspaceIds';
-import { count } from '../../../perf/counters';
 import { useChatRunQueue } from './useChatRunQueue';
-import { createConversationTextBatcher } from './conversationTextBatcher';
-import { friendlyChatFailure, settleStreamTools } from './chatTurnOutcome';
-import { clearConversationCompletion, recordConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
+import { clearConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
 import { useConversationRecovery } from './useConversationRecovery';
+import { attachConversationTurn, observeConversationTurn, type TurnObserverHooks } from './conversationTurnObserver';
 
 export interface UseConversationRuntimeStreamOptions {
   agentScope: AgentScope;
@@ -76,7 +70,24 @@ export function useConversationRuntimeStream({
   onSessionChangedRef.current = onSessionChanged;
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const toolIdCounter = useRef(0);
+  const [relay, setRelay] = useState<RelayProgress | null>(null);
   useConversationVisibility(key, keyed && visible);
+  const observerHooks = useMemo<TurnObserverHooks>(() => ({
+    toolIdCounter,
+    setMessageTools,
+    setRelay,
+    onTurnComplete: () => onTurnCompleteRef.current?.(),
+    onSessionChanged: (error) => onSessionChangedRef.current?.(error),
+  }), []);
+
+  // A turn can outlive this renderer's stream (reload, another window). When
+  // a conversation opens, reconnect to a turn main is still running.
+  const agentScopeRef = useRef(agentScope);
+  agentScopeRef.current = agentScope;
+  useEffect(() => {
+    if (!keyed || !key.sessionId) return;
+    void attachConversationTurn(agentScopeRef.current, { storeId: key.storeId, sessionId: key.sessionId }, observerHooks);
+  }, [key.sessionId, key.storeId, keyed, observerHooks]);
 
   useEffect(() => {
     setMessageTools(new Map(
@@ -115,223 +126,24 @@ export function useConversationRuntimeStream({
     const beforeRecovery = truncateAt === undefined ? null : readConversationSnapshot(key).messages;
     const restoreRecovery = () => { if (beforeRecovery) setConversationMessages(key, beforeRecovery); };
     if (beforeRecovery) setConversationMessages(key, beforeRecovery.slice(0, truncateAt));
-    pushConversationMessage(key, userMessage);
+    startConversationTurn(key, userMessage);
     clearConversationCompletion(key);
-    setConversationLoading(key, true);
-    setConversationError(key, null);
 
     const mentionedWorkspaceIds = workspaceId
       ? extractMentionedWorkspaceIds(trimmed, allWorkspaces, workspaceId)
       : extractMentionedWorkspaceIds(trimmed, allWorkspaces, '');
 
-    // stream events are keyed by the conversation's own sessionId (no separate
-    // prepared run id), so listeners install BEFORE starting.
-    const sessionId = key.sessionId;
-
-    let unsubs: Array<() => void> = [];
-    const cleanupRunListeners = () => {
-      const active = unsubs;
-      unsubs = [];
-      active.forEach(unsubscribe => unsubscribe());
-    };
+    // Stream events are keyed by the conversation's own sessionId (no separate
+    // prepared run id), so the observer installs BEFORE starting.
+    const observer = observeConversationTurn({
+      key,
+      runId,
+      title: trimmed.slice(0, 60),
+      completionId: `${key.storeId}:${key.sessionId}:${userMessage.timestamp}`,
+      restoreRecovery,
+    }, observerHooks);
 
     try {
-      let assistantIndex = -1;
-      let assistantText = '';
-      const segmentTools: ToolCallStatus[] = [];
-      let settled = false;
-      const ensureAssistant = () => {
-        if (assistantIndex >= 0) return;
-        const current = readConversationSnapshot(key).messages;
-        assistantIndex = current.length;
-        setConversationMessages(key, [...current, { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now(), runId }]);
-      };
-
-      const publishTools = () => {
-        appendConversationToolsAt(key, assistantIndex, segmentTools);
-        setConversationStreamingTools(key, [...segmentTools]);
-        if (assistantIndex >= 0) {
-          setMessageTools(prev => new Map(prev).set(assistantIndex, [...segmentTools]));
-        }
-      };
-
-      const flushAssistantText = (delta: string) => {
-        if (assistantIndex < 0) return;
-        if (!appendConversationTextAt(key, assistantIndex, delta)) {
-          assistantIndex = -1;
-          ensureAssistant();
-          appendConversationTextAt(key, assistantIndex, delta);
-        }
-        count('chat-stream-commit');
-      };
-      const textBatcher = createConversationTextBatcher(flushAssistantText);
-
-      unsubs = [
-        window.canvasWorkspace.agent.onTextDelta(sessionId, delta => {
-          ensureAssistant();
-          count('chat-stream-delta');
-          assistantText += delta;
-          textBatcher.push(delta);
-        }),
-        window.canvasWorkspace.agent.onToolCall(sessionId, data => {
-          textBatcher.flush();
-          ensureAssistant();
-          const existing = data.toolCallId
-            ? segmentTools.find(t => t.toolCallId === data.toolCallId)
-            : undefined;
-          if (existing) {
-            existing.args = data.args;
-            existing.inputStreaming = false;
-          } else {
-            segmentTools.push({
-              id: ++toolIdCounter.current,
-              name: data.name,
-              args: data.args,
-              toolCallId: data.toolCallId,
-              status: 'running', startedAt: Date.now(),
-            });
-          }
-          publishTools();
-        }),
-        window.canvasWorkspace.agent.onToolResult(sessionId, data => {
-          const tool = data.toolCallId
-            ? segmentTools.find(t => t.toolCallId === data.toolCallId)
-            : segmentTools.find(t => t.name === data.name && t.status === 'running');
-          if (tool) {
-            tool.status = data.status ?? 'succeeded';
-            tool.result = data.result;
-            tool.error = data.error; tool.mcpApp = data.mcpApp;
-            tool.inputStreaming = false; tool.finishedAt = Date.now();
-          }
-          publishTools();
-        }),
-        window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
-          textBatcher.flush();
-          ensureAssistant();
-          const existing = data.id
-            ? segmentTools.find(t => t.toolCallId === data.id)
-            : undefined;
-          if (existing) {
-            existing.name = data.toolName;
-            if (existing.status === 'running') existing.inputStreaming = true;
-          } else {
-            segmentTools.push({
-              id: ++toolIdCounter.current,
-              name: data.toolName,
-              toolCallId: data.id,
-              status: 'running', startedAt: Date.now(),
-              partialInput: '',
-              inputStreaming: true,
-            });
-          }
-          publishTools();
-        }),
-        window.canvasWorkspace.agent.onToolInputDelta(sessionId, data => {
-          const tool = data.id
-            ? segmentTools.find(t => t.toolCallId === data.id)
-            : undefined;
-          if (tool) tool.partialInput = (tool.partialInput ?? '') + data.delta;
-          publishTools();
-        }),
-        window.canvasWorkspace.agent.onToolInputEnd(sessionId, data => {
-          const tool = data.id
-            ? segmentTools.find(t => t.toolCallId === data.id)
-            : undefined;
-          if (tool) tool.inputStreaming = false;
-          publishTools();
-        }),
-        window.canvasWorkspace.agent.onClarifyRequest(sessionId, request => {
-          ensureAssistant();
-          setConversationClarification(key, request);
-        }),
-        window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
-          if (settled) return;
-          settled = true;
-          if (completeResult.code === CHAT_RECOVERY_REJECTED) restoreRecovery();
-          if (completeResult.code === CHAT_RECOVERY_REJECTED || completeResult.code === 'CHAT_SESSION_CHANGED') {
-            const error = completeResult.error ?? 'Conversation changed';
-            setConversationError(key, error);
-            setConversationLoading(key, false);
-            recordConversationCompletion(key, 'failed', completeResult.runId ?? `${key.storeId}:${sessionId}:${userMessage.timestamp}`, trimmed.slice(0, 60));
-            cleanupRunListeners();
-            if (completeResult.code === 'CHAT_SESSION_CHANGED') void onSessionChangedRef.current?.(error);
-            return;
-          }
-          textBatcher.flush();
-          settleStreamTools(segmentTools, completeResult.stopped);
-          const current = readConversationSnapshot(key).messages;
-          const target = current[assistantIndex];
-          const finalContent = completeResult.stopped || !completeResult.ok
-            ? assistantText || completeResult.response || target?.content || ''
-            : completeResult.response || assistantText || target?.content || '';
-          const contentBlocks = finishContentBlocks(target?.contentBlocks ?? [], finalContent);
-          const turnStatus = completeResult.stopped
-            ? 'stopped' as const
-            : !completeResult.ok ? 'failed' as const : undefined;
-          const failure = !completeResult.ok
-            ? friendlyChatFailure(completeResult.error ?? '')
-            : undefined;
-          const roleMetadata = completeResult.speakerRole ? {
-            speakerRoleId: completeResult.speakerRole.id,
-            speakerRoleName: completeResult.speakerRole.name,
-            speakerRoleColor: completeResult.speakerRole.color,
-          } : {};
-          const finalAssistant: AgentChatMessage = {
-            ...(target?.role === 'assistant' ? target : {}),
-            role: 'assistant',
-            timestamp: target?.timestamp ?? Date.now(),
-            content: contentText(contentBlocks),
-            contentBlocks,
-            toolCalls: segmentTools.length > 0 ? segmentTools : undefined,
-            turnStatus,
-            errorDetails: failure?.details,
-            failureKind: failure?.kind,
-            retryable: completeResult.stopped ? true : failure?.retryable,
-            runId: completeResult.runId,
-            ...roleMetadata,
-          };
-          if (target?.role === 'assistant') current[assistantIndex] = finalAssistant;
-          else {
-            assistantIndex = current.length;
-            current.push(finalAssistant);
-          }
-          if (completeResult.assistantMessages?.length) {
-            current.splice(assistantIndex, 1, ...completeResult.assistantMessages);
-            setMessageTools(previous => {
-              const next = new Map(previous);
-              completeResult.assistantMessages!.forEach((message, offset) => {
-                next.set(assistantIndex + offset, message.toolCalls ?? []);
-              });
-              return next;
-            });
-          }
-          setConversationMessages(key, current);
-          setConversationLoading(key, false);
-          setConversationStreamingTools(key, []);
-          setConversationClarification(key, null);
-          setRelay(null);
-          recordConversationCompletion(key, completeResult.stopped ? 'stopped' : completeResult.ok ? 'done' : 'failed', completeResult.runId ?? `${key.storeId}:${sessionId}:${userMessage.timestamp}`, trimmed.slice(0, 60));
-          // The failed assistant message already shows the outcome, its
-          // diagnostics and retry. A conversation-level banner would repeat
-          // the raw error and, unlike the message, would not survive reload.
-          onTurnCompleteRef.current?.();
-          cleanupRunListeners();
-        }),
-        window.canvasWorkspace.agent.onRoleTurnStart(sessionId, event => {
-          setRelay({
-            speaking: event.index,
-            total: event.total,
-            queue: event.queue ?? [],
-          });
-        }),
-        window.canvasWorkspace.agent.onRoleTurnEnd(sessionId, event => {
-          setRelay(current => current ? {
-            ...current,
-            speaking: Math.max(current.speaking, event.index + 1),
-          } : current);
-        }),
-      ];
-
       const started = await window.canvasWorkspace.agent.conversationChat(
         agentScope,
         key.sessionId,
@@ -346,18 +158,18 @@ export function useConversationRuntimeStream({
         restoreRecovery();
         setConversationError(key, started.error ?? 'Chat turn failed to start');
         setConversationLoading(key, false);
-        cleanupRunListeners();
+        observer.dispose();
         return false;
       }
       return true;
     } catch (error) {
       restoreRecovery();
-      cleanupRunListeners();
+      observer.dispose();
       setConversationError(key, error instanceof Error ? error.message : String(error));
       setConversationLoading(key, false);
       return false;
     }
-  }, [agentScope, allWorkspaces, key, keyed, snapshot.status, workspaceId]);
+  }, [agentScope, allWorkspaces, key, keyed, observerHooks, snapshot.status, workspaceId]);
 
   const abort = useCallback(async (): Promise<boolean> => {
     if (!keyed || snapshot.status !== 'running') return false;
@@ -408,10 +220,8 @@ export function useConversationRuntimeStream({
 
   // ChatPanel-compatible extras (multi-role relay, image insert, branching,
   // run queue). In the conversation-runtime architecture these are thin
-  // wrappers over the same IPC the legacy hook uses; the turn lease / scope
-  // owner / reattach / replay compensation chains are NOT needed here because
-  // the conversation owns its state and switching is just a selector.
-  const [relay, setRelay] = useState<RelayProgress | null>(null);
+  // wrappers over the same IPC the legacy hook uses; switching is just a
+  // selector, and a lost stream reattaches through main's snapshot.
   const stopRelay = useCallback(async (): Promise<boolean> => {
     if (!keyed || snapshot.status !== 'running') return false;
     const result = await window.canvasWorkspace.agent.conversationStopRelay(agentScope, key.sessionId);

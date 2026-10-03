@@ -16,6 +16,10 @@ import {
 import type { CanvasAgentPerformanceTiming } from '../debug-trace';
 import { markConversationLaneEntered, observeConversationPersistence } from '../observability/host-run';
 import { ClarificationRegistry } from '../clarification-registry';
+import { TurnToolTracker } from './turn-tools';
+
+/** How often an in-flight reply is saved, so a crash keeps the partial text. */
+export const DRAFT_CHECKPOINT_MS = 5_000;
 
 /** Tool-call start emitted by the engine while a turn streams. */
 export interface TurnToolCall {
@@ -83,6 +87,8 @@ export interface ConversationRuntimeDeps {
   withTurnLease?: (operation: () => Promise<TurnRunnerResult>) => Promise<TurnRunnerResult>;
   /** Execute one turn against the shared Engine. */
   runTurn: (ctx: TurnRunnerContext) => Promise<TurnRunnerResult>;
+  /** Draft checkpoint interval; 0 disables checkpoints. */
+  checkpointMs?: number;
 }
 
 /**
@@ -104,19 +110,6 @@ export interface ConversationTurnExternal {
   onRoleTurnEnd?: (event: RoleTurnEndEvent) => void;
 }
 
-const findRunningTool = (
-  tools: AgentChatToolCall[],
-  toolCallId: string | undefined,
-  name?: string,
-): AgentChatToolCall | undefined => {
-  const byId = toolCallId
-    ? tools.find(tool => tool.toolCallId === toolCallId && tool.status === 'running')
-    : undefined;
-  if (byId) return byId;
-  if (!name) return undefined;
-  return tools.find(tool => tool.name === name && tool.status === 'running');
-};
-
 /**
  * The runtime a conversation owns. It holds every piece of *run state*
  * (messages, streaming tools, clarification, queue, abort) and delegates
@@ -132,7 +125,9 @@ export class ConversationRuntime {
   readonly key: ConversationKey;
   private messages: AgentChatMessage[] = [];
   private status: ConversationSnapshot['status'] = 'idle';
-  private streamingTools: AgentChatToolCall[] = [];
+  private tools = new TurnToolTracker();
+  /** The active turn's assistant message while it streams; null when idle. */
+  private draft: AgentChatMessage | null = null;
   private clarification: AgentClarificationRequest | null = null;
   private error: string | null = null;
   private runId: string | null = null;
@@ -146,7 +141,6 @@ export class ConversationRuntime {
   private clarifications = new ClarificationRegistry();
   private disposed = false;
   private loaded = false;
-  private toolIdCounter = 0;
 
   constructor(private readonly deps: ConversationRuntimeDeps) {
     this.key = deps.key;
@@ -164,7 +158,11 @@ export class ConversationRuntime {
       key: this.key,
       status: this.status,
       messages: [...this.messages],
-      streamingTools: [...this.streamingTools],
+      streamingTools: this.tools.tools.map(tool => ({ ...tool })),
+      draft: this.draft ? {
+        ...this.draft,
+        contentBlocks: this.draft.contentBlocks ? [...this.draft.contentBlocks] : undefined,
+      } : null,
       clarification: this.clarification ? { ...this.clarification } : null,
       error: this.error,
       runId: this.runId,
@@ -257,7 +255,8 @@ export class ConversationRuntime {
       return { response: '', error: this.error };
     } finally {
       this.status = 'idle';
-      this.streamingTools = [];
+      this.tools.reset();
+      this.draft = null;
       this.clarification = null;
       this.controller = null;
       this.runId = null;
@@ -309,6 +308,11 @@ export class ConversationRuntime {
     }
 
     const assistant: AgentChatMessage = { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() };
+    this.draft = assistant;
+    const checkpoints = this.startDraftCheckpoints(assistant);
+    const trackTools = () => {
+      assistant.contentBlocks = this.tools.tools.reduce(appendContentTool, assistant.contentBlocks!);
+    };
     let result: TurnRunnerResult = { response: '' };
     try {
       result = await this.deps.runTurn({
@@ -327,46 +331,29 @@ export class ConversationRuntime {
           this.publish();
         },
         onToolCall: (data) => {
-          this.upsertTool(data);
-          assistant.contentBlocks = this.streamingTools.reduce(appendContentTool, assistant.contentBlocks!);
+          this.tools.call(data);
+          trackTools();
           external?.onToolCall?.(data);
           this.publish();
         },
         onToolResult: (data) => {
-          this.markToolResult(data);
+          this.tools.result(data);
           external?.onToolResult?.(data);
           this.publish();
         },
         onToolInputStart: (data) => {
-          const existing = data.id
-            ? this.streamingTools.find(tool => tool.toolCallId === data.id)
-            : undefined;
-          if (existing) {
-            existing.name = data.toolName;
-            if (existing.status === 'running') existing.inputStreaming = true;
-          } else {
-            this.streamingTools.push({
-              id: ++this.toolIdCounter,
-              name: data.toolName,
-              toolCallId: data.id,
-              status: 'running',
-              partialInput: '',
-              inputStreaming: true,
-            });
-          }
-          assistant.contentBlocks = this.streamingTools.reduce(appendContentTool, assistant.contentBlocks!);
+          this.tools.inputStart(data);
+          trackTools();
           external?.onToolInputStart?.(data);
           this.publish();
         },
         onToolInputDelta: (data) => {
-          const tool = findRunningTool(this.streamingTools, data.id);
-          if (tool) tool.partialInput = (tool.partialInput ?? '') + data.delta;
+          this.tools.inputDelta(data);
           external?.onToolInputDelta?.(data);
           this.publish();
         },
         onToolInputEnd: (data) => {
-          const tool = findRunningTool(this.streamingTools, data.id);
-          if (tool) tool.inputStreaming = false;
+          this.tools.inputEnd(data);
           external?.onToolInputEnd?.(data);
           this.publish();
         },
@@ -386,7 +373,6 @@ export class ConversationRuntime {
       });
       assistant.contentBlocks = finishContentBlocks(assistant.contentBlocks!, result.response);
       assistant.content = contentText(assistant.contentBlocks);
-      assistant.toolCalls = this.streamingTools.length ? [...this.streamingTools] : undefined;
       assistant.runId = result.runId;
       assistant.speakerRoleId = result.speakerRole?.id;
       assistant.speakerRoleName = result.speakerRole?.name;
@@ -403,13 +389,11 @@ export class ConversationRuntime {
       result = { response: '', error: this.error };
     }
 
-    assistant.toolCalls = this.streamingTools.length ? this.streamingTools.map(tool => ({
-      ...tool,
-      ...(tool.status === 'running' || tool.status === 'queued' ? {
-        status: assistant.turnStatus === 'stopped' ? 'cancelled' as const : 'failed' as const,
-        inputStreaming: false,
-      } : {}),
-    })) : undefined;
+    // No checkpoint may land after the final write below.
+    const checkpointWrite = checkpoints.stop();
+    if (checkpointWrite) await checkpointWrite;
+    this.draft = null;
+    assistant.toolCalls = this.tools.settled(assistant.turnStatus === 'stopped');
     if (result.assistantMessages?.length) {
       this.messages.push(...result.assistantMessages);
     } else if (assistant.content.length > 0 || assistant.toolCalls?.length || assistant.turnStatus) {
@@ -433,35 +417,41 @@ export class ConversationRuntime {
     next._resolve?.(result);
   }
 
-  private upsertTool(data: TurnToolCall): void {
-    const existing = data.toolCallId
-      ? this.streamingTools.find(tool => tool.toolCallId === data.toolCallId)
-      : undefined;
-    if (existing) {
-      existing.args = data.args;
-      existing.inputStreaming = false;
-      return;
-    }
-    this.streamingTools.push({
-      id: ++this.toolIdCounter,
-      name: data.name,
-      args: data.args,
-      toolCallId: data.toolCallId,
-      status: 'running',
-    });
-  }
-
-  private markToolResult(data: TurnToolResult): void {
-    const tool = findRunningTool(this.streamingTools, data.toolCallId, data.name)
-      ?? this.streamingTools.find(t => t.toolCallId === data.toolCallId)
-      ?? this.streamingTools.find(t => t.name === data.name);
-    if (!tool) return;
-    tool.status = data.status ?? 'succeeded';
-    tool.result = data.result;
-    tool.error = data.error;
-    tool.mcpApp = data.mcpApp;
-    tool.inputStreaming = false;
-    if (tool.streamedContent != null) tool.streamedDone = true;
+  /**
+   * Periodically save the streaming reply as an interrupted turn. A normal
+   * finish replaces it; after a crash the partial reply and its retry remain.
+   */
+  private startDraftCheckpoints(assistant: AgentChatMessage): { stop: () => Promise<void> | null } {
+    const interval = this.deps.checkpointMs ?? DRAFT_CHECKPOINT_MS;
+    if (interval <= 0) return { stop: () => null };
+    let pending: Promise<void> | null = null;
+    let savedSignature = '';
+    const timer = setInterval(() => {
+      const toolCalls = this.tools.settled(true);
+      const signature = `${assistant.content.length}:${JSON.stringify(toolCalls?.map(tool => tool.status) ?? [])}`;
+      if (signature === savedSignature || (!assistant.content && !toolCalls)) return;
+      savedSignature = signature;
+      const draft: AgentChatMessage = {
+        ...assistant,
+        contentBlocks: assistant.contentBlocks ? [...assistant.contentBlocks] : undefined,
+        toolCalls,
+        turnStatus: 'failed',
+        failureKind: 'interrupted',
+        retryable: true,
+      };
+      const messages = [...this.messages, draft];
+      const write: Promise<void> = (pending ?? Promise.resolve())
+        .then(() => this.deps.persist(messages))
+        .catch((err) => { console.warn('[conversation-runtime] draft checkpoint failed', err); })
+        .finally(() => { if (pending === write) pending = null; });
+      pending = write;
+    }, interval);
+    return {
+      stop: () => {
+        clearInterval(timer);
+        return pending;
+      },
+    };
   }
 
   /** Reflect the ClarificationRegistry's queue head into the snapshot. */

@@ -11,7 +11,7 @@ import type { CanvasAgent } from '../canvas-agent';
 import { scopeSessionStoreId } from '../../../shared/agent-chat';
 import { conversationKey } from '../../../shared/conversation-runtime';
 import type { ConversationTurnExternal } from './conversation-runtime';
-import type { ConversationSendInput } from '../../../shared/conversation-runtime';
+import type { ConversationSendInput, ConversationSnapshot } from '../../../shared/conversation-runtime';
 import { ConversationRuntimeRegistry } from './conversation-runtime-registry';
 import { createConversationRunner } from './conversation-runner';
 
@@ -219,6 +219,17 @@ export class ConversationRuntimeService {
     const registry = this.registries.get(scopeKey(scope));
     const runtime = registry?.get(conversationKey(scope, sessionId));
     return runtime?.abort() ?? false;
+  }
+
+  /**
+   * Live state of a running conversation for a renderer that lost its turn
+   * stream. Synchronous and read-only: it never activates a scope, so a cold
+   * or idle conversation returns null.
+   */
+  liveSnapshot(scope: AgentScope, sessionId: string): ConversationSnapshot | null {
+    const runtime = this.registries.get(scopeKey(scope))?.get(conversationKey(scope, sessionId));
+    const snapshot = runtime?.getSnapshot();
+    return snapshot?.status === 'running' ? snapshot : null;
   }
 
   runningSessionIds(scope: AgentScope): string[] {

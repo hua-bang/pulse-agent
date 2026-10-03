@@ -1,4 +1,4 @@
-import type { ConversationSendInput } from '../../../shared/conversation-runtime';
+import type { ConversationSendInput, ConversationSnapshot } from '../../../shared/conversation-runtime';
 import type {
   AgentChatMessage,
   AgentChatMcpApp,
@@ -219,6 +219,15 @@ export interface AgentApi {
     truncateAt?: number,
     trace?: ConversationSendInput['trace'],
   ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  /**
+   * Live state of a running conversation, for a surface that lost its turn
+   * stream (renderer reload, another window). Subscribes the calling window to
+   * the turn's stream events. Idle or cold conversations report `running: false`.
+   */
+  conversationAttach: (
+    scope: AgentScope,
+    sessionId: string,
+  ) => Promise<{ ok: boolean; running: boolean; snapshot?: ConversationSnapshot }>;
   /** Abort a conversation's active turn. */
   conversationAbort: (
     scope: AgentScope,

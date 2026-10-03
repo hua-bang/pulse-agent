@@ -9,6 +9,7 @@ import type { PendingClarification, ToolCallStatus } from '../../../../types';
 import { buildAnchorElementId } from '../utils/anchors';
 import { useI18n } from '../../../../i18n';
 import { ChatClarificationCard } from './ChatClarificationCard';
+import { ChatInterruptedTurn } from './ChatInterruptedTurn';
 import { useChatMessagesController } from './useChatMessagesController';
 import { useStableRowHandlers } from './useStableRowHandlers';
 import { countLaterMessages } from '../../runtime/useConversationRecovery';
@@ -144,6 +145,12 @@ export const ChatMessages = ({
     (latest, message, index) => (message.role === 'user' ? index : latest),
     -1,
   );
+  const replyMissing = !loading
+    && !sessionLoading
+    && !pendingLabel
+    && !pendingClarify
+    && latestUserMessageIndex >= 0
+    && latestUserMessageIndex === messages.length - 1;
   // Rows ask for the count only when a recovery action needs it, so appending
   // a turn does not change props on every older (memoized) row.
   const messagesRef = useRef(messages);
@@ -216,6 +223,12 @@ export const ChatMessages = ({
             />
           );
         })}
+        {replyMissing && (
+          <ChatInterruptedTurn
+            userIndex={latestUserMessageIndex}
+            onRetry={interactionDisabled ? undefined : rowHandlers.onRegenerate}
+          />
+        )}
         {(loading || pendingLabel) && !hasStreamingAssistantMessage && (
           <LoadingPlaceholder label={pendingLabel} startedAt={messages[messages.length - 1]?.timestamp} />
         )}
