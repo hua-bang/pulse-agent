@@ -83,3 +83,50 @@ describe('conversation runner clarification round-trip', () => {
     expect(engineWaits.latest()).toBeNull();
   });
 });
+
+describe('conversation runner failed turns', () => {
+  it('persists the failed reply with its tools and recovery metadata', async () => {
+    const persisted: unknown[][] = [];
+    const agent = {
+      chat: vi.fn(async (...args: unknown[]) => {
+        const appendRunMessages = args[16] as (sessionId: string, messages: unknown[]) => void;
+        appendRunMessages('session-a', [
+          { role: 'user', content: 'run it', timestamp: 1 },
+          {
+            role: 'assistant',
+            content: '',
+            timestamp: 2,
+            toolCalls: [{ id: 1, name: 'bash', toolCallId: 'call-1', status: 'succeeded', result: 'ok' }],
+            turnStatus: 'failed',
+            failureKind: 'network',
+            errorDetails: 'socket hang up',
+            retryable: true,
+          },
+        ]);
+        throw new Error('socket hang up');
+      }),
+      answerClarification: vi.fn(),
+    };
+    const runtime = new ConversationRuntime({
+      key: { storeId: 'ws-a', sessionId: 'session-a' },
+      loadMessages: async () => [],
+      persist: async (messages) => { persisted.push(messages); },
+      runTurn: createConversationRunner(agent as unknown as CanvasAgent),
+      checkpointMs: 0,
+    });
+    await runtime.open();
+
+    await expect(runtime.sendAndWait({ message: 'run it' })).resolves.toMatchObject({ error: 'socket hang up' });
+
+    expect(persisted.at(-1)).toMatchObject([
+      { role: 'user', content: 'run it' },
+      {
+        role: 'assistant',
+        turnStatus: 'failed',
+        failureKind: 'network',
+        retryable: true,
+        toolCalls: [{ name: 'bash', status: 'succeeded', result: 'ok' }],
+      },
+    ]);
+  });
+});

@@ -1,0 +1,31 @@
+.chat-recovery-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  max-width: min(100%, 640px);
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--text-warning) 22%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--text-warning) 5%, var(--surface));
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chat-recovery-confirm__icon {
+  display: inline-flex;
+  color: var(--text-warning);
+}
+
+.chat-recovery-confirm__message {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.chat-recovery-confirm__actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}

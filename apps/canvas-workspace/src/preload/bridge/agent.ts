@@ -76,6 +76,12 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
       trace,
     }),
 
+  conversationAttach: (scope, sessionId) =>
+    ipcRenderer.invoke("canvas-agent:conversation-attach", {
+      scope,
+      sessionId,
+    }),
+
   conversationAbort: (scope, sessionId) =>
     ipcRenderer.invoke("canvas-agent:conversation-abort", {
       scope,

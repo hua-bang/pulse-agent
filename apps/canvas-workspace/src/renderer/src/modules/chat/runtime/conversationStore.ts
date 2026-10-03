@@ -202,6 +202,15 @@ export function pushConversationMessage(key: ConversationKey, message: AgentChat
   publish(key);
 }
 
+/** Append the user's message and mark the turn running in one published change. */
+export function startConversationTurn(key: ConversationKey, message: AgentChatMessage): void {
+  const state = getState(key);
+  state.messages = [...state.messages, message];
+  state.loading = true;
+  state.error = null;
+  publish(key);
+}
+
 export function appendConversationText(key: ConversationKey, delta: string): void {
   const state = getState(key);
   const messages = [...state.messages];

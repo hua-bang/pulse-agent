@@ -40,8 +40,8 @@ export const ChatMessageToolbar = ({
         <button
           type="button"
           className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-          title="Edit & resend"
-          aria-label="Edit and resend"
+          title={t('chat.recovery.editTitle')}
+          aria-label={t('chat.recovery.editAction')}
           onClick={onEdit}
         >
           <PencilIcon size={12} />
@@ -51,8 +51,8 @@ export const ChatMessageToolbar = ({
         <button
           type="button"
           className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-          title="Regenerate response"
-          aria-label="Regenerate response"
+          title={t('chat.recovery.regenerateAction')}
+          aria-label={t('chat.recovery.regenerateAction')}
           onClick={onRegenerate}
         >
           <RefreshIcon size={12} />

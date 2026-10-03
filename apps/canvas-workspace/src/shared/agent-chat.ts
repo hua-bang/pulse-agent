@@ -263,7 +263,7 @@ export interface AgentChatMessage {
   /** Raw diagnostic kept behind an explicit details disclosure. */
   errorDetails?: string;
   /** Stable renderer-localized category for a failed turn. */
-  failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown';
+  failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown' | 'interrupted';
   /** Whether retry/regenerate is a meaningful recovery action. */
   retryable?: boolean;
   /** Exact lightweight context used for this user turn. */
