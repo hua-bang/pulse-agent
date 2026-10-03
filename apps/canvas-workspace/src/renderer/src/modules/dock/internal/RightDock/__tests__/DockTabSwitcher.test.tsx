@@ -10,12 +10,12 @@ let root: Root | null = null;
 let mount: HTMLDivElement | null = null;
 afterEach(() => { act(() => root?.unmount()); mount?.remove(); root = null; vi.restoreAllMocks(); });
 
-const setup = async () => {
+const setup = async (splitTabIds: string[] = ['a', 'b']) => {
   const onActivate = vi.fn();
   const onReopen = vi.fn();
   const onClose = vi.fn();
   mount = document.createElement('div'); document.body.appendChild(mount); root = createRoot(mount);
-  act(() => root?.render(<I18nProvider><DockTabSwitcher activeTabId="b" splitTabIds={['a', 'b']}
+  act(() => root?.render(<I18nProvider><DockTabSwitcher activeTabId="b" splitTabIds={splitTabIds}
     items={[
       { id: 'a', kind: 'link', title: 'Reading notes', url: 'https://docs.example/article', faviconUrl: 'https://docs.example/icon.png' },
       { id: 'b', kind: 'link', title: 'Research', url: 'https://research.example' },
@@ -77,4 +77,10 @@ describe('DockTabSwitcher search', () => {
     expect(onReopen).toHaveBeenCalledWith(0);
     expect(onActivate).not.toHaveBeenCalled();
   });
+});
+
+it('keeps selection highlighting without a redundant Visible label in single-pane mode', async () => {
+  await setup([]);
+  expect(document.querySelector('.right-dock__tab-position')).toBeNull();
+  expect(document.querySelector('[role="option"][aria-selected="true"]')?.textContent).toContain('Research');
 });

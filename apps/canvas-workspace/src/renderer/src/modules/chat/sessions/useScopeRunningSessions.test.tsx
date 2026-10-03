@@ -2,8 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useScopeRunningSessions } from './useScopeRunningSessions';
-import { conversationKey } from '../../../../../shared/conversation-runtime';
+import { useRunningConversationKeys, useScopeRunningSessions } from './useScopeRunningSessions';
+import { conversationKey, conversationKeyId } from '../../../../../shared/conversation-runtime';
 import {
   resetConversationStoreForTests,
   setConversationLoading,
@@ -168,5 +168,47 @@ describe('useScopeRunningSessions', () => {
     });
     expect(latest.size).toBe(0);
     act(() => root?.unmount());
+  });
+});
+
+describe('useRunningConversationKeys', () => {
+  it('polls every distinct store and keeps identical session ids isolated', async () => {
+    const poll = vi.spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions')
+      .mockImplementation(async ({ scope }) => ({
+        ok: true,
+        conversationSessionIds: scope?.kind === 'workspace' && scope.workspaceId === 'ws-b'
+          ? ['same-id'] : [],
+      }));
+    const ProbeAll = () => {
+      latest = useRunningConversationKeys(['ws-a', 'ws-b', 'ws-b'], 50);
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => root?.render(<ProbeAll />));
+    expect(poll).toHaveBeenCalledTimes(2);
+    expect(latest).toEqual(new Set([conversationKeyId({ storeId: 'ws-b', sessionId: 'same-id' })]));
+    poll.mockResolvedValue({ ok: true, conversationSessionIds: [] });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 65)); });
+    expect(latest.size).toBe(0);
+  });
+
+  it('observes a local background scope immediately while remote polls are pending', async () => {
+    vi.spyOn(window.canvasWorkspace.agent, 'getScopeRunningSessions')
+      .mockImplementation(() => new Promise(() => {}));
+    const ProbeAll = () => {
+      latest = useRunningConversationKeys(['ws-a', 'ws-b']);
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => root?.render(<ProbeAll />));
+    const key = conversationKey({ kind: 'workspace', workspaceId: 'ws-b' }, 'background');
+    act(() => setConversationLoading(key, true));
+    expect(latest).toEqual(new Set([conversationKeyId(key)]));
+    act(() => setConversationLoading(key, false));
+    expect(latest.size).toBe(0);
   });
 });

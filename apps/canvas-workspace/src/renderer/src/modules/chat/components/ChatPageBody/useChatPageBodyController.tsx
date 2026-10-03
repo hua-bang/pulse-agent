@@ -13,7 +13,7 @@ import { ChatConversationStatus } from '../ChatConversationStatus';
 import { useChatPageTargetContext } from './hooks/useChatPageTargetContext';
 import { useChatPageJumpNavigation } from './hooks/useChatPageJumpNavigation';
 import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
-import { useScopeRunningSessions } from '../../sessions/useScopeRunningSessions';
+import { useRunningConversationKeys } from '../../sessions/useScopeRunningSessions';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
 import { submitQuickAction } from '../ChatComposer/submitQuickAction';
@@ -317,7 +317,10 @@ export const useChatPageBodyController = ({
   const sessionInteractionDisabled = loading || sessionLoading || busyElsewhere;
   const sessionRailDisabled = sessionLoading;
   const newSessionDisabled = sessionLoading || busyElsewhere;
-  const runningSessionIds = useScopeRunningSessions(agentScope, scopeId); // rail "Running" markers
+  const runningConversationKeys = useRunningConversationKeys([
+    scopeSessionStoreId(agentScope), sessionsStoreId,
+    ...otherSessions.map(session => session.sourceWorkspaceId),
+  ]); // rail "Running" markers
   const completionStatuses = useConversationCompletionNotices({ selectedSessionKey });
   const sessionRail = useChatPageSessionRail({
     agentScope,
@@ -331,7 +334,7 @@ export const useChatPageBodyController = ({
     pendingSessionKey: sessionLoading ? pendingSessionKey : null,
     disabled: sessionRailDisabled,
     newSessionDisabled,
-    runningSessionIds,
+    runningConversationKeys,
     completionStatuses,
     focusInput,
     handleNewSession,

@@ -12,6 +12,7 @@ interface Props {
   onClose: () => void;
   onOpenFolder: () => void;
   onOpenNode: () => void;
+  showOpenNode?: boolean;
   onOpenCanvas: () => void;
   onNewWebTab: () => void;
   onNewTerminalTab: () => void;
@@ -21,7 +22,7 @@ interface Props {
   onHoverLeave?: () => void;
 }
 
-export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenFolder, onOpenNode, onOpenCanvas, onNewWebTab, onNewTerminalTab, onHoverEnter, onHoverLeave }: Props) => {
+export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOpenFolder, onOpenNode, showOpenNode = false, onOpenCanvas, onNewWebTab, onNewTerminalTab, onHoverEnter, onHoverLeave }: Props) => {
   const { t } = useI18n();
   useGuestInteractionShield(true);
 
@@ -87,7 +88,7 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
         <NodeTypeIcon type="frame" size={15} colorize />
         {t('rightDock.openCanvas')}
       </Button>
-      <Button
+      {showOpenNode && <Button
         size="sm"
         className="right-dock__new-tab-item"
         role="menuitem"
@@ -98,7 +99,7 @@ export const NewDockTabMenu = ({ anchorRef, panelId, showTerminal, onClose, onOp
       >
         <NodeTypeIcon type="file" size={15} colorize />
         {t('rightDock.openNode')}
-      </Button>
+      </Button>}
     </Popover>
   );
 };

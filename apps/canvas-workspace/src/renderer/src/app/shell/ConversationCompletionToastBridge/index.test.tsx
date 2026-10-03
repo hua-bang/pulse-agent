@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { AppShellProvider } from '../AppShellProvider';
 import { conversationKey } from '../../../../../shared/conversation-runtime';
@@ -32,7 +32,7 @@ describe('ConversationCompletionToastBridge', () => {
     root = createRoot(host);
     await act(async () => root?.render(
       <I18nProvider><AppShellProvider>
-        <ConversationCompletionToastBridge />
+        <ConversationCompletionToastBridge onOpenSessionInScope={vi.fn()} />
       </AppShellProvider></I18nProvider>,
     ));
 
@@ -46,4 +46,31 @@ describe('ConversationCompletionToastBridge', () => {
     expect(host.textContent).not.toContain('“Visible chat” finished');
     act(() => setConversationVisible(key, false));
   });
+  it.each([
+    ['ws-b', { kind: 'workspace', workspaceId: 'ws-b' }],
+    ['__global_chat__', { kind: 'global' }],
+    ['__scheduled__-task-a', { kind: 'scheduled', taskId: 'task-a' }],
+  ])('opens the exact completed conversation in %s', async (storeId, scope) => {
+    const open = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => root?.render(
+      <I18nProvider><AppShellProvider>
+        <ConversationCompletionToastBridge onOpenSessionInScope={open} />
+      </AppShellProvider></I18nProvider>,
+    ));
+    act(() => recordConversationCompletion(
+      { storeId: String(storeId), sessionId: 'exact-session' }, 'done', 'exact-run', 'Background',
+    ));
+    const button = host.querySelector<HTMLButtonElement>('.shell-toast__action');
+    expect(button).not.toBeNull();
+    await act(async () => {
+      button!.click();
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    });
+    expect(open).toHaveBeenCalledWith(scope, 'exact-session', 'Background');
+    expect(host.querySelector('.shell-toast')).toBeNull();
+  });
+
 });

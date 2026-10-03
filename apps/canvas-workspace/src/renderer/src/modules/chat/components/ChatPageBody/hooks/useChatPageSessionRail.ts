@@ -32,8 +32,8 @@ interface Options {
   renameSession: (sessionId: string, title: string, scope: AgentScope) => Promise<unknown>;
   deleteSession: (sessionId: string, scope: AgentScope) => Promise<unknown>;
   toggleSessionPinned: (sessionId: string, pinned: boolean, scope: AgentScope) => Promise<unknown>;
-  /** Conversation session ids with an active run (parallel running markers). */
-  runningSessionIds?: ReadonlySet<string>;
+  /** Store-qualified conversation keys with an active run across the rail. */
+  runningConversationKeys?: ReadonlySet<string>;
   completionStatuses?: ReadonlyMap<string, ConversationCompletionStatus>;
 }
 
@@ -58,7 +58,7 @@ export const useChatPageSessionRail = ({
   renameSession,
   deleteSession,
   toggleSessionPinned,
-  runningSessionIds,
+  runningConversationKeys,
   completionStatuses,
 }: Options): ChatSessionsRailProps => {
   const allSessions = useStableSessionRail({
@@ -70,7 +70,7 @@ export const useChatPageSessionRail = ({
     selectedSessionKey,
     sessions,
     sessionsStoreId,
-    runningSessionIds,
+    runningConversationKeys,
     completionStatuses,
   });
   const onNewSession = useCallback(async () => {
