@@ -188,7 +188,7 @@ export interface CanvasAgentMessage {
   speakerRoleColor?: string;
   turnStatus?: 'stopped' | 'failed';
   errorDetails?: string;
-  failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown';
+  failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown' | 'interrupted';
   retryable?: boolean;
   contextSnapshot?: import('../../shared/agent-chat').AgentTurnContextSnapshot;
 }

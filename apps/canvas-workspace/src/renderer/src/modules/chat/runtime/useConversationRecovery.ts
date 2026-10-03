@@ -23,6 +23,17 @@ export function findAnsweredUserIndex(messages: AgentChatMessage[], index: numbe
 }
 
 /**
+ * Messages after the turn that `index` belongs to. Edit and regenerate cut
+ * the conversation at that turn, so these messages are removed with it.
+ */
+export function countLaterMessages(messages: AgentChatMessage[], index: number): number {
+  const userIndex = findAnsweredUserIndex(messages, index);
+  if (userIndex < 0) return 0;
+  const nextUserIndex = messages.findIndex((message, cursor) => cursor > userIndex && message.role === 'user');
+  return nextUserIndex < 0 ? 0 : messages.length - nextUserIndex;
+}
+
+/**
  * The resent turn keeps the context it was first sent with: its recorded
  * selection, tabs, plugins and execution mode, not whatever is selected now.
  */

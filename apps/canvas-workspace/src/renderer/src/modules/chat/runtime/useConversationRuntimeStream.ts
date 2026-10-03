@@ -311,9 +311,9 @@ export function useConversationRuntimeStream({
           setConversationClarification(key, null);
           setRelay(null);
           recordConversationCompletion(key, completeResult.stopped ? 'stopped' : completeResult.ok ? 'done' : 'failed', completeResult.runId ?? `${key.storeId}:${sessionId}:${userMessage.timestamp}`, trimmed.slice(0, 60));
-          if (!completeResult.ok && completeResult.error) {
-            setConversationError(key, completeResult.error);
-          }
+          // The failed assistant message already shows the outcome, its
+          // diagnostics and retry. A conversation-level banner would repeat
+          // the raw error and, unlike the message, would not survive reload.
           onTurnCompleteRef.current?.();
           cleanupRunListeners();
         }),

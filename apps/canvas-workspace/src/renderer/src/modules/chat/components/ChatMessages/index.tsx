@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { useCallback, useRef, type KeyboardEvent } from 'react';
 import './index.css';
 import type { AgentChatMessage, CanvasNode } from '../../../../types';
 import { BotAvatarIcon } from '../../../../components/icons';
@@ -11,6 +11,7 @@ import { useI18n } from '../../../../i18n';
 import { ChatClarificationCard } from './ChatClarificationCard';
 import { useChatMessagesController } from './useChatMessagesController';
 import { useStableRowHandlers } from './useStableRowHandlers';
+import { countLaterMessages } from '../../runtime/useConversationRecovery';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -143,6 +144,14 @@ export const ChatMessages = ({
     (latest, message, index) => (message.role === 'user' ? index : latest),
     -1,
   );
+  // Rows ask for the count only when a recovery action needs it, so appending
+  // a turn does not change props on every older (memoized) row.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const getLaterMessageCount = useCallback(
+    (index: number) => countLaterMessages(messagesRef.current, index),
+    [],
+  );
   return (
     <div className="chat-messages-wrap">
       {tabNavigationFeedback && (
@@ -200,6 +209,8 @@ export const ChatMessages = ({
               onRegenerate={rowHandlers.onRegenerate}
               onFork={rowHandlers.onFork}
               hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
+              hasLaterTurns={index < latestUserMessageIndex}
+              getLaterMessageCount={getLaterMessageCount}
               turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
               onSessionJump={rowHandlers.onSessionJump}
             />

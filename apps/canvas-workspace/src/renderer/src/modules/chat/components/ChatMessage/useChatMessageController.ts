@@ -28,6 +28,9 @@ interface Options {
   rootFolder?: string;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  /** A later user turn exists, so edit/regenerate would remove messages. */
+  hasLaterTurns?: boolean;
+  getLaterMessageCount?: (index: number) => number;
 }
 
 export interface GeneratedChatImage {
@@ -47,6 +50,8 @@ export const useChatMessageController = ({
   rootFolder,
   onEditUserMessage,
   onRegenerate,
+  hasLaterTurns = false,
+  getLaterMessageCount,
 }: Options) => {
   const { t } = useI18n();
   const roleColors = useRoleColors();
@@ -75,6 +80,7 @@ export const useChatMessageController = ({
   const [editValue, setEditValue] = useState('');
   const [liveToolDetailsOpen, setLiveToolDetailsOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
   const canEdit = message.role === 'user' && !!onEditUserMessage && !loading && !isStreaming;
   const canRegenerate = message.role === 'assistant'
     && !!onRegenerate
@@ -105,9 +111,24 @@ export const useChatMessageController = ({
       void handleSaveEdit();
     }
   }, [handleCancelEdit, handleSaveEdit]);
+  // Regenerating an older turn cuts the conversation there; ask first.
   const handleRegenerate = useCallback(() => {
+    if (!onRegenerate) return;
+    if (hasLaterTurns) {
+      setConfirmingRegenerate(true);
+      return;
+    }
+    void onRegenerate(index);
+  }, [hasLaterTurns, index, onRegenerate]);
+  const handleConfirmRegenerate = useCallback(() => {
+    setConfirmingRegenerate(false);
     if (onRegenerate) void onRegenerate(index);
   }, [index, onRegenerate]);
+  const handleCancelRegenerate = useCallback(() => setConfirmingRegenerate(false), []);
+  const confirmRegenerateVisible = confirmingRegenerate && hasLaterTurns && !loading && !isStreaming;
+  const laterMessageCount = (isEditing || confirmRegenerateVisible) && hasLaterTurns
+    ? getLaterMessageCount?.(index) ?? 0
+    : 0;
   const handleImageError = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
     event.currentTarget.closest('.chat-message-image-card')?.classList.add('chat-message-image-card--broken');
   }, []);
@@ -154,9 +175,12 @@ export const useChatMessageController = ({
     canEdit,
     canRecoverTurn,
     canRegenerate,
+    confirmRegenerateVisible,
     editValue,
     generatedImages,
     handleCancelEdit,
+    handleCancelRegenerate,
+    handleConfirmRegenerate,
     handleEditKeyDown,
     handleImageError,
     handleImageKeyOpen,
@@ -164,6 +188,7 @@ export const useChatMessageController = ({
     handleSaveEdit,
     handleStartEdit,
     isEditing,
+    laterMessageCount,
     lightboxImages,
     lightboxIndex,
     liveToolDetailsOpen,

@@ -14,6 +14,8 @@ import { ChatMessageToolbar } from './ChatMessageToolbar';
 import { useChatMessageController } from './useChatMessageController';
 import { ChatMessageToolResults } from './ChatMessageToolResults';
 import { MarkdownContent } from './MarkdownContent';
+import { ChatMessageEditor } from './ChatMessageEditor';
+import { ChatRecoveryConfirm } from './ChatRecoveryConfirm';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -40,6 +42,10 @@ interface ChatMessageProps {
   onFork?: (index: number) => Promise<boolean> | void;
   /** Old stopped turns become transcript history once a later user turn exists. */
   hideStoppedOutcome?: boolean;
+  /** A later user turn exists: edit/regenerate here would remove later messages. */
+  hasLaterTurns?: boolean;
+  /** Count the messages a recovery action at this index would remove. */
+  getLaterMessageCount?: (index: number) => number;
   /** Start of the current user turn, used for the overall Working timer. */
   turnStartedAt?: number;
   /** Jump to a session/message from a session_search result chip. */
@@ -65,6 +71,8 @@ const ChatMessageView = ({
   onRegenerate,
   onFork,
   hideStoppedOutcome = false,
+  hasLaterTurns = false,
+  getLaterMessageCount,
   turnStartedAt,
   onSessionJump,
 }: ChatMessageProps) => {
@@ -77,9 +85,12 @@ const ChatMessageView = ({
     canEdit,
     canRecoverTurn,
     canRegenerate,
+    confirmRegenerateVisible,
     editValue,
     generatedImages,
     handleCancelEdit,
+    handleCancelRegenerate,
+    handleConfirmRegenerate,
     handleEditKeyDown,
     handleImageError,
     handleImageKeyOpen,
@@ -87,6 +98,7 @@ const ChatMessageView = ({
     handleSaveEdit,
     handleStartEdit,
     isEditing,
+    laterMessageCount,
     lightboxImages,
     lightboxIndex,
     liveToolDetailsOpen,
@@ -107,6 +119,8 @@ const ChatMessageView = ({
     rootFolder,
     onEditUserMessage,
     onRegenerate,
+    hasLaterTurns,
+    getLaterMessageCount,
   });
   const showActivity = message.role === 'assistant' && isStreaming && !message.content;
   const toggleSection = useCallback(() => onToggleSection(index), [index, onToggleSection]);
@@ -212,34 +226,14 @@ const ChatMessageView = ({
           <MarkdownContent imagePreview bodyRef={bodyRef} html={assistantHtml} />
         )
       ) : isEditing ? (
-        <div className="chat-message-edit">
-          <textarea
-            className="chat-message-edit-input"
-            value={editValue}
-            onChange={(event) => setEditValue(event.target.value)}
-            onKeyDown={handleEditKeyDown}
-            autoFocus
-            rows={Math.min(8, Math.max(2, editValue.split('\n').length))}
-          />
-          <div className="chat-message-edit-actions">
-            <span className="chat-message-edit-hint">⌘↵ to save · Esc to cancel</span>
-            <button
-              type="button"
-              className="chat-message-toolbar-btn"
-              onClick={handleCancelEdit}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="chat-message-toolbar-btn chat-message-toolbar-btn--primary"
-              onClick={() => void handleSaveEdit()}
-              disabled={!editValue.trim()}
-            >
-              Save &amp; resend
-            </button>
-          </div>
-        </div>
+        <ChatMessageEditor
+          value={editValue}
+          laterMessageCount={laterMessageCount}
+          onChange={setEditValue}
+          onKeyDown={handleEditKeyDown}
+          onCancel={handleCancelEdit}
+          onSave={() => void handleSaveEdit()}
+        />
       ) : (
         <MarkdownContent imagePreview bodyRef={bodyRef} html={userHtml} />
       )}
@@ -253,7 +247,20 @@ const ChatMessageView = ({
         />
       )}
       <PluginChatCardForMessage message={isStreaming ? { ...message, runId: undefined } : message} />
-      {!isEditing && (
+      {confirmRegenerateVisible && (
+        <ChatRecoveryConfirm
+          count={laterMessageCount}
+          onConfirm={handleConfirmRegenerate}
+          onCancel={handleCancelRegenerate}
+          onFork={onFork && message.role === 'assistant'
+            ? () => {
+              handleCancelRegenerate();
+              void onFork(index);
+            }
+            : undefined}
+        />
+      )}
+      {!isEditing && !confirmRegenerateVisible && (
         <ChatMessageToolbar
           content={message.content}
           timestamp={message.timestamp}
