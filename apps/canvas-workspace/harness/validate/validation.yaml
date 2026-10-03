@@ -364,3 +364,12 @@ pathRules:
       - pnpm --filter canvas-workspace exec tsc --noEmit -p harness/tools/feishu-replay/tsconfig.json
       - pnpm --filter canvas-workspace exec vitest run harness/tools/feishu-replay/replay.test.ts
       - node apps/canvas-workspace/harness/tools/feishu-replay/preview.mjs
+
+  # The CLI embeds this existing renderer; rebuilding the app alone does not
+  # refresh the installed offline viewer.
+  - name: offline-log-viewer
+    paths:
+      - src/plugins/renderer/devtools/**
+      - src/renderer/src/styles.css
+    required:
+      - pnpm --filter @pulse-coder/canvas-cli build

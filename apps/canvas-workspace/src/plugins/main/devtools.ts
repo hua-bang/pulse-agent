@@ -5,6 +5,8 @@ import type {
 } from '../../main/agent/types';
 import type { MainCanvasPlugin } from '../types';
 import { LocalAgentTraceSink } from './local-agent-trace-sink';
+import { getCanvasCapabilityRuntime } from '../../main/runtime/capabilities';
+import { createDevtoolsCapabilities } from './devtools-capabilities';
 
 interface StoredRun {
   summary: CanvasAgentDebugRunSummary;
@@ -125,7 +127,7 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
       }
     });
 
-    ctx.handle('list-runs', () => serialize(async () => {
+    const listRuns = () => serialize(async () => {
       const keys = await ctx.store.list('runs/');
       const records = await Promise.all(
         keys.map((key) => ctx.store.get<StoredRun>(key)),
@@ -134,17 +136,28 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
         .filter((r): r is StoredRun => Boolean(r))
         .map((r) => r.summary)
         .sort((a, b) => b.startedAt - a.startedAt);
-    }));
+    });
 
-    ctx.handle('get-run', (_event, runId) => serialize(async () => {
+    const getRun = (runId: string) => serialize(async () => {
       if (typeof runId !== 'string') {
         throw new Error('devtools.get-run: runId must be a string');
       }
       const stored = await ctx.store.get<StoredRun>(runKey(runId));
-      if (!stored) throw new Error(`devtools.get-run: ${runId} not found`);
+      if (!stored) return undefined;
       const latestEvents = traceSink.snapshot(runId);
       if (latestEvents.length > 0) stored.detail.trace.observabilityEvents = latestEvents;
       return stored.detail;
-    }));
+    });
+
+    ctx.handle('list-runs', listRuns);
+    ctx.handle('get-run', async (_event, runId) => {
+      if (typeof runId !== 'string') throw new Error('devtools.get-run: runId must be a string');
+      const detail = await getRun(runId);
+      if (!detail) throw new Error(`devtools.get-run: ${runId} not found`);
+      return detail;
+    });
+    for (const capability of createDevtoolsCapabilities({ listRuns, getRun })) {
+      getCanvasCapabilityRuntime().register(capability);
+    }
   },
 };

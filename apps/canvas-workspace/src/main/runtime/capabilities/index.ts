@@ -6,6 +6,7 @@ import { getExperimentalFlagSync } from '../../settings/experimental-ipc';
 import {
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
   EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
+  EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
 } from '../../../shared/experimental-features';
 import type { CapabilityActorKind, CapabilityRisk } from './types';
 
@@ -42,6 +43,8 @@ export function getCanvasCapabilityRuntime(): CapabilityRuntime {
         !allowedRisks[actor.kind].has(capability.risk)
         && !(actor.kind === 'pulse-cli' && externalUnsafeCapabilities.has(capability.name))
       ) return false;
+      if (capability.name === 'devtools.logs.open'
+        && !getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE)) return false;
       if (
         capability.name === 'host.renderer.eval'
         && !getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL)
