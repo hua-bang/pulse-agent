@@ -113,7 +113,7 @@ reach into Chat component paths or query its code-block DOM to implement copying
   exports for components.
 - Name the props interface **`Props`** (local) and destructure props in the
   signature.
-- Import the colocated stylesheet at the top: `import "./index.css";`.
+- Import the colocated stylesheet at the top: `import './index.css';`.
 - Keep components **≤ 300 lines**; lift state machines and side effects into a
   `useXxxController` hook or split out sub-components (see file-size governance).
 
