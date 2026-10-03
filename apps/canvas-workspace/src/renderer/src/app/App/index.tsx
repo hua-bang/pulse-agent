@@ -207,8 +207,11 @@ const AppContent = () => {
     scopeLabel: string,
   ) => {
     const { createChatPageSessionTarget } = await import('../../modules/chat/session');
-    enterChatTarget(createChatPageSessionTarget(scope, sessionId, scopeLabel));
-  }, [enterChatTarget]);
+    const label = scope.kind === 'workspace'
+      ? workspaces.find(workspace => workspace.id === scope.workspaceId)?.name ?? scopeLabel
+      : scope.kind === 'global' ? t('chat.scope.global') : scopeLabel;
+    enterChatTarget(createChatPageSessionTarget(scope, sessionId, label));
+  }, [enterChatTarget, t, workspaces]);
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
     setSelectedNode(null);
@@ -375,6 +378,7 @@ const AppContent = () => {
         onOpenNodePage={openNodePage}
         onActivateWorkspace={activateDockWorkspace}
       />
+      <ConversationCompletionToastBridge onOpenSessionInScope={openSessionInOwningScope} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         appLoaded={appSettingsLoaded}
@@ -393,7 +397,6 @@ const AppContent = () => {
 const App = () => (
   <I18nProvider>
     <AppShellProvider>
-      <ConversationCompletionToastBridge />
       <ChatTargetProvider>
         <RightDockProvider><AppContent /></RightDockProvider>
       </ChatTargetProvider>

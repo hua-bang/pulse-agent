@@ -16,8 +16,8 @@ interface UseStableSessionRailOptions {
   selectedSessionKey: string | null;
   sessions: AgentSessionInfo[];
   sessionsStoreId: string;
-  /** Conversation session ids with an active run (parallel running markers). */
-  runningSessionIds?: ReadonlySet<string>;
+  /** Store-qualified conversation keys with an active run across the rail. */
+  runningConversationKeys?: ReadonlySet<string>;
   completionStatuses?: ReadonlyMap<string, ConversationCompletionStatus>;
 }
 
@@ -46,7 +46,7 @@ export function useStableSessionRail({
   selectedSessionKey,
   sessions,
   sessionsStoreId,
-  runningSessionIds,
+  runningConversationKeys,
   completionStatuses,
 }: UseStableSessionRailOptions): UnifiedSession[] {
   const { t } = useI18n();
@@ -75,7 +75,9 @@ export function useStableSessionRail({
           isPinned: session.pinned,
           // The conversation the user is VIEWING does not need a Running badge
           // (its stream is on screen); only background-running sessions do.
-          running: runningSessionIds?.has(session.sessionId) && !isCurrent,
+          running: runningConversationKeys?.has(conversationKeyId({
+            storeId: sessionsStoreId, sessionId: session.sessionId,
+          })) && !isCurrent,
           completionStatus: !isCurrent ? completionStatuses?.get(conversationKeyId({
             storeId: sessionsStoreId,
             sessionId: session.sessionId,
@@ -96,6 +98,10 @@ export function useStableSessionRail({
         isPinned: session.pinned,
         isCurrent: selectedSessionKey
           === `${session.sourceWorkspaceId}:${session.sessionId}`,
+        running: selectedSessionKey !== `${session.sourceWorkspaceId}:${session.sessionId}`
+          && runningConversationKeys?.has(conversationKeyId({
+            storeId: session.sourceWorkspaceId, sessionId: session.sessionId,
+          })),
         completionStatus: selectedSessionKey !== `${session.sourceWorkspaceId}:${session.sessionId}`
           ? completionStatuses?.get(conversationKeyId({
             storeId: session.sourceWorkspaceId,
@@ -109,7 +115,7 @@ export function useStableSessionRail({
       || right.date.localeCompare(left.date)
       || right.sessionId.localeCompare(left.sessionId)
     ));
-  }, [agentScope, allWorkspaces, completionStatuses, currentScopeName, otherSessions, runningSessionIds, selectedSessionKey, sessions, sessionsStoreId, t]);
+  }, [agentScope, allWorkspaces, completionStatuses, currentScopeName, otherSessions, runningConversationKeys, selectedSessionKey, sessions, sessionsStoreId, t]);
 
   return useMemo(() => {
     const nextScopeId = scopeSessionStoreId(agentScope);
@@ -120,17 +126,16 @@ export function useStableSessionRail({
         const isCurrent = selectedSessionKey
           ? selectedSessionKey === `${session.workspaceId}:${session.sessionId}`
           : session.isCurrent;
-        const belongsToActiveScope = session.workspaceId === nextScopeId;
         return {
           ...session,
           isCurrent,
-          running: belongsToActiveScope
-            ? runningSessionIds?.has(session.sessionId) && !isCurrent
-            : session.running,
+          running: runningConversationKeys?.has(conversationKeyId({
+            storeId: session.workspaceId, sessionId: session.sessionId,
+          })) && !isCurrent,
         };
       });
     }
     stableSessionsRef.current = computedSessions;
     return computedSessions;
-  }, [agentScope, computedSessions, loading, runningSessionIds, selectedSessionKey]);
+  }, [agentScope, computedSessions, loading, runningConversationKeys, selectedSessionKey]);
 }

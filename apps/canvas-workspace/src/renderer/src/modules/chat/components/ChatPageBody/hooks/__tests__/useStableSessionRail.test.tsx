@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
+import { conversationKeyId } from '../../../../../../../../shared/conversation-runtime';
 import { useStableSessionRail } from '../useStableSessionRail';
 import { I18nProvider } from '../../../../../../i18n';
 import type { AgentSessionInfo } from '../../../../../../types';
@@ -41,7 +42,8 @@ const Probe = ({
     selectedSessionKey: selectedSessionKey ?? null,
     sessions: sessionRows ?? sessions,
     sessionsStoreId: 'workspace-a',
-    runningSessionIds,
+    runningConversationKeys: new Set([...runningSessionIds ?? []].map(sessionId =>
+      conversationKeyId({ storeId: 'workspace-a', sessionId }))),
   });
   return null;
 };
@@ -138,6 +140,32 @@ describe('useStableSessionRail running markers', () => {
 
     const byId = Object.fromEntries(latest!.map((entry) => [entry.sessionId, entry]));
     expect(byId['session-b']!.running).toBe(true);
+  });
+
+  it('marks cross-workspace runs and updates them while the rail is loading', async () => {
+    const other: OtherWorkspaceSession = {
+      ...sessions[0]!, sourceWorkspaceId: 'workspace-b', workspaceName: 'B',
+    };
+    const runningKey = conversationKeyId({ storeId: 'workspace-b', sessionId: 'session-a' });
+    const CrossScopeProbe = ({ loading, running }: { loading: boolean; running: boolean }) => {
+      latest = useStableSessionRail({
+        agentScope: scope, allWorkspaces: [], currentScopeName: null,
+        loading, otherSessions: [other], selectedSessionKey: 'workspace-a:session-a',
+        sessions, sessionsStoreId: 'workspace-a',
+        runningConversationKeys: new Set(running ? [runningKey] : []),
+      });
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    for (const [loading, running] of [[false, true], [true, false], [true, true]]) {
+      await act(async () => root?.render(
+        <I18nProvider><CrossScopeProbe loading={loading!} running={running!} /></I18nProvider>,
+      ));
+      expect(latest!.find(row => row.workspaceId === 'workspace-b')?.running).toBe(running);
+      expect(latest!.find(row => row.workspaceId === 'workspace-a' && row.sessionId === 'session-a')?.running).toBe(false);
+    }
   });
 
   it('deduplicates a session returned by both the current and cross-workspace lists', async () => {
