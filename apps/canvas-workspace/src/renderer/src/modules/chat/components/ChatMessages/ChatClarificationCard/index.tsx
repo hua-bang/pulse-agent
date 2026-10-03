@@ -4,6 +4,7 @@ import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
 import { BotAvatarIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
+import { ApprovalPreviewBoundary } from './ApprovalPreviewBoundary';
 import type { PendingClarification } from '../../../../../types';
 
 const CanvasApprovalNodePreview = lazy(() => import('../../../../canvas/preview').then(module => ({
@@ -53,9 +54,14 @@ export const ChatClarificationCard = ({
           </div>
           <div className="chat-clarify-question">{pendingClarify.question}</div>
           {approval && pendingClarify.nodePreview && (
-            <Suspense fallback={null}>
-              <CanvasApprovalNodePreview node={pendingClarify.nodePreview} />
-            </Suspense>
+            <ApprovalPreviewBoundary
+              key={`preview:${pendingClarify.id}`}
+              fallback={<div>{t('chat.approvalPreviewUnavailable')}</div>}
+            >
+              <Suspense fallback={null}>
+                <CanvasApprovalNodePreview node={pendingClarify.nodePreview} />
+              </Suspense>
+            </ApprovalPreviewBoundary>
           )}
           {approval && pendingClarify.context ? (
             <details key={pendingClarify.id} className="chat-clarify-approval-details">
