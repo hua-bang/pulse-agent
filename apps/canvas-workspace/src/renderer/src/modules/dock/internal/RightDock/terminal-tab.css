@@ -1,6 +1,6 @@
 .right-dock__pane--terminal {
   padding: 0;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .right-dock__terminal-host,

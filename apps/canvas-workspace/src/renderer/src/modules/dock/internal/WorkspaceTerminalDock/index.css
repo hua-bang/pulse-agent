@@ -4,7 +4,7 @@
   min-height: 0;
   overflow: hidden;
   border-top: 0 solid rgba(55, 53, 47, 0.1);
-  background: #f7f7f5;
+  background: var(--surface-hover);
   box-shadow: 0 -10px 28px rgba(15, 15, 15, 0.07);
   opacity: 0;
   pointer-events: none;
@@ -29,7 +29,7 @@
   height: auto;
   border-top-width: 0;
   box-shadow: none;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock--pane[data-open="true"] {
@@ -182,7 +182,7 @@
   top: 38px;
   bottom: 0;
   min-height: 0;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__body {
@@ -192,7 +192,7 @@
   left: auto;
   right: auto;
   flex: 1 1 auto;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock__xterm {
@@ -200,7 +200,7 @@
   inset: 0;
   padding: 10px 10px 8px;
   overflow: hidden;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__xterm {
@@ -292,7 +292,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: #fafaf9;
+  background: var(--bg);
   color: #8a8780;
   font-size: 12px;
   pointer-events: none;

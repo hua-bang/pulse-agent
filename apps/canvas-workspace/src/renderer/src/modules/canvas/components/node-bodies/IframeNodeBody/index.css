@@ -251,7 +251,7 @@
 
 .iframe-review-selection {
   position: absolute;
-  border: 2px solid #2383e2;
+  border: 2px solid var(--accent);
   background: rgba(35, 131, 226, 0.08);
   border-radius: var(--radius-xs);
   box-shadow: 0 0 0 99999px rgba(15, 23, 42, 0.04);
@@ -264,7 +264,7 @@
   height: 22px;
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: var(--radius-pill);
-  background: #2383e2;
+  background: var(--accent);
   color: #fff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
   font-size: 11px;
@@ -319,7 +319,7 @@
 }
 
 .iframe-review-textarea:focus {
-  border-color: #2383e2;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.14);
 }
 
