@@ -28,6 +28,20 @@ describe('approval node previews', () => {
     });
   });
 
+  it.each([42, { path: '/tmp/image.png' }, ['/tmp/image.png'], true, null, undefined])(
+    'normalizes invalid image paths (%j) before approval', (filePath) => {
+      expect(createApprovalNodePreview('canvas_create_node', {
+        type: 'image', data: { filePath },
+      }, 'preview')?.data).toEqual({ filePath: '' });
+    },
+  );
+
+  it.each(['/tmp/image with spaces.png', 'C:\\images\\photo.png', ''])('preserves image path %s', (filePath) => {
+    expect(createApprovalNodePreview('canvas_create_node', {
+      type: 'image', data: { filePath },
+    }, 'preview')?.data).toEqual({ filePath });
+  });
+
   it('does not mount active node types or unrelated tool inputs', () => {
     for (const type of ['terminal', 'agent', 'iframe', 'plugin', 'file']) {
       expect(createApprovalNodePreview('canvas_create_node', { type }, 'preview')).toBeUndefined();

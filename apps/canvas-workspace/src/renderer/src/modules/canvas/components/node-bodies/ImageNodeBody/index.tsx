@@ -19,6 +19,7 @@ interface Props {
  */
 export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readOnly = false }: Props) => {
   const data = node.data as ImageNodeData;
+  const filePath = typeof data?.filePath === 'string' ? data.filePath : '';
   const [loadFailed, setLoadFailed] = useState(false);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewResolved, setPreviewResolved] = useState(false);
@@ -29,25 +30,26 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
     setLoadFailed(false);
     setPreviewPath(null);
     setPreviewResolved(false);
-    if (!data.filePath) return undefined;
+    if (!filePath) return undefined;
     let cancelled = false;
-    void window.canvasWorkspace.file.getImagePreview(data.filePath).then((result) => {
+    void Promise.resolve().then(() => window.canvasWorkspace.file.getImagePreview(filePath)).then((result) => {
       if (cancelled) return;
-      setPreviewPath(result.ok && result.preview ? result.preview.path : data.filePath);
+      const path = result.ok && result.preview ? result.preview.path : null;
+      setPreviewPath(typeof path === 'string' && path ? path : filePath);
       setPreviewResolved(true);
     }).catch(() => {
       if (!cancelled) {
-        setPreviewPath(data.filePath);
+        setPreviewPath(filePath);
         setPreviewResolved(true);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [data.filePath]);
+  }, [filePath]);
 
-  const imagePath = data.filePath
-    ? selectImageSource(data.filePath, previewPath, isFullscreen, previewResolved)
+  const imagePath = filePath
+    ? selectImageSource(filePath, previewPath, isFullscreen, previewResolved)
     : '';
 
   const handleMouseDown = useCallback(
@@ -64,7 +66,7 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
 
   return (
     <div className="image-node-body" onMouseDown={handleMouseDown}>
-      {data.filePath && imagePath && !loadFailed ? (
+      {filePath && imagePath && !loadFailed ? (
         <img
           className="image-node-img"
           src={toFileUrl(imagePath)}
@@ -80,8 +82,8 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
             setLoadFailed(true);
           }}
         />
-      ) : data.filePath && loadFailed ? (
-        <div className="image-node-error" title={data.filePath}>
+      ) : filePath && loadFailed ? (
+        <div className="image-node-error" title={filePath}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
             <path d="M2.5 13.5l4-4 3.5 3.5 3-3 4.5 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -89,7 +91,7 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
           </svg>
           <span>Image unavailable</span>
         </div>
-      ) : data.filePath ? (
+      ) : filePath ? (
         <div className="image-node-loading" aria-hidden="true" />
       ) : (
         <div className="image-node-empty">No image</div>

@@ -811,7 +811,13 @@ clarification request and renderer snapshot. The preview is separate from the
 truncated parameter excerpt and reuses passive, read-only node bodies; terminal,
 agent, webview and plugin runtimes must not mount before approval. Parameter
 details start collapsed and scroll independently of the approval actions.
-Guard: `approval-node-preview.test.ts` (`src/main/agent/`).
+Image paths are checked at node-data construction and again in the image body;
+non-string paths use the empty-image state. Preview IPC failures fall back to
+the validated original path. The approval card contains render and lazy-load
+failures inside a preview-only error boundary, so its details and decision
+buttons remain available. A new request resets that boundary.
+Guards: `approval-node-preview.test.ts` (`src/main/agent/`),
+`ImageNodeBody/index.test.tsx`, and `ChatClarificationCard/index.test.tsx`.
 
 The renderer has one visible approval card, so main must serialize
 concurrent clarification requests and start each timeout only when that

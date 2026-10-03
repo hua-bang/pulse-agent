@@ -18,7 +18,7 @@ export const createPassiveNodeData = (
         fontSize: (extra.fontSize as number) ?? 18,
       };
     case 'image':
-      return { filePath: (extra.filePath as string) ?? '' };
+      return { filePath: typeof extra.filePath === 'string' ? extra.filePath : '' };
     case 'shape': {
       const validKinds: ShapeNodeData['kind'][] = ['rect', 'rounded-rect', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'];
       return {
