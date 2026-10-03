@@ -10,6 +10,7 @@ Global constraints and task routes; `CLAUDE.md` imports this file.
 - Reuse existing modules, scripts, skills, and docs. Add assets only when existing entries cannot carry the work and the addition reduces complexity or enforces a constraint. Newness is not a reason.
 - Prefer plugin/hook/tool/service boundaries over engine-loop hardcoding. Verify that enforcement actually exists; a documented gate is not a runner.
 - Maintain AGENTS by decision value and ownership: keep necessary scoped constraints and task routes; apply the content-admission principles in `harness/DESIGN.md`. Length metrics are observational.
+- Write explanations and documentation in an ASD-STE100-inspired style (about 80% strictness): use short sentences, active voice, plain words, and consistent terms. Apply the same principles in Chinese; keep natural phrasing and necessary technical detail.
 
 Self-check: evidence, reuse, smallest change, SSOT/consumers, executable guard (or why only documentation).
 
