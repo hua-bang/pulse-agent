@@ -85,3 +85,21 @@
 @media (hover: none) {
   .folder-browser__entry-actions { opacity: 1; pointer-events: auto; }
 }
+
+/* Match the sidebar's 200ms disclosure motion, including the exit phase. */
+.folder-browser__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 200ms ease, opacity 200ms ease;
+}
+.folder-browser__collapse[data-expanded="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.folder-browser__collapse-inner { min-height: 0; overflow: hidden; }
+.folder-browser__caret { transition: transform 200ms ease; }
+.folder-browser__tree-row[aria-expanded="true"] > .folder-browser__caret { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .folder-browser__collapse, .folder-browser__caret { transition: none; }
+}

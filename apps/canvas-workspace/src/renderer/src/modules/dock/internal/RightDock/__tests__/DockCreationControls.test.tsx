@@ -84,7 +84,6 @@ describe('DockCreationControls new-tab trigger', () => {
       'New terminal',
       'Open folder…',
       'Open canvas',
-      'Open node',
     ]);
 
     const newTerminalTab = menuItems.find((item) => item.textContent === 'New terminal');

@@ -105,9 +105,8 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
                       : <DockTabIcon kind={item.kind} faviconUrl={item.faviconUrl} />}
                     <span className="right-dock__tab-search-label"><strong>{item.title}</strong>
                       {item.url && <small>{dockTabDomain(item.url)}</small>}</span>
-                    {closedIndex < 0 && (splitTabIds?.includes(item.id) || activeTabId === item.id) && (
-                      <span className="right-dock__tab-position">{t(splitTabIds?.[1] === item.id ? 'rightDock.rightPane'
-                        : splitTabIds?.[0] === item.id ? 'rightDock.leftPane' : 'rightDock.currentTab')}</span>
+                    {closedIndex < 0 && splitTabIds?.includes(item.id) && (
+                      <span className="right-dock__tab-position">{t(splitTabIds?.[1] === item.id ? 'rightDock.rightPane' : 'rightDock.leftPane')}</span>
                     )}
                   </Button>
                   {!comparing && closedIndex < 0 && item.kind === 'link' && onClose && (

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  CaretDown,
   CaretRight,
   ChatCircle,
   DotsThree,
@@ -103,6 +102,17 @@ const EntryActions = ({ name, path, directory, adding, onAddDirectory, onEdit, o
 const DirectoryRow = ({ entry, parent, ...props }: Omit<Props, 'path'> & { entry: DirEntry; parent: string }) => {
   const message = useMutationMessages();
   const [expanded, setExpanded] = useState(false);
+  const [childrenMounted, setChildrenMounted] = useState(false);
+
+  // Keep the subtree alive for the exit transition, but do not load closed folders.
+  useEffect(() => {
+    if (expanded) {
+      setChildrenMounted(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setChildrenMounted(false), 200);
+    return () => window.clearTimeout(timer);
+  }, [expanded]);
   const [editMode, setEditMode] = useState<EditMode>(null);
   const path = joinFilePath(parent, entry.name);
   const submit = async (name: string): Promise<string | undefined> => {
@@ -121,7 +131,7 @@ const DirectoryRow = ({ entry, parent, ...props }: Omit<Props, 'path'> & { entry
       <div className="folder-browser__directory-row folder-browser__entry-row">
         <Button size="xs" className="folder-browser__tree-row" aria-expanded={expanded}
           onClick={() => setExpanded(value => !value)}>
-          {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+          <CaretRight size={12} className="folder-browser__caret" />
           <span>{entry.name}</span>
         </Button>
         <EntryActions name={entry.name} path={path} directory adding={props.adding}
@@ -136,9 +146,14 @@ const DirectoryRow = ({ entry, parent, ...props }: Omit<Props, 'path'> & { entry
         onCancel={() => setEditMode(null)}
         onSubmit={submit}
       />}
-      {expanded && <div className="folder-browser__children">
-        <FileTree {...props} path={path} />
-      </div>}
+      <div className="folder-browser__collapse" data-expanded={expanded} aria-hidden={!expanded}
+        ref={element => element?.toggleAttribute('inert', !expanded)}>
+        <div className="folder-browser__collapse-inner">
+          {childrenMounted && <div className="folder-browser__children">
+            <FileTree {...props} path={path} />
+          </div>}
+        </div>
+      </div>
     </div>
   );
 };

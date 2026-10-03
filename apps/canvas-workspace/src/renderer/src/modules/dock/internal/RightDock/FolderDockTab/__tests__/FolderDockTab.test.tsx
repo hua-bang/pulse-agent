@@ -328,3 +328,27 @@ it('blocks file mutations behind the existing unsaved-draft guard', async () => 
   await act(async () => discard?.click());
   expect(host.querySelector('input[aria-label="New file name"]')).not.toBeNull();
 });
+
+it('animates folder disclosure, keeps exiting children inert, and cancels stale collapse cleanup', async () => {
+  listDir.mockImplementation(async (path: string) => ({ ok: true, entries: path === '/work'
+    ? [{ name: 'source', type: 'dir' }]
+    : [{ name: 'inside.ts', type: 'file' }] }));
+  await render(null);
+  expect(listDir).not.toHaveBeenCalledWith('/work/source', 0, true);
+  await click('source');
+  const collapse = host.querySelector<HTMLElement>('.folder-browser__collapse')!;
+  expect(collapse.dataset.expanded).toBe('true');
+  expect(collapse.hasAttribute('inert')).toBe(false);
+  expect(collapse.textContent).toContain('inside.ts');
+  await click('source');
+  expect(collapse.dataset.expanded).toBe('false');
+  expect(collapse.hasAttribute('inert')).toBe(true);
+  expect(collapse.getAttribute('aria-hidden')).toBe('true');
+  expect(collapse.textContent).toContain('inside.ts');
+  await click('source');
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 240)); });
+  expect(collapse.textContent).toContain('inside.ts');
+  await click('source');
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 240)); });
+  expect(collapse.querySelector('.folder-browser__children')).toBeNull();
+});
