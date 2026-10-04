@@ -96,46 +96,6 @@
   box-shadow: var(--shadow-sm);
 }
 
-.canvas-preview__controls {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-float);
-}
-
-.canvas-preview__zoom-button.ui-btn {
-  color: var(--text-secondary);
-}
-
-.canvas-preview__minus {
-  display: block;
-  font-size: 17px;
-  font-weight: 500;
-  line-height: 1;
-  transform: translateY(-1px);
-}
-
-.canvas-preview__zoom-value {
-  min-width: 44px;
-  padding: 0 4px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
-.canvas-preview__fit.ui-btn {
-  margin-left: 2px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .canvas-preview__spinner {
     animation: none;

@@ -105,7 +105,12 @@ The workbench has exactly two side regions plus a modal tier:
   Switching between the read-only and edit modes keeps the tab's viewport: Edit
   starts from the preview transform (`Canvas initialViewport`) and reports its
   settled local pan/zoom back (`onViewportChange`). Neither mode re-fits on the
-  switch. Guard: `RightDock/__tests__/CanvasPreview.test.tsx`.
+  switch. Both modes share the main Canvas bottom chrome: read-only renders
+  `ZoomIndicator` in the same `canvas-bottom-chrome__left` slot, and that row
+  keeps the floating toolbar's height. Only the mode badge and the edit-only
+  creation toolbar differ, and both are overlays. Guards:
+  `RightDock/__tests__/CanvasPreview.test.tsx`,
+  `Canvas/bottomChromeRow.test.ts`.
 - **Modal tier.** Settings drawers (`ui/Drawer` shell, formerly
   `SettingsDrawer`), the command palette, and app-shell dialogs/toasts (the
   centered ones now share the `ui/Modal` shell). These are modal with

@@ -49,8 +49,6 @@ const NOOP = () => undefined;
 const NOOP_DISPATCH = () => undefined;
 const EMPTY_STR_SET: Set<string> = new Set();
 
-const PREVIEW_ZOOM_STEP = 1.2;
-
 /**
  * Canvas tab for another workspace. It starts as a read-only snapshot that
  * stays live with external writes. Only the dedicated AI Chat host may offer
@@ -122,7 +120,7 @@ export const CanvasPreview = ({
   const editClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
-    transform, setTransform, settledScale, moving, zoomByStep,
+    transform, setTransform, settledScale, moving, resetTransform,
     handleWheel, handleMouseDown, handleMouseMove, handleMouseUp,
   } = useCanvas(true, transformLayerRef);
   const { fitAllNodes, handleFocusNode } = useCanvasFit(containerRef, setTransform);
@@ -262,12 +260,12 @@ export const CanvasPreview = ({
     setTransform(next);
   }, [setTransform]);
 
-  const handleZoom = useCallback((factor: number) => {
+  // Same reset as the main Canvas ZoomIndicator; an explicit viewport choice
+  // also stops the pane's automatic re-fit.
+  const handleResetZoom = useCallback(() => {
     userMovedRef.current = true;
-    zoomByStep(factor, containerRef.current);
-  }, [zoomByStep]);
-  const handleZoomOut = useCallback(() => handleZoom(1 / PREVIEW_ZOOM_STEP), [handleZoom]);
-  const handleZoomIn = useCallback(() => handleZoom(PREVIEW_ZOOM_STEP), [handleZoom]);
+    resetTransform();
+  }, [resetTransform]);
   const handleRetry = useCallback(() => {
     setError(false);
     setLoaded(false);
@@ -372,8 +370,7 @@ export const CanvasPreview = ({
           editingAllowed
           editing
           onEditToggle={handleEditToggle}
-          onZoomOut={handleZoomOut}
-          onZoomIn={handleZoomIn}
+          onResetZoom={handleResetZoom}
           onFit={handleFitAll}
         />
         {tabChatAction}
@@ -454,8 +451,7 @@ export const CanvasPreview = ({
             editingAllowed={editingAllowed}
             editing={false}
             onEditToggle={handleEditToggle}
-            onZoomOut={handleZoomOut}
-            onZoomIn={handleZoomIn}
+            onResetZoom={handleResetZoom}
             onFit={handleFitAll}
           />
           {tabChatAction}

@@ -88,6 +88,10 @@
   z-index: var(--layer-canvas-chrome);
   pointer-events: none;
   container-type: inline-size;
+  /* Always the floating toolbar's row height (32px buttons + 5px padding +
+   * 1px border per side), so a host without the toolbar — the read-only dock
+   * canvas — keeps its zoom chrome on the same line as Edit mode. */
+  min-height: 44px;
 }
 
 .canvas-bottom-chrome__left {
