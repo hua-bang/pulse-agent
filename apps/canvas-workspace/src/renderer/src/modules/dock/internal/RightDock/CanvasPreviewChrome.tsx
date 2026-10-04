@@ -46,7 +46,6 @@ export const CanvasPreviewState = ({ label, kind, onRetry, action }: StateProps)
 
 interface ControlsProps {
   scale: number;
-  canFit: boolean;
   editingAllowed?: boolean;
   editing?: boolean;
   onEditToggle?: () => void;
@@ -61,7 +60,6 @@ interface ControlsProps {
  */
 export const CanvasPreviewChrome = ({
   scale,
-  canFit,
   editingAllowed = false,
   editing = false,
   onEditToggle,
@@ -90,7 +88,7 @@ export const CanvasPreviewChrome = ({
       {!editing && (
         <div className="canvas-bottom-chrome canvas-preview__chrome">
           <div className="canvas-bottom-chrome__left">
-            <ZoomIndicator scale={scale} onReset={onResetZoom} onFitAll={canFit ? onFit : undefined} />
+            <ZoomIndicator scale={scale} onReset={onResetZoom} onFitAll={onFit} />
           </div>
         </div>
       )}

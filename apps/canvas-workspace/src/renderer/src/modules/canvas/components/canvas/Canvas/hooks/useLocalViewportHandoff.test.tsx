@@ -14,6 +14,7 @@ let root: Root;
 let host: HTMLDivElement;
 let setTransform: ReturnType<typeof vi.fn>;
 let onViewportChange: ReturnType<typeof vi.fn>;
+let live: CanvasTransform;
 let hasAutoFittedRef: { current: boolean };
 
 const Probe = (props: Props) => { useLocalViewportHandoff(props); return null; };
@@ -25,6 +26,7 @@ const render = (overrides: Partial<Props> = {}) => act(() => {
     loaded
     moving={false}
     transform={framing}
+    getLiveTransform={() => live}
     setTransform={setTransform}
     hasAutoFittedRef={hasAutoFittedRef}
     {...overrides}
@@ -35,6 +37,7 @@ beforeEach(() => {
   setTransform = vi.fn();
   onViewportChange = vi.fn();
   hasAutoFittedRef = { current: false };
+  live = framing;
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -61,9 +64,21 @@ it('reports only settled local viewports back to the host', () => {
   expect(onViewportChange).toHaveBeenLastCalledWith(panned);
 });
 
+it('flushes a gesture still in flight when the editor unmounts', () => {
+  render({ moving: true });
+  onViewportChange.mockClear();
+  live = { x: -320, y: 8, scale: 0.99 };
+  act(() => root.unmount());
+  expect(onViewportChange).toHaveBeenCalledWith(live);
+  root = createRoot(host);
+});
+
 it('leaves a persisted viewport to the document', () => {
   render({ persistViewport: true });
   expect(setTransform).not.toHaveBeenCalled();
   expect(hasAutoFittedRef.current).toBe(false);
   expect(onViewportChange).not.toHaveBeenCalled();
+  act(() => root.unmount());
+  expect(onViewportChange).not.toHaveBeenCalled();
+  root = createRoot(host);
 });

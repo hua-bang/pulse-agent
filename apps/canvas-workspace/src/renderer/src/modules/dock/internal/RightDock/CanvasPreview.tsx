@@ -366,7 +366,6 @@ export const CanvasPreview = ({
         </FileNodeEditorRegistryProvider>
         <CanvasPreviewChrome
           scale={transform.scale}
-          canFit={false}
           editingAllowed
           editing
           onEditToggle={handleEditToggle}
@@ -447,7 +446,6 @@ export const CanvasPreview = ({
           )}
           <CanvasPreviewChrome
             scale={transform.scale}
-            canFit={visibleNodes.length > 0}
             editingAllowed={editingAllowed}
             editing={false}
             onEditToggle={handleEditToggle}

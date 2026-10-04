@@ -92,7 +92,7 @@ export const useCanvasController = ({
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
-    screenToCanvas, resetTransform, zoomByStep,
+    screenToCanvas, resetTransform, zoomByStep, getLiveTransform,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
@@ -121,7 +121,7 @@ export const useCanvasController = ({
   useNativeCanvasZoomGuard(containerRef, loaded);
   useLocalViewportHandoff({
     persistViewport, initialViewport, onViewportChange,
-    loaded, moving, transform, setTransform, hasAutoFittedRef,
+    loaded, moving, transform, getLiveTransform, setTransform, hasAutoFittedRef,
   });
 
   const {

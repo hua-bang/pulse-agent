@@ -508,6 +508,16 @@ describe('CanvasPreview accessible read-only chrome', () => {
     expect(controls.fitAllNodes).toHaveBeenCalledWith([NODE]);
   });
 
+  it('keeps the Fit control on an empty canvas, matching the editable Canvas', async () => {
+    load.mockResolvedValue({ ok: true, data: { nodes: [], edges: [], transform: { x: 0, y: 0, scale: 1 } } });
+    await renderPreview();
+
+    await vi.waitFor(() => expect(mount?.querySelector('.canvas-preview__hint')).not.toBeNull());
+    const labels = [...(mount?.querySelectorAll('.canvas-bottom-chrome__left .zoom-indicator') ?? [])]
+      .map((button) => button.textContent);
+    expect(labels).toEqual(['Fit', '100%']);
+  });
+
   it('announces loading and turns a rejected load into a retryable error', async () => {
     let resolveRetry: ((value: unknown) => void) | undefined;
     load
