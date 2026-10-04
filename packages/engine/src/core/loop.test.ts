@@ -200,6 +200,51 @@ describe('loop', () => {
     }
   });
 
+  it('prunes in place so host appends from onResponse reach the next LLM call', async () => {
+    const hostMessages: any[] = [
+      { role: 'user', content: 'first' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call_missing', toolName: 'read', input: { filePath: 'a.ts' } },
+        ],
+      },
+      { role: 'user', content: 'search it' },
+    ];
+    const context: Context = { messages: hostMessages };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const seenLengths: number[] = [];
+    const toolStep = [
+      { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'search', input: {} }] },
+      { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'call_1', toolName: 'search', output: { type: 'text', value: 'hit' } }] },
+    ];
+
+    streamTextAIMock.mockImplementation((messages: any[]) => {
+      seenLengths.push(messages.length);
+      const first = seenLengths.length === 1;
+      return {
+        text: Promise.resolve(first ? '' : 'done'),
+        steps: Promise.resolve(first ? [{ response: { messages: toolStep } }] : []),
+        finishReason: Promise.resolve(first ? 'tool-calls' : 'stop'),
+      };
+    });
+
+    try {
+      const result = await loop(context, {
+        // Mirrors a host that captured the array reference before the run.
+        onResponse: (messages) => {
+          hostMessages.push(...messages);
+        },
+      });
+
+      expect(result).toBe('done');
+      expect(context.messages).toBe(hostMessages);
+      expect(seenLengths).toEqual([2, 4]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('removes assistant messages that only contain incomplete tool-call parts', async () => {
     const cleanedMessages = [
       { role: 'user', content: 'first' },

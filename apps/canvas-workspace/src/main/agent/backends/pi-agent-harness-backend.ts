@@ -248,8 +248,9 @@ export function createPiAgentHarnessTurnBackend(
         model: request.configuredModel ?? request.modelConfig.model,
       });
       if (compacted.didCompact && compacted.newMessages) {
+        // In-place replacement keeps context.messages and the host history
+        // as one array, so later appends stay visible to the next segment.
         request.replaceMessages(compacted.newMessages);
-        request.context.messages = compacted.newMessages;
       }
       // Canvas stores the complete model-facing current turn in context. For
       // image attachments that envelope includes local paths and inspection
