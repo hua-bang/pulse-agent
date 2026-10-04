@@ -85,7 +85,6 @@ import { setRuntimeWindowPort } from "../runtime/window-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
 import {
   connectCanvasMcpOAuth,
-  getCanvasMcpOAuthStatus,
 } from "../agent/mcp/oauth";
 
 let teardownConversationRuntime: () => void = () => undefined;
@@ -132,7 +131,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   });
   setPluginMarketAgentPort({
     reloadMcp: () => getCanvasAgentService().reloadMcp(),
-    getMcpOAuthStatus: getCanvasMcpOAuthStatus,
+    getMcpStatuses: () => getCanvasAgentService().getMcpStatuses(),
     connectMcpOAuth: connectCanvasMcpOAuth,
   });
   setAgentCapabilityPort({

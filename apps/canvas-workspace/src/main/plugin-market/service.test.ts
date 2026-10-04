@@ -25,6 +25,7 @@ const fakes = vi.hoisted(() => ({
   reloadMcp: vi.fn(),
   connectOauth: vi.fn(),
   connectedOauth: new Set<string>(),
+  mcpStatuses: {} as Record<string, { ok: true; toolCount: number; tools: [] } | { ok: false; error: string }>,
 }));
 
 vi.mock('electron', () => ({
@@ -121,15 +122,13 @@ beforeEach(async () => {
   fakes.nativePolicy.clear();
   fakes.configuredPlugins.length = 0;
   fakes.connectedOauth.clear();
+  fakes.mcpStatuses = {};
   vi.clearAllMocks();
   const { setPluginMarketAgentPort } = await import('./agent-port');
   setPluginMarketAgentPort({
     reloadMcp: fakes.reloadMcp,
     connectMcpOAuth: fakes.connectOauth,
-    getMcpOAuthStatus: async (serverName) => ({
-      connected: fakes.connectedOauth.has(serverName),
-      hasClientInformation: false,
-    }),
+    getMcpStatuses: () => fakes.mcpStatuses,
   });
   fakes.getStatus.mockImplementation(async () => canvasStatus());
   fakes.getPolicy.mockImplementation((root: string, format: string) => (
@@ -159,6 +158,7 @@ beforeEach(async () => {
   fakes.reloadMcp.mockResolvedValue(undefined);
   fakes.connectOauth.mockImplementation(async (serverName: string) => {
     fakes.connectedOauth.add(serverName);
+    fakes.mcpStatuses[serverName] = { ok: true, toolCount: 0, tools: [] };
   });
 });
 
@@ -426,8 +426,88 @@ describe('PluginMarketService mutations', () => {
     expect(state.plugins).toEqual([expect.objectContaining({ nativeEnabled: true })]);
   });
 
-  it('connects the next unauthenticated remote MCP server and refreshes its state', async () => {
+  it('reports an anonymous remote MCP as connected without OAuth tokens', async () => {
+    const root = await createRemotePlugin('anonymous');
+    fakes.mcpStatuses['anonymous.remote'] = { ok: true, toolCount: 0, tools: [] };
+    const { PluginMarketService } = await import('./service');
+    const service = new PluginMarketService();
+    const installed = await choose(service, root);
+    const listing = installed.snapshot?.listings.find((entry) => entry.name === 'anonymous');
+
+    expect(listing?.mcpAuthState).toBe('connected');
+    expect(fakes.connectedOauth.size).toBe(0);
+    const connected = await service.connectMcp(listing!.id);
+    expect(connected.ok).toBe(true);
+    expect(fakes.connectOauth).not.toHaveBeenCalled();
+  });
+
+  it('retries a missing runtime connection before deciding whether to authorize', async () => {
+    const root = await createRemotePlugin('retry-anonymous');
+    const { PluginMarketService } = await import('./service');
+    const service = new PluginMarketService();
+    const installed = await choose(service, root);
+    const listing = installed.snapshot?.listings.find((entry) => entry.name === 'retry-anonymous');
+    expect(listing?.mcpAuthState).toBe('connectable');
+    fakes.reloadMcp.mockImplementationOnce(async () => {
+      fakes.mcpStatuses['retry-anonymous.remote'] = { ok: true, toolCount: 1, tools: [] };
+    });
+
+    const connected = await service.connectMcp(listing!.id);
+    expect(connected.snapshot?.listings.find((entry) => entry.id === listing!.id)?.mcpAuthState)
+      .toBe('connected');
+    expect(fakes.connectOauth).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'MCP HTTP Transport Error: POSTing to endpoint (HTTP 404): Not found',
+    'MCP HTTP Transport Error: POSTing to endpoint (HTTP 500): upstream returned 401',
+    'MCP SSE Transport Error: 403 Forbidden',
+    'MCP startup timed out after 30000ms',
+  ])('preserves connection errors without starting OAuth: %s', async (error) => {
+    const root = await createRemotePlugin('unreachable');
+    fakes.mcpStatuses['unreachable.remote'] = { ok: false, error };
+    const { PluginMarketService } = await import('./service');
+    const service = new PluginMarketService();
+    const installed = await choose(service, root);
+    const listing = installed.snapshot?.listings.find((entry) => entry.name === 'unreachable');
+
+    expect(await service.connectMcp(listing!.id)).toMatchObject({ ok: false, error });
+    expect(fakes.connectOauth).not.toHaveBeenCalled();
+  });
+
+  it('does not treat stored tokens as proof of a healthy connection', async () => {
+    const root = await createRemotePlugin('stale-token');
+    fakes.connectedOauth.add('stale-token.remote');
+    fakes.mcpStatuses['stale-token.remote'] = { ok: false, error: 'Network unavailable' };
+    const { PluginMarketService } = await import('./service');
+    const installed = await choose(new PluginMarketService(), root);
+
+    expect(installed.snapshot?.listings.find((entry) => entry.name === 'stale-token')?.mcpAuthState)
+      .toBe('connectable');
+  });
+
+  it('keeps a missing runtime status visible without starting OAuth', async () => {
+    const root = await createRemotePlugin('missing-status');
+    const { PluginMarketService } = await import('./service');
+    const service = new PluginMarketService();
+    const installed = await choose(service, root);
+    const listing = installed.snapshot?.listings.find((entry) => entry.name === 'missing-status');
+
+    expect(await service.connectMcp(listing!.id)).toMatchObject({
+      ok: false, error: 'MCP connection status unavailable: missing-status.remote',
+    });
+    expect(fakes.connectOauth).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'MCP HTTP Transport Error: POSTing to endpoint (HTTP 401): Unauthorized',
+    'MCP SSE Transport Error: 401 Unauthorized',
+    'MCP SSE Transport Error: POSTing to endpoint (HTTP 401): Unauthorized',
+  ])('authorizes a remote MCP after its transport challenges: %s', async (error) => {
     const root = await createRemotePlugin('remote-auth');
+    fakes.mcpStatuses['remote-auth.remote'] = {
+      ok: false, error,
+    };
     const { PluginMarketService } = await import('./service');
     const service = new PluginMarketService();
     const installed = await choose(service, root);
