@@ -601,10 +601,15 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       let terminalStreamError: unknown;
 
       try {
-        const messagesForLLM = pruneIncompleteToolExchanges(context.messages);
-        if (messagesForLLM !== context.messages) {
-          context.messages = messagesForLLM;
+        const prunedMessages = pruneIncompleteToolExchanges(context.messages);
+        if (prunedMessages !== context.messages) {
+          // Mutate in place: hosts may hold the array reference and append
+          // step messages to it from onResponse. Reassigning would detach the
+          // loop from those appends, so the model would never see its own tool
+          // results and would repeat the same calls until maxSteps.
+          context.messages.splice(0, context.messages.length, ...prunedMessages);
         }
+        const messagesForLLM = context.messages;
 
         const result = streamTextAI(messagesForLLM, tools, {
           abortSignal: llmAbortController.signal,

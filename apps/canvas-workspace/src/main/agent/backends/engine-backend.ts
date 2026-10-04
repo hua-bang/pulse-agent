@@ -48,8 +48,10 @@ export const engineTurnBackend: AgentRuntime = {
         request.recordResponseMessages(messages);
       },
       onCompacted: (messages: ModelMessage[]) => {
+        // replaceMessages rewrites the live history array in place. Do not
+        // reassign context.messages: later step appends go to that array, and
+        // a detached copy hides new tool results from the loop.
         request.replaceMessages(messages);
-        request.context.messages = messages;
       },
     });
     return { resultText };

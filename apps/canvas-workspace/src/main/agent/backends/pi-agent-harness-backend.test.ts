@@ -363,7 +363,14 @@ describe('pi AgentHarness turn backend', () => {
       { role: 'user' as const, content: 'compacted summary' },
       { role: 'user' as const, content: 'current ask' },
     ];
-    const replaceMessages = vi.fn();
+    const hostMessages: any[] = [
+      { role: 'user', content: 'very old context' },
+      { role: 'user', content: 'current ask' },
+    ];
+    // Mirrors canvas-agent: replace the live history array in place.
+    const replaceMessages = vi.fn((messages: any[]) => {
+      hostMessages.splice(0, hostMessages.length, ...messages);
+    });
     const backend = createPiAgentHarnessTurnBackend({
       createModelRuntime: () => ({ models, model: faux.getModel() }),
     });
@@ -379,12 +386,7 @@ describe('pi AgentHarness turn backend', () => {
           dispose: vi.fn(),
         }),
       } as unknown as Engine,
-      context: {
-        messages: [
-          { role: 'user', content: 'very old context' },
-          { role: 'user', content: 'current ask' },
-        ],
-      },
+      context: { messages: hostMessages },
       role: null,
       chatSessionId: 'session-compaction',
       history: [],
