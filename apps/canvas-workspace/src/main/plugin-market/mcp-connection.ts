@@ -24,10 +24,12 @@ export async function packageMcpAuthState(
 }
 
 // The engine retains the AI SDK transport error message in MCPServerStatus.
-// Match its status field only. A response body mentioning 401 is not a challenge.
+// Match its status field or the Canvas provider's explicit interactive-auth request.
+// A response body mentioning 401 is not a challenge.
 function isAuthorizationChallenge(error: string): boolean {
   return /^MCP (?:HTTP|SSE) Transport Error: POSTing to endpoint \(HTTP 401\):/.test(error)
-    || /^MCP SSE Transport Error: 401(?: |$)/.test(error);
+    || /^MCP SSE Transport Error: 401(?: |$)/.test(error)
+    || error === 'MCP OAuth connection required. Use Settings -> MCP -> Connect.';
 }
 
 export async function connectPackageMcp(plugin: NormalizedPluginPackage): Promise<void> {

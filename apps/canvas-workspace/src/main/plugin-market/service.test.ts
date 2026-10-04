@@ -486,6 +486,27 @@ describe('PluginMarketService mutations', () => {
       .toBe('connectable');
   });
 
+  it('restarts interactive OAuth when stored credentials need reauthorization', async () => {
+    const root = await createRemotePlugin('reauthorize');
+    fakes.connectedOauth.add('reauthorize.remote');
+    fakes.mcpStatuses['reauthorize.remote'] = {
+      ok: false,
+      error: 'MCP OAuth connection required. Use Settings -> MCP -> Connect.',
+    };
+    const { PluginMarketService } = await import('./service');
+    const service = new PluginMarketService();
+    const installed = await choose(service, root);
+    const listing = installed.snapshot?.listings.find((entry) => entry.name === 'reauthorize');
+
+    expect(listing?.mcpAuthState).toBe('connectable');
+    const connected = await service.connectMcp(listing!.id);
+    expect(fakes.connectOauth).toHaveBeenCalledWith(
+      'reauthorize.remote', 'https://plugins.example.test/mcp',
+    );
+    expect(connected.snapshot?.listings.find((entry) => entry.id === listing!.id)?.mcpAuthState)
+      .toBe('connected');
+  });
+
   it('keeps a missing runtime status visible without starting OAuth', async () => {
     const root = await createRemotePlugin('missing-status');
     const { PluginMarketService } = await import('./service');
