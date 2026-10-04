@@ -37,7 +37,7 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 
 Both route through one `handleTimeout()`: mark an `LLMTimeoutError` (`timeoutReason: 'first-chunk' | 'total'`), abort the per-call controller, reject the race. If the timeout fires while a tool is executing, the error carries `activeTool` ({name, startedAt, inputPreview}) so hung tools are identifiable — this is the guard from the "classify hung tool timeout errors" fix.
 
-External `AbortSignal` propagates to both the LLM call and `ToolExecutionContext`; abort is re-checked at loop entry, around compaction, and after the LLM call.
+External `AbortSignal` propagates to the LLM call, `ToolExecutionContext`, and the compaction summary call; abort is re-checked at loop entry, around compaction, and after the LLM call. A stop during compaction returns the abort sentinel and never applies a compaction result, including the lossy prune fallback. Guards: `src/core/loop.test.ts`, `src/context/index.test.ts`.
 
 ## Retry & Error Classification
 

@@ -183,7 +183,12 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
 
 export const summarizeMessages = async (
   messages: ModelMessage[],
-  options?: { maxOutputTokens?: number; provider?: LLMProviderFactory; model?: string }
+  options?: {
+    maxOutputTokens?: number;
+    provider?: LLMProviderFactory;
+    model?: string;
+    abortSignal?: AbortSignal;
+  }
 ): Promise<string> => {
   const provider = options?.provider ?? CoderAI;
   const model = options?.model ?? COMPACT_SUMMARY_MODEL ?? DEFAULT_MODEL;
@@ -212,6 +217,7 @@ export const summarizeMessages = async (
     ],
     maxOutputTokens: options?.maxOutputTokens ?? COMPACT_SUMMARY_MAX_TOKENS,
     providerOptions: openaiProviderOptions,
+    abortSignal: options?.abortSignal,
   });
 
   return result.text ?? '';

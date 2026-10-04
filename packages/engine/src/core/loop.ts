@@ -423,7 +423,11 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           model: options?.model,
           contextWindowTokens: options?.contextWindowTokens,
           onStart: (info) => options?.onCompactionStart?.(info),
+          abortSignal: options?.abortSignal,
         });
+        if (options?.abortSignal?.aborted) {
+          return 'Request aborted.';
+        }
         if (didCompact) {
           const nextAttempt = compactionAttempts + 1;
           compactionAttempts = nextAttempt;
@@ -772,7 +776,11 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             model: options?.model,
             contextWindowTokens: options?.contextWindowTokens,
             onStart: (info) => options?.onCompactionStart?.(info),
+            abortSignal: options?.abortSignal,
           });
+          if (options?.abortSignal?.aborted) {
+            return 'Request aborted.';
+          }
           if (didCompact) {
             const nextAttempt = compactionAttempts + 1;
             compactionAttempts = nextAttempt;
