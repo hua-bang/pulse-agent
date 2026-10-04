@@ -986,6 +986,10 @@ never infer chronology for old sessions. The runtime persists the agent's final
 assistant messages (including role sanitization), and completion delivers those
 same messages to the renderer so reload cannot restore discarded text. Failure
 snapshots preserve observed text/tool ordering while settling unfinished tools.
+Successful segments also settle unresolved calls as failed and close input
+streaming before saving final messages. Otherwise, final messages replace the
+renderer’s settled snapshot with a stale running tool. Stopped calls keep their
+cancelled status.
 
 Guards: `src/shared/chat-content-blocks.test.ts`,
 `src/main/agent/chat-failure-persistence.test.ts`, conversation-runtime tests,

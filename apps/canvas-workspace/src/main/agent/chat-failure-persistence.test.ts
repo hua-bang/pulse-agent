@@ -58,6 +58,58 @@ describe('failedAssistantMessage', () => {
 
 
 describe('ordered turn persistence', () => {
+  it('settles incomplete skill input when a successful turn is saved and reloaded', () => {
+    const tracker = createFailedTurnToolTracker();
+    tracker.callbacks.onToolInputStart?.({ id: 'partial', toolName: 'skill' });
+    tracker.callbacks.onToolInputDelta?.({ id: 'partial', delta: '{"' });
+    tracker.callbacks.onToolCall?.({ name: 'page_eval', args: {}, toolCallId: 'complete' });
+    tracker.callbacks.onToolResult?.({
+      name: 'page_eval', toolCallId: 'complete', result: 'ok', status: 'succeeded',
+    });
+    tracker.callbacks.onText?.('Done');
+
+    const final = tracker.finalize('Done', [
+      { id: 1, name: 'page_eval', toolCallId: 'complete', status: 'succeeded', result: 'ok' },
+    ]);
+    const reloaded = JSON.parse(JSON.stringify(final));
+
+    expect(reloaded.toolCalls).toEqual([
+      expect.objectContaining({
+        id: 1, toolCallId: 'partial', name: 'skill', partialInput: '{"',
+        status: 'failed', inputStreaming: false, error: 'no result',
+      }),
+      expect.objectContaining({
+        id: 2, toolCallId: 'complete', status: 'succeeded', result: 'ok',
+      }),
+    ]);
+    expect(reloaded.contentBlocks).toEqual([
+      { type: 'tool', toolId: 1, toolCallId: 'partial' },
+      { type: 'tool', toolId: 2, toolCallId: 'complete' },
+      { type: 'text', text: 'Done' },
+    ]);
+    // Finalization must not change the live snapshot used by stream observers.
+    expect(tracker.snapshot()[0]).toMatchObject({ status: 'running', inputStreaming: true });
+  });
+
+  it('settles unfinished final-only calls and preserves terminal outcomes', () => {
+    const tracker = createFailedTurnToolTracker();
+    const final = tracker.finalize('Done', [
+      { id: 1, name: 'read', toolCallId: 'queued', status: 'queued' },
+      { id: 2, name: 'read', toolCallId: 'running', status: 'running', error: 'connection lost' },
+      { id: 3, name: 'read', toolCallId: 'ok', status: 'succeeded', result: 'ok' },
+      { id: 4, name: 'read', toolCallId: 'bad', status: 'failed', error: 'permission denied' },
+      { id: 5, name: 'skill', toolCallId: 'stopped', status: 'cancelled', inputStreaming: true },
+    ]);
+
+    expect(final.toolCalls).toMatchObject([
+      { toolCallId: 'queued', status: 'failed', inputStreaming: false, error: 'no result' },
+      { toolCallId: 'running', status: 'failed', inputStreaming: false, error: 'connection lost' },
+      { toolCallId: 'ok', status: 'succeeded', result: 'ok' },
+      { toolCallId: 'bad', status: 'failed', error: 'permission denied' },
+      { toolCallId: 'stopped', status: 'cancelled', inputStreaming: false },
+    ]);
+  });
+
   it('preserves parallel calls and intervening prose on failure and reload', () => {
     const tracker = createFailedTurnToolTracker();
     tracker.callbacks.onText?.('Inspect');
