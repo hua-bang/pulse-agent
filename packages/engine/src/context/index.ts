@@ -224,6 +224,10 @@ export const maybeCompactContext = async (
       model: options?.model,
       abortSignal: options?.abortSignal,
     });
+    // Providers may resolve after a stop; the result must still be discarded.
+    if (options?.abortSignal?.aborted) {
+      return { didCompact: false, reason: 'aborted' };
+    }
     const summaryText = ensureSummaryPrefix(summary);
     if (!summaryText) {
       throw new Error('Empty summary result');

@@ -50,6 +50,21 @@ describe('maybeCompactContext abort', () => {
     expect(result).toEqual({ didCompact: false, reason: 'aborted' });
   });
 
+  it('discards a summary that resolves after the stop', async () => {
+    const controller = new AbortController();
+    summarizeMessagesMock.mockImplementation(async () => {
+      controller.abort();
+      return 'short';
+    });
+
+    const result = await maybeCompactContext(longContext(), {
+      force: true,
+      abortSignal: controller.signal,
+    });
+
+    expect(result).toEqual({ didCompact: false, reason: 'aborted' });
+  });
+
   it('skips summarization when already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
