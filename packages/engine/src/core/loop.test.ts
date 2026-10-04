@@ -462,6 +462,26 @@ describe('loop', () => {
     expect(streamTextAIMock).toHaveBeenCalledTimes(1);
   });
 
+  it('stops during pre-loop compaction without applying it or calling the LLM', async () => {
+    const original = [{ role: 'user', content: 'long context' }] as Context['messages'];
+    const context: Context = { messages: original };
+    const controller = new AbortController();
+    const onCompacted = vi.fn();
+
+    maybeCompactContextMock.mockImplementationOnce(async (_context, options) => {
+      expect(options.abortSignal).toBe(controller.signal);
+      controller.abort();
+      return { didCompact: true, newMessages: [{ role: 'assistant', content: 'summary' }] };
+    });
+
+    const result = await loop(context, { abortSignal: controller.signal, onCompacted });
+
+    expect(result).toBe('Request aborted.');
+    expect(context.messages).toBe(original);
+    expect(onCompacted).not.toHaveBeenCalled();
+    expect(streamTextAIMock).not.toHaveBeenCalled();
+  });
+
   it('invokes onCompacted plugin hooks with old/new messages', async () => {
     const context: Context = {
       messages: [{ role: 'user', content: 'long context' }],

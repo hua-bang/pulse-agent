@@ -246,7 +246,9 @@ export function createPiAgentHarnessTurnBackend(
       const compacted = await request.engine.compactContext(request.context, {
         provider: request.modelConfig.provider,
         model: request.configuredModel ?? request.modelConfig.model,
+        abortSignal: request.abortSignal,
       });
+      if (request.abortSignal.aborted) throw new Error('Pi AgentHarness run aborted');
       if (compacted.didCompact && compacted.newMessages) {
         request.replaceMessages(compacted.newMessages);
         request.context.messages = compacted.newMessages;

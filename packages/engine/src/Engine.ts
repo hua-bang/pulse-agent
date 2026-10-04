@@ -351,6 +351,7 @@ export class Engine {
       model?: string;
       contextWindowTokens?: number;
       onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
+      abortSignal?: AbortSignal;
     }
   ): Promise<{ didCompact: boolean; reason?: string; newMessages?: Context['messages'] }> {
     return await maybeCompactContext(context, {
@@ -359,6 +360,7 @@ export class Engine {
       model: options?.model ?? this.options.model,
       contextWindowTokens: options?.contextWindowTokens,
       onStart: options?.onStart,
+      abortSignal: options?.abortSignal,
     });
   }
 

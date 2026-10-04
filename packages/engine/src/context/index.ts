@@ -175,10 +175,12 @@ export const maybeCompactContext = async (
     contextWindowTokens?: number;
     /** Fired once compaction is actually going to run (summarization LLM call imminent) — lets hosts show progress. */
     onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
+    /** Cancels the summarization call. An aborted compaction never rewrites history. */
+    abortSignal?: AbortSignal;
   }
 ): Promise<CompactResult> => {
   const { messages } = context;
-  if (messages.length === 0) {
+  if (messages.length === 0 || options?.abortSignal?.aborted) {
     return { didCompact: false };
   }
 
@@ -220,6 +222,7 @@ export const maybeCompactContext = async (
     const summary = await summarizeMessages(oldMessages, {
       provider: options?.provider,
       model: options?.model,
+      abortSignal: options?.abortSignal,
     });
     const summaryText = ensureSummaryPrefix(summary);
     if (!summaryText) {
@@ -263,6 +266,11 @@ export const maybeCompactContext = async (
       },
     };
   } catch {
+    // A user stop is not a summarizer failure: keep history intact instead of
+    // applying the lossy prune fallback.
+    if (options?.abortSignal?.aborted) {
+      return { didCompact: false, reason: 'aborted' };
+    }
     const pruned = pruneMessages({
       messages,
       reasoning: 'all',
