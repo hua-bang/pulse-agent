@@ -55,13 +55,11 @@
   background: transparent;
 }
 
-.node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror,
-.node-detail-panel .node-canvas-preview .file-preview {
+.node-detail-panel .node-canvas-preview .note-tiptap-editor .ProseMirror {
   padding: 16px 16px 44px 36px;
 }
 
-.node-detail-panel--dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
-.node-detail-panel--dock .node-canvas-preview .file-preview {
+.node-detail-panel--dock .node-canvas-preview .note-tiptap-editor .ProseMirror {
   padding: 12px 12px 32px 24px;
 }
 

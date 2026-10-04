@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode } from '../../../../types';
+import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode, CanvasTransform } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { useCanvas, useCanvasFit } from '../../../canvas';
 import { Canvas, CanvasSurface } from '../../../canvas/surface';
@@ -255,6 +255,13 @@ export const CanvasPreview = ({
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
 
+  // Edit mode starts from the preview's framing and mirrors its settled
+  // viewport back, so switching modes never reframes the canvas.
+  const handleEditorViewportChange = useCallback((next: CanvasTransform) => {
+    userMovedRef.current = true;
+    setTransform(next);
+  }, [setTransform]);
+
   const handleZoom = useCallback((factor: number) => {
     userMovedRef.current = true;
     zoomByStep(factor, containerRef.current);
@@ -346,6 +353,8 @@ export const CanvasPreview = ({
             isActive={active}
             keyboardActive={keyboardActive}
             persistViewport={false}
+            initialViewport={transform}
+            onViewportChange={handleEditorViewportChange}
             clipboard={clipboard}
             onClipboardChange={handleClipboardChange}
             onNodesChange={handleNodesChange}

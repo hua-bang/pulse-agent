@@ -8,6 +8,8 @@ interface Props {
   streaming?: boolean;
   onClick?: MouseEventHandler<HTMLDivElement>;
   imagePreview?: boolean;
+  /** Replaces the chat typography classes for hosts with their own document styles. */
+  className?: string;
 }
 
 export const MarkdownContent = ({
@@ -16,6 +18,7 @@ export const MarkdownContent = ({
   streaming = false,
   onClick,
   imagePreview = false,
+  className,
 }: Props) => {
   const [preview, setPreview] = useState<{ images: LightboxImage[]; index: number } | null>(null);
 
@@ -52,7 +55,8 @@ export const MarkdownContent = ({
     <>
       <div
         ref={bodyRef}
-        className={`chat-message-content chat-md${streaming ? ' chat-md--streaming' : ''}${imagePreview ? ' chat-md--image-preview' : ''}`}
+        className={className
+          ?? `chat-message-content chat-md${streaming ? ' chat-md--streaming' : ''}${imagePreview ? ' chat-md--image-preview' : ''}`}
         dangerouslySetInnerHTML={{ __html: html }}
         onClick={onClick}
       />

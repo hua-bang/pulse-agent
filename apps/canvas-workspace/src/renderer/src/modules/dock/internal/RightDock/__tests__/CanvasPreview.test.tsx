@@ -7,6 +7,7 @@ import type {
   AgentContextTabRef,
   CanvasEdge,
   CanvasNode,
+  CanvasTransform,
 } from '../../../../../types';
 import { I18nProvider } from '../../../../../i18n';
 import { AppShellProvider } from '../../../../../app/shell/AppShellProvider';
@@ -16,12 +17,16 @@ import type { CanvasClipboard } from '../../../../../types/ui-interaction';
 const controls = vi.hoisted(() => ({
   fitAllNodes: vi.fn(),
   zoomByStep: vi.fn(),
+  setTransform: vi.fn(),
+  transform: { x: 0, y: 0, scale: 1 },
 }));
 const rendered = vi.hoisted(() => ({
   canvasProps: null as null | {
     isActive?: boolean;
     keyboardActive?: boolean;
     persistViewport?: boolean;
+    initialViewport?: CanvasTransform;
+    onViewportChange?: (transform: CanvasTransform) => void;
     clipboard?: CanvasClipboard | null;
     onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
     onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -35,8 +40,8 @@ const rendered = vi.hoisted(() => ({
 
 vi.mock('../../../../canvas', () => ({
   useCanvas: () => ({
-    transform: { x: 0, y: 0, scale: 1 },
-    setTransform: vi.fn(),
+    transform: controls.transform,
+    setTransform: controls.setTransform,
     settledScale: 1,
     moving: false,
     handleWheel: vi.fn(),
@@ -62,6 +67,8 @@ vi.mock('../../../../canvas/surface', () => ({
     isActive?: boolean;
     keyboardActive?: boolean;
     persistViewport?: boolean;
+    initialViewport?: CanvasTransform;
+    onViewportChange?: (transform: CanvasTransform) => void;
     clipboard?: CanvasClipboard | null;
     onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
     onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -165,6 +172,8 @@ beforeEach(() => {
   load = vi.fn();
   controls.fitAllNodes.mockReset();
   controls.zoomByStep.mockReset();
+  controls.setTransform.mockReset();
+  controls.transform = { x: 0, y: 0, scale: 1 };
   rendered.canvasProps = null;
   rendered.surfaceNodes = undefined;
   rendered.surfaceEdges = undefined;
@@ -319,6 +328,26 @@ describe('CanvasPreview accessible read-only chrome', () => {
     await act(async () => done?.click());
 
     expect(rendered.surfaceEdges).toEqual([edge]);
+  });
+
+  it('hands the preview framing to Edit and mirrors the edited viewport back', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    controls.transform = { x: -40, y: 12, scale: 0.99 };
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    expect(rendered.canvasProps?.initialViewport).toEqual({ x: -40, y: 12, scale: 0.99 });
+
+    const panned = { x: -200, y: 40, scale: 0.99 };
+    controls.setTransform.mockClear();
+    act(() => rendered.canvasProps?.onViewportChange?.(panned));
+    expect(controls.setTransform).toHaveBeenCalledWith(panned);
   });
 
   it('routes iframe review comments from the editable canvas to Chat', async () => {

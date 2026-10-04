@@ -94,6 +94,18 @@ file-read/focus/event hook; Canvas search requests an editor through the file
 registry and reapplies its current inline query when registration completes.
 File link clicks retain the Dock intent, and Text links retain the popup policy.
 
+Read and write states of a note are one visual document. The file preview
+renders `MarkdownPreview variant="note"` inside the editor's
+`.note-tiptap-editor .ProseMirror` shell, so it inherits the editor's
+typography, code-block, and table styles; it never takes chat container
+classes, whose stylesheet loads lazily and would change the preview over time.
+Content and geometry must match across the switch. Interaction differences
+(caret, selection, hover actions, the code copy button) are overlays that never
+move content. Host insets target the shared `.ProseMirror` shell, not the
+`.file-preview` card. Guard: `FileNodeBodyLazy/readWriteParity.test.ts` checks
+the computed styles in each host with and without chat styles. Interaction or
+visual changes still need a real-app read/write comparison.
+
 The shared deferred-input boundary retains first input while an editor module
 loads, including IME and sanitized rich-text paste. Drop is rejected at this
 brief loading surface. The buffer stays visible/copyable on load failure;

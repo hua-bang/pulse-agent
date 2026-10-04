@@ -77,18 +77,37 @@ markdown.use(taskLists, { enabled: false, label: true, labelAfter: false });
  * copy button, plus the highlighted body. The button is wired up via
  * event delegation in ChatMessages — here we only emit the markup + a
  * stable data attribute so the delegate can locate the source code.
+ *
+ * The note variant mirrors the Tiptap editor's bare `<pre><code>` so a
+ * passive note preview keeps the editor's block geometry; its copy button is
+ * an absolutely positioned overlay rather than a header row.
  */
-function renderCodeBlockHtml(rawCode: string, requestedLang: string, streaming: boolean): string {
-  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang, streaming);
+function renderCodeBlockHtml(
+  rawCode: string,
+  requestedLang: string,
+  env: MarkdownEnv | undefined,
+): string {
+  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang, env?.streaming === true);
   const displayLang = requestedLang || lang || 'text';
   const codeHtml = highlighted
     ? highlighted
     : escapeAttr(rawCode);
+  const copyButton = (className: string) => (
+    `<button type="button" class="${className}" data-action="copy-code" aria-label="Copy code">Copy</button>`
+  );
+  if (env?.variant === 'note') {
+    return (
+      `<div class="note-code-block" data-code-block data-lang="${escapeAttr(displayLang)}">`
+      + copyButton('note-code-block-copy')
+      + `<pre><code class="hljs language-${escapeAttr(displayLang)}">${codeHtml}</code></pre>`
+      + '</div>'
+    );
+  }
   return (
-    `<div class="chat-code-block" data-lang="${escapeAttr(displayLang)}">`
+    `<div class="chat-code-block" data-code-block data-lang="${escapeAttr(displayLang)}">`
     + '<div class="chat-code-block-header">'
     + `<span class="chat-code-block-lang">${escapeAttr(displayLang)}</span>`
-    + '<button type="button" class="chat-code-block-copy" data-action="copy-code" aria-label="Copy code">Copy</button>'
+    + copyButton('chat-code-block-copy')
     + '</div>'
     + `<pre class="chat-code-block-pre"><code class="hljs language-${escapeAttr(displayLang)}">${codeHtml}\n</code></pre>`
     + '</div>'
@@ -112,14 +131,14 @@ markdown.renderer.rules.fence = (tokens, idx, _options, env) => {
     );
   }
 
-  return renderCodeBlockHtml(rawCode, requestedLang, env?.streaming === true);
+  return renderCodeBlockHtml(rawCode, requestedLang, env);
 };
 
 // Indented (4-space) code blocks — common when a user pastes code without
 // fences — get the same polished shell + auto-detected highlighting as a
 // fenced block, instead of a bare monospace `<pre>`.
 markdown.renderer.rules.code_block = (tokens, idx, _options, env) =>
-  renderCodeBlockHtml(tokens[idx].content.replace(/\n+$/, ''), '', env?.streaming === true);
+  renderCodeBlockHtml(tokens[idx].content.replace(/\n+$/, ''), '', env);
 
 /** Open external links in a new window and never leak referrer. */
 const defaultLinkOpen = markdown.renderer.rules.link_open
@@ -142,10 +161,15 @@ markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLinkOpen(tokens, idx, options, env, self);
 };
 
-/** Wrap tables in a horizontal scroll container so wide tables don't
- *  blow out the panel width on narrow layouts. */
-markdown.renderer.rules.table_open = () => '<div class="chat-md-table-scroll"><table>';
-markdown.renderer.rules.table_close = () => '</table></div>';
+/** Wrap chat tables in a horizontal scroll container so wide tables don't
+ *  blow out the panel width on narrow layouts. Note previews keep the
+ *  editor's fixed-layout table, which never overflows its document. */
+markdown.renderer.rules.table_open = (_tokens, _idx, _options, env: MarkdownEnv | undefined) => (
+  env?.variant === 'note' ? '<table class="note-table">' : '<div class="chat-md-table-scroll"><table>'
+);
+markdown.renderer.rules.table_close = (_tokens, _idx, _options, env: MarkdownEnv | undefined) => (
+  env?.variant === 'note' ? '</table>' : '</table></div>'
+);
 
 /** Lazy-load images so long conversations don't burn bandwidth and
  *  layout time up front. */
@@ -159,9 +183,23 @@ markdown.renderer.rules.image = (tokens, idx, options, env, self) => {
   return defaultImageRenderer(tokens, idx, options, env, self);
 };
 
+export type MarkdownVariant = 'chat' | 'note';
+
+interface MarkdownEnv {
+  softBreaks?: boolean;
+  streaming?: boolean;
+  variant?: MarkdownVariant;
+}
+
 export interface RenderMarkdownOptions {
   /** Preserve ordinary Markdown soft line breaks for passive note previews. */
   softBreaks?: boolean;
+  /**
+   * Block markup family. `note` emits the same code-block and table
+   * structure as the Tiptap note editor, so read and edit states share one
+   * set of document styles. Defaults to `chat`.
+   */
+  variant?: MarkdownVariant;
   /**
    * True while the source message is still streaming. Skips highlight.js
    * auto-detection for unhinted code blocks — the caller re-renders without
@@ -181,9 +219,10 @@ const SETTLED_RENDER_CACHE_MAX = 100;
 export function renderMarkdown(content: string, options?: RenderMarkdownOptions): string {
   if (options?.streaming === true) {
     count('chat-md-stream-render');
-    return markdown.render(content, { streaming: true, softBreaks: options.softBreaks });
+    return markdown.render(content, { streaming: true, softBreaks: options.softBreaks, variant: options.variant });
   }
-  const cacheKey = `${options?.softBreaks === false ? 'soft' : 'break'}\0${content}`;
+  const variant = options?.variant ?? 'chat';
+  const cacheKey = `${variant}\0${options?.softBreaks === false ? 'soft' : 'break'}\0${content}`;
   const cached = settledRenderCache.get(cacheKey);
   if (cached !== undefined) {
     count('chat-md-cache-hit');
@@ -193,7 +232,7 @@ export function renderMarkdown(content: string, options?: RenderMarkdownOptions)
     return cached;
   }
   count('chat-md-render');
-  const html = markdown.render(content, { softBreaks: options?.softBreaks });
+  const html = markdown.render(content, { softBreaks: options?.softBreaks, variant });
   settledRenderCache.set(cacheKey, html);
   if (settledRenderCache.size > SETTLED_RENDER_CACHE_MAX) {
     const oldest = settledRenderCache.keys().next().value;

@@ -358,13 +358,11 @@
 .node-detail-panel.node-detail-panel--document-dock .node-detail-panel__preview {
   height: auto; min-height: 0; flex: 1; margin: 0;
 }
-.node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
-.node-detail-panel--document-dock .node-canvas-preview .file-preview {
+.node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror {
   padding: 20px 28px 72px;
 }
 @container (min-width: 561px) {
-  .node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror,
-  .node-detail-panel--document-dock .node-canvas-preview .file-preview {
+  .node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror {
     padding: 32px 40px 96px;
     font-size: 16px; line-height: 1.8;
     --note-heading-1: 1.75em;
