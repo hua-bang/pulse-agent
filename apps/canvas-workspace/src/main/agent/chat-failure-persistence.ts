@@ -84,6 +84,14 @@ export function createFailedTurnToolTracker(forward: EngineStreamCallbacks = {})
           blocks = appendContentTool(blocks, added);
         }
       }
+      // A completed segment cannot retain a live input or an unresolved call.
+      for (const tool of mergedTools) {
+        if (tool.status === 'running' || tool.status === 'queued') {
+          tool.status = 'failed';
+          tool.error = tool.error ?? 'no result';
+        }
+        tool.inputStreaming = false;
+      }
       const contentBlocks = sanitized ? retainContentText(blocks, response) : finishContentBlocks(blocks, response);
       return { content: contentText(contentBlocks), contentBlocks, toolCalls: mergedTools.length ? mergedTools : undefined };
     },
