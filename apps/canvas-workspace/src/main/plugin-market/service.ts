@@ -20,6 +20,7 @@ import {
   setCanvasPluginNativePolicy,
 } from './config';
 import { getPluginMarketAgentPort } from './agent-port';
+import { connectPackageMcp, packageMcpAuthState } from './mcp-connection';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';
 import { PUBLIC_PLUGIN_CATALOG } from './catalog';
 import { writePluginMcpAdapter } from './mcp-adapter';
@@ -57,21 +58,6 @@ function isContained(root: string, target: string): boolean {
 async function refreshRuntime(): Promise<void> {
   await reloadConfiguredExternalMainPlugins();
   await getPluginMarketAgentPort().reloadMcp();
-}
-
-function remoteServerRuntimeName(plugin: NormalizedPluginPackage, serverName: string): string {
-  return `${safeDirectoryName(plugin.name)}.${serverName}`;
-}
-
-async function packageMcpAuthState(
-  plugin: NormalizedPluginPackage,
-): Promise<'connectable' | 'connected' | undefined> {
-  const remoteServers = plugin.mcp?.servers.filter((server) => server.type !== 'stdio') ?? [];
-  if (remoteServers.length === 0) return undefined;
-  const statuses = await Promise.all(remoteServers.map((server) => (
-    getPluginMarketAgentPort().getMcpOAuthStatus(remoteServerRuntimeName(plugin, server.name))
-  )));
-  return statuses.every((status) => status.connected) ? 'connected' : 'connectable';
 }
 
 async function listingFromPackage(
@@ -443,17 +429,7 @@ export class PluginMarketService {
       if (!result.package) {
         return { ok: false, diagnostics: result.diagnostics, error: 'Installed plugin package is invalid' };
       }
-      const remoteServers = result.package.mcp?.servers.filter((server) => server.type !== 'stdio') ?? [];
-      if (remoteServers.length === 0) return { ok: false, error: 'Plugin has no remote MCP server to connect' };
-
-      const disconnected = [];
-      for (const server of remoteServers) {
-        const runtimeName = remoteServerRuntimeName(result.package, server.name);
-        const status = await getPluginMarketAgentPort().getMcpOAuthStatus(runtimeName);
-        if (!status.connected) disconnected.push({ runtimeName, url: server.url });
-      }
-      const next = disconnected[0];
-      if (next) await getPluginMarketAgentPort().connectMcpOAuth(next.runtimeName, next.url);
+      await connectPackageMcp(result.package);
       return committedResult(result.diagnostics);
     });
   }

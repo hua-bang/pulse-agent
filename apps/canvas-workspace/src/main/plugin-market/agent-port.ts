@@ -1,9 +1,8 @@
+import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
+
 export interface PluginMarketAgentPort {
   reloadMcp: () => Promise<void>;
-  getMcpOAuthStatus: (serverName: string) => Promise<{
-    connected: boolean;
-    hasClientInformation: boolean;
-  }>;
+  getMcpStatuses: () => Record<string, MCPServerStatus>;
   connectMcpOAuth: (serverName: string, serverUrl: string) => Promise<void>;
 }
 

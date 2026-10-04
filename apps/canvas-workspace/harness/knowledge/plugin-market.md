@@ -63,7 +63,7 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | `plugin-market:refresh` | `refresh()` | Rebuild the same snapshot; this is not a remote registry sync. |
 | `plugin-market:install` | `install(listingId)` | Install an `available` curated entry. |
 | `plugin-market:uninstall` | `uninstall(listingId)` | Unregister and conditionally remove a managed snapshot. |
-| `plugin-market:connect-mcp` | `connectMcp(listingId)` | Start client-managed OAuth for the first disconnected remote MCP server. |
+| `plugin-market:connect-mcp` | `connectMcp(listingId)` | Retry remote MCP connections and start OAuth only after a 401 challenge. |
 | `plugin-market:set-native-enabled` | `setNativeEnabled(listingId, enabled)` | Change the separate Pulse native-extension trust bit. |
 | `plugin-market:choose-directory` | `chooseDirectory()` | Link a user-selected local package. |
 | `plugin-market:add-git` | `addGit(source)` | Clone and install a validated HTTPS Git source. |
@@ -134,7 +134,7 @@ The v1 reader accepts stdio, streamable HTTP and SSE servers after validating th
 - `streamable-http` maps to Pulse `http`; `sse` remains `sse`.
 - Remote URLs must be HTTP(S), with plain HTTP limited to loopback. User information and fragments are rejected.
 - Public literal headers are preserved, but credential-bearing names such as `Authorization`, `Cookie`, `Proxy-Authorization`, `X-API-Key` and `API-Key` are rejected. Cross-origin redirect header stripping remains the transport layer's responsibility.
-- A remote server is exposed as `connectable` until the Canvas OAuth store reports a valid connection. The market detail view starts the existing client-managed OAuth flow; the engine only injects the OAuth provider after that connection exists, avoiding accidental dynamic registration during ordinary MCP discovery.
+- Remote connection state comes from the active engine MCP status, not the OAuth token store. Anonymous servers report `connected` after successful initialization and tool discovery. `Connect` reloads the global scope first and starts OAuth only for an HTTP/SSE transport 401 challenge or the Canvas provider's explicit interactive-authorization request after stored credentials fail. Other failures retain their connection error. The engine injects the OAuth provider only when stored credentials exist, avoiding dynamic registration during ordinary discovery. The market matches the AI SDK transport status field in the retained error message; response-body text is not an authorization signal. Regression cases live in `src/main/plugin-market/service.test.ts`.
 - Market MCP config paths are loaded before global/workspace MCP configs, so later user-owned global/workspace definitions retain override precedence on duplicate names.
 
 ## Security invariants
