@@ -342,6 +342,9 @@ export const useCanvas = (
   }, [setTransformSafe]);
 
   const renderTransform = moving ? transformRef.current : transform;
+  // A gesture's latest frame lives only in the ref until the idle timer
+  // commits it; hosts that unmount mid-gesture read it here.
+  const getLiveTransform = useCallback(() => transformRef.current, []);
 
   return {
     transform: renderTransform,
@@ -355,6 +358,7 @@ export const useCanvas = (
     handleMouseUp,
     screenToCanvas,
     resetTransform,
-    zoomByStep
+    zoomByStep,
+    getLiveTransform
   };
 };

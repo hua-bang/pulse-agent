@@ -1,4 +1,4 @@
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../../../types/ui-interaction';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../shared/reference/types';
 import type { ChatDeliveryReceipt } from '../../../../chat';
@@ -17,6 +17,11 @@ export interface CanvasProps {
   /** Keep pan/zoom local to this Canvas instance instead of overwriting the
    * workspace's canonical viewport. Used by the AI Chat dock editor. */
   persistViewport?: boolean;
+  /** Local viewport to start from instead of the first-load auto-fit. Read
+   * once at mount; ignored when `persistViewport` is true. */
+  initialViewport?: CanvasTransform;
+  /** Settled local pan/zoom, reported only when `persistViewport` is false. */
+  onViewportChange?: (transform: CanvasTransform) => void;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onEdgesChange?: (canvasId: string, edges: CanvasEdge[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;

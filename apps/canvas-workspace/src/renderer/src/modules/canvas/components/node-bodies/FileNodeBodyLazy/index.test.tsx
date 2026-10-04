@@ -78,6 +78,9 @@ it('shows clean saved Markdown through the full static renderer without loading 
   expect(host.querySelectorAll('td')).toHaveLength(2);
   expect(host.querySelector('pre code')?.textContent).toContain('const x = 1');
   expect(host.querySelector('p br')).toBeNull();
+  // Read and edit states share the note document styles, never chat chrome.
+  expect(host.querySelector('.ProseMirror > .note-markdown-preview table.note-table')).not.toBeNull();
+  expect(host.querySelector('.chat-message-content, .chat-md, .chat-code-block, .chat-md-table-scroll')).toBeNull();
   expect(onUpdate).not.toHaveBeenCalled();
   await act(async () => { host.querySelector<HTMLButtonElement>('[data-action="copy-code"]')!.click(); });
   expect(editor()).toBeNull();

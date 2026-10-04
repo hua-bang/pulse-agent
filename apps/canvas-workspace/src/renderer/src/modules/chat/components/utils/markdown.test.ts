@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { renderMarkdown } from './markdown';
 
@@ -69,5 +70,31 @@ describe('Markdown preview soft line breaks', () => {
       .toBe('<p>first\nsecond</p>\n');
     expect(renderMarkdown('first\nsecond', { streaming: true }))
       .toContain('<br>');
+  });
+});
+
+describe('note Markdown variant', () => {
+  const content = '```ts\nconst x = 1;\n```\n\n| A | B |\n|---|---|\n| one | two |';
+
+  it('emits the note editor block structure instead of chat chrome', () => {
+    const html = renderMarkdown(content, { variant: 'note' });
+    const host = document.createElement('div');
+    host.innerHTML = html;
+
+    const block = host.querySelector('.note-code-block')!;
+    expect(block.hasAttribute('data-code-block')).toBe(true);
+    expect(block.querySelector(':scope > pre > code.hljs')?.textContent).toBe('const x = 1;\n');
+    expect(block.querySelector(':scope > button[data-action="copy-code"]')).not.toBeNull();
+    expect(host.querySelector(':scope > table.note-table td')?.textContent).toBe('one');
+    expect(html).not.toMatch(/chat-code-block|chat-md-table-scroll/);
+  });
+
+  it('keeps chat and note markup isolated in the settled-content cache', () => {
+    const note = renderMarkdown(content, { variant: 'note' });
+    const chat = renderMarkdown(content);
+    expect(chat).toContain('chat-code-block-header');
+    expect(chat).toContain('chat-md-table-scroll');
+    expect(renderMarkdown(content, { variant: 'note' })).toBe(note);
+    expect(renderMarkdown(content, { variant: 'chat' })).toBe(chat);
   });
 });

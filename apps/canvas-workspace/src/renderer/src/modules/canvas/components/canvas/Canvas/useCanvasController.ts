@@ -22,6 +22,7 @@ import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { useCanvasCreationActions } from './hooks/useCanvasCreationActions';
 import { useCanvasFeedbackCommands } from './hooks/useCanvasFeedbackCommands';
 import { useNativeCanvasZoomGuard } from './hooks/useNativeCanvasZoomGuard';
+import { useLocalViewportHandoff } from './hooks/useLocalViewportHandoff';
 import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
@@ -42,6 +43,8 @@ export const useCanvasController = ({
   isActive = true,
   keyboardActive,
   persistViewport = true,
+  initialViewport,
+  onViewportChange,
   onNodesChange,
   onEdgesChange,
   onSelectionChange,
@@ -89,7 +92,7 @@ export const useCanvasController = ({
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
-    screenToCanvas, resetTransform, zoomByStep,
+    screenToCanvas, resetTransform, zoomByStep, getLiveTransform,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
@@ -116,6 +119,10 @@ export const useCanvasController = ({
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
   useNativeCanvasZoomGuard(containerRef, loaded);
+  useLocalViewportHandoff({
+    persistViewport, initialViewport, onViewportChange,
+    loaded, moving, transform, getLiveTransform, setTransform, hasAutoFittedRef,
+  });
 
   const {
     selectedNodeIds, setSelectedNodeIds,

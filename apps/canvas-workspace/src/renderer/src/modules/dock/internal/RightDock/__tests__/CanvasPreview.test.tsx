@@ -7,6 +7,7 @@ import type {
   AgentContextTabRef,
   CanvasEdge,
   CanvasNode,
+  CanvasTransform,
 } from '../../../../../types';
 import { I18nProvider } from '../../../../../i18n';
 import { AppShellProvider } from '../../../../../app/shell/AppShellProvider';
@@ -15,13 +16,17 @@ import type { CanvasClipboard } from '../../../../../types/ui-interaction';
 
 const controls = vi.hoisted(() => ({
   fitAllNodes: vi.fn(),
-  zoomByStep: vi.fn(),
+  resetTransform: vi.fn(),
+  setTransform: vi.fn(),
+  transform: { x: 0, y: 0, scale: 1 },
 }));
 const rendered = vi.hoisted(() => ({
   canvasProps: null as null | {
     isActive?: boolean;
     keyboardActive?: boolean;
     persistViewport?: boolean;
+    initialViewport?: CanvasTransform;
+    onViewportChange?: (transform: CanvasTransform) => void;
     clipboard?: CanvasClipboard | null;
     onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
     onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -35,15 +40,15 @@ const rendered = vi.hoisted(() => ({
 
 vi.mock('../../../../canvas', () => ({
   useCanvas: () => ({
-    transform: { x: 0, y: 0, scale: 1 },
-    setTransform: vi.fn(),
+    transform: controls.transform,
+    setTransform: controls.setTransform,
     settledScale: 1,
     moving: false,
     handleWheel: vi.fn(),
     handleMouseDown: vi.fn(),
     handleMouseMove: vi.fn(),
     handleMouseUp: vi.fn(),
-    zoomByStep: controls.zoomByStep,
+    resetTransform: controls.resetTransform,
   }),
   useCanvasFit: () => ({
     fitAllNodes: controls.fitAllNodes,
@@ -51,7 +56,11 @@ vi.mock('../../../../canvas', () => ({
   }),
 }));
 
-vi.mock('../../../../canvas/surface', () => ({
+vi.mock('../../../../canvas/surface', async () => ({
+  // The real main-Canvas zoom chrome: read-only and Edit share it.
+  ZoomIndicator: (await vi.importActual<typeof import('../../../../canvas/components/canvas/ZoomIndicator')>(
+    '../../../../canvas/components/canvas/ZoomIndicator',
+  )).ZoomIndicator,
   CanvasSurface: (props: { nodes?: CanvasNode[]; edges?: CanvasEdge[]; readOnly?: boolean }) => {
     rendered.surfaceNodes = props.nodes;
     rendered.surfaceEdges = props.edges;
@@ -62,6 +71,8 @@ vi.mock('../../../../canvas/surface', () => ({
     isActive?: boolean;
     keyboardActive?: boolean;
     persistViewport?: boolean;
+    initialViewport?: CanvasTransform;
+    onViewportChange?: (transform: CanvasTransform) => void;
     clipboard?: CanvasClipboard | null;
     onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
     onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
@@ -164,7 +175,9 @@ const rerenderPreview = async (props?: PreviewTestProps) => {
 beforeEach(() => {
   load = vi.fn();
   controls.fitAllNodes.mockReset();
-  controls.zoomByStep.mockReset();
+  controls.resetTransform.mockReset();
+  controls.setTransform.mockReset();
+  controls.transform = { x: 0, y: 0, scale: 1 };
   rendered.canvasProps = null;
   rendered.surfaceNodes = undefined;
   rendered.surfaceEdges = undefined;
@@ -321,6 +334,26 @@ describe('CanvasPreview accessible read-only chrome', () => {
     expect(rendered.surfaceEdges).toEqual([edge]);
   });
 
+  it('hands the preview framing to Edit and mirrors the edited viewport back', async () => {
+    load.mockResolvedValue({
+      ok: true,
+      data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    controls.transform = { x: -40, y: 12, scale: 0.99 };
+    await renderPreview({ editingAllowed: true, active: true });
+    await vi.waitFor(() => expect(mount?.querySelector('[data-testid="canvas-surface"]')).not.toBeNull());
+
+    const edit = [...(mount?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'Edit canvas');
+    await act(async () => edit?.click());
+    expect(rendered.canvasProps?.initialViewport).toEqual({ x: -40, y: 12, scale: 0.99 });
+
+    const panned = { x: -200, y: 40, scale: 0.99 };
+    controls.setTransform.mockClear();
+    act(() => rendered.canvasProps?.onViewportChange?.(panned));
+    expect(controls.setTransform).toHaveBeenCalledWith(panned);
+  });
+
   it('routes iframe review comments from the editable canvas to Chat', async () => {
     load.mockResolvedValue({
       ok: true,
@@ -449,7 +482,7 @@ describe('CanvasPreview accessible read-only chrome', () => {
     expect([...mount!.querySelectorAll('button')].some((button) => button.textContent === 'Edit canvas')).toBe(true);
   });
 
-  it('labels the region and exposes local zoom controls without implying editability', async () => {
+  it('labels the region and uses the main Canvas zoom chrome without implying editability', async () => {
     load.mockResolvedValue({
       ok: true,
       data: { nodes: [NODE], edges: [], transform: { x: 0, y: 0, scale: 1 } },
@@ -461,23 +494,28 @@ describe('CanvasPreview accessible read-only chrome', () => {
     expect(region?.getAttribute('aria-label')).toBe('Research, read-only canvas preview');
     expect(region?.querySelector('.canvas-preview__read-only')?.textContent).toBe('Read-only preview');
 
-    const toolbar = region?.querySelector<HTMLElement>('[role="toolbar"]');
-    expect(toolbar?.getAttribute('aria-label')).toBe('Canvas preview zoom');
-    expect(toolbar?.querySelector('[aria-label="Zoom level: 100%"]')?.textContent).toBe('100%');
+    // Same slot and component the canonical Canvas renders in Edit mode.
+    const zoom = region?.querySelector<HTMLElement>('.canvas-bottom-chrome__left .zoom-indicator-group');
+    const fit = zoom?.querySelector<HTMLButtonElement>('[title="Fit all nodes in view"]');
+    const reset = zoom?.querySelector<HTMLButtonElement>('[title="Reset to 100%"]');
+    if (!fit || !reset) throw new Error('Expected the shared zoom controls');
+    expect(reset.textContent).toBe('100%');
 
-    const zoomOut = toolbar?.querySelector<HTMLButtonElement>('[aria-label="Zoom out"]');
-    const zoomIn = toolbar?.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]');
-    const fit = [...(toolbar?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
-      .find((button) => button.textContent === 'Fit');
-    if (!zoomOut || !zoomIn || !fit) throw new Error('Expected all local zoom controls');
-
-    act(() => zoomOut.click());
-    act(() => zoomIn.click());
+    act(() => reset.click());
     act(() => fit.click());
 
-    expect(controls.zoomByStep).toHaveBeenNthCalledWith(1, 1 / 1.2, region);
-    expect(controls.zoomByStep).toHaveBeenNthCalledWith(2, 1.2, region);
+    expect(controls.resetTransform).toHaveBeenCalledTimes(1);
     expect(controls.fitAllNodes).toHaveBeenCalledWith([NODE]);
+  });
+
+  it('keeps the Fit control on an empty canvas, matching the editable Canvas', async () => {
+    load.mockResolvedValue({ ok: true, data: { nodes: [], edges: [], transform: { x: 0, y: 0, scale: 1 } } });
+    await renderPreview();
+
+    await vi.waitFor(() => expect(mount?.querySelector('.canvas-preview__hint')).not.toBeNull());
+    const labels = [...(mount?.querySelectorAll('.canvas-bottom-chrome__left .zoom-indicator') ?? [])]
+      .map((button) => button.textContent);
+    expect(labels).toEqual(['Fit', '100%']);
   });
 
   it('announces loading and turns a rejected load into a retryable error', async () => {

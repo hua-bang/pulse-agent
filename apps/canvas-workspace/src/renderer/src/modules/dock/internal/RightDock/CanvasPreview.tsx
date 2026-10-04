@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode } from '../../../../types';
+import type { AgentContextDomReviewComment, AgentContextTabRef, CanvasNode, CanvasTransform } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { useCanvas, useCanvasFit } from '../../../canvas';
 import { Canvas, CanvasSurface } from '../../../canvas/surface';
@@ -48,8 +48,6 @@ interface CanvasPreviewProps {
 const NOOP = () => undefined;
 const NOOP_DISPATCH = () => undefined;
 const EMPTY_STR_SET: Set<string> = new Set();
-
-const PREVIEW_ZOOM_STEP = 1.2;
 
 /**
  * Canvas tab for another workspace. It starts as a read-only snapshot that
@@ -122,7 +120,7 @@ export const CanvasPreview = ({
   const editClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
-    transform, setTransform, settledScale, moving, zoomByStep,
+    transform, setTransform, settledScale, moving, resetTransform,
     handleWheel, handleMouseDown, handleMouseMove, handleMouseUp,
   } = useCanvas(true, transformLayerRef);
   const { fitAllNodes, handleFocusNode } = useCanvasFit(containerRef, setTransform);
@@ -255,12 +253,19 @@ export const CanvasPreview = ({
     fitAllNodes(visibleNodes);
   }, [fitAllNodes, visibleNodes]);
 
-  const handleZoom = useCallback((factor: number) => {
+  // Edit mode starts from the preview's framing and mirrors its settled
+  // viewport back, so switching modes never reframes the canvas.
+  const handleEditorViewportChange = useCallback((next: CanvasTransform) => {
     userMovedRef.current = true;
-    zoomByStep(factor, containerRef.current);
-  }, [zoomByStep]);
-  const handleZoomOut = useCallback(() => handleZoom(1 / PREVIEW_ZOOM_STEP), [handleZoom]);
-  const handleZoomIn = useCallback(() => handleZoom(PREVIEW_ZOOM_STEP), [handleZoom]);
+    setTransform(next);
+  }, [setTransform]);
+
+  // Same reset as the main Canvas ZoomIndicator; an explicit viewport choice
+  // also stops the pane's automatic re-fit.
+  const handleResetZoom = useCallback(() => {
+    userMovedRef.current = true;
+    resetTransform();
+  }, [resetTransform]);
   const handleRetry = useCallback(() => {
     setError(false);
     setLoaded(false);
@@ -346,6 +351,8 @@ export const CanvasPreview = ({
             isActive={active}
             keyboardActive={keyboardActive}
             persistViewport={false}
+            initialViewport={transform}
+            onViewportChange={handleEditorViewportChange}
             clipboard={clipboard}
             onClipboardChange={handleClipboardChange}
             onNodesChange={handleNodesChange}
@@ -359,12 +366,10 @@ export const CanvasPreview = ({
         </FileNodeEditorRegistryProvider>
         <CanvasPreviewChrome
           scale={transform.scale}
-          canFit={false}
           editingAllowed
           editing
           onEditToggle={handleEditToggle}
-          onZoomOut={handleZoomOut}
-          onZoomIn={handleZoomIn}
+          onResetZoom={handleResetZoom}
           onFit={handleFitAll}
         />
         {tabChatAction}
@@ -441,12 +446,10 @@ export const CanvasPreview = ({
           )}
           <CanvasPreviewChrome
             scale={transform.scale}
-            canFit={visibleNodes.length > 0}
             editingAllowed={editingAllowed}
             editing={false}
             onEditToggle={handleEditToggle}
-            onZoomOut={handleZoomOut}
-            onZoomIn={handleZoomIn}
+            onResetZoom={handleResetZoom}
             onFit={handleFitAll}
           />
           {tabChatAction}

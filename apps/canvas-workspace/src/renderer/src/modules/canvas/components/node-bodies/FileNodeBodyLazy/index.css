@@ -7,3 +7,53 @@
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+
+/* The preview inherits every document rule from `.note-tiptap-editor
+ * .ProseMirror`. Only differences that come from the DOM source, not from
+ * the document styles, are normalized here. ProseMirror's base stylesheet is
+ * injected when the first editor mounts, so the preview states its whitespace
+ * and ligature rules itself instead of depending on load order. */
+.note-markdown-preview {
+  white-space: normal;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0;
+}
+
+/* Markdown-it never leaves newlines inside code, so code keeps the editor's
+ * pre-wrap spacing without turning block separators into blank lines. */
+.note-markdown-preview pre,
+.note-markdown-preview code {
+  white-space: pre-wrap;
+}
+
+/* The copy action overlays the code block; it never adds a header row. */
+.note-markdown-preview .note-code-block {
+  position: relative;
+}
+
+.note-markdown-preview .note-code-block-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--note-code-block-bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.note-markdown-preview .note-code-block:hover .note-code-block-copy,
+.note-markdown-preview .note-code-block-copy:focus-visible {
+  opacity: 1;
+}
+
+.note-markdown-preview .note-code-block-copy:hover {
+  color: var(--text);
+}

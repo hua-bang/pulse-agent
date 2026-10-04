@@ -32,5 +32,5 @@ export const PassiveFilePreview = ({ node, readOnly, onUpdate, onContent, onErro
     setModified: ignoreModified,
     onStatus: (state) => { if (state === 'error') onError(); },
   });
-  return <MarkdownPreview content={content} softBreaks={false} />;
+  return <MarkdownPreview content={content} softBreaks={false} variant="note" />;
 };
