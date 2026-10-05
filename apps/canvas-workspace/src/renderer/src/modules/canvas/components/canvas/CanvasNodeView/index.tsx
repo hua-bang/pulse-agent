@@ -91,6 +91,7 @@ const CanvasNodeViewComponent = ({
     return (
       <ImageCanvasNode
         classes={viewModel.classes}
+        handleAddToChat={onAddToChat ? viewModel.handleAddToChat : undefined}
         handleClose={viewModel.handleClose}
         handleNodeClick={viewModel.handleNodeClick}
         handleToggleFullscreen={viewModel.handleToggleFullscreen}
@@ -110,6 +111,7 @@ const CanvasNodeViewComponent = ({
     return (
       <ShapeCanvasNode
         classes={viewModel.classes}
+        handleAddToChat={onAddToChat ? viewModel.handleAddToChat : undefined}
         handleClose={viewModel.handleClose}
         handleNodeClick={viewModel.handleNodeClick}
         isSelected={isSelected}

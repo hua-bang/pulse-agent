@@ -27,6 +27,7 @@ describe('global knowledge selection prompt', () => {
     expect(prompt).toContain('Do not call an App entrypoint/library/display tool merely to summarize');
     expect(prompt).toContain('Open an App only when the user explicitly requests');
     expect(prompt).toContain('coordinates only when the user explicitly asks');
+    expect(prompt).toContain('`@[node:<nodeId>|<label>]`');
   });
 
   it('does not impose selected-node rules on a turn without node references', () => {
