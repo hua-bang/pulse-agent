@@ -4,7 +4,7 @@
  * Interaction model:
  *  - Idle: no card chrome. Formatted markdown sits on the canvas.
  *  - Hover / selected: a compact floating toolbar appears above the node with
- *    the two color pickers and the delete button. The title is intentionally
+ *    the two color pickers, add-to-chat, and delete. The title is intentionally
  *    hidden so the node reads as "a piece of text".
  *  - Click-drag: moves the node.
  *  - Double-click: enters editing mode (tiptap WYSIWYG).
@@ -91,8 +91,17 @@
   pointer-events: auto;
 }
 
+/* `content-visibility: auto` (CanvasNodeView/index.css) implies paint
+ * containment, which clips the toolbar sitting above the node box.
+ * Lift it while the toolbar is shown. */
+.canvas-node--text:hover,
+.canvas-node--text.canvas-node--selected {
+  content-visibility: visible;
+}
+
 /* Hide the badge, title, and focus button — text nodes have no identity
- * beyond their text. The toolbar shows only color pickers + delete. */
+ * beyond their text. The toolbar shows color pickers, add-to-chat, and
+ * delete. */
 .canvas-node--text .node-type-badge,
 .canvas-node--text .node-title,
 .canvas-node--text .node-focus {

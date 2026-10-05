@@ -1,12 +1,13 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasNode } from '../../../../../types';
 import { ShapeNodeBody, ShapeStylePicker } from '../../node-bodies/ShapeNodeBody';
-import { CloseButton } from './NodeButtons';
+import { AddToChatButton, CloseButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
 
 interface ShapeCanvasNodeProps {
   classes: string;
+  handleAddToChat?: (e: MouseEvent) => void;
   handleClose: (e: MouseEvent) => void;
   handleNodeClick: (e: MouseEvent) => void;
   isSelected: boolean;
@@ -21,6 +22,7 @@ interface ShapeCanvasNodeProps {
 
 export const ShapeCanvasNode = ({
   classes,
+  handleAddToChat,
   handleClose,
   handleNodeClick,
   isSelected,
@@ -44,6 +46,7 @@ export const ShapeCanvasNode = ({
       />
     </div>
     {isSelected && !readOnly && <ShapeStylePicker node={node} onUpdate={onUpdate} />}
+    {handleAddToChat ? <AddToChatButton floating onClick={handleAddToChat} /> : null}
     {readOnly ? null : <CloseButton floating onClick={handleClose} />}
     <NodeResizeHandles
       isFullscreen={false}

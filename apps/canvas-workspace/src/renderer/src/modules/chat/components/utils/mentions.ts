@@ -1,5 +1,6 @@
 import { fileMentionIconMarkup, fileMentionLabel } from './fileMentionPresentation';
 import type { CanvasNode } from '../../../../types';
+import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, PLUGIN_MENTION_PREFIX, ROLE_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAB_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../ChatMentionPopup/constants';
 import type { MentionItem } from '../../../../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
@@ -147,6 +148,17 @@ export function parseSessionMention(rawLabel: string): SessionMentionRef | null 
 // governance gate); re-exported so existing importers are unaffected.
 export { MentionNodeIcon, mentionIconSvg };
 
+/**
+ * Resolve a plain `@[label]` node marker. Composer chips serialize the node's
+ * display label (text preview, mindmap root, reference snapshot), so match
+ * that first; fall back to the raw title for agent-written markers.
+ */
+export function findMentionedNode(nodes: CanvasNode[] | undefined, label: string): CanvasNode | undefined {
+  if (!nodes) return undefined;
+  return nodes.find(node => getNodeDisplayLabel(node) === label)
+    ?? nodes.find(node => node.title === label);
+}
+
 export function getMentionNodeType(item: MentionItem, nodes?: CanvasNode[]): string {
   if (item.type === 'skill') return 'skill';
   if (item.type === 'plugin') return 'plugin';
@@ -156,7 +168,7 @@ export function getMentionNodeType(item: MentionItem, nodes?: CanvasNode[]): str
   if (item.type === 'dom') return 'dom';
   if (item.type === 'tab') return tabMentionIconType(item.tab?.kind);
 
-  return nodes?.find(node => node.title === item.label)?.type ?? item.nodeType ?? 'file';
+  return findMentionedNode(nodes, item.label)?.type ?? item.nodeType ?? 'file';
 }
 
 // serializeEditable lives in its own module (keeps this file under the
@@ -406,7 +418,7 @@ export function renderMdWithMentions(
       return `<span class="chat-mention-chip chat-mention-chip--session"><span class="chat-mention-chip-label">${escapeHtml(rawLabel.slice(SESSION_MENTION_PREFIX.length))}</span></span>`;
     }
 
-    const node = nodes?.find(item => item.title === rawLabel);
+    const node = findMentionedNode(nodes, rawLabel);
     const nodeType = node?.type ?? 'file';
     const nodeId = node?.id ?? '';
     const filePath = node ? '' : resolveMentionFilePath(options?.rootFolder, rawLabel);

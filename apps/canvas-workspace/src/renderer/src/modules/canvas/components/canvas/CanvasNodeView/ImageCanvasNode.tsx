@@ -4,12 +4,13 @@ import { copyTextToClipboard } from '../../../../../utils/clipboard';
 import { toFileUrl } from '../../../../../utils/fileUrl';
 import { useAppShell } from '../../../../../shared/appShell';
 import { ImageNodeBody } from '../../node-bodies/ImageNodeBody';
-import { CloseButton, CopyImageButton, FullscreenButton } from './NodeButtons';
+import { AddToChatButton, CloseButton, CopyImageButton, FullscreenButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
 
 interface ImageCanvasNodeProps {
   classes: string;
+  handleAddToChat?: (e: MouseEvent) => void;
   handleClose: (e: MouseEvent) => void;
   handleNodeClick: (e: MouseEvent) => void;
   handleToggleFullscreen: (e: MouseEvent) => void;
@@ -25,6 +26,7 @@ interface ImageCanvasNodeProps {
 
 export const ImageCanvasNode = ({
   classes,
+  handleAddToChat,
   handleClose,
   handleNodeClick,
   handleToggleFullscreen,
@@ -88,6 +90,7 @@ export const ImageCanvasNode = ({
         />
       </div>
       {imageFilePath ? <CopyImageButton onClick={handleCopyImage} /> : null}
+      {handleAddToChat ? <AddToChatButton floating onClick={handleAddToChat} /> : null}
       {supportsFullscreen ? (
         <FullscreenButton floating isFullscreen={isFullscreen} onClick={handleToggleFullscreen} />
       ) : null}

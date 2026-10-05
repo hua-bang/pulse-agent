@@ -248,13 +248,24 @@
   z-index: 5;
 }
 
-.node-copy-image--floating {
+.node-copy-image--floating,
+.node-add-to-chat--floating {
   position: absolute;
   top: 4px;
   right: 56px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   z-index: 5;
+}
+
+/* Image nodes: left of copy-image. Shape nodes have only the close
+ * button, so the chat button takes the next slot. */
+.node-add-to-chat--floating {
+  right: 82px;
+}
+
+.canvas-node--shape .node-add-to-chat--floating {
+  right: 30px;
 }
 
 /* Fullscreen node. The parent `.canvas-transform` has its transform

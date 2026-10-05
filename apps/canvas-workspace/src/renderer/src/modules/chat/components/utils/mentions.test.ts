@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildTabMentionItems, collectTabRefsFromEditable, createMentionChipElement, parseTabMention, renderMdWithMentions } from './mentions';
 import { serializeEditable } from './serializeEditable';
+import type { CanvasNode } from '../../../../types';
+import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
 
 const domLabel = 'header: Fancy Builder [...truncated]';
 
@@ -74,6 +76,36 @@ describe('chat mention rendering', () => {
       '__global_chat__',
       'workspace-1',
     ]);
+  });
+
+  it('resolves sent node chips whose display label differs from the title', () => {
+    const node = (id: string, type: CanvasNode['type'], title: string, data: unknown) => (
+      { id, type, title, x: 0, y: 0, width: 100, height: 100, data } as CanvasNode
+    );
+    const nodes = [
+      node('text-1', 'text', 'Text', { content: '<p>如何理解 Harness 工程</p>' }),
+      node('mindmap-1', 'mindmap', 'Mindmap', { root: { id: 'r', text: 'Roadmap', children: [] } }),
+      node('ref-1', 'reference', 'Reference', { titleSnapshot: 'Spec doc' }),
+      node('file-1', 'file', 'Notes', {}),
+    ];
+    for (const target of nodes) {
+      const chip = createMentionChipElement({
+        type: 'node',
+        nodeId: target.id,
+        label: getNodeDisplayLabel(target),
+        nodeType: target.type,
+      }, nodes);
+      const editable = document.createElement('div');
+      editable.appendChild(chip);
+      const container = document.createElement('div');
+      container.innerHTML = renderMdWithMentions(serializeEditable(editable), nodes, { rootFolder: '/project' });
+      const rendered = container.querySelector<HTMLElement>('.chat-mention-chip');
+
+      expect(rendered?.dataset.nodeId).toBe(target.id);
+      expect(rendered?.dataset.nodeType).toBe(target.type);
+      expect(rendered?.dataset.filePath).toBeUndefined();
+      expect(rendered?.classList.contains('chat-mention-chip--clickable')).toBe(true);
+    }
   });
 
   it('serializes DOM selection labels with bracket-safe encoding', () => {

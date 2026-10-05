@@ -169,9 +169,15 @@ export const AddToCanvasButton = ({ onClick }: { onClick: (e: MouseEvent) => voi
   </button>
 );
 
-export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+export const AddToChatButton = ({
+  floating,
+  onClick,
+}: {
+  floating?: boolean;
+  onClick: (e: MouseEvent) => void;
+}) => (
   <button
-    className="node-add-to-chat"
+    className={`node-add-to-chat${floating ? ' node-add-to-chat--floating' : ''}`}
     type="button"
     onClick={onClick}
     onMouseDown={(e) => e.stopPropagation()}
