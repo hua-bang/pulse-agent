@@ -14,6 +14,8 @@ export const DOM_MENTION_PREFIX = 'dom:';
 export const TAB_MENTION_PREFIX = 'tab:';
 /** Assistant-emitted session citation: `@[session:<wsId>:<sessionId>:<msgIdx?>|<label>]`. */
 export const SESSION_MENTION_PREFIX = 'session:';
+/** Canvas node: `@[node:<workspaceId?>:<nodeId>|<label>]`; legacy `@[<label>]` still resolves by label. */
+export const NODE_MENTION_PREFIX = 'node:';
 
 export const MENTION_GROUPS = [
   { key: 'role', label: 'Roles', labelKey: 'chat.mention.role' },

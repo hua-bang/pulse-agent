@@ -10,6 +10,7 @@ import { writeDomSelectionDataset } from './domMentionData';
 import { roleColorSoft } from '../../../../utils/roleColors';
 import { sessionTitleText } from './sessionTitle';
 import { pluginMentionIconMarkup } from './pluginMentionIcons';
+import { buildNodeMentionMarker, parseNodeMention } from './nodeMentions';
 import {
   buildTabMentionChip,
   renderTabMentionHtml,
@@ -289,7 +290,9 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
           ? `${TAG_MENTION_PREFIX}${item.label}`
           : isDom
             ? `${DOM_MENTION_PREFIX}${item.domSelection?.id ?? item.label}|${encodeMentionPart(item.label)}`
-            : item.label;
+            : isNode && item.nodeId
+              ? buildNodeMentionMarker({ nodeId: item.nodeId, workspaceId: item.workspaceId, label: item.label })
+              : item.label;
   chip.dataset.nodeType = nodeType;
 
   // data-mention-kind + ids let the composer collect structured, workspace-aware
@@ -334,6 +337,15 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
 // collectContextRefsFromEditable moved to ./contextRefs (500-line gate);
 // re-exported so existing importers are unaffected.
 export { collectContextRefsFromEditable } from './contextRefs';
+
+/** Node chip; clickable only when it resolved to a node on this canvas. */
+function nodeChipHtml(node: CanvasNode | undefined, label: string): string {
+  const nodeType = node?.type ?? 'file';
+  const nodeId = node?.id ?? '';
+  const clickableClass = nodeId ? ' chat-mention-chip--clickable' : '';
+  const interactiveAttrs = nodeId ? ' role="button" tabindex="0"' : '';
+  return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${interactiveAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(label)}</span></span>`;
+}
 
 export function renderMdWithMentions(
   content: string,
@@ -418,17 +430,22 @@ export function renderMdWithMentions(
       return `<span class="chat-mention-chip chat-mention-chip--session"><span class="chat-mention-chip-label">${escapeHtml(rawLabel.slice(SESSION_MENTION_PREFIX.length))}</span></span>`;
     }
 
+    const nodeRef = parseNodeMention(rawLabel);
+    if (nodeRef) {
+      // Resolve by id only: it survives renames and duplicate titles, and a
+      // deleted node must not jump to a same-named one. A resolved chip shows
+      // the node's current label. The raw lookup keeps a legacy marker whose
+      // title merely starts with `node:` working.
+      const byId = nodes?.find(item => item.id === nodeRef.nodeId);
+      const legacy = byId ? undefined : findMentionedNode(nodes, rawLabel);
+      const label = byId ? getNodeDisplayLabel(byId) : legacy ? rawLabel : nodeRef.label;
+      return nodeChipHtml(byId ?? legacy, label);
+    }
+
     const node = findMentionedNode(nodes, rawLabel);
-    const nodeType = node?.type ?? 'file';
-    const nodeId = node?.id ?? '';
     const filePath = node ? '' : resolveMentionFilePath(options?.rootFolder, rawLabel);
-    const filePathAttrs = filePath
-      ? ` data-file-path="${escapeHtml(filePath)}" title="${escapeHtml(filePath)}"`
-      : '';
-    const clickableClass = nodeId || filePath ? ' chat-mention-chip--clickable' : '';
-    const interactiveAttrs = nodeId || filePath ? ' role="button" tabindex="0"' : '';
-    if (filePath) return `<span class="chat-mention-chip chat-mention-chip--file${clickableClass}" data-node-type="file"${filePathAttrs}${interactiveAttrs}><span class="chat-mention-chip-icon">${fileMentionIconMarkup(filePath)}</span><span class="chat-mention-chip-label">${escapeHtml(fileMentionLabel(filePath))}</span></span>`;
-    return `<span class="chat-mention-chip${clickableClass}" data-node-type="${escapeHtml(nodeType)}" data-node-id="${escapeHtml(nodeId)}"${filePathAttrs}${interactiveAttrs}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${escapeHtml(rawLabel)}</span></span>`;
+    if (filePath) return `<span class="chat-mention-chip chat-mention-chip--file chat-mention-chip--clickable" data-node-type="file" data-file-path="${escapeHtml(filePath)}" title="${escapeHtml(filePath)}" role="button" tabindex="0"><span class="chat-mention-chip-icon">${fileMentionIconMarkup(filePath)}</span><span class="chat-mention-chip-label">${escapeHtml(fileMentionLabel(filePath))}</span></span>`;
+    return nodeChipHtml(node, rawLabel);
   }));
 
   const withRoles = options?.roleNames

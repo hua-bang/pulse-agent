@@ -105,6 +105,11 @@ describe('chat mention rendering', () => {
       expect(rendered?.dataset.nodeType).toBe(target.type);
       expect(rendered?.dataset.filePath).toBeUndefined();
       expect(rendered?.classList.contains('chat-mention-chip--clickable')).toBe(true);
+
+      // Messages saved before id markers carry only the display label.
+      const legacy = document.createElement('div');
+      legacy.innerHTML = renderMdWithMentions(`@[${getNodeDisplayLabel(target)}]`, nodes, { rootFolder: '/project' });
+      expect(legacy.querySelector<HTMLElement>('.chat-mention-chip')?.dataset.nodeId).toBe(target.id);
     }
   });
 

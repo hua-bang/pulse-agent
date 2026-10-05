@@ -1,4 +1,4 @@
-import { DOM_MENTION_PREFIX, TAB_MENTION_PREFIX } from '../ChatMentionPopup/constants';
+import { DOM_MENTION_PREFIX, NODE_MENTION_PREFIX, TAB_MENTION_PREFIX } from '../ChatMentionPopup/constants';
 import { MENTION_RE, pipedMentionLabel } from './mentionMarkers';
 import { parseTabMention } from './tabMentions';
 
@@ -10,6 +10,9 @@ export interface SessionTitlePart {
 function markerLabel(rawMarker: string): string {
   if (rawMarker.startsWith(DOM_MENTION_PREFIX)) {
     return pipedMentionLabel(rawMarker, DOM_MENTION_PREFIX, 'DOM selection');
+  }
+  if (rawMarker.startsWith(NODE_MENTION_PREFIX)) {
+    return pipedMentionLabel(rawMarker, NODE_MENTION_PREFIX, 'Node');
   }
   if (rawMarker.startsWith(TAB_MENTION_PREFIX)) {
     return parseTabMention(rawMarker)?.label ?? 'Tab';

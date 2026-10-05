@@ -29,6 +29,7 @@ export function formatSelectionFocusBlock(
     'For summaries, explanations, and questions about these nodes, answer from the referenced node content first. If it answers the question, stop gathering data and respond. Read additional sources only for specific missing information the user needs.',
     'A node mention identifies an existing object to inspect; it is not a request to open or render another App. For MCP App nodes, use the live visible-ui and model-context snapshots returned by the node read. The opening tool-result is background data and may include items outside the current view. Do not call an App entrypoint/library/display tool merely to summarize or inspect that node, and do not create a duplicate App in chat. Open an App only when the user explicitly requests opening, showing, or interacting with it.',
     'Interpret questions about what is on/in an App as questions about its displayed contents. Use canvas layout coordinates only when the user explicitly asks about spatial placement or neighboring nodes.',
+    'Node chips in messages are written `@[node:<nodeId>|<label>]` (another workspace: `@[node:<workspaceId>:<nodeId>|<label>]`). The id is authoritative; the label is display text and may be stale. To point the user at a node in your reply, write the same marker — it renders as a chip that focuses the node.',
   );
   return `${lines.join('\n')}\n`;
 }
