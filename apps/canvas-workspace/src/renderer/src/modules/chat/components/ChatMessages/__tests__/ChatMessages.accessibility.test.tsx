@@ -142,15 +142,15 @@ describe('ChatMessages accessibility', () => {
     expect(el.querySelector('.chat-activity-status__done')).toBeNull();
     expect(el.querySelector('.chat-activity-status__meta')).toBeNull();
     expect(el.querySelector('.chat-message-assistant .chat-message-timestamp')).toBeNull();
-    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
-
+    // Live tool details are expanded by default.
     const details = el.querySelector<HTMLButtonElement>('.chat-activity-status__details');
-    expect(details?.getAttribute('aria-expanded')).toBe('false');
-    await act(async () => details?.click());
     expect(details?.getAttribute('aria-expanded')).toBe('true');
-    expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
     expect(el.querySelector('.chat-tool-details-reveal')?.classList.contains('chat-tool-details-reveal--open')).toBe(true);
     expect(el.querySelector('.chat-tool-call')).not.toBeNull();
+    await act(async () => details?.click());
+    expect(details?.getAttribute('aria-expanded')).toBe('false');
+    expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
+    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('uses one details toggle for ordered tools before text arrives', async () => {
@@ -169,13 +169,13 @@ describe('ChatMessages accessibility', () => {
 
     expect(el.querySelector('.chat-tool-calls--collapsed')).toBeNull();
     expect(el.querySelector('.chat-tool-calls-section-header')).toBeNull();
-    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
-    const toggle = el.querySelector<HTMLButtonElement>('.chat-activity-status__details');
-    await act(async () => toggle?.click());
     expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('false');
     expect(el.querySelector('.chat-tool-call-label')?.textContent).toBe('Ran command');
+    const toggle = el.querySelector<HTMLButtonElement>('.chat-activity-status__details');
     await act(async () => toggle?.click());
     expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('true');
+    await act(async () => toggle?.click());
+    expect(el.querySelector('.chat-tool-details-reveal')?.getAttribute('aria-hidden')).toBe('false');
   });
 
   it('shows the overall Working status before the first stream event arrives', async () => {
@@ -213,9 +213,15 @@ describe('ChatMessages accessibility', () => {
       },
     );
 
-    expect(el.querySelector('.chat-activity-status__label')?.textContent)
+    // Expanded by default: the details row names the action, the summary does not repeat it.
+    expect(el.querySelector('.chat-activity-status__label')?.textContent).toBe('Working');
+    expect(el.querySelector('.chat-tool-call-label')?.textContent)
       .toBe('Search GitHub PRs related to Agent Plugins support');
     expect(el.querySelector('.chat-activity-status__elapsed')?.textContent).toMatch(/^8s$/);
+
+    await act(async () => el.querySelector<HTMLButtonElement>('.chat-activity-status__details')?.click());
+    expect(el.querySelector('.chat-activity-status__label')?.textContent)
+      .toBe('Search GitHub PRs related to Agent Plugins support');
   });
 
   it('returns to Working after a command settles', async () => {

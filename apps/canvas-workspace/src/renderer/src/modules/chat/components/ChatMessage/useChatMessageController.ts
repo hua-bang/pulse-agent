@@ -78,7 +78,8 @@ export const useChatMessageController = ({
     ?? (message.role === 'assistant' ? t('chat.assistantSpeaker') : t('chat.userSpeaker'));
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [liveToolDetailsOpen, setLiveToolDetailsOpen] = useState(false);
+  // Live tool details start open; the user can still collapse them.
+  const [liveToolDetailsOpen, setLiveToolDetailsOpen] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
   const canEdit = message.role === 'user' && !!onEditUserMessage && !loading && !isStreaming;
