@@ -1,13 +1,31 @@
 /* ─── Messages ─────────────────────────────────────────────── */
 
-/* Positioning context for the floating "jump to latest" pill; owns the
-   flex slot so the inner scroll container can keep its existing rules. */
+/* Owns the flex slot: the scrolling viewport on top, then the docked
+   clarification card, so the card never moves with scrolled history. */
 .chat-messages-wrap {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Positioning context for the floating "jump to latest" pill. */
+.chat-messages-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-clarify-dock {
+  flex: none;
+  max-height: 60%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 18px 0;
+  background: white;
 }
 
 .chat-jump-latest {

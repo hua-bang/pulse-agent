@@ -179,60 +179,80 @@ export const ChatMessages = ({
       >
         {turnAnnouncement}
       </span>
-      <div
-        ref={containerRef}
-        className={`chat-messages${loading ? ' chat-messages--loading' : ''}${sessionLoading ? ' chat-messages--session-loading' : ''}`}
-        onClick={handleMessageClick}
-        onKeyDown={handleMessageKeyDown}
-        onScroll={handleScroll}
-        role="log"
-        aria-label={t('chat.conversationMessages')}
-        aria-live="polite"
-        aria-relevant="additions"
-        aria-busy={sessionLoading || undefined}
-      >
-        {skeletonVisible ? <ChatThreadSkeleton /> : <>
-        {messages.map((message, index) => {
-          const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
-          const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
-          return (
-            <ChatMessage
-              key={index}
-              index={index}
-              message={message}
-              isStreaming={isStreaming}
-              loading={loading || sessionLoading || interactionDisabled}
-              tools={tools}
-              collapsed={collapsedSections.has(index)}
-              expandedTools={expandedTools}
-              nodes={nodes}
-              workspaceId={workspaceId}
-              rootFolder={rootFolder}
-              onToggleSection={rowHandlers.onToggleSection}
-              onToggleToolExpand={rowHandlers.onToggleToolExpand}
-              onAddImageToCanvas={rowHandlers.onAddImageToCanvas}
-              anchorId={buildAnchorElementId(workspaceId, index)}
-              onEditUserMessage={rowHandlers.onEditUserMessage}
-              onRegenerate={rowHandlers.onRegenerate}
-              onFork={rowHandlers.onFork}
-              hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
-              hasLaterTurns={index < latestUserMessageIndex}
-              getLaterMessageCount={getLaterMessageCount}
-              turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
-              onSessionJump={rowHandlers.onSessionJump}
+      <div className="chat-messages-viewport">
+        <div
+          ref={containerRef}
+          className={`chat-messages${loading ? ' chat-messages--loading' : ''}${sessionLoading ? ' chat-messages--session-loading' : ''}`}
+          onClick={handleMessageClick}
+          onKeyDown={handleMessageKeyDown}
+          onScroll={handleScroll}
+          role="log"
+          aria-label={t('chat.conversationMessages')}
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-busy={sessionLoading || undefined}
+        >
+          {skeletonVisible ? <ChatThreadSkeleton /> : <>
+          {messages.map((message, index) => {
+            const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
+            const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
+            return (
+              <ChatMessage
+                key={index}
+                index={index}
+                message={message}
+                isStreaming={isStreaming}
+                loading={loading || sessionLoading || interactionDisabled}
+                tools={tools}
+                collapsed={collapsedSections.has(index)}
+                expandedTools={expandedTools}
+                nodes={nodes}
+                workspaceId={workspaceId}
+                rootFolder={rootFolder}
+                onToggleSection={rowHandlers.onToggleSection}
+                onToggleToolExpand={rowHandlers.onToggleToolExpand}
+                onAddImageToCanvas={rowHandlers.onAddImageToCanvas}
+                anchorId={buildAnchorElementId(workspaceId, index)}
+                onEditUserMessage={rowHandlers.onEditUserMessage}
+                onRegenerate={rowHandlers.onRegenerate}
+                onFork={rowHandlers.onFork}
+                hideStoppedOutcome={message.turnStatus === 'stopped' && index < latestUserMessageIndex}
+                hasLaterTurns={index < latestUserMessageIndex}
+                getLaterMessageCount={getLaterMessageCount}
+                turnStartedAt={isStreaming ? messages[latestUserMessageIndex]?.timestamp : undefined}
+                onSessionJump={rowHandlers.onSessionJump}
+              />
+            );
+          })}
+          {replyMissing && (
+            <ChatInterruptedTurn
+              userIndex={latestUserMessageIndex}
+              onRetry={interactionDisabled ? undefined : rowHandlers.onRegenerate}
             />
-          );
-        })}
-        {replyMissing && (
-          <ChatInterruptedTurn
-            userIndex={latestUserMessageIndex}
-            onRetry={interactionDisabled ? undefined : rowHandlers.onRegenerate}
-          />
+          )}
+          {(loading || pendingLabel) && !hasStreamingAssistantMessage && (
+            <LoadingPlaceholder label={pendingLabel} startedAt={messages[messages.length - 1]?.timestamp} />
+          )}
+          </>}
+          <div ref={messagesEndRef} />
+        </div>
+        {!atBottom && messages.length > 0 && !sessionLoading && (
+          <button
+            type="button"
+            className="chat-jump-latest"
+            onClick={() => scrollToLatest('smooth')}
+            aria-label={t('chat.jumpToLatest')}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v9.5M8 12.5L4.5 9M8 12.5L11.5 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {t('chat.jumpToLatest')}
+          </button>
         )}
-        {(loading || pendingLabel) && !hasStreamingAssistantMessage && (
-          <LoadingPlaceholder label={pendingLabel} startedAt={messages[messages.length - 1]?.timestamp} />
-        )}
-        {pendingClarify && (
+      </div>
+      {/* Docked outside the scroller so it stays put while history scrolls. */}
+      {pendingClarify && !skeletonVisible && (
+        <div className="chat-clarify-dock">
           <ChatClarificationCard
             pendingClarify={pendingClarify}
             clarifyInput={clarifyInput}
@@ -242,22 +262,7 @@ export const ChatMessages = ({
             onInputChange={onClarifyInputChange}
             onAnswer={onAnswerClarification}
           />
-        )}
-        </>}
-        <div ref={messagesEndRef} />
-      </div>
-      {!atBottom && messages.length > 0 && !sessionLoading && (
-        <button
-          type="button"
-          className="chat-jump-latest"
-          onClick={() => scrollToLatest('smooth')}
-          aria-label={t('chat.jumpToLatest')}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3v9.5M8 12.5L4.5 9M8 12.5L11.5 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {t('chat.jumpToLatest')}
-        </button>
+        </div>
       )}
     </div>
   );
