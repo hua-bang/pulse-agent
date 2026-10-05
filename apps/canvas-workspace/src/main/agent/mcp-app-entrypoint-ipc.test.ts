@@ -44,7 +44,19 @@ const libraryTray = {
   registeredToolName: 'mcp_cad_cad_tray',
   entrypoints: [{ namespace: 'openai/ui', type: 'thread', options: {} }],
 };
-const apps = [library, libraryTray, board, inlineOnly];
+// A config key with a space and slash, declaring both a Pulse node and a global app.
+const studio = {
+  serverName: 'my tools/v2',
+  toolName: 'studio',
+  registeredToolName: 'mcp_my_tools_v2_studio',
+  resourceUri: 'ui://tools/studio',
+  title: 'Studio',
+  entrypoints: [
+    { namespace: 'openai/ui', type: 'global', options: {} },
+    { namespace: 'pulse/ui', type: 'node', options: { nodeType: 'tools.studio' } },
+  ],
+};
+const apps = [library, libraryTray, board, inlineOnly, studio];
 
 describe('MCP App entrypoint IPC', () => {
   const executeMcpAppTool = vi.fn(async () => ({ content: [], structuredContent: { page: 'library' } }));
@@ -89,8 +101,33 @@ describe('MCP App entrypoint IPC', () => {
           nodeType: 'acme.board',
           defaultSize: { width: 2000, height: 200 },
         },
+        {
+          serverName: 'my tools/v2',
+          toolName: 'studio',
+          resourceUri: 'ui://tools/studio',
+          title: 'Studio',
+          kind: 'node',
+          nodeType: 'tools.studio',
+        },
       ],
     });
+  });
+
+  it('lists every entrypoint of a requested kind, even behind a preferred node entrypoint', async () => {
+    const list = electron.handlers.get('canvas-agent:mcp-app-list-entrypoints')!;
+    const result = await list(event, { scope, kind: 'global' });
+    expect(result.value.map((item: { toolName: string; kind: string }) => [item.toolName, item.kind])).toEqual([
+      ['cad.library', 'global'],
+      ['studio', 'global'],
+    ]);
+  });
+
+  it('opens entrypoints of servers whose config key has spaces or slashes', async () => {
+    const open = electron.handlers.get('canvas-agent:mcp-app-open-entrypoint')!;
+    await expect(open(event, { scope, serverName: 'my tools/v2', toolName: 'studio' }))
+      .resolves.toMatchObject({ ok: true });
+    await expect(open(event, { scope, serverName: 'bad\nname', toolName: 'studio' }))
+      .resolves.toMatchObject({ ok: false });
   });
 
   it('opens a declared entrypoint with {} and no approval prompt', async () => {

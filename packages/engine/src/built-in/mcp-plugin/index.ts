@@ -452,6 +452,8 @@ function toolEntrypoints(tool: unknown): MCPAppEntrypoint[] {
 
 const MAX_ICONS_PER_TOOL = 8;
 const MAX_ICON_SRC_LENGTH = 512 * 1024;
+/** Registration waits this long for the icon read, then registers without icons. */
+const ICON_PROBE_TIMEOUT_MS = 2_000;
 
 function parseIcons(value: unknown): MCPAppIcon[] {
   if (!Array.isArray(value)) return [];
@@ -478,7 +480,8 @@ function parseIcons(value: unknown): MCPAppIcon[] {
  * `client.tools()` drops the MCP `icons` field, so app tools with entrypoints
  * re-read it from `tools/list`. `listTools` is the method `tools()` itself
  * calls but is not on the public `MCPClient` type: treat it as best effort,
- * and never let a failure here affect the server's tools.
+ * and never let a failure here affect the server's tools. It runs outside the
+ * startup timeout, so a slow read never fails the server.
  */
 async function readEntrypointToolIcons(
   client: MCPClient,
@@ -499,6 +502,21 @@ async function readEntrypointToolIcons(
     return icons;
   } catch {
     return {};
+  }
+}
+
+async function settleIconProbe(
+  probe: Promise<Record<string, MCPAppIcon[]>>,
+): Promise<Record<string, MCPAppIcon[]>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<Record<string, MCPAppIcon[]>>((resolve) => {
+    timer = setTimeout(() => resolve({}), ICON_PROBE_TIMEOUT_MS);
+    (timer as { unref?: () => void }).unref?.();
+  });
+  try {
+    return await Promise.race([probe, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -533,7 +551,8 @@ export const DEFAULT_MCP_STARTUP_TIMEOUT_MS = 30_000;
 interface StartedServer {
   client: MCPClient;
   tools: Record<string, unknown>;
-  toolIcons: Record<string, MCPAppIcon[]>;
+  /** Started after `tools()` and settled during registration, never awaited by startup. */
+  toolIcons: Promise<Record<string, MCPAppIcon[]>>;
 }
 
 type ServerStartup =
@@ -698,7 +717,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
             try {
               const tools = await client.tools();
               timing.listToolsMs = Date.now() - timing.startedAt - timing.connectMs;
-              const toolIcons = await readEntrypointToolIcons(client, tools);
+              const toolIcons = readEntrypointToolIcons(client, tools);
               return { client, tools, toolIcons };
             } catch (error) {
               closeQuietly(client);
@@ -745,7 +764,8 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           }
           continue;
         }
-        const { config: normalizedConfig, started: { client, tools, toolIcons } } = startup;
+        const { config: normalizedConfig, started: { client, tools, toolIcons: iconProbe } } = startup;
+        const toolIcons = await settleIconProbe(iconProbe);
         clients.push(client as { close?: () => Promise<void> | void });
         const shouldDeferTools = normalizedConfig.deferTools === true;
         const disabledTools = new Set(normalizedConfig.disabledTools ?? []);

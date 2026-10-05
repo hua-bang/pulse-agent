@@ -46,20 +46,54 @@ describe('createMcpAppIconResolver', () => {
       return response('', 'image/png', { status: 404 });
     });
     const resolver = createMcpAppIconResolver(fetcher);
+    // Each call stays within the per-theme candidate limit (4).
     await expect(resolver.resolve([
       { src: 'http://cdn.example/icon.svg' },
       { src: 'javascript:alert(1)' },
+      { src: 'data:text/html;base64,PHN2Zz48L3N2Zz4=' },
       { src: 'https://cdn.example/fake.png' },
+    ])).resolves.toBeUndefined();
+    await expect(resolver.resolve([
       { src: 'https://cdn.example/page.html' },
       { src: 'https://cdn.example/huge.svg' },
       { src: 'https://cdn.example/missing.png' },
-      { src: 'data:text/html;base64,PHN2Zz48L3N2Zz4=' },
     ])).resolves.toBeUndefined();
     expect(fetcher).toHaveBeenCalledTimes(4);
   });
 });
 
+describe('createMcpAppIconResolver remote safety', () => {
+  it('refuses redirects and never fetches loopback or IP-literal hosts', async () => {
+    const fetcher = vi.fn(async () => response(SVG, 'image/svg+xml'));
+    const resolver = createMcpAppIconResolver(fetcher);
+    await expect(resolver.resolve([
+      { src: 'https://localhost/icon.svg' },
+      { src: 'https://app.localhost/icon.svg' },
+      { src: 'https://127.0.0.1/icon.svg' },
+      { src: 'https://[::1]/icon.svg' },
+    ])).resolves.toBeUndefined();
+    expect(fetcher).not.toHaveBeenCalled();
+
+    await resolver.resolve([{ src: 'https://cdn.example/icon.svg' }]);
+    expect(fetcher).toHaveBeenCalledWith('https://cdn.example/icon.svg', expect.objectContaining({ redirect: 'error' }));
+  });
+});
+
 describe('withMcpAppIcons', () => {
+  it('does not hold the listing for icons that are still loading', async () => {
+    const resolver = createMcpAppIconResolver(vi.fn(() => new Promise<Response>(() => undefined)));
+    const started = Date.now();
+    const [listing] = await withMcpAppIcons(
+      [{ serverName: 'mock', toolName: 'slow', resourceUri: 'ui://mock/slow', title: 'slow', kind: 'global' }],
+      [{ serverName: 'mock', toolName: 'slow', registeredToolName: 'mcp_mock_slow', resourceUri: 'ui://mock/slow',
+        icons: Array.from({ length: 8 }, (_, i) => ({ src: `https://cdn.example/${i}.svg` })) }],
+      resolver,
+    );
+    expect(listing).not.toHaveProperty('icon');
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
+
   it('attaches icons only to listings whose tool declares one', async () => {
     const listing = (toolName: string) => ({
       serverName: 'mock', toolName, resourceUri: `ui://mock/${toolName}`, title: toolName, kind: 'global' as const,

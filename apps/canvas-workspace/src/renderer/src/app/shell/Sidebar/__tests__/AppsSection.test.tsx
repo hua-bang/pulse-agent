@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppsSection } from '../AppsSection';
 import { I18nProvider } from '../../../../i18n';
-import { globalMcpAppKey, globalMcpAppsStore } from '../../../../modules/mcp-apps';
+import { globalMcpAppKey, globalMcpAppsStore } from '../../../../modules/mcp-apps/global-apps';
 import type { McpAppEntrypointListing } from '../../../../../../shared/mcp-apps';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -98,7 +98,7 @@ interface Props {
  */
 export const GlobalMcpAppsView = ({ active, onCloseActive }: Props) => {
   const { t } = useI18n();
-  const { running, loaded } = useGlobalMcpApps();
+  const { running, loaded, error } = useGlobalMcpApps();
   const activeKey = active ? globalMcpAppKey(active) : null;
   const activeRunning = Boolean(activeKey && running.some(app => app.key === activeKey));
 
@@ -134,8 +134,16 @@ export const GlobalMcpAppsView = ({ active, onCloseActive }: Props) => {
           }}
         />
       ))}
+      {active && !activeRunning && !loaded && (
+        <div className="global-mcp-app__status">{t('mcpApp.node.opening', { title: active.toolName })}</div>
+      )}
       {active && !activeRunning && loaded && !globalMcpAppsStore.find(active) && (
-        <div className="global-mcp-app__status">{t('mcpApp.global.unavailable')}</div>
+        <div className="global-mcp-app__status">
+          <span>{error ? t('mcpApp.global.loadFailed', { error }) : t('mcpApp.global.unavailable')}</span>
+          <Button size="sm" onClick={() => { void globalMcpAppsStore.refresh(); }}>
+            {t('mcpApp.node.retry')}
+          </Button>
+        </div>
       )}
     </div>
   );

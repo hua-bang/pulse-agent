@@ -8,6 +8,10 @@ import type {
 const MAX_ICON_BYTES = 128 * 1024;
 const FETCH_TIMEOUT_MS = 5_000;
 const FAILURE_RETRY_MS = 5 * 60_000;
+/** Icons tried per theme; the rest of a long fallback list is ignored. */
+const MAX_ICON_CANDIDATES = 4;
+/** A listing waits this long for icons; slower ones land in the cache for the next listing. */
+const LISTING_ICON_DEADLINE_MS = 1_500;
 
 const ICON_KINDS: Record<string, McpAppIconImage['kind']> = {
   'image/svg+xml': 'mask',
@@ -17,13 +21,35 @@ const ICON_KINDS: Record<string, McpAppIconImage['kind']> = {
   'image/webp': 'image',
 };
 
-export type McpAppIconFetcher = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
+export type McpAppIconFetcher = (
+  url: string,
+  init: { signal: AbortSignal; redirect: 'error' },
+) => Promise<Response>;
 
 const electronFetcher: McpAppIconFetcher = async (url, init) => {
   // Chromium's network stack follows the system proxy and certificate store.
   const { net } = await import('electron');
   return net.fetch(url, init);
 };
+
+/**
+ * Remote icons come from MCP tool metadata, so the privileged main process
+ * only fetches public https hosts: no loopback names or IP literals, and
+ * redirects are refused outright (`redirect: 'error'`).
+ */
+function isFetchableIconUrl(src: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(src);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return false;
+  if (host.startsWith('[') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
+  return true;
+}
 
 const normalizeMime = (value: string | null | undefined): string | undefined => {
   const mime = value?.split(';')[0]?.trim().toLowerCase();
@@ -94,7 +120,7 @@ export function createMcpAppIconResolver(fetcher: McpAppIconFetcher = electronFe
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const response = await fetcher(icon.src, { signal: controller.signal });
+      const response = await fetcher(icon.src, { signal: controller.signal, redirect: 'error' });
       if (!response.ok) return undefined;
       const bytes = await readCapped(response);
       const mime = normalizeMime(response.headers.get('content-type')) ?? normalizeMime(icon.mimeType);
@@ -111,7 +137,7 @@ export function createMcpAppIconResolver(fetcher: McpAppIconFetcher = electronFe
     if (cached) return cached.image;
     const image = icon.src.startsWith('data:')
       ? Promise.resolve(decodeDataUri(icon))
-      : /^https:\/\//i.test(icon.src) ? fetchIcon(icon) : Promise.resolve(undefined);
+      : isFetchableIconUrl(icon.src) ? fetchIcon(icon) : Promise.resolve(undefined);
     const entry = { at: Date.now(), image };
     cache.set(icon.src, entry);
     // Retry failed remote icons later instead of on every listing refresh.
@@ -125,12 +151,13 @@ export function createMcpAppIconResolver(fetcher: McpAppIconFetcher = electronFe
 
   /** First usable icon for each theme; untagged icons serve both. */
   const resolve = async (icons: MCPAppIcon[] = []): Promise<McpAppIconSet | undefined> => {
+    // Candidates resolve in parallel; the first usable one in declared order wins.
     const pick = async (theme: 'light' | 'dark'): Promise<McpAppIconImage | undefined> => {
-      for (const icon of icons.filter(item => item.theme === theme || !item.theme)) {
-        const image = await resolveOne(icon);
-        if (image) return image;
-      }
-      return undefined;
+      const candidates = icons
+        .filter(item => item.theme === theme || !item.theme)
+        .slice(0, MAX_ICON_CANDIDATES);
+      const images = await Promise.all(candidates.map(resolveOne));
+      return images.find((image): image is McpAppIconImage => Boolean(image));
     };
     const [light, dark] = await Promise.all([pick('light'), pick('dark')]);
     const fallback = light ?? dark;
@@ -149,9 +176,19 @@ export async function withMcpAppIcons(
   apps: MCPAppToolDescriptor[],
   resolver: { resolve: (icons?: MCPAppIcon[]) => Promise<McpAppIconSet | undefined> } = defaultResolver,
 ): Promise<McpAppEntrypointListing[]> {
-  return Promise.all(listings.map(async (listing) => {
-    const app = apps.find(item => item.serverName === listing.serverName && item.toolName === listing.toolName);
-    const icon = app?.icons?.length ? await resolver.resolve(app.icons) : undefined;
-    return icon ? { ...listing, icon } : listing;
-  }));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), LISTING_ICON_DEADLINE_MS);
+  });
+  try {
+    return await Promise.all(listings.map(async (listing) => {
+      const app = apps.find(item => item.serverName === listing.serverName && item.toolName === listing.toolName);
+      const icon = app?.icons?.length
+        ? await Promise.race([resolver.resolve(app.icons), deadline])
+        : undefined;
+      return icon ? { ...listing, icon } : listing;
+    }));
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

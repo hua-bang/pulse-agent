@@ -1,4 +1,5 @@
 import type { McpAppIconImage, McpAppIconSet } from '../../../../../../shared/mcp-apps';
+import './GlobalMcpAppTile.css';
 
 const TILE_COLORS = ['#2f6fd6', '#b0570f', '#2c7a4b', '#7a4bb0', '#b03a5b', '#2f7f8c'];
 

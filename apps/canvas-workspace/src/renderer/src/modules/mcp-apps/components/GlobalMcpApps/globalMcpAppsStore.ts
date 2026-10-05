@@ -20,6 +20,8 @@ export interface GlobalMcpAppsSnapshot {
   /** OpenAI `global` entrypoints of the loaded MCP servers. */
   listings: McpAppEntrypointListing[];
   loaded: boolean;
+  /** Set when the last listing failed; the previous listings stay usable. */
+  error?: string;
   /** Opened apps, in opening order. Each keeps one live view until closed. */
   running: RunningGlobalMcpApp[];
 }
@@ -55,13 +57,18 @@ export class GlobalMcpAppsStore {
     if (this.refreshing) return this.refreshing;
     const mcpApps = window.canvasWorkspace?.agent?.mcpApps;
     if (!mcpApps) return Promise.resolve();
-    this.refreshing = mcpApps.listEntrypoints(GLOBAL_MCP_APP_SCOPE)
+    this.refreshing = mcpApps.listEntrypoints(GLOBAL_MCP_APP_SCOPE, 'global')
       .then((result) => {
-        if (!result.ok) return;
+        if (!result.ok) {
+          this.commit({ loaded: true, error: result.error ?? 'Failed to load MCP Apps' });
+          return;
+        }
         const listings = (result.value ?? []).filter(listing => listing.kind === 'global');
-        this.commit({ listings, loaded: true });
+        this.commit({ listings, loaded: true, error: undefined });
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        this.commit({ loaded: true, error: error instanceof Error ? error.message : String(error) });
+      })
       .finally(() => { this.refreshing = null; });
     return this.refreshing;
   }

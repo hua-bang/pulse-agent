@@ -75,6 +75,8 @@ describe('GlobalMcpAppsStore', () => {
   it('lists only global entrypoints and keeps one instance per tool', async () => {
     const store = new GlobalMcpAppsStore();
     await store.refresh();
+    expect((window as any).canvasWorkspace.agent.mcpApps.listEntrypoints)
+      .toHaveBeenCalledWith({ kind: 'global' }, 'global');
     expect(store.getSnapshot().listings.map(item => item.toolName)).toEqual(['parts', 'board']);
 
     store.open(parts);
@@ -116,5 +118,24 @@ describe('GlobalMcpAppsView', () => {
     await act(async () => close.click());
     expect(onCloseActive).toHaveBeenCalledTimes(1);
     expect(globalMcpAppsStore.getSnapshot().running).toEqual([]);
+  });
+
+  it('shows a load failure with retry instead of a blank route', async () => {
+    const listEntrypoints = (window as any).canvasWorkspace.agent.mcpApps.listEntrypoints;
+    listEntrypoints.mockResolvedValueOnce({ ok: false, error: 'scope unavailable' });
+    const store = new GlobalMcpAppsStore();
+    await store.refresh();
+    expect(store.getSnapshot()).toMatchObject({ loaded: true, error: 'scope unavailable' });
+
+    await globalMcpAppsStore.refresh();
+    const missing = { serverName: 'mock-apps', toolName: 'gone' };
+    listEntrypoints.mockResolvedValueOnce({ ok: false, error: 'scope unavailable' });
+    await globalMcpAppsStore.refresh();
+    await render(missing);
+    expect(host.textContent).toContain('scope unavailable');
+
+    const retry = [...host.querySelectorAll('button')].find(button => button.textContent === 'Retry')!;
+    await act(async () => retry.click());
+    expect(globalMcpAppsStore.getSnapshot().error).toBeUndefined();
   });
 });

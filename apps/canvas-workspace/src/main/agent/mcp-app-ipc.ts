@@ -4,11 +4,11 @@ import type { AgentScope, AgentScopeRef } from './types';
 import type { CanvasAgentService } from './service';
 import {
   serializeMcpAppToolArguments,
+  type McpAppEntrypointKind,
   type McpAppToolApprovalResponse,
 } from '../../shared/mcp-apps';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
-import { listMcpAppEntrypoints } from './mcp-app-entrypoints';
-import { withMcpAppIcons } from './mcp-app-icons';
+import { listMcpAppEntrypoints, listMcpAppEntrypointsOfKind } from './mcp-app-entrypoints';
 import { setupMcpAppNodeContextIpc } from './mcp-app-node-context-ipc';
 
 const MAX_CONCURRENT_REQUESTS = 8;
@@ -62,8 +62,13 @@ function errorResult(error: unknown) {
   return { ok: false, error: error instanceof Error ? error.message : String(error) };
 }
 
+/**
+ * Server names are user config keys (spaces and slashes are legal) and every
+ * lookup goes through the manager, so only bound the size and reject control
+ * characters here.
+ */
 function validMcpName(value: string): boolean {
-  return value.length <= 128 && /^[a-zA-Z0-9_.-]+$/.test(value);
+  return value.length > 0 && value.length <= 128 && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 function sameScope(left: AgentScope, right: AgentScope): boolean {
@@ -130,12 +135,21 @@ async function executeWithTimeout(
 }
 
 function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
-  ipcMain.handle('canvas-agent:mcp-app-list-entrypoints', async (event, payload: AgentScopeRef) => {
+  ipcMain.handle('canvas-agent:mcp-app-list-entrypoints', async (
+    event,
+    payload: AgentScopeRef & { kind?: McpAppEntrypointKind },
+  ) => {
     try {
       return await boundedRequest(event, async () => {
         const { manager } = await managerFor(service, resolveAgentScope(payload ?? {}));
         const apps = manager.listToolApps();
-        return { ok: true, value: await withMcpAppIcons(listMcpAppEntrypoints(apps), apps) };
+        const kind = payload?.kind;
+        const listings = kind === 'node' || kind === 'global' || kind === 'thread'
+          ? listMcpAppEntrypointsOfKind(apps, kind)
+          : listMcpAppEntrypoints(apps);
+        // Icon fetching loads on first use to keep it out of the main startup entry.
+        const { withMcpAppIcons } = await import('./mcp-app-icons');
+        return { ok: true, value: await withMcpAppIcons(listings, apps) };
       });
     } catch (error) {
       return errorResult(error);

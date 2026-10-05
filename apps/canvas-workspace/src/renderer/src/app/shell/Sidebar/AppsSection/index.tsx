@@ -6,7 +6,7 @@ import {
   globalMcpAppKey,
   globalMcpAppsStore,
   useGlobalMcpApps,
-} from '../../../../modules/mcp-apps';
+} from '../../../../modules/mcp-apps/global-apps';
 import type { McpAppEntrypointListing } from '../../../../../../shared/mcp-apps';
 import './index.css';
 

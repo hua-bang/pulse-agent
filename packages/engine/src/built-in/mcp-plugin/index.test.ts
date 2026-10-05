@@ -26,6 +26,7 @@ const { fakeTools, mcpCalls, serverBehaviour, createdClients, mcpResponses } = v
     /** Raw `tools/list` entries returned by the client's `listTools()`. */
     rawTools?: unknown[];
     listToolsError?: string;
+    listToolsHang?: boolean;
   }>,
   createdClients: [] as Array<{ url?: string; close: ReturnType<typeof vi.fn> }>,
   mcpResponses: {
@@ -51,8 +52,9 @@ vi.mock('@ai-sdk/mcp', () => ({
       },
       listResources: vi.fn(async () => ({ resources: [] })),
       readResource: vi.fn(async () => mcpResponses.resource),
-      ...(behaviour.rawTools || behaviour.listToolsError ? {
+      ...(behaviour.rawTools || behaviour.listToolsError || behaviour.listToolsHang ? {
         listTools: vi.fn(async () => {
+          if (behaviour.listToolsHang) return new Promise(() => undefined);
           if (behaviour.listToolsError) throw new Error(behaviour.listToolsError);
           return { tools: behaviour.rawTools };
         }),
@@ -118,6 +120,30 @@ afterEach(async () => {
 });
 
 describe('createMcpPlugin MCP App entrypoints', () => {
+  it('keeps a server whose icon read never settles, even under a short startup timeout', async () => {
+    const cfgPath = await writeConfig({
+      cad: { transport: 'http', url: 'https://cad.example/mcp', startupTimeoutMs: 200 },
+    });
+    serverBehaviour['https://cad.example/mcp'] = {
+      tools: {
+        library: {
+          title: 'Parts Library',
+          _meta: { ui: { resourceUri: 'ui://cad/app' }, 'openai/ui': { entrypoints: [{ type: 'global' }] } },
+        } as any,
+      },
+      listToolsHang: true,
+    };
+
+    const plugin = createMcpPlugin({ configPaths: [cfgPath] });
+    const { ctx, tools, services } = makeContext();
+    await plugin.initialize(ctx);
+
+    expect(tools.mcp_cad_library).toBeDefined();
+    const [app] = (services['mcp:__apps__'] as MCPAppsManager).listToolApps();
+    expect(app).toMatchObject({ serverName: 'cad', toolName: 'library' });
+    expect(app.icons).toBeUndefined();
+  }, 10_000);
+
   it('attaches valid tool icons to entrypoint apps and survives a failed icon read', async () => {
     const cfgPath = await writeConfig({
       cad: { transport: 'http', url: 'https://cad.example/mcp' },
