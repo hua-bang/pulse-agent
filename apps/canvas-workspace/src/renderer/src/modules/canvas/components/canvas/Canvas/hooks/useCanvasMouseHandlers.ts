@@ -60,6 +60,8 @@ const isEdgeDragging = (state: EdgeInteractionState | null) =>
   || state?.kind === 'move-bend'
   || state?.kind === 'move-edge';
 
+const CANVAS_CHROME_SELECTOR = '.canvas-bottom-chrome, .canvas-fullscreen-chip';
+
 export const getCanvasInteractionShieldState = ({
   activeTool,
   directInteractionActive,
@@ -181,6 +183,11 @@ export const useCanvasMouseHandlers = ({
 
   const handleRootMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Canvas chrome (toolbar, zoom, chat launcher, fullscreen chip) owns
+      // its own clicks. A pan started here mounts the interaction shield,
+      // so the mouseup lands on the shield and the button never gets its
+      // click — the hand tool used to make every toolbar button dead.
+      if (e.target instanceof Element && e.target.closest(CANVAS_CHROME_SELECTOR)) return;
       // Pan gestures (middle-click, alt-drag, hand tool) take priority
       // over marquee — useCanvas owns those flows and they should keep
       // working from anywhere on the canvas, blank or not.

@@ -27,6 +27,29 @@ const TOOLS: Array<{
     ),
   },
   {
+    // The H shortcut enters this mode; without a button it was invisible
+    // and gave no way back except V or Escape.
+    id: 'hand',
+    labelKey: 'canvas.toolbar.panHint',
+    icon: (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M18 11V6a2 2 0 0 0-4 0" />
+        <path d="M14 10V4a2 2 0 0 0-4 0v2" />
+        <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
+        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+      </svg>
+    ),
+  },
+  {
     id: 'connect',
     labelKey: 'canvas.toolbar.connect',
     icon: (
