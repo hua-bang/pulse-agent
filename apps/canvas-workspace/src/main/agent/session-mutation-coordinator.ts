@@ -5,6 +5,7 @@ import type {
 } from './types';
 import { scopeServiceKey as scopeMutationKey } from './active-session-groups';
 import { registerWorkspaceSessionDrain, withWorkspaceRun } from './workspace-runtime-guard';
+import { clearSessionApprovalGrants } from './tool-policy';
 
 import type {
   BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSessionResult,
@@ -256,6 +257,7 @@ export class SessionMutationCoordinator {
         if (!deleted) {
           return this.failure(scope, 'Session not found', 'SESSION_NOT_FOUND');
         }
+        clearSessionApprovalGrants(sessionId);
         const activeSessionId = agent.getCurrentSessionId();
         if (activeSessionId !== deleted.activeSession.sessionId) {
           return this.failure(scope, 'Session delete left an inconsistent active session');

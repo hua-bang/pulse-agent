@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatClarificationCard } from './index';
 import { I18nProvider } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
+import { SESSION_APPROVAL_ANSWER } from '../../../../../../../shared/agent-chat';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -21,12 +22,12 @@ vi.mock('../../../../canvas/preview', () => ({
 let host: HTMLDivElement;
 let root: Root;
 const onAnswer = vi.fn().mockResolvedValue(undefined);
-const render = async (title: string, id = 'approval-1', disabled = false) => {
+const render = async (title: string, id = 'approval-1', disabled = false, allowSessionApproval = false) => {
   await act(async () => root.render(
     <I18nProvider>
       <ChatClarificationCard
         pendingClarify={{
-          id, kind: 'approval', question: 'Create this image?', context: 'Tool arguments', defaultAnswer: 'No',
+          id, kind: 'approval', question: 'Create this image?', context: 'Tool arguments', defaultAnswer: 'No', allowSessionApproval,
           nodePreview: { id, type: 'image', title, x: 0, y: 0, width: 100, height: 100, data: { filePath: '/tmp/image.png' } },
         }}
         clarifyInput=""
@@ -66,6 +67,14 @@ describe('approval preview containment', () => {
     await act(async () => buttons[0].click());
     await act(async () => buttons[1].click());
     expect(onAnswer.mock.calls).toEqual([['Yes'], ['No']]);
+  });
+
+  it('offers a session approval when the host allows it', async () => {
+    await render('valid image', 'approval-1', false, true);
+    const buttons = [...host.querySelectorAll('button')];
+    expect(buttons.map(button => button.textContent)).toEqual(['Approve', 'Approve for this session', 'Reject']);
+    await act(async () => buttons[1].click());
+    expect(onAnswer.mock.calls).toEqual([[SESSION_APPROVAL_ANSWER]]);
   });
 
   it('resets preview failure for the next approval', async () => {

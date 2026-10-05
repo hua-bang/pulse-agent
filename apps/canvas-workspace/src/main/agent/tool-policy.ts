@@ -4,6 +4,7 @@ import type { AgentScope } from './types';
 import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import type { CanvasTool, CanvasToolExecutionContext } from './tools';
 import { createApprovalNodePreview } from './approval-node-preview';
+import { SESSION_APPROVAL_ANSWER } from '../../shared/agent-chat';
 
 /**
  * Built-ins available in interactive global chat. Global chat has no ambient
@@ -152,6 +153,22 @@ function previewToolInput(input: unknown): string {
   }
 }
 
+/**
+ * In-memory "approve for this session" grants: chat session id -> tool names.
+ * Grants never persist, so an app restart asks again.
+ */
+const sessionApprovalGrants = new Map<string, Set<string>>();
+
+function sessionIdOf(context?: CanvasToolExecutionContext): string | undefined {
+  const sessionId = context?.runContext?.sessionId;
+  return typeof sessionId === 'string' && sessionId ? sessionId : undefined;
+}
+
+export function clearSessionApprovalGrants(sessionId?: string): void {
+  if (sessionId === undefined) sessionApprovalGrants.clear();
+  else sessionApprovalGrants.delete(sessionId);
+}
+
 export interface AskModeApprovalDecision {
   approved: boolean;
   toolContext?: CanvasToolExecutionContext;
@@ -183,6 +200,18 @@ export async function requestAskModeApproval(options: {
   const requestApproval = context.onClarificationRequest;
 
   const toolCallId = context.toolCallId || `${name}-${Date.now()}`;
+  const sessionId = sessionIdOf(context);
+  const approvedContext = (): CanvasToolExecutionContext => ({
+    ...context,
+    runContext: {
+      ...context.runContext,
+      approvalGrantedFor: toolCallId,
+    },
+  });
+  if (sessionId && sessionApprovalGrants.get(sessionId)?.has(name)) {
+    return { approved: true, toolContext: approvedContext() };
+  }
+
   const question = nodeCreationRequiresApproval
     ? `Confirm creating a new node on the canvas via “${name}”?`
     : `Allow ${operation} operation “${name}”?`;
@@ -193,25 +222,24 @@ export async function requestAskModeApproval(options: {
     question,
     context: `Proposed input:\n${previewToolInput(input)}`,
     defaultAnswer: 'No',
+    allowSessionApproval: Boolean(sessionId),
     timeout: 300_000,
   });
-  if (!APPROVAL_RE.test(answer.trim())) {
+  const trimmed = answer.trim();
+  if (sessionId && trimmed === SESSION_APPROVAL_ANSWER) {
+    const grants = sessionApprovalGrants.get(sessionId) ?? new Set<string>();
+    grants.add(name);
+    sessionApprovalGrants.set(sessionId, grants);
+    return { approved: true, toolContext: approvedContext() };
+  }
+  if (!APPROVAL_RE.test(trimmed)) {
     return {
       approved: false,
       error: `${name} was not approved and did not run.`,
     };
   }
 
-  return {
-    approved: true,
-    toolContext: {
-      ...context,
-      runContext: {
-        ...context.runContext,
-        approvalGrantedFor: toolCallId,
-      },
-    },
-  };
+  return { approved: true, toolContext: approvedContext() };
 }
 
 type BeforeToolCallInput = {
