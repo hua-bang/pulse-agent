@@ -64,7 +64,7 @@ const PLANNING_POLICY: ModePolicy = {
   allowedCategories: ['read', 'search', 'other'],
   disallowedCategories: ['write', 'execute'],
   notes:
-    'Planning mode is prompt-constrained only. Disallowed tool attempts are observed and logged, not hard-blocked.'
+    'Planning mode blocks tools classified as write/execute before execution; bash must pass the read-only command classifier. Blocked attempts are logged. This policy is not a process sandbox.'
 };
 
 const EXECUTING_POLICY: ModePolicy = {

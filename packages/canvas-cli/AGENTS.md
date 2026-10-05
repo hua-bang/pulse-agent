@@ -36,7 +36,7 @@ runtime-loadable plugin node behavior all belong in `apps/canvas-workspace`.
 | v2 recovery command | `src/commands/restore.ts` |
 | Consistency check + safe repair (drift/orphans/edges) | `src/commands/doctor.ts`, `src/core/doctor.ts` |
 | Layout read/validate/frame-grid | `src/commands/layout.ts`, `src/core/layout.ts` |
-| Atomic batch mutation from a plan file | `src/commands/apply.ts`, `src/core/apply.ts` |
+| Validated batch mutation and file recovery | `src/commands/apply.ts`, `src/core/apply.ts` |
 | Public core exports | `src/core/index.ts` |
 | Store safety and schema compatibility | `src/core/store.ts`, `src/core/storage-v2.ts`, `src/core/types.ts`, `src/core/constants.ts` |
 | SQLite activation, revisions, file recovery, native runtime | `src/core/sqlite-store.ts`, `src/core/sqlite-file-writes.ts`, `src/core/sqlite-doctor.ts`, `src/core/native-binding.ts`, `../storage/AGENTS.md` |

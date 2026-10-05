@@ -10,7 +10,7 @@ import type { PulseStorage } from '@pulse-coder/storage';
 import * as store from '../store';
 import * as fileWrites from '../sqlite-file-writes';
 import { writeNode } from '../nodes';
-import { applyPlan } from '../apply';
+import { applyPlan, type CanvasPlan } from '../apply';
 import { runDoctor } from '../doctor';
 
 let root: string;
@@ -130,12 +130,21 @@ describe('CLI durable file recovery', () => {
       if (basename(String(to)) === 'b.md') throw new Error('Injected second-file failure');
       return rename(from, to);
     });
-    await expect(applyPlan(workspaceId, { operations: [
+    const plan: CanvasPlan = { baseRevision: 1, operations: [
       { action: 'update', id: 'a', content: 'New A' },
       { action: 'update', id: 'b', content: 'New B' },
-    ] }, { storeDir: root })).rejects.toMatchObject({ code: 'file_write_pending' });
+    ] };
+    await expect(applyPlan(workspaceId, plan, { storeDir: root }))
+      .rejects.toMatchObject({ code: 'file_write_pending' });
     expect(await fs.readFile(pathA, 'utf8')).toBe('New A');
     expect(await fs.readFile(pathB, 'utf8')).toBe('Base B');
+    const committed = (await store.loadCanvas(workspaceId, root))!;
+    expect(committed.revision).toBeGreaterThan(plan.baseRevision!);
+    expect(committed.nodes.map(node => node.data.content)).toEqual(['New A', 'New B']);
+    // A file error is not a rolled-back plan. Recover its intents instead of replaying it.
+    await expect(applyPlan(workspaceId, plan, { storeDir: root }))
+      .resolves.toMatchObject({ ok: false, code: 'revision_conflict' });
+    expect((await active(storage => storage.fileWrites.list())).items).toHaveLength(2);
     vi.restoreAllMocks();
     const recoveredRenames = vi.spyOn(fs, 'rename');
     await runDoctor(workspaceId, { storeDir: root, repair: true });

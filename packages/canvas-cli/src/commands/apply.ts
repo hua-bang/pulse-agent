@@ -26,7 +26,7 @@ function formatApplyText(data: unknown): string {
   if (r.prunedEdges.length) lines.push(`- edges pruned with deleted nodes: ${r.prunedEdges.join(', ')}`);
   lines.push(r.dryRun
     ? `Nothing written. Current revision: ${r.revision ?? 'none'}.`
-    : `Saved atomically. Revision is now ${r.revision ?? 'unknown'}.`);
+    : `Saved. Revision is now ${r.revision ?? 'unknown'}.`);
   return lines.join('\n');
 }
 
@@ -34,8 +34,11 @@ export function registerApplyCommand(program: Command): void {
   program
     .command('apply')
     .description(
-      'Apply a batch of canvas mutations atomically from a plan file: one lock, one save, '
-      + 'all-or-nothing. Plan JSON: { workspace?, baseRevision?, operations: [{action: '
+      'Validate a complete plan, then apply it under one workspace lock. SQLite commits '
+      + 'graph changes and file intents together; file writes follow and can partially fail. '
+      + 'On file_write_pending or file_write_conflict, do not replay the plan: inspect doctor '
+      + 'and use doctor --repair for pending writes; resolve external conflicts first. '
+      + 'Legacy JSON writes do not provide a transaction across files. Plan JSON: { workspace?, baseRevision?, operations: [{action: '
       + '"create"|"update"|"delete"|"createEdge"|"deleteEdge", ...}] }. baseRevision enables '
       + 'optimistic concurrency against other CLI writers; --dry-run validates without writing.',
     )

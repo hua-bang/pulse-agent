@@ -137,3 +137,16 @@ describe('status', () => {
     expect(s.resolved.code).toBe('no_workspace_selected');
   });
 });
+
+
+describe('apply recovery guidance', () => {
+  it('explains post-commit file failures without promising cross-file atomicity', () => {
+    const apply = createCli().commands.find(command => command.name() === 'apply')!;
+    const help = apply.helpInformation().replace(/\s+/g, ' ');
+    expect(help).toContain('file writes follow and can partially fail');
+    expect(help).toContain('file_write_pending or file_write_conflict');
+    expect(help).toContain('do not replay the plan');
+    expect(help).toContain('doctor --repair');
+    expect(help).not.toMatch(/all-or-nothing|mutations atomically/);
+  });
+});

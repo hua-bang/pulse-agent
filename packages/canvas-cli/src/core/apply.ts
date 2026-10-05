@@ -22,12 +22,14 @@ import { prepareCanvasFileWrites } from './sqlite-file-writes';
 import type { CanvasEdge, CanvasNode, NodeType, Result } from './types';
 
 /**
- * `pulse-canvas apply` — atomic batch mutation from a plan file.
+ * `pulse-canvas apply` — validated batch mutation from a plan file.
  *
  * One plan = one lock acquisition = one canvas save. Ops are validated and
  * applied against an in-memory copy first; every fs side effect (backing
  * markdown files) is DEFERRED until the whole plan validates, so a failing
- * op aborts with zero on-disk changes. `baseRevision` gives optimistic
+ * validation aborts with zero on-disk changes. SQLite commits graph and file
+ * intents together, then recovers files; a recovery error can follow partial
+ * file effects. Legacy saves are not transactions across files. `baseRevision` gives optimistic
  * concurrency against other CLI writers (see CanvasSaveData.revision).
  */
 

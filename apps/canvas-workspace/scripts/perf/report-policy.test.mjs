@@ -100,6 +100,37 @@ describe('performance change classification', () => {
   const electronNative = 'apps/canvas-workspace/scripts/setup/prepare-sqlite-native.mjs';
   const workflow = () => parse(fs.readFileSync(path.join(repoRoot, '.github/workflows/perf.yml'), 'utf8'));
 
+  it('subscribes to label additions without changing the existing path policy', () => {
+    const config = workflow();
+    expect(config.on.pull_request.types).toEqual(['opened', 'synchronize', 'reopened', 'labeled']);
+    expect(config.on.pull_request.paths).toEqual([
+      'apps/canvas-workspace/**', 'packages/storage/**', 'packages/canvas-cli/**',
+      '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml',
+    ]);
+    expect(config.on.push.paths).toEqual(config.on.pull_request.paths);
+  });
+
+  it.each([
+    ['opened', undefined, true],
+    ['synchronize', undefined, true],
+    ['reopened', undefined, true],
+    ['labeled', 'performance', true],
+    ['labeled', 'documentation', false],
+    [undefined, undefined, true], // push and dispatch
+  ])('filters action=%s label=%s at the prerequisite job', (action, label, expected) => {
+    const config = workflow();
+    // Execute the workflow's plain boolean expression against event fixtures.
+    const shouldRun = new Function('github', `return (${config.jobs.changes.if});`);
+    const github = { event: { action, label: { name: label } } };
+    expect(shouldRun(github)).toBe(expected);
+    const groupExpression = config.concurrency.group.match(/\$\{\{ (github.event.*?) \}\}/)[1];
+    const group = new Function('github', `return (${groupExpression});`);
+    expect(group(github)).toBe(expected ? 'checks' : 'ignored-label');
+    for (const job of ['bundle', 'perf', 'large-canvas', 'package-macos-arm64']) {
+      expect(config.jobs[job].needs).toBe('changes');
+    }
+  });
+
   it.each([canvas, workbench, iframe])('recognizes the current hot path %s', (file) => {
     expect(fs.existsSync(path.join(repoRoot, file)), file).toBe(true);
     expect(classifyPerformanceChanges({ paths: [file] })).toEqual({ runtime: true, packaging: false });
