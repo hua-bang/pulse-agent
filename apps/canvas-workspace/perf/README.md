@@ -33,7 +33,7 @@ does not cover every **core** metric in `metrics.json` (`--bundle-only` is
 exempt). Optional CDP-trace diagnostics have their own coverage status and do
 not make the core report fail when the browser protocol is unavailable.
 
-Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse `dist/`),
+Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse a matching analyze build and its artifacts),
 `--seed-nodes 300` (larger canvas), `--repeat 1` (single boot — faster but
 noisier; default is 3, see below). A full report deletes any stale
 `out/scenarios-report.json` before launch and exits non-zero if the app can't
@@ -61,7 +61,10 @@ The individual steps below are exposed for debugging / partial runs.
 ## Bundle (no app launch needed)
 
 ```bash
-pnpm --filter canvas-workspace build
+pnpm --filter canvas-workspace perf:report --bundle-only
+
+# Equivalent individual steps:
+PULSE_CANVAS_PERF_ANALYZE=1 pnpm --filter canvas-workspace build
 pnpm --filter canvas-workspace perf:bundle
 ```
 
@@ -70,14 +73,15 @@ compares against the bundle-scoped policies in `baselines.json`, writes `out/bun
 Exit 1 on regression. The static companion gate `src/main/__tests__/bundle-boundaries.test.ts`
 runs with the normal test suite and keeps mermaid dynamic-only.
 
-**A5 · per-dependency attribution**: `PULSE_CANVAS_PERF_ANALYZE=1 pnpm build`
-turns on `entryDepStatsPlugin` (electron.vite.config.ts) — reads Rollup's own
-per-chunk module render-size stats (no new dependency, no extra build cost)
-and writes `out/entry-dep-stats.json`. `perf:bundle` picks it up automatically
-if present and adds `entryDepAttribution` (per-package KB + app's own code) to
-`bundle-report.json`; `perf:report` always sets the env var, so a normal
-`perf:report` run has this by default. Missing the file (e.g. `perf:bundle`
-run standalone without the flag) just omits the section — no error.
+**A5 · per-dependency attribution**: the analyze build enables
+`entryDepStatsPlugin` in `electron.vite.config.ts`. It writes
+`out/entry-dep-stats.json` and the renderer manifest used by `perf:bundle`.
+These artifacts are required and must match the built renderer. A missing
+manifest or missing, stale, or incomplete dependency graph fails the collector;
+an ordinary build followed by `perf:bundle` is not a supported recipe.
+`perf:report` sets `PULSE_CANVAS_PERF_ANALYZE=1` automatically. Use `--no-build`
+only after producing a matching analyze build. The bundle report includes
+`entryDepAttribution` with per-package sizes and the app's own code.
 
 ## Runtime scenarios (drives the real app)
 

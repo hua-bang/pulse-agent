@@ -60,9 +60,11 @@ pulse-canvas workspace recover <id>             # Rebuild file nodes from notes/
 pulse-canvas workspace recover <id> --dry-run   # Preview without writing
 ```
 
-Current SQLite limitation: CLI workspace deletion clears its Canvas records
-and workspace directory, but separately stored SQL conversation history is not
-yet removed by this command.
+`workspace delete --confirm` moves the workspace to recoverable trash. It hides
+the Canvas and conversation scope while retaining records, files, attachments,
+and conversation history. This operation requires an active SQLite backend;
+legacy stores are refused. Use `workspace trash` to inspect it and
+`workspace restore <id>` to restore it; deletion is not permanent file removal.
 
 ### Status & Describe
 

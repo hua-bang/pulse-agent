@@ -8,6 +8,7 @@ name: Performance
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths: ['apps/canvas-workspace/**', 'packages/storage/**', 'packages/canvas-cli/**', '.github/workflows/perf.yml', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']
   push:
     branches: [master]
@@ -18,11 +19,14 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: perf-${{ github.ref }}
+  # Ignored label events must not cancel an in-flight performance check.
+  group: perf-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'performance' && 'ignored-label' || 'checks' }}
   cancel-in-progress: true
 
 jobs:
   changes:
+    # Ignore unrelated label additions; retain the event-level path filter.
+    if: github.event.action != 'labeled' || github.event.label.name == 'performance'
     runs-on: ubuntu-latest
     outputs:
       runtime: ${{ steps.classify.outputs.runtime }}

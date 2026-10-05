@@ -185,8 +185,10 @@ Preferred path inside Canvas Agent runtime:
    - `at` only when the user gave a precise location
 4. Create sparse edges with `canvas_create_edge`.
 
-Fallback path outside Canvas Agent runtime — prefer ONE atomic plan over
-command loops (one lock, one save, all-or-nothing):
+Fallback path outside Canvas Agent runtime — prefer ONE validated batch plan over
+command loops. SQLite commits graph changes and file intents in one transaction,
+then applies file writes. File effects can partially fail after the commit.
+Legacy JSON writes also do not provide a transaction across files:
 
 ```bash
 pulse-canvas workspace create "<topic>" --format json
@@ -208,6 +210,12 @@ Plan shape (full reference: `pulse-canvas apply --help`):
 }
 ```
 
+- On `file_write_pending` or `file_write_conflict`, do not replay the plan.
+  The graph has committed and some files may already have changed. Inspect
+  `pulse-canvas doctor --workspace <id>` and the reported intent ids. Use
+  `pulse-canvas doctor --workspace <id> --repair` to retry pending writes;
+  resolve external conflicts without overwriting external edits. Re-read the
+  canvas and its revision before planning further mutations.
 - Always `--dry-run` first: it validates every operation with zero writes.
 - Include `baseRevision` (read it from a prior `apply` or `layout read`)
   when other writers may touch the workspace; on `revision_conflict`,
@@ -225,8 +233,8 @@ Write-safety rules (MANDATORY on the CLI path):
 - **Run all canvas mutations sequentially.** Never parallelize `node`/`edge`
   create, update, write, or delete calls — no `&` background jobs, no
   multi-shell fan-out, no concurrent sub-agents mutating the same workspace.
-  Every mutation rewrites the whole canvas; parallel writers can drop each
-  other's nodes. Batch your changes into one ordered sequence instead.
+  Locks serialize legacy writes; SQLite uses conditional revisions. Separate
+  commands can still interleave or fail on stale state. Prefer one apply plan.
 - **Pass `--workspace <id>` explicitly on every mutation.** Do not rely on
   the active-workspace fallback when several workspaces exist — confirm the
   target once with `pulse-canvas workspace current`, then pin it.

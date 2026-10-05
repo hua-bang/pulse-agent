@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { Engine } from '../../Engine.js';
 import { builtInPlanModePlugin } from './index.js';
-import type { PlanModeEvent } from './index.js';
+import type { PlanModeEvent, PlanModeService } from './index.js';
 import { WriteTool } from '../../tools/index.js';
 
 const createLogger = () => ({
@@ -57,6 +57,12 @@ describe('built-in plan mode hard blocking', () => {
   it('blocks mutating tools in planning mode with a synthetic result', async () => {
     const engine = await makeEngine();
     expect(engine.setMode('planning')).toBe(true);
+
+    const policy = engine.getService<PlanModeService>('planMode')!;
+    const prompt = policy.buildPromptAppend(['read', 'write', 'bash']);
+    expect(prompt).toContain('blocks tools classified as write/execute before execution');
+    expect(prompt).toContain('bash must pass the read-only command classifier');
+    expect(prompt).not.toMatch(/prompt-constrained only|not hard-blocked/);
 
     const session = await engine.createToolSession({ messages: [] });
     const output = (await session.executeTool('write', {

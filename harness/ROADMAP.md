@@ -1,6 +1,6 @@
 # Harness Optimization Roadmap
 
-> Implementation roadmap for the repository harness. Status: P1–P7 implemented and locally verified; review findings resolved. Publication and the first remote CI run remain pending. Updated 2026-09-05.
+> Implementation roadmap for the repository harness. Status: P1–P7 published and verified locally and in remote structural CI. Workspace acceptance remains manual. Updated 2026-10-05.
 > The architecture and ownership model remain in [DESIGN.md](DESIGN.md); [README.md](README.md) is the navigation entry. This file owns delivery order, scope, and acceptance.
 
 ## Outcome
@@ -42,7 +42,7 @@ The repaired starting defects were two workspace-relative descriptor commands, t
 | P4 (done) | Change routing and impact coverage | P3 | 1–1.5 days | Workspace/rename/path cases and the real workflow classifier are tested. |
 | P5 (done) | Evidence reports and focused escalation | P3–P4 | 0.5–1 day | Reports distinguish execution states and preserve outstanding manual evidence. |
 | P6 (done) | Workspace context and knowledge maintenance | P1, P3 | 1–1.5 days | Canvas/CLI entries follow content ownership and disclosure principles; deep diagnostics have exception fixtures. |
-| P7 (done locally) | Qualified harness CI | P2–P6 and replay gate | 0.5 day + observation | Ten representative plans and fault-injection tests pass; the first remote workflow run awaits publication. |
+| P7 (published) | Qualified harness CI | P2–P6 and replay gate | 0.5 day + observation | Ten representative plans and fault-injection tests pass; remote harness integrity has passed. |
 
 Recommended order is P1 through P7. Each phase must be independently mergeable and useful if later work stops. P2 follows P1 promptly; broader document cleanup must not delay known execution repairs.
 
@@ -50,7 +50,7 @@ Recommended order is P1 through P7. Each phase must be independently mergeable a
 - **Milestone 2 — trustworthy validation:** P3–P5. Configuration, change selection, and evidence reporting form one understandable workflow.
 - **Milestone 3 — sustainable maintenance:** P6–P7. Context stays manageable and qualified checks run automatically.
 
-P1–P6 was estimated at 5–8 focused working days for one maintainer familiar with the repository, excluding review and long application checks. The full scope exceeds eight files. Estimates were planning ranges, not scheduled deadlines. P1–P7 have passed local verification and the final review findings are resolved. Remote workflow execution is not claimed before publication.
+P1–P6 was estimated at 5–8 focused working days for one maintainer familiar with the repository, excluding review and long application checks. The full scope exceeds eight files. Estimates were planning ranges, not scheduled deadlines. P1–P7 have passed local verification and the final review findings are resolved. Remote execution is verified at `45a841a572a2e537c1c895ff02d3375e740fc222`: [harness integrity run](https://github.com/hua-bang/pulse-agent/actions/runs/37204308201) passed 136 tests with `harnessGaps: 0`; workspace acceptance was only an all-rules dry-run. The separate [performance run](https://github.com/hua-bang/pulse-agent/actions/runs/37204308199) succeeded. Passing regression gates does not establish product performance targets.
 
 ## P1 — Optimize the root AGENTS entry first
 
