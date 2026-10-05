@@ -207,7 +207,7 @@ export const useCanvasKeyboard = ({
     // selection state.
     if (fullscreenActive) { onExitFullscreen?.(); consume(); return; }
     if (focusModeEnabled) { onExitFocusMode?.(); consume(); return; }
-    if (activeTool === 'connect' || activeTool.startsWith('shape-')) {
+    if (activeTool === 'connect' || activeTool === 'hand' || activeTool.startsWith('shape-')) {
       setActiveTool('select');
       consume();
       return;

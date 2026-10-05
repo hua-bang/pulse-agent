@@ -131,7 +131,7 @@ describe('useCanvasKeyboard', () => {
     return event;
   };
 
-  it.each(['connect', 'shape-rect'])(
+  it.each(['connect', 'hand', 'shape-rect'])(
     'returns an idle %s tool to select when Escape is pressed',
     (activeTool) => {
       const setActiveTool = vi.fn();

@@ -303,3 +303,85 @@ describe('useCanvasMouseHandlers synchronous drag shield', () => {
     expect(guestWebview.style.pointerEvents).toBe('');
   });
 });
+
+describe('useCanvasMouseHandlers root mousedown', () => {
+  let root: Root;
+  let host: HTMLElement;
+  let hook: ReturnType<typeof useCanvasMouseHandlers>;
+  let canvasMouseDown: ReturnType<typeof vi.fn>;
+
+  const Probe = () => {
+    hook = useCanvasMouseHandlers({
+      canvasId: 'canvas-1',
+      activeTool: 'hand',
+      containerRef: { current: null },
+      suppressBlankClickRef: { current: false },
+      setSelectedNodeIds: vi.fn(),
+      setSelectedEdgeId: vi.fn(),
+      contextMenu: null,
+      closeContextMenu: vi.fn(),
+      isBlankCanvasTarget: () => true,
+      canvasMouseDown,
+      canvasMouseMove: vi.fn(),
+      canvasMouseUp: vi.fn(),
+      moving: false,
+      panning: false,
+      onDragStart: vi.fn(),
+      onDragMove: vi.fn(() => false),
+      onDragEnd: vi.fn(),
+      onDragCancel: vi.fn(),
+      onResizeCancel: vi.fn(),
+      resizingId: null,
+      onResizeStart: vi.fn(),
+      onResizeMove: vi.fn(() => false),
+      onResizeEnd: vi.fn(() => false),
+      edgeInteractionState: null,
+      marquee: { active: false, begin: vi.fn() },
+      shapeToolActive: false,
+      shapeDraft: null,
+      commitHistory: vi.fn(),
+      onNodesChange: vi.fn(),
+    });
+    return null;
+  };
+
+  beforeEach(() => {
+    canvasMouseDown = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root.render(<Probe />));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  const mouseDownOn = (target: Element) => {
+    hook.handleRootMouseDown({ button: 0, altKey: false, target } as unknown as React.MouseEvent);
+  };
+
+  // Regression: a hand-tool pan started on the toolbar mounted the
+  // interaction shield, which ate the button's click.
+  it('does not start a hand-tool pan from the bottom chrome', () => {
+    const chrome = document.createElement('div');
+    chrome.className = 'canvas-bottom-chrome';
+    const button = document.createElement('button');
+    chrome.appendChild(button);
+    host.appendChild(chrome);
+
+    mouseDownOn(button);
+
+    expect(canvasMouseDown).not.toHaveBeenCalled();
+  });
+
+  it('still pans with the hand tool on blank canvas', () => {
+    const blank = document.createElement('div');
+    host.appendChild(blank);
+
+    mouseDownOn(blank);
+
+    expect(canvasMouseDown).toHaveBeenCalledTimes(1);
+  });
+});
