@@ -598,6 +598,16 @@ describe('ChatMessages accessibility', () => {
     expect(submit?.textContent).toBe('Sending…');
   });
 
+  it('docks the clarification card outside the scrolling message log', async () => {
+    const el = await renderMessages([], {
+      pendingClarify: { id: 'clarify-1', question: 'Which workspace?' },
+    });
+
+    const card = el.querySelector<HTMLElement>('.chat-message--clarification');
+    expect(card?.closest('.chat-clarify-dock')).not.toBeNull();
+    expect(card?.closest('[role="log"]')).toBeNull();
+  });
+
   it('keeps a remote clarification actionable while the rest of the conversation is read-only', async () => {
     const onAnswerClarification = vi.fn(async () => undefined);
     const el = await renderMessages([], {
