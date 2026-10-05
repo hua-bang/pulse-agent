@@ -30,8 +30,16 @@ export interface AgentClarificationRequest {
   /** Read-only proposed node; never persisted or activated before approval. */
   nodePreview?: CanvasNode;
   defaultAnswer?: string;
+  /** Approval may be granted for the rest of this chat session. */
+  allowSessionApproval?: boolean;
   timeout?: number;
 }
+
+/**
+ * Answer token for "approve and stop asking for this tool in this chat
+ * session". Shared so the renderer button and the main-process gate agree.
+ */
+export const SESSION_APPROVAL_ANSWER = 'Approve for this session';
 
 /**
  * Session-store directory id for a scheduled task's isolated chat scope.

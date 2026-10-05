@@ -41,6 +41,7 @@ export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
     question: string;
     context?: string;
     defaultAnswer?: string;
+    allowSessionApproval?: boolean;
     timeout: number;
   }) => Promise<string>;
 }): Promise<{ text: string; toolCalls: CanvasAgentToolCall[] }> {
@@ -55,7 +56,7 @@ export async function runExternalRoleSegment(opts: ExternalStreamHandlers & {
       currentAsk: opts.currentAsk,
     },
     context: {
-      runContext: { executionMode: opts.executionMode ?? 'auto' },
+      runContext: { executionMode: opts.executionMode ?? 'auto', sessionId: chatSessionId },
       onClarificationRequest: opts.onApprovalRequest,
       abortSignal: opts.abortSignal,
       toolCallId: `external-role:${chatSessionId}:${role.id}`,

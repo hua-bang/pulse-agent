@@ -6,6 +6,7 @@ import { BotAvatarIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
 import { ApprovalPreviewBoundary } from './ApprovalPreviewBoundary';
 import type { PendingClarification } from '../../../../../types';
+import { SESSION_APPROVAL_ANSWER } from '../../../../../../../shared/agent-chat';
 
 const CanvasApprovalNodePreview = lazy(() => import('../../../../canvas/preview').then(module => ({
   default: module.CanvasApprovalNodePreview,
@@ -82,6 +83,16 @@ export const ChatClarificationCard = ({
                 >
                   {t('chat.approve')}
                 </Button>
+                {pendingClarify.allowSessionApproval && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={answering || disabled}
+                    onClick={() => void onAnswer(SESSION_APPROVAL_ANSWER)}
+                  >
+                    {t('chat.approveForSession')}
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   size="sm"

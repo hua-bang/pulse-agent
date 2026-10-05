@@ -2,8 +2,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it, vi } from 'vitest';
 
+import { SESSION_APPROVAL_ANSWER } from '../../../shared/agent-chat';
 import {
   classifyCanvasToolOperation,
+  clearSessionApprovalGrants,
   createCanvasAgentToolPolicy,
   createCanvasAskModeToolPolicyPlugin,
   enforceCanvasAskModeToolPolicy,
@@ -156,6 +158,59 @@ describe('Canvas Agent tool policy', () => {
         },
       },
     });
+  });
+
+  it('remembers a session approval for the same tool in the same chat session only', async () => {
+    clearSessionApprovalGrants();
+    const onClarificationRequest = vi.fn(async () => SESSION_APPROVAL_ANSWER);
+    const approve = (sessionId: string, toolCallId: string, name = 'canvas_create_agent_node') =>
+      requestAskModeApproval({
+        name,
+        input: { title: 'Agent' },
+        context: {
+          runContext: { executionMode: 'auto', sessionId },
+          toolCallId,
+          onClarificationRequest,
+        },
+      });
+
+    await expect(approve('session-a', 'call-1')).resolves.toMatchObject({ approved: true });
+    expect(onClarificationRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ allowSessionApproval: true }),
+    );
+    await expect(approve('session-a', 'call-2')).resolves.toMatchObject({
+      approved: true,
+      toolContext: { runContext: { approvalGrantedFor: 'call-2' } },
+    });
+    expect(onClarificationRequest).toHaveBeenCalledTimes(1);
+
+    // Another tool or another session still asks.
+    await approve('session-a', 'call-3', 'canvas_create_node');
+    await approve('session-b', 'call-4');
+    expect(onClarificationRequest).toHaveBeenCalledTimes(3);
+
+    clearSessionApprovalGrants('session-a');
+    await approve('session-a', 'call-5');
+    expect(onClarificationRequest).toHaveBeenCalledTimes(4);
+    clearSessionApprovalGrants();
+  });
+
+  it('does not offer or honor a session approval without a session id', async () => {
+    const onClarificationRequest = vi.fn(async () => SESSION_APPROVAL_ANSWER);
+    const result = await requestAskModeApproval({
+      name: 'canvas_create_node',
+      input: { type: 'text' },
+      context: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: 'no-session',
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ allowSessionApproval: false }),
+    );
+    expect(result).toMatchObject({ approved: false });
   });
 
   it('does not let a read classification bypass node-creation approval', async () => {

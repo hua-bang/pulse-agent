@@ -59,6 +59,7 @@ export interface PendingClarification {
   kind?: 'clarification' | 'approval';
   nodePreview?: CanvasNode;
   defaultAnswer?: string;
+  allowSessionApproval?: boolean;
 }
 
 export interface MentionItem {
