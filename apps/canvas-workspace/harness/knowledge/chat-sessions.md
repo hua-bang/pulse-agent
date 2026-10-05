@@ -326,7 +326,8 @@ For `bash`, prefer its explicit `args.description` over the generic tool name;
 live tool records carry renderer-observed `startedAt` / `finishedAt` timestamps
 so the single Activity row can show `action · overall elapsed time`; when there
 is no tool yet, the action falls back to `Working`. The adjacent disclosure
-button toggles tool details directly. While collapsed, the row shows the
+button toggles tool details directly. Live tool details start expanded for
+each streaming message; the user can collapse them. While collapsed, the row shows the
 current or latest real tool action. While expanded, the row falls back to
 `Working · elapsed` because the detailed list already names every action; do
 not repeat the current action in both summary and details. Do not add a separate
@@ -345,7 +346,7 @@ icon is always a spinner, even when the latest visible tool has settled. Check
 marks belong only to completed rows inside expanded tool details; showing one
 in the collapsed summary falsely claims that the whole turn is complete.
 
-Live tool logs stay collapsed unless the user opens them, failed operations do
+Per-tool logs (raw args/results) stay collapsed unless the user opens them, failed operations do
 not force raw JSON/details open, and streaming assistant messages hide their
 relative transcript timestamp because that timestamp belongs to the whole
 message rather than the current operation. In the full-page rail, background
