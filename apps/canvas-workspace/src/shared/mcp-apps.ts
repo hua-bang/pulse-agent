@@ -83,6 +83,22 @@ export function serializeMcpAppToolArguments(value: unknown): SerializedMcpAppTo
  */
 export type McpAppEntrypointKind = 'node' | 'global' | 'thread';
 
+/**
+ * A host-checked app icon, always a base64 data URI. SVG renders as a mask
+ * filled with the current text color (OpenAI asks for monochrome
+ * `currentColor` icons); raster images render as they are.
+ */
+export interface McpAppIconImage {
+  src: string;
+  kind: 'mask' | 'image';
+}
+
+/** `dark` replaces `default` while the dark theme is active. */
+export interface McpAppIconSet {
+  default: McpAppIconImage;
+  dark?: McpAppIconImage;
+}
+
 export interface McpAppEntrypointListing {
   serverName: string;
   toolName: string;
@@ -92,6 +108,8 @@ export interface McpAppEntrypointListing {
   /** Pulse node type declared by a `node` entrypoint. */
   nodeType?: string;
   defaultSize?: { width: number; height: number };
+  /** The tool's MCP icon, validated and inlined by the main process. */
+  icon?: McpAppIconSet;
 }
 
 export interface McpAppEntrypointOpenResult {

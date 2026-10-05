@@ -1,6 +1,7 @@
 import type { NavItem } from '../../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
+import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -46,6 +47,9 @@ export interface SidebarProps {
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   onExitChat: () => void;
+  /** Key of the global MCP App the main area shows, or null. */
+  activeMcpAppKey?: string | null;
+  onOpenMcpApp?: (listing: McpAppEntrypointListing) => void;
 
   enableSkills?: boolean;
   enableScheduled?: boolean;

@@ -41,6 +41,7 @@ export type {
   MCPAppsManager,
   MCPAppToolDescriptor,
   MCPAppEntrypoint,
+  MCPAppIcon,
   MCPPluginConfig,
   MCPServerStatus,
   McpServerTiming,

@@ -1,0 +1,47 @@
+.sidebar-apps__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 6px;
+}
+
+/* ui/Button supplies the control; these rules restore the sidebar row look. */
+.sidebar-apps__item.ui-btn {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.sidebar-apps__item.ui-btn:hover:not(:disabled):not(.sidebar-item--active) {
+  background: var(--surface-alt);
+}
+
+.sidebar-apps__item.ui-btn.sidebar-item--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.sidebar-apps__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-apps-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}

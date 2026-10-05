@@ -1,0 +1,121 @@
+.global-mcp-apps {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.global-mcp-app {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.global-mcp-app[hidden] {
+  display: none;
+}
+
+.global-mcp-app__bar {
+  height: 46px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.global-mcp-app__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.global-mcp-app__meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.global-mcp-app__spacer {
+  flex: 1;
+}
+
+.global-mcp-app__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.global-mcp-app__body .mcp-app-embedded {
+  flex: 1;
+}
+
+.global-mcp-app__body .chat-mcp-app--loading,
+.global-mcp-app__body .chat-mcp-app--error {
+  height: 100%;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+}
+
+.global-mcp-app__status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.global-mcp-app-tile {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.global-mcp-app-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.global-mcp-app-icon__image {
+  display: block;
+  object-fit: contain;
+}
+
+.global-mcp-app-icon__mask {
+  background-color: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
+.global-mcp-app-icon__image--dark,
+:root.dark .global-mcp-app-icon--themed .global-mcp-app-icon__image--default {
+  display: none;
+}
+
+:root.dark .global-mcp-app-icon--themed .global-mcp-app-icon__image--dark {
+  display: block;
+}

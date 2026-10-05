@@ -8,6 +8,7 @@ import {
 } from '../../shared/mcp-apps';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
 import { listMcpAppEntrypoints } from './mcp-app-entrypoints';
+import { withMcpAppIcons } from './mcp-app-icons';
 import { setupMcpAppNodeContextIpc } from './mcp-app-node-context-ipc';
 
 const MAX_CONCURRENT_REQUESTS = 8;
@@ -133,7 +134,8 @@ function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
     try {
       return await boundedRequest(event, async () => {
         const { manager } = await managerFor(service, resolveAgentScope(payload ?? {}));
-        return { ok: true, value: listMcpAppEntrypoints(manager.listToolApps()) };
+        const apps = manager.listToolApps();
+        return { ok: true, value: await withMcpAppIcons(listMcpAppEntrypoints(apps), apps) };
       });
     } catch (error) {
       return errorResult(error);
