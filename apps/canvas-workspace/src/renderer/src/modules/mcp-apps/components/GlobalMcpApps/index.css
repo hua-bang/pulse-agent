@@ -19,7 +19,7 @@
 }
 
 .global-mcp-app__bar {
-  height: 46px;
+  height: var(--app-topbar-height);
   flex: none;
   display: flex;
   align-items: center;

@@ -120,8 +120,10 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border-light);
+  height: var(--app-topbar-height);
+  flex-shrink: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
 }
 
 .sidebar-brand-mark {
