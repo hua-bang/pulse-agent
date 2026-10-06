@@ -27,4 +27,3 @@ export function mcpAppContextText(context: unknown): string {
   }
   return text.length > MAX_TEXT_CHARS ? `${text.slice(0, MAX_TEXT_CHARS)}\n[context truncated]` : text;
 }
-
