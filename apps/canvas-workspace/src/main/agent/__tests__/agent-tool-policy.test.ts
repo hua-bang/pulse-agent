@@ -160,15 +160,15 @@ describe('Canvas Agent tool policy', () => {
     });
   });
 
-  it('remembers a session approval for the same tool in the same chat session only', async () => {
+  it.each(['ask', 'auto'] as const)('reuses session/tool consent across inputs in %s mode', async (executionMode) => {
     clearSessionApprovalGrants();
     const onClarificationRequest = vi.fn(async () => SESSION_APPROVAL_ANSWER);
     const approve = (sessionId: string, toolCallId: string, name = 'canvas_create_agent_node') =>
       requestAskModeApproval({
         name,
-        input: { title: 'Agent' },
+        input: { title: `Agent ${toolCallId}` },
         context: {
-          runContext: { executionMode: 'auto', sessionId },
+          runContext: { executionMode, sessionId },
           toolCallId,
           onClarificationRequest,
         },
@@ -369,4 +369,37 @@ describe('Canvas Agent tool policy', () => {
     expect(prompt).not.toMatch(/cannot[^.]*execute shell/i);
     expect(prompt).not.toMatch(/There are no `write`\/`edit` tools/i);
   });
+
+  it.each(['GLOBAL_AGENT_SYSTEM_PROMPT', 'BASE_SYSTEM_PROMPT', 'Auto mode policy:', 'Ask mode policy:'])(
+    'keeps %s consistent with reusable host consent', (marker) => {
+      const source = readFileSync(join(__dirname, '..', 'canvas-agent.ts'), 'utf8').replace(/\\`/g, '`');
+      const start = source.indexOf(marker);
+      expect(start).toBeGreaterThan(-1);
+      const end = marker.endsWith(':') ? source.indexOf('\n', start) : source.indexOf('\n`;', start);
+      expect(end).toBeGreaterThan(start);
+      const prompt = source.slice(start, end);
+      expect(prompt).toContain('same-session, same-tool grant');
+      expect(prompt).toContain('approval card');
+      expect(prompt).toMatch(/Do not request fresh consent/);
+      expect(prompt).not.toMatch(/wait for (?:explicit user confirmation|the host approval card)/);
+    },
+  );
+
+  it('documents grant lifetime and threshold-dependent presentation without claiming authorization', () => {
+    const knowledge = readFileSync(join(__dirname, '../../../../harness/knowledge/security-posture.md'), 'utf8');
+    expect(knowledge).toContain('runContext.sessionId');
+    expect(knowledge).toContain('exact tool name');
+    expect(knowledge).toContain('explicit clearing or app restart');
+    expect(knowledge).toContain('Another tool name or session id');
+    const scheduled = readFileSync(join(__dirname, '../tools/scheduled.ts'), 'utf8');
+    const skill = readFileSync(join(__dirname, '../../../../harness/skills/add-agent-tool/SKILL.md'), 'utf8');
+    for (const text of [knowledge, scheduled, skill]) {
+      expect(text).toMatch(/threshold/);
+      expect(text).toMatch(/upfront/);
+      expect(text).toMatch(/not authorization/);
+      expect(text).toContain('tools-reference.md');
+      expect(text).not.toMatch(/absent until explicitly loaded|out of reach until explicitly loaded|hidden from the LLM until/);
+    }
+  });
+
 });

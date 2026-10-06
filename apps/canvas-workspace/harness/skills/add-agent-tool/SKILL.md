@@ -19,7 +19,7 @@ An ordered procedure. Gives the SEQUENCE and the landmines; FACTS live in the so
 
 5. **The tool name is a compatibility contract.** `harness/knowledge/main-domain-modules.md` Compatibility Rules lists "canvas-agent tool names" as must-not-change — persisted sessions and skills reference them. Naming convention: `canvas_*` / `workspace_node_*`, snake_case. Renaming an existing tool is a breaking change, not a refactor.
 
-6. **Decide `defer_loading` consciously.** A deferred tool (see `terminals.ts:17`) is hidden from the LLM until a `tool_search_*` call loads it. Defer heavy/rare tools; load-immediately for core ones.
+6. **Decide `defer_loading` consciously.** With tool search enabled, deferred tools load upfront below its configured threshold; at or above it, a `tool_search_*` call discovers them for the next presentation. Zero forces search. This controls presentation, not authorization or capability access. See [Engine Tools Reference](../../../../../packages/engine/harness/knowledge/tools-reference.md). Defer heavy/rare tools; load-immediately for core ones.
 
 7. **Execute-class tools go through the security gate.** If the tool spawns/executes/writes outside the canvas store (anything bash-shaped, PTY-shaped, or filesystem-shaped), read `harness/knowledge/security-posture.md` ("When you change things here") and the `canvas_create_terminal_node` precedent in `terminals.ts` BEFORE implementing — you are widening what a prompt-injected LLM can do at main-process privilege.
 

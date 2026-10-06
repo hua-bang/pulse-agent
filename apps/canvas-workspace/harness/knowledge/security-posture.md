@@ -35,27 +35,37 @@ host actually does and does not gate. Facts verified against source
   PTYs are real shells (`pty-manager.ts` spawns `powershell.exe`/`$SHELL`);
   output is forwarded only to the renderer webContents that spawned the
   session (`src/main/terminal/pty-manager.ts:15`).
-- **Canvas node creation is approval-gated in both interactive modes; other
-  Auto and Scheduled operations remain ungated.** The host installs
-  `createCanvasAskModeToolPolicyPlugin` at the engine's final
-  `beforeToolCall` boundary, after MCP, deferred, and other plugin tools have
-  joined the run. In Ask mode, classified reads proceed; every write, execute,
-  destructive, or unknown operation pauses for an explicit Allow/Reject
-  request. In Auto mode, the known node-creation tools
-  (`canvas_create_node`, the specialized node creators, `dynamic_app_create`,
-  and `artifact_pin_to_canvas`) still pause before execution. Missing renderer
-  delivery, abort, and the five-minute timeout resolve to `No`, and
-  externally-driven Claude/Codex roles require approval before their process
-  starts. This is a consent prompt, not a sandbox: an approved call still has
-  main-process privilege. Scheduled runs do not expose Canvas node-creation
-  tools and remain unattended by design.
+- **Canvas node creation requires host consent in both interactive modes;
+  other Auto and Scheduled operations remain ungated.** The host installs
+  `createCanvasAskModeToolPolicyPlugin` at the final `beforeToolCall` boundary.
+  In Ask mode, classified reads proceed; write, execute, destructive, and
+  unknown operations require consent. Auto mode also requires consent for
+  the known node-creation tools, including `dynamic_app_create` and
+  `artifact_pin_to_canvas`.
+  The host requests an Allow/Reject card only when no reusable grant exists.
+  An ordinary Allow approves one call. “Approve for this session” stores an
+  in-memory grant keyed by `runContext.sessionId` and the exact tool name;
+  later calls with that pair reuse it, even with different inputs or across
+  turns and Ask/Auto changes. The key does not include arguments, workspace,
+  or execution mode. Another tool name or session id requires its own consent.
+  Grants are not persisted: explicit clearing or app restart removes them.
+  The session-mutation coordinator clears grants after successful deletion.
+  Without a session id, session approval is neither offered nor honored.
+  The clarification callback must still exist before a grant can be reused.
+  When a card is needed, missing renderer delivery, abort, and the five-minute
+  timeout resolve to `No`. External Claude/Codex roles separately require
+  approval before process launch. Consent is not a sandbox: approved calls
+  retain main-process privilege. Scheduled runs do not expose Canvas
+  node-creation tools and remain unattended. Owner and guards:
+  `src/main/agent/tool-policy.ts` and
+  `src/main/agent/__tests__/agent-tool-policy.test.ts`.
 - **Codemode is an opt-in script path, not a new privilege.** The
   `agent-codemode` experimental flag (default off, read when an Engine is
   built in `src/main/agent/engine-plugins.ts`) installs the Engine Codemode
   plugin. Scripts run in QuickJS and may call only `CANVAS_CODEMODE_TOOLS`
   (Canvas read/search/list/layout tools) plus enabled MCP tools, which the
   Engine marks script-eligible by default (MCP App tools excepted). Every nested call passes the same
-  `beforeToolCall` hooks, so Ask mode still pauses MCP writes per call; Auto
+  `beforeToolCall` hooks, so Ask mode requires consent for MCP writes, reusing matching session grants; Auto
   mode leaves them ungated, so one script can repeat an MCP write up to the
   100-call limit. Canvas writes, agent messaging, terminals and plugin actions
   stay direct-only. Guard: `src/main/agent/__tests__/engine-plugins.test.ts`.
@@ -204,15 +214,16 @@ to everything below.
   local settings/env, not source.
 - The harness driver's `real` profile requires `--allow-real-writes` before
   it can touch real user data (`harness/tools/driver/src/profiles.mjs`).
-- Scheduled-task writes from the agent (`scheduled_task_create` /
-  `scheduled_task_update`, `src/main/agent/tools/scheduled.ts`) are bounded by
-  three deliberate choices, not by a capability gate: all three tools are
-  `defer_loading` so they are absent until explicitly loaded; every write
-  broadcasts `scheduled:changed`, so a new or edited task appears in the
-  Scheduled page rather than landing silently; and deleting is not exposed at
-  all (removal stays a UI action). Their descriptions restrict calls to what
-  the user asked in their own words — the same description-level convention
-  `memory_adopt` relies on.
+- Scheduled-task tools (`src/main/agent/tools/scheduled.ts`) use
+  `defer_loading` for presentation, not authorization or capability control.
+  With tool search enabled, deferred schemas below the configured threshold
+  are exposed upfront; at or above it, tools require discovery before the
+  next presentation. A zero threshold forces search. See the Engine owner:
+  [Tools Reference](../../../../packages/engine/harness/knowledge/tools-reference.md).
+  Scheduled-task writes still pass the host consent policy above in interactive
+  chat. Descriptions restrict calls to the user's request; every write
+  broadcasts `scheduled:changed` so the Scheduled page reflects it. Deleting
+  is not exposed as an agent tool; removal stays a UI action.
 
 ## When you change things here
 
