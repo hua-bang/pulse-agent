@@ -20,7 +20,7 @@ import { mcpAppTabId } from '../../../../shared/dock/dock-tab-ids';
 import { isDockTabPresented } from '../../../../shared/dock/dock-split-state';
 import { useMcpAppApproval } from './useMcpAppApproval';
 import { useMcpAppSurfacePlacement } from './useMcpAppSurfacePlacement';
-import { useMcpAppNodeContext } from './useMcpAppNodeContext';
+import { useMcpAppContext, type McpAppContextSink } from './useMcpAppContext';
 
 export interface McpAppFrameProps {
   instanceId: string;
@@ -41,6 +41,7 @@ export interface McpAppFrameProps {
   /** Extra namespaced host context fields, e.g. `pulse/node`. */
   hostContextExtras?: Record<string, unknown>;
   nodeContextTarget?: McpAppNodeContextTarget;
+  contextSink?: McpAppContextSink;
 }
 
 type McpAppDisplayMode = 'inline' | 'fullscreen';
@@ -188,6 +189,7 @@ export const useMcpAppController = ({
   embeddedDisplayMode = 'inline',
   hostContextExtras,
   nodeContextTarget,
+  contextSink,
 }: McpAppFrameProps): McpAppController => {
   const embeddedMode = embedded ? embeddedDisplayMode : undefined;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -201,8 +203,8 @@ export const useMcpAppController = ({
   const [error, setError] = useState<string>();
   const [height, setHeight] = useState(320);
   const [displayMode, setDisplayMode] = useState<McpAppDisplayMode>('inline');
-  const approval = useMcpAppApproval();
-  const publishContext = useMcpAppNodeContext(error ? undefined : nodeContextTarget, app.result);
+  const approval = useMcpAppApproval(Boolean(error));
+  const { enabled: contextEnabled, publish: publishContext } = useMcpAppContext(nodeContextTarget, contextSink, app.result, error);
   const dock = useRightDock();
   const dockState = useRightDockState();
   const dockHost = useRightDockMcpAppHost(instanceId);
@@ -265,7 +267,7 @@ export const useMcpAppController = ({
         event.source !== iframeRef.current?.contentWindow
         || event.data?.type !== MCP_APP_HOST_EVENT
       ) return;
-      if (event.data?.action === 'context' && nodeContextTarget) {
+      if (event.data?.action === 'context' && contextEnabled) {
         void publishContext('visible-ui', event.data.context).catch(error => console.warn('[mcp-app-context]', error));
       }
       if (displayModeRef.current !== 'fullscreen') return;
@@ -274,7 +276,7 @@ export const useMcpAppController = ({
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [dock, instanceId, returnInline, nodeContextTarget, publishContext]);
+  }, [dock, instanceId, returnInline, contextEnabled, publishContext]);
 
   useEffect(() => {
     const bridge = bridgeRef.current;
@@ -341,7 +343,7 @@ export const useMcpAppController = ({
         serverTools: {},
         serverResources: {},
         logging: {},
-        ...(nodeContextTarget ? { updateModelContext: { text: {} } } : {}),
+        ...(contextEnabled ? { updateModelContext: { text: {}, structuredContent: {} } } : {}),
       },
       {
         hostContext: {
@@ -355,7 +357,7 @@ export const useMcpAppController = ({
       },
     );
 
-    if (nodeContextTarget) {
+    if (contextEnabled) {
       bridge.onupdatemodelcontext = async (context) => {
         await publishContext('model-context', context);
         return {};
@@ -430,7 +432,7 @@ export const useMcpAppController = ({
       }
     });
     bridge.oninitialized = () => {
-      if (nodeContextTarget) frameWindow.postMessage({ method: 'pulse/observe-context' }, '*');
+      if (contextEnabled) frameWindow.postMessage({ method: 'pulse/observe-context' }, '*');
       void bridge.sendToolInput({
         arguments: args && typeof args === 'object'
           ? args as Record<string, unknown>

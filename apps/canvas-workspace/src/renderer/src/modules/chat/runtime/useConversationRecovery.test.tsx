@@ -43,6 +43,18 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it('replays the original App snapshot rather than the current view', () => {
+  const mcpAppContext = {
+    serverName: 'drawings', toolName: 'library', title: 'Drawings', resourceUri: 'ui://library',
+    snapshots: [{ source: 'visible-ui' as const, text: 'Search: today', capturedAt: 1 }],
+  };
+  const current = { mcpAppContext: { ...mcpAppContext, snapshots: [] } };
+  expect(recoveryRequestContext({ role: 'user', content: 'summarize', timestamp: 1, mcpAppContext }, current)?.mcpAppContext)
+    .toEqual(mcpAppContext);
+  expect(recoveryRequestContext({ role: 'user', content: 'summarize', timestamp: 1, mcpAppContext: null }, current)?.mcpAppContext)
+    .toBeNull();
+});
+
 describe('conversation recovery', () => {
   it('maps an assistant or stopped message to the user turn it answered', () => {
     expect(findAnsweredUserIndex(history, 3)).toBe(2);

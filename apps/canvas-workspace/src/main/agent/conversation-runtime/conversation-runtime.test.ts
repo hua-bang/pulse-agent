@@ -335,10 +335,16 @@ describe('ConversationRuntime (main, async owner)', () => {
     await rt.sendAndWait({
       message: 'inspect this',
       attachments: [attachment],
-      requestContext: { contextSnapshot },
+      requestContext: { contextSnapshot, mcpAppContext: {
+        serverName: 'drawings', toolName: 'library', title: 'Drawings', resourceUri: 'ui://library',
+        snapshots: [{ source: 'visible-ui', text: 'Search: today', capturedAt: 1 }],
+      } },
     });
 
-    expect(deps.stored[0]).toMatchObject({ attachments: [attachment], contextSnapshot });
+    expect(deps.stored[0]).toMatchObject({
+      attachments: [attachment], contextSnapshot,
+      mcpAppContext: { snapshots: [{ source: 'visible-ui', text: 'Search: today', capturedAt: 1 }] },
+    });
     expect(deps.stored[1]).toMatchObject({
       runId: 'run-1',
       speakerRoleId: 'reviewer',

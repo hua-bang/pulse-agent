@@ -42,7 +42,8 @@ export function recoveryRequestContext(
   fallback?: AgentRequestContext,
 ): AgentRequestContext | undefined {
   const snapshot = source.contextSnapshot;
-  if (!snapshot) return fallback;
+  if (!snapshot) return source.mcpAppContext === undefined
+    ? fallback : { ...fallback, mcpAppContext: source.mcpAppContext };
   const scoped = [snapshot.selectedNodes, snapshot.tags, snapshot.canvases, snapshot.domSelections]
     .some(refs => (refs?.length ?? 0) > 0);
   return {
@@ -55,6 +56,7 @@ export function recoveryRequestContext(
     tabs: snapshot.tabs,
     plugins: snapshot.plugins,
     contextSnapshot: snapshot,
+    mcpAppContext: source.mcpAppContext ?? null,
   };
 }
 

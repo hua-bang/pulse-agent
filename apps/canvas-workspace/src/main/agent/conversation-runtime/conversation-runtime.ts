@@ -291,6 +291,7 @@ export class ConversationRuntime {
       timestamp: Date.now(),
       attachments: input.attachments?.length ? input.attachments : undefined,
       contextSnapshot: input.requestContext?.contextSnapshot,
+      mcpAppContext: input.requestContext?.mcpAppContext,
     });
     this.publish();
 

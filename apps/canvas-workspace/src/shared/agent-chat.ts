@@ -1,3 +1,5 @@
+import type { AgentContextMcpAppSnapshot } from './mcp-app-context';
+export type { AgentContextMcpAppSnapshot } from './mcp-app-context';
 import type { CanvasNode } from './canvas';
 import type { AgentTraceEvent } from './agent-observability';
 
@@ -252,6 +254,8 @@ export type AgentChatContentBlock =
   | { type: 'tool'; toolCallId?: string; toolId: number };
 
 export interface AgentChatMessage {
+  /** Exact global App view used by this user turn, retained for replay. */
+  mcpAppContext?: AgentContextMcpAppSnapshot | null;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
@@ -424,6 +428,8 @@ export interface AgentContextPluginRef {
 }
 
 export interface AgentRequestContext {
+  /** Visible global App content frozen at submission; null means no App was visible. */
+  mcpAppContext?: AgentContextMcpAppSnapshot | null;
   executionMode?: 'auto' | 'ask';
   /** Renderer-visible conversation pointer used as a main-process CAS. */
   expectedConversationSessionId?: string | null;
