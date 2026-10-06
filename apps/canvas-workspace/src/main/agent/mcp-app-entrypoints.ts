@@ -13,8 +13,9 @@ const KIND_PRIORITY: Array<{ namespace: string; kind: McpAppEntrypointKind }> = 
 const MIN_NODE_SIZE = 200;
 const MAX_NODE_SIZE = 2_000;
 
-function pickEntrypoint(entrypoints: MCPAppEntrypoint[] = []) {
+function pickEntrypoint(entrypoints: MCPAppEntrypoint[] = [], only?: McpAppEntrypointKind) {
   for (const candidate of KIND_PRIORITY) {
+    if (only && candidate.kind !== only) continue;
     const match = entrypoints.find(entry => (
       entry.namespace === candidate.namespace && entry.type === candidate.kind
     ));
@@ -41,8 +42,9 @@ function nodeSize(value: unknown): McpAppEntrypointListing['defaultSize'] {
 /** Resolve one openable entrypoint per MCP App tool, preferring Pulse `node`. */
 export function toMcpAppEntrypointListing(
   app: MCPAppToolDescriptor,
+  only?: McpAppEntrypointKind,
 ): McpAppEntrypointListing | undefined {
-  const picked = pickEntrypoint(app.entrypoints);
+  const picked = pickEntrypoint(app.entrypoints, only);
   if (!picked) return undefined;
   const { options } = picked.entry;
   const nodeType = picked.kind === 'node' ? optionalString(options.nodeType, 128) : undefined;
@@ -60,9 +62,22 @@ export function toMcpAppEntrypointListing(
   };
 }
 
+/**
+ * Entrypoints of one kind, e.g. every OpenAI `global` app for the Sidebar,
+ * even when the same tool also declares a higher-priority Pulse `node`.
+ */
+export function listMcpAppEntrypointsOfKind(
+  apps: MCPAppToolDescriptor[],
+  kind: McpAppEntrypointKind,
+): McpAppEntrypointListing[] {
+  return apps
+    .map(app => toMcpAppEntrypointListing(app, kind))
+    .filter((listing): listing is McpAppEntrypointListing => Boolean(listing));
+}
+
 export function listMcpAppEntrypoints(apps: MCPAppToolDescriptor[]): McpAppEntrypointListing[] {
   const listings = apps
-    .map(toMcpAppEntrypointListing)
+    .map(app => toMcpAppEntrypointListing(app))
     .filter((listing): listing is McpAppEntrypointListing => Boolean(listing));
   // An OpenAI thread entrypoint is the side-panel variant of the same app; on
   // the canvas both open as identical nodes, so keep only the global one.

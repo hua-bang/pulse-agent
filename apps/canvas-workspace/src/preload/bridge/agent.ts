@@ -8,8 +8,8 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
     updateNodeContext: (token, source, context) =>
       ipcRenderer.invoke('canvas-agent:mcp-app-context-update', { token, source, context }),
     closeNodeContext: (token) => ipcRenderer.invoke('canvas-agent:mcp-app-context-close', { token }),
-    listEntrypoints: (scope) =>
-      ipcRenderer.invoke('canvas-agent:mcp-app-list-entrypoints', { scope }),
+    listEntrypoints: (scope, kind) =>
+      ipcRenderer.invoke('canvas-agent:mcp-app-list-entrypoints', { scope, ...(kind ? { kind } : {}) }),
     openEntrypoint: (scope, serverName, toolName) =>
       ipcRenderer.invoke('canvas-agent:mcp-app-open-entrypoint', { scope, serverName, toolName }),
     listResources: (scope, serverName, cursor) =>

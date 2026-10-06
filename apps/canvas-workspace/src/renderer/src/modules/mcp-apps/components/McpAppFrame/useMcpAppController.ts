@@ -33,6 +33,11 @@ export interface McpAppFrameProps {
    * portal: inline only, no Dock fullscreen, and app size requests are ignored.
    */
   embedded?: boolean;
+  /**
+   * Display mode an embedded frame reports to the app. A Dock entrypoint tab
+   * fills its pane, so it reports `fullscreen`; canvas nodes stay `inline`.
+   */
+  embeddedDisplayMode?: McpAppDisplayMode;
   /** Extra namespaced host context fields, e.g. `pulse/node`. */
   hostContextExtras?: Record<string, unknown>;
   nodeContextTarget?: McpAppNodeContextTarget;
@@ -157,13 +162,13 @@ async function closeAppBridge(bridge: AppBridge): Promise<void> {
 const mcpAppHostContext = (
   displayMode: McpAppDisplayMode,
   container?: HTMLElement | null,
-  embedded = false,
+  embeddedMode?: McpAppDisplayMode,
   extras?: Record<string, unknown>,
 ) => ({
   ...extras,
   theme: document.documentElement.classList.contains('dark') ? 'dark' as const : 'light' as const,
-  displayMode,
-  availableDisplayModes: (embedded ? ['inline'] : ['inline', 'fullscreen']) as McpAppDisplayMode[],
+  displayMode: embeddedMode ?? displayMode,
+  availableDisplayModes: (embeddedMode ? [embeddedMode] : ['inline', 'fullscreen']) as McpAppDisplayMode[],
   ...(container && container.clientWidth > 0 && container.clientHeight > 0
     ? { containerDimensions: { width: container.clientWidth, height: container.clientHeight } }
     : {}),
@@ -180,9 +185,11 @@ export const useMcpAppController = ({
   fallbackResult,
   scope,
   embedded = false,
+  embeddedDisplayMode = 'inline',
   hostContextExtras,
   nodeContextTarget,
 }: McpAppFrameProps): McpAppController => {
+  const embeddedMode = embedded ? embeddedDisplayMode : undefined;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
   const inlineHostRef = useRef<HTMLDivElement | null>(null);
@@ -273,7 +280,7 @@ export const useMcpAppController = ({
     const bridge = bridgeRef.current;
     const target = displayMode === 'fullscreen' ? dockHost : inlineHostRef.current;
     if (!bridge) return;
-    const context = () => mcpAppHostContext(displayMode, target, embedded, hostContextExtras);
+    const context = () => mcpAppHostContext(displayMode, target, embeddedMode, hostContextExtras);
     bridge.setHostContext(context());
     if (!target || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
@@ -281,7 +288,7 @@ export const useMcpAppController = ({
     });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [displayMode, dockHost, embedded, hostContextExtras]);
+  }, [displayMode, dockHost, embeddedMode, hostContextExtras]);
 
   useEffect(() => {
     let cancelled = false;
@@ -341,7 +348,7 @@ export const useMcpAppController = ({
           ...mcpAppHostContext(
             displayMode,
             displayMode === 'fullscreen' ? dockHost : inlineHostRef.current,
-            embedded,
+            embeddedMode,
             hostContextExtras,
           ),
         },
@@ -399,7 +406,7 @@ export const useMcpAppController = ({
       return result.value as ReadResourceResult;
     };
     bridge.onrequestdisplaymode = async ({ mode }) => {
-      if (embedded) return { mode: 'inline' };
+      if (embeddedMode) return { mode: embeddedMode };
       if (mode === 'fullscreen') enterFullscreen();
       if (mode === 'inline') returnInline();
       return { mode: mode === 'fullscreen' || mode === 'inline' ? mode : displayModeRef.current };

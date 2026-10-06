@@ -344,6 +344,16 @@ export interface MCPAppToolDescriptor {
   title?: string;
   /** Static entrypoints declared under `_meta["<namespace>/ui"].entrypoints`. */
   entrypoints?: MCPAppEntrypoint[];
+  /** MCP `icons` of the tool, unvalidated beyond shape; hosts fetch and check them. */
+  icons?: MCPAppIcon[];
+}
+
+/** One entry of the MCP `icons` field (`src` is a URL or data URI). */
+export interface MCPAppIcon {
+  src: string;
+  mimeType?: string;
+  sizes?: string[];
+  theme?: 'light' | 'dark';
 }
 
 /**
@@ -440,6 +450,76 @@ function toolEntrypoints(tool: unknown): MCPAppEntrypoint[] {
   return entrypoints;
 }
 
+const MAX_ICONS_PER_TOOL = 8;
+const MAX_ICON_SRC_LENGTH = 512 * 1024;
+/** Registration waits this long for the icon read, then registers without icons. */
+const ICON_PROBE_TIMEOUT_MS = 2_000;
+
+function parseIcons(value: unknown): MCPAppIcon[] {
+  if (!Array.isArray(value)) return [];
+  const icons: MCPAppIcon[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry) || typeof entry.src !== 'string') continue;
+    const src = entry.src.trim();
+    if (!src || src.length > MAX_ICON_SRC_LENGTH || !/^(data:|https:)/i.test(src)) continue;
+    const sizes = Array.isArray(entry.sizes)
+      ? entry.sizes.filter((size): size is string => typeof size === 'string').slice(0, 8)
+      : [];
+    icons.push({
+      src,
+      ...(typeof entry.mimeType === 'string' && entry.mimeType ? { mimeType: entry.mimeType } : {}),
+      ...(sizes.length ? { sizes } : {}),
+      ...(entry.theme === 'light' || entry.theme === 'dark' ? { theme: entry.theme } : {}),
+    });
+    if (icons.length >= MAX_ICONS_PER_TOOL) break;
+  }
+  return icons;
+}
+
+/**
+ * `client.tools()` drops the MCP `icons` field, so app tools with entrypoints
+ * re-read it from `tools/list`. `listTools` is the method `tools()` itself
+ * calls but is not on the public `MCPClient` type: treat it as best effort,
+ * and never let a failure here affect the server's tools. It runs outside the
+ * startup timeout, so a slow read never fails the server.
+ */
+async function readEntrypointToolIcons(
+  client: MCPClient,
+  tools: Record<string, unknown>,
+): Promise<Record<string, MCPAppIcon[]>> {
+  const wanted = Object.values(tools).some(tool => toolResourceUri(tool) && toolEntrypoints(tool).length > 0);
+  const listTools = (client as { listTools?: () => Promise<unknown> }).listTools;
+  if (!wanted || typeof listTools !== 'function') return {};
+  try {
+    const result = await listTools.call(client);
+    const listed = isRecord(result) && Array.isArray(result.tools) ? result.tools : [];
+    const icons: Record<string, MCPAppIcon[]> = {};
+    for (const tool of listed) {
+      if (!isRecord(tool) || typeof tool.name !== 'string') continue;
+      const parsed = parseIcons(tool.icons);
+      if (parsed.length) icons[tool.name] = parsed;
+    }
+    return icons;
+  } catch {
+    return {};
+  }
+}
+
+async function settleIconProbe(
+  probe: Promise<Record<string, MCPAppIcon[]>>,
+): Promise<Record<string, MCPAppIcon[]>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<Record<string, MCPAppIcon[]>>((resolve) => {
+    timer = setTimeout(() => resolve({}), ICON_PROBE_TIMEOUT_MS);
+    (timer as { unref?: () => void }).unref?.();
+  });
+  try {
+    return await Promise.race([probe, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function toolTitle(tool: unknown): string | undefined {
   if (!isRecord(tool)) return undefined;
   if (typeof tool.title === 'string' && tool.title) return tool.title;
@@ -471,6 +551,8 @@ export const DEFAULT_MCP_STARTUP_TIMEOUT_MS = 30_000;
 interface StartedServer {
   client: MCPClient;
   tools: Record<string, unknown>;
+  /** Started after `tools()` and settled during registration, never awaited by startup. */
+  toolIcons: Promise<Record<string, MCPAppIcon[]>>;
 }
 
 type ServerStartup =
@@ -635,7 +717,8 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
             try {
               const tools = await client.tools();
               timing.listToolsMs = Date.now() - timing.startedAt - timing.connectMs;
-              return { client, tools };
+              const toolIcons = readEntrypointToolIcons(client, tools);
+              return { client, tools, toolIcons };
             } catch (error) {
               closeQuietly(client);
               throw error;
@@ -681,7 +764,8 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           }
           continue;
         }
-        const { config: normalizedConfig, started: { client, tools } } = startup;
+        const { config: normalizedConfig, started: { client, tools, toolIcons: iconProbe } } = startup;
+        const toolIcons = await settleIconProbe(iconProbe);
         clients.push(client as { close?: () => Promise<void> | void });
         const shouldDeferTools = normalizedConfig.deferTools === true;
         const disabledTools = new Set(normalizedConfig.disabledTools ?? []);
@@ -721,6 +805,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
               resourceUri,
               ...(title ? { title } : {}),
               ...(entrypoints.length ? { entrypoints } : {}),
+              ...(toolIcons[toolName]?.length ? { icons: toolIcons[toolName] } : {}),
             };
           }
         }

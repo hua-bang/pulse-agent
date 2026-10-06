@@ -22,6 +22,7 @@ import type {
 } from '../../../shared/agent-roles';
 import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
 import type {
+  McpAppEntrypointKind,
   McpAppEntrypointListing,
   McpAppNodeContextApi,
   McpAppEntrypointOpenResult,
@@ -104,8 +105,10 @@ export interface RelayProgress {
 
 export interface AgentApi {
   mcpApps: McpAppNodeContextApi & {
+    /** `kind` lists every entrypoint of that kind instead of one per tool. */
     listEntrypoints: (
       scope: AgentScope,
+      kind?: McpAppEntrypointKind,
     ) => Promise<{ ok: boolean; value?: McpAppEntrypointListing[]; error?: string }>;
     openEntrypoint: (
       scope: AgentScope,

@@ -9,7 +9,20 @@ export const APP_ROUTES = {
   plugins: '/plugins',
   skills: '/skills',
   scheduled: '/scheduled',
+  apps: '/apps',
 } as const;
+
+/** Main-area view key for a global MCP App (`/apps/<server>/<tool>`). */
+export const MCP_APP_VIEW = 'mcp-app';
+
+export interface McpAppRouteTarget {
+  serverName: string;
+  toolName: string;
+}
+
+export const mcpAppRoutePath = ({ serverName, toolName }: McpAppRouteTarget): string => (
+  `${APP_ROUTES.apps}/${encodeURIComponent(serverName)}/${encodeURIComponent(toolName)}`
+);
 
 export type AppActiveView = 'canvas' | 'chat' | string;
 
@@ -26,6 +39,7 @@ export interface AppRouteModel {
   activeView: AppActiveView;
   detailNode: KnowledgeNodeSelection | null;
   scheduledTaskId: string | null;
+  mcpApp: McpAppRouteTarget | null;
   redirectToCanvas: boolean;
 }
 
@@ -36,6 +50,10 @@ export const resolveAppRoute = (
   const { path, params } = parseCanvasLocation(location);
   const detailMatch = path.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
   const scheduledMatch = path.match(/^\/scheduled\/([^/]+)$/);
+  const mcpAppMatch = path.match(/^\/apps\/([^/]+)\/([^/]+)$/);
+  const mcpApp = mcpAppMatch
+    ? { serverName: decodeURIComponent(mcpAppMatch[1]), toolName: decodeURIComponent(mcpAppMatch[2]) }
+    : null;
   const detailNode = detailMatch
     ? {
         workspaceId: decodeURIComponent(detailMatch[1]),
@@ -52,15 +70,17 @@ export const resolveAppRoute = (
         ? 'skills'
         : scheduledMatch
           ? 'scheduled-task'
-          : path === APP_ROUTES.scheduled
-            ? 'scheduled'
-            : nodesRoute
-              ? detailNode ? 'node-detail' : 'nodes'
-              : graphRoute
-                ? 'graph'
-                : options.pluginPaths.includes(path)
-                  ? path
-                  : 'canvas';
+          : mcpApp
+            ? MCP_APP_VIEW
+            : path === APP_ROUTES.scheduled
+              ? 'scheduled'
+              : nodesRoute
+                ? detailNode ? 'node-detail' : 'nodes'
+                : graphRoute
+                  ? 'graph'
+                  : options.pluginPaths.includes(path)
+                    ? path
+                    : 'canvas';
   return {
     path,
     params,
@@ -68,6 +88,7 @@ export const resolveAppRoute = (
     activeView,
     detailNode,
     scheduledTaskId: scheduledMatch ? decodeURIComponent(scheduledMatch[1]) : null,
+    mcpApp,
     redirectToCanvas: (!options.nodesEnabled && (path === APP_ROUTES.nodes || detailNode !== null))
       || (!options.graphEnabled && path === APP_ROUTES.graph),
   };

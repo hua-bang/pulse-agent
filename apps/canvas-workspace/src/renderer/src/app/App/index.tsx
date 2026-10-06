@@ -28,8 +28,12 @@ import {
 } from '../../modules/chat';
 import { useChatNavigation } from '../shell/router/useChatNavigation';
 import type { AgentScope } from '../../types';
-import { APP_ROUTES, resolveAppRoute, type AppActiveView as ActiveView } from './routeModel';
+import { APP_ROUTES, MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, type AppActiveView as ActiveView } from './routeModel';
+import { globalMcpAppKey, globalMcpAppsStore, useGlobalMcpApps } from '../../modules/mcp-apps/global-apps';
+import type { McpAppEntrypointListing } from '../../../../shared/mcp-apps';
 import { useWorkspaceActions } from './useWorkspaceActions';
+// The app host pulls in McpAppFrame; keep it out of the startup chunk.
+const GlobalMcpAppsView = lazy(() => import('../../modules/mcp-apps').then((module) => ({ default: module.GlobalMcpAppsView })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const {
   canvas: ROUTE_CANVAS,
@@ -84,6 +88,7 @@ const AppContent = () => {
     activeView,
     detailNode,
     scheduledTaskId,
+    mcpApp,
     redirectToCanvas,
   } = route;
   const { openShortcuts, isOverlayOpen } = useAppShell();
@@ -265,6 +270,11 @@ const AppContent = () => {
     setNodeDetailBackPath(location);
     setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
   }, [location, setLocation]);
+  const hasRunningMcpApps = useGlobalMcpApps().running.length > 0;
+  const openMcpApp = useCallback((listing: McpAppEntrypointListing) => {
+    globalMcpAppsStore.open(listing);
+    setLocation(mcpAppRoutePath(listing));
+  }, [setLocation]);
   useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
   return (
     <div className="app">
@@ -306,6 +316,8 @@ const AppContent = () => {
           onNavigate={navigateToPath}
           onExitChat={exitChatView}
           selectedNodeIds={activeSelectedNodeIds}
+          activeMcpAppKey={mcpApp ? globalMcpAppKey(mcpApp) : null}
+          onOpenMcpApp={openMcpApp}
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
           <PulseRouterView name='canvas' keepAlive>
@@ -352,6 +364,13 @@ const AppContent = () => {
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
             onOpenSessionInScope={openSessionInOwningScope} />
+          <PulseRouterView name={MCP_APP_VIEW} keepAlive>
+            {(mcpApp || hasRunningMcpApps) && (
+              <Suspense fallback={null}>
+                <GlobalMcpAppsView active={mcpApp} onCloseActive={() => setLocation(ROUTE_CANVAS)} />
+              </Suspense>
+            )}
+          </PulseRouterView>
           {pluginRoutes.map((route) => {
             return (
               <PulseRouterView key={route.path} name={route.path}>

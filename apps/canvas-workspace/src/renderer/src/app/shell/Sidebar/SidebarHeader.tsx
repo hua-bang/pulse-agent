@@ -43,6 +43,8 @@ interface SidebarHeaderProps {
 
   enableSkills?: boolean;
   enableScheduled?: boolean;
+  /** Rendered between the navigation and the Workspaces header. */
+  appsSection?: React.ReactNode;
 }
 
 export const SidebarHeader = ({
@@ -65,6 +67,7 @@ export const SidebarHeader = ({
   onNewFolder,
   onImportWorkspace,
   enableScheduled = true,
+  appsSection,
   enableSkills = true
 }: SidebarHeaderProps) => {
   const { t } = useI18n();
@@ -192,6 +195,8 @@ export const SidebarHeader = ({
           );
         })}
       </div>
+
+      {appsSection}
 
       <div className="sidebar-section-header">
         <span className="sidebar-section-title">{t('sidebar.workspaces')}</span>
