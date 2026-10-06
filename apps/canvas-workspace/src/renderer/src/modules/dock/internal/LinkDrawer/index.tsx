@@ -4,8 +4,8 @@
  * stay open. RightDock owns tab chrome; this view owns page actions and title.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useI18n } from "../../../../i18n";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../../../i18n';
 import { useEmbeddedBrowser } from '../../../../platform/browser/useEmbeddedBrowser';
 import { useInitialWebviewLoadSlot } from '../../../../platform/browser/useInitialWebviewLoadSlot';
 import { BrowserNavigationButtons } from '../../../../components/ui/BrowserNavigationButtons';
@@ -30,16 +30,16 @@ import {
   FOCUS_DOCK_ADDRESS_EVENT,
   RELOAD_DOCK_TAB_EVENT,
 } from '../RightDock/dock-browser-commands';
-import { pickFaviconUrl } from "../../../canvas/webview";
+import { pickFaviconUrl } from '../../../canvas/webview';
 import { useAppShell } from '../../../../shared/appShell';
 import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../../types';
-import { ExternalLinkIcon, PlusIcon } from "../../../../components/icons";
-import { Button, TextField } from "../../../../components/ui";
-import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../../shared/experimental-features";
+import { ExternalLinkIcon, PlusIcon } from '../../../../components/icons';
+import { Button, TextField } from '../../../../components/ui';
+import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from '../../../../../../shared/experimental-features';
 import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../../chat';
 import { useChatDeliveryNotifier } from '../../../chat/delivery';
 import { TabChatAction } from '../RightDock/TabChatAction';
-import "./index.css";
+import './index.css';
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
  *  detect its sign-in host so we can steer the user to the system browser. */
 function isGoogleAuthUrl(raw: string | null | undefined): boolean {
