@@ -182,12 +182,13 @@ pathRules:
     paths:
       - src/renderer/src/modules/mcp-apps/**
       - src/shared/mcp-apps.ts
+      - src/shared/mcp-app-context.ts
       - src/main/agent/mcp-app*.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-app-ipc.test.ts src/main/agent/mcp-app-runtime.test.ts src/main/agent/mcp-app-session-approvals.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-app-ipc.test.ts src/main/agent/mcp-app-runtime.test.ts src/main/agent/mcp-app-session-approvals.test.ts src/main/agent/mcp-app-node-context.test.ts src/main/agent/mcp-app-node-context-ipc.test.ts src/main/agent/mcp-app-chat-context.test.ts src/shared/mcp-apps.test.ts
 
   - name: model-selection
     paths:

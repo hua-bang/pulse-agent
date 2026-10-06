@@ -11,7 +11,7 @@ import type { ModelMessage } from 'ai';
 import { join } from 'path';
 import { resolveCanvasModel, type ResolvedCanvasModel } from '../models/config';
 import { createCanvasEnginePlugins } from './engine-plugins';
-import { formatSelectedPluginsBlock } from './plugin-selection-context';
+import { formatSelectedAppAndPluginsBlock } from './plugin-selection-context';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -586,14 +586,14 @@ export class CanvasAgent {
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const basePrompt = workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
-        + formatSelectedPluginsBlock(requestContext?.plugins ?? [])
+        + formatSelectedAppAndPluginsBlock(requestContext)
         + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
         + memorySection
       : GLOBAL_AGENT_SYSTEM_PROMPT
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
         + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
         + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
-        + formatSelectedPluginsBlock(requestContext?.plugins ?? [])
+        + formatSelectedAppAndPluginsBlock(requestContext)
         + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
         + memorySection

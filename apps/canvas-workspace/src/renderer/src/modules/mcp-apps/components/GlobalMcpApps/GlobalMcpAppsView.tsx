@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ArrowClockwise, X } from '@phosphor-icons/react';
 import { Button } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
+import type { McpAppContextSource } from '../../../../../../shared/mcp-apps';
 import { McpAppFrame } from '../McpAppFrame';
 import { useMcpAppEntrypoint } from '../useMcpAppEntrypoint';
 import { GlobalMcpAppTile } from './GlobalMcpAppTile';
@@ -29,6 +30,12 @@ const GlobalMcpAppPane = ({ app, active, onClose }: PaneProps) => {
     [resourceUri, serverName, toolName],
   );
   const entry = useMcpAppEntrypoint(GLOBAL_MCP_APP_SCOPE, target);
+  const contextSink = useMemo(() => ({
+    publish: (source: McpAppContextSource, context: unknown) => {
+      globalMcpAppsStore.publishContext(app, source, context);
+    },
+    clear: () => globalMcpAppsStore.clearContext(app),
+  }), [app]);
 
   return (
     <section
@@ -75,6 +82,7 @@ const GlobalMcpAppPane = ({ app, active, onClose }: PaneProps) => {
             app={entry.app}
             args={{}}
             scope={GLOBAL_MCP_APP_SCOPE}
+            contextSink={contextSink}
           />
         ) : (
           <div className="global-mcp-app__status">{t('mcpApp.node.opening', { title })}</div>
@@ -101,6 +109,10 @@ export const GlobalMcpAppsView = ({ active, onCloseActive }: Props) => {
   const { running, loaded, error } = useGlobalMcpApps();
   const activeKey = active ? globalMcpAppKey(active) : null;
   const activeRunning = Boolean(activeKey && running.some(app => app.key === activeKey));
+  useLayoutEffect(() => {
+    globalMcpAppsStore.setActive(activeKey);
+    return () => globalMcpAppsStore.setActive(null);
+  }, [activeKey]);
 
   // A route can name an app that is not open yet (for example after a
   // reload of the window): open it once its listing is known. Only once per

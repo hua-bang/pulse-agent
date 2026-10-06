@@ -5,6 +5,7 @@ import type {
   ChatRunInputMode,
 } from '../../../../types';
 import { collectContextRefsFromEditable, withCollectedTabs } from '../utils/mentions';
+import { globalMcpAppsStore } from '../../../mcp-apps/global-apps';
 import { withCollectedPlugins } from '../../mentions/pluginMentionItems';
 
 interface Options {
@@ -61,7 +62,8 @@ export const useChatComposerSubmission = ({
         };
       }
     }
-    return context;
+    const mcpAppContext = globalMcpAppsStore.readActiveContext();
+    return mcpAppContext ? { ...context, mcpAppContext } : context;
   }, [collectStructuredContext, editableRef, getRequestContext]);
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {

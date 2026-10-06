@@ -1,3 +1,5 @@
+import { formatMcpAppChatContext } from './mcp-app-chat-context';
+import type { AgentRequestContext } from '../../shared/agent-chat';
 import type { AgentContextPluginRef } from '../../shared/agent-chat';
 
 const promptLabel = (value: string): string => (
@@ -19,4 +21,9 @@ export function formatSelectedPluginsBlock(
     '',
   ];
   return lines.join('\n');
+}
+
+/** User-selected capabilities and the visible App are both turn-owned context. */
+export function formatSelectedAppAndPluginsBlock(context?: AgentRequestContext): string {
+  return formatSelectedPluginsBlock(context?.plugins) + formatMcpAppChatContext(context?.mcpAppContext);
 }

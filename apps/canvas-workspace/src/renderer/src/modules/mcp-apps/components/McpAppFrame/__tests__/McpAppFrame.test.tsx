@@ -78,6 +78,43 @@ describe('buildMcpAppCsp', () => {
     host.remove();
   });
 
+  it('publishes global view updates without a canvas-node lease and ignores late teardown updates', async () => {
+    const publish = vi.fn();
+    const clear = vi.fn();
+    (window as any).canvasWorkspace = { agent: { mcpApps: {
+      readResource: async () => ({ ok: true, value: { contents: [{
+        mimeType: 'text/html;profile=mcp-app', text: '<main>Drawing Library</main>',
+      }] } }),
+    } } };
+    const app = { serverName: 'drawings', toolName: 'library', resourceUri: 'ui://library', result: { content: [] } };
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(<I18nProvider><RightDockProvider>
+        <McpAppFrame embedded instanceId="global:library" app={app} scope={{ kind: 'global' }} contextSink={{ publish, clear }} />
+      </RightDockProvider></I18nProvider>);
+    });
+    const frame = host.querySelector('iframe')!;
+    await act(async () => { frame.dispatchEvent(new Event('load')); });
+    const bridge = bridgeState.current;
+    const context = { structuredContent: { selected: 'Today' } };
+    await act(async () => { await bridge.onupdatemodelcontext(context); });
+    expect(publish).toHaveBeenCalledWith('model-context', context);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        source: frame.contentWindow!, data: { type: 'pulse-mcp-app-host-event', action: 'context', context },
+      }));
+    });
+    expect(publish).toHaveBeenCalledWith('visible-ui', context);
+    await act(async () => { root.unmount(); });
+    const count = publish.mock.calls.length;
+    await bridge.onupdatemodelcontext(context);
+    expect(publish).toHaveBeenCalledTimes(count);
+    expect(clear).toHaveBeenCalled();
+    host.remove();
+  });
+
   it('denies undeclared network and frame access by default', () => {
     const csp = buildMcpAppCsp();
     expect(csp).toContain('connect-src data:');

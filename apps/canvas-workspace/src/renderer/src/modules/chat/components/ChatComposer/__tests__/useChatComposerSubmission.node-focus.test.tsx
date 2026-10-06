@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi, type Mock } from 'vitest';
+import { globalMcpAppsStore } from '../../../../mcp-apps/global-apps';
 import { useChatComposerSubmission } from '../useChatComposerSubmission';
 import type { AgentRequestContext, ChatRunInputMode } from '../../../../../types';
 
@@ -48,6 +49,29 @@ describe('composer explicit node focus', () => {
       await act(async () => { await hook.submitCurrentInputDuringRun('follow-up'); });
       expect(duringRun.mock.calls[0]).toEqual(['follow-up', '总结', expect.objectContaining({ selectedNodes: [mentioned] })]);
     });
+  });
+
+  it('freezes the visible global App on ordinary and queued submissions', async () => {
+    globalMcpAppsStore.open({ serverName: 'drawings', toolName: 'library', resourceUri: 'ui://library', title: 'Drawings', kind: 'global' });
+    const app = globalMcpAppsStore.getSnapshot().running[0];
+    globalMcpAppsStore.setActive(app.key);
+    const publish = (text: string) => globalMcpAppsStore.publishContext(app, 'visible-ui', { content: [{ type: 'text', text }] });
+    try {
+      publish('Search: today');
+      await withSubmission('', async (hook, submit, duringRun) => {
+        await act(async () => { await hook.submitCurrentInput(); });
+        publish('Search: architecture');
+        await act(async () => { await hook.submitCurrentInputDuringRun('follow-up'); });
+        expect(submit.mock.calls[0][1]?.mcpAppContext?.snapshots[0].text).toBe('Search: today');
+        expect(duringRun.mock.calls[0][2]?.mcpAppContext?.snapshots[0].text).toBe('Search: architecture');
+        globalMcpAppsStore.setActive(null);
+        await act(async () => { await hook.submitCurrentInput(); });
+        expect(submit.mock.calls[1][1]?.mcpAppContext).toBeUndefined();
+      });
+    } finally {
+      globalMcpAppsStore.close(app.key);
+      globalMcpAppsStore.setActive(null);
+    }
   });
 
   it('retains canvas selection when the composer has no node mention', async () => {
