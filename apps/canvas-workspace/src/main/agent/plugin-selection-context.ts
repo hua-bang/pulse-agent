@@ -25,5 +25,7 @@ export function formatSelectedPluginsBlock(
 
 /** User-selected capabilities and the visible App are both turn-owned context. */
 export function formatSelectedAppAndPluginsBlock(context?: AgentRequestContext): string {
-  return formatSelectedPluginsBlock(context?.plugins) + formatMcpAppChatContext(context?.mcpAppContext);
+  return formatSelectedPluginsBlock(context?.plugins) + (context?.mcpAppMentions?.length
+    ? context.mcpAppMentions.map(app => formatMcpAppChatContext(app, true)).join('')
+    : formatMcpAppChatContext(context?.mcpAppContext));
 }

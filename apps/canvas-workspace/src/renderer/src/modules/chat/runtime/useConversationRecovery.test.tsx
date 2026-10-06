@@ -53,6 +53,9 @@ it('replays the original App snapshot rather than the current view', () => {
     .toEqual(mcpAppContext);
   expect(recoveryRequestContext({ role: 'user', content: 'summarize', timestamp: 1, mcpAppContext: null }, current)?.mcpAppContext)
     .toBeNull();
+  const source = { role: 'user' as const, content: '@App', timestamp: 1, mcpAppContext: null, mcpAppMentions: [mcpAppContext] };
+  const replay = recoveryRequestContext(source, { mcpAppMentions: [{ ...mcpAppContext, serverName: 'other' }] });
+  expect(replay?.mcpAppMentions).toEqual([mcpAppContext]);
 });
 
 describe('conversation recovery', () => {

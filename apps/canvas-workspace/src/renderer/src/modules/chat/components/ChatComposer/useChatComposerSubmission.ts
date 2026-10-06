@@ -5,6 +5,8 @@ import type {
   ChatRunInputMode,
 } from '../../../../types';
 import { collectContextRefsFromEditable, withCollectedTabs } from '../utils/mentions';
+import { collectAppMentionContexts } from '../../mentions/appMentionItems';
+import { serializeEditable } from '../utils/serializeEditable';
 import { globalMcpAppsStore } from '../../../mcp-apps/global-apps';
 import { withCollectedPlugins } from '../../mentions/pluginMentionItems';
 
@@ -62,6 +64,9 @@ export const useChatComposerSubmission = ({
         };
       }
     }
+    const mcpAppMentions = editableRef.current
+      ? collectAppMentionContexts(serializeEditable(editableRef.current)) : [];
+    if (mcpAppMentions.length) return { ...context, mcpAppContext: null, mcpAppMentions };
     const mcpAppContext = globalMcpAppsStore.readActiveContext();
     return mcpAppContext ? { ...context, mcpAppContext } : context;
   }, [collectStructuredContext, editableRef, getRequestContext]);

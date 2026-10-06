@@ -12,6 +12,7 @@ import { buildTabMentionItems } from '../utils/mentions';
 import { flattenEntries } from '../../mentions/fileMentionItems';
 import { loadRoleMentionItems } from '../../mentions/roleMentionItems';
 import { buildStaticMentionItems } from '../../mentions/staticMentionItems';
+import { loadAppMentionItems } from '../../mentions/appMentionItems';
 import { loadInstalledPluginMentionItems } from '../../mentions/pluginMentionItems';
 
 const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
@@ -92,11 +93,12 @@ export const useMentionItems = ({
     }
 
     // Independent IPC reads: load them concurrently, not back to back.
-    const [roleItems, pluginItems] = await Promise.all([
+    const [roleItems, pluginItems, appItems] = await Promise.all([
       loadRoleMentionItems(),
       loadInstalledPluginMentionItems(),
+      loadAppMentionItems(),
     ]);
-    const items: MentionItem[] = [...roleItems, ...pluginItems];
+    const items: MentionItem[] = [...roleItems, ...appItems, ...pluginItems];
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs, describeTab));
     items.push(...buildStaticMentionItems({
       allWorkspaces,
