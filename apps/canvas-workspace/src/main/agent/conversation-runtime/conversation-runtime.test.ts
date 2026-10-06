@@ -338,12 +338,15 @@ describe('ConversationRuntime (main, async owner)', () => {
       requestContext: { contextSnapshot, mcpAppContext: {
         serverName: 'drawings', toolName: 'library', title: 'Drawings', resourceUri: 'ui://library',
         snapshots: [{ source: 'visible-ui', text: 'Search: today', capturedAt: 1 }],
-      } },
+      }, mcpAppMentions: [{
+        serverName: 'boards', toolName: 'open', title: 'Boards', resourceUri: 'ui://boards', snapshots: [],
+      }] },
     });
 
     expect(deps.stored[0]).toMatchObject({
       attachments: [attachment], contextSnapshot,
       mcpAppContext: { snapshots: [{ source: 'visible-ui', text: 'Search: today', capturedAt: 1 }] },
+      mcpAppMentions: [{ serverName: 'boards', snapshots: [] }],
     });
     expect(deps.stored[1]).toMatchObject({
       runId: 'run-1',

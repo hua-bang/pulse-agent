@@ -64,8 +64,10 @@ export interface PendingClarification {
 }
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'plugin' | 'tag' | 'session' | 'dom' | 'tab' | 'role';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'plugin' | 'tag' | 'session' | 'dom' | 'tab' | 'role' | 'app';
   label: string;
+  /** For type === 'app': the global MCP App entrypoint. */
+  app?: McpAppEntrypointListing;
   /** For type === 'plugin': stable plugin-market listing id. */
   pluginId?: string;
   /** Client-owned brand key; Agent Plugins itself has no portable icon field. */

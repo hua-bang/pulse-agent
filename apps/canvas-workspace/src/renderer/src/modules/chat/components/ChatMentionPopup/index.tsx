@@ -8,6 +8,7 @@ import { useI18n } from '../../../../i18n';
 import { SessionTitle } from '../SessionTitle';
 import { sessionTitleText } from '../utils/sessionTitle';
 import { pluginMentionIconMarkup } from '../utils/pluginMentionIcons';
+import { GlobalMcpAppTile } from '../../../mcp-apps/global-apps';
 import { SpinnerIcon } from '../../../../components/icons';
 
 interface ChatMentionPopupProps {
@@ -114,7 +115,9 @@ export const ChatMentionPopup = ({
                     ? { color: item.roleColor, background: roleColorSoft(item.roleColor) }
                     : undefined}
                 >
-                  {item.type === 'tag'
+                  {item.type === 'app' && item.app
+                    ? <GlobalMcpAppTile title={item.label} seed={item.app.serverName} icon={item.app.icon} size={16} />
+                    : item.type === 'tag'
                     ? <span className="chat-mention-chip-hash">#</span>
                     : pluginIcon
                       ? <span className="chat-plugin-brand-icon" dangerouslySetInnerHTML={{ __html: pluginIcon }} />

@@ -10,6 +10,7 @@ import { writeDomSelectionDataset } from './domMentionData';
 import { roleColorSoft } from '../../../../utils/roleColors';
 import { sessionTitleText } from './sessionTitle';
 import { pluginMentionIconMarkup } from './pluginMentionIcons';
+import { APP_MENTION_PREFIX, buildAppMentionChip, renderAppMentionHtml } from './appMentions';
 import { buildNodeMentionMarker, parseNodeMention } from './nodeMentions';
 import {
   buildTabMentionChip,
@@ -178,6 +179,7 @@ export function getMentionNodeType(item: MentionItem, nodes?: CanvasNode[]): str
 export { serializeEditable } from './serializeEditable';
 
 export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]): HTMLSpanElement {
+  if (item.type === 'app' && item.app) return buildAppMentionChip(item.app);
   const isWorkspace = item.type === 'workspace';
   const isSkill = item.type === 'skill';
   const isPlugin = item.type === 'plugin';
@@ -374,6 +376,8 @@ export function renderMdWithMentions(
       const skillLabel = rawLabel.slice(SKILL_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--skill" data-node-type="skill"><span class="chat-mention-chip-label">${escapeHtml(skillLabel)}</span></span>`;
     }
+
+    if (rawLabel.startsWith(APP_MENTION_PREFIX)) return renderAppMentionHtml(rawLabel);
 
     if (rawLabel.startsWith(PLUGIN_MENTION_PREFIX)) {
       const [encodedId = '', encodedLabel = '', encodedIconKey = ''] = rawLabel

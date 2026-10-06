@@ -11,6 +11,17 @@ const context = {
 };
 
 describe('global MCP App turn context', () => {
+  it('routes multiple explicit App references ahead of an unrelated ambient App', () => {
+    const block = formatSelectedAppAndPluginsBlock({
+      mcpAppContext: { ...context, serverName: 'unrelated' },
+      mcpAppMentions: [context, { ...context, serverName: 'boards', snapshots: [] }],
+    });
+    expect(block).toContain('Explicit MCP App reference');
+    expect(block).toContain('"serverName":"excalidraw"');
+    expect(block).toContain('"serverName":"boards"');
+    expect(block).not.toContain('unrelated');
+    expect(block).toContain('No readable view snapshot');
+  });
   it('includes the filtered view ahead of opening data with content-first routing', () => {
     const block = formatSelectedAppAndPluginsBlock({ mcpAppContext: context });
     expect(block).toContain('Search: today');

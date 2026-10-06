@@ -41,6 +41,26 @@ async function withSubmission(chips: string, verify: (
 }
 
 describe('composer explicit node focus', () => {
+  it('keeps explicit App routing on ordinary and queued submissions ahead of the active App', async () => {
+    globalMcpAppsStore.open({ serverName: 'unrelated', toolName: 'open', resourceUri: 'ui://other', title: 'Other', kind: 'global' });
+    const app = globalMcpAppsStore.getSnapshot().running[0];
+    globalMcpAppsStore.setActive(app.key);
+    try {
+      await withSubmission('@[app:drawings|library|Drawings]', async (hook, submit, duringRun) => {
+        await act(async () => { await hook.submitCurrentInput(); });
+        await act(async () => { await hook.submitCurrentInputDuringRun('follow-up'); });
+        for (const context of [submit.mock.calls[0][1], duringRun.mock.calls[0][2]]) {
+          expect(context?.mcpAppContext).toBeNull();
+          expect(context?.mcpAppMentions).toEqual([{
+            serverName: 'drawings', toolName: 'library', title: 'Drawings', resourceUri: '', snapshots: [],
+          }]);
+        }
+      });
+    } finally {
+      globalMcpAppsStore.close(app.key);
+      globalMcpAppsStore.setActive(null);
+    }
+  });
   it('uses the @-mentioned node instead of an unrelated canvas selection on both submit paths', async () => {
     await withSubmission(`<span data-mention-kind="node" data-node-id="app-node" data-node-type="plugin" data-workspace-id="ws-2">
       <span class="chat-mention-chip-label">Bits & Bolts</span></span>`, async (hook, submit, duringRun) => {

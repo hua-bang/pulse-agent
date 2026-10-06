@@ -6,6 +6,13 @@ export interface AgentContextMcpAppSnapshot {
   snapshots: Array<{ source: 'tool-result' | 'model-context' | 'visible-ui'; text: string; capturedAt: number }>;
 }
 
+/** App context owned by a sent user turn, shared by input and stored messages. */
+export interface AgentContextMcpApps {
+  mcpAppContext?: AgentContextMcpAppSnapshot | null;
+  /** Explicit @App references; only the visible App contributes a view snapshot. */
+  mcpAppMentions?: AgentContextMcpAppSnapshot[];
+}
+
 const MAX_CONTEXT_BYTES = 64 * 1024;
 const MAX_TEXT_CHARS = 16_000;
 

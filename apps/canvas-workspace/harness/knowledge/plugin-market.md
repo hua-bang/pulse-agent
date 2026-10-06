@@ -183,6 +183,16 @@ ChatGPT opens a `global` entrypoint from its sidebar as one permanent, fullscree
 - MCP App IPC accepts any server or tool name up to 128 characters without control characters: names are user config keys (spaces and slashes are legal) and every lookup goes through the manager. Guard: `mcp-app-entrypoint-ipc.test.ts`.
 - Lifecycle guards: `GlobalMcpApps.test.tsx` (store, keep-alive panes, route open and close), `AppsSection.test.tsx`, and `routeModel.test.ts`.
 
+Chat's `@` menu lists global MCP App entrypoints in an Apps group. Markers
+encode server and entrypoint tool identity, so duplicate names do not merge.
+Explicit App references take precedence over the ambient active App. Only the
+visible App contributes a send-time view snapshot; hidden, closed, reloaded,
+or unmounted Apps contribute identity only. Multiple references are deduplicated
+by server/tool. The conversation stores `mcpAppMentions` with the user turn;
+edit, regenerate, and queued sends keep those captured snapshots. Guards:
+`chat/mentions/appMentionItems.test.ts`, composer submission tests,
+`mcp-app-chat-context.test.ts`, and conversation runtime/recovery tests.
+
 ## Validation entry points
 
 Let the repository runner select the bound Canvas checks for a change:

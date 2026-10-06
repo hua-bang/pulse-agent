@@ -19,6 +19,7 @@ export const NODE_MENTION_PREFIX = 'node:';
 
 export const MENTION_GROUPS = [
   { key: 'role', label: 'Roles', labelKey: 'chat.mention.role' },
+  { key: 'app', label: 'Apps', labelKey: 'chat.mention.apps' },
   { key: 'plugin', label: 'Plugins', labelKey: 'chat.mention.plugins' },
   { key: 'skill', label: 'Skills', labelKey: 'chat.mention.skills' },
   { key: 'tab', label: 'Tabs', labelKey: 'chat.mention.tab' },
@@ -53,6 +54,7 @@ export const MENTION_MAX_ITEMS = 30;
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
   if (item.type === 'role') return 'role';
+  if (item.type === 'app') return 'app';
   if (item.type === 'plugin') return 'plugin';
   if (item.type === 'skill') return 'skill';
   if (item.type === 'tab') return 'tab';
