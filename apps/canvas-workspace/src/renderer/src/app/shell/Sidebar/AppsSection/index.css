@@ -20,6 +20,9 @@
   background: transparent;
   color: var(--text);
   font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
 }
 
 .sidebar-apps__item.ui-btn:hover:not(:disabled):not(.sidebar-item--active) {
@@ -28,6 +31,22 @@
 
 .sidebar-apps__item.ui-btn.sidebar-item--active {
   background: var(--accent-light);
+  color: var(--accent);
+}
+
+.sidebar-apps__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.sidebar-apps__item.sidebar-item--active .sidebar-apps__icon,
+.sidebar-apps__item.sidebar-item--active .global-mcp-app-tile,
+.sidebar-apps-rail .sidebar-collapsed-btn--active .global-mcp-app-tile {
   color: var(--accent);
 }
 

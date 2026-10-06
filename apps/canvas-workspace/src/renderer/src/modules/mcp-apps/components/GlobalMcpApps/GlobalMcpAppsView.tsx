@@ -45,7 +45,7 @@ const GlobalMcpAppPane = ({ app, active, onClose }: PaneProps) => {
       data-mcp-app-key={app.key}
     >
       <header className="global-mcp-app__bar">
-        <GlobalMcpAppTile title={title} seed={app.key} size={22} icon={app.listing.icon} />
+        <GlobalMcpAppTile title={title} size={22} icon={app.listing.icon} />
         <h1 className="global-mcp-app__title">{title}</h1>
         <span className="global-mcp-app__meta">{t('mcpApp.global.source', { server: serverName })}</span>
         <span className="global-mcp-app__spacer" />

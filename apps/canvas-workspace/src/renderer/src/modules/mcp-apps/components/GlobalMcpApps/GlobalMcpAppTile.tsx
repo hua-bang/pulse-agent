@@ -1,17 +1,8 @@
 import type { McpAppIconImage, McpAppIconSet } from '../../../../../../shared/mcp-apps';
 import './GlobalMcpAppTile.css';
 
-const TILE_COLORS = ['#2f6fd6', '#b0570f', '#2c7a4b', '#7a4bb0', '#b03a5b', '#2f7f8c'];
-
-const tileColor = (seed: string): string => {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return TILE_COLORS[hash % TILE_COLORS.length];
-};
-
 interface Props {
   title: string;
-  seed: string;
   size?: number;
   /** The app's MCP icon; without one a letter tile is shown. */
   icon?: McpAppIconSet;
@@ -37,7 +28,7 @@ const IconImage = ({ image, size, variant }: {
 };
 
 /** App icon from the MCP server, or a letter tile when it declares none. */
-export const GlobalMcpAppTile = ({ title, seed, size = 18, icon }: Props) => {
+export const GlobalMcpAppTile = ({ title, size = 18, icon }: Props) => {
   if (icon) {
     return (
       <span
@@ -58,9 +49,6 @@ export const GlobalMcpAppTile = ({ title, seed, size = 18, icon }: Props) => {
         width: size,
         height: size,
         fontSize: Math.round(size * 0.55),
-        background: tileColor(seed),
-        // White text belongs to the fixed tile palette, not the theme.
-        color: '#fff',
       }}
     >
       {title.trim().charAt(0).toUpperCase() || '?'}
