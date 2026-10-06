@@ -54,7 +54,7 @@ export const AppsSection = ({ collapsed, activeView, activeAppKey, onOpenApp }: 
               title={listing.title}
               aria-label={listing.title}
             >
-              <GlobalMcpAppTile title={listing.title} seed={key} size={18} icon={listing.icon} />
+              <GlobalMcpAppTile title={listing.title} size={18} icon={listing.icon} />
             </Button>
           );
         })}
@@ -78,7 +78,9 @@ export const AppsSection = ({ collapsed, activeView, activeAppKey, onOpenApp }: 
               title={t('mcpApp.global.source', { server: listing.serverName })}
               aria-current={key === activeAppKey ? 'page' : undefined}
             >
-              <GlobalMcpAppTile title={listing.title} seed={key} size={18} icon={listing.icon} />
+              <span className="sidebar-apps__icon">
+                <GlobalMcpAppTile title={listing.title} size={18} icon={listing.icon} />
+              </span>
               <span className="sidebar-apps__label">{listing.title}</span>
             </Button>
           );

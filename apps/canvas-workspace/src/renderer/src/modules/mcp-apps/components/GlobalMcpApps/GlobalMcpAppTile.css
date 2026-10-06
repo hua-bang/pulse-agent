@@ -4,6 +4,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-xs);
+  background: var(--surface-alt);
+  color: var(--text-secondary);
   font-weight: 500;
   line-height: 1;
 }

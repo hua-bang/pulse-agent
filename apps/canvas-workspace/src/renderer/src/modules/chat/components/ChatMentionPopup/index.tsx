@@ -116,7 +116,7 @@ export const ChatMentionPopup = ({
                     : undefined}
                 >
                   {item.type === 'app' && item.app
-                    ? <GlobalMcpAppTile title={item.label} seed={item.app.serverName} icon={item.app.icon} size={16} />
+                    ? <GlobalMcpAppTile title={item.label} icon={item.app.icon} size={16} />
                     : item.type === 'tag'
                     ? <span className="chat-mention-chip-hash">#</span>
                     : pluginIcon
