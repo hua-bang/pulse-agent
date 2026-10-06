@@ -283,7 +283,7 @@ Pulse has no matching surface:
 
 | OpenAI entrypoint | Pulse mapping |
 | --- | --- |
-| `global` (sidebar, fullscreen) | Listed in the plugin surface and openable fullscreen; also droppable onto the canvas as a node initialized with `{}` and no instance state. |
+| `global` (sidebar, fullscreen) | Listed in the left Sidebar Apps section and opened in the main area as one live instance shared by every workspace; also droppable onto the canvas as a node initialized with `{}` and no instance state. |
 | `thread` (per-thread side tab) | One instance per Canvas Agent chat session as a side tab; also droppable as a node. |
 | `file` (`extensions: [...]`) | Later phase. Requires Pulse to serve `resources/read` / `resources/subscribe` for the opened file and support `openai/resources/write`. |
 | Deep links (`?path=`) | Pass the app-relative URL through `hostContext["openai/deepLink"]`, so node-to-page references can reuse it. |
@@ -318,6 +318,8 @@ configured in `mcp.json`: create, two instances, and restore after restart.
 Mounted nodes now expose bounded, volatile Agent view context: opening tool
 data, visible UI text, and `ui/update-model-context` text/structured updates.
 Explicit node mentions focus summaries on that node without reopening its App.
+`global` entrypoints also open from the Sidebar Apps section in the main area,
+one live instance per tool across workspaces (not persisted across restarts).
 Not yet built: persisted `pulse/node` snapshots (`saveSnapshot`), deep links,
 file entrypoints, and chat-scoped or binary-image model context. Facts live in
 `harness/knowledge/plugin-market.md` (Canvas MCP App nodes).

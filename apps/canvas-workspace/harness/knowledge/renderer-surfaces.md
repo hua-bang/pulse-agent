@@ -251,6 +251,11 @@ This structure came out of a 2026-06 container cleanup, in three steps:
 
 - `src/renderer/src/app/App/index.tsx`: top-level renderer routes, shell, settings, and
   plugin route/nav integration.
+- `/apps/<server>/<tool>` (`routeModel.ts`): the main-area view for OpenAI
+  `global` MCP Apps, opened from the Sidebar Apps section. One keep-alive
+  host (`modules/mcp-apps` `GlobalMcpAppsView`) holds every opened app and
+  hides the inactive ones, so view and workspace switches never reload them.
+  Facts and guards: `plugin-market.md` (Global MCP Apps).
 - `src/renderer/src/modules/canvas/components/canvas/Canvas/`: canvas surface and interaction wiring.
 - `src/renderer/src/app/shell/Workbench/`: mounted workspace state and chat
   portal ownership.

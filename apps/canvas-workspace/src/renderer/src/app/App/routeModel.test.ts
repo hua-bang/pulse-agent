@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveAppRoute } from './routeModel';
+import { MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute } from './routeModel';
 
 describe('app route model', () => {
   it('redirects stale disabled node deep links to the canvas', () => {
@@ -25,5 +25,21 @@ describe('app route model', () => {
       graphEnabled: true,
       pluginPaths: ['/custom'],
     }).activeView).toBe('/custom');
+  });
+
+  it('round-trips global MCP App routes with encoded server and tool names', () => {
+    const target = { serverName: 'mock apps/v2', toolName: 'parts.library' };
+    const path = mcpAppRoutePath(target);
+    expect(path).toBe('/apps/mock%20apps%2Fv2/parts.library');
+    expect(resolveAppRoute(path, {
+      nodesEnabled: false,
+      graphEnabled: false,
+      pluginPaths: [],
+    })).toMatchObject({ activeView: MCP_APP_VIEW, mcpApp: target, redirectToCanvas: false });
+    expect(resolveAppRoute('/apps', {
+      nodesEnabled: false,
+      graphEnabled: false,
+      pluginPaths: [],
+    })).toMatchObject({ activeView: 'canvas', mcpApp: null });
   });
 });

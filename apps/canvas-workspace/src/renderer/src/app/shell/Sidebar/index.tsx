@@ -5,6 +5,7 @@ import './interaction-polish.css';
 import { SidebarHeader, SidebarToggleIcon } from './SidebarHeader';
 import { WorkspaceItem } from './WorkspaceItem';
 import { WorkspaceList } from './WorkspaceList';
+import { AppsSection } from './AppsSection';
 import { AppLogoIcon, PluginIcon, ScheduledIcon, SettingsIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
@@ -52,6 +53,8 @@ export const Sidebar = ({
   onEnterScheduled,
   enableSkills = true,
   enableScheduled = true,
+  activeMcpAppKey = null,
+  onOpenMcpApp,
 }: Props) => {
   const { t } = useI18n();
   const editing = useSidebarEditing({
@@ -65,6 +68,15 @@ export const Sidebar = ({
   useEffect(() => {
     if (layersVisible) setLayersLoaded(true);
   }, [layersVisible]);
+
+  const renderApps = () => (onOpenMcpApp ? (
+    <AppsSection
+      collapsed={collapsed}
+      activeView={activeView}
+      activeAppKey={activeMcpAppKey}
+      onOpenApp={onOpenMcpApp}
+    />
+  ) : null);
 
   const renderWorkspaceItem = (ws: WorkspaceEntry) => (
     <WorkspaceItem
@@ -118,6 +130,7 @@ export const Sidebar = ({
             onImportWorkspace={editing.importWorkspace}
             enableSkills={enableSkills}
             enableScheduled={enableScheduled}
+            appsSection={renderApps()}
           />
           <WorkspaceList
             folders={folders}
@@ -210,6 +223,8 @@ export const Sidebar = ({
               <ScheduledIcon size={15} />
             </Button>) : null
           }
+
+          {renderApps()}
 
           <button
             type="button"
