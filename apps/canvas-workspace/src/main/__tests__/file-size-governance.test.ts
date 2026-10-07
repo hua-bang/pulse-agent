@@ -30,7 +30,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // 605→636 (2026-07-17, drift recorded): grew via master work (#806
   // session-restore fix) that never ran this suite (no automatic trigger).
   // Raised to measured; must-not-grow applies from 636.
-  'src/main/agent/session-store.ts': 636,
+  'src/main/agent/sessions/session-store.ts': 636,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
   'src/main/agent/skills/config.ts': 511,

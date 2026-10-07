@@ -1,5 +1,5 @@
-import type { AgentContextMcpAppSnapshot } from '../../shared/agent-chat';
-import { mcpAppContextText } from '../../shared/mcp-app-context';
+import type { AgentContextMcpAppSnapshot } from '../../../shared/agent-chat';
+import { mcpAppContextText } from '../../../shared/mcp-app-context';
 
 /** The snapshot is request-owned. Never look up a later, shared active view. */
 export function formatMcpAppChatContext(context?: AgentContextMcpAppSnapshot | null, explicit = false): string {

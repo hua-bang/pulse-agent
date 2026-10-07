@@ -1,4 +1,4 @@
-import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from './types';
+import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../types';
 
 export interface SessionMutationAgent {
   abort?(sessionId?: string): void;

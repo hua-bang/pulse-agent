@@ -15,8 +15,8 @@
 
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, workspaceNames } from './session-store-lookups';
 import { scanAllWorkspaceSessions } from './session-store-scan';
-import { sessionStorageRoot } from './sqlite-session-backend';
-import type { SessionSearchHit } from './types';
+import { sessionStorageRoot } from '../sqlite-session-backend';
+import type { SessionSearchHit } from '../types';
 
 export async function searchSessionTitles(query: string, limit = 8): Promise<SessionSearchHit[]> {
   const normalized = query.trim().toLowerCase();

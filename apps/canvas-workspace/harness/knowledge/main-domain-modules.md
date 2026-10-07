@@ -38,7 +38,8 @@ src/main/
                       # mcp/, skills/, tools/ (20+ split tool modules; the
                       # sibling tools.ts is a 2-line re-export shim kept for imports),
                       # backends/, conversation-runtime/, external/, observability/,
-                      # flat mcp-app-* (MCP App host) and session-* files
+                      # mcp-apps/ (MCP App host), sessions/ (session store, index,
+                      # mutation coordinator, send)
   agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
                       # canvas-agent-session-adapter (pulse-coder-agent-teams integration)
   artifacts/          # store + ipc (pin-to-canvas logic lives inside ipc.ts)
@@ -310,11 +311,9 @@ done. Still open:
   Legacy persisted-state repair ordering and transitions live in `agent-teams/state-repairs.ts`.
   Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
-- **Agent flat-file grouping** — `agent/` has about 120 flat `.ts` files. The
-  12 production `mcp-app-*` files (MCP App host, about 940 lines, plus 8
-  colocated tests) and 14 `session-*`
-  files are the clearest sub-domains still not grouped into folders. Group
-  them by moving files only, and keep IPC channel names stable.
+- **Agent flat-file grouping** — `mcp-apps/` and `sessions/` are grouped.
+  About 85 flat `.ts` files (tests included) remain in `agent/`; group further
+  sub-domains by moving files only, and keep IPC channel names stable.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
   `artifacts -> agent`, `canvas -> agent`, `default-browser -> app`,

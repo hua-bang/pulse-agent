@@ -15,7 +15,7 @@
  */
 
 import { z } from 'zod';
-import { SessionStore, type SessionWithMeta } from '../session-store';
+import { SessionStore, type SessionWithMeta } from '../sessions/session-store';
 import type { CanvasAgentMessage } from '../types';
 import type { CanvasTool } from './types';
 

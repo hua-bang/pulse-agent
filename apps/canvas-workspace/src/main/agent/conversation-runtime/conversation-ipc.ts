@@ -4,7 +4,7 @@ import {
   type ConversationSendInput,
 } from '../../../shared/conversation-runtime';
 import { ipcMain, type WebContents } from 'electron';
-import { SessionStore } from '../session-store';
+import { SessionStore } from '../sessions/session-store';
 import type { AgentScope, AgentScopeRef } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';

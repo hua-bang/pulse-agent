@@ -5,7 +5,7 @@ import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 import { broadcastCanvasUpdate } from '../canvas/broadcast';
 import { readWorkspaceMeta } from '../agent/workspace-meta';
 import { hasSession, killSession, writeToSession } from '../terminal/pty-manager';
-import { sendInputToAgentNode } from '../agent/session-send';
+import { sendInputToAgentNode } from '../agent/sessions/session-send';
 import { autoPlace, INLINE_PROMPT_THRESHOLD } from '../agent/tools/_shared/placement';
 import type { CanvasEdge, CanvasNode, CanvasSaveData, EdgeEndpoint } from '../agent/tools/types';
 

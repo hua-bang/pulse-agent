@@ -1,4 +1,4 @@
-import { formatMcpAppChatContext } from './mcp-app-chat-context';
+import { formatMcpAppChatContext } from './mcp-apps/mcp-app-chat-context';
 import type { AgentRequestContext } from '../../shared/agent-chat';
 import type { AgentContextPluginRef } from '../../shared/agent-chat';
 

@@ -31,7 +31,7 @@ vi.mock('../terminal/pty-manager', () => ({
   writeToSession: vi.fn(),
 }));
 
-vi.mock('../agent/session-send', () => ({
+vi.mock('../agent/sessions/session-send', () => ({
   sendInputToAgentNode: vi.fn(),
 }));
 

@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
-import { sendInputToAgentNode } from '../session-send';
+import { sendInputToAgentNode } from '../sessions/session-send';
 import { readWorkspaceMeta } from '../workspace-meta';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';

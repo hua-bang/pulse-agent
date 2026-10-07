@@ -45,7 +45,7 @@ vi.mock('../canvas-agent', () => ({
 }));
 
 import { CanvasAgentService } from '../service';
-import { SessionStore } from '../session-store';
+import { SessionStore } from '../sessions/session-store';
 
 describe('CanvasAgentService history', () => {
   let sessionRoot: string;

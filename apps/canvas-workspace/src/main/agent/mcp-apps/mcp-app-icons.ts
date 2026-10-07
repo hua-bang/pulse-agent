@@ -3,7 +3,7 @@ import type {
   McpAppEntrypointListing,
   McpAppIconImage,
   McpAppIconSet,
-} from '../../shared/mcp-apps';
+} from '../../../shared/mcp-apps';
 
 const MAX_ICON_BYTES = 128 * 1024;
 const FETCH_TIMEOUT_MS = 5_000;

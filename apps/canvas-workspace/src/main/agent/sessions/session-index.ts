@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { basename, join, relative, sep } from 'path';
-import type { CanvasAgentSession } from './types';
+import type { CanvasAgentSession } from '../types';
 import { sessionPreview } from './session-preview';
 import {
   listedSessionMetadata,

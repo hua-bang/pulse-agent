@@ -2,10 +2,10 @@ import type {
   AgentScope,
   CanvasAgentMessage,
   CanvasAgentSession,
-} from './types';
-import { scopeServiceKey as scopeMutationKey } from './active-session-groups';
-import { registerWorkspaceSessionDrain, withWorkspaceRun } from './workspace-runtime-guard';
-import { clearSessionApprovalGrants } from './tool-policy';
+} from '../types';
+import { scopeServiceKey as scopeMutationKey } from '../active-session-groups';
+import { registerWorkspaceSessionDrain, withWorkspaceRun } from '../workspace-runtime-guard';
+import { clearSessionApprovalGrants } from '../tool-policy';
 
 import type {
   BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSessionResult,

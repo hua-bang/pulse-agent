@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import type { CanvasAgentSession } from './types';
+import type { CanvasAgentSession } from '../types';
 
 export interface AgentSessionListEntry {
   sessionId: string;

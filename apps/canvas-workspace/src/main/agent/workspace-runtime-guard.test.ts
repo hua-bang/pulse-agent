@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessionMutationCoordinator } from './session-mutation-coordinator';
+import { SessionMutationCoordinator } from './sessions/session-mutation-coordinator';
 import { assertWorkspaceAvailable, registerWorkspaceSessionDrain, withWorkspaceRun, withWorkspaceTrashGuard } from './workspace-runtime-guard';
 import { readCanvasAgentHistorySnapshot } from './history-snapshot';
 import { activateAgentScope } from './scope-agent-activation';

@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
-import type { AgentScopeRef } from './types';
-import type { CanvasAgentService } from './service';
-import type { McpAppEntrypointKind } from '../../shared/mcp-apps';
+import type { AgentScopeRef } from '../types';
+import type { CanvasAgentService } from '../service';
+import type { McpAppEntrypointKind } from '../../../shared/mcp-apps';
 import { listMcpAppEntrypoints, listMcpAppEntrypointsOfKind } from './mcp-app-entrypoints';
 import { setupMcpAppNodeContextIpc } from './mcp-app-node-context-ipc';
 import { boundedRequest, errorResult, executeWithTimeout, managerFor, resolveAgentScope, validMcpName } from './mcp-app-request';

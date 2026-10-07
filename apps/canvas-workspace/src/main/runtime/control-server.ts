@@ -21,7 +21,7 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
-import { sendInputToAgentNode } from '../agent/session-send';
+import { sendInputToAgentNode } from '../agent/sessions/session-send';
 import { handleCapabilityHttpRequest } from './capability-http';
 import { readBody, replyJson as reply } from './http-utils';
 const getCanvasAgentTeamsService = async () =>

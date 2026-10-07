@@ -5,7 +5,7 @@ import { isStorageError, StorageError } from '@pulse-coder/storage';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from './types';
 import { decodeSession, encodeSessionMessages, encodeSessionMetadata, sessionJson, sessionListEntry } from './sqlite-session-codec';
 import { listSqliteConversations } from './sqlite-session-backend';
-import type { AgentSessionListEntry } from './session-file-summary';
+import type { AgentSessionListEntry } from './sessions/session-file-summary';
 
 /** Logical JSON payload bytes written by this commit, not SQLite/WAL allocation. */
 function recordSessionPersist(metadata: JsonObject, messages: readonly EntityRecord[]): void {

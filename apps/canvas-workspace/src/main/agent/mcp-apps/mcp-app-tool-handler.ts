@@ -1,9 +1,9 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
-import type { AgentScope, AgentScopeRef } from './types';
-import type { CanvasAgentService } from './service';
-import { serializeMcpAppToolArguments, type McpAppToolApprovalResponse } from '../../shared/mcp-apps';
-import { classifyCanvasToolOperation } from './tool-policy';
+import type { AgentScope, AgentScopeRef } from '../types';
+import type { CanvasAgentService } from '../service';
+import { serializeMcpAppToolArguments, type McpAppToolApprovalResponse } from '../../../shared/mcp-apps';
+import { classifyCanvasToolOperation } from '../tool-policy';
 import { McpAppPendingApprovals } from './mcp-app-pending-approvals';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
 import { boundedRequest, errorResult, executeWithTimeout, managerFor, resolveAgentScope, validMcpName } from './mcp-app-request';

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ handlers: new Map<string, Function>(), loadCanvas: vi.fn() }));
 vi.mock('electron', () => ({ ipcMain: { handle: (name: string, handler: Function) => mocks.handlers.set(name, handler) } }));
-vi.mock('../canvas/service', () => ({ loadCanvas: mocks.loadCanvas }));
+vi.mock('../../canvas/service', () => ({ loadCanvas: mocks.loadCanvas }));
 import { setupMcpAppNodeContextIpc } from './mcp-app-node-context-ipc';
 import { getMcpAppNodeContextStore } from './mcp-app-node-context';
-import { McpAppNodeMainPlugin } from '../../plugins/main/mcp-app-node';
+import { McpAppNodeMainPlugin } from '../../../plugins/main/mcp-app-node';
 
 const target = {
   workspaceId: 'ws-1', nodeId: 'n1', serverName: 'bits-and-bolts',

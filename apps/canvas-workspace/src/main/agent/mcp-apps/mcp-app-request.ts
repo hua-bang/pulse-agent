@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron';
-import type { AgentScope, AgentScopeRef } from './types';
-import type { CanvasAgentService } from './service';
+import type { AgentScope, AgentScopeRef } from '../types';
+import type { CanvasAgentService } from '../service';
 
 const MAX_CONCURRENT_REQUESTS = 8;
 const MAX_QUEUED_REQUESTS = 64;

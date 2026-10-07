@@ -13,7 +13,7 @@ import * as atomicJson from '../canvas/persistence/atomic-json';
 import { createCanvasSessionArchivePort, initializeCanvasSessionArchivePort } from './workspace-session-archive';
 import { activateSqliteSessions } from './sqlite-session-migration';
 import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite-session-backend';
-import { SessionStore } from './session-store';
+import { SessionStore } from './sessions/session-store';
 
 const file = (relativePath: string, contents: unknown): WorkspaceExportFile => ({
   relativePath, encoding: 'base64', content: Buffer.from(JSON.stringify(contents)).toString('base64'),

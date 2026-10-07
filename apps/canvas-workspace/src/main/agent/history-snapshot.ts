@@ -1,5 +1,5 @@
 import { scopeSessionStoreId } from '../../shared/agent-chat';
-import { SessionStore } from './session-store';
+import { SessionStore } from './sessions/session-store';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from './types';
 import { isWorkspaceTrashed } from './workspace-runtime-guard';
 

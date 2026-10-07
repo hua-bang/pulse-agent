@@ -3,7 +3,7 @@ import type { ModelMessage } from 'ai';
 import { buildEngineStreamCallbacks } from '../engine-stream-callbacks';
 import type { AgentRuntime, TurnSegmentRequest, TurnSegmentResult } from './types';
 import type { MCPAppsManager } from 'pulse-coder-engine/built-in';
-import { resolveMcpApp } from '../mcp-app-runtime';
+import { resolveMcpApp } from '../mcp-apps/mcp-app-runtime';
 
 const CANVAS_AGENT_MAX_STEPS = 200;
 

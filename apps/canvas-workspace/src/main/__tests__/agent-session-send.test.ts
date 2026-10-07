@@ -24,7 +24,7 @@ vi.mock('../canvas/storage', () => ({
   readCanvasFull: async () => ({ data: mockCanvas }),
 }));
 
-import { sendInputToAgentNode } from '../agent/session-send';
+import { sendInputToAgentNode } from '../agent/sessions/session-send';
 
 let tmp: string;
 

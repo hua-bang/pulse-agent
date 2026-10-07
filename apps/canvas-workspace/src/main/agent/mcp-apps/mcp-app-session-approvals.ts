@@ -1,4 +1,4 @@
-import type { AgentScope } from './types';
+import type { AgentScope } from '../types';
 
 const scopeKey = (scope: AgentScope): string => {
   if (scope.kind === 'workspace') return `workspace:${scope.workspaceId}`;

@@ -1,6 +1,6 @@
-import { scopeSessionStoreId } from '../../shared/agent-chat';
+import { scopeSessionStoreId } from '../../../shared/agent-chat';
 import { SessionStore } from './session-store';
-import type { AgentScope, CanvasAgentSession } from './types';
+import type { AgentScope, CanvasAgentSession } from '../types';
 
 interface SessionPointerAgent {
   getCurrentSessionId(): string | null;

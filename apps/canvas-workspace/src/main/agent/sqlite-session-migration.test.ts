@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { activateLocalCanvasStorage, readLocalStorageStatus } from '@pulse-coder/storage/local';
 import { activateSqliteSessions, readLegacySessionScopes } from './sqlite-session-migration';
 import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite-session-backend';
-import { SessionStore } from './session-store';
+import { SessionStore } from './sessions/session-store';
 
 let root: string;
 let previousRoot: string | undefined;

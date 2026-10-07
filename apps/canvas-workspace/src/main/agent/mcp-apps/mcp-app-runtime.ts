@@ -1,7 +1,7 @@
 import type { Engine } from 'pulse-coder-engine';
 import type { MCPAppsManager } from 'pulse-coder-engine/built-in';
 import { randomUUID } from 'crypto';
-import type { AgentChatMcpApp } from '../../shared/agent-chat';
+import type { AgentChatMcpApp } from '../../../shared/agent-chat';
 
 export function resolveMcpApp(
   manager: MCPAppsManager | undefined,

@@ -60,7 +60,7 @@ import { prepareChatTurn, startChatTurn } from './chat-protocol';
 import type { AgentObservabilityMarkInput } from '../../shared/agent-observability';
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';
-import { resolveAgentScope, setupMcpAppIpc } from './mcp-app-ipc';
+import { resolveAgentScope, setupMcpAppIpc } from './mcp-apps/mcp-app-ipc';
 export { getCanvasAgentService } from './agent-service-lifecycle';
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();

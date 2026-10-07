@@ -1,6 +1,6 @@
 export { CanvasAgent } from './canvas-agent';
 export { CanvasAgentService } from './service';
-export { SessionStore } from './session-store';
+export { SessionStore } from './sessions/session-store';
 export type {
   CanvasAgentConfig,
   CanvasAgentMessage,

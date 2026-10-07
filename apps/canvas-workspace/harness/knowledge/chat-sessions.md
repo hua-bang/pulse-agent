@@ -886,7 +886,7 @@ Conversation pointer changes are fail-closed.
   metadata cleanup is best-effort.
 
 Guard: `src/main/agent/__tests__/session-store.test.ts` (source:
-`src/main/agent/session-store.ts`).
+`src/main/agent/sessions/session-store.ts`).
 
 ### Chat image upload bounds, attachment retention, failed-turn persistence
 

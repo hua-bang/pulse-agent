@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionPreview } from '../session-preview';
+import { sessionPreview } from '../sessions/session-preview';
 
 describe('sessionPreview', () => {
   it('preserves a complete leading DOM marker while truncating only the prose', () => {

@@ -9,7 +9,7 @@ import {
   type CanvasSessionArchivePort, type PreparedCanvasSessionImport,
 } from '../canvas/persistence/session-archive-port';
 import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, validateLegacySession } from './sqlite-session-codec';
-import { sessionUpdatedAt } from './session-file-summary';
+import { sessionUpdatedAt } from './sessions/session-file-summary';
 import type { CanvasAgentSession } from './types';
 import { sessionStorageRoot } from './sqlite-session-backend';
 import { withWorkspaceTrashGuard } from './workspace-runtime-guard';

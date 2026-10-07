@@ -2,7 +2,7 @@ import type { MCPAppEntrypoint, MCPAppToolDescriptor } from 'pulse-coder-engine/
 import type {
   McpAppEntrypointKind,
   McpAppEntrypointListing,
-} from '../../shared/mcp-apps';
+} from '../../../shared/mcp-apps';
 
 const KIND_PRIORITY: Array<{ namespace: string; kind: McpAppEntrypointKind }> = [
   { namespace: 'pulse/ui', kind: 'node' },

@@ -2,10 +2,10 @@ import type { CanvasAgent, CanvasClarificationRequest } from './canvas-agent';
 import { activateAgentScope } from './scope-agent-activation';
 import { isWorkspaceTrashed } from './workspace-runtime-guard';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
-import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './session-store';
+import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './sessions/session-store';
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled-session-names';
-import { searchSessionTitles } from './session-title-search';
+import { searchSessionTitles } from './sessions/session-title-search';
 import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './active-session-groups';
 import { ScopeActivationGate } from './scope-activation-gate';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
@@ -17,7 +17,7 @@ import {
   type LoadSessionResult,
   type NewSessionResult,
   type SessionActionResult,
-} from './session-mutation-coordinator';
+} from './sessions/session-mutation-coordinator';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../shared/agent-roles';
 import type {
   AgentRequestContext,
@@ -41,7 +41,7 @@ import {
   traceScopeActivationStep,
 } from './observability/host-run';
 import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
-import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './session-display-loader';
+import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './sessions/session-display-loader';
 
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
 export class CanvasAgentService {

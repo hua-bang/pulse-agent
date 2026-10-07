@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
-import type { McpAppContextSource, McpAppNodeContextTarget } from '../../shared/mcp-apps';
+import type { McpAppContextSource, McpAppNodeContextTarget } from '../../../shared/mcp-apps';
 
-import { mcpAppContextText } from '../../shared/mcp-app-context';
+import { mcpAppContextText } from '../../../shared/mcp-app-context';
 
 const MAX_INSTANCES = 128;
 

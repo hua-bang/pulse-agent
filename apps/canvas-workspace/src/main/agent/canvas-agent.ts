@@ -22,7 +22,7 @@ import {
   createCanvasAgentToolPolicy,
   createCanvasAskModeToolPolicyPlugin,
 } from './tool-policy';
-import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
+import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './sessions/session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import {
   formatWorkspaceContextSection,
@@ -83,7 +83,7 @@ import { traceEngineInitialize } from './observability/engine-init-trace';
 import type { PendingClarificationRequest } from './clarification-registry';
 import { CanvasRunRegistry } from './canvas-run-registry';
 import { prepareRunSession } from './run-session-context';
-import { executeMcpAppTool, resolveMcpApp } from './mcp-app-runtime';
+import { executeMcpAppTool, resolveMcpApp } from './mcp-apps/mcp-app-runtime';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 

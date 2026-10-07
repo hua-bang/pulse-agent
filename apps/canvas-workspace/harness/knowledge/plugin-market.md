@@ -159,7 +159,7 @@ Canvas tool-result events preserve a bounded, policy-approved pre-offload MCP re
 
 ### Canvas MCP App nodes
 
-Tools that declare static entrypoints (`_meta["pulse/ui"].entrypoints` with `type: "node"`, or OpenAI's `_meta["openai/ui"]` `global`/`thread`) can be placed on the canvas. The engine parses entrypoints for every loaded MCP App tool (`MCPAppsManager.listToolApps()`), so market packages and user `mcp.json` servers are treated alike, within the active agent scope. `src/main/agent/mcp-app-entrypoints.ts` picks one entrypoint per tool (Pulse `node` over `global` over `thread`) and drops a `thread` entry when the same server already exposes the same UI resource as `global`.
+Tools that declare static entrypoints (`_meta["pulse/ui"].entrypoints` with `type: "node"`, or OpenAI's `_meta["openai/ui"]` `global`/`thread`) can be placed on the canvas. The engine parses entrypoints for every loaded MCP App tool (`MCPAppsManager.listToolApps()`), so market packages and user `mcp.json` servers are treated alike, within the active agent scope. `src/main/agent/mcp-apps/mcp-app-entrypoints.ts` picks one entrypoint per tool (Pulse `node` over `global` over `thread`) and drops a `thread` entry when the same server already exposes the same UI resource as `global`.
 
 - `canvas-agent:mcp-app-list-entrypoints` feeds the MCP Apps section of the canvas right-click create menu.
 - `canvas-agent:mcp-app-open-entrypoint` calls the entrypoint tool with `{}` and no approval prompt: opening is a host UI action. It refuses tools without a supported entrypoint, so it cannot bypass the in-app approval for other tools. Calls the app makes from inside its view keep the approval flow above.

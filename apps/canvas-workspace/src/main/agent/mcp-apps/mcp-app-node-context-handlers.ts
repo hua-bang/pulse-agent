@@ -1,7 +1,7 @@
 import type { IpcMainInvokeEvent } from 'electron';
-import { loadCanvas } from '../canvas/service';
-import { parseMcpAppNodeBinding, MCP_APP_NODE_PLUGIN_ID, MCP_APP_NODE_TYPE } from '../../shared/mcp-app-node';
-import type { McpAppContextSource, McpAppNodeContextTarget } from '../../shared/mcp-apps';
+import { loadCanvas } from '../../canvas/service';
+import { parseMcpAppNodeBinding, MCP_APP_NODE_PLUGIN_ID, MCP_APP_NODE_TYPE } from '../../../shared/mcp-app-node';
+import type { McpAppContextSource, McpAppNodeContextTarget } from '../../../shared/mcp-apps';
 import { getMcpAppNodeContextStore } from './mcp-app-node-context';
 
 export function createMcpAppNodeContextHandlers() {
