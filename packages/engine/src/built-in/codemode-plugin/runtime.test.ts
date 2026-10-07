@@ -216,6 +216,37 @@ describe('Codemode isolated runtime', () => {
     }
   });
 
+  it('permits bounded bulk patches with a host budget and still rejects larger UTF-8 requests', async () => {
+    const executeTool = vi.fn(async () => 'saved');
+    const defaultResult = await run('return await tools.query({elements: "中".repeat(40000)});', { executeTool });
+    expect(defaultResult.error).toContain('argument limit');
+    expect(executeTool).not.toHaveBeenCalled();
+    const result = await run('return await tools.query({elements: "中".repeat(40000)});', {
+      executeTool, maxToolArgumentBytes: 512 * 1024,
+    });
+    expect(result).toMatchObject({ ok: true, value: 'saved' });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    executeTool.mockClear();
+    const tooLarge = await run('await tools.query({elements: "中".repeat(180000)});', {
+      executeTool, maxToolArgumentBytes: 512 * 1024,
+    });
+    expect(tooLarge.error).toContain('argument limit');
+    expect(executeTool).not.toHaveBeenCalled();
+    await expect(run('', { maxToolArgumentBytes: 1024 * 1024 + 1 })).rejects.toThrow('queue budget');
+    await expect(run('', { maxToolArgumentBytes: 0 })).rejects.toThrow('Invalid Codemode');
+  });
+
+  it('keeps the total queue bounded with larger individual argument budgets', async () => {
+    const executeTool = vi.fn(async () => new Promise(() => {}));
+    const result = await run(`
+      tools.query({});
+      for (let i = 0; i < 3; i++) tools.query({payload: 'x'.repeat(500000)}).catch(error => text(error.message));
+    `, { executeTool, maxToolArgumentBytes: 512 * 1024 });
+    expect(result.ok).toBe(true);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(result.calls.some(call => call.error?.includes('queue limit'))).toBe(true);
+  });
+
   it('bounds queued arguments even when the first authorized tool never settles', async () => {
     const executeTool = vi.fn(async () => new Promise(() => {}));
     const result = await run(`

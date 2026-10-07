@@ -135,7 +135,10 @@ Limits: source 64 KiB UTF-8, wall clock 60 seconds (including tools), heap 64 Mi
 100 tool calls, arguments 64 KiB (checked before worker transport), queued
 arguments 1 MiB, each result 2 MiB, cumulative results 16 MiB,
 and explicit output plus return 30,000 characters (including preview markers). Hosts may set positive
-`timeoutMs` / `memoryLimitBytes`. `runtimeModulePath` lets bundled hosts supply
+`timeoutMs` / `memoryLimitBytes`. `maxToolArgumentBytes` defaults to 64 KiB
+UTF-8 and can be raised by a host up to the fixed 1 MiB total queue budget.
+Canvas uses 512 KiB for complete Excalidraw element patches; the default
+budget for other hosts remains unchanged. Worker and host both enforce it. `runtimeModulePath` lets bundled hosts supply
 an absolute quickjs-emscripten-core entry, and `wasmVariantModulePath` selects
 the release-sync variant entry. `wasmLoaderModulePath` supplies its CommonJS
 Emscripten loader. Only that WASM variant is a runtime dependency;

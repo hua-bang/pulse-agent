@@ -92,7 +92,10 @@ export function createCanvasEnginePlugins(
       },
     }),
     ...((options.codemode ?? getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_CODEMODE))
-      ? [createCodemodePlugin({ allowedTools: CANVAS_CODEMODE_TOOLS })]
+      ? [createCodemodePlugin({
+        allowedTools: CANVAS_CODEMODE_TOOLS,
+        maxToolArgumentBytes: 512 * 1024,
+      })]
       : []),
     canvasAgentObservabilityEnginePlugin,
     // Keep model-only offloading last: it captures the policy-approved MCP

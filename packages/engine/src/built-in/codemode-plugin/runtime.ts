@@ -32,6 +32,8 @@ export interface CodemodeResult {
 export interface CodemodeRuntimeOptions {
   timeoutMs?: number;
   memoryLimitBytes?: number;
+  /** Per-call UTF-8 argument budget; host-reviewed, at most the 1 MiB queue budget. */
+  maxToolArgumentBytes?: number;
   /** Absolute quickjs-emscripten-core module entry for bundled hosts. */
   runtimeModulePath?: string;
   /** Absolute release-sync variant entry for bundled hosts. */
@@ -50,9 +52,11 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
 }): Promise<CodemodeResult> {
   const timeoutMs = options.timeoutMs ?? 60_000;
   const memoryLimitBytes = options.memoryLimitBytes ?? 64 * 1024 * 1024;
-  for (const [name, value] of Object.entries({ timeoutMs, memoryLimitBytes })) {
+  const maxToolArgumentBytes = options.maxToolArgumentBytes ?? 64 * 1024;
+  for (const [name, value] of Object.entries({ timeoutMs, memoryLimitBytes, maxToolArgumentBytes })) {
     if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`Invalid Codemode ${name}`);
   }
+  if (maxToolArgumentBytes > 1024 * 1024) throw new Error('Codemode argument budget exceeds the 1 MiB queue budget');
   const output: string[] = [];
   let outputTruncated = false;
   const calls: CodemodeCall[] = [];
@@ -87,7 +91,7 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
     workerData: {
       code: options.code, catalog: options.catalog, modulePath, variantPath, loaderPath,
       memoryLimitBytes, deadline: Date.now() + timeoutMs,
-      maxCalls: 100, maxOutputChars: 30_000,
+      maxToolArgumentBytes, maxCalls: 100, maxOutputChars: 30_000,
     },
   });
   let stopped = false;
@@ -171,7 +175,7 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
       calls.push(call);
       notify(call);
       const argumentBytes = typeof message.args === 'string' ? Buffer.byteLength(message.args, 'utf8') : Infinity;
-      if (argumentBytes > 64 * 1024 || queuedArgumentBytes + argumentBytes > 1024 * 1024) {
+      if (argumentBytes > maxToolArgumentBytes || queuedArgumentBytes + argumentBytes > 1024 * 1024) {
         call.status = 'failed';
         call.error = 'Codemode tool argument or queue limit exceeded';
         worker.postMessage({ type: 'result', id: message.id, ok: false, error: call.error });
