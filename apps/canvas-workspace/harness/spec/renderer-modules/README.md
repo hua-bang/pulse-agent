@@ -237,16 +237,15 @@ Current pressure points, measured on 2026-09-04:
 | Workspace nodes page | `NodesPage/index.tsx` ~178 lines; owner controller ~214 lines; pure filtering/AI-scope model ~123 lines; owner CSS 160 lines | the page only composes header, filters, cards, and selection bar; controller owns data/filter/selection/pagination effects, the tested model preserves bounded exact context versus durable workspace/tag scopes, and unreachable pre-CardShell CSS is removed |
 | Settings | MCP manager ~370 lines with draft codec ~112 and server form/list 144/184; PluginsManager ~442 lines / owner CSS 67; shared config chrome 438 lines | MCP and plugin bridges remain separate product adapters over shared form/list chrome; Plugins follows its owner folder, the zero-caller legacy SkillsManager is deleted because `modules/skills` owns that capability, and no generic ConfigManager was introduced |
 
-Known structural gaps, measured on 2026-10-07 with
-`check-renderer-structure` and a source read:
+Structural state, measured on 2026-10-07 with `check-renderer-structure`:
+0 target gaps, 0 boundary errors, and 0 module cycles.
 
-- `modules/canvas` and `modules/chat` form one import cycle. Canvas imports
-  Chat interfaces in about ten places. Chat imports Canvas only once: the lazy
-  `canvas/preview` import in `ChatClarificationCard`.
-- `shared/chatTarget.ts` has one owner: only `modules/chat` imports it, so
-  it belongs with `modules/chat/target/`. Other product-named `shared/`
-  files, such as `dockPort.tsx` and `shared/dock/`, are intentional
-  dependency-inversion seams (see Dock above); do not move them to their
+- Canvas depends on Chat, so Chat never imports Canvas. Approval cards show
+  Canvas node previews through `shared/approvalNodePreview.ts`: the app root
+  injects the lazy `modules/canvas/preview` loader there.
+- Product-named `shared/` files, such as `dockPort.tsx`, `shared/dock/`, and
+  `chatTarget.ts` (which `dockPort.tsx` uses), are intentional
+  dependency-inversion seams (see Dock above). Do not move them to their
   apparent owner without a replacement boundary.
 
 Line counts are discovery signals, not the decision rule. Use the deletion
@@ -340,9 +339,11 @@ Rules:
 
 1. `app/` composes modules but does not implement their product behavior.
 2. A module imports another module through its `index.ts` interface. A small,
-   named secondary entrypoint is allowed only when a measured lazy-loading or
-   bundle boundary would be broken by the root barrel (for example Chat's
-   `lazy.tsx`, `session.ts`, `completion.ts`, and `floating.ts`).
+   named secondary entrypoint is allowed only when a lazy-loading or bundle
+   boundary would be broken by the root barrel (for example Chat's
+   `lazy.tsx`, `session.ts`, `completion.ts`, and `floating.ts`). Such an
+   entrypoint exports symbols that `index.ts` does not, so importing it never
+   loads the barrel.
 3. Cross-module dependencies must be acyclic. The lower-level module never
    imports the caller to learn caller-specific types.
 4. Root `components/` cannot import a product module.

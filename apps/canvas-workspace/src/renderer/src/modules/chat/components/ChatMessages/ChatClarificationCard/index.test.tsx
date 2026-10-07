@@ -6,18 +6,18 @@ import { ChatClarificationCard } from './index';
 import { I18nProvider } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
 import { SESSION_APPROVAL_ANSWER } from '../../../../../../../shared/agent-chat';
+import { setApprovalNodePreviewLoader } from '../../../../../shared/approvalNodePreview';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const failedImport = lazy(async () => { throw new Error('Preview chunk unavailable'); });
-vi.mock('../../../../canvas/preview', () => ({
-  CanvasApprovalNodePreview: ({ node }: { node: CanvasNode }) => {
-    if (node.title === 'render failure') throw new Error('Preview render failed');
-    const FailedImport = failedImport;
-    if (node.title === 'import failure') return <FailedImport />;
-    return <div>Loaded preview</div>;
-  },
-}));
+const MockApprovalNodePreview = ({ node }: { node: CanvasNode }) => {
+  if (node.title === 'render failure') throw new Error('Preview render failed');
+  const FailedImport = failedImport;
+  if (node.title === 'import failure') return <FailedImport />;
+  return <div>Loaded preview</div>;
+};
+setApprovalNodePreviewLoader(async () => ({ default: MockApprovalNodePreview }));
 
 let host: HTMLDivElement;
 let root: Root;

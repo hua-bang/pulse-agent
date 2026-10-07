@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { buildLayerTree, collectFrameIds, type LayerTreeNode } from './utils/layers';
 import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-import { buildCanvasNodeLink } from '../../../utils/canvasLinks';
+import { buildCanvasNodeLink } from '../../canvasLinks';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 import { useI18n } from '../../../i18n';
 import type { SidebarProps } from './types';

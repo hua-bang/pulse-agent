@@ -1,4 +1,4 @@
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 
 export interface MentionTrigger {
   query: string;

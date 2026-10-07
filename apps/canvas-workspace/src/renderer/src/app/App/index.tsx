@@ -32,7 +32,12 @@ import { APP_ROUTES, MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, type AppAct
 import { globalMcpAppKey, globalMcpAppsStore, useGlobalMcpApps } from '../../modules/mcp-apps/global-apps';
 import type { McpAppEntrypointListing } from '../../../../shared/mcp-apps';
 import { useWorkspaceActions } from './useWorkspaceActions';
+import { setApprovalNodePreviewLoader } from '../../shared/approvalNodePreview';
 // The app host pulls in McpAppFrame; keep it out of the startup chunk.
+setApprovalNodePreviewLoader(() => import('../../modules/canvas/preview').then((module) => ({
+  default: module.CanvasApprovalNodePreview,
+})));
+
 const GlobalMcpAppsView = lazy(() => import('../../modules/mcp-apps').then((module) => ({ default: module.GlobalMcpAppsView })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const {

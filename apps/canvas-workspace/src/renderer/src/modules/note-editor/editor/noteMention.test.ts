@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 import { detectMention, filterMentionCandidates } from './noteMention';
 
 const node = (id: string, title: string): CanvasNode =>
