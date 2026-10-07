@@ -41,6 +41,7 @@ export const PluginMarketRouteView = ({
   const market = usePluginMarket(
     t(keys.apiUnavailable),
     t(keys.exploreUnavailable),
+    { updated: t(keys.updated), unchanged: t(keys.unchanged), nativeDisabled: t(keys.updatedNativeDisabled) },
   );
   const [query, setQuery] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'personal'>('public');
@@ -218,9 +219,11 @@ export const PluginMarketRouteView = ({
       <PluginDetailModal
         listing={selected}
         busyKey={market.busyKey}
+        notice={market.notice}
         error={selected ? market.error : null}
         onClose={() => setSelectedId(null)}
         onInstall={(id) => void market.install(id)}
+        onUpdate={(id) => void market.update(id)}
         onUninstall={(id) => void market.uninstall(id)}
         onConnectMcp={(id) => void market.connectMcp(id)}
         onSetNativeEnabled={(id, enabled) => void market.setNativeEnabled(id, enabled)}

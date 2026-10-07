@@ -34,11 +34,13 @@ const syncRendererPlugins = async (): Promise<void> => {
 export const usePluginMarket = (
   apiUnavailableMessage: string,
   exploreUnavailableMessage: string,
+  updateMessages: { updated: string; unchanged: string; nativeDisabled: string },
 ) => {
   const [snapshot, setSnapshot] = useState<PluginMarketSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestSequence = useRef(0);
 
@@ -92,6 +94,7 @@ export const usePluginMarket = (
     }
     setBusyKey(key);
     setError(null);
+    setNotice(null);
     try {
       const result = await action(api);
       if (result.canceled) return false;
@@ -100,6 +103,11 @@ export const usePluginMarket = (
         return false;
       }
       if (result.snapshot) setSnapshot(result.snapshot);
+      if (result.updateStatus) {
+        setNotice(result.nativeDisabled
+          ? updateMessages.nativeDisabled
+          : updateMessages[result.updateStatus]);
+      }
       try {
         await syncRendererPlugins();
       } catch (cause) {
@@ -115,7 +123,7 @@ export const usePluginMarket = (
     } finally {
       setBusyKey(null);
     }
-  }, [apiUnavailableMessage]);
+  }, [apiUnavailableMessage, updateMessages.updated, updateMessages.unchanged, updateMessages.nativeDisabled]);
 
   const explore = useCallback(async (listing: PluginMarketListing) => {
     const url = listing.source.kind === 'git' ? listing.source.url?.trim() : undefined;
@@ -147,9 +155,14 @@ export const usePluginMarket = (
     refreshing,
     busyKey,
     error,
-    clearError: () => setError(null),
+    notice,
+    clearError: () => {
+      setError(null);
+      setNotice(null);
+    },
     refresh: () => requestSnapshot(true),
     install: (id: string) => mutate(`install:${id}`, (api) => api.install(id)),
+    update: (id: string) => mutate(`update:${id}`, (api) => api.update(id)),
     uninstall: (id: string) => mutate(`uninstall:${id}`, (api) => api.uninstall(id)),
     connectMcp: (id: string) => mutate(`connect:${id}`, (api) => api.connectMcp(id)),
     explore,

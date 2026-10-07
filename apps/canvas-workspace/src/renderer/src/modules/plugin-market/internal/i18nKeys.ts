@@ -85,6 +85,11 @@ export const pluginMarketKeys = {
   nativeDescription: key('pluginMarket.nativeDescription'),
   enableNative: key('pluginMarket.enableNative'),
   disableNative: key('pluginMarket.disableNative'),
+  update: key('pluginMarket.update'),
+  updating: key('pluginMarket.updating'),
+  updated: key('pluginMarket.updated'),
+  unchanged: key('pluginMarket.unchanged'),
+  updatedNativeDisabled: key('pluginMarket.updatedNativeDisabled'),
   uninstall: key('pluginMarket.uninstall'),
   uninstalling: key('pluginMarket.uninstalling'),
 } as const;

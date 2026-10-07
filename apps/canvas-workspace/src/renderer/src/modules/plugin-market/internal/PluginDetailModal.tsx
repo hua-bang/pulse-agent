@@ -1,4 +1,5 @@
 import {
+  ArrowClockwise,
   Code,
   FolderOpen,
   GitBranch,
@@ -18,8 +19,10 @@ interface Props {
   listing: PluginMarketListing | null;
   busyKey: string | null;
   error: string | null;
+  notice: string | null;
   onClose: () => void;
   onInstall: (id: string) => void;
+  onUpdate: (id: string) => void;
   onUninstall: (id: string) => void;
   onConnectMcp: (id: string) => void;
   onSetNativeEnabled: (id: string, enabled: boolean) => void;
@@ -38,8 +41,10 @@ export const PluginDetailModal = ({
   listing,
   busyKey,
   error,
+  notice,
   onClose,
   onInstall,
+  onUpdate,
   onUninstall,
   onConnectMcp,
   onSetNativeEnabled,
@@ -48,10 +53,11 @@ export const PluginDetailModal = ({
 }: Props) => {
   const { t } = useI18n();
   if (!listing) return null;
+  const busy = busyKey !== null;
+  const updating = busyKey === `update:${listing.id}`;
   const installing = busyKey === `install:${listing.id}`;
   const uninstalling = busyKey === `uninstall:${listing.id}`;
   const connecting = busyKey === `connect:${listing.id}`;
-  const changingNative = busyKey === `native:${listing.id}`;
   const exploring = busyKey === `explore:${listing.id}`;
 
   return (
@@ -132,7 +138,7 @@ export const PluginDetailModal = ({
             </span>
             <Button
               size="sm"
-              disabled={changingNative}
+              disabled={busy}
               onClick={() => onSetNativeEnabled(listing.id, !listing.nativeEnabled)}
             >
               <LockKey size={14} />
@@ -141,6 +147,7 @@ export const PluginDetailModal = ({
           </section>
         )}
 
+        {notice && <p className="plugin-market-detail__notice" role="status">{notice}</p>}
         {(listing.error || error) && (
           <div className="plugin-market-modal__error" role="alert">{listing.error ?? error}</div>
         )}
@@ -148,7 +155,7 @@ export const PluginDetailModal = ({
         <footer className="plugin-market-modal__actions">
           <Button onClick={onClose}>{t(keys.close)}</Button>
           {listing.installState === 'available' && (
-            <Button variant="primary" disabled={installing} onClick={() => onInstall(listing.id)}>
+            <Button variant="primary" disabled={busy} onClick={() => onInstall(listing.id)}>
               {installing ? t(keys.installing) : t(keys.install)}
             </Button>
           )}
@@ -157,13 +164,19 @@ export const PluginDetailModal = ({
               {listing.mcpAuthState === 'connectable' && (
                 <Button
                   variant="primary"
-                  disabled={connecting}
+                  disabled={busy}
                   onClick={() => onConnectMcp(listing.id)}
                 >
                   {connecting ? t(keys.connecting) : t(keys.connect)}
                 </Button>
               )}
-              <Button variant="danger" disabled={uninstalling} onClick={() => onUninstall(listing.id)}>
+              {listing.source.kind === 'git' && (
+                <Button disabled={busy} onClick={() => onUpdate(listing.id)}>
+                  <ArrowClockwise size={14} />
+                  {updating ? t(keys.updating) : t(keys.update)}
+                </Button>
+              )}
+              <Button variant="danger" disabled={busy} onClick={() => onUninstall(listing.id)}>
                 {uninstalling ? t(keys.uninstalling) : t(keys.uninstall)}
               </Button>
             </>

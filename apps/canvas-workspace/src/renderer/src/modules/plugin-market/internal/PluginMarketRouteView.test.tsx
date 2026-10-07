@@ -51,6 +51,7 @@ const createApi = (initial: PluginMarketSnapshot): PluginMarketApi => ({
   list: vi.fn(async () => ({ ok: true, snapshot: initial })),
   refresh: vi.fn(async () => ({ ok: true, snapshot: initial })),
   install: vi.fn(async () => ({ ok: true, snapshot: initial })),
+  update: vi.fn(async () => ({ ok: true, snapshot: initial })),
   uninstall: vi.fn(async () => ({ ok: true, snapshot: initial })),
   connectMcp: vi.fn(async () => ({ ok: true, snapshot: initial })),
   setNativeEnabled: vi.fn(async () => ({ ok: true, snapshot: initial })),
@@ -360,5 +361,58 @@ describe('PluginMarketRouteView', () => {
     expect(host?.querySelector('.plugin-market-detail')).not.toBeNull();
     expect(host?.querySelector('.plugin-market-detail__connection')?.textContent)
       .toContain('pluginMarket.connected');
+  });
+
+  it('updates a Git plugin, disables competing actions, and shows the new version', async () => {
+    const before = listing({ installState: 'installed' });
+    const after = listing({ installState: 'installed', version: '2.0.0', nativeEnabled: false });
+    const api = createApi(snapshot([before]));
+    let finish!: (result: Awaited<ReturnType<PluginMarketApi['update']>>) => void;
+    vi.mocked(api.update).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    await render(api);
+    act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
+    const update = [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+      .find((button) => button.textContent?.includes('pluginMarket.update'))!;
+    await act(async () => { update.click(); });
+    expect(api.update).toHaveBeenCalledWith(before.id);
+    expect(update.disabled).toBe(true);
+    expect(update.textContent).toContain('pluginMarket.updating');
+    const uninstall = [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+      .find((button) => button.textContent?.includes('pluginMarket.uninstall'))!;
+    expect(uninstall.disabled).toBe(true);
+    await act(async () => {
+      finish({ ok: true, snapshot: snapshot([after]), updateStatus: 'updated', nativeDisabled: true });
+    });
+    expect(document.querySelector('.plugin-market-detail__identity')?.textContent).toContain('2.0.0');
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('pluginMarket.updatedNativeDisabled');
+    expect(document.querySelector('.plugin-market-detail__native')?.textContent).toContain('pluginMarket.enableNative');
+  });
+
+  it.each(['unchanged', 'failure'])('shows an %s result without losing the installed plugin', async (outcome) => {
+    const before = listing({ installState: 'installed' });
+    const api = createApi(snapshot([before]));
+    vi.mocked(api.update).mockResolvedValue(outcome === 'unchanged'
+      ? { ok: true, updateStatus: 'unchanged', snapshot: snapshot([before]) }
+      : { ok: false, error: 'Download failed' });
+    await render(api);
+    act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
+    const update = [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+      .find((button) => button.textContent?.includes('pluginMarket.update'))!;
+    await act(async () => { update.click(); });
+    expect(document.querySelector('.plugin-market-detail__identity')?.textContent).toContain('1.2.3');
+    if (outcome === 'unchanged') {
+      expect(document.querySelector('[role="status"]')?.textContent).toContain('pluginMarket.unchanged');
+    } else {
+      expect(document.querySelector('.plugin-market-modal__error')?.textContent).toContain('Download failed');
+    }
+  });
+
+  it('does not show Update for linked directory plugins', async () => {
+    await render(createApi(snapshot([listing({
+      installState: 'installed', source: { kind: 'directory', path: '/local/plugin' },
+    })])));
+    act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
+    expect([...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+      .some((button) => button.textContent?.includes('pluginMarket.update'))).toBe(false);
   });
 });
