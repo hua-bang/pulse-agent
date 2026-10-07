@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 import { CODEMODE_WORKER_SOURCE } from './worker-source.js';
+import { truncateCodemodeText } from './output.js';
 
 export interface CodemodeCatalogEntry {
   name: string;
@@ -24,6 +25,8 @@ export interface CodemodeResult {
   value?: unknown;
   error?: string;
   calls: CodemodeCall[];
+  /** Explicit text was clipped; output is a preview, never a complete artifact. */
+  outputTruncated?: boolean;
 }
 
 export interface CodemodeRuntimeOptions {
@@ -51,8 +54,19 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
     if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`Invalid Codemode ${name}`);
   }
   const output: string[] = [];
+  let outputTruncated = false;
   const calls: CodemodeCall[] = [];
-  const failure = (error: string): CodemodeResult => ({ ok: false, output, calls, error });
+  const boundOutput = (budget: number) => {
+    const preview = truncateCodemodeText(output.join(''), budget, true);
+    output.splice(0, output.length, ...(preview ? [preview] : []));
+    outputTruncated = true;
+  };
+  const failure = (error: string): CodemodeResult => {
+    if (outputTruncated) boundOutput(30_000);
+    return { ok: false, output, calls, error,
+      ...(outputTruncated ? { outputTruncated: true } : {}),
+    };
+  };
   if (Buffer.byteLength(options.code, 'utf8') > 64 * 1024) return failure('Codemode source limit exceeded');
   if (options.signal?.aborted) return failure('Codemode aborted');
   const require = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
@@ -112,21 +126,31 @@ export async function runCodemode(options: CodemodeRuntimeOptions & {
     });
     worker.on('message', (message) => {
       if (stopped) return;
+      if (message.type === 'output-truncated') {
+        outputTruncated = true;
+        return;
+      }
       if (message.type === 'output') {
-        totalOutputChars += message.text.length;
-        if (totalOutputChars > 30_000) void finish(failure('Codemode output limit exceeded'));
-        else output.push(message.text);
+        const remaining = 30_000 - totalOutputChars;
+        const text = truncateCodemodeText(message.text, remaining);
+        outputTruncated ||= message.truncated === true || text.length < message.text.length;
+        totalOutputChars += text.length;
+        if (text) output.push(text);
         return;
       }
       if (message.type === 'done') {
         if (!message.ok) {
           void finish(failure(`${String(message.error).slice(0, 1000)}; completed calls were not undone`));
-        } else if (message.json !== undefined && message.json.length + totalOutputChars > 30_000) {
+        } else if (message.json !== undefined && message.json.length > 30_000) {
           void finish(failure('Codemode output limit exceeded'));
         } else {
           try {
             const value = message.json === undefined ? undefined : JSON.parse(message.json);
-            void finish({ ok: true, output, calls, value });
+            const budget = 30_000 - (message.json?.length ?? 0);
+            if (totalOutputChars > budget || outputTruncated) boundOutput(budget);
+            void finish({ ok: true, output, calls, value,
+              ...(outputTruncated ? { outputTruncated: true } : {}),
+            });
           } catch {
             void finish(failure('Codemode returned invalid JSON'));
           }

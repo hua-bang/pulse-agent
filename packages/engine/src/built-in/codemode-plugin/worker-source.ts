@@ -1,8 +1,11 @@
+import { truncateCodemodeText } from './output.js';
+
 /** Trusted Node bootstrap. Model code is evaluated only inside QuickJS. */
 export const CODEMODE_WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
 const { newQuickJSWASMModuleFromVariant } = require(workerData.modulePath);
 const variant = require(workerData.variantPath).default;
+const truncateText = ${truncateCodemodeText.toString()};
 
 async function main() {
   const QuickJS = await newQuickJSWASMModuleFromVariant({
@@ -17,6 +20,7 @@ async function main() {
   const pending = new Map();
   let nextId = 0;
   let outputChars = 0;
+  let outputTruncated = false;
   let finished = false;
   let promiseHandle;
   const errorText = value => typeof value === 'string' ? value : JSON.stringify(value);
@@ -43,10 +47,18 @@ async function main() {
   });
   const output = vm.newFunction('output', value => {
     const chars = vm.getProp(value, 'length').consume(handle => vm.getNumber(handle));
-    outputChars += chars;
-    if (outputChars > workerData.maxOutputChars) throw new Error('Codemode output limit exceeded');
-    const text = vm.getString(value);
-    parentPort.postMessage({ type: 'output', text });
+    if (chars === 0) return vm.undefined;
+    const remaining = workerData.maxOutputChars - outputChars;
+    if (remaining === 0) {
+      if (!outputTruncated) parentPort.postMessage({ type: 'output-truncated' });
+      outputTruncated = true;
+      return vm.undefined;
+    }
+    const text = truncateText(vm.getString(value), remaining);
+    outputChars += text.length;
+    const truncated = chars > remaining;
+    outputTruncated ||= truncated;
+    parentPort.postMessage({ type: 'output', text, truncated });
     return vm.undefined;
   });
   vm.setProp(vm.global, '__bridge', bridge);
@@ -120,14 +132,14 @@ async function main() {
     const handle = vm.unwrapResult(result);
     if (vm.typeof(handle) === 'string') {
       const chars = vm.getProp(handle, 'length').consume(value => vm.getNumber(value));
-      if (chars + outputChars > workerData.maxOutputChars) {
+      if (chars > workerData.maxOutputChars) {
         handle.dispose();
         throw new Error('Codemode output limit exceeded');
       }
     }
     const json = vm.dump(handle);
     handle.dispose();
-    if (json !== undefined && (typeof json !== 'string' || json.length + outputChars > workerData.maxOutputChars)) {
+    if (json !== undefined && (typeof json !== 'string' || json.length > workerData.maxOutputChars)) {
       throw new Error('Codemode output limit exceeded');
     }
     finished = true;
