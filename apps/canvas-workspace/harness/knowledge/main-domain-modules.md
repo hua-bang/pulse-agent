@@ -315,9 +315,11 @@ done. Still open:
   files are the clearest sub-domains still not grouped into folders. Group
   them by moving files only, and keep IPC channel names stable.
 - **Window port duplication** — `agent/window-port.ts` and
-  `runtime/window-port.ts` describe the same window capability. The Agent
-  port returns an unavailable result when nothing is injected; the Runtime
-  port throws. Keep one interface when either side changes.
+  `runtime/window-port.ts` declare the same methods with different meanings.
+  Bootstrap binds Agent `getCanvasWindow` to the focused-or-live window and
+  Runtime `getCanvasWindow` to the live window only. When nothing is
+  injected, the Agent port returns an unavailable result; the Runtime port
+  throws. Merge them into one port with explicitly named methods.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
   `artifacts -> agent`, `canvas -> agent`, `default-browser -> app`,
