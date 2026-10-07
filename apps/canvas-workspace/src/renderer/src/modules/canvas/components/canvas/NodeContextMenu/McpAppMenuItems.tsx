@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { useI18n } from "../../../../../i18n";
-import { NodeTypeIcon } from "../../../../../components/icons";
-import { Button } from "../../../../../components/ui";
-import type { AddNodeUiOptions } from "../FloatingToolbar/types";
-import type { McpAppEntrypointListing } from "../../../../../../../shared/mcp-apps";
+import { useEffect, useState } from 'react';
+import { useI18n } from '../../../../../i18n';
+import { NodeTypeIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui';
+import type { AddNodeUiOptions } from '../FloatingToolbar/types';
+import type { McpAppEntrypointListing } from '../../../../../../../shared/mcp-apps';
 import {
   MCP_APP_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_PLUGIN_ID,
