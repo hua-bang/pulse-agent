@@ -10,7 +10,7 @@ import type {
 } from '../../../../../../types';
 import type { I18nKey } from '../../../../../../i18n';
 import { createDefaultEdge } from '../../../../model/edgeFactory';
-import { genTopicId } from '../../../../../../utils/nodeFactory';
+import { genTopicId } from '../../../../../../../../shared/canvas-node-defaults';
 
 type I18nParams = Record<string, string | number | boolean | null | undefined>;
 

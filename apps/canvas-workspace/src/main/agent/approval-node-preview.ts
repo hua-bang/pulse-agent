@@ -1,5 +1,5 @@
 import type { CanvasNode } from '../../shared/canvas';
-import { DEFAULT_DIMENSIONS } from './tools/_shared/placement';
+import { CANVAS_NODE_DEFAULTS } from '../../shared/canvas-node-defaults';
 import { createPassiveNodeData } from './tools/_shared/passive-node-data';
 
 /** Only passive node bodies can be mounted before the user approves execution. */
@@ -20,7 +20,7 @@ export const createApprovalNodePreview = (
   const extra = proposed.data && typeof proposed.data === 'object'
     ? proposed.data as Record<string, unknown>
     : {};
-  const defaults = DEFAULT_DIMENSIONS[type];
+  const defaults = CANVAS_NODE_DEFAULTS[type];
   const title = typeof proposed.title === 'string' ? proposed.title : defaults.title;
   const content = typeof proposed.content === 'string' ? proposed.content : '';
   return {

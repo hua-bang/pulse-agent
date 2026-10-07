@@ -1,5 +1,6 @@
 import type { CanvasNode, MindmapNodeData, MindmapTopic } from '../../../types';
-import { createDefaultNode, genTopicId } from '../../../utils/nodeFactory';
+import { genTopicId } from '../../../../../shared/canvas-node-defaults';
+import { createDefaultNode } from '../../../utils/nodeFactory';
 import {
   deleteTopic,
   findParent,

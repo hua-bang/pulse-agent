@@ -1,10 +1,5 @@
 import type { CanvasNode, EdgeAnchor, EdgeEndpoint } from '../types';
 
-let edgeIdCounter = 0;
-export function genEdgeId(): string {
-  return `edge-${Date.now()}-${++edgeIdCounter}`;
-}
-
 /**
  * Short human-readable title for an edge endpoint, used when describing
  * connections back to the agent. Falls back to `point(x, y)` for free

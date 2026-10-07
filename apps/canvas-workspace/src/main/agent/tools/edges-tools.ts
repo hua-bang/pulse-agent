@@ -6,7 +6,8 @@ import {
 } from '../../../shared/canvas';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
-import { buildEndpoint, describeEndpoint, genEdgeId } from './_shared/edges';
+import { genEdgeId } from '../../../shared/canvas-node-defaults';
+import { buildEndpoint, describeEndpoint } from './_shared/edges';
 
 export function createEdgeTools(workspaceId: string): Record<string, CanvasTool> {
   return {

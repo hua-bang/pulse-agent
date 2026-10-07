@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CanvasNode, NodeType } from '../types';
+import type { CanvasNode } from '../types';
 import {
   DEFAULT_FRAME_PADDING,
   DEFAULT_GRID,
@@ -9,20 +9,6 @@ import {
   rectOf,
 } from './layout';
 import { bottom, rectContainsCenter, right, type Rect } from './geometry';
-
-export const DEFAULT_DIMENSIONS: Record<NodeType, { title: string; width: number; height: number }> = {
-  file: { title: 'Untitled', width: 420, height: 360 },
-  terminal: { title: 'Terminal', width: 480, height: 300 },
-  frame: { title: 'Frame', width: 720, height: 600 },
-  group: { title: 'Group', width: 360, height: 240 },
-  agent: { title: 'Agent', width: 520, height: 440 },
-  text: { title: 'Text', width: 260, height: 120 },
-  iframe: { title: 'Web', width: 520, height: 400 },
-  image: { title: 'Image', width: 480, height: 360 },
-  shape: { title: 'Shape', width: 200, height: 140 },
-  mindmap: { title: 'Mindmap', width: 640, height: 420 },
-  plugin: { title: 'Plugin Node', width: 360, height: 240 },
-};
 
 export function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
   if (nodes.length === 0) return { x: 100, y: 100 };

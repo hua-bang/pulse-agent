@@ -1,9 +1,5 @@
+import { genTopicId } from '../../../../shared/canvas-node-defaults';
 import type { MindmapTopic, RawMindmapTopic } from '../types';
-
-let topicIdCounter = 0;
-export function genTopicId(): string {
-  return `topic-${Date.now()}-${++topicIdCounter}`;
-}
 
 /**
  * Normalize an LLM-supplied topic tree into the renderer's `MindmapTopic`

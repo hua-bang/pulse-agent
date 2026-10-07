@@ -7,7 +7,7 @@ import {
   useState,
 } from 'react';
 import type { MindmapNodeData, MindmapTopic } from '../../../../../types';
-import { genTopicId } from '../../../../../utils/nodeFactory';
+import { genTopicId } from '../../../../../../../shared/canvas-node-defaults';
 import {
   deleteTopic,
   ensureTopicChildren,
