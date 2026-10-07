@@ -54,9 +54,9 @@ import type { AgentScopeRef } from './types';
 import {
   PreparedChatRegistry,
   type PreparedChatPayload,
-} from './prepared-chat';
-import { ActiveChatRegistry } from './active-chat-registry';
-import { prepareChatTurn, startChatTurn } from './chat-protocol';
+} from './run/prepared-chat';
+import { ActiveChatRegistry } from './run/active-chat-registry';
+import { prepareChatTurn, startChatTurn } from './run/chat-protocol';
 import type { AgentObservabilityMarkInput } from '../../shared/agent-observability';
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';

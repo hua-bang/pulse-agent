@@ -31,7 +31,7 @@ import {
   WORKSPACE_DOC_FILENAME,
 } from './workspace-meta';
 import { buildMemoryPromptSection } from './memory/memory-store';
-import { linkRunAbortSignal, persistStoppedBeforeSegment, resolveSegmentOutcome, settleStoppedToolCalls } from './chat-stop';
+import { linkRunAbortSignal, persistStoppedBeforeSegment, resolveSegmentOutcome, settleStoppedToolCalls } from './run/chat-stop';
 import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
@@ -49,7 +49,7 @@ import type {
   CanvasAgentSession,
   WorkspaceSummary,
 } from './types';
-import { createFailedTurnToolTracker, failedAssistantMessage } from './chat-failure-persistence';
+import { createFailedTurnToolTracker, failedAssistantMessage } from './run/chat-failure-persistence';
 import { completeCanvasHostRun, markCanvasRuntimeCompleted, markCanvasRuntimeStarted } from './observability/host-run';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './context/dom-selection-context';
 import { formatSelectionFocusBlock } from './context/selection-focus-context';
@@ -76,12 +76,12 @@ import { getAgentRoleSettings, listAgentRoles } from './roles/roles-store';
 import {
   modelMessagesToToolCalls,
   type CanvasToolResultEvent,
-} from './engine-stream-callbacks';
-import { executeCanvasAgentSegment } from './segment-execution';
+} from './run/engine-stream-callbacks';
+import { executeCanvasAgentSegment } from './run/segment-execution';
 import { markCanvasHostContextReady, traceScopeActivationStep } from './observability/host-run';
 import { traceEngineInitialize } from './observability/engine-init-trace';
-import type { PendingClarificationRequest } from './clarification-registry';
-import { CanvasRunRegistry } from './canvas-run-registry';
+import type { PendingClarificationRequest } from './run/clarification-registry';
+import { CanvasRunRegistry } from './run/canvas-run-registry';
 import { prepareRunSession } from './sessions/run-session-context';
 import { executeMcpAppTool, resolveMcpApp } from './mcp-apps/mcp-app-runtime';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };

@@ -27,7 +27,7 @@ vi.mock('./conversation-service', () => ({
   })),
 }));
 
-vi.mock('../perf-chat-replay', () => ({
+vi.mock('../run/perf-chat-replay', () => ({
   isPerfChatReplayRequest: (_message: string, enabled: boolean) => enabled,
   replayPerfChatStream: mocks.replay,
 }));

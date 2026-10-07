@@ -661,7 +661,7 @@ so renderer prepare/subscribe IPC and the prepared turn's model-resolution call
 are outside the reported end-to-end duration. Key contracts:
 `src/main/agent/debug-trace.ts`, `src/main/agent/service.ts`,
 `src/main/agent/canvas-agent.ts`, and
-`src/main/agent/engine-stream-callbacks.ts`. Guard:
+`src/main/agent/run/engine-stream-callbacks.ts`. Guard:
 `src/main/agent/debug-trace.test.ts`.
 
 Each trace records the runtime selected at the segment boundary. DevTools labels
@@ -866,7 +866,7 @@ request becomes visible. Answering one request must reveal, not clear, the
 next queued request.
 
 Guard: `clarification-registry.test.ts`
-(`src/main/agent/clarification-registry.ts`).
+(`src/main/agent/run/clarification-registry.ts`).
 
 ### Fail-closed conversation pointer changes
 
@@ -953,15 +953,15 @@ Primary regression suites live in:
 - `src/renderer/src/modules/dock/internal/RightDock/index.test.tsx`
 - `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-width.test.ts`
 - `src/main/agent/__tests__/service-history.test.ts`
-- `src/main/agent/active-chat-registry.test.ts`
-- `src/main/agent/prepared-chat.test.ts`
-- `src/main/agent/chat-protocol.test.ts`
+- `src/main/agent/run/active-chat-registry.test.ts`
+- `src/main/agent/run/prepared-chat.test.ts`
+- `src/main/agent/run/chat-protocol.test.ts`
 - `src/main/agent/chat-session-cas.test.ts`
 - `src/main/agent/__tests__/service-session-mutation.test.ts`
-- `src/main/agent/clarification-registry.test.ts`
+- `src/main/agent/run/clarification-registry.test.ts`
 - `src/main/agent/__tests__/session-store.test.ts`
 - `src/renderer/src/modules/chat/attachments/useChatAttachments.test.tsx`
-- `src/main/agent/chat-failure-persistence.test.ts`
+- `src/main/agent/run/chat-failure-persistence.test.ts`
 - `src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
 
 
@@ -993,5 +993,5 @@ renderer’s settled snapshot with a stale running tool. Stopped calls keep thei
 cancelled status.
 
 Guards: `src/shared/chat-content-blocks.test.ts`,
-`src/main/agent/chat-failure-persistence.test.ts`, conversation-runtime tests,
+`src/main/agent/run/chat-failure-persistence.test.ts`, conversation-runtime tests,
 and renderer conversationStore/useConversationRuntimeStream tests.

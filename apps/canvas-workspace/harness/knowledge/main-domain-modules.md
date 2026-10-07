@@ -30,7 +30,8 @@ src/main/
                       # persistence/ (paths, atomic JSON, schema, pollution),
                       # broadcast, workspaces, welcome-workspace,
                       # workspace-export-*, nodes/ (ipc, store, tags)
-  agent/              # canvas-agent, service, ipc, chat run/stop/queue core,
+  agent/              # canvas-agent, service, ipc, run/ (chat protocol, prepared chat,
+                      # segment execution, stop, run/chat registries, headless run),
                       # debug-trace, codex-sessions, prompt-profile(-ipc),
                       # workspace-doc-generator, workspace-meta, plugin-node-capabilities,
                       # capability/window ports (app-owned injection),

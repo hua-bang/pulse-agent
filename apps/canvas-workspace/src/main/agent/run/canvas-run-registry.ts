@@ -1,5 +1,5 @@
 import { ClarificationRegistry } from './clarification-registry';
-import type { CanvasClarificationRequest } from './canvas-agent';
+import type { CanvasClarificationRequest } from '../canvas-agent';
 
 /** Per-conversation run controls (cancellation, relay stop, clarifications). */
 export interface ActiveRunState {

@@ -1,7 +1,7 @@
 import { stat } from 'fs/promises';
 import type { WebContents } from 'electron';
-import type { AgentScope } from './types';
-import type { CanvasAgentService } from './service';
+import type { AgentScope } from '../types';
+import type { CanvasAgentService } from '../service';
 import { ActiveChatRegistry } from './active-chat-registry';
 import {
   freezePreparedChatModel,
@@ -9,7 +9,7 @@ import {
   startPreparedChat,
   type PreparedChatPayload,
 } from './prepared-chat';
-import { resolveCanvasModel } from '../models/config';
+import { resolveCanvasModel } from '../../models/config';
 
 const MAX_ATTACHMENT_COUNT = 6;
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;

@@ -13,8 +13,8 @@
  */
 
 import { Engine } from 'pulse-coder-engine';
-import { resolveCanvasModel } from '../models/config';
-import type { CanvasTool } from './tools/types';
+import { resolveCanvasModel } from '../../models/config';
+import type { CanvasTool } from '../tools/types';
 
 const DEFAULT_MAX_STEPS = 12;
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;

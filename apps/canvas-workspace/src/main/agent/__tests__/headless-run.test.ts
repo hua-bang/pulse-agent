@@ -47,7 +47,7 @@ vi.mock('../../models/config', () => ({
   }),
 }));
 
-import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../headless-run';
+import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../run/headless-run';
 import { generateMemoryReport, memoryReportsDir, runScheduledMemoryReport } from '../memory/memory-report';
 import { saveMemory } from '../memory/memory-store';
 

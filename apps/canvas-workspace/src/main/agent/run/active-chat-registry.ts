@@ -1,5 +1,5 @@
-import type { AgentScope } from './types';
-import { scopeSessionStoreId } from '../../shared/agent-chat';
+import type { AgentScope } from '../types';
+import { scopeSessionStoreId } from '../../../shared/agent-chat';
 
 interface ActiveChatRun {
   scope: AgentScope;

@@ -9,7 +9,7 @@ import type {
   CanvasAgentMessage,
   CanvasAgentToolCall,
 } from '../types';
-import type { CanvasToolResultEvent } from '../engine-stream-callbacks';
+import type { CanvasToolResultEvent } from '../run/engine-stream-callbacks';
 
 /**
  * The turn-backend boundary: everything that can execute ONE chat segment

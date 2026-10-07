@@ -1,4 +1,4 @@
-import type { AgentClarificationRequest } from '../../shared/agent-chat';
+import type { AgentClarificationRequest } from '../../../shared/agent-chat';
 
 export type PendingClarificationRequest = AgentClarificationRequest;
 

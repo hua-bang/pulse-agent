@@ -6,9 +6,9 @@
  */
 
 import type { ModelMessage } from 'ai';
-import type { AgentChatMcpApp } from '../../shared/agent-chat';
-import type { CanvasAgentDebugTrace, CanvasAgentToolCall } from './types';
-import { recordTraceStreamEvent, recordTraceToolCall, recordTraceToolResult } from './debug-trace';
+import type { AgentChatMcpApp } from '../../../shared/agent-chat';
+import type { CanvasAgentDebugTrace, CanvasAgentToolCall } from '../types';
+import { recordTraceStreamEvent, recordTraceToolCall, recordTraceToolResult } from '../debug-trace';
 
 // AI SDK v6 wraps tool execute return values into a tagged `ToolResultOutput`
 // — `{ type: 'text'|'json'|'error-text'|'error-json'|..., value }` — on the

@@ -32,7 +32,7 @@ import {
   runHeadlessAgentTask,
   type HeadlessEngineFactory,
   type HeadlessRunResult,
-} from '../headless-run';
+} from '../run/headless-run';
 
 export type MemoryReportPhase = 'reading' | 'writing';
 

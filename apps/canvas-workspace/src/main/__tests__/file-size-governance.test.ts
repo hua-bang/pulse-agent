@@ -15,7 +15,6 @@ const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 // Group files by responsibility into subdirectories to shrink a baseline.
 const FLAT_FILE_THRESHOLD = 25;
 const CURRENT_FLAT_DIRECTORY_BASELINE: Record<string, number> = {
-  'src/main/agent': 33,
   'src/main/agent/tools': 27,
   'src/shared': 38,
 };

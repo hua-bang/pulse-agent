@@ -1,19 +1,19 @@
 import type { ModelMessage } from 'ai';
 import type { Engine } from 'pulse-coder-engine';
 
-import type { AgentRoleDefinition } from '../../shared/agent-roles';
-import type { AgentClarificationRequest } from '../../shared/agent-chat';
-import type { ResolvedCanvasModel } from '../models/config';
+import type { AgentRoleDefinition } from '../../../shared/agent-roles';
+import type { AgentClarificationRequest } from '../../../shared/agent-chat';
+import type { ResolvedCanvasModel } from '../../models/config';
 import type {
   CanvasAgentDebugTrace,
   CanvasAgentMessage,
   CanvasAgentToolCall,
-} from './types';
+} from '../types';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
-import { resolveAgentRuntime } from './backends';
+import { resolveAgentRuntime } from '../backends';
 import { ENGINE_ABORT_SENTINEL } from './chat-stop';
-import { attachTraceRuntime, recordTraceStreamEvent } from './debug-trace';
-import { publishAgentTraceEvent } from '../../plugins/main';
+import { attachTraceRuntime, recordTraceStreamEvent } from '../debug-trace';
+import { publishAgentTraceEvent } from '../../../plugins/main';
 
 type ClarificationHandler = (request: AgentClarificationRequest) => Promise<string>;
 

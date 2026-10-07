@@ -84,4 +84,4 @@ export function flattenResultContent(content: unknown): string {
   }
   return content === undefined || content === null ? '' : JSON.stringify(content);
 }
-import type { CanvasToolResultEvent } from '../engine-stream-callbacks';
+import type { CanvasToolResultEvent } from '../run/engine-stream-callbacks';

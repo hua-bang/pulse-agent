@@ -8,7 +8,7 @@ import { scheduledTaskTitles } from './scheduled/scheduled-session-names';
 import { searchSessionTitles } from './sessions/session-title-search';
 import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './active-session-groups';
 import { ScopeActivationGate } from './scope/scope-activation-gate';
-import type { CanvasToolResultEvent } from './engine-stream-callbacks';
+import type { CanvasToolResultEvent } from './run/engine-stream-callbacks';
 import type { ResolvedCanvasModel } from '../models/config';
 import {
   SessionMutationCoordinator,

@@ -1,13 +1,13 @@
 import type { Engine } from 'pulse-coder-engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentRoleDefinition } from '../../shared/agent-roles';
+import type { AgentRoleDefinition } from '../../../shared/agent-roles';
 import { createFailedTurnToolTracker } from './chat-failure-persistence';
 import { ENGINE_ABORT_SENTINEL, settleStoppedToolCalls } from './chat-stop';
 
 const runExternalRoleSegment = vi.hoisted(() => vi.fn());
 
-vi.mock('./external/segment', () => ({ runExternalRoleSegment }));
+vi.mock('../external/segment', () => ({ runExternalRoleSegment }));
 
 import { executeCanvasAgentSegment } from './segment-execution';
 

@@ -8,7 +8,7 @@ import {
   resolveSegmentOutcome,
   settleStoppedToolCalls,
 } from './chat-stop';
-import type { CanvasAgentToolCall } from './types';
+import type { CanvasAgentToolCall } from '../types';
 
 describe('chat stop normalization', () => {
   it('creates an empty stopped turn before any segment starts', () => {

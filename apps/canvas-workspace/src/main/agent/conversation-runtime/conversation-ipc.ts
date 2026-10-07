@@ -10,7 +10,7 @@ import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
 import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/agent-chat';
-import { isPerfChatReplayRequest, replayPerfChatStream } from '../perf-chat-replay';
+import { isPerfChatReplayRequest, replayPerfChatStream } from '../run/perf-chat-replay';
 import { tracedAssertWorkspaceAvailable } from '../traced-workspace-availability';
 
 let service: ConversationRuntimeService | null = null;

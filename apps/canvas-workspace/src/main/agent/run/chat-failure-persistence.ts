@@ -1,8 +1,8 @@
-import { appendContentText, appendContentTool, contentText, finishContentBlocks, retainContentText } from '../../shared/chat-content-blocks';
-import type { AgentChatContentBlock } from '../../shared/agent-chat';
-import { friendlyChatFailure } from '../../shared/chat-failure';
+import { appendContentText, appendContentTool, contentText, finishContentBlocks, retainContentText } from '../../../shared/chat-content-blocks';
+import type { AgentChatContentBlock } from '../../../shared/agent-chat';
+import { friendlyChatFailure } from '../../../shared/chat-failure';
 import type { EngineStreamCallbacks } from './engine-stream-callbacks';
-import type { CanvasAgentMessage, CanvasAgentToolCall } from './types';
+import type { CanvasAgentMessage, CanvasAgentToolCall } from '../types';
 
 export function createFailedTurnToolTracker(forward: EngineStreamCallbacks = {}) {
   let tools: CanvasAgentToolCall[] = [];

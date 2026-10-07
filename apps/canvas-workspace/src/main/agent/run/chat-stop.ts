@@ -1,4 +1,4 @@
-import type { CanvasAgentMessage, CanvasAgentToolCall } from './types';
+import type { CanvasAgentMessage, CanvasAgentToolCall } from '../types';
 
 export const ENGINE_ABORT_SENTINEL = 'Request aborted.';
 
