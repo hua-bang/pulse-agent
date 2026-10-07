@@ -8,9 +8,11 @@
  *
  * Security note: creating a task schedules a FUTURE UNATTENDED agent run
  * with a stored prompt, which is a persistence mechanism — see
- * `harness/knowledge/security-posture.md`. Three things keep that bounded:
- * every tool here is `defer_loading` (out of reach until explicitly loaded),
- * the descriptions restrict calls to what the USER asked for in their own
+ * `harness/knowledge/security-posture.md`. Tool presentation is not authorization:
+ * with tool search enabled, `defer_loading` tools load upfront below its
+ * threshold, otherwise through discovery (zero forces search). See Engine
+ * `harness/knowledge/tools-reference.md`. Host consent policy still applies;
+ * descriptions restrict calls to what the USER asked for in their own
  * words, and every write broadcasts `scheduled:changed`, so a new or edited
  * task shows up in the Scheduled page immediately rather than silently.
  * Deleting is deliberately NOT exposed — removal stays a UI action.
