@@ -9,9 +9,9 @@ import type {
   FileSaveResult,
   FileTrashEntryRequest,
   FileWriteResult,
-} from '../../../shared/files';
+} from '../files';
 
-export type * from '../../../shared/files';
+export type * from '../files';
 
 export interface FileApi {
   savePreview: (request: FileSaveRequest) => Promise<FileSaveResult>;

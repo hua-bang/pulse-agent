@@ -43,7 +43,7 @@ A matching trigger requires reading its owner before changing code. Keep detaile
 
 ## Hard boundaries
 
-- Renderer privileged operations use the typed window.canvasWorkspace preload API; never import Electron, Node, main, or preload into renderer code. Move cross-process contracts toward src/shared; do not add preload-to-renderer imports beyond existing allowlisted debt.
+- Renderer privileged operations use the typed window.canvasWorkspace preload API; never import Electron, Node, main, or preload into renderer code. Cross-process contracts live in src/shared (API interfaces in src/shared/api); preload never imports renderer code.
 - Keep main code in domain folders and preserve IPC names/API shape during refactors.
 - New production TS/TSX files stay at or below 500 lines; existing over-limit baseline files must not grow. Apply the root anti-compression rule; renderer formatting details live in `harness/knowledge/conventions/frontend.md` (Readable formatting).
 - Tool names/schemas/descriptions ship in the main bundle. Keep descriptions concise and run the bundle gate for tool-surface growth; repeated usage prose belongs in the system prompt.

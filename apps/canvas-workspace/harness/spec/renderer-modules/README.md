@@ -47,7 +47,7 @@ src/renderer/src/
 ├── hooks/             # domain-free overlay geometry and keyboard behavior
 ├── shortcuts/         # keyboard shortcut registry and terminal shortcuts
 ├── shared/            # cross-module helpers; some files still have a product owner
-├── types/             # cross-renderer contracts and preload `*Api` interfaces
+├── types/             # renderer-only UI types; `types.ts` re-exports src/shared/api
 ├── utils/             # pure helpers, some still feature-specific
 ├── config/            # agent registry, terminal theme and link handling
 ├── constants/         # canvas plugin and interaction constants
@@ -248,10 +248,6 @@ Known structural gaps, measured on 2026-10-07 with
   files, such as `dockPort.tsx` and `shared/dock/`, are intentional
   dependency-inversion seams (see Dock above); do not move them to their
   apparent owner without a replacement boundary.
-- `types/` holds the preload `*Api` interfaces (`AgentApi`, `FileApi`,
-  `CanvasWorkspaceApi`, and others). These are cross-process contracts.
-  Their target is `src/shared/*`; see
-  `harness/knowledge/conventions/architecture-boundaries.md`.
 
 Line counts are discovery signals, not the decision rule. Use the deletion
 test: a module earns its place when deleting it would spread its complexity

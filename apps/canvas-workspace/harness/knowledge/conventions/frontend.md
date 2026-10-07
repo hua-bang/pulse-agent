@@ -198,7 +198,7 @@ reach into Chat component paths or query its code-block DOM to implement copying
 The renderer **never** imports `main`/`preload`/Electron/Node. All privileged
 work goes through the typed bridge `window.canvasWorkspace` (typed by
 `src/renderer/src/types.ts`, which re-exports the per-domain interfaces under
-`src/renderer/src/types/*`).
+`src/shared/api/*`).
 
 - Call request/response methods via `window.canvasWorkspace.<group>.<method>()`
   (e.g. `window.canvasWorkspace.model.setCurrent(...)`).
@@ -206,7 +206,7 @@ work goes through the typed bridge `window.canvasWorkspace` (typed by
   bridge; they return an unsubscribe function — call it on cleanup.
 - If you need a new capability, add the IPC handler in `src/main/<domain>/ipc.ts`,
   the bridge mapping in `src/preload/bridge/<domain>.ts`, and the type in the
-  matching `src/renderer/src/types/*` group. Keep the three in sync.
+  matching `src/shared/api/*` group. Keep the three in sync.
 
 ## Styling
 
@@ -325,8 +325,10 @@ counter may shrink but never grow):
 
 ## Types
 
-- Shared renderer types are re-exported from `src/renderer/src/types.ts`; add new
-  cross-cutting types under `src/renderer/src/types/<group>.ts`.
+- Shared renderer types are re-exported from `src/renderer/src/types.ts`.
+  Cross-process API contracts live under `src/shared/api/<group>.ts`;
+  renderer-only UI types (toasts, clipboard) live under
+  `src/renderer/src/types/<group>.ts`.
 - Canvas data shapes (`CanvasNode`, `FrameNodeData`, node-type data) are the
   contract between renderer and main — keep them JSON-safe and, where they cross
   the process boundary, prefer defining them in `src/shared/*`.

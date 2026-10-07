@@ -1,9 +1,9 @@
 import type {
   CodexSessionIndexEntry,
   CodexThreadMatch,
-} from '../../../shared/codex-sessions';
+} from '../codex-sessions';
 
-export type * from '../../../shared/codex-sessions';
+export type * from '../codex-sessions';
 
 export interface CodexSessionsApi {
   list: (

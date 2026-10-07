@@ -1,9 +1,9 @@
-import type { AgentContextTabRef } from '../../../shared/agent-chat';
-import type { DockShortcutRequest } from '../../../shared/dock-shortcuts';
+import type { AgentContextTabRef } from '../agent-chat';
+import type { DockShortcutRequest } from '../dock-shortcuts';
 import type {
   DockActivateTabRequest,
   DockActivateTabResult,
-} from '../../../shared/dock-tab-commands';
+} from '../dock-tab-commands';
 
 /**
  * Renderer → main bridge for right-dock state the Canvas Agent needs to see.

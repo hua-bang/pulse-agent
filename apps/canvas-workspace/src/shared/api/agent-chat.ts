@@ -1,4 +1,4 @@
-import type { ConversationSendInput, ConversationSnapshot } from '../../../shared/conversation-runtime';
+import type { ConversationSendInput, ConversationSnapshot } from '../conversation-runtime';
 import type {
   AgentChatMessage,
   AgentChatMcpApp,
@@ -13,14 +13,14 @@ import type {
   ChatImageAttachment,
   CrossWorkspaceSessionGroup,
   SessionSearchHit,
-} from '../../../shared/agent-chat';
+} from '../agent-chat';
 import type { CanvasNode } from './canvas';
 import type {
   RoleTurnEndEvent,
   RoleTurnRoleRef,
   RoleTurnStartEvent,
-} from '../../../shared/agent-roles';
-import type { AgentObservabilityMarkInput } from '../../../shared/agent-observability';
+} from '../agent-roles';
+import type { AgentObservabilityMarkInput } from '../agent-observability';
 import type {
   McpAppEntrypointKind,
   McpAppEntrypointListing,
@@ -28,9 +28,9 @@ import type {
   McpAppEntrypointOpenResult,
   McpAppToolApprovalResponse,
   McpAppToolCallResponse,
-} from '../../../shared/mcp-apps';
+} from '../mcp-apps';
 
-export type * from '../../../shared/agent-chat';
+export type * from '../agent-chat';
 
 export interface AgentNewSessionResult {
   ok: boolean;

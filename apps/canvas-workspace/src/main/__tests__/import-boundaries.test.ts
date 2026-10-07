@@ -42,96 +42,17 @@ const NODE_BUILTINS = new Set([
   ...builtinModules.map((name) => `node:${name}`),
 ]);
 
-const PRELOAD_SHARED_CONTRACT_MIGRATION =
-  'Known bridge type debt: cross-process API contracts still live in ' +
-  'src/renderer/src/types.ts. Move these contracts to src/shared/*, then ' +
-  'replace the preload imports and delete the allowlist entry.';
-
-const allowPreloadImport = (sourceFile: string, specifier: string): string =>
-  `${sourceFile} -> ${specifier}`;
-
-const ALLOWED_PRELOAD_BOUNDARY_IMPORTS = new Map<string, string>([
-  // Shared-contract migration path: move CanvasWorkspaceApi and API group
-  // interfaces from renderer/src/types.ts into src/shared/*, then remove these
-  // preload -> renderer exceptions one by one.
-  [
-    allowPreloadImport('src/preload/index.ts', '../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/agent.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/agent-teams.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/app-info.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/artifacts.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/codex-sessions.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/file.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/pty.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/settings.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/store.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/webview.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-  [
-    allowPreloadImport('src/preload/bridge/workspace-nodes.ts', '../../renderer/src/types'),
-    PRELOAD_SHARED_CONTRACT_MIGRATION,
-  ],
-]);
-
 describe('import boundaries', () => {
   it('keeps shared, renderer, main, and preload imports inside their allowed layers', () => {
     const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
     const resolved = imports.flatMap(resolveImport);
-    const usedAllowlistEntries = new Set<string>();
-    const violations: BoundaryViolation[] = [];
-
-    for (const imported of resolved) {
+    const violations = resolved.flatMap((imported) => {
       const violation = checkBoundary(imported);
-      if (!violation) continue;
+      return violation ? [violation] : [];
+    });
 
-      const allowlistKey = allowPreloadImport(imported.sourceFile, imported.specifier);
-      if (
-        imported.sourceSurface === 'preload' &&
-        ALLOWED_PRELOAD_BOUNDARY_IMPORTS.has(allowlistKey)
-      ) {
-        usedAllowlistEntries.add(allowlistKey);
-        continue;
-      }
-
-      violations.push(violation);
-    }
-
-    const staleAllowlistEntries = Array.from(ALLOWED_PRELOAD_BOUNDARY_IMPORTS.keys())
-      .filter((key) => !usedAllowlistEntries.has(key));
-
-    if (violations.length > 0 || staleAllowlistEntries.length > 0) {
-      throw new Error(formatFailure(violations, staleAllowlistEntries));
+    if (violations.length > 0) {
+      throw new Error(formatFailure(violations));
     }
   });
 
@@ -472,34 +393,11 @@ function isNodeRuntimeModule(specifier: string): boolean {
   );
 }
 
-function formatFailure(
-  violations: BoundaryViolation[],
-  staleAllowlistEntries: string[],
-): string {
-  const sections: string[] = [];
-
-  if (violations.length > 0) {
-    sections.push(
-      [
-        'Import boundary violations:',
-        ...violations.map(formatViolation),
-      ].join('\n'),
-    );
-  }
-
-  if (staleAllowlistEntries.length > 0) {
-    sections.push(
-      [
-        'Stale preload boundary allowlist entries:',
-        ...staleAllowlistEntries.map((key) => {
-          const reason = ALLOWED_PRELOAD_BOUNDARY_IMPORTS.get(key);
-          return `- ${key}: ${reason} Remove this allowlist entry if the import was migrated.`;
-        }),
-      ].join('\n'),
-    );
-  }
-
-  return sections.join('\n\n');
+function formatFailure(violations: BoundaryViolation[]): string {
+  return [
+    'Import boundary violations:',
+    ...violations.map(formatViolation),
+  ].join('\n');
 }
 
 function formatViolation({ imported, rule, message }: BoundaryViolation): string {

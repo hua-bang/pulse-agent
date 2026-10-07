@@ -1,9 +1,9 @@
 import type {
   WebReadInput,
   WebReadResult,
-} from '../../../shared/web';
+} from '../web';
 
-export type * from '../../../shared/web';
+export type * from '../web';
 
 export interface WebApi {
   read: (payload: WebReadInput) => Promise<WebReadResult>;

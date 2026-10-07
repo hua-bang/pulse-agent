@@ -1,5 +1,5 @@
 import type { IpcRenderer } from "electron";
-import type { AgentApi } from "../../renderer/src/types";
+import type { AgentApi } from "../../shared/api/agent-chat";
 import { subscribe } from "./ipc";
 
 export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({

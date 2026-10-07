@@ -1,5 +1,5 @@
 import type { IpcRenderer } from 'electron';
-import type { AppInfoApi } from '../../renderer/src/types';
+import type { AppInfoApi } from '../../shared/api/app-info';
 
 export const createAppInfoApi = (ipcRenderer: IpcRenderer): AppInfoApi => ({
   getInfo: () => ipcRenderer.invoke('app:getInfo'),

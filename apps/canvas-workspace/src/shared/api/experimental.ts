@@ -1,12 +1,12 @@
 import type {
   ExperimentalFeatureDef,
   ToolingInstallStatus,
-} from '../../../shared/experimental-features';
+} from '../experimental-features';
 
 export type {
   ExperimentalFeatureDef,
   ToolingInstallStatus,
-} from '../../../shared/experimental-features';
+} from '../experimental-features';
 
 export interface ExperimentalApi {
   list: () => Promise<{

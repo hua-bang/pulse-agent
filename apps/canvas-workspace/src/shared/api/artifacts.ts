@@ -2,9 +2,9 @@ import type {
   Artifact,
   ArtifactSummary,
   ArtifactType,
-} from '../../../shared/artifacts';
+} from '../artifacts';
 
-export type * from '../../../shared/artifacts';
+export type * from '../artifacts';
 
 export interface ArtifactsApi {
   list: (workspaceId: string) => Promise<{ ok: boolean; artifacts?: Artifact[]; error?: string }>;

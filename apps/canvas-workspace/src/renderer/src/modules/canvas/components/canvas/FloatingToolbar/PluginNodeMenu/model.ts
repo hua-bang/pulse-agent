@@ -3,7 +3,7 @@ import type {
   CanvasPluginEntry,
   CanvasPluginManifestNode,
   CanvasPluginsStatus,
-} from '../../../../../../types/settings-config';
+} from '../../../../../../../../shared/api/settings-config';
 import { inferPluginIcon } from '../PluginNodeIcon';
 
 export interface PluginNodeOption {

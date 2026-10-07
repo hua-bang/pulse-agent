@@ -16,9 +16,9 @@ import type {
   SkillsStatusResult,
   ShellPathResult,
   AgentToolingUpdatePolicy,
-} from '../../../shared/settings-config';
+} from '../settings-config';
 
-export type * from '../../../shared/settings-config';
+export type * from '../settings-config';
 
 export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;

@@ -2,9 +2,9 @@ import type { AgentContextDomSelectionRef } from './agent-chat';
 import type {
   SetWebviewLifecycleResult,
   WebviewLifecycleState,
-} from '../../../shared/webview-lifecycle';
-import type { WebviewContextMenuRequest } from '../../../shared/webview-context-menu';
-import type { WebviewSurfaceKind } from '../../../shared/webview-registration';
+} from '../webview-lifecycle';
+import type { WebviewContextMenuRequest } from '../webview-context-menu';
+import type { WebviewSurfaceKind } from '../webview-registration';
 
 export interface IframeApi {
   registerWebview: (

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DropdownShell } from '../../../../../../components/ui';
 import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../../../../../constants/canvasPlugins';
 import { useI18n } from '../../../../../../i18n';
-import type { CanvasPluginsStatus } from '../../../../../../types/settings-config';
+import type { CanvasPluginsStatus } from '../../../../../../../../shared/api/settings-config';
 import { PluginNodeIcon, inferPluginIcon } from '../PluginNodeIcon';
 import type { AddCanvasNode } from '../types';
 import {

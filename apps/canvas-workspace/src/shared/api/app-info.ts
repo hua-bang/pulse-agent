@@ -1,9 +1,9 @@
 import type {
   AppInfoResult,
   UpdateCheckResult,
-} from '../../../shared/app-info';
+} from '../app-info';
 
-export type * from '../../../shared/app-info';
+export type * from '../app-info';
 
 export interface AppInfoApi {
   getInfo: () => Promise<AppInfoResult>;

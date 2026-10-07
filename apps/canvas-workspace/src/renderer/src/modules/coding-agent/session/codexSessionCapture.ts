@@ -1,4 +1,4 @@
-import type { CodexSessionsApi } from '../../../types/codex-sessions';
+import type { CodexSessionsApi } from '../../../../../shared/api/codex-sessions';
 
 const CAPTURE_POLL_MS = 1_000;
 const CAPTURE_MAX_ATTEMPTS = 30;

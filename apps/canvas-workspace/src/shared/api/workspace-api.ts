@@ -1,17 +1,16 @@
-import type { PluginBridge } from '../../../plugins/types';
-import type { BrowsingHistoryApi } from '../../../shared/browsing-history';
-import type { MemoryReportApi } from '../../../shared/memory-report';
-import type { ScheduledApi } from '../../../shared/scheduled';
-import type { ArtifactCapabilitiesApi } from '../../../shared/artifact-capabilities';
-import type { AgentRolesApi } from '../../../shared/agent-roles';
-import type { ReferencesApi } from '../../../shared/references';
-import type { PluginMarketApi } from '../../../shared/plugin-market';
+import type { BrowsingHistoryApi } from '../browsing-history';
+import type { MemoryReportApi } from '../memory-report';
+import type { ScheduledApi } from '../scheduled';
+import type { ArtifactCapabilitiesApi } from '../artifact-capabilities';
+import type { AgentRolesApi } from '../agent-roles';
+import type { ReferencesApi } from '../references';
+import type { PluginMarketApi } from '../plugin-market';
 import type {
   CanvasSaveData,
   KnowledgeTagDefinition,
   WorkspaceNodeListItem,
   WorkspaceNodeRecord,
-} from '../../../shared/canvas';
+} from '../canvas';
 import type { AgentApi } from './agent-chat';
 import type { AgentTeamsApi } from './agent-teams';
 import type { AppInfoApi } from './app-info';
@@ -35,6 +34,14 @@ import type { LinkApi } from './link';
 import type { LlmApi } from './llm';
 import type { ShellApi } from './shell';
 import type { WebApi } from './web';
+
+export interface PluginBridge {
+  invoke<T = unknown>(
+    pluginId: string,
+    channel: string,
+    ...args: unknown[]
+  ): Promise<T>;
+}
 
 export interface CanvasWorkspaceApi {
   version: string;

@@ -1,5 +1,5 @@
 import type { IpcRenderer } from 'electron';
-import type { AgentTeamsApi } from '../../renderer/src/types';
+import type { AgentTeamsApi } from '../../shared/api/agent-teams';
 
 export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => ({
   create: (input) => ipcRenderer.invoke('agent-teams:create', input),

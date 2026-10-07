@@ -1,9 +1,9 @@
 import type {
   ChannelConfigStatus,
   SetFeishuConfigInput,
-} from '../../../shared/channel-config';
+} from '../channel-config';
 
-export type * from '../../../shared/channel-config';
+export type * from '../channel-config';
 
 export interface ChannelConfigApi {
   status: () => Promise<{ ok: boolean; status?: ChannelConfigStatus; error?: string }>;

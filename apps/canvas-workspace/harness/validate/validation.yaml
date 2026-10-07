@@ -194,7 +194,7 @@ pathRules:
     paths:
       - src/renderer/src/modules/models/**
       - src/renderer/src/utils/modelCatalog.ts
-      - src/renderer/src/types/models.ts
+      - src/shared/api/models.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
     required:

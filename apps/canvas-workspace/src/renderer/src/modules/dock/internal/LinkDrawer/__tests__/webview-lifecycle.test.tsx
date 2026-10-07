@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EmbeddedWebviewTag } from '../../../../../platform/browser/types';
-import type { IframeApi } from '../../../../../types/iframe';
+import type { IframeApi } from '../../../../../../../shared/api/iframe';
 import {
   useDockWebviewBackgroundLifecycle,
   useDockWebviewDiscard,

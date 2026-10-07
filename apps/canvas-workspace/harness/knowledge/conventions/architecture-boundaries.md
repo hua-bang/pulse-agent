@@ -28,12 +28,10 @@ The app is split into four source surfaces with a strict dependency direction:
 - **`preload`** is a bridge: **no** importing `renderer`/`main` implementation.
   Cross-process API contracts belong in `src/shared/*`; policy stays in `main`.
 
-> Known debt: cross-process API contracts (`CanvasWorkspaceApi` and friends)
-> still live in `src/renderer/src/types.ts`, so preload bridges currently import
-> them via an explicit allowlist in `import-boundaries.test.ts`. The migration
-> goal is to move those contracts into `src/shared/*` and delete the allowlist
-> entries. **Do not add new preload→renderer imports** — extend the shared
-> contracts instead.
+Cross-process API contracts (`CanvasWorkspaceApi` and the per-domain `*Api`
+interfaces) live in `src/shared/api/*`. `src/renderer/src/types.ts` re-exports
+them for renderer code. `import-boundaries.test.ts` has no preload allowlist:
+any preload→renderer import fails.
 
 ## File-size governance
 

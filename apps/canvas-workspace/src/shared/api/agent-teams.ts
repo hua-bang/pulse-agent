@@ -1,9 +1,9 @@
 import type {
   AgentTeamRuntimeSnapshot,
   AgentTeamSnapshot,
-} from '../../../shared/agent-teams';
+} from '../agent-teams';
 
-export type * from '../../../shared/agent-teams';
+export type * from '../agent-teams';
 
 export interface AgentTeamsApi {
   create: (input: {

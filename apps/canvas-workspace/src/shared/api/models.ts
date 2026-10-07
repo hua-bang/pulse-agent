@@ -6,9 +6,9 @@ import type {
   CanvasProviderModel,
   PromptProfile,
   PromptProfileStatus,
-} from '../../../shared/model-config';
+} from '../model-config';
 
-export type * from '../../../shared/model-config';
+export type * from '../model-config';
 
 export interface ModelSelection {
   mode: 'auto' | 'model';
