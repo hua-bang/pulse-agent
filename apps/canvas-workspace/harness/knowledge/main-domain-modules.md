@@ -17,7 +17,7 @@ git history of this file if you need it.
 
 ## Current Structure
 
-Verified against the tree on 2026-07-07; if this drifts, `ls src/main/` wins.
+Verified against the tree on 2026-10-07; if this drifts, `ls src/main/` wins.
 
 ```text
 src/main/
@@ -36,7 +36,9 @@ src/main/
                       # workspace-meta, plugin-node-capabilities, dom-selection-context,
                       # capability/window/scheduled ports (app-owned injection),
                       # mcp/, skills/, tools/ (20+ split tool modules; the
-                      # sibling tools.ts is a 2-line re-export shim kept for imports)
+                      # sibling tools.ts is a 2-line re-export shim kept for imports),
+                      # backends/, conversation-runtime/, external/, observability/,
+                      # flat mcp-app-* (MCP App host) and session-* files
   agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
                       # canvas-agent-session-adapter (pulse-coder-agent-teams integration)
   artifacts/          # store + ipc (pin-to-canvas logic lives inside ipc.ts)
@@ -45,11 +47,16 @@ src/main/
   files/              # manager, watcher, skill-installer
   generation/         # html-generator + ipc
   models/             # provider/model config, resolution, secret storage + IPC
-  runtime/            # control-server, mcp-server, mcp-registration
+  runtime/            # control-server, mcp-server, mcp-registration,
+                      # capabilities/, window-port
   plugin-market/      # package readers, config + IPC, install/remove service
   settings/           # experimental-ipc,
                       # built-in-tools-config/-ipc, plugin-manifest-icons
   perf/               # loop-delay (startup/runtime perf counters feed perf/ gates)
+  scheduled/          # scheduled task service, runtime + IPC
+  default-browser/    # default-browser registration + deep links
+  dock/               # right-dock tab mirror, tab actions, browsing history
+  references/         # per-workspace pinned Library references + IPC
 ```
 
 `src/main/index.ts` stays a narrow entrypoint. It imports a small bootstrap
@@ -251,6 +258,23 @@ setting becomes domain-specific, it moves into that domain.
 Main-process performance counters (loop delay) feeding the `perf/` gate
 system and `.github/workflows/perf.yml`.
 
+### `scheduled/`
+
+Scheduled task ownership: task service, runtime, and IPC. Scheduled may
+use Agent to run a task. Agent reaches Scheduled only through
+`agent/scheduled-port.ts`.
+
+### `default-browser/`
+
+Default-browser ownership: OS registration and incoming deep links. It must
+not import `app/`.
+
+### `dock/` and `references/`
+
+`dock/` mirrors right-dock tabs, pushes tab activation, and stores browsing
+history (detail: `harness/knowledge/dock-browser.md`). `references/` stores
+per-workspace pinned Library entries (contract: `src/shared/references.ts`).
+
 ## Open Follow-ups
 
 Phases 1 (domain move) and 4 (agent tools split) of the original plan are
@@ -286,6 +310,14 @@ done. Still open:
   Legacy persisted-state repair ordering and transitions live in `agent-teams/state-repairs.ts`.
   Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
+- **Agent flat-file grouping** — `agent/` has about 120 flat `.ts` files. The
+  12 `mcp-app-*` files (MCP App host, about 1,660 lines) and 14 `session-*`
+  files are the clearest sub-domains still not grouped into folders. Group
+  them by moving files only, and keep IPC channel names stable.
+- **Window port duplication** — `agent/window-port.ts` and
+  `runtime/window-port.ts` describe the same window capability. The Agent
+  port returns an unavailable result when nothing is injected; the Runtime
+  port throws. Keep one interface when either side changes.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
   `artifacts -> agent`, `canvas -> agent`, `default-browser -> app`,

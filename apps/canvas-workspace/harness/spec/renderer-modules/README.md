@@ -44,10 +44,14 @@ src/renderer/src/
 ├── platform/
 │   └── browser/       # webview lifecycle, URL, guest-input and launch adapters
 ├── hooks/             # domain-free overlay geometry and keyboard behavior
-├── types/             # cross-renderer contracts
+├── shortcuts/         # keyboard shortcut registry and terminal shortcuts
+├── shared/            # cross-module helpers; some files still have a product owner
+├── types/             # cross-renderer contracts and preload `*Api` interfaces
 ├── utils/             # pure helpers, some still feature-specific
-├── i18n/
-└── app/App/         # application root composition + route projection
+├── config/            # agent registry, terminal theme and link handling
+├── constants/         # canvas plugin and interaction constants
+├── perf/              # renderer jank and counter monitors
+└── i18n/
 ```
 
 Current healthy properties:
@@ -232,6 +236,20 @@ Current pressure points, measured on 2026-09-04:
 | Workspace nodes page | `NodesPage/index.tsx` ~178 lines; owner controller ~214 lines; pure filtering/AI-scope model ~123 lines; owner CSS 160 lines | the page only composes header, filters, cards, and selection bar; controller owns data/filter/selection/pagination effects, the tested model preserves bounded exact context versus durable workspace/tag scopes, and unreachable pre-CardShell CSS is removed |
 | Settings | MCP manager ~370 lines with draft codec ~112 and server form/list 144/184; PluginsManager ~442 lines / owner CSS 67; shared config chrome 438 lines | MCP and plugin bridges remain separate product adapters over shared form/list chrome; Plugins follows its owner folder, the zero-caller legacy SkillsManager is deleted because `modules/skills` owns that capability, and no generic ConfigManager was introduced |
 
+Known structural gaps, measured on 2026-10-07 with
+`check-renderer-structure` and a source read:
+
+- `modules/canvas` and `modules/chat` form one import cycle. Canvas imports
+  Chat interfaces in about ten places. Chat imports Canvas only once: the lazy
+  `canvas/preview` import in `ChatClarificationCard`.
+- `shared/` still holds files that have a product owner, for example
+  `shared/dock/`, `dockPort.tsx`, `chatTarget.ts`, and `knowledgeChat.ts`.
+  The target `shared/` holds only owner-free code.
+- `types/` holds the preload `*Api` interfaces (`AgentApi`, `FileApi`,
+  `CanvasWorkspaceApi`, and others). These are cross-process contracts.
+  Their target is `src/shared/*`; see
+  `harness/knowledge/conventions/architecture-boundaries.md`.
+
 Line counts are discovery signals, not the decision rule. Use the deletion
 test: a module earns its place when deleting it would spread its complexity
 across callers. Deepening should reduce what callers need to know, not merely
@@ -300,6 +318,12 @@ modules/<name>/
 ├── adapters/                   # concrete adapters at real seams
 └── __tests__/                  # cross-submodule integration specs only
 ```
+
+Current variant: `artifacts`, `dock`, `plugin-market`, `scheduled`,
+`settings`, `skills`, and `workspace-nodes` keep their private implementation
+under `internal/` instead of `components/` and `runtime/`. Both forms keep
+implementation behind `index.ts`. Do not rename existing folders only to
+match this shape; apply it when a module is restructured for another reason.
 
 Do not create an adapter for hypothetical variation. One implementation is
 not evidence of a seam; production and deterministic in-memory adapters are a
