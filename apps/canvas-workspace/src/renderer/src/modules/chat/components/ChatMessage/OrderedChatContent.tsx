@@ -3,7 +3,7 @@ import type { AgentChatContentBlock } from '../../../../../../shared/agent-chat'
 import { groupContentBlocks } from '../../../../../../shared/chat-content-blocks';
 import type { CanvasNode, ToolCallStatus } from '../../../../types';
 import { useRoleColors, useRoleNameColors } from '../../mentions/roleMentionItems';
-import { renderMdWithMentions } from '../utils/mentions';
+import { renderMdWithMentions } from '../../mentions/mentions';
 import { renderMermaidIn } from '../../../../utils/mermaid';
 import { MarkdownContent } from './MarkdownContent';
 

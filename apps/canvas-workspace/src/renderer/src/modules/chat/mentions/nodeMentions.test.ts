@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import type { CanvasNode } from '../../../../types';
+import type { CanvasNode } from '../../../types';
 import { createMentionChipElement, renderMdWithMentions } from './mentions';
 import { buildNodeMentionMarker, parseNodeMention } from './nodeMentions';
 import { serializeEditable } from './serializeEditable';
-import { sessionTitleText } from './sessionTitle';
+import { sessionTitleText } from '../components/utils/sessionTitle';
 
 const node = (id: string, title: string, type: CanvasNode['type'] = 'file'): CanvasNode => (
   { id, type, title, x: 0, y: 0, width: 100, height: 100, data: {} } as CanvasNode

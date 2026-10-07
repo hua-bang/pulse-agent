@@ -553,7 +553,7 @@ Session citation markers are atomic Markdown inputs: protect the complete
 Markdown rendering, then restore it for chip conversion. Store ids such as
 `__global_chat__` and `__scheduled__-<taskId>` must reach the chip dataset
 verbatim; repairing rendered `<strong>` fragments after the fact is not a
-compatible parser. Guards: `utils/mentions.test.ts` and
+compatible parser. Guards: `mentions/mentions.test.ts` and
 `__tests__/ChatMessages.accessibility.test.tsx`.
 
 If the visible page composer is temporarily busy or registering, its context
@@ -575,7 +575,7 @@ Editable composers expose `Automatic` / `Ask first`; Ask first is not advisory
 copy — the main-process tool policy permits reads but gates mutating/command
 tools through the clarification approval lane before execution.
 
-Guards: `utils/chatPageDockTabs.test.ts`, `utils/mentions.test.ts`,
+Guards: `utils/chatPageDockTabs.test.ts`, `mentions/mentions.test.ts`,
 `__tests__/ChatMessages.accessibility.test.tsx`, and
 `__tests__/ChatInput.execution-attachments.test.tsx` under
 `src/renderer/src/modules/chat/components/`, plus

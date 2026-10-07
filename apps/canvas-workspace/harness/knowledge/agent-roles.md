@@ -260,7 +260,7 @@ Settings save/delete (`invalidateRoleMentionItems()`, called from
 `useAgentRoles`'s `save`/`remove` in `RolesSettings.tsx`). Chips recolor by
 overriding the `--role-accent`, `--role-accent-icon`, `--role-accent-soft`
 CSS custom properties INLINE per chip in
-`src/renderer/src/modules/chat/components/utils/mentions.ts`, so an unknown or
+`src/renderer/src/modules/chat/mentions/mentions.ts`, so an unknown or
 deleted role id simply falls back to the chip class's default violet
 tokens instead of erroring.
 

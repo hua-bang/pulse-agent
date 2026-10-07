@@ -4,9 +4,9 @@ import type {
   ChatImageAttachment,
   ChatRunInputMode,
 } from '../../../../types';
-import { collectContextRefsFromEditable, withCollectedTabs } from '../utils/mentions';
+import { collectContextRefsFromEditable, withCollectedTabs } from '../../mentions/mentions';
 import { collectAppMentionContexts } from '../../mentions/appMentionItems';
-import { serializeEditable } from '../utils/serializeEditable';
+import { serializeEditable } from '../../mentions/serializeEditable';
 import { globalMcpAppsStore } from '../../../mcp-apps/global-apps';
 import { withCollectedPlugins } from '../../mentions/pluginMentionItems';
 

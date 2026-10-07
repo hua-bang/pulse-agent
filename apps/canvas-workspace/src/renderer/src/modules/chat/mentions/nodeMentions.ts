@@ -1,4 +1,4 @@
-import { NODE_MENTION_PREFIX } from '../ChatMentionPopup/constants';
+import { NODE_MENTION_PREFIX } from '../components/ChatMentionPopup/constants';
 import { decodeMentionPart, encodeMentionPart } from './mentionMarkers';
 
 export interface NodeMentionRef {

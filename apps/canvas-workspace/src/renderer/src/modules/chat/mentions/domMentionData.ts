@@ -1,4 +1,4 @@
-import type { AgentContextDomSelectionRef } from '../../../../types';
+import type { AgentContextDomSelectionRef } from '../../../types';
 
 export function writeDomSelectionDataset(
   chip: HTMLElement,

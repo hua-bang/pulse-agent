@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildTabMentionItems, collectTabRefsFromEditable, createMentionChipElement, parseTabMention, renderMdWithMentions } from './mentions';
 import { serializeEditable } from './serializeEditable';
-import type { CanvasNode } from '../../../../types';
-import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
+import type { CanvasNode } from '../../../types';
+import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 
 const domLabel = 'header: Fancy Builder [...truncated]';
 

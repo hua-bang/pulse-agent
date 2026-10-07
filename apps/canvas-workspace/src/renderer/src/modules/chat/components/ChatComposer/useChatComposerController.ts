@@ -13,7 +13,7 @@ import {
   setConversationError,
 } from '../../runtime/conversationStore';
 import type { LoadedConversation } from '../../sessions/loadedConversationSink';
-import { serializeEditable } from '../utils/mentions';
+import { serializeEditable } from '../../mentions/mentions';
 
 interface UseChatComposerControllerOptions {
   agentScope: AgentScope;

@@ -10,7 +10,7 @@ import {
 import type { AgentChatMessage, CanvasNode, ToolCallStatus } from '../../../../types';
 import { toFileUrl } from '../../../../utils/fileUrl';
 import { useRoleColors, useRoleNameColors } from '../../mentions/roleMentionItems';
-import { renderMdWithMentions } from '../utils/mentions';
+import { renderMdWithMentions } from '../../mentions/mentions';
 import { isImeComposing } from '../../../../utils/ime';
 import { renderMermaidIn } from '../../../../utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time';

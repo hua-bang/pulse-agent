@@ -1,4 +1,4 @@
-import type { McpAppEntrypointListing } from '../../../../../../shared/mcp-apps';
+import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 import { decodeMentionPart, encodeMentionPart } from './mentionMarkers';
 import { mentionIconSvg } from './mentionIcons';
 

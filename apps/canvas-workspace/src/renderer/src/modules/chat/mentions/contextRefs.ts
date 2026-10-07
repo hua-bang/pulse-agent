@@ -1,4 +1,4 @@
-import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../../types';
+import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
 import { readDomSelectionDataset } from './domMentionData';
 
 /**

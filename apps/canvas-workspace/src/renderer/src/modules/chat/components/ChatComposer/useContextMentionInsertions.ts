@@ -2,8 +2,8 @@ import { useCallback, type RefObject } from 'react';
 import type { AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../../types';
 import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
 import type { MentionItem } from '../../../../types';
-import { appendMentionChipToEditable } from '../utils/editableMentions';
-import { createMentionChipElement, serializeEditable } from '../utils/mentions';
+import { appendMentionChipToEditable } from '../../mentions/editableMentions';
+import { createMentionChipElement, serializeEditable } from '../../mentions/mentions';
 
 interface Options {
   editableRef: RefObject<HTMLDivElement>;
