@@ -8,8 +8,7 @@ Global constraints and task routes; `CLAUDE.md` imports this file.
 - SSOT: `pnpm-workspace.yaml` owns membership; package.json owns metadata/scripts; workspace AGENTS/harness own local roles, contracts, and knowledge. Do not copy inventories.
 - Establish the problem, goal, constraints, and current evidence first; do not reverse-justify a change from an MR or neighboring code.
 - Reuse existing modules, scripts, skills, and docs. Add assets only when existing entries cannot carry the work and the addition reduces complexity or enforces a constraint. Newness is not a reason.
-- Make everything as simple as possible, but not simpler. Add an abstraction layer (port, adapter, registry, barrel, wrapper) only for a real second caller or implementation, or for a boundary that a test enforces. Write a single implementation directly; do not reserve extension points for hypothetical needs.
-  Do not simplify away a needed invariant, guard, or boundary.
+- Make everything as simple as possible, but not simpler. Add an abstraction layer (port, adapter, registry, barrel, wrapper) only for a real second caller or implementation, or for a boundary that a test enforces. Write a single implementation directly; do not reserve extension points for hypothetical needs. Do not simplify away a needed invariant, guard, or boundary.
 - Prefer plugin/hook/tool/service boundaries over engine-loop hardcoding. Verify that enforcement actually exists; a documented gate is not a runner.
 - Maintain AGENTS by decision value and ownership: keep necessary scoped constraints and task routes; apply the content-admission principles in `harness/DESIGN.md`. Length metrics are observational.
 - Write explanations and documentation in an ASD-STE100-inspired style (about 80% strictness): use short sentences, active voice, plain words, and consistent terms. Apply the same principles in Chinese; keep natural phrasing and necessary technical detail.
