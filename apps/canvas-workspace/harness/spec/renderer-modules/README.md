@@ -23,6 +23,7 @@ infrastructure with no product-domain meaning.
 ```text
 src/renderer/src/
 ├── app/
+│   ├── App/           # application root composition + route projection
 │   └── shell/         # providers, routes, Workbench, Sidebar composition
 ├── modules/
 │   ├── canvas/        # document state, transactions, history, external merge
@@ -242,9 +243,11 @@ Known structural gaps, measured on 2026-10-07 with
 - `modules/canvas` and `modules/chat` form one import cycle. Canvas imports
   Chat interfaces in about ten places. Chat imports Canvas only once: the lazy
   `canvas/preview` import in `ChatClarificationCard`.
-- `shared/` still holds files that have a product owner, for example
-  `shared/dock/`, `dockPort.tsx`, `chatTarget.ts`, and `knowledgeChat.ts`.
-  The target `shared/` holds only owner-free code.
+- `shared/chatTarget.ts` has one owner: only `modules/chat` imports it, so
+  it belongs with `modules/chat/target/`. Other product-named `shared/`
+  files, such as `dockPort.tsx` and `shared/dock/`, are intentional
+  dependency-inversion seams (see Dock above); do not move them to their
+  apparent owner without a replacement boundary.
 - `types/` holds the preload `*Api` interfaces (`AgentApi`, `FileApi`,
   `CanvasWorkspaceApi`, and others). These are cross-process contracts.
   Their target is `src/shared/*`; see
@@ -322,7 +325,9 @@ modules/<name>/
 Current variant: `artifacts`, `dock`, `plugin-market`, `scheduled`,
 `settings`, `skills`, and `workspace-nodes` keep their private implementation
 under `internal/` instead of `components/` and `runtime/`. Both forms keep
-implementation behind `index.ts`. Do not rename existing folders only to
+implementation behind the module's public entry points: `index.ts` plus any
+named secondary entry point that preserves a lazy-loading boundary (for
+example `dock/reference.ts` or `settings/app.ts`). Do not rename existing folders only to
 match this shape; apply it when a module is restructured for another reason.
 
 Do not create an adapter for hypothetical variation. One implementation is

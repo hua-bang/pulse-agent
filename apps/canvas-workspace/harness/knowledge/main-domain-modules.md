@@ -311,7 +311,8 @@ done. Still open:
   Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
 - **Agent flat-file grouping** — `agent/` has about 120 flat `.ts` files. The
-  12 `mcp-app-*` files (MCP App host, about 1,660 lines) and 14 `session-*`
+  12 production `mcp-app-*` files (MCP App host, about 940 lines, plus 8
+  colocated tests) and 14 `session-*`
   files are the clearest sub-domains still not grouped into folders. Group
   them by moving files only, and keep IPC channel names stable.
 - **Window port duplication** — `agent/window-port.ts` and
