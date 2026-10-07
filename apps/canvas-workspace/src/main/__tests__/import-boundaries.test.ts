@@ -77,6 +77,19 @@ describe('import boundaries', () => {
     expect(cyclicEdges).toEqual([]);
   });
 
+  it('documents every main domain in the domain map', () => {
+    const domainMap = readFileSync(
+      join(REPO_ROOT, 'harness', 'knowledge', 'main-domain-modules.md'),
+      'utf8',
+    );
+    const domains = readdirSync(join(SRC_ROOT, 'main'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
+      .map((entry) => entry.name);
+    const undocumented = domains.filter((name) => !domainMap.includes(`${name}/`));
+
+    expect(undocumented).toEqual([]);
+  });
+
   it('treats TypeScript import types as domain dependencies', () => {
     const sourcePath = join(SRC_ROOT, 'main', 'canvas', 'synthetic.ts');
     const imports = readImportsFromSource(

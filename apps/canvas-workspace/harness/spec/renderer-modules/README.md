@@ -425,9 +425,9 @@ Its detector reports:
 - tests and styles that appear separated from their owner.
 
 Default mode is read-only and migration-aware. Heuristic counts overlap and
-do not represent independent defects. Strict mode evaluates this
-target and is appropriate only once the caller explicitly asks for target
-conformance or the module-first migration has begun. Existing file-size,
+do not represent independent defects. Strict mode fails on target gaps,
+boundary errors, and module cycles; the standard validation level runs it for
+every renderer change. Existing file-size,
 import-boundary, UI-reuse, typecheck, and full-test gates remain authoritative;
 the structural detector does not duplicate them.
 

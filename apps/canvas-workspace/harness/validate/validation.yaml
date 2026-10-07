@@ -16,11 +16,12 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
 
-  # Renderer module architecture is a planned, migration-aware target. The
-  # detector reports current pressure without failing default mode; its own
-  # specs pin folder classification and dependency-direction semantics.
+  # The renderer reached 0 target gaps, 0 boundary errors, and 0 module cycles
+  # on 2026-10-07. Required runs strict mode so a renderer change cannot
+  # reintroduce them; quick stays read-only. Size pressure never fails.
   - name: renderer-structure-health
     paths:
+      - src/renderer/src/**
       - harness/spec/renderer-modules/**
       - harness/skills/check-renderer-structure/**
     quick:
@@ -28,7 +29,7 @@ pathRules:
       - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
     required:
       - pnpm --filter canvas-workspace exec vitest run harness/skills/check-renderer-structure/scripts/check-renderer-structure.test.mjs
-      - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
+      - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --strict
 
   # Canvas document state is a data-integrity seam: nodes+edges history,
   # external CLI merge, persistence scheduling, and content side effects must

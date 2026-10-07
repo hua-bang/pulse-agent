@@ -15,9 +15,10 @@ Run from the repository root:
 node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs
 ```
 
-Use `--json` when another tool will consume the result. Use `--strict` only
-when the user asks for target conformance or a module-first migration phase is
-being accepted:
+Use `--json` when another tool will consume the result. The standard
+validation level runs `--strict` for every renderer change (bound in
+`harness/validate/validation.yaml`), because the renderer has no target gaps,
+boundary errors, or module cycles left:
 
 ```bash
 node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --strict
