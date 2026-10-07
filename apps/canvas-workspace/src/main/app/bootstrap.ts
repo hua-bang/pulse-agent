@@ -77,11 +77,10 @@ import {
   getLiveCanvasWindow,
   setWindowFactory,
 } from "./window-manager";
-import { setAgentWindowPort } from "../agent/window-port";
+import { setCanvasWindowPort } from "../agent/window-port";
 import { setAgentScheduledPort } from "../agent/scheduled-port";
 import { setAgentCapabilityPort } from "../agent/capability-port";
 import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
-import { setRuntimeWindowPort } from "../runtime/window-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
 import {
   connectCanvasMcpOAuth,
@@ -124,9 +123,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // Keep identity configured even when tests import bootstrap directly instead
   // of going through the main entry module.
   configureAppIdentity();
-  setAgentWindowPort({ getCanvasWindow, activateWorkspaceWindow });
-  setRuntimeWindowPort({
-    getCanvasWindow: getLiveCanvasWindow,
+  setCanvasWindowPort({
+    getFocusedCanvasWindow: getCanvasWindow,
+    getLiveCanvasWindow,
     activateWorkspaceWindow,
   });
   setPluginMarketAgentPort({

@@ -48,7 +48,7 @@ src/main/
   generation/         # html-generator + ipc
   models/             # provider/model config, resolution, secret storage + IPC
   runtime/            # control-server, mcp-server, mcp-registration,
-                      # capabilities/, window-port
+                      # capabilities/
   plugin-market/      # package readers, config + IPC, install/remove service
   settings/           # experimental-ipc,
                       # built-in-tools-config/-ipc, plugin-manifest-icons
@@ -315,12 +315,6 @@ done. Still open:
   colocated tests) and 14 `session-*`
   files are the clearest sub-domains still not grouped into folders. Group
   them by moving files only, and keep IPC channel names stable.
-- **Window port duplication** — `agent/window-port.ts` and
-  `runtime/window-port.ts` declare the same methods with different meanings.
-  Bootstrap binds Agent `getCanvasWindow` to the focused-or-live window and
-  Runtime `getCanvasWindow` to the live window only. When nothing is
-  injected, the Agent port returns an unavailable result; the Runtime port
-  throws. Merge them into one port with explicitly named methods.
 - **Main domain dependency ratchet** — the process-layer import check now also
   prevents `agent -> app`, `agent -> runtime`, `agent -> scheduled`,
   `artifacts -> agent`, `canvas -> agent`, `default-browser -> app`,
@@ -340,9 +334,12 @@ done. Still open:
 - `artifacts/` may import canvas storage APIs to pin artifacts, but canvas
   should not import artifact internals.
 - Prefer `index.ts` barrel files only where they hide internal substructure and
-  do not create circular dependencies. `agent/window-port.ts` is the app-owned
-  window capability seam: bootstrap injects `window-manager` there so Agent
-  screenshot/webpage tools never import the `app/` composition layer. The
+  do not create circular dependencies. `agent/window-port.ts` is the one
+  app-owned window capability seam: bootstrap injects `window-manager` there
+  so Agent tools and `runtime/capabilities` never import the `app/`
+  composition layer. It names its two lookups explicitly:
+  `getFocusedCanvasWindow` (focused window first) and `getLiveCanvasWindow`
+  (the registered window only, never focused or created). The
   sibling `scheduled-port.ts` similarly keeps Agent tools/session labels from
   importing Scheduled's runtime, while Scheduled may still use Agent to run a task.
 

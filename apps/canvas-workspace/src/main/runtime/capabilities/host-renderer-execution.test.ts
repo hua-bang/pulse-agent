@@ -7,11 +7,15 @@ const evalInPage = vi.hoisted(() => vi.fn());
 vi.mock('../../../plugins/main/webview-page-control/js-primitives', () => ({ evalInPage }));
 
 import { executeHostRendererEval } from './host-renderer-execution';
-import { setRuntimeWindowPort } from '../window-port';
+import { setCanvasWindowPort } from '../../agent/window-port';
 
 describe('host renderer execution', () => {
   beforeEach(() => {
-    setRuntimeWindowPort({ activateWorkspaceWindow, getCanvasWindow });
+    setCanvasWindowPort({
+      activateWorkspaceWindow,
+      getFocusedCanvasWindow: () => null,
+      getLiveCanvasWindow: getCanvasWindow,
+    });
     activateWorkspaceWindow.mockReset();
     getCanvasWindow.mockReset();
     evalInPage.mockReset();

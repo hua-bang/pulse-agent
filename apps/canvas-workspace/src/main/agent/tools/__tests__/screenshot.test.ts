@@ -39,10 +39,11 @@ vi.mock('electron', () => ({
 vi.mock('../_shared/canvas-io', () => ({ STORE_DIR: h.storeDir }));
 
 import { createScreenshotTools } from '../screenshot';
-import { setAgentWindowPort } from '../../window-port';
+import { setCanvasWindowPort } from '../../window-port';
 
-setAgentWindowPort({
-  getCanvasWindow: () => h.state.win,
+setCanvasWindowPort({
+  getFocusedCanvasWindow: () => h.state.win,
+  getLiveCanvasWindow: () => h.state.win,
   activateWorkspaceWindow: async () => ({ ok: true }),
 });
 

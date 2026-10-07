@@ -1,4 +1,4 @@
-import { getRuntimeWindowPort } from '../window-port';
+import { getCanvasWindowPort } from '../../agent/window-port';
 import {
   evalInPage,
   type PageRunner,
@@ -47,7 +47,7 @@ export async function executeHostRendererEval(
 }
 
 async function execute(input: HostRendererEvalInput, context: CapabilityContext): Promise<unknown> {
-  const runner = getRuntimeWindowPort().getCanvasWindow()?.webContents;
+  const runner = getCanvasWindowPort().getLiveCanvasWindow()?.webContents;
   if (!runner) {
     throw new CapabilityError('host_renderer_unavailable', 'Canvas renderer is unavailable');
   }
