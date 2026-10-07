@@ -37,9 +37,9 @@ async function main() {
   const bridge = vm.newFunction('callTool', (name, args) => {
     if (++nextId > workerData.maxCalls) throw new Error('Codemode tool call limit exceeded');
     const chars = vm.getProp(args, 'length').consume(handle => vm.getNumber(handle));
-    if (chars > 64 * 1024) throw new Error('Codemode tool argument limit exceeded');
+    if (chars > workerData.maxToolArgumentBytes) throw new Error('Codemode tool argument limit exceeded');
     const json = vm.getString(args);
-    if (Buffer.byteLength(json, 'utf8') > 64 * 1024) throw new Error('Codemode tool argument limit exceeded');
+    if (Buffer.byteLength(json, 'utf8') > workerData.maxToolArgumentBytes) throw new Error('Codemode tool argument limit exceeded');
     const deferred = vm.newPromise();
     pending.set(nextId, deferred);
     parentPort.postMessage({ type: 'call', id: nextId, name: vm.getString(name), args: json });
