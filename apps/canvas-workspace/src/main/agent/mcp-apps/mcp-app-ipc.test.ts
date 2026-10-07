@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (event: any, payload: any) => Promise<any>>(),
@@ -23,6 +23,13 @@ describe('MCP App IPC approvals', () => {
     activateScope: vi.fn(async () => undefined),
     getAgentForScope: () => ({ getMcpAppsManager: () => manager, executeMcpAppTool }),
   };
+
+  // The call-tool channel loads its handler lazily on the first call. Load
+  // it here so a slow cold import under a full parallel run is not charged
+  // to the first approval test's 5s budget.
+  beforeAll(async () => {
+    await import('./mcp-app-tool-handler');
+  }, 30_000);
 
   beforeEach(() => {
     electron.handlers.clear();
