@@ -28,10 +28,6 @@ interface Options {
    *  component and must keep hook-call order stable either way). Default
    *  `true`. */
   enabled?: boolean;
-  /** Match the panel to a composer-sized anchor, within viewport margins. */
-  matchAnchorWidth?: boolean;
-  /** Keep portaled suggestions hidden with retained or detached editors. */
-  hideWhenAnchorHidden?: boolean;
 }
 
 /**
@@ -63,8 +59,6 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
   gap = GAP_PX,
   viewportMargin = VIEWPORT_MARGIN_PX,
   enabled = true,
-  matchAnchorWidth = false,
-  hideWhenAnchorHidden = false,
 }: Options) => {
   const ref = useRef<T>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -72,29 +66,8 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
   const reposition = useCallback(() => {
     const anchor = anchorRef.current;
     const panel = ref.current;
-    if (!anchor) {
-      setPos(null);
-      return;
-    }
+    if (!anchor) return;
     const anchorRect = anchor.getBoundingClientRect();
-    if (hideWhenAnchorHidden) {
-      let visible = anchor.isConnected && anchorRect.width > 0 && anchorRect.height > 0;
-      for (let element: HTMLElement | null = anchor; element; element = element.parentElement) {
-        const style = getComputedStyle(element);
-        if (style.display === 'none' || style.visibility === 'hidden'
-          || style.visibility === 'collapse' || style.opacity === '0'
-          || element.hidden || element.inert || element.getAttribute('aria-hidden') === 'true') {
-          visible = false;
-        }
-      }
-      if (!visible) {
-        setPos(null);
-        return;
-      }
-    }
-    if (matchAnchorWidth && panel) {
-      panel.style.width = `${Math.min(anchorRect.width, Math.max(0, window.innerWidth - viewportMargin * 2))}px`;
-    }
     const panelWidth = panel?.offsetWidth ?? 0;
     const panelHeight = panel?.offsetHeight ?? 0;
     const viewportWidth = window.innerWidth;
@@ -122,7 +95,7 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
     left = Math.max(left, viewportMargin);
 
     setPos({ left, top });
-  }, [anchorRef, placement, align, gap, viewportMargin, matchAnchorWidth, hideWhenAnchorHidden]);
+  }, [anchorRef, placement, align, gap, viewportMargin]);
 
   useLayoutEffect(() => {
     if (!enabled) return;
@@ -150,25 +123,8 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
     // fresh measurement a top-placed panel visibly detaches from its trigger.
     const observer = new ResizeObserver(reposition);
     observer.observe(panel);
-    if (matchAnchorWidth && anchorRef.current) observer.observe(anchorRef.current);
     return () => observer.disconnect();
-  }, [enabled, reposition, anchorRef, matchAnchorWidth]);
+  }, [enabled, reposition]);
 
-  useEffect(() => {
-    if (!enabled || !hideWhenAnchorHidden || typeof MutationObserver === 'undefined') return;
-    const observer = new MutationObserver(reposition);
-    for (let element = anchorRef.current; element; element = element.parentElement) {
-      observer.observe(element, {
-        attributes: true, childList: true,
-        attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'inert', 'data-expanded'],
-      });
-    }
-    window.addEventListener('transitionend', reposition, true);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('transitionend', reposition, true);
-    };
-  }, [anchorRef, enabled, hideWhenAnchorHidden, reposition]);
-
-  return { ref, pos };
+  return { ref, pos, reposition };
 };

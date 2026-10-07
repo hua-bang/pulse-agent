@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react';
 import { Portal } from '../../../../components/ui';
-import { useAnchorRectPosition } from '../../../../hooks/useAnchorRectPosition';
+import { useMentionPopupPlacement } from './useMentionPopupPlacement';
 import './index.css';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from '../../../../types';
@@ -34,10 +34,7 @@ export const ChatMentionPopup = ({
   onMentionIndexChange,
 }: ChatMentionPopupProps) => {
   const { t } = useI18n();
-  const { ref: popupRef, pos } = useAnchorRectPosition<HTMLDivElement>({
-    anchorRef, placement: 'top', gap: 4,
-    matchAnchorWidth: true, hideWhenAnchorHidden: true,
-  });
+  const { ref: popupRef, pos, visible } = useMentionPopupPlacement(anchorRef);
 
   // Keep the keyboard-highlighted row visible — the popup scrolls at
   // max-height 240px, so arrowing past the fold must follow the selection.
@@ -51,7 +48,7 @@ export const ChatMentionPopup = ({
       <div
         className="chat-mention-popup"
         ref={popupRef}
-        style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
+        style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos && visible ? 'visible' : 'hidden' }}
       >
         {isLoading ? (
           <div className="chat-mention-status" role="status" aria-live="polite">

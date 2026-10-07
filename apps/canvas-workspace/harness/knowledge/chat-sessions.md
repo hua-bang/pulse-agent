@@ -583,9 +583,11 @@ Guards: `utils/chatPageDockTabs.test.ts`, `utils/mentions.test.ts`,
 
 The composer mention list uses the shared body Portal and `--layer-dock-menu`.
 MCP App iframe surfaces also portal to body, above the Dock itself; an in-panel
-mention menu cannot cover them. `useAnchorRectPosition` matches the composer
+mention menu cannot cover them. `useMentionPopupPlacement` matches the composer
 width, tracks anchor resize, and hides the portaled list with hidden or detached
-chat anchors. The editor retains focus and owns keyboard selection; popup
+chat anchors. It reuses `useAnchorRectPosition` for geometry, while keeping
+composer-only tracking out of that shared startup hook. The Rollup entry-module
+watchlist in `scripts/perf/bundle-report.mjs` guards this on-demand boundary. The editor retains focus and owns keyboard selection; popup
 mousedown prevents blur. Guard: `modules/chat/components/ChatMentionPopup/__tests__/ChatMentionPopup.test.tsx`.
 
 File mentions show a short basename and type marker while preserving their
