@@ -513,7 +513,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // scale for cross-surface stacking order.
   // 25→23 (batch-A): the 2 color-picker popovers' raw z-index:20 now come
   // from ui/DropdownShell's var(--layer-canvas-chrome-raised).
-  zIndexHighRaw: 23,
+  // Composer mentions now use the shared body menu layer above MCP surfaces.
+  zIndexHighRaw: 22,
 
   // --- batch-A new counters (measured post-migration) ---
   // CSS rule-block openers outside ui/ matching the `*-section-(title|desc|
