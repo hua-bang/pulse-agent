@@ -104,7 +104,10 @@ plugin-market/
 - `canvas-plugins.json` remains the registration/config SSOT (`pluginDirs`, existing `pluginConfig`).
 - `plugin-market/plugin-market.json` stores versioned records: listing/package identity, normalized root, source, format, managed flag, native trust, install time and optional generated MCP config path. Writes use a temporary file followed by rename.
 - A local directory record has `managed: false`; uninstall removes registration/state but never deletes the source directory.
-- A Git install is copied to a commit-SHA path with `managed: true`; uninstall deletes it only after confirming the target is a child of the managed packages root.
+- A Git install is copied to a commit-SHA path with `managed: true`; uninstall deletes its active snapshot only after confirming the target is a child of the managed packages root.
+- Installed Git packages expose a manual `Update` action through `plugin-market:update`. It follows the stored URL/ref/subdir, validates the new package (including component errors), and requires the same package name and format. Fixed tags/commits remain fixed. An unchanged snapshot does not reload the main/MCP runtime or reset native trust.
+- `git-install.ts` owns the shared staged ingestion for install/update. `package-update.ts` replaces registration with one serialized, atomic config write, then saves market state. Failed state writes restore the previous registration and policy. If restoration also fails, both snapshots are retained and the error reports the recovery failure. This is rollback on handled failures, not crash-atomic persistence across both files.
+- Updates retain listing/package identity, plugin config, install time, and data directory. MCP adapters use revision-specific runtime paths so preparing an update cannot overwrite the active adapter. New native code starts disabled and must be enabled explicitly. Old snapshots/adapters remain on disk to avoid deleting code still used by an active runtime; no history cleanup or rollback UI is implemented. Public listings use installed version/source/capabilities after replacement.
 - Generated runtime/data directories are not currently garbage-collected on uninstall. Their paths leave active configuration when the state record is removed, but the files may remain on disk.
 
 ## Trust behavior
@@ -214,7 +217,7 @@ The focused suites cover package precedence/containment, skill scanning, MCP con
 ## Current limits
 
 - The public catalog is compiled into the application; `refresh` does not fetch a registry.
-- There is no automatic update, signature/reputation service, dependency resolver, version rollback or marketplace publishing flow.
+- There is no automatic update, signature/reputation service, dependency resolver, version rollback UI or marketplace publishing flow.
 - Claude/Codex marketplace and arbitrary skill-collection adapters are not implemented.
 - Remote MCP OAuth requires an interactive browser handoff. The market reports connection state, but does not manage provider-specific accounts or consent screens.
 - Public literal remote headers are supported, but the market does not independently enforce redirect-origin stripping; credential-bearing fixed headers are rejected instead.

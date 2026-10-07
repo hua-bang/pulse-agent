@@ -52,11 +52,16 @@ function nativeServer(
 export async function writePluginMcpAdapter(
   listingId: string,
   plugin: NormalizedPluginPackage,
+  revision?: string,
 ): Promise<string | undefined> {
   if (!plugin.mcp || plugin.mcp.servers.length === 0) return undefined;
   const directoryName = safeDirectoryName(listingId);
   const dataDir = join(pluginMarketDataDir(), directoryName);
-  const runtimeDir = join(pluginMarketRuntimeDir(), directoryName);
+  const runtimeDir = join(
+    pluginMarketRuntimeDir(),
+    directoryName,
+    ...(revision ? [safeDirectoryName(revision)] : []),
+  );
   await Promise.all([
     fs.mkdir(dataDir, { recursive: true }),
     fs.mkdir(runtimeDir, { recursive: true }),

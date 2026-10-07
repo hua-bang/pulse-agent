@@ -112,7 +112,7 @@ function runConfigMutation<T>(operation: () => Promise<T>): Promise<T> {
   configMutationTail = result.then(() => undefined, () => undefined);
   return result;
 }
-function updateConfig(update: (
+export function updateCanvasPluginsConfig(update: (
   config: CanvasPluginsConfigFile,
 ) => CanvasPluginsConfigFile): Promise<CanvasPluginsStatus> {
   return runConfigMutation(async () => {
@@ -337,7 +337,7 @@ export async function getCanvasPluginsStatus(): Promise<CanvasPluginsStatus> {
 export async function addCanvasPluginDirectory(dir: string): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
   if (!normalized) throw new Error('Plugin directory path is required');
-  return updateConfig((config) => ({
+  return updateCanvasPluginsConfig((config) => ({
     ...config,
     pluginDirs: Array.from(new Set([...(config.pluginDirs ?? []), normalized])),
   }));
@@ -349,7 +349,7 @@ export async function addCanvasPluginDirectoryWithNativePolicy(
 ): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
   if (!normalized) throw new Error('Plugin directory path is required');
-  return updateConfig((config) => ({
+  return updateCanvasPluginsConfig((config) => ({
     ...config,
     pluginDirs: Array.from(new Set([...(config.pluginDirs ?? []), normalized])),
     pluginNativePolicy: {
@@ -362,7 +362,7 @@ export async function addCanvasPluginDirectoryWithNativePolicy(
 export async function addCanvasPluginDirectoryWithoutNativePolicy(dir: string): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
   if (!normalized) throw new Error('Plugin directory path is required');
-  return updateConfig((config) => ({
+  return updateCanvasPluginsConfig((config) => ({
     ...config,
     pluginDirs: Array.from(new Set([...(config.pluginDirs ?? []), normalized])),
     pluginNativePolicy: nativePolicyWithout(config, normalized),
@@ -374,7 +374,7 @@ export async function setCanvasPluginNativePolicy(
 ): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
   if (!normalized) throw new Error('Plugin directory path is required');
-  return updateConfig((config) => {
+  return updateCanvasPluginsConfig((config) => {
     if (!(config.pluginDirs ?? []).some((item) => normalizePluginDir(item) === normalized)) {
       throw new Error('Plugin directory is not registered');
     }
@@ -410,7 +410,7 @@ export function getCanvasPluginExplicitNativePolicySync(dir: string): boolean | 
 
 export async function removeCanvasPluginDirectory(dir: string): Promise<CanvasPluginsStatus> {
   const normalized = normalizePluginDir(dir);
-  return updateConfig((config) => ({
+  return updateCanvasPluginsConfig((config) => ({
     ...config,
     pluginDirs: (config.pluginDirs ?? []).filter((item) => normalizePluginDir(item) !== normalized),
     pluginNativePolicy: nativePolicyWithout(config, normalized),
@@ -442,7 +442,7 @@ export async function setCanvasPluginConfigValue(
   const normalizedValue = value.trim();
   if (!normalizedPluginId || !normalizedKey) throw new Error('Plugin id and config key are required');
 
-  return updateConfig((config) => {
+  return updateCanvasPluginsConfig((config) => {
     const pluginConfig = normalizeStoredPluginConfig(config.pluginConfig);
     if (normalizedValue) {
       pluginConfig[normalizedPluginId] = {

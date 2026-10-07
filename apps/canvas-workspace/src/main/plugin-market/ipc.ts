@@ -3,6 +3,8 @@ import type { PluginMarketSource } from '../../shared/plugin-market';
 
 const getMarket = async () => (await import('./service')).getPluginMarketService();
 
+/** Market channels: list, refresh, install, update, uninstall, connect-mcp,
+ * set-native-enabled, choose-directory, add-git. */
 export function setupPluginMarketIpc(): void {
   ipcMain.handle('plugin-market:list', async () => {
     try {
@@ -22,6 +24,9 @@ export function setupPluginMarketIpc(): void {
   });
   ipcMain.handle('plugin-market:install', async (_event, payload: { listingId?: string }) => (
     (await getMarket()).install(payload.listingId ?? '')
+  ));
+  ipcMain.handle('plugin-market:update', async (_event, payload: { listingId?: string }) => (
+    (await getMarket()).update(payload.listingId ?? '')
   ));
   ipcMain.handle('plugin-market:uninstall', async (_event, payload: { listingId?: string }) => (
     (await getMarket()).uninstall(payload.listingId ?? '')

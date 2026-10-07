@@ -202,6 +202,8 @@ export interface PluginMarketMutationResult {
   ok: boolean;
   snapshot?: PluginMarketSnapshot;
   diagnostics?: PluginPackageDiagnostic[];
+  updateStatus?: 'updated' | 'unchanged';
+  nativeDisabled?: boolean;
   canceled?: boolean;
   source?: PluginMarketSource;
   error?: string;
@@ -211,6 +213,7 @@ export interface PluginMarketApi {
   list: () => Promise<{ ok: boolean; snapshot?: PluginMarketSnapshot; error?: string }>;
   refresh: () => Promise<{ ok: boolean; snapshot?: PluginMarketSnapshot; error?: string }>;
   install: (listingId: string) => Promise<PluginMarketMutationResult>;
+  update: (listingId: string) => Promise<PluginMarketMutationResult>;
   uninstall: (listingId: string) => Promise<PluginMarketMutationResult>;
   connectMcp: (listingId: string) => Promise<PluginMarketMutationResult>;
   setNativeEnabled: (
