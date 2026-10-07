@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const config = vi.hoisted(() => ({ root: '' }));
-vi.mock('../../../../main/agent/config-scope', () => ({ scopeRootDir: (scope: { workspaceId?: string }) => scope.workspaceId ? join(config.root, scope.workspaceId) : config.root }));
+vi.mock('../../../../main/agent/scope/config-scope', () => ({ scopeRootDir: (scope: { workspaceId?: string }) => scope.workspaceId ? join(config.root, scope.workspaceId) : config.root }));
 import { deliverPageResult, splitReadingText } from './reading-output';
 import type { PageRunResult } from './types';
 

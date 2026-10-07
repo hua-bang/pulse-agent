@@ -25,8 +25,8 @@ The registry entry alone renders a working tab. These land with it:
 | What | Where |
 |---|---|
 | Brand mark | a `case` in `AgentNodeBody/AgentIcon.tsx` (inline SVG; the `default` case is a generic clock glyph, so a missing case is visible as "not really supported") — see "Brand marks" below |
-| Brand color | `--agent-brand-<id>` in `src/renderer/src/styles.css`, plus the idle and active `right-dock__tab-icon--agent-<id>` rules in `RightDock/index.css` and the `BRANDED_AGENT_TYPES` list in `RightDock/DockAgentTabIcon.tsx` |
-| Dock tab title | the `agentDefaultTitle` chain in `RightDock/TerminalDockTab.tsx` |
+| Brand color | `--agent-brand-<id>` in `src/renderer/src/styles.css`, plus the idle and active `right-dock__tab-icon--agent-<id>` rules in `RightDock/index.css` and the `BRANDED_AGENT_TYPES` list in `RightDock/tabs/DockAgentTabIcon.tsx` |
+| Dock tab title | the `agentDefaultTitle` chain in `RightDock/content/TerminalDockTab.tsx` |
 | Install guide | `AGENT_INSTALL_GUIDES` in `AgentNodeBody/AgentPicker.tsx` — shown when the binary probe reports missing or a launch fails |
 | Command detection | `CODING_AGENT_COMMAND_PATTERN` + the return chain in `utils/codingAgentCommand.ts`, so typing the CLI into a terminal node/dock is recognized as an agent session |
 | Canvas Agent delegation | the `agentType` enum in `src/main/agent/tools/agents.ts` and the data-shape prose in `src/main/agent/tools/nodes.ts` |
@@ -163,7 +163,7 @@ writes failed with `revision_conflict`.
   in memory, preferred over the raw PTY stream, whose TUI redraws read as
   repeated frames. Snapshots outlive the process, bounded to the newest 64.
 - Readers go through main: node detail (`readSessionOutput` in
-  `agent/context-builder.ts`), `dock_read_tab`, and the Agent Team detail
+  `agent/context/context-builder.ts`), `dock_read_tab`, and the Agent Team detail
   panel (`pty:getScrollback` via `AgentDetail/useLiveAgentOutput.ts`), and
   read-only agent previews (dock canvas preview, reference drawer), which
   read it once on mount (`readLiveAgentOutput` in `session/ownerTerminal.ts`).
@@ -198,7 +198,7 @@ writes failed with `revision_conflict`.
 Tests: `AgentNodeBody/index.test.tsx` (output published, never persisted;
 legacy output dropped), `session/sessionLifecycle.test.ts` (auto-resume
 without saved output), `main/terminal/session-output.test.ts`,
-`main/agent/context-builder-agent-output.test.ts`,
+`main/agent/context/context-builder-agent-output.test.ts`,
 `AgentDetail/useLiveAgentOutput.test.tsx`, `TerminalNodeBody/index.test.tsx`
 (per-tick publish, once-a-minute save, exit and unload saves),
 `session/ownerTerminal.test.ts` (read-only previews prefer live output),

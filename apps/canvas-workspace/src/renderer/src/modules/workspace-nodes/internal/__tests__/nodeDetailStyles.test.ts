@@ -43,7 +43,7 @@ const MARKUP = [
   '../NodeRelationEditor/index.tsx',
   '../NodeTagEditor/index.tsx',
   '../NodeTitleEditor.tsx',
-  '../../../dock/internal/RightDock/NodeDetailDockTab.tsx',
+  '../../../dock/internal/RightDock/content/NodeDetailDockTab.tsx',
 ];
 
 /** The two families this surface owns; other `.workspace-node-*` classes are

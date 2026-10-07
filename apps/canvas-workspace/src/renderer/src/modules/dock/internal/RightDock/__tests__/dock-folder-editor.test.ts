@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DockStore } from '../dock-store';
-import { isFileDirty } from '../dock-folder-editor';
+import { DockStore } from '../state/dock-store';
+import { isFileDirty } from '../state/dock-folder-editor';
 const setup = () => {
   const store = new DockStore();
   store.setActiveWorkspace('a'); store.openFolder('/project'); store.selectFolderFile('folder', '/project/a.ts');

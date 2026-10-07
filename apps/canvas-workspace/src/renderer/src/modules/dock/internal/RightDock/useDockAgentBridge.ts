@@ -5,8 +5,8 @@ import type {
 } from '../../../../../../shared/dock-tab-commands';
 import type { AgentContextTabRef } from '../../../../types';
 import { buildDockTabRefs } from '../../../../shared/dock/tabRefs';
-import type { DockState, DockStore } from './dock-store';
-import { activateOrReopenDockTab, previewReferencedDockTab, type DockTabActivationOutcome } from './dock-tab-reopen';
+import type { DockState, DockStore } from './state/dock-store';
+import { activateOrReopenDockTab, previewReferencedDockTab, type DockTabActivationOutcome } from './tabs/dock-tab-reopen';
 
 type LocalActivationResult = { status: DockTabActivationOutcome };
 type PendingActivation = {

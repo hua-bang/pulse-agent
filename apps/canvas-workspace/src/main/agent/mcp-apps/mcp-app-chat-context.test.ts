@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatMcpAppChatContext } from './mcp-app-chat-context';
-import { formatSelectedAppAndPluginsBlock } from '../plugin-selection-context';
+import { formatSelectedAppAndPluginsBlock } from '../context/plugin-selection-context';
 
 const context = {
   title: 'Drawings', serverName: 'excalidraw', toolName: 'library', resourceUri: 'ui://library',

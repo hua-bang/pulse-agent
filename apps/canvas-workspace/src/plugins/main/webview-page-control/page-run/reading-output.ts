@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
-import { scopeRootDir } from '../../../../main/agent/config-scope';
+import { scopeRootDir } from '../../../../main/agent/scope/config-scope';
 import type { PageRunResult } from './types';
 
 const INLINE_LIMIT = 12_000;

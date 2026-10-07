@@ -1,6 +1,6 @@
 import { useI18n } from '../../../../i18n';
 import { Button } from '../../../../components/ui';
-import type { DockStore } from './dock-store';
+import type { DockStore } from './state/dock-store';
 
 interface Props {
   store: DockStore;

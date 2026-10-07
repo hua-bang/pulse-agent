@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getRenderableComparisonPair } from '../../../../../shared/dock/dock-split-state';
-import { DockStore, CHAT_TAB_ID } from '../dock-store';
+import { DockStore, CHAT_TAB_ID } from '../state/dock-store';
 
 describe('focused comparison browsing', () => {
   it('keeps content comparison on full-page chat but excludes its duplicate AI pane', () => {

@@ -10,7 +10,7 @@ import {
   listAgentRoles,
   saveAgentRole,
   saveAgentRoleSettings,
-} from '../roles-store';
+} from '../roles/roles-store';
 
 let dir: string;
 

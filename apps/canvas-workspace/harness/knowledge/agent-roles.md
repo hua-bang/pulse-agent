@@ -40,7 +40,7 @@ renderer. Central pieces:
 
 ## Persistence and IPC (global role library)
 
-`src/main/agent/roles-store.ts` + `src/main/agent/agent-roles-ipc.ts` own
+`src/main/agent/roles/roles-store.ts` + `src/main/agent/roles/agent-roles-ipc.ts` own
 the role library. It is ONE global library at `~/.pulse-coder/canvas/roles.json`
 shared by every chat scope (per-workspace chats, global chat, scheduled-task
 chats), so a persona defined once is @-mentionable everywhere. The file
@@ -65,7 +65,7 @@ The preload surface is `window.canvasWorkspace.agentRoles`
 
 ## Persona injection and the relay boundary policy
 
-`src/main/agent/role-turn.ts` owns:
+`src/main/agent/roles/role-turn.ts` owns:
 
 - `formatActiveRoleSection(role, relay?, handoff?)` — the persona section
   appended to the system prompt when a role speaks: it embeds
@@ -366,7 +366,7 @@ omits the `<role_persona>` block when `role.prompt` is empty. Persona
 
 - External roles respond ONLY to a DIRECT user `@` mention. Agent@agent
   handoff never targets them: `handoffTargetRoles(roles)` in
-  `src/main/agent/role-turn.ts` filters out any role with an `external`
+  `src/main/agent/roles/role-turn.ts` filters out any role with an `external`
   driver before it is used to build BOTH the handoff target library and the
   advertised `@names` list a persona role is told about. Pinned in
   `src/main/agent/__tests__/external-driver.test.ts`'s `describe('handoff

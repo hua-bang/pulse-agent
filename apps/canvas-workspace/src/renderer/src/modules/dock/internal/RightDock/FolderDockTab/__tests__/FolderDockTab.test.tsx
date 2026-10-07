@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../../i18n';
 import { FolderDockTab } from '..';
 import { syncEditorContent } from '../CodeEditor';
-import { DockStore } from '../../dock-store';
+import { DockStore } from '../../state/dock-store';
 import type { FilePreviewResult } from '../../../../../../types';
 
 const { confirm, deliver, notify, activeTarget, listeners } = vi.hoisted(() => ({ confirm: vi.fn(), deliver: vi.fn(), notify: vi.fn(), activeTarget: vi.fn(), listeners: new Set<() => void>() }));

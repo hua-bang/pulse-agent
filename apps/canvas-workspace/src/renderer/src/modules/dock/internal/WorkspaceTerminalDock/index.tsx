@@ -17,7 +17,7 @@ import { claimTerminalKey, handleTerminalShortcut } from '../../../../shortcuts/
 import { NodeMentionPicker } from '../../../node-mentions';
 import { useDragResize } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
-import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
+import { TERMINAL_TAB_ID } from '../RightDock/state/dock-store';
 import {
   appendTerminalOutputTail,
   detectCodingAgentCommand,

@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { useI18n } from '../../../../../i18n';
-import type { DockStore } from '../dock-store';
-import { isFileDirty } from '../dock-folder-editor';
+import type { DockStore } from '../state/dock-store';
+import { isFileDirty } from '../state/dock-folder-editor';
 
 export const useFileEditor = (store: DockStore) => {
   const { t } = useI18n();

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionMutationCoordinator } from './sessions/session-mutation-coordinator';
 import { assertWorkspaceAvailable, registerWorkspaceSessionDrain, withWorkspaceRun, withWorkspaceTrashGuard } from './workspace-runtime-guard';
-import { readCanvasAgentHistorySnapshot } from './history-snapshot';
-import { activateAgentScope } from './scope-agent-activation';
-import { ScopeActivationGate } from './scope-activation-gate';
+import { readCanvasAgentHistorySnapshot } from './sessions/history-snapshot';
+import { activateAgentScope } from './scope/scope-agent-activation';
+import { ScopeActivationGate } from './scope/scope-activation-gate';
 import type { CanvasAgent } from './canvas-agent';
 import { appendActiveSessionGroups } from './active-session-groups';
 
@@ -12,8 +12,8 @@ const state = vi.hoisted(() => ({
   initialize: vi.fn(async () => undefined),
   destroy: vi.fn(async () => undefined),
 }));
-vi.mock('./sqlite-session-backend', async importOriginal => ({
-  ...await importOriginal<typeof import('./sqlite-session-backend')>(),
+vi.mock('./sessions/sqlite-session-backend', async importOriginal => ({
+  ...await importOriginal<typeof import('./sessions/sqlite-session-backend')>(),
   getSqliteSessionStorage: async () => ({
     workspaces: { getTrashed: async () => state.trashed ? { workspaceId: 'ws' } : null },
   }),

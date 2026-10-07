@@ -473,7 +473,7 @@ describe('memory_adopt', () => {
     expect(result.results[2].ok).toBe(false);
     expect(result.results[2].error).toContain('ws-does-not-exist');
 
-    const { listMemory } = await import('../memory-store');
+    const { listMemory } = await import('../memory/memory-store');
     expect((await listMemory({ kind: 'global' })).map((e) => e.content)).toEqual(['reply in Chinese']);
     expect((await listMemory({ kind: 'workspace', workspaceId: wsId })).map((e) => e.content)).toEqual([
       'API layer uses fetch',
@@ -489,7 +489,7 @@ describe('memory_adopt', () => {
     }));
     expect(result).toMatchObject({ ok: true, adopted: 1 });
 
-    const { listMemory } = await import('../memory-store');
+    const { listMemory } = await import('../memory/memory-store');
     expect((await listMemory({ kind: 'workspace', workspaceId: wsId })).map((e) => e.content)).toEqual([
       'ws decision from weekly report',
     ]);

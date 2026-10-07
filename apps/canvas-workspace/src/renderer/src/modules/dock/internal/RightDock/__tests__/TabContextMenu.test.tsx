@@ -3,8 +3,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
-import { TabContextMenu } from '../TabContextMenu';
-import { DockStore } from '../dock-store';
+import { TabContextMenu } from '../tabs/TabContextMenu';
+import { DockStore } from '../state/dock-store';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

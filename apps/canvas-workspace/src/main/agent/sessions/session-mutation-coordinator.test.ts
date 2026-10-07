@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SessionMutationCoordinator } from './session-mutation-coordinator';
 
-vi.mock('../sqlite-session-backend', async importOriginal => ({
-  ...await importOriginal<typeof import('../sqlite-session-backend')>(),
+vi.mock('./sqlite-session-backend', async importOriginal => ({
+  ...await importOriginal<typeof import('./sqlite-session-backend')>(),
   getSqliteSessionStorage: async () => null,
 }));
 

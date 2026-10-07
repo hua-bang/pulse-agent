@@ -40,7 +40,7 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | IPC registration and preload bridge | `src/main/plugin-market/ipc.ts`, `src/preload/bridge/plugin-market.ts`, `src/preload/index.ts` |
 | Route, state, filters, rows and dialogs | `src/renderer/src/modules/plugin-market/`, wired by `src/renderer/src/app/App/index.tsx` |
 | Installed-plugin `@` mentions and request-context collection | `src/renderer/src/modules/chat/mentions/pluginMentionItems.ts`, `modules/chat/components/ChatComposer/useChatComposerInput.ts` |
-| Turn-level plugin routing guidance | `src/main/agent/plugin-selection-context.ts` |
+| Turn-level plugin routing guidance | `src/main/agent/context/plugin-selection-context.ts` |
 | Canvas Agent skills/MCP composition | `src/main/agent/engine-plugins.ts` |
 
 ## Package selection contract

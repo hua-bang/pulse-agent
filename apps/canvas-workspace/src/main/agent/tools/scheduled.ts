@@ -26,7 +26,7 @@ import {
   type ScheduledWeekday,
 } from '../../../shared/scheduled';
 import type { CanvasTool } from './types';
-import { getAgentScheduledPort } from '../scheduled-port';
+import { getAgentScheduledPort } from '../scheduled/scheduled-port';
 
 interface ScheduleInput {
   kind: 'interval' | 'daily' | 'weekly';

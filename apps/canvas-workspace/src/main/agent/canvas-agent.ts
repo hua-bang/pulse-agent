@@ -11,13 +11,13 @@ import type { ModelMessage } from 'ai';
 import { join } from 'path';
 import { resolveCanvasModel, type ResolvedCanvasModel } from '../models/config';
 import { createCanvasEnginePlugins } from './engine-plugins';
-import { formatSelectedAppAndPluginsBlock } from './plugin-selection-context';
+import { formatSelectedAppAndPluginsBlock } from './context/plugin-selection-context';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
   formatSummaryForPrompt,
   resolveWorkspaceNames,
-} from './context-builder';
+} from './context/context-builder';
 import {
   createCanvasAgentToolPolicy,
   createCanvasAskModeToolPolicyPlugin,
@@ -30,7 +30,7 @@ import {
   readWorkspaceMeta,
   WORKSPACE_DOC_FILENAME,
 } from './workspace-meta';
-import { buildMemoryPromptSection } from './memory-store';
+import { buildMemoryPromptSection } from './memory/memory-store';
 import { linkRunAbortSignal, persistStoppedBeforeSegment, resolveSegmentOutcome, settleStoppedToolCalls } from './chat-stop';
 import {
   attachTraceModel,
@@ -51,9 +51,9 @@ import type {
 } from './types';
 import { createFailedTurnToolTracker, failedAssistantMessage } from './chat-failure-persistence';
 import { completeCanvasHostRun, markCanvasRuntimeCompleted, markCanvasRuntimeStarted } from './observability/host-run';
-import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
-import { formatSelectionFocusBlock } from './selection-focus-context';
-import { formatReferencedTabsBlock } from './referenced-tabs-context';
+import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './context/dom-selection-context';
+import { formatSelectionFocusBlock } from './context/selection-focus-context';
+import { formatReferencedTabsBlock } from './context/referenced-tabs-context';
 import {
   ROLE_RELAY_MAX_SEGMENTS,
   stripRoleMentionMarkers,
@@ -71,8 +71,8 @@ import {
   sanitizeRoleSegmentText,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
-} from './role-turn';
-import { getAgentRoleSettings, listAgentRoles } from './roles-store';
+} from './roles/role-turn';
+import { getAgentRoleSettings, listAgentRoles } from './roles/roles-store';
 import {
   modelMessagesToToolCalls,
   type CanvasToolResultEvent,
@@ -82,7 +82,7 @@ import { markCanvasHostContextReady, traceScopeActivationStep } from './observab
 import { traceEngineInitialize } from './observability/engine-init-trace';
 import type { PendingClarificationRequest } from './clarification-registry';
 import { CanvasRunRegistry } from './canvas-run-registry';
-import { prepareRunSession } from './run-session-context';
+import { prepareRunSession } from './sessions/run-session-context';
 import { executeMcpAppTool, resolveMcpApp } from './mcp-apps/mcp-app-runtime';
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.

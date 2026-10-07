@@ -11,7 +11,7 @@ import {
   listCanvasSkills,
   skillSlug,
 } from './config';
-import { scopeSkillsDir } from '../config-scope';
+import { scopeSkillsDir } from '../scope/config-scope';
 
 export async function promoteCanvasSkill(
   workspaceId: string,

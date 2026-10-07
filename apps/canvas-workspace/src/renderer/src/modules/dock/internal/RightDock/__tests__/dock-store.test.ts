@@ -12,7 +12,7 @@ import {
   terminalTabId,
   type DockLinkSessions,
   type DockSessionPersistence,
-} from '../dock-store';
+} from '../state/dock-store';
 
 const createSessionPersistence = (initial: DockLinkSessions = {}): {
   persistence: DockSessionPersistence;

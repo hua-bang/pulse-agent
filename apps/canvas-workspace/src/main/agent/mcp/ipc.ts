@@ -18,7 +18,7 @@
  */
 
 import { ipcMain } from 'electron';
-import { parseScopePayload, type CanvasConfigScope } from '../config-scope';
+import { parseScopePayload, type CanvasConfigScope } from '../scope/config-scope';
 import { getCanvasAgentService } from '../ipc';
 import {
   getCanvasMcpStatus,

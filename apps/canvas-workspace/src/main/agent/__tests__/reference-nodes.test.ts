@@ -31,7 +31,7 @@ import {
   buildDetailedContext,
   buildWorkspaceSummary,
   formatSummaryForPrompt,
-} from '../context-builder';
+} from '../context/context-builder';
 import { writeCanvasFull, type CanvasSaveData } from '../../canvas/storage';
 
 const SOURCE_WS = 'ws-source';

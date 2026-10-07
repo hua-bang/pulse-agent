@@ -3,7 +3,7 @@ import { dirname, join } from 'path';
 import type { CanvasAgentSession } from '../types';
 import { archiveSortKey } from './session-store-scan';
 import { readValidSessionFileIndex, tombstoneIndexedSessionFile, updateIndexedSessionFile } from './session-index';
-import { withLegacySessionWrite } from '../sqlite-session-backend';
+import { withLegacySessionWrite } from './sqlite-session-backend';
 
 export interface ResolvedArchivedSession {
   session: CanvasAgentSession | null;

@@ -4,7 +4,7 @@ import {
   buildDetailedContext,
   buildWorkspaceSummary,
   formatSummaryForPrompt,
-} from '../context-builder';
+} from '../context/context-builder';
 import { getAgentCapabilityPort } from '../capability-port';
 import type { CanvasTool } from './types';
 

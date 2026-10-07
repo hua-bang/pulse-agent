@@ -2,7 +2,7 @@
 import { act, useLayoutEffect, useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DockStore } from './dock-store';
+import { DockStore } from './state/dock-store';
 import { useDockAgentBridge } from './useDockAgentBridge';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

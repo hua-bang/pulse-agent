@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
-import { prettyPath, scopeMcpConfigPath, type CanvasConfigScope } from '../config-scope';
+import { prettyPath, scopeMcpConfigPath, type CanvasConfigScope } from '../scope/config-scope';
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
 export type CanvasMcpAuth = 'none' | 'oauth';

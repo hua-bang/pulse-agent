@@ -14,8 +14,8 @@ import {
   sanitizeRoleSegmentText,
   sessionMessageToModelMessage,
   shouldRunRelaySegment,
-} from '../role-turn';
-import { saveAgentRole } from '../roles-store';
+} from '../roles/role-turn';
+import { saveAgentRole } from '../roles/roles-store';
 import { buildRoleMentionMarker, type AgentRoleDefinition } from '../../../shared/agent-roles';
 
 let dir: string;

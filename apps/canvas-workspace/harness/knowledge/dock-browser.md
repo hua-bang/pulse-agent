@@ -129,7 +129,7 @@ tools that activate a tab before reading it must poll for registration via
 
 ## Focus and keyboard ownership
 
-`RightDock/dock-browser-commands.ts` owns workspace-and-tab-qualified focus
+`RightDock/links/dock-browser-commands.ts` owns workspace-and-tab-qualified focus
 intents. A focus request persists until the exact guest exists; it is canceled
 when a different target becomes active or the dock is hidden. This is needed
 for blank-tab address commits and retained guest replacement, where a
@@ -180,7 +180,7 @@ frame is not a reliable mount barrier.
 
 ## Tabs and discoverability
 
-`RightDock/dock-tab-items.ts` is the single visible-tab projection used by the
+`RightDock/tabs/dock-tab-items.ts` is the single visible-tab projection used by the
 strip, keyboard cycling, and the All Tabs menu. Hidden terminal sessions are
 excluded consistently. Overflow is discoverable through the counted All
 Tabs search dialog (title/URL filtering, domain labels, visible-pane labels,

@@ -149,7 +149,7 @@ pathRules:
       - src/renderer/src/config/agentRegistry.ts
       - src/renderer/src/modules/coding-agent/**
       - src/renderer/src/utils/codingAgentCommand.ts
-      - src/renderer/src/modules/dock/internal/RightDock/DockAgentTabIcon.tsx
+      - src/renderer/src/modules/dock/internal/RightDock/tabs/DockAgentTabIcon.tsx
       - src/main/agent/codex-sessions.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/agent/codex-sessions.test.ts

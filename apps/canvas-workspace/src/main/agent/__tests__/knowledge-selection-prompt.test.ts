@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatSelectionFocusBlock } from '../selection-focus-context';
+import { formatSelectionFocusBlock } from '../context/selection-focus-context';
 
 describe('global knowledge selection prompt', () => {
   it('reads an exact selected node through the knowledge library without rediscovery', () => {

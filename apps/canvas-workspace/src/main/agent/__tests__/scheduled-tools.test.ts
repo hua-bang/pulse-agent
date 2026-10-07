@@ -33,7 +33,7 @@ vi.mock('electron', () => ({
 vi.mock('../ipc', () => ({ getCanvasAgentService: () => ({}) }));
 
 import { createScheduledTools } from '../tools/scheduled';
-import { setAgentScheduledPort } from '../scheduled-port';
+import { setAgentScheduledPort } from '../scheduled/scheduled-port';
 import { getScheduledTaskService } from '../../scheduled/runtime';
 
 setAgentScheduledPort(getScheduledTaskService());

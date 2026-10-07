@@ -30,16 +30,20 @@ src/main/
                       # persistence/ (paths, atomic JSON, schema, pollution),
                       # broadcast, workspaces, welcome-workspace,
                       # workspace-export-*, nodes/ (ipc, store, tags)
-  agent/              # canvas-agent, service, ipc, session-send, session-store,
-                      # context-builder, debug-trace, config-scope, default-skills,
-                      # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,
-                      # workspace-meta, plugin-node-capabilities, dom-selection-context,
-                      # capability/window/scheduled ports (app-owned injection),
-                      # mcp/, skills/, tools/ (20+ split tool modules; the
-                      # sibling tools.ts is a 2-line re-export shim kept for imports),
+  agent/              # canvas-agent, service, ipc, chat run/stop/queue core,
+                      # debug-trace, codex-sessions, prompt-profile(-ipc),
+                      # workspace-doc-generator, workspace-meta, plugin-node-capabilities,
+                      # capability/window ports (app-owned injection),
+                      # mcp/, skills/ (incl. default and visual-style skills),
+                      # tools/ (20+ split tool modules; the sibling tools.ts is a
+                      # 2-line re-export shim kept for imports),
                       # backends/, conversation-runtime/, external/, observability/,
                       # mcp-apps/ (MCP App host), sessions/ (session store, index,
-                      # mutation coordinator, send)
+                      # mutation coordinator, send, SQLite backend, archive, run context),
+                      # context/ (context-builder + per-turn context sections),
+                      # memory/ (memory store + report), scheduled/ (scheduled port,
+                      # prompt generator, session names), roles/ (role library + turn),
+                      # scope/ (config scope + activation gate)
   agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
                       # canvas-agent-session-adapter (pulse-coder-agent-teams integration)
   artifacts/          # store + ipc (pin-to-canvas logic lives inside ipc.ts)
@@ -263,7 +267,7 @@ system and `.github/workflows/perf.yml`.
 
 Scheduled task ownership: task service, runtime, and IPC. Scheduled may
 use Agent to run a task. Agent reaches Scheduled only through
-`agent/scheduled-port.ts`.
+`agent/scheduled/scheduled-port.ts`.
 
 ### `default-browser/`
 

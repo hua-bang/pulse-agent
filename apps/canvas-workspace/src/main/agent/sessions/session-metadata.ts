@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { withLegacySessionWrite } from '../sqlite-session-backend';
+import { withLegacySessionWrite } from './sqlite-session-backend';
 import { dirname } from 'path';
 import { randomUUID } from 'crypto';
 

@@ -10,7 +10,7 @@ import { buildCodexArgs, consumeCodexStreamLine, createCodexStreamState, runCode
 import { renderExternalSegmentPrompt } from '../external/prompt';
 import { ExternalRoleApprovalError, runExternalRoleSegment } from '../external/segment';
 import { getExternalSessionId, saveExternalSessionId } from '../external/state-store';
-import { handoffTargetRoles } from '../role-turn';
+import { handoffTargetRoles } from '../roles/role-turn';
 
 let dir: string;
 

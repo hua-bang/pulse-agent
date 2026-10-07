@@ -17,7 +17,7 @@ import {
   AGENT_ROLE_PROMPT_MAX_LENGTH,
   type AgentRoleDefinition,
 } from '../../../shared/agent-roles';
-import { listAgentRoles, saveAgentRole } from '../roles-store';
+import { listAgentRoles, saveAgentRole } from '../roles/roles-store';
 import type { CanvasTool } from './types';
 
 const summarize = (role: AgentRoleDefinition): Record<string, unknown> => ({

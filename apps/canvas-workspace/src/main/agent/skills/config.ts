@@ -18,7 +18,7 @@ import {
   type CanvasConfigScope,
   type CanvasSkillSourceName,
   type SkillSourceDir,
-} from '../config-scope';
+} from '../scope/config-scope';
 import { skillNameKey } from '../../../shared/skill-name';
 import { getCanvasPluginSkillSources } from '../../plugin-market/config';
 import { findSkillResources } from './resources';

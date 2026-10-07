@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AgentScope } from '../../../../types';
-import { resolveDockWorkspaceId } from './dock-workspace';
+import { resolveDockWorkspaceId } from './state/dock-workspace';
 
 /** Keeps the full-page Chat dock aligned with its conversation without letting
  * tab activation silently replace that conversation-owned scope. */

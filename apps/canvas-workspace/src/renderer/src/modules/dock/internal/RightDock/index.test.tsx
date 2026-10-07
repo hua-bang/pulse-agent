@@ -6,7 +6,7 @@ import { I18nProvider } from '../../../../i18n';
 import { RightDockProvider, useDockContext } from './context';
 import { RightDock } from './index';
 import { dockPaneElementId, dockTabElementId } from '../../../../shared/dock/dock-tab-ids';
-import { FOCUS_DOCK_PAGE_EVENT } from './dock-browser-commands';
+import { FOCUS_DOCK_PAGE_EVENT } from './links/dock-browser-commands';
 import type { AgentContextDomReviewComment } from '../../../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -131,8 +131,8 @@ const renderDock = async (
 
 beforeEach(async () => {
   // Resolve the real lazy chrome modules before testing synchronous key events.
-  await import('./DockTabStrip');
-  await import('./DockReadingControls');
+  await import('./tabs/DockTabStrip');
+  await import('./reading/DockReadingControls');
   reviewSubmit.mockClear();
   window.localStorage.clear();
   Object.defineProperty(window, 'canvasWorkspace', {
@@ -533,7 +533,7 @@ describe('compact reading controls', () => {
     expect(document.documentElement.dataset.dockReading).toBe('side');
     await act(async () => {
       host.querySelector('[data-dock-tab-id^="link:"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-      await import('./TabContextMenu');
+      await import('./tabs/TabContextMenu');
     });
     const menu = document.querySelector('.context-menu--in-dock')!;
     expect(menu).toBeTruthy();

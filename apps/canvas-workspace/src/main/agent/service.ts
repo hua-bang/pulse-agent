@@ -1,13 +1,13 @@
 import type { CanvasAgent, CanvasClarificationRequest } from './canvas-agent';
-import { activateAgentScope } from './scope-agent-activation';
+import { activateAgentScope } from './scope/scope-agent-activation';
 import { isWorkspaceTrashed } from './workspace-runtime-guard';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './sessions/session-store';
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
-import { scheduledTaskTitles } from './scheduled-session-names';
+import { scheduledTaskTitles } from './scheduled/scheduled-session-names';
 import { searchSessionTitles } from './sessions/session-title-search';
 import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './active-session-groups';
-import { ScopeActivationGate } from './scope-activation-gate';
+import { ScopeActivationGate } from './scope/scope-activation-gate';
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import type { ResolvedCanvasModel } from '../models/config';
 import {
@@ -40,7 +40,7 @@ import {
   traceCanvasScopeActivation,
   traceScopeActivationStep,
 } from './observability/host-run';
-import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './history-snapshot';
+import { readCanvasAgentHistorySnapshot, type CanvasAgentHistorySnapshot } from './sessions/history-snapshot';
 import { loadCanvasAgentSessionFromStore, reconcileAgentWithStoredSession, startCanvasAgentSessionInStore } from './sessions/session-display-loader';
 
 const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });

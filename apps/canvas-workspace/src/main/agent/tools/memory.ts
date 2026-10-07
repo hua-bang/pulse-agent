@@ -17,7 +17,7 @@ import {
   saveMemory,
   type MemoryEntry,
   type MemoryScope,
-} from '../memory-store';
+} from '../memory/memory-store';
 import { listWorkspaces } from '../../canvas/workspaces';
 import type { CanvasTool } from './types';
 

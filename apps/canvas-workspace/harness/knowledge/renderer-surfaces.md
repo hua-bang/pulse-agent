@@ -191,7 +191,7 @@ and writes through symlink targets. Guards: `dock-folder-editor.test.ts`,
 ## Rules
 
 1. **No new top-level drawer containers.** A new right-side preview
-   surface is a new tab kind: add it to `RightDock/dock-store.ts` and
+   surface is a new tab kind: add it to `RightDock/state/dock-store.ts` and
    render its view from the `RightDock` pane switch — the dock provides
    positioning, the tab strip, width drag + persistence, ESC, slide
    transitions and layering. Precedent: the terminal tab already works

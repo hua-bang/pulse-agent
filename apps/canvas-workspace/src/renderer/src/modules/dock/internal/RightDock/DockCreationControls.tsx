@@ -4,10 +4,10 @@ import { useI18n } from '../../../../i18n';
 import { PlusIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
 import { requestPreviewEvictOpen } from '../../../../utils/openNodeBridge';
-import type { DockStore } from './dock-store';
+import type { DockStore } from './state/dock-store';
 
 const NewDockTabMenu = lazy(() => (
-  import('./NewDockTabMenu').then((module) => ({ default: module.NewDockTabMenu }))
+  import('./tabs/NewDockTabMenu').then((module) => ({ default: module.NewDockTabMenu }))
 ));
 const NodeDockPicker = lazy(() => (
   import('./NodeDockPicker').then((module) => ({ default: module.NodeDockPicker }))

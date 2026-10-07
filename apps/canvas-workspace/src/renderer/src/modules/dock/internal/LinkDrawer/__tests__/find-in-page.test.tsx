@@ -9,7 +9,7 @@ import type { EmbeddedWebviewTag } from '../../../../../platform/browser/types';
 import {
   consumeDockPageFocusRequest,
   requestDockPageFocus,
-} from '../../RightDock/dock-browser-commands';
+} from '../../RightDock/links/dock-browser-commands';
 import { DOCK_FIND_FALLBACK_CHANNEL } from '../../../../../../../shared/dock-shortcuts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

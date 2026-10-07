@@ -235,7 +235,7 @@ to everything below.
 
 ### Explicit memory adoption
 
-`src/main/agent/memory-store.ts` (store + prompt injection; explicit-save-only by design), `src/main/agent/tools/memory.ts` (`memory_save` eager; `memory_list`/`memory_forget`/`memory_adopt` deferred — `memory_adopt` is the sole cross-workspace write path, reserved for user-confirmed candidates from the `memory-review` default skill), tests in `src/main/agent/__tests__/memory-store.test.ts` + `tools-graph.test.ts`
+`src/main/agent/memory/memory-store.ts` (store + prompt injection; explicit-save-only by design), `src/main/agent/tools/memory.ts` (`memory_save` eager; `memory_list`/`memory_forget`/`memory_adopt` deferred — `memory_adopt` is the sole cross-workspace write path, reserved for user-confirmed candidates from the `memory-review` default skill), tests in `src/main/agent/__tests__/memory-store.test.ts` + `tools-graph.test.ts`
 
 ### Artifact action boundary
 
@@ -243,4 +243,4 @@ to everything below.
 
 ### Headless runs
 
-`src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory-report.ts` (first consumer — cross-workspace memory report as self-contained HTML; adoption stays interactive-only; scheduled entry archives to `<memory>/reports/` with rolling retention AND publishes a `__global_chat__`-scoped artifact, surfaced by an OS notification whose click pushes `dock:open-artifact`). Tests: `src/main/agent/__tests__/headless-run.test.ts`
+`src/main/agent/headless-run.ts` (one-shot bounded Engine run: no session store, `builtInTools:{}` = structurally read-only, wall-clock timeout, never throws), `src/main/agent/memory/memory-report.ts` (first consumer — cross-workspace memory report as self-contained HTML; adoption stays interactive-only; scheduled entry archives to `<memory>/reports/` with rolling retention AND publishes a `__global_chat__`-scoped artifact, surfaced by an OS notification whose click pushes `dock:open-artifact`). Tests: `src/main/agent/__tests__/headless-run.test.ts`

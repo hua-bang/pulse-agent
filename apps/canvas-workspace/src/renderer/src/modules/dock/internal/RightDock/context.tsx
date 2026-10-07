@@ -8,8 +8,8 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { DockStore, type DockState } from './dock-store';
-import { createDockSessionPersistence } from './dock-session-persistence';
+import { DockStore, type DockState } from './state/dock-store';
+import { createDockSessionPersistence } from './state/dock-session-persistence';
 import type {
   AgentContextDomReviewComment,
   AgentContextDomSelectionRef,

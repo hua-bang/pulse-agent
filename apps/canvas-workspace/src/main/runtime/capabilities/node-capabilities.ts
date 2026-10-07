@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { readNodeDetail } from '../../agent/context-builder';
+import { readNodeDetail } from '../../agent/context/context-builder';
 import {
   searchCanvasNodes,
   updateCanvasNode,

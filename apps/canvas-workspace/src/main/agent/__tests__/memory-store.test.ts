@@ -11,7 +11,7 @@ import {
   saveMemory,
   MEMORY_MAX_CONTENT_CHARS,
   type MemoryEntry,
-} from '../memory-store';
+} from '../memory/memory-store';
 import { createMemoryTools } from '../tools/memory';
 
 const GLOBAL = { kind: 'global' } as const;

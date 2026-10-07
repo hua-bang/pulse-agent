@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createRoleTools } from '../tools/roles';
-import { listAgentRoles } from '../roles-store';
-import { resolveActiveRoles } from '../role-turn';
+import { listAgentRoles } from '../roles/roles-store';
+import { resolveActiveRoles } from '../roles/role-turn';
 import { buildRoleMentionMarker } from '../../../shared/agent-roles';
 
 let dir: string;

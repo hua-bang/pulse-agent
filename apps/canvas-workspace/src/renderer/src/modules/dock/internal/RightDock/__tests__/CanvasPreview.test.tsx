@@ -84,7 +84,7 @@ vi.mock('../../../../canvas/surface', async () => ({
   },
 }));
 
-import { CanvasPreview } from '../CanvasPreview';
+import { CanvasPreview } from '../content/CanvasPreview';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

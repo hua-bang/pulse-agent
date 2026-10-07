@@ -7,8 +7,8 @@ runs session-anchored so different conversations in one workspace can stream
 concurrently. Read this
 before changing `modules/chat/sessions/useChatSessions.ts`
 (`src/renderer/src/modules/chat/sessions/useChatSessions.ts`), the full-page
-chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
-(`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`), or
+chat topbar / dock content-tabs toggle, `RightDock/state/dock-width.ts`
+(`src/renderer/src/modules/dock/internal/RightDock/state/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
 `session-mutation-coordinator.ts`, `prepared-chat.ts`,
 `canvas-run-registry.ts`, `run-session-context.ts`, `session-file-io.ts`,
@@ -587,7 +587,7 @@ not prepend the workspace root to an already absolute path.
 
 ## Dock width policy
 
-`RightDock/dock-width.ts` (`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`).
+`RightDock/state/dock-width.ts` (`src/renderer/src/modules/dock/internal/RightDock/state/dock-width.ts`).
 
 - On the canvas, the dock may grow to ~95% of the viewport — the canvas
   reflows behind it, so a near-full-screen dock is legitimate there.

@@ -3,7 +3,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../types';
 import { archiveSortKey } from './session-store-scan';
-import { withLegacySessionWrite } from '../sqlite-session-backend';
+import { withLegacySessionWrite } from './sqlite-session-backend';
 
 /**
  * Session-addressed file I/O for session-anchored runs: read and append to a

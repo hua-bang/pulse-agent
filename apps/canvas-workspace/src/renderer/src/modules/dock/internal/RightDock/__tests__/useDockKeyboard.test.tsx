@@ -4,8 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DockShortcutRequest } from '../../../../../../../shared/dock-shortcuts';
 import { registerMountedWebviewIdentity } from '../../../../canvas/webview';
-import { FIND_IN_DOCK_TAB_EVENT } from '../dock-browser-commands';
-import { DockStore } from '../dock-store';
+import { FIND_IN_DOCK_TAB_EVENT } from '../links/dock-browser-commands';
+import { DockStore } from '../state/dock-store';
 import { dockTabElementId } from '../../../../../shared/dock/dock-tab-ids';
 import { useDockKeyboard } from '../useDockKeyboard';
 

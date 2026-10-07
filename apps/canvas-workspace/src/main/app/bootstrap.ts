@@ -27,11 +27,11 @@ import { setupCodexSessionsIpc } from "../agent/codex-sessions";
 import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { upsertCanvasSkill } from "../agent/skills/config";
-import { saveMemory } from "../agent/memory-store";
+import { saveMemory } from "../agent/memory/memory-store";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
-import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
+import { ensureDefaultSkillsSeeded } from "../agent/skills/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
-import { setupAgentRolesIpc } from "../agent/agent-roles-ipc";
+import { setupAgentRolesIpc } from "../agent/roles/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupCanvasPluginsConfigIpc } from "../plugin-market/config-ipc";
@@ -78,7 +78,7 @@ import {
   setWindowFactory,
 } from "./window-manager";
 import { setCanvasWindowPort } from "../agent/window-port";
-import { setAgentScheduledPort } from "../agent/scheduled-port";
+import { setAgentScheduledPort } from "../agent/scheduled/scheduled-port";
 import { setAgentCapabilityPort } from "../agent/capability-port";
 import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
@@ -287,7 +287,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     }
     // Legacy direct memory-report IPC remains available for stored clients;
     // the stable product entry is now the Scheduled tab.
-    const { setupMemoryReportIpc } = await import('../agent/memory-report-ipc');
+    const { setupMemoryReportIpc } = await import('../agent/memory/memory-report-ipc');
     setupMemoryReportIpc();
     setupShellIpc();
     setupDefaultBrowserIpc();
