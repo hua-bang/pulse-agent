@@ -47,7 +47,7 @@
 .agent-debug-search button,
 .agent-debug-copy {
   border: 1px solid var(--debug-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-alt);
   color: var(--text-secondary);
   cursor: pointer;
@@ -63,7 +63,7 @@
   height: 31px;
   box-sizing: border-box;
   border: 1px solid var(--debug-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   outline: none;
   background: var(--surface);
   color: var(--debug-text);
@@ -95,7 +95,7 @@
   align-items: center;
   gap: 9px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--debug-text);
   padding: 9px 8px;
@@ -132,7 +132,7 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(95px, 1fr)) minmax(175px, 1.5fr);
   border: 1px solid var(--debug-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin: 16px 0;
   background: var(--debug-panel);
@@ -147,7 +147,7 @@
 .agent-debug-stat.is-purple strong { color: var(--debug-engine); }
 .agent-debug-stat.is-orange strong { color: var(--debug-pi); font-family: inherit; font-size: 13px; }
 
-.agent-debug-panel { border: 1px solid var(--debug-border); border-radius: 8px; background: var(--debug-panel); }
+.agent-debug-panel { border: 1px solid var(--debug-border); border-radius: var(--radius-md); background: var(--debug-panel); }
 .agent-debug-panel-title { min-height: 48px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 8px 13px; border-bottom: 1px solid var(--debug-border); }
 .agent-debug-panel-title > div:first-child { display: flex; flex-direction: column; gap: 3px; }
 .agent-debug-panel-title strong { font-size: 12px; }
@@ -212,7 +212,7 @@
 
 .agent-debug-empty { color: var(--debug-muted); font-size: 10px; padding: 18px 13px; }
 .agent-debug-empty.is-main { width: fit-content; margin: 25vh auto 0; }
-.agent-debug-error { margin: 15px 22px 0; border: 1px solid color-mix(in srgb, var(--error) 35%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--error) 6%, var(--surface)); color: var(--error); font-size: 10px; padding: 9px 11px; }
+.agent-debug-error { margin: 15px 22px 0; border: 1px solid color-mix(in srgb, var(--error) 35%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--error) 6%, var(--surface)); color: var(--error); font-size: 10px; padding: 9px 11px; }
 
 @media (max-width: 980px) {
   .agent-debug-page { grid-template-columns: 230px minmax(0, 1fr); }
