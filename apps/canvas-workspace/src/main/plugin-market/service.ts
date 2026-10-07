@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron';
 import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'path';
+import { basename, isAbsolute, join, relative, resolve } from 'path';
 import type {
   NormalizedPluginPackage,
   PluginMarketListing,
@@ -32,7 +32,8 @@ import {
   runPluginMarketMutation,
   writePluginMarketState,
 } from './store';
-import { assertManagedPackageTree, gitClone, normalizedGitSource } from './git-source';
+import { installGitSource } from './git-install';
+import { replaceInstalledPackage } from './package-update';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -96,15 +97,20 @@ async function snapshot(): Promise<PluginMarketSnapshot> {
   const registeredRoots = new Set(canvasStatus.pluginDirs.map((root) => resolve(root)));
   const listings: PluginMarketListing[] = await Promise.all(PUBLIC_PLUGIN_CATALOG.map(async (entry) => {
     const record = recordsByListing.get(entry.id);
-    let mcpAuthState: PluginMarketListing['mcpAuthState'];
+    let installed: PluginMarketListing | undefined;
     if (record && registeredRoots.has(record.root)) {
       const result = await readPluginPackage(record.root);
-      if (result.package) mcpAuthState = await packageMcpAuthState(result.package);
+      if (result.package) installed = await listingFromPackage(record, result.package);
     }
     return {
       ...entry,
+      ...(installed ? {
+        version: installed.version,
+        source: installed.source,
+        capabilities: installed.capabilities,
+      } : {}),
       installState: record && registeredRoots.has(record.root) ? 'installed' : entry.installState,
-      mcpAuthState,
+      mcpAuthState: installed?.mcpAuthState,
       nativeEnabled: record
         ? getCanvasPluginNativePolicySync(record.root, record.format)
         : undefined,
@@ -261,67 +267,6 @@ async function persistPackage(
   }
   return committedResult(diagnostics);
 }
-async function installGitSource(
-  sourceInput: PluginMarketSource,
-  requestedListingId?: string,
-): Promise<PluginMarketMutationResult> {
-  const source = normalizedGitSource(sourceInput);
-  const cloned = await gitClone(source);
-  let destinationCreated = false;
-  let destination: string | undefined;
-  try {
-    const initial = await readPluginPackage(cloned.packageDir);
-    if (!initial.package) {
-      return { ok: false, diagnostics: initial.diagnostics, error: 'Repository is not an installable plugin package' };
-    }
-    await assertManagedPackageTree(cloned.packageDir);
-    const listingId = requestedListingId ?? personalListingId(initial.package, source);
-    destination = join(
-      pluginMarketPackagesDir(),
-      safeDirectoryName(listingId),
-      safeDirectoryName(cloned.commit),
-    );
-    try {
-      await fs.access(destination);
-    } catch {
-      await fs.mkdir(dirname(destination), { recursive: true });
-      await fs.cp(cloned.packageDir, destination, {
-        recursive: true,
-        errorOnExist: true,
-        filter: (source) => source !== join(cloned.packageDir, '.git'),
-      });
-      destinationCreated = true;
-    }
-    const installed = await readPluginPackage(destination);
-    if (!installed.package) {
-      if (destinationCreated) await fs.rm(destination, { recursive: true, force: true });
-      return { ok: false, diagnostics: installed.diagnostics, error: 'Copied plugin package failed validation' };
-    }
-    const result = await persistPackage(
-      listingId,
-      source,
-      installed.package,
-      true,
-      installed.diagnostics,
-    );
-    if (!result.ok && destinationCreated) {
-      await fs.rm(destination, { recursive: true, force: true });
-      destinationCreated = false;
-    }
-    return result;
-  } catch (error) {
-    if (destinationCreated && destination) {
-      const packagesRoot = resolve(pluginMarketPackagesDir());
-      const target = resolve(destination);
-      if (target !== packagesRoot && isContained(packagesRoot, target)) {
-        await fs.rm(target, { recursive: true, force: true }).catch(() => undefined);
-      }
-    }
-    throw error;
-  } finally {
-    await fs.rm(cloned.stagingDir, { recursive: true, force: true });
-  }
-}
 function mutate(
   operation: () => Promise<PluginMarketMutationResult>,
 ): Promise<PluginMarketMutationResult> {
@@ -348,7 +293,7 @@ export class PluginMarketService {
       if (listing.installState === 'unsupported') {
         return { ok: false, source: listing.source, error: 'This source needs a client-format adapter before installation' };
       }
-      return installGitSource(listing.source, listing.id);
+      return installGitSource(listing.source, () => listing.id, persistPackage);
     });
   }
   async chooseDirectory(): Promise<PluginMarketMutationResult> {
@@ -374,7 +319,33 @@ export class PluginMarketService {
     });
   }
   async addGit(source: PluginMarketSource): Promise<PluginMarketMutationResult> {
-    return mutate(() => installGitSource(source));
+    return mutate(() => installGitSource(source, personalListingId, persistPackage));
+  }
+  async update(listingId: string): Promise<PluginMarketMutationResult> {
+    return mutate(async () => {
+      const state = await readPluginMarketState();
+      const record = state.plugins.find((entry) => entry.listingId === listingId);
+      if (!record || !record.managed || record.source.kind !== 'git') {
+        return { ok: false, error: 'Only installed Git plugins can be updated' };
+      }
+      return installGitSource(record.source, () => record.listingId, async (
+        _id, _source, plugin, _managed, diagnostics,
+      ) => {
+        if (diagnostics.some((item) => item.severity === 'error')) {
+          return { ok: false, diagnostics, error: 'Updated plugin package failed validation' };
+        }
+        if (plugin.name !== record.packageName || plugin.format !== record.format) {
+          return { ok: false, error: 'Updated plugin identity does not match the installed package' };
+        }
+        if (plugin.root === record.root) {
+          return { ok: true, updateStatus: 'unchanged', snapshot: await snapshot() };
+        }
+        const nativeDisabled = Boolean(plugin.pulseExtension)
+          && getCanvasPluginNativePolicySync(record.root, record.format);
+        await replaceInstalledPackage(record, plugin);
+        return { ...await committedResult(diagnostics), updateStatus: 'updated', nativeDisabled };
+      });
+    });
   }
   async uninstall(listingId: string): Promise<PluginMarketMutationResult> {
     return mutate(async () => {

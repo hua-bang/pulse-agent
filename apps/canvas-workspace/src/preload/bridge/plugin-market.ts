@@ -5,6 +5,7 @@ export const createPluginMarketApi = (ipcRenderer: IpcRenderer): PluginMarketApi
   list: () => ipcRenderer.invoke('plugin-market:list'),
   refresh: () => ipcRenderer.invoke('plugin-market:refresh'),
   install: (listingId) => ipcRenderer.invoke('plugin-market:install', { listingId }),
+  update: (listingId) => ipcRenderer.invoke('plugin-market:update', { listingId }),
   uninstall: (listingId) => ipcRenderer.invoke('plugin-market:uninstall', { listingId }),
   connectMcp: (listingId) => ipcRenderer.invoke('plugin-market:connect-mcp', { listingId }),
   setNativeEnabled: (listingId, enabled) => (
