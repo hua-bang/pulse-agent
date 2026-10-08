@@ -33,7 +33,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/main/models/config.ts': 594,
+  'src/main/models/config.ts': 550,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/plugin-market/config.ts': 502,
   // 605→636 (2026-07-17, drift recorded): grew via master work (#806
@@ -42,7 +42,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/sessions/session-store.ts': 636,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
-  'src/main/agent/skills/config.ts': 511,
+  'src/main/agent/skills/config.ts': 508,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
   // 512→516 (2026-07-10, drift recorded): grew via master work that never
   // ran this suite (no automatic trigger). Raised to measured;

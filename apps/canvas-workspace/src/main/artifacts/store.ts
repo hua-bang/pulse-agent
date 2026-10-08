@@ -18,7 +18,8 @@ import { promises as fs, type Dirent } from 'fs';
 import { dirname, join, basename } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import type { ArtifactSummary } from '../../shared/artifacts';
+import type { Artifact, ArtifactSummary, ArtifactType } from '../../shared/artifacts';
+export type { Artifact, ArtifactType, ArtifactVersion } from '../../shared/artifacts';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const FILE_VERSION = 1;
@@ -30,34 +31,6 @@ const FILE_VERSION = 1;
  * global-chat products — so cross-workspace scans must include it.
  */
 const GLOBAL_ARTIFACT_SCOPE = '__global_chat__';
-
-export type ArtifactType = 'html' | 'svg' | 'mermaid';
-
-export interface ArtifactVersion {
-  id: string;
-  content: string;
-  prompt?: string;
-  createdAt: number;
-}
-
-export interface Artifact {
-  id: string;
-  workspaceId: string;
-  type: ArtifactType;
-  title: string;
-  versions: ArtifactVersion[];
-  currentVersionId: string;
-  pinnedNodeId?: string;
-  source?: {
-    sessionId?: string;
-    messageIndex?: number;
-    origin?: 'agent_tool' | 'inline_promotion' | 'iframe_ai_tab';
-  };
-  /** Runtime capabilities the page may invoke — set by creating code only. */
-  capabilities?: string[];
-  createdAt: number;
-  updatedAt: number;
-}
 
 interface ArtifactsFile {
   version: number;

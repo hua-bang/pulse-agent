@@ -17,6 +17,8 @@
 
 import { homedir } from 'os';
 import { join, sep } from 'path';
+import type { CanvasConfigScope, CanvasSkillSourceName } from '../../../shared/settings-config';
+export type { CanvasConfigScope, CanvasSkillSourceName } from '../../../shared/settings-config';
 
 /**
  * Replace the user's home directory prefix with `~` for display.
@@ -34,10 +36,6 @@ export const CANVAS_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 export type CanvasConfigScopeLevel = 'global' | 'workspace';
 
-export type CanvasConfigScope =
-  | { level: 'global' }
-  | { level: 'workspace'; workspaceId: string };
-
 /** Root directory for a given scope. */
 export function scopeRootDir(scope: CanvasConfigScope): string {
   return scope.level === 'workspace'
@@ -49,21 +47,6 @@ export function scopeRootDir(scope: CanvasConfigScope): string {
 export function scopeSkillsDir(scope: CanvasConfigScope): string {
   return join(scopeRootDir(scope), 'skills');
 }
-
-/**
- * Where a skill came from. `canvas` skills are the only ones Canvas itself
- * writes/edits; everything else is surfaced read-only so other agent tools
- * (Claude Code, Codex, pulse-coder CLI, …) stay the source of truth for
- * their own skill conventions.
- */
-export type CanvasSkillSourceName =
-  | 'canvas'
-  | 'pulse-coder'
-  | 'agents'
-  | 'coder'
-  | 'claude'
-  | 'codex'
-  | 'plugin';
 
 export interface SkillSourceDir {
   base: string;

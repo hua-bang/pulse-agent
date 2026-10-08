@@ -10,64 +10,23 @@
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
 import { prettyPath, scopeMcpConfigPath, type CanvasConfigScope } from '../scope/config-scope';
-
-export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
-export type CanvasMcpAuth = 'none' | 'oauth';
-
-export interface CanvasMcpOAuthConfig {
-  clientId?: string;
-  clientSecret?: string;
-  scope?: string;
-}
-
-export interface CanvasMcpServer {
-  name: string;
-  transport: CanvasMcpTransport;
-  /** http/sse */
-  url?: string;
-  headers?: Record<string, string>;
-  auth?: CanvasMcpAuth;
-  oauth?: CanvasMcpOAuthConfig;
-  /** stdio */
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  cwd?: string;
-  deferTools?: boolean;
-  /** Bare tool names the user has turned off; the engine skips registering these. */
-  disabledTools?: string[];
-  /** Per-server connect + list-tools budget; the engine defaults to 30s. */
-  startupTimeoutMs?: number;
-}
-
-/** One tool exposed by a connected MCP server, with its enabled state. */
-export interface CanvasMcpToolInfo {
-  name: string;
-  description?: string;
-  enabled: boolean;
-}
-
-export type CanvasMcpServerHealth =
-  | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
-  | { ok: false; error: string };
-
-export interface CanvasMcpOAuthStatus {
-  connected: boolean;
-  hasClientInformation: boolean;
-}
-
-export interface CanvasMcpStatus {
-  scope: 'global' | 'workspace';
-  path: string;
-  servers: CanvasMcpServer[];
-  /**
-   * Per-server connection health from the engine's MCP plugin, captured
-   * during its last initialize. Missing for servers when no agent has yet
-   * loaded that server (e.g. workspace not activated yet).
-   */
-  statuses?: Record<string, CanvasMcpServerHealth>;
-  oauthStatuses?: Record<string, CanvasMcpOAuthStatus>;
-}
+import type {
+  CanvasMcpAuth,
+  CanvasMcpOAuthConfig,
+  CanvasMcpServer,
+  CanvasMcpStatus,
+  CanvasMcpTransport,
+} from '../../../shared/settings-config';
+export type {
+  CanvasMcpAuth,
+  CanvasMcpOAuthConfig,
+  CanvasMcpOAuthStatus,
+  CanvasMcpServer,
+  CanvasMcpServerHealth,
+  CanvasMcpStatus,
+  CanvasMcpToolInfo,
+  CanvasMcpTransport,
+} from '../../../shared/settings-config';
 
 interface McpFileShape {
   servers?: Record<string, Record<string, unknown>>;

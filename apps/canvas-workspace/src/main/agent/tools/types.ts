@@ -1,17 +1,18 @@
 import { z } from 'zod';
 import type { AgentClarificationRequest } from '../../../shared/agent-chat';
+import type { CanvasEdge, MindmapTopic } from '../../../shared/canvas';
+export type {
+  CanvasEdge,
+  EdgeAnchor,
+  EdgeArrowCap,
+  EdgeEndpoint,
+  EdgeStroke,
+  MindmapTopic,
+} from '../../../shared/canvas';
 
 // ─── Types mirrored from canvas-cli ────────────────────────────────
 
 export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap' | 'plugin';
-
-export interface MindmapTopic {
-  id: string;
-  text: string;
-  children: MindmapTopic[];
-  color?: string;
-  collapsed?: boolean;
-}
 
 export interface RawMindmapTopic {
   id?: string;
@@ -30,35 +31,6 @@ export interface CanvasNode {
   width: number;
   height: number;
   data: Record<string, unknown>;
-  updatedAt?: number;
-}
-
-export type EdgeAnchor = 'top' | 'right' | 'bottom' | 'left' | 'auto';
-
-export type EdgeEndpoint =
-  | { kind: 'node'; nodeId: string; anchor?: EdgeAnchor }
-  | { kind: 'point'; x: number; y: number };
-
-export type EdgeArrowCap = 'none' | 'triangle' | 'arrow' | 'dot' | 'bar';
-
-export interface EdgeStroke {
-  color?: string;
-  width?: number;
-  style?: 'solid' | 'dashed' | 'dotted';
-}
-
-export interface CanvasEdge {
-  id: string;
-  source: EdgeEndpoint;
-  target: EdgeEndpoint;
-  bend?: number;
-  arrowHead?: EdgeArrowCap;
-  arrowTail?: EdgeArrowCap;
-  stroke?: EdgeStroke;
-  label?: string;
-  labelStyle?: { color?: string; backgroundColor?: string };
-  kind?: string;
-  payload?: Record<string, unknown>;
   updatedAt?: number;
 }
 

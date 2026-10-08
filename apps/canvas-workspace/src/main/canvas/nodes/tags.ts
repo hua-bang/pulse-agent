@@ -2,17 +2,11 @@ import { promises as fs } from 'fs';
 import { basename, dirname, join } from 'path';
 import { STORE_DIR } from './store';
 import { withStoreMutationLock } from './mutation-lock';
+import type { KnowledgeTagDefinition } from '../../../shared/canvas';
+export type { KnowledgeTagDefinition } from '../../../shared/canvas';
 
 export const TAGS_FILENAME = 'tags.json';
 export const TAGS_SCHEMA_VERSION = 1;
-
-export interface KnowledgeTagDefinition {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt?: number;
-  updatedAt?: number;
-}
 
 interface TagsFile {
   schemaVersion: typeof TAGS_SCHEMA_VERSION;

@@ -481,7 +481,11 @@ export interface CrossWorkspaceSessionGroup {
   sessions: AgentSessionInfo[];
 }
 
-/** One hit from the session title search behind the @-mention popup. */
+/**
+ * One hit from the renderer-facing session title search (@-mention popup).
+ * Matches session titles (first user message + workspace name) only —
+ * full-content search is the agent-side `session_search` tool's job.
+ */
 export interface SessionSearchHit {
   sessionId: string;
   workspaceId: string;
@@ -489,5 +493,6 @@ export interface SessionSearchHit {
   date: string;
   isCurrent: boolean;
   messageCount: number;
+  /** First user message, trimmed — same preview the session rail shows. */
   preview: string;
 }

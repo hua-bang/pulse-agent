@@ -12,18 +12,8 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
-
-export type PromptPreset = 'concise' | 'balanced' | 'detailed';
-
-export interface PromptProfile {
-  preset: PromptPreset;
-  /** User-authored extra instructions appended to the system prompt. */
-  customPrompt: string;
-}
-
-export interface PromptProfileStatus extends PromptProfile {
-  path: string;
-}
+import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../shared/model-config';
+export type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../shared/model-config';
 
 const DEFAULT_PRESET: PromptPreset = 'balanced';
 const MAX_CUSTOM_PROMPT_LENGTH = 4000;

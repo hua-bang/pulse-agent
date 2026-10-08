@@ -22,6 +22,8 @@ import {
 import { skillNameKey } from '../../../shared/skill-name';
 import { getCanvasPluginSkillSources } from '../../plugin-market/config';
 import { findSkillResources } from './resources';
+import type { CanvasSkillsStatus } from '../../../shared/settings-config';
+export type { CanvasSkillsStatus } from '../../../shared/settings-config';
 export interface CanvasSkill {
   /** Unique skill name (also drives the on-disk directory slug). */
   name: string;
@@ -40,11 +42,6 @@ export interface CanvasSkillEntry extends CanvasSkill {
    */
   writable: boolean;
   resources: Array<{ name: string; path: string }>;
-}
-export interface CanvasSkillsStatus {
-  scope: 'global' | 'workspace';
-  dir: string;
-  skills: CanvasSkillEntry[];
 }
 export interface UpsertCanvasSkillInput extends CanvasSkill {
   /** Previous name when renaming, so the old directory can be removed. */

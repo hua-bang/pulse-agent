@@ -33,6 +33,12 @@ interfaces) live in `src/shared/api/*`. `src/renderer/src/types.ts` re-exports
 them for renderer code. `import-boundaries.test.ts` has no preload allowlist:
 any preload→renderer import fails.
 
+A type exported from `src/shared` is declared only there. Other layers import
+it or re-export it (`export type { X } from '.../shared/...'`); a second
+declaration with the same name drifts silently. `shared-contract-governance.test.ts`
+fails on a new redefinition. Its list of intentional redefinitions (plugin SDK
+views, on-disk schemas, stricter store rows) may only shrink.
+
 ## File-size governance
 
 `file-size-governance.test.ts` measures every production `.ts`/`.tsx` file

@@ -1,6 +1,8 @@
 import { promises as fs, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
+import type { ChannelConfigStatus, SetFeishuConfigInput } from '../../../shared/channel-config';
+export type { ChannelConfigStatus, SetFeishuConfigInput } from '../../../shared/channel-config';
 
 // Persistent channel credentials, configurable from Settings → Experimental
 // instead of (or in addition to) shell env vars. The Feishu app secret is a
@@ -113,22 +115,6 @@ export function applyChannelConfigToEnv(): void {
   }
 }
 
-export interface ChannelConfigStatus {
-  path: string;
-  feishu: {
-    /** Stored App ID (safe to echo — not a secret). */
-    appId?: string;
-    /** App Secret present (stored or via env). The secret itself is never returned. */
-    secretPresent: boolean;
-    /** Stored default workspace id. */
-    defaultWorkspaceId?: string;
-    /** Whether each value is currently overridden by an env var. */
-    appIdFromEnv: boolean;
-    secretFromEnv: boolean;
-    defaultWorkspaceFromEnv: boolean;
-  };
-}
-
 export async function getChannelConfigStatus(): Promise<ChannelConfigStatus> {
   const feishu = (await readConfig()).feishu ?? {};
   const appIdFromEnv = Boolean(process.env.FEISHU_APP_ID);
@@ -146,15 +132,6 @@ export async function getChannelConfigStatus(): Promise<ChannelConfigStatus> {
       defaultWorkspaceFromEnv,
     },
   };
-}
-
-export interface SetFeishuConfigInput {
-  appId?: string;
-  /** New secret to store. Empty/omitted leaves the existing secret untouched. */
-  appSecret?: string;
-  defaultWorkspaceId?: string;
-  /** When true, remove the stored secret. */
-  clearSecret?: boolean;
 }
 
 export async function setFeishuConfig(input: SetFeishuConfigInput): Promise<void> {
