@@ -19,19 +19,24 @@ function parseQuery(location: string): URLSearchParams {
 
 const DebugRoute = ({ invoke }: { invoke: RendererCtx['invoke'] }) => {
   const [location, setLocation] = useLocation();
-  const runId = parseQuery(location).get('runId');
+  const params = parseQuery(location);
+  const runId = params.get('runId');
 
   return (
     <Suspense fallback={null}>
       <AgentDebugPage
+        key={`${params.get('workspaceId') ?? ''}:${params.get('sessionId') ?? ''}`}
         invoke={invoke}
         selectedRunId={runId}
+        sessionId={params.get('sessionId')}
+        workspaceId={params.get('workspaceId')}
         onSelectRun={(r) => {
           // Wouter's hash hook may serialize a query passed to setLocation as
           // `index.html?runId=…#/debug`, which leaves the registered hash route
           // without the selected run. Writing the hash explicitly keeps route
           // and query in the same location: `#/debug?runId=…`.
-          window.location.hash = `/debug?${new URLSearchParams({ runId: r }).toString()}`;
+          params.set('runId', r);
+          window.location.hash = `/debug?${params.toString()}`;
         }}
         onBackToCanvas={() => setLocation('/')}
       />

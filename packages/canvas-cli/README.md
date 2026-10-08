@@ -2,7 +2,7 @@
 
 CLI for Pulse Canvas — lets external agents (Claude Code, Codex, etc.) read from and write to canvas workspaces.
 
-Most commands operate on local storage at `~/.pulse-coder/canvas/` without a running Electron app. Existing stores use JSON until the app activates the shared SQLite backend. The CLI follows that activation marker and continues to work offline; Markdown and attachments remain ordinary files that external editors and agents can edit. A running app observes changes through the active backend. The `agent`, `team`, and `runtime` command families require a running `apps/canvas-workspace` instance.
+Most commands operate on local storage at `~/.pulse-coder/canvas/` without a running Electron app. Existing stores use JSON until the app activates the shared SQLite backend. The CLI follows that activation marker and continues to work offline; Markdown and attachments remain ordinary files that external editors and agents can edit. A running app observes changes through the active backend. The `agent`, `team`, and `runtime` commands require a running `apps/canvas-workspace` instance.
 
 ## Install
 
@@ -193,6 +193,37 @@ route before executing, and must return JSON-serialisable data. It has no direct
 Node `require`, but runs in the host page's main world and can call the
 renderer-exposed `window.canvasWorkspace` bridge; treat it as full experimental
 app control for same-user local code.
+
+### DevTools logs
+
+```bash
+pulse-canvas log --run <runId>
+pulse-canvas log --session <sessionId> --format json
+pulse-canvas log --run <runId> --open
+pulse-canvas log --session <sessionId> --open
+```
+
+Choose exactly one of `--run` or `--session`. The selected workspace follows
+normal `--workspace` / environment / active-workspace resolution; use `-w <id>`
+for another workspace. Queries return `{ runs: [...] }` with full recorded
+DevTools details, newest first. An unrecorded session returns an empty list;
+an unknown run returns `run_not_found`.
+
+`log` reads saved JSON directly and works with Canvas stopped. No observability,
+debug-trace, or runtime-control flag is needed to read or open saved traces.
+`--open` automatically opens a self-contained snapshot in the default browser,
+using the existing DevTools React page and styles. It supports run selection,
+search, tool details, and timing export. Rerun the command for a fresh snapshot;
+the saved viewer contains only the requested run/session. Its JSON result is
+`{ opened: true, path: ".../devtools.html" }`.
+
+The default directory is `Pulse Canvas/plugins/devtools/runs` beneath the OS
+application-data directory (macOS `~/Library/Application Support`, Windows
+`%APPDATA%`, Linux `$XDG_CONFIG_HOME` or `~/.config`). Use `--log-dir <path>` to
+read a custom profile's **runs directory**, including isolated harness profiles.
+New trace collection still follows the app's observability/debug-trace settings;
+unrecorded history cannot be reconstructed. The session selector is the Canvas
+chat session ID.
 
 ### Agent
 
