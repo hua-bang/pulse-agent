@@ -317,7 +317,7 @@
 
 .chat-panel .chat-input-box:focus-within,
 .chat-page-body .chat-input-box:focus-within {
-  border-color: #2383e2;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.18), 0 18px 48px rgba(55, 53, 47, 0.1);
 }
 
@@ -348,7 +348,7 @@
 
 .chat-panel .chat-send-btn--active,
 .chat-page-body .chat-send-btn--active {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .chat-panel .chat-send-btn--stop,

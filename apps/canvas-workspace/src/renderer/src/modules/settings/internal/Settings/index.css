@@ -75,7 +75,7 @@
 }
 
 .settings-rail-item--active .settings-rail-label {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .settings-content {

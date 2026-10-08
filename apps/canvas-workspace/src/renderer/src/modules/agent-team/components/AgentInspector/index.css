@@ -181,7 +181,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: #fafaf9;
+  background: var(--bg);
 }
 .agent-team-agent-inspector__terminal-body .agent-body-wrap--running {
   height: 100%;

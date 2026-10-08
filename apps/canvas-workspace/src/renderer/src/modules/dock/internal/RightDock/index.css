@@ -410,7 +410,7 @@
 }
 
 .right-dock__tab-dot--link {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-dot {
@@ -479,7 +479,7 @@
 }
 
 .right-dock__tab-icon--link {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-icon {
@@ -488,7 +488,7 @@
 }
 
 .right-dock__tab--active .right-dock__tab-icon--link {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-claude-code {

@@ -151,7 +151,7 @@
 }
 
 .chat-model-preset--active {
-  border-color: #2383e2;
+  border-color: var(--accent);
   background: rgba(35, 131, 226, 0.08);
   box-shadow: var(--shadow-focus);
 }
@@ -217,7 +217,7 @@
 }
 
 .chat-model-field .chat-model-field-hint--info {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .chat-model-protocol-toggle {
@@ -246,7 +246,7 @@
 }
 
 .chat-model-protocol-option--active {
-  border-color: #2383e2;
+  border-color: var(--accent);
   background: rgba(35, 131, 226, 0.08);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
 }
@@ -314,8 +314,8 @@
 }
 
 .chat-model-primary-btn {
-  border-color: #2383e2;
-  background: #2383e2;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 

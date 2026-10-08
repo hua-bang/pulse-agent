@@ -24,7 +24,7 @@
   height: calc(100% * var(--canvas-scale, 1));
   transform: scale(calc(1 / var(--canvas-scale, 1)));
   transform-origin: top left;
-  background: #fafaf9;
+  background: var(--bg);
   padding: 6px 4px 4px;
   overflow: hidden;
 }
