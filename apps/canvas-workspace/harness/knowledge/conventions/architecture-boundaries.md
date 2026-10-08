@@ -47,7 +47,7 @@ entry points, so an export that only a test uses is not dead. Delete dead code
 instead of keeping it for later. When an export must stay without a static
 caller (a lazy namespace import, a surface hidden on purpose), tag it
 `/** @keep <reason> */`. `knip.json` `ignore` lists whole files kept on purpose,
-such as the disabled MCP server.
+such as the engine type shim.
 
 ## File-size governance
 

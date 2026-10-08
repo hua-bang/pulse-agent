@@ -176,7 +176,7 @@ writes failed with `revision_conflict`.
   and when the window goes away (`TerminalNodeBody/useTerminalNodeRuntime`);
   every tick in between only publishes to main (and refreshes the live CWD
   that unload saves use). Exit and unmount also publish the final lines. A crash can lose up to a
-  minute of output. The runtime MCP server's node read also prefers main.
+  minute of output.
   - Closing a window: the terminal's `beforeunload` listener writes the node
     and flushes its own workspace (`flushWorkspacePersistence`). It cannot
     rely on the canvas's own `beforeunload` flush, which may run first

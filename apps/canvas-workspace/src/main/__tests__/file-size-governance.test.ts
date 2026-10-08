@@ -32,7 +32,6 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 816,
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
-  'src/main/runtime/mcp-server.ts': 652,
   'src/main/models/config.ts': 550,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/plugin-market/config.ts': 502,

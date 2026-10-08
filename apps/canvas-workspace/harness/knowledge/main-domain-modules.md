@@ -53,8 +53,7 @@ src/main/
   files/              # manager, watcher, skill-installer
   generation/         # html-generator + ipc
   models/             # provider/model config, resolution, secret storage + IPC
-  runtime/            # control-server, mcp-server, mcp-registration,
-                      # capabilities/
+  runtime/            # control-server, capability-http, capabilities/
   plugin-market/      # package readers, config + IPC, install/remove service
   settings/           # experimental-ipc,
                       # built-in-tools-config/-ipc, plugin-manifest-icons

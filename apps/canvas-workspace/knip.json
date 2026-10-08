@@ -9,9 +9,7 @@
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": [
-    "src/main/agent/engine.d.ts",
-    "src/main/runtime/mcp-registration.ts",
-    "src/main/runtime/mcp-server.ts"
+    "src/main/agent/engine.d.ts"
   ],
   "ignoreExportsUsedInFile": true,
   "tags": ["-keep"],
