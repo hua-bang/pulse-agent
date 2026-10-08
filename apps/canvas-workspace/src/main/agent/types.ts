@@ -298,27 +298,6 @@ export interface WorkspaceSummary {
   edges?: EdgeSummary[];
 }
 
-// ─── Events (main → renderer) ──────────────────────────────────────
-
-export type CanvasAgentEventType =
-  | 'chunk'          // streaming text delta
-  | 'tool-call'      // agent is calling a tool
-  | 'tool-result'    // tool call completed
-  | 'done'           // turn complete
-  | 'error';         // error occurred
-
-export interface CanvasAgentEvent {
-  type: CanvasAgentEventType;
-  data: Record<string, unknown>;
-}
-
-// ─── IPC payloads ──────────────────────────────────────────────────
-
-export interface ChatRequest {
-  scope: AgentScope;
-  message: string;
-}
-
 export interface ChatResponse {
   assistantMessages?: CanvasAgentMessage[];
   ok: boolean;
@@ -357,10 +336,4 @@ export interface CrossWorkspaceSessionGroup {
     title?: string;
     pinned?: boolean;
   }>;
-}
-
-export interface AllSessionsResponse {
-  ok: boolean;
-  groups?: CrossWorkspaceSessionGroup[];
-  error?: string;
 }

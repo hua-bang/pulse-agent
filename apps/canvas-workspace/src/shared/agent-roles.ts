@@ -81,10 +81,6 @@ export interface AgentRoleLibrarySettings {
   allowRoleHandoff: boolean;
 }
 
-export const DEFAULT_AGENT_ROLE_SETTINGS: AgentRoleLibrarySettings = {
-  allowRoleHandoff: false,
-};
-
 export const normalizeAgentRoleSettings = (value: unknown): AgentRoleLibrarySettings => ({
   allowRoleHandoff: (value as Partial<AgentRoleLibrarySettings> | null | undefined)?.allowRoleHandoff === true,
 });

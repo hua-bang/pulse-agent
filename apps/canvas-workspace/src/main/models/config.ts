@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
-import { dirname, join, resolve } from 'path';
+import { dirname, join } from 'path';
 import { createOpenAI } from '@ai-sdk/openai';
 import { buildProvider, type LLMProviderFactory, type ModelType } from 'pulse-coder-engine';
 import type {
@@ -543,8 +543,4 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
     modelType: resolved.providerType === 'claude' ? 'claude' : 'openai',
     connection: { baseURL: resolved.baseURL, apiKey: resolved.apiKey, headers: resolved.headers },
   };
-}
-
-export function resolveCanvasModelConfigPath(): string {
-  return resolve(getConfigPath());
 }

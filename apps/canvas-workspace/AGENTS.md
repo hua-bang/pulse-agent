@@ -64,6 +64,7 @@ Use local validation YAML through the root runner. Iteration uses quick, complet
 
 ```bash
 pnpm --filter canvas-workspace typecheck
+pnpm --filter canvas-workspace deadcode
 pnpm --filter canvas-workspace test
 pnpm --filter canvas-workspace build
 ```

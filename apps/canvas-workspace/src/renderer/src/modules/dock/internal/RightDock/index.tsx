@@ -50,7 +50,6 @@ export {
   RightDockProvider,
   useRightDock,
   useRightDockChatHost,
-  useRightDockMcpAppHost,
   useRightDockState,
   useRightDockTerminalHost,
 } from './context';

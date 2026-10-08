@@ -1,9 +1,9 @@
 name: Quality
 
-# Typecheck and unit tests for every PR. The Canvas suite also runs the
-# governance tests (import boundaries, file size and flat-directory limits,
-# test locality, UI reuse), so this workflow is what turns those rules into
-# merge checks.
+# Typecheck, dead-code check and unit tests for every PR. The Canvas suite
+# also runs the governance tests (import boundaries, shared contracts, file
+# size and flat-directory limits, test locality, UI reuse), so this workflow
+# is what turns those rules into merge checks.
 
 on:
   workflow_dispatch:
@@ -80,6 +80,10 @@ jobs:
 
       - name: Typecheck Canvas
         run: pnpm --filter canvas-workspace typecheck
+
+      # knip fails on unused files, exports and types in Canvas.
+      - name: Check Canvas dead code
+        run: pnpm --filter canvas-workspace deadcode
 
       - name: Test Canvas
         run: pnpm --filter canvas-workspace test

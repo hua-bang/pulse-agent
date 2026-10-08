@@ -62,8 +62,6 @@ export interface TurnObserver {
 /** Conversations whose current turn already has a stream observer in this renderer. */
 const observed = new Set<string>();
 
-export const isConversationObserved = (key: ConversationKey): boolean => observed.has(conversationKeyId(key));
-
 /**
  * Apply one turn's stream events to the conversation store, from the first
  * event to `chat-complete`. Sent turns start live; an attach starts paused,

@@ -132,15 +132,6 @@ export function runPluginMarketMutation<T>(operation: () => Promise<T>): Promise
   return result;
 }
 
-export function isPluginMarketNativeEnabledSync(root: string): boolean {
-  return getPluginMarketNativePolicySync(root) === true;
-}
-
-export function getPluginMarketNativePolicySync(root: string): boolean | undefined {
-  const target = normalize(resolve(root));
-  return readPluginMarketStateSync().plugins.find((plugin) => plugin.root === target)?.nativeEnabled;
-}
-
 export function getPluginMarketMcpConfigPathsSync(): string[] {
   return readPluginMarketStateSync().plugins
     .map((plugin) => plugin.runtimeMcpPath)

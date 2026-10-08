@@ -560,27 +560,6 @@ export interface CanvasAgentNodeRuntimeState {
   warmupReady?: boolean;
 }
 
-export async function getCanvasAgentNodeRuntimeState(
-  workspaceId: string,
-  nodeId: string,
-): Promise<CanvasAgentNodeRuntimeState> {
-  const { data: canvas } = await readCanvasFull(workspaceId);
-  const node = canvas?.nodes?.find((item) => item.id === nodeId);
-  if (!node || node.type !== 'agent') {
-    return { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false };
-  }
-  const ptySessionId = typeof node.data?.sessionId === 'string' ? node.data.sessionId : '';
-  const inlinePrompt = typeof node.data?.inlinePrompt === 'string' ? node.data.inlinePrompt : '';
-  const promptFile = typeof node.data?.promptFile === 'string' ? node.data.promptFile : '';
-  return {
-    exists: true,
-    status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
-    ptyAlive: !!ptySessionId && hasSession(ptySessionId),
-    hasQueuedLaunch: !!(inlinePrompt || promptFile),
-    warmupReady: node.data?.agentTeamWarmupReady === true,
-  };
-}
-
 /**
  * Batch variant of getCanvasAgentNodeRuntimeState: one canvas read serves
  * every agent of a team, instead of the watchdog re-reading canvas.json from

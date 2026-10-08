@@ -8,7 +8,7 @@
  * plumbing stays consistent across the app.
  */
 
-import { generateText, streamText } from 'ai';
+import { streamText } from 'ai';
 import { resolveCanvasModel } from '../models/config';
 
 const SYSTEM_PROMPT = `You generate concise, structured "Pulse Workspace" documents in markdown.
@@ -52,24 +52,6 @@ function stripFences(text: string): string {
     md = md.replace(/^```(?:markdown|md)?\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
   return md;
-}
-
-export async function generateWorkspaceDoc(
-  workspaceName: string,
-  intent: string,
-  currentContent?: string,
-): Promise<{ ok: boolean; content?: string; error?: string }> {
-  try {
-    const modelConfig = await resolveCanvasModel();
-    const { text } = await generateText({
-      model: modelConfig.provider(modelConfig.model),
-      system: SYSTEM_PROMPT,
-      prompt: buildUserPrompt(workspaceName, intent, currentContent),
-    });
-    return { ok: true, content: stripFences(text) };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
 }
 
 export async function streamWorkspaceDoc(

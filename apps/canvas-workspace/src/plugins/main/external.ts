@@ -8,11 +8,6 @@ type PluginModule = Record<string, unknown>;
 
 const activeExternalPluginIds = new Set<string>();
 
-export async function loadConfiguredExternalMainPlugins(): Promise<MainCanvasPlugin[]> {
-  const status = await getCanvasPluginsStatus();
-  return loadExternalMainPluginEntries(status.plugins);
-}
-
 export async function reloadConfiguredExternalMainPlugins(): Promise<void> {
   const status = await getCanvasPluginsStatus();
   const plugins = await loadExternalMainPluginEntries(status.plugins);

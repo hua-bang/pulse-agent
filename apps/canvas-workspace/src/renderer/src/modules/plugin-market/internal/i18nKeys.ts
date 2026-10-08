@@ -93,5 +93,3 @@ export const pluginMarketKeys = {
   uninstall: key('pluginMarket.uninstall'),
   uninstalling: key('pluginMarket.uninstalling'),
 } as const;
-
-export const PLUGIN_MARKET_I18N_KEYS = Object.values(pluginMarketKeys);

@@ -6,8 +6,6 @@ import { externalCliTurnBackend } from './external-cli-backend';
 import type { AgentRuntime, TurnSegmentRequest } from './types';
 
 export type {
-  TurnBackend,
-  TurnBackendCapabilities,
   AgentRuntime,
   AgentRuntimeCapabilities,
   TurnSegmentRequest,
@@ -78,6 +76,3 @@ export const resolveAgentRuntime = (
   }
   return engineTurnBackend;
 };
-
-/** @deprecated Use resolveAgentRuntime. */
-export const resolveTurnBackend = resolveAgentRuntime;

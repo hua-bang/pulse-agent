@@ -227,7 +227,3 @@ export const useRightDockState = (): DockState => {
 export const useRightDockChatHost = (): HTMLDivElement | null => useDockContext().chatHost;
 
 export const useRightDockTerminalHost = (): HTMLDivElement | null => useDockContext().terminalHost;
-
-export const useRightDockMcpAppHost = (instanceId: string): HTMLDivElement | null => (
-  useDockContext().mcpAppHosts[instanceId] ?? null
-);

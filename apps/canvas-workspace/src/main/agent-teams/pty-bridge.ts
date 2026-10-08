@@ -80,9 +80,3 @@ export const setupAgentTeamPtyBridge = (
     },
   });
 };
-
-export const teardownAgentTeamPtyBridge = (): void => {
-  unregister?.();
-  unregister = null;
-  nodeQueues.clear();
-};

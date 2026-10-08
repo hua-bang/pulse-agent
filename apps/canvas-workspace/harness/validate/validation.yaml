@@ -9,11 +9,13 @@ pathRules:
       - tsconfig.json
       - tsconfig.node.json
       - electron.vite.config.ts
+      - knip.json
     quick:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts src/main/__tests__/test-locality-governance.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts src/main/__tests__/test-locality-governance.test.ts src/main/__tests__/shared-contract-governance.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace deadcode
       - pnpm --filter canvas-workspace test
 
   # The renderer reached 0 target gaps, 0 boundary errors, and 0 module cycles

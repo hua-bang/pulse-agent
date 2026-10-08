@@ -29,33 +29,6 @@ export const findTopicPath = (
   return null;
 };
 
-/**
- * Return a new tree produced by applying `fn` to every topic. `fn` may
- * return a new topic (replacing the input) or `null` to delete. The
- * root is never allowed to be deleted — callers that need that case
- * should handle it outside this helper.
- */
-export const mapTopics = (
-  root: MindmapTopic,
-  fn: (t: MindmapTopic, parent: MindmapTopic | null) => MindmapTopic | null,
-): MindmapTopic => {
-  const walk = (t: MindmapTopic, parent: MindmapTopic | null): MindmapTopic => {
-    const mapped = fn(t, parent) ?? t;
-    return {
-      ...mapped,
-      children: mapped.children
-        .map((c) => {
-          const result = fn(c, mapped);
-          if (result === null) return null;
-          // Recurse into the returned (possibly-rewritten) child.
-          return walk(result ?? c, mapped);
-        })
-        .filter((c): c is MindmapTopic => c !== null),
-    };
-  };
-  return walk(root, null);
-};
-
 /** Insert a child topic under `parentId`. If `afterId` is provided, the
  *  child lands directly after that sibling; otherwise it appends. */
 export const insertChild = (

@@ -77,17 +77,3 @@ export function createConversationRunner(agent: CanvasAgent): ConversationRuntim
     }
   };
 }
-
-/** Session-store-backed conversation loader for the registry's `create`. */
-export function createConversationStoreLoader(agent: CanvasAgent) {
-  return {
-    loadMessages: async (): Promise<AgentChatMessage[]> => {
-      return agent.getHistory() as AgentChatMessage[];
-    },
-    persist: async (messages: AgentChatMessage[]): Promise<void> => {
-      const sessionId = agent.getCurrentSessionId();
-      if (!sessionId) return;
-      await agent.appendToSession(sessionId, messages as never);
-    },
-  };
-}

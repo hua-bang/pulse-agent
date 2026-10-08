@@ -34,8 +34,6 @@ export function prettyPath(absPath: string): string {
 
 export const CANVAS_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
-export type CanvasConfigScopeLevel = 'global' | 'workspace';
-
 /** Root directory for a given scope. */
 export function scopeRootDir(scope: CanvasConfigScope): string {
   return scope.level === 'workspace'

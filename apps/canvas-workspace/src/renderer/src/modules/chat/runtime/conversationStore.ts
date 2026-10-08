@@ -283,12 +283,6 @@ export function setConversationError(key: ConversationKey, error: string | null)
   publish(key);
 }
 
-export function setConversationRunId(key: ConversationKey, runId: string | null): void {
-  const state = getState(key);
-  state.runId = runId;
-  publish(key);
-}
-
 export function setConversationStreamingTools(
   key: ConversationKey,
   tools: AgentChatToolCall[],

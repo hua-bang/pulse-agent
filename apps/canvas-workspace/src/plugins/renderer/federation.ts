@@ -12,11 +12,6 @@ import type {
   CanvasPluginsStatus,
 } from '../../shared/settings-config';
 import {
-  MOCK_NODE_PLUGIN_ID,
-  MOCK_NODE_REMOTE_ENTRY,
-  MOCK_NODE_REMOTE_NAME,
-} from '../mock-node/constants';
-import {
   activateCanvasPlugins,
   deactivateCanvasPlugin,
   isRendererPluginActivated,
@@ -57,16 +52,6 @@ type RemoteShape = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
-}
-
-function resolveRendererPublicAsset(path: string): string {
-  const trimmed = path.replace(/^\/+/, '');
-  const location = globalThis.location;
-  if (!location) return `/${trimmed}`;
-  if (location.protocol === 'file:') {
-    return new URL(`./${trimmed}`, location.href).href;
-  }
-  return new URL(`/${trimmed}`, location.origin).href;
 }
 
 function createHostShared() {
@@ -164,19 +149,6 @@ function normalizeRemotePlugin(
     enabledWhen,
     activate,
   };
-}
-
-export function getBuiltInFederatedRendererPluginSpecs(): RendererFederatedPluginSpec[] {
-  return [
-    {
-      id: MOCK_NODE_PLUGIN_ID,
-      name: MOCK_NODE_REMOTE_NAME,
-      entry: resolveRendererPublicAsset(MOCK_NODE_REMOTE_ENTRY),
-      expose: DEFAULT_EXPOSE,
-      type: 'global',
-      entryGlobalName: MOCK_NODE_REMOTE_NAME,
-    },
-  ];
 }
 
 function readEnvString(key: string): string | undefined {

@@ -26,25 +26,6 @@ export const getNodeDefaultSize = (
   return { width: def.width, height: def.height };
 };
 
-/** Human-readable type names used for toast feedback after adding a
- *  node. Kept aligned with the FloatingToolbar button labels so the
- *  user sees the same word in the toolbar tooltip and in the toast. */
-export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
-  file:     'Note',
-  terminal: 'Terminal',
-  frame:    'Frame',
-  group:    'Group',
-  agent:    'Coding agent',
-  text:     'Text',
-  iframe:   'Web page',
-  'dynamic-app': 'Dynamic app',
-  image:    'Image',
-  shape:    'Shape',
-  mindmap:  'Mindmap',
-  reference: 'Reference',
-  plugin:   'Plugin node',
-};
-
 export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData | DynamicAppNodeData | PluginNodeData => {
   switch (type) {
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };

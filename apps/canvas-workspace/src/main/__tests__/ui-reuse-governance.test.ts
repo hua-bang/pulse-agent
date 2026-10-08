@@ -129,7 +129,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // disappeared as product visuals gained one owning component each.
   // ChatAnchors owns its trigger styling via ui/Button, independent of lazy ChatPanel CSS.
   // 272→269: Library navigation and cards use Button.
-  rawButtonTags: 268,
+  // 268→262 (dead-code cleanup): knip found unused pickers, settings
+  // panels and icons, which were deleted.
+  rawButtonTags: 262,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -144,7 +146,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // onto ui/TextField inside the consolidated filter toolbar.
   // 38→37 (settings convergence): deleting the zero-caller legacy
   // SkillsManager retired its hidden import-file input.
-  rawInputTags: 37,
+  // 37→36 (dead-code cleanup): knip found unused pickers, settings
+  // panels and icons, which were deleted.
+  rawInputTags: 36,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
@@ -216,7 +220,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 113→112: remove the obsolete frame dot overlay.
   // 112→111: minimal frame chrome shares the square-corner token.
   // 111→110: Library cards reuse radius tokens.
-  borderRadiusLiterals: 110,
+  // 110→105 (dead-code cleanup): knip found unused pickers, settings
+  // panels and icons, which were deleted.
+  borderRadiusLiterals: 105,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -260,7 +266,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // was retired while the blessed ui/ shells retained role ownership.
   // 9→10: Dock tab search uses the existing ui/Popover as a nonmodal search
   // dialog containing a combobox/listbox, not a menu or a new dialog shell.
-  dialogRoles: 10,
+  // 10→9 (dead-code cleanup): knip found unused pickers, settings
+  // panels and icons, which were deleted.
+  dialogRoles: 9,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
   // Modal/Drawer render through it. Falls as legacy callers adopt <Portal> or
   // the new point-anchored ui/Popover shell.
@@ -435,7 +443,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (byte-identical resolved value — exact-value tokenization, same class as
   // the earlier radius/shadow token minting in ui-reuse-burndown.md's C2 batch).
   // 1666→1664: canvas node border/hover read the new canvas-node-border tokens.
-  hardcodedColorLiterals: 1664,
+  // 1664→1641 (dead-code cleanup): knip found unused pickers, settings
+  // panels and icons, which were deleted.
+  hardcodedColorLiterals: 1641,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -504,7 +514,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 136→135 (workspace node cards): removed the unreachable pre-CardShell
   // selected-card shadow; live cards own their styles under CardShell.
   // 135→133: minimal frames use outlines without selection shadows.
-  shadowLiterals: 133,
+  // 133→130 (dead-code cleanup): knip found unused pickers, settings
+  // panels and icons, which were deleted.
+  shadowLiterals: 130,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

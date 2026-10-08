@@ -29,12 +29,6 @@ import { checkInput, withGuardedCdp, type CdpInputGuard } from './input-guard';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
-// ---------------------------------------------------------------------------
-// Modifier bitmask — per CDP `Input.dispatchKeyEvent` / `dispatchMouseEvent`
-// ---------------------------------------------------------------------------
-
-export type CdpModifier = 'alt' | 'ctrl' | 'control' | 'meta' | 'cmd' | 'command' | 'shift';
-
 export function modifierMask(mods?: ReadonlyArray<string>): number {
   if (!mods || mods.length === 0) return 0;
   let m = 0;

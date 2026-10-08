@@ -44,12 +44,3 @@ export const startLoopDelaySampler = (
   }, SAMPLE_WINDOW_MS);
   if (typeof timer.unref === 'function') timer.unref();
 };
-
-export const stopLoopDelaySampler = (): void => {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-  histogram?.disable();
-  histogram = null;
-};

@@ -28,11 +28,3 @@ export const CopyMessageButton = memo(({ content }: { content: string }) => {
   );
 });
 CopyMessageButton.displayName = 'CopyMessageButton';
-
-export const ChatLoadingDots = () => (
-  <div className="chat-loading">
-    <div className="chat-loading-dot" />
-    <div className="chat-loading-dot" />
-    <div className="chat-loading-dot" />
-  </div>
-);

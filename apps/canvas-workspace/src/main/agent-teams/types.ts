@@ -146,7 +146,3 @@ export interface CanvasAgentTeamSummary {
   taskCounts: Record<string, number>;
   agentCount: number;
 }
-
-export type CanvasAgentTeamResult<T> =
-  | ({ ok: true } & T)
-  | { ok: false; error: string };

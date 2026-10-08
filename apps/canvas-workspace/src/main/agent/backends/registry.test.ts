@@ -7,7 +7,6 @@ import {
   externalCliTurnBackend,
   piAgentHarnessTurnBackend,
   resolveAgentRuntime,
-  resolveTurnBackend,
 } from './index';
 
 const personaRole: AgentRoleDefinition = {
@@ -33,17 +32,17 @@ describe('resolveAgentRuntime', () => {
   });
 
   it('routes persona roles to the engine backend', () => {
-    expect(resolveTurnBackend(personaRole)).toBe(engineTurnBackend);
+    expect(resolveAgentRuntime(personaRole)).toBe(engineTurnBackend);
   });
 
   it('routes externally-driven roles to the external CLI backend', () => {
-    expect(resolveTurnBackend(externalRole)).toBe(externalCliTurnBackend);
+    expect(resolveAgentRuntime(externalRole)).toBe(externalCliTurnBackend);
   });
 
   it('routes the default assistant to AgentHarness when explicitly enabled', () => {
     expect(resolveAgentRuntime(null, { piEnabled: true })).toBe(piAgentHarnessTurnBackend);
     expect(resolveAgentRuntime(personaRole, { piEnabled: true })).toBe(engineTurnBackend);
-    expect(resolveTurnBackend(null, { piEnabled: true })).toBe(piAgentHarnessTurnBackend);
+    expect(resolveAgentRuntime(null, { piEnabled: true })).toBe(piAgentHarnessTurnBackend);
   });
 
   it('loads the Pi implementation on the first Pi segment', async () => {

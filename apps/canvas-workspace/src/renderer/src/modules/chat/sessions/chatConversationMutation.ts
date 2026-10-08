@@ -38,32 +38,3 @@ export function invalidateChatConversationMutation(ref: ChatConversationMutation
     busy: false,
   };
 }
-
-export const isCurrentChatConversationMutation = (
-  ref: ChatConversationMutationRef,
-  generation: number,
-): boolean => ref.current.generation === generation;
-
-/** Captures every pointer that makes an async chat callback safe to publish. */
-export function createChatConversationGuard(
-  scopeEpochRef: MutableRefObject<number>,
-  conversationEpochRef?: MutableRefObject<number>,
-  mutationRef?: ChatConversationMutationRef,
-  isTurnCurrent?: () => boolean,
-) {
-  const scopeEpoch = scopeEpochRef.current;
-  const conversationEpoch = conversationEpochRef?.current;
-  const mutationGeneration = mutationRef?.current.generation;
-  const isCurrent = () => (
-    scopeEpochRef.current === scopeEpoch
-    && conversationEpochRef?.current === conversationEpoch
-    && mutationRef?.current.generation === mutationGeneration
-    && (isTurnCurrent?.() ?? true)
-  );
-  const guard = <Args extends unknown[]>(handler: (...args: Args) => void) => (
-    ...args: Args
-  ) => {
-    if (isCurrent()) handler(...args);
-  };
-  return { isCurrent, guard };
-}

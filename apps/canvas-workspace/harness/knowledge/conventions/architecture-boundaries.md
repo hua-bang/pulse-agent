@@ -39,6 +39,16 @@ declaration with the same name drifts silently. `shared-contract-governance.test
 fails on a new redefinition. Its list of intentional redefinitions (plugin SDK
 views, on-disk schemas, stricter store rows) may only shrink.
 
+## Dead code
+
+`pnpm --filter canvas-workspace deadcode` runs knip (`knip.json`). It fails on
+unused files, unused exports and types, and duplicate exports. Tests count as
+entry points, so an export that only a test uses is not dead. Delete dead code
+instead of keeping it for later. When an export must stay without a static
+caller (a lazy namespace import, a surface hidden on purpose), tag it
+`/** @keep <reason> */`. `knip.json` `ignore` lists whole files kept on purpose,
+such as the disabled MCP server.
+
 ## File-size governance
 
 `file-size-governance.test.ts` measures every production `.ts`/`.tsx` file

@@ -81,8 +81,6 @@ export const useRightDockState = (): DockState => {
   const { stateStore } = useDockPort();
   return useSyncExternalStore(stateStore.subscribe, stateStore.getSnapshot);
 };
-export const useRightDockChatHost = (): HTMLDivElement | null => useDockPort().chatHost;
-export const useRightDockTerminalHost = (): HTMLDivElement | null => useDockPort().terminalHost;
 export const useRightDockMcpAppHost = (instanceId: string): HTMLDivElement | null => (
   useDockPort().mcpAppHosts[instanceId] ?? null
 );

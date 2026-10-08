@@ -98,6 +98,7 @@ const ContextReferences = ({
 //
 // Not currently rendered: ChatMessage.tsx no longer calls this — the row saw
 // little user attention, so it's hidden for now without removing the logic.
+/** @keep Hidden on purpose; see the note above. */
 export const ChatTurnContext = ({
   snapshot,
 }: {

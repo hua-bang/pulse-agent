@@ -96,8 +96,3 @@ export interface AgentRuntime {
   /** Queue a new turn after the current active run settles. */
   followUp?(sessionId: string, text: string): Promise<boolean>;
 }
-
-/** @deprecated Use AgentRuntime; retained while callers migrate names. */
-export type TurnBackend = AgentRuntime;
-/** @deprecated Use AgentRuntimeCapabilities. */
-export type TurnBackendCapabilities = AgentRuntimeCapabilities;

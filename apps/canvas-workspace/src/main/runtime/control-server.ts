@@ -662,4 +662,3 @@ function errorStatus(code: string): number {
 // Exported for tests.
 export const __test = { RUNTIME_FILE, RUNTIME_DIR };
 export const RUNTIME_FILE_PATH = RUNTIME_FILE;
-export const RUNTIME_DIR_PATH = RUNTIME_DIR;

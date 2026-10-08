@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 import type {
   ChatCardSpec,
-  ChatMessageRef,
   NavItem,
   PluginBridge,
   PluginNodeViewProps,
@@ -178,20 +177,6 @@ export function getRegisteredNavItems(): ReadonlyArray<NavItem> {
   return navItems.map((entry) => entry.item);
 }
 
-export function getRegisteredNodeViews(): ReadonlyArray<NodeViewEntry> {
-  return nodeViews;
-}
-
 export function getRegisteredNodeView(nodeType: string): NodeViewEntry | undefined {
   return nodeViews.find((entry) => entry.nodeType === nodeType);
-}
-
-export function findMatchingChatCard<T extends ChatMessageRef>(
-  message: T,
-): { entry: ChatCardEntry; payload: unknown } | null {
-  for (const entry of chatCards) {
-    const payload = entry.spec.match(message);
-    if (payload != null) return { entry, payload };
-  }
-  return null;
 }

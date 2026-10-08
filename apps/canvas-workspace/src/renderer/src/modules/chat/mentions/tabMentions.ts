@@ -1,9 +1,8 @@
-import { createElement, type ReactNode } from 'react';
 import type { AgentContextTabRef, AgentRequestContext } from '../../../types';
 import { TAB_MENTION_PREFIX } from '../components/ChatMentionPopup/constants';
 import type { MentionItem } from '../../../types';
 import { decodeMentionPart, encodeMentionPart } from './mentionMarkers';
-import { MentionNodeIcon, mentionIconSvg } from './mentionIcons';
+import { mentionIconSvg } from './mentionIcons';
 
 type TabKind = AgentContextTabRef['kind'];
 
@@ -262,45 +261,6 @@ export function withCollectedTabs(
   const tabs = collectTabRefsFromEditable(editable);
   if (!tabs.length) return ctx;
   return { ...(ctx ?? {}), tabs: [...(ctx?.tabs ?? []), ...tabs] };
-}
-
-/** Render a tab marker as a React chip in the message transcript. Clickable
- *  (data-action="tab-jump") so it activates the referenced dock tab. */
-export function renderTabMentionNode(rawLabel: string, key: number): ReactNode {
-  const tabRef = parseTabMention(rawLabel);
-  const nodeType = tabMentionIconType(tabRef?.kind);
-  const clickable = Boolean(tabRef?.id);
-  return createElement(
-    'span',
-    {
-      key,
-      className: `chat-mention-chip chat-mention-chip--tab${clickable ? ' chat-mention-chip--clickable' : ''}`,
-      'data-node-type': nodeType,
-      ...(clickable
-        ? {
-            role: 'button',
-            tabIndex: 0,
-            'data-action': 'tab-jump',
-            'data-tab-id': tabRef!.id,
-            'data-tab-kind': tabRef!.kind,
-            ...(tabRef!.dockWorkspaceId
-              ? { 'data-dock-workspace-id': tabRef!.dockWorkspaceId }
-              : {}),
-            ...(tabRef!.url ? { 'data-tab-url': tabRef!.url } : {}),
-            ...(tabRef!.workspaceId ? { 'data-tab-workspace-id': tabRef!.workspaceId } : {}),
-            ...(tabRef!.nodeId ? { 'data-tab-node-id': tabRef!.nodeId } : {}),
-            ...(tabRef!.artifactId ? { 'data-tab-artifact-id': tabRef!.artifactId } : {}),
-            ...(tabRef!.sessionId ? { 'data-tab-session-id': tabRef!.sessionId } : {}),
-          }
-        : {}),
-    } as Record<string, unknown>,
-    createElement(
-      'span',
-      { className: 'chat-mention-chip-icon' },
-      createElement(MentionNodeIcon, { nodeType }),
-    ),
-    createElement('span', { className: 'chat-mention-chip-label' }, tabRef?.label ?? 'Tab'),
-  );
 }
 
 /** Render a tab marker as an HTML chip in markdown-rendered content. Clickable
