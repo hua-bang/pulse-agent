@@ -659,10 +659,10 @@ Agent Debug page; it adds no prompt or response content beyond the snapshots
 that feature already owns. Timing starts in `CanvasAgentService.chatWithScope`,
 so renderer prepare/subscribe IPC and the prepared turn's model-resolution call
 are outside the reported end-to-end duration. Key contracts:
-`src/main/agent/debug-trace.ts`, `src/main/agent/service.ts`,
+`src/main/agent/observability/debug-trace.ts`, `src/main/agent/service.ts`,
 `src/main/agent/canvas-agent.ts`, and
 `src/main/agent/run/engine-stream-callbacks.ts`. Guard:
-`src/main/agent/debug-trace.test.ts`.
+`src/main/agent/observability/debug-trace.test.ts`.
 
 Each trace records the runtime selected at the segment boundary. DevTools labels
 the host-owned phases as `Canvas host` and the runtime-owned stream phases as
@@ -886,7 +886,7 @@ Conversation pointer changes are fail-closed.
   metadata cleanup is best-effort.
 
 Guard: `src/main/agent/__tests__/session-store.test.ts` (source:
-`src/main/agent/sessions/session-store.ts`).
+`src/main/agent/sessions/store/session-store.ts`).
 
 ### Chat image upload bounds, attachment retention, failed-turn persistence
 

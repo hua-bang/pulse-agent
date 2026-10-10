@@ -121,13 +121,13 @@ These make on-disk files an execution or injection surface:
   text is untrusted input that can steer tool calls (prompt-injection →
   `bash`) — same class of risk as engine's "file content is untrusted"
   warning, extended to arbitrary web pages.
-- **Link/popup policy is centralized** (`src/main/app/link-policy.ts`): every
+- **Link/popup policy is centralized** (`src/main/app/browsing/link-policy.ts`): every
   webContents the app ever creates gets a `setWindowOpenHandler` installed
   before its page can run JS; unsafe URLs are denied, OAuth-style popups get
   a real window, everything else is routed to the renderer's preview drawer
   instead of auto-opening.
 - **Google sign-in compat is host-scoped UA identity swapping + popup
-  rerouting** (`src/main/app/google-auth.ts`, `google-auth-popup.ts`):
+  rerouting** (`src/main/app/browsing/google-auth.ts`, `google-auth-popup.ts`):
   UA-*string* spoofing alone is detectable — Chromium emits UA Client Hints
   from the real bundled version and accounts.google.com rejects the
   mismatch. On the exact-match Google auth hosts only, a per-webContents

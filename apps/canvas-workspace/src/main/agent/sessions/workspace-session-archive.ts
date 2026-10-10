@@ -12,7 +12,7 @@ import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacy
 import { sessionUpdatedAt } from './session-file-summary';
 import type { CanvasAgentSession } from '../types';
 import { sessionStorageRoot } from './sqlite/backend';
-import { withWorkspaceTrashGuard } from '../workspace-runtime-guard';
+import { withWorkspaceTrashGuard } from '../workspace/workspace-runtime-guard';
 
 const normalized = (path: string) => path.replace(/\\/g, '/');
 const isSessionBody = (path: string) => isWorkspaceSessionFile(path) && !normalized(path).endsWith('/metadata.json');

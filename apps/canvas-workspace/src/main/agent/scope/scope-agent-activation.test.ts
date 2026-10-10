@@ -15,7 +15,7 @@ vi.mock('../canvas-agent', () => ({
 
 import type { CanvasAgent } from '../canvas-agent';
 import { traceCanvasScopeActivation, traceScopeActivationStep } from '../observability/host-run';
-import type { CanvasAgentPerformanceTiming } from '../debug-trace';
+import type { CanvasAgentPerformanceTiming } from '../observability/debug-trace';
 import { ScopeActivationGate } from './scope-activation-gate';
 import { activateAgentScope } from './scope-agent-activation';
 

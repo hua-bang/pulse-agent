@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StorageError } from '@pulse-coder/storage';
-import { SessionStore } from '../session-store';
+import { SessionStore } from '../store/session-store';
 import { activateSqliteSessions } from './migration';
 import { closeSqliteSessionStorage, getSqliteSessionStorage } from './backend';
 import { readCanvasAgentHistorySnapshot } from '../history-snapshot';

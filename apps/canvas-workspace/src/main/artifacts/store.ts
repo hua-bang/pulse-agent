@@ -26,7 +26,7 @@ const FILE_VERSION = 1;
 
 /**
  * The global-chat artifact scope (same sentinel as
- * agent/sessions/session-store.ts GLOBAL_CHAT_SESSION_STORE_ID). It is the one
+ * agent/sessions/store/session-store.ts GLOBAL_CHAT_SESSION_STORE_ID). It is the one
  * `__`-prefixed directory that holds real artifacts — memory reports and
  * global-chat products — so cross-workspace scans must include it.
  */

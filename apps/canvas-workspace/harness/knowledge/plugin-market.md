@@ -34,7 +34,7 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | Curated public discovery entries and installability flags | `src/main/plugin-market/catalog.ts` |
 | Install, link, uninstall, trust mutation and runtime reload orchestration | `src/main/plugin-market/service.ts` |
 | Install/trust state and managed storage paths | `src/main/plugin-market/store.ts` |
-| Standard v1 MCP to Pulse MCP config conversion | `src/main/plugin-market/mcp-adapter.ts` |
+| Standard v1 MCP to Pulse MCP config conversion | `src/main/plugin-market/mcp/mcp-adapter.ts` |
 | Normalized package to legacy Canvas registries/config adapter | `src/main/plugin-market/canvas-package-adapter.ts` |
 | Canvas plugin directory/config SSOT and skill sources | `src/main/plugin-market/config.ts` |
 | IPC registration and preload bridge | `src/main/plugin-market/ipc.ts`, `src/preload/bridge/plugin-market.ts`, `src/preload/index.ts` |

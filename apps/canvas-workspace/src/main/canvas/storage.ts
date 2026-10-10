@@ -81,7 +81,7 @@ import {
   readSentinel,
   recoverInterruptedMigration,
   writeSentinel,
-} from './persistence/migration-recovery';
+} from './persistence/recovery/migration-recovery';
 
 export {
   CANVAS_JSON_FILENAME,

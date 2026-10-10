@@ -19,13 +19,6 @@ const FLAT_FILE_LIMIT = 24;
 const MAIN_FLAT_FILE_LIMIT = 12;
 const MAIN_PROCESS_ROOTS = ['src/main/', 'src/plugins/main/'];
 const CURRENT_FLAT_DIRECTORY_BASELINE: Record<string, number> = {
-  'src/main/agent': 21,
-  'src/main/agent-teams': 21,
-  'src/main/agent/sessions': 17,
-  'src/main/agent/tools/_shared': 15,
-  'src/main/app': 17,
-  'src/main/canvas/persistence': 14,
-  'src/main/plugin-market': 14,
   'src/shared': 38,
 };
 
@@ -40,7 +33,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // expanded then partially reduced Feishu answer-card/run rendering without
   // updating this manually maintained baseline. Must-not-grow resumes at 816.
   'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 816,
-  'src/main/agent-teams/canvas-nodes.ts': 739,
+  'src/main/agent-teams/canvas/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/models/config.ts': 550,
   'src/plugins/main/dynamic-app/tools.ts': 593,
@@ -48,7 +41,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // 605→636 (2026-07-17, drift recorded): grew via master work (#806
   // session-restore fix) that never ran this suite (no automatic trigger).
   // Raised to measured; must-not-grow applies from 636.
-  'src/main/agent/sessions/session-store.ts': 636,
+  'src/main/agent/sessions/store/session-store.ts': 636,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
   'src/main/agent/skills/config.ts': 508,

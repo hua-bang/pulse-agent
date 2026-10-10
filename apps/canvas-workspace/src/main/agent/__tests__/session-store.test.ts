@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { SessionStore } from '../sessions/session-store';
+import { SessionStore } from '../sessions/store/session-store';
 import { scheduledSessionStoreId } from '../../../shared/agent-chat';
 import type { CanvasAgentMessage } from '../types';
 import { peekLastSession } from '../sessions/history-snapshot';

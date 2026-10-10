@@ -22,7 +22,7 @@ vi.mock('../agent/sessions/sqlite/backend', () => ({
 vi.mock('../agent/sessions/workspace-session-archive', () => ({ createCanvasSessionArchivePort: mocks.createArchive }));
 vi.mock('../canvas/persistence/session-archive-port', () => ({ setCanvasSessionArchivePort: mocks.registerArchive }));
 vi.mock('@pulse-coder/storage/local-files', () => ({ recoverLocalFileWrites: mocks.recover }));
-vi.mock('../canvas/persistence/import-recovery', () => ({ recoverImportsAtStartup: mocks.recoverImports }));
+vi.mock('../canvas/persistence/recovery/import-recovery', () => ({ recoverImportsAtStartup: mocks.recoverImports }));
 
 import { startStorage, stopStorageAfterWriters } from './storage-lifecycle';
 

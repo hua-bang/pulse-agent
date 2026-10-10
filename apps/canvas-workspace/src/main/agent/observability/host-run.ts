@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { publishAgentTraceEvent } from '../../../plugins/main';
 import type { AgentTraceScopeActivationStep } from '../../../shared/agent-observability';
-import type { CanvasAgentPerformanceTiming } from '../debug-trace';
+import type { CanvasAgentPerformanceTiming } from './debug-trace';
 
 export const beginCanvasHostRun = (
   scope: 'global' | 'workspace' | 'scheduled',

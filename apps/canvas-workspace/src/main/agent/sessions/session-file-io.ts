@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../types';
-import { archiveSortKey } from './session-store-scan';
+import { archiveSortKey } from './store/session-store-scan';
 import { withLegacySessionWrite } from './sqlite/backend';
 
 /**

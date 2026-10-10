@@ -92,7 +92,7 @@ Each phase must be independently mergeable. S2 does not wait for S3.
 | Gap closed | Owner | Guard |
 |---|---|---|
 | A crash before the first schema transaction committed stopped every later startup | `packages/storage` (`local.ts`, `sqlite/index.ts`) | `local-authority.test.ts`; foreign databases still fail closed |
-| A hard interrupt between the import's database commit and manifest publication needed manual recovery | `apps/canvas-workspace` (`persistence/import-recovery.ts`) | `import-recovery.test.ts`, `storage-lifecycle.test.ts` |
+| A hard interrupt between the import's database commit and manifest publication needed manual recovery | `apps/canvas-workspace` (`persistence/recovery/import-recovery.ts`) | `import-recovery.test.ts`, `storage-lifecycle.test.ts` |
 | Concurrent chat-role saves could drop CLI session ids in `external-agent-state.json` | `apps/canvas-workspace` (`agent/external/state-store.ts`) | `state-store.test.ts`; the file stays JSON until S4 |
 | The CLI opened the database several times per command | `packages/canvas-cli` (`core/sqlite-store.ts`) | `storage-session.test.ts` |
 | Trash, restore, and every commit recompiled SQL statements | `packages/storage` (`sqlite/workspaces.ts`, `sqlite/index.ts`) | Existing trash/restore and commit suites |

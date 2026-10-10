@@ -9,7 +9,7 @@ const electron = vi.hoisted(() => ({ showMessageBox: vi.fn() }));
 vi.mock('electron', () => ({ dialog: { showMessageBox: electron.showMessageBox } }));
 
 import { activateCanvasSqlite, activateCanvasSqliteAtStartup } from './activate-sqlite';
-import { arbitrateLegacyNode } from './legacy-node-arbitration';
+import { arbitrateLegacyNode } from './legacy/legacy-node-arbitration';
 import { closeCanvasStorage, getLocalCanvasStorage } from './backend';
 import { migrateToV2, readCanvasFull } from '../storage';
 import { createCanvasCompatibilityStore } from '@pulse-coder/storage/canvas';

@@ -11,8 +11,8 @@ import {
   planCanvasGrid,
   planFrameGrid,
   planPlaceNear,
-} from '../_shared/layout';
-import { planRegionGrid } from '../_shared/layout-region';
+} from '../_shared/layout/layout';
+import { planRegionGrid } from '../_shared/layout/layout-region';
 
 const layoutDirectionSchema = z.enum(['right', 'below', 'left', 'above']);
 

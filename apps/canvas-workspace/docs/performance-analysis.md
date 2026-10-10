@@ -127,7 +127,7 @@
 - **置信度**:0.9
 
 #### M4 · 团队 Agent 输出在主线程逐 chunk 经序列化异步队列 + 每会话锁 + 全量 ANSI strip 解析
-- **文件**:`src/main/agent-teams/pty-bridge.ts:52-61` → `src/main/agent-teams/service.ts:1566-1601`
+- **文件**:`src/main/agent-teams/canvas/pty-bridge.ts:52-61` → `src/main/agent-teams/service.ts:1566-1601`
 - **类别**:CPU(原标 blocking-io,实为内存内 store,无逐 chunk 磁盘 I/O)
 - **证据**:`pty-bridge` onData 为每个 chunk enqueue `reportAgentOutput`。`reportAgentOutputLocked` 在 `withTeamLock` + `resolveAgentNodeCached` 下做:`stripAnsi(previous+delta).slice(-MAX_AGENT_OUTPUT_BUFFER)`、`combined.split(/\r\n|\n|\r/)`、逐行 `parseAgentOutputMarker`——主进程逐 chunk。
 - **用户影响**:重团队输出时,主进程在每会话异步锁后重复 re-ANSI-strip 滚动 buffer + 重切分/扫描每行(每 chunk),与 PTY IPC 争抢事件循环。**缓解**:rolling buffer 硬上限 `MAX_AGENT_OUTPUT_BUFFER=16_000` 字符,`nodeQueues`/`withTeamLock` 异步运行(非同步阻塞)。

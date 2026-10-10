@@ -5,7 +5,7 @@ import type { AgentRequestContext, AgentScope } from '../types';
 import type { CanvasAgentService } from '../service';
 import type { ResolvedCanvasModel } from '../../models/config';
 import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
-import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from '../sessions/session-store';
+import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from '../sessions/store/session-store';
 import { ActiveChatRegistry, type ChatRunStreamChannel } from './active-chat-registry';
 
 export interface PreparedChatPayload {

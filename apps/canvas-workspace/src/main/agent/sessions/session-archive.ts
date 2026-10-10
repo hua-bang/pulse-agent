@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
 import type { CanvasAgentSession } from '../types';
-import { archiveSortKey } from './session-store-scan';
-import { readValidSessionFileIndex, tombstoneIndexedSessionFile, updateIndexedSessionFile } from './session-index';
+import { archiveSortKey } from './store/session-store-scan';
+import { readValidSessionFileIndex, tombstoneIndexedSessionFile, updateIndexedSessionFile } from './store/session-index';
 import { withLegacySessionWrite } from './sqlite/backend';
 
 export interface ResolvedArchivedSession {

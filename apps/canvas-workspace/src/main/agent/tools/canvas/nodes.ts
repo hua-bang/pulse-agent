@@ -12,7 +12,7 @@ import {
   placementIntentSchema,
   resolvePlacement,
   type PlacementIntent,
-} from '../_shared/placement';
+} from '../_shared/layout/placement';
 import { createPassiveNodeData } from '../_shared/passive-node-data';
 import { normalizeIframeUrl, shouldCreateIframeForHtml } from '../_shared/iframe';
 import {

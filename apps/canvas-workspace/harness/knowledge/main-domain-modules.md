@@ -107,7 +107,7 @@ schemas and structurally invalid primary layouts still fail closed. Guards:
 `persistence/readonly-upgrade.test.ts`.
 
 A v1 `canvas.json` (no `schemaVersion: 2`) beside `nodes/<id>.json` files whose
-content differs does not stop the cutover. `persistence/legacy-node-arbitration.ts`
+content differs does not stop the cutover. `persistence/legacy/legacy-node-arbitration.ts`
 applies the v1→v2 migration's rule: the node file wins when the inline copy has
 no content or its `updatedAt` is strictly newer; otherwise `canvas.json` wins.
 Both files stay untouched, both copies of each differing field are recorded in
@@ -151,7 +151,7 @@ old drafts cannot overwrite restored state. Global and other workspace scopes
 are unchanged. `removeBundle` is reserved for unpublished import compensation.
 
 A workspace import keeps `.workspace-import.json` in its directory until the
-manifest entry is published. At startup, before IPC, `persistence/import-recovery.ts`
+manifest entry is published. At startup, before IPC, `persistence/recovery/import-recovery.ts`
 finishes any import a hard interrupt left behind: a SQL-committed workspace gets
 its manifest entry (the current selection is unchanged), a trashed or already
 published one only loses the journal, and one that never reached SQL is moved to
@@ -302,17 +302,17 @@ done. Still open:
   application, task transitions, human gates, PTY/session recovery, and the
   heartbeat loop behind one wide class. Plan normalization/dependency-DAG
   validation live in `agent-teams/planning.ts`, and PTY output protocol parsing
-  lives in `agent-teams/output-markers.ts`. Phase/session startup projection is
-  owned by `agent-teams/projection.ts`, while command execution and bounded
+  lives in `agent-teams/canvas/output-markers.ts`. Phase/session startup projection is
+  owned by `agent-teams/state/projection.ts`, while command execution and bounded
   output capture live in `agent-teams/verification.ts`. Session-exit matching
-  and queued-launch grace decisions live in `agent-teams/recovery-policy.ts`;
+  and queued-launch grace decisions live in `agent-teams/state/recovery-policy.ts`;
   Team Lead briefing/execution protocol text lives in `agent-teams/prompts.ts`.
   Agent/task/gate name and fallback rules live in `agent-teams/resolution.ts`.
-  Working-directory inference lives in `agent-teams/working-directory.ts`.
-  PTY-hot-path node→agent lookup/cache lives in `agent-teams/agent-node-resolver.ts`.
-  Debounced runtime-event→canvas broadcasts live in `agent-teams/team-event-broadcaster.ts`.
-  Heartbeat workspace discovery and its disk-scan cache live in `agent-teams/workspace-discovery.ts`.
-  Legacy persisted-state repair ordering and transitions live in `agent-teams/state-repairs.ts`.
+  Working-directory inference lives in `agent-teams/canvas/working-directory.ts`.
+  PTY-hot-path node→agent lookup/cache lives in `agent-teams/canvas/agent-node-resolver.ts`.
+  Debounced runtime-event→canvas broadcasts live in `agent-teams/state/team-event-broadcaster.ts`.
+  Heartbeat workspace discovery and its disk-scan cache live in `agent-teams/canvas/workspace-discovery.ts`.
+  Legacy persisted-state repair ordering and transitions live in `agent-teams/state/state-repairs.ts`.
   Preserve the IPC-facing use cases while moving the remaining state machines
   into owner-local modules.
 - **Agent flat-file grouping** — `mcp-apps/` and `sessions/` are grouped.

@@ -120,7 +120,7 @@ Canvas Workspace 的性能问题可归纳为 **5 个系统性根因**,贯穿两�
 | E1 `[R1-H3]` | high | `getCwd` 自动保存每 2s 对每节点同步 `execSync(lsof/readlink)`,阻塞主进程事件循环 | `main/terminal/pty-manager.ts:206` |
 | E2 `[R1-H4]` | high | 每个 xterm 容器 ResizeObserver 在每缩放动画帧重 fit + 重同步字号 | `TerminalNodeBody/index.tsx:281` |
 | E3 `[R1-M-IPC]` | medium | PTY `onData` 逐 chunk 扇出到渲染端 IPC + 每个 observer,零批处理 | `main/terminal/pty-manager.ts:281` |
-| E4 `[R1-M4]` | medium | 团队 Agent 输出逐 chunk 经序列化队列 + 每会话锁 + 全量 ANSI strip 解析 | `main/agent-teams/pty-bridge.ts:52` |
+| E4 `[R1-M4]` | medium | 团队 Agent 输出逐 chunk 经序列化队列 + 每会话锁 + 全量 ANSI strip 解析 | `main/agent-teams/canvas/pty-bridge.ts:52` |
 | E5 `[R1-M-Exec]` | medium | `execInSession` 累积无界 buffer,对增长串每 chunk `includes/indexOf`(O(n²)) | `main/terminal/pty-manager.ts:406` |
 | E6 `[R1-M-Mirror]` | medium | Mirror 终端 detached/离屏仍保活 `pty:data` 订阅并 `term.write`(unmount 未退订) | `useAgentNodeController.ts:415` |
 | E7 `[R2-§3.9]` | low | `execInSession` 每调注册新 onData 监听器,无界缓冲直到 marker/30s,并发调用串扰 | `main/terminal/pty-manager.ts:406`(同 E5 角度) |

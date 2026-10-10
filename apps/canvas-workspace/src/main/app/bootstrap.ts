@@ -20,14 +20,14 @@ import {
   setupCanvasAgentIpc,
   teardownCanvasAgent,
 } from "../agent/ipc";
-import { setupCodexSessionsIpc } from "../agent/codex-sessions";
+import { setupCodexSessionsIpc } from "../agent/external/codex-sessions";
 import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { upsertCanvasSkill } from "../agent/skills/config";
 import { saveMemory } from "../agent/memory/memory-store";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { ensureDefaultSkillsSeeded } from "../agent/skills/default-skills";
-import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
+import { setupCanvasPromptIpc } from "../agent/prompt-profile/prompt-profile-ipc";
 import { setupAgentRolesIpc } from "../agent/roles/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
@@ -63,7 +63,7 @@ import {
 import {
   registerPulseCanvasProtocol,
   registerPulseCanvasSchemesAsPrivileged,
-} from "./protocol";
+} from "./protocol/protocol";
 import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
 import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
@@ -84,10 +84,10 @@ import {
 } from "../agent/mcp/oauth";
 
 let teardownConversationRuntime: () => void = () => undefined;
-import { setupLinkPolicy } from "./link-policy";
+import { setupLinkPolicy } from "./browsing/link-policy";
 import { setupWebviewShortcuts } from "../webview/webview-shortcuts";
 import { setupWebviewContextMenu } from "../webview/webview-context-menu";
-import { setupGoogleAuthCompat } from "./google-auth";
+import { setupGoogleAuthCompat } from "./browsing/google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
 import { resolveProfileCachePolicy, runProfileCacheMaintenance } from './profile-cache-maintenance';

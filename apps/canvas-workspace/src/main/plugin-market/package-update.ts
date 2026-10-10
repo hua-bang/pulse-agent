@@ -2,8 +2,8 @@ import { promises as fs } from 'fs';
 import { basename } from 'path';
 import type { NormalizedPluginPackage } from '../../shared/plugin-market';
 import { getCanvasPluginExplicitNativePolicySync, getCanvasPluginsStatus, updateCanvasPluginsConfig } from './config';
-import { writePluginMcpAdapter } from './mcp-adapter';
-import { RetainedGitPackageError } from './git-install';
+import { writePluginMcpAdapter } from './mcp/mcp-adapter';
+import { RetainedGitPackageError } from './git/git-install';
 import { readPluginMarketState, writePluginMarketState, type InstalledPluginRecord } from './store';
 
 /** Commit a validated snapshot without deleting the old package or its data. */

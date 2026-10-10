@@ -27,7 +27,7 @@ not release its real URL until registration of that exact WebContents succeeds.
 This ordering is load-bearing: an instant page redirect must never reach link
 policy before main knows the guest's surface and full identity.
 
-`main/app/link-policy.ts` uses `surfaceKind` as the policy boundary. A safe
+`main/app/browsing/link-policy.ts` uses `surfaceKind` as the policy boundary. A safe
 HTTP(S) cross-origin navigation in a `dock-browser` remains in the current tab,
 like a normal browser. A `canvas-node` remains a preview: its cross-origin
 navigation becomes a dock link. OAuth redirects and external editor protocols
@@ -456,7 +456,7 @@ when validating the complete live model path.
 
 Primary regression suites live in:
 
-- `src/main/app/__tests__/link-policy.test.ts`
+- `src/main/app/browsing/__tests__/link-policy.test.ts`
 - `src/main/webview/__tests__/webview-shortcuts.test.ts`
 - `src/main/webview/__tests__/registry.test.ts`
 - `src/renderer/src/modules/canvas/components/node-bodies/IframeNodeBody/useWebviewRegistration.test.tsx`

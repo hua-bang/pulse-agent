@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ scan: vi.fn(), names: vi.fn() }));
-vi.mock('./session-store-scan', () => ({ scanAllWorkspaceSessions: mocks.scan }));
-vi.mock('./session-store-lookups', () => ({
+vi.mock('./store/session-store-scan', () => ({ scanAllWorkspaceSessions: mocks.scan }));
+vi.mock('./store/session-store-lookups', () => ({
   GLOBAL_CHAT_SESSION_STORE_ID: '__global_chat__',
   GLOBAL_CHAT_WORKSPACE_NAME: 'No workspace',
   workspaceNames: mocks.names,
