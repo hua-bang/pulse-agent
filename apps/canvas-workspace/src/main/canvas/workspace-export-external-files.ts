@@ -39,6 +39,7 @@ export const collectExternalFilePaths = (canvas: unknown, workspaceDir: string):
   return [...paths].sort((a, b) => a.localeCompare(b));
 };
 
+/** @keep Called through the lazy import in workspace-archive-actions.ts. */
 export const chooseExternalFilesExportMode = async (
   count: number,
   win: BrowserWindow | null,
@@ -65,6 +66,7 @@ export const chooseExternalFilesExportMode = async (
   return 'cancel';
 };
 
+/** @keep Called through the lazy import in workspace-archive-actions.ts. */
 export const confirmSkippedExternalFilesExport = async (
   count: number,
   win: BrowserWindow | null,

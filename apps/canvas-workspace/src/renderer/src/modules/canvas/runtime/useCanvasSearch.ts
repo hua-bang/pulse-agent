@@ -13,7 +13,6 @@ let noteSearchLoad: Promise<NoteSearchModule> | null = null;
 const loadNoteSearch = (): Promise<NoteSearchModule> =>
   noteSearchLoad ??= import('../../note-editor').then((m) => (noteSearchModule = m));
 
-
 /**
  * A single hit found by the Ctrl+F search.
  *
@@ -25,10 +24,6 @@ export interface SearchMatch {
   field: 'title' | 'filePath' | 'content';
   /** Display snippet for the result row. */
   snippet: string;
-}
-
-export interface SearchOptions {
-  caseSensitive?: boolean;
 }
 
 interface Args {

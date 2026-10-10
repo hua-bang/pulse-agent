@@ -2,10 +2,10 @@
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TerminalDockTab } from '../TerminalDockTab';
-import { getDockTabVisualState } from '../dock-tab-visual-state';
+import { TerminalDockTab } from '../content/TerminalDockTab';
+import { getDockTabVisualState } from '../tabs/dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from '../../../../../shared/dock/dock-tab-ids';
-import { TERMINAL_TAB_ID, type DockTerminalTab } from '../dock-store';
+import { TERMINAL_TAB_ID, type DockTerminalTab } from '../state/dock-store';
 import { I18nProvider } from '../../../../../i18n';
 
 let root: Root | null = null;

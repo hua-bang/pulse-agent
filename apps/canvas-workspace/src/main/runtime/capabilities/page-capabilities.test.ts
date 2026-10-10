@@ -16,7 +16,7 @@ vi.mock('../../webview/reader', () => ({
 
 import { CapabilityRuntime } from './runtime';
 import { createPageCapabilities } from './page-capabilities';
-import { setRuntimeWindowPort } from '../window-port';
+import { setCanvasWindowPort } from '../../agent/window-port';
 
 describe('Page capabilities', () => {
   it('uses the runtime window port when the default live reader activates a missing node', async () => {
@@ -29,8 +29,9 @@ describe('Page capabilities', () => {
       await options.activate();
       return null;
     });
-    setRuntimeWindowPort({
-      getCanvasWindow: () => null,
+    setCanvasWindowPort({
+      getFocusedCanvasWindow: () => null,
+      getLiveCanvasWindow: () => null,
       activateWorkspaceWindow: defaults.activateWorkspaceWindow,
     });
     const runtime = new CapabilityRuntime(createPageCapabilities());

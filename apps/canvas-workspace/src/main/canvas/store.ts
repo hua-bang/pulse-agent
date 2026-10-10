@@ -57,7 +57,7 @@ type MigrationEventExtras = {
  * Thin wrapper over `atomicWriteJson` from `canvas-storage.ts`. The shared
  * implementation is the single source of truth for atomic file publishing
  * (tmp + rename + optional rolling backup) — `canvas-store.ts`,
- * `mcp-server.ts`, `canvas-agent/tools.ts`, and `canvas-cli` will all
+ * `canvas-agent/tools.ts` and `canvas-cli` will all
  * converge on it across PR2/PR3, replacing five near-duplicate copies.
  *
  * Recovery: `canvas:load` falls back to `<path>.bak` when the primary
@@ -334,7 +334,7 @@ const broadcastMigrationProgress = (
  * This is the single trigger point for lazy auto-migration. Called from
  * both `canvas:load` and `canvas:save` IPC handlers so the migration
  * happens silently whenever the user first interacts with a workspace.
- * Other consumers (mcp-server, canvas-agent, artifact-ipc, canvas-cli)
+ * Other consumers (canvas-agent, artifact-ipc, canvas-cli)
  * do NOT trigger migration — they observe whatever schema exists on
  * disk and adapt via the shared helper.
  *

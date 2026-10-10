@@ -20,7 +20,7 @@ import { listWorkspaceNodes, type WorkspaceNodeRecord } from '../../canvas/nodes
 import { readKnowledgeTags, type KnowledgeTagDefinition } from '../../canvas/nodes/tags';
 import { loadCanvas } from './_shared/canvas-io';
 import type { CanvasNode, CanvasTool } from './types';
-import { readNodeDetail } from '../context-builder';
+import { readNodeDetail } from '../context/context-builder';
 import {
   analyzeImagesWithGemini,
   analyzeImagesWithOpenAI,

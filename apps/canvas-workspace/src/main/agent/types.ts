@@ -14,7 +14,8 @@ export type {
   AgentRequestContext,
   AgentTurnContextSnapshot,
 } from '../../shared/agent-chat';
-import type { AgentScope as SharedAgentScope } from '../../shared/agent-chat';
+import type { AgentScope } from '../../shared/agent-chat';
+export type { AgentScope, SessionSearchHit } from '../../shared/agent-chat';
 
 // ─── Configuration ──────────────────────────────────────────────────
 
@@ -26,8 +27,6 @@ export interface CanvasAgentConfig {
   /** Optional model override (e.g. 'gpt-4o', 'claude-sonnet-4-20250514'). */
   model?: string;
 }
-
-export type AgentScope = SharedAgentScope;
 
 export interface AgentScopeRef {
   scope?: AgentScope;
@@ -299,27 +298,6 @@ export interface WorkspaceSummary {
   edges?: EdgeSummary[];
 }
 
-// ─── Events (main → renderer) ──────────────────────────────────────
-
-export type CanvasAgentEventType =
-  | 'chunk'          // streaming text delta
-  | 'tool-call'      // agent is calling a tool
-  | 'tool-result'    // tool call completed
-  | 'done'           // turn complete
-  | 'error';         // error occurred
-
-export interface CanvasAgentEvent {
-  type: CanvasAgentEventType;
-  data: Record<string, unknown>;
-}
-
-// ─── IPC payloads ──────────────────────────────────────────────────
-
-export interface ChatRequest {
-  scope: AgentScope;
-  message: string;
-}
-
 export interface ChatResponse {
   assistantMessages?: CanvasAgentMessage[];
   ok: boolean;
@@ -345,22 +323,6 @@ export interface SessionListResponse {
   sessions?: Array<{ sessionId: string; date: string; messageCount: number }>;
 }
 
-/**
- * One hit from the renderer-facing session title search (@-mention popup).
- * Matches session titles (first user message + workspace name) only —
- * full-content search is the agent-side `session_search` tool's job.
- */
-export interface SessionSearchHit {
-  sessionId: string;
-  workspaceId: string;
-  workspaceName: string;
-  date: string;
-  isCurrent: boolean;
-  messageCount: number;
-  /** First user message, trimmed — same preview the session rail shows. */
-  preview: string;
-}
-
 export interface CrossWorkspaceSessionGroup {
   workspaceId: string;
   workspaceName: string;
@@ -374,10 +336,4 @@ export interface CrossWorkspaceSessionGroup {
     title?: string;
     pinned?: boolean;
   }>;
-}
-
-export interface AllSessionsResponse {
-  ok: boolean;
-  groups?: CrossWorkspaceSessionGroup[];
-  error?: string;
 }

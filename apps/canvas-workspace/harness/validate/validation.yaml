@@ -9,18 +9,21 @@ pathRules:
       - tsconfig.json
       - tsconfig.node.json
       - electron.vite.config.ts
+      - knip.json
     quick:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts src/main/__tests__/test-locality-governance.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts src/main/__tests__/test-locality-governance.test.ts src/main/__tests__/shared-contract-governance.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace deadcode
       - pnpm --filter canvas-workspace test
 
-  # Renderer module architecture is a planned, migration-aware target. The
-  # detector reports current pressure without failing default mode; its own
-  # specs pin folder classification and dependency-direction semantics.
+  # The renderer reached 0 target gaps, 0 boundary errors, and 0 module cycles
+  # on 2026-10-07. Required runs strict mode so a renderer change cannot
+  # reintroduce them; quick stays read-only. Size pressure never fails.
   - name: renderer-structure-health
     paths:
+      - src/renderer/src/**
       - harness/spec/renderer-modules/**
       - harness/skills/check-renderer-structure/**
     quick:
@@ -28,7 +31,7 @@ pathRules:
       - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
     required:
       - pnpm --filter canvas-workspace exec vitest run harness/skills/check-renderer-structure/scripts/check-renderer-structure.test.mjs
-      - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --json
+      - node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --strict
 
   # Canvas document state is a data-integrity seam: nodes+edges history,
   # external CLI merge, persistence scheduling, and content side effects must
@@ -148,7 +151,7 @@ pathRules:
       - src/renderer/src/config/agentRegistry.ts
       - src/renderer/src/modules/coding-agent/**
       - src/renderer/src/utils/codingAgentCommand.ts
-      - src/renderer/src/modules/dock/internal/RightDock/DockAgentTabIcon.tsx
+      - src/renderer/src/modules/dock/internal/RightDock/tabs/DockAgentTabIcon.tsx
       - src/main/agent/codex-sessions.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/coding-agent src/renderer/src/utils/__tests__/codingAgentCommand.test.ts src/renderer/src/modules/dock/internal/RightDock/__tests__/DockTabIcon.test.tsx src/main/agent/codex-sessions.test.ts
@@ -188,13 +191,13 @@ pathRules:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps
     required:
       - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-app-ipc.test.ts src/main/agent/mcp-app-runtime.test.ts src/main/agent/mcp-app-session-approvals.test.ts src/main/agent/mcp-app-node-context.test.ts src/main/agent/mcp-app-node-context-ipc.test.ts src/main/agent/mcp-app-chat-context.test.ts src/shared/mcp-apps.test.ts
+      - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps src/main/agent/mcp-apps/mcp-app-ipc.test.ts src/main/agent/mcp-apps/mcp-app-runtime.test.ts src/main/agent/mcp-apps/mcp-app-session-approvals.test.ts src/main/agent/mcp-apps/mcp-app-node-context.test.ts src/main/agent/mcp-apps/mcp-app-node-context-ipc.test.ts src/main/agent/mcp-apps/mcp-app-chat-context.test.ts src/shared/mcp-apps.test.ts
 
   - name: model-selection
     paths:
       - src/renderer/src/modules/models/**
       - src/renderer/src/utils/modelCatalog.ts
-      - src/renderer/src/types/models.ts
+      - src/shared/api/models.ts
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/models
     required:

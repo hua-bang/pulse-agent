@@ -6,33 +6,15 @@ import {
   MOCK_TODO_LIST_DEFAULT_PAYLOAD,
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
+import { CANVAS_NODE_DEFAULTS, genTopicId } from '../../../shared/canvas-node-defaults';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
-
-let topicIdCounter = 0;
-export const genTopicId = (): string => `topic-${Date.now()}-${++topicIdCounter}`;
 
 export type CreatableCanvasNodeType = Extract<
   CanvasNode['type'],
   'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap' | 'plugin'
 >;
-
-const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; height: number }> = {
-  file:     { title: 'Untitled', width: 420, height: 360 },
-  terminal: { title: 'Terminal', width: 480, height: 300 },
-  frame:    { title: 'Frame',    width: 720, height: 600 },
-  group:    { title: 'Group',    width: 360, height: 240 },
-  agent:    { title: 'Coding Agent', width: 520, height: 440 },
-  text:     { title: 'Text',     width: 260, height: 120 },
-  iframe:   { title: 'Web',      width: 520, height: 400 },
-  'dynamic-app': { title: 'Dynamic App', width: 520, height: 400 },
-  image:    { title: 'Image',    width: 320, height: 240 },
-  shape:    { title: 'Shape',    width: 200, height: 140 },
-  mindmap:  { title: 'Mindmap',  width: 640, height: 420 },
-  reference: { title: 'Reference', width: 420, height: 300 },
-  plugin:   { title: 'Plugin Node', width: 360, height: 240 },
-};
 
 /** Default width/height for a node type — single source of truth so
  *  callers that need to center a new node on the viewport derive the
@@ -40,27 +22,8 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
 export const getNodeDefaultSize = (
   type: CanvasNode['type'],
 ): { width: number; height: number } => {
-  const def = NODE_DEFAULTS[type];
+  const def = CANVAS_NODE_DEFAULTS[type];
   return { width: def.width, height: def.height };
-};
-
-/** Human-readable type names used for toast feedback after adding a
- *  node. Kept aligned with the FloatingToolbar button labels so the
- *  user sees the same word in the toolbar tooltip and in the toast. */
-export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
-  file:     'Note',
-  terminal: 'Terminal',
-  frame:    'Frame',
-  group:    'Group',
-  agent:    'Coding agent',
-  text:     'Text',
-  iframe:   'Web page',
-  'dynamic-app': 'Dynamic app',
-  image:    'Image',
-  shape:    'Shape',
-  mindmap:  'Mindmap',
-  reference: 'Reference',
-  plugin:   'Plugin node',
 };
 
 export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData | DynamicAppNodeData | PluginNodeData => {
@@ -138,7 +101,7 @@ export const cloneMindmapTopic = (topic: MindmapTopic): MindmapTopic => ({
 });
 
 export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number): CanvasNode => {
-  const def = NODE_DEFAULTS[type];
+  const def = CANVAS_NODE_DEFAULTS[type];
   return {
     id: genId(),
     type,

@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { parseSearchQuery } from '../../../../platform/browser/address-input';
-import { LinkTabIcon } from '../RightDock/LinkTabIcon';
+import { LinkTabIcon } from '../RightDock/tabs/LinkTabIcon';
 import type { BrowsingHistoryEntry } from '../../../../types';
 
 export interface AddressSuggestion {

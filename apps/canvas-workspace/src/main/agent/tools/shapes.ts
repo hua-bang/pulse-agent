@@ -2,8 +2,8 @@ import { z } from 'zod';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
+import { CANVAS_NODE_DEFAULTS } from '../../../shared/canvas-node-defaults';
 import {
-  DEFAULT_DIMENSIONS,
   placementIntentSchema,
   resolvePlacement,
   type PlacementIntent,
@@ -46,9 +46,9 @@ export function createShapeTools(workspaceId: string): Record<string, CanvasTool
         if (!canvas) return 'Error: workspace not found';
 
         const kind = (input.kind as string | undefined) ?? 'rect';
-        const title = (input.title as string) ?? DEFAULT_DIMENSIONS.shape.title;
-        const width = (input.width as number | undefined) ?? DEFAULT_DIMENSIONS.shape.width;
-        const height = (input.height as number | undefined) ?? DEFAULT_DIMENSIONS.shape.height;
+        const title = (input.title as string) ?? CANVAS_NODE_DEFAULTS.shape.title;
+        const width = (input.width as number | undefined) ?? CANVAS_NODE_DEFAULTS.shape.width;
+        const height = (input.height as number | undefined) ?? CANVAS_NODE_DEFAULTS.shape.height;
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         let pos: { x: number; y: number };

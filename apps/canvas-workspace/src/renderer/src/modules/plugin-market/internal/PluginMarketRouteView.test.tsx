@@ -7,7 +7,7 @@ import type {
   PluginMarketListing,
   PluginMarketSnapshot,
 } from '../../../../../shared/plugin-market';
-import type { ShellApi } from '../../../types/shell';
+import type { ShellApi } from '../../../../../shared/api/shell';
 import { PluginMarketRouteView } from './PluginMarketRouteView';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

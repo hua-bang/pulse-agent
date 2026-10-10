@@ -1,4 +1,4 @@
-import { GLOBAL_CHAT_WORKSPACE_NAME } from './session-store';
+import { GLOBAL_CHAT_WORKSPACE_NAME } from './sessions/session-store';
 import { scopeSessionStoreId } from '../../shared/agent-chat';
 import type { CanvasAgent } from './canvas-agent';
 import type { AgentScope, CrossWorkspaceSessionGroup } from './types';

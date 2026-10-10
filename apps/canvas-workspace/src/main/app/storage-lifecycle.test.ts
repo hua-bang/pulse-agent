@@ -15,11 +15,11 @@ vi.mock('../canvas/persistence/backend', () => ({
 }));
 vi.mock('../canvas/persistence/paths', () => ({ STORE_DIR: '/test-storage' }));
 vi.mock('../canvas/sqlite-ipc', () => ({ stopSqliteCanvasObserver: mocks.stopObserver }));
-vi.mock('../agent/sqlite-session-migration', () => ({ activateSqliteSessions: mocks.sessions }));
-vi.mock('../agent/sqlite-session-backend', () => ({
+vi.mock('../agent/sessions/sqlite-session-migration', () => ({ activateSqliteSessions: mocks.sessions }));
+vi.mock('../agent/sessions/sqlite-session-backend', () => ({
   getSqliteSessionStorage: mocks.sessionBackend, closeSqliteSessionStorage: mocks.closeSessions,
 }));
-vi.mock('../agent/workspace-session-archive', () => ({ createCanvasSessionArchivePort: mocks.createArchive }));
+vi.mock('../agent/sessions/workspace-session-archive', () => ({ createCanvasSessionArchivePort: mocks.createArchive }));
 vi.mock('../canvas/persistence/session-archive-port', () => ({ setCanvasSessionArchivePort: mocks.registerArchive }));
 vi.mock('@pulse-coder/storage/local-files', () => ({ recoverLocalFileWrites: mocks.recover }));
 vi.mock('../canvas/persistence/import-recovery', () => ({ recoverImportsAtStartup: mocks.recoverImports }));

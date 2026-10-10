@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react';
 import './index.css';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from '../../../../types';
-import { MentionNodeIcon, tabMentionIconType } from '../utils/mentions';
+import { MentionNodeIcon, tabMentionIconType } from '../../mentions/mentions';
 import { roleColorSoft } from '../../../../utils/roleColors';
 import { useI18n } from '../../../../i18n';
 import { SessionTitle } from '../SessionTitle';
 import { sessionTitleText } from '../utils/sessionTitle';
-import { pluginMentionIconMarkup } from '../utils/pluginMentionIcons';
+import { pluginMentionIconMarkup } from '../../mentions/pluginMentionIcons';
 import { GlobalMcpAppTile } from '../../../mcp-apps/global-apps';
 import { SpinnerIcon } from '../../../../components/icons';
 

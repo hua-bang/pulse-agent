@@ -19,9 +19,10 @@ vi.mock('../../webview/ensure-operable', () => ({
   ensureOperable: mocks.ensureOperable,
 }));
 vi.mock('../window-port', () => ({
-  getAgentWindowPort: () => ({
+  getCanvasWindowPort: () => ({
     activateWorkspaceWindow: mocks.activateWorkspaceWindow,
-    getCanvasWindow: () => null,
+    getFocusedCanvasWindow: () => null,
+    getLiveCanvasWindow: () => null,
   }),
 }));
 vi.mock('../../webview/reader', () => ({

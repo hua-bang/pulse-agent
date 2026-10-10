@@ -113,7 +113,7 @@ vi.mock('../canvas-agent', () => ({
 }));
 
 import { CanvasAgentService } from '../service';
-import { SessionStore } from '../session-store';
+import { SessionStore } from '../sessions/session-store';
 
 const makeSession = (sessionId: string, content: string): CanvasAgentSession => ({
   sessionId,

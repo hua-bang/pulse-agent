@@ -1,0 +1,89 @@
+name: Quality
+
+# Typecheck, dead-code check and unit tests for every PR. The Canvas suite
+# also runs the governance tests (import boundaries, shared contracts, file
+# size and flat-directory limits, test locality, UI reuse), so this workflow
+# is what turns those rules into merge checks.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The engine grep tool shells out to ripgrep, which the runner image lacks.
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Package tests import sibling packages through their dist/ output.
+      - name: Build workspace packages
+        run: pnpm run build:core
+
+      - name: Test core packages
+        run: pnpm run test:core
+
+  canvas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The engine grep tool shells out to ripgrep, which the runner image lacks.
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        run: pnpm --filter canvas-workspace setup:electron
+
+      # canvas-workspace resolves engine, storage and agent-teams through
+      # their dist/ output.
+      - name: Build workspace packages
+        run: pnpm run build:core
+
+      - name: Typecheck Canvas
+        run: pnpm --filter canvas-workspace typecheck
+
+      # knip fails on unused files, exports and types in Canvas.
+      - name: Check Canvas dead code
+        run: pnpm --filter canvas-workspace deadcode
+
+      - name: Test Canvas
+        run: pnpm --filter canvas-workspace test

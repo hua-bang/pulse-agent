@@ -2,8 +2,16 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join, resolve } from 'path';
 
-import type { BuiltInToolCredentialId } from '../../shared/settings-config';
-export type { BuiltInToolCredentialId } from '../../shared/settings-config';
+import type {
+  BuiltInToolCredentialId,
+  BuiltInToolCredentialStatus,
+  BuiltInToolsConfigStatus,
+} from '../../shared/settings-config';
+export type {
+  BuiltInToolCredentialId,
+  BuiltInToolCredentialStatus,
+  BuiltInToolsConfigStatus,
+} from '../../shared/settings-config';
 
 export interface BuiltInToolCredentialDef {
   id: BuiltInToolCredentialId;
@@ -14,19 +22,6 @@ export interface BuiltInToolCredentialDef {
   defaultBaseUrl: string;
   baseUrlEditable?: boolean;
   tools: string[];
-}
-
-export interface BuiltInToolCredentialStatus extends BuiltInToolCredentialDef {
-  apiKeyPresent: boolean;
-  apiKeyLength?: number;
-  source: 'stored' | 'env' | 'missing';
-  baseUrl: string;
-  baseUrlSource: 'stored' | 'env' | 'default';
-}
-
-export interface BuiltInToolsConfigStatus {
-  path: string;
-  credentials: BuiltInToolCredentialStatus[];
 }
 
 export interface SetBuiltInToolCredentialInput {

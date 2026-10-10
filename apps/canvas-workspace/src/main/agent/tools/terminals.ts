@@ -3,8 +3,8 @@ import { readWorkspaceMeta } from '../workspace-meta';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
+import { CANVAS_NODE_DEFAULTS } from '../../../shared/canvas-node-defaults';
 import {
-  DEFAULT_DIMENSIONS,
   placementIntentSchema,
   resolvePlacement,
   type PlacementIntent,
@@ -33,13 +33,13 @@ export function createTerminalTools(workspaceId: string): Record<string, CanvasT
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
 
-        const title = (input.title as string) ?? DEFAULT_DIMENSIONS.terminal.title;
+        const title = (input.title as string) ?? CANVAS_NODE_DEFAULTS.terminal.title;
         const explicitCwd = (input.cwd as string | undefined) ?? '';
         const cwd = explicitCwd || (await readWorkspaceMeta(workspaceId)).rootFolder || '';
         const initialCommand = (input.command as string) ?? '';
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const def = DEFAULT_DIMENSIONS.terminal;
+        const def = CANVAS_NODE_DEFAULTS.terminal;
         let pos: { x: number; y: number };
         try {
           pos = resolvePlacement(

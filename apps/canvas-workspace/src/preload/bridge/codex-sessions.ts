@@ -1,5 +1,5 @@
 import type { IpcRenderer } from "electron";
-import type { CodexSessionsApi } from "../../renderer/src/types";
+import type { CodexSessionsApi } from "../../shared/api/codex-sessions";
 
 export const createCodexSessionsApi = (ipcRenderer: IpcRenderer): CodexSessionsApi => ({
   list: (payload) => ipcRenderer.invoke("codex-sessions:list", payload),

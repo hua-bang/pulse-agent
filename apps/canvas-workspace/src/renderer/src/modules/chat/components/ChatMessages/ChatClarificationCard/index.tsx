@@ -7,10 +7,9 @@ import { Button } from '../../../../../components/ui';
 import { ApprovalPreviewBoundary } from './ApprovalPreviewBoundary';
 import type { PendingClarification } from '../../../../../types';
 import { SESSION_APPROVAL_ANSWER } from '../../../../../../../shared/agent-chat';
+import { loadApprovalNodePreview } from '../../../../../shared/approvalNodePreview';
 
-const CanvasApprovalNodePreview = lazy(() => import('../../../../canvas/preview').then(module => ({
-  default: module.CanvasApprovalNodePreview,
-})));
+const CanvasApprovalNodePreview = lazy(loadApprovalNodePreview);
 
 interface ChatClarificationCardProps {
   pendingClarify: PendingClarification;

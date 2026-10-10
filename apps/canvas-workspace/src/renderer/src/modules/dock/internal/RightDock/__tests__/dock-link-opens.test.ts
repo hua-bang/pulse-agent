@@ -4,8 +4,8 @@ import type { LinkOpenRequest } from '../../../../../../../shared/link-open';
 import {
   registerMountedWebviewIdentity,
 } from '../../../../canvas/webview';
-import { routeDockLinkOpen } from '../useDockLinkOpens';
-import { DockStore } from '../dock-store';
+import { routeDockLinkOpen } from '../links/useDockLinkOpens';
+import { DockStore } from '../state/dock-store';
 
 const request = (overrides: Partial<LinkOpenRequest> = {}): LinkOpenRequest => ({
   url: 'https://opened.example/',

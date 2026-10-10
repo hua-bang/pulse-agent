@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CanvasAgent } from '../canvas-agent';
-import { ClarificationRegistry } from '../clarification-registry';
+import { ClarificationRegistry } from '../run/clarification-registry';
 import { createConversationRunner } from './conversation-runner';
 import { ConversationRuntime } from './conversation-runtime';
 

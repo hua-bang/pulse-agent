@@ -15,15 +15,15 @@ import type {
   AgentContextTabRef,
   CanvasNode,
 } from '../../../../types';
-import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './dock-store';
-import { linkPaneKey } from './dock-link-tabs';
+import { isTerminalTabId, type DockPreviewTab, type DockState, type DockStore } from './state/dock-store';
+import { linkPaneKey } from './links/dock-link-tabs';
 import { isDockTabPresented } from '../../../../shared/dock/dock-split-state';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId, mcpAppDockHostElementId } from '../../../../shared/dock/dock-tab-ids';
-import type { DockComparisonPair } from './dock-types';
+import type { DockComparisonPair } from './state/dock-types';
 import type { ChatDeliveryReceipt } from '../../../chat';
-import { focusActiveDockTarget } from './dock-browser-commands';
+import { focusActiveDockTarget } from './links/dock-browser-commands';
 import { buildDockTabRefs } from '../../../../shared/dock/tabRefs';
-import { TabChatAction } from './TabChatAction';
+import { TabChatAction } from './tabs/TabChatAction';
 
 const skillWorkspaceName = (
   tab: Extract<DockPreviewTab, { kind: 'skill' }>,
@@ -37,9 +37,9 @@ const skillWorkspaceName = (
 const FolderDockTab = lazy(() => import('./FolderDockTab').then(m => ({ default: m.FolderDockTab })));
 const ArtifactTabView = lazy(() => import('../../../artifacts/tab').then((m) => ({ default: m.ArtifactTabView })));
 const LinkTabView = lazy(() => import('../LinkDrawer').then((m) => ({ default: m.LinkTabView })));
-const NodeDetailDockTab = lazy(() => import('./NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
-const CanvasPreview = lazy(() => import('./CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
-const SkillDetailDockTab = lazy(() => import('./SkillDetailDockTab').then((m) => ({ default: m.SkillDetailDockTab })));
+const NodeDetailDockTab = lazy(() => import('./content/NodeDetailDockTab').then((m) => ({ default: m.NodeDetailDockTab })));
+const CanvasPreview = lazy(() => import('./content/CanvasPreview').then((m) => ({ default: m.CanvasPreview })));
+const SkillDetailDockTab = lazy(() => import('./content/SkillDetailDockTab').then((m) => ({ default: m.SkillDetailDockTab })));
 
 interface Props {
   store: DockStore;

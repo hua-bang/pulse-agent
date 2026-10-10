@@ -5,7 +5,7 @@ import {
   dockPageKeyFromFocusEvent,
   FOCUS_DOCK_PAGE_EVENT,
   requestDockPageFocus,
-} from '../RightDock/dock-browser-commands';
+} from '../RightDock/links/dock-browser-commands';
 
 interface UseDockPageFocusOptions {
   active: boolean;

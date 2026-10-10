@@ -42,25 +42,6 @@ const HELP = [
 const NEED_OPEN_TARGET = 'Usage: /open <number|name|id>  (or bind this chat and use /open).';
 const NEED_USE_TARGET = 'Usage: /use <number|name|id> [--carry|--fresh]  (or send /use to choose).';
 
-/**
- * Numbered workspace picker shown when a conversation needs to bind. The
- * numbers match {@link listWorkspaces} order (and /list), so the user can bind
- * by replying with a single digit. Shared by the bridge's first-contact prompt.
- */
-export async function buildBindPrompt(): Promise<string> {
-  const workspaces = await listWorkspaces();
-  if (workspaces.length === 0) {
-    return (
-      '🔗 This chat isn’t bound to a workspace, and no canvas workspaces exist yet. ' +
-      'Create one in the canvas app, then send your message again.'
-    );
-  }
-  const lines = workspaces
-    .slice(0, 30)
-    .map((w, i) => `${i + 1}. ${workspaceLabel(w)}${w.isActive ? ' 🖥️' : ''}`);
-  return `🔗 Pick a workspace for this chat with /use <number|name>:\n${lines.join('\n')}`;
-}
-
 function workspaceScope(workspaceId: string): AgentScope {
   return { kind: 'workspace', workspaceId };
 }

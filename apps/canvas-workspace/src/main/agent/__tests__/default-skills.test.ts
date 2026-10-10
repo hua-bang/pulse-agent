@@ -20,7 +20,7 @@ vi.mock('os', async () => {
   return { ...actual, homedir: () => sandboxHome };
 });
 
-import { ensureDefaultSkillsSeeded } from '../default-skills';
+import { ensureDefaultSkillsSeeded } from '../skills/default-skills';
 import { listCanvasSkills } from '../skills/config';
 
 beforeEach(async () => {

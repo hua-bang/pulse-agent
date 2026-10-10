@@ -1,17 +1,16 @@
 import type { IpcRenderer, IpcRendererEvent } from "electron";
 import type {
   CanvasMcpApi,
-  CanvasModelApi,
   BuiltInToolsConfigApi,
   CanvasPluginsApi,
   CanvasSkillsApi,
-  ChannelConfigApi,
-  DialogApi,
-  ExperimentalApi,
-  PromptProfileApi,
-  SkillsApi,
-  ToolingInstallStatus
-} from "../../renderer/src/types";
+  SkillsApi
+} from "../../shared/api/settings-config";
+import type { CanvasModelApi, PromptProfileApi } from "../../shared/api/models";
+import type { ChannelConfigApi } from "../../shared/api/channel-config";
+import type { DialogApi } from "../../shared/api/files";
+import type { ExperimentalApi } from "../../shared/api/experimental";
+import type { ToolingInstallStatus } from "../../shared/experimental-features";
 
 export const createDialogApi = (ipcRenderer: IpcRenderer): DialogApi => ({
   openFolder: () => ipcRenderer.invoke("dialog:openFolder")

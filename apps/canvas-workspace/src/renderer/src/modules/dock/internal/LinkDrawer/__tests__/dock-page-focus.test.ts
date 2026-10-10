@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
 import type { EmbeddedWebviewTag } from '../../../../../platform/browser/types';
-import { FOCUS_DOCK_PAGE_EVENT } from '../../RightDock/dock-browser-commands';
+import { FOCUS_DOCK_PAGE_EVENT } from '../../RightDock/links/dock-browser-commands';
 import { focusDockPageOrRequest } from '../useDockPageFocus';
 
 describe('focusDockPageOrRequest', () => {

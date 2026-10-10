@@ -14,9 +14,6 @@ import {
 } from "../canvas/store";
 import { ensureWelcomeWorkspaceSeeded } from "../canvas/welcome-workspace";
 import { setupFileManagerIpc } from "../files/manager";
-// MCP server disabled: canvas-cli is the preferred agent interface now.
-// import { startMCPServer } from "../runtime/mcp-server";
-// import { ensureMCPRegistered } from "../runtime/mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
 import {
   getCanvasAgentService,
@@ -27,11 +24,11 @@ import { setupCodexSessionsIpc } from "../agent/codex-sessions";
 import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { upsertCanvasSkill } from "../agent/skills/config";
-import { saveMemory } from "../agent/memory-store";
+import { saveMemory } from "../agent/memory/memory-store";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
-import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
+import { ensureDefaultSkillsSeeded } from "../agent/skills/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
-import { setupAgentRolesIpc } from "../agent/agent-roles-ipc";
+import { setupAgentRolesIpc } from "../agent/roles/agent-roles-ipc";
 import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
 import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupCanvasPluginsConfigIpc } from "../plugin-market/config-ipc";
@@ -77,11 +74,10 @@ import {
   getLiveCanvasWindow,
   setWindowFactory,
 } from "./window-manager";
-import { setAgentWindowPort } from "../agent/window-port";
-import { setAgentScheduledPort } from "../agent/scheduled-port";
+import { setCanvasWindowPort } from "../agent/window-port";
+import { setAgentScheduledPort } from "../agent/scheduled/scheduled-port";
 import { setAgentCapabilityPort } from "../agent/capability-port";
 import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
-import { setRuntimeWindowPort } from "../runtime/window-port";
 import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
 import {
   connectCanvasMcpOAuth,
@@ -124,9 +120,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // Keep identity configured even when tests import bootstrap directly instead
   // of going through the main entry module.
   configureAppIdentity();
-  setAgentWindowPort({ getCanvasWindow, activateWorkspaceWindow });
-  setRuntimeWindowPort({
-    getCanvasWindow: getLiveCanvasWindow,
+  setCanvasWindowPort({
+    getFocusedCanvasWindow: getCanvasWindow,
+    getLiveCanvasWindow,
     activateWorkspaceWindow,
   });
   setPluginMarketAgentPort({
@@ -288,7 +284,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     }
     // Legacy direct memory-report IPC remains available for stored clients;
     // the stable product entry is now the Scheduled tab.
-    const { setupMemoryReportIpc } = await import('../agent/memory-report-ipc');
+    const { setupMemoryReportIpc } = await import('../agent/memory/memory-report-ipc');
     setupMemoryReportIpc();
     setupShellIpc();
     setupDefaultBrowserIpc();
@@ -353,9 +349,6 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         );
       }
     });
-    // MCP server disabled: canvas-cli is the preferred agent interface now.
-    // startMCPServer();
-    // void ensureMCPRegistered();
 
     const openWindow = () =>
       createWindow({

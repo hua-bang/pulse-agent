@@ -1,6 +1,5 @@
 import {
   STORE_DIR,
-  canvasPath as resolveCanvasPath,
   loadCanvas as loadCanvasFromService,
   saveCanvas as saveCanvasWithService,
 } from '../../../canvas/service';
@@ -8,12 +7,6 @@ import type { CanvasSaveData } from '../types';
 
 export { STORE_DIR };
 export const BLANK_PAGE_URL = 'about:blank';
-
-// ─── Helpers ───────────────────────────────────────────────────────
-
-export function canvasPath(workspaceId: string): string {
-  return resolveCanvasPath(workspaceId);
-}
 
 /**
  * Load `canvas.json` for a workspace.

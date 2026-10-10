@@ -15,4 +15,4 @@ export {
   setAgentServiceAccessor,
 } from './registry';
 export { BUILT_IN_MAIN_PLUGINS } from './built-in';
-export { loadConfiguredExternalMainPlugins, reloadConfiguredExternalMainPlugins } from './external';
+export { reloadConfiguredExternalMainPlugins } from './external';

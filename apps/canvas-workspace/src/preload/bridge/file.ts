@@ -1,5 +1,5 @@
 import type { IpcRenderer } from "electron";
-import type { FileApi } from "../../renderer/src/types";
+import type { FileApi } from "../../shared/api/files";
 import { subscribe } from "./ipc";
 
 type FileChangedPayload = {

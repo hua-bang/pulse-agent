@@ -7,7 +7,7 @@ import type {
   PluginStore,
 } from '../../../types';
 import type { CanvasAgent } from '../../../../main/agent/canvas-agent';
-import { ClarificationRegistry } from '../../../../main/agent/clarification-registry';
+import { ClarificationRegistry } from '../../../../main/agent/run/clarification-registry';
 import { ConversationRuntimeService } from '../../../../main/agent/conversation-runtime/conversation-service';
 import { buildAgentPrompt, ChannelBridge } from '../core/bridge';
 import type {

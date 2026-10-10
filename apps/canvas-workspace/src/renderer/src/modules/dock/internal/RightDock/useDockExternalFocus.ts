@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from 'react';
-import { FOCUS_OUTSIDE_DOCK_EVENT } from './dock-browser-commands';
+import { FOCUS_OUTSIDE_DOCK_EVENT } from './links/dock-browser-commands';
 
 /**
  * Remembers the most recent focus owner outside the dock so collapsing the

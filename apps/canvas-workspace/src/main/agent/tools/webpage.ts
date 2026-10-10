@@ -6,7 +6,7 @@ import { readDOMElement } from '../../webview/reader';
 import { PAGE_READINESS_HINT } from '../../../shared/page-readiness';
 import { getAgentCapabilityPort } from '../capability-port';
 import type { CanvasTool } from './types';
-import { getAgentWindowPort } from '../window-port';
+import { getCanvasWindowPort } from '../window-port';
 
 export function createWebpageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -41,7 +41,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
           ? getWebContentsForNode(targetWorkspaceId, nodeId)
           : await ensureOperable({
               lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
-              activate: () => getAgentWindowPort().activateWorkspaceWindow(targetWorkspaceId),
+              activate: () => getCanvasWindowPort().activateWorkspaceWindow(targetWorkspaceId),
               mode: 'read',
             });
         if (!wc) {

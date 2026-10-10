@@ -1,4 +1,4 @@
-import { downscaleImageBase64 } from '../../../utils/downscaleImage';
+import { downscaleImageBase64 } from './downscaleImage';
 import { toFileUrl } from '../../../utils/fileUrl';
 import type { EditorView } from '@tiptap/pm/view';
 

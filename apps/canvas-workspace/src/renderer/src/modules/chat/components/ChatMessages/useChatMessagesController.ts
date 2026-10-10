@@ -10,7 +10,7 @@ import type { AgentChatMessage, PendingClarification, ToolCallStatus } from '../
 import { useI18n } from '../../../../i18n';
 import { isVSCodeLink } from '../utils/externalLinks';
 import { localPathFromHref } from '../utils/localFileLinks';
-import { tabRefFromMentionElement } from '../utils/tabMentions';
+import { tabRefFromMentionElement } from '../../mentions/tabMentions';
 import { useChatMessagesStatus } from './useChatMessagesStatus';
 
 const PIN_THRESHOLD_PX = 80;

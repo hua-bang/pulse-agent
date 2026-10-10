@@ -42,10 +42,6 @@ export type MentionGroupKey = (typeof MENTION_GROUPS)[number]['key'];
 
 export const MENTION_GROUP_ORDER: MentionGroupKey[] = MENTION_GROUPS.map(group => group.key);
 
-export const MENTION_GROUP_LABEL: Record<MentionGroupKey, string> = Object.fromEntries(
-  MENTION_GROUPS.map(group => [group.key, group.label]),
-) as Record<MentionGroupKey, string>;
-
 export const MENTION_GROUP_LABEL_KEY: Record<MentionGroupKey, I18nKey> = Object.fromEntries(
   MENTION_GROUPS.map(group => [group.key, group.labelKey]),
 ) as Record<MentionGroupKey, I18nKey>;

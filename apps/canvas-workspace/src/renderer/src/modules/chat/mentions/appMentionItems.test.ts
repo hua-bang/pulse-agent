@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { globalMcpAppsStore } from '../../mcp-apps/global-apps';
 import { collectAppMentionContexts, loadAppMentionItems } from './appMentionItems';
-import { createMentionChipElement, renderMdWithMentions, serializeEditable } from '../components/utils/mentions';
+import { createMentionChipElement, renderMdWithMentions, serializeEditable } from './mentions';
 import { sortAndCapMentionItems } from '../components/ChatMentionPopup/constants';
 
 const drawings = { kind: 'global' as const, serverName: 'drawing/server', toolName: 'open:library', resourceUri: 'ui://library', title: '图纸 | [库]' };

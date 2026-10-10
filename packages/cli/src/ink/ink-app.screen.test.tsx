@@ -190,6 +190,8 @@ const renderRun = async (options: { incrementalRendering: boolean }) => {
     />,
     {
       stdout: screen as never,
+      // Ink turns its live renderer off when CI is set; these tests need it.
+      interactive: true,
       stdin: new MockStdin() as never,
       exitOnCtrlC: false,
       patchConsole: false,
@@ -262,6 +264,7 @@ const renderComposer = async (initialHistory: string[]) => {
     />,
     {
       stdout: screen as never,
+      interactive: true,
       stdin: stdin as never,
       exitOnCtrlC: false,
       patchConsole: false,
@@ -310,7 +313,7 @@ describe('InkCliApp narration-folding shortcut', () => {
           useStdout: ink.useStdout,
         }}
       />,
-      { stdout: screen as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
+      { stdout: screen as never, interactive: true, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
     );
 
     await new Promise(resolve => setTimeout(resolve, 45));
@@ -512,7 +515,7 @@ describe('InkCliApp on a terminal', () => {
           useStdout: ink.useStdout,
         }}
       />,
-      { stdout: screen as never, stdin: new MockStdin() as never, exitOnCtrlC: false, patchConsole: false },
+      { stdout: screen as never, interactive: true, stdin: new MockStdin() as never, exitOnCtrlC: false, patchConsole: false },
     );
 
     bridge.user('review this snippet\nconst a = 1;\nconst b = 2;');

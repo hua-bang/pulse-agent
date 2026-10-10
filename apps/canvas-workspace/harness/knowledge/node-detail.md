@@ -17,7 +17,7 @@ TWO hosts:
 - the `/nodes/<ws>/<id>` page route
   (`src/renderer/src/modules/workspace-nodes/internal/NodeDetailPage.tsx`);
 - the dock tab
-  (`src/renderer/src/modules/dock/internal/RightDock/NodeDetailDockTab.tsx`, which
+  (`src/renderer/src/modules/dock/internal/RightDock/content/NodeDetailDockTab.tsx`, which
   renders the panel with `mode="dock"`).
 
 The dock is the primary entry point: list cards, graph nodes, and note
@@ -39,7 +39,7 @@ the page-only `NodeDetailContextRail` renders.
 ## Entering the page: the `RightDock.enterNodePage` contract
 
 Entering a full-page detail MUST go through `RightDock.enterNodePage`
-(`src/renderer/src/modules/dock/internal/RightDock/dock-store.ts`). Its contract:
+(`src/renderer/src/modules/dock/internal/RightDock/state/dock-store.ts`). Its contract:
 
 - it removes the matching dock tab (the node's dock preview and its full
   page are mutually exclusive — the same node should not show twice);

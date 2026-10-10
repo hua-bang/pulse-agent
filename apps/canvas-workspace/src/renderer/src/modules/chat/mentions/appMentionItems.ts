@@ -1,8 +1,8 @@
 import type { AgentContextMcpAppSnapshot } from '../../../../../shared/agent-chat';
 import type { MentionItem } from '../../../types';
 import { globalMcpAppKey, globalMcpAppsStore } from '../../mcp-apps/global-apps';
-import { parseAppMention } from '../components/utils/appMentions';
-import { MENTION_RE } from '../components/utils/mentionMarkers';
+import { parseAppMention } from './appMentions';
+import { MENTION_RE } from './mentionMarkers';
 
 export async function loadAppMentionItems(): Promise<MentionItem[]> {
   if (!globalMcpAppsStore.getSnapshot().loaded) await globalMcpAppsStore.refresh();

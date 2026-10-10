@@ -6,7 +6,7 @@ import {
   resolveTabWidth,
   TAB_MAX_WIDTH,
   TAB_MIN_WIDTH,
-} from '../dock-width';
+} from '../state/dock-width';
 
 describe('dock width policy', () => {
   it('lets the canvas dock grow to nearly the whole viewport', () => {

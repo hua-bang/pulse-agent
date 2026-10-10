@@ -1,7 +1,7 @@
 import { useCallback, type RefObject } from 'react';
 import type { CanvasNode } from '../../../../types';
-import { appendMentionChipToEditable } from '../utils/editableMentions';
-import { createMentionChipElement, serializeEditable } from '../utils/mentions';
+import { appendMentionChipToEditable } from '../../mentions/editableMentions';
+import { createMentionChipElement, serializeEditable } from '../../mentions/mentions';
 
 interface Options {
   editableRef: RefObject<HTMLDivElement>;

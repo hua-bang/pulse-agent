@@ -50,7 +50,6 @@ vi.mock('../PromptSettings', () => ({
   }),
 }));
 
-vi.mock('../RolesSettings', () => ({ RolesSection: () => <div>Roles content</div> }));
 vi.mock('./AgentSection', () => ({ AgentSection: () => <div>Agent content</div> }));
 vi.mock('./BrowserSection', () => ({ BrowserSection: () => <div>Browser content</div> }));
 vi.mock('./BuiltInToolsSection', () => ({ BuiltInToolsSection: () => <div>Tools content</div> }));

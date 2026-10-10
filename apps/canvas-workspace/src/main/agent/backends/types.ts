@@ -9,7 +9,7 @@ import type {
   CanvasAgentMessage,
   CanvasAgentToolCall,
 } from '../types';
-import type { CanvasToolResultEvent } from '../engine-stream-callbacks';
+import type { CanvasToolResultEvent } from '../run/engine-stream-callbacks';
 
 /**
  * The turn-backend boundary: everything that can execute ONE chat segment
@@ -96,8 +96,3 @@ export interface AgentRuntime {
   /** Queue a new turn after the current active run settles. */
   followUp?(sessionId: string, text: string): Promise<boolean>;
 }
-
-/** @deprecated Use AgentRuntime; retained while callers migrate names. */
-export type TurnBackend = AgentRuntime;
-/** @deprecated Use AgentRuntimeCapabilities. */
-export type TurnBackendCapabilities = AgentRuntimeCapabilities;

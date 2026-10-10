@@ -5,7 +5,7 @@ import { writeCanvasFullV2, isLayoutOnlyReferenceNode, stripDataFromNode } from 
  * Canvas storage helpers.
  *
  * Shared, pure-ish module used by `canvas-store.ts` (Electron main IPC) and —
- * post-PR2/3 — by `mcp-server.ts`, `canvas-agent/*`, `artifact-ipc.ts`, and
+ * post-PR2/3 — by `canvas-agent/*`, `artifact-ipc.ts`, and
  * the (separately-packaged) `canvas-cli`. No Electron imports here so the
  * module is unit-testable in plain Node.
  *

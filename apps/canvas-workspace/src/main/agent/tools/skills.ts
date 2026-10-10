@@ -17,7 +17,7 @@ import { z } from 'zod';
 import {
   scopeSkillsDir,
   type CanvasConfigScope,
-} from '../config-scope';
+} from '../scope/config-scope';
 import {
   skillSlug,
   upsertCanvasSkill,

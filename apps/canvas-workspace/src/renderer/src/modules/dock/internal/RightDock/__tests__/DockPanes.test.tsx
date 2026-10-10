@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DockPanes } from '../DockPanes';
-import { CHAT_TAB_ID, DockStore, TERMINAL_TAB_ID } from '../dock-store';
+import { CHAT_TAB_ID, DockStore, TERMINAL_TAB_ID } from '../state/dock-store';
 import { dockPaneElementId, dockTabElementId, mcpAppDockHostElementId } from '../../../../../shared/dock/dock-tab-ids';
 import { I18nProvider } from '../../../../../i18n';
 import type { AgentContextDomReviewComment, AgentContextTabRef } from '../../../../../types';
@@ -12,7 +12,7 @@ const latestTabChatActionProps = vi.hoisted(() => new Map<string, {
   tab: AgentContextTabRef;
   targetWorkspaceId: string;
 }>());
-vi.mock('../TabChatAction', () => ({
+vi.mock('../tabs/TabChatAction', () => ({
   TabChatAction: (props: { tab: AgentContextTabRef; targetWorkspaceId: string }) => {
     latestTabChatActionProps.set(props.tab.id, props);
     return <button type="button" data-tab-chat-action={props.tab.id}>Ask AI</button>;
@@ -55,7 +55,7 @@ const latestCanvasPreviewProps = vi.hoisted(() => new Map<string, {
     comments: AgentContextDomReviewComment[],
   ) => Promise<boolean>;
 }>());
-vi.mock('../CanvasPreview', () => ({
+vi.mock('../content/CanvasPreview', () => ({
   CanvasPreview: (props: {
     workspaceId: string;
     editingAllowed?: boolean;

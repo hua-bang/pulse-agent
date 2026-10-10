@@ -15,6 +15,7 @@ const ROOT_MAIN_TESTS = [
   'file-size-governance.test.ts',
   'import-boundaries.test.ts',
   'scheduled-run-notify.test.ts',
+  'shared-contract-governance.test.ts',
   'shell-path.test.ts',
   'test-locality-governance.test.ts',
   'ui-reuse-governance.test.ts',

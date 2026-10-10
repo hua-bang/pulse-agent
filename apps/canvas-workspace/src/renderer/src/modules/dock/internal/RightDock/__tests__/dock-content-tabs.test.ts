@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DockStore } from '../dock-store';
+import { DockStore } from '../state/dock-store';
 import {
   canPreviewWorkspaceCanvas,
   hasDockContentTabs,

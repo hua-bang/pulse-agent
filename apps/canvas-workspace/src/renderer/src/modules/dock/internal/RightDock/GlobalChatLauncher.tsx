@@ -1,7 +1,7 @@
 import { useI18n } from '../../../../i18n';
 import { ChatFloatingButton } from '../../../chat/floating';
 import { useRightDock, useRightDockState } from '.';
-import { isDockChatVisible } from './dock-visibility';
+import { isDockChatVisible } from './state/dock-visibility';
 
 interface GlobalChatLauncherProps {
   visible: boolean;

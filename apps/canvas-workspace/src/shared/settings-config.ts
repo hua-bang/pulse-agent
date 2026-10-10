@@ -83,6 +83,12 @@ export type CanvasConfigScope =
   | { level: 'global' }
   | { level: 'workspace'; workspaceId: string };
 
+/**
+ * Where a skill came from. `canvas` skills are the only ones Canvas itself
+ * writes/edits; everything else is surfaced read-only so other agent tools
+ * (Claude Code, Codex, pulse-coder CLI, …) stay the source of truth for
+ * their own skill conventions.
+ */
 export type CanvasSkillSourceName =
   | 'canvas'
   | 'pulse-coder'
@@ -142,10 +148,12 @@ export interface CanvasMcpOAuthConfig {
 export interface CanvasMcpServer {
   name: string;
   transport: CanvasMcpTransport;
+  /** http/sse */
   url?: string;
   headers?: Record<string, string>;
   auth?: CanvasMcpAuth;
   oauth?: CanvasMcpOAuthConfig;
+  /** stdio */
   command?: string;
   args?: string[];
   env?: Record<string, string>;
@@ -178,8 +186,9 @@ export interface CanvasMcpStatus {
   path: string;
   servers: CanvasMcpServer[];
   /**
-   * Per-server connection health from the engine's MCP plugin. Servers
-   * absent from this map have never been loaded by an active agent yet.
+   * Per-server connection health from the engine's MCP plugin, captured
+   * during its last initialize. Missing for servers when no agent has yet
+   * loaded that server (e.g. workspace not activated yet).
    */
   statuses?: Record<string, CanvasMcpServerHealth>;
   oauthStatuses?: Record<string, CanvasMcpOAuthStatus>;

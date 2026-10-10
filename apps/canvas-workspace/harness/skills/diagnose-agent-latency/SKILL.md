@@ -154,7 +154,7 @@ Start from the owner indicated by the trace:
   `src/plugins/main/agent-observability-bus.ts`
 - Canvas Host phases: `src/main/agent/observability/host-run.ts`,
   `src/main/agent/service.ts`, `src/main/agent/canvas-agent.ts`
-- Runtime selection: `src/main/agent/segment-execution.ts`
+- Runtime selection: `src/main/agent/run/segment-execution.ts`
 - Engine children: `src/main/agent/observability/engine-plugin.ts`
 - Pi generations: `src/main/agent/observability/pi-generation-events.ts`,
   `src/main/agent/backends/pi-agent-harness-backend.ts`

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/preload/webview-find.ts",
+    "src/renderer/src/main.tsx",
+    "src/**/*.test.{ts,tsx}"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/main/agent/engine.d.ts"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "tags": ["-keep"],
+  "include": ["files", "exports", "types", "duplicates"]
+}

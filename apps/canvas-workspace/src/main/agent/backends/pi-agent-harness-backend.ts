@@ -7,8 +7,8 @@ import type { AssistantMessage } from '@earendil-works/pi-ai';
 import type { ModelMessage } from 'ai';
 import type { MCPAppsManager } from 'pulse-coder-engine/built-in';
 
-import { unwrapToolOutput } from '../engine-stream-callbacks';
-import { resolveMcpApp } from '../mcp-app-runtime';
+import { unwrapToolOutput } from '../run/engine-stream-callbacks';
+import { resolveMcpApp } from '../mcp-apps/mcp-app-runtime';
 import type { CanvasAgentToolCall } from '../types';
 import { createPiGenerationObserver } from '../observability/pi-generation-events';
 import { createPiModelRuntime, type PiModelRuntime } from './pi-model-adapter';

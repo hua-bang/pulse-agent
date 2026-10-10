@@ -380,13 +380,7 @@ export interface RendererCtx {
 // exposes this on `window.canvasWorkspace.plugin` so the renderer half
 // of every plugin can reach its main half through a single, generic
 // channel.
-export interface PluginBridge {
-  invoke<T = unknown>(
-    pluginId: string,
-    channel: string,
-    ...args: unknown[]
-  ): Promise<T>;
-}
+export type { PluginBridge } from '../shared/api/workspace-api';
 
 // Main-side and renderer-side halves are declared separately so each
 // half can live in its own bundle. A "plugin" in conversation usually

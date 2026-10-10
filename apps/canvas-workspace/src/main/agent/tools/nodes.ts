@@ -6,8 +6,8 @@ import { generateHTML } from '../../generation/html-generator';
 import type { CanvasNode, CanvasTool, NodeType } from './types';
 import { STORE_DIR, loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
+import { CANVAS_NODE_DEFAULTS } from '../../../shared/canvas-node-defaults';
 import {
-  DEFAULT_DIMENSIONS,
   INLINE_PROMPT_THRESHOLD,
   placementIntentSchema,
   resolvePlacement,
@@ -87,14 +87,14 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         const nodeType: NodeType = shouldCreateIframeForHtml(requestedNodeType, content, extraData) ? 'iframe' : requestedNodeType;
         const defaultTitle = nodeType === 'plugin' && extraData.nodeType === MOCK_TODO_LIST_NODE_TYPE
           ? MOCK_TODO_LIST_DEFAULT_PAYLOAD.title
-          : DEFAULT_DIMENSIONS[nodeType]?.title ?? 'Untitled';
+          : CANVAS_NODE_DEFAULTS[nodeType]?.title ?? 'Untitled';
         const title = (input.title as string) ?? defaultTitle;
 
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const def = DEFAULT_DIMENSIONS[nodeType];
+        const def = CANVAS_NODE_DEFAULTS[nodeType];
         if (!def) return `Error: unsupported node type: ${nodeType}`;
 
         const width = (input.width as number | undefined) ?? def.width;

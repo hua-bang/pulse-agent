@@ -1,0 +1,114 @@
+import type { AgentContextDomSelectionRef } from './agent-chat';
+import type {
+  SetWebviewLifecycleResult,
+  WebviewLifecycleState,
+} from '../webview-lifecycle';
+import type { WebviewContextMenuRequest } from '../webview-context-menu';
+import type { WebviewSurfaceKind } from '../webview-registration';
+
+export interface IframeApi {
+  registerWebview: (
+    workspaceId: string,
+    nodeId: string,
+    webContentsId: number,
+    surfaceKind: WebviewSurfaceKind,
+    ready?: boolean,
+  ) => Promise<{ ok: boolean }>;
+  /**
+   * Unregister carries the webContentsId that was registered: main only
+   * removes the entry if it still points at that id (compare-and-delete),
+   * so a stale teardown racing a remount can never evict the newer
+   * generation's registration.
+   */
+  unregisterWebview: (
+    workspaceId: string,
+    nodeId: string,
+    webContentsId: number,
+  ) => Promise<{ ok: boolean }>;
+  /**
+   * Drop or restore a registered webview's max paint frame rate. Used to
+   * throttle webview nodes that have left the canvas viewport — the guest
+   * process stays alive and JS/timers/network keep running at full speed,
+   * only paint cadence drops so we save GPU work and tile memory without
+   * losing any in-page state. Frame rate is clamped to [1, 240] in main.
+   */
+  setFrameRate: (
+    workspaceId: string,
+    nodeId: string,
+    webContentsId: number,
+    frameRate: number,
+  ) => Promise<{ ok: boolean; frameRate?: number }>;
+  /**
+   * Chrome-style freeze/resume for a registered webview (DevTools protocol
+   * Page.setWebLifecycleState — the mechanism Chrome uses on background
+   * tabs). 'frozen' suspends the page's task queues (JS/timers/network)
+   * while keeping the process and memory intact; 'active' resumes
+   * instantly with no reload. Freezing is refused for audible pages and
+   * pages with DevTools open, and configured always-active collaboration
+   * sites (`skipped`), mirroring Chrome's exemptions.
+   */
+  setLifecycle: (
+    workspaceId: string,
+    nodeId: string,
+    webContentsId: number,
+    state: WebviewLifecycleState,
+  ) => Promise<SetWebviewLifecycleResult>;
+  /**
+   * A shortcut keystroke a webview guest swallowed and main forwarded back
+   * to this window. Guests are separate renderer processes, so without this
+   * bridge every embedded page is a keyboard black hole — see
+   * `shared/webview-shortcuts.ts`.
+   */
+  onShortcut: (
+    callback: (payload: {
+      key: string;
+      control: boolean;
+      meta: boolean;
+      alt: boolean;
+      shift: boolean;
+    }) => void,
+  ) => () => void;
+  /**
+   * Fired by main's L3 discard monitor (Memory Saver style) when total
+   * guest memory exceeds budget and this node's long-frozen webview was
+   * chosen for discard. The renderer unmounts the `<webview>` (killing the
+   * guest process) and shows the snapshot as a sleeping placeholder;
+   * dwelling in the viewport or clicking wakes the node, which loads
+   * `restoreUrl` (the guest's real URL at freeze time — may differ from the
+   * node's saved url after in-page navigation) and scrolls back to
+   * (scrollX, scrollY). All restore fields come from the freeze-time record.
+   */
+  onDiscarded: (
+    callback: (payload: {
+      workspaceId: string;
+      nodeId: string;
+      webContentsId: number;
+      snapshotDataUrl?: string;
+      restoreUrl?: string;
+      scrollX?: number;
+      scrollY?: number;
+    }) => void,
+  ) => () => void;
+  pickDomElement: (
+    workspaceId: string,
+    nodeId: string,
+  ) => Promise<{
+    ok: boolean;
+    selection?: AgentContextDomSelectionRef;
+    error?: string;
+    cancelled?: boolean;
+  }>;
+  cancelDomElementPick: (
+    workspaceId: string,
+    nodeId: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+  }>;
+  /**
+   * A right-click inside an embedded page, relayed by main because the
+   * guest's `context-menu` event never reaches this window. The tab owning
+   * `sourceWebContentsId` draws the menu. Returns unsubscribe fn.
+   */
+  onContextMenu: (callback: (request: WebviewContextMenuRequest) => void) => () => void;
+}

@@ -1,5 +1,5 @@
 import type { KnowledgeNodeSelection } from '../../types';
-import { parseCanvasLocation } from '../../utils/canvasLinks';
+import { parseCanvasLocation } from '../canvasLinks';
 
 export const APP_ROUTES = {
   canvas: '/',

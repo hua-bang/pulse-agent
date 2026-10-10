@@ -15,8 +15,6 @@ export const isInsideContainer = (node: CanvasNode, container: CanvasNode): bool
   );
 };
 
-export const isInsideFrame = isInsideContainer;
-
 export const isFrameChildrenCollapsed = (node: CanvasNode): boolean =>
   node.type === 'frame' && (node.data as Partial<FrameNodeData>).childrenCollapsed === true;
 
@@ -106,8 +104,6 @@ export const computeParentContainerMap = (
   return map;
 };
 
-export const computeParentFrameMap = computeParentContainerMap;
-
 /**
  * Collect all transitive descendants of a frame/group (nodes whose parent
  * chain passes through `containerId`). Does NOT include the container itself.
@@ -133,8 +129,6 @@ export const collectContainerDescendants = (
 
   return result;
 };
-
-export const collectFrameDescendants = collectContainerDescendants;
 
 /**
  * Direct children of a container: nodes whose immediate parent container
@@ -215,8 +209,6 @@ export const computeContainerDepths = (nodes: CanvasNode[]): Map<string, number>
 
   return depths;
 };
-
-export const computeFrameDepths = computeContainerDepths;
 
 /** Frame nesting level for every frame with at least one frame ancestor
  * (1 = inside a root frame, 2 = one level deeper, ...). Nested surfaces

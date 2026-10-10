@@ -138,6 +138,8 @@ const renderSequence = async (snapshots: InkCliSnapshot[], viewport: Viewport = 
     />,
     {
       stdout: stdout as never,
+      // Ink turns its live renderer off when CI is set; these tests need it.
+      interactive: true,
       stdin: new MockStdin() as never,
       exitOnCtrlC: false,
       patchConsole: false,
@@ -192,7 +194,7 @@ const renderDraft = async (
         useStdout: ink.useStdout,
       }}
     />,
-    { stdout: stdout as never, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
+    { stdout: stdout as never, interactive: true, stdin: stdin as never, exitOnCtrlC: false, patchConsole: false },
   );
 
   await new Promise(resolve => setTimeout(resolve, 60));

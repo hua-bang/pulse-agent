@@ -16,10 +16,10 @@ import {
   resolveDockBrowserCommand,
 } from '../../../../../../shared/dock-shortcuts';
 import { isImeComposing } from '../../../../utils/ime';
-import { applyDockBrowserCommand, focusActiveDockTarget } from './dock-browser-commands';
+import { applyDockBrowserCommand, focusActiveDockTarget } from './links/dock-browser-commands';
 import { CHAT_TAB_ID } from '../../../../shared/dock/dock-tab-ids';
 import { mountedWebviewIdentityForWebContents } from '../../../canvas/webview';
-import type { DockStore } from './dock-store';
+import type { DockStore } from './state/dock-store';
 
 const isEditableEventTarget = (target: EventTarget | null): boolean => (
   target instanceof HTMLElement

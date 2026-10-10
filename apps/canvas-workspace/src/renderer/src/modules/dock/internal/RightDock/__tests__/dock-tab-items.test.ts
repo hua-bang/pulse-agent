@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getDockTabSwitcherItems } from '../dock-tab-items';
-import { DockStore } from '../dock-store';
+import { getDockTabSwitcherItems } from '../tabs/dock-tab-items';
+import { DockStore } from '../state/dock-store';
 
 describe('getDockTabSwitcherItems', () => {
   it('keeps terminal tabs in the switcher even when the chat tab is unavailable', () => {

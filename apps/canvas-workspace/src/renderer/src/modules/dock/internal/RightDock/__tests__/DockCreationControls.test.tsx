@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
 import { DockCreationControls } from '../DockCreationControls';
-import { DockStore } from '../dock-store';
+import { DockStore } from '../state/dock-store';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -13,7 +13,7 @@ let mount: HTMLDivElement | null = null;
 
 beforeAll(async () => {
   // Warm the module cache so React.lazy settles within the interaction's act.
-  await import('../NewDockTabMenu');
+  await import('../tabs/NewDockTabMenu');
 });
 
 afterEach(() => {
@@ -53,7 +53,7 @@ const renderControls = (rootFolder?: string) => {
 
 const waitForMenu = async () => {
   await act(async () => {
-    await import('../NewDockTabMenu');
+    await import('../tabs/NewDockTabMenu');
     await Promise.resolve();
   });
   await vi.waitFor(() => {

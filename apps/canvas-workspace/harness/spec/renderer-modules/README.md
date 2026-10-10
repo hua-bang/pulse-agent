@@ -23,6 +23,7 @@ infrastructure with no product-domain meaning.
 ```text
 src/renderer/src/
 ├── app/
+│   ├── App/           # application root composition + route projection
 │   └── shell/         # providers, routes, Workbench, Sidebar composition
 ├── modules/
 │   ├── canvas/        # document state, transactions, history, external merge
@@ -44,10 +45,14 @@ src/renderer/src/
 ├── platform/
 │   └── browser/       # webview lifecycle, URL, guest-input and launch adapters
 ├── hooks/             # domain-free overlay geometry and keyboard behavior
-├── types/             # cross-renderer contracts
+├── shortcuts/         # keyboard shortcut registry and terminal shortcuts
+├── shared/            # cross-module helpers; some files still have a product owner
+├── types/             # renderer-only UI types; `types.ts` re-exports src/shared/api
 ├── utils/             # pure helpers, some still feature-specific
-├── i18n/
-└── app/App/         # application root composition + route projection
+├── config/            # agent registry, terminal theme and link handling
+├── constants/         # canvas plugin and interaction constants
+├── perf/              # renderer jank and counter monitors
+└── i18n/
 ```
 
 Current healthy properties:
@@ -232,6 +237,17 @@ Current pressure points, measured on 2026-09-04:
 | Workspace nodes page | `NodesPage/index.tsx` ~178 lines; owner controller ~214 lines; pure filtering/AI-scope model ~123 lines; owner CSS 160 lines | the page only composes header, filters, cards, and selection bar; controller owns data/filter/selection/pagination effects, the tested model preserves bounded exact context versus durable workspace/tag scopes, and unreachable pre-CardShell CSS is removed |
 | Settings | MCP manager ~370 lines with draft codec ~112 and server form/list 144/184; PluginsManager ~442 lines / owner CSS 67; shared config chrome 438 lines | MCP and plugin bridges remain separate product adapters over shared form/list chrome; Plugins follows its owner folder, the zero-caller legacy SkillsManager is deleted because `modules/skills` owns that capability, and no generic ConfigManager was introduced |
 
+Structural state, measured on 2026-10-07 with `check-renderer-structure`:
+0 target gaps, 0 boundary errors, and 0 module cycles.
+
+- Canvas depends on Chat, so Chat never imports Canvas. Approval cards show
+  Canvas node previews through `shared/approvalNodePreview.ts`: the app root
+  injects the lazy `modules/canvas/preview` loader there.
+- Product-named `shared/` files, such as `dockPort.tsx`, `shared/dock/`, and
+  `chatTarget.ts` (which `dockPort.tsx` uses), are intentional
+  dependency-inversion seams (see Dock above). Do not move them to their
+  apparent owner without a replacement boundary.
+
 Line counts are discovery signals, not the decision rule. Use the deletion
 test: a module earns its place when deleting it would spread its complexity
 across callers. Deepening should reduce what callers need to know, not merely
@@ -301,6 +317,14 @@ modules/<name>/
 └── __tests__/                  # cross-submodule integration specs only
 ```
 
+Current variant: `artifacts`, `dock`, `plugin-market`, `scheduled`,
+`settings`, `skills`, and `workspace-nodes` keep their private implementation
+under `internal/` instead of `components/` and `runtime/`. Both forms keep
+implementation behind the module's public entry points: `index.ts` plus any
+named secondary entry point that preserves a lazy-loading boundary (for
+example `dock/reference.ts` or `settings/app.ts`). Do not rename existing folders only to
+match this shape; apply it when a module is restructured for another reason.
+
 Do not create an adapter for hypothetical variation. One implementation is
 not evidence of a seam; production and deterministic in-memory adapters are a
 real seam when both are used.
@@ -315,9 +339,11 @@ Rules:
 
 1. `app/` composes modules but does not implement their product behavior.
 2. A module imports another module through its `index.ts` interface. A small,
-   named secondary entrypoint is allowed only when a measured lazy-loading or
-   bundle boundary would be broken by the root barrel (for example Chat's
-   `lazy.tsx`, `session.ts`, `completion.ts`, and `floating.ts`).
+   named secondary entrypoint is allowed only when a lazy-loading or bundle
+   boundary would be broken by the root barrel (for example Chat's
+   `lazy.tsx`, `session.ts`, `completion.ts`, and `floating.ts`). Such an
+   entrypoint exports symbols that `index.ts` does not, so importing it never
+   loads the barrel.
 3. Cross-module dependencies must be acyclic. The lower-level module never
    imports the caller to learn caller-specific types.
 4. Root `components/` cannot import a product module.
@@ -399,9 +425,9 @@ Its detector reports:
 - tests and styles that appear separated from their owner.
 
 Default mode is read-only and migration-aware. Heuristic counts overlap and
-do not represent independent defects. Strict mode evaluates this
-target and is appropriate only once the caller explicitly asks for target
-conformance or the module-first migration has begun. Existing file-size,
+do not represent independent defects. Strict mode fails on target gaps,
+boundary errors, and module cycles; the standard validation level runs it for
+every renderer change. Existing file-size,
 import-boundary, UI-reuse, typecheck, and full-test gates remain authoritative;
 the structural detector does not duplicate them.
 

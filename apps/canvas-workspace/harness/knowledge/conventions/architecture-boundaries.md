@@ -28,12 +28,26 @@ The app is split into four source surfaces with a strict dependency direction:
 - **`preload`** is a bridge: **no** importing `renderer`/`main` implementation.
   Cross-process API contracts belong in `src/shared/*`; policy stays in `main`.
 
-> Known debt: cross-process API contracts (`CanvasWorkspaceApi` and friends)
-> still live in `src/renderer/src/types.ts`, so preload bridges currently import
-> them via an explicit allowlist in `import-boundaries.test.ts`. The migration
-> goal is to move those contracts into `src/shared/*` and delete the allowlist
-> entries. **Do not add new preload→renderer imports** — extend the shared
-> contracts instead.
+Cross-process API contracts (`CanvasWorkspaceApi` and the per-domain `*Api`
+interfaces) live in `src/shared/api/*`. `src/renderer/src/types.ts` re-exports
+them for renderer code. `import-boundaries.test.ts` has no preload allowlist:
+any preload→renderer import fails.
+
+A type exported from `src/shared` is declared only there. Other layers import
+it or re-export it (`export type { X } from '.../shared/...'`); a second
+declaration with the same name drifts silently. `shared-contract-governance.test.ts`
+fails on a new redefinition. Its list of intentional redefinitions (plugin SDK
+views, on-disk schemas, stricter store rows) may only shrink.
+
+## Dead code
+
+`pnpm --filter canvas-workspace deadcode` runs knip (`knip.json`). It fails on
+unused files, unused exports and types, and duplicate exports. Tests count as
+entry points, so an export that only a test uses is not dead. Delete dead code
+instead of keeping it for later. When an export must stay without a static
+caller (a lazy namespace import, a surface hidden on purpose), tag it
+`/** @keep <reason> */`. `knip.json` `ignore` lists whole files kept on purpose,
+such as the engine type shim.
 
 ## File-size governance
 

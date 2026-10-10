@@ -5,53 +5,22 @@ import { withStoreMutationLock } from './mutation-lock';
 import type { EntityRecord } from '@pulse-coder/storage';
 import { getCanvasBackend, resolveStorageNativeBinding } from '../persistence/backend';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
+import type {
+  WorkspaceNodeLink,
+  WorkspaceNodePropertyValue,
+  WorkspaceNodeRecord,
+} from '../../../shared/canvas';
+export type {
+  WorkspaceNodeLink,
+  WorkspaceNodePropertyValue,
+  WorkspaceNodeRecord,
+} from '../../../shared/canvas';
 
 export const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 export const NODES_DIR_NAME = 'nodes';
 
 /** Current on-disk schema version for workspace-local knowledge nodes. */
 export const WORKSPACE_NODE_SCHEMA_VERSION = 1;
-
-export type WorkspaceNodePropertyValue =
-  | string
-  | number
-  | boolean
-  | null
-  | string[]
-  | number[]
-  | { type: 'date'; value: string }
-  | { type: 'url'; value: string }
-  | { type: 'file'; path: string }
-  | { type: 'node'; nodeId: string }
-  | { type: 'workspace-node'; workspaceId: string; nodeId: string };
-
-export interface WorkspaceNodeLink {
-  relation: string;
-  target: {
-    workspaceId?: string;
-    nodeId: string;
-  };
-  title?: string;
-  properties?: Record<string, WorkspaceNodePropertyValue>;
-}
-
-/**
- * Workspace-local atomic knowledge record.
- *
- * Stored at `~/.pulse-coder/canvas/<workspaceId>/nodes/<nodeId>.json`.
- * Canvas layout lives in `canvas.json`; this file is the reusable node body.
- */
-export interface WorkspaceNodeRecord {
-  schemaVersion: typeof WORKSPACE_NODE_SCHEMA_VERSION;
-  id: string;
-  type: string;
-  title?: string;
-  data: Record<string, unknown>;
-  properties?: Record<string, WorkspaceNodePropertyValue>;
-  links?: WorkspaceNodeLink[];
-  updatedAt?: number;
-  createdAt?: number;
-}
 
 export function getWorkspaceDir(workspaceId: string, root: string = STORE_DIR): string {
   return join(root, workspaceId);

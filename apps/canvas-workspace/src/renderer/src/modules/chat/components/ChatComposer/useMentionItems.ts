@@ -8,7 +8,7 @@ import type {
 } from '../../../../types';
 import { useI18n, type I18nKey } from '../../../../i18n';
 import { MENTION_MAX_ITEMS, sortAndCapMentionItems } from '../ChatMentionPopup/constants';
-import { buildTabMentionItems } from '../utils/mentions';
+import { buildTabMentionItems } from '../../mentions/mentions';
 import { flattenEntries } from '../../mentions/fileMentionItems';
 import { loadRoleMentionItems } from '../../mentions/roleMentionItems';
 import { buildStaticMentionItems } from '../../mentions/staticMentionItems';

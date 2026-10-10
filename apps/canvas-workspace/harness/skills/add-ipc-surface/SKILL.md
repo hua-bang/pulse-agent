@@ -23,20 +23,12 @@ renderer via `window.canvasWorkspace.artifacts`.
    the promise-returning Api interface up front lets main, preload, and
    renderer be written independently against it.
 
-3. **THE PLACEMENT TRAP — where the Api interface goes.** Existing Api
-   interfaces (e.g. `ArtifactsApi`) live in `src/renderer/src/types/<domain>.ts`
-   and preload imports them through a **per-file** allowlist in
-   `import-boundaries.test.ts` (`ALLOWED_PRELOAD_BOUNDARY_IMPORTS`, one entry
-   per bridge file). Do NOT copy that: a NEW bridge file importing
-   `../../renderer/src/types` fails the boundary test, and adding an
-   allowlist entry moves against the migration the test itself documents.
-   For a new domain, define the Api interface in `src/shared/<domain>.ts`
-   next to the data shapes, import it in the bridge from there
-   (preload→shared is legal), and re-export it from the
-   `src/renderer/src/types.ts` barrel for renderer consumers. No bridge does
-   this yet — you are creating the copy-reference. (Extending an EXISTING
-   domain through its existing files is fine; its allowlist entry already
-   covers it.)
+3. **Where the Api interface goes.** Api interfaces (e.g. `ArtifactsApi`)
+   live in `src/shared/api/<domain>.ts`, or in `src/shared/<domain>.ts` next
+   to the data shapes for newer domains. The bridge imports them from there
+   (preload→shared is legal), and `src/renderer/src/types.ts` re-exports them
+   for renderer consumers. A bridge that imports `renderer/src/types` fails
+   `import-boundaries.test.ts`; there is no allowlist.
 
 4. **Main side: domain folder + documented channel surface.**
    `src/main/<domain>/` with `ipc.ts` (all `ipcMain.handle` for the domain)
@@ -65,7 +57,7 @@ renderer via `window.canvasWorkspace.artifacts`.
    `subscribe` from `bridge/ipc.ts` (returns an `Unsubscribe`; renderer calls
    it in effect cleanup). Add the field to the `canvasWorkspace` object in
    `src/preload/index.ts` and to `CanvasWorkspaceApi`
-   (`src/renderer/src/types/workspace-api.ts`). No logic in the bridge —
+   (`src/shared/api/workspace-api.ts`). No logic in the bridge —
    policy stays in main.
 
 8. **Renderer consumes `window.canvasWorkspace` only.** Never import

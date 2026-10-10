@@ -29,7 +29,7 @@ import {
   FIND_IN_DOCK_TAB_EVENT,
   FOCUS_DOCK_ADDRESS_EVENT,
   RELOAD_DOCK_TAB_EVENT,
-} from '../RightDock/dock-browser-commands';
+} from '../RightDock/links/dock-browser-commands';
 import { pickFaviconUrl } from "../../../canvas/webview";
 import { useAppShell } from '../../../../shared/appShell';
 import type { AgentContextDomSelectionRef, AgentContextTabRef } from '../../../../types';
@@ -38,7 +38,7 @@ import { Button, TextField } from "../../../../components/ui";
 import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../../shared/experimental-features";
 import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../../chat';
 import { useChatDeliveryNotifier } from '../../../chat/delivery';
-import { TabChatAction } from '../RightDock/TabChatAction';
+import { TabChatAction } from '../RightDock/tabs/TabChatAction';
 import "./index.css";
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
  *  detect its sign-in host so we can steer the user to the system browser. */

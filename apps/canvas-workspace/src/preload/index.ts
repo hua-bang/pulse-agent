@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { CanvasWorkspaceApi } from "../renderer/src/types";
+import type { CanvasWorkspaceApi } from "../shared/api/workspace-api";
 import { createAgentApi } from "./bridge/agent";
 import { createAgentRolesApi } from "./bridge/agent-roles";
 import { createAgentTeamsApi } from "./bridge/agent-teams";

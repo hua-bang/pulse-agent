@@ -1,7 +1,6 @@
 import { basename } from 'path';
 import {
   STORE_DIR,
-  getCanvasJsonPath,
   readCanvasFull,
   writeCanvasFull,
   type CanvasNode,
@@ -21,10 +20,6 @@ export interface SaveCanvasOptions extends CanvasServiceOptions {
    * Allow writing an empty `nodes: []` over a populated canvas. Default false.
    */
   allowEmpty?: boolean;
-}
-
-export function canvasPath(workspaceId: string, root?: string): string {
-  return getCanvasJsonPath(workspaceId, root);
 }
 
 export async function loadCanvas(

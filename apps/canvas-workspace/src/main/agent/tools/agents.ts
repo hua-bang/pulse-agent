@@ -1,13 +1,13 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
-import { sendInputToAgentNode } from '../session-send';
+import { sendInputToAgentNode } from '../sessions/session-send';
 import { readWorkspaceMeta } from '../workspace-meta';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
+import { CANVAS_NODE_DEFAULTS } from '../../../shared/canvas-node-defaults';
 import {
-  DEFAULT_DIMENSIONS,
   INLINE_PROMPT_THRESHOLD,
   placementIntentSchema,
   resolvePlacement,
@@ -52,7 +52,7 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
         const prompt = (input.prompt as string) ?? '';
         const agentArgs = (input.agentArgs as string) ?? '';
         const autoLaunch = input.autoLaunch ?? !!prompt;
-        const title = (input.title as string) ?? DEFAULT_DIMENSIONS.agent.title;
+        const title = (input.title as string) ?? CANVAS_NODE_DEFAULTS.agent.title;
 
         // Short prompt → inline CLI arg; long prompt → file
         let inlinePrompt = '';
@@ -68,7 +68,7 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
         }
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const def = DEFAULT_DIMENSIONS.agent;
+        const def = CANVAS_NODE_DEFAULTS.agent;
         let pos: { x: number; y: number };
         try {
           pos = resolvePlacement(

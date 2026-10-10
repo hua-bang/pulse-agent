@@ -1,4 +1,3 @@
-import { promises as fs } from 'node:fs';
 
 export interface SyncableEdge {
   id: string;
@@ -9,17 +8,6 @@ export interface SyncableEdge {
 export const edgesToMap = <T extends SyncableEdge>(
   edges: T[] | undefined,
 ): Map<string, T> => new Map((edges ?? []).map((edge) => [edge.id, edge]));
-
-export const readOnDiskEdgeMap = async <T extends SyncableEdge>(
-  filePath: string,
-): Promise<Map<string, T>> => {
-  try {
-    const parsed = JSON.parse(await fs.readFile(filePath, 'utf-8')) as { edges?: T[] };
-    return edgesToMap(parsed.edges);
-  } catch {
-    return new Map<string, T>();
-  }
-};
 
 export const mergeExternalEdges = <T extends SyncableEdge>(
   memoryEdges: T[],

@@ -15,7 +15,7 @@ import {
 } from '../../../shared/conversation-runtime';
 import type { CanvasAgentPerformanceTiming } from '../debug-trace';
 import { markConversationLaneEntered, observeConversationPersistence } from '../observability/host-run';
-import { ClarificationRegistry } from '../clarification-registry';
+import { ClarificationRegistry } from '../run/clarification-registry';
 import { TurnToolTracker } from './turn-tools';
 
 /** How often an in-flight reply is saved, so a crash keeps the partial text. */

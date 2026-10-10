@@ -1,5 +1,6 @@
 import type { CanvasEdge, CanvasNode, EdgeAnchor, EdgeEndpoint } from '../../../types';
 import { DEFAULT_EDGE_STROKE } from '../../../../../shared/canvas';
+import { genEdgeId } from '../../../../../shared/canvas-node-defaults';
 
 type Point = { x: number; y: number };
 type UnitVector = { x: number; y: number };
@@ -22,9 +23,6 @@ const ANCHOR_NORMALS: Record<Exclude<EdgeAnchor, 'auto'>, UnitVector> = {
   bottom: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
 };
-
-let edgeIdCounter = 0;
-export const genEdgeId = (): string => `edge-${Date.now()}-${++edgeIdCounter}`;
 
 /**
  * Create a new edge with sensible defaults:

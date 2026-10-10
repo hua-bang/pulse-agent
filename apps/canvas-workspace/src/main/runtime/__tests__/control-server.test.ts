@@ -27,7 +27,7 @@ vi.mock('electron', () => ({
 
 // These are only used by the HTTP request handlers, not the lifecycle code we
 // exercise here. Stub them so the module imports cleanly.
-vi.mock('../../agent/session-send', () => ({ sendInputToAgentNode: vi.fn() }));
+vi.mock('../../agent/sessions/session-send', () => ({ sendInputToAgentNode: vi.fn() }));
 vi.mock('../../agent-teams/service', () => ({ getCanvasAgentTeamsService: vi.fn() }));
 
 import {

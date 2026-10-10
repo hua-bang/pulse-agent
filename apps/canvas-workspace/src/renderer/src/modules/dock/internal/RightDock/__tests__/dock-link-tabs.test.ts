@@ -7,8 +7,8 @@ import {
   isSameOrigin,
   linkPaneKey,
   updateRetainedLinkTabs,
-} from '../dock-link-tabs';
-import type { DockPreviewTab } from '../dock-types';
+} from '../links/dock-link-tabs';
+import type { DockPreviewTab } from '../state/dock-types';
 
 const link = (id: string, openerTabId?: string): DockPreviewTab => ({
   id,

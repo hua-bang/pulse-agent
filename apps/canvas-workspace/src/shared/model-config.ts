@@ -44,6 +44,13 @@ export interface CanvasModelProviderStatus {
   base_url?: string;
   api_key_env?: string;
   apiKeyPresent: boolean;
+  /**
+   * Number of characters in the saved API key when one is present and
+   * decryptable. Undefined when no key is saved, or when an encrypted
+   * blob exists but couldn't be decrypted on this machine. Exposed so
+   * the settings UI can confirm to the user that a key really is on
+   * disk without echoing it back.
+   */
   apiKeyLength?: number;
   headers?: Record<string, string>;
   models: CanvasProviderModel[];
@@ -66,6 +73,7 @@ export type PromptPreset = 'concise' | 'balanced' | 'detailed';
 
 export interface PromptProfile {
   preset: PromptPreset;
+  /** User-authored extra instructions appended to the system prompt. */
   customPrompt: string;
 }
 

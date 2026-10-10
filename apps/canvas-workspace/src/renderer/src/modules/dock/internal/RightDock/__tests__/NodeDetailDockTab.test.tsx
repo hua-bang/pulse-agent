@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
 import { AppShellProvider } from '../../../../../app/shell/AppShellProvider';
 import type { AgentContextTabRef } from '../../../../../types';
-import { NodeDetailDockTab } from '../NodeDetailDockTab';
+import { NodeDetailDockTab } from '../content/NodeDetailDockTab';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

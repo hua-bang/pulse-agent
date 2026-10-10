@@ -21,7 +21,7 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
-import { sendInputToAgentNode } from '../agent/session-send';
+import { sendInputToAgentNode } from '../agent/sessions/session-send';
 import { handleCapabilityHttpRequest } from './capability-http';
 import { readBody, replyJson as reply } from './http-utils';
 const getCanvasAgentTeamsService = async () =>
@@ -662,4 +662,3 @@ function errorStatus(code: string): number {
 // Exported for tests.
 export const __test = { RUNTIME_FILE, RUNTIME_DIR };
 export const RUNTIME_FILE_PATH = RUNTIME_FILE;
-export const RUNTIME_DIR_PATH = RUNTIME_DIR;

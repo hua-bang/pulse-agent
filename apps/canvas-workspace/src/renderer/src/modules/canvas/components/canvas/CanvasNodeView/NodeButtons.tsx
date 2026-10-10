@@ -216,12 +216,3 @@ export const OpenSourceButton = ({
     </svg>
   </button>
 );
-
-export const OpenDetailButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
-  <OpenSourceButton
-    ariaLabel="Open note detail page"
-    className="node-open-detail"
-    onClick={onClick}
-    title="Open detail page"
-  />
-);

@@ -21,7 +21,7 @@ vi.mock('electron', () => ({
 
 import { invokeArtifactCapability } from '../capability-ipc';
 import { createArtifact } from '../store';
-import { listMemory, saveMemory } from '../../agent/memory-store';
+import { listMemory, saveMemory } from '../../agent/memory/memory-store';
 import { upsertCanvasSkill } from '../../agent/skills/config';
 import { setArtifactAgentWritePort } from '../agent-write-port';
 

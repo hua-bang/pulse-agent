@@ -151,10 +151,6 @@ export interface AgentObservabilitySubscriber {
   shutdown?(): void | Promise<void>;
 }
 
-export interface AgentObservabilityPublisher {
-  publish(event: AgentTraceEvent): void;
-}
-
 export interface AgentObservabilityMarkInput {
   runId: string;
   milestone: Extract<

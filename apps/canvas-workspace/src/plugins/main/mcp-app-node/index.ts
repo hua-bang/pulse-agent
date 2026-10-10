@@ -16,7 +16,7 @@ async function readMcpAppNode({ node, workspaceId }: PluginNodeCapabilityRef) {
   if (!binding) {
     return { content: 'MCP App node with an invalid binding; it cannot be opened.' };
   }
-  const { getMcpAppNodeContextStore } = await import('../../../main/agent/mcp-app-node-context');
+  const { getMcpAppNodeContextStore } = await import('../../../main/agent/mcp-apps/mcp-app-node-context');
   const context = getMcpAppNodeContextStore().read({ workspaceId, nodeId: node.id, ...binding });
   // The mounted view is the primary source for questions about this node.
   // Server tools can supplement it without reopening an already visible App.

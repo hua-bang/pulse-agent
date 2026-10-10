@@ -102,10 +102,6 @@ export function getRoleColors(): ReadonlyMap<string, string> {
   return roleColors;
 }
 
-export function getRoleNameColors(): ReadonlyMap<string, string> {
-  return roleNameColors;
-}
-
 /** Notifies whenever the id → color snapshot actually changes; returns unsubscribe. */
 export function subscribeRoleColors(listener: () => void): () => void {
   colorListeners.add(listener);

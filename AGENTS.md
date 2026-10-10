@@ -8,11 +8,12 @@ Global constraints and task routes; `CLAUDE.md` imports this file.
 - SSOT: `pnpm-workspace.yaml` owns membership; package.json owns metadata/scripts; workspace AGENTS/harness own local roles, contracts, and knowledge. Do not copy inventories.
 - Establish the problem, goal, constraints, and current evidence first; do not reverse-justify a change from an MR or neighboring code.
 - Reuse existing modules, scripts, skills, and docs. Add assets only when existing entries cannot carry the work and the addition reduces complexity or enforces a constraint. Newness is not a reason.
+- Make everything as simple as possible, but not simpler. Add an abstraction layer (port, adapter, registry, barrel, wrapper) only for a real second caller or implementation, or for a boundary that a test enforces. Write a single implementation directly; do not reserve extension points for hypothetical needs. Do not simplify away a needed invariant, guard, or boundary.
 - Prefer plugin/hook/tool/service boundaries over engine-loop hardcoding. Verify that enforcement actually exists; a documented gate is not a runner.
 - Maintain AGENTS by decision value and ownership: keep necessary scoped constraints and task routes; apply the content-admission principles in `harness/DESIGN.md`. Length metrics are observational.
 - Write explanations and documentation in an ASD-STE100-inspired style (about 80% strictness): use short sentences, active voice, plain words, and consistent terms. Apply the same principles in Chinese; keep natural phrasing and necessary technical detail.
 
-Self-check: evidence, reuse, smallest change, SSOT/consumers, executable guard (or why only documentation).
+Self-check: evidence, reuse, smallest change, no speculative abstraction, SSOT/consumers, executable guard (or why only documentation).
 
 ## 1. Routing
 
@@ -51,7 +52,7 @@ Before code/review: owning AGENTS + local validation. Before contract changes: a
 
 After creating or entering a linked git worktree, run `pnpm bootstrap:worktree` before build/test. It keeps each worktree's `node_modules` layout local while reusing the shared pnpm store, and refuses dependency links that resolve into another checkout.
 
-Performance and harness-integrity CI are defined. Bound workspace acceptance still runs manually; the integrity workflow only checks harness code/data and plans commands. See `harness/validate/README.md`. Qualify further enforcement before enabling it.
+Performance, harness-integrity, and quality CI are defined. Quality runs core package tests and Canvas typecheck, dead-code check, and tests on every PR; other bound workspace acceptance still runs manually, and the integrity workflow only checks harness code/data and plans commands. See `harness/validate/README.md`. Qualify further enforcement before enabling it.
 
 Repo protocols live in harness/skills; product skills in .pulse-coder/skills. Use existing protocols; add one only for stable recurring work.
 

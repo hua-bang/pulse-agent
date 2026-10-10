@@ -10,11 +10,11 @@ import {
 } from 'react';
 import { useDragResize } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
-import { CHAT_TAB_ID } from './dock-store';
+import { CHAT_TAB_ID } from './state/dock-store';
 import { useDockContext, useRightDockState } from './context';
-import type { RightDockProps } from './dock-types';
+import type { RightDockProps } from './state/dock-types';
 import { useConsumePendingLinks } from '../../../../platform/browser/useConsumePendingLinks';
-import { useDockLinkOpens } from './useDockLinkOpens';
+import { useDockLinkOpens } from './links/useDockLinkOpens';
 import { useDockAgentBridge } from './useDockAgentBridge';
 import { useDockSplitView } from './useDockSplitView';
 import {
@@ -23,38 +23,37 @@ import {
   DOCK_MIN_WIDTH,
   resolveDockMaxWidth,
   resolveTabWidth,
-} from './dock-width';
-import { useDockTabDrag } from './useDockTabDrag';
+} from './state/dock-width';
+import { useDockTabDrag } from './tabs/useDockTabDrag';
 import {
   cancelDockPageFocusRequestUnless,
   cancelDockPageFocusRequest,
   FOCUS_OUTSIDE_DOCK_EVENT,
   focusActiveDockTarget,
-} from './dock-browser-commands';
+} from './links/dock-browser-commands';
 import { useDockExternalFocus } from './useDockExternalFocus';
-import { getDockTabSwitcherItems } from './dock-tab-items';
+import { getDockTabSwitcherItems } from './tabs/dock-tab-items';
 import { DockPanes } from './DockPanes';
 import { getRenderableComparisonPair } from '../../../../shared/dock/dock-split-state';
-import { getDockTabVisualState } from './dock-tab-visual-state';
+import { getDockTabVisualState } from './tabs/dock-tab-visual-state';
 import {
   getRovingDockTabId,
   handleDockResizeKeyDown,
-} from './dock-accessibility';
-import { useDockReadingLayout } from './useDockReadingLayout';
-import './dock-reading.css';
+} from './tabs/dock-accessibility';
+import { useDockReadingLayout } from './reading/useDockReadingLayout';
+import './reading/dock-reading.css';
 import './index.css';
-import './terminal-tab.css';
+import './content/terminal-tab.css';
 
-export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId, type DockTerminalTab, type DockTerminalWorkspaceState } from './dock-store';
+export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId, type DockTerminalTab, type DockTerminalWorkspaceState } from './state/dock-store';
 export {
   RightDockProvider,
   useRightDock,
   useRightDockChatHost,
-  useRightDockMcpAppHost,
   useRightDockState,
   useRightDockTerminalHost,
 } from './context';
-export { isDockChatVisible, isDockTerminalVisible } from './dock-visibility';
+export { isDockChatVisible, isDockTerminalVisible } from './state/dock-visibility';
 export {
   isCanvasTabEditingAllowed,
   isDockChatTabEnabled,
@@ -64,10 +63,10 @@ export { useChatDockWorkspace } from './useChatDockWorkspace';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
-const DockTabStrip = lazy(() => import('./DockTabStrip').then(m => ({ default: m.DockTabStrip })));
-const DockReadingControls = lazy(() => import('./DockReadingControls').then(m => ({ default: m.DockReadingControls })));
+const DockTabStrip = lazy(() => import('./tabs/DockTabStrip').then(m => ({ default: m.DockTabStrip })));
+const DockReadingControls = lazy(() => import('./reading/DockReadingControls').then(m => ({ default: m.DockReadingControls })));
 const DockKeyboardController = lazy(() => import('./DockKeyboardController').then((m) => ({ default: m.DockKeyboardController })));
-const TabContextMenu = lazy(() => import('./TabContextMenu').then((m) => ({ default: m.TabContextMenu })));
+const TabContextMenu = lazy(() => import('./tabs/TabContextMenu').then((m) => ({ default: m.TabContextMenu })));
 
 function readStoredWidth(): number | null {
   if (typeof window === 'undefined') return null;

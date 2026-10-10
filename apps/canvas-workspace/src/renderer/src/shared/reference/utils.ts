@@ -1,7 +1,7 @@
 import type { CanvasNode, ReferenceNodeData } from '../../types';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
-import type { ArtifactReferenceEntry, ReferenceEntry, ReferenceGroupKey, UrlReferenceEntry } from './types';
+import type { ArtifactReferenceEntry, ReferenceEntry, UrlReferenceEntry } from './types';
 
 export const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
 
@@ -15,24 +15,6 @@ export const getReferenceId = (entry: ReferenceEntry) => {
 };
 
 export const getNodeReferenceId = (workspaceId: string, nodeId: string) => `${workspaceId}:${nodeId}`;
-
-export const getReferenceGroupIcon = (type: ReferenceGroupKey) => {
-  switch (type) {
-    case 'file': return 'N';
-    case 'text': return 'T';
-    case 'image': return 'I';
-    case 'iframe': return 'W';
-    case 'url': return '@';
-    case 'agent': return 'A';
-    case 'terminal': return '$';
-    case 'mindmap': return 'M';
-    case 'reference': return 'R';
-    case 'shape': return 'S';
-    case 'frame': return 'F';
-    case 'group': return 'G';
-    case 'missing': return '?';
-  }
-};
 
 export const getUrlHostname = (url: string) => {
   try {

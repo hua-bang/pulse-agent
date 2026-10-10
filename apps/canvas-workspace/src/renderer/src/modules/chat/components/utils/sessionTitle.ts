@@ -1,6 +1,6 @@
 import { DOM_MENTION_PREFIX, NODE_MENTION_PREFIX, TAB_MENTION_PREFIX } from '../ChatMentionPopup/constants';
-import { MENTION_RE, pipedMentionLabel } from './mentionMarkers';
-import { parseTabMention } from './tabMentions';
+import { MENTION_RE, pipedMentionLabel } from '../../mentions/mentionMarkers';
+import { parseTabMention } from '../../mentions/tabMentions';
 
 export interface SessionTitlePart {
   text: string;

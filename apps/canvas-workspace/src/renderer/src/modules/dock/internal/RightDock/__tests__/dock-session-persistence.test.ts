@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDockSessionPersistence, DOCK_SESSION_STORAGE_KEY } from '../dock-session-persistence';
+import { createDockSessionPersistence, DOCK_SESSION_STORAGE_KEY } from '../state/dock-session-persistence';
 
 const createStorage = (initial?: string) => {
   let value = initial ?? null;

@@ -6,7 +6,7 @@ import {
   scopeMcpConfigPath,
   scopeRootDir,
   scopeSkillsDir,
-} from '../config-scope';
+} from '../scope/config-scope';
 import { skillSlug } from '../skills/config';
 
 const ROOT = join(homedir(), '.pulse-coder', 'canvas');

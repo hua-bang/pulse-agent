@@ -3,8 +3,8 @@ import { act, useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
-import { DockReadingControls } from '../DockReadingControls';
-import { CHAT_TAB_ID, DockStore } from '../dock-store';
+import { DockReadingControls } from '../reading/DockReadingControls';
+import { CHAT_TAB_ID, DockStore } from '../state/dock-store';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CodexSessionsApi } from '../../../types/codex-sessions';
+import type { CodexSessionsApi } from '../../../../../shared/api/codex-sessions';
 import { startCodexSessionCapture } from './codexSessionCapture';
 
 describe('Codex session capture', () => {

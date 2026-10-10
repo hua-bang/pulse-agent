@@ -466,9 +466,3 @@ export function killSession(sessionId: string): boolean {
   }
   return true;
 }
-
-/** Get the PID of a PTY session (for cwd lookup etc.) */
-export function getSessionPid(sessionId: string): number | null {
-  const proc = sessions.get(sessionId);
-  return proc ? proc.pid : null;
-}

@@ -1,6 +1,7 @@
 import type { CanvasNode, ShapeNodeData } from '../../../../shared/canvas';
 import type { RawMindmapTopic } from '../types';
-import { genTopicId, normalizeMindmapTopic } from './mindmap';
+import { genTopicId } from '../../../../shared/canvas-node-defaults';
+import { normalizeMindmapTopic } from './mindmap';
 
 /** Shared construction data keeps approval previews identical to the created node. */
 export const createPassiveNodeData = (

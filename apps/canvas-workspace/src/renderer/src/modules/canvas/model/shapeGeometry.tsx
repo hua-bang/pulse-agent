@@ -12,16 +12,6 @@ export const SHAPE_KINDS: ShapeKind[] = [
   'star',
 ];
 
-export const SHAPE_KIND_LABEL: Record<ShapeKind, string> = {
-  'rect': 'Rectangle',
-  'rounded-rect': 'Rounded rectangle',
-  'ellipse': 'Ellipse',
-  'triangle': 'Triangle',
-  'diamond': 'Diamond',
-  'hexagon': 'Hexagon',
-  'star': 'Star',
-};
-
 /**
  * Build the SVG `points` attribute for a polygon shape inscribed in the
  * bounding box `[inset, inset] → [w-inset, h-inset]`. The inset accounts

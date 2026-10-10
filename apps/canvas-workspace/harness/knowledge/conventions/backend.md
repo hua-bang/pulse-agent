@@ -79,9 +79,8 @@ the renderer-facing API. Bridge modules:
 
 - are thin: `ipcRenderer.invoke(channel, payload)` for calls, and a `subscribe`
   helper for events that returns an unsubscribe function;
-- must **not** import `main` or `renderer` implementation (only shared/contract
-  types — currently `renderer/src/types` via the documented allowlist, pending
-  migration to `src/shared/*`).
+- must **not** import `main` or `renderer` code; they import contract types
+  from `src/shared/api/*` or `src/shared/*` only.
 
 ## Main-process logging
 

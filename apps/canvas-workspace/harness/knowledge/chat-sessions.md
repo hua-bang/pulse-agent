@@ -7,8 +7,8 @@ runs session-anchored so different conversations in one workspace can stream
 concurrently. Read this
 before changing `modules/chat/sessions/useChatSessions.ts`
 (`src/renderer/src/modules/chat/sessions/useChatSessions.ts`), the full-page
-chat topbar / dock content-tabs toggle, `RightDock/dock-width.ts`
-(`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`), or
+chat topbar / dock content-tabs toggle, `RightDock/state/dock-width.ts`
+(`src/renderer/src/modules/dock/internal/RightDock/state/dock-width.ts`), or
 `src/main/agent/service.ts` and its collaborators (`active-chat-registry.ts`,
 `session-mutation-coordinator.ts`, `prepared-chat.ts`,
 `canvas-run-registry.ts`, `run-session-context.ts`, `session-file-io.ts`,
@@ -553,7 +553,7 @@ Session citation markers are atomic Markdown inputs: protect the complete
 Markdown rendering, then restore it for chip conversion. Store ids such as
 `__global_chat__` and `__scheduled__-<taskId>` must reach the chip dataset
 verbatim; repairing rendered `<strong>` fragments after the fact is not a
-compatible parser. Guards: `utils/mentions.test.ts` and
+compatible parser. Guards: `mentions/mentions.test.ts` and
 `__tests__/ChatMessages.accessibility.test.tsx`.
 
 If the visible page composer is temporarily busy or registering, its context
@@ -575,7 +575,7 @@ Editable composers expose `Automatic` / `Ask first`; Ask first is not advisory
 copy — the main-process tool policy permits reads but gates mutating/command
 tools through the clarification approval lane before execution.
 
-Guards: `utils/chatPageDockTabs.test.ts`, `utils/mentions.test.ts`,
+Guards: `utils/chatPageDockTabs.test.ts`, `mentions/mentions.test.ts`,
 `__tests__/ChatMessages.accessibility.test.tsx`, and
 `__tests__/ChatInput.execution-attachments.test.tsx` under
 `src/renderer/src/modules/chat/components/`, plus
@@ -587,7 +587,7 @@ not prepend the workspace root to an already absolute path.
 
 ## Dock width policy
 
-`RightDock/dock-width.ts` (`src/renderer/src/modules/dock/internal/RightDock/dock-width.ts`).
+`RightDock/state/dock-width.ts` (`src/renderer/src/modules/dock/internal/RightDock/state/dock-width.ts`).
 
 - On the canvas, the dock may grow to ~95% of the viewport — the canvas
   reflows behind it, so a near-full-screen dock is legitimate there.
@@ -661,7 +661,7 @@ so renderer prepare/subscribe IPC and the prepared turn's model-resolution call
 are outside the reported end-to-end duration. Key contracts:
 `src/main/agent/debug-trace.ts`, `src/main/agent/service.ts`,
 `src/main/agent/canvas-agent.ts`, and
-`src/main/agent/engine-stream-callbacks.ts`. Guard:
+`src/main/agent/run/engine-stream-callbacks.ts`. Guard:
 `src/main/agent/debug-trace.test.ts`.
 
 Each trace records the runtime selected at the segment boundary. DevTools labels
@@ -866,7 +866,7 @@ request becomes visible. Answering one request must reveal, not clear, the
 next queued request.
 
 Guard: `clarification-registry.test.ts`
-(`src/main/agent/clarification-registry.ts`).
+(`src/main/agent/run/clarification-registry.ts`).
 
 ### Fail-closed conversation pointer changes
 
@@ -886,7 +886,7 @@ Conversation pointer changes are fail-closed.
   metadata cleanup is best-effort.
 
 Guard: `src/main/agent/__tests__/session-store.test.ts` (source:
-`src/main/agent/session-store.ts`).
+`src/main/agent/sessions/session-store.ts`).
 
 ### Chat image upload bounds, attachment retention, failed-turn persistence
 
@@ -953,15 +953,15 @@ Primary regression suites live in:
 - `src/renderer/src/modules/dock/internal/RightDock/index.test.tsx`
 - `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-width.test.ts`
 - `src/main/agent/__tests__/service-history.test.ts`
-- `src/main/agent/active-chat-registry.test.ts`
-- `src/main/agent/prepared-chat.test.ts`
-- `src/main/agent/chat-protocol.test.ts`
+- `src/main/agent/run/active-chat-registry.test.ts`
+- `src/main/agent/run/prepared-chat.test.ts`
+- `src/main/agent/run/chat-protocol.test.ts`
 - `src/main/agent/chat-session-cas.test.ts`
 - `src/main/agent/__tests__/service-session-mutation.test.ts`
-- `src/main/agent/clarification-registry.test.ts`
+- `src/main/agent/run/clarification-registry.test.ts`
 - `src/main/agent/__tests__/session-store.test.ts`
 - `src/renderer/src/modules/chat/attachments/useChatAttachments.test.tsx`
-- `src/main/agent/chat-failure-persistence.test.ts`
+- `src/main/agent/run/chat-failure-persistence.test.ts`
 - `src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`
 
 
@@ -993,5 +993,5 @@ renderer’s settled snapshot with a stale running tool. Stopped calls keep thei
 cancelled status.
 
 Guards: `src/shared/chat-content-blocks.test.ts`,
-`src/main/agent/chat-failure-persistence.test.ts`, conversation-runtime tests,
+`src/main/agent/run/chat-failure-persistence.test.ts`, conversation-runtime tests,
 and renderer conversationStore/useConversationRuntimeStream tests.

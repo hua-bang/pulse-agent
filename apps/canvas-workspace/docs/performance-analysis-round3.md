@@ -54,7 +54,7 @@
 | J-3 | low-medium | — | agent-teams store 每 append 对**全部** events/messages `.filter` 计数 + 整份 state stringify 落盘(已有 cap/hysteresis/persistQueue/tmp-rename 缓解,experimental 门控) | `agent-teams/store.ts:178-208,260` |
 | J-4 | low | — | heartbeat 每 15s 的 repair/notify 即使无状态变更也触发 `saveTeamMetadata` → 整份 state.json 重写 | `agent-teams/service.ts:1880-1932` |
 | J-5 | low | — | 从 agent 输出文本推断 cwd / 任务派发时对每个路径候选同步 `statSync`(主事件循环;有界频率,experimental 门控) | `agent-teams/service.ts:193-217` |
-| J-6 | low | — | 每个 agent turn 无缓存全量 `readCanvasFull` 构建 workspace summary(底层成本与 B2 缓存建议重叠,此处为新增调用点) | `agent/canvas-agent.ts:785` / `agent/context-builder.ts:434` |
+| J-6 | low | — | 每个 agent turn 无缓存全量 `readCanvasFull` 构建 workspace summary(底层成本与 B2 缓存建议重叠,此处为新增调用点) | `agent/canvas-agent.ts:785` / `agent/context/context-builder.ts:434` |
 
 **J 维核心修复**:J-1 persist 加 trailing debounce + tmp+rename 原子写 + 串行队列(参照 agent-teams store 的 persistQueue 模式),`loadCrossWorkspaceSession` 改批量赋值后单次 persist;J-2 给两个轮询加 `routeActive/workspaceActive` 门控(主进程 heartbeat 已保证推进,隐藏时可完全停),或让渲染端 snapshot 走只读路径;J-3 trim 计数改 per-team 计数器;J-4 加 dirty 标志。
 

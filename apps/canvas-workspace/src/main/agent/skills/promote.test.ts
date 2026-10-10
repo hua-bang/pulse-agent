@@ -15,7 +15,7 @@ const fsMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./config', () => mocks);
-vi.mock('../config-scope', () => ({ scopeSkillsDir: () => '/global/skills' }));
+vi.mock('../scope/config-scope', () => ({ scopeSkillsDir: () => '/global/skills' }));
 vi.mock('fs', () => ({ promises: fsMocks }));
 vi.mock('os', () => ({ tmpdir: () => '/tmp' }));
 

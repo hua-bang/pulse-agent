@@ -17,7 +17,6 @@ const ROUTED_MODULES = [
   'canvas/sync/markdown-index.ts',
   'canvas/node-operations.ts',
   'canvas/workspace-export-external-files.ts',
-  'agent/tools/_shared/image-io.ts',
 ];
 
 const DIRECT_CONTENT_IO = /\b(?:readFile|writeFile|appendFile|copyFile|unlink|rename)\s*\(|\bwatch\s*\(\s*(?!workspaceFiles)/;

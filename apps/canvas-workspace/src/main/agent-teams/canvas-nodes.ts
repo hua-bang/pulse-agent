@@ -5,7 +5,7 @@ import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 import { broadcastCanvasUpdate } from '../canvas/broadcast';
 import { readWorkspaceMeta } from '../agent/workspace-meta';
 import { hasSession, killSession, writeToSession } from '../terminal/pty-manager';
-import { sendInputToAgentNode } from '../agent/session-send';
+import { sendInputToAgentNode } from '../agent/sessions/session-send';
 import { autoPlace, INLINE_PROMPT_THRESHOLD } from '../agent/tools/_shared/placement';
 import type { CanvasEdge, CanvasNode, CanvasSaveData, EdgeEndpoint } from '../agent/tools/types';
 
@@ -558,27 +558,6 @@ export interface CanvasAgentNodeRuntimeState {
   hasQueuedLaunch: boolean;
   /** Whether a warmup launch has reached a ready interactive CLI. */
   warmupReady?: boolean;
-}
-
-export async function getCanvasAgentNodeRuntimeState(
-  workspaceId: string,
-  nodeId: string,
-): Promise<CanvasAgentNodeRuntimeState> {
-  const { data: canvas } = await readCanvasFull(workspaceId);
-  const node = canvas?.nodes?.find((item) => item.id === nodeId);
-  if (!node || node.type !== 'agent') {
-    return { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false };
-  }
-  const ptySessionId = typeof node.data?.sessionId === 'string' ? node.data.sessionId : '';
-  const inlinePrompt = typeof node.data?.inlinePrompt === 'string' ? node.data.inlinePrompt : '';
-  const promptFile = typeof node.data?.promptFile === 'string' ? node.data.promptFile : '';
-  return {
-    exists: true,
-    status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
-    ptyAlive: !!ptySessionId && hasSession(ptySessionId),
-    hasQueuedLaunch: !!(inlinePrompt || promptFile),
-    warmupReady: node.data?.agentTeamWarmupReady === true,
-  };
 }
 
 /**

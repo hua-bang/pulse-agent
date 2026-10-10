@@ -4,7 +4,12 @@ export interface WebReadInput {
   workspaceId: string;
   nodeId: string;
   strategy?: WebReadStrategy;
+  /** Max characters for DOM text extraction. Defaults to 12 000. */
   maxChars?: number;
+  /**
+   * In auto mode, minimum extracted text length to be considered "useful"
+   * before trying the next strategy. Defaults to 200.
+   */
   sparseThreshold?: number;
 }
 

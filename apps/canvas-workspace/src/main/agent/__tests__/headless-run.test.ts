@@ -47,9 +47,9 @@ vi.mock('../../models/config', () => ({
   }),
 }));
 
-import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../headless-run';
-import { generateMemoryReport, memoryReportsDir, runScheduledMemoryReport } from '../memory-report';
-import { saveMemory } from '../memory-store';
+import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../run/headless-run';
+import { generateMemoryReport, memoryReportsDir, runScheduledMemoryReport } from '../memory/memory-report';
+import { saveMemory } from '../memory/memory-store';
 
 const canvasDir = join(sandboxHome, '.pulse-coder', 'canvas');
 
@@ -201,7 +201,7 @@ describe('generateMemoryReport', () => {
     // the interactive clarify tool and the memory write paths. Interactive
     // Global chat opts into explicit-target workspace mutations separately.
     const { createGlobalCanvasTools } = await import('../tools');
-    const { HEADLESS_EXCLUDED_TOOLS } = await import('../memory-report');
+    const { HEADLESS_EXCLUDED_TOOLS } = await import('../memory/memory-report');
     const expected = Object.keys(createGlobalCanvasTools())
       .filter((name) => !HEADLESS_EXCLUDED_TOOLS.has(name))
       .sort();

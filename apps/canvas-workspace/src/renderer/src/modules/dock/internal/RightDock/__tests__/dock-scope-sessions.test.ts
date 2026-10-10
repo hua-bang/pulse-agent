@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GLOBAL_CHAT_STORE_ID } from '../../../../../../../shared/agent-chat';
-import { CHAT_TAB_ID, DockStore } from '../dock-store';
-import { createDockSessionPersistence } from '../dock-session-persistence';
+import { CHAT_TAB_ID, DockStore } from '../state/dock-store';
+import { createDockSessionPersistence } from '../state/dock-session-persistence';
 
 const globalId = GLOBAL_CHAT_STORE_ID;
 

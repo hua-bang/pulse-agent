@@ -48,19 +48,19 @@ import { randomUUID } from 'crypto';
 import type { CanvasAgentService } from './service';
 import { getCanvasAgentService, teardownCanvasAgentServices } from './agent-service-lifecycle';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
-import { generateScheduledPrompt } from './scheduled-prompt-generator';
+import { generateScheduledPrompt } from './scheduled/scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentScopeRef } from './types';
 import {
   PreparedChatRegistry,
   type PreparedChatPayload,
-} from './prepared-chat';
-import { ActiveChatRegistry } from './active-chat-registry';
-import { prepareChatTurn, startChatTurn } from './chat-protocol';
+} from './run/prepared-chat';
+import { ActiveChatRegistry } from './run/active-chat-registry';
+import { prepareChatTurn, startChatTurn } from './run/chat-protocol';
 import type { AgentObservabilityMarkInput } from '../../shared/agent-observability';
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';
-import { resolveAgentScope, setupMcpAppIpc } from './mcp-app-ipc';
+import { resolveAgentScope, setupMcpAppIpc } from './mcp-apps/mcp-app-ipc';
 export { getCanvasAgentService } from './agent-service-lifecycle';
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();

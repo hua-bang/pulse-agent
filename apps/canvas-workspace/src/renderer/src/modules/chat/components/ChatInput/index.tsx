@@ -2,7 +2,7 @@ import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type Re
 import './index.css';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../../../types';
 import { ImageIcon, PlusIcon } from '../../../../components/icons';
-import { MentionNodeIcon } from '../utils/mentions';
+import { MentionNodeIcon } from '../../mentions/mentions';
 import { ModelSwitcher } from '../../../models';
 import type { SelectedContextChip } from '../ChatComposer/types';
 import { useI18n } from '../../../../i18n';

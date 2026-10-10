@@ -20,7 +20,7 @@ import { useAddressSuggestions, type AddressSuggestion } from './AddressSuggesti
 import { useClickOutside } from '../../../../hooks/useClickOutside';
 import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { clampIndexMove } from '../../../../components/ui';
-import { cancelDockPageFocusRequest } from '../RightDock/dock-browser-commands';
+import { cancelDockPageFocusRequest } from '../RightDock/links/dock-browser-commands';
 
 const SUGGEST_HOVER_CLOSE_DELAY_MS = 200;
 

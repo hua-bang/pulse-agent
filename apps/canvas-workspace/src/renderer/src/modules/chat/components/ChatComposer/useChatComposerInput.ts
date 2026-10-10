@@ -6,7 +6,7 @@ import {
 } from 'react';
 import type { MentionItem } from '../../../../types';
 import { isImeComposing } from '../../../../utils/ime';
-import { createMentionChipElement, serializeEditable } from '../utils/mentions';
+import { createMentionChipElement, serializeEditable } from '../../mentions/mentions';
 import { sortAndCapMentionItems } from '../ChatMentionPopup/constants';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';

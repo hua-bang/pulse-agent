@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DockStore } from '../dock-store';
+import { DockStore } from '../state/dock-store';
 
 describe('folder tabs', () => {
   it('deduplicates folders and restores selection in the owning scope', () => {

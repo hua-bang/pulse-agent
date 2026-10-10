@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOptionalChatTargetBroker, type ChatTargetBroker } from '../../../../chat';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
-import { CHAT_TAB_ID, type DockStore } from '../dock-store';
+import { CHAT_TAB_ID, type DockStore } from '../state/dock-store';
 
 /** Wait only for the requested scope. A late registration after navigation
  * must never receive a file intended for the previous workspace. */

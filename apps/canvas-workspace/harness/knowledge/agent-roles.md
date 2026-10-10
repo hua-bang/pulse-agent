@@ -40,7 +40,7 @@ renderer. Central pieces:
 
 ## Persistence and IPC (global role library)
 
-`src/main/agent/roles-store.ts` + `src/main/agent/agent-roles-ipc.ts` own
+`src/main/agent/roles/roles-store.ts` + `src/main/agent/roles/agent-roles-ipc.ts` own
 the role library. It is ONE global library at `~/.pulse-coder/canvas/roles.json`
 shared by every chat scope (per-workspace chats, global chat, scheduled-task
 chats), so a persona defined once is @-mentionable everywhere. The file
@@ -65,7 +65,7 @@ The preload surface is `window.canvasWorkspace.agentRoles`
 
 ## Persona injection and the relay boundary policy
 
-`src/main/agent/role-turn.ts` owns:
+`src/main/agent/roles/role-turn.ts` owns:
 
 - `formatActiveRoleSection(role, relay?, handoff?)` — the persona section
   appended to the system prompt when a role speaks: it embeds
@@ -149,7 +149,7 @@ Per `src/main/agent/ipc.ts`'s channel doc comment:
 - Every turn emits a `role-turn-start` / `role-turn-end` pair PER SEGMENT,
   on `canvas-agent:role-turn-start:{sessionId}` and
   `canvas-agent:role-turn-end:{sessionId}` (subscribed in
-  `src/preload/bridge/agent.ts`, pushed from `src/main/agent/prepared-chat.ts`).
+  `src/preload/bridge/agent.ts`, pushed from `src/main/agent/run/prepared-chat.ts`).
   A single-speaker turn still emits exactly one pair, with `total=1`. A
   relay emits one pair per speaking role, and `role-turn-start` carries the
   FULL relay `queue` (so the renderer can draw progress from the very first
@@ -260,7 +260,7 @@ Settings save/delete (`invalidateRoleMentionItems()`, called from
 `useAgentRoles`'s `save`/`remove` in `RolesSettings.tsx`). Chips recolor by
 overriding the `--role-accent`, `--role-accent-icon`, `--role-accent-soft`
 CSS custom properties INLINE per chip in
-`src/renderer/src/modules/chat/components/utils/mentions.ts`, so an unknown or
+`src/renderer/src/modules/chat/mentions/mentions.ts`, so an unknown or
 deleted role id simply falls back to the chip class's default violet
 tokens instead of erroring.
 
@@ -271,7 +271,7 @@ cwd? }` (`AgentRoleExternalDriver`, families enumerated in
 `AGENT_ROLE_EXTERNAL_FAMILIES`) routes that role's segments to
 `src/main/agent/external/` instead of the built-in engine, via the turn
 backend boundary (`src/main/agent/backends/`): `executeCanvasAgentSegment`
-(`src/main/agent/segment-execution.ts`) resolves `resolveAgentRuntime(role)`
+(`src/main/agent/run/segment-execution.ts`) resolves `resolveAgentRuntime(role)`
 — a role with an external driver runs on `externalCliTurnBackend`, which
 calls `runExternalRoleSegment` (`src/main/agent/external/segment.ts`);
 everything else runs on `engineTurnBackend` (`engine.run(...)`). The
@@ -286,7 +286,7 @@ normalization below. Each backend declares a capability matrix
 Pi AgentHarness runtime through Settings → Experimental while persona roles
 continue on Engine; see `docs/09-agent-backend-boundary.md`. Deprecated
 `TurnBackend` / `resolveTurnBackend` aliases remain for compatibility. Guards:
-`src/main/agent/segment-execution.test.ts`,
+`src/main/agent/run/segment-execution.test.ts`,
 `src/main/agent/backends/registry.test.ts`.
 
 Every native runtime must preserve the complete renderer-facing tool-result
@@ -366,7 +366,7 @@ omits the `<role_persona>` block when `role.prompt` is empty. Persona
 
 - External roles respond ONLY to a DIRECT user `@` mention. Agent@agent
   handoff never targets them: `handoffTargetRoles(roles)` in
-  `src/main/agent/role-turn.ts` filters out any role with an `external`
+  `src/main/agent/roles/role-turn.ts` filters out any role with an `external`
   driver before it is used to build BOTH the handoff target library and the
   advertised `@names` list a persona role is told about. Pinned in
   `src/main/agent/__tests__/external-driver.test.ts`'s `describe('handoff
@@ -438,8 +438,8 @@ must preserve whatever partial text had already streamed, merge in any
 live tool events the rejected driver's own return value could not carry,
 and settle unfinished tools as cancelled (not failed).
 
-Mechanism, in `src/main/agent/segment-execution.ts` and
-`src/main/agent/chat-stop.ts`:
+Mechanism, in `src/main/agent/run/segment-execution.ts` and
+`src/main/agent/run/chat-stop.ts`:
 
 - `executeCanvasAgentSegment` wraps both the engine path and the external
   driver's `runExternalRoleSegment` call in one `try`. `onText` deltas are
@@ -461,7 +461,7 @@ Mechanism, in `src/main/agent/segment-execution.ts` and
 - Live tool events that the rejected driver's own return value could not
   carry (because the throw happened before `runExternalRoleSegment`
   returned its `toolCalls` array) are captured separately: a
-  `createFailedTurnToolTracker` (`src/main/agent/chat-failure-persistence.ts`)
+  `createFailedTurnToolTracker` (`src/main/agent/run/chat-failure-persistence.ts`)
   is wired as the segment's `onToolCall`/`onToolResult`/`onToolInputStart`/
   `onToolInputDelta`/`onToolInputEnd` callbacks, so it independently
   accumulates whatever tool activity streamed before the abort, regardless
@@ -486,11 +486,11 @@ Mechanism, in `src/main/agent/segment-execution.ts` and
   retryable: true` message directly, without ever touching
   `ENGINE_ABORT_SENTINEL`-style text.
 
-Guards: `src/main/agent/segment-execution.test.ts` (asserts a driver
+Guards: `src/main/agent/run/segment-execution.test.ts` (asserts a driver
 rejection after `abortController.abort()` normalizes to
 `resultText: ENGINE_ABORT_SENTINEL` with the partial `streamedText`
 preserved, and that the in-flight tool call settles as `cancelled` with
-`error: 'Operation cancelled by user'`) and `src/main/agent/chat-stop.test.ts`
+`error: 'Operation cancelled by user'`) and `src/main/agent/run/chat-stop.test.ts`
 (unit tests for `resolveSegmentOutcome`, `settleStoppedToolCalls`,
 `createStoppedBeforeSegmentOutcome`/`persistStoppedBeforeSegment`, and
 `linkRunAbortSignal`, including "preserves streamed partial text and never
@@ -514,11 +514,11 @@ Primary regression suites live in:
   the Ask-mode approval gate), `resolveExternalCwd`'s chain, the Codex
   stream parser for both dialects and its argv building, and the handoff
   target policy.
-- `src/main/agent/segment-execution.test.ts` — abort-after-reject
+- `src/main/agent/run/segment-execution.test.ts` — abort-after-reject
   normalization for external-role segments.
-- `src/main/agent/chat-stop.test.ts` — the stop/abort helper functions in
+- `src/main/agent/run/chat-stop.test.ts` — the stop/abort helper functions in
   `chat-stop.ts`.
-- `src/main/agent/chat-failure-persistence.test.ts` — `createFailedTurnToolTracker`
+- `src/main/agent/run/chat-failure-persistence.test.ts` — `createFailedTurnToolTracker`
   and `failedAssistantMessage`.
 - `src/renderer/src/modules/chat/runtime/useConversationRuntimeStream.test.tsx` —
   conversation-keyed stream isolation, listener cleanup, run targeting, and

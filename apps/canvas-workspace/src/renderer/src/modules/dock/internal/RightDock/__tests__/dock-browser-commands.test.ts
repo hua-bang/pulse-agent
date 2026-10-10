@@ -7,8 +7,8 @@ import {
   FOCUS_DOCK_PAGE_EVENT,
   requestDockPageFocus,
   FOCUS_DOCK_ADDRESS_EVENT,
-} from '../dock-browser-commands';
-import { DockStore } from '../dock-store';
+} from '../links/dock-browser-commands';
+import { DockStore } from '../state/dock-store';
 
 describe('dock page focus routing', () => {
   beforeEach(() => {

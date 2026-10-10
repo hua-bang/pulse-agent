@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DOCK_FIND_FALLBACK_CHANNEL } from '../../../../../../shared/dock-shortcuts';
 import type { EmbeddedWebviewTag } from '../../../../platform/browser/types';
-import { cancelDockPageFocusRequest } from '../RightDock/dock-browser-commands';
+import { cancelDockPageFocusRequest } from '../RightDock/links/dock-browser-commands';
 
 export interface FindMatches {
   active: number;

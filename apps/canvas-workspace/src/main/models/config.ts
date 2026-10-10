@@ -1,24 +1,24 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
-import { dirname, join, resolve } from 'path';
+import { dirname, join } from 'path';
 import { createOpenAI } from '@ai-sdk/openai';
 import { buildProvider, type LLMProviderFactory, type ModelType } from 'pulse-coder-engine';
-
-export type CanvasModelProviderType = 'openai' | 'claude';
-
-export interface CanvasModelOption {
-  name: string;
-  provider_type?: CanvasModelProviderType;
-  model?: string;
-  base_url?: string;
-  api_key_env?: string;
-  headers?: Record<string, string>;
-}
-
-export interface CanvasProviderModel {
-  id: string;
-  name?: string;
-}
+import type {
+  CanvasModelConfig,
+  CanvasModelOption,
+  CanvasModelProviderStatus,
+  CanvasModelProviderType,
+  CanvasModelStatus,
+  CanvasProviderModel,
+} from '../../shared/model-config';
+export type {
+  CanvasModelConfig,
+  CanvasModelOption,
+  CanvasModelProviderStatus,
+  CanvasModelProviderType,
+  CanvasModelStatus,
+  CanvasProviderModel,
+} from '../../shared/model-config';
 
 export interface CanvasModelProviderConfig {
   id: string;
@@ -31,50 +31,6 @@ export interface CanvasModelProviderConfig {
   encrypted_api_key?: string;
   headers?: Record<string, string>;
   models?: CanvasProviderModel[];
-}
-
-export interface CanvasModelConfig {
-  current_provider?: string;
-  current_model?: string;
-  provider_type?: CanvasModelProviderType;
-  model?: string;
-  base_url?: string;
-  api_key_env?: string;
-  headers?: Record<string, string>;
-  options?: CanvasModelOption[];
-  providers?: CanvasModelProviderConfig[];
-}
-
-export interface CanvasModelProviderStatus {
-  id: string;
-  name: string;
-  provider_type: CanvasModelProviderType;
-  base_url?: string;
-  api_key_env?: string;
-  apiKeyPresent: boolean;
-  /**
-   * Number of characters in the saved API key when one is present and
-   * decryptable. Undefined when no key is saved, or when an encrypted
-   * blob exists but couldn't be decrypted on this machine. Exposed so
-   * the settings UI can confirm to the user that a key really is on
-   * disk without echoing it back.
-   */
-  apiKeyLength?: number;
-  headers?: Record<string, string>;
-  models: CanvasProviderModel[];
-}
-
-export interface CanvasModelStatus {
-  path: string;
-  currentProvider?: string;
-  currentModel?: string;
-  providerType: CanvasModelProviderType;
-  resolvedModel: string;
-  resolvedBaseURL?: string;
-  resolvedApiKeyEnv?: string;
-  apiKeyPresent: boolean;
-  options: CanvasModelOption[];
-  providers: CanvasModelProviderStatus[];
 }
 
 export interface ResolvedCanvasModel {
@@ -587,8 +543,4 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
     modelType: resolved.providerType === 'claude' ? 'claude' : 'openai',
     connection: { baseURL: resolved.baseURL, apiKey: resolved.apiKey, headers: resolved.headers },
   };
-}
-
-export function resolveCanvasModelConfigPath(): string {
-  return resolve(getConfigPath());
 }
