@@ -7,6 +7,8 @@ interface TabIndicatorState {
 }
 
 interface Options {
+  /** Owner of the visible tab set; a change is a swap, not a tab move. */
+  scopeId: string;
   activeTabId: string | null;
   visible: boolean;
   previewTabs: readonly { id: string }[];
@@ -15,7 +17,7 @@ interface Options {
   dockWidth: number;
 }
 
-export const useDockTabIndicator = ({ activeTabId, visible, previewTabs, terminalTabs, chatTabEnabled, dockWidth }: Options) => {
+export const useDockTabIndicator = ({ scopeId, activeTabId, visible, previewTabs, terminalTabs, chatTabEnabled, dockWidth }: Options) => {
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
   // Track the last tab we scrolled into view so closing a non-active tab
@@ -23,6 +25,10 @@ export const useDockTabIndicator = ({ activeTabId, visible, previewTabs, termina
   // smooth scroll and produce the "tabs slide to the active one" jitter.
   const lastScrolledTabId = useRef<string | null>(null);
   const [indicator, setIndicator] = useState<TabIndicatorState>({ left: 0, width: 0, visible: false });
+  // A workspace switch replaces the whole strip. Smooth-scrolling from the
+  // old workspace's position reads as tabs jumping around, so a new scope
+  // lands in place; RightDock turns the glider transition off for that frame.
+  const scopeRef = useRef(scopeId);
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) tabRefs.current.set(id, element);
     else tabRefs.current.delete(id);
@@ -47,6 +53,20 @@ export const useDockTabIndicator = ({ activeTabId, visible, previewTabs, termina
         : next
     ));
   }, [activeTabId, visible]);
+  useLayoutEffect(() => {
+    if (scopeRef.current === scopeId) return;
+    scopeRef.current = scopeId;
+    // The strip has CSS `scroll-behavior: smooth`, so both calls must say
+    // `instant` explicitly.
+    tabsRef.current?.scrollTo({ left: 0, behavior: 'instant' });
+    const activeTab = activeTabId ? tabRefs.current.get(activeTabId) : null;
+    if (visible && activeTab) {
+      activeTab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+      lastScrolledTabId.current = activeTabId;
+    } else {
+      lastScrolledTabId.current = null;
+    }
+  }, [scopeId, activeTabId, visible]);
   useLayoutEffect(update, [update, previewTabs, terminalTabs, chatTabEnabled, dockWidth]);
   useEffect(() => {
     if (!visible || !activeTabId) return;

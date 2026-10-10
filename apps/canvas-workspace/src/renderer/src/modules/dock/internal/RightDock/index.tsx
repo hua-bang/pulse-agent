@@ -115,6 +115,19 @@ export const RightDock = ({
 
   useLayoutEffect(() => {
     store.setActiveWorkspace(activeWorkspaceId);
+    // Expansion and tabs are workspace-scoped. Sliding the dock in or out
+    // while the canvas behind it swaps instantly reads as a jolt, so the first
+    // frame of a workspace paints with the dock transitions off, reusing the
+    // drag-resize class; the second frame re-enables them for user open/close.
+    const { classList } = document.documentElement;
+    classList.add(RESIZING_CLASS);
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => classList.remove(RESIZING_CLASS));
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      classList.remove(RESIZING_CLASS);
+    };
   }, [activeWorkspaceId, store]);
 
   const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
