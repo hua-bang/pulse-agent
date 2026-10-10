@@ -165,7 +165,10 @@ function buildHardThresholdViolations(files: ScannedFile[]): string[] {
 }
 
 function buildFlatDirectoryViolations(files: ScannedFile[]): string[] {
-  const counts = new Map<string, number>();
+  // Seed every baseline so an emptied directory still reports a stale entry.
+  const counts = new Map<string, number>(
+    Object.keys(CURRENT_FLAT_DIRECTORY_BASELINE).map((directory) => [directory, 0]),
+  );
   for (const file of files) {
     const directory = dirname(file.path);
     counts.set(directory, (counts.get(directory) ?? 0) + 1);
