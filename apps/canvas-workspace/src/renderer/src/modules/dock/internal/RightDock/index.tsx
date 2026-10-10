@@ -63,6 +63,7 @@ export { useChatDockWorkspace } from './useChatDockWorkspace';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
+const SWITCHING_CLASS = 'right-dock-switching';
 const DockTabStrip = lazy(() => import('./tabs/DockTabStrip').then(m => ({ default: m.DockTabStrip })));
 const DockReadingControls = lazy(() => import('./reading/DockReadingControls').then(m => ({ default: m.DockReadingControls })));
 const DockKeyboardController = lazy(() => import('./DockKeyboardController').then((m) => ({ default: m.DockKeyboardController })));
@@ -116,6 +117,26 @@ export const RightDock = ({
   useLayoutEffect(() => {
     store.setActiveWorkspace(activeWorkspaceId);
   }, [activeWorkspaceId, store]);
+
+  // Expansion and tabs are workspace-scoped. Sliding the dock in or out while
+  // the canvas behind it swaps instantly reads as a jolt, so the first frame of
+  // a new workspace paints with the dock and page-inset transitions off.
+  const switchedFromRef = useRef(state.activeTerminalWorkspaceId);
+  useLayoutEffect(() => {
+    if (switchedFromRef.current === state.activeTerminalWorkspaceId) return;
+    switchedFromRef.current = state.activeTerminalWorkspaceId;
+    const root = document.documentElement;
+    root.classList.add(SWITCHING_CLASS);
+    // Two frames: the first paints the new state, the second re-enables the
+    // transitions for ordinary open/close and tab changes.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => root.classList.remove(SWITCHING_CLASS));
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      root.classList.remove(SWITCHING_CLASS);
+    };
+  }, [state.activeTerminalWorkspaceId]);
 
   const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
     if (!onActivateWorkspace || !workspaces.some(workspace => workspace.id === workspaceId)) return false;

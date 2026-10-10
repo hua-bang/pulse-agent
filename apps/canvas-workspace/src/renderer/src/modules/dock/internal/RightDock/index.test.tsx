@@ -541,3 +541,48 @@ describe('compact reading controls', () => {
     expect(menu.textContent).toContain('Compare on the right');
   });
 });
+
+describe('RightDock workspace switch', () => {
+  it('paints the first frame of a new workspace without dock transitions', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback));
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const renderWorkspace = (activeWorkspaceId: string) => root?.render(
+      <I18nProvider>
+        <RightDockProvider>
+          <RightDock
+            activeWorkspaceId={activeWorkspaceId}
+            activeIdReady
+            chatTabEnabled
+            reserveSpace
+            capWidth={false}
+            workspaces={[]}
+            onOpenNodePage={() => undefined}
+          />
+        </RightDockProvider>
+      </I18nProvider>,
+    );
+    const flushFrame = () => act(() => {
+      for (const frame of frames.splice(0)) frame(0);
+    });
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+    root = createRoot(mount);
+    const classes = document.documentElement.classList;
+    try {
+      await act(async () => renderWorkspace('ws-1'));
+      flushFrame();
+      flushFrame();
+      expect(classes.contains('right-dock-switching')).toBe(false);
+
+      await act(async () => renderWorkspace('ws-2'));
+      expect(classes.contains('right-dock-switching')).toBe(true);
+      flushFrame();
+      expect(classes.contains('right-dock-switching')).toBe(true);
+      flushFrame();
+      expect(classes.contains('right-dock-switching')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

@@ -29,7 +29,9 @@
     background-color 160ms ease, border-color 160ms ease;
 }
 
-.right-dock-resizing .app-body {
+.right-dock-resizing .app-body,
+.right-dock-switching .app-body,
+.right-dock-switching .chat-floating-button.app-global-chat-launcher {
   transition: none;
 }
 

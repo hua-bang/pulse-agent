@@ -47,8 +47,12 @@
 }
 
 /* While dragging the resize handle the canvas must track the handle
- * 1:1 — disable the slide/margin transitions for the duration. */
-.right-dock-resizing .right-dock {
+ * 1:1 — disable the slide/margin transitions for the duration. A workspace
+ * switch swaps the whole page at once, so the dock lands in the target
+ * workspace's open/closed state and tab position without sliding. */
+.right-dock-resizing .right-dock,
+.right-dock-switching .right-dock,
+.right-dock-switching .right-dock__tab-glider {
   transition: none;
 }
 
@@ -178,9 +182,6 @@
   opacity: 1;
 }
 
-.right-dock__tab-glider[data-snap="true"] {
-  transition: none;
-}
 
 .right-dock__tab-scroll[data-split="true"] .right-dock__tab-glider {
   opacity: 0;

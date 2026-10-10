@@ -96,7 +96,6 @@ export const DockTabStrip = ({
           className="right-dock__tab-glider"
           aria-hidden="true"
           data-visible={tabIndicator.indicator.visible}
-          data-snap={tabIndicator.snap || undefined}
           style={{
             width: tabIndicator.indicator.width,
             transform: `translateX(${tabIndicator.indicator.left}px)`,

@@ -25,11 +25,10 @@ export const useDockTabIndicator = ({ scopeId, activeTabId, visible, previewTabs
   // smooth scroll and produce the "tabs slide to the active one" jitter.
   const lastScrolledTabId = useRef<string | null>(null);
   const [indicator, setIndicator] = useState<TabIndicatorState>({ left: 0, width: 0, visible: false });
-  // A workspace switch replaces the whole strip. Sliding the glider and
-  // smooth-scrolling from the old workspace's active tab reads as tabs
-  // jumping around, so the first frame of a new scope snaps into place.
+  // A workspace switch replaces the whole strip. Smooth-scrolling from the
+  // old workspace's position reads as tabs jumping around, so a new scope
+  // lands in place; the glider transition is off via `right-dock-switching`.
   const scopeRef = useRef(scopeId);
-  const [snap, setSnap] = useState(false);
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) tabRefs.current.set(id, element);
     else tabRefs.current.delete(id);
@@ -67,18 +66,8 @@ export const useDockTabIndicator = ({ scopeId, activeTabId, visible, previewTabs
     } else {
       lastScrolledTabId.current = null;
     }
-    setSnap(true);
   }, [scopeId, activeTabId, visible]);
   useLayoutEffect(update, [update, previewTabs, terminalTabs, chatTabEnabled, dockWidth]);
-  useEffect(() => {
-    if (!snap) return;
-    // Two frames: the first paints the new position without a transition,
-    // the second restores it for ordinary in-workspace tab changes.
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => setSnap(false));
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [snap]);
   useEffect(() => {
     if (!visible || !activeTabId) return;
     // Only scroll when the active tab actually changes - not when the tab
@@ -96,5 +85,5 @@ export const useDockTabIndicator = ({ scopeId, activeTabId, visible, previewTabs
     for (const tab of tabRefs.current.values()) observer.observe(tab);
     return () => observer.disconnect();
   }, [update, previewTabs, terminalTabs, chatTabEnabled]);
-  return { tabsRef, registerTab, indicator, snap, update };
+  return { tabsRef, registerTab, indicator, update };
 };
