@@ -211,6 +211,14 @@ current workspace's expanded state and restores the target workspace's last
 state from the same persisted dock session; a workspace without saved state
 starts collapsed.
 
+A workspace switch replaces the whole tab strip, so it must land in one frame.
+`useDockTabIndicator` keys on the store's workspace: on a change it resets the
+strip scroll, scrolls the active tab in with `behavior: 'instant'` (the strip
+has CSS `scroll-behavior: smooth`), and paints the glider with `data-snap` (no
+transition) for two frames. Only tab changes inside one workspace slide.
+Without this, the glider and strip slide from the old workspace's active tab
+and read as tabs jumping around (`tabs/useDockTabIndicator.test.tsx`).
+
 The dock comparison view is exactly two stable left/right panes, not a layout
 tree. The toolbar opens a searchable target picker; choosing a tab puts the
 current tab on the left and the chosen tab on the right. The picker excludes

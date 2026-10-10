@@ -178,6 +178,10 @@
   opacity: 1;
 }
 
+.right-dock__tab-glider[data-snap="true"] {
+  transition: none;
+}
+
 .right-dock__tab-scroll[data-split="true"] .right-dock__tab-glider {
   opacity: 0;
 }

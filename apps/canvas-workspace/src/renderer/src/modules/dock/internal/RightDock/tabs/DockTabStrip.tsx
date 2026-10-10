@@ -69,7 +69,8 @@ export const DockTabStrip = ({
   const { t } = useI18n();
   const comparisonActive = Boolean(splitTabIds);
   // The observer owner mounts with its DOM, including on the first lazy open.
-  const tabIndicator = useDockTabIndicator({ activeTabId: activePaneId, visible: tabStripVisible,
+  const tabIndicator = useDockTabIndicator({ scopeId: state.activeTerminalWorkspaceId,
+    activeTabId: activePaneId, visible: tabStripVisible,
     previewTabs: state.tabs, terminalTabs: state.terminalTabs, chatTabEnabled, dockWidth });
   return (
     <div
@@ -95,6 +96,7 @@ export const DockTabStrip = ({
           className="right-dock__tab-glider"
           aria-hidden="true"
           data-visible={tabIndicator.indicator.visible}
+          data-snap={tabIndicator.snap || undefined}
           style={{
             width: tabIndicator.indicator.width,
             transform: `translateX(${tabIndicator.indicator.left}px)`,
