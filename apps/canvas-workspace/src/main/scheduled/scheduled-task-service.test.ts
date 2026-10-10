@@ -178,11 +178,11 @@ describe('ScheduledTaskService', () => {
     );
 
     finishExecution?.();
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      if ((await service.getTask(task.id))?.status === 'idle') break;
-      await Promise.resolve();
-    }
-    expect((await service.getTask(task.id))?.status).toBe('idle');
+    // Completion persists task state through file I/O, so wait on the
+    // observable status instead of a fixed number of microtask turns.
+    await vi.waitFor(async () => {
+      expect((await service.getTask(task.id))?.status).toBe('idle');
+    });
   });
 
   it('reserves a manual task before preparing its session', async () => {
