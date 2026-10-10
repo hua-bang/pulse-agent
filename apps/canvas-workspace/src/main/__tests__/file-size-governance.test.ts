@@ -11,11 +11,14 @@ const SOURCE_ROOT = 'src';
 const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 // A directory with many flat production files hides its sub-areas. New
-// directories stay under the threshold; listed directories must not grow.
-// Group files by responsibility into subdirectories to shrink a baseline.
-const FLAT_FILE_THRESHOLD = 25;
+// directories stay within the limit; listed directories must not grow, and a
+// baseline must drop when its directory shrinks. Group files by responsibility
+// into subdirectories to shrink a baseline. Main-process code uses a tighter
+// limit because its domains grow by adding flat service files.
+const FLAT_FILE_LIMIT = 24;
+const MAIN_FLAT_FILE_LIMIT = 12;
+const MAIN_PROCESS_ROOTS = ['src/main/', 'src/plugins/main/'];
 const CURRENT_FLAT_DIRECTORY_BASELINE: Record<string, number> = {
-  'src/main/agent/tools': 27,
   'src/shared': 38,
 };
 
@@ -30,7 +33,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // expanded then partially reduced Feishu answer-card/run rendering without
   // updating this manually maintained baseline. Must-not-grow resumes at 816.
   'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 816,
-  'src/main/agent-teams/canvas-nodes.ts': 739,
+  'src/main/agent-teams/canvas/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/models/config.ts': 550,
   'src/plugins/main/dynamic-app/tools.ts': 593,
@@ -38,7 +41,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   // 605→636 (2026-07-17, drift recorded): grew via master work (#806
   // session-restore fix) that never ran this suite (no automatic trigger).
   // Raised to measured; must-not-grow applies from 636.
-  'src/main/agent/sessions/session-store.ts': 636,
+  'src/main/agent/sessions/store/session-store.ts': 636,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
   'src/main/agent/skills/config.ts': 508,
@@ -155,24 +158,40 @@ function buildHardThresholdViolations(files: ScannedFile[]): string[] {
 }
 
 function buildFlatDirectoryViolations(files: ScannedFile[]): string[] {
-  const counts = new Map<string, number>();
+  // Seed every baseline so an emptied directory still reports a stale entry.
+  const counts = new Map<string, number>(
+    Object.keys(CURRENT_FLAT_DIRECTORY_BASELINE).map((directory) => [directory, 0]),
+  );
   for (const file of files) {
     const directory = dirname(file.path);
     counts.set(directory, (counts.get(directory) ?? 0) + 1);
   }
 
   return [...counts.entries()].flatMap(([directory, count]) => {
+    const limit = flatFileLimit(directory);
     const baseline = CURRENT_FLAT_DIRECTORY_BASELINE[directory];
     if (baseline === undefined) {
-      return count >= FLAT_FILE_THRESHOLD
-        ? [`${directory} has ${count} flat production files; group them into subdirectories (limit ${FLAT_FILE_THRESHOLD - 1})`]
+      return count > limit
+        ? [`${directory} has ${count} flat production files; group them into subdirectories (limit ${limit})`]
         : [];
     }
 
-    return count > baseline
-      ? [`${directory} grew from baseline ${baseline} to ${count} flat production files`]
-      : [];
+    if (count > baseline) {
+      return [`${directory} grew from baseline ${baseline} to ${count} flat production files`];
+    }
+    if (count < baseline) {
+      return count > limit
+        ? [`${directory} shrank to ${count} flat production files; lower its baseline from ${baseline}`]
+        : [`${directory} is within the limit (${count}/${limit}); remove its baseline`];
+    }
+    return [];
   });
+}
+
+function flatFileLimit(directory: string): number {
+  return MAIN_PROCESS_ROOTS.some((root) => `${directory}/`.startsWith(root))
+    ? MAIN_FLAT_FILE_LIMIT
+    : FLAT_FILE_LIMIT;
 }
 
 describe('file size governance', () => {

@@ -29,7 +29,7 @@ The registry entry alone renders a working tab. These land with it:
 | Dock tab title | the `agentDefaultTitle` chain in `RightDock/content/TerminalDockTab.tsx` |
 | Install guide | `AGENT_INSTALL_GUIDES` in `AgentNodeBody/AgentPicker.tsx` — shown when the binary probe reports missing or a launch fails |
 | Command detection | `CODING_AGENT_COMMAND_PATTERN` + the return chain in `utils/codingAgentCommand.ts`, so typing the CLI into a terminal node/dock is recognized as an agent session |
-| Canvas Agent delegation | the `agentType` enum in `src/main/agent/tools/agents.ts` and the data-shape prose in `src/main/agent/tools/nodes.ts` |
+| Canvas Agent delegation | the `agentType` enum in `src/main/agent/tools/agents.ts` and the data-shape prose in `src/main/agent/tools/canvas/nodes.ts` |
 
 The brand color lives in `styles.css`, not `RightDock/index.css`, because the
 dock's tab switcher renders these icons inside a body-level popover — a token
@@ -100,7 +100,7 @@ each mechanism is what decides whether resume is offered at all.
 | Agent | Mechanism | Where it lives |
 |---|---|---|
 | Claude Code | caller-supplied id: `--session-id <uuid>` on first launch, `--resume <uuid>` after | `cliSessionId` on the node; `modules/coding-agent/session/ownerTerminal.ts` |
-| Codex | discovered after the fact: a marker comment is appended to the first prompt, then `~/.codex/state_5.sqlite` is polled for the thread containing it (session-index diffing as fallback), then `codex exec resume <id>` | `codexSessionId` / `codexSessionMarker`; `main/agent/codex-sessions.ts` |
+| Codex | discovered after the fact: a marker comment is appended to the first prompt, then `~/.codex/state_5.sqlite` is polled for the thread containing it (session-index diffing as fallback), then `codex exec resume <id>` | `codexSessionId` / `codexSessionMarker`; `main/agent/external/codex-sessions.ts` |
 | Pi | private storage: `--session-dir <node dir>` on every launch, plus `--continue` to resume | `piSessionKey` on the node; `modules/coding-agent/session/piSession.ts` |
 
 Prefer the cheapest mechanism the CLI actually supports, in this order:
@@ -210,7 +210,7 @@ Two neighboring surfaces have their own rosters and do not pick up a new
 registry entry:
 
 - **Agent Teams** — `AgentTeamFrame`'s `TEAM_AGENT_OPTIONS` filters the
-  registry down to Claude Code and Codex, and `main/agent-teams/canvas-nodes.ts`
+  registry down to Claude Code and Codex, and `main/agent-teams/canvas/canvas-nodes.ts`
   carries Claude-specific lead arguments.
 - **External role drivers** — multi-role chat runs CLIs headlessly over a
   JSONL stream (`src/main/agent/external/`, families in

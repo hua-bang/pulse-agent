@@ -3,16 +3,16 @@ import { realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { JsonObject, WorkspaceBundle } from '@pulse-coder/storage';
-import type { WorkspaceExportFile } from '../../canvas/workspace-export-archive';
+import type { WorkspaceExportFile } from '../../canvas/transfer/workspace-export-archive';
 import {
   isWorkspaceSessionFile, setCanvasSessionArchivePort,
   type CanvasSessionArchivePort, type PreparedCanvasSessionImport,
 } from '../../canvas/persistence/session-archive-port';
-import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, validateLegacySession } from './sqlite-session-codec';
+import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, validateLegacySession } from './sqlite/codec';
 import { sessionUpdatedAt } from './session-file-summary';
 import type { CanvasAgentSession } from '../types';
-import { sessionStorageRoot } from './sqlite-session-backend';
-import { withWorkspaceTrashGuard } from '../workspace-runtime-guard';
+import { sessionStorageRoot } from './sqlite/backend';
+import { withWorkspaceTrashGuard } from '../workspace/workspace-runtime-guard';
 
 const normalized = (path: string) => path.replace(/\\/g, '/');
 const isSessionBody = (path: string) => isWorkspaceSessionFile(path) && !normalized(path).endsWith('/metadata.json');

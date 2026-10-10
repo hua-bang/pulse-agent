@@ -182,7 +182,7 @@ the same.
 
 ## Durable session storage
 
-Bootstrap activates conversations through `sqlite-session-migration.ts` before
+Bootstrap activates conversations through `sessions/sqlite/migration.ts` before
 constructing an Agent. `SessionStore` preserves its public API while using
 `@pulse-coder/storage` repositories after activation. The default session root
 shares the Canvas database; `PULSE_CANVAS_SESSION_STORE_DIR` keeps its own root.
@@ -213,7 +213,7 @@ writing archive state. A separate `PULSE_CANVAS_SESSION_STORE_DIR` database is
 rejected visibly because one workspace transaction cannot include it. Independent
 session reads and writes still work; paths resolving to the same database are
 accepted. Guards: `workspace-session-archive.test.ts`,
-`sqlite-session-migration.test.ts`, `sqlite-session-store.test.ts`, and the shared
+`sqlite/migration.test.ts`, `sqlite/store.test.ts`, and the shared
 conversation/workspace repository suites.
 
 With `PULSE_CANVAS_PERF`, successful SQL session mutations report logical JSON
@@ -659,10 +659,10 @@ Agent Debug page; it adds no prompt or response content beyond the snapshots
 that feature already owns. Timing starts in `CanvasAgentService.chatWithScope`,
 so renderer prepare/subscribe IPC and the prepared turn's model-resolution call
 are outside the reported end-to-end duration. Key contracts:
-`src/main/agent/debug-trace.ts`, `src/main/agent/service.ts`,
+`src/main/agent/observability/debug-trace.ts`, `src/main/agent/service.ts`,
 `src/main/agent/canvas-agent.ts`, and
 `src/main/agent/run/engine-stream-callbacks.ts`. Guard:
-`src/main/agent/debug-trace.test.ts`.
+`src/main/agent/observability/debug-trace.test.ts`.
 
 Each trace records the runtime selected at the segment boundary. DevTools labels
 the host-owned phases as `Canvas host` and the runtime-owned stream phases as
@@ -886,7 +886,7 @@ Conversation pointer changes are fail-closed.
   metadata cleanup is best-effort.
 
 Guard: `src/main/agent/__tests__/session-store.test.ts` (source:
-`src/main/agent/sessions/session-store.ts`).
+`src/main/agent/sessions/store/session-store.ts`).
 
 ### Chat image upload bounds, attachment retention, failed-turn persistence
 

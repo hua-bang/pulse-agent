@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { readWorkspaceMeta } from '../workspace-meta';
+import { readWorkspaceMeta } from '../workspace/workspace-meta';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
@@ -8,7 +8,7 @@ import {
   placementIntentSchema,
   resolvePlacement,
   type PlacementIntent,
-} from './_shared/placement';
+} from './_shared/layout/placement';
 
 export function createTerminalTools(workspaceId: string): Record<string, CanvasTool> {
   return {

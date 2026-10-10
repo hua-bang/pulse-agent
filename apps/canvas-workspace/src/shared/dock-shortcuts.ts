@@ -5,7 +5,7 @@
  * A `<webview>` guest is a separate WebContents, so a key pressed while an
  * embedded page has focus never reaches the host window's `keydown`. Without
  * a main-process relay every browsing shortcut would work only when the dock
- * chrome happened to be focused. `main/app/webview-shortcuts.ts` matches these
+ * chrome happened to be focused. `main/webview/webview-shortcuts.ts` matches these
  * same chords in `before-input-event` and forwards the resolved command to the
  * renderer, which handles it identically to a locally observed key. `find` is
  * the exception: it reaches the page first and falls back through the guest

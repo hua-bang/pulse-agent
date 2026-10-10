@@ -51,7 +51,7 @@
 |---|---|---|---|---|
 | J-1 | **medium** | ✔ | agent 会话每条消息全量 `JSON.stringify(整 session)` 直写 `current.json`:无防抖、无队列、**无 tmp+rename(非原子)**;`loadCrossWorkspaceSession` 循环逐条 `addMessage` → 同一文件 N 个重叠写(O(N²) 字节 + 写撕裂风险) | `agent/session-store.ts:95,511` / `agent/canvas-agent.ts:1118-1125` |
 | J-2 | **medium** | ✔ | 隐藏 keep-alive 工作区的 team-lead(5s)/team-frame(15s)轮询无可见性门控,每 tick 主进程 `withTeamLock` 跑**mutating repair/nudge pass**(注释自证),与既有 15s heartbeat 冗余且更频繁 | `AgentNodeBody/index.tsx:125` / `AgentTeamFrame/index.tsx:886` / `agent-teams/service.ts:1730-1760` |
-| J-3 | low-medium | — | agent-teams store 每 append 对**全部** events/messages `.filter` 计数 + 整份 state stringify 落盘(已有 cap/hysteresis/persistQueue/tmp-rename 缓解,experimental 门控) | `agent-teams/store.ts:178-208,260` |
+| J-3 | low-medium | — | agent-teams store 每 append 对**全部** events/messages `.filter` 计数 + 整份 state stringify 落盘(已有 cap/hysteresis/persistQueue/tmp-rename 缓解,experimental 门控) | `agent-teams/state/store.ts:178-208,260` |
 | J-4 | low | — | heartbeat 每 15s 的 repair/notify 即使无状态变更也触发 `saveTeamMetadata` → 整份 state.json 重写 | `agent-teams/service.ts:1880-1932` |
 | J-5 | low | — | 从 agent 输出文本推断 cwd / 任务派发时对每个路径候选同步 `statSync`(主事件循环;有界频率,experimental 门控) | `agent-teams/service.ts:193-217` |
 | J-6 | low | — | 每个 agent turn 无缓存全量 `readCanvasFull` 构建 workspace summary(底层成本与 B2 缓存建议重叠,此处为新增调用点) | `agent/canvas-agent.ts:785` / `agent/context/context-builder.ts:434` |

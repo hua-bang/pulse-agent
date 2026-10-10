@@ -2,7 +2,7 @@
 // Read-only check: which Canvas nodes exist both inline in a v1 canvas.json and
 // as nodes/<id>.json with different content, and which copy the SQLite
 // migration will keep. The rule mirrors
-// src/main/canvas/persistence/legacy-node-arbitration.ts (a parity test in
+// src/main/canvas/persistence/legacy/legacy-node-arbitration.ts (a parity test in
 // legacy-conflicts.test.ts keeps them aligned), which follows the v1→v2 migration:
 //   - the node file wins when the inline copy has no content, or when the node
 //     file's updatedAt is strictly newer;

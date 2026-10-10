@@ -12,7 +12,7 @@ import {
   placementIntentSchema,
   resolvePlacement,
   type PlacementIntent,
-} from './_shared/placement';
+} from './_shared/layout/placement';
 
 export function createArtifactTools(workspaceId: string): Record<string, CanvasTool> {
   return {

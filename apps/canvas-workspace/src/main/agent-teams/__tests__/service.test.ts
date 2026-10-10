@@ -27,7 +27,7 @@ vi.mock('../../canvas/broadcast', () => ({
   broadcastCanvasUpdate: vi.fn(),
 }));
 
-vi.mock('../canvas-nodes', () => ({
+vi.mock('../canvas/canvas-nodes', () => ({
   createAgentTeamCanvasNodes: vi.fn(async (input: any) => {
     mockState.createdTeams.push(input);
     const agentNodeIds: Record<string, string> = {
@@ -97,7 +97,7 @@ vi.mock('../canvas-nodes', () => ({
 }));
 
 import { CanvasAgentTeamsService } from '../service';
-import { removeAgentTeamCanvasNodes } from '../canvas-nodes';
+import { removeAgentTeamCanvasNodes } from '../canvas/canvas-nodes';
 import type { CanvasAgentTeamSnapshot } from '../types';
 
 const plan = {

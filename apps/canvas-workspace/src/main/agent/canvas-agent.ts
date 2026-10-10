@@ -22,14 +22,14 @@ import {
   createCanvasAgentToolPolicy,
   createCanvasAskModeToolPolicyPlugin,
 } from './tool-policy';
-import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './sessions/session-store';
-import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
+import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './sessions/store/session-store';
+import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile/prompt-profile';
 import {
   formatWorkspaceContextSection,
   readWorkspaceDoc,
   readWorkspaceMeta,
   WORKSPACE_DOC_FILENAME,
-} from './workspace-meta';
+} from './workspace/workspace-meta';
 import { buildMemoryPromptSection } from './memory/memory-store';
 import { linkRunAbortSignal, persistStoppedBeforeSegment, resolveSegmentOutcome, settleStoppedToolCalls } from './run/chat-stop';
 import {
@@ -38,7 +38,7 @@ import {
   finalizeCanvasAgentDebugTrace,
   isCanvasAgentDebugTraceEnabled, markTraceModelStarted, markTraceRuntimeCompleted,
   recordTraceMessageSnapshot, type CanvasAgentPerformanceTiming,
-} from './debug-trace';
+} from './observability/debug-trace';
 import type {
   AgentClarificationRequest,
   AgentScope,

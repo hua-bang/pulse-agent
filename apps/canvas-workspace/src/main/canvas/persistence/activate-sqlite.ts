@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { prepareLegacyCanvasImport } from '@pulse-coder/storage/canvas';
 import { activateLocalCanvasStorage, writeJsonAtomic } from '@pulse-coder/storage/local';
-import type { LegacyNodeConflict } from './legacy-node-arbitration';
+import type { LegacyNodeConflict } from './legacy/legacy-node-arbitration';
 import { STORE_DIR } from './paths';
 import { resolveStorageNativeBinding } from './backend';
-import { readLegacyCanvasWorkspace, validateLegacyCanvas } from './read-legacy-canvas';
+import { readLegacyCanvasWorkspace, validateLegacyCanvas } from './legacy/read-legacy-canvas';
 
 /**
  * The app owns the cutover. Legacy JSON is retained and is never re-imported

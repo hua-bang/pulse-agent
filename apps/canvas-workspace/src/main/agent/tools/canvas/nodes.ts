@@ -1,0 +1,380 @@
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { writeWorkspaceText } from '../../../files/workspace-files';
+import { z } from 'zod';
+import { generateHTML } from '../../../generation/html-generator';
+import type { CanvasNode, CanvasTool, NodeType } from '../types';
+import { STORE_DIR, loadCanvas, saveCanvas } from '../_shared/canvas-io';
+import { broadcastUpdate } from '../_shared/broadcast';
+import { CANVAS_NODE_DEFAULTS } from '../../../../shared/canvas-node-defaults';
+import {
+  INLINE_PROMPT_THRESHOLD,
+  placementIntentSchema,
+  resolvePlacement,
+  type PlacementIntent,
+} from '../_shared/layout/placement';
+import { createPassiveNodeData } from '../_shared/passive-node-data';
+import { normalizeIframeUrl, shouldCreateIframeForHtml } from '../_shared/iframe';
+import {
+  MOCK_CARD_DEFAULT_PAYLOAD,
+  MOCK_CARD_NODE_TYPE,
+  MOCK_NODE_PLUGIN_ID,
+  MOCK_TODO_LIST_DEFAULT_PAYLOAD,
+  MOCK_TODO_LIST_NODE_TYPE,
+} from '../../../../plugins/mock-node/constants';
+import { createNodeReadTools } from './node-read-tools';
+import { applyStringEdits, type StringEdit } from '../_shared/string-edits';
+import { getAgentCapabilityPort } from '../../capability-port';
+
+export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
+  return {
+    ...createNodeReadTools(workspaceId),
+
+    canvas_create_node: {
+      name: 'canvas_create_node',
+      description:
+        'Create a new node on the canvas.\n' +
+        '- **file**: Creates a markdown note with a backing file. Use `content` for initial text. If `content` is full HTML, or `data.contentType: "text/html"` / `data.renderAs: "html"` is provided, it is automatically created as a renderable iframe HTML node instead. Use `data.renderAs: "note"` to force a markdown note.\n' +
+        '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `image_generate` when the user asks AI to create an image.\n' +
+        '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
+        '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
+        '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +
+        '- **agent**: Creates an AI agent node (Claude Code or Codex). ' +
+        'Set `data.agentType`, `data.cwd`, `data.status: "running"` to auto-launch, `data.prompt` for initial context, and optional `data.agentArgs`.\n' +
+        '- **text**: Creates a free-form text label (TLDRAW-style). Use `content` for the text body, ' +
+        'and `data.textColor` / `data.backgroundColor` (hex or "transparent") for styling. Optional `data.fontSize`.\n' +
+        '- **iframe**: Embeds an external web page, renders raw HTML, or generates HTML from a prompt. ' +
+        'Use `data.url` for URL mode, `data.html` + `data.mode: "html"` for raw HTML, or `data.prompt` + `data.mode: "ai"` for generated HTML. ' +
+        'Note: some sites block URL embedding via X-Frame-Options / CSP.\n' +
+        '- **shape**: Draws a primitive geometric shape (rectangle or ellipse). ' +
+        'Use `data.kind` ("rect" | "ellipse"), `data.fill` / `data.stroke` (hex or "transparent"), ' +
+        'and `data.strokeWidth` (px). For precise sizing pass explicit `x`, `y`, and set width/height ' +
+        'via the dedicated `canvas_create_shape` tool — this generic one uses default dimensions.\n' +
+        '- **mindmap**: Creates a radial mindmap. Pass `data.root` as a recursive topic tree ' +
+        '`{ text: string, children?: Topic[], color?: string, collapsed?: boolean }`; topic ids are auto-generated.\n' +
+        '- **plugin**: Creates a custom plugin node shell. Pass `data.pluginId`, `data.nodeType`, and optional `data.payload`. ' +
+        'For the built-in MVP mock nodes, use `{ pluginId: "mock", nodeType: "mock.card", payload: { text?: string, count?: number } }` ' +
+        'or `{ pluginId: "mock", nodeType: "mock.todo-list", payload: { title?: string, items?: Array<{ id?: string, text: string, done?: boolean }> } }`.',
+      inputSchema: z.object({
+        type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap', 'plugin']).describe('Node type.'),
+        title: z.string().optional().describe('Node title.'),
+        content: z.string().optional().describe('Initial content (for file and text nodes).'),
+        x: z.number().optional().describe('X position (auto-placed if omitted).'),
+        y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+        width: z.number().min(40).optional().describe('Node width in canvas px. Defaults by type if omitted.'),
+        height: z.number().min(40).optional().describe('Node height in canvas px. Defaults by type if omitted.'),
+        placement: placementIntentSchema.optional().describe(
+          'Semantic insertion strategy for the agent. Use near_node for derived notes, inside_frame for adding to an existing frame, at for a preferred canvas point, or omit to append to the canvas without moving existing nodes.',
+        ),
+        data: z.record(z.string(), z.unknown()).optional().describe(
+          'Additional node data. Keys vary by type:\n' +
+          '- terminal: { cwd?: string }\n' +
+          '- agent: { agentType?: "claude-code"|"codex"|"pi", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
+          '- frame: { color?: string, label?: string }\n' +
+          '- group: { color?: string, label?: string, childIds?: string[] }\n' +
+          '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
+          '- iframe: { url?: string, html?: string, prompt?: string, mode?: \"url\"|\"html\"|\"ai\" }. `url: \"blank\"` opens about:blank.\\n' +
+          '- file HTML routing: { contentType?: \"text/html\", renderAs?: \"html\"|\"note\" }\\n' +
+          '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
+          '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape\n' +
+          '- plugin: { pluginId: string, nodeType: string, payload?: Record<string, unknown>, version?: string }. Defaults to the built-in mock.card plugin node. Use nodeType "mock.todo-list" for a Todo List plugin node.',
+        ),
+      }),
+      execute: async (input) => {
+        const requestedNodeType = input.type as NodeType;
+        const content = (input.content as string) ?? '';
+        const extraData = (input.data as Record<string, unknown>) ?? {};
+        const nodeType: NodeType = shouldCreateIframeForHtml(requestedNodeType, content, extraData) ? 'iframe' : requestedNodeType;
+        const defaultTitle = nodeType === 'plugin' && extraData.nodeType === MOCK_TODO_LIST_NODE_TYPE
+          ? MOCK_TODO_LIST_DEFAULT_PAYLOAD.title
+          : CANVAS_NODE_DEFAULTS[nodeType]?.title ?? 'Untitled';
+        const title = (input.title as string) ?? defaultTitle;
+
+        const canvas = await loadCanvas(workspaceId);
+        if (!canvas) return 'Error: workspace not found';
+
+        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const def = CANVAS_NODE_DEFAULTS[nodeType];
+        if (!def) return `Error: unsupported node type: ${nodeType}`;
+
+        const width = (input.width as number | undefined) ?? def.width;
+        const height = (input.height as number | undefined) ?? def.height;
+        let pos: { x: number; y: number };
+        try {
+          pos = resolvePlacement(
+            canvas.nodes,
+            { width, height },
+            { x: input.x as number | undefined, y: input.y as number | undefined },
+            input.placement as PlacementIntent | undefined,
+          );
+        } catch (err) {
+          return `Error: ${err instanceof Error ? err.message : String(err)}`;
+        }
+
+        let nodeData: Record<string, unknown>;
+        switch (nodeType) {
+          case 'file':
+            nodeData = { filePath: '', content, saved: false, modified: false };
+            break;
+          case 'terminal':
+            nodeData = { sessionId: '', cwd: (extraData.cwd as string) ?? '' };
+            break;
+          case 'frame':
+            nodeData = {
+              color: (extraData.color as string) ?? 'oklch(0.68 0.006 265)',
+              label: (extraData.label as string) ?? '',
+            };
+            break;
+          case 'group':
+            nodeData = {
+              color: (extraData.color as string) ?? '#A594E0',
+              label: (extraData.label as string) ?? '',
+              childIds: Array.isArray(extraData.childIds)
+                ? extraData.childIds.filter((id): id is string => typeof id === 'string')
+                : [],
+            };
+            break;
+          case 'agent': {
+            const requestedStatus = (extraData.status as string) ?? 'idle';
+            const validStatuses = ['idle', 'running'];
+            const status = validStatuses.includes(requestedStatus) ? requestedStatus : 'idle';
+            const agentCwd = (extraData.cwd as string) ?? '';
+            const prompt = (extraData.prompt as string) ?? '';
+            const agentArgs = (extraData.agentArgs as string) ?? '';
+
+            // Short prompt → inline CLI arg; long prompt → file
+            let inlinePrompt = '';
+            let promptFile = '';
+            if (prompt && agentCwd) {
+              if (prompt.length <= INLINE_PROMPT_THRESHOLD) {
+                inlinePrompt = prompt;
+              } else {
+                promptFile = '.canvas-agent-task.md';
+                await fs.mkdir(agentCwd, { recursive: true });
+                await fs.writeFile(join(agentCwd, promptFile), prompt, 'utf-8');
+              }
+            }
+
+            nodeData = {
+              sessionId: '',
+              cwd: agentCwd,
+              agentType: (extraData.agentType as string) ?? 'claude-code',
+              status,
+              agentArgs,
+              inlinePrompt,
+              promptFile,
+            };
+            break;
+          }
+          case 'text':
+          case 'image':
+          case 'shape':
+          case 'mindmap':
+            nodeData = { ...createPassiveNodeData(nodeType, content, extraData, input.title as string | undefined) };
+            break;
+          case 'iframe': {
+            const rawMode = extraData.mode as string | undefined;
+            const forcedHtml = requestedNodeType === 'file' && nodeType === 'iframe';
+            const iframeMode = forcedHtml ? 'html' : rawMode === 'html' ? 'html' : rawMode === 'ai' ? 'ai' : 'url';
+            const prompt = (extraData.prompt as string) ?? '';
+
+            if (iframeMode === 'ai' && prompt) {
+              // Generate HTML from the prompt via LLM
+              const genResult = await generateHTML(prompt);
+              nodeData = {
+                url: '',
+                html: genResult.ok ? (genResult.html ?? '') : `<pre style="color:red">${genResult.error ?? 'Generation failed'}</pre>`,
+                prompt,
+                mode: 'ai',
+              };
+            } else {
+              nodeData = {
+                url: forcedHtml ? '' : normalizeIframeUrl(extraData.url),
+                html: forcedHtml ? content : (extraData.html as string) ?? '',
+                prompt,
+                mode: iframeMode,
+              };
+            }
+            break;
+          }
+          case 'plugin': {
+            const pluginId = typeof extraData.pluginId === 'string' && extraData.pluginId.trim()
+              ? extraData.pluginId.trim()
+              : MOCK_NODE_PLUGIN_ID;
+            const pluginNodeType = typeof extraData.nodeType === 'string' && extraData.nodeType.trim()
+              ? extraData.nodeType.trim()
+              : MOCK_CARD_NODE_TYPE;
+            const payload = extraData.payload && typeof extraData.payload === 'object' && !Array.isArray(extraData.payload)
+              ? extraData.payload as Record<string, unknown>
+              : pluginNodeType === MOCK_TODO_LIST_NODE_TYPE
+                ? {
+                    title: MOCK_TODO_LIST_DEFAULT_PAYLOAD.title,
+                    items: MOCK_TODO_LIST_DEFAULT_PAYLOAD.items.map((item) => ({ ...item })),
+                  }
+                : { ...MOCK_CARD_DEFAULT_PAYLOAD };
+            nodeData = {
+              pluginId,
+              nodeType: pluginNodeType,
+              payload,
+              version: typeof extraData.version === 'string' ? extraData.version : undefined,
+            };
+            break;
+          }
+        }
+
+        // For file nodes, create a backing notes file
+        if (nodeType === 'file') {
+          const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+          const noteFile = join(STORE_DIR, workspaceId, 'notes', `${safeTitle}-${nodeId}.md`);
+          await writeWorkspaceText(noteFile, content);
+          nodeData.filePath = noteFile;
+          nodeData.saved = true;
+          nodeData.modified = false;
+        }
+
+        const newNode: CanvasNode = {
+          id: nodeId,
+          type: nodeType,
+          title,
+          x: pos.x,
+          y: pos.y,
+          width,
+          height,
+          data: nodeData,
+          updatedAt: Date.now(),
+        };
+
+        // Re-read canvas before writing to avoid clobbering concurrent changes
+        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
+        fresh.nodes.push(newNode);
+        await saveCanvas(workspaceId, fresh);
+        broadcastUpdate(workspaceId, [nodeId]);
+
+        return JSON.stringify({
+          ok: true,
+          nodeId,
+          type: nodeType,
+          title,
+          x: pos.x,
+          y: pos.y,
+          width,
+          height,
+        });
+      },
+    },
+
+    canvas_update_node: {
+      name: 'canvas_update_node',
+      description:
+        'Update an existing canvas node. For file and text nodes, pass `content` (full) or `edits` (prefer for small changes; on match failure retry with full content). For frame nodes, updates label/color. For text nodes, `data.textColor`/`data.backgroundColor`/`data.fontSize` can also be patched.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to update.'),
+        title: z.string().optional().describe('New title (optional).'),
+        content: z.string().optional().describe('New content for file and text nodes. Pass this or `edits`, not both.'),
+        edits: z.array(z.object({
+          old_str: z.string().describe('Exact text; must match exactly once.'),
+          new_str: z.string().describe('Replacement text.'),
+        })).optional().describe('Ordered exact-string edits (file and text nodes only).'),
+        data: z.record(z.string(), z.unknown()).optional().describe('Partial data update (e.g. label, color for frames; textColor, backgroundColor, fontSize for text).'),
+      }),
+      execute: async (input, context) => {
+        const edits = input.edits as StringEdit[] | undefined;
+        let content = input.content as string | undefined;
+        if (edits?.length) {
+          if (content != null) return 'Error: Provide content OR edits, not both';
+          // Resolve edits against the node's live content here in the tool;
+          // the capability contract stays full-content (external callers
+          // are unaffected).
+          const canvas = await loadCanvas(workspaceId);
+          const node = canvas?.nodes?.find((n) => n.id === (input.nodeId as string));
+          if (!node) return `Error: node not found: ${input.nodeId as string}`;
+          if (node.type !== 'file' && node.type !== 'text') {
+            return `Error: edits require a file/text node, got "${node.type}"`;
+          }
+          const currentContent = (node.data as Record<string, unknown>).content;
+          const applied = applyStringEdits(typeof currentContent === 'string' ? currentContent : '', edits);
+          if (!applied.ok) return `Error: ${applied.error}`;
+          content = applied.content;
+        }
+        const result = await getAgentCapabilityPort().call(
+          'canvas.nodes.update',
+          {
+            nodeId: input.nodeId,
+            ...(input.title != null ? { title: input.title } : {}),
+            ...(content != null ? { content } : {}),
+            ...(input.data != null ? { data: input.data } : {}),
+          },
+          {
+            workspaceId,
+            actor: { kind: 'canvas-agent' },
+            abortSignal: context?.abortSignal,
+          },
+        );
+        if (!result.ok) return `Error: ${result.error.message}`;
+        return JSON.stringify({ ok: true, ...(edits?.length ? { editsApplied: edits.length } : {}), ...(result.value as object) });
+      },
+    },
+
+    canvas_delete_node: {
+      name: 'canvas_delete_node',
+      defer_loading: true,
+      description: 'Delete a node from the canvas.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to delete.'),
+      }),
+      execute: async (input) => {
+        const nodeId = input.nodeId as string;
+        const canvas = await loadCanvas(workspaceId);
+        if (!canvas) return 'Error: workspace not found';
+
+        const idx = canvas.nodes.findIndex(n => n.id === nodeId);
+        if (idx === -1) return `Error: node not found: ${nodeId}`;
+
+        // Re-read and commit
+        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
+        const freshIdx = fresh.nodes.findIndex(n => n.id === nodeId);
+        if (freshIdx >= 0) fresh.nodes.splice(freshIdx, 1);
+        // Deleting the last remaining node legitimately leaves nodes=[];
+        // opt in so the wipe guard doesn't refuse that case.
+        await saveCanvas(workspaceId, fresh, { allowEmpty: true });
+        broadcastUpdate(workspaceId, [nodeId]);
+
+        return JSON.stringify({ ok: true, nodeId });
+      },
+    },
+
+    canvas_move_node: {
+      name: 'canvas_move_node',
+      defer_loading: true,
+      description: 'Move a node to a new position on the canvas.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to move.'),
+        x: z.number().describe('New X position.'),
+        y: z.number().describe('New Y position.'),
+      }),
+      execute: async (input) => {
+        const nodeId = input.nodeId as string;
+
+        // Single read against the latest disk state, then mutate that
+        // snapshot in place. Reading once (instead of load → mutate-stale
+        // → re-read → splice) means concurrent updates to OTHER fields of
+        // this node — last edit by the user, content changes from the
+        // CLI — are not silently overwritten with a pre-move copy.
+        const fresh = await loadCanvas(workspaceId);
+        if (!fresh) return 'Error: workspace not found';
+        const idx = fresh.nodes.findIndex(n => n.id === nodeId);
+        if (idx === -1) return `Error: node not found: ${nodeId}`;
+        const node = fresh.nodes[idx];
+
+        node.x = input.x as number;
+        node.y = input.y as number;
+        node.updatedAt = Date.now();
+
+        await saveCanvas(workspaceId, fresh);
+        broadcastUpdate(workspaceId, [nodeId]);
+
+        return JSON.stringify({ ok: true, nodeId });
+      },
+    },
+  };
+}

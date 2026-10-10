@@ -1,6 +1,6 @@
 import { exec } from 'child_process';
 import type { TaskVerificationResult } from 'pulse-coder-agent-teams/runtime';
-import { isExistingDirectory } from './working-directory';
+import { isExistingDirectory } from './canvas/working-directory';
 
 export const TASK_VERIFY_TIMEOUT_MS = 120_000;
 export const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;

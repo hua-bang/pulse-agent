@@ -20,11 +20,11 @@ import {
   setCanvasPluginNativePolicy,
 } from './config';
 import { getPluginMarketAgentPort } from './agent-port';
-import { connectPackageMcp, packageMcpAuthState } from './mcp-connection';
+import { connectPackageMcp, packageMcpAuthState } from './mcp/mcp-connection';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';
 import { PUBLIC_PLUGIN_CATALOG } from './catalog';
-import { writePluginMcpAdapter } from './mcp-adapter';
-import { readPluginPackage } from './package-reader';
+import { writePluginMcpAdapter } from './mcp/mcp-adapter';
+import { readPluginPackage } from './package-reader/reader';
 import {
   type InstalledPluginRecord,
   pluginMarketPackagesDir,
@@ -32,7 +32,7 @@ import {
   runPluginMarketMutation,
   writePluginMarketState,
 } from './store';
-import { installGitSource } from './git-install';
+import { installGitSource } from './git/git-install';
 import { replaceInstalledPackage } from './package-update';
 
 function errorMessage(error: unknown): string {
@@ -432,4 +432,4 @@ export function getPluginMarketService(): PluginMarketService {
   return service;
 }
 
-export { assertManagedPackageTree, normalizedGitSource } from './git-source';
+export { assertManagedPackageTree, normalizedGitSource } from './git/git-source';

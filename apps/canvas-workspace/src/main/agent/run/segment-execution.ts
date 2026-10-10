@@ -12,7 +12,7 @@ import type {
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import { resolveAgentRuntime } from '../backends';
 import { ENGINE_ABORT_SENTINEL } from './chat-stop';
-import { attachTraceRuntime, recordTraceStreamEvent } from '../debug-trace';
+import { attachTraceRuntime, recordTraceStreamEvent } from '../observability/debug-trace';
 import { publishAgentTraceEvent } from '../../../plugins/main';
 
 type ClarificationHandler = (request: AgentClarificationRequest) => Promise<string>;

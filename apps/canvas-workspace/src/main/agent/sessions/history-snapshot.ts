@@ -1,7 +1,7 @@
 import { scopeSessionStoreId } from '../../../shared/agent-chat';
-import { SessionStore } from './session-store';
+import { SessionStore } from './store/session-store';
 import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../types';
-import { isWorkspaceTrashed } from '../workspace-runtime-guard';
+import { isWorkspaceTrashed } from '../workspace/workspace-runtime-guard';
 
 interface HistoryAgent {
   getHistory(): CanvasAgentMessage[];

@@ -13,7 +13,7 @@ import {
   type TaskVerificationResult,
   type TeamTaskRecord,
 } from 'pulse-coder-agent-teams/runtime';
-import { CanvasAgentSessionAdapter } from './canvas-agent-session-adapter';
+import { CanvasAgentSessionAdapter } from './canvas/canvas-agent-session-adapter';
 import {
   clearAgentTeamCanvasWarmup,
   createAgentTeamCanvasNodes,
@@ -25,8 +25,8 @@ import {
   updateAgentTeamCanvasCwd,
   warmupAgentTeamCanvasNodes,
   type CanvasAgentNodeRuntimeState,
-} from './canvas-nodes';
-import { CanvasAgentTeamStore } from './store';
+} from './canvas/canvas-nodes';
+import { CanvasAgentTeamStore } from './state/store';
 import { broadcastCanvasUpdate } from '../canvas/broadcast';
 import type {
   CanvasAgentTeamAddAgentInput,
@@ -55,13 +55,13 @@ import {
   parseAgentOutputMarker,
   stripAnsi,
   type AgentOutputMarker,
-} from './output-markers';
+} from './canvas/output-markers';
 import {
   agentNodeIdsForAgents,
   inferPhase,
   metadataCanvasNodeIds,
   plannedStartupAgentIds,
-} from './projection';
+} from './state/projection';
 import {
   INTEGRATION_VERIFY_TIMEOUT_MS,
   TASK_VERIFY_TIMEOUT_MS,
@@ -73,7 +73,7 @@ import {
   QUEUED_LAUNCH_REVIEW_REASON,
   isRecoverableSessionExitReview,
   observeQueuedLaunch,
-} from './recovery-policy';
+} from './state/recovery-policy';
 import { formatLeadExecutionPrompt, formatLeaderBriefingPrompt } from './prompts';
 import {
   resolveAgentReference,
@@ -81,11 +81,11 @@ import {
   resolveTaskForAction,
   resolveTaskReferences,
 } from './resolution';
-import { inferWorkingDirectoryFromText, isExistingDirectory } from './working-directory';
-import { AgentNodeResolver, type AgentNodeMatch } from './agent-node-resolver';
-import { TeamEventBroadcaster } from './team-event-broadcaster';
-import { AgentTeamWorkspaceDiscovery } from './workspace-discovery';
-import { repairAgentTeamState } from './state-repairs';
+import { inferWorkingDirectoryFromText, isExistingDirectory } from './canvas/working-directory';
+import { AgentNodeResolver, type AgentNodeMatch } from './canvas/agent-node-resolver';
+import { TeamEventBroadcaster } from './state/team-event-broadcaster';
+import { AgentTeamWorkspaceDiscovery } from './canvas/workspace-discovery';
+import { repairAgentTeamState } from './state/state-repairs';
 
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;

@@ -2,11 +2,11 @@ import {
   getFrozenSince,
   setWebviewLifecycle,
   type FreezableWebContents,
-} from './lifecycle';
+} from './lifecycle/lifecycle';
 import {
   beginLifecycleRequest,
   serializeLifecycleTransition,
-} from './lifecycle-request-guard';
+} from './lifecycle/lifecycle-request-guard';
 
 /**
  * Temporarily resumes a frozen guest so agent DOM extraction can execute.

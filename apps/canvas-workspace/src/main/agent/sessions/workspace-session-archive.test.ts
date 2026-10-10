@@ -4,16 +4,16 @@ import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activateLocalCanvasStorage } from '@pulse-coder/storage/local';
 import { prepareLegacyCanvasImport } from '@pulse-coder/storage/canvas';
-import { createWorkspaceExportArchive, createWorkspaceExportPayload, type WorkspaceExportFile } from '../../canvas/workspace-export-archive';
-import { importWorkspaceArchiveToStore } from '../../canvas/workspace-import';
+import { createWorkspaceExportArchive, createWorkspaceExportPayload, type WorkspaceExportFile } from '../../canvas/transfer/workspace-export-archive';
+import { importWorkspaceArchiveToStore } from '../../canvas/transfer/workspace-import';
 import { closeCanvasStorage } from '../../canvas/persistence/backend';
 import { setCanvasSessionArchivePort } from '../../canvas/persistence/session-archive-port';
 import { readWorkspaceExportSource, rewriteCanvasFilePaths, rewriteWorkspaceArchiveFiles, WorkspaceImportRecoveryError } from '../../canvas/persistence/sqlite-workspace';
 import * as atomicJson from '../../canvas/persistence/atomic-json';
 import { createCanvasSessionArchivePort, initializeCanvasSessionArchivePort } from './workspace-session-archive';
-import { activateSqliteSessions } from './sqlite-session-migration';
-import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite-session-backend';
-import { SessionStore } from './session-store';
+import { activateSqliteSessions } from './sqlite/migration';
+import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite/backend';
+import { SessionStore } from './store/session-store';
 
 const file = (relativePath: string, contents: unknown): WorkspaceExportFile => ({
   relativePath, encoding: 'base64', content: Buffer.from(JSON.stringify(contents)).toString('base64'),

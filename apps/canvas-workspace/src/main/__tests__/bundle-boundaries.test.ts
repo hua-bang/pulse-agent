@@ -234,9 +234,9 @@ describe('main-process lazy boundaries', () => {
 
   it('loads Feishu and happy-dom implementations on demand', () => {
     const channel = readFileSync(join(srcRoot, 'plugins/main/channel/index.ts'), 'utf-8');
-    const htmlPatch = readFileSync(join(srcRoot, 'main/agent/tools/html-patch.ts'), 'utf-8');
+    const htmlPatch = readFileSync(join(srcRoot, 'main/agent/tools/web/html-patch.ts'), 'utf-8');
     expect(channel).toMatch(/import\(['"]\.\/channels\/feishu\/feishu-channel['"]\)/);
     expect(channel).not.toMatch(/from\s+['"]\.\/channels\/feishu\/feishu-channel['"]/);
-    expect(htmlPatch).toMatch(/import\(['"]\.\/_shared\/html-patch['"]\)/);
+    expect(htmlPatch).toMatch(/import\(['"]\.\.\/_shared\/html-patch['"]\)/);
   });
 });

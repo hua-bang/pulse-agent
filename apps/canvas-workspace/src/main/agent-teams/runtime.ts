@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { setupCanvasAgentTeamsIpc } from './ipc';
-import { setupAgentTeamPtyBridge } from './pty-bridge';
+import { setupAgentTeamPtyBridge } from './canvas/pty-bridge';
 import { getCanvasAgentTeamsService } from './service';
 
 export const setupAgentTeamsRuntime = (

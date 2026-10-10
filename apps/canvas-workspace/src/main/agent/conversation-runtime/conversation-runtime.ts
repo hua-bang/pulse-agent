@@ -13,7 +13,7 @@ import {
   type ConversationSendInput,
   type ConversationSnapshot,
 } from '../../../shared/conversation-runtime';
-import type { CanvasAgentPerformanceTiming } from '../debug-trace';
+import type { CanvasAgentPerformanceTiming } from '../observability/debug-trace';
 import { markConversationLaneEntered, observeConversationPersistence } from '../observability/host-run';
 import { ClarificationRegistry } from '../run/clarification-registry';
 import { TurnToolTracker } from './turn-tools';

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { publish } = vi.hoisted(() => ({ publish: vi.fn() }));
 vi.mock('../../../plugins/main', () => ({ publishAgentTraceEvent: publish }));
 
-import type { CanvasAgentPerformanceTiming } from '../debug-trace';
+import type { CanvasAgentPerformanceTiming } from './debug-trace';
 import { traceEngineInitialize } from './engine-init-trace';
 import { traceCanvasScopeActivation } from './host-run';
 

@@ -4,14 +4,14 @@ import {
   type ConversationSendInput,
 } from '../../../shared/conversation-runtime';
 import { ipcMain, type WebContents } from 'electron';
-import { SessionStore } from '../sessions/session-store';
+import { SessionStore } from '../sessions/store/session-store';
 import type { AgentScope, AgentScopeRef } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
 import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/agent-chat';
 import { isPerfChatReplayRequest, replayPerfChatStream } from '../run/perf-chat-replay';
-import { tracedAssertWorkspaceAvailable } from '../traced-workspace-availability';
+import { tracedAssertWorkspaceAvailable } from '../workspace/traced-workspace-availability';
 
 let service: ConversationRuntimeService | null = null;
 

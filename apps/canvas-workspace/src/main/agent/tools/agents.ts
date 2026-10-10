@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
 import { sendInputToAgentNode } from '../sessions/session-send';
-import { readWorkspaceMeta } from '../workspace-meta';
+import { readWorkspaceMeta } from '../workspace/workspace-meta';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
@@ -12,7 +12,7 @@ import {
   placementIntentSchema,
   resolvePlacement,
   type PlacementIntent,
-} from './_shared/placement';
+} from './_shared/layout/placement';
 
 export function createAgentTools(workspaceId: string): Record<string, CanvasTool> {
   return {

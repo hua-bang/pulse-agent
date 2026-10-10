@@ -21,7 +21,7 @@ vi.mock('../canvas/broadcast', () => ({
   }),
 }));
 
-vi.mock('../agent/workspace-meta', () => ({
+vi.mock('../agent/workspace/workspace-meta', () => ({
   readWorkspaceMeta: vi.fn(async () => ({ rootFolder: '/repo' })),
 }));
 
@@ -43,7 +43,7 @@ import {
   sendOrQueueAgentInput,
   stopAgentTeamCanvasNodes,
   updateAgentTeamCanvasCwd,
-} from '../agent-teams/canvas-nodes';
+} from '../agent-teams/canvas/canvas-nodes';
 import { promises as realFs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';

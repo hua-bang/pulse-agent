@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { CanvasAgent } from '../canvas-agent';
 import { scopeSessionStoreId } from '../../../shared/agent-chat';
-import { scopeServiceKey } from '../active-session-groups';
+import { scopeServiceKey } from '../sessions/active-session-groups';
 import type { ScopeActivationGate } from './scope-activation-gate';
 import type { AgentScope } from '../types';
 import {
@@ -10,7 +10,7 @@ import {
   replayScopeActivationSteps,
   traceScopeActivationStep,
 } from '../observability/host-run';
-import { tracedAssertWorkspaceAvailable } from '../traced-workspace-availability';
+import { tracedAssertWorkspaceAvailable } from '../workspace/traced-workspace-availability';
 
 /** Durable visibility is checked even when the Agent or its initialization is cached. */
 export async function activateAgentScope(

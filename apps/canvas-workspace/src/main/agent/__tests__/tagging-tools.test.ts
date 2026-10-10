@@ -35,7 +35,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { createTaggingTools, __testing } from '../tools/tagging';
+import { createTaggingTools, __testing } from '../tools/canvas/tagging';
 import { writeCanvasFull, type CanvasSaveData } from '../../canvas/storage';
 import { readWorkspaceNode, writeWorkspaceNode, WORKSPACE_NODE_SCHEMA_VERSION } from '../../canvas/nodes/store';
 import { readKnowledgeTags, upsertKnowledgeTag } from '../../canvas/nodes/tags';

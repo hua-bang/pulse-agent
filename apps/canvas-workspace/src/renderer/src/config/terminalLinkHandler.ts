@@ -112,7 +112,7 @@ function confirmNavigate(url: string): Promise<boolean> {
  * xterm's built-in OSC 8 link handler falls back to a native `window.confirm`
  * plus a bare `window.open()` when `ITerminalOptions.linkHandler` is unset.
  * That popup always gets denied by this app's `setWindowOpenHandler`
- * (main/app/link-policy.ts), because it opens as `about:blank` before the
+ * (main/app/browsing/link-policy.ts), because it opens as `about:blank` before the
  * real URL is known — so the native dialog's "OK" silently does nothing.
  * Show an app-styled confirmation instead and, once accepted, route through
  * the same `shell.openExternal` IPC every other external link in this app

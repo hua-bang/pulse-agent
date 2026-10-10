@@ -17,8 +17,8 @@ vi.mock('electron', () => ({
   BrowserWindow: { getFocusedWindow: () => null },
   dialog: { showOpenDialog: vi.fn() },
 }));
-vi.mock('./git-source', async (original) => ({
-  ...await original<typeof import('./git-source')>(),
+vi.mock('./git/git-source', async (original) => ({
+  ...await original<typeof import('./git/git-source')>(),
   gitClone: fakes.clone,
 }));
 vi.mock('./store', async (original) => {

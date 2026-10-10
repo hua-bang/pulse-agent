@@ -34,15 +34,15 @@ import {
   getFrozenSince,
   getWebviewFreezeExemption,
   setWebviewLifecycle,
-} from './lifecycle';
-import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './discard-monitor';
+} from './lifecycle/lifecycle';
+import { forgetFreezeSnapshot, rememberFreezeSnapshot } from './lifecycle/discard-monitor';
 import { captureBoundedSnapshot } from './snapshot';
-import { buildFreezeRecord, probeFreezeState } from './freeze-probe';
+import { buildFreezeRecord, probeFreezeState } from './lifecycle/freeze-probe';
 import { attachShortcutForwarding } from './shortcut-forwarding';
 import {
   beginLifecycleRequest,
   serializeLifecycleTransition,
-} from './lifecycle-request-guard';
+} from './lifecycle/lifecycle-request-guard';
 import {
   WebviewRegistrationStore,
   type WebviewRegistrationKey,

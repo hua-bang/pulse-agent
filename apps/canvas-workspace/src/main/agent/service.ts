@@ -1,12 +1,12 @@
 import type { CanvasAgent, CanvasClarificationRequest } from './canvas-agent';
 import { activateAgentScope } from './scope/scope-agent-activation';
-import { isWorkspaceTrashed } from './workspace-runtime-guard';
+import { isWorkspaceTrashed } from './workspace/workspace-runtime-guard';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
-import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './sessions/session-store';
+import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './sessions/store/session-store';
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled/scheduled-session-names';
 import { searchSessionTitles } from './sessions/session-title-search';
-import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './active-session-groups';
+import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './sessions/active-session-groups';
 import { ScopeActivationGate } from './scope/scope-activation-gate';
 import type { CanvasToolResultEvent } from './run/engine-stream-callbacks';
 import type { ResolvedCanvasModel } from '../models/config';
@@ -17,7 +17,7 @@ import {
   type LoadSessionResult,
   type NewSessionResult,
   type SessionActionResult,
-} from './sessions/session-mutation-coordinator';
+} from './sessions/mutation/session-mutation-coordinator';
 import type { RoleTurnEndEvent, RoleTurnStartEvent } from '../../shared/agent-roles';
 import type {
   AgentRequestContext,

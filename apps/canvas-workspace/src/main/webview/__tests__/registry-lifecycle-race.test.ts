@@ -23,11 +23,11 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('../snapshot', () => ({ captureBoundedSnapshot: mocks.capture }));
-vi.mock('../discard-monitor', () => ({
+vi.mock('../lifecycle/discard-monitor', () => ({
   rememberFreezeSnapshot: mocks.remember,
   forgetFreezeSnapshot: mocks.forget,
 }));
-vi.mock('../freeze-probe', () => ({
+vi.mock('../lifecycle/freeze-probe', () => ({
   probeFreezeState: vi.fn(async () => ({
     scrollX: 0,
     scrollY: 0,
@@ -43,7 +43,7 @@ vi.mock('../freeze-probe', () => ({
     reloadable: true,
   })),
 }));
-vi.mock('../lifecycle', () => ({
+vi.mock('../lifecycle/lifecycle', () => ({
   getFrozenSince: mocks.frozenSince,
   getWebviewFreezeExemption: vi.fn(() => null),
   setWebviewLifecycle: mocks.setLifecycle,

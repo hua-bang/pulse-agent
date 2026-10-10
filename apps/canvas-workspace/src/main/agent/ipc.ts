@@ -47,7 +47,7 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
 import type { CanvasAgentService } from './service';
 import { getCanvasAgentService, teardownCanvasAgentServices } from './agent-service-lifecycle';
-import { streamWorkspaceDoc } from './workspace-doc-generator';
+import { streamWorkspaceDoc } from './workspace/workspace-doc-generator';
 import { generateScheduledPrompt } from './scheduled/scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentScopeRef } from './types';
