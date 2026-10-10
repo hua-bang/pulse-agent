@@ -9,8 +9,8 @@ import {
   type AgentToolingInstallResult,
   type AgentToolingAction,
   type AgentToolingStatus,
-} from './agent-tooling-manager';
-import { createAgentToolingQueue } from './agent-tooling-queue';
+} from './agent-tooling/agent-tooling-manager';
+import { createAgentToolingQueue } from './agent-tooling/agent-tooling-queue';
 import type {
   AgentToolingUpdatePolicy,
   SkillsInstallResult,

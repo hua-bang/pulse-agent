@@ -1,5 +1,5 @@
 import type { WorkspaceBundle, WorkspaceBundleImport } from '@pulse-coder/storage';
-import type { WorkspaceExportFile } from '../workspace-export-archive';
+import type { WorkspaceExportFile } from '../transfer/workspace-export-archive';
 
 export interface PreparedCanvasSessionImport {
   files: WorkspaceExportFile[];

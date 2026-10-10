@@ -11,11 +11,21 @@ const SOURCE_ROOT = 'src';
 const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 // A directory with many flat production files hides its sub-areas. New
-// directories stay under the threshold; listed directories must not grow.
-// Group files by responsibility into subdirectories to shrink a baseline.
-const FLAT_FILE_THRESHOLD = 25;
+// directories stay within the limit; listed directories must not grow, and a
+// baseline must drop when its directory shrinks. Group files by responsibility
+// into subdirectories to shrink a baseline. Main-process code uses a tighter
+// limit because its domains grow by adding flat service files.
+const FLAT_FILE_LIMIT = 24;
+const MAIN_FLAT_FILE_LIMIT = 12;
+const MAIN_PROCESS_ROOTS = ['src/main/', 'src/plugins/main/'];
 const CURRENT_FLAT_DIRECTORY_BASELINE: Record<string, number> = {
-  'src/main/agent/tools': 27,
+  'src/main/agent': 21,
+  'src/main/agent-teams': 21,
+  'src/main/agent/sessions': 17,
+  'src/main/agent/tools/_shared': 15,
+  'src/main/app': 17,
+  'src/main/canvas/persistence': 14,
+  'src/main/plugin-market': 14,
   'src/shared': 38,
 };
 
@@ -162,17 +172,30 @@ function buildFlatDirectoryViolations(files: ScannedFile[]): string[] {
   }
 
   return [...counts.entries()].flatMap(([directory, count]) => {
+    const limit = flatFileLimit(directory);
     const baseline = CURRENT_FLAT_DIRECTORY_BASELINE[directory];
     if (baseline === undefined) {
-      return count >= FLAT_FILE_THRESHOLD
-        ? [`${directory} has ${count} flat production files; group them into subdirectories (limit ${FLAT_FILE_THRESHOLD - 1})`]
+      return count > limit
+        ? [`${directory} has ${count} flat production files; group them into subdirectories (limit ${limit})`]
         : [];
     }
 
-    return count > baseline
-      ? [`${directory} grew from baseline ${baseline} to ${count} flat production files`]
-      : [];
+    if (count > baseline) {
+      return [`${directory} grew from baseline ${baseline} to ${count} flat production files`];
+    }
+    if (count < baseline) {
+      return count > limit
+        ? [`${directory} shrank to ${count} flat production files; lower its baseline from ${baseline}`]
+        : [`${directory} is within the limit (${count}/${limit}); remove its baseline`];
+    }
+    return [];
   });
+}
+
+function flatFileLimit(directory: string): number {
+  return MAIN_PROCESS_ROOTS.some((root) => `${directory}/`.startsWith(root))
+    ? MAIN_FLAT_FILE_LIMIT
+    : FLAT_FILE_LIMIT;
 }
 
 describe('file size governance', () => {

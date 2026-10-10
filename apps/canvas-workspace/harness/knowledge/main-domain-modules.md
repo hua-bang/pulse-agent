@@ -396,7 +396,7 @@ move has passed typecheck and tests.
 - `src/main/dock/`: right-dock tab support in main — `tab-store.ts` (tab
   mirror), `tab-actions.ts` (tab-activation pushes), `history-store.ts`
   (browsing history). Detail: `harness/knowledge/dock-browser.md`.
-- `src/main/webview/lifecycle.ts`: shared Canvas-node and right-dock webview
+- `src/main/webview/lifecycle/lifecycle.ts`: shared Canvas-node and right-dock webview
   lifecycle policy. Real-time Feishu/Lark hosts remain eligible for the 1fps
   paint throttle but are exempt from L2 freeze and therefore L3 discard; match
   the guest's current URL, not the node/tab's originally saved URL.

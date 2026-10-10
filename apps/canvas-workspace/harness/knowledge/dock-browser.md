@@ -34,7 +34,7 @@ navigation becomes a dock link. OAuth redirects and external editor protocols
 retain their dedicated policies.
 
 Only a registered `dock-browser` guest receives browser shortcut interception
-from `main/app/webview-shortcuts.ts`. Canvas-node pages keep owning their
+from `main/webview/webview-shortcuts.ts`. Canvas-node pages keep owning their
 keystrokes.
 
 ## Link-open identity and workspace routing
@@ -457,7 +457,7 @@ when validating the complete live model path.
 Primary regression suites live in:
 
 - `src/main/app/__tests__/link-policy.test.ts`
-- `src/main/app/__tests__/webview-shortcuts.test.ts`
+- `src/main/webview/__tests__/webview-shortcuts.test.ts`
 - `src/main/webview/__tests__/registry.test.ts`
 - `src/renderer/src/modules/canvas/components/node-bodies/IframeNodeBody/useWebviewRegistration.test.tsx`
 - `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-store.test.ts`

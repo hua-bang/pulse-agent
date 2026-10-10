@@ -2442,7 +2442,7 @@
       "locked": false,
       "customData": {
         "sourcePaths": [
-          "apps/canvas-workspace/src/main/webview/lifecycle.ts",
+          "apps/canvas-workspace/src/main/webview/lifecycle/lifecycle.ts",
           "apps/canvas-workspace/src/main/webview/cdp-session.ts"
         ]
       }

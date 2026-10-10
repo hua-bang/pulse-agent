@@ -3,7 +3,7 @@
 Packaged builds bundle the existing `@pulse-coder/canvas-cli` under Electron
 resources and install it as a versioned, self-contained payload into the
 user's home directory, independent of any system Node or package manager.
-Read this file before changing `src/main/files/agent-tooling-*`,
+Read this file before changing `src/main/files/agent-tooling/agent-tooling-*`,
 `src/main/files/skill-installer.ts`, `src/main/files/shell-path.ts`, or
 anything that triggers a tooling install/repair/update.
 
@@ -12,11 +12,11 @@ anything that triggers a tooling install/repair/update.
 On first launch and after app updates, the app idempotently installs:
 
 - its versioned CLI files under `~/.pulse-coder/tooling/pulse-canvas/`
-  (`toolingRoot()` in `src/main/files/agent-tooling-state.ts`:
+  (`toolingRoot()` in `src/main/files/agent-tooling/agent-tooling-state.ts`:
   `join(installRoot, 'tooling', 'pulse-canvas')`, where `installRoot` is
   `~/.pulse-coder`);
 - a no-system-Node wrapper under `~/.pulse-coder/bin/` (`unixWrapper`/
-  `windowsWrapper` in `src/main/files/agent-tooling-files.ts` — a shell
+  `windowsWrapper` in `src/main/files/agent-tooling/agent-tooling-files.ts` — a shell
   script or batch file that re-execs the packaged Electron host binary with
   `ELECTRON_RUN_AS_NODE=1`, so invoking the CLI never depends on a
   system-installed Node);
@@ -57,7 +57,7 @@ checkout (`packages/canvas-cli`), and even that falls back to a bundled
 
 Keep startup, Settings repair, and experimental-trigger installs on the
 shared `AgentToolingManager` (`createAgentToolingManager` in
-`src/main/files/agent-tooling-manager.ts`). Concretely, three call sites feed
+`src/main/files/agent-tooling/agent-tooling-manager.ts`). Concretely, three call sites feed
 the same manager:
 
 - **Startup**: `ensureAgentToolingAtStartup` (`skill-installer.ts`), called
@@ -79,7 +79,7 @@ the same manager:
   visit the Agent repair button.
 
 All three funnel into `createAgentToolingQueue`
-(`src/main/files/agent-tooling-queue.ts`), a single-flight queue over
+(`src/main/files/agent-tooling/agent-tooling-queue.ts`), a single-flight queue over
 `AgentToolingManager.ensureInstalled({ action })`. Any new trigger must call
 through this shared queue rather than `ensureInstalled` directly, or
 concurrent triggers can race each other's installs.
@@ -101,7 +101,7 @@ already active.
 Runtime payload directories are fingerprint-qualified and immutable across
 updates, so a same-semver replacement cannot overwrite the CLI currently
 referenced by the launcher. Concretely (`prepareCliPayload` in
-`src/main/files/agent-tooling-deployment.ts`): each deployed bundle lives
+`src/main/files/agent-tooling/agent-tooling-deployment.ts`): each deployed bundle lives
 under `<toolingRoot>/.cache/<fingerprint>/` and
 `<toolingRoot>/.runtime/<fingerprint>/`, where `<fingerprint>` is a sha256
 over the CLI entrypoint, every bundled skill's `SKILL.md`, and the paths and
@@ -118,7 +118,7 @@ trusting that directory as the automatic-repair cache.
 
 Bundle activation is failure-atomic: a skill, launcher, or active-state
 write failure must restore the previously active set. `deployAgentTooling`
-(`src/main/files/agent-tooling-deployment.ts`) snapshots the current
+(`src/main/files/agent-tooling/agent-tooling-deployment.ts`) snapshots the current
 launcher wrapper and every skill file it is about to overwrite before
 writing anything. If the wrapper write or the active-state write throws
 after skills were already installed, the `catch` block restores the wrapper
@@ -203,19 +203,19 @@ available; packaged import and live CLI smoke checks validate that boundary.
 
 ## Key files
 
-- `src/main/files/agent-tooling-manager.ts` — `AgentToolingManager` /
+- `src/main/files/agent-tooling/agent-tooling-manager.ts` — `AgentToolingManager` /
   `createAgentToolingManager`: `status()`, `ensureInstalled({ action })`,
   `setUpdatePolicy()`.
-- `src/main/files/agent-tooling-state.ts` — `toolingRoot()`, and the
+- `src/main/files/agent-tooling/agent-tooling-state.ts` — `toolingRoot()`, and the
   update-policy / active-state read-write pair (`update-policy.json`,
   `active.json`).
-- `src/main/files/agent-tooling-files.ts` — wrapper generation
+- `src/main/files/agent-tooling/agent-tooling-files.ts` — wrapper generation
   (`unixWrapper`/`windowsWrapper`), `fingerprintCliTree`,
   `isBundleCurrent`/`isLauncherCurrent`, `atomicWrite` (tmp-write + rename).
-- `src/main/files/agent-tooling-deployment.ts` — `deployAgentTooling`
+- `src/main/files/agent-tooling/agent-tooling-deployment.ts` — `deployAgentTooling`
   (failure-atomic activation), `prepareCliPayload` (fingerprint cache/runtime
   directories), `installSkillsTransaction`.
-- `src/main/files/agent-tooling-queue.ts` — `createAgentToolingQueue`, the
+- `src/main/files/agent-tooling/agent-tooling-queue.ts` — `createAgentToolingQueue`, the
   single-flight action queue shared by every trigger.
 - `src/main/files/skill-installer.ts` — `ensureAgentToolingAtStartup`,
   `resolveBundleRoot`, `SKILL_PARENT_DIRS`, and the `skills:*` IPC handlers
@@ -236,9 +236,9 @@ binds this whole surface (manager, files, deployment, queue, state,
 skill-installer, shell-path, and the Settings UI files above) to:
 
 - quick/required: `pnpm --filter canvas-workspace exec vitest run
-  src/main/files/agent-tooling-manager.test.ts
-  src/main/files/agent-tooling-files.test.ts
-  src/main/files/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts
+  src/main/files/agent-tooling/agent-tooling-manager.test.ts
+  src/main/files/agent-tooling/agent-tooling-files.test.ts
+  src/main/files/agent-tooling/agent-tooling-queue.test.ts src/main/files/shell-path.test.ts
   src/main/__tests__/agent-tooling-package.test.ts
   scripts/setup/prepare-sqlite-native.test.mjs
   scripts/setup/assert-packaged-native.test.mjs`

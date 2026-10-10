@@ -3,7 +3,7 @@ import { realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { JsonObject, WorkspaceBundle } from '@pulse-coder/storage';
-import type { WorkspaceExportFile } from '../../canvas/workspace-export-archive';
+import type { WorkspaceExportFile } from '../../canvas/transfer/workspace-export-archive';
 import {
   isWorkspaceSessionFile, setCanvasSessionArchivePort,
   type CanvasSessionArchivePort, type PreparedCanvasSessionImport,

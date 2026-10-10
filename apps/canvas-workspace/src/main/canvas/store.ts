@@ -136,7 +136,7 @@ const createUniqueImportedWorkspaceId = async (): Promise<string> => {
 };
 
 export const importWorkspaceFromPath = async (sourcePath: string) => {
-  const { importWorkspaceArchiveToStore } = await import('./workspace-import');
+  const { importWorkspaceArchiveToStore } = await import('./transfer/workspace-import');
   const workspaceId = await createUniqueImportedWorkspaceId();
   const imported = await importWorkspaceArchiveToStore({
     sourcePath, storeDir: STORE_DIR, workspaceId, agentsTemplate: AGENTS_MD_TEMPLATE,
@@ -867,7 +867,7 @@ export const setupCanvasStoreIpc = () => {
 
   ipcMain.handle('canvas:exportWorkspace', async (_event, payload: { id: string; name: string }) => {
     try {
-      const { exportWorkspaceWithDialog } = await import('./workspace-archive-actions');
+      const { exportWorkspaceWithDialog } = await import('./transfer/workspace-archive-actions');
       return await exportWorkspaceWithDialog(STORE_DIR, payload, () => readLegacyWorkspaceCanvasForExport(payload.id));
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -876,7 +876,7 @@ export const setupCanvasStoreIpc = () => {
 
   ipcMain.handle('canvas:importWorkspace', async () => {
     try {
-      const { importWorkspaceWithDialog } = await import('./workspace-archive-actions');
+      const { importWorkspaceWithDialog } = await import('./transfer/workspace-archive-actions');
       return await importWorkspaceWithDialog(importWorkspaceFromPath);
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

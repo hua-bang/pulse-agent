@@ -68,6 +68,13 @@ Practical rules:
   `useXxxController.ts` hook carry the rest (see [`frontend.md`](./frontend.md)).
 - When you touch a baseline file, prefer to **shrink** it; never push it larger.
 
+The same test limits flat production files per directory: at most 24, or 12
+under `src/main` and `src/plugins/main`. Directories in
+`CURRENT_FLAT_DIRECTORY_BASELINE` must not grow. When one shrinks, lower its
+baseline, and remove it once the directory is within the limit. Split a
+directory by responsibility (for example `agent/tools/canvas/` and
+`agent/tools/web/`), not by count alone.
+
 ## Refactor discipline
 
 When restructuring (from `harness/knowledge/main-domain-modules.md`):

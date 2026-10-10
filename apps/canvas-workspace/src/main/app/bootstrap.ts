@@ -39,7 +39,7 @@ import {
   EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
 } from "../../shared/experimental-features";
 import { setupWebviewRegistryIpc } from "../webview/registry";
-import { startWebviewDiscardMonitor } from "../webview/discard-monitor";
+import { startWebviewDiscardMonitor } from "../webview/lifecycle/discard-monitor";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupWebpageReaderIpc } from "../webview/reader";
 import { setupArtifactIpc } from "../artifacts/ipc";
@@ -85,8 +85,8 @@ import {
 
 let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./link-policy";
-import { setupWebviewShortcuts } from "./webview-shortcuts";
-import { setupWebviewContextMenu } from "./webview-context-menu";
+import { setupWebviewShortcuts } from "../webview/webview-shortcuts";
+import { setupWebviewContextMenu } from "../webview/webview-context-menu";
 import { setupGoogleAuthCompat } from "./google-auth";
 import { setupDeepLinkEarly } from "../default-browser/deep-link";
 import { setupDefaultBrowserIpc } from "../default-browser/ipc";
@@ -266,7 +266,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupExperimentalIpc();
     setupWebviewRegistryIpc();
     // L3 of the webview lifecycle: budget-driven discard of long-frozen
-    // guests (Memory Saver style — see main/webview/discard-monitor.ts).
+    // guests (Memory Saver style — see main/webview/lifecycle/discard-monitor.ts).
     // App-lifetime service; the interval dies with the process.
     startWebviewDiscardMonitor();
     setupHtmlGeneratorIpc();

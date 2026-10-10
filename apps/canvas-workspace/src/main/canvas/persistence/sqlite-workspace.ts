@@ -8,7 +8,7 @@ import {
   type LegacyCanvas,
   type PreparedLegacyCanvasImport,
 } from '@pulse-coder/storage/canvas';
-import { isSafeRelativePath, type WorkspaceExportFile } from '../workspace-export-archive';
+import { isSafeRelativePath, type WorkspaceExportFile } from '../transfer/workspace-export-archive';
 import { assertSafeNodeId } from '../nodes/store';
 import { workspaceFiles } from '../../files/workspace-files';
 import { atomicWriteJson } from './atomic-json';

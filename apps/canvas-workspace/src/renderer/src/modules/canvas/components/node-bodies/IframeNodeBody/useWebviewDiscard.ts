@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
 /**
  * Renderer half of L3 webview discard (Memory Saver style — see
- * main/webview/discard-monitor.ts). Main decides WHICH long-frozen guest to
+ * main/webview/lifecycle/discard-monitor.ts). Main decides WHICH long-frozen guest to
  * discard when total webview memory exceeds budget; this hook receives the
  * notification, flips the node into the discarded state (the caller feeds
  * `!discarded` into useEmbeddedBrowser's `enabled`, which unmounts the

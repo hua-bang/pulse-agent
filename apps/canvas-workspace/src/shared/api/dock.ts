@@ -26,7 +26,7 @@ export interface DockApi {
     callback: (payload: { workspaceId: string; artifactId: string }) => void,
   ) => () => void;
   /** A browsing shortcut pressed while an embedded page had focus, relayed by
-   *  main (`app/webview-shortcuts.ts`) because guest keys never reach this
+   *  main (`webview/webview-shortcuts.ts`) because guest keys never reach this
    *  window. Returns unsubscribe fn. */
   onShortcut: (
     callback: (payload: DockShortcutRequest) => void,

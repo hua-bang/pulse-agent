@@ -29,7 +29,7 @@ The registry entry alone renders a working tab. These land with it:
 | Dock tab title | the `agentDefaultTitle` chain in `RightDock/content/TerminalDockTab.tsx` |
 | Install guide | `AGENT_INSTALL_GUIDES` in `AgentNodeBody/AgentPicker.tsx` — shown when the binary probe reports missing or a launch fails |
 | Command detection | `CODING_AGENT_COMMAND_PATTERN` + the return chain in `utils/codingAgentCommand.ts`, so typing the CLI into a terminal node/dock is recognized as an agent session |
-| Canvas Agent delegation | the `agentType` enum in `src/main/agent/tools/agents.ts` and the data-shape prose in `src/main/agent/tools/nodes.ts` |
+| Canvas Agent delegation | the `agentType` enum in `src/main/agent/tools/agents.ts` and the data-shape prose in `src/main/agent/tools/canvas/nodes.ts` |
 
 The brand color lives in `styles.css`, not `RightDock/index.css`, because the
 dock's tab switcher renders these icons inside a body-level popover — a token

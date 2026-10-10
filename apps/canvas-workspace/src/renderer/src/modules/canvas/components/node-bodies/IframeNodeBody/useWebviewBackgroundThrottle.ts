@@ -51,7 +51,7 @@ interface Options {
   defaultFrameRate?: number;
   /**
    * How long offscreen before escalating from the frame-rate throttle to a
-   * Chrome-style page freeze (L2 — see main/webview/lifecycle.ts). Chrome
+   * Chrome-style page freeze (L2 — see main/webview/lifecycle/lifecycle.ts). Chrome
    * freezes background tabs after ~5 minutes; same default here. Resume is
    * instantaneous and reload-free.
    */
@@ -78,7 +78,7 @@ const DEFAULT_FREEZE_RETRY_MS = 60_000;
  * verification showed guest document.visibilityState stays 'visible'
  * regardless of the element's CSS (guest visibility tracks the embedder
  * window), which is why main's frozen path pairs the lifecycle freeze with
- * a script-execution-disable guarantee — see main/webview/lifecycle.ts.
+ * a script-execution-disable guarantee — see main/webview/lifecycle/lifecycle.ts.
  * visibility:hidden (not display:none, which webview handles badly) is a
  * visual no-op here: the node is offscreen by definition, and main
  * snapshots the last frame BEFORE this class lands.
