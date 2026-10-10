@@ -5,8 +5,8 @@ const state = vi.hoisted(() => ({
   initialize: vi.fn(async (): Promise<void> => undefined),
 }));
 vi.mock('../../../plugins/main', () => ({ publishAgentTraceEvent: state.publish }));
-vi.mock('../sessions/sqlite-session-backend', async importOriginal => ({
-  ...await importOriginal<typeof import('../sessions/sqlite-session-backend')>(),
+vi.mock('../sessions/sqlite/backend', async importOriginal => ({
+  ...await importOriginal<typeof import('../sessions/sqlite/backend')>(),
   getSqliteSessionStorage: async () => ({ workspaces: { getTrashed: async () => null } }),
 }));
 vi.mock('../canvas-agent', () => ({

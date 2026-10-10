@@ -2,9 +2,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { ConversationSnapshot, EntityRecord, JsonObject } from '@pulse-coder/storage';
 import { StorageError } from '@pulse-coder/storage';
-import type { CanvasAgentMessage, CanvasAgentSession } from '../types';
-import { sessionPreview } from './session-preview';
-import { sessionUpdatedAt, type AgentSessionListEntry } from './session-file-summary';
+import type { CanvasAgentMessage, CanvasAgentSession } from '../../types';
+import { sessionPreview } from '../session-preview';
+import { sessionUpdatedAt, type AgentSessionListEntry } from '../session-file-summary';
 
 type IdentifiedMessage = CanvasAgentMessage & { id?: string };
 

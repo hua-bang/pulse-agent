@@ -6,8 +6,8 @@ import {
   AGENT_PLUGIN_MCP_V1_SCHEMA,
   AGENT_PLUGIN_V1_SCHEMA,
   PULSE_CANVAS_EXTENSION_NAMESPACE,
-} from '../../shared/plugin-market';
-import { readPluginPackage } from './package-reader';
+} from '../../../shared/plugin-market';
+import { readPluginPackage } from './reader';
 
 const roots: string[] = [];
 

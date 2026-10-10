@@ -182,7 +182,7 @@ the same.
 
 ## Durable session storage
 
-Bootstrap activates conversations through `sqlite-session-migration.ts` before
+Bootstrap activates conversations through `sessions/sqlite/migration.ts` before
 constructing an Agent. `SessionStore` preserves its public API while using
 `@pulse-coder/storage` repositories after activation. The default session root
 shares the Canvas database; `PULSE_CANVAS_SESSION_STORE_DIR` keeps its own root.
@@ -213,7 +213,7 @@ writing archive state. A separate `PULSE_CANVAS_SESSION_STORE_DIR` database is
 rejected visibly because one workspace transaction cannot include it. Independent
 session reads and writes still work; paths resolving to the same database are
 accepted. Guards: `workspace-session-archive.test.ts`,
-`sqlite-session-migration.test.ts`, `sqlite-session-store.test.ts`, and the shared
+`sqlite/migration.test.ts`, `sqlite/store.test.ts`, and the shared
 conversation/workspace repository suites.
 
 With `PULSE_CANVAS_PERF`, successful SQL session mutations report logical JSON

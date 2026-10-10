@@ -18,8 +18,8 @@ import { appendSessionMessages, readCurrentSessionFileAt, readSessionFile, repla
 import { removeArchivePaths, resolveArchivedSession } from './session-archive';
 import { listIndexedSessions, removeIndexedSessionFiles, updateIndexedSessionAbsoluteFile, updateIndexedSessionFile } from './session-index';
 export type { AgentSessionListEntry } from './session-store-scan';
-import { SqliteSessionStore } from './sqlite-session-store';
-import { getSqliteSessionStorage, sessionStorageRoot, withLegacySessionWrite } from './sqlite-session-backend';
+import { SqliteSessionStore } from './sqlite/store';
+import { getSqliteSessionStorage, sessionStorageRoot, withLegacySessionWrite } from './sqlite/backend';
 import { readCurrentSessionId, readSessionFromWorkspace, readAllSessionsWithMeta, type SessionWithMeta } from './session-store-lookups';
 export { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME } from './session-store-lookups';
 export type { SessionWithMeta };

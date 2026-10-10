@@ -9,7 +9,7 @@ import {
   type PulseCanvasPluginMain,
   type PulseCanvasPluginNode,
   type PulseCanvasPluginRenderer,
-} from '../../shared/plugin-market';
+} from '../../../shared/plugin-market';
 import {
   containedRealpath,
   diagnostic,
@@ -19,7 +19,7 @@ import {
   pathExists,
   resolvePackagePath,
   stringArray,
-} from './package-reader-support';
+} from './support';
 
 function optionalString(value: Record<string, unknown>, key: string): string | undefined {
   const item = value[key];

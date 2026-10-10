@@ -8,10 +8,10 @@ import {
   isWorkspaceSessionFile, setCanvasSessionArchivePort,
   type CanvasSessionArchivePort, type PreparedCanvasSessionImport,
 } from '../../canvas/persistence/session-archive-port';
-import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, validateLegacySession } from './sqlite-session-codec';
+import { decodeSession, encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, validateLegacySession } from './sqlite/codec';
 import { sessionUpdatedAt } from './session-file-summary';
 import type { CanvasAgentSession } from '../types';
-import { sessionStorageRoot } from './sqlite-session-backend';
+import { sessionStorageRoot } from './sqlite/backend';
 import { withWorkspaceTrashGuard } from '../workspace-runtime-guard';
 
 const normalized = (path: string) => path.replace(/\\/g, '/');

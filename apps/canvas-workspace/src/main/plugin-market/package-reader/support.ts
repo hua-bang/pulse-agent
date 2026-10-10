@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { isAbsolute, relative, resolve, sep } from 'path';
-import type { PluginPackageDiagnostic } from '../../shared/plugin-market';
+import type { PluginPackageDiagnostic } from '../../../shared/plugin-market';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

@@ -24,7 +24,7 @@ import { connectPackageMcp, packageMcpAuthState } from './mcp-connection';
 import { reloadConfiguredExternalMainPlugins } from '../../plugins/main';
 import { PUBLIC_PLUGIN_CATALOG } from './catalog';
 import { writePluginMcpAdapter } from './mcp-adapter';
-import { readPluginPackage } from './package-reader';
+import { readPluginPackage } from './package-reader/reader';
 import {
   type InstalledPluginRecord,
   pluginMarketPackagesDir,

@@ -5,19 +5,19 @@ import {
   type NormalizedPluginPackage,
   type PluginPackageDiagnostic,
   type PluginPackageReadResult,
-} from '../../shared/plugin-market';
+} from '../../../shared/plugin-market';
 import {
   containedRealpath,
   diagnostic,
   errorMessage,
   pathExists,
   readJson,
-} from './package-reader-support';
-import { validateAgentManifest } from './package-reader-manifest';
-import { readLegacyPackage } from './package-reader-legacy';
-import { readMcpComponent } from './package-reader-mcp';
-import { readPulseExtension } from './package-reader-pulse';
-import { discoverSkills } from './package-reader-skills';
+} from './support';
+import { validateAgentManifest } from './manifest';
+import { readLegacyPackage } from './legacy';
+import { readMcpComponent } from './mcp';
+import { readPulseExtension } from './pulse';
+import { discoverSkills } from './skills';
 
 export async function readPluginPackage(packageDir: string): Promise<PluginPackageReadResult> {
   const diagnostics: PluginPackageDiagnostic[] = [];

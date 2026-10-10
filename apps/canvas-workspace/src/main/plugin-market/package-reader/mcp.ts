@@ -6,7 +6,7 @@ import {
   type PluginPackageDiagnostic,
   type PluginPackageMcpComponent,
   type PluginPackageMcpServer,
-} from '../../shared/plugin-market';
+} from '../../../shared/plugin-market';
 import {
   containedRealpath,
   diagnostic,
@@ -17,7 +17,7 @@ import {
   resolvePackagePath,
   stringArray,
   stringRecord,
-} from './package-reader-support';
+} from './support';
 
 const STDIO_FIELDS = new Set(['type', 'command', 'args', 'env', 'cwd']);
 const REMOTE_FIELDS = new Set(['type', 'url', 'headers']);

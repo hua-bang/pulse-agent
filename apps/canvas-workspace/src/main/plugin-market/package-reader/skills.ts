@@ -3,7 +3,7 @@ import { basename, dirname, join } from 'path';
 import type {
   PluginPackageDiagnostic,
   PluginPackageSkill,
-} from '../../shared/plugin-market';
+} from '../../../shared/plugin-market';
 import {
   containedRealpath,
   diagnostic,
@@ -11,7 +11,7 @@ import {
   isRecord,
   pathExists,
   resolvePackagePath,
-} from './package-reader-support';
+} from './support';
 
 function frontmatterScalar(raw: string): string | null {
   const value = raw.trim();

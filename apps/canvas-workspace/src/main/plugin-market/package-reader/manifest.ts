@@ -2,9 +2,9 @@ import type {
   JsonObject,
   PluginPackageAuthor,
   PluginPackageDiagnostic,
-} from '../../shared/plugin-market';
-import { AGENT_PLUGIN_V1_SCHEMA } from '../../shared/plugin-market';
-import { diagnostic, isRecord } from './package-reader-support';
+} from '../../../shared/plugin-market';
+import { AGENT_PLUGIN_V1_SCHEMA } from '../../../shared/plugin-market';
+import { diagnostic, isRecord } from './support';
 
 const AGENT_MANIFEST_FIELDS = new Set([
   '$schema',

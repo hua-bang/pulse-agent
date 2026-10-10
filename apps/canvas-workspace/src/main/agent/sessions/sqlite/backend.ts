@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import type { ConversationScopeSnapshot, ConversationSnapshot, PulseStorage } from '@pulse-coder/storage';
 import { openLocalConversationStorage } from '@pulse-coder/storage/local-conversations';
 import { readLocalStorageStatus, withLegacyCanvasWrite } from '@pulse-coder/storage/local';
-import { resolveStorageNativeBinding } from '../../canvas/persistence/backend';
+import { resolveStorageNativeBinding } from '../../../canvas/persistence/backend';
 
 const connections = new Map<string, Promise<PulseStorage | null>>();
 

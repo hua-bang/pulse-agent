@@ -7,7 +7,7 @@ vi.mock('./session-store-lookups', () => ({
   GLOBAL_CHAT_WORKSPACE_NAME: 'No workspace',
   workspaceNames: mocks.names,
 }));
-vi.mock('./sqlite-session-backend', () => ({ sessionStorageRoot: () => '/sessions' }));
+vi.mock('./sqlite/backend', () => ({ sessionStorageRoot: () => '/sessions' }));
 
 import { searchSessionTitles } from './session-title-search';
 

@@ -1,6 +1,6 @@
 import { StorageError } from '@pulse-coder/storage';
 import type { AgentScope } from './types';
-import { getSqliteSessionStorage } from './sessions/sqlite-session-backend';
+import { getSqliteSessionStorage } from './sessions/sqlite/backend';
 
 const trashing = new Set<string>();
 const runs = new Map<string, number>();

@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { GLOBAL_CHAT_STORE_ID, isListableSessionStore } from '../../../shared/agent-chat';
 import type { CanvasAgentSession } from '../types';
 import { archiveSortKey, isListableSession } from './session-file-summary';
-import { decodeSession } from './sqlite-session-codec';
-import { getSqliteSessionStorage, listSqliteConversations, listSqliteSessionScopes } from './sqlite-session-backend';
+import { decodeSession } from './sqlite/codec';
+import { getSqliteSessionStorage, listSqliteConversations, listSqliteSessionScopes } from './sqlite/backend';
 
 export const GLOBAL_CHAT_SESSION_STORE_ID = GLOBAL_CHAT_STORE_ID;
 export const GLOBAL_CHAT_WORKSPACE_NAME = 'No workspace';

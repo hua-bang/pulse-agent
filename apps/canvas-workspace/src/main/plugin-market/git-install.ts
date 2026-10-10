@@ -8,7 +8,7 @@ import type {
 } from '../../shared/plugin-market';
 import { pluginMarketPackagesDir } from './store';
 import { assertManagedPackageTree, gitClone, normalizedGitSource } from './git-source';
-import { readPluginPackage } from './package-reader';
+import { readPluginPackage } from './package-reader/reader';
 
 function safeDirectoryName(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'plugin';

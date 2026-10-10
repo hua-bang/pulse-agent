@@ -25,12 +25,12 @@ The market is a Canvas application feature, not the engine's `EnginePlugin` or `
 | Responsibility | Owner |
 |---|---|
 | Cross-process package, listing, source, diagnostics and API contracts | `src/shared/plugin-market.ts` |
-| v1/legacy package precedence and normalized package result | `src/main/plugin-market/package-reader.ts` |
-| Path containment and filesystem helpers | `src/main/plugin-market/package-reader-support.ts` |
-| Strict immediate-child Agent Skills discovery | `src/main/plugin-market/package-reader-skills.ts`, `skill-scan.ts` |
-| Agent Plugins v1 MCP validation | `src/main/plugin-market/package-reader-mcp.ts` |
-| `extensions["com.pulsecanvas"]` normalization | `src/main/plugin-market/package-reader-pulse.ts` |
-| Legacy `manifest.json` fallback | `src/main/plugin-market/package-reader-legacy.ts` |
+| v1/legacy package precedence and normalized package result | `src/main/plugin-market/package-reader/reader.ts` |
+| Path containment and filesystem helpers | `src/main/plugin-market/package-reader/support.ts` |
+| Strict immediate-child Agent Skills discovery | `src/main/plugin-market/package-reader/skills.ts`, `skill-scan.ts` |
+| Agent Plugins v1 MCP validation | `src/main/plugin-market/package-reader/mcp.ts` |
+| `extensions["com.pulsecanvas"]` normalization | `src/main/plugin-market/package-reader/pulse.ts` |
+| Legacy `manifest.json` fallback | `src/main/plugin-market/package-reader/legacy.ts` |
 | Curated public discovery entries and installability flags | `src/main/plugin-market/catalog.ts` |
 | Install, link, uninstall, trust mutation and runtime reload orchestration | `src/main/plugin-market/service.ts` |
 | Install/trust state and managed storage paths | `src/main/plugin-market/store.ts` |

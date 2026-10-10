@@ -6,10 +6,10 @@ import { writeJsonAtomic } from '@pulse-coder/storage/local';
 import { activateLocalConversationStorage, type LegacyConversationScope } from '@pulse-coder/storage/local-conversations';
 import {
   encodeSessionMessages, encodeSessionMetadata, readLegacySessionDisplayMetadata, UnreadableSessionFileError, validateLegacySession,
-} from './sqlite-session-codec';
-import type { CanvasAgentSession } from '../types';
-import { resolveStorageNativeBinding } from '../../canvas/persistence/backend';
-import { sessionStorageRoot } from './sqlite-session-backend';
+} from './codec';
+import type { CanvasAgentSession } from '../../types';
+import { resolveStorageNativeBinding } from '../../../canvas/persistence/backend';
+import { sessionStorageRoot } from './backend';
 
 interface Candidate { session: CanvasAgentSession; sortKey: number; current: boolean; archiveKeys: string[] }
 

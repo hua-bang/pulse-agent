@@ -11,8 +11,8 @@ import { setCanvasSessionArchivePort } from '../../canvas/persistence/session-ar
 import { readWorkspaceExportSource, rewriteCanvasFilePaths, rewriteWorkspaceArchiveFiles, WorkspaceImportRecoveryError } from '../../canvas/persistence/sqlite-workspace';
 import * as atomicJson from '../../canvas/persistence/atomic-json';
 import { createCanvasSessionArchivePort, initializeCanvasSessionArchivePort } from './workspace-session-archive';
-import { activateSqliteSessions } from './sqlite-session-migration';
-import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite-session-backend';
+import { activateSqliteSessions } from './sqlite/migration';
+import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite/backend';
 import { SessionStore } from './session-store';
 
 const file = (relativePath: string, contents: unknown): WorkspaceExportFile => ({

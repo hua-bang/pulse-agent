@@ -3,7 +3,7 @@ import { recoverLocalFileWrites } from '@pulse-coder/storage/local-files';
 import { closeCanvasStorage, getCanvasBackend, getLocalCanvasStorage } from '../canvas/persistence/backend';
 import { STORE_DIR } from '../canvas/persistence/paths';
 import { stopSqliteCanvasObserver } from '../canvas/sqlite-ipc';
-import { closeSqliteSessionStorage, getSqliteSessionStorage } from '../agent/sessions/sqlite-session-backend';
+import { closeSqliteSessionStorage, getSqliteSessionStorage } from '../agent/sessions/sqlite/backend';
 import { setCanvasSessionArchivePort } from '../canvas/persistence/session-archive-port';
 import type { WriteLog } from './logging';
 
@@ -15,7 +15,7 @@ export async function startStorage(writeLog: WriteLog): Promise<boolean> {
       await activateCanvasSqliteAtStartup(writeLog);
     }
     if (!await getSqliteSessionStorage()) {
-      const { activateSqliteSessions } = await import('../agent/sessions/sqlite-session-migration');
+      const { activateSqliteSessions } = await import('../agent/sessions/sqlite/migration');
       const skipped = await activateSqliteSessions();
       if (skipped.length) {
         await writeLog('storage', 'Skipped unreadable legacy session files', JSON.stringify(skipped));

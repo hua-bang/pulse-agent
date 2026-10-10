@@ -12,8 +12,8 @@ const state = vi.hoisted(() => ({
   initialize: vi.fn(async () => undefined),
   destroy: vi.fn(async () => undefined),
 }));
-vi.mock('./sessions/sqlite-session-backend', async importOriginal => ({
-  ...await importOriginal<typeof import('./sessions/sqlite-session-backend')>(),
+vi.mock('./sessions/sqlite/backend', async importOriginal => ({
+  ...await importOriginal<typeof import('./sessions/sqlite/backend')>(),
   getSqliteSessionStorage: async () => ({
     workspaces: { getTrashed: async () => state.trashed ? { workspaceId: 'ws' } : null },
   }),

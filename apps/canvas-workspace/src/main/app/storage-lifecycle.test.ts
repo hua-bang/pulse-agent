@@ -15,8 +15,8 @@ vi.mock('../canvas/persistence/backend', () => ({
 }));
 vi.mock('../canvas/persistence/paths', () => ({ STORE_DIR: '/test-storage' }));
 vi.mock('../canvas/sqlite-ipc', () => ({ stopSqliteCanvasObserver: mocks.stopObserver }));
-vi.mock('../agent/sessions/sqlite-session-migration', () => ({ activateSqliteSessions: mocks.sessions }));
-vi.mock('../agent/sessions/sqlite-session-backend', () => ({
+vi.mock('../agent/sessions/sqlite/migration', () => ({ activateSqliteSessions: mocks.sessions }));
+vi.mock('../agent/sessions/sqlite/backend', () => ({
   getSqliteSessionStorage: mocks.sessionBackend, closeSqliteSessionStorage: mocks.closeSessions,
 }));
 vi.mock('../agent/sessions/workspace-session-archive', () => ({ createCanvasSessionArchivePort: mocks.createArchive }));

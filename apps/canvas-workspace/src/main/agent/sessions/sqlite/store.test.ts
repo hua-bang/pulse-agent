@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StorageError } from '@pulse-coder/storage';
-import { SessionStore } from './session-store';
-import { activateSqliteSessions } from './sqlite-session-migration';
-import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite-session-backend';
-import { readCanvasAgentHistorySnapshot } from './history-snapshot';
-import { reconcileAgentWithStoredSession } from './session-display-loader';
-import type { CanvasAgentMessage } from '../types';
+import { SessionStore } from '../session-store';
+import { activateSqliteSessions } from './migration';
+import { closeSqliteSessionStorage, getSqliteSessionStorage } from './backend';
+import { readCanvasAgentHistorySnapshot } from '../history-snapshot';
+import { reconcileAgentWithStoredSession } from '../session-display-loader';
+import type { CanvasAgentMessage } from '../../types';
 
 let root: string;
 let originalRoot: string | undefined;

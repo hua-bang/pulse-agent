@@ -241,7 +241,7 @@ async function readPluginEntry(
   config: CanvasPluginsConfigFile,
 ): Promise<CanvasPluginEntry> {
   const [{ readPluginPackage }, { canvasEntryFromPackage }] = await Promise.all([
-    import('./package-reader'),
+    import('./package-reader/reader'),
     import('./canvas-package-adapter'),
   ]);
   const result = await readPluginPackage(dir);

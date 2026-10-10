@@ -3,9 +3,9 @@ import { join } from 'path';
 import type {
   NormalizedPluginPackage,
   PluginPackageDiagnostic,
-} from '../../shared/plugin-market';
-import { readPulseExtension } from './package-reader-pulse';
-import { readLegacySkills } from './package-reader-skills';
+} from '../../../shared/plugin-market';
+import { readPulseExtension } from './pulse';
+import { readLegacySkills } from './skills';
 import {
   containedRealpath,
   diagnostic,
@@ -13,7 +13,7 @@ import {
   isRecord,
   pathExists,
   readJson,
-} from './package-reader-support';
+} from './support';
 
 export async function readLegacyPackage(
   root: string,

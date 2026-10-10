@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { ConversationSnapshot, EntityRecord, JsonObject, PulseStorage } from '@pulse-coder/storage';
 import { isStorageError, StorageError } from '@pulse-coder/storage';
-import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../types';
-import { decodeSession, encodeSessionMessages, encodeSessionMetadata, sessionJson, sessionListEntry } from './sqlite-session-codec';
-import { listSqliteConversations } from './sqlite-session-backend';
-import type { AgentSessionListEntry } from './session-file-summary';
+import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../../types';
+import { decodeSession, encodeSessionMessages, encodeSessionMetadata, sessionJson, sessionListEntry } from './codec';
+import { listSqliteConversations } from './backend';
+import type { AgentSessionListEntry } from '../session-file-summary';
 
 /** Logical JSON payload bytes written by this commit, not SQLite/WAL allocation. */
 function recordSessionPersist(metadata: JsonObject, messages: readonly EntityRecord[]): void {
