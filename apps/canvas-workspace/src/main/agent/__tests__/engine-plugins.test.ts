@@ -2,9 +2,15 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import type { createCodemodePlugin } from 'pulse-coder-engine/built-in';
 
 import { CANVAS_CODEMODE_TOOLS, createCanvasEnginePlugins } from '../engine-plugins';
 import { classifyCanvasToolOperation, createCanvasAgentToolPolicy } from '../tool-policy';
+
+type CodemodePlugin = ReturnType<typeof createCodemodePlugin>;
+type PluginContext = Parameters<NonNullable<CodemodePlugin['initialize']>>[0];
+type RegisteredTool = Parameters<PluginContext['registerTool']>[1];
 
 // CanvasAgent builds its Engine with `disableBuiltInPlugins: true`, so this list
 // is the ONLY way a built-in engine plugin reaches the Canvas Agent — a plugin
@@ -79,5 +85,34 @@ describe('canvas Codemode opt-in', () => {
         expect(classifyCanvasToolOperation(name)).toBe('read');
       }
     }
+  });
+
+  it('permits complete bulk MCP patches while retaining a bounded Canvas argument budget', async () => {
+    const plugin = createCanvasEnginePlugins(scope, { codemode: true })
+      .find((entry) => pluginName(entry) === codemode) as CodemodePlugin;
+    const tools = new Map<string, RegisteredTool>();
+    await plugin.initialize!({
+      registerTool: (name: string, tool: RegisteredTool) => { tools.set(name, tool); },
+      events: { emit: vi.fn() },
+    } as unknown as PluginContext);
+    const executeTool = vi.fn(async () => 'saved');
+    const nestedTools = {
+      getTools: () => ({
+        mcp_patch: {
+          name: 'mcp_patch', description: 'Patch test drawing', codemode: true,
+          inputSchema: z.object({ elements: z.string() }), execute: executeTool,
+        },
+      }),
+      executeTool,
+    };
+    expect(await tools.get('codemode')!.execute({
+      code: 'return await tools.mcp_patch({elements: "中".repeat(40000)});',
+    }, { nestedTools })).toMatchObject({ ok: true, value: 'saved' });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    executeTool.mockClear();
+    expect(await tools.get('codemode')!.execute({
+      code: 'await tools.mcp_patch({elements: "中".repeat(180000)});',
+    }, { nestedTools })).toMatchObject({ ok: false });
+    expect(executeTool).not.toHaveBeenCalled();
   });
 });

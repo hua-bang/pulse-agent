@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, type RefObject } from 'react';
+import { Portal } from '../../../../components/ui';
+import { useMentionPopupPlacement } from './useMentionPopupPlacement';
 import './index.css';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from '../../../../types';
@@ -12,6 +14,7 @@ import { GlobalMcpAppTile } from '../../../mcp-apps/global-apps';
 import { SpinnerIcon } from '../../../../components/icons';
 
 interface ChatMentionPopupProps {
+  anchorRef: RefObject<HTMLElement>;
   mentionItems: MentionItem[];
   mentionIndex: number;
   isLoading?: boolean;
@@ -23,6 +26,7 @@ export const CHAT_MENTION_LISTBOX_ID = 'chat-mention-listbox';
 export const chatMentionOptionId = (index: number): string => `chat-mention-option-${index}`;
 
 export const ChatMentionPopup = ({
+  anchorRef,
   mentionItems,
   mentionIndex,
   isLoading = false,
@@ -30,7 +34,7 @@ export const ChatMentionPopup = ({
   onMentionIndexChange,
 }: ChatMentionPopupProps) => {
   const { t } = useI18n();
-  const popupRef = useRef<HTMLDivElement>(null);
+  const { ref: popupRef, pos, visible } = useMentionPopupPlacement(anchorRef);
 
   // Keep the keyboard-highlighted row visible — the popup scrolls at
   // max-height 240px, so arrowing past the fold must follow the selection.
@@ -40,101 +44,107 @@ export const ChatMentionPopup = ({
   }, [mentionIndex]);
 
   return (
-    <div className="chat-mention-popup" ref={popupRef}>
-      {isLoading ? (
-        <div className="chat-mention-status" role="status" aria-live="polite">
-          <span className="chat-mention-status-spinner" aria-hidden="true">
-            <SpinnerIcon size={14} className="chat-spin" />
-          </span>
-          <span>{t('chat.mention.searching')}</span>
-        </div>
-      ) : mentionItems.length === 0 ? (
-        <div className="chat-mention-status" role="status">
-          {t('chat.mention.noResults')}
-        </div>
-      ) : null}
+    <Portal>
       <div
-        id={CHAT_MENTION_LISTBOX_ID}
-        role="listbox"
-        aria-label={t('chat.mention.suggestions')}
-        aria-busy={isLoading}
+        className="chat-mention-popup"
+        ref={popupRef}
+        style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos && visible ? 'visible' : 'hidden' }}
       >
-        {!isLoading && mentionItems.map((item, index) => {
-        const pluginIcon = item.type === 'plugin'
-          ? pluginMentionIconMarkup(item.label, item.pluginIconKey, 16)
-          : '';
-        const groupKey = getMentionGroupKey(item);
-        const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
-        const showHeader = previousGroupKey !== groupKey;
-        const nodeType = item.type === 'role'
-          ? 'role'
-          : item.type === 'workspace'
-            ? 'workspace'
-            : item.type === 'plugin'
-              ? 'plugin'
-            : item.type === 'skill'
-              ? 'skill'
-              : item.type === 'folder'
-                ? 'folder'
-                : item.type === 'session'
-                  ? 'session'
-                  : item.type === 'tab'
-                    ? tabMentionIconType(item.tab?.kind)
-                    : item.type === 'node'
-                      ? item.nodeType ?? 'file'
-                      : 'file';
-
-        return (
-          <div
-            key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}
-            role="presentation"
-          >
-            {showHeader && (
-              <div className="chat-mention-group-header" role="presentation">
-                {t(MENTION_GROUP_LABEL_KEY[groupKey])}
-              </div>
-            )}
-            <button
-              type="button"
-              id={chatMentionOptionId(index)}
-              role="option"
-              aria-selected={index === mentionIndex}
-              tabIndex={-1}
-              className={`chat-mention-item${item.type === 'session' ? ' chat-mention-item--session' : ''}${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
-              title={item.type === 'session' && item.description ? `${sessionTitleText(item.label)} · ${item.description}` : undefined}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                onSelectMention(item);
-              }}
-              onMouseEnter={() => onMentionIndexChange(index)}
-            >
-              {item.type !== 'skill' && (
-                <span
-                  className="chat-mention-item-icon"
-                  style={item.type === 'role' && item.roleColor
-                    ? { color: item.roleColor, background: roleColorSoft(item.roleColor) }
-                    : undefined}
-                >
-                  {item.type === 'app' && item.app
-                    ? <GlobalMcpAppTile title={item.label} icon={item.app.icon} size={16} />
-                    : item.type === 'tag'
-                    ? <span className="chat-mention-chip-hash">#</span>
-                    : pluginIcon
-                      ? <span className="chat-plugin-brand-icon" dangerouslySetInnerHTML={{ __html: pluginIcon }} />
-                    : <MentionNodeIcon size={14} nodeType={nodeType} />}
-                </span>
-              )}
-              <span className="chat-mention-item-label">
-                {item.type === 'session' ? <SessionTitle value={item.label} /> : item.label}
-              </span>
-              {item.description && (
-                <span className="chat-mention-item-description">{item.description}</span>
-              )}
-            </button>
+        {isLoading ? (
+          <div className="chat-mention-status" role="status" aria-live="polite">
+            <span className="chat-mention-status-spinner" aria-hidden="true">
+              <SpinnerIcon size={14} className="chat-spin" />
+            </span>
+            <span>{t('chat.mention.searching')}</span>
           </div>
-        );
-        })}
+        ) : mentionItems.length === 0 ? (
+          <div className="chat-mention-status" role="status">
+            {t('chat.mention.noResults')}
+          </div>
+        ) : null}
+        <div
+          id={CHAT_MENTION_LISTBOX_ID}
+          role="listbox"
+          aria-label={t('chat.mention.suggestions')}
+          aria-busy={isLoading}
+        >
+          {!isLoading && mentionItems.map((item, index) => {
+          const pluginIcon = item.type === 'plugin'
+            ? pluginMentionIconMarkup(item.label, item.pluginIconKey, 16)
+            : '';
+          const groupKey = getMentionGroupKey(item);
+          const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
+          const showHeader = previousGroupKey !== groupKey;
+          const nodeType = item.type === 'role'
+            ? 'role'
+            : item.type === 'workspace'
+              ? 'workspace'
+              : item.type === 'plugin'
+                ? 'plugin'
+              : item.type === 'skill'
+                ? 'skill'
+                : item.type === 'folder'
+                  ? 'folder'
+                  : item.type === 'session'
+                    ? 'session'
+                    : item.type === 'tab'
+                      ? tabMentionIconType(item.tab?.kind)
+                      : item.type === 'node'
+                        ? item.nodeType ?? 'file'
+                        : 'file';
+
+          return (
+            <div
+              key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}
+              role="presentation"
+            >
+              {showHeader && (
+                <div className="chat-mention-group-header" role="presentation">
+                  {t(MENTION_GROUP_LABEL_KEY[groupKey])}
+                </div>
+              )}
+              <button
+                type="button"
+                id={chatMentionOptionId(index)}
+                role="option"
+                aria-selected={index === mentionIndex}
+                tabIndex={-1}
+                className={`chat-mention-item${item.type === 'session' ? ' chat-mention-item--session' : ''}${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
+                title={item.type === 'session' && item.description ? `${sessionTitleText(item.label)} · ${item.description}` : undefined}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onSelectMention(item);
+                }}
+                onMouseEnter={() => onMentionIndexChange(index)}
+              >
+                {item.type !== 'skill' && (
+                  <span
+                    className="chat-mention-item-icon"
+                    style={item.type === 'role' && item.roleColor
+                      ? { color: item.roleColor, background: roleColorSoft(item.roleColor) }
+                      : undefined}
+                  >
+                    {item.type === 'app' && item.app
+                      ? <GlobalMcpAppTile title={item.label} icon={item.app.icon} size={16} />
+                      : item.type === 'tag'
+                      ? <span className="chat-mention-chip-hash">#</span>
+                      : pluginIcon
+                        ? <span className="chat-plugin-brand-icon" dangerouslySetInnerHTML={{ __html: pluginIcon }} />
+                      : <MentionNodeIcon size={14} nodeType={nodeType} />}
+                  </span>
+                )}
+                <span className="chat-mention-item-label">
+                  {item.type === 'session' ? <SessionTitle value={item.label} /> : item.label}
+                </span>
+                {item.description && (
+                  <span className="chat-mention-item-description">{item.description}</span>
+                )}
+              </button>
+            </div>
+          );
+          })}
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 };
