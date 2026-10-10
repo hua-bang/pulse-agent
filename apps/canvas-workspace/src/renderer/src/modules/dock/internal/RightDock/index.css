@@ -47,12 +47,11 @@
 }
 
 /* While dragging the resize handle the canvas must track the handle
- * 1:1 — disable the slide/margin transitions for the duration. A workspace
- * switch swaps the whole page at once, so the dock lands in the target
- * workspace's open/closed state and tab position without sliding. */
+ * 1:1 — disable the slide/margin transitions for the duration. RightDock
+ * also sets the class for the first frame of a workspace switch, so the dock
+ * lands in the target workspace's open/closed state and tab without sliding. */
 .right-dock-resizing .right-dock,
-.right-dock-switching .right-dock,
-.right-dock-switching .right-dock__tab-glider {
+.right-dock-resizing .right-dock__tab-glider {
   transition: none;
 }
 

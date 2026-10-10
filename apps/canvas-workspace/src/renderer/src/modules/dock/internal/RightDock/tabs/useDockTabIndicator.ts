@@ -27,7 +27,7 @@ export const useDockTabIndicator = ({ scopeId, activeTabId, visible, previewTabs
   const [indicator, setIndicator] = useState<TabIndicatorState>({ left: 0, width: 0, visible: false });
   // A workspace switch replaces the whole strip. Smooth-scrolling from the
   // old workspace's position reads as tabs jumping around, so a new scope
-  // lands in place; the glider transition is off via `right-dock-switching`.
+  // lands in place; RightDock turns the glider transition off for that frame.
   const scopeRef = useRef(scopeId);
   const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
     if (element) tabRefs.current.set(id, element);

@@ -213,9 +213,11 @@ starts collapsed.
 
 A workspace switch swaps the page at once, so the dock must land in the target
 workspace's open/closed state and tab position in one frame. `RightDock`
-adds `right-dock-switching` to the root for two frames when the store's
-workspace changes; CSS turns off the dock slide/width, `.app-body` inset,
-launcher and tab-glider transitions under it. `useDockTabIndicator` also
+adds the drag-resize class `right-dock-resizing` to the root for two frames
+whenever it forwards a workspace to the store; CSS turns off the dock
+slide/width, `.app-body` inset, launcher and tab-glider transitions under it.
+Reusing that class instead of a new one keeps the entry chunk inside its
+perf ratchet. `useDockTabIndicator` also
 resets the strip scroll and scrolls the active tab in with
 `behavior: 'instant'` (the strip has CSS `scroll-behavior: smooth`). User
 open/close and tab changes inside one workspace still animate. Without this,

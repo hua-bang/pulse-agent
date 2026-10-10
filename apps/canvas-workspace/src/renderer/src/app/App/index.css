@@ -30,8 +30,7 @@
 }
 
 .right-dock-resizing .app-body,
-.right-dock-switching .app-body,
-.right-dock-switching .chat-floating-button.app-global-chat-launcher {
+.right-dock-resizing .chat-floating-button.app-global-chat-launcher {
   transition: none;
 }
 

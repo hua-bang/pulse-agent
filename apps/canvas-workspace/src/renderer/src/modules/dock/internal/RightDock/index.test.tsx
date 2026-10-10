@@ -573,14 +573,14 @@ describe('RightDock workspace switch', () => {
       await act(async () => renderWorkspace('ws-1'));
       flushFrame();
       flushFrame();
-      expect(classes.contains('right-dock-switching')).toBe(false);
+      expect(classes.contains('right-dock-resizing')).toBe(false);
 
       await act(async () => renderWorkspace('ws-2'));
-      expect(classes.contains('right-dock-switching')).toBe(true);
+      expect(classes.contains('right-dock-resizing')).toBe(true);
       flushFrame();
-      expect(classes.contains('right-dock-switching')).toBe(true);
+      expect(classes.contains('right-dock-resizing')).toBe(true);
       flushFrame();
-      expect(classes.contains('right-dock-switching')).toBe(false);
+      expect(classes.contains('right-dock-resizing')).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
