@@ -58,16 +58,17 @@ describe('canvas Codemode opt-in', () => {
     vi.stubEnv('PULSE_CANVAS_EXPERIMENTAL_FEATURES', path);
   };
 
-  it('stays off without a user override', () => {
+  it('is on by default and ignores a stale user override', () => {
     stubFlags();
+    expect(createCanvasEnginePlugins(scope).map(pluginName)).toContain(codemode);
 
-    expect(createCanvasEnginePlugins(scope).map(pluginName)).not.toContain(codemode);
+    stubFlags({ 'agent-codemode': false });
+    expect(createCanvasEnginePlugins(scope).map(pluginName)).toContain(codemode);
   });
 
-  it('follows the agent-codemode experimental flag', () => {
-    stubFlags({ 'agent-codemode': true });
+  it('lets callers opt out explicitly', () => {
+    stubFlags();
 
-    expect(createCanvasEnginePlugins(scope).map(pluginName)).toContain(codemode);
     expect(createCanvasEnginePlugins(scope, { codemode: false }).map(pluginName)).not.toContain(codemode);
   });
 

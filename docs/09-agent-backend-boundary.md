@@ -43,7 +43,8 @@ normalization. Guards: `segment-execution.test.ts` (3 cases),
 The default assistant can run on embedded
 `@earendil-works/pi-agent-core@0.83.0`; this intentionally does not depend on
 `pi-coding-agent`, spawn a CLI, write Pi config files, or run an HTTP/SSE tool
-bridge. Enable **Pi AgentHarness runtime** in Settings → Experimental. For
+bridge. The **Pi AgentHarness runtime** toggle in Settings → Experimental is
+grandfathered: only users who already enabled it still see it. For
 automation, `PULSE_CANVAS_AGENT_RUNTIME=pi|engine` overrides the persisted
 choice.
 

@@ -1,6 +1,6 @@
 # Pulse Codemode Spec
 
-状态：Engine 插件与嵌套执行契约已实现；Canvas 已接入 `agent-codemode` 开关与只读工具名单（见 [Canvas security posture](../../../apps/canvas-workspace/harness/knowledge/security-posture.md)）；已完成调用的嵌套明细与 tracing 父子关系已接入；运行中逐条进度、Mac 安装产物验收与真实模型收益验收仍待完成。已实现行为由 [Engine plugin knowledge](../../../packages/engine/harness/knowledge/plugin-system.md#opt-in-codemode) 维护；下文保留整体目标与宿主验收要求。
+状态：Engine 插件与嵌套执行契约已实现；Canvas 已默认开启 `agent-codemode`与只读工具名单（见 [Canvas security posture](../../../apps/canvas-workspace/harness/knowledge/security-posture.md)）；已完成调用的嵌套明细与 tracing 父子关系已接入；运行中逐条进度、Mac 安装产物验收与真实模型收益验收仍待完成。已实现行为由 [Engine plugin knowledge](../../../packages/engine/harness/knowledge/plugin-system.md#opt-in-codemode) 维护；下文保留整体目标与宿主验收要求。
 
 已确认方向：Pulse 自己实现 Codemode 的运行器、工具桥接与生命周期，不依赖 Pi Codemode 包。Pi 仅作为设计参考。
 
@@ -116,7 +116,7 @@ Codemode 工具描述只介绍执行规则，不重复整个工具库 schema。�
 
 ## 宿主展示与启用
 
-Canvas 在现有 Experimental 设置注册 `agent-codemode`，默认关闭，与 `pi-agent-harness` 开关独立。开启后仅在运行时兼容检查通过时注册工具；关闭或缺少资源时保持直接工具可用，并清楚说明不可用原因。
+Canvas 注册 `agent-codemode` 为 stable 功能：默认开启，不在 Experimental 设置中显示，与 `pi-agent-harness` 开关独立。开启后仅在运行时兼容检查通过时注册工具；关闭或缺少资源时保持直接工具可用，并清楚说明不可用原因。
 
 Engine 通过显式插件工厂与宿主授权配置接入；首发不加入所有宿主的默认 built-in 列表。工厂通过现有公共 barrel 导出，兼顾 ESM/CJS 消费者，底层运行时依赖按需加载；功能关闭时不创建 worker 或加载 WASM。
 
