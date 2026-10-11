@@ -283,7 +283,8 @@ same way an external one does), collects response messages through one
 normalization below. Each backend declares a capability matrix
 (`nativeCanvasTools`, `clarifications`, `historyFidelity`, `sessionResume`,
 `steering`, `compaction`). The default assistant can switch to the embedded
-Pi AgentHarness runtime through Settings → Experimental while persona roles
+Pi AgentHarness runtime (a grandfathered flag: Settings → Experimental shows it
+only to users who already enabled it) while persona roles
 continue on Engine; see `docs/09-agent-backend-boundary.md`. Deprecated
 `TurnBackend` / `resolveTurnBackend` aliases remain for compatibility. Guards:
 `src/main/agent/run/segment-execution.test.ts`,

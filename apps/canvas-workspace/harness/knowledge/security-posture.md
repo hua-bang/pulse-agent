@@ -49,9 +49,9 @@ host actually does and does not gate. Facts verified against source
   starts. This is a consent prompt, not a sandbox: an approved call still has
   main-process privilege. Scheduled runs do not expose Canvas node-creation
   tools and remain unattended by design.
-- **Codemode is an opt-in script path, not a new privilege.** The
-  `agent-codemode` experimental flag (default off, read when an Engine is
-  built in `src/main/agent/engine-plugins.ts`) installs the Engine Codemode
+- **Codemode is a script path, not a new privilege.** The
+  `agent-codemode` feature (stable, default on, hidden from Settings; read
+  when an Engine is built in `src/main/agent/engine-plugins.ts`) installs the Engine Codemode
   plugin. Scripts run in QuickJS and may call only `CANVAS_CODEMODE_TOOLS`
   (Canvas read/search/list/layout tools) plus enabled MCP tools, which the
   Engine marks script-eligible by default (MCP App tools excepted). Every nested call passes the same

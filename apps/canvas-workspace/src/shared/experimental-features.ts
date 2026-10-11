@@ -73,8 +73,8 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Agent Codemode',
     description:
       'Adds a codemode tool that lets the Canvas Agent run a sandboxed script which calls read-only Canvas tools and enabled MCP tools serially, returning only the script output. Takes effect for newly created agent sessions.',
-    defaultEnabled: false,
-    exposure: 'experimental',
+    defaultEnabled: true,
+    exposure: 'stable',
   },
   {
     id: EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
@@ -82,7 +82,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     description:
       'Runs the default Canvas assistant on the embedded pi AgentHarness while preserving Canvas tools, policies, model settings, and host-owned chat history.',
     defaultEnabled: false,
-    exposure: 'experimental',
+    exposure: 'grandfathered',
   },
   {
     id: EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,

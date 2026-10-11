@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EXPERIMENTAL_FEATURES,
+  EXPERIMENTAL_FLAG_AGENT_CODEMODE,
   EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
@@ -20,12 +21,14 @@ const promotedFeatureIds = [
   EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
   EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
   EXPERIMENTAL_FLAG_AGENT_RUNTIME_CONTROL,
+  EXPERIMENTAL_FLAG_AGENT_CODEMODE,
 ];
 
 const grandfatheredFeatureIds = [
   EXPERIMENTAL_FLAG_DYNAMIC_APP,
   EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
+  EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
 ];
 
 describe('experimental feature lifecycle', () => {
@@ -76,7 +79,10 @@ describe('experimental feature lifecycle', () => {
     expect(canConfigureExperimentalFeature(grandfathered, {
       [EXPERIMENTAL_FLAG_AGENT_TEAMS]: true,
     })).toBe(true);
-    expect(canConfigureExperimentalFeature(piHarness, {})).toBe(true);
+    expect(canConfigureExperimentalFeature(piHarness, {})).toBe(false);
+    expect(canConfigureExperimentalFeature(piHarness, {
+      [EXPERIMENTAL_FLAG_PI_AGENT_HARNESS]: true,
+    })).toBe(true);
     const defaultBrowser = EXPERIMENTAL_FEATURES.find(
       (feature) => feature.id === EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
     )!;
