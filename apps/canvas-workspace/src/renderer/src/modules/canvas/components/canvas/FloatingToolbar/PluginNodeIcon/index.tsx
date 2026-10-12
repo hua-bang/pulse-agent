@@ -16,7 +16,7 @@ export function inferPluginIcon(nodeType: string): string {
   return 'plugin';
 }
 
-export function PluginNodeIcon({ icon, size = 18 }: { icon?: string; size?: number }) {
+export const PluginNodeIcon = ({ icon, size = 18 }: { icon?: string; size?: number }) => {
   const normalized = (icon ?? 'plugin').trim() || 'plugin';
   const token = normalized.toLowerCase();
 
@@ -77,4 +77,4 @@ export function PluginNodeIcon({ icon, size = 18 }: { icon?: string; size?: numb
       <path d="M7.2 6.2h3.6v5.6H7.2V6.2z" fill="currentColor" opacity="0.16" />
     </svg>
   );
-}
+};
