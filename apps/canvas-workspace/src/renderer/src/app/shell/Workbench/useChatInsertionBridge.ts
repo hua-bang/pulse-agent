@@ -1,8 +1,9 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../types';
 import type {
   ChatDeliveryReceipt,
   ChatInsertion,
+  ChatPromptSubmission,
   ChatTarget,
   ChatTargetBroker,
 } from '../../../modules/chat';
@@ -18,14 +19,68 @@ interface PendingNodeMention {
   sourceWorkspaceId?: string;
 }
 
-interface PendingDomReview {
-  comments: AgentContextDomReviewComment[];
+interface PendingSubmission<T> {
+  payload: T;
   resolve: (submitted: boolean) => void;
   timeoutId: number;
 }
 
-const DOM_REVIEW_REGISTRATION_TIMEOUT_MS = 2_000;
-const MAX_PENDING_DOM_REVIEWS = 8;
+type Submitter<T> = (payload: T) => Promise<boolean>;
+
+const SUBMISSION_REGISTRATION_TIMEOUT_MS = 2_000;
+const MAX_PENDING_SUBMISSIONS = 8;
+
+/**
+ * Per-workspace submitters that send a whole chat turn (DOM review, canvas
+ * prompt). A submission made before that workspace's composer registers waits
+ * briefly for it, then resolves false instead of hanging.
+ */
+const createSubmissionQueue = <T,>() => {
+  const submitters = new Map<string, Submitter<T>>();
+  const pending = new Map<string, PendingSubmission<T>[]>();
+
+  const register = (workspaceId: string, fn: Submitter<T>) => {
+    submitters.set(workspaceId, fn);
+    const waiting = pending.get(workspaceId) ?? [];
+    pending.delete(workspaceId);
+    for (const request of waiting) {
+      window.clearTimeout(request.timeoutId);
+      try {
+        void fn(request.payload).then(request.resolve, () => request.resolve(false));
+      } catch {
+        request.resolve(false);
+      }
+    }
+    return () => {
+      if (submitters.get(workspaceId) === fn) submitters.delete(workspaceId);
+    };
+  };
+
+  const submit = async (workspaceId: string, payload: T): Promise<boolean> => {
+    const fn = submitters.get(workspaceId);
+    if (fn) return await fn(payload);
+    return await new Promise<boolean>((resolve) => {
+      const request: PendingSubmission<T> = { payload, resolve, timeoutId: 0 };
+      request.timeoutId = window.setTimeout(() => {
+        const remaining = (pending.get(workspaceId) ?? []).filter(candidate => candidate !== request);
+        if (remaining.length > 0) pending.set(workspaceId, remaining);
+        else pending.delete(workspaceId);
+        resolve(false);
+      }, SUBMISSION_REGISTRATION_TIMEOUT_MS);
+      const waiting = pending.get(workspaceId) ?? [];
+      if (waiting.length >= MAX_PENDING_SUBMISSIONS) {
+        const dropped = waiting.shift();
+        if (dropped) {
+          window.clearTimeout(dropped.timeoutId);
+          dropped.resolve(false);
+        }
+      }
+      pending.set(workspaceId, [...waiting, request]);
+    });
+  };
+
+  return { register, submit };
+};
 
 export function useChatInsertionBridge({
   allNodes,
@@ -38,8 +93,8 @@ export function useChatInsertionBridge({
   const pendingDomSelectionsByWorkspaceRef = useRef<Map<string, AgentContextDomSelectionRef[]>>(new Map());
   const insertTabByWorkspaceRef = useRef<Map<string, (tab: AgentContextTabRef) => void>>(new Map());
   const pendingTabsByWorkspaceRef = useRef<Map<string, AgentContextTabRef[]>>(new Map());
-  const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
-  const pendingDomReviewsByWorkspaceRef = useRef<Map<string, PendingDomReview[]>>(new Map());
+  const [domReviewQueue] = useState(() => createSubmissionQueue<AgentContextDomReviewComment[]>());
+  const [promptQueue] = useState(() => createSubmissionQueue<ChatPromptSubmission>());
   const startSkillChatByWorkspaceRef = useRef<Map<string, (skillName: string) => Promise<void>>>(new Map());
   const pendingSkillByWorkspaceRef = useRef<Map<string, string>>(new Map());
 
@@ -111,24 +166,15 @@ export function useChatInsertionBridge({
     };
   }, []);
 
-  const registerSubmitDomReviewComments = useCallback((workspaceId: string, fn: (comments: AgentContextDomReviewComment[]) => Promise<boolean>) => {
-    submitDomReviewByWorkspaceRef.current.set(workspaceId, fn);
-    const pending = pendingDomReviewsByWorkspaceRef.current.get(workspaceId) ?? [];
-    pendingDomReviewsByWorkspaceRef.current.delete(workspaceId);
-    for (const request of pending) {
-      window.clearTimeout(request.timeoutId);
-      try {
-        void fn(request.comments).then(request.resolve, () => request.resolve(false));
-      } catch {
-        request.resolve(false);
-      }
-    }
-    return () => {
-      if (submitDomReviewByWorkspaceRef.current.get(workspaceId) === fn) {
-        submitDomReviewByWorkspaceRef.current.delete(workspaceId);
-      }
-    };
-  }, []);
+  const registerSubmitDomReviewComments = useCallback((
+    workspaceId: string,
+    fn: Submitter<AgentContextDomReviewComment[]>,
+  ) => domReviewQueue.register(workspaceId, fn), [domReviewQueue]);
+
+  const registerSubmitPrompt = useCallback((
+    workspaceId: string,
+    fn: Submitter<ChatPromptSubmission>,
+  ) => promptQueue.register(workspaceId, fn), [promptQueue]);
 
   const registerStartSkillChat = useCallback((workspaceId: string, fn: (skillName: string) => Promise<void>) => {
     startSkillChatByWorkspaceRef.current.set(workspaceId, fn);
@@ -261,28 +307,24 @@ export function useChatInsertionBridge({
       if (visibleReceipt) return visibleReceipt.status === 'delivered';
     }
     openChat();
-    const fn = submitDomReviewByWorkspaceRef.current.get(workspaceId);
-    if (fn) return await fn(comments);
-    return await new Promise<boolean>((resolve) => {
-      const request: PendingDomReview = { comments, resolve, timeoutId: 0 };
-      request.timeoutId = window.setTimeout(() => {
-        const pending = pendingDomReviewsByWorkspaceRef.current.get(workspaceId) ?? [];
-        const remaining = pending.filter(candidate => candidate !== request);
-        if (remaining.length > 0) pendingDomReviewsByWorkspaceRef.current.set(workspaceId, remaining);
-        else pendingDomReviewsByWorkspaceRef.current.delete(workspaceId);
-        resolve(false);
-      }, DOM_REVIEW_REGISTRATION_TIMEOUT_MS);
-      const pending = pendingDomReviewsByWorkspaceRef.current.get(workspaceId) ?? [];
-      if (pending.length >= MAX_PENDING_DOM_REVIEWS) {
-        const dropped = pending.shift();
-        if (dropped) {
-          window.clearTimeout(dropped.timeoutId);
-          dropped.resolve(false);
-        }
-      }
-      pendingDomReviewsByWorkspaceRef.current.set(workspaceId, [...pending, request]);
-    });
-  }, [deliverToActiveTarget, openChat, tryVisibleTarget]);
+    return await domReviewQueue.submit(workspaceId, comments);
+  }, [deliverToActiveTarget, domReviewQueue, openChat, tryVisibleTarget]);
+
+  /** Send a question about canvas nodes as a chat turn in that workspace. */
+  const handleSubmitPrompt = useCallback(async (
+    workspaceId: string,
+    prompt: ChatPromptSubmission,
+  ): Promise<ChatDeliveryReceipt> => {
+    if (deliverToActiveTarget) {
+      const visibleReceipt = await tryVisibleTarget({ kind: 'prompt', prompt });
+      if (visibleReceipt) return visibleReceipt;
+    }
+    openChat();
+    const submitted = await promptQueue.submit(workspaceId, prompt);
+    return submitted
+      ? { status: 'delivered', target: dockTarget(workspaceId) }
+      : { status: 'failed', target: dockTarget(workspaceId) };
+  }, [deliverToActiveTarget, dockTarget, openChat, promptQueue, tryVisibleTarget]);
 
   return {
     handleAddDomSelectionToChat,
@@ -291,10 +333,12 @@ export function useChatInsertionBridge({
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
+    handleSubmitPrompt,
     registerInsertDomSelectionMention,
     registerInsertTabMention,
     registerInsertMention,
     registerStartSkillChat,
     registerSubmitDomReviewComments,
+    registerSubmitPrompt,
   };
 }

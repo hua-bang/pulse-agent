@@ -38,6 +38,10 @@ export interface DockActions {
   setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) => void;
   setMountedWorkspaces: (ids: Iterable<string>) => void;
   collapse: () => void;
+  /** Show the dock again on the tab it had when it was hidden. */
+  expand: () => void;
+  /** Read without subscribing, for one-off decisions such as a shortcut. */
+  isExpanded: () => boolean;
   notifyChatActivity: () => void;
   pinUrlReference: (url: string, title?: string) => void;
   registerPinUrlReference: (handler: (url: string, title?: string) => void) => () => void;

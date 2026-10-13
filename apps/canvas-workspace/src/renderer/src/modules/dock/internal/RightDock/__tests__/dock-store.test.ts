@@ -798,6 +798,17 @@ describe('DockStore', () => {
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
+  it('activating the remembered tab shows a collapsed dock again', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    dock.collapse();
+    expect(dock.activate(artifactTabId('ws1', 'a1'))).toBe(true);
+    expect(dock.getSnapshot()).toMatchObject({
+      expanded: true,
+      activeTabId: artifactTabId('ws1', 'a1'),
+    });
+  });
+
   it('toggleChat collapses only when chat is already the visible tab', () => {
     const dock = new DockStore();
     dock.toggleChat();

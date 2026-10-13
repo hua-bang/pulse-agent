@@ -24,6 +24,7 @@ describe('useAppShortcuts', () => {
       openShortcuts: vi.fn(),
       toggleChatPage: vi.fn(),
       toggleSidebar: vi.fn(),
+      togglePanels: vi.fn(),
       selectWorkspaceByIndex: vi.fn(),
       ...overrides,
     };
@@ -52,6 +53,18 @@ describe('useAppShortcuts', () => {
 
     expect(options.toggleChatPage).toHaveBeenCalledTimes(1);
     expect(options.toggleSidebar).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides both panels with Mod+Shift+F, even from a text field', () => {
+    const options = mount();
+    const input = document.createElement('input');
+    document.body.append(input);
+
+    const event = press({ key: 'F', metaKey: true, shiftKey: true }, input);
+
+    expect(options.togglePanels).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    input.remove();
   });
 
   it('jumps to the nth workspace', () => {

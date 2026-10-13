@@ -10,7 +10,7 @@ export const useRegisterChatTarget = (
   handlers: ChatTargetHandlers,
 ): void => {
   const broker = useOptionalChatTargetBroker();
-  const { insertFile, insertNode, insertDomSelection, insertTab, startSkillChat, submitDomReview, focus } = handlers;
+  const { insertFile, insertNode, insertDomSelection, insertTab, startSkillChat, submitDomReview, submitPrompt, focus } = handlers;
   useLayoutEffect(() => {
     if (!broker || !target) return;
     return broker.register(target, {
@@ -20,6 +20,7 @@ export const useRegisterChatTarget = (
       insertTab,
       startSkillChat,
       submitDomReview,
+      submitPrompt,
       focus,
     });
   }, [
@@ -31,6 +32,7 @@ export const useRegisterChatTarget = (
     insertTab,
     startSkillChat,
     submitDomReview,
+    submitPrompt,
     target,
   ]);
 };

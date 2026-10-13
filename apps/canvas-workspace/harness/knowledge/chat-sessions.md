@@ -518,6 +518,17 @@ Chat-target broker as node, DOM-selection, and Tab context. The full-page Chat
 composer registers the review submission handler, so reviews never fall through
 to a hidden workspace composer while `/chat` is visible.
 
+The canvas ask bar (`NodeAskBar`, shown under one settled selected node) sends
+a `prompt` insertion on the same path. It submits a turn at once, scoped to the
+asked-about node (`selected_nodes`), not to the composer's current selection.
+A visible full-page composer takes it first; otherwise the bridge opens dock
+chat and holds the prompt until that workspace composer registers, with the
+same timeout and pending limit as DOM reviews. The dock ChatPanel registers its
+review and prompt submitters only after its conversation key exists
+(`conversationReady`); registering earlier flushed a cold dock's waiting
+submission into a `sendMessage` that refuses unkeyed sends. A refused send
+keeps the text in the bar and reports the receipt.
+
 Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
 `RightDock/__tests__/CanvasPreview.test.tsx`,
@@ -525,7 +536,9 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
 `chat/ChatPageBody/__tests__/ChatPage.dom-review.test.tsx`,
 `chat/ChatComposer/__tests__/useSubmitDomReviewComments.test.tsx`, and
-`Workbench/__tests__/useChatInsertionBridge.test.tsx`.
+`Workbench/__tests__/useChatInsertionBridge.test.tsx`. Ask-bar routing is
+pinned by `chat/ChatComposer/__tests__/useSubmitPrompt.test.tsx`,
+`chat/target/index.test.ts`, and `NodeAskBar/index.test.tsx`.
 
 ### Explicit Chat ↔ dock-tab context
 

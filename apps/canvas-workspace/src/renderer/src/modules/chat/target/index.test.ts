@@ -93,6 +93,23 @@ describe('ChatTarget broker', () => {
     });
   });
 
+  it('submits a prompt to the active composer and reports a refused send as failed', async () => {
+    const broker = createChatTargetBroker();
+    const submitPrompt = vi.fn(async () => true);
+    broker.register(dockTarget, { submitPrompt });
+    const prompt = { text: 'Which tier?', nodes: [{ id: 'node-1', title: 'Research', type: 'text' as const }] };
+
+    expect(await broker.deliver({ kind: 'prompt', prompt })).toMatchObject({ status: 'delivered' });
+    expect(submitPrompt).toHaveBeenCalledWith(prompt);
+
+    submitPrompt.mockResolvedValueOnce(false);
+    expect(await broker.deliver({ kind: 'prompt', prompt })).toMatchObject({ status: 'failed' });
+
+    const pageOnly = createChatTargetBroker();
+    pageOnly.register(pageTarget, {});
+    expect(await pageOnly.deliver({ kind: 'prompt', prompt })).toMatchObject({ status: 'unavailable' });
+  });
+
   it('queues context for the visible busy target and drains it back to that same composer', async () => {
     const broker = createChatTargetBroker();
     const tab: AgentContextTabRef = {

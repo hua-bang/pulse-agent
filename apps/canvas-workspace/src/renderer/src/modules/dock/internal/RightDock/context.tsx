@@ -192,6 +192,10 @@ export function useRightDock(): DockActions {
       store.setTerminalAgentType(id, agentType, workspaceId),
     setMountedWorkspaces: (ids: Iterable<string>) => store.setMountedWorkspaces(ids),
     collapse: () => store.collapse(),
+    expand: () => {
+      if (!store.activate(store.getSnapshot().activeTabId)) store.openChat();
+    },
+    isExpanded: () => store.getSnapshot().expanded,
     notifyChatActivity: () => store.notifyChatActivity(),
     pinUrlReference,
     registerPinUrlReference,

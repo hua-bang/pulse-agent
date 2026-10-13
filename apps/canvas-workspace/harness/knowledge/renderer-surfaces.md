@@ -65,6 +65,11 @@ The workbench has exactly two side regions plus a modal tier:
     chat. From dock chrome, Escape collapses an active web tab, closes a
     reconstructible content/terminal tab, and leaves pinned chat alone;
     Escape inside a web page remains page-owned;
+  - collapsing keeps every tab and the active pointer. Activating the active
+    tab on a collapsed dock shows it again, so `expand()` restores the dock on
+    the tab it had. `app.togglePanels` (Mod+Shift+F; plain F stays node focus)
+    hides the sidebar and the dock together and the next press restores only
+    the panels that were open (`app/shortcuts/usePanelsToggle.ts`);
   - web and terminal tabs can enter comparison with the pinned chat: content
     stays on the left and Pulse AI on the right; ordinary tab selection replaces
     the focused pane and leaves the other in place. Clicking a pane selects it

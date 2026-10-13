@@ -17,6 +17,7 @@ import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
 import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
+import { useSubmitPrompt } from '../ChatComposer/useSubmitPrompt';
 import {
   type ChatTarget,
 } from '../../target';
@@ -53,6 +54,7 @@ export const useChatPanelController = ({
   onRegisterInsertDomSelectionMention,
   onRegisterInsertTabMention,
   onRegisterSubmitDomReviewComments,
+  onRegisterSubmitPrompt,
   onTurnComplete,
   chatTargetActive = true,
   chatTargetLabel,
@@ -96,6 +98,7 @@ export const useChatPanelController = ({
     attachmentSendBlocked,
     attachments,
     conversationError,
+    conversationReady,
     busyElsewhere,
     canvasModels,
     clarifyInput,
@@ -239,16 +242,24 @@ export const useChatPanelController = ({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
   });
+  const submitPrompt = useSubmitPrompt({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+  });
+
+  // Register only once a send can start: a cold dock flushes its waiting
+  // submissions into the first registered handler.
+  const acceptsSubmissions = conversationReady && !loading && !sessionLoading && !busyElsewhere;
 
   useEffect(() => {
-    if (
-      !onRegisterSubmitDomReviewComments
-      || loading
-      || sessionLoading
-      || busyElsewhere
-    ) return;
+    if (!onRegisterSubmitDomReviewComments || !acceptsSubmissions) return;
     return onRegisterSubmitDomReviewComments(submitDomReviewComments);
-  }, [busyElsewhere, loading, onRegisterSubmitDomReviewComments, sessionLoading, submitDomReviewComments]);
+  }, [acceptsSubmissions, onRegisterSubmitDomReviewComments, submitDomReviewComments]);
+
+  useEffect(() => {
+    if (!onRegisterSubmitPrompt || !acceptsSubmissions) return;
+    return onRegisterSubmitPrompt(submitPrompt);
+  }, [acceptsSubmissions, onRegisterSubmitPrompt, submitPrompt]);
 
   const chatTarget = useMemo<ChatTarget>(() => ({
     surface: 'dock',
@@ -269,6 +280,7 @@ export const useChatPanelController = ({
     insertFile: busyElsewhere || sessionLoading ? undefined : insertFileMention,
     insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
     submitDomReview: submitDomReviewComments,
+    submitPrompt,
     focus: focusInput,
   });
 

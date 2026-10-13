@@ -161,6 +161,25 @@ describe('useChatInsertionBridge', () => {
     expect(result).toBe(true);
   });
 
+  it('holds a canvas question until a cold composer registers', async () => {
+    const prompt = { text: 'Which tier?', nodes: [{ id: node.id, title: 'Release notes', type: 'text' as const }] };
+    const submit = vi.fn(async () => true);
+    let receipt: Awaited<ReturnType<typeof bridge.handleSubmitPrompt>> | undefined;
+
+    act(() => {
+      void bridge.handleSubmitPrompt('workspace-1', prompt).then(value => { receipt = value; });
+    });
+    expect(openChat).toHaveBeenCalledOnce();
+    expect(receipt).toBeUndefined();
+
+    await act(async () => {
+      bridge.registerSubmitPrompt('workspace-1', submit);
+      await Promise.resolve();
+    });
+    expect(submit).toHaveBeenCalledWith(prompt);
+    expect(receipt).toMatchObject({ status: 'delivered', target: { composerId: 'dock:workspace-1' } });
+  });
+
   it('holds a new Skill chat request until the workspace composer registers', async () => {
     const startSkillChat = vi.fn().mockResolvedValue(undefined);
 

@@ -275,7 +275,7 @@ export class DockStore {
     ) {
       return false;
     }
-    if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) {
+    if (this.state.expanded && this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) {
       return true;
     }
     if (activatingTerminal) {

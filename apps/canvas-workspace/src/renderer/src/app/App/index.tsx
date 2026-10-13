@@ -15,6 +15,7 @@ import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surfac
 import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/workspace-nodes';
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
+import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
@@ -255,8 +256,16 @@ const AppContent = () => {
     ensureWorkspaceNodesLoaded(activeId);
   }, [activeId, ensureWorkspaceNodesLoaded]);
 
+  const handlePanelsToggle = usePanelsToggle({
+    sidebarCollapsed,
+    toggleSidebar: handleSidebarToggle,
+    isDockExpanded: dock.isExpanded,
+    collapseDock: dock.collapse,
+    expandDock: dock.expand,
+  });
+
   useAppShortcutBindings({
-    activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle,
+    activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle, togglePanels: handlePanelsToggle,
     workspaces, selectWorkspace: workspaceActions.select, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
   });
 
