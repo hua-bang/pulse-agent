@@ -2,7 +2,7 @@ import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { PlusIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
-import { formatRelativeTime } from './relativeTime';
+import { readRecentWorkspaceIds } from '../recentWorkspaces';
 import type { WorkspaceSummary } from './useLauncherData';
 
 const RECENT_WORKSPACE_LIMIT = 5;
@@ -14,20 +14,26 @@ interface Props {
   onCreateWorkspace: () => void;
 }
 
-/** Most recently saved workspaces as cards with a small layout preview. */
+/**
+ * Recently opened workspaces as cards. Workspaces this window already holds
+ * show a small layout preview and their card count.
+ */
 export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCreateWorkspace }: Props) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
+  const recentIds = readRecentWorkspaceIds();
+  const rank = (id: string) => {
+    const index = recentIds.indexOf(id);
+    return index < 0 ? recentIds.length : index;
+  };
+  // Stable sort: never-opened workspaces keep the sidebar order.
   const recent = [...workspaces]
-    .sort((a, b) => (summaries[b.id]?.savedAt ?? 0) - (summaries[a.id]?.savedAt ?? 0))
+    .sort((a, b) => rank(a.id) - rank(b.id))
     .slice(0, RECENT_WORKSPACE_LIMIT);
 
   const describe = (summary: WorkspaceSummary | undefined) => {
     if (!summary) return '';
     if (summary.nodeCount === 0) return t('launcher.workspaceEmpty');
-    return t('launcher.workspaceMeta', {
-      count: summary.nodeCount,
-      time: formatRelativeTime(summary.savedAt, language),
-    });
+    return t('launcher.workspaceMeta', { count: summary.nodeCount });
   };
 
   return (

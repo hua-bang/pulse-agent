@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { AgentSessionInfo } from '../../../../../shared/agent-chat';
 
@@ -17,7 +17,6 @@ export interface ThumbRect {
 
 export interface WorkspaceSummary {
   nodeCount: number;
-  savedAt: number;
   rects: ThumbRect[];
 }
 
@@ -27,7 +26,7 @@ export interface RecentChat {
   session: AgentSessionInfo;
 }
 
-type NodeBox = { type: string; x: number; y: number; width: number; height: number };
+export type NodeBox = { type: string; x: number; y: number; width: number; height: number };
 
 /** Fits the first few cards into a unit frame for the workspace thumbnail. */
 export const toThumbRects = (nodes: NodeBox[]): ThumbRect[] => {
@@ -48,37 +47,25 @@ export const toThumbRects = (nodes: NodeBox[]): ThumbRect[] => {
 };
 
 /**
- * Loads what the launcher shows: a summary per workspace (node count, last
- * save, thumbnail boxes) and the most recent chats across all scopes.
+ * What the launcher shows: summaries of workspaces whose nodes this window
+ * already holds, and the most recent chats across all scopes. It never loads
+ * a canvas itself: `store.load` returns full node payloads and starts file
+ * watchers, so an unopened workspace simply gets no preview.
  */
-export const useLauncherData = (workspaces: WorkspaceEntry[], globalName: string) => {
-  const [summaries, setSummaries] = useState<Record<string, WorkspaceSummary>>({});
+export const useLauncherData = (
+  workspaces: WorkspaceEntry[],
+  loadedNodes: Record<string, NodeBox[]>,
+  globalName: string,
+) => {
   const [recentChats, setRecentChats] = useState<RecentChat[] | null>(null);
   const workspaceKey = workspaces.map((workspace) => workspace.id).join('|');
-
-  useEffect(() => {
-    const store = window.canvasWorkspace?.store;
-    if (!store) return;
-    let cancelled = false;
-    for (const workspace of workspaces) {
-      void store.load(workspace.id).then((result) => {
-        if (cancelled || !result.ok) return;
-        // A workspace that was never saved has no data yet: it is empty.
-        const nodes = Array.isArray(result.data?.nodes) ? result.data.nodes : [];
-        const summary: WorkspaceSummary = {
-          nodeCount: nodes.length,
-          savedAt: Date.parse(result.data?.savedAt ?? '') || 0,
-          rects: toThumbRects(nodes),
-        };
-        setSummaries((prev) => ({ ...prev, [workspace.id]: summary }));
-      });
+  const summaries = useMemo(() => {
+    const result: Record<string, WorkspaceSummary> = {};
+    for (const [id, nodes] of Object.entries(loadedNodes)) {
+      result[id] = { nodeCount: nodes.length, rects: toThumbRects(nodes) };
     }
-    return () => {
-      cancelled = true;
-    };
-    // Reload only when the set of workspaces changes, not on every rename.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceKey]);
+    return result;
+  }, [loadedNodes]);
 
   useEffect(() => {
     const agent = window.canvasWorkspace?.agent;

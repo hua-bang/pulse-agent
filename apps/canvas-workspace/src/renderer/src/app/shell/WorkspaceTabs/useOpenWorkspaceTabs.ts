@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
+import { recordRecentWorkspace } from '../recentWorkspaces';
 
 const OPEN_TABS_KEY = 'pulse-canvas.open-workspace-tabs';
 
@@ -41,7 +42,9 @@ export const useOpenWorkspaceTabs = (workspaces: WorkspaceEntry[], activeId: str
   }, [update]);
 
   useEffect(() => {
-    if (activeId) open(activeId);
+    if (!activeId) return;
+    open(activeId);
+    recordRecentWorkspace(activeId);
   }, [activeId, open]);
 
   // Drop tabs whose workspace was deleted, once the list has loaded.

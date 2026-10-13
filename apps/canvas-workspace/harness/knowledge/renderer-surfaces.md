@@ -36,14 +36,17 @@ The workbench has exactly two side regions plus a modal tier:
   Guard: `WorkspaceTabs/index.test.tsx`.
 - **Launcher** (`/home`, `app/shell/Launcher`, lazy) has an ask box with a
   scope picker (global or one workspace) and starter prompts, recent
-  workspaces (sorted by last save, with a card-layout preview from
-  `store.load`), and recent non-empty chats across scopes
+  workspaces, and recent non-empty chats across scopes
   (`agent.listAllSessions`). A question enters that scope's full-page chat on
   its current session and submits once the page composer registers with the
   chat target broker (`chatPageTarget.ts`, retried for up to 5 s); a recent
-  chat reopens in its owning scope. The floating chat launcher hides here and
-  on settings (`shared/dock/dock-chat-availability.ts`). Guard:
-  `Launcher/index.test.tsx`.
+  chat reopens in its owning scope. Workspace cards follow the recency list
+  that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
+  uses only node snapshots this window already holds; the launcher never
+  calls `store.load`, which returns full node payloads and starts file
+  watchers. Previews are plain boxes, never mounted nodes or webviews. The
+  floating chat launcher hides here and on settings
+  (`shared/dock/dock-chat-availability.ts`). Guard: `Launcher/index.test.tsx`.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
   route and closing returns to it (`app/App/useShellNavigation.ts`); unknown

@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { ChatTargetProvider, useChatTargetBroker, type ChatTargetBroker } from '../../../modules/chat';
+import type { CanvasNode } from '../../../types';
 import { Launcher } from '.';
 
 const notify = vi.fn();
@@ -22,23 +23,21 @@ const BrokerProbe = () => {
   return null;
 };
 
+const loadedNodes = {
+  a: [],
+  b: [
+    { id: 'n1', type: 'text', x: 0, y: 0, width: 200, height: 120 },
+    { id: 'n2', type: 'text', x: 240, y: 0, width: 200, height: 120 },
+  ],
+} as unknown as Record<string, CanvasNode[]>;
+
 const props = {
-  workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }],
+  workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }, { id: 'c', name: 'Gamma' }],
+  loadedNodes,
   onEnterChat: vi.fn(),
   onOpenSession: vi.fn(),
   onOpenWorkspace: vi.fn(),
   onCreateWorkspace: vi.fn(),
-};
-
-const canvases: Record<string, { nodes: unknown[]; savedAt: string }> = {
-  a: { nodes: [], savedAt: '2026-10-01T00:00:00Z' },
-  b: {
-    nodes: [
-      { id: 'n1', type: 'text', x: 0, y: 0, width: 200, height: 120 },
-      { id: 'n2', type: 'text', x: 240, y: 0, width: 200, height: 120 },
-    ],
-    savedAt: '2026-10-12T00:00:00Z',
-  },
 };
 
 const render = async () => {
@@ -67,10 +66,9 @@ const typeQuestion = async (value: string) => {
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.setItem('pulse-canvas.language', 'en');
+  window.localStorage.setItem('pulse-canvas.recent-workspaces', JSON.stringify(['b', 'a']));
   (window as any).canvasWorkspace = {
-    store: {
-      load: vi.fn(async (id: string) => ({ ok: true, data: canvases[id] })),
-    },
+    store: { load: vi.fn() },
     agent: {
       listAllSessions: vi.fn(async () => ({
         ok: true,
@@ -103,17 +101,20 @@ afterEach(() => {
 });
 
 describe('Launcher', () => {
-  it('lists recent workspaces newest first with a preview, and creates or opens them', async () => {
+  it('lists workspaces most recently opened first, previewing only loaded ones', async () => {
     await render();
     const cards = [...host.querySelectorAll<HTMLButtonElement>('.launcher__card')];
     expect(cards.map((card) => card.querySelector('.launcher__card-name')?.textContent))
-      .toEqual(['Beta', 'Alpha', 'New workspace']);
-    expect(cards[0].querySelector('.launcher__card-meta')?.textContent).toMatch(/^2 cards · edited /);
+      .toEqual(['Beta', 'Alpha', 'Gamma', 'New workspace']);
+    expect(cards[0].querySelector('.launcher__card-meta')?.textContent).toBe('2 cards');
     expect(cards[0].querySelectorAll('.launcher__thumb-node')).toHaveLength(2);
     expect(cards[1].querySelector('.launcher__card-meta')?.textContent).toBe('Empty workspace');
+    // Gamma is not loaded in this window: no preview, and no canvas load.
+    expect(cards[2].querySelector('.launcher__card-meta')?.textContent).toBe('');
+    expect((window as any).canvasWorkspace.store.load).not.toHaveBeenCalled();
 
     await act(async () => cards[0].click());
-    await act(async () => cards[2].click());
+    await act(async () => cards[3].click());
     expect(props.onOpenWorkspace).toHaveBeenCalledWith('b');
     expect(props.onCreateWorkspace).toHaveBeenCalledTimes(1);
   });

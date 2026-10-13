@@ -1,4 +1,5 @@
 import type { WorkspaceEntry } from '../../../shared/workspaces';
+import type { CanvasNode } from '../../../types';
 import type { AgentScope } from '../../../types';
 import type { ChatTarget } from '../../../modules/chat';
 import { useChatTargetBroker } from '../../../modules/chat';
@@ -14,6 +15,8 @@ import './index.css';
 
 interface Props {
   workspaces: WorkspaceEntry[];
+  /** Node snapshots this window already holds, keyed by workspace id. */
+  loadedNodes: Record<string, CanvasNode[]>;
   onEnterChat: (target: ChatTarget) => void;
   onOpenSession: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
   onOpenWorkspace: (id: string) => void;
@@ -26,6 +29,7 @@ interface Props {
  */
 export const Launcher = ({
   workspaces,
+  loadedNodes,
   onEnterChat,
   onOpenSession,
   onOpenWorkspace,
@@ -34,7 +38,7 @@ export const Launcher = ({
   const { t } = useI18n();
   const broker = useChatTargetBroker();
   const notifyChatDelivery = useChatDeliveryNotifier();
-  const { summaries, recentChats } = useLauncherData(workspaces, t('chat.scope.global'));
+  const { summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'));
 
   const ask = async (text: string, scope: AgentScope, label: string) => {
     const target = createChatPageTarget(scope, label);

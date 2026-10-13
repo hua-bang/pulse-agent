@@ -47,6 +47,8 @@ describe('WorkspaceTabs', () => {
     expect(tabNames()).toEqual(['Alpha', 'Gamma']);
     expect(host.querySelector('[aria-current="page"]')?.textContent).toBe('Gamma');
     expect(JSON.parse(window.localStorage.getItem('pulse-canvas.open-workspace-tabs')!)).toEqual(['a', 'c']);
+    // The launcher orders its workspace cards by this recency list.
+    expect(JSON.parse(window.localStorage.getItem('pulse-canvas.recent-workspaces')!)).toEqual(['c', 'a']);
 
     await act(async () => host.querySelector<HTMLButtonElement>('.workspace-tabs__select')!.click());
     expect(onSelect).toHaveBeenCalledWith('a');

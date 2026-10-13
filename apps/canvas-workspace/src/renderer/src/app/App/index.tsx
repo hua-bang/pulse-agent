@@ -360,9 +360,14 @@ const AppContent = () => {
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
             onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
-          <HomeRouteView workspaces={workspaces} onEnterChat={enterChatTarget}
-            onOpenSession={openSessionInOwningScope} onOpenWorkspace={workspaceActions.select}
-            onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))} />
+          <HomeRouteView
+            workspaces={workspaces}
+            loadedNodes={workbench.allNodes}
+            onEnterChat={enterChatTarget}
+            onOpenSession={openSessionInOwningScope}
+            onOpenWorkspace={workspaceActions.select}
+            onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))}
+          />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
