@@ -24,9 +24,9 @@ The workbench has exactly two side regions plus a modal tier:
   (`SidebarRail`) is always visible and owns app navigation: Home (launcher),
   Workspaces, Pulse Agent, Plugins, Scheduled, plugin nav items, global MCP
   Apps, and Settings at the bottom. The panel next to it holds the workspace
-  list and Layers; collapsing hides only the panel. The launcher route hides
-  the panel without changing the saved preference, because the launcher lists
-  workspaces itself. The Workspaces button
+  list and Layers; collapsing hides only the panel. The launcher and chat
+  routes hide the panel without changing the saved preference: the launcher
+  lists workspaces itself, and the chat session list groups by workspace. The Workspaces button
   toggles the panel on the canvas route and returns to the canvas elsewhere.
   Guards: `SidebarRail.test.tsx`, `Sidebar/__tests__/`.
 - **Workspace tabs** (`app/shell/WorkspaceTabs`) sit above the canvas route.

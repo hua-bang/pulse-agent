@@ -261,8 +261,9 @@ const AppContent = () => {
     globalMcpAppsStore.open(listing);
     setLocation(mcpAppRoutePath(listing));
   }, [setLocation]);
-  // The launcher lists workspaces itself, so home shows only the rail.
-  const sidebarPanelHidden = sidebarCollapsed || activeView === 'home';
+  // The launcher lists workspaces itself and the chat page's session list
+  // groups by workspace, so both routes show only the rail.
+  const sidebarPanelHidden = sidebarCollapsed || activeView === 'home' || activeView === 'chat';
   const [sessionListRequest, setSessionListRequest] = useState(0);
   const openAllChats = useCallback(() => {
     enterChatView();
