@@ -1,61 +1,5 @@
-.sidebar-apps__list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  /* Many apps scroll here instead of pushing Workspaces and Settings away. */
-  max-height: 40vh;
-  overflow-y: auto;
-  padding: 0 6px;
-}
-
-/* ui/Button supplies the control; these rules restore the sidebar row look. */
-.sidebar-apps__item.ui-btn {
-  width: 100%;
-  height: auto;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 400;
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-}
-
-.sidebar-apps__item.ui-btn:hover:not(:disabled):not(.sidebar-item--active) {
-  background: var(--surface-alt);
-}
-
-.sidebar-apps__item.ui-btn.sidebar-item--active {
-  background: var(--accent-light);
+.sidebar-apps-rail .sidebar-rail-btn--active .global-mcp-app-tile {
   color: var(--accent);
-}
-
-.sidebar-apps__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  color: var(--text-secondary);
-}
-
-.sidebar-apps__item.sidebar-item--active .sidebar-apps__icon,
-.sidebar-apps__item.sidebar-item--active .global-mcp-app-tile,
-.sidebar-apps-rail .sidebar-collapsed-btn--active .global-mcp-app-tile {
-  color: var(--accent);
-}
-
-.sidebar-apps__label {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .sidebar-apps-rail {
@@ -71,6 +15,6 @@
   scrollbar-width: none;
 }
 
-.sidebar-apps-rail > .sidebar-collapsed-btn {
+.sidebar-apps-rail > .sidebar-rail-btn {
   flex: none;
 }

@@ -1,14 +1,24 @@
-.sidebar-collapsed-rail {
+.sidebar-rail {
+  width: var(--sidebar-collapsed);
+  flex: none;
+  box-sizing: border-box;
   padding: 10px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.sidebar-collapsed-btn {
-  width: 30px;
-  height: 30px;
+.sidebar-rail-spacer {
+  flex: 1;
+}
+
+.sidebar-rail-btn {
+  width: 32px;
+  height: 32px;
+  flex: none;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
@@ -20,21 +30,19 @@
   transition: background 0.12s, color 0.12s;
 }
 
-.sidebar-collapsed-btn:hover,
-.sidebar-collapsed-btn:focus-visible {
+.sidebar-rail-btn:hover,
+.sidebar-rail-btn:focus-visible {
   outline: none;
   background: rgba(0, 0, 0, 0.05);
   color: var(--text);
 }
 
-.sidebar-collapsed-btn--active {
+.sidebar-rail-btn--active {
   background: var(--accent-light);
   color: var(--accent);
 }
 
-.sidebar-footer-btn:focus-visible,
 .sidebar-section-btn:focus-visible,
-.sidebar-nav-item:focus-visible,
 .sidebar-item:focus-visible,
 .sidebar-folder-toggle:focus-visible,
 .sidebar-add-menu-item:focus-visible {

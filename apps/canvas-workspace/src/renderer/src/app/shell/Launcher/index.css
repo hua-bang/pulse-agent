@@ -1,0 +1,115 @@
+/* Launcher page: ask Pulse Agent or open a workspace. */
+
+.launcher {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.launcher__inner {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14vh 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.launcher__title {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.launcher__ask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.launcher__ask:focus-within {
+  border-color: var(--accent);
+}
+
+.launcher__ask-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.launcher__ask .ui-textfield {
+  flex: 1;
+}
+
+/* Borderless inside the form: the form itself is the field's frame. */
+.launcher__ask-input.ui-textfield__control {
+  height: 36px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.launcher__ask-input::placeholder {
+  color: var(--text-muted);
+}
+
+.launcher__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.launcher__section-title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.launcher__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.launcher .launcher__card {
+  height: 48px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 14px;
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.launcher .launcher__card:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.launcher .launcher__card--new {
+  border-style: dashed;
+  color: var(--text-secondary);
+}
+
+.launcher__card-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

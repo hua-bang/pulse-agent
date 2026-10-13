@@ -15,7 +15,7 @@ export interface SidebarProps {
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
   onOpenSettings: (id: string) => void;
-  /** Opens the global Settings drawer (gear button at the bottom of the sidebar). */
+  /** Opens the global Settings page (gear at the bottom of the app rail). */
   onOpenAppSettings: () => void;
   onImport: () => void;
   onCreateFolder: (name: string) => void;
@@ -35,6 +35,8 @@ export interface SidebarProps {
   onNodeDelete?: (nodeId: string) => void;
   onNodeRename?: (nodeId: string, title: string) => void;
   activeView: string;
+  onEnterHome: () => void;
+  onEnterCanvas: () => void;
   onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;

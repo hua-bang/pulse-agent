@@ -1,0 +1,108 @@
+/* Workspace tabs above the canvas. */
+
+.workspace-tabs {
+  flex: none;
+  height: 40px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0 8px 0 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.workspace-tabs__new {
+  flex: none;
+  margin-bottom: 5px;
+  color: var(--text-secondary);
+}
+
+.workspace-tabs__list {
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.workspace-tabs__tab {
+  flex: 0 1 auto;
+  width: 180px;
+  min-width: 96px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--text-secondary);
+}
+
+.workspace-tabs__tab:hover {
+  background: var(--surface-alt);
+}
+
+.workspace-tabs__tab--active,
+.workspace-tabs__tab--active:hover {
+  background: var(--bg-canvas);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.workspace-tabs .workspace-tabs__select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-start;
+  padding: 0 4px 0 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-tabs__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workspace-tabs .workspace-tabs__close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.workspace-tabs__tab:hover .workspace-tabs__close,
+.workspace-tabs__tab--active .workspace-tabs__close,
+.workspace-tabs__close:focus-visible {
+  opacity: 1;
+}
+
+.workspace-tabs .workspace-tabs__select:hover:not(:disabled) {
+  background: transparent;
+}
+
+.workspace-tabs .workspace-tabs__close:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.workspace-tabs__select:focus-visible,
+.workspace-tabs__close:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}

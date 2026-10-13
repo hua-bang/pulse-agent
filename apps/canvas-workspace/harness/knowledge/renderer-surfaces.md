@@ -8,19 +8,42 @@ How full-app surfaces (drawers, docks, overlays, modals) are organized in
 The workbench has exactly two side regions plus a modal tier:
 
 ```
-┌─────────┬──────────────┬──────────────────────────────┬───────────┐
-│ Sidebar │ Reference    │ Canvas                       │ RightDock │
-│ (nav)   │ Drawer       │   + canvas chrome            │ ┌───────┐ │
-│         │ (left,       │     (floating toolbar,       │ │Chat│▦│🔗│ ← tabs
-│         │  in-flow)    │      zoom, fullscreen chip)  │ ├───────┤ │
-│         │              │                              │ │ pane  │ │
-│         │              │   (canvas reflows: dock      │ └───────┘ │
-│         │              │    reserves its width)       │           │
-└─────────┴──────────────┴──────────────────────────────┴───────────┘
-                 modal tier: settings drawers, command palette,
+┌────┬───────┬──────────────┬──────────────────────────────┬───────────┐
+│Rail│ Panel │ Reference    │ [tab][tab][+]  workspace tabs│ RightDock │
+│    │(work- │ Drawer       │ Canvas                       │ ┌───────┐ │
+│    │spaces,│ (left,       │   + canvas chrome            │ │Chat│▦│🔗│ ← tabs
+│    │layers)│  in-flow)    │     (floating toolbar,       │ ├───────┤ │
+│    │       │              │      zoom, fullscreen chip)  │ │ pane  │ │
+│    │       │              │   (canvas reflows: dock      │ └───────┘ │
+│    │       │              │    reserves its width)       │           │
+└────┴───────┴──────────────┴──────────────────────────────┴───────────┘
+                 modal tier: workspace settings drawer, command palette,
                  app-shell dialogs / toasts (above everything)
 ```
-
+- **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
+  (`SidebarRail`) is always visible and owns app navigation: Home (launcher),
+  Workspaces, Pulse Agent, Plugins, Scheduled, plugin nav items, global MCP
+  Apps, and Settings at the bottom. The panel next to it holds the workspace
+  list and Layers; collapsing hides only the panel. The Workspaces button
+  toggles the panel on the canvas route and returns to the canvas elsewhere.
+  Guards: `SidebarRail.test.tsx`, `Sidebar/__tests__/`.
+- **Workspace tabs** (`app/shell/WorkspaceTabs`) sit above the canvas route.
+  A workspace that becomes active opens a tab; tab order persists in
+  `localStorage` (`pulse-canvas.open-workspace-tabs`), and tabs of deleted
+  workspaces drop. Closing a tab never deletes the workspace: closing the
+  active tab shows its neighbour, or the launcher when none is left. The bar
+  loads lazily (startup bundle budget) behind a same-height placeholder.
+  Guard: `WorkspaceTabs/index.test.tsx`.
+- **Launcher** (`/home`, `app/shell/Launcher`, lazy) asks Pulse Agent or
+  opens a workspace. A question enters the full-page global chat on its
+  current session and submits once that page's composer registers with the
+  chat target broker (`askGlobalAgent.ts`, retried for up to 5 s). The
+  floating chat launcher hides here and on settings
+  (`shared/dock/dock-chat-availability.ts`). Guard: `Launcher/index.test.tsx`.
+- **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
+  App settings are a full page, not a drawer. Opening remembers the origin
+  route and closing returns to it (`app/App/useShellNavigation.ts`); unknown
+  sections fall back to Models. Workspace settings stay a modal drawer.
 - **Left region — Library.** `ReferenceDrawer` is the only left-side
   container. Its card browser combines workspace node metadata, artifacts
   (`artifact:list-all`), and saved references (`references.json`, owned by
@@ -116,8 +139,8 @@ The workbench has exactly two side regions plus a modal tier:
   creation toolbar differ, and both are overlays. Guards:
   `RightDock/__tests__/CanvasPreview.test.tsx`,
   `Canvas/bottomChromeRow.test.ts`.
-- **Modal tier.** Settings drawers (`ui/Drawer` shell, formerly
-  `SettingsDrawer`), the command palette, and app-shell dialogs/toasts (the
+- **Modal tier.** The workspace settings drawer (`ui/Drawer` shell), the
+  command palette, and app-shell dialogs/toasts (the
   centered ones now share the `ui/Modal` shell). These are modal with
   backdrops and sit above both side regions.
 
@@ -207,8 +230,8 @@ and writes through symlink targets. Guards: `dock-folder-editor.test.ts`,
    token from the layering scale in `styles.css`. Stacking that stays
    inside one component (node bodies, menus anchored within a panel)
    keeps local values.
-3. **Docks are non-modal; settings are modal.** Backdrops only exist in
-   the modal tier.
+3. **Docks are non-modal; workspace settings are modal.** Backdrops only
+   exist in the modal tier. App settings are a route, not a modal.
 
 ## Layering scale
 
@@ -225,7 +248,7 @@ Defined in `src/renderer/src/styles.css` (`:root`), low → high:
 | `--layer-search` | 1500 | find-in-canvas bar |
 | `--layer-note-popover` | 1550 | note slash / mention / selection bubble menus |
 | `--layer-interaction-shield` | 1800 | drag shield over webviews |
-| `--layer-modal` | 1900 | settings drawers |
+| `--layer-modal` | 1900 | workspace settings drawer |
 | `--layer-palette` | 2000 | command palette |
 | `--layer-dialog` | 2050 | app-shell confirm dialogs |
 | `--layer-toast` | 2100 | app-shell toasts |
@@ -257,7 +280,7 @@ This structure came out of a 2026-06 container cleanup, in three steps:
 - `src/renderer/src/app/App/index.tsx`: top-level renderer routes, shell, settings, and
   plugin route/nav integration.
 - `/apps/<server>/<tool>` (`routeModel.ts`): the main-area view for OpenAI
-  `global` MCP Apps, opened from the Sidebar Apps section. One keep-alive
+  `global` MCP Apps, opened from the app rail. One keep-alive
   host (`modules/mcp-apps` `GlobalMcpAppsView`) holds every opened app and
   hides the inactive ones, so view and workspace switches never reload them.
   Facts and guards: `plugin-market.md` (Global MCP Apps).

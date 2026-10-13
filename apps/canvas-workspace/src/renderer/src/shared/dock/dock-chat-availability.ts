@@ -24,6 +24,11 @@ export const isCanvasTabEditingAllowed = (activeView: string): boolean =>
  * derives from `isDockChatTabEnabled` instead of an ad-hoc route list: a
  * launcher on a view whose dock has no chat tab would toggle a surface that
  * cannot render, and a missing launcher (what the Scheduled list used to have)
- * leaves the route with no way to reach the agent at all. */
+ * leaves the route with no way to reach the agent at all.
+ *
+ * Settings and the launcher (`home`) also opt out: settings has a bottom
+ * action bar the button would cover, and the launcher has its own ask box. */
+const VIEWS_WITHOUT_LAUNCHER = new Set(['canvas', 'settings', 'home']);
+
 export const isGlobalChatLauncherVisible = (activeView: string): boolean =>
-  activeView !== 'canvas' && isDockChatTabEnabled(activeView);
+  !VIEWS_WITHOUT_LAUNCHER.has(activeView) && isDockChatTabEnabled(activeView);

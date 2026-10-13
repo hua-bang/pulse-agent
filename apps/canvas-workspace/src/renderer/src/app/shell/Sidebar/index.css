@@ -1,14 +1,27 @@
 /* ---- Sidebar ---- */
 
+/* App rail (fixed width) + workspace panel (collapsible), side by side. */
 .sidebar {
   width: var(--sidebar-width);
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex-shrink: 0;
   transition: width 0.2s ease;
   overflow: hidden;
+}
+
+.sidebar-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-panel[hidden] {
+  display: none;
 }
 
 .sidebar--collapsed {
@@ -30,90 +43,6 @@
 
 .sidebar-install-message--warn {
   color: var(--text-warning);
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding: 8px 8px 12px;
-  border-top: 1px solid var(--border-light);
-}
-
-.sidebar-footer-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sidebar-footer-btn:hover {
-  background: rgba(55, 53, 47, 0.05);
-  color: var(--text);
-}
-
-/* ---- Top-level view nav (Canvas / AI Chat) ---- */
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 6px 2px;
-  gap: 1px;
-}
-
-.sidebar-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text);
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-  width: 100%;
-}
-
-.sidebar-nav-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.sidebar-nav-item--active {
-  background: var(--accent-light);
-  color: var(--accent);
-}
-
-.sidebar-nav-item--active:hover {
-  background: var(--accent-light);
-}
-
-.sidebar-nav-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-.sidebar-nav-item--active .sidebar-nav-icon {
-  color: var(--accent);
-}
-
-.sidebar-nav-label {
-  flex: 1;
-  font-weight: 500;
 }
 
 .sidebar-brand-header {

@@ -6,7 +6,6 @@ import { ConversationCompletionToastBridge } from '../shell/ConversationCompleti
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from '../../modules/chat/lazy';
 import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
-import type { SettingsSection } from '../../modules/settings';
 import { Sidebar } from '../shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
 import { Workbench, useWorkbenchState } from '../shell/Workbench';
@@ -16,11 +15,13 @@ import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/works
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
+import { useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
 import type { KnowledgeNodeSelection } from '../../types';
-import { NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from '../shell/RouteViews';
+import { HomeRouteView, NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SettingsRouteView, SkillsRouteView } from '../shell/RouteViews';
+import type { SettingsSection } from '../../modules/settings';
 import { useScheduledRunChatOpener } from '../../modules/scheduled';
 import {
   ChatTargetProvider,
@@ -40,6 +41,7 @@ setApprovalNodePreviewLoader(() => import('../../modules/canvas/preview').then((
 })));
 
 const GlobalMcpAppsView = lazy(() => import('../../modules/mcp-apps').then((module) => ({ default: module.GlobalMcpAppsView })));
+const WorkspaceTabs = lazy(() => import('../shell/WorkspaceTabs').then((module) => ({ default: module.WorkspaceTabs })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const {
   canvas: ROUTE_CANVAS,
@@ -49,27 +51,11 @@ const {
   plugins: ROUTE_PLUGINS,
   skills: ROUTE_SKILLS,
   scheduled: ROUTE_SCHEDULED,
+  home: ROUTE_HOME,
 } = APP_ROUTES;
-const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
+/** Matches `--sidebar-width` / `--sidebar-collapsed` in styles.css. */
+const SIDEBAR_WIDTH = 272, SIDEBAR_RAIL_WIDTH = 48;
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
-const readSidebarCollapsedPreference = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-    if (stored === '1') return true;
-    if (stored === '0') return false;
-  } catch {
-    // localStorage may be unavailable; default to discoverability.
-  }
-  return false;
-};
-const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
-  try {
-    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
-  } catch {
-    // Preference persistence is best-effort only.
-  }
-};
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
@@ -100,7 +86,7 @@ const AppContent = () => {
   const { openShortcuts, isOverlayOpen } = useAppShell();
   const chatTargetBroker = useChatTargetBroker();
   const activeChatTarget = useActiveChatTarget();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
+  const { sidebarCollapsed, toggleSidebar: handleSidebarToggle } = useSidebarCollapsed();
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
@@ -117,24 +103,10 @@ const AppContent = () => {
     detailNode,
     explicitContext: knowledgeChatExplicitContext ?? undefined,
   });
-  // null = global Settings drawer closed; a section name opens that section.
-  const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
-  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
-  const openAppSettings = useCallback((section: SettingsSection) => {
-    setAppSettingsLoaded(true);
-    setAppSettingsSection(section);
-  }, []);
-  const closeAppSettings = useCallback(() => setAppSettingsSection(null), []);
+  const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
   const openWorkspaceSettings = useCallback((workspaceId: string) => {
     setWorkspaceSettingsLoaded(true);
     setSettingsWorkspaceId(workspaceId);
-  }, []);
-  const handleSidebarToggle = useCallback(() => {
-    setSidebarCollapsed((collapsed) => {
-      const next = !collapsed;
-      writeSidebarCollapsedPreference(next);
-      return next;
-    });
   }, []);
 
   const workspaceStore = useWorkspaces();
@@ -319,6 +291,8 @@ const AppContent = () => {
           onNodeDelete={requestActiveNodeDelete}
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
+          onEnterHome={() => setLocation(ROUTE_HOME)}
+          onEnterCanvas={() => setLocation(ROUTE_CANVAS)}
           onEnterChat={enterChatView}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
@@ -335,21 +309,32 @@ const AppContent = () => {
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
           <PulseRouterView name='canvas' keepAlive>
-            <Workbench
-              activeWorkspaceId={activeId}
-              canvasHostActive={activeView === 'canvas'}
-              workspaces={workspaces}
-              controller={workbench}
-              knowledgeChatContext={knowledgeChatContext}
-              onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
-              onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
-              onSelectWorkspace={workspaceActions.select}
-              onActivateWorkspace={selectWorkspace}
-              onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={openWorkspaceSettings}
-              onOpenSessionInScope={openSessionInOwningScope}
-              onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
-            />
+            <div className="canvas-route">
+              {/* Lazy to keep the startup chunk in budget; the placeholder holds the bar's height. */}
+              <Suspense fallback={<div className="canvas-route__tabs-placeholder" />}>
+                <WorkspaceTabs
+                  workspaces={workspaces}
+                  activeId={activeId}
+                  onSelect={workspaceActions.select}
+                  onOpenLauncher={() => setLocation(ROUTE_HOME)}
+                />
+              </Suspense>
+              <Workbench
+                activeWorkspaceId={activeId}
+                canvasHostActive={activeView === 'canvas'}
+                workspaces={workspaces}
+                controller={workbench}
+                knowledgeChatContext={knowledgeChatContext}
+                onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+                onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
+                onSelectWorkspace={workspaceActions.select}
+                onActivateWorkspace={selectWorkspace}
+                onOpenAppSettings={openAppSettings}
+                onOpenWorkspaceSettings={openWorkspaceSettings}
+                onOpenSessionInScope={openSessionInOwningScope}
+                onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
+              />
+            </div>
           </PulseRouterView>
           <PulseRouterView name="chat">
             <ChatPage
@@ -375,6 +360,10 @@ const AppContent = () => {
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
             onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
+          <HomeRouteView workspaces={workspaces} onEnterChat={enterChatTarget}
+            onOpenWorkspace={workspaceActions.select}
+            onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))} />
+          <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
             onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
             onOpenSessionInScope={openSessionInOwningScope} />
@@ -396,7 +385,7 @@ const AppContent = () => {
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
       <RightDock
-        readingLeftInset={sidebarCollapsed ? 48 : 240}
+        readingLeftInset={sidebarCollapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH}
         hostView={activeView}
         workspaces={workspaces}
         activeWorkspaceId={dockWorkspaceId}
@@ -407,19 +396,16 @@ const AppContent = () => {
         onCanvasSelectionChange={handleSelectionChange}
         reserveSpace
         capWidth={activeView !== 'canvas'}
-        pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440}
+        pageMinAppWidth={(sidebarCollapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH) + 440}
         onOpenNodePage={openNodePage}
         onActivateWorkspace={activateDockWorkspace}
       />
       <ConversationCompletionToastBridge onOpenSessionInScope={openSessionInOwningScope} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
-        appLoaded={appSettingsLoaded}
-        appSection={appSettingsSection}
         workspaceLoaded={workspaceSettingsLoaded}
         workspaceId={settingsWorkspaceId}
         workspaces={workspaces}
-        onCloseApp={closeAppSettings}
         onCloseWorkspace={() => setSettingsWorkspaceId(null)}
         onRenameWorkspace={renameWorkspace}
         onSetRootFolder={setRootFolder}

@@ -68,3 +68,21 @@
 :root[data-dock-reading="reading"] .app-body > :not(.sidebar) {
   visibility: hidden;
 }
+
+/* Workspace tabs stacked above the canvas workbench. */
+.canvas-route {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Matches .workspace-tabs height until the lazy tab bar loads. */
+.canvas-route__tabs-placeholder {
+  flex: none;
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  box-sizing: border-box;
+}

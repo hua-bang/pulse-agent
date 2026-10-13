@@ -27,6 +27,14 @@ describe('app route model', () => {
     }).activeView).toBe('/custom');
   });
 
+  it('maps the settings page and launcher routes, keeping the settings section', () => {
+    const options = { nodesEnabled: false, graphEnabled: false, pluginPaths: [] };
+    const settings = resolveAppRoute('/settings?section=plugins', options);
+    expect(settings.activeView).toBe('settings');
+    expect(settings.params.get('section')).toBe('plugins');
+    expect(resolveAppRoute('/home', options).activeView).toBe('home');
+  });
+
   it('round-trips global MCP App routes with encoded server and tool names', () => {
     const target = { serverName: 'mock apps/v2', toolName: 'parts.library' };
     const path = mcpAppRoutePath(target);

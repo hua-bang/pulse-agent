@@ -49,6 +49,7 @@ beforeEach(async () => {
     onDelete: vi.fn(), onExport: vi.fn(), onOpenSettings: vi.fn(), onOpenAppSettings: vi.fn(),
     onImport: vi.fn(), onCreateFolder: vi.fn(), onRenameFolder: vi.fn(), onDeleteFolder: vi.fn(),
     onToggleFolder: vi.fn(), onMoveWorkspace: vi.fn(), onReorderWorkspace: vi.fn(), onReorderFolder: vi.fn(),
+    onEnterHome: vi.fn(), onEnterCanvas: vi.fn(),
     onEnterChat: vi.fn(), onEnterNodes: vi.fn(), onEnterGraph: vi.fn(), onEnterSkills: vi.fn(),
     onEnterScheduled: vi.fn(), nodesEnabled: false, graphEnabled: false, pluginNavItems: [],
     onNavigate: vi.fn(), onExitChat: vi.fn(),

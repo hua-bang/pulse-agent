@@ -1,11 +1,10 @@
 /**
- * Settings — unified global settings drawer.
+ * Settings — unified global settings page (`/settings?section=…`).
  *
- * Replaces the standalone ModelSettingsDrawer and PromptSettingsDrawer
- * (they're now rendered as sections inside this one shell). Entry points:
- *  - Sidebar gear (bottom of the workspace list)
+ * One full page with the section rail on the left. Entry points:
+ *  - The app rail gear
  *  - Chat header buttons (Reply Style / Models) — they call openSettings
- *    with the matching section instead of opening their own drawer.
+ *    with the matching section instead of opening their own surface.
  *
  * State note: each section's data hook (useCanvasModels, usePromptProfile)
  * is owned here; the chat-side instances stay independent. The codebase
@@ -15,7 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Drawer, SegmentedControl } from '../../../../components/ui';
+import { Button, SegmentedControl } from '../../../../components/ui';
 import { ModelsSection } from '../ModelSettings';
 import { useCanvasModels } from '../../../models';
 import { ReplyStyleSection, usePromptProfile } from '../PromptSettings';
@@ -125,16 +124,17 @@ const resolveSettingsTarget = (section: SettingsSection): SettingsTarget => {
   if (section === 'browser' || section === 'language' || section === 'updates') {
     return { page: 'general' };
   }
-  return { page: section };
+  // A stale or hand-typed `?section=` falls back to the first page.
+  return SECTIONS.some((def) => def.id === section) ? { page: section } : { page: 'models' };
 };
 
 interface SettingsProps {
-  open: boolean;
   initialSection: SettingsSection;
+  /** Leaves the page; sections also call it after a finished edit. */
   onClose: () => void;
 }
 
-export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
+export const Settings = ({ initialSection, onClose }: SettingsProps) => {
   const { t } = useI18n();
   const initialTarget = resolveSettingsTarget(initialSection);
   const [activePage, setActivePage] = useState<SettingsPage>(initialTarget.page);
@@ -142,29 +142,21 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
   const canvasModels = useCanvasModels();
   const promptProfile = usePromptProfile();
 
-  // Re-sync the active section every time the drawer opens with a
-  // (potentially different) target. While open, the user drives section
-  // changes via the rail.
+  // Re-sync when an entry point asks for another section. Otherwise the
+  // user drives section changes via the rail.
   useEffect(() => {
-    if (!open) return;
     const target = resolveSettingsTarget(initialSection);
     setActivePage(target.page);
     if (target.toolsTab) setToolsTab(target.toolsTab);
-  }, [open, initialSection]);
+  }, [initialSection]);
 
   const activeDef = SECTIONS.find((s) => s.id === activePage) ?? SECTIONS[0];
 
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      kicker={t('settings.kicker')}
-      title={t(activeDef.titleKey)}
-      ariaLabel={t('settings.ariaLabel')}
-      width={1000}
-    >
+    <section className="settings-page" aria-label={t('settings.ariaLabel')}>
       <div className="settings-body">
         <nav className="settings-rail" aria-label={t('settings.sectionsAria')}>
+          <h1 className="settings-rail-heading">{t('settings.kicker')}</h1>
           {SECTION_GROUPS.map((group) => {
             const groupTitleId = `settings-group-${group.id}`;
             return (
@@ -199,6 +191,21 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           })}
         </nav>
         <div className="settings-content">
+          <header className="settings-content-header">
+            <div className="settings-content-heading">
+              <h2>{t(activeDef.titleKey)}</h2>
+              <p>{t(activeDef.descriptionKey)}</p>
+            </div>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={onClose}
+              title={t('shell.close')}
+              aria-label={t('shell.close')}
+            >
+              ×
+            </Button>
+          </header>
           {activePage === 'models' && (
             <ModelsSection
               status={canvasModels.status}
@@ -259,6 +266,6 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           {activePage === 'experimental' && <ExperimentalSection onClose={onClose} />}
         </div>
       </div>
-    </Drawer>
+    </section>
   );
 };

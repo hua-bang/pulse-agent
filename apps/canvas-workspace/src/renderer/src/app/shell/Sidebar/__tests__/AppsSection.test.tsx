@@ -23,10 +23,10 @@ let host: HTMLDivElement;
 let root: Root;
 let onOpenApp: ReturnType<typeof vi.fn>;
 
-const render = (collapsed: boolean, activeAppKey: string | null = null) => act(async () => {
+const render = (activeAppKey: string | null = null) => act(async () => {
   root.render(
     <I18nProvider>
-      <AppsSection collapsed={collapsed} activeView="canvas" activeAppKey={activeAppKey} onOpenApp={onOpenApp} />
+      <AppsSection activeView="canvas" activeAppKey={activeAppKey} onOpenApp={onOpenApp} />
     </I18nProvider>,
   );
 });
@@ -50,33 +50,26 @@ afterEach(async () => {
 });
 
 describe('Sidebar AppsSection', () => {
-  it('lists only global apps, marks the active one, and opens on click', async () => {
+  it('shows only global apps on the rail, marks the active one, and opens on click', async () => {
     globalMcpAppsStore.open(parts);
-    await render(false, globalMcpAppKey(parts));
+    await render(globalMcpAppKey(parts));
 
-    const items = [...host.querySelectorAll<HTMLButtonElement>('.sidebar-apps__item')];
-    expect(items.map(item => item.querySelector('.sidebar-apps__label')?.textContent)).toEqual(['App parts']);
-    expect(items[0].className).toContain('sidebar-item--active');
-    expect(items[0].querySelector('.global-mcp-app-tile')?.textContent).toBe('A');
+    const buttons = [...host.querySelectorAll<HTMLButtonElement>('.sidebar-apps-rail__btn')];
+    expect(buttons.map(button => button.getAttribute('aria-label'))).toEqual(['App parts']);
+    expect(buttons[0].className).toContain('sidebar-rail-btn--active');
+    expect(buttons[0].querySelector('.global-mcp-app-tile')?.textContent).toBe('A');
 
-    await act(async () => items[0].click());
+    await act(async () => buttons[0].click());
     expect(onOpenApp).toHaveBeenCalledWith(parts);
-  });
-
-  it('shows app icons on the collapsed rail', async () => {
-    await render(true);
-    const buttons = host.querySelectorAll<HTMLButtonElement>('.sidebar-apps-rail__btn');
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0].getAttribute('aria-label')).toBe('App parts');
   });
 
   it('paints a declared monochrome icon with the current text color', async () => {
     (window as any).canvasWorkspace.agent.mcpApps.listEntrypoints.mockResolvedValue({
       ok: true, value: [{ ...parts, icon: { default: { kind: 'mask', src: SVG_ICON } } }],
     });
-    await render(false);
-    const mask = host.querySelector<HTMLElement>('.sidebar-apps__item .global-mcp-app-icon__mask');
+    await render();
+    const mask = host.querySelector<HTMLElement>('.sidebar-apps-rail__btn .global-mcp-app-icon__mask');
     expect(mask?.style.maskImage || mask?.style.getPropertyValue('-webkit-mask-image')).toContain(SVG_ICON);
-    expect(host.querySelector('.sidebar-apps__item .global-mcp-app-tile')).toBeNull();
+    expect(host.querySelector('.sidebar-apps-rail__btn .global-mcp-app-tile')).toBeNull();
   });
 });
