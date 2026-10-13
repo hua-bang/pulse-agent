@@ -1,10 +1,13 @@
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
-import { NodeAskBar } from '../NodeAskBar';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
+
+// Loaded on the first single selection, so it stays out of the startup bundle.
+const NodeAskBar = lazy(() => import('../NodeAskBar')
+  .then((module) => ({ default: module.NodeAskBar })));
 
 export const CanvasRootView = ({
   actions,
@@ -271,7 +274,9 @@ export const CanvasRootView = ({
       />
 
       {askNode && onAskAboutNodes && (
-        <NodeAskBar node={askNode} transform={transform} onAsk={onAskAboutNodes} />
+        <Suspense fallback={null}>
+          <NodeAskBar node={askNode} transform={transform} onAsk={onAskAboutNodes} />
+        </Suspense>
       )}
     </div>
   );
