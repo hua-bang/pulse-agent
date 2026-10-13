@@ -35,6 +35,7 @@ const workspaceIdFromScope = (scope: AgentScope): string | null =>
 export const ChatPage = ({
   allWorkspaces,
   openScheduledTaskId,
+  sessionListRequest = 0,
   initialTarget,
   getWorkspaceNodes,
   getWorkspaceRootFolder,
@@ -105,6 +106,10 @@ export const ChatPage = ({
     setExecutionPolicy('scheduled');
     setSessionBackStack([]);
   }, [openScheduledTaskId]);
+
+  useEffect(() => {
+    if (sessionListRequest > 0) setRailCollapsed(false);
+  }, [sessionListRequest]);
 
   // Every session click keeps the body mounted. Cross-scope picks update the
   // scope and pending session together; the body swaps thread data in place.

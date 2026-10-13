@@ -19,6 +19,8 @@ interface Props {
   loadedNodes: Record<string, CanvasNode[]>;
   onEnterChat: (target: ChatTarget) => void;
   onOpenSession: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
+  /** Opens the chat page, whose session list holds every conversation. */
+  onOpenAllChats: () => void;
   onOpenWorkspace: (id: string) => void;
   onCreateWorkspace: () => void;
 }
@@ -32,6 +34,7 @@ export const Launcher = ({
   loadedNodes,
   onEnterChat,
   onOpenSession,
+  onOpenAllChats,
   onOpenWorkspace,
   onCreateWorkspace,
 }: Props) => {
@@ -63,7 +66,7 @@ export const Launcher = ({
           onOpenWorkspace={onOpenWorkspace}
           onCreateWorkspace={onCreateWorkspace}
         />
-        <RecentChats chats={recentChats} onOpenChat={openChat} />
+        <RecentChats chats={recentChats} onOpenChat={openChat} onOpenAll={onOpenAllChats} />
       </div>
     </div>
   );

@@ -102,6 +102,13 @@
   gap: 10px;
 }
 
+.launcher__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .launcher__section-title {
   margin: 0;
   color: var(--text-secondary);

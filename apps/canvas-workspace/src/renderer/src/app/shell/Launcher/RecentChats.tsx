@@ -7,16 +7,25 @@ import type { RecentChat } from './useLauncherData';
 interface Props {
   chats: RecentChat[] | null;
   onOpenChat: (chat: RecentChat) => void;
+  onOpenAll: () => void;
 }
 
-/** The latest conversations across every scope; a row reopens its session. */
-export const RecentChats = ({ chats, onOpenChat }: Props) => {
+/**
+ * The latest conversations across every scope; a row reopens its session.
+ * "View all" opens the chat page, whose session list has the rest.
+ */
+export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
   const { t, language } = useI18n();
   if (chats === null) return null;
 
   return (
     <section className="launcher__section" aria-labelledby="launcher-chats">
-      <h2 id="launcher-chats" className="launcher__section-title">{t('launcher.recentChats')}</h2>
+      <div className="launcher__section-header">
+        <h2 id="launcher-chats" className="launcher__section-title">{t('launcher.recentChats')}</h2>
+        <Button size="xs" className="launcher__view-all" onClick={onOpenAll}>
+          {t('launcher.viewAllChats')}
+        </Button>
+      </div>
       <div className="launcher__chats">
         {chats.length === 0 && <p className="launcher__chats-empty">{t('launcher.noChats')}</p>}
         {chats.map((chat) => {

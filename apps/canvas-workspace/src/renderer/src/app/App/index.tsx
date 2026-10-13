@@ -261,12 +261,19 @@ const AppContent = () => {
     globalMcpAppsStore.open(listing);
     setLocation(mcpAppRoutePath(listing));
   }, [setLocation]);
+  // The launcher lists workspaces itself, so home shows only the rail.
+  const sidebarPanelHidden = sidebarCollapsed || activeView === 'home';
+  const [sessionListRequest, setSessionListRequest] = useState(0);
+  const openAllChats = useCallback(() => {
+    enterChatView();
+    setSessionListRequest((count) => count + 1);
+  }, [enterChatView]);
   useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
   return (
     <div className="app">
       <div className="app-body">
         <Sidebar
-          collapsed={sidebarCollapsed}
+          collapsed={sidebarPanelHidden}
           onToggle={handleSidebarToggle}
           workspaces={workspaces}
           folders={folders}
@@ -340,6 +347,7 @@ const AppContent = () => {
             <ChatPage
               allWorkspaces={workspaces}
               openScheduledTaskId={routeParams.get('scheduledTask')}
+              sessionListRequest={sessionListRequest}
               initialTarget={chatEntryTarget}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
@@ -365,6 +373,7 @@ const AppContent = () => {
             loadedNodes={workbench.allNodes}
             onEnterChat={enterChatTarget}
             onOpenSession={openSessionInOwningScope}
+            onOpenAllChats={openAllChats}
             onOpenWorkspace={workspaceActions.select}
             onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))}
           />
@@ -390,7 +399,7 @@ const AppContent = () => {
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
       <RightDock
-        readingLeftInset={sidebarCollapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH}
+        readingLeftInset={sidebarPanelHidden ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH}
         hostView={activeView}
         workspaces={workspaces}
         activeWorkspaceId={dockWorkspaceId}
@@ -401,7 +410,7 @@ const AppContent = () => {
         onCanvasSelectionChange={handleSelectionChange}
         reserveSpace
         capWidth={activeView !== 'canvas'}
-        pageMinAppWidth={(sidebarCollapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH) + 440}
+        pageMinAppWidth={(sidebarPanelHidden ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH) + 440}
         onOpenNodePage={openNodePage}
         onActivateWorkspace={activateDockWorkspace}
       />

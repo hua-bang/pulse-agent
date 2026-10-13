@@ -36,6 +36,7 @@ const props = {
   loadedNodes,
   onEnterChat: vi.fn(),
   onOpenSession: vi.fn(),
+  onOpenAllChats: vi.fn(),
   onOpenWorkspace: vi.fn(),
   onCreateWorkspace: vi.fn(),
 };
@@ -140,6 +141,9 @@ describe('Launcher', () => {
 
     await act(async () => rows[0].click());
     expect(props.onOpenSession).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'b' }, 's2', 'Beta');
+
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__view-all')!.click());
+    expect(props.onOpenAllChats).toHaveBeenCalledTimes(1);
   });
 
   it('fills the composer from a starter', async () => {

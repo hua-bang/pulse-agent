@@ -24,7 +24,9 @@ The workbench has exactly two side regions plus a modal tier:
   (`SidebarRail`) is always visible and owns app navigation: Home (launcher),
   Workspaces, Pulse Agent, Plugins, Scheduled, plugin nav items, global MCP
   Apps, and Settings at the bottom. The panel next to it holds the workspace
-  list and Layers; collapsing hides only the panel. The Workspaces button
+  list and Layers; collapsing hides only the panel. The launcher route hides
+  the panel without changing the saved preference, because the launcher lists
+  workspaces itself. The Workspaces button
   toggles the panel on the canvas route and returns to the canvas elsewhere.
   Guards: `SidebarRail.test.tsx`, `Sidebar/__tests__/`.
 - **Workspace tabs** (`app/shell/WorkspaceTabs`) sit above the canvas route.
@@ -40,7 +42,8 @@ The workbench has exactly two side regions plus a modal tier:
   (`agent.listAllSessions`). A question enters that scope's full-page chat on
   its current session and submits once the page composer registers with the
   chat target broker (`chatPageTarget.ts`, retried for up to 5 s); a recent
-  chat reopens in its owning scope. Workspace cards follow the recency list
+  chat reopens in its owning scope, and "View all" enters the chat page with
+  its session list shown (`ChatPage` `sessionListRequest`). Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
   uses the node snapshot this window already holds. For any other recent
   workspace it uses `store.summaries` (`canvas:summaries`,
