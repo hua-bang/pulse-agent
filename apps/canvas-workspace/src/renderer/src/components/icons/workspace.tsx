@@ -7,13 +7,6 @@ export const WorkspaceIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconP
   </svg>
 );
 
-export const HomeIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-    <path d="M2.5 7.2 8 2.5l5.5 4.7v6.3h-11z" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round" />
-    <path d="M6.5 13.5v-3.5h3v3.5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round" />
-  </svg>
-);
-
 export const KnowledgeStoreIcon = ({ size = 14, className, strokeWidth = 1.25 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <ellipse cx="8" cy="4.4" rx="4.6" ry="2.1" stroke="currentColor" strokeWidth={strokeWidth} />

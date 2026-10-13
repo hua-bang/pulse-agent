@@ -37,7 +37,6 @@ export interface SidebarProps {
   activeView: string;
   onEnterHome: () => void;
   onEnterCanvas: () => void;
-  onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   onEnterSkills: () => void;

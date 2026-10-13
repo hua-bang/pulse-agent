@@ -256,7 +256,7 @@ const en = {
 
   'sidebar.collapse': 'Collapse sidebar',
   'sidebar.expand': 'Expand sidebar',
-  'sidebar.aiChatTitle': 'Open Pulse Agent with the current workspace context (⌘/Ctrl+Shift+L)',
+  'sidebar.aiChatTitle': 'Pulse Agent: ask a question or pick up a recent chat',
   'sidebar.aiChat': 'Pulse Agent',
   'sidebar.nodesTitle': 'Workspace nodes',
   'sidebar.nodes': 'Nodes',
@@ -267,7 +267,6 @@ const en = {
   'sidebar.scheduledTitle': 'Manage scheduled tasks',
   'sidebar.scheduled': 'Scheduled',
   'sidebar.workspaces': 'Workspaces',
-  'sidebar.home': 'Home',
   'sidebar.railLabel': 'App navigation',
   'workspaceTabs.label': 'Open workspaces',
   'workspaceTabs.close': 'Close {name}',
@@ -2299,7 +2298,7 @@ const zh: Record<keyof typeof en, string> = {
 
   'sidebar.collapse': '收起侧边栏',
   'sidebar.expand': '展开侧边栏',
-  'sidebar.aiChatTitle': '使用当前工作区上下文打开 Pulse Agent（⌘/Ctrl+Shift+L）',
+  'sidebar.aiChatTitle': 'Pulse Agent：提问，或继续最近的对话',
   'sidebar.aiChat': 'Pulse Agent',
   'sidebar.nodesTitle': '工作区节点',
   'sidebar.nodes': '节点',
@@ -2310,7 +2309,6 @@ const zh: Record<keyof typeof en, string> = {
   'sidebar.scheduledTitle': '管理定时任务',
   'sidebar.scheduled': '定时任务',
   'sidebar.workspaces': '工作区',
-  'sidebar.home': '首页',
   'sidebar.railLabel': '应用导航',
   'workspaceTabs.label': '已打开的工作区',
   'workspaceTabs.close': '关闭 {name}',

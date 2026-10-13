@@ -21,14 +21,16 @@ The workbench has exactly two side regions plus a modal tier:
                  app-shell dialogs / toasts (above everything)
 ```
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
-  (`SidebarRail`) is always visible and owns app navigation: Home (launcher),
-  Pulse Agent, Workspaces, Plugins, Scheduled, plugin nav items, global MCP
-  Apps, and Settings at the bottom. The panel next to it holds the workspace
-  list and Layers; collapsing hides only the panel. The launcher and chat
-  routes hide the panel without changing the saved preference: the launcher
-  lists workspaces itself, and the chat session list groups by workspace. The Workspaces button
-  toggles the panel on the canvas route and returns to the canvas elsewhere.
-  Guards: `SidebarRail.test.tsx`, `Sidebar/__tests__/`.
+  (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
+  Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
+  Settings at the bottom. Pulse Agent opens the launcher and stays current on
+  the launcher and chat routes; there is no separate Home button. The panel
+  next to it holds the workspace list and Layers; collapsing hides only the
+  panel. The launcher and chat routes hide the panel without changing the
+  saved preference: the launcher lists workspaces itself, and the chat session
+  list groups by workspace. The Workspaces button toggles the panel on the
+  canvas route and returns to the canvas elsewhere. Guards:
+  `SidebarRail.test.tsx`, `Sidebar/__tests__/`.
 - **Workspace tabs** (`app/shell/WorkspaceTabs`) sit above the canvas route.
   A workspace that becomes active opens a tab; tab order persists in
   `localStorage` (`pulse-canvas.open-workspace-tabs`), and tabs of deleted

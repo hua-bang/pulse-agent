@@ -41,7 +41,6 @@ export const Sidebar = ({
   activeView,
   onEnterHome,
   onEnterCanvas,
-  onEnterChat,
   pluginNavItems,
   onNavigate,
   onEnterNodes,
@@ -102,7 +101,6 @@ export const Sidebar = ({
         onTogglePanel={onToggle}
         onEnterHome={onEnterHome}
         onEnterCanvas={onEnterCanvas}
-        onEnterChat={onEnterChat}
         onEnterNodes={onEnterNodes}
         onEnterGraph={onEnterGraph}
         onEnterSkills={onEnterSkills}

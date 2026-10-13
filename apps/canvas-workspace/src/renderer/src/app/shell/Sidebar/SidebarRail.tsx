@@ -3,7 +3,6 @@ import type { NavItem } from '../../../../../plugins/types';
 import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 import {
   AppLogoIcon,
-  HomeIcon,
   KnowledgeStoreIcon,
   NodeGraphIcon,
   PluginIcon,
@@ -20,7 +19,6 @@ interface SidebarRailProps {
   onTogglePanel: () => void;
   onEnterHome: () => void;
   onEnterCanvas: () => void;
-  onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   onEnterSkills: () => void;
@@ -68,7 +66,6 @@ export const SidebarRail = ({
   onTogglePanel,
   onEnterHome,
   onEnterCanvas,
-  onEnterChat,
   onEnterNodes,
   onEnterGraph,
   onEnterSkills,
@@ -84,21 +81,18 @@ export const SidebarRail = ({
   onOpenMcpApp,
 }: SidebarRailProps) => {
   const { t } = useI18n();
-  // Home and Pulse Agent are both ways into a conversation, so they sit
-  // together. On the canvas the Workspaces icon opens or closes the panel;
-  // elsewhere it returns to the canvas.
+  // Pulse Agent is one destination: the launcher, plus the chat page that
+  // its questions and recent chats open. On the canvas the Workspaces icon
+  // opens or closes the panel; elsewhere it returns to the canvas.
   const handleWorkspaces = activeView === 'canvas' ? onTogglePanel : onEnterCanvas;
 
   return (
     <nav className="sidebar-rail" aria-label={t('sidebar.railLabel')}>
-      <RailButton active={activeView === 'home'} label={t('sidebar.home')} onClick={onEnterHome}>
-        <HomeIcon size={16} />
-      </RailButton>
       <RailButton
-        active={activeView === 'chat'}
+        active={activeView === 'home' || activeView === 'chat'}
         label={t('sidebar.aiChat')}
         title={t('sidebar.aiChatTitle')}
-        onClick={onEnterChat}
+        onClick={onEnterHome}
       >
         <AppLogoIcon size={20} />
       </RailButton>

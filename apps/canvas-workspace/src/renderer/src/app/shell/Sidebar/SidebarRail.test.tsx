@@ -16,7 +16,6 @@ const baseProps = (): ComponentProps<typeof SidebarRail> => ({
   onTogglePanel: vi.fn(),
   onEnterHome: vi.fn(),
   onEnterCanvas: vi.fn(),
-  onEnterChat: vi.fn(),
   onEnterNodes: vi.fn(),
   onEnterGraph: vi.fn(),
   onEnterSkills: vi.fn(),
@@ -53,9 +52,19 @@ describe('SidebarRail', () => {
     render({ ...baseProps(), nodesEnabled: true });
 
     const labels = [...host.querySelectorAll('.sidebar-rail-btn')].map((el) => el.getAttribute('aria-label'));
-    expect(labels).toEqual(['Home', 'Pulse Agent', 'Workspaces', 'Nodes', 'Plugins', 'Scheduled', 'Open settings']);
+    expect(labels).toEqual(['Pulse Agent', 'Workspaces', 'Nodes', 'Plugins', 'Scheduled', 'Open settings']);
     expect(button('Workspaces').getAttribute('aria-current')).toBe('page');
-    expect(button('Home').getAttribute('aria-current')).toBeNull();
+    expect(button('Pulse Agent').getAttribute('aria-current')).toBeNull();
+  });
+
+  it('opens the launcher from Pulse Agent and keeps it current on home and chat', () => {
+    for (const activeView of ['home', 'chat']) {
+      const props = { ...baseProps(), activeView };
+      render(props);
+      expect(button('Pulse Agent').getAttribute('aria-current')).toBe('page');
+      act(() => button('Pulse Agent').click());
+      expect(props.onEnterHome).toHaveBeenCalledOnce();
+    }
   });
 
   it('toggles the panel from Workspaces on the canvas and returns to the canvas elsewhere', () => {

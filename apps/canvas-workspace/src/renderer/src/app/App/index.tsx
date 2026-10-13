@@ -301,7 +301,6 @@ const AppContent = () => {
           activeView={activeView}
           onEnterHome={() => setLocation(ROUTE_HOME)}
           onEnterCanvas={() => setLocation(ROUTE_CANVAS)}
-          onEnterChat={enterChatView}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
           onEnterSkills={() => setLocation(ROUTE_PLUGINS)}

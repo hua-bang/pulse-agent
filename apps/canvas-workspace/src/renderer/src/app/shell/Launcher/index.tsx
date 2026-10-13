@@ -27,7 +27,7 @@ interface Props {
 
 /**
  * The launcher: ask Pulse Agent, pick up a recent workspace, or reopen a
- * recent chat. The `+` on the workspace tabs and the Home rail button lead here.
+ * recent chat. The `+` on the workspace tabs and the Pulse Agent rail button lead here.
  */
 export const Launcher = ({
   workspaces,
