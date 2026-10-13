@@ -80,6 +80,13 @@ describe('image-memory fixture', () => {
     }
   });
 
+  it('keeps the seeded note header on screen when it fits beside the grid', () => {
+    for (const viewport of [{ width: 448, height: 733 }, { width: 900, height: 733 }]) {
+      const { transform } = buildPerfImageFixture({ filePaths, viewport, now: 123 });
+      expect(transform.y + 80 * transform.scale).toBeGreaterThanOrEqual(24 - 1e-6);
+    }
+  });
+
   it('rejects a missing or collapsed viewport instead of producing an empty measurement', () => {
     for (const viewport of [undefined, { width: 0, height: 772 }, { width: 480, height: 48 }]) {
       expect(() => buildPerfImageFixture({ filePaths, viewport, now: 123 }))

@@ -1,101 +1,65 @@
-import { useState, type FormEvent } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
+import type { AgentScope } from '../../../types';
 import type { ChatTarget } from '../../../modules/chat';
 import { useChatTargetBroker } from '../../../modules/chat';
 import { useChatDeliveryNotifier } from '../../../modules/chat/delivery';
-import { PlusIcon, SparklesIcon, WorkspaceIcon } from '../../../components/icons';
-import { Button, TextField } from '../../../components/ui';
+import { scopeFromSessionStoreId } from '../../../modules/chat/session';
 import { useI18n } from '../../../i18n';
-import { createGlobalChatTarget, deliverWhenReady } from './askGlobalAgent';
+import { createChatPageTarget, deliverWhenReady } from './chatPageTarget';
+import { LauncherComposer } from './LauncherComposer';
+import { RecentChats } from './RecentChats';
+import { RecentWorkspaces } from './RecentWorkspaces';
+import { useLauncherData, type RecentChat } from './useLauncherData';
 import './index.css';
 
 interface Props {
   workspaces: WorkspaceEntry[];
   onEnterChat: (target: ChatTarget) => void;
+  onOpenSession: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
   onOpenWorkspace: (id: string) => void;
   onCreateWorkspace: () => void;
 }
 
 /**
- * The launcher: one place to ask Pulse Agent or open a workspace. The `+`
- * on the workspace tabs and the Home rail button lead here.
+ * The launcher: ask Pulse Agent, pick up a recent workspace, or reopen a
+ * recent chat. The `+` on the workspace tabs and the Home rail button lead here.
  */
-export const Launcher = ({ workspaces, onEnterChat, onOpenWorkspace, onCreateWorkspace }: Props) => {
+export const Launcher = ({
+  workspaces,
+  onEnterChat,
+  onOpenSession,
+  onOpenWorkspace,
+  onCreateWorkspace,
+}: Props) => {
   const { t } = useI18n();
   const broker = useChatTargetBroker();
   const notifyChatDelivery = useChatDeliveryNotifier();
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
+  const { summaries, recentChats } = useLauncherData(workspaces, t('chat.scope.global'));
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const question = text.trim();
-    if (!question || sending) return;
-    const label = t('chat.scope.global');
-    const target = createGlobalChatTarget(label);
-    setSending(true);
+  const ask = async (text: string, scope: AgentScope, label: string) => {
+    const target = createChatPageTarget(scope, label);
     onEnterChat(target);
-    try {
-      const receipt = await deliverWhenReady(broker, target, { text: question, nodes: [] });
-      if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
-      if (receipt.status === 'delivered' || receipt.status === 'queued') setText('');
-    } finally {
-      setSending(false);
-    }
+    const receipt = await deliverWhenReady(broker, target, { text, nodes: [] });
+    if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
+    return receipt.status === 'delivered' || receipt.status === 'queued';
+  };
+
+  const openChat = (chat: RecentChat) => {
+    onOpenSession(scopeFromSessionStoreId(chat.storeId), chat.session.sessionId, chat.scopeName);
   };
 
   return (
     <div className="launcher">
       <div className="launcher__inner">
         <h1 className="launcher__title">{t('launcher.title')}</h1>
-        <form
-          className="launcher__ask"
-          aria-label={t('launcher.askLabel')}
-          onSubmit={(event) => { void handleSubmit(event); }}
-        >
-          <SparklesIcon size={16} className="launcher__ask-icon" />
-          <TextField
-            className="launcher__ask-input"
-            value={text}
-            placeholder={t('launcher.askPlaceholder')}
-            aria-label={t('launcher.askLabel')}
-            onChange={(event) => setText(event.target.value)}
-            disabled={sending}
-            autoFocus
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={sending || !text.trim()}
-          >
-            {t('launcher.askSubmit')}
-          </Button>
-        </form>
-
-        <section className="launcher__section" aria-labelledby="launcher-workspaces">
-          <h2 id="launcher-workspaces" className="launcher__section-title">
-            {t('launcher.workspaces')}
-          </h2>
-          <div className="launcher__grid">
-            <Button variant="secondary" className="launcher__card launcher__card--new" onClick={onCreateWorkspace}>
-              <PlusIcon size={16} />
-              <span className="launcher__card-name">{t('launcher.newWorkspace')}</span>
-            </Button>
-            {workspaces.map((workspace) => (
-              <Button
-                key={workspace.id}
-                variant="secondary"
-                className="launcher__card"
-                onClick={() => onOpenWorkspace(workspace.id)}
-                title={workspace.name}
-              >
-                <WorkspaceIcon size={16} />
-                <span className="launcher__card-name">{workspace.name}</span>
-              </Button>
-            ))}
-          </div>
-        </section>
+        <LauncherComposer workspaces={workspaces} onAsk={ask} />
+        <RecentWorkspaces
+          workspaces={workspaces}
+          summaries={summaries}
+          onOpenWorkspace={onOpenWorkspace}
+          onCreateWorkspace={onCreateWorkspace}
+        />
+        <RecentChats chats={recentChats} onOpenChat={openChat} />
       </div>
     </div>
   );

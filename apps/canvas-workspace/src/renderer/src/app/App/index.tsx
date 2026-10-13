@@ -361,7 +361,7 @@ const AppContent = () => {
             onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
           <HomeRouteView workspaces={workspaces} onEnterChat={enterChatTarget}
-            onOpenWorkspace={workspaceActions.select}
+            onOpenSession={openSessionInOwningScope} onOpenWorkspace={workspaceActions.select}
             onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))} />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}

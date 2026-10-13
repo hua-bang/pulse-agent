@@ -25,21 +25,73 @@ const BrokerProbe = () => {
 const props = {
   workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }],
   onEnterChat: vi.fn(),
+  onOpenSession: vi.fn(),
   onOpenWorkspace: vi.fn(),
   onCreateWorkspace: vi.fn(),
 };
 
-const render = () => act(() => root.render(
-  <I18nProvider>
-    <ChatTargetProvider>
-      <BrokerProbe />
-      <Launcher {...props} />
-    </ChatTargetProvider>
-  </I18nProvider>,
-));
+const canvases: Record<string, { nodes: unknown[]; savedAt: string }> = {
+  a: { nodes: [], savedAt: '2026-10-01T00:00:00Z' },
+  b: {
+    nodes: [
+      { id: 'n1', type: 'text', x: 0, y: 0, width: 200, height: 120 },
+      { id: 'n2', type: 'text', x: 240, y: 0, width: 200, height: 120 },
+    ],
+    savedAt: '2026-10-12T00:00:00Z',
+  },
+};
+
+const render = async () => {
+  await act(async () => root.render(
+    <I18nProvider>
+      <ChatTargetProvider>
+        <BrokerProbe />
+        <Launcher {...props} />
+      </ChatTargetProvider>
+    </I18nProvider>,
+  ));
+  // Let the store and session reads resolve.
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+};
+
+const typeQuestion = async (value: string) => {
+  const input = host.querySelector<HTMLTextAreaElement>('.launcher__ask-input')!;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+  await act(async () => {
+    setValue.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  return input;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.setItem('pulse-canvas.language', 'en');
+  (window as any).canvasWorkspace = {
+    store: {
+      load: vi.fn(async (id: string) => ({ ok: true, data: canvases[id] })),
+    },
+    agent: {
+      listAllSessions: vi.fn(async () => ({
+        ok: true,
+        groups: [
+          {
+            workspaceId: '__global_chat__',
+            workspaceName: '',
+            sessions: [{ sessionId: 's1', date: '', updatedAt: 10, messageCount: 2, isCurrent: false, title: 'Older chat' }],
+          },
+          {
+            workspaceId: 'b',
+            workspaceName: 'Beta',
+            sessions: [
+              { sessionId: 's2', date: '', updatedAt: 20, messageCount: 4, isCurrent: true, preview: 'Newest chat' },
+              { sessionId: 's3', date: '', updatedAt: 30, messageCount: 0, isCurrent: false },
+            ],
+          },
+        ],
+      })),
+    },
+  };
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -51,24 +103,41 @@ afterEach(() => {
 });
 
 describe('Launcher', () => {
-  it('opens and creates workspaces from the cards', async () => {
+  it('lists recent workspaces newest first with a preview, and creates or opens them', async () => {
     await render();
     const cards = [...host.querySelectorAll<HTMLButtonElement>('.launcher__card')];
-    expect(cards.map((card) => card.textContent)).toEqual(['New workspace', 'Alpha', 'Beta']);
+    expect(cards.map((card) => card.querySelector('.launcher__card-name')?.textContent))
+      .toEqual(['Beta', 'Alpha', 'New workspace']);
+    expect(cards[0].querySelector('.launcher__card-meta')?.textContent).toMatch(/^2 cards · edited /);
+    expect(cards[0].querySelectorAll('.launcher__thumb-node')).toHaveLength(2);
+    expect(cards[1].querySelector('.launcher__card-meta')?.textContent).toBe('Empty workspace');
+
     await act(async () => cards[0].click());
     await act(async () => cards[2].click());
-    expect(props.onCreateWorkspace).toHaveBeenCalledTimes(1);
     expect(props.onOpenWorkspace).toHaveBeenCalledWith('b');
+    expect(props.onCreateWorkspace).toHaveBeenCalledTimes(1);
   });
 
-  it('enters the global chat page and sends the question once its composer registers', async () => {
+  it('shows recent non-empty chats across scopes and reopens one in its scope', async () => {
     await render();
-    const input = host.querySelector<HTMLInputElement>('.launcher__ask-input')!;
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-    await act(async () => {
-      setValue.call(input, '  plan my week  ');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    const rows = [...host.querySelectorAll<HTMLButtonElement>('.launcher__chat')];
+    expect(rows.map((row) => row.querySelector('.launcher__chat-title')?.textContent))
+      .toEqual(['Newest chat', 'Older chat']);
+    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^No workspace/);
+
+    await act(async () => rows[0].click());
+    expect(props.onOpenSession).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'b' }, 's2', 'Beta');
+  });
+
+  it('fills the composer from a starter', async () => {
+    await render();
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__starter')!.click());
+    expect(host.querySelector<HTMLTextAreaElement>('.launcher__ask-input')!.value).toBe('Plan a product launch');
+  });
+
+  it('enters the global chat page on Enter and sends once its composer registers', async () => {
+    await render();
+    const input = await typeQuestion('  plan my week  ');
     const submitPrompt = vi.fn().mockResolvedValue(true);
     props.onEnterChat.mockImplementation((target) => {
       // The page registers a moment after navigation, like the lazy chat page.
@@ -76,7 +145,7 @@ describe('Launcher', () => {
     });
 
     await act(async () => {
-      host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
       await new Promise((resolve) => setTimeout(resolve, 400));
     });
 
@@ -84,6 +153,7 @@ describe('Launcher', () => {
       surface: 'page',
       scope: { kind: 'global' },
       sessionId: null,
+      composerId: 'page:__global_chat__',
     }));
     expect(submitPrompt).toHaveBeenCalledWith({ text: 'plan my week', nodes: [] });
     expect(input.value).toBe('');

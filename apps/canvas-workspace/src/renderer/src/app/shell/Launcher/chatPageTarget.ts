@@ -4,20 +4,24 @@ import type {
   ChatTarget,
   ChatTargetBroker,
 } from '../../../modules/chat';
-import { GLOBAL_CHAT_STORE_ID } from '../../../../../shared/agent-chat';
+import type { AgentScope } from '../../../types';
+import { scopeSessionStoreId } from '../../../../../shared/agent-chat';
 
 const RETRY_MS = 100;
 
-/** The full-page global chat, on whichever session it shows now. */
-export const createGlobalChatTarget = (label: string): ChatTarget => ({
-  surface: 'page',
-  scope: { kind: 'global' },
-  scopeId: GLOBAL_CHAT_STORE_ID,
-  sessionId: null,
-  composerId: `page:${GLOBAL_CHAT_STORE_ID}`,
-  contextSnapshot: { label },
-  executionPolicy: 'auto',
-});
+/** The full-page chat for a scope, on whichever session it shows now. */
+export const createChatPageTarget = (scope: AgentScope, label: string): ChatTarget => {
+  const scopeId = scopeSessionStoreId(scope);
+  return {
+    surface: 'page',
+    scope,
+    scopeId,
+    sessionId: null,
+    composerId: `page:${scopeId}`,
+    contextSnapshot: { label },
+    executionPolicy: 'auto',
+  };
+};
 
 /**
  * Submits the prompt once the target's composer is the active chat target.

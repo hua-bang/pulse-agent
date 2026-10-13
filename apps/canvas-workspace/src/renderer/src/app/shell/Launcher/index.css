@@ -1,4 +1,4 @@
-/* Launcher page: ask Pulse Agent or open a workspace. */
+/* Launcher page: ask Pulse Agent, recent workspaces, recent chats. */
 
 .launcher {
   flex: 1;
@@ -10,12 +10,12 @@
 .launcher__inner {
   box-sizing: border-box;
   width: 100%;
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 14vh 24px 48px;
+  padding: 10vh 24px 48px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 32px;
 }
 
 .launcher__title {
@@ -27,11 +27,17 @@
   text-align: center;
 }
 
+.launcher__composer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .launcher__ask {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 8px 8px 16px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 10px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--surface);
@@ -42,18 +48,9 @@
   border-color: var(--accent);
 }
 
-.launcher__ask-icon {
-  flex: none;
-  color: var(--accent);
-}
-
-.launcher__ask .ui-textfield {
-  flex: 1;
-}
-
 /* Borderless inside the form: the form itself is the field's frame. */
 .launcher__ask-input.ui-textfield__control {
-  height: 36px;
+  min-height: 48px;
   padding: 0;
   border: 0;
   box-shadow: none;
@@ -61,10 +58,42 @@
   color: var(--text);
   font: inherit;
   font-size: 14px;
+  line-height: 1.5;
+  resize: none;
 }
 
 .launcher__ask-input::placeholder {
   color: var(--text-muted);
+}
+
+.launcher__ask-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.launcher__scope {
+  max-width: 260px;
+}
+
+.launcher__starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.launcher .launcher__starter {
+  border-color: var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.launcher .launcher__starter:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .launcher__section {
@@ -82,29 +111,67 @@
 
 .launcher__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
 }
 
 .launcher .launcher__card {
-  height: 48px;
+  height: auto;
+  min-height: 132px;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 10px;
-  padding: 0 14px;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
   border-color: var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  font-size: 13px;
+  text-align: left;
+  white-space: normal;
 }
 
 .launcher .launcher__card:hover:not(:disabled) {
-  background: var(--surface-hover);
+  border-color: var(--accent);
+  background: var(--surface);
 }
 
 .launcher .launcher__card--new {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-style: dashed;
+  background: transparent;
   color: var(--text-secondary);
+}
+
+.launcher__thumb {
+  position: relative;
+  height: 76px;
+  margin: 0;
+  background: var(--bg-canvas);
+  overflow: hidden;
+}
+
+.launcher__thumb-frame {
+  position: absolute;
+  inset: 12px 16px;
+}
+
+.launcher__thumb-node {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.launcher__card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
 }
 
 .launcher__card-name {
@@ -112,4 +179,60 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.launcher__card-meta {
+  min-height: 15px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.launcher__chats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.launcher .launcher__chat {
+  height: 42px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.launcher .launcher__chat:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.launcher__chat-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.launcher__chat-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.launcher__chats-empty {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: 13px;
 }

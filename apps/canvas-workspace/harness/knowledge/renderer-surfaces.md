@@ -34,12 +34,16 @@ The workbench has exactly two side regions plus a modal tier:
   active tab shows its neighbour, or the launcher when none is left. The bar
   loads lazily (startup bundle budget) behind a same-height placeholder.
   Guard: `WorkspaceTabs/index.test.tsx`.
-- **Launcher** (`/home`, `app/shell/Launcher`, lazy) asks Pulse Agent or
-  opens a workspace. A question enters the full-page global chat on its
-  current session and submits once that page's composer registers with the
-  chat target broker (`askGlobalAgent.ts`, retried for up to 5 s). The
-  floating chat launcher hides here and on settings
-  (`shared/dock/dock-chat-availability.ts`). Guard: `Launcher/index.test.tsx`.
+- **Launcher** (`/home`, `app/shell/Launcher`, lazy) has an ask box with a
+  scope picker (global or one workspace) and starter prompts, recent
+  workspaces (sorted by last save, with a card-layout preview from
+  `store.load`), and recent non-empty chats across scopes
+  (`agent.listAllSessions`). A question enters that scope's full-page chat on
+  its current session and submits once the page composer registers with the
+  chat target broker (`chatPageTarget.ts`, retried for up to 5 s); a recent
+  chat reopens in its owning scope. The floating chat launcher hides here and
+  on settings (`shared/dock/dock-chat-availability.ts`). Guard:
+  `Launcher/index.test.tsx`.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
   route and closing returns to it (`app/App/useShellNavigation.ts`); unknown
