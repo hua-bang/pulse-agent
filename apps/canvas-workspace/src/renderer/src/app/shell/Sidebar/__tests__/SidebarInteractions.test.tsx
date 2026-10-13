@@ -22,10 +22,13 @@ const element = <T extends Element,>(selector: string): T => {
 };
 const click = (selector: string) => act(() => element<HTMLButtonElement>(selector).click());
 // Workspace row actions live in a portaled "more" menu.
-const clickRowAction = (selector: string) => {
+const clickRowAction = async (selector: string) => {
   click('.sidebar-item-more');
-  const item = document.body.querySelector<HTMLButtonElement>(`.sidebar-item-menu ${selector}`);
-  if (!item) throw new Error(`Missing menu item ${selector}`);
+  const item = await vi.waitFor(() => {
+    const found = document.body.querySelector<HTMLButtonElement>(`.sidebar-item-menu ${selector}`);
+    if (!found) throw new Error(`Missing menu item ${selector}`);
+    return found;
+  });
   act(() => item.click());
   expect(document.body.querySelector('.sidebar-item-menu')).toBeNull();
 };
@@ -100,14 +103,14 @@ describe('Sidebar owner interactions', () => {
     expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
   });
 
-  it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', () => {
-    clickRowAction('.sidebar-item-rename');
+  it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', async () => {
+    await clickRowAction('.sidebar-item-rename');
     expect(document.activeElement).toBe(element('input'));
     type('Canceled');
     key('Escape');
     expect(props.onRename).not.toHaveBeenCalled();
     expect(host.querySelector('input')).toBeNull();
-    clickRowAction('.sidebar-item-rename');
+    await clickRowAction('.sidebar-item-rename');
     expect(element<HTMLInputElement>('input').value).toBe('Alpha');
     type('Renamed');
     key('Enter');
