@@ -22,7 +22,7 @@ The workbench has exactly two side regions plus a modal tier:
 ```
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
   (`SidebarRail`) is always visible and owns app navigation: Home (launcher),
-  Workspaces, Pulse Agent, Plugins, Scheduled, plugin nav items, global MCP
+  Pulse Agent, Workspaces, Plugins, Scheduled, plugin nav items, global MCP
   Apps, and Settings at the bottom. The panel next to it holds the workspace
   list and Layers; collapsing hides only the panel. The launcher and chat
   routes hide the panel without changing the saved preference: the launcher

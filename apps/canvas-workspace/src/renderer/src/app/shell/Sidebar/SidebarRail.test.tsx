@@ -53,7 +53,7 @@ describe('SidebarRail', () => {
     render({ ...baseProps(), nodesEnabled: true });
 
     const labels = [...host.querySelectorAll('.sidebar-rail-btn')].map((el) => el.getAttribute('aria-label'));
-    expect(labels).toEqual(['Home', 'Workspaces', 'Pulse Agent', 'Nodes', 'Plugins', 'Scheduled', 'Open settings']);
+    expect(labels).toEqual(['Home', 'Pulse Agent', 'Workspaces', 'Nodes', 'Plugins', 'Scheduled', 'Open settings']);
     expect(button('Workspaces').getAttribute('aria-current')).toBe('page');
     expect(button('Home').getAttribute('aria-current')).toBeNull();
   });

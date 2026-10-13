@@ -84,8 +84,9 @@ export const SidebarRail = ({
   onOpenMcpApp,
 }: SidebarRailProps) => {
   const { t } = useI18n();
-  // On the canvas the Workspaces icon opens or closes the panel; elsewhere it
-  // returns to the canvas.
+  // Home and Pulse Agent are both ways into a conversation, so they sit
+  // together. On the canvas the Workspaces icon opens or closes the panel;
+  // elsewhere it returns to the canvas.
   const handleWorkspaces = activeView === 'canvas' ? onTogglePanel : onEnterCanvas;
 
   return (
@@ -94,20 +95,20 @@ export const SidebarRail = ({
         <HomeIcon size={16} />
       </RailButton>
       <RailButton
-        active={activeView === 'canvas'}
-        label={t('sidebar.workspaces')}
-        title={activeView === 'canvas' ? t(panelCollapsed ? 'sidebar.expand' : 'sidebar.collapse') : undefined}
-        onClick={handleWorkspaces}
-      >
-        <WorkspaceIcon size={16} />
-      </RailButton>
-      <RailButton
         active={activeView === 'chat'}
         label={t('sidebar.aiChat')}
         title={t('sidebar.aiChatTitle')}
         onClick={onEnterChat}
       >
         <AppLogoIcon size={20} />
+      </RailButton>
+      <RailButton
+        active={activeView === 'canvas'}
+        label={t('sidebar.workspaces')}
+        title={activeView === 'canvas' ? t(panelCollapsed ? 'sidebar.expand' : 'sidebar.collapse') : undefined}
+        onClick={handleWorkspaces}
+      >
+        <WorkspaceIcon size={16} />
       </RailButton>
       {nodesEnabled && (
         <RailButton
