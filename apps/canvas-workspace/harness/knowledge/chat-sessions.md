@@ -452,7 +452,9 @@ page and a scheduled task's chat page) has NO close button. Its right-most
 control instead shows/hides the dock's CONTENT tabs (link / artifact /
 node-detail / canvas-preview) beside the chat, and must never navigate — a
 control that routes away from the page the user is reading is not a panel
-toggle.
+toggle. That toggle is a labeled "Tabs" button, not a bare icon, and the
+session title stays visible whether or not the session list is open. Guard:
+`ChatPageBody/__tests__/ChatPageNavigationChrome.test.tsx`.
 
 Shared topbar controls must carry their own button styles: `ChatAnchors` uses
 `ui/Button` (icon, md) rather than relying on the lazily loaded ChatPanel CSS.

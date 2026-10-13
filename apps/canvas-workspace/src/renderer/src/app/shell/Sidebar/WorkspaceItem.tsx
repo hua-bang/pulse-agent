@@ -1,6 +1,9 @@
 import type React from 'react';
+import { useRef, useState } from 'react';
+import { DotsThree } from '@phosphor-icons/react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, ExportIcon, PencilIcon, SettingsIcon, WorkspaceIcon } from '../../../components/icons';
+import { Button, Popover } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
 
@@ -51,6 +54,14 @@ export const WorkspaceItem = ({
   onReorderDragLeave,
   onReorderDrop,
 }: WorkspaceItemProps) => {
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // One "more" button keeps the name readable on hover; four inline
+  // actions cut most names down to a few characters.
+  const run = (action: () => void) => {
+    setMenuOpen(false);
+    action();
+  };
   const { t } = useI18n();
 
   return (
@@ -90,34 +101,72 @@ export const WorkspaceItem = ({
           </button>
         )}
         {!isRenaming && (
-          <button className="sidebar-item-export" onClick={() => onExport(ws.id)} title={t('sidebar.exportWorkspace')}>
-            <ExportIcon size={12} strokeWidth={1.5} />
-          </button>
-        )}
-        {!isRenaming && (
-          <button
-            className="sidebar-item-rename"
-            onClick={() => onStartRename(ws)}
-            title={t('sidebar.rename')}
-            aria-label={t('sidebar.renameWorkspace')}
+          <Button
+            ref={menuButtonRef}
+            variant="icon"
+            size="xs"
+            className={`sidebar-item-more${menuOpen ? ' sidebar-item-more--open' : ''}`}
+            title={t('sidebar.workspaceActions', { name: ws.name })}
+            aria-label={t('sidebar.workspaceActions', { name: ws.name })}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
           >
-            <PencilIcon size={12} strokeWidth={1.4} />
-          </button>
+            <DotsThree size={16} weight="bold" />
+          </Button>
         )}
-        {!isRenaming && (
-          <button
-            className="sidebar-item-settings"
-            onClick={() => onOpenSettings(ws.id)}
-            title={t('sidebar.workspaceSettings')}
-            aria-label={t('sidebar.workspaceSettings')}
+        {menuOpen && (
+          <Popover
+            anchorRef={menuButtonRef}
+            placement="bottom"
+            align="end"
+            gap={4}
+            ariaLabel={t('sidebar.workspaceActions', { name: ws.name })}
+            className="sidebar-item-menu"
+            onClose={() => setMenuOpen(false)}
           >
-            <SettingsIcon size={12} strokeWidth={1.4} />
-          </button>
-        )}
-        {!isOnlyWorkspace && !isRenaming && (
-          <button className="sidebar-item-delete" onClick={() => onDelete(ws.id)} title={t('sidebar.delete')}>
-            <CloseIcon size={12} strokeWidth={1.5} />
-          </button>
+            <Button
+              size="sm"
+              className="sidebar-item-menu-item sidebar-item-rename"
+              role="menuitem"
+              onClick={() => run(() => onStartRename(ws))}
+            >
+              <PencilIcon size={13} strokeWidth={1.4} />
+              <span>{t('sidebar.renameWorkspace')}</span>
+            </Button>
+            <Button
+              size="sm"
+              className="sidebar-item-menu-item sidebar-item-settings"
+              role="menuitem"
+              onClick={() => run(() => onOpenSettings(ws.id))}
+            >
+              <SettingsIcon size={13} strokeWidth={1.4} />
+              <span>{t('sidebar.workspaceSettings')}</span>
+            </Button>
+            <Button
+              size="sm"
+              className="sidebar-item-menu-item sidebar-item-export"
+              role="menuitem"
+              onClick={() => run(() => onExport(ws.id))}
+            >
+              <ExportIcon size={13} strokeWidth={1.5} />
+              <span>{t('sidebar.exportWorkspace')}</span>
+            </Button>
+            {!isOnlyWorkspace && (
+              <>
+                <div className="sidebar-item-menu-separator" />
+                <Button
+                  size="sm"
+                  className="sidebar-item-menu-item sidebar-item-menu-item--danger sidebar-item-delete"
+                  role="menuitem"
+                  onClick={() => run(() => onDelete(ws.id))}
+                >
+                  <CloseIcon size={13} strokeWidth={1.5} />
+                  <span>{t('sidebar.delete')}</span>
+                </Button>
+              </>
+            )}
+          </Popover>
         )}
       </div>
     </div>

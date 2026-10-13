@@ -21,6 +21,14 @@ const element = <T extends Element,>(selector: string): T => {
   return result;
 };
 const click = (selector: string) => act(() => element<HTMLButtonElement>(selector).click());
+// Workspace row actions live in a portaled "more" menu.
+const clickRowAction = (selector: string) => {
+  click('.sidebar-item-more');
+  const item = document.body.querySelector<HTMLButtonElement>(`.sidebar-item-menu ${selector}`);
+  if (!item) throw new Error(`Missing menu item ${selector}`);
+  act(() => item.click());
+  expect(document.body.querySelector('.sidebar-item-menu')).toBeNull();
+};
 const type = (value: string) => act(() => {
   const input = element<HTMLInputElement>('input');
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
@@ -93,13 +101,13 @@ describe('Sidebar owner interactions', () => {
   });
 
   it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', () => {
-    click('.sidebar-item-rename');
+    clickRowAction('.sidebar-item-rename');
     expect(document.activeElement).toBe(element('input'));
     type('Canceled');
     key('Escape');
     expect(props.onRename).not.toHaveBeenCalled();
     expect(host.querySelector('input')).toBeNull();
-    click('.sidebar-item-rename');
+    clickRowAction('.sidebar-item-rename');
     expect(element<HTMLInputElement>('input').value).toBe('Alpha');
     type('Renamed');
     key('Enter');

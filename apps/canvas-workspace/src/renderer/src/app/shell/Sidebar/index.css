@@ -162,37 +162,66 @@
   min-width: 0;
 }
 
-.sidebar-item-delete,
-.sidebar-item-export,
-.sidebar-item-rename,
-.sidebar-item-settings {
+.sidebar-item-more.ui-btn {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
   display: none;
-  align-items: center;
-  justify-content: center;
   color: var(--text-muted);
-  transition: background 0.1s, color 0.1s;
 }
 
-.sidebar-item-row:hover .sidebar-item-delete,
-.sidebar-item-row:hover .sidebar-item-export,
-.sidebar-item-row:hover .sidebar-item-rename,
-.sidebar-item-row:hover .sidebar-item-settings {
+.sidebar-item-row:hover .sidebar-item-more.ui-btn,
+.sidebar-item-more--open.ui-btn,
+.sidebar-item-more.ui-btn:focus-visible {
   display: inline-flex;
 }
 
-.sidebar-item-delete:hover,
-.sidebar-item-export:hover,
-.sidebar-item-rename:hover,
-.sidebar-item-settings:hover {
-  background: rgba(0, 0, 0, 0.06);
+.sidebar-item-menu {
+  position: fixed;
+  z-index: var(--layer-dock-menu);
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.sidebar-item-menu-item.ui-btn {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.sidebar-item-menu-item > svg {
+  flex-shrink: 0;
   color: var(--text-secondary);
+}
+
+.sidebar-item-menu-item.ui-btn:hover,
+.sidebar-item-menu-item.ui-btn:focus-visible {
+  outline: none;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-item-menu-item--danger.ui-btn,
+.sidebar-item-menu-item--danger > svg {
+  color: var(--error);
+}
+
+.sidebar-item-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
 }
 
 .sidebar-rename-input {
