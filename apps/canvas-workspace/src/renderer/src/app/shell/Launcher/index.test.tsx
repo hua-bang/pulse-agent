@@ -68,7 +68,16 @@ beforeEach(() => {
   window.localStorage.setItem('pulse-canvas.language', 'en');
   window.localStorage.setItem('pulse-canvas.recent-workspaces', JSON.stringify(['b', 'a']));
   (window as any).canvasWorkspace = {
-    store: { load: vi.fn() },
+    store: {
+      load: vi.fn(),
+      summaries: vi.fn(async (ids: string[]) => ({
+        ok: true,
+        summaries: Object.fromEntries(ids.map((id) => [id, {
+          nodeCount: 3,
+          boxes: [{ type: 'text', x: 0, y: 0, width: 100, height: 80 }],
+        }])),
+      })),
+    },
     agent: {
       listAllSessions: vi.fn(async () => ({
         ok: true,
@@ -101,7 +110,7 @@ afterEach(() => {
 });
 
 describe('Launcher', () => {
-  it('lists workspaces most recently opened first, previewing only loaded ones', async () => {
+  it('lists workspaces most recently opened first, with previews from memory or stored layouts', async () => {
     await render();
     const cards = [...host.querySelectorAll<HTMLButtonElement>('.launcher__card')];
     expect(cards.map((card) => card.querySelector('.launcher__card-name')?.textContent))
@@ -109,8 +118,11 @@ describe('Launcher', () => {
     expect(cards[0].querySelector('.launcher__card-meta')?.textContent).toBe('2 cards');
     expect(cards[0].querySelectorAll('.launcher__thumb-node')).toHaveLength(2);
     expect(cards[1].querySelector('.launcher__card-meta')?.textContent).toBe('Empty workspace');
-    // Gamma is not loaded in this window: no preview, and no canvas load.
-    expect(cards[2].querySelector('.launcher__card-meta')?.textContent).toBe('');
+    // Gamma is not loaded in this window: it comes from a stored-layout
+    // summary, never from a full canvas load.
+    expect(cards[2].querySelector('.launcher__card-meta')?.textContent).toBe('3 cards');
+    expect(cards[2].querySelectorAll('.launcher__thumb-node')).toHaveLength(1);
+    expect((window as any).canvasWorkspace.store.summaries).toHaveBeenCalledWith(['c']);
     expect((window as any).canvasWorkspace.store.load).not.toHaveBeenCalled();
 
     await act(async () => cards[0].click());

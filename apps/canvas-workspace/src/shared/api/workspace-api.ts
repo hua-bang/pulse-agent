@@ -7,6 +7,7 @@ import type { ReferencesApi } from '../references';
 import type { PluginMarketApi } from '../plugin-market';
 import type {
   CanvasSaveData,
+  CanvasSummary,
   KnowledgeTagDefinition,
   WorkspaceNodeListItem,
   WorkspaceNodeRecord,
@@ -89,6 +90,10 @@ export interface CanvasWorkspaceApi {
       id: string,
     ) => Promise<{ ok: boolean; data?: CanvasSaveData | null; error?: string }>;
     list: () => Promise<{ ok: boolean; ids?: string[]; error?: string }>;
+    /** Read-only previews; never migrates, writes, or starts watchers. */
+    summaries: (
+      ids: string[],
+    ) => Promise<{ ok: boolean; summaries?: Record<string, CanvasSummary | null>; error?: string }>;
     delete: (id: string) => Promise<{ ok: boolean; error?: string }>;
     getDir: (id: string) => Promise<{ ok: boolean; dir?: string; error?: string }>;
     exportWorkspace: (

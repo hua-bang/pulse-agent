@@ -435,6 +435,22 @@ export interface CanvasEdge {
   updatedAt?: number;
 }
 
+/** A card's box on the canvas, enough to draw a layout preview. */
+export interface CanvasSummaryBox {
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** A small read-only digest of a stored canvas, for previews. */
+export interface CanvasSummary {
+  nodeCount: number;
+  /** The first few non-frame cards, in canvas order. */
+  boxes: CanvasSummaryBox[];
+}
+
 export interface CanvasSaveData {
   storageGeneration?: string;
   /** Version of the complete persisted snapshot; required for SQLite updates. */

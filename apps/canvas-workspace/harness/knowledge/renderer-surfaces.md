@@ -42,11 +42,15 @@ The workbench has exactly two side regions plus a modal tier:
   chat target broker (`chatPageTarget.ts`, retried for up to 5 s); a recent
   chat reopens in its owning scope. Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
-  uses only node snapshots this window already holds; the launcher never
-  calls `store.load`, which returns full node payloads and starts file
-  watchers. Previews are plain boxes, never mounted nodes or webviews. The
-  floating chat launcher hides here and on settings
-  (`shared/dock/dock-chat-availability.ts`). Guard: `Launcher/index.test.tsx`.
+  uses the node snapshot this window already holds. For any other recent
+  workspace it uses `store.summaries` (`canvas:summaries`,
+  `src/main/canvas/summary.ts`): the node count and the first six card boxes,
+  read from the stored layout only, with no migration, write, or watcher. The
+  launcher never calls `store.load`, which returns full node payloads and
+  starts file watchers. Previews are plain boxes, never mounted nodes or
+  webviews. The floating chat launcher hides here and on settings
+  (`shared/dock/dock-chat-availability.ts`). Guards: `Launcher/index.test.tsx`,
+  `src/main/canvas/__tests__/summary.test.ts`.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
   route and closing returns to it (`app/App/useShellNavigation.ts`); unknown

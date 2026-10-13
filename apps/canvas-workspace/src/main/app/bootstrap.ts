@@ -270,12 +270,14 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // App-lifetime service; the interval dies with the process.
     startWebviewDiscardMonitor();
     setupHtmlGeneratorIpc();
-    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }, { setupScrollbackIpc }] = await Promise.all([
+    const [{ setupWorkspaceNodeIpc }, { setupUpdateIpc }, { setupScrollbackIpc }, { setupCanvasSummaryIpc }] = await Promise.all([
       import('../canvas/nodes/ipc'),
       import('./update-ipc'),
       import('../terminal/scrollback-ipc'),
+      import('../canvas/summary'),
     ]);
     setupScrollbackIpc();
+    setupCanvasSummaryIpc();
     setupArtifactIpc();
     setupReferenceIpc();
     {

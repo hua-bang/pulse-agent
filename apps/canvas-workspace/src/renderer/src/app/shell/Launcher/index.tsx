@@ -38,7 +38,7 @@ export const Launcher = ({
   const { t } = useI18n();
   const broker = useChatTargetBroker();
   const notifyChatDelivery = useChatDeliveryNotifier();
-  const { summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'));
+  const { recentWorkspaces, summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'));
 
   const ask = async (text: string, scope: AgentScope, label: string) => {
     const target = createChatPageTarget(scope, label);
@@ -58,7 +58,7 @@ export const Launcher = ({
         <h1 className="launcher__title">{t('launcher.title')}</h1>
         <LauncherComposer workspaces={workspaces} onAsk={ask} />
         <RecentWorkspaces
-          workspaces={workspaces}
+          workspaces={recentWorkspaces}
           summaries={summaries}
           onOpenWorkspace={onOpenWorkspace}
           onCreateWorkspace={onCreateWorkspace}

@@ -2,12 +2,10 @@ import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { PlusIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
-import { readRecentWorkspaceIds } from '../recentWorkspaces';
 import type { WorkspaceSummary } from './useLauncherData';
 
-const RECENT_WORKSPACE_LIMIT = 5;
-
 interface Props {
+  /** Already in recency order. */
   workspaces: WorkspaceEntry[];
   summaries: Record<string, WorkspaceSummary>;
   onOpenWorkspace: (id: string) => void;
@@ -15,21 +13,11 @@ interface Props {
 }
 
 /**
- * Recently opened workspaces as cards. Workspaces this window already holds
- * show a small layout preview and their card count.
+ * Recently opened workspaces as cards, each with a small layout preview and
+ * its card count.
  */
 export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCreateWorkspace }: Props) => {
   const { t } = useI18n();
-  const recentIds = readRecentWorkspaceIds();
-  const rank = (id: string) => {
-    const index = recentIds.indexOf(id);
-    return index < 0 ? recentIds.length : index;
-  };
-  // Stable sort: never-opened workspaces keep the sidebar order.
-  const recent = [...workspaces]
-    .sort((a, b) => rank(a.id) - rank(b.id))
-    .slice(0, RECENT_WORKSPACE_LIMIT);
-
   const describe = (summary: WorkspaceSummary | undefined) => {
     if (!summary) return '';
     if (summary.nodeCount === 0) return t('launcher.workspaceEmpty');
@@ -42,7 +30,7 @@ export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCre
         {t('launcher.recentWorkspaces')}
       </h2>
       <div className="launcher__grid">
-        {recent.map((workspace) => {
+        {workspaces.map((workspace) => {
           const summary = summaries[workspace.id];
           return (
             <Button

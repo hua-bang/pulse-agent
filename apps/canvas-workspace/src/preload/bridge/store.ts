@@ -14,6 +14,9 @@ export const createStoreApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["st
 
   list: () => ipcRenderer.invoke("canvas:list"),
 
+  summaries: (ids) =>
+    ipcRenderer.invoke("canvas:summaries", { ids }),
+
   delete: (id) =>
     ipcRenderer.invoke("canvas:delete", { id }),
 
