@@ -108,6 +108,18 @@ describe('WorkspaceTabs', () => {
     expect(list.dataset.frozen).toBeUndefined();
   });
 
+  it('sizes tabs from the tab count and scrolls the active tab into view', async () => {
+    const scrolled: string[] = [];
+    const spy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(function (this: HTMLElement) { scrolled.push(this.textContent ?? ''); });
+    await render('a');
+    await render('c');
+    const list = host.querySelector<HTMLElement>('.workspace-tabs__list')!;
+    expect(list.style.getPropertyValue('--tab-count')).toBe('2');
+    expect(scrolled.at(-1)).toBe('Gamma');
+    spy.mockRestore();
+  });
+
   it('drops tabs of deleted workspaces', async () => {
     window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'gone']));
     await render('a');

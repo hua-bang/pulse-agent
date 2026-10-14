@@ -11,6 +11,8 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-sizing: border-box;
+  /* Tab widths read the bar width (cqw). */
+  container-type: inline-size;
 }
 
 .workspace-tabs__new {
@@ -28,12 +30,17 @@
 }
 
 /* Like Chrome: tabs share one width and shrink together when the bar is
-   crowded; past the floor the list scrolls. */
+   crowded; past the floor the list scrolls. The width counts the dock's
+   inset as bar space, so it does not change when a workspace with the dock
+   open replaces one without it; the list scrolls instead. 104px is the bar's
+   padding, buttons, and gaps. */
 .workspace-tabs__tab {
-  /* A width, not a flex-basis: the list sizes itself from it. */
-  flex: 0 1 auto;
-  width: 200px;
-  min-width: 120px;
+  flex: none;
+  width: clamp(
+    120px,
+    calc((100cqw + var(--right-dock-inset, 0px) - 104px) / var(--tab-count, 1) - 2px),
+    200px
+  );
   height: 30px;
   position: relative;
   display: flex;
@@ -62,7 +69,6 @@
 
 /* Set while closing tabs in a row; cleared when the pointer leaves the bar. */
 .workspace-tabs__list[data-frozen] .workspace-tabs__tab {
-  flex-shrink: 0;
   width: var(--tab-frozen-width);
 }
 

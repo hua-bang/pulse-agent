@@ -257,7 +257,7 @@
 /* At least two chat rows stay visible before the page itself scrolls. */
 .launcher__section--chats {
   flex: 1 1 0;
-  min-height: 130px;
+  min-height: 160px;
 }
 
 .launcher__chats {
@@ -275,10 +275,10 @@
 
 .launcher .launcher__chat {
   flex: none;
-  height: 42px;
+  height: 58px;
   justify-content: flex-start;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 12px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -290,18 +290,67 @@
   background: var(--surface-hover);
 }
 
+.launcher__chat-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.launcher__chat-head,
+.launcher__chat-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .launcher__chat-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
   text-overflow: ellipsis;
-  text-align: left;
 }
 
-.launcher__chat-meta {
+.launcher__chat-time {
   flex: none;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.launcher__chat-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.launcher__chat-meta > span {
+  flex: none;
+}
+
+.launcher__chat-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  padding: 1px 6px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.launcher__chat-meta > .launcher__chat-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .launcher__chats-empty {

@@ -1,9 +1,15 @@
 import type { IconProps } from './types';
 
+/** A canvas: two cards joined by an edge, so it does not read as a document. */
 export const WorkspaceIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-    <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth={strokeWidth} />
-    <path d="M5 6h6M5 9h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <path
+      d="M2 2.5h5.75V7H2zM8.25 9H14v4.5H8.25zM7.75 4.75h2.5a1 1 0 0 1 1 1V9"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    />
   </svg>
 );
 

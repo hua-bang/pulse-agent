@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
@@ -32,6 +32,7 @@ export const WorkspaceTabs = ({
 }: Props) => {
   const { t } = useI18n();
   const newButtonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Like Chrome: closing a tab keeps the others at their width until the
   // pointer leaves the bar, so the next close button stays under it.
@@ -42,6 +43,21 @@ export const WorkspaceTabs = ({
     const workspace = byId.get(id);
     return workspace ? [workspace] : [];
   });
+
+  // Tabs keep their width when the dock opens, so the active one can sit past
+  // the visible edge of the list. Keep it in view on switch and on resize.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const reveal = () => list
+      .querySelector('.workspace-tabs__tab--active')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    reveal();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(reveal);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [activeId, tabs.length]);
 
   const onClose = (id: string) => {
     const next = close(id);
@@ -79,10 +95,14 @@ export const WorkspaceTabs = ({
         </Button>
       )}
       <nav
+        ref={listRef}
         className="workspace-tabs__list"
         aria-label={t('workspaceTabs.label')}
         data-frozen={frozenWidth !== null || undefined}
-        style={frozenWidth !== null ? { '--tab-frozen-width': `${frozenWidth}px` } as CSSProperties : undefined}
+        style={{
+          '--tab-count': tabs.length,
+          ...(frozenWidth !== null ? { '--tab-frozen-width': `${frozenWidth}px` } : {}),
+        } as CSSProperties}
       >
         {tabs.map((workspace) => {
           const active = workspace.id === activeId;

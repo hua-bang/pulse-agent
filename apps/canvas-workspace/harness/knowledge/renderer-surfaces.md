@@ -49,8 +49,11 @@ The workbench has exactly two side regions plus a modal tier:
   pills like the dock tabs, so their bottom borders and centre lines align.
   Tab width follows Chrome: every tab is 200 px wide and all of them shrink
   together when the bar is crowded, down to 120 px, after which the list
-  scrolls. The tabs set `width`, not `flex-basis`, because the list sizes
-  itself from its children. Closing a tab with the pointer keeps the other
+  scrolls. The width counts the dock's `--right-dock-inset` as bar space
+  (`cqw` plus the inset, divided by `--tab-count`), so switching between a
+  workspace with the dock open and one without it does not resize the tabs;
+  the list scrolls instead and keeps the active tab in view. The tabs set
+  `width`, not `flex-basis`, because the list sizes itself from its children. Closing a tab with the pointer keeps the other
   tabs at their width until the pointer leaves the bar, so the next close
   button stays under the pointer. A divider separates two plain tabs, and
   the active tab has the same soft fill as the dock's active chat tab.
@@ -82,7 +85,9 @@ The workbench has exactly two side regions plus a modal tier:
   fresh on each entry, so a request it has not consumed opens the list in its
   initial state (no width transition or message reflow). The page fits the
   window: one row holds the three latest workspaces and New, and only the
-  recent chats list (up to 20 rows) scrolls. The page itself scrolls only
+  recent chats list (up to 20 rows) scrolls. A chat row shows its title,
+  time, place (General or the workspace), message count, and the first
+  message when it differs from the title. The page itself scrolls only
   when the window cannot show two chat rows. Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
   uses the node snapshot this window already holds. For any other recent
