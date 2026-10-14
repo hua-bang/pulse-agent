@@ -47,6 +47,8 @@ The workbench has exactly two side regions plus a modal tier:
   The bar, its placeholder, the sidebar header, the dock tab strip, and the
   chat page top bar all use `--app-topbar-height`, and the tabs are 30 px
   pills like the dock tabs, so their bottom borders and centre lines align.
+  Tabs fit their names (72 to 200 px), and the active tab has the same soft
+  fill as the dock's active chat tab.
   Below it, `.canvas-route__body` is a row that holds the Library drawer and
   the canvas side by side; without it the drawer stacked above the canvas.
   Guard: `WorkspaceTabs/index.test.tsx`.

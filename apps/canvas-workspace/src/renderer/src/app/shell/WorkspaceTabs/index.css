@@ -22,44 +22,48 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
 .workspace-tabs__tab {
+  /* Tabs fit their names, like the dock tabs, instead of a fixed width
+     that left wide gaps after short names. */
   flex: 0 1 auto;
-  width: 180px;
-  min-width: 96px;
+  min-width: 72px;
+  max-width: 200px;
   height: 30px;
   display: flex;
   align-items: center;
-  border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
 }
 
 .workspace-tabs__tab:hover {
-  background: var(--surface-alt);
+  background: var(--surface-hover);
 }
 
+/* A soft fill, the same as the dock's active chat tab. */
 .workspace-tabs__tab--active,
 .workspace-tabs__tab--active:hover {
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  background: var(--surface-alt);
   color: var(--text);
 }
 
+.workspace-tabs__tab--active .workspace-tabs__name {
+  font-weight: 500;
+}
+
 .workspace-tabs .workspace-tabs__select {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   height: 100%;
   display: flex;
   align-items: center;
   gap: 7px;
   justify-content: flex-start;
-  padding: 0 4px 0 12px;
+  padding: 0 2px 0 10px;
   border: none;
   background: transparent;
   color: inherit;
@@ -81,7 +85,7 @@
   flex: none;
   width: 20px;
   height: 20px;
-  margin-right: 6px;
+  margin: 0 5px 0 2px;
   color: var(--text-muted);
   opacity: 0;
 }
