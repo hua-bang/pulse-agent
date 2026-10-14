@@ -1,6 +1,10 @@
 /* Settings page — rail on the left, active section on the right. */
 
 .settings-page {
+  /* A route view in the .app-body row: fill it, or the page shrinks to the
+     active section's content and leaves a blank strip on the right. */
+  flex: 1;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   display: flex;
