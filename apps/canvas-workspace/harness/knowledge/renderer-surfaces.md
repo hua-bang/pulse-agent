@@ -57,8 +57,7 @@ The workbench has exactly two side regions plus a modal tier:
   chat reopens in its owning scope, and "View all" enters the chat page with
   its session list shown (`ChatPage` `sessionListRequest`). The page mounts
   fresh on each entry, so a request it has not consumed opens the list in its
-  initial state (no width transition or message reflow), and `.chat-page`
-  fades and rises in over 180 ms (off under reduced motion). Workspace cards follow the recency list
+  initial state (no width transition or message reflow). Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
   uses the node snapshot this window already holds. For any other recent
   workspace it uses `store.summaries` (`canvas:summaries`,
@@ -73,6 +72,13 @@ The workbench has exactly two side regions plus a modal tier:
   and the RightDock is `hidden` on both routes: it stays mounted so terminals
   and chats survive, but shows no panel, strip, or reserved width. Guards: `Launcher/index.test.tsx`,
   `src/main/canvas/__tests__/summary.test.ts`.
+- **Route transitions.** Every route view (`.app-body > :not(.sidebar)`)
+  fades in over 160 ms, opacity only, because a transform would re-anchor
+  fixed popovers mid-animation; reduced motion turns it off. RightDock sets
+  `right-dock-resizing` for the first frame of a route change, as on a
+  workspace switch, so the dock, the reserved `.app-body` margin, and the
+  sidebar panel land in place instead of sliding while the page swaps. Only
+  the user's own panel or dock toggle animates.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
   route and closing returns to it (`app/App/useShellNavigation.ts`); unknown

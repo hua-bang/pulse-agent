@@ -20,6 +20,19 @@
   transition: margin-right 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Every route enters with a short fade. Layout transitions are held for the
+   switch frame (RightDock), so the page lands in place and only fades.
+   Opacity only: a transform would re-anchor fixed popovers mid-animation. */
+.app-body > :not(.sidebar) {
+  animation: route-enter 160ms ease-out;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+  }
+}
+
 .chat-floating-button.app-global-chat-launcher {
   position: fixed;
   right: calc(var(--right-dock-inset, 0px) + 20px);
@@ -38,6 +51,10 @@
   .app-body,
   .chat-floating-button.app-global-chat-launcher {
     transition: none;
+  }
+
+  .app-body > :not(.sidebar) {
+    animation: none;
   }
 }
 

@@ -28,6 +28,12 @@
   width: var(--sidebar-collapsed);
 }
 
+/* Routes that hide the panel swap it at once, with the page (RightDock sets
+   the class for that frame); only the user's own toggle animates. */
+.right-dock-resizing .sidebar {
+  transition: none;
+}
+
 .sidebar-install-section {
   padding: 4px 0;
   border-top: 1px solid var(--border-light);

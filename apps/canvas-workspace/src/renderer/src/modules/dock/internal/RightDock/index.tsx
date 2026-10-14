@@ -120,6 +120,8 @@ export const RightDock = ({
     // while the canvas behind it swaps instantly reads as a jolt, so the first
     // frame of a workspace paints with the dock transitions off, reusing the
     // drag-resize class; the second frame re-enables them for user open/close.
+    // A route change does the same: the page swaps at once, so the dock, the
+    // reserved margin and the sidebar panel land instead of sliding.
     const { classList } = document.documentElement;
     classList.add(RESIZING_CLASS);
     let frame = requestAnimationFrame(() => {
@@ -129,7 +131,7 @@ export const RightDock = ({
       cancelAnimationFrame(frame);
       classList.remove(RESIZING_CLASS);
     };
-  }, [activeWorkspaceId, store]);
+  }, [activeWorkspaceId, hostView, store]);
 
   const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
     if (!onActivateWorkspace || !workspaces.some(workspace => workspace.id === workspaceId)) return false;
