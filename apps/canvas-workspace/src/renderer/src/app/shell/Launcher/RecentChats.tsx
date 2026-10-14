@@ -20,7 +20,7 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
   if (chats === null) return null;
 
   return (
-    <section className="launcher__section" aria-labelledby="launcher-chats">
+    <section className="launcher__section launcher__section--chats" aria-labelledby="launcher-chats">
       <div className="launcher__section-header">
         <h2 id="launcher-chats" className="launcher__section-title">{t('launcher.recentChats')}</h2>
         <Button size="xs" className="launcher__view-all" onClick={onOpenAll}>

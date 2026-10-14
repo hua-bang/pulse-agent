@@ -80,7 +80,10 @@ The workbench has exactly two side regions plus a modal tier:
   chat reopens in its owning scope, and "View all" enters the chat page with
   its session list shown (`ChatPage` `sessionListRequest`). The page mounts
   fresh on each entry, so a request it has not consumed opens the list in its
-  initial state (no width transition or message reflow). Workspace cards follow the recency list
+  initial state (no width transition or message reflow). The page fits the
+  window: one row holds the three latest workspaces and New, and only the
+  recent chats list (up to 20 rows) scrolls. The page itself scrolls only
+  when the window cannot show two chat rows. Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
   uses the node snapshot this window already holds. For any other recent
   workspace it uses `store.summaries` (`canvas:summaries`,

@@ -5,8 +5,8 @@ import type { CanvasSummary } from '../../../../../shared/canvas';
 import { readRecentWorkspaceIds } from '../recentWorkspaces';
 
 const THUMB_CARD_LIMIT = 3;
-const RECENT_CHAT_LIMIT = 6;
-const RECENT_WORKSPACE_LIMIT = 5;
+const RECENT_CHAT_LIMIT = 20;
+const RECENT_WORKSPACE_LIMIT = 3;
 
 /** One card in a workspace thumbnail: what it is, and how tall it draws. */
 export interface ThumbCard {
