@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react';
+import { useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
@@ -33,6 +33,9 @@ export const WorkspaceTabs = ({
   const { t } = useI18n();
   const newButtonRef = useRef<HTMLButtonElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Like Chrome: closing a tab keeps the others at their width until the
+  // pointer leaves the bar, so the next close button stays under it.
+  const [frozenWidth, setFrozenWidth] = useState<number | null>(null);
   const { openIds, close } = useOpenWorkspaceTabs(workspaces, activeId);
   const byId = new Map(workspaces.map((ws) => [ws.id, ws]));
   const tabs = openIds.flatMap((id) => {
@@ -47,14 +50,20 @@ export const WorkspaceTabs = ({
     else onOpenLauncher();
   };
 
-  const handleAuxClick = (event: MouseEvent, id: string) => {
-    if (event.button !== 1) return;
-    event.preventDefault();
+  const closeFromPointer = (event: MouseEvent<HTMLElement>, id: string) => {
+    const tab = event.currentTarget.closest('.workspace-tabs__tab');
+    if (tab) setFrozenWidth(tab.getBoundingClientRect().width);
     onClose(id);
   };
 
+  const handleAuxClick = (event: MouseEvent<HTMLElement>, id: string) => {
+    if (event.button !== 1) return;
+    event.preventDefault();
+    closeFromPointer(event, id);
+  };
+
   return (
-    <div className="workspace-tabs">
+    <div className="workspace-tabs" onMouseLeave={() => setFrozenWidth(null)}>
       {/* With the panel closed, the rail icon is the only other way back, and
           it does not read as a toggle. */}
       {panelCollapsed && (
@@ -69,7 +78,12 @@ export const WorkspaceTabs = ({
           <SidebarSimple size={14} />
         </Button>
       )}
-      <nav className="workspace-tabs__list" aria-label={t('workspaceTabs.label')}>
+      <nav
+        className="workspace-tabs__list"
+        aria-label={t('workspaceTabs.label')}
+        data-frozen={frozenWidth !== null || undefined}
+        style={frozenWidth !== null ? { '--tab-frozen-width': `${frozenWidth}px` } as CSSProperties : undefined}
+      >
         {tabs.map((workspace) => {
           const active = workspace.id === activeId;
           return (
@@ -93,7 +107,7 @@ export const WorkspaceTabs = ({
                 variant="icon"
                 size="xs"
                 className="workspace-tabs__close"
-                onClick={() => onClose(workspace.id)}
+                onClick={(event) => closeFromPointer(event, workspace.id)}
                 title={t('workspaceTabs.close', { name: workspace.name })}
                 aria-label={t('workspaceTabs.close', { name: workspace.name })}
               >

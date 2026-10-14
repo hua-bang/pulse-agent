@@ -47,8 +47,13 @@ The workbench has exactly two side regions plus a modal tier:
   The bar, its placeholder, the sidebar header, the dock tab strip, and the
   chat page top bar all use `--app-topbar-height`, and the tabs are 30 px
   pills like the dock tabs, so their bottom borders and centre lines align.
-  Tabs fit their names (72 to 200 px), and the active tab has the same soft
-  fill as the dock's active chat tab.
+  Tab width follows Chrome: every tab is 200 px wide and all of them shrink
+  together when the bar is crowded, down to 120 px, after which the list
+  scrolls. The tabs set `width`, not `flex-basis`, because the list sizes
+  itself from its children. Closing a tab with the pointer keeps the other
+  tabs at their width until the pointer leaves the bar, so the next close
+  button stays under the pointer. A divider separates two plain tabs, and
+  the active tab has the same soft fill as the dock's active chat tab.
   Below it, `.canvas-route__body` is a row that holds the Library drawer and
   the canvas side by side; without it the drawer stacked above the canvas.
   Guard: `WorkspaceTabs/index.test.tsx`.

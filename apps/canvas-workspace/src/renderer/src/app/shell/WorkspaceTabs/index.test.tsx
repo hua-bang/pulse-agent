@@ -94,6 +94,20 @@ describe('WorkspaceTabs', () => {
     expect(tabNames()).toEqual(['Beta']);
   });
 
+  it('keeps tab widths while closing in a row, until the pointer leaves the bar', async () => {
+    window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b', 'c']));
+    await render('c');
+    const list = host.querySelector<HTMLElement>('.workspace-tabs__list')!;
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Close Alpha"]')!.click());
+    expect(list.dataset.frozen).toBe('true');
+    expect(list.style.getPropertyValue('--tab-frozen-width')).toMatch(/px$/);
+
+    await act(async () => {
+      host.querySelector('.workspace-tabs')!.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    });
+    expect(list.dataset.frozen).toBeUndefined();
+  });
+
   it('drops tabs of deleted workspaces', async () => {
     window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'gone']));
     await render('a');

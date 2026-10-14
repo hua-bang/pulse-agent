@@ -27,17 +27,43 @@
   scrollbar-width: none;
 }
 
+/* Like Chrome: tabs share one width and shrink together when the bar is
+   crowded; past the floor the list scrolls. */
 .workspace-tabs__tab {
-  /* Tabs fit their names, like the dock tabs, instead of a fixed width
-     that left wide gaps after short names. */
+  /* A width, not a flex-basis: the list sizes itself from it. */
   flex: 0 1 auto;
-  min-width: 72px;
-  max-width: 200px;
+  width: 200px;
+  min-width: 120px;
   height: 30px;
+  position: relative;
   display: flex;
   align-items: center;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
+}
+
+/* Like Chrome: a divider between two plain tabs, hidden beside a filled one. */
+.workspace-tabs__tab + .workspace-tabs__tab::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--border);
+}
+
+.workspace-tabs__tab--active::before,
+.workspace-tabs__tab--active + .workspace-tabs__tab::before,
+.workspace-tabs__tab:hover::before,
+.workspace-tabs__tab:hover + .workspace-tabs__tab::before {
+  opacity: 0;
+}
+
+/* Set while closing tabs in a row; cleared when the pointer leaves the bar. */
+.workspace-tabs__list[data-frozen] .workspace-tabs__tab {
+  flex-shrink: 0;
+  width: var(--tab-frozen-width);
 }
 
 .workspace-tabs__tab:hover {
@@ -56,7 +82,7 @@
 }
 
 .workspace-tabs .workspace-tabs__select {
-  flex: 0 1 auto;
+  flex: 1;
   min-width: 0;
   height: 100%;
   display: flex;
