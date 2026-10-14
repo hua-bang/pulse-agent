@@ -106,7 +106,7 @@
 /* Matches .workspace-tabs height until the lazy tab bar loads. */
 .canvas-route__tabs-placeholder {
   flex: none;
-  height: 40px;
+  height: var(--app-topbar-height);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   box-sizing: border-box;

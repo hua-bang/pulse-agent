@@ -2,9 +2,10 @@
 
 .workspace-tabs {
   flex: none;
-  height: 40px;
+  /* Same height and centre line as the dock tab strip beside it. */
+  height: var(--app-topbar-height);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 4px;
   padding: 0 8px 0 10px;
   background: var(--surface);
@@ -14,15 +15,14 @@
 
 .workspace-tabs__new {
   flex: none;
-  margin-bottom: 5px;
   color: var(--text-secondary);
 }
 
 .workspace-tabs__list {
   min-width: 0;
   display: flex;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -31,12 +31,11 @@
   flex: 0 1 auto;
   width: 180px;
   min-width: 96px;
-  height: 32px;
+  height: 30px;
   display: flex;
   align-items: center;
   border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
 }
 
@@ -46,8 +45,9 @@
 
 .workspace-tabs__tab--active,
 .workspace-tabs__tab--active:hover {
-  background: var(--bg-canvas);
+  background: var(--surface);
   border-color: var(--border);
+  box-shadow: var(--shadow-sm);
   color: var(--text);
 }
 
@@ -109,7 +109,7 @@
 
 .workspace-tabs__panel {
   flex: none;
-  margin: 0 2px 5px 0;
+  margin-right: 2px;
   color: var(--text-secondary);
 }
 

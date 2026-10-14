@@ -44,6 +44,9 @@ The workbench has exactly two side regions plus a modal tier:
   launcher). While the panel is collapsed, the bar shows a sidebar toggle at
   its left, because the rail's Workspaces icon does not read as a toggle. The
   bar loads lazily (startup bundle budget) behind a same-height placeholder.
+  The bar, its placeholder, the sidebar header, the dock tab strip, and the
+  chat page top bar all use `--app-topbar-height`, and the tabs are 30 px
+  pills like the dock tabs, so their bottom borders and centre lines align.
   Below it, `.canvas-route__body` is a row that holds the Library drawer and
   the canvas side by side; without it the drawer stacked above the canvas.
   Guard: `WorkspaceTabs/index.test.tsx`.
