@@ -15,7 +15,8 @@ interface UseSubmitPromptOptions {
   openModelSettingsWithHint: () => void;
   requestContext: AgentRequestContext;
   sendMessage: (text: string, requestContext?: AgentRequestContext) => Promise<boolean>;
-  activeSessionId: string | null;
+  /** The session `sendMessage` is keyed to, which trails `activeSessionId`. */
+  conversationSessionId: string | null;
   handleNewSession: () => Promise<NewSessionResult>;
 }
 
@@ -42,8 +43,9 @@ const withNodeChips = (text: string, nodes: ChatPromptSubmission['nodes']): stri
  * Shared path for a question sent from outside the composer, such as the
  * canvas "ask about this card" bar. The turn is scoped to the prompt's nodes,
  * not to whatever the composer currently shows. A `newSession` prompt first
- * moves the conversation pointer, then sends once the new session is the
- * active one: `sendMessage` is keyed to the conversation it was rendered for.
+ * moves the conversation pointer, then sends once `sendMessage` is keyed to
+ * the new session. The pointer (`activeSessionId`) moves a render earlier
+ * than that key, and a send in between lands in the old conversation.
  */
 export const useSubmitPrompt = ({
   blocked,
@@ -52,7 +54,7 @@ export const useSubmitPrompt = ({
   openModelSettingsWithHint,
   requestContext,
   sendMessage,
-  activeSessionId,
+  conversationSessionId,
   handleNewSession,
 }: UseSubmitPromptOptions) => {
   // State, not a ref: setting it re-runs the send effect even when the new
@@ -60,12 +62,16 @@ export const useSubmitPrompt = ({
   const [pending, setPending] = useState<PendingPrompt | null>(null);
   const pendingRef = useRef<PendingPrompt | null>(null);
   pendingRef.current = pending;
+  const sentRef = useRef<PendingPrompt | null>(null);
 
   useEffect(() => {
-    if (!pending || blocked || activeSessionId !== pending.sessionId) return;
+    if (!pending || blocked || conversationSessionId !== pending.sessionId) return;
+    // Claim it now: the effect can run again before the cleared state renders.
+    if (sentRef.current === pending) return;
+    sentRef.current = pending;
     setPending(null);
     void sendMessage(pending.text, pending.requestContext).then(pending.resolve, () => pending.resolve(false));
-  }, [activeSessionId, blocked, pending, sendMessage]);
+  }, [blocked, conversationSessionId, pending, sendMessage]);
 
   // An unmounted surface can no longer send; report the prompt as not sent.
   useEffect(() => () => pendingRef.current?.resolve(false), []);

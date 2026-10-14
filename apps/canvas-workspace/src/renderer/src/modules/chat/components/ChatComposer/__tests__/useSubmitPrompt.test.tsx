@@ -29,7 +29,7 @@ const mountSubmit = (options: { blocked?: boolean; notConfigured?: boolean } = {
       openModelSettingsWithHint,
       requestContext,
       sendMessage,
-      activeSessionId: sessionId,
+      conversationSessionId: sessionId,
       handleNewSession,
     });
     return null;
@@ -88,10 +88,13 @@ describe('useSubmitPrompt', () => {
     const result = harness.start({ text: 'Which tier?', nodes: [card], newSession: true });
     await act(async () => { await Promise.resolve(); });
     expect(harness.handleNewSession).toHaveBeenCalledOnce();
-    // Still rendered for the old session: sending now would land there.
+    // `sendMessage` is still keyed to the old session: sending now would land there.
     expect(harness.sendMessage).not.toHaveBeenCalled();
 
     await act(async () => harness.activate('fresh'));
+    // Further renders on the new key never send it a second time.
+    await act(async () => harness.activate('fresh'));
+    expect(harness.sendMessage).toHaveBeenCalledOnce();
     expect(harness.sendMessage).toHaveBeenCalledWith('Which tier? @[node:node-1|Research]', {
       scope: 'selected_nodes',
       selectedNodes: [card],

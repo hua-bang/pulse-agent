@@ -147,6 +147,7 @@ export const useChatPageBodyController = ({
     runQueue,
     selectMention,
     sendMessage,
+    conversationSessionId,
     sessions, sessionsLoading, sessionsStoreId, sessionLoading,
     sessionError,
     setClarifyInput,
@@ -228,7 +229,7 @@ export const useChatPageBodyController = ({
   const submitPrompt = useSubmitPrompt({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
-    activeSessionId,
+    conversationSessionId,
     handleNewSession: startPromptSession,
   });
   useRegisterChatTarget(target, {

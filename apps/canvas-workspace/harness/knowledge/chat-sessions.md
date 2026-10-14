@@ -527,10 +527,12 @@ turn is scoped to the asked-about node (`selected_nodes`), not to the
 composer's current selection, and the sent text ends with a node chip
 (`@[node:<id>|<title>]`) so the bubble and history keep the node id. Ask-bar
 and launcher prompts carry `newSession`: `useSubmitPrompt` first calls
-`handleNewSession`, holds the prompt in state, and sends only after a render
-where `activeSessionId` is the new session, because `sendMessage` is keyed to
-the conversation it was rendered for. Unmounting first reports the prompt as
-not sent. Session previews (`session-preview.ts`) never cut a marker in half,
+`handleNewSession`, holds the prompt in state, and sends once
+`conversationSessionId` (the key `sendMessage` uses) is the new session. That
+key trails `activeSessionId` by a render; keying on the pointer sent the
+prompt into the old conversation and then again into the new one. The send is
+claimed in a ref so a repeated effect run cannot send twice. Unmounting first
+reports the prompt as not sent. Session previews (`session-preview.ts`) never cut a marker in half,
 and `sessionTitleParts` shows an ellipsis for an older preview that did.
 A visible full-page composer takes it first; otherwise the bridge opens dock
 chat and holds the prompt until that workspace composer registers, with the
