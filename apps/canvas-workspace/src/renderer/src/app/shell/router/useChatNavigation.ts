@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type {
   ChatTarget,
   ChatTargetBroker,
@@ -18,7 +19,7 @@ interface UseChatNavigationOptions {
 
 interface ChatReturnPoint {
   location: string;
-  focus: HTMLElement | null;
+  focus: Element | null;
 }
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
@@ -45,22 +46,18 @@ export const useChatNavigation = ({
   const isChatView = activeView === 'chat';
 
   const enterChatTarget = useCallback((target: ChatTarget | null) => {
-    if (activeView === 'chat') {
-      // Completion toasts may target another durable conversation while the
-      // full-page chat is already visible. Publish the target in place rather
-      // than treating the navigation as a no-op.
-      setInitialTarget(target);
-      return;
+    // Completion toasts may target another durable conversation while the
+    // full-page chat is already visible, so this publishes the target in
+    // place too rather than treating the navigation as a no-op.
+    if (!isChatView) {
+      returnPointRef.current = { location, focus: document.activeElement };
     }
-    returnPointRef.current = {
-      location,
-      focus: document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null,
-    };
-    setInitialTarget(target);
-    setLocation('/chat');
-  }, [activeView, location, setLocation]);
+    // The location store re-renders synchronously and skips a pending state
+    // update, so commit the target first. Otherwise the page mounts on the
+    // previous target and loads its session before this one.
+    flushSync(() => setInitialTarget(target));
+    if (!isChatView) setLocation('/chat');
+  }, [isChatView, location, setLocation]);
 
   const enterChatView = useCallback(() => {
     enterChatTarget(activeTarget);
@@ -70,8 +67,9 @@ export const useChatNavigation = ({
     const returnPoint = returnPointRef.current;
     returnPointRef.current = null;
     setLocation(returnPoint?.location ?? '/');
-    if (returnPoint?.focus?.isConnected) {
-      requestAnimationFrame(() => returnPoint.focus?.focus());
+    const focus = returnPoint?.focus;
+    if (focus instanceof HTMLElement && focus.isConnected) {
+      requestAnimationFrame(() => focus.focus());
     }
   }, [setLocation]);
 

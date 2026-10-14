@@ -51,9 +51,15 @@ The workbench has exactly two side regions plus a modal tier:
   scope picker (global or one workspace) and starter prompts, recent
   workspaces, and recent non-empty chats across scopes
   (`agent.listAllSessions`). The global scope reads "General". A question
-  enters that scope's full-page chat, starts a new session there
-  (`newSession`), and submits once the page composer registers with the
-  chat target broker (`chatPageTarget.ts`, retried for up to 5 s); a recent
+  first creates a new session in its scope (`agent.newSession`), then enters
+  the full-page chat on that session, and submits once the page composer
+  registers with the chat target broker (`chatPageTarget.ts`, retried for up
+  to 5 s). Entering first showed the scope's previous chat until the swap. If
+  the session fails, the launcher keeps the question and shows an error.
+  `useChatNavigation` commits the entry target with `flushSync` before it
+  sets the location: wouter's location store
+  re-renders synchronously, so the page otherwise mounted on the previous
+  target, loaded that session, and dropped the new empty draft. A recent
   chat reopens in its owning scope, and "View all" enters the chat page with
   its session list shown (`ChatPage` `sessionListRequest`). The page mounts
   fresh on each entry, so a request it has not consumed opens the list in its

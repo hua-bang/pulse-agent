@@ -80,6 +80,7 @@ beforeEach(() => {
       })),
     },
     agent: {
+      newSession: vi.fn(async () => ({ ok: true, activeSessionId: 'fresh' })),
       listAllSessions: vi.fn(async () => ({
         ok: true,
         groups: [
@@ -155,7 +156,7 @@ describe('Launcher', () => {
     expect(host.querySelector<HTMLTextAreaElement>('.launcher__ask-input')!.value).toBe('Plan a product launch');
   });
 
-  it('enters the global chat page on Enter and sends once its composer registers', async () => {
+  it('opens the chat page on a new session and sends once its composer registers', async () => {
     await render();
     const input = await typeQuestion('  plan my week  ');
     const submitPrompt = vi.fn().mockResolvedValue(true);
@@ -169,14 +170,29 @@ describe('Launcher', () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
     });
 
+    expect(window.canvasWorkspace.agent.newSession).toHaveBeenCalledWith({ scope: { kind: 'global' } });
     expect(props.onEnterChat).toHaveBeenCalledWith(expect.objectContaining({
       surface: 'page',
       scope: { kind: 'global' },
-      sessionId: null,
+      sessionId: 'fresh',
       composerId: 'page:__global_chat__',
     }));
-    expect(submitPrompt).toHaveBeenCalledWith({ text: 'plan my week', nodes: [], newSession: true });
+    expect(submitPrompt).toHaveBeenCalledWith({ text: 'plan my week', nodes: [] });
     expect(input.value).toBe('');
     expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('stays on the launcher with the question when the new session fails', async () => {
+    vi.mocked(window.canvasWorkspace.agent.newSession).mockResolvedValueOnce({ ok: false, error: 'disk full' });
+    await render();
+    const input = await typeQuestion('plan my week');
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+
+    expect(props.onEnterChat).not.toHaveBeenCalled();
+    expect(input.value).toBe('plan my week');
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tone: 'error', description: 'disk full' }));
   });
 });

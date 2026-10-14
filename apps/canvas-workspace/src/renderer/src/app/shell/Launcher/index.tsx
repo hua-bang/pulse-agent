@@ -1,12 +1,12 @@
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
-import type { AgentScope } from '../../../types';
+import type { AgentNewSessionResult, AgentScope } from '../../../types';
 import type { ChatTarget } from '../../../modules/chat';
 import { useChatTargetBroker } from '../../../modules/chat';
 import { useChatDeliveryNotifier } from '../../../modules/chat/delivery';
-import { scopeFromSessionStoreId } from '../../../modules/chat/session';
+import { createChatPageSessionTarget, scopeFromSessionStoreId } from '../../../modules/chat/session';
 import { useI18n } from '../../../i18n';
-import { createChatPageTarget, deliverWhenReady } from './chatPageTarget';
+import { deliverWhenReady } from './chatPageTarget';
 import { LauncherComposer } from './LauncherComposer';
 import { RecentChats } from './RecentChats';
 import { RecentWorkspaces } from './RecentWorkspaces';
@@ -43,10 +43,18 @@ export const Launcher = ({
   const notifyChatDelivery = useChatDeliveryNotifier();
   const { recentWorkspaces, summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'));
 
+  // Create the new session before entering the page, so the page opens on
+  // it. Entering first showed the scope's previous chat until the swap.
   const ask = async (text: string, scope: AgentScope, label: string) => {
-    const target = createChatPageTarget(scope, label);
+    const created: AgentNewSessionResult = await window.canvasWorkspace.agent.newSession({ scope })
+      .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+    if (!created.ok || !created.activeSessionId) {
+      notifyChatDelivery({ status: 'failed', target: null, error: created.error }, label);
+      return false;
+    }
+    const target = createChatPageSessionTarget(scope, created.activeSessionId, label);
     onEnterChat(target);
-    const receipt = await deliverWhenReady(broker, target, { text, nodes: [], newSession: true });
+    const receipt = await deliverWhenReady(broker, target, { text, nodes: [] });
     if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
     return receipt.status === 'delivered' || receipt.status === 'queued';
   };
