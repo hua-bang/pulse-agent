@@ -96,8 +96,11 @@ The workbench has exactly two side regions plus a modal tier:
   and chats survive, but shows no panel, strip, or reserved width. Guards: `Launcher/index.test.tsx`,
   `src/main/canvas/__tests__/summary.test.ts`.
 - **Route transitions.** Every route view (`.app-body > :not(.sidebar)`)
-  fades in over 160 ms, opacity only, because a transform would re-anchor
-  fixed popovers mid-animation; reduced motion turns it off. RightDock sets
+  fades in and rises 6 px over 180 ms; the canvas route only fades, so its
+  cards and embedded pages do not move. Reduced motion turns it off. The
+  transform exists only while the animation runs, but during it a
+  `position: fixed` child would anchor to the route view, so route views keep
+  popovers and menus portaled out of themselves. RightDock sets
   `right-dock-resizing` for the first frame of a route change, as on a
   workspace switch, so the dock, the reserved `.app-body` margin, and the
   sidebar panel land in place instead of sliding while the page swaps. Only
