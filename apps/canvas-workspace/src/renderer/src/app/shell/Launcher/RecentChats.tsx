@@ -1,3 +1,4 @@
+import { BotAvatarIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { sessionTitleText } from '../../../modules/chat/components/utils/sessionTitle';
@@ -31,7 +32,6 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
         {chats.map((chat) => {
           const { session } = chat;
           const title = sessionTitleText(session.title || session.preview || '') || t('launcher.untitledChat');
-          const preview = sessionTitleText(session.preview || '');
           return (
             <Button
               key={`${chat.storeId}:${session.sessionId}`}
@@ -40,15 +40,12 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
               onClick={() => onOpenChat(chat)}
               title={title}
             >
+              <BotAvatarIcon size={14} />
               <span className="launcher__chat-title">{title}</span>
               <span className="launcher__chat-meta">
-                {[chat.scopeName, preview && preview !== title ? preview : null]
-                  .filter(Boolean)
-                  .join(' · ')}
+                {chat.scopeName}
+                {session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, language)}` : ''}
               </span>
-              {session.updatedAt ? (
-                <span className="launcher__chat-time">{formatRelativeTime(session.updatedAt, language)}</span>
-              ) : null}
             </Button>
           );
         })}
