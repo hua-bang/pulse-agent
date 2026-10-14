@@ -75,7 +75,7 @@ beforeEach(() => {
         ok: true,
         summaries: Object.fromEntries(ids.map((id) => [id, {
           nodeCount: 3,
-          boxes: [{ type: 'text', x: 0, y: 0, width: 100, height: 80 }],
+          boxes: [{ type: 'file', title: 'Pricing notes', x: 0, y: 0, width: 100, height: 80 }],
         }])),
       })),
     },
@@ -117,12 +117,15 @@ describe('Launcher', () => {
     expect(cards.map((card) => card.querySelector('.launcher__card-name')?.textContent))
       .toEqual(['Beta', 'Alpha', 'Gamma', 'New workspace']);
     expect(cards[0].querySelector('.launcher__card-meta')?.textContent).toBe('2 cards');
-    expect(cards[0].querySelectorAll('.launcher__thumb-node')).toHaveLength(2);
+    expect(cards[0].querySelectorAll('.launcher__thumb-card')).toHaveLength(2);
     expect(cards[1].querySelector('.launcher__card-meta')?.textContent).toBe('Empty workspace');
     // Gamma is not loaded in this window: it comes from a stored-layout
     // summary, never from a full canvas load.
     expect(cards[2].querySelector('.launcher__card-meta')?.textContent).toBe('3 cards');
-    expect(cards[2].querySelectorAll('.launcher__thumb-node')).toHaveLength(1);
+    const stored = cards[2].querySelectorAll<HTMLElement>('.launcher__thumb-card');
+    expect(stored).toHaveLength(1);
+    expect(stored[0].dataset.type).toBe('file');
+    expect(stored[0].querySelector('.launcher__thumb-title')?.textContent).toBe('Pricing notes');
     expect((window as any).canvasWorkspace.store.summaries).toHaveBeenCalledWith(['c']);
     expect((window as any).canvasWorkspace.store.load).not.toHaveBeenCalled();
 
@@ -137,7 +140,7 @@ describe('Launcher', () => {
     const rows = [...host.querySelectorAll<HTMLButtonElement>('.launcher__chat')];
     expect(rows.map((row) => row.querySelector('.launcher__chat-title')?.textContent))
       .toEqual(['Newest chat', 'Older chat']);
-    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^No workspace/);
+    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^General/);
 
     await act(async () => rows[0].click());
     expect(props.onOpenSession).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'b' }, 's2', 'Beta');
@@ -172,7 +175,7 @@ describe('Launcher', () => {
       sessionId: null,
       composerId: 'page:__global_chat__',
     }));
-    expect(submitPrompt).toHaveBeenCalledWith({ text: 'plan my week', nodes: [] });
+    expect(submitPrompt).toHaveBeenCalledWith({ text: 'plan my week', nodes: [], newSession: true });
     expect(input.value).toBe('');
     expect(notify).not.toHaveBeenCalled();
   });

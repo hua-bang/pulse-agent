@@ -420,7 +420,7 @@ structurally stable while the selected conversation changes scope.
   unassigned draft has no placeholder workspace label in the topbar, while a
   workspace-owned draft shows that workspace's real name. Delivery feedback
   calls the unassigned destination AI Chat rather than exposing the internal
-  `No workspace` scope label. A cross-scope draft creates the target pointer
+  `General` scope label. A cross-scope draft creates the target pointer
   before the body switches scope and focuses the composer after adoption;
   intent ordering prevents a slower earlier request from replacing a newer
   destination click.
@@ -520,9 +520,18 @@ Chat-target broker as node, DOM-selection, and Tab context. The full-page Chat
 composer registers the review submission handler, so reviews never fall through
 to a hidden workspace composer while `/chat` is visible.
 
-The canvas ask bar (`NodeAskBar`, shown under one settled selected node) sends
-a `prompt` insertion on the same path. It submits a turn at once, scoped to the
-asked-about node (`selected_nodes`), not to the composer's current selection.
+The canvas ask bar (`NodeAskBar`, shown under one settled selected node) starts
+as a small "Ask" chip; pressing it opens the input, and an empty input folds
+back on blur or Escape. It sends a `prompt` insertion on the same path. The
+turn is scoped to the asked-about node (`selected_nodes`), not to the
+composer's current selection, and the sent text ends with a node chip
+(`@[node:<id>|<title>]`) so the bubble and history keep the node id. Ask-bar
+and launcher prompts carry `newSession`: `useSubmitPrompt` first calls
+`handleNewSession`, holds the prompt in state, and sends only after a render
+where `activeSessionId` is the new session, because `sendMessage` is keyed to
+the conversation it was rendered for. Unmounting first reports the prompt as
+not sent. Session previews (`session-preview.ts`) never cut a marker in half,
+and `sessionTitleParts` shows an ellipsis for an older preview that did.
 A visible full-page composer takes it first; otherwise the bridge opens dock
 chat and holds the prompt until that workspace composer registers, with the
 same timeout and pending limit as DOM reviews. The dock ChatPanel registers its

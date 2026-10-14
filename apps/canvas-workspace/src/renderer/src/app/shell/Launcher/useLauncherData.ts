@@ -4,23 +4,21 @@ import type { AgentSessionInfo } from '../../../../../shared/agent-chat';
 import type { CanvasSummary } from '../../../../../shared/canvas';
 import { readRecentWorkspaceIds } from '../recentWorkspaces';
 
-const THUMB_NODE_LIMIT = 6;
+const THUMB_CARD_LIMIT = 3;
 const RECENT_CHAT_LIMIT = 6;
 const RECENT_WORKSPACE_LIMIT = 5;
-/** Width over height of the thumbnail frame (see `.launcher__thumb-frame`). */
-const THUMB_ASPECT = 3.5;
 
-/** A node's box as fractions of the thumbnail frame. */
-export interface ThumbRect {
-  left: number;
-  top: number;
-  width: number;
+/** One card in a workspace thumbnail: what it is, and how tall it draws. */
+export interface ThumbCard {
+  type: string;
+  title: string;
+  /** Drawn height in px, from the card's own proportions. */
   height: number;
 }
 
 export interface WorkspaceSummary {
   nodeCount: number;
-  rects: ThumbRect[];
+  cards: ThumbCard[];
 }
 
 export interface RecentChat {
@@ -29,25 +27,22 @@ export interface RecentChat {
   session: AgentSessionInfo;
 }
 
-export type NodeBox = { type: string; x: number; y: number; width: number; height: number };
+export type NodeBox = { type: string; title?: string; x: number; y: number; width: number; height: number };
 
-/** Fits the first few cards into a unit frame for the workspace thumbnail. */
-export const toThumbRects = (nodes: NodeBox[]): ThumbRect[] => {
-  const cards = nodes.filter((node) => node.type !== 'frame' && node.width > 0 && node.height > 0)
-    .slice(0, THUMB_NODE_LIMIT);
-  if (cards.length === 0) return [];
-  const minX = Math.min(...cards.map((node) => node.x));
-  const minY = Math.min(...cards.map((node) => node.y));
-  const maxX = Math.max(...cards.map((node) => node.x + node.width));
-  const maxY = Math.max(...cards.map((node) => node.y + node.height));
-  const span = Math.max(maxX - minX, (maxY - minY) * THUMB_ASPECT, 1);
-  return cards.map((node) => ({
-    left: (node.x - minX) / span,
-    top: ((node.y - minY) / span) * THUMB_ASPECT,
-    width: node.width / span,
-    height: (node.height / span) * THUMB_ASPECT,
+/**
+ * The first few cards of a workspace, in canvas order, as small cards with
+ * their real titles and types. A whole-canvas minimap shrinks real cards to
+ * unreadable specks, so the thumbnail shows a readable peek instead.
+ */
+export const toThumbCards = (nodes: NodeBox[]): ThumbCard[] => nodes
+  .filter((node) => node.type !== 'frame' && node.width > 0 && node.height > 0)
+  .slice(0, THUMB_CARD_LIMIT)
+  .map((node) => ({
+    type: node.type,
+    title: node.title?.trim() ?? '',
+    // 52px fits the title and two lines; taller cards run past the bottom edge.
+    height: Math.round(52 + 28 * Math.min(1, Math.max(0, node.height / node.width - 0.5))),
   }));
-};
 
 /** Most recently opened first; never-opened workspaces keep the sidebar order. */
 const pickRecentWorkspaces = (workspaces: WorkspaceEntry[]) => {
@@ -100,10 +95,10 @@ export const useLauncherData = (
   const summaries = useMemo(() => {
     const result: Record<string, WorkspaceSummary> = {};
     for (const [id, summary] of Object.entries(stored)) {
-      if (summary) result[id] = { nodeCount: summary.nodeCount, rects: toThumbRects(summary.boxes) };
+      if (summary) result[id] = { nodeCount: summary.nodeCount, cards: toThumbCards(summary.boxes) };
     }
     for (const [id, nodes] of Object.entries(loadedNodes)) {
-      result[id] = { nodeCount: nodes.length, rects: toThumbRects(nodes) };
+      result[id] = { nodeCount: nodes.length, cards: toThumbCards(nodes) };
     }
     return result;
   }, [stored, loadedNodes]);

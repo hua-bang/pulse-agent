@@ -19,7 +19,9 @@ const mountSubmit = (options: { blocked?: boolean; notConfigured?: boolean } = {
     selectedNodes: [{ id: 'other', title: 'Other card', type: 'text' }],
   };
   let submit: ((prompt: ChatPromptSubmission) => Promise<boolean>) | undefined;
-  const Harness = () => {
+  let activeSessionId: string | null = 'old';
+  const handleNewSession = vi.fn(async () => ({ ok: true, activeSessionId: 'fresh' }));
+  const Harness = ({ sessionId }: { sessionId: string | null }) => {
     submit = useSubmitPrompt({
       blocked: options.blocked ?? false,
       focusInput,
@@ -27,15 +29,29 @@ const mountSubmit = (options: { blocked?: boolean; notConfigured?: boolean } = {
       openModelSettingsWithHint,
       requestContext,
       sendMessage,
+      activeSessionId: sessionId,
+      handleNewSession,
     });
     return null;
   };
-  act(() => root.render(<Harness />));
+  const render = () => act(() => root.render(<Harness sessionId={activeSessionId} />));
+  render();
   return {
     sendMessage,
     focusInput,
     openModelSettingsWithHint,
+    handleNewSession,
     submit: (prompt: ChatPromptSubmission) => act(async () => await submit?.(prompt)),
+    /** Starts a submission without awaiting it, for prompts that wait on a session switch. */
+    start: (prompt: ChatPromptSubmission) => {
+      let result: Promise<boolean> | undefined;
+      act(() => { result = submit?.(prompt); });
+      return result!;
+    },
+    activate: (sessionId: string) => {
+      activeSessionId = sessionId;
+      render();
+    },
     unmount: () => act(() => root.unmount()),
   };
 };
@@ -48,11 +64,49 @@ describe('useSubmitPrompt', () => {
     const sent = await harness.submit({ text: '  Which tier?  ', nodes: [card] });
 
     expect(sent).toBe(true);
-    expect(harness.sendMessage).toHaveBeenCalledWith('Which tier?', {
+    expect(harness.sendMessage).toHaveBeenCalledWith('Which tier? @[node:node-1|Research]', {
       scope: 'selected_nodes',
       selectedNodes: [card],
     });
     harness.unmount();
+  });
+
+  it('does not repeat a chip the question already carries', async () => {
+    const harness = mountSubmit();
+    const card = { id: 'node-1', title: 'Research', type: 'text' as const };
+
+    await harness.submit({ text: 'Explain @[node:node-1|Research]', nodes: [card] });
+
+    expect(harness.sendMessage).toHaveBeenCalledWith('Explain @[node:node-1|Research]', expect.anything());
+    harness.unmount();
+  });
+
+  it('starts a new session and sends only once that session is active', async () => {
+    const harness = mountSubmit();
+    const card = { id: 'node-1', title: 'Research', type: 'text' as const };
+
+    const result = harness.start({ text: 'Which tier?', nodes: [card], newSession: true });
+    await act(async () => { await Promise.resolve(); });
+    expect(harness.handleNewSession).toHaveBeenCalledOnce();
+    // Still rendered for the old session: sending now would land there.
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => harness.activate('fresh'));
+    expect(harness.sendMessage).toHaveBeenCalledWith('Which tier? @[node:node-1|Research]', {
+      scope: 'selected_nodes',
+      selectedNodes: [card],
+    });
+    expect(await result).toBe(true);
+    harness.unmount();
+  });
+
+  it('reports a new-session prompt as not sent when the surface unmounts first', async () => {
+    const harness = mountSubmit();
+    const result = harness.start({ text: 'Hi', nodes: [], newSession: true });
+    await act(async () => { await Promise.resolve(); });
+    harness.unmount();
+    expect(await result).toBe(false);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('keeps the composer context when the prompt names no nodes', async () => {

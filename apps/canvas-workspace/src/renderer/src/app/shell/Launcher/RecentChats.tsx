@@ -1,6 +1,7 @@
 import { BotAvatarIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
+import { sessionTitleText } from '../../../modules/chat/components/utils/sessionTitle';
 import { formatRelativeTime } from './relativeTime';
 import type { RecentChat } from './useLauncherData';
 
@@ -30,7 +31,7 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
         {chats.length === 0 && <p className="launcher__chats-empty">{t('launcher.noChats')}</p>}
         {chats.map((chat) => {
           const { session } = chat;
-          const title = session.title || session.preview || t('launcher.untitledChat');
+          const title = sessionTitleText(session.title || session.preview || '') || t('launcher.untitledChat');
           return (
             <Button
               key={`${chat.storeId}:${session.sessionId}`}

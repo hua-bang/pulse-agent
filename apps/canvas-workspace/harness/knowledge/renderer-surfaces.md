@@ -24,8 +24,8 @@ The workbench has exactly two side regions plus a modal tier:
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
   Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
   Settings at the bottom. Pulse Agent opens the launcher and stays current on
-  the launcher and chat routes; there is no separate Home button. Its brand
-  logo stays muted until that route is active. The panel next to it holds the
+  the launcher and chat routes; there is no separate Home button. The panel
+  next to it holds the
   workspace list and Layers; collapsing hides only the panel. The launcher,
   chat, and settings routes hide the panel without changing the saved
   preference: the launcher lists workspaces itself, the chat session list
@@ -38,26 +38,40 @@ The workbench has exactly two side regions plus a modal tier:
   A workspace that becomes active opens a tab; tab order persists in
   `localStorage` (`pulse-canvas.open-workspace-tabs`), and tabs of deleted
   workspaces drop. Closing a tab never deletes the workspace: closing the
-  active tab shows its neighbour, or the launcher when none is left. The bar
-  loads lazily (startup bundle budget) behind a same-height placeholder.
+  active tab shows its neighbour, or the launcher when none is left. `+` opens
+  a picker (`WorkspacePicker`): every workspace in recency order with a
+  filter (Enter opens the first match), New workspace, and Pulse Agent (the
+  launcher). While the panel is collapsed, the bar shows a sidebar toggle at
+  its left, because the rail's Workspaces icon does not read as a toggle. The
+  bar loads lazily (startup bundle budget) behind a same-height placeholder.
+  Below it, `.canvas-route__body` is a row that holds the Library drawer and
+  the canvas side by side; without it the drawer stacked above the canvas.
   Guard: `WorkspaceTabs/index.test.tsx`.
 - **Launcher** (`/home`, `app/shell/Launcher`, lazy) has an ask box with a
   scope picker (global or one workspace) and starter prompts, recent
   workspaces, and recent non-empty chats across scopes
-  (`agent.listAllSessions`). A question enters that scope's full-page chat on
-  its current session and submits once the page composer registers with the
+  (`agent.listAllSessions`). The global scope reads "General". A question
+  enters that scope's full-page chat, starts a new session there
+  (`newSession`), and submits once the page composer registers with the
   chat target broker (`chatPageTarget.ts`, retried for up to 5 s); a recent
   chat reopens in its owning scope, and "View all" enters the chat page with
-  its session list shown (`ChatPage` `sessionListRequest`). Workspace cards follow the recency list
+  its session list shown (`ChatPage` `sessionListRequest`). The page mounts
+  fresh on each entry, so a request it has not consumed opens the list in its
+  initial state (no width transition or message reflow), and `.chat-page`
+  fades and rises in over 180 ms (off under reduced motion). Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
   uses the node snapshot this window already holds. For any other recent
   workspace it uses `store.summaries` (`canvas:summaries`,
-  `src/main/canvas/summary.ts`): the node count and the first six card boxes,
-  read from the stored layout only, with no migration, write, or watcher. The
-  launcher never calls `store.load`, which returns full node payloads and
-  starts file watchers. Previews are plain boxes, never mounted nodes or
-  webviews. The floating chat launcher hides here and on settings
-  (`shared/dock/dock-chat-availability.ts`). Guards: `Launcher/index.test.tsx`,
+  `src/main/canvas/summary.ts`): the node count and the first six card boxes
+  with shortened titles, read from the stored layout only, with no migration,
+  write, or watcher. The launcher never calls `store.load`, which returns full
+  node payloads and starts file watchers. A preview shows the first three
+  cards as small cards with their real titles and a type-colored top edge
+  (`toThumbCards`), not a scaled minimap, which shrank real canvases to
+  specks. Previews are never mounted nodes or webviews. The floating chat
+  launcher hides here and on settings (`shared/dock/dock-chat-availability.ts`),
+  and the RightDock is `hidden` on both routes: it stays mounted so terminals
+  and chats survive, but shows no panel, strip, or reserved width. Guards: `Launcher/index.test.tsx`,
   `src/main/canvas/__tests__/summary.test.ts`.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin

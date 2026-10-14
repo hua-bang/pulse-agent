@@ -94,7 +94,7 @@ export const SidebarRail = ({
         title={t('sidebar.aiChatTitle')}
         onClick={onEnterHome}
       >
-        <AppLogoIcon size={18} className="sidebar-rail-logo" />
+        <AppLogoIcon size={18} />
       </RailButton>
       <RailButton
         active={activeView === 'canvas'}

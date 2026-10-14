@@ -17,12 +17,29 @@ let host: HTMLDivElement;
 let root: Root;
 let onSelect: ReturnType<typeof vi.fn>;
 let onOpenLauncher: ReturnType<typeof vi.fn>;
+let onCreate: ReturnType<typeof vi.fn>;
+let onTogglePanel: ReturnType<typeof vi.fn>;
 
-const render = (activeId: string, list = workspaces) => act(() => root.render(
+const render = (activeId: string, list = workspaces, panelCollapsed = false) => act(() => root.render(
   <I18nProvider>
-    <WorkspaceTabs workspaces={list} activeId={activeId} onSelect={onSelect} onOpenLauncher={onOpenLauncher} />
+    <WorkspaceTabs
+      workspaces={list}
+      activeId={activeId}
+      onSelect={onSelect}
+      onCreate={onCreate}
+      onOpenLauncher={onOpenLauncher}
+      panelCollapsed={panelCollapsed}
+      onTogglePanel={onTogglePanel}
+    />
   </I18nProvider>,
 ));
+
+const openPicker = () => act(async () => {
+  host.querySelector<HTMLButtonElement>('[aria-label="Open a workspace"]')!.click();
+});
+
+const pickerItems = () => [...document.querySelectorAll('.workspace-picker__item')]
+  .map((item) => item.textContent);
 
 const tabNames = () => [...host.querySelectorAll('.workspace-tabs__select')].map((tab) => tab.textContent);
 
@@ -30,6 +47,8 @@ beforeEach(() => {
   window.localStorage.clear();
   onSelect = vi.fn();
   onOpenLauncher = vi.fn();
+  onCreate = vi.fn();
+  onTogglePanel = vi.fn();
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -75,11 +94,50 @@ describe('WorkspaceTabs', () => {
     expect(tabNames()).toEqual(['Beta']);
   });
 
-  it('drops tabs of deleted workspaces and opens the launcher from +', async () => {
+  it('drops tabs of deleted workspaces', async () => {
     window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'gone']));
     await render('a');
     expect(tabNames()).toEqual(['Alpha']);
-    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Open the launcher"]')!.click());
+  });
+
+  it('+ lists workspaces by recency, filters them, and opens the chosen one', async () => {
+    window.localStorage.setItem('pulse-canvas.recent-workspaces', JSON.stringify(['c']));
+    await render('a');
+    await openPicker();
+    // 'a' became most recent on render; 'b' was never opened.
+    expect(pickerItems()).toEqual(['Alpha', 'Gamma', 'Beta', 'New workspace', 'Pulse Agent']);
+
+    const search = document.querySelector<HTMLInputElement>('.workspace-picker__search')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    await act(async () => {
+      setter?.call(search, 'gam');
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(pickerItems()).toEqual(['Gamma', 'New workspace', 'Pulse Agent']);
+    await act(async () => {
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onSelect).toHaveBeenCalledWith('c');
+    expect(document.querySelector('.workspace-picker')).toBeNull();
+  });
+
+  it('+ also creates a workspace or goes home', async () => {
+    await render('a');
+    await openPicker();
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.workspace-picker__item')]
+      .find((item) => item.textContent === 'New workspace')!.click());
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    await openPicker();
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.workspace-picker__item')]
+      .find((item) => item.textContent === 'Pulse Agent')!.click());
     expect(onOpenLauncher).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a way back to the workspace panel only while it is closed', async () => {
+    await render('a');
+    expect(host.querySelector('.workspace-tabs__panel')).toBeNull();
+    await render('a', workspaces, true);
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Expand sidebar"]')!.click());
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
   });
 });

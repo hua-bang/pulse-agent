@@ -7,7 +7,7 @@
  *
  * Unlike `canvas:load`, this never migrates, recovers, writes, seeds merge
  * state, or starts watchers. It reads the stored layout and keeps only the
- * node count and the first few card boxes, so the renderer gets a few
+ * node count and the first few card boxes and titles, so the renderer gets a few
  * hundred bytes per workspace instead of the full node payload.
  */
 
@@ -20,6 +20,7 @@ import { isSafeNodeId } from './nodes/store';
 
 const SUMMARY_BOX_LIMIT = 6;
 const SUMMARY_ID_LIMIT = 20;
+const SUMMARY_TITLE_LIMIT = 60;
 const EMPTY_SUMMARY: CanvasSummary = { nodeCount: 0, boxes: [] };
 
 const isFiniteNumber = (value: unknown): value is number =>
@@ -27,13 +28,14 @@ const isFiniteNumber = (value: unknown): value is number =>
 
 const toBox = (node: unknown): CanvasSummaryBox | null => {
   if (!node || typeof node !== 'object') return null;
-  const { type, x, y, width, height } = node as Record<string, unknown>;
+  const { type, title, x, y, width, height } = node as Record<string, unknown>;
   if (typeof type !== 'string' || type === 'frame') return null;
   if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(width) || !isFiniteNumber(height)) {
     return null;
   }
   if (width <= 0 || height <= 0) return null;
-  return { type, x, y, width, height };
+  const shortTitle = typeof title === 'string' ? title.trim().slice(0, SUMMARY_TITLE_LIMIT) : '';
+  return shortTitle ? { type, title: shortTitle, x, y, width, height } : { type, x, y, width, height };
 };
 
 /** Reduces stored canvas data to a preview. Works on v1, v2 layout, and SQLite shapes. */

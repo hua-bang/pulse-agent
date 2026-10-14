@@ -1,17 +1,23 @@
-import type { MouseEvent } from 'react';
+import { useRef, useState, type MouseEvent } from 'react';
+import { SidebarSimple } from '@phosphor-icons/react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { useOpenWorkspaceTabs } from './useOpenWorkspaceTabs';
+import { WorkspacePicker } from './WorkspacePicker';
 import './index.css';
 
 interface Props {
   workspaces: WorkspaceEntry[];
   activeId: string;
   onSelect: (id: string) => void;
+  onCreate: () => void;
   /** Opens the launcher; also used when the last tab closes. */
   onOpenLauncher: () => void;
+  /** Whether the workspace panel beside the rail is closed. */
+  panelCollapsed: boolean;
+  onTogglePanel: () => void;
 }
 
 /** Open workspaces as tabs above the canvas, like browser tabs. */
@@ -19,9 +25,14 @@ export const WorkspaceTabs = ({
   workspaces,
   activeId,
   onSelect,
+  onCreate,
   onOpenLauncher,
+  panelCollapsed,
+  onTogglePanel,
 }: Props) => {
   const { t } = useI18n();
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { openIds, close } = useOpenWorkspaceTabs(workspaces, activeId);
   const byId = new Map(workspaces.map((ws) => [ws.id, ws]));
   const tabs = openIds.flatMap((id) => {
@@ -44,6 +55,20 @@ export const WorkspaceTabs = ({
 
   return (
     <div className="workspace-tabs">
+      {/* With the panel closed, the rail icon is the only other way back, and
+          it does not read as a toggle. */}
+      {panelCollapsed && (
+        <Button
+          variant="icon"
+          size="sm"
+          className="workspace-tabs__panel"
+          onClick={onTogglePanel}
+          title={t('sidebar.expand')}
+          aria-label={t('sidebar.expand')}
+        >
+          <SidebarSimple size={14} />
+        </Button>
+      )}
       <nav className="workspace-tabs__list" aria-label={t('workspaceTabs.label')}>
         {tabs.map((workspace) => {
           const active = workspace.id === activeId;
@@ -79,15 +104,29 @@ export const WorkspaceTabs = ({
         })}
       </nav>
       <Button
+        ref={newButtonRef}
         variant="icon"
         size="sm"
         className="workspace-tabs__new"
-        onClick={onOpenLauncher}
+        onClick={() => setPickerOpen((open) => !open)}
         title={t('workspaceTabs.open')}
         aria-label={t('workspaceTabs.open')}
+        aria-haspopup="menu"
+        aria-expanded={pickerOpen}
       >
         <PlusIcon size={13} />
       </Button>
+      {pickerOpen && (
+        <WorkspacePicker
+          anchorRef={newButtonRef}
+          workspaces={workspaces}
+          activeId={activeId}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onOpenLauncher={onOpenLauncher}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 };

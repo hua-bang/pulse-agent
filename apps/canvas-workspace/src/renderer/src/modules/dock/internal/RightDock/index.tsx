@@ -104,6 +104,7 @@ export const RightDock = ({
   pageMinAppWidth,
   readingLeftInset = 0,
   hostView = 'canvas',
+  hidden = false,
   workspaces,
   onOpenNodePage,
   onActivateWorkspace,
@@ -162,8 +163,8 @@ export const RightDock = ({
   const hasPreviews = state.tabs.length > 0;
   const terminalTabsVisible = state.terminalTabs.length > 0;
   const terminalHostMounted = Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
-  const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible;
-  const visible = state.expanded && (chatTabEnabled || hasPreviews || terminalTabsVisible);
+  const tabStripVisible = !hidden && (chatTabEnabled || hasPreviews || terminalTabsVisible);
+  const visible = !hidden && state.expanded && (chatTabEnabled || hasPreviews || terminalTabsVisible);
   const stripMounted = useRef(false);
   if (visible) stripMounted.current = true;
   // While the chat tab is unavailable a transient 'chat' active pointer

@@ -1,6 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentRequestContext } from '../../../../types';
+import { buildNodeMentionMarker } from '../../mentions/nodeMentions';
 import type { ChatPromptSubmission } from '../../target';
+
+interface NewSessionResult {
+  ok: boolean;
+  activeSessionId?: string | null;
+}
 
 interface UseSubmitPromptOptions {
   blocked: boolean;
@@ -9,12 +15,35 @@ interface UseSubmitPromptOptions {
   openModelSettingsWithHint: () => void;
   requestContext: AgentRequestContext;
   sendMessage: (text: string, requestContext?: AgentRequestContext) => Promise<boolean>;
+  activeSessionId: string | null;
+  handleNewSession: () => Promise<NewSessionResult>;
 }
+
+interface PendingPrompt {
+  sessionId: string;
+  text: string;
+  requestContext: AgentRequestContext;
+  resolve: (sent: boolean) => void;
+}
+
+/**
+ * Follows the question with a chip for each asked-about node that the text
+ * does not already mention, so the bubble and the saved history keep the node
+ * id. The question goes first so the session title reads as the question.
+ */
+const withNodeChips = (text: string, nodes: ChatPromptSubmission['nodes']): string => {
+  const chips = nodes
+    .map(node => `@[${buildNodeMentionMarker({ nodeId: node.id, label: node.title })}]`)
+    .filter(chip => !text.includes(chip.slice(0, chip.indexOf('|') + 1)));
+  return chips.length > 0 ? `${text} ${chips.join(' ')}` : text;
+};
 
 /**
  * Shared path for a question sent from outside the composer, such as the
  * canvas "ask about this card" bar. The turn is scoped to the prompt's nodes,
- * not to whatever the composer currently shows.
+ * not to whatever the composer currently shows. A `newSession` prompt first
+ * moves the conversation pointer, then sends once the new session is the
+ * active one: `sendMessage` is keyed to the conversation it was rendered for.
  */
 export const useSubmitPrompt = ({
   blocked,
@@ -23,23 +52,49 @@ export const useSubmitPrompt = ({
   openModelSettingsWithHint,
   requestContext,
   sendMessage,
-}: UseSubmitPromptOptions) => useCallback(async (
-  prompt: ChatPromptSubmission,
-): Promise<boolean> => {
-  if (blocked) return false;
-  const text = prompt.text.trim();
-  if (!text) {
-    focusInput();
-    return false;
-  }
-  if (notConfigured) {
-    openModelSettingsWithHint();
-    return false;
-  }
+  activeSessionId,
+  handleNewSession,
+}: UseSubmitPromptOptions) => {
+  // State, not a ref: setting it re-runs the send effect even when the new
+  // session finished activating before the prompt was parked.
+  const [pending, setPending] = useState<PendingPrompt | null>(null);
+  const pendingRef = useRef<PendingPrompt | null>(null);
+  pendingRef.current = pending;
 
-  return sendMessage(text, {
-    ...requestContext,
-    scope: prompt.nodes.length > 0 ? 'selected_nodes' : requestContext.scope,
-    selectedNodes: prompt.nodes.length > 0 ? prompt.nodes : requestContext.selectedNodes,
-  });
-}, [blocked, focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
+  useEffect(() => {
+    if (!pending || blocked || activeSessionId !== pending.sessionId) return;
+    setPending(null);
+    void sendMessage(pending.text, pending.requestContext).then(pending.resolve, () => pending.resolve(false));
+  }, [activeSessionId, blocked, pending, sendMessage]);
+
+  // An unmounted surface can no longer send; report the prompt as not sent.
+  useEffect(() => () => pendingRef.current?.resolve(false), []);
+
+  return useCallback(async (prompt: ChatPromptSubmission): Promise<boolean> => {
+    if (blocked || pendingRef.current) return false;
+    const question = prompt.text.trim();
+    if (!question) {
+      focusInput();
+      return false;
+    }
+    if (notConfigured) {
+      openModelSettingsWithHint();
+      return false;
+    }
+
+    const text = withNodeChips(question, prompt.nodes);
+    const turnContext: AgentRequestContext = {
+      ...requestContext,
+      scope: prompt.nodes.length > 0 ? 'selected_nodes' : requestContext.scope,
+      selectedNodes: prompt.nodes.length > 0 ? prompt.nodes : requestContext.selectedNodes,
+    };
+    if (!prompt.newSession) return sendMessage(text, turnContext);
+
+    const created = await handleNewSession();
+    if (!created.ok || !created.activeSessionId) return false;
+    const sessionId = created.activeSessionId;
+    return new Promise<boolean>((resolve) => {
+      setPending({ sessionId, text, requestContext: turnContext, resolve });
+    });
+  }, [blocked, focusInput, handleNewSession, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
+};

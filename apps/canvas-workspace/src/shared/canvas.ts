@@ -438,6 +438,8 @@ export interface CanvasEdge {
 /** A card's box on the canvas, enough to draw a layout preview. */
 export interface CanvasSummaryBox {
   type: string;
+  /** The card's title, shortened; omitted when it has none. */
+  title?: string;
   x: number;
   y: number;
   width: number;

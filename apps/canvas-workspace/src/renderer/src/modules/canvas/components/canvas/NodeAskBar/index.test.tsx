@@ -63,13 +63,41 @@ describe('NodeAskBar', () => {
     });
   };
 
+  const open = () => {
+    act(() => host.querySelector<HTMLButtonElement>('.node-ask-bar__chip')!.click());
+    return host.querySelector('input') as HTMLInputElement;
+  };
+
+  it('starts as a chip and folds back when left empty or on Escape', () => {
+    act(() => root.render(
+      <I18nProvider><NodeAskBar node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={vi.fn()} /></I18nProvider>,
+    ));
+    expect(host.querySelector('input')).toBeNull();
+
+    let input = open();
+    expect(document.activeElement).toBe(input);
+    act(() => input.blur());
+    expect(host.querySelector('input')).toBeNull();
+
+    input = open();
+    type(input, 'draft');
+    act(() => input.blur());
+    // A typed question stays open.
+    expect(host.querySelector('input')).not.toBeNull();
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(host.querySelector('input')).toBeNull();
+    expect(host.querySelector('.node-ask-bar__chip')).not.toBeNull();
+  });
+
   it('sits under the card in screen space and sends a question scoped to it', async () => {
     const onAsk = vi.fn(async () => ({ status: 'delivered' as const, target }));
     act(() => root.render(
       <I18nProvider><NodeAskBar node={node} transform={{ x: 10, y: 20, scale: 2 }} onAsk={onAsk} /></I18nProvider>,
     ));
     const form = host.querySelector('form') as HTMLFormElement;
-    const input = host.querySelector('input') as HTMLInputElement;
+    const input = open();
 
     expect(form.style.left).toBe('210px');
     expect(form.style.top).toBe(`${(40 + 120) * 2 + 20 + 10}px`);
@@ -82,8 +110,10 @@ describe('NodeAskBar', () => {
     expect(onAsk).toHaveBeenCalledWith({
       text: 'Which tier?',
       nodes: [{ id: 'node-1', title: 'Research', type: 'text' }],
+      newSession: true,
     });
-    expect(input.value).toBe('');
+    // Sent: the bar folds back to its chip.
+    expect(host.querySelector('input')).toBeNull();
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -94,7 +124,7 @@ describe('NodeAskBar', () => {
       <I18nProvider><NodeAskBar node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={onAsk} /></I18nProvider>,
     ));
     const form = host.querySelector('form') as HTMLFormElement;
-    const input = host.querySelector('input') as HTMLInputElement;
+    const input = open();
 
     type(input, 'Which tier?');
     await act(async () => {
@@ -116,7 +146,7 @@ describe('NodeAskBar', () => {
     ));
 
     act(() => {
-      host.querySelector('input')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      host.querySelector('.node-ask-bar__chip')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     });
 
     expect(onCanvasMouseDown).not.toHaveBeenCalled();

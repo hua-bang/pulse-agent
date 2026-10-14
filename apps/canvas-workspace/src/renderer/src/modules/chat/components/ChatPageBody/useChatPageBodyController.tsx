@@ -220,9 +220,16 @@ export const useChatPageBodyController = ({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
   });
+  const startPromptSession = useCallback(async () => {
+    const created = await handleNewSession();
+    if (created.ok) onClearBackStack?.();
+    return created;
+  }, [handleNewSession, onClearBackStack]);
   const submitPrompt = useSubmitPrompt({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+    activeSessionId,
+    handleNewSession: startPromptSession,
   });
   useRegisterChatTarget(target, {
     insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,

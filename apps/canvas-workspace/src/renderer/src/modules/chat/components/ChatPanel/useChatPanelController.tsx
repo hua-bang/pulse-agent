@@ -245,6 +245,7 @@ export const useChatPanelController = ({
   const submitPrompt = useSubmitPrompt({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+    activeSessionId, handleNewSession,
   });
 
   // Register only once a send can start: a cold dock flushes its waiting

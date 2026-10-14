@@ -263,7 +263,8 @@ const AppContent = () => {
   }, [setLocation]);
   // The launcher lists workspaces itself, the chat page's session list
   // groups by workspace, and settings has its own category column, so these
-  // routes show only the rail.
+  // routes show only the rail. The launcher and settings own the full
+  // width, so the dock hides there too (it stays mounted).
   const sidebarPanelHidden = sidebarCollapsed
     || activeView === 'home'
     || activeView === 'chat'
@@ -327,24 +328,30 @@ const AppContent = () => {
                   workspaces={workspaces}
                   activeId={activeId}
                   onSelect={workspaceActions.select}
+                  onCreate={() => workspaceActions.select(workspaceActions.create(''))}
                   onOpenLauncher={() => setLocation(ROUTE_HOME)}
+                  panelCollapsed={sidebarCollapsed}
+                  onTogglePanel={handleSidebarToggle}
                 />
               </Suspense>
-              <Workbench
-                activeWorkspaceId={activeId}
-                canvasHostActive={activeView === 'canvas'}
-                workspaces={workspaces}
-                controller={workbench}
-                knowledgeChatContext={knowledgeChatContext}
-                onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
-                onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
-                onSelectWorkspace={workspaceActions.select}
-                onActivateWorkspace={selectWorkspace}
-                onOpenAppSettings={openAppSettings}
-                onOpenWorkspaceSettings={openWorkspaceSettings}
-                onOpenSessionInScope={openSessionInOwningScope}
-                onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
-              />
+              {/* The Library drawer and the canvas sit side by side under the tabs. */}
+              <div className="canvas-route__body">
+                <Workbench
+                  activeWorkspaceId={activeId}
+                  canvasHostActive={activeView === 'canvas'}
+                  workspaces={workspaces}
+                  controller={workbench}
+                  knowledgeChatContext={knowledgeChatContext}
+                  onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+                  onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
+                  onSelectWorkspace={workspaceActions.select}
+                  onActivateWorkspace={selectWorkspace}
+                  onOpenAppSettings={openAppSettings}
+                  onOpenWorkspaceSettings={openWorkspaceSettings}
+                  onOpenSessionInScope={openSessionInOwningScope}
+                  onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
+                />
+              </div>
             </div>
           </PulseRouterView>
           <PulseRouterView name="chat">
@@ -405,6 +412,7 @@ const AppContent = () => {
       <RightDock
         readingLeftInset={sidebarPanelHidden ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH}
         hostView={activeView}
+        hidden={activeView === 'home' || activeView === 'settings'}
         workspaces={workspaces}
         activeWorkspaceId={dockWorkspaceId}
         activeIdReady={activeIdReady}

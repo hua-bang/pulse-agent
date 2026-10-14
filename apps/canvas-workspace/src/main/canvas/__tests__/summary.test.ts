@@ -37,6 +37,17 @@ describe('summarizeCanvasData', () => {
     expect(summary?.boxes[0]).toEqual({ type: 'text', x: 0, y: 5, width: 100, height: 50 });
   });
 
+  it('keeps a shortened title so the preview can show what each card is', () => {
+    const long = 'x'.repeat(80);
+    const summary = summarizeCanvasData({
+      nodes: [
+        { id: 'a', type: 'file', title: '  Pricing notes ', x: 0, y: 0, width: 10, height: 10 },
+        { id: 'b', type: 'file', title: long, x: 0, y: 0, width: 10, height: 10 },
+      ],
+    });
+    expect(summary?.boxes.map((box) => box.title)).toEqual(['Pricing notes', 'x'.repeat(60)]);
+  });
+
   it('returns null for missing data', () => {
     expect(summarizeCanvasData(null)).toBeNull();
   });

@@ -2,6 +2,32 @@
   position: absolute;
   z-index: var(--layer-canvas-chrome);
   box-sizing: border-box;
+}
+
+/* Folded: a small chip that stays out of the way of the card. */
+.node-ask-bar .node-ask-bar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  opacity: 0.72;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.node-ask-bar .node-ask-bar__chip:hover,
+.node-ask-bar .node-ask-bar__chip:focus-visible {
+  opacity: 1;
+  color: var(--text);
+}
+
+.node-ask-bar--expanded {
   width: 340px;
   max-width: calc(100% - 24px);
   display: flex;

@@ -40,6 +40,8 @@ export type ChatInsertion =
 export interface ChatPromptSubmission {
   text: string;
   nodes: AgentContextNodeRef[];
+  /** Start the turn in a new conversation instead of the one the target shows. */
+  newSession?: boolean;
 }
 
 export interface ChatTargetHandlers {

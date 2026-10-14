@@ -19,4 +19,8 @@ describe('sessionTitleText', () => {
 
     expect(sessionTitleText(`${marker} Summarize this`)).toBe('PI Harness Summarize this');
   });
+
+  it('hides a marker an older preview cut in half', () => {
+    expect(sessionTitleText('总结下 @[node:node-1791449049720-4|')).toBe('总结下…');
+  });
 });

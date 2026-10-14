@@ -46,7 +46,7 @@ export const Launcher = ({
   const ask = async (text: string, scope: AgentScope, label: string) => {
     const target = createChatPageTarget(scope, label);
     onEnterChat(target);
-    const receipt = await deliverWhenReady(broker, target, { text, nodes: [] });
+    const receipt = await deliverWhenReady(broker, target, { text, nodes: [], newSession: true });
     if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
     return receipt.status === 'delivered' || receipt.status === 'queued';
   };

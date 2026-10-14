@@ -155,23 +155,76 @@
 
 .launcher__thumb {
   position: relative;
-  height: 76px;
+  height: 84px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin: 0;
+  padding: 12px 12px 0;
   background: var(--bg-canvas);
   overflow: hidden;
 }
 
-.launcher__thumb-frame {
-  position: absolute;
-  inset: 12px 16px;
-}
-
-.launcher__thumb-node {
-  position: absolute;
+/* A peek at the workspace's first cards: real titles, type-colored edge. */
+.launcher__thumb-card {
+  --thumb-accent: var(--accent-frame);
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 50%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px 8px;
   border: 1px solid var(--border);
+  border-top: 2px solid var(--thumb-accent);
   border-radius: var(--radius-sm);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.launcher__thumb-card:nth-child(2) {
+  margin-top: 8px;
+}
+
+.launcher__thumb-card[data-type='file'] { --thumb-accent: var(--accent-file); }
+.launcher__thumb-card[data-type='terminal'],
+.launcher__thumb-card[data-type='agent'] { --thumb-accent: var(--accent-term); }
+.launcher__thumb-card[data-type='text'] { --thumb-accent: var(--accent-text); }
+.launcher__thumb-card[data-type='image'] { --thumb-accent: var(--accent-image); }
+.launcher__thumb-card[data-type='mindmap'] { --thumb-accent: var(--accent-mindmap); }
+.launcher__thumb-card[data-type='iframe'],
+.launcher__thumb-card[data-type='reference'] { --thumb-accent: var(--accent); }
+
+.launcher__thumb-title {
+  flex: none;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.launcher__thumb-line {
+  display: block;
+  flex: none;
+  width: 86%;
+  height: 4px;
+  border-radius: var(--radius-xs);
+  background: var(--border);
+}
+
+.launcher__thumb-title > .launcher__thumb-line {
+  width: 60%;
+  height: 6px;
+  margin-top: 3px;
+}
+
+.launcher__thumb-line--short {
+  width: 52%;
 }
 
 .launcher__card-info {

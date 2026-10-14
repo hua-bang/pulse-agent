@@ -13,8 +13,8 @@ interface Props {
 }
 
 /**
- * Recently opened workspaces as cards, each with a small layout preview and
- * its card count.
+ * Recently opened workspaces as cards, each with a peek at its first cards
+ * (real titles, colored by card type) and its card count.
  */
 export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCreateWorkspace }: Props) => {
   const { t } = useI18n();
@@ -41,20 +41,20 @@ export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCre
               title={workspace.name}
             >
               <span className="launcher__thumb" aria-hidden="true">
-                <span className="launcher__thumb-frame">
-                  {summary?.rects.map((rect, index) => (
-                    <span
-                      key={index}
-                      className="launcher__thumb-node"
-                      style={{
-                        left: `${rect.left * 100}%`,
-                        top: `${rect.top * 100}%`,
-                        width: `${rect.width * 100}%`,
-                        height: `${rect.height * 100}%`,
-                      }}
-                    />
-                  ))}
-                </span>
+                {summary?.cards.map((card, index) => (
+                  <span
+                    key={index}
+                    className="launcher__thumb-card"
+                    data-type={card.type}
+                    style={{ height: card.height }}
+                  >
+                    <span className="launcher__thumb-title">
+                      {card.title || <span className="launcher__thumb-line" />}
+                    </span>
+                    <span className="launcher__thumb-line" />
+                    <span className="launcher__thumb-line launcher__thumb-line--short" />
+                  </span>
+                ))}
               </span>
               <span className="launcher__card-info">
                 <span className="launcher__card-name">{workspace.name}</span>
