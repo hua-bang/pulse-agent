@@ -85,9 +85,9 @@ The workbench has exactly two side regions plus a modal tier:
   fresh on each entry, so a request it has not consumed opens the list in its
   initial state (no width transition or message reflow). The page fits the
   window: one row holds the three latest workspaces and New, and only the
-  recent chats list (up to 20 rows) scrolls. A chat row shows its title,
-  time, place (General or the workspace), message count, and the first
-  message when it differs from the title. The page itself scrolls only
+  recent chats list (up to 20 rows) scrolls. A chat row is one line: the
+  title on the left; the place (General or the workspace), the first message
+  when it differs from the title, and the time muted on the right. The page itself scrolls only
   when the window cannot show two chat rows. Workspace cards follow the recency list
   that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
   uses the node snapshot this window already holds. For any other recent

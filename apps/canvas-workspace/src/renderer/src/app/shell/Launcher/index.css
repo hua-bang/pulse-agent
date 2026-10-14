@@ -267,17 +267,14 @@
   min-height: 0;
   overflow-y: auto;
   gap: 2px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
 }
 
+/* One line per chat: title on the left, place and time muted on the right. */
 .launcher .launcher__chat {
   flex: none;
-  height: 58px;
+  height: 42px;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 16px;
   padding: 0 12px;
   border: 0;
   background: transparent;
@@ -290,67 +287,34 @@
   background: var(--surface-hover);
 }
 
-.launcher__chat-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: left;
-}
-
-.launcher__chat-head,
+.launcher__chat-title,
 .launcher__chat-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .launcher__chat-title {
   flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.launcher__chat-meta {
+  flex: 0 1 auto;
+  max-width: 240px;
+}
+
+.launcher__chat-meta,
+.launcher__chat-time {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .launcher__chat-time {
   flex: none;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.launcher__chat-meta {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.launcher__chat-meta > span {
-  flex: none;
-}
-
-.launcher__chat-scope {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 180px;
-  padding: 1px 6px;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--surface-alt);
-  color: var(--text-secondary);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.launcher__chat-meta > .launcher__chat-preview {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  width: 110px;
+  text-align: right;
 }
 
 .launcher__chats-empty {

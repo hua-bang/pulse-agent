@@ -1,4 +1,3 @@
-import { BotAvatarIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { sessionTitleText } from '../../../modules/chat/components/utils/sessionTitle';
@@ -41,23 +40,15 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
               onClick={() => onOpenChat(chat)}
               title={title}
             >
-              <BotAvatarIcon size={16} />
-              <span className="launcher__chat-body">
-                <span className="launcher__chat-head">
-                  <span className="launcher__chat-title">{title}</span>
-                  {session.updatedAt ? (
-                    <span className="launcher__chat-time">{formatRelativeTime(session.updatedAt, language)}</span>
-                  ) : null}
-                </span>
-                <span className="launcher__chat-meta">
-                  <span className="launcher__chat-scope">
-                    {chat.isGlobal ? <BotAvatarIcon size={11} /> : <WorkspaceIcon size={11} />}
-                    {chat.scopeName}
-                  </span>
-                  <span>{t('chat.toolCalls.messageCount', { count: session.messageCount })}</span>
-                  {preview && preview !== title ? <span className="launcher__chat-preview">{preview}</span> : null}
-                </span>
+              <span className="launcher__chat-title">{title}</span>
+              <span className="launcher__chat-meta">
+                {[chat.scopeName, preview && preview !== title ? preview : null]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
+              {session.updatedAt ? (
+                <span className="launcher__chat-time">{formatRelativeTime(session.updatedAt, language)}</span>
+              ) : null}
             </Button>
           );
         })}

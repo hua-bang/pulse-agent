@@ -24,8 +24,6 @@ export interface WorkspaceSummary {
 export interface RecentChat {
   storeId: string;
   scopeName: string;
-  /** The General chat, not a workspace's. */
-  isGlobal: boolean;
   session: AgentSessionInfo;
 }
 
@@ -117,7 +115,6 @@ export const useLauncherData = (
         .map((session) => ({
           storeId: group.workspaceId,
           scopeName: names[group.workspaceId] ?? globalName,
-          isGlobal: !(group.workspaceId in names),
           session,
         })));
       chats.sort((a, b) => (b.session.updatedAt ?? 0) - (a.session.updatedAt ?? 0));
