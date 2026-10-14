@@ -57,6 +57,13 @@ The workbench has exactly two side regions plus a modal tier:
   Below it, `.canvas-route__body` is a row that holds the Library drawer and
   the canvas side by side; without it the drawer stacked above the canvas.
   Guard: `WorkspaceTabs/index.test.tsx`.
+  The canvas route stays mounted under `display: none` on other routes, and
+  background workspaces are hidden the same way. Node code that measures DOM
+  size must skip hidden canvases (`useWorkspaceActive()`), because a hidden
+  element measures 0. Text nodes once saved that 0 size on every route switch
+  and measured again on return, so each switch re-saved the workspace and
+  re-rendered every node. On show, text nodes also skip the size read when the
+  node did not change while hidden. Guard: `TextNodeBodyLazy/index.test.tsx`.
 - **Launcher** (`/home`, `app/shell/Launcher`, lazy) has an ask box with a
   scope picker (global or one workspace) and starter prompts, recent
   workspaces, and recent non-empty chats across scopes
