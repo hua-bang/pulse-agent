@@ -95,7 +95,7 @@ export const Sidebar = ({
     />
   );
 
-  const renderHeader = (brand: boolean, section: boolean) => (
+  const renderHeader = (brand: boolean) => (
     <SidebarHeader
       onToggle={onToggle}
       showAddMenu={editing.showAddMenu}
@@ -106,7 +106,6 @@ export const Sidebar = ({
       onNewFolder={() => editing.startCreate('folder')}
       onImportWorkspace={editing.importWorkspace}
       brand={brand}
-      section={section}
     />
   );
 
@@ -170,16 +169,16 @@ export const Sidebar = ({
         onOpenMcpApp={onOpenMcpApp}
         tree={railExpanded ? (
           <div className="sidebar-rail-tree">
-            {renderHeader(false, true)}
+            {renderHeader(false)}
             {workspaceList}
           </div>
         ) : undefined}
       />
       <div className="sidebar-panel" hidden={collapsed}>
-        {!collapsed && (
+        {!collapsed && !railExpanded && (
           <>
-            {renderHeader(true, !railExpanded)}
-            {!railExpanded && workspaceList}
+            {renderHeader(true)}
+            {workspaceList}
           </>
         )}
 

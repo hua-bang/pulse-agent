@@ -26,14 +26,12 @@ interface SidebarHeaderProps {
   onImportWorkspace: () => void;
   /** The brand row with the collapse control. */
   brand?: boolean;
-  /** The Workspaces title with the add menu. */
-  section?: boolean;
 }
 
 /**
  * Header of the workspace panel: brand, collapse control, and the add menu.
- * The wide rail shows the add menu over its tree and leaves the brand row to
- * the Layers panel.
+ * The wide rail shows only the add menu over its tree; the panel then holds
+ * only Layers, so it has no brand row.
  */
 export const SidebarHeader = ({
   onToggle,
@@ -45,7 +43,6 @@ export const SidebarHeader = ({
   onNewFolder,
   onImportWorkspace,
   brand = true,
-  section = true,
 }: SidebarHeaderProps) => {
   const { t } = useI18n();
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -94,64 +91,62 @@ export const SidebarHeader = ({
         </div>
       )}
 
-      {section && (
-        <div className="sidebar-section-header">
-          <span className="sidebar-section-title">{t('sidebar.workspaces')}</span>
-          <div className="sidebar-section-actions" ref={addMenuRef}>
-            <button
-              ref={addButtonRef}
-              type="button"
-              className="sidebar-section-btn"
-              onClick={onToggleAddMenu}
-              onKeyDown={handleAddButtonKeyDown}
-              title={t('sidebar.addWorkspaceOrFolder')}
-              aria-label={t('sidebar.addWorkspaceOrFolder')}
-              aria-haspopup="menu"
-              aria-expanded={showAddMenu}
-              aria-controls={showAddMenu ? 'sidebar-add-menu' : undefined}
+      <div className="sidebar-section-header">
+        <span className="sidebar-section-title">{t('sidebar.workspaces')}</span>
+        <div className="sidebar-section-actions" ref={addMenuRef}>
+          <button
+            ref={addButtonRef}
+            type="button"
+            className="sidebar-section-btn"
+            onClick={onToggleAddMenu}
+            onKeyDown={handleAddButtonKeyDown}
+            title={t('sidebar.addWorkspaceOrFolder')}
+            aria-label={t('sidebar.addWorkspaceOrFolder')}
+            aria-haspopup="menu"
+            aria-expanded={showAddMenu}
+            aria-controls={showAddMenu ? 'sidebar-add-menu' : undefined}
+          >
+            <PlusIcon size={14} />
+          </button>
+          {showAddMenu && (
+            <div
+              ref={menuRef}
+              id="sidebar-add-menu"
+              className="sidebar-add-menu"
+              role="menu"
+              aria-label={t('sidebar.addMenuLabel')}
             >
-              <PlusIcon size={14} />
-            </button>
-            {showAddMenu && (
-              <div
-                ref={menuRef}
-                id="sidebar-add-menu"
-                className="sidebar-add-menu"
-                role="menu"
-                aria-label={t('sidebar.addMenuLabel')}
+              <button
+                type="button"
+                className="sidebar-add-menu-item"
+                role="menuitem"
+                onClick={onNewWorkspace}
               >
-                <button
-                  type="button"
-                  className="sidebar-add-menu-item"
-                  role="menuitem"
-                  onClick={onNewWorkspace}
-                >
-                  <WorkspaceIcon size={14} />
-                  <span>{t('sidebar.newWorkspace')}</span>
-                </button>
-                <button
-                  type="button"
-                  className="sidebar-add-menu-item"
-                  role="menuitem"
-                  onClick={onNewFolder}
-                >
-                  <FolderIcon size={14} />
-                  <span>{t('sidebar.newFolder')}</span>
-                </button>
-                <button
-                  type="button"
-                  className="sidebar-add-menu-item"
-                  role="menuitem"
-                  onClick={onImportWorkspace}
-                >
-                  <ImportIcon size={14} />
-                  <span>{t('sidebar.importWorkspace')}</span>
-                </button>
-              </div>
-            )}
-          </div>
+                <WorkspaceIcon size={14} />
+                <span>{t('sidebar.newWorkspace')}</span>
+              </button>
+              <button
+                type="button"
+                className="sidebar-add-menu-item"
+                role="menuitem"
+                onClick={onNewFolder}
+              >
+                <FolderIcon size={14} />
+                <span>{t('sidebar.newFolder')}</span>
+              </button>
+              <button
+                type="button"
+                className="sidebar-add-menu-item"
+                role="menuitem"
+                onClick={onImportWorkspace}
+              >
+                <ImportIcon size={14} />
+                <span>{t('sidebar.importWorkspace')}</span>
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </>
   );
 };

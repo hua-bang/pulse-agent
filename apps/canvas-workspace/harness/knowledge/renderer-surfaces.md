@@ -28,7 +28,8 @@ The workbench has exactly two side regions plus a modal tier:
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
   so the CSS widths and `App` constants change together. The wide rail also
   holds the workspace list under the nav items, with the same 13px text as
-  the labels; the panel then keeps only the brand row and Layers, and hides
+  the labels; the panel then keeps only Layers, without the brand row (the
+  Workspaces button still collapses it), and hides
   when there are no layers or the route is not the canvas. Pulse Agent opens the launcher and stays current on
   the launcher and chat routes; there is no separate Home button. The panel
   next to it holds the
