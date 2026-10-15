@@ -112,6 +112,51 @@ describe('useSubmitPrompt', () => {
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('settles on unmount while session IPC is pending and ignores its late success', async () => {
+    const harness = mountSubmit();
+    let finish!: (value: { ok: boolean; activeSessionId: string }) => void;
+    harness.handleNewSession.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const result = harness.start({ text: 'Hi', nodes: [], newSession: true });
+    const settled = vi.fn();
+    void result.then(settled);
+    harness.unmount();
+    await act(async () => { await Promise.resolve(); });
+    expect(settled).toHaveBeenCalledWith(false);
+    await act(async () => { finish({ ok: true, activeSessionId: 'fresh' }); });
+    expect(await result).toBe(false);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a deferred creation single-flight and sends after the new key is ready', async () => {
+    const harness = mountSubmit();
+    let finish!: (value: { ok: boolean; activeSessionId: string }) => void;
+    harness.handleNewSession.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const result = harness.start({ text: 'Hi', nodes: [], newSession: true });
+    const duplicate = harness.start({ text: 'Again', nodes: [], newSession: true });
+    await act(async () => harness.activate('fresh'));
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    await act(async () => { finish({ ok: true, activeSessionId: 'fresh' }); });
+    expect(await duplicate).toBe(false);
+    expect(await result).toBe(true);
+    expect(harness.handleNewSession).toHaveBeenCalledOnce();
+    expect(harness.sendMessage).toHaveBeenCalledOnce();
+    harness.unmount();
+  });
+
+  it.each(['refused', 'missing-id', 'rejected'])('settles %s creation and allows a retry', async (failure) => {
+    const harness = mountSubmit();
+    if (failure === 'rejected') harness.handleNewSession.mockRejectedValueOnce(new Error('IPC failed'));
+    else harness.handleNewSession.mockResolvedValueOnce({ ok: failure !== 'refused', activeSessionId: '' });
+    expect(await harness.submit({ text: 'Hi', nodes: [], newSession: true })).toBe(false);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    const retry = harness.start({ text: 'Retry', nodes: [], newSession: true });
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => harness.activate('fresh'));
+    expect(await retry).toBe(true);
+    expect(harness.sendMessage).toHaveBeenCalledOnce();
+    harness.unmount();
+  });
+
   it('keeps the composer context when the prompt names no nodes', async () => {
     const harness = mountSubmit();
 

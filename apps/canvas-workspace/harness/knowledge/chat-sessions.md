@@ -527,12 +527,18 @@ turn is scoped to the asked-about node (`selected_nodes`), not to the
 composer's current selection, and the sent text ends with a node chip
 (`@[node:<id>|<title>]`) so the bubble and history keep the node id. Ask-bar
 prompts carry `newSession`: `useSubmitPrompt` first calls
-`handleNewSession`, holds the prompt in state, and sends once
+`handleNewSession`, registers a cancellable request before awaiting its IPC,
+holds the acknowledged prompt in state, and sends once
 `conversationSessionId` (the key `sendMessage` uses) is the new session. That
 key trails `activeSessionId` by a render; keying on the pointer sent the
 prompt into the old conversation and then again into the new one. The send is
 claimed in a ref so a repeated effect run cannot send twice. Unmounting first
-reports the prompt as not sent. The launcher does not use `newSession`: it
+reports the prompt as not sent even while creation IPC is pending, and invalidates
+the lifecycle token so a late reply cannot park or send the prompt. Closing the
+dock only hides it. Workspace replacement by a preview or background workspace
+eviction can unmount the composer. The insertion queue's two-second timeout only
+waits for handler registration; it does not bound a running submit handler.
+The launcher does not use `newSession`: it
 creates the session before it enters the chat page, so the page never shows
 the previous conversation first (see `renderer-surfaces.md`, Launcher). Session previews (`session-preview.ts`) never cut a marker in half,
 and `sessionTitleParts` shows an ellipsis for an older preview that did.
