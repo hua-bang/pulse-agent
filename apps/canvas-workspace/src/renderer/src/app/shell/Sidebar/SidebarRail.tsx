@@ -44,11 +44,13 @@ interface RailButtonProps {
   active: boolean;
   label: string;
   title?: string;
+  /** Keep the label for assistive tech only, even on the wide rail. */
+  iconOnly?: boolean;
   onClick: () => void;
   children: ReactNode;
 }
 
-const RailButton = ({ active, label, title, onClick, children }: RailButtonProps) => (
+const RailButton = ({ active, label, title, iconOnly, onClick, children }: RailButtonProps) => (
   <button
     type="button"
     className={`sidebar-rail-btn${active ? ' sidebar-rail-btn--active' : ''}`}
@@ -58,7 +60,7 @@ const RailButton = ({ active, label, title, onClick, children }: RailButtonProps
     aria-current={active ? 'page' : undefined}
   >
     {children}
-    <span className="sidebar-rail-label">{label}</span>
+    {!iconOnly && <span className="sidebar-rail-label">{label}</span>}
   </button>
 );
 
@@ -177,6 +179,7 @@ export const SidebarRail = ({
       <RailButton
         active={false}
         label={t(expanded ? 'sidebar.hideLabels' : 'sidebar.showLabels')}
+        iconOnly
         onClick={onToggleExpanded}
       >
         <ChevronRightIcon size={12} className="sidebar-rail-chevron" />

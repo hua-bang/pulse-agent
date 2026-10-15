@@ -56,7 +56,7 @@ beforeEach(async () => {
     collapsed: false, activeId: 'a', activeView: 'canvas',
     workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }],
     folders: [{ id: 'f', name: 'Folder', collapsed: true }],
-    onToggle: vi.fn(), railExpanded: false, onToggleRail: vi.fn(), onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(),
+    onToggle: vi.fn(), railExpanded: true, onToggleRail: vi.fn(), onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(),
     onDelete: vi.fn(), onExport: vi.fn(), onOpenSettings: vi.fn(), onOpenAppSettings: vi.fn(),
     onImport: vi.fn(), onCreateFolder: vi.fn(), onRenameFolder: vi.fn(), onDeleteFolder: vi.fn(),
     onToggleFolder: vi.fn(), onMoveWorkspace: vi.fn(), onReorderWorkspace: vi.fn(), onReorderFolder: vi.fn(),
@@ -103,16 +103,18 @@ describe('Sidebar owner interactions', () => {
     expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
   });
 
-  it('moves the workspace tree into the wide rail and leaves only Layers in the panel', async () => {
-    props.railExpanded = true;
+  it('lists workspaces only in the wide rail and keeps the panel to Layers', async () => {
     await render();
     const tree = host.querySelector('.sidebar-rail .sidebar-rail-tree');
     expect(tree?.textContent).toContain('Alpha');
     expect(tree?.querySelector('[aria-label="Add workspace or folder"]')).not.toBeNull();
     const panel = host.querySelector('.sidebar-panel');
-    expect(panel?.querySelector('.sidebar-brand-header')).toBeNull();
     expect(panel?.textContent).not.toContain('Alpha');
     expect(panel?.querySelector('[aria-label="Add workspace or folder"]')).toBeNull();
+    props.railExpanded = false;
+    await render();
+    expect(host.querySelector('.sidebar-rail-tree')).toBeNull();
+    expect(host.textContent).not.toContain('Alpha');
   });
 
   it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', async () => {

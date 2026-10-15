@@ -90,7 +90,7 @@ describe('SidebarRail', () => {
     expect(props.onToggleExpanded).toHaveBeenCalledOnce();
 
     render({ ...props, expanded: true });
-    expect(button('Hide labels')).not.toBeNull();
+    expect(button('Hide labels').textContent).toBe('');
     expect(button('Settings').textContent).toBe('Settings');
   });
 });

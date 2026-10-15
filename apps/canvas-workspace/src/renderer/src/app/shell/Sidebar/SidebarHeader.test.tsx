@@ -18,17 +18,15 @@ afterEach(() => {
 });
 
 describe('SidebarHeader', () => {
-  it('keeps the panel collapse control and the workspace add menu, with navigation on the rail', () => {
+  it('keeps the workspace add menu, with navigation on the rail', () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
-    const onToggle = vi.fn();
 
     act(() => {
       root?.render(
         <I18nProvider>
           <SidebarHeader
-            onToggle={onToggle}
             showAddMenu={false}
             onToggleAddMenu={vi.fn()}
             onCloseAddMenu={vi.fn()}
@@ -43,7 +41,5 @@ describe('SidebarHeader', () => {
 
     expect(host.querySelector('.sidebar-nav-item')).toBeNull();
     expect(host.querySelector('[aria-label="Add workspace or folder"]')).not.toBeNull();
-    act(() => host!.querySelector<HTMLButtonElement>('[title="Collapse sidebar"]')?.click());
-    expect(onToggle).toHaveBeenCalledOnce();
   });
 });

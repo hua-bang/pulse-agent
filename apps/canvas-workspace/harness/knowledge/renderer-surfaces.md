@@ -23,20 +23,18 @@ The workbench has exactly two side regions plus a modal tier:
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
   Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
-  Settings at the bottom. The toggle above Settings widens the rail to 240px
-  with a label beside each icon, and the choice persists
+  Settings at the bottom. The toggle above Settings (a chevron with no visible
+  label) widens the rail to 240px with a label beside each icon, and the choice persists
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
-  so the CSS widths and `App` constants change together. The wide rail also
-  holds the workspace list under the nav items, with the same 13px text as
-  the labels; the panel then keeps only Layers, without the brand row (the
-  Workspaces button still collapses it), and hides
-  when there are no layers or the route is not the canvas. Pulse Agent opens the launcher and stays current on
-  the launcher and chat routes; there is no separate Home button. The panel
-  next to it holds the
-  workspace list and Layers; collapsing hides only the panel. The launcher,
-  chat, and settings routes hide the panel without changing the saved
-  preference: the launcher lists workspaces itself, the chat session list
-  groups by workspace, and settings has its own category column. Workspace row
+  so the CSS widths and `App` constants change together. Only the wide rail
+  lists workspaces, under the nav items and with the same 13px text as the
+  labels; the narrow rail relies on the workspace tabs, their picker, and
+  the launcher. Folders start collapsed on launch, except the one holding
+  the active workspace. Pulse Agent opens the launcher and stays current on the
+  launcher and chat routes; there is no separate Home button. The panel next
+  to the rail holds only canvas Layers, with no brand row: it hides off the
+  canvas route or when the canvas has no nodes, without changing the saved
+  collapse preference. Workspace row
   actions (rename, settings, export, delete) sit in one portaled "more" menu
   so hover does not cut the name short. The Workspaces button toggles the
   panel on the canvas route and returns to the canvas elsewhere. Guards:

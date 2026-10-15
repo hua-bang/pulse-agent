@@ -265,13 +265,11 @@ const AppContent = () => {
   // The launcher lists workspaces itself, the chat page's session list
   // groups by workspace, and settings has its own category column, so these
   // routes show only the rail. The launcher and settings own the full
-  // width, so the dock hides there too (it stays mounted). The wide rail
-  // holds the workspace tree itself, so its panel only shows canvas Layers.
+  // width, so the dock hides there too (it stays mounted). The workspace
+  // tree lives in the wide rail, so the panel only shows canvas Layers.
   const sidebarPanelHidden = sidebarCollapsed
-    || activeView === 'home'
-    || activeView === 'chat'
-    || activeView === 'settings'
-    || (railExpanded && (activeView !== 'canvas' || activeNodes.length === 0));
+    || activeView !== 'canvas'
+    || activeNodes.length === 0;
   const sidebarWidth = (railExpanded ? SIDEBAR_RAIL_EXPANDED_WIDTH : SIDEBAR_RAIL_WIDTH)
     + (sidebarPanelHidden ? 0 : SIDEBAR_PANEL_WIDTH);
   const [sessionListRequest, setSessionListRequest] = useState(0);
