@@ -4,8 +4,9 @@ import { flushWorkspacePersistence } from '../../../shared/workspacePersistence'
  * Final save on quit. Main closes storage before windows close, so it asks
  * each window to save first (see main/canvas/flush-before-quit.ts). Nodes
  * that hold unsaved state register a task that writes it and flushes their
- * workspace; main is answered once every task settles. Lives outside the
- * entry chunk: terminal nodes install it when they mount.
+ * workspace; main is answered once every task settles. The entry installs
+ * the listener at startup, so a window with no tasks answers at once instead
+ * of making main wait out its timeout.
  */
 type BeforeQuitTask = () => Promise<void> | void;
 
@@ -16,7 +17,7 @@ export const runBeforeQuitTasks = async (): Promise<void> => {
   await Promise.allSettled([...tasks].map(task => Promise.resolve().then(task)));
 };
 
-const installBeforeQuitFlush = (): void => {
+export const installBeforeQuitFlush = (): void => {
   const store = window.canvasWorkspace?.store;
   if (installed || !store?.onFlushBeforeQuit) return;
   installed = true;

@@ -186,7 +186,10 @@ writes failed with `revision_conflict`.
     `canvas:flushed`, `main/canvas/flush-before-quit.ts`, loaded on quit,
     1.5s timeout). The renderer side (`canvas/document/beforeQuit.ts`) runs
     the tasks mounted terminal nodes registered, each writing its output and
-    flushing its workspace, then answers. Workspaces without a terminal are
+    flushing its workspace, then answers. The renderer entry installs the
+    listener at startup, so a window with no tasks answers at once; before,
+    it never listened and every such quit waited the full 1.5s. Workspaces
+    without a terminal are
     not flushed, so a quit still loses their edits inside the 800ms save
     debounce, as before.
   - The IPC for main's output store (`terminal/scrollback-ipc.ts`) and the
