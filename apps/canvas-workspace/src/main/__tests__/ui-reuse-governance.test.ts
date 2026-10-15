@@ -131,7 +131,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 272→269: Library navigation and cards use Button.
   // 268→262 (dead-code cleanup): knip found unused pickers, settings
   // panels and icons, which were deleted.
-  rawButtonTags: 262,
+  // 262→255: the app rail replaced the sidebar footer, nav list and the
+  // expanded apps list; workspace tabs and the launcher use ui/Button.
+  // 255→251: workspace row actions moved into a ui/Button "more" menu.
+  rawButtonTags: 251,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -445,7 +448,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1666→1664: canvas node border/hover read the new canvas-node-border tokens.
   // 1664→1641 (dead-code cleanup): knip found unused pickers, settings
   // panels and icons, which were deleted.
-  hardcodedColorLiterals: 1641,
+  // 1641→1639: the sidebar footer and expanded apps list CSS were removed.
+  hardcodedColorLiterals: 1639,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

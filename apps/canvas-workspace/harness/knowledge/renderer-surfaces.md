@@ -8,19 +8,121 @@ How full-app surfaces (drawers, docks, overlays, modals) are organized in
 The workbench has exactly two side regions plus a modal tier:
 
 ```
-┌─────────┬──────────────┬──────────────────────────────┬───────────┐
-│ Sidebar │ Reference    │ Canvas                       │ RightDock │
-│ (nav)   │ Drawer       │   + canvas chrome            │ ┌───────┐ │
-│         │ (left,       │     (floating toolbar,       │ │Chat│▦│🔗│ ← tabs
-│         │  in-flow)    │      zoom, fullscreen chip)  │ ├───────┤ │
-│         │              │                              │ │ pane  │ │
-│         │              │   (canvas reflows: dock      │ └───────┘ │
-│         │              │    reserves its width)       │           │
-└─────────┴──────────────┴──────────────────────────────┴───────────┘
-                 modal tier: settings drawers, command palette,
+┌────┬───────┬──────────────┬──────────────────────────────┬───────────┐
+│Rail│ Panel │ Reference    │ [tab][tab][+]  workspace tabs│ RightDock │
+│    │(work- │ Drawer       │ Canvas                       │ ┌───────┐ │
+│    │spaces,│ (left,       │   + canvas chrome            │ │Chat│▦│🔗│ ← tabs
+│    │layers)│  in-flow)    │     (floating toolbar,       │ ├───────┤ │
+│    │       │              │      zoom, fullscreen chip)  │ │ pane  │ │
+│    │       │              │   (canvas reflows: dock      │ └───────┘ │
+│    │       │              │    reserves its width)       │           │
+└────┴───────┴──────────────┴──────────────────────────────┴───────────┘
+                 modal tier: workspace settings drawer, command palette,
                  app-shell dialogs / toasts (above everything)
 ```
-
+- **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
+  (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
+  Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
+  Settings at the bottom. The toggle above Settings (a chevron with no visible
+  label, beside Settings on the wide rail) widens the rail to 240px with a label beside each icon, and the choice persists
+  (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
+  so the CSS widths and `App` constants change together. Only the wide rail
+  lists workspaces, under the nav items and the global MCP Apps, with the
+  same 13px text as the labels; the narrow rail relies on the workspace tabs, their picker, and
+  the launcher. Folders start collapsed on launch, except the one holding
+  the active workspace. Pulse Agent opens the launcher and stays current on the
+  launcher and chat routes; there is no separate Home button. The panel next
+  to the rail holds only canvas Layers, with no brand row: it hides off the
+  canvas route or when the canvas has no nodes, without changing the saved
+  collapse preference. The Layers header carries the collapse button.
+  Workspace row
+  actions (rename, settings, export, delete) sit in one portaled "more" menu
+  so hover does not cut the name short. The Workspaces button toggles the
+  panel on the canvas route and returns to the canvas elsewhere. Guards:
+  `SidebarRail.test.tsx`, `Sidebar/__tests__/`.
+- **Workspace tabs** (`app/shell/WorkspaceTabs`) sit above the canvas route.
+  A workspace that becomes active opens a tab; tab order persists in
+  `localStorage` (`pulse-canvas.open-workspace-tabs`), and tabs of deleted
+  workspaces drop. Closing a tab never deletes the workspace: closing the
+  active tab shows its neighbour, or the launcher when none is left. `+` opens
+  a picker (`WorkspacePicker`): every workspace in recency order with a
+  filter (Enter opens the first match), New workspace, and Pulse Agent (the
+  launcher). While the panel is collapsed, the bar shows a sidebar toggle at
+  its left, because the rail's Workspaces icon does not read as a toggle. The
+  bar loads lazily (startup bundle budget) behind a same-height placeholder.
+  The bar, its placeholder, the sidebar header, the dock tab strip, and the
+  chat page top bar all use `--app-topbar-height`, and the tabs are 30 px
+  pills like the dock tabs, so their bottom borders and centre lines align.
+  Tab width follows Chrome: every tab is 200 px wide and all of them shrink
+  together when the bar is crowded, down to 120 px, after which the list
+  scrolls. The width counts the dock's `--right-dock-inset` as bar space
+  (`cqw` plus the inset, divided by `--tab-count`), so switching between a
+  workspace with the dock open and one without it does not resize the tabs;
+  the list scrolls instead and keeps the active tab in view. The tabs set
+  `width`, not `flex-basis`, because the list sizes itself from its children. Closing a tab with the pointer keeps the other
+  tabs at their width until the pointer leaves the bar, so the next close
+  button stays under the pointer. A divider separates two plain tabs, and
+  the active tab has the same soft fill as the dock's active chat tab.
+  Below it, `.canvas-route__body` is a row that holds the Library drawer and
+  the canvas side by side; without it the drawer stacked above the canvas.
+  Guard: `WorkspaceTabs/index.test.tsx`.
+  The canvas route stays mounted under `display: none` on other routes, and
+  background workspaces are hidden the same way. Node code that measures DOM
+  size must skip hidden canvases (`useWorkspaceActive()`), because a hidden
+  element measures 0. Text nodes once saved that 0 size on every route switch
+  and measured again on return, so each switch re-saved the workspace and
+  re-rendered every node. On show, text nodes also skip the size read when the
+  node did not change while hidden. Guard: `TextNodeBodyLazy/index.test.tsx`.
+- **Launcher** (`/home`, `app/shell/Launcher`, lazy) has an ask box with a
+  scope picker (global or one workspace) and starter prompts, recent
+  workspaces, and recent non-empty chats across scopes
+  (`agent.listAllSessions`). The global scope reads "General". A question
+  first creates a new session in its scope (`agent.newSession`), then enters
+  the full-page chat on that session, and submits once the page composer
+  registers with the chat target broker (`chatPageTarget.ts`, retried for up
+  to 5 s). Entering first showed the scope's previous chat until the swap. If
+  the session fails, the launcher keeps the question and shows an error.
+  `useChatNavigation` commits the entry target with `flushSync` before it
+  sets the location: wouter's location store
+  re-renders synchronously, so the page otherwise mounted on the previous
+  target, loaded that session, and dropped the new empty draft. A recent
+  chat reopens in its owning scope, and "View all" enters the chat page with
+  its session list shown (`ChatPage` `sessionListRequest`). The page mounts
+  fresh on each entry, so a request it has not consumed opens the list in its
+  initial state (no width transition or message reflow). The page fits the
+  window: two rows of three hold the five latest workspaces and New, and only the
+  recent chats list (up to 20 rows) scrolls. A chat row is one line in a
+  bordered list: the title on the left, and the place (General or the
+  workspace) and time muted on the right. The page itself scrolls only
+  when the window cannot show two chat rows. Workspace cards follow the recency list
+  that the tab bar records (`app/shell/recentWorkspaces.ts`). A card preview
+  uses the node snapshot this window already holds. For any other recent
+  workspace it uses `store.summaries` (`canvas:summaries`,
+  `src/main/canvas/summary.ts`): the node count and the first six card boxes
+  with shortened titles, read from the stored layout only, with no migration,
+  write, or watcher. The launcher never calls `store.load`, which returns full
+  node payloads and starts file watchers. A preview shows the first three
+  cards as small cards with their real titles and a type-colored top edge
+  (`toThumbCards`), not a scaled minimap, which shrank real canvases to
+  specks. Previews are never mounted nodes or webviews. The floating chat
+  launcher hides here and on settings (`shared/dock/dock-chat-availability.ts`),
+  and the RightDock is `hidden` on both routes: it stays mounted so terminals
+  and chats survive, but shows no panel, strip, or reserved width. Guards: `Launcher/index.test.tsx`,
+  `src/main/canvas/__tests__/summary.test.ts`.
+- **Route transitions.** Every route view (`.app-body > :not(.sidebar)`)
+  fades in and rises 6 px over 180 ms; the canvas route only fades, so its
+  cards and embedded pages do not move. Reduced motion turns it off. The
+  transform exists only while the animation runs, but during it a
+  `position: fixed` child would anchor to the route view, so route views keep
+  popovers and menus portaled out of themselves. RightDock sets
+  `right-dock-resizing` for the first frame of a route change, as on a
+  workspace switch, so the dock, the reserved `.app-body` margin, and the
+  sidebar panel land in place instead of sliding while the page swaps. Only
+  the user's own panel or dock toggle animates.
+- **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
+  App settings are a full page, not a drawer. Opening remembers the origin
+  route and closing returns to it (`app/App/useShellNavigation.ts`); unknown
+  sections fall back to Models. Workspace settings stay a modal drawer.
 - **Left region — Library.** `ReferenceDrawer` is the only left-side
   container. Its card browser combines workspace node metadata, artifacts
   (`artifact:list-all`), and saved references (`references.json`, owned by
@@ -65,6 +167,11 @@ The workbench has exactly two side regions plus a modal tier:
     chat. From dock chrome, Escape collapses an active web tab, closes a
     reconstructible content/terminal tab, and leaves pinned chat alone;
     Escape inside a web page remains page-owned;
+  - collapsing keeps every tab and the active pointer. Activating the active
+    tab on a collapsed dock shows it again, so `expand()` restores the dock on
+    the tab it had. `app.togglePanels` (Mod+Shift+F; plain F stays node focus)
+    hides the sidebar and the dock together and the next press restores only
+    the panels that were open (`app/shortcuts/usePanelsToggle.ts`);
   - web and terminal tabs can enter comparison with the pinned chat: content
     stays on the left and Pulse AI on the right; ordinary tab selection replaces
     the focused pane and leaves the other in place. Clicking a pane selects it
@@ -111,8 +218,8 @@ The workbench has exactly two side regions plus a modal tier:
   creation toolbar differ, and both are overlays. Guards:
   `RightDock/__tests__/CanvasPreview.test.tsx`,
   `Canvas/bottomChromeRow.test.ts`.
-- **Modal tier.** Settings drawers (`ui/Drawer` shell, formerly
-  `SettingsDrawer`), the command palette, and app-shell dialogs/toasts (the
+- **Modal tier.** The workspace settings drawer (`ui/Drawer` shell), the
+  command palette, and app-shell dialogs/toasts (the
   centered ones now share the `ui/Modal` shell). These are modal with
   backdrops and sit above both side regions.
 
@@ -202,8 +309,8 @@ and writes through symlink targets. Guards: `dock-folder-editor.test.ts`,
    token from the layering scale in `styles.css`. Stacking that stays
    inside one component (node bodies, menus anchored within a panel)
    keeps local values.
-3. **Docks are non-modal; settings are modal.** Backdrops only exist in
-   the modal tier.
+3. **Docks are non-modal; workspace settings are modal.** Backdrops only
+   exist in the modal tier. App settings are a route, not a modal.
 
 ## Layering scale
 
@@ -220,7 +327,7 @@ Defined in `src/renderer/src/styles.css` (`:root`), low → high:
 | `--layer-search` | 1500 | find-in-canvas bar |
 | `--layer-note-popover` | 1550 | note slash / mention / selection bubble menus |
 | `--layer-interaction-shield` | 1800 | drag shield over webviews |
-| `--layer-modal` | 1900 | settings drawers |
+| `--layer-modal` | 1900 | workspace settings drawer |
 | `--layer-palette` | 2000 | command palette |
 | `--layer-dialog` | 2050 | app-shell confirm dialogs |
 | `--layer-toast` | 2100 | app-shell toasts |
@@ -252,7 +359,7 @@ This structure came out of a 2026-06 container cleanup, in three steps:
 - `src/renderer/src/app/App/index.tsx`: top-level renderer routes, shell, settings, and
   plugin route/nav integration.
 - `/apps/<server>/<tool>` (`routeModel.ts`): the main-area view for OpenAI
-  `global` MCP Apps, opened from the Sidebar Apps section. One keep-alive
+  `global` MCP Apps, opened from the app rail. One keep-alive
   host (`modules/mcp-apps` `GlobalMcpAppsView`) holds every opened app and
   hides the inactive ones, so view and workspace switches never reload them.
   Facts and guards: `plugin-market.md` (Global MCP Apps).

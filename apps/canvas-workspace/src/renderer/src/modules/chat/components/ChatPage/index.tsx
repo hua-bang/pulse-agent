@@ -15,6 +15,11 @@ import type {
 } from '../../target';
 import type { ChatPageProps } from './types';
 
+// The last session-list request a mounted page has opened. The chat route
+// unmounts on exit, so this lives outside the component: a remount opens the
+// list for a new request, but not again for one it already handled.
+let consumedSessionListRequest = 0;
+
 const workspaceIdFromScope = (scope: AgentScope): string | null =>
   scope.kind === 'workspace' ? scope.workspaceId : null;
 
@@ -35,6 +40,7 @@ const workspaceIdFromScope = (scope: AgentScope): string | null =>
 export const ChatPage = ({
   allWorkspaces,
   openScheduledTaskId,
+  sessionListRequest = 0,
   initialTarget,
   getWorkspaceNodes,
   getWorkspaceRootFolder,
@@ -80,7 +86,9 @@ export const ChatPage = ({
     executionPolicy: ChatExecutionPolicy;
     sessionBackStack: SessionBackEntry[];
   } | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(true);
+  // Open the list in the first render for a new request: opening it in an
+  // effect animated the rail in and reflowed the thread right after entry.
+  const [railCollapsed, setRailCollapsed] = useState(() => sessionListRequest <= consumedSessionListRequest);
   // Jump trail for session-ref chip navigation. Owned here so scope changes
   // and thread replacement cannot disturb it.
   const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
@@ -105,6 +113,12 @@ export const ChatPage = ({
     setExecutionPolicy('scheduled');
     setSessionBackStack([]);
   }, [openScheduledTaskId]);
+
+  useEffect(() => {
+    if (sessionListRequest <= consumedSessionListRequest) return;
+    consumedSessionListRequest = sessionListRequest;
+    setRailCollapsed(false);
+  }, [sessionListRequest]);
 
   // Every session click keeps the body mounted. Cross-scope picks update the
   // scope and pending session together; the body swaps thread data in place.

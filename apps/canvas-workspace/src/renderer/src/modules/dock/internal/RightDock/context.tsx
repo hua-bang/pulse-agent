@@ -180,7 +180,7 @@ export function useRightDock(): DockActions {
     openLink: (url: string) => store.openLink(url),
     newLink: () => store.newLink(),
     openChat: () => store.openChat(),
-    openScheduledChat: (taskId: string) => store.openScheduledChat(taskId),
+    openScheduledChat: (taskId: string, sessionId?: string) => store.openScheduledChat(taskId, sessionId),
     refreshScheduledChat: (taskId: string) => store.refreshScheduledChat(taskId),
     toggleChat: () => store.toggleChat(),
     toggleContentTabs: () => store.toggleContentTabs(),
@@ -192,6 +192,10 @@ export function useRightDock(): DockActions {
       store.setTerminalAgentType(id, agentType, workspaceId),
     setMountedWorkspaces: (ids: Iterable<string>) => store.setMountedWorkspaces(ids),
     collapse: () => store.collapse(),
+    expand: () => {
+      if (!store.activate(store.getSnapshot().activeTabId)) store.openChat();
+    },
+    isExpanded: () => store.getSnapshot().expanded,
     notifyChatActivity: () => store.notifyChatActivity(),
     pinUrlReference,
     registerPinUrlReference,

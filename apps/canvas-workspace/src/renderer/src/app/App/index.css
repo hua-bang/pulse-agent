@@ -20,6 +20,32 @@
   transition: margin-right 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Every route enters with a short fade and a small rise. Layout transitions
+   are held for the switch frame (RightDock), so the page lands in place.
+   The transform exists only while the animation runs. It would re-anchor a
+   position: fixed child, so routes keep popovers portaled out of the view. */
+.app-body > :not(.sidebar) {
+  animation: route-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The canvas only fades: moving it would move every card and embedded page. */
+.app-body > :has(> .canvas-route) {
+  animation-name: route-fade;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes route-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 .chat-floating-button.app-global-chat-launcher {
   position: fixed;
   right: calc(var(--right-dock-inset, 0px) + 20px);
@@ -38,6 +64,10 @@
   .app-body,
   .chat-floating-button.app-global-chat-launcher {
     transition: none;
+  }
+
+  .app-body > :not(.sidebar) {
+    animation: none;
   }
 }
 
@@ -67,4 +97,30 @@
    underlying route's dimensions and mounted state for an exact return. */
 :root[data-dock-reading="reading"] .app-body > :not(.sidebar) {
   visibility: hidden;
+}
+
+/* Workspace tabs stacked above the canvas workbench. */
+.canvas-route {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-route__body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+/* Matches .workspace-tabs height until the lazy tab bar loads. */
+.canvas-route__tabs-placeholder {
+  flex: none;
+  height: var(--app-topbar-height);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  box-sizing: border-box;
 }

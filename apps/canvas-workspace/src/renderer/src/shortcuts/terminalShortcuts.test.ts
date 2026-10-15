@@ -28,6 +28,7 @@ const mountAppShortcuts = () => {
     openShortcuts: vi.fn(),
     toggleChatPage: vi.fn(),
     toggleSidebar: vi.fn(),
+    togglePanels: vi.fn(),
     selectWorkspaceByIndex: vi.fn(),
   };
   const Harness = () => {

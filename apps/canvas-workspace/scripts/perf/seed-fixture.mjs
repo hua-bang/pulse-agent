@@ -30,11 +30,19 @@ export const buildPerfImageFixture = ({ filePaths, viewport, now }) => {
     data: { filePath },
   }));
   const { width, height, scale } = layout;
+  const centeredY = (viewport.height - height * scale) / 2 - 540 * scale;
+  // Later gesture scenarios (typing, drag) press the seeded note's header at
+  // y 80, above the image grid. Centering the grid alone can push that header
+  // under the chrome above the canvas, so keep it on screen when the note and
+  // the grid fit together. This function runs stringified in the page, so
+  // the note's y stays a literal that matches buildPerfSeedNodes.
+  const noteVisibleY = padding - 80 * scale;
+  const fitsWithNote = noteVisibleY + (540 + height) * scale <= viewport.height - padding;
   return {
     nodes,
     transform: {
       x: (viewport.width - width * scale) / 2 - 80 * scale,
-      y: (viewport.height - height * scale) / 2 - 540 * scale,
+      y: fitsWithNote ? Math.max(centeredY, noteVisibleY) : centeredY,
       scale,
     },
   };

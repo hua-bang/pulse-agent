@@ -15,16 +15,18 @@ export function getOpenChatPatch(state: DockState): DockStatePatch {
     activeTabId: CHAT_TAB_ID,
     chatUnread: false,
     scheduledChatTaskId: undefined,
+    scheduledChatSessionId: undefined,
   };
 }
 
-export function getOpenScheduledChatPatch(state: DockState, taskId: string): DockStatePatch {
+export function getOpenScheduledChatPatch(state: DockState, taskId: string, sessionId?: string): DockStatePatch {
   if (!taskId) return undefined;
   return {
     expanded: true,
     activeTabId: CHAT_TAB_ID,
     chatUnread: false,
     scheduledChatTaskId: taskId,
+    scheduledChatSessionId: sessionId,
     scheduledChatRevision: (state.scheduledChatRevision ?? 0) + 1,
   };
 }

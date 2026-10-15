@@ -147,6 +147,9 @@ export const createChatTargetBroker = (): ChatTargetBroker => {
       } else if (insertion.kind === 'dom-review' && active.handlers.submitDomReview) {
         const submitted = await active.handlers.submitDomReview(insertion.comments);
         if (!submitted) return { status: 'failed', target: active.target };
+      } else if (insertion.kind === 'prompt' && active.handlers.submitPrompt) {
+        const submitted = await active.handlers.submitPrompt(insertion.prompt);
+        if (!submitted) return { status: 'failed', target: active.target };
       } else if (insertion.kind === 'focus' && active.handlers.focus) {
         active.handlers.focus();
       } else {

@@ -6,6 +6,9 @@ import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 export interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  /** The rail shows a label beside each icon. */
+  railExpanded: boolean;
+  onToggleRail: () => void;
   workspaces: WorkspaceEntry[];
   folders: FolderEntry[];
   activeId: string;
@@ -15,7 +18,7 @@ export interface SidebarProps {
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
   onOpenSettings: (id: string) => void;
-  /** Opens the global Settings drawer (gear button at the bottom of the sidebar). */
+  /** Opens the global Settings page (gear at the bottom of the app rail). */
   onOpenAppSettings: () => void;
   onImport: () => void;
   onCreateFolder: (name: string) => void;
@@ -35,7 +38,8 @@ export interface SidebarProps {
   onNodeDelete?: (nodeId: string) => void;
   onNodeRename?: (nodeId: string, title: string) => void;
   activeView: string;
-  onEnterChat: () => void;
+  onEnterHome: () => void;
+  onEnterCanvas: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   onEnterSkills: () => void;

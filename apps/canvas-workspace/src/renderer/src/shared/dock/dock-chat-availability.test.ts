@@ -23,6 +23,8 @@ describe('dock chat availability', () => {
 
   it('keeps the launcher off canvas (own chrome) and off full-page chats (no dock tab)', () => {
     expect(isGlobalChatLauncherVisible('canvas')).toBe(false);
+    expect(isGlobalChatLauncherVisible('settings')).toBe(false);
+    expect(isGlobalChatLauncherVisible('home')).toBe(false);
     expect(isGlobalChatLauncherVisible('chat')).toBe(false);
     expect(isGlobalChatLauncherVisible('scheduled-task')).toBe(false);
   });

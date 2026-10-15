@@ -41,7 +41,8 @@ describe('ChatPage navigation chrome', () => {
     const toggle = host.querySelector<HTMLButtonElement>('[aria-controls="chat-page-session-rail"]');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(host.querySelector('[aria-label="Settings"]')).toBeNull();
-    expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(3);
+    expect(host.querySelectorAll('.chat-page-topbar > .chat-panel-action-btn')).toHaveLength(2);
+    expect(host.querySelector('.chat-page-dock-toggle')?.textContent).toBe('Tabs');
     expect(host.querySelector('.chat-page-topbar-session-title')?.textContent).toBe('Quarterly plan Summarize this');
     expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
     const newChat = host.querySelector<HTMLButtonElement>('[aria-label="New AI chat"]');
@@ -51,7 +52,7 @@ describe('ChatPage navigation chrome', () => {
     act(() => root.unmount());
   });
 
-  it('falls back to New AI chat only while the session rail is collapsed', () => {
+  it('keeps the session title visible whether or not the session rail is open', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const renderTopbar = (railCollapsed: boolean) => (
@@ -75,7 +76,7 @@ describe('ChatPage navigation chrome', () => {
     expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
 
     act(() => root.render(renderTopbar(false)));
-    expect(host.querySelector('.chat-page-topbar-session-title')).toBeNull();
+    expect(host.querySelector('.chat-page-topbar-session-title')?.textContent).toBe('New AI chat');
     expect(host.querySelector('.chat-page-topbar-workspace')?.textContent).toBe('Workspace A');
 
     act(() => root.unmount());

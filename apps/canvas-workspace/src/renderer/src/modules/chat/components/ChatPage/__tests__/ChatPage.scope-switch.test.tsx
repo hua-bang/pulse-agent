@@ -133,6 +133,26 @@ describe('ChatPage scope switching', () => {
       .toBe(`${workspaceId}:referenced-session`);
   });
 
+  it('shows the session list when a request arrives', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const render = (sessionListRequest: number) => root?.render(
+      <ChatPage
+        allWorkspaces={[]}
+        sessionListRequest={sessionListRequest}
+        onExit={vi.fn()}
+        onOpenAppSettings={vi.fn()}
+      />,
+    );
+
+    await act(async () => render(0));
+    expect(mockState.latestProps?.railCollapsed).toBe(true);
+
+    await act(async () => render(1));
+    expect(mockState.latestProps?.railCollapsed).toBe(false);
+  });
+
   it('keeps ChatPageBody mounted when selecting a session in another workspace', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);

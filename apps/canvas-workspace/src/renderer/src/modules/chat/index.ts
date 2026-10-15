@@ -9,6 +9,7 @@ export {
   type ChatDeliveryReceipt,
   type ChatExecutionPolicy,
   type ChatInsertion,
+  type ChatPromptSubmission,
   type ChatTarget,
   type ChatTargetBroker,
   type ChatTargetHandlers,

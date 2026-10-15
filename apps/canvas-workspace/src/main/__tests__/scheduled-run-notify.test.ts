@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   chatThrows: null as Error | null,
   newSessionCalls: [] as unknown[],
   chatCalls: [] as unknown[][],
+  hasSessionCalls: [] as unknown[][],
 }));
 
 vi.mock('electron', () => {
@@ -52,12 +53,21 @@ vi.mock('../agent/ipc', () => ({
       h.newSessionCalls.push(scope);
       return { ok: true, activeSessionId: 'session-1' };
     },
-    chatWithScope: async (...args: unknown[]) => {
-      h.chatCalls.push(args);
-      if (h.chatThrows) throw h.chatThrows;
-      return h.chatResult;
+  }),
+}));
+
+vi.mock('../agent/conversation-runtime/conversation-ipc', () => ({
+  getConversationRuntimeService: () => ({
+    hasSession: async (...args: unknown[]) => {
+      h.hasSessionCalls.push(args);
+      return true;
     },
   }),
+  chatToSubscribers: async (...args: unknown[]) => {
+    h.chatCalls.push(args.slice(1));
+    if (h.chatThrows) throw h.chatThrows;
+    return h.chatResult;
+  },
 }));
 
 import { __testing } from '../scheduled/runtime';
@@ -89,6 +99,7 @@ beforeEach(() => {
   h.chatThrows = null;
   h.newSessionCalls.length = 0;
   h.chatCalls.length = 0;
+  h.hasSessionCalls.length = 0;
 });
 
 afterEach(() => {
@@ -104,7 +115,9 @@ describe('scheduled run completion signal', () => {
 
     expect(result).toEqual({ sessionId: 'session-1' });
     expect(h.newSessionCalls).toEqual([{ kind: 'scheduled', taskId: 'daily-brief' }]);
-    expect(h.chatCalls[0]?.[7]).toMatchObject({ expectedConversationSessionId: 'session-1' });
+    // The run goes through the conversation runtime on the prepared session,
+    // so a chat window that attaches mid-run sees it live.
+    expect(h.chatCalls[0]?.slice(0, 2)).toEqual([{ kind: 'scheduled', taskId: 'daily-brief' }, 'session-1']);
     assertNoOsNotification();
     expect(runFinishedPushes()).toEqual([
       {
@@ -147,5 +160,10 @@ describe('scheduled run completion signal', () => {
       context: { trigger: 'schedule' },
     ) => Promise<unknown>)(task, { trigger: 'schedule' })).rejects.toThrow('engine exploded');
     expect(runFinishedPushes()[0].payload).toMatchObject({ ok: false, error: 'engine exploded' });
+  });
+
+  it('opens the conversation runtime before a manual run hands its session to the chat', async () => {
+    await expect(__testing.prepareManualSession('daily-brief')).resolves.toBe('session-1');
+    expect(h.hasSessionCalls).toEqual([[{ kind: 'scheduled', taskId: 'daily-brief' }, 'session-1']]);
   });
 });

@@ -420,7 +420,7 @@ structurally stable while the selected conversation changes scope.
   unassigned draft has no placeholder workspace label in the topbar, while a
   workspace-owned draft shows that workspace's real name. Delivery feedback
   calls the unassigned destination AI Chat rather than exposing the internal
-  `No workspace` scope label. A cross-scope draft creates the target pointer
+  `General` scope label. A cross-scope draft creates the target pointer
   before the body switches scope and focuses the composer after adoption;
   intent ordering prevents a slower earlier request from replacing a newer
   destination click.
@@ -452,7 +452,9 @@ page and a scheduled task's chat page) has NO close button. Its right-most
 control instead shows/hides the dock's CONTENT tabs (link / artifact /
 node-detail / canvas-preview) beside the chat, and must never navigate — a
 control that routes away from the page the user is reading is not a panel
-toggle.
+toggle. That toggle is a labeled "Tabs" button, not a bare icon, and the
+session title stays visible whether or not the session list is open. Guard:
+`ChatPageBody/__tests__/ChatPageNavigationChrome.test.tsx`.
 
 Shared topbar controls must carry their own button styles: `ChatAnchors` uses
 `ui/Button` (icon, md) rather than relying on the lazily loaded ChatPanel CSS.
@@ -518,6 +520,36 @@ Chat-target broker as node, DOM-selection, and Tab context. The full-page Chat
 composer registers the review submission handler, so reviews never fall through
 to a hidden workspace composer while `/chat` is visible.
 
+The canvas ask bar (`NodeAskBar`, shown under one settled selected node) starts
+as a small "Ask" chip; pressing it opens the input, and an empty input folds
+back on blur or Escape. It sends a `prompt` insertion on the same path. The
+turn is scoped to the asked-about node (`selected_nodes`), not to the
+composer's current selection, and the sent text ends with a node chip
+(`@[node:<id>|<title>]`) so the bubble and history keep the node id. Ask-bar
+prompts carry `newSession`: `useSubmitPrompt` first calls
+`handleNewSession`, registers a cancellable request before awaiting its IPC,
+holds the acknowledged prompt in state, and sends once
+`conversationSessionId` (the key `sendMessage` uses) is the new session. That
+key trails `activeSessionId` by a render; keying on the pointer sent the
+prompt into the old conversation and then again into the new one. The send is
+claimed in a ref so a repeated effect run cannot send twice. Unmounting first
+reports the prompt as not sent even while creation IPC is pending, and invalidates
+the lifecycle token so a late reply cannot park or send the prompt. Closing the
+dock only hides it. Workspace replacement by a preview or background workspace
+eviction can unmount the composer. The insertion queue's two-second timeout only
+waits for handler registration; it does not bound a running submit handler.
+The launcher does not use `newSession`: it
+creates the session before it enters the chat page, so the page never shows
+the previous conversation first (see `renderer-surfaces.md`, Launcher). Session previews (`session-preview.ts`) never cut a marker in half,
+and `sessionTitleParts` shows an ellipsis for an older preview that did.
+A visible full-page composer takes it first; otherwise the bridge opens dock
+chat and holds the prompt until that workspace composer registers, with the
+same timeout and pending limit as DOM reviews. The dock ChatPanel registers its
+review and prompt submitters only after its conversation key exists
+(`conversationReady`); registering earlier flushed a cold dock's waiting
+submission into a `sendMessage` that refuses unkeyed sends. A refused send
+keeps the text in the bar and reports the receipt.
+
 Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `RightDock/index.test.tsx`, `RightDock/__tests__/DockPanes.test.tsx`,
 `RightDock/__tests__/CanvasPreview.test.tsx`,
@@ -525,7 +557,9 @@ Guards: `RightDock/__tests__/dock-chat-availability.test.ts`,
 `Workbench/__tests__/ChatDockLifecycle.test.tsx`. Review routing is pinned by
 `chat/ChatPageBody/__tests__/ChatPage.dom-review.test.tsx`,
 `chat/ChatComposer/__tests__/useSubmitDomReviewComments.test.tsx`, and
-`Workbench/__tests__/useChatInsertionBridge.test.tsx`.
+`Workbench/__tests__/useChatInsertionBridge.test.tsx`. Ask-bar routing is
+pinned by `chat/ChatComposer/__tests__/useSubmitPrompt.test.tsx`,
+`chat/target/index.test.ts`, and `NodeAskBar/index.test.tsx`.
 
 ### Explicit Chat ↔ dock-tab context
 

@@ -9,6 +9,8 @@ interface Options {
   openShortcuts: () => void;
   toggleChatPage: () => void;
   toggleSidebar: () => void;
+  /** Hide or restore the sidebar and the dock together. */
+  togglePanels: () => void;
   /** Jump to the nth (1-based) workspace, if it exists. */
   selectWorkspaceByIndex: (index: number) => void;
 }
@@ -37,6 +39,7 @@ export const useAppShortcuts = ({
   openShortcuts,
   toggleChatPage,
   toggleSidebar,
+  togglePanels,
   selectWorkspaceByIndex,
 }: Options) => {
   const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
@@ -55,6 +58,10 @@ export const useAppShortcuts = ({
     'app.toggleSidebar': (event) => {
       event.preventDefault();
       toggleSidebar();
+    },
+    'app.togglePanels': (event) => {
+      event.preventDefault();
+      togglePanels();
     },
     'app.switchWorkspace': (event) => {
       const index = Number.parseInt(event.key, 10);
@@ -88,6 +95,7 @@ interface AppShortcutBindingsOptions {
   isOverlayOpen: boolean;
   openShortcuts: () => void;
   toggleSidebar: () => void;
+  togglePanels: () => void;
   workspaces: Array<{ id: string }>;
   selectWorkspace: (id: string) => void;
   setLocation: (path: string) => void;
@@ -100,6 +108,7 @@ export const useAppShortcutBindings = ({
   isOverlayOpen,
   openShortcuts,
   toggleSidebar,
+  togglePanels,
   workspaces,
   selectWorkspace,
   setLocation,
@@ -111,6 +120,7 @@ export const useAppShortcutBindings = ({
     openShortcuts,
     toggleChatPage: () => setLocation(activeView === 'chat' ? routes.canvas : routes.chat),
     toggleSidebar,
+    togglePanels,
     selectWorkspaceByIndex: (index) => {
       const workspace = workspaces[index - 1];
       if (workspace) selectWorkspace(workspace.id);

@@ -29,7 +29,7 @@ type OpenSession = (
   scopeLabel: string,
 ) => void | Promise<void>;
 
-const mount = async (onOpenSessionInScope: OpenSession) => {
+const mount = async (onOpenSessionInScope: OpenSession, activeView = 'canvas') => {
   const listeners: Array<(run: ScheduledRunFinished) => void> = [];
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
@@ -44,7 +44,7 @@ const mount = async (onOpenSessionInScope: OpenSession) => {
   });
   const Harness = () => {
     useScheduledRunChatOpener({
-      activeView: 'canvas',
+      activeView,
       chatRoute: '/chat',
       onOpenSessionInScope,
     });
@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 describe('useScheduledRunChatOpener', () => {
-  it('opens the exact completed session in full-page Pulse AI', async () => {
+  it('opens the exact completed session in the dock beside the current page', async () => {
     const openSession = vi.fn();
     const emit = await mount((scope, sessionId, scopeLabel) => {
       openSession(scope, sessionId, scopeLabel);
@@ -96,12 +96,8 @@ describe('useScheduledRunChatOpener', () => {
       document.querySelector<HTMLButtonElement>('.shell-toast__action')?.click();
     });
 
-    expect(openSession).toHaveBeenCalledWith(
-      { kind: 'scheduled', taskId: 'daily-brief' },
-      'scheduled-run-session',
-      'Morning brief',
-    );
-    expect(dock.openScheduledChat).not.toHaveBeenCalled();
+    expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief', 'scheduled-run-session');
+    expect(openSession).not.toHaveBeenCalled();
     expect(dock.refreshScheduledChat).toHaveBeenCalledWith('daily-brief');
     expect(setLocation).not.toHaveBeenCalled();
   });
@@ -124,7 +120,32 @@ describe('useScheduledRunChatOpener', () => {
     });
 
     expect(openSession).not.toHaveBeenCalled();
-    expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief');
+    expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief', undefined);
     expect(dock.refreshScheduledChat).toHaveBeenCalledWith('daily-brief');
+  });
+
+  it('opens the exact session in full-page Pulse AI where the dock has no chat tab', async () => {
+    const openSession = vi.fn();
+    const emit = await mount((scope, sessionId, scopeLabel) => {
+      openSession(scope, sessionId, scopeLabel);
+    }, 'chat');
+    emit({
+      taskId: 'daily-brief',
+      title: 'Morning brief',
+      ok: true,
+      sessionId: 'scheduled-run-session',
+      trigger: 'schedule',
+    });
+
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('.shell-toast__action')?.click();
+    });
+
+    expect(openSession).toHaveBeenCalledWith(
+      { kind: 'scheduled', taskId: 'daily-brief' },
+      'scheduled-run-session',
+      'Morning brief',
+    );
+    expect(dock.openScheduledChat).not.toHaveBeenCalled();
   });
 });

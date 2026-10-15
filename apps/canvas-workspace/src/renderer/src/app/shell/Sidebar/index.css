@@ -1,18 +1,37 @@
 /* ---- Sidebar ---- */
 
+/* App rail (fixed width) + workspace panel (collapsible), side by side. */
 .sidebar {
   width: var(--sidebar-width);
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex-shrink: 0;
   transition: width 0.2s ease;
   overflow: hidden;
 }
 
+.sidebar-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-panel[hidden] {
+  display: none;
+}
+
 .sidebar--collapsed {
   width: var(--sidebar-collapsed);
+}
+
+/* Routes that hide the panel swap it at once, with the page (RightDock sets
+   the class for that frame); only the user's own toggle animates. */
+.right-dock-resizing .sidebar {
+  transition: none;
 }
 
 .sidebar-install-section {
@@ -30,122 +49,6 @@
 
 .sidebar-install-message--warn {
   color: var(--text-warning);
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding: 8px 8px 12px;
-  border-top: 1px solid var(--border-light);
-}
-
-.sidebar-footer-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sidebar-footer-btn:hover {
-  background: rgba(55, 53, 47, 0.05);
-  color: var(--text);
-}
-
-/* ---- Top-level view nav (Canvas / AI Chat) ---- */
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 6px 2px;
-  gap: 1px;
-}
-
-.sidebar-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text);
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-  width: 100%;
-}
-
-.sidebar-nav-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.sidebar-nav-item--active {
-  background: var(--accent-light);
-  color: var(--accent);
-}
-
-.sidebar-nav-item--active:hover {
-  background: var(--accent-light);
-}
-
-.sidebar-nav-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-.sidebar-nav-item--active .sidebar-nav-icon {
-  color: var(--accent);
-}
-
-.sidebar-nav-label {
-  flex: 1;
-  font-weight: 500;
-}
-
-.sidebar-brand-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: var(--app-topbar-height);
-  flex-shrink: 0;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.sidebar-brand-mark {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sidebar-brand-mark svg,
-.sidebar-brand-mark img {
-  display: block;
-}
-
-.sidebar-brand {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  letter-spacing: -0.01em;
-  flex: 1;
 }
 
 .sidebar-toggle {
@@ -233,37 +136,66 @@
   min-width: 0;
 }
 
-.sidebar-item-delete,
-.sidebar-item-export,
-.sidebar-item-rename,
-.sidebar-item-settings {
+.sidebar-item-more.ui-btn {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
   display: none;
-  align-items: center;
-  justify-content: center;
   color: var(--text-muted);
-  transition: background 0.1s, color 0.1s;
 }
 
-.sidebar-item-row:hover .sidebar-item-delete,
-.sidebar-item-row:hover .sidebar-item-export,
-.sidebar-item-row:hover .sidebar-item-rename,
-.sidebar-item-row:hover .sidebar-item-settings {
+.sidebar-item-row:hover .sidebar-item-more.ui-btn,
+.sidebar-item-more--open.ui-btn,
+.sidebar-item-more.ui-btn:focus-visible {
   display: inline-flex;
 }
 
-.sidebar-item-delete:hover,
-.sidebar-item-export:hover,
-.sidebar-item-rename:hover,
-.sidebar-item-settings:hover {
-  background: rgba(0, 0, 0, 0.06);
+.sidebar-item-menu {
+  position: fixed;
+  z-index: var(--layer-dock-menu);
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.sidebar-item-menu-item.ui-btn {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.sidebar-item-menu-item > svg {
+  flex-shrink: 0;
   color: var(--text-secondary);
+}
+
+.sidebar-item-menu-item.ui-btn:hover,
+.sidebar-item-menu-item.ui-btn:focus-visible {
+  outline: none;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-item-menu-item--danger.ui-btn,
+.sidebar-item-menu-item--danger > svg {
+  color: var(--error);
+}
+
+.sidebar-item-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
 }
 
 .sidebar-rename-input {

@@ -31,7 +31,13 @@ export function sessionTitleParts(value: string): SessionTitlePart[] {
     lastIndex = offset + marker.length;
     return marker;
   });
-  if (lastIndex < value.length) parts.push({ text: value.slice(lastIndex) });
+  if (lastIndex < value.length) {
+    let tail = value.slice(lastIndex);
+    // Older previews could cut a marker in half; show an ellipsis, not `@[node:…`.
+    const dangling = tail.lastIndexOf('@[');
+    if (dangling >= 0 && !tail.includes(']', dangling)) tail = `${tail.slice(0, dangling).trimEnd()}…`;
+    parts.push({ text: tail });
+  }
   return parts;
 }
 

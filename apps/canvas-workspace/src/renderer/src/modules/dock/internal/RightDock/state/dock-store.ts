@@ -275,7 +275,7 @@ export class DockStore {
     ) {
       return false;
     }
-    if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) {
+    if (this.state.expanded && this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) {
       return true;
     }
     if (activatingTerminal) {
@@ -305,7 +305,7 @@ export class DockStore {
   openChat(): void { const next = getOpenChatPatch(this.state); if (next) this.commit(next); }
 
   /** Open Pulse AI on a scheduled task's dedicated chat scope. */
-  openScheduledChat(taskId: string): void { const next = getOpenScheduledChatPatch(this.state, taskId); if (next) this.commit(next); }
+  openScheduledChat(taskId: string, sessionId?: string): void { const next = getOpenScheduledChatPatch(this.state, taskId, sessionId); if (next) this.commit(next); }
 
   /** Reload the visible task conversation after its background run persists. */
   refreshScheduledChat(taskId: string): void { const next = getRefreshScheduledChatPatch(this.state, taskId); if (next) this.commit(next); }

@@ -266,6 +266,8 @@ export function useConversationRuntimeStream({
     clarificationAnswering,
     clarificationError,
     conversationError,
+    /** False until a session key exists; `sendMessage` refuses before then. */
+    conversationReady: keyed,
     collapsedSections,
     disposeCurrentTurn,
     editUserMessage,

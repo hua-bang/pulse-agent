@@ -10,6 +10,8 @@ export const APP_ROUTES = {
   skills: '/skills',
   scheduled: '/scheduled',
   apps: '/apps',
+  settings: '/settings',
+  home: '/home',
 } as const;
 
 /** Main-area view key for a global MCP App (`/apps/<server>/<tool>`). */
@@ -25,6 +27,16 @@ export const mcpAppRoutePath = ({ serverName, toolName }: McpAppRouteTarget): st
 );
 
 export type AppActiveView = 'canvas' | 'chat' | string;
+
+/** Routes that map one exact path to one view. */
+const STATIC_VIEWS: Record<string, AppActiveView> = {
+  [APP_ROUTES.chat]: 'chat',
+  [APP_ROUTES.settings]: 'settings',
+  [APP_ROUTES.home]: 'home',
+  [APP_ROUTES.plugins]: 'plugins',
+  [APP_ROUTES.skills]: 'skills',
+  [APP_ROUTES.scheduled]: 'scheduled',
+};
 
 interface ResolveAppRouteOptions {
   nodesEnabled: boolean;
@@ -62,25 +74,18 @@ export const resolveAppRoute = (
     : null;
   const nodesRoute = options.nodesEnabled && (path === APP_ROUTES.nodes || detailNode !== null);
   const graphRoute = options.graphEnabled && path === APP_ROUTES.graph;
-  const activeView: AppActiveView = path === APP_ROUTES.chat
-    ? 'chat'
-    : path === APP_ROUTES.plugins
-      ? 'plugins'
-      : path === APP_ROUTES.skills
-        ? 'skills'
-        : scheduledMatch
-          ? 'scheduled-task'
-          : mcpApp
-            ? MCP_APP_VIEW
-            : path === APP_ROUTES.scheduled
-              ? 'scheduled'
-              : nodesRoute
-                ? detailNode ? 'node-detail' : 'nodes'
-                : graphRoute
-                  ? 'graph'
-                  : options.pluginPaths.includes(path)
-                    ? path
-                    : 'canvas';
+  const activeView: AppActiveView = STATIC_VIEWS[path]
+    ?? (scheduledMatch
+      ? 'scheduled-task'
+      : mcpApp
+        ? MCP_APP_VIEW
+        : nodesRoute
+          ? detailNode ? 'node-detail' : 'nodes'
+          : graphRoute
+            ? 'graph'
+            : options.pluginPaths.includes(path)
+              ? path
+              : 'canvas');
   return {
     path,
     params,

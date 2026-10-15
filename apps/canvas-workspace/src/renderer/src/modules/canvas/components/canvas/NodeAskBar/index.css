@@ -1,0 +1,70 @@
+.node-ask-bar {
+  position: absolute;
+  z-index: var(--layer-canvas-chrome);
+  box-sizing: border-box;
+}
+
+/* Folded: a small chip that stays out of the way of the card. */
+.node-ask-bar .node-ask-bar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  opacity: 0.72;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.node-ask-bar .node-ask-bar__chip:hover,
+.node-ask-bar .node-ask-bar__chip:focus-visible {
+  opacity: 1;
+  color: var(--text);
+}
+
+.node-ask-bar--expanded {
+  width: 340px;
+  max-width: calc(100% - 24px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.node-ask-bar__icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.node-ask-bar .ui-textfield {
+  flex: 1;
+}
+
+/* Borderless inside the bar: the bar itself is the field's frame. */
+.node-ask-bar__input.ui-textfield__control {
+  height: 28px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.node-ask-bar__input::placeholder {
+  color: var(--text-muted);
+}
+
+.node-ask-bar__send:not(:disabled) {
+  color: var(--accent);
+}

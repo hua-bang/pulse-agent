@@ -65,6 +65,9 @@ export interface DockState {
   /** When set, Pulse AI renders the dedicated conversation for this task
    *  instead of the active workspace conversation. */
   scheduledChatTaskId?: string;
+  /** The exact run conversation to show for that task; unset shows the
+   *  task's current conversation. */
+  scheduledChatSessionId?: string;
   /** Incremented after a manual run so the task conversation reloads its
    *  newly persisted result. */
   scheduledChatRevision?: number;

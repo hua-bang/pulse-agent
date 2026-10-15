@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../../../types';
 import { I18nProvider } from '../../../../../i18n';
+import { WorkspaceActiveProvider } from '../../../../../shared/workspaceActivity';
 
 vi.mock('../TextNodeBody', () => ({
   TextNodeBody: ({ startEditing, node }: { startEditing?: boolean; node: CanvasNode }) => (
@@ -28,10 +29,11 @@ const node = {
 
 const renderNode = async (props: Partial<{
   node: CanvasNode; isSelected: boolean; readOnly: boolean; isResizing: boolean; editRequest: number;
+  workspaceActive: boolean;
 }> = {}) => {
   await act(async () => {
     root?.render(
-      <I18nProvider><TextNodeBodyLazy
+      <I18nProvider><WorkspaceActiveProvider value={props.workspaceActive ?? true}><TextNodeBodyLazy
         node={props.node ?? node}
         onUpdate={onUpdate}
         isSelected={props.isSelected ?? false}
@@ -40,7 +42,7 @@ const renderNode = async (props: Partial<{
         onSelect={onSelect}
         onDragStart={onDragStart}
         readOnly={props.readOnly ?? false}
-      /></I18nProvider>,
+      /></WorkspaceActiveProvider></I18nProvider>,
     );
   });
 };
@@ -133,6 +135,33 @@ it('keeps auto-size and fixed-width wrapping measurements without mounting an ed
   await renderNode({ isResizing: true });
   expect(onUpdate).not.toHaveBeenCalled();
   expect(editor()).toBeNull();
+});
+
+it('never saves the zero size of a hidden workspace and measures again once shown', async () => {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(0);
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(0);
+  const fixed = { ...node, data: { ...node.data, autoSize: false } };
+  await renderNode({ node: fixed, workspaceActive: false });
+  await renderNode({ node: fixed, workspaceActive: false, isSelected: true });
+  expect(onUpdate).not.toHaveBeenCalled();
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(62);
+  await renderNode({ node: fixed, workspaceActive: true, isSelected: true });
+  expect(onUpdate).toHaveBeenCalledOnce();
+  expect(onUpdate).toHaveBeenCalledWith(node.id, { height: 62 });
+});
+
+it('skips the layout read when a workspace is shown again with an unchanged node', async () => {
+  const fixed = { ...node, data: { ...node.data, autoSize: false } };
+  await renderNode({ node: fixed });
+  await renderNode({ node: fixed, workspaceActive: false });
+  const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(40);
+  await renderNode({ node: fixed, workspaceActive: true });
+  expect(height).not.toHaveBeenCalled();
+  const edited = { ...fixed, data: { ...fixed.data, content: '<p>Longer</p>' } };
+  await renderNode({ node: edited, workspaceActive: false });
+  height.mockReturnValue(70);
+  await renderNode({ node: edited, workspaceActive: true });
+  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { height: 70 });
 });
 
 it('reflects external and undo content changes in the idle preview', async () => {

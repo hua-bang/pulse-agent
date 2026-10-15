@@ -234,6 +234,8 @@ export function useChatComposerController({
     ...chatSessions,
     ...mentions,
     forkMessage,
+    /** The session `sendMessage` is keyed to; it can trail `activeSessionId` by a render. */
+    conversationSessionId,
     sendMessage,
     handleInput,
     handlePaste,

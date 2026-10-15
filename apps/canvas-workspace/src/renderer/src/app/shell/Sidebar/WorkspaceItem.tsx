@@ -1,8 +1,14 @@
 import type React from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
-import { CloseIcon, ExportIcon, PencilIcon, SettingsIcon, WorkspaceIcon } from '../../../components/icons';
+import { MoreIcon, WorkspaceIcon } from '../../../components/icons';
+import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
+
+// The menu (and Popover's positioning hooks) loads on first open, which keeps
+// it out of the startup bundle.
+const WorkspaceItemMenu = lazy(() => import('./WorkspaceItemMenu').then((m) => ({ default: m.WorkspaceItemMenu })));
 
 export interface WorkspaceItemProps {
   ws: WorkspaceEntry;
@@ -51,6 +57,14 @@ export const WorkspaceItem = ({
   onReorderDragLeave,
   onReorderDrop,
 }: WorkspaceItemProps) => {
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // One "more" button keeps the name readable on hover; four inline
+  // actions cut most names down to a few characters.
+  const run = (action: () => void) => {
+    setMenuOpen(false);
+    action();
+  };
   const { t } = useI18n();
 
   return (
@@ -90,34 +104,33 @@ export const WorkspaceItem = ({
           </button>
         )}
         {!isRenaming && (
-          <button className="sidebar-item-export" onClick={() => onExport(ws.id)} title={t('sidebar.exportWorkspace')}>
-            <ExportIcon size={12} strokeWidth={1.5} />
-          </button>
-        )}
-        {!isRenaming && (
-          <button
-            className="sidebar-item-rename"
-            onClick={() => onStartRename(ws)}
-            title={t('sidebar.rename')}
-            aria-label={t('sidebar.renameWorkspace')}
+          <Button
+            ref={menuButtonRef}
+            variant="icon"
+            size="xs"
+            className={`sidebar-item-more${menuOpen ? ' sidebar-item-more--open' : ''}`}
+            title={t('sidebar.workspaceActions', { name: ws.name })}
+            aria-label={t('sidebar.workspaceActions', { name: ws.name })}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
           >
-            <PencilIcon size={12} strokeWidth={1.4} />
-          </button>
+            <MoreIcon size={16} />
+          </Button>
         )}
-        {!isRenaming && (
-          <button
-            className="sidebar-item-settings"
-            onClick={() => onOpenSettings(ws.id)}
-            title={t('sidebar.workspaceSettings')}
-            aria-label={t('sidebar.workspaceSettings')}
-          >
-            <SettingsIcon size={12} strokeWidth={1.4} />
-          </button>
-        )}
-        {!isOnlyWorkspace && !isRenaming && (
-          <button className="sidebar-item-delete" onClick={() => onDelete(ws.id)} title={t('sidebar.delete')}>
-            <CloseIcon size={12} strokeWidth={1.5} />
-          </button>
+        {menuOpen && (
+          <Suspense fallback={null}>
+            <WorkspaceItemMenu
+              anchorRef={menuButtonRef}
+              label={t('sidebar.workspaceActions', { name: ws.name })}
+              canDelete={!isOnlyWorkspace}
+              onClose={() => setMenuOpen(false)}
+              onRename={() => run(() => onStartRename(ws))}
+              onOpenSettings={() => run(() => onOpenSettings(ws.id))}
+              onExport={() => run(() => onExport(ws.id))}
+              onDelete={() => run(() => onDelete(ws.id))}
+            />
+          </Suspense>
         )}
       </div>
     </div>

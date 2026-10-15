@@ -21,6 +21,17 @@ const element = <T extends Element,>(selector: string): T => {
   return result;
 };
 const click = (selector: string) => act(() => element<HTMLButtonElement>(selector).click());
+// Workspace row actions live in a portaled "more" menu.
+const clickRowAction = async (selector: string) => {
+  click('.sidebar-item-more');
+  const item = await vi.waitFor(() => {
+    const found = document.body.querySelector<HTMLButtonElement>(`.sidebar-item-menu ${selector}`);
+    if (!found) throw new Error(`Missing menu item ${selector}`);
+    return found;
+  });
+  act(() => item.click());
+  expect(document.body.querySelector('.sidebar-item-menu')).toBeNull();
+};
 const type = (value: string) => act(() => {
   const input = element<HTMLInputElement>('input');
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
@@ -45,11 +56,12 @@ beforeEach(async () => {
     collapsed: false, activeId: 'a', activeView: 'canvas',
     workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }],
     folders: [{ id: 'f', name: 'Folder', collapsed: true }],
-    onToggle: vi.fn(), onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(),
+    onToggle: vi.fn(), railExpanded: true, onToggleRail: vi.fn(), onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(),
     onDelete: vi.fn(), onExport: vi.fn(), onOpenSettings: vi.fn(), onOpenAppSettings: vi.fn(),
     onImport: vi.fn(), onCreateFolder: vi.fn(), onRenameFolder: vi.fn(), onDeleteFolder: vi.fn(),
     onToggleFolder: vi.fn(), onMoveWorkspace: vi.fn(), onReorderWorkspace: vi.fn(), onReorderFolder: vi.fn(),
-    onEnterChat: vi.fn(), onEnterNodes: vi.fn(), onEnterGraph: vi.fn(), onEnterSkills: vi.fn(),
+    onEnterHome: vi.fn(), onEnterCanvas: vi.fn(),
+    onEnterNodes: vi.fn(), onEnterGraph: vi.fn(), onEnterSkills: vi.fn(),
     onEnterScheduled: vi.fn(), nodesEnabled: false, graphEnabled: false, pluginNavItems: [],
     onNavigate: vi.fn(), onExitChat: vi.fn(),
   };
@@ -83,6 +95,8 @@ describe('Sidebar owner interactions', () => {
     props.collapsed = false;
     await render();
     expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
+    click('.sidebar-layers [aria-label="Collapse sidebar"]');
+    expect(props.onToggle).toHaveBeenCalledOnce();
 
     props.activeView = 'chat';
     await render();
@@ -91,14 +105,28 @@ describe('Sidebar owner interactions', () => {
     expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
   });
 
-  it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', () => {
-    click('.sidebar-item-rename');
+  it('lists workspaces only in the wide rail and keeps the panel to Layers', async () => {
+    await render();
+    const tree = host.querySelector('.sidebar-rail .sidebar-rail-tree');
+    expect(tree?.textContent).toContain('Alpha');
+    expect(tree?.querySelector('[aria-label="Add workspace or folder"]')).not.toBeNull();
+    const panel = host.querySelector('.sidebar-panel');
+    expect(panel?.textContent).not.toContain('Alpha');
+    expect(panel?.querySelector('[aria-label="Add workspace or folder"]')).toBeNull();
+    props.railExpanded = false;
+    await render();
+    expect(host.querySelector('.sidebar-rail-tree')).toBeNull();
+    expect(host.textContent).not.toContain('Alpha');
+  });
+
+  it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', async () => {
+    await clickRowAction('.sidebar-item-rename');
     expect(document.activeElement).toBe(element('input'));
     type('Canceled');
     key('Escape');
     expect(props.onRename).not.toHaveBeenCalled();
     expect(host.querySelector('input')).toBeNull();
-    click('.sidebar-item-rename');
+    await clickRowAction('.sidebar-item-rename');
     expect(element<HTMLInputElement>('input').value).toBe('Alpha');
     type('Renamed');
     key('Enter');

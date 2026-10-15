@@ -67,6 +67,18 @@
   max-width: min(420px, 45%);
 }
 
+.chat-page-dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chat-page-dock-toggle[data-active='true'] {
+  border-color: var(--accent-border);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
 .chat-page-topbar-workspace {
   display: flex;
   align-items: center;

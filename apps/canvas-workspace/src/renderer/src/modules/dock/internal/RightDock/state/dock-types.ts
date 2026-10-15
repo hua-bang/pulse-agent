@@ -15,6 +15,9 @@ export interface RightDockProps {
   pageMinAppWidth?: number;
   readingLeftInset?: number;
   hostView?: string;
+  /** Hide the dock and its strip but keep it mounted, so terminals and chats
+   *  survive; for full pages that own the whole width. */
+  hidden?: boolean;
   workspaces: WorkspaceEntry[];
   onOpenNodePage: (workspaceId: string, nodeId: string) => void;
   onActivateWorkspace?: (workspaceId: string) => boolean | void;

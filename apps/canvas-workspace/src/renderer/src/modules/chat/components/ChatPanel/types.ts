@@ -11,6 +11,7 @@ import type {
   WorkspaceOption,
 } from '../../../../types';
 import type { SettingsSection } from '../../../settings';
+import type { ChatPromptSubmission } from '../../target';
 
 /** One-shot request from another product surface to focus or submit the composer. */
 export interface ChatComposerRequest {
@@ -49,9 +50,13 @@ export interface ChatPanelProps {
   onRegisterInsertDomSelectionMention?: (fn: (selection: AgentContextDomSelectionRef) => void) => () => void;
   onRegisterInsertTabMention?: (fn: (tab: AgentContextTabRef) => void) => () => void;
   onRegisterSubmitDomReviewComments?: (fn: (comments: AgentContextDomReviewComment[]) => Promise<boolean>) => () => void;
+  onRegisterSubmitPrompt?: (fn: (prompt: ChatPromptSubmission) => Promise<boolean>) => () => void;
   onTurnComplete?: () => void;
   chatTargetActive?: boolean;
   chatTargetLabel?: string;
   sessionRefreshKey?: string | number;
+  /** Opens this session on mount and on each `sessionRefreshKey` change,
+   *  instead of reloading the current one. */
+  requestedSessionId?: string;
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }

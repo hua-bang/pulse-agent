@@ -1,0 +1,232 @@
+/* Workspace tabs above the canvas. */
+
+.workspace-tabs {
+  flex: none;
+  /* Same height and centre line as the dock tab strip beside it. */
+  height: var(--app-topbar-height);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
+  /* Tab widths read the bar width (cqw). */
+  container-type: inline-size;
+}
+
+.workspace-tabs__new {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.workspace-tabs__list {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Like Chrome: tabs share one width and shrink together when the bar is
+   crowded; past the floor the list scrolls. The width counts the dock's
+   inset as bar space, so it does not change when a workspace with the dock
+   open replaces one without it; the list scrolls instead. 104px is the bar's
+   padding, buttons, and gaps. */
+.workspace-tabs__tab {
+  flex: none;
+  width: clamp(
+    120px,
+    calc((100cqw + var(--right-dock-inset, 0px) - 104px) / var(--tab-count, 1) - 2px),
+    200px
+  );
+  height: 30px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+/* Like Chrome: a divider between two plain tabs, hidden beside a filled one. */
+.workspace-tabs__tab + .workspace-tabs__tab::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--border);
+}
+
+.workspace-tabs__tab--active::before,
+.workspace-tabs__tab--active + .workspace-tabs__tab::before,
+.workspace-tabs__tab:hover::before,
+.workspace-tabs__tab:hover + .workspace-tabs__tab::before {
+  opacity: 0;
+}
+
+/* Set while closing tabs in a row; cleared when the pointer leaves the bar. */
+.workspace-tabs__list[data-frozen] .workspace-tabs__tab {
+  width: var(--tab-frozen-width);
+}
+
+.workspace-tabs__tab:hover {
+  background: var(--surface-hover);
+}
+
+/* A soft fill, the same as the dock's active chat tab. */
+.workspace-tabs__tab--active,
+.workspace-tabs__tab--active:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.workspace-tabs__tab--active .workspace-tabs__name {
+  font-weight: 500;
+}
+
+.workspace-tabs .workspace-tabs__select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-start;
+  padding: 0 2px 0 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-tabs__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workspace-tabs .workspace-tabs__close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0 5px 0 2px;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.workspace-tabs__tab:hover .workspace-tabs__close,
+.workspace-tabs__tab--active .workspace-tabs__close,
+.workspace-tabs__close:focus-visible {
+  opacity: 1;
+}
+
+.workspace-tabs .workspace-tabs__select:hover:not(:disabled) {
+  background: transparent;
+}
+
+.workspace-tabs .workspace-tabs__close:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.workspace-tabs__select:focus-visible,
+.workspace-tabs__close:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.workspace-tabs__panel {
+  flex: none;
+  margin-right: 2px;
+  color: var(--text-secondary);
+}
+
+/* "+" menu: find and open a workspace, create one, or go home. */
+.workspace-picker {
+  position: fixed;
+  z-index: var(--layer-dock-menu);
+  width: 260px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.workspace-picker .ui-textfield {
+  margin: 2px 2px 4px;
+}
+
+.workspace-picker__search.ui-textfield__control {
+  height: 30px;
+  font-size: 13px;
+}
+
+.workspace-picker__list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.workspace-picker__item.ui-btn {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.workspace-picker__item > svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.workspace-picker__logo {
+  flex-shrink: 0;
+}
+
+.workspace-picker__item.ui-btn:hover,
+.workspace-picker__item.ui-btn:focus-visible {
+  outline: none;
+  background: var(--surface-hover);
+}
+
+.workspace-picker__item[aria-current='page'] {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.workspace-picker__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workspace-picker__empty {
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.workspace-picker__separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}

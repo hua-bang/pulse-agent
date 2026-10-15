@@ -288,7 +288,7 @@ export const ModelsSection = ({
       </div>
 
       <div className="chat-model-settings-footer">
-        <span>{status?.path}</span>
+        <span title={status?.path}>{status?.path}</span>
         <button type="button" className="chat-model-secondary-btn" onClick={onClose}>{t('models.cancel')}</button>
         <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
           {saving ? t('models.testing') : t('models.testAndSave')}

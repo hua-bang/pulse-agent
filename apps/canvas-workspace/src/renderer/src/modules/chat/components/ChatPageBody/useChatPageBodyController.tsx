@@ -16,6 +16,7 @@ import { useChatPageSessionRail } from './hooks/useChatPageSessionRail';
 import { useRunningConversationKeys } from '../../sessions/useScopeRunningSessions';
 import { useChatPagePendingSession } from './hooks/useChatPagePendingSession';
 import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
+import { useSubmitPrompt } from '../ChatComposer/useSubmitPrompt';
 import { submitQuickAction } from '../ChatComposer/submitQuickAction';
 import { scopeSessionStoreId } from '../../../../../../shared/agent-chat';
 import { buildChatPageDockTabRefs } from '../utils/chatPageDockTabs';
@@ -146,6 +147,7 @@ export const useChatPageBodyController = ({
     runQueue,
     selectMention,
     sendMessage,
+    conversationSessionId,
     sessions, sessionsLoading, sessionsStoreId, sessionLoading,
     sessionError,
     setClarifyInput,
@@ -219,12 +221,26 @@ export const useChatPageBodyController = ({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
   });
+  const startPromptSession = useCallback(async () => {
+    const created = await handleNewSession();
+    if (created.ok) onClearBackStack?.();
+    return created;
+  }, [handleNewSession, onClearBackStack]);
+  const submitPrompt = useSubmitPrompt({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+    conversationSessionId,
+    handleNewSession: startPromptSession,
+  });
   useRegisterChatTarget(target, {
     insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
     insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,
     insertFile: busyElsewhere || sessionLoading ? undefined : insertFileMention,
     insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
-    startSkillChat: handleTargetSkillChat, submitDomReview: submitDomReviewComments, focus: focusInput,
+    startSkillChat: handleTargetSkillChat,
+    submitDomReview: submitDomReviewComments,
+    submitPrompt,
+    focus: focusInput,
   });
 
   const openModelSettingsFromSwitcher = useCallback(() => {

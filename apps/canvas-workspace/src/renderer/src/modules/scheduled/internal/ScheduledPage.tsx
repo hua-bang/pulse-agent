@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarBlank, Plus } from '@phosphor-icons/react';
 import type { ScheduledTask, ScheduledTaskInput } from '../../../../../shared/scheduled';
-import type { AgentScope } from '../../../types';
 import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
+import { useRightDock } from '../../../shared/dockPort';
 import { Button, EmptyState } from '../../../components/ui';
 import { TaskEditorModal } from './TaskEditorModal';
 import { TaskRow } from './TaskRow';
 import './index.css';
 
-interface Props {
-  onOpenSessionInScope: (scope: AgentScope, sessionId: string, scopeLabel: string) => void | Promise<void>;
-}
-
-export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
+/**
+ * The Scheduled list. A run's conversation opens in the dock beside it, so
+ * the list stays in view while the user reads or follows up on a result.
+ */
+export const ScheduledPage = () => {
   const { t } = useI18n();
+  const dock = useRightDock();
   const { notify, confirm } = useAppShell();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,11 +72,7 @@ export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
         return;
       }
 
-      void onOpenSessionInScope(
-        { kind: 'scheduled', taskId: task.id },
-        response.sessionId,
-        task.title,
-      );
+      dock.openScheduledChat(task.id, response.sessionId);
     } finally {
       setRunningTaskIds((current) => {
         const next = new Set(current);
@@ -99,7 +96,7 @@ export const ScheduledPage = ({ onOpenSessionInScope }: Props) => {
   };
 
   const openResult = (task: ScheduledTask, sessionId: string) => {
-    void onOpenSessionInScope({ kind: 'scheduled', taskId: task.id }, sessionId, task.title);
+    dock.openScheduledChat(task.id, sessionId);
   };
 
   const openCreate = () => {

@@ -5,6 +5,8 @@ import type { ChatTarget } from '../../target';
 export interface ChatPageProps {
   allWorkspaces: WorkspaceOption[];
   openScheduledTaskId?: string | null;
+  /** Bumped to show the session list, e.g. from the launcher's "View all". */
+  sessionListRequest?: number;
   initialTarget?: ChatTarget | null;
   getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
   getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;

@@ -1,9 +1,13 @@
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
+
+// Loaded on the first single selection, so it stays out of the startup bundle.
+const NodeAskBar = lazy(() => import('../NodeAskBar')
+  .then((module) => ({ default: module.NodeAskBar })));
 
 export const CanvasRootView = ({
   actions,
@@ -43,6 +47,7 @@ export const CanvasRootView = ({
   onAddToChat,
   onAddDomSelectionToChat,
   onSubmitDomReviewComments,
+  onAskAboutNodes,
   onReferenceToggle,
   onUpdateReferenceSource,
   onSetRootFolder,
@@ -79,6 +84,21 @@ export const CanvasRootView = ({
     setSelectedNodeIds([]);
     setEdgeMenu({ edgeId, x: e.clientX, y: e.clientY });
   }, [setSelectedEdgeId, setSelectedNodeIds]);
+
+  // The ask bar only follows one settled selection in select mode, so it
+  // never fights a gesture, a menu, or a fullscreen node.
+  const gestureActive = Boolean(nodeGestures.draggingId)
+    || nodeGestures.draggingIds.size > 0
+    || Boolean(nodeGestures.resizingId);
+  const askNode = onAskAboutNodes
+    && selectedNodeIds.length === 1
+    && activeTool === 'select'
+    && !moving
+    && !gestureActive
+    && !focus.fullscreenNodeId
+    && !ctxMenu.contextMenu
+    ? nodesById.get(selectedNodeIds[0])
+    : undefined;
 
   if (!loaded) {
     return (
@@ -252,6 +272,12 @@ export const CanvasRootView = ({
         onCommitEditEdgeLabel={drawingGestures.edgeHandlers.handleCommitEditEdgeLabel}
         onCancelEditEdgeLabel={drawingGestures.edgeHandlers.handleCancelEditEdgeLabel}
       />
+
+      {askNode && onAskAboutNodes && (
+        <Suspense fallback={null}>
+          <NodeAskBar node={askNode} transform={transform} onAsk={onAskAboutNodes} />
+        </Suspense>
+      )}
     </div>
   );
 };

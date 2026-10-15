@@ -225,6 +225,15 @@ export const SHORTCUTS = {
     // input a keyboard black hole.
     editable: 'allow',
   },
+  'app.togglePanels': {
+    owner: 'app',
+    // Mod+Shift+F, not plain F: F already enters node focus on the canvas.
+    bindings: [{ key: 'f', mod: true, shift: true }],
+    // Works from a text field, terminal, or embedded page: this chord
+    // has no text-editing meaning, and blocking it made every focused
+    // input a keyboard black hole.
+    editable: 'allow',
+  },
   'app.switchWorkspace': {
     owner: 'app',
     bindings: [

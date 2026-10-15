@@ -1,6 +1,7 @@
 import type {
   AgentContextDomReviewComment,
   AgentContextDomSelectionRef,
+  AgentContextNodeRef,
   AgentContextTabRef,
   AgentRequestContext,
   AgentScope,
@@ -32,7 +33,16 @@ export type ChatInsertion =
   | { kind: 'tab'; tab: AgentContextTabRef }
   | { kind: 'skill'; skillName: string }
   | { kind: 'dom-review'; comments: AgentContextDomReviewComment[] }
+  | { kind: 'prompt'; prompt: ChatPromptSubmission }
   | { kind: 'focus' };
+
+/** A question sent straight from another surface, scoped to the given nodes. */
+export interface ChatPromptSubmission {
+  text: string;
+  nodes: AgentContextNodeRef[];
+  /** Start the turn in a new conversation instead of the one the target shows. */
+  newSession?: boolean;
+}
 
 export interface ChatTargetHandlers {
   insertFile?: (filePath: string, isDirectory?: boolean) => void;
@@ -41,6 +51,7 @@ export interface ChatTargetHandlers {
   insertTab?: (tab: AgentContextTabRef) => void;
   startSkillChat?: (skillName: string) => Promise<void>;
   submitDomReview?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
+  submitPrompt?: (prompt: ChatPromptSubmission) => Promise<boolean>;
   focus?: () => void;
 }
 

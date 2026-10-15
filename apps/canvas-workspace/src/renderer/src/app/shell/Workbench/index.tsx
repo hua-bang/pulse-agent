@@ -120,11 +120,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     handleAddNodeToChat,
     handleAddPreviewNodeToChat,
     handleSubmitDomReviewComments,
+    handleSubmitPrompt,
     registerInsertDomSelectionMention,
     registerInsertTabMention,
     registerInsertMention,
     registerStartSkillChat,
     registerSubmitDomReviewComments,
+    registerSubmitPrompt,
   } = useChatInsertionBridge({
     allNodes,
     openChat: dock.openChat,
@@ -216,6 +218,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
                     onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
                     onSubmitDomReviewComments={(comments) => handleSubmitDomReviewComments(ws.id, comments)}
+                    onAskAboutNodes={(prompt) => handleSubmitPrompt(ws.id, prompt)}
                     resolveReferenceNode={referenceOperations.resolveReferenceNode}
                     onOpenReferenceSource={referenceOperations.handleOpenReferenceSource}
                     onUpdateReferenceSource={referenceOperations.updateReferenceSourceNode}
@@ -258,6 +261,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                   onRegisterInsertTabMention={(fn) => registerInsertTabMention(ws.id, fn)}
                   onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
+                  onRegisterSubmitPrompt={(fn) => registerSubmitPrompt(ws.id, fn)}
                   onTurnComplete={dock.notifyChatActivity}
                   chatTargetActive={chatPanelOpen
                     && !scheduledChatTaskId
@@ -272,6 +276,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               <div className="right-dock__chat-instance">
                 <ScheduledChatPanel
                   taskId={scheduledChatTaskId}
+                  sessionId={dockState.scheduledChatSessionId}
                   revision={dockState.scheduledChatRevision ?? 0}
                   allWorkspaces={workspaces}
                   onClose={dock.collapse}

@@ -44,6 +44,7 @@ export const WEBVIEW_FORWARDED_CHORDS: ForwardedChord[] = [
   { key: 'e', mod: true, shift: true },
   { key: 'l', mod: true, shift: true },
   { key: '\\', mod: true },
+  { key: 'f', mod: true, shift: true },
   // Workspace switching.
   ...Array.from({ length: 9 }, (_, index) => ({ key: String(index + 1), mod: true })),
   // Escape is the way back out of a guest that has swallowed focus.

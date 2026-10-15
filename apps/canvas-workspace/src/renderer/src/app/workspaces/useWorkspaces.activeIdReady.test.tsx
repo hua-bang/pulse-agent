@@ -68,6 +68,29 @@ describe('useWorkspaces activeIdReady', () => {
     expect(firstReady).toEqual({ activeId: 'ws-a', activeIdReady: true });
   });
 
+  it('starts folders collapsed except the one holding the active workspace', async () => {
+    const load = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        workspaces: [{ id: 'ws-a', name: 'A', folderId: 'f-a' }, { id: 'ws-b', name: 'B', folderId: 'f-b' }],
+        folders: [{ id: 'f-a', name: 'FA', collapsed: true }, { id: 'f-b', name: 'FB', collapsed: false }],
+        activeId: 'ws-a',
+      },
+    });
+    (globalThis as { canvasWorkspace?: unknown }).canvasWorkspace = { store: { load, save: vi.fn() } };
+    let folders: { id: string; collapsed?: boolean }[] = [];
+    const Probe = () => {
+      folders = useWorkspaces().folders;
+      return null;
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root?.render(<Probe />));
+    await flush();
+    expect(folders.map(({ id, collapsed }) => [id, collapsed])).toEqual([['f-a', false], ['f-b', true]]);
+  });
+
   it('still settles activeIdReady when the manifest load rejects', async () => {
     const load = vi.fn().mockRejectedValue(new Error('disk error'));
     (globalThis as { canvasWorkspace?: unknown }).canvasWorkspace = { store: { load, save: vi.fn() } };

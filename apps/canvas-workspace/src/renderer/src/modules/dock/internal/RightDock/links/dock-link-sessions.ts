@@ -23,7 +23,7 @@ export class DockLinkSessionStore {
   // Full in-memory views are scope-owned; only reconstructible web tabs are
   // written to storage. Keep mixed tab order and the actual focused pane.
   private views = new Map<string, Pick<DockState,
-    'tabs' | 'activeTabId' | 'splitTabIds' | 'chatUnread' | 'scheduledChatTaskId' | 'scheduledChatRevision'
+    'tabs' | 'activeTabId' | 'splitTabIds' | 'chatUnread' | 'scheduledChatTaskId' | 'scheduledChatSessionId' | 'scheduledChatRevision'
   >>();
 
   removePreview(id: string): void {
@@ -36,6 +36,7 @@ export class DockLinkSessionStore {
     this.views.set(leavingId, {
       tabs: state.tabs, activeTabId: state.activeTabId, splitTabIds: state.splitTabIds,
       chatUnread: state.chatUnread, scheduledChatTaskId: state.scheduledChatTaskId,
+      scheduledChatSessionId: state.scheduledChatSessionId,
       scheduledChatRevision: state.scheduledChatRevision,
     });
     const retainedLinkTabs = updateRetainedLinkTabs(state.retainedLinkTabs, {
@@ -68,6 +69,7 @@ export class DockLinkSessionStore {
       splitTabIds: view?.splitTabIds,
       chatUnread: activeTabId === CHAT_TAB_ID ? false : view?.chatUnread ?? false,
       scheduledChatTaskId: view?.scheduledChatTaskId,
+      scheduledChatSessionId: view?.scheduledChatSessionId,
       scheduledChatRevision: view?.scheduledChatRevision,
     };
   }

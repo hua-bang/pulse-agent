@@ -6,8 +6,8 @@ import { I18nProvider } from '../../../../i18n';
 import { Settings } from './index';
 
 vi.mock('../../../../components/ui', () => ({
-  Drawer: ({ open, children }: PropsWithChildren<{ open: boolean }>) => (
-    open ? <div>{children}</div> : null
+  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+    <button type="button" aria-label={props['aria-label'] as string}>{children}</button>
   ),
   SegmentedControl: ({
     options,
@@ -83,7 +83,7 @@ describe('Settings navigation', () => {
     act(() => {
       root?.render(
         <I18nProvider>
-          <Settings open initialSection="models" onClose={vi.fn()} />
+          <Settings initialSection="models" onClose={vi.fn()} />
         </I18nProvider>,
       );
     });
@@ -109,7 +109,7 @@ describe('Settings navigation', () => {
     act(() => {
       root?.render(
         <I18nProvider>
-          <Settings open initialSection="mcp" onClose={vi.fn()} />
+          <Settings initialSection="mcp" onClose={vi.fn()} />
         </I18nProvider>,
       );
     });
@@ -124,7 +124,7 @@ describe('Settings navigation', () => {
     act(() => {
       root?.render(
         <I18nProvider>
-          <Settings open initialSection="reply-style" onClose={vi.fn()} />
+          <Settings initialSection="reply-style" onClose={vi.fn()} />
         </I18nProvider>,
       );
     });
@@ -140,7 +140,7 @@ describe('Settings navigation', () => {
     act(() => {
       root?.render(
         <I18nProvider>
-          <Settings open initialSection="browser" onClose={vi.fn()} />
+          <Settings initialSection="browser" onClose={vi.fn()} />
         </I18nProvider>,
       );
     });

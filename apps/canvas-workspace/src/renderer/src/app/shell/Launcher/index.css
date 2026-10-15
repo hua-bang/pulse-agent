@@ -1,0 +1,331 @@
+/* Launcher page: ask Pulse Agent, recent workspaces, recent chats. */
+
+/* The page fits the window and only the recent chats list scrolls. The page
+   itself scrolls only when the window is too short for that list. */
+.launcher {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.launcher__inner {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(32px, 8vh, 96px) 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.launcher__title {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.launcher__composer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.launcher__ask {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.launcher__ask:focus-within {
+  border-color: var(--accent);
+}
+
+/* Borderless inside the form: the form itself is the field's frame. */
+.launcher__ask-input.ui-textfield__control {
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+}
+
+.launcher__ask-input::placeholder {
+  color: var(--text-muted);
+}
+
+.launcher__ask-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* A quiet chip, not a form field: the scope is secondary to the prompt. */
+.launcher__scope {
+  width: auto;
+  max-width: 260px;
+  /* Line the chip text up with the prompt text above it. */
+  margin-left: -8px;
+}
+
+.launcher__scope .ui-select__trigger {
+  height: 28px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.launcher__scope .ui-select__trigger:hover:not(:disabled),
+.launcher__scope.ui-select--open .ui-select__trigger {
+  border-color: transparent;
+  background: var(--surface-hover);
+  box-shadow: none;
+}
+
+.launcher__starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.launcher .launcher__starter {
+  border-color: var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.launcher .launcher__starter:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.launcher__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.launcher__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.launcher__section-title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Two rows of three: the five latest workspaces and New. */
+.launcher__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.launcher .launcher__card {
+  height: auto;
+  min-height: 132px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  white-space: normal;
+}
+
+.launcher .launcher__card:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.launcher .launcher__card--new {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.launcher__thumb {
+  position: relative;
+  height: 84px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 12px 0;
+  background: var(--bg-canvas);
+  overflow: hidden;
+}
+
+/* A peek at the workspace's first cards: real titles, type-colored edge. */
+.launcher__thumb-card {
+  --thumb-accent: var(--accent-frame);
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 50%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--thumb-accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.launcher__thumb-card:nth-child(2) {
+  margin-top: 8px;
+}
+
+.launcher__thumb-card[data-type='file'] { --thumb-accent: var(--accent-file); }
+.launcher__thumb-card[data-type='terminal'],
+.launcher__thumb-card[data-type='agent'] { --thumb-accent: var(--accent-term); }
+.launcher__thumb-card[data-type='text'] { --thumb-accent: var(--accent-text); }
+.launcher__thumb-card[data-type='image'] { --thumb-accent: var(--accent-image); }
+.launcher__thumb-card[data-type='mindmap'] { --thumb-accent: var(--accent-mindmap); }
+.launcher__thumb-card[data-type='iframe'],
+.launcher__thumb-card[data-type='reference'] { --thumb-accent: var(--accent); }
+
+.launcher__thumb-title {
+  flex: none;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.launcher__thumb-line {
+  display: block;
+  flex: none;
+  width: 86%;
+  height: 4px;
+  border-radius: var(--radius-xs);
+  background: var(--border);
+}
+
+.launcher__thumb-title > .launcher__thumb-line {
+  width: 60%;
+  height: 6px;
+  margin-top: 3px;
+}
+
+.launcher__thumb-line--short {
+  width: 52%;
+}
+
+.launcher__card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+}
+
+.launcher__card-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.launcher__card-meta {
+  min-height: 15px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+/* At least two chat rows stay visible before the page itself scrolls. */
+.launcher__section--chats {
+  flex: 1 1 0;
+  min-height: 130px;
+}
+
+.launcher__chats {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.launcher .launcher__chat {
+  flex: none;
+  height: 42px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.launcher .launcher__chat:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.launcher__chat-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.launcher__chat-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.launcher__chats-empty {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}

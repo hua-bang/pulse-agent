@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, useState } from 'react';
+import { act, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatTarget, ChatTargetBroker } from '../../../../modules/chat';
@@ -72,6 +72,62 @@ describe('useChatNavigation', () => {
     });
     expect(latest?.isChatView).toBe(false);
     expect(document.activeElement).toBe(source);
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('commits the entry target before the chat route first renders', async () => {
+    // wouter keeps the location in an external store, which re-renders
+    // synchronously and skips state updates still pending from async code.
+    let path = '/';
+    const listeners = new Set<() => void>();
+    const store = {
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      get: () => path,
+      set: (next: string) => {
+        path = next;
+        listeners.forEach(listener => listener());
+      },
+    };
+    const broker = {
+      deliver: vi.fn(),
+      getActiveTarget: () => null,
+      register: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies ChatTargetBroker;
+    const chatRenders: Array<ChatTarget | null> = [];
+    let enter: ((next: ChatTarget) => void) | undefined;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    const Harness = () => {
+      const location = useSyncExternalStore(store.subscribe, store.get);
+      const navigation = useChatNavigation({
+        activeView: location === '/chat' ? 'chat' : 'home',
+        location,
+        setLocation: store.set,
+        activeTarget: null,
+        broker,
+        openDockChat: vi.fn(),
+        isOverlayOpen: false,
+        openShortcuts: vi.fn(),
+      });
+      enter = navigation.enterChatTarget;
+      if (location === '/chat') chatRenders.push(navigation.initialTarget);
+      return null;
+    };
+    await act(async () => root.render(<Harness />));
+
+    await act(async () => {
+      await Promise.resolve();
+      enter?.(target);
+    });
+    expect(chatRenders[0]).toBe(target);
 
     act(() => root.unmount());
     host.remove();

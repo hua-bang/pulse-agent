@@ -11,7 +11,6 @@ import type { McpAppEntrypointListing } from '../../../../../../shared/mcp-apps'
 import './index.css';
 
 interface Props {
-  collapsed: boolean;
   activeView: string;
   /** Key of the app the main area shows, or null on any other view. */
   activeAppKey: string | null;
@@ -19,10 +18,11 @@ interface Props {
 }
 
 /**
- * OpenAI `global` entrypoints, the counterpart of ChatGPT's sidebar apps.
- * Clicking one shows its single live instance in the main area.
+ * OpenAI `global` entrypoints, the counterpart of ChatGPT's sidebar apps,
+ * as icons on the app rail. Clicking one shows its single live instance in
+ * the main area.
  */
-export const AppsSection = ({ collapsed, activeView, activeAppKey, onOpenApp }: Props) => {
+export const AppsSection = ({ activeView, activeAppKey, onOpenApp }: Props) => {
   const { t } = useI18n();
   const { listings, running } = useGlobalMcpApps();
 
@@ -40,52 +40,24 @@ export const AppsSection = ({ collapsed, activeView, activeAppKey, onOpenApp }: 
 
   if (apps.length === 0) return null;
 
-  if (collapsed) {
-    return (
-      <div className="sidebar-apps-rail" role="group" aria-label={t('sidebar.apps')}>
-        {apps.map((listing) => {
-          const key = globalMcpAppKey(listing);
-          return (
-            <Button
-              key={key}
-              variant="icon"
-              className={`sidebar-collapsed-btn sidebar-apps-rail__btn${key === activeAppKey ? ' sidebar-collapsed-btn--active' : ''}`}
-              onClick={() => onOpenApp(listing)}
-              title={listing.title}
-              aria-label={listing.title}
-            >
-              <GlobalMcpAppTile title={listing.title} size={18} icon={listing.icon} />
-            </Button>
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
-    <section className="sidebar-apps" aria-label={t('sidebar.apps')}>
-      <div className="sidebar-section-header">
-        <span className="sidebar-section-title">{t('sidebar.apps')}</span>
-      </div>
-      <div className="sidebar-apps__list">
-        {apps.map((listing) => {
-          const key = globalMcpAppKey(listing);
-          return (
-            <Button
-              key={key}
-              className={`sidebar-item sidebar-apps__item${key === activeAppKey ? ' sidebar-item--active' : ''}`}
-              onClick={() => onOpenApp(listing)}
-              title={t('mcpApp.global.source', { server: listing.serverName })}
-              aria-current={key === activeAppKey ? 'page' : undefined}
-            >
-              <span className="sidebar-apps__icon">
-                <GlobalMcpAppTile title={listing.title} size={18} icon={listing.icon} />
-              </span>
-              <span className="sidebar-apps__label">{listing.title}</span>
-            </Button>
-          );
-        })}
-      </div>
-    </section>
+    <div className="sidebar-apps-rail" role="group" aria-label={t('sidebar.apps')}>
+      {apps.map((listing) => {
+        const key = globalMcpAppKey(listing);
+        return (
+          <Button
+            key={key}
+            variant="icon"
+            className={`sidebar-rail-btn sidebar-apps-rail__btn${key === activeAppKey ? ' sidebar-rail-btn--active' : ''}`}
+            onClick={() => onOpenApp(listing)}
+            title={listing.title}
+            aria-label={listing.title}
+          >
+            <GlobalMcpAppTile title={listing.title} size={18} icon={listing.icon} />
+            <span className="sidebar-rail-label">{listing.title}</span>
+          </Button>
+        );
+      })}
+    </div>
   );
 };

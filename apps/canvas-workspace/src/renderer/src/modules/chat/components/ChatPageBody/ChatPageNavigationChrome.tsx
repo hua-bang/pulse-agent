@@ -73,11 +73,9 @@ export const ChatPageTopbar = ({
           >
             <RailToggleIcon size={16} />
           </Button>
-          {railCollapsed && (
-            <strong className="chat-page-topbar-title chat-page-topbar-session-title" title={sessionTitle}>
-              {sessionTitle}
-            </strong>
-          )}
+          <strong className="chat-page-topbar-title chat-page-topbar-session-title" title={sessionTitle}>
+            {sessionTitle}
+          </strong>
         </>
       )}
       {!fixedTitle && workspaceLabel && (
@@ -102,16 +100,16 @@ export const ChatPageTopbar = ({
         </Button>
       )}
       <Button
-        variant="icon"
-        size="md"
-        className="chat-panel-action-btn"
+        size="xs"
+        className="chat-page-dock-toggle"
         data-active={dockTabsVisible}
         aria-pressed={dockTabsVisible}
         onClick={onToggleDockTabs}
         title={dockTabsLabel}
         aria-label={dockTabsLabel}
       >
-        <ColumnsPlusRight size={16} />
+        <ColumnsPlusRight size={14} />
+        <span>{t('chat.dockTabsButton')}</span>
       </Button>
     </div>
   );

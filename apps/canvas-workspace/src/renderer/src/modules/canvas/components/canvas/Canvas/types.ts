@@ -1,7 +1,7 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../../../types/ui-interaction';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../shared/reference/types';
-import type { ChatDeliveryReceipt } from '../../../../chat';
+import type { ChatDeliveryReceipt, ChatPromptSubmission } from '../../../../chat';
 
 export interface CanvasProps {
   canvasId: string;
@@ -40,6 +40,8 @@ export interface CanvasProps {
   onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
+  /** Sends a question about the selected node to this workspace's chat. */
+  onAskAboutNodes?: (prompt: ChatPromptSubmission) => Promise<ChatDeliveryReceipt>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;

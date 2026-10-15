@@ -17,6 +17,7 @@ import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';
 import { useStartSkillChat } from './hooks/useStartSkillChat';
 import { useSubmitDomReviewComments } from '../ChatComposer/useSubmitDomReviewComments';
+import { useSubmitPrompt } from '../ChatComposer/useSubmitPrompt';
 import {
   type ChatTarget,
 } from '../../target';
@@ -53,10 +54,12 @@ export const useChatPanelController = ({
   onRegisterInsertDomSelectionMention,
   onRegisterInsertTabMention,
   onRegisterSubmitDomReviewComments,
+  onRegisterSubmitPrompt,
   onTurnComplete,
   chatTargetActive = true,
   chatTargetLabel,
   sessionRefreshKey,
+  requestedSessionId,
   onOpenSessionInScope,
 }: ChatPanelProps): ChatViewProps => {
   const { t } = useI18n();
@@ -96,6 +99,7 @@ export const useChatPanelController = ({
     attachmentSendBlocked,
     attachments,
     conversationError,
+    conversationReady,
     busyElsewhere,
     canvasModels,
     clarifyInput,
@@ -145,6 +149,7 @@ export const useChatPanelController = ({
     replaceInput,
     selectMention,
     sendMessage,
+    conversationSessionId,
     sessionMenuOpen,
     sessionMenuRef,
     sessions,
@@ -175,12 +180,15 @@ export const useChatPanelController = ({
     if (!onRegisterInsertMention || busyElsewhere || sessionLoading) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [busyElsewhere, insertNodeMention, onRegisterInsertMention, sessionLoading]);
-  const previousSessionRefreshKeyRef = useRef(sessionRefreshKey);
+  // A requested session also opens on mount, so the ref starts empty then.
+  const previousSessionRefreshKeyRef = useRef<typeof sessionRefreshKey | null>(
+    requestedSessionId ? null : sessionRefreshKey,
+  );
   useEffect(() => {
     if (Object.is(previousSessionRefreshKeyRef.current, sessionRefreshKey)) return;
     previousSessionRefreshKeyRef.current = sessionRefreshKey;
-    void retrySession();
-  }, [retrySession, sessionRefreshKey]);
+    void (requestedSessionId ? handleLoadSession(requestedSessionId) : retrySession());
+  }, [handleLoadSession, requestedSessionId, retrySession, sessionRefreshKey]);
 
   useEffect(() => {
     if (!onRegisterInsertDomSelectionMention || busyElsewhere || sessionLoading) return;
@@ -239,16 +247,25 @@ export const useChatPanelController = ({
     blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
     focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
   });
+  const submitPrompt = useSubmitPrompt({
+    blocked: loading || sessionLoading || busyElsewhere || Boolean(sessionError),
+    focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage,
+    conversationSessionId, handleNewSession,
+  });
+
+  // Register only once a send can start: a cold dock flushes its waiting
+  // submissions into the first registered handler.
+  const acceptsSubmissions = conversationReady && !loading && !sessionLoading && !busyElsewhere;
 
   useEffect(() => {
-    if (
-      !onRegisterSubmitDomReviewComments
-      || loading
-      || sessionLoading
-      || busyElsewhere
-    ) return;
+    if (!onRegisterSubmitDomReviewComments || !acceptsSubmissions) return;
     return onRegisterSubmitDomReviewComments(submitDomReviewComments);
-  }, [busyElsewhere, loading, onRegisterSubmitDomReviewComments, sessionLoading, submitDomReviewComments]);
+  }, [acceptsSubmissions, onRegisterSubmitDomReviewComments, submitDomReviewComments]);
+
+  useEffect(() => {
+    if (!onRegisterSubmitPrompt || !acceptsSubmissions) return;
+    return onRegisterSubmitPrompt(submitPrompt);
+  }, [acceptsSubmissions, onRegisterSubmitPrompt, submitPrompt]);
 
   const chatTarget = useMemo<ChatTarget>(() => ({
     surface: 'dock',
@@ -269,6 +286,7 @@ export const useChatPanelController = ({
     insertFile: busyElsewhere || sessionLoading ? undefined : insertFileMention,
     insertTab: busyElsewhere || sessionLoading ? undefined : insertTabMention,
     submitDomReview: submitDomReviewComments,
+    submitPrompt,
     focus: focusInput,
   });
 
@@ -444,6 +462,7 @@ export const useChatPanelController = ({
         knowledgeMode,
     },
     composer: {
+        inputPlaceholder: agentScope.kind === 'scheduled' ? t('scheduled.followUpPlaceholder') : undefined,
         input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading, mentionIndex,
         onSelectMention: selectMention, onMentionIndexChange: setMentionIndex,
         onInput: handleInput, onKeyDown: handleComposerKeyDown, onPaste: handlePaste,

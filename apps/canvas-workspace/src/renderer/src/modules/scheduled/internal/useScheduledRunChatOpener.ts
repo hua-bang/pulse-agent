@@ -21,10 +21,10 @@ interface Options {
 
 /**
  * Wires the scheduled-run completion toast to the exact conversation that
- * produced it. Durable runs open in full-page Pulse AI, whose ChatTarget
- * contract can select a session by id and return to the previous surface.
- * Task-scope Dock/route navigation survives only for failures that happened
- * before session setup (see `resolveScheduledChatTarget`).
+ * produced it. Where the dock has a chat tab, the run opens there beside the
+ * current page; on full-page chat routes it opens in full-page Pulse AI by
+ * session id. A failure before session setup has no run id and opens the
+ * task's current conversation (see `resolveScheduledChatTarget`).
  */
 export const useScheduledRunChatOpener = ({
   activeView,
@@ -39,23 +39,23 @@ export const useScheduledRunChatOpener = ({
     dock.refreshScheduledChat(run.taskId);
   }), [dock]);
   useScheduledRunToasts(useCallback((run: ScheduledRunFinished) => {
+    const target = resolveScheduledChatTarget({
+      activeView,
+      taskId: run.taskId,
+      chatRoute,
+    });
+    // The dock shows the exact run beside the current page. A failed session
+    // setup has no run id, so the dock falls back to the task's current one.
+    if (target.kind === 'dock') {
+      dock.openScheduledChat(run.taskId, run.sessionId);
+      return;
+    }
     if (run.sessionId) {
       void onOpenSessionInScope(
         { kind: 'scheduled', taskId: run.taskId },
         run.sessionId,
         run.title,
       );
-      return;
-    }
-    // Session setup itself can fail. There is no exact conversation in that
-    // case, so retain the task-scope fallback rather than dropping the action.
-    const target = resolveScheduledChatTarget({
-      activeView,
-      taskId: run.taskId,
-      chatRoute,
-    });
-    if (target.kind === 'dock') {
-      dock.openScheduledChat(run.taskId);
       return;
     }
     setLocation(target.path);

@@ -6,7 +6,6 @@ import { ConversationCompletionToastBridge } from '../shell/ConversationCompleti
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from '../../modules/chat/lazy';
 import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
-import type { SettingsSection } from '../../modules/settings';
 import { Sidebar } from '../shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
 import { Workbench, useWorkbenchState } from '../shell/Workbench';
@@ -15,11 +14,14 @@ import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surfac
 import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/workspace-nodes';
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
+import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
+import { useRailExpanded, useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
 import type { KnowledgeNodeSelection } from '../../types';
-import { NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SkillsRouteView } from '../shell/RouteViews';
+import { HomeRouteView, NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SettingsRouteView, SkillsRouteView } from '../shell/RouteViews';
+import type { SettingsSection } from '../../modules/settings';
 import { useScheduledRunChatOpener } from '../../modules/scheduled';
 import {
   ChatTargetProvider,
@@ -39,6 +41,7 @@ setApprovalNodePreviewLoader(() => import('../../modules/canvas/preview').then((
 })));
 
 const GlobalMcpAppsView = lazy(() => import('../../modules/mcp-apps').then((module) => ({ default: module.GlobalMcpAppsView })));
+const WorkspaceTabs = lazy(() => import('../shell/WorkspaceTabs').then((module) => ({ default: module.WorkspaceTabs })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const {
   canvas: ROUTE_CANVAS,
@@ -48,27 +51,11 @@ const {
   plugins: ROUTE_PLUGINS,
   skills: ROUTE_SKILLS,
   scheduled: ROUTE_SCHEDULED,
+  home: ROUTE_HOME,
 } = APP_ROUTES;
-const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
+/** Match `--sidebar-collapsed` (rail) and `--sidebar-width` (rail + panel) in styles.css and `.sidebar--rail-expanded`. */
+const SIDEBAR_PANEL_WIDTH = 224, SIDEBAR_RAIL_WIDTH = 48, SIDEBAR_RAIL_EXPANDED_WIDTH = 240;
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
-const readSidebarCollapsedPreference = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-    if (stored === '1') return true;
-    if (stored === '0') return false;
-  } catch {
-    // localStorage may be unavailable; default to discoverability.
-  }
-  return false;
-};
-const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
-  try {
-    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
-  } catch {
-    // Preference persistence is best-effort only.
-  }
-};
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
@@ -99,7 +86,8 @@ const AppContent = () => {
   const { openShortcuts, isOverlayOpen } = useAppShell();
   const chatTargetBroker = useChatTargetBroker();
   const activeChatTarget = useActiveChatTarget();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
+  const [sidebarCollapsed, handleSidebarToggle] = useSidebarCollapsed();
+  const [railExpanded, toggleRailExpanded] = useRailExpanded();
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
@@ -116,24 +104,10 @@ const AppContent = () => {
     detailNode,
     explicitContext: knowledgeChatExplicitContext ?? undefined,
   });
-  // null = global Settings drawer closed; a section name opens that section.
-  const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
-  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
-  const openAppSettings = useCallback((section: SettingsSection) => {
-    setAppSettingsLoaded(true);
-    setAppSettingsSection(section);
-  }, []);
-  const closeAppSettings = useCallback(() => setAppSettingsSection(null), []);
+  const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
   const openWorkspaceSettings = useCallback((workspaceId: string) => {
     setWorkspaceSettingsLoaded(true);
     setSettingsWorkspaceId(workspaceId);
-  }, []);
-  const handleSidebarToggle = useCallback(() => {
-    setSidebarCollapsed((collapsed) => {
-      const next = !collapsed;
-      writeSidebarCollapsedPreference(next);
-      return next;
-    });
   }, []);
 
   const workspaceStore = useWorkspaces();
@@ -255,8 +229,16 @@ const AppContent = () => {
     ensureWorkspaceNodesLoaded(activeId);
   }, [activeId, ensureWorkspaceNodesLoaded]);
 
+  const handlePanelsToggle = usePanelsToggle({
+    sidebarCollapsed,
+    toggleSidebar: handleSidebarToggle,
+    isDockExpanded: dock.isExpanded,
+    collapseDock: dock.collapse,
+    expandDock: dock.expand,
+  });
+
   useAppShortcutBindings({
-    activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle,
+    activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle, togglePanels: handlePanelsToggle,
     workspaces, selectWorkspace: workspaceActions.select, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
   });
 
@@ -280,13 +262,30 @@ const AppContent = () => {
     globalMcpAppsStore.open(listing);
     setLocation(mcpAppRoutePath(listing));
   }, [setLocation]);
+  // The launcher lists workspaces itself, the chat page's session list
+  // groups by workspace, and settings has its own category column, so these
+  // routes show only the rail. The launcher and settings own the full
+  // width, so the dock hides there too (it stays mounted). The workspace
+  // tree lives in the wide rail, so the panel only shows canvas Layers.
+  const sidebarPanelHidden = sidebarCollapsed
+    || activeView !== 'canvas'
+    || activeNodes.length === 0;
+  const sidebarWidth = (railExpanded ? SIDEBAR_RAIL_EXPANDED_WIDTH : SIDEBAR_RAIL_WIDTH)
+    + (sidebarPanelHidden ? 0 : SIDEBAR_PANEL_WIDTH);
+  const [sessionListRequest, setSessionListRequest] = useState(0);
+  const openAllChats = useCallback(() => {
+    enterChatView();
+    setSessionListRequest((count) => count + 1);
+  }, [enterChatView]);
   useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
   return (
     <div className="app">
       <div className="app-body">
         <Sidebar
-          collapsed={sidebarCollapsed}
+          collapsed={sidebarPanelHidden}
           onToggle={handleSidebarToggle}
+          railExpanded={railExpanded}
+          onToggleRail={toggleRailExpanded}
           workspaces={workspaces}
           folders={folders}
           activeId={activeId}
@@ -310,7 +309,8 @@ const AppContent = () => {
           onNodeDelete={requestActiveNodeDelete}
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
-          onEnterChat={enterChatView}
+          onEnterHome={() => setLocation(ROUTE_HOME)}
+          onEnterCanvas={() => setLocation(ROUTE_CANVAS)}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
           onEnterSkills={() => setLocation(ROUTE_PLUGINS)}
@@ -326,26 +326,44 @@ const AppContent = () => {
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
           <PulseRouterView name='canvas' keepAlive>
-            <Workbench
-              activeWorkspaceId={activeId}
-              canvasHostActive={activeView === 'canvas'}
-              workspaces={workspaces}
-              controller={workbench}
-              knowledgeChatContext={knowledgeChatContext}
-              onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
-              onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
-              onSelectWorkspace={workspaceActions.select}
-              onActivateWorkspace={selectWorkspace}
-              onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={openWorkspaceSettings}
-              onOpenSessionInScope={openSessionInOwningScope}
-              onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
-            />
+            <div className="canvas-route">
+              {/* Lazy to keep the startup chunk in budget; the placeholder holds the bar's height. */}
+              <Suspense fallback={<div className="canvas-route__tabs-placeholder" />}>
+                <WorkspaceTabs
+                  workspaces={workspaces}
+                  activeId={activeId}
+                  onSelect={workspaceActions.select}
+                  onCreate={() => workspaceActions.select(workspaceActions.create(''))}
+                  onOpenLauncher={() => setLocation(ROUTE_HOME)}
+                  panelCollapsed={sidebarCollapsed}
+                  onTogglePanel={handleSidebarToggle}
+                />
+              </Suspense>
+              {/* The Library drawer and the canvas sit side by side under the tabs. */}
+              <div className="canvas-route__body">
+                <Workbench
+                  activeWorkspaceId={activeId}
+                  canvasHostActive={activeView === 'canvas'}
+                  workspaces={workspaces}
+                  controller={workbench}
+                  knowledgeChatContext={knowledgeChatContext}
+                  onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+                  onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
+                  onSelectWorkspace={workspaceActions.select}
+                  onActivateWorkspace={selectWorkspace}
+                  onOpenAppSettings={openAppSettings}
+                  onOpenWorkspaceSettings={openWorkspaceSettings}
+                  onOpenSessionInScope={openSessionInOwningScope}
+                  onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
+                />
+              </div>
+            </div>
           </PulseRouterView>
           <PulseRouterView name="chat">
             <ChatPage
               allWorkspaces={workspaces}
               openScheduledTaskId={routeParams.get('scheduledTask')}
+              sessionListRequest={sessionListRequest}
               initialTarget={chatEntryTarget}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}
@@ -366,9 +384,18 @@ const AppContent = () => {
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
             onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
+          <HomeRouteView
+            workspaces={workspaces}
+            loadedNodes={workbench.allNodes}
+            onEnterChat={enterChatTarget}
+            onOpenSession={openSessionInOwningScope}
+            onOpenAllChats={openAllChats}
+            onOpenWorkspace={workspaceActions.select}
+            onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))}
+          />
+          <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
-            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
-            onOpenSessionInScope={openSessionInOwningScope} />
+            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings} />
           <PulseRouterView name={MCP_APP_VIEW} keepAlive>
             {(mcpApp || hasRunningMcpApps) && (
               <Suspense fallback={null}>
@@ -387,8 +414,9 @@ const AppContent = () => {
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
       <RightDock
-        readingLeftInset={sidebarCollapsed ? 48 : 240}
+        readingLeftInset={sidebarWidth}
         hostView={activeView}
+        hidden={activeView === 'home' || activeView === 'settings'}
         workspaces={workspaces}
         activeWorkspaceId={dockWorkspaceId}
         activeIdReady={activeIdReady}
@@ -398,19 +426,16 @@ const AppContent = () => {
         onCanvasSelectionChange={handleSelectionChange}
         reserveSpace
         capWidth={activeView !== 'canvas'}
-        pageMinAppWidth={(sidebarCollapsed ? 48 : 240) + 440}
+        pageMinAppWidth={sidebarWidth + 440}
         onOpenNodePage={openNodePage}
         onActivateWorkspace={activateDockWorkspace}
       />
       <ConversationCompletionToastBridge onOpenSessionInScope={openSessionInOwningScope} />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
-        appLoaded={appSettingsLoaded}
-        appSection={appSettingsSection}
         workspaceLoaded={workspaceSettingsLoaded}
         workspaceId={settingsWorkspaceId}
         workspaces={workspaces}
-        onCloseApp={closeAppSettings}
         onCloseWorkspace={() => setSettingsWorkspaceId(null)}
         onRenameWorkspace={renameWorkspace}
         onSetRootFolder={setRootFolder}

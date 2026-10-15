@@ -5,10 +5,11 @@ import type { SidebarProps } from '../types';
 
 type Props = Pick<SidebarProps,
   'activeId' | 'activeNodes' | 'selectedNodeIds' | 'onNodeFocus' | 'onNodeRename' | 'onNodeDelete'
-> & { visible: boolean };
+> & { visible: boolean; onCollapse: () => void };
 
 export const LayerSection = ({
   visible,
+  onCollapse,
   activeId,
   activeNodes = [],
   selectedNodeIds,
@@ -39,6 +40,7 @@ export const LayerSection = ({
           onLayerRenameChange={layers.setRenameLayerValue}
           onLayerRenameCommit={layers.commitLayerRename}
           onLayerRenameCancel={() => layers.setRenamingLayerId(null)}
+          onCollapse={onCollapse}
         />
       )}
 

@@ -1,14 +1,31 @@
-.sidebar-collapsed-rail {
+.sidebar-rail {
+  width: var(--sidebar-collapsed);
+  flex: none;
+  box-sizing: border-box;
   padding: 10px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.sidebar-collapsed-btn {
-  width: 30px;
-  height: 30px;
+.sidebar-rail-spacer {
+  flex: 1;
+}
+
+.sidebar-rail-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: inherit;
+}
+
+.sidebar-rail-btn {
+  width: 32px;
+  height: 32px;
+  flex: none;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
@@ -20,21 +37,119 @@
   transition: background 0.12s, color 0.12s;
 }
 
-.sidebar-collapsed-btn:hover,
-.sidebar-collapsed-btn:focus-visible {
+.sidebar-rail-btn:hover,
+.sidebar-rail-btn:focus-visible {
   outline: none;
   background: rgba(0, 0, 0, 0.05);
   color: var(--text);
 }
 
-.sidebar-collapsed-btn--active {
+.sidebar-rail-btn--active {
   background: var(--accent-light);
   color: var(--accent);
 }
 
-.sidebar-footer-btn:focus-visible,
+.sidebar-rail-label {
+  display: none;
+}
+
+/* Wide rail: icon and label in one row, the workspace tree under the
+   destinations, and the toggle's chevron turned back. Rows match the tree's
+   `.sidebar-item` type so both read as one list. */
+.sidebar--rail-expanded {
+  --sidebar-collapsed: 240px;
+  --sidebar-width: 464px;
+}
+
+.sidebar-rail-tree {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 4px -6px 0;
+  border-top: 1px solid var(--border);
+}
+
+/* The panel caps its list at half height to leave room for Layers; the
+   rail's tree has the whole column. */
+.sidebar-rail-tree .sidebar-scroll {
+  flex: 1;
+  max-height: none;
+}
+
+.sidebar-rail-tree ~ .sidebar-rail-spacer {
+  display: none;
+}
+
+.sidebar--rail-expanded .sidebar-rail,
+.sidebar--rail-expanded .sidebar-apps-rail {
+  align-items: stretch;
+  gap: 4px;
+}
+
+/* Apps sit between the destinations and the tree; their divider spans the
+   rail like the tree's. */
+.sidebar--rail-expanded .sidebar-apps-rail {
+  margin: 4px -6px 0;
+  padding: 8px 6px 4px;
+}
+
+/* The ui Button sets weight 500; app rows match the destinations. */
+.sidebar--rail-expanded .sidebar-apps-rail__btn {
+  font-weight: 400;
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn {
+  width: auto;
+  height: 32px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--text);
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn--active {
+  color: var(--accent);
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn > svg {
+  flex: none;
+}
+
+.sidebar--rail-expanded .sidebar-rail-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar--rail-expanded .sidebar-rail-chevron {
+  transform: rotate(180deg);
+}
+
+/* The wide rail keeps Settings as a full row and puts the toggle beside it
+   as a square icon button. */
+.sidebar--rail-expanded .sidebar-rail-footer {
+  flex-direction: row-reverse;
+  align-items: center;
+}
+
+.sidebar--rail-expanded .sidebar-rail-footer > .sidebar-rail-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar--rail-expanded .sidebar-rail-footer > .sidebar-rail-btn:first-child {
+  flex: none;
+  width: 32px;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
 .sidebar-section-btn:focus-visible,
-.sidebar-nav-item:focus-visible,
 .sidebar-item:focus-visible,
 .sidebar-folder-toggle:focus-visible,
 .sidebar-add-menu-item:focus-visible {

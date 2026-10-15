@@ -104,6 +104,7 @@ export const RightDock = ({
   pageMinAppWidth,
   readingLeftInset = 0,
   hostView = 'canvas',
+  hidden = false,
   workspaces,
   onOpenNodePage,
   onActivateWorkspace,
@@ -119,6 +120,8 @@ export const RightDock = ({
     // while the canvas behind it swaps instantly reads as a jolt, so the first
     // frame of a workspace paints with the dock transitions off, reusing the
     // drag-resize class; the second frame re-enables them for user open/close.
+    // A route change does the same: the page swaps at once, so the dock, the
+    // reserved margin and the sidebar panel land instead of sliding.
     const { classList } = document.documentElement;
     classList.add(RESIZING_CLASS);
     let frame = requestAnimationFrame(() => {
@@ -128,7 +131,7 @@ export const RightDock = ({
       cancelAnimationFrame(frame);
       classList.remove(RESIZING_CLASS);
     };
-  }, [activeWorkspaceId, store]);
+  }, [activeWorkspaceId, hostView, store]);
 
   const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
     if (!onActivateWorkspace || !workspaces.some(workspace => workspace.id === workspaceId)) return false;
@@ -162,8 +165,8 @@ export const RightDock = ({
   const hasPreviews = state.tabs.length > 0;
   const terminalTabsVisible = state.terminalTabs.length > 0;
   const terminalHostMounted = Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
-  const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible;
-  const visible = state.expanded && (chatTabEnabled || hasPreviews || terminalTabsVisible);
+  const tabStripVisible = !hidden && (chatTabEnabled || hasPreviews || terminalTabsVisible);
+  const visible = !hidden && state.expanded && (chatTabEnabled || hasPreviews || terminalTabsVisible);
   const stripMounted = useRef(false);
   if (visible) stripMounted.current = true;
   // While the chat tab is unavailable a transient 'chat' active pointer

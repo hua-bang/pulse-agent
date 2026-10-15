@@ -25,6 +25,7 @@ export type CanvasRootViewProps = Pick<
   | 'onAddToChat'
   | 'onAddDomSelectionToChat'
   | 'onSubmitDomReviewComments'
+  | 'onAskAboutNodes'
   | 'resolveReferenceNode'
   | 'onOpenReferenceSource'
   | 'onUpdateReferenceSource'

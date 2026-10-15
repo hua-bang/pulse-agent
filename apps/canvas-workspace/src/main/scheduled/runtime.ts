@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { getCanvasAgentService } from '../agent/ipc';
+import { chatToSubscribers, getConversationRuntimeService } from '../agent/conversation-runtime/conversation-ipc';
 import type {
   ScheduledRunFinished,
   ScheduledTask,
@@ -11,6 +12,8 @@ import { ScheduledTaskService } from './scheduled-task-service';
 let service: ScheduledTaskService | null = null;
 
 const scheduledScope = (taskId: string) => ({ kind: 'scheduled' as const, taskId });
+
+const conversationRuntime = () => getConversationRuntimeService(getCanvasAgentService);
 
 async function createScheduledSession(
   agentService: ReturnType<typeof getCanvasAgentService>,
@@ -63,16 +66,11 @@ async function executeScheduledTask(
     if (!sessionId) {
       sessionId = await createScheduledSession(agentService, task.id);
     }
-    const result = await agentService.chatWithScope(
-      scope,
-      taskRunPrompt(task),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      { expectedConversationSessionId: sessionId },
-    );
+    // The conversation runtime owns the turn, the same path a typed message
+    // takes: the live reply is kept for windows that attach mid-run, streamed
+    // to them, and checkpointed, so an open chat never shows a running run as
+    // interrupted.
+    const result = await chatToSubscribers(conversationRuntime(), scope, sessionId, taskRunPrompt(task));
     if (!result.ok) throw new Error(result.error ?? 'Scheduled task failed');
     announceRunFinished({
       taskId: task.id,
@@ -97,18 +95,27 @@ async function executeScheduledTask(
   }
 }
 
+/**
+ * Creates a manual run's session and opens the scope's conversation runtime
+ * before the id goes back. The Scheduled page opens the chat at once, and
+ * its attach finds the turn only once the run is live; a cold scope would
+ * otherwise still be activating and the chat would miss the whole run.
+ */
+async function prepareManualSession(taskId: string): Promise<string> {
+  const sessionId = await createScheduledSession(getCanvasAgentService(), taskId);
+  await conversationRuntime().hasSession(scheduledScope(taskId), sessionId);
+  return sessionId;
+}
+
 /** Main-owned manual start: validate task, create its session, then launch. */
 export async function startManualScheduledTask(
   taskId: string,
 ): Promise<{ task: ScheduledTask; sessionId: string }> {
   const scheduled = getScheduledTaskService();
-  return scheduled.startTaskNow(
-    taskId,
-    () => createScheduledSession(getCanvasAgentService(), taskId),
-  );
+  return scheduled.startTaskNow(taskId, () => prepareManualSession(taskId));
 }
 
-export const __testing = { executeScheduledTask };
+export const __testing = { executeScheduledTask, prepareManualSession };
 
 export function getScheduledTaskService(): ScheduledTaskService {
   if (!service) {

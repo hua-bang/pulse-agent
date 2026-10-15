@@ -39,6 +39,26 @@ describe('before-quit flush', () => {
     unregisterWorkspace();
   });
 
+  it('answers main at once when no task is registered', async () => {
+    let request: ((requestId: string) => void) | undefined;
+    const flushedBeforeQuit = vi.fn();
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        store: {
+          onFlushBeforeQuit: (callback: (requestId: string) => void) => { request = callback; return () => undefined; },
+          flushedBeforeQuit,
+        },
+      },
+    });
+    // A fresh module: the first test already installed the listener.
+    vi.resetModules();
+    const { installBeforeQuitFlush } = await import('./beforeQuit');
+    installBeforeQuitFlush();
+    request?.('quit-2');
+    await vi.waitFor(() => expect(flushedBeforeQuit).toHaveBeenCalledWith('quit-2'));
+  });
+
   it('swallows a workspace flush failure and ignores a missing workspace id', async () => {
     const unregister = registerWorkspacePersistence('broken', async () => { throw new Error('still loading'); });
     await expect(flushWorkspace('broken')).resolves.toBeUndefined();

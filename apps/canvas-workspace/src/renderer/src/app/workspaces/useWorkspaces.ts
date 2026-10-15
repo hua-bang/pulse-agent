@@ -59,7 +59,13 @@ export const useWorkspaces = () => {
         activeIdRef.current = active;
         setWorkspaces(next);
         setActiveId(active);
-        const nextFolders = Array.isArray(manifest.folders) ? manifest.folders : [];
+        const loadedFolders = Array.isArray(manifest.folders) ? manifest.folders : [];
+        // Folders open collapsed on launch; only the active workspace's folder
+        // stays open so the current row is visible.
+        const activeFolderId = next.find(workspace => workspace.id === active)?.folderId;
+        const nextFolders = initial
+          ? loadedFolders.map(folder => ({ ...folder, collapsed: folder.id !== activeFolderId }))
+          : loadedFolders;
         foldersRef.current = nextFolders;
         setFolders(nextFolders);
       } finally {
