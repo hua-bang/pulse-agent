@@ -21,7 +21,7 @@ interface UseSubmitPromptOptions {
 }
 
 interface PendingPrompt {
-  sessionId: string;
+  sessionId: string | null;
   text: string;
   requestContext: AgentRequestContext;
   resolve: (sent: boolean) => void;
@@ -61,7 +61,7 @@ export const useSubmitPrompt = ({
   // session finished activating before the prompt was parked.
   const [pending, setPending] = useState<PendingPrompt | null>(null);
   const pendingRef = useRef<PendingPrompt | null>(null);
-  pendingRef.current = pending;
+  const lifecycleRef = useRef<object | null>(null);
   const sentRef = useRef<PendingPrompt | null>(null);
 
   useEffect(() => {
@@ -69,15 +69,23 @@ export const useSubmitPrompt = ({
     // Claim it now: the effect can run again before the cleared state renders.
     if (sentRef.current === pending) return;
     sentRef.current = pending;
+    pendingRef.current = null;
     setPending(null);
     void sendMessage(pending.text, pending.requestContext).then(pending.resolve, () => pending.resolve(false));
   }, [blocked, conversationSessionId, pending, sendMessage]);
 
   // An unmounted surface can no longer send; report the prompt as not sent.
-  useEffect(() => () => pendingRef.current?.resolve(false), []);
+  useEffect(() => {
+    lifecycleRef.current = {};
+    return () => {
+      lifecycleRef.current = null;
+      pendingRef.current?.resolve(false);
+      pendingRef.current = null;
+    };
+  }, []);
 
   return useCallback(async (prompt: ChatPromptSubmission): Promise<boolean> => {
-    if (blocked || pendingRef.current) return false;
+    if (!lifecycleRef.current || blocked || pendingRef.current) return false;
     const question = prompt.text.trim();
     if (!question) {
       focusInput();
@@ -96,11 +104,28 @@ export const useSubmitPrompt = ({
     };
     if (!prompt.newSession) return sendMessage(text, turnContext);
 
-    const created = await handleNewSession();
-    if (!created.ok || !created.activeSessionId) return false;
-    const sessionId = created.activeSessionId;
+    const lifecycle = lifecycleRef.current;
     return new Promise<boolean>((resolve) => {
-      setPending({ sessionId, text, requestContext: turnContext, resolve });
+      // Register before the IPC wait so cleanup can settle even a hung create.
+      const request: PendingPrompt = { sessionId: null, text, requestContext: turnContext, resolve };
+      pendingRef.current = request;
+      void (async () => {
+        try {
+          const created = await handleNewSession();
+          if (lifecycleRef.current !== lifecycle || pendingRef.current !== request) return;
+          if (!created.ok || !created.activeSessionId) {
+            pendingRef.current = null;
+            resolve(false);
+            return;
+          }
+          request.sessionId = created.activeSessionId;
+          setPending(request);
+        } catch {
+          if (lifecycleRef.current !== lifecycle || pendingRef.current !== request) return;
+          pendingRef.current = null;
+          resolve(false);
+        }
+      })();
     });
   }, [blocked, focusInput, handleNewSession, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
 };
