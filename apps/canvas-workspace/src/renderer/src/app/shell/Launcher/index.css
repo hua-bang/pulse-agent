@@ -119,10 +119,10 @@
   font-weight: 500;
 }
 
-/* One row (recent workspaces plus New) leaves the height to recent chats. */
+/* Two rows of three: the five latest workspaces and New. */
 .launcher__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 

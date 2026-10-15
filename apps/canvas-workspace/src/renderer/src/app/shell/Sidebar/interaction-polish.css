@@ -42,6 +42,45 @@
   color: var(--accent);
 }
 
+.sidebar-rail-label {
+  display: none;
+}
+
+/* Wide rail: icon and label in one row; the toggle's chevron turns back. */
+.sidebar--rail-expanded {
+  --sidebar-collapsed: 160px;
+  --sidebar-width: 384px;
+}
+
+.sidebar--rail-expanded .sidebar-rail,
+.sidebar--rail-expanded .sidebar-apps-rail {
+  align-items: stretch;
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn {
+  width: auto;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 8px;
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn > svg {
+  flex: none;
+}
+
+.sidebar--rail-expanded .sidebar-rail-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar--rail-expanded .sidebar-rail-chevron {
+  transform: rotate(180deg);
+}
+
 .sidebar-section-btn:focus-visible,
 .sidebar-item:focus-visible,
 .sidebar-folder-toggle:focus-visible,

@@ -3,6 +3,7 @@ import type { NavItem } from '../../../../../plugins/types';
 import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 import {
   AppLogoIcon,
+  ChevronRightIcon,
   KnowledgeStoreIcon,
   NodeGraphIcon,
   PluginIcon,
@@ -17,6 +18,9 @@ interface SidebarRailProps {
   activeView: string;
   panelCollapsed: boolean;
   onTogglePanel: () => void;
+  /** Wide rail: a label beside each icon. */
+  expanded: boolean;
+  onToggleExpanded: () => void;
   onEnterHome: () => void;
   onEnterCanvas: () => void;
   onEnterNodes: () => void;
@@ -52,18 +56,21 @@ const RailButton = ({ active, label, title, onClick, children }: RailButtonProps
     aria-current={active ? 'page' : undefined}
   >
     {children}
+    <span className="sidebar-rail-label">{label}</span>
   </button>
 );
 
 /**
  * The always-visible app rail: one icon per top-level destination, with
- * Settings pinned to the bottom. The workspace panel beside it collapses;
- * the rail never does.
+ * the label toggle and Settings pinned to the bottom. The workspace panel
+ * beside it collapses; the rail never does, but it can widen to show labels.
  */
 export const SidebarRail = ({
   activeView,
   panelCollapsed,
   onTogglePanel,
+  expanded,
+  onToggleExpanded,
   onEnterHome,
   onEnterCanvas,
   onEnterNodes,
@@ -163,9 +170,15 @@ export const SidebarRail = ({
       )}
       <div className="sidebar-rail-spacer" />
       <RailButton
+        active={false}
+        label={t(expanded ? 'sidebar.hideLabels' : 'sidebar.showLabels')}
+        onClick={onToggleExpanded}
+      >
+        <ChevronRightIcon size={12} className="sidebar-rail-chevron" />
+      </RailButton>
+      <RailButton
         active={activeView === 'settings'}
-        label={t('sidebar.openSettings')}
-        title={t('sidebar.settings')}
+        label={t('sidebar.settings')}
         onClick={onOpenAppSettings}
       >
         <SettingsIcon size={15} strokeWidth={1.4} />

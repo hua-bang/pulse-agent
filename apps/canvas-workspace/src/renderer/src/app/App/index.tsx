@@ -15,7 +15,7 @@ import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/works
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
-import { useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
+import { useRailExpanded, useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
@@ -53,8 +53,8 @@ const {
   scheduled: ROUTE_SCHEDULED,
   home: ROUTE_HOME,
 } = APP_ROUTES;
-/** Matches `--sidebar-width` / `--sidebar-collapsed` in styles.css. */
-const SIDEBAR_WIDTH = 272, SIDEBAR_RAIL_WIDTH = 48;
+/** Match `--sidebar-collapsed` (rail) and `--sidebar-width` (rail + panel) in styles.css and `.sidebar--rail-expanded`. */
+const SIDEBAR_PANEL_WIDTH = 224, SIDEBAR_RAIL_WIDTH = 48, SIDEBAR_RAIL_EXPANDED_WIDTH = 160;
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
@@ -86,7 +86,8 @@ const AppContent = () => {
   const { openShortcuts, isOverlayOpen } = useAppShell();
   const chatTargetBroker = useChatTargetBroker();
   const activeChatTarget = useActiveChatTarget();
-  const { sidebarCollapsed, toggleSidebar: handleSidebarToggle } = useSidebarCollapsed();
+  const [sidebarCollapsed, handleSidebarToggle] = useSidebarCollapsed();
+  const [railExpanded, toggleRailExpanded] = useRailExpanded();
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
@@ -269,6 +270,8 @@ const AppContent = () => {
     || activeView === 'home'
     || activeView === 'chat'
     || activeView === 'settings';
+  const sidebarWidth = (railExpanded ? SIDEBAR_RAIL_EXPANDED_WIDTH : SIDEBAR_RAIL_WIDTH)
+    + (sidebarPanelHidden ? 0 : SIDEBAR_PANEL_WIDTH);
   const [sessionListRequest, setSessionListRequest] = useState(0);
   const openAllChats = useCallback(() => {
     enterChatView();
@@ -281,6 +284,8 @@ const AppContent = () => {
         <Sidebar
           collapsed={sidebarPanelHidden}
           onToggle={handleSidebarToggle}
+          railExpanded={railExpanded}
+          onToggleRail={toggleRailExpanded}
           workspaces={workspaces}
           folders={folders}
           activeId={activeId}
@@ -410,7 +415,7 @@ const AppContent = () => {
       </div>
       <GlobalChatLauncher visible={isGlobalChatLauncherVisible(activeView)} />
       <RightDock
-        readingLeftInset={sidebarPanelHidden ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH}
+        readingLeftInset={sidebarWidth}
         hostView={activeView}
         hidden={activeView === 'home' || activeView === 'settings'}
         workspaces={workspaces}
@@ -422,7 +427,7 @@ const AppContent = () => {
         onCanvasSelectionChange={handleSelectionChange}
         reserveSpace
         capWidth={activeView !== 'canvas'}
-        pageMinAppWidth={(sidebarPanelHidden ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH) + 440}
+        pageMinAppWidth={sidebarWidth + 440}
         onOpenNodePage={openNodePage}
         onActivateWorkspace={activateDockWorkspace}
       />

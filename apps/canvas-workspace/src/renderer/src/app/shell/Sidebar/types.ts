@@ -6,6 +6,9 @@ import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 export interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  /** The rail shows a label beside each icon. */
+  railExpanded: boolean;
+  onToggleRail: () => void;
   workspaces: WorkspaceEntry[];
   folders: FolderEntry[];
   activeId: string;

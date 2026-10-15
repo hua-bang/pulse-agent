@@ -54,6 +54,7 @@ export const AppsSection = ({ activeView, activeAppKey, onOpenApp }: Props) => {
             aria-label={listing.title}
           >
             <GlobalMcpAppTile title={listing.title} size={18} icon={listing.icon} />
+            <span className="sidebar-rail-label">{listing.title}</span>
           </Button>
         );
       })}

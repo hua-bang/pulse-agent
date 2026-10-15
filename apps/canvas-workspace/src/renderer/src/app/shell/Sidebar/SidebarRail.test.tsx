@@ -14,6 +14,8 @@ const baseProps = (): ComponentProps<typeof SidebarRail> => ({
   activeView: 'canvas',
   panelCollapsed: false,
   onTogglePanel: vi.fn(),
+  expanded: false,
+  onToggleExpanded: vi.fn(),
   onEnterHome: vi.fn(),
   onEnterCanvas: vi.fn(),
   onEnterNodes: vi.fn(),
@@ -52,7 +54,7 @@ describe('SidebarRail', () => {
     render({ ...baseProps(), nodesEnabled: true });
 
     const labels = [...host.querySelectorAll('.sidebar-rail-btn')].map((el) => el.getAttribute('aria-label'));
-    expect(labels).toEqual(['Pulse Agent', 'Workspaces', 'Nodes', 'Plugins', 'Scheduled', 'Open settings']);
+    expect(labels).toEqual(['Pulse Agent', 'Workspaces', 'Nodes', 'Plugins', 'Scheduled', 'Show labels', 'Settings']);
     expect(button('Workspaces').getAttribute('aria-current')).toBe('page');
     expect(button('Pulse Agent').getAttribute('aria-current')).toBeNull();
   });
@@ -78,6 +80,17 @@ describe('SidebarRail', () => {
     render(onSettings);
     act(() => button('Workspaces').click());
     expect(onSettings.onEnterCanvas).toHaveBeenCalledOnce();
-    expect(button('Open settings').getAttribute('aria-current')).toBe('page');
+    expect(button('Settings').getAttribute('aria-current')).toBe('page');
+  });
+
+  it('widens to show labels from the toggle above Settings', () => {
+    const props = baseProps();
+    render(props);
+    act(() => button('Show labels').click());
+    expect(props.onToggleExpanded).toHaveBeenCalledOnce();
+
+    render({ ...props, expanded: true });
+    expect(button('Hide labels')).not.toBeNull();
+    expect(button('Settings').textContent).toBe('Settings');
   });
 });

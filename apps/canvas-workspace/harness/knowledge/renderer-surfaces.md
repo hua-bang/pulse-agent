@@ -23,7 +23,10 @@ The workbench has exactly two side regions plus a modal tier:
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
   Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
-  Settings at the bottom. Pulse Agent opens the launcher and stays current on
+  Settings at the bottom. The toggle above Settings widens the rail to 160px
+  with a label beside each icon, and the choice persists
+  (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
+  so the CSS widths and `App` constants change together. Pulse Agent opens the launcher and stays current on
   the launcher and chat routes; there is no separate Home button. The panel
   next to it holds the
   workspace list and Layers; collapsing hides only the panel. The launcher,
@@ -84,7 +87,7 @@ The workbench has exactly two side regions plus a modal tier:
   its session list shown (`ChatPage` `sessionListRequest`). The page mounts
   fresh on each entry, so a request it has not consumed opens the list in its
   initial state (no width transition or message reflow). The page fits the
-  window: one row holds the three latest workspaces and New, and only the
+  window: two rows of three hold the five latest workspaces and New, and only the
   recent chats list (up to 20 rows) scrolls. A chat row is one line in a
   bordered list: the title on the left, and the place (General or the
   workspace) and time muted on the right. The page itself scrolls only

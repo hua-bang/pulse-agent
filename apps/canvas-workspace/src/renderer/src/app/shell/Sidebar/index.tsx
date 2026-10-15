@@ -15,6 +15,8 @@ const LayerSection = lazy(() => import('./LayerSection').then((module) => ({ def
 export const Sidebar = ({
   collapsed,
   onToggle,
+  railExpanded,
+  onToggleRail,
   workspaces,
   folders,
   activeId,
@@ -94,11 +96,13 @@ export const Sidebar = ({
   );
 
   return (
-    <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
+    <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}${railExpanded ? ' sidebar--rail-expanded' : ''}`}>
       <SidebarRail
         activeView={activeView}
         panelCollapsed={collapsed}
         onTogglePanel={onToggle}
+        expanded={railExpanded}
+        onToggleExpanded={onToggleRail}
         onEnterHome={onEnterHome}
         onEnterCanvas={onEnterCanvas}
         onEnterNodes={onEnterNodes}

@@ -56,7 +56,7 @@ beforeEach(async () => {
     collapsed: false, activeId: 'a', activeView: 'canvas',
     workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }],
     folders: [{ id: 'f', name: 'Folder', collapsed: true }],
-    onToggle: vi.fn(), onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(),
+    onToggle: vi.fn(), railExpanded: false, onToggleRail: vi.fn(), onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(),
     onDelete: vi.fn(), onExport: vi.fn(), onOpenSettings: vi.fn(), onOpenAppSettings: vi.fn(),
     onImport: vi.fn(), onCreateFolder: vi.fn(), onRenameFolder: vi.fn(), onDeleteFolder: vi.fn(),
     onToggleFolder: vi.fn(), onMoveWorkspace: vi.fn(), onReorderWorkspace: vi.fn(), onReorderFolder: vi.fn(),
