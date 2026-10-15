@@ -95,6 +95,8 @@ describe('Sidebar owner interactions', () => {
     props.collapsed = false;
     await render();
     expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
+    click('.sidebar-layers [aria-label="Collapse sidebar"]');
+    expect(props.onToggle).toHaveBeenCalledOnce();
 
     props.activeView = 'chat';
     await render();

@@ -12,7 +12,7 @@ import { LayerItem } from './LayerItem';
 import { CloseIcon } from '../../../components/icons';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../utils/nodeTypeI18n';
-import { EmptyState } from '../../../components/ui';
+import { Button, EmptyState } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 
 interface LayersPanelProps {
@@ -33,6 +33,8 @@ interface LayersPanelProps {
   onLayerRenameChange: (value: string) => void;
   onLayerRenameCommit: () => void;
   onLayerRenameCancel: () => void;
+  /** Hides the panel; the Layers header is the panel's top row. */
+  onCollapse?: () => void;
 }
 
 const EMPTY_COLLAPSED_LAYERS = new Set<string>();
@@ -71,6 +73,7 @@ export const LayersPanel = ({
   onLayerRenameChange,
   onLayerRenameCommit,
   onLayerRenameCancel,
+  onCollapse,
 }: LayersPanelProps) => {
   const { t } = useI18n();
   const [layerQuery, setLayerQuery] = useState('');
@@ -201,6 +204,21 @@ export const LayersPanel = ({
                 </svg>
               )}
             </button>
+          )}
+          {onCollapse && (
+            <Button
+              variant="icon"
+              size="xs"
+              className="sidebar-section-btn"
+              onClick={onCollapse}
+              title={t('sidebar.collapse')}
+              aria-label={t('sidebar.collapse')}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M6 3v10" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </Button>
           )}
         </div>
       </div>

@@ -177,6 +177,7 @@ export const Sidebar = ({
           <Suspense fallback={null}>
             <LayerSection
               visible={layersVisible}
+              onCollapse={onToggle}
               activeId={activeId}
               activeNodes={activeNodes}
               selectedNodeIds={selectedNodeIds}

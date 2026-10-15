@@ -34,7 +34,8 @@ The workbench has exactly two side regions plus a modal tier:
   launcher and chat routes; there is no separate Home button. The panel next
   to the rail holds only canvas Layers, with no brand row: it hides off the
   canvas route or when the canvas has no nodes, without changing the saved
-  collapse preference. Workspace row
+  collapse preference. The Layers header carries the collapse button.
+  Workspace row
   actions (rename, settings, export, delete) sit in one portaled "more" menu
   so hover does not cut the name short. The Workspaces button toggles the
   panel on the canvas route and returns to the canvas elsewhere. Guards:
