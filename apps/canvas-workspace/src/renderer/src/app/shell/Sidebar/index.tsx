@@ -95,6 +95,56 @@ export const Sidebar = ({
     />
   );
 
+  const renderHeader = (brand: boolean, section: boolean) => (
+    <SidebarHeader
+      onToggle={onToggle}
+      showAddMenu={editing.showAddMenu}
+      onToggleAddMenu={() => editing.setShowAddMenu((v) => !v)}
+      onCloseAddMenu={() => editing.setShowAddMenu(false)}
+      addMenuRef={editing.addMenuRef}
+      onNewWorkspace={() => editing.startCreate('workspace')}
+      onNewFolder={() => editing.startCreate('folder')}
+      onImportWorkspace={editing.importWorkspace}
+      brand={brand}
+      section={section}
+    />
+  );
+
+  const workspaceList = (
+    <WorkspaceList
+      folders={folders}
+      workspaces={workspaces}
+      dropTarget={drag.dropTarget}
+      folderDropTarget={drag.folderDropTarget}
+      renamingFolderId={editing.renamingFolderId}
+      renameFolderValue={editing.renameFolderValue}
+      renameFolderInputRef={editing.renameFolderInputRef}
+      inlineCreate={editing.inlineCreate}
+      inlineCreateValue={editing.inlineCreateValue}
+      inlineCreateRef={editing.inlineCreateRef}
+      inlineCreateFolderId={editing.inlineCreateFolderId}
+      onFolderDragStart={drag.handleFolderDragStart}
+      onFolderDragEnd={drag.handleFolderDragEnd}
+      onFolderCombinedDragOver={drag.onFolderCombinedDragOver}
+      onFolderCombinedDragLeave={drag.onFolderCombinedDragLeave}
+      onFolderCombinedDrop={drag.onFolderCombinedDrop}
+      onRootDragOver={(e) => drag.handleWsDragOver(e, '__root__')}
+      onRootDragLeave={(e) => drag.handleWsDragLeave(e, '__root__')}
+      onRootDrop={(e) => drag.handleWsDrop(e, undefined)}
+      onToggleFolder={onToggleFolder}
+      onStartFolderRename={editing.startFolderRename}
+      onFolderRenameChange={editing.setRenameFolderValue}
+      onFolderRenameCommit={editing.commitFolderRename}
+      onFolderRenameCancel={() => editing.setRenamingFolderId(null)}
+      onDeleteFolder={onDeleteFolder}
+      onCreateWorkspaceInFolder={editing.startCreateInFolder}
+      renderWorkspace={renderWorkspaceItem}
+      onInlineCreateChange={editing.setInlineCreateValue}
+      onInlineCreateCommit={editing.commitInlineCreate}
+      onInlineCreateCancel={editing.cancelInlineCreate}
+    />
+  );
+
   return (
     <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}${railExpanded ? ' sidebar--rail-expanded' : ''}`}>
       <SidebarRail
@@ -118,52 +168,18 @@ export const Sidebar = ({
         onNavigate={onNavigate}
         activeMcpAppKey={activeMcpAppKey}
         onOpenMcpApp={onOpenMcpApp}
+        tree={railExpanded ? (
+          <div className="sidebar-rail-tree">
+            {renderHeader(false, true)}
+            {workspaceList}
+          </div>
+        ) : undefined}
       />
       <div className="sidebar-panel" hidden={collapsed}>
         {!collapsed && (
           <>
-            <SidebarHeader
-              onToggle={onToggle}
-              showAddMenu={editing.showAddMenu}
-              onToggleAddMenu={() => editing.setShowAddMenu((v) => !v)}
-              onCloseAddMenu={() => editing.setShowAddMenu(false)}
-              addMenuRef={editing.addMenuRef}
-              onNewWorkspace={() => editing.startCreate('workspace')}
-              onNewFolder={() => editing.startCreate('folder')}
-              onImportWorkspace={editing.importWorkspace}
-            />
-            <WorkspaceList
-              folders={folders}
-              workspaces={workspaces}
-              dropTarget={drag.dropTarget}
-              folderDropTarget={drag.folderDropTarget}
-              renamingFolderId={editing.renamingFolderId}
-              renameFolderValue={editing.renameFolderValue}
-              renameFolderInputRef={editing.renameFolderInputRef}
-              inlineCreate={editing.inlineCreate}
-              inlineCreateValue={editing.inlineCreateValue}
-              inlineCreateRef={editing.inlineCreateRef}
-              inlineCreateFolderId={editing.inlineCreateFolderId}
-              onFolderDragStart={drag.handleFolderDragStart}
-              onFolderDragEnd={drag.handleFolderDragEnd}
-              onFolderCombinedDragOver={drag.onFolderCombinedDragOver}
-              onFolderCombinedDragLeave={drag.onFolderCombinedDragLeave}
-              onFolderCombinedDrop={drag.onFolderCombinedDrop}
-              onRootDragOver={(e) => drag.handleWsDragOver(e, '__root__')}
-              onRootDragLeave={(e) => drag.handleWsDragLeave(e, '__root__')}
-              onRootDrop={(e) => drag.handleWsDrop(e, undefined)}
-              onToggleFolder={onToggleFolder}
-              onStartFolderRename={editing.startFolderRename}
-              onFolderRenameChange={editing.setRenameFolderValue}
-              onFolderRenameCommit={editing.commitFolderRename}
-              onFolderRenameCancel={() => editing.setRenamingFolderId(null)}
-              onDeleteFolder={onDeleteFolder}
-              onCreateWorkspaceInFolder={editing.startCreateInFolder}
-              renderWorkspace={renderWorkspaceItem}
-              onInlineCreateChange={editing.setInlineCreateValue}
-              onInlineCreateCommit={editing.commitInlineCreate}
-              onInlineCreateCancel={editing.cancelInlineCreate}
-            />
+            {renderHeader(true, !railExpanded)}
+            {!railExpanded && workspaceList}
           </>
         )}
 

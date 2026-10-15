@@ -103,6 +103,18 @@ describe('Sidebar owner interactions', () => {
     expect(host.querySelector('[aria-label="Expand all frames"]')).not.toBeNull();
   });
 
+  it('moves the workspace tree into the wide rail and keeps only the brand row in the panel', async () => {
+    props.railExpanded = true;
+    await render();
+    const tree = host.querySelector('.sidebar-rail .sidebar-rail-tree');
+    expect(tree?.textContent).toContain('Alpha');
+    expect(tree?.querySelector('[aria-label="Add workspace or folder"]')).not.toBeNull();
+    const panel = host.querySelector('.sidebar-panel');
+    expect(panel?.querySelector('.sidebar-brand-header')).not.toBeNull();
+    expect(panel?.textContent).not.toContain('Alpha');
+    expect(panel?.querySelector('[aria-label="Add workspace or folder"]')).toBeNull();
+  });
+
   it('focuses rename, cancels without committing, and commits the next edit to the selected workspace', async () => {
     await clickRowAction('.sidebar-item-rename');
     expect(document.activeElement).toBe(element('input'));

@@ -23,10 +23,13 @@ The workbench has exactly two side regions plus a modal tier:
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
   Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
-  Settings at the bottom. The toggle above Settings widens the rail to 160px
+  Settings at the bottom. The toggle above Settings widens the rail to 240px
   with a label beside each icon, and the choice persists
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
-  so the CSS widths and `App` constants change together. Pulse Agent opens the launcher and stays current on
+  so the CSS widths and `App` constants change together. The wide rail also
+  holds the workspace list under the nav items, with the same 13px text as
+  the labels; the panel then keeps only the brand row and Layers, and hides
+  when there are no layers or the route is not the canvas. Pulse Agent opens the launcher and stays current on
   the launcher and chat routes; there is no separate Home button. The panel
   next to it holds the
   workspace list and Layers; collapsing hides only the panel. The launcher,

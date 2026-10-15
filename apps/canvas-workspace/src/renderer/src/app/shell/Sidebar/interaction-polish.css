@@ -46,22 +46,51 @@
   display: none;
 }
 
-/* Wide rail: icon and label in one row; the toggle's chevron turns back. */
+/* Wide rail: icon and label in one row, the workspace tree under the
+   destinations, and the toggle's chevron turned back. Rows match the tree's
+   `.sidebar-item` type so both read as one list. */
 .sidebar--rail-expanded {
-  --sidebar-collapsed: 160px;
-  --sidebar-width: 384px;
+  --sidebar-collapsed: 240px;
+  --sidebar-width: 464px;
+}
+
+.sidebar-rail-tree {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 4px -6px 0;
+  border-top: 1px solid var(--border);
+}
+
+/* The panel caps its list at half height to leave room for Layers; the
+   rail's tree has the whole column. */
+.sidebar-rail-tree .sidebar-scroll {
+  flex: 1;
+  max-height: none;
+}
+
+.sidebar-rail-tree ~ .sidebar-rail-spacer {
+  display: none;
 }
 
 .sidebar--rail-expanded .sidebar-rail,
 .sidebar--rail-expanded .sidebar-apps-rail {
   align-items: stretch;
+  gap: 2px;
 }
 
 .sidebar--rail-expanded .sidebar-rail-btn {
   width: auto;
+  height: 28px;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 8px;
   padding: 0 8px;
+  color: var(--text);
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn--active {
+  color: var(--accent);
 }
 
 .sidebar--rail-expanded .sidebar-rail-btn > svg {

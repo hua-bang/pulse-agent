@@ -54,7 +54,7 @@ const {
   home: ROUTE_HOME,
 } = APP_ROUTES;
 /** Match `--sidebar-collapsed` (rail) and `--sidebar-width` (rail + panel) in styles.css and `.sidebar--rail-expanded`. */
-const SIDEBAR_PANEL_WIDTH = 224, SIDEBAR_RAIL_WIDTH = 48, SIDEBAR_RAIL_EXPANDED_WIDTH = 160;
+const SIDEBAR_PANEL_WIDTH = 224, SIDEBAR_RAIL_WIDTH = 48, SIDEBAR_RAIL_EXPANDED_WIDTH = 240;
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
@@ -265,11 +265,13 @@ const AppContent = () => {
   // The launcher lists workspaces itself, the chat page's session list
   // groups by workspace, and settings has its own category column, so these
   // routes show only the rail. The launcher and settings own the full
-  // width, so the dock hides there too (it stays mounted).
+  // width, so the dock hides there too (it stays mounted). The wide rail
+  // holds the workspace tree itself, so its panel only shows canvas Layers.
   const sidebarPanelHidden = sidebarCollapsed
     || activeView === 'home'
     || activeView === 'chat'
-    || activeView === 'settings';
+    || activeView === 'settings'
+    || (railExpanded && (activeView !== 'canvas' || activeNodes.length === 0));
   const sidebarWidth = (railExpanded ? SIDEBAR_RAIL_EXPANDED_WIDTH : SIDEBAR_RAIL_WIDTH)
     + (sidebarPanelHidden ? 0 : SIDEBAR_PANEL_WIDTH);
   const [sessionListRequest, setSessionListRequest] = useState(0);

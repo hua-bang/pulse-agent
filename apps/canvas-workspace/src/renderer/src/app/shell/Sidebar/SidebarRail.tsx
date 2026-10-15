@@ -36,6 +36,8 @@ interface SidebarRailProps {
   onNavigate: (path: string) => void;
   activeMcpAppKey: string | null;
   onOpenMcpApp?: (listing: McpAppEntrypointListing) => void;
+  /** The workspace tree the wide rail shows under its destinations. */
+  tree?: ReactNode;
 }
 
 interface RailButtonProps {
@@ -63,7 +65,8 @@ const RailButton = ({ active, label, title, onClick, children }: RailButtonProps
 /**
  * The always-visible app rail: one icon per top-level destination, with
  * the label toggle and Settings pinned to the bottom. The workspace panel
- * beside it collapses; the rail never does, but it can widen to show labels.
+ * beside it collapses; the rail never does, but it can widen to show labels
+ * and the workspace tree.
  */
 export const SidebarRail = ({
   activeView,
@@ -86,6 +89,7 @@ export const SidebarRail = ({
   onNavigate,
   activeMcpAppKey,
   onOpenMcpApp,
+  tree,
 }: SidebarRailProps) => {
   const { t } = useI18n();
   // Pulse Agent is one destination: the launcher, plus the chat page that
@@ -165,6 +169,7 @@ export const SidebarRail = ({
           </RailButton>
         );
       })}
+      {tree}
       {onOpenMcpApp && (
         <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp} />
       )}
