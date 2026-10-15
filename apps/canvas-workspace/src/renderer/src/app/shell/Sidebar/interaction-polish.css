@@ -15,6 +15,13 @@
   flex: 1;
 }
 
+.sidebar-rail-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: inherit;
+}
+
 .sidebar-rail-btn {
   width: 32px;
   height: 32px;
@@ -108,6 +115,26 @@
 
 .sidebar--rail-expanded .sidebar-rail-chevron {
   transform: rotate(180deg);
+}
+
+/* The wide rail keeps Settings as a full row and puts the toggle beside it
+   as a square icon button. */
+.sidebar--rail-expanded .sidebar-rail-footer {
+  flex-direction: row-reverse;
+  align-items: center;
+}
+
+.sidebar--rail-expanded .sidebar-rail-footer > .sidebar-rail-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar--rail-expanded .sidebar-rail-footer > .sidebar-rail-btn:first-child {
+  flex: none;
+  width: 28px;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-secondary);
 }
 
 .sidebar-section-btn:focus-visible,

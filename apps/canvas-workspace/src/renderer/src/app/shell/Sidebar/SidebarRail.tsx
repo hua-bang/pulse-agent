@@ -176,21 +176,23 @@ export const SidebarRail = ({
         <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp} />
       )}
       <div className="sidebar-rail-spacer" />
-      <RailButton
-        active={false}
-        label={t(expanded ? 'sidebar.hideLabels' : 'sidebar.showLabels')}
-        iconOnly
-        onClick={onToggleExpanded}
-      >
-        <ChevronRightIcon size={12} className="sidebar-rail-chevron" />
-      </RailButton>
-      <RailButton
-        active={activeView === 'settings'}
-        label={t('sidebar.settings')}
-        onClick={onOpenAppSettings}
-      >
-        <SettingsIcon size={15} strokeWidth={1.4} />
-      </RailButton>
+      <div className="sidebar-rail-footer">
+        <RailButton
+          active={false}
+          label={t(expanded ? 'sidebar.hideLabels' : 'sidebar.showLabels')}
+          iconOnly
+          onClick={onToggleExpanded}
+        >
+          <ChevronRightIcon size={12} className="sidebar-rail-chevron" />
+        </RailButton>
+        <RailButton
+          active={activeView === 'settings'}
+          label={t('sidebar.settings')}
+          onClick={onOpenAppSettings}
+        >
+          <SettingsIcon size={15} strokeWidth={1.4} />
+        </RailButton>
+      </div>
     </nav>
   );
 };

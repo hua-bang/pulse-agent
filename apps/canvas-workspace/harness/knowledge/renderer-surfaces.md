@@ -24,7 +24,7 @@ The workbench has exactly two side regions plus a modal tier:
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
   Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
   Settings at the bottom. The toggle above Settings (a chevron with no visible
-  label) widens the rail to 240px with a label beside each icon, and the choice persists
+  label, beside Settings on the wide rail) widens the rail to 240px with a label beside each icon, and the choice persists
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
   so the CSS widths and `App` constants change together. Only the wide rail
   lists workspaces, under the nav items and with the same 13px text as the
