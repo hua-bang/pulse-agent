@@ -5,7 +5,7 @@ import {
 } from '../../../shared/conversation-runtime';
 import { ipcMain, type WebContents } from 'electron';
 import { SessionStore } from '../sessions/store/session-store';
-import type { AgentScope, AgentScopeRef } from '../types';
+import type { AgentScope, AgentScopeRef, ChatResponse } from '../types';
 import type { CanvasAgent } from '../canvas-agent';
 import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
@@ -81,6 +81,40 @@ const send = (subscribers: Set<WebContents>, channel: string, sessionId: string,
   }
 };
 
+/**
+ * Runs one turn and streams it to every window subscribed to the
+ * conversation, ending with `chat-complete`. Renderer sends and main-started
+ * turns (scheduled runs) share it, so a window that attaches mid-turn gets
+ * the live reply either way. Resolves after `chat-complete` is sent.
+ */
+export async function chatToSubscribers(
+  runtime: ConversationRuntimeService,
+  scope: AgentScope,
+  sessionId: string,
+  message: string,
+  input?: Omit<ConversationSendInput, 'message'>,
+): Promise<ChatResponse> {
+  const subscribers = subscribersFor(scope, sessionId);
+  let result: ChatResponse;
+  try {
+    result = await runtime.chat(scope, sessionId, message, {
+      onText: (delta) => send(subscribers, 'text-delta', sessionId, delta),
+      onToolCall: (data) => send(subscribers, 'tool-call', sessionId, data),
+      onToolResult: (data) => send(subscribers, 'tool-result', sessionId, data),
+      onToolInputStart: (data) => send(subscribers, 'tool-input-start', sessionId, data),
+      onToolInputDelta: (data) => send(subscribers, 'tool-input-delta', sessionId, data),
+      onToolInputEnd: (data) => send(subscribers, 'tool-input-end', sessionId, data),
+      onClarificationRequest: (req) => send(subscribers, 'clarify-request', sessionId, req),
+      onRoleTurnStart: (ev) => send(subscribers, 'role-turn-start', sessionId, ev),
+      onRoleTurnEnd: (ev) => send(subscribers, 'role-turn-end', sessionId, ev),
+    }, input);
+  } catch (error) {
+    result = { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  send(subscribers, 'chat-complete', sessionId, result);
+  return result;
+}
+
 export interface ConversationRuntimeChatPayload {
   scope: AgentScope;
   sessionId: string;
@@ -113,19 +147,8 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
         void replayPerfChatStream(event.sender, sessionId);
         return { ok: true, sessionId };
       }
-      const subscribers = subscribersFor(scope, sessionId);
-      subscribers.add(event.sender);
-      const completion = runtime.chat(scope, sessionId, message, {
-        onText: (delta) => send(subscribers, 'text-delta', sessionId, delta),
-        onToolCall: (data) => send(subscribers, 'tool-call', sessionId, data),
-        onToolResult: (data) => send(subscribers, 'tool-result', sessionId, data),
-        onToolInputStart: (data) => send(subscribers, 'tool-input-start', sessionId, data),
-        onToolInputDelta: (data) => send(subscribers, 'tool-input-delta', sessionId, data),
-        onToolInputEnd: (data) => send(subscribers, 'tool-input-end', sessionId, data),
-        onClarificationRequest: (req) => send(subscribers, 'clarify-request', sessionId, req),
-        onRoleTurnStart: (ev) => send(subscribers, 'role-turn-start', sessionId, ev),
-        onRoleTurnEnd: (ev) => send(subscribers, 'role-turn-end', sessionId, ev),
-      }, {
+      subscribersFor(scope, sessionId).add(event.sender);
+      void chatToSubscribers(runtime, scope, sessionId, message, {
         mentionedWorkspaceIds,
         requestContext,
         attachments,
@@ -137,13 +160,6 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
           && payload.trace.submittedAt <= Date.now()
           ? payload.trace : undefined,
       });
-      void completion.then(
-        result => send(subscribers, 'chat-complete', sessionId, result),
-        error => send(subscribers, 'chat-complete', sessionId, {
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
       return { ok: true, sessionId };
     },
   );

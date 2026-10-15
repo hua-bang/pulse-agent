@@ -80,8 +80,15 @@ A timer-driven attempt creates a fresh scheduled-scope session in main before
 the model runs. Manual `Run now` is also one main-owned start operation: it
 validates the task, creates the fresh session, durably marks the task running,
 and returns the session id immediately while execution continues. Both paths
-anchor `chatWithScope` to the prepared session id, so changing the scope's
-current-session pointer while a run is active cannot redirect its history.
+run the turn through the conversation runtime on the prepared session id
+(`chatToSubscribers` in `conversation-ipc.ts`), the same path a typed message
+takes. Changing the scope's current-session pointer cannot redirect the run,
+and a chat window that opens the session mid-run attaches to the live reply
+(stream, Stop, draft checkpoints). The old `chatWithScope` path kept no live
+snapshot, so an open chat showed the run as interrupted and Try again hit
+"already running". A manual start opens the scope's conversation runtime
+before it returns the id, so the chat's attach does not race a cold scope.
+Guards: `scheduled-run-notify.test.ts`, `conversation-ipc.test.ts`.
 
 A finished attempt — success AND failure — is announced by
 `announceRunFinished` (`scheduled/runtime.ts`) as a `scheduled:run-finished`

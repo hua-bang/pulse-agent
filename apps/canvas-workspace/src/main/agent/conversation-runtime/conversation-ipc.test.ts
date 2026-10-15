@@ -32,7 +32,7 @@ vi.mock('../run/perf-chat-replay', () => ({
   replayPerfChatStream: mocks.replay,
 }));
 
-import { setupConversationRuntimeIpc } from './conversation-ipc';
+import { chatToSubscribers, getConversationRuntimeService, setupConversationRuntimeIpc } from './conversation-ipc';
 
 describe('conversation runtime IPC', () => {
   beforeEach(() => {
@@ -101,6 +101,33 @@ describe('conversation runtime IPC', () => {
     expect(reloaded.send).toHaveBeenCalledWith('canvas-agent:text-delta:session-a', 'tial');
     expect(reloaded.send).not.toHaveBeenCalledWith('canvas-agent:text-delta:session-a', 'Par');
     expect(original.send).toHaveBeenCalledWith('canvas-agent:text-delta:session-a', 'tial');
+  });
+
+  it('streams a main-started turn (a scheduled run) to a window that attaches', async () => {
+    let onText!: (delta: string) => void;
+    let finish!: (result: { ok: boolean; response: string }) => void;
+    mocks.chat.mockImplementation((_scope, _sessionId, _message, external) => {
+      onText = external.onText;
+      return new Promise(resolve => { finish = resolve; });
+    });
+    mocks.liveSnapshot.mockReturnValue({ status: 'running', messages: [], draft: null });
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    const chatWindow = { isDestroyed: () => false, send: vi.fn() };
+    const payload = { scope: { kind: 'scheduled', taskId: 'brief' }, sessionId: 'run-1' };
+
+    const run = chatToSubscribers(
+      getConversationRuntimeService(() => ({}) as never),
+      payload.scope as never,
+      payload.sessionId,
+      'Scheduled task: brief',
+    );
+    mocks.handlers.get('canvas-agent:conversation-attach')?.({ sender: chatWindow }, payload);
+    onText('Hi');
+    finish({ ok: true, response: 'Hi' });
+
+    await expect(run).resolves.toEqual({ ok: true, response: 'Hi' });
+    expect(chatWindow.send).toHaveBeenCalledWith('canvas-agent:text-delta:run-1', 'Hi');
+    expect(chatWindow.send).toHaveBeenCalledWith('canvas-agent:chat-complete:run-1', { ok: true, response: 'Hi' });
   });
 
   it('reports an idle conversation without subscribing the window', () => {
