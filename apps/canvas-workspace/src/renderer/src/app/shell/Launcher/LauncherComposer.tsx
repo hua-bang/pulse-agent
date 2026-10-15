@@ -84,7 +84,7 @@ export const LauncherComposer = ({ workspaces, onAsk }: Props) => {
             size="sm"
             disabled={sending || !text.trim()}
           >
-            {t('launcher.askSubmit')}
+            {t('launcher.startSubmit')}
           </Button>
         </div>
       </form>

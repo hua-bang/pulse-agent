@@ -76,8 +76,27 @@
   gap: 8px;
 }
 
+/* A quiet chip, not a form field: the scope is secondary to the prompt. */
 .launcher__scope {
+  width: auto;
   max-width: 260px;
+  /* Line the chip text up with the prompt text above it. */
+  margin-left: -8px;
+}
+
+.launcher__scope .ui-select__trigger {
+  height: 28px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.launcher__scope .ui-select__trigger:hover:not(:disabled),
+.launcher__scope.ui-select--open .ui-select__trigger {
+  border-color: transparent;
+  background: var(--surface-hover);
+  box-shadow: none;
 }
 
 .launcher__starters {
