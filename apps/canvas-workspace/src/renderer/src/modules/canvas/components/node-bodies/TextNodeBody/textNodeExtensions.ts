@@ -1,9 +1,9 @@
-import Highlight from "@tiptap/extension-highlight";
-import Placeholder from "@tiptap/extension-placeholder";
-import Underline from "@tiptap/extension-underline";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "tiptap-markdown";
-import { TextColorMark } from "./textColorMark";
+import Highlight from '@tiptap/extension-highlight';
+import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
+import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from 'tiptap-markdown';
+import { TextColorMark } from './textColorMark';
 
 export const createTextNodeExtensions = (placeholder: string) => [
   // Text nodes stay intentionally lighter than Note cards: enough Markdown
