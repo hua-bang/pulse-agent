@@ -27,8 +27,8 @@ The workbench has exactly two side regions plus a modal tier:
   label, beside Settings on the wide rail) widens the rail to 240px with a label beside each icon, and the choice persists
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
   so the CSS widths and `App` constants change together. Only the wide rail
-  lists workspaces, under the nav items and with the same 13px text as the
-  labels; the narrow rail relies on the workspace tabs, their picker, and
+  lists workspaces, under the nav items and the global MCP Apps, with the
+  same 13px text as the labels; the narrow rail relies on the workspace tabs, their picker, and
   the launcher. Folders start collapsed on launch, except the one holding
   the active workspace. Pulse Agent opens the launcher and stays current on the
   launcher and chat routes; there is no separate Home button. The panel next

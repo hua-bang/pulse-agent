@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
 import { SidebarRail } from './SidebarRail';
 
+vi.mock('./AppsSection', () => ({ AppsSection: () => <div data-testid="apps" /> }));
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let host: HTMLDivElement;
@@ -92,5 +94,12 @@ describe('SidebarRail', () => {
     render({ ...props, expanded: true });
     expect(button('Hide labels').textContent).toBe('');
     expect(button('Settings').textContent).toBe('Settings');
+  });
+
+  it('shows the apps above the workspace tree on the wide rail', () => {
+    render({ ...baseProps(), expanded: true, onOpenMcpApp: vi.fn(), tree: <div data-testid="tree" /> });
+
+    const order = [...host.querySelectorAll('[data-testid]')].map((el) => el.getAttribute('data-testid'));
+    expect(order).toEqual(['apps', 'tree']);
   });
 });

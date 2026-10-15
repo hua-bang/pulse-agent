@@ -171,10 +171,10 @@ export const SidebarRail = ({
           </RailButton>
         );
       })}
-      {tree}
       {onOpenMcpApp && (
         <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp} />
       )}
+      {tree}
       <div className="sidebar-rail-spacer" />
       <div className="sidebar-rail-footer">
         <RailButton

@@ -84,12 +84,24 @@
 .sidebar--rail-expanded .sidebar-rail,
 .sidebar--rail-expanded .sidebar-apps-rail {
   align-items: stretch;
-  gap: 2px;
+  gap: 4px;
+}
+
+/* Apps sit between the destinations and the tree; their divider spans the
+   rail like the tree's. */
+.sidebar--rail-expanded .sidebar-apps-rail {
+  margin: 4px -6px 0;
+  padding: 8px 6px 4px;
+}
+
+/* The ui Button sets weight 500; app rows match the destinations. */
+.sidebar--rail-expanded .sidebar-apps-rail__btn {
+  font-weight: 400;
 }
 
 .sidebar--rail-expanded .sidebar-rail-btn {
   width: auto;
-  height: 28px;
+  height: 32px;
   justify-content: flex-start;
   gap: 8px;
   padding: 0 8px;
@@ -131,7 +143,7 @@
 
 .sidebar--rail-expanded .sidebar-rail-footer > .sidebar-rail-btn:first-child {
   flex: none;
-  width: 28px;
+  width: 32px;
   justify-content: center;
   padding: 0;
   color: var(--text-secondary);
