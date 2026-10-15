@@ -697,8 +697,9 @@ const wsCycleScenario = async (cdp, requestedNodesPerWorkspace = 0) => {
     ? Math.floor(requestedNodesPerWorkspace)
     : 30);
   // Seed K canvases + register them in the manifest, then reload so the
-  // sidebar renders them.
+  // sidebar renders them. Only the wide rail lists workspaces, so widen it.
   await evaluate(cdp, `(async () => {
+    localStorage.setItem('pulse-canvas.rail-expanded', '1');
     const store = window.canvasWorkspace.store;
     const now = Date.now();
     const mk = (wsId) => {
