@@ -180,7 +180,7 @@ export function useRightDock(): DockActions {
     openLink: (url: string) => store.openLink(url),
     newLink: () => store.newLink(),
     openChat: () => store.openChat(),
-    openScheduledChat: (taskId: string) => store.openScheduledChat(taskId),
+    openScheduledChat: (taskId: string, sessionId?: string) => store.openScheduledChat(taskId, sessionId),
     refreshScheduledChat: (taskId: string) => store.refreshScheduledChat(taskId),
     toggleChat: () => store.toggleChat(),
     toggleContentTabs: () => store.toggleContentTabs(),

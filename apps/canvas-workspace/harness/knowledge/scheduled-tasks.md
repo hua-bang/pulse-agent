@@ -94,15 +94,20 @@ A finished attempt — success AND failure — is announced by
 `announceRunFinished` (`scheduled/runtime.ts`) as a `scheduled:run-finished`
 push carrying `taskId`, `sessionId`, and `trigger`. `useScheduledRunToasts`
 turns unattended outcomes into a STICKY toast (`autoCloseMs: 0`); successful
-manual runs stay quiet because their conversation is already visible. Its
-action opens the exact session in the full-page Pulse AI surface through the
-existing `ChatTarget` session navigation (`useScheduledRunChatOpener` →
-`openSessionInOwningScope`). Full-page chat accepts a new target even when it
-is already mounted, so the action never degrades to "open whichever session
-is current for this task."
+manual runs stay quiet because their conversation is already visible.
+
+A run's conversation opens in the dock beside the current page, by exact
+session: `dock.openScheduledChat(taskId, sessionId)` sets
+`scheduledChatSessionId`, and `ScheduledChatPanel` passes it to `ChatPanel`
+as `requestedSessionId`, which loads that session on mount and on each
+revision. Run now, the Scheduled list's last-run link, and the toast action
+all use it, so the list stays in view. Only where the dock has no chat tab
+(full-page chat routes) does the toast open the exact session in full-page
+Pulse AI (`useScheduledRunChatOpener` → `openSessionInOwningScope`). Neither
+path degrades to "open whichever session is current for this task."
 
 If session setup itself failed, there is no exact conversation to open. That
-exception retains the old task-scope fallback: Dock where available, otherwise
+exception opens the task's current conversation: Dock where available, otherwise
 `/chat?scheduledTask=<id>`. `isDockChatTabEnabled`
 (`shared/dock/dock-chat-availability.ts`, full path
 `src/renderer/src/shared/dock/dock-chat-availability.ts`) remains

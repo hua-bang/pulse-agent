@@ -4,18 +4,21 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
 import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
+
+const dock = vi.hoisted(() => ({ openScheduledChat: vi.fn() }));
+vi.mock('../../../../shared/dockPort', () => ({ useRightDock: () => dock }));
+
 import { ScheduledPage } from '../ScheduledPage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
-const openSessionInScope = vi.fn();
 
 const renderPage = () => (
   <I18nProvider>
     <AppShellProvider>
-      <ScheduledPage onOpenSessionInScope={openSessionInScope} />
+      <ScheduledPage />
     </AppShellProvider>
   </I18nProvider>
 );
@@ -25,7 +28,7 @@ afterEach(() => {
   host?.remove();
   root = null;
   host = null;
-  openSessionInScope.mockReset();
+  dock.openScheduledChat.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -97,7 +100,7 @@ describe('ScheduledPage', () => {
       .toEqual(['Create task', 'Run now', 'Pause', 'Edit task', 'Delete task']);
   });
 
-  it('opens the latest successful run from the last-run cell', async () => {
+  it('opens the latest successful run in the dock from the last-run cell', async () => {
     Object.defineProperty(window, 'canvasWorkspace', {
       configurable: true,
       value: {
@@ -121,11 +124,7 @@ describe('ScheduledPage', () => {
     await act(async () => {
       host?.querySelector<HTMLButtonElement>('[title="Open this run’s conversation"]')?.click();
     });
-    expect(openSessionInScope).toHaveBeenCalledWith(
-      { kind: 'scheduled', taskId: 'daily-brief' },
-      'latest-session',
-      'Daily brief',
-    );
+    expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief', 'latest-session');
   });
 
   it('shows the failure reason and never links a failed run to an older result', async () => {
@@ -155,7 +154,7 @@ describe('ScheduledPage', () => {
     expect(host?.querySelector('[title="Open this run’s conversation"]')).toBeNull();
   });
 
-  it('starts a fresh scheduled session and opens it in Pulse AI', async () => {
+  it('starts a fresh scheduled session and opens it in the dock beside the list', async () => {
     const runNow = vi.fn(async () => ({
       ok: true,
       sessionId: 'manual-run-session',
@@ -199,11 +198,7 @@ describe('ScheduledPage', () => {
       await Promise.resolve();
     });
     expect(runNow).toHaveBeenCalledWith('daily-brief');
-    expect(openSessionInScope).toHaveBeenCalledWith(
-      { kind: 'scheduled', taskId: 'daily-brief' },
-      'manual-run-session',
-      'Daily brief',
-    );
+    expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief', 'manual-run-session');
   });
 
   it('shows an immediate running state and prevents duplicate manual runs', async () => {
@@ -255,17 +250,13 @@ describe('ScheduledPage', () => {
     expect(runningButton?.textContent).toContain('Running');
     runningButton?.click();
     expect(runNow).toHaveBeenCalledTimes(1);
-    expect(openSessionInScope).not.toHaveBeenCalled();
+    expect(dock.openScheduledChat).not.toHaveBeenCalled();
 
     await act(async () => {
       finishStart?.({ ok: true, sessionId: 'manual-run-session' });
       await Promise.resolve();
     });
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.disabled).toBe(false);
-    expect(openSessionInScope).toHaveBeenCalledWith(
-      { kind: 'scheduled', taskId: 'daily-brief' },
-      'manual-run-session',
-      'Daily brief',
-    );
+    expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief', 'manual-run-session');
   });
 });

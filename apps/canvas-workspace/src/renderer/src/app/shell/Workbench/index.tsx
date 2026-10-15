@@ -276,6 +276,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               <div className="right-dock__chat-instance">
                 <ScheduledChatPanel
                   taskId={scheduledChatTaskId}
+                  sessionId={dockState.scheduledChatSessionId}
                   revision={dockState.scheduledChatRevision ?? 0}
                   allWorkspaces={workspaces}
                   onClose={dock.collapse}

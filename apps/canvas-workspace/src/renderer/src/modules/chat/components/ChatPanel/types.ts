@@ -55,5 +55,8 @@ export interface ChatPanelProps {
   chatTargetActive?: boolean;
   chatTargetLabel?: string;
   sessionRefreshKey?: string | number;
+  /** Opens this session on mount and on each `sessionRefreshKey` change,
+   *  instead of reloading the current one. */
+  requestedSessionId?: string;
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }

@@ -59,6 +59,7 @@ export const useChatPanelController = ({
   chatTargetActive = true,
   chatTargetLabel,
   sessionRefreshKey,
+  requestedSessionId,
   onOpenSessionInScope,
 }: ChatPanelProps): ChatViewProps => {
   const { t } = useI18n();
@@ -179,12 +180,15 @@ export const useChatPanelController = ({
     if (!onRegisterInsertMention || busyElsewhere || sessionLoading) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [busyElsewhere, insertNodeMention, onRegisterInsertMention, sessionLoading]);
-  const previousSessionRefreshKeyRef = useRef(sessionRefreshKey);
+  // A requested session also opens on mount, so the ref starts empty then.
+  const previousSessionRefreshKeyRef = useRef<typeof sessionRefreshKey | null>(
+    requestedSessionId ? null : sessionRefreshKey,
+  );
   useEffect(() => {
     if (Object.is(previousSessionRefreshKeyRef.current, sessionRefreshKey)) return;
     previousSessionRefreshKeyRef.current = sessionRefreshKey;
-    void retrySession();
-  }, [retrySession, sessionRefreshKey]);
+    void (requestedSessionId ? handleLoadSession(requestedSessionId) : retrySession());
+  }, [handleLoadSession, requestedSessionId, retrySession, sessionRefreshKey]);
 
   useEffect(() => {
     if (!onRegisterInsertDomSelectionMention || busyElsewhere || sessionLoading) return;
@@ -458,6 +462,7 @@ export const useChatPanelController = ({
         knowledgeMode,
     },
     composer: {
+        inputPlaceholder: agentScope.kind === 'scheduled' ? t('scheduled.followUpPlaceholder') : undefined,
         input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading, mentionIndex,
         onSelectMention: selectMention, onMentionIndexChange: setMentionIndex,
         onInput: handleInput, onKeyDown: handleComposerKeyDown, onPaste: handlePaste,

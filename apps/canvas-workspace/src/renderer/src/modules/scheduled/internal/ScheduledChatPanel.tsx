@@ -10,6 +10,8 @@ import './index.css';
 
 interface ScheduledChatPanelProps {
   taskId: string;
+  /** The run conversation to show; unset shows the task's current one. */
+  sessionId?: string;
   revision: number;
   allWorkspaces: WorkspaceOption[];
   onClose: () => void;
@@ -21,6 +23,7 @@ interface ScheduledChatPanelProps {
 
 export const ScheduledChatPanel = ({
   taskId,
+  sessionId,
   revision,
   allWorkspaces,
   onClose,
@@ -71,6 +74,7 @@ export const ScheduledChatPanel = ({
       key={taskId}
       agentScope={agentScope}
       sessionRefreshKey={revision}
+      requestedSessionId={sessionId}
       allWorkspaces={allWorkspaces}
       banner={banner}
       pendingLabel={task?.status === 'running' ? t('scheduled.runningInline') : undefined}

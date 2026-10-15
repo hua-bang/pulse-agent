@@ -61,8 +61,12 @@ describe('DockStore', () => {
     dock.refreshScheduledChat('daily-brief');
     expect(dock.getSnapshot().scheduledChatRevision).toBe(2);
 
+    dock.openScheduledChat('daily-brief', 'run-7');
+    expect(dock.getSnapshot()).toMatchObject({ scheduledChatSessionId: 'run-7', scheduledChatRevision: 3 });
+
     dock.openChat();
     expect(dock.getSnapshot().scheduledChatTaskId).toBeUndefined();
+    expect(dock.getSnapshot().scheduledChatSessionId).toBeUndefined();
   });
 
   it('refuses to preview a workspace that is already mounted in the main canvas', () => {

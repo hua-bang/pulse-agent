@@ -395,8 +395,7 @@ const AppContent = () => {
           />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
-            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
-            onOpenSessionInScope={openSessionInOwningScope} />
+            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings} />
           <PulseRouterView name={MCP_APP_VIEW} keepAlive>
             {(mcpApp || hasRunningMcpApps) && (
               <Suspense fallback={null}>
