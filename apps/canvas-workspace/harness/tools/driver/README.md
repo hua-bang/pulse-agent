@@ -34,8 +34,18 @@ pnpm --filter canvas-workspace harness start --profile demo --build
 To open the first-run onboard workspace directly:
 
 ```bash
-pnpm --filter canvas-workspace harness start --target onboard
+pnpm --filter canvas-workspace harness start --target onboard --profile temp
 ```
+
+The onboard target opens `/?workspaceId=default` without a node focus. It waits
+for the visible default canvas, its empty card and three enabled actions, and
+an empty stored document (`nodes: []`, `edges: []`). App consumes the workspace
+query and returns to `/`; the visible canvas ID confirms the selected workspace.
+It does not match translated
+tutorial text or accept a hidden background canvas. Existing non-empty welcome
+workspaces do not meet this first-run check; use a fresh `temp` profile. On
+Linux without a display, add `--headless` after installing the prerequisites
+below, or use `harness:up --built --profile temp --target onboard`.
 
 For an already-running harness session:
 

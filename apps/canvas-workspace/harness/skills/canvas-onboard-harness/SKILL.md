@@ -34,11 +34,27 @@ pnpm --filter canvas-workspace harness status --json
 ```
 
 Expect `alive: true`, `cdpReady: true`, and a `Pulse Canvas` page target.
+`start` writes the session only after the visible default canvas has an empty
+card with three enabled actions and the stored document has no nodes or edges.
+The target route is `/?workspaceId=default`, without a legacy tutorial node.
+App consumes the workspace query and normalizes it to `/`; readiness then uses
+the visible canvas ID to confirm the default workspace.
+Hidden canvases and other routes do not satisfy this readiness check.
+
+On Linux without a display, use the supported bootstrap command:
+
+```bash
+pnpm --filter canvas-workspace harness:up --built --profile temp --target onboard --json
+```
+
+It prepares the runtime and adds `--headless`. A prepared host can add
+`--headless` directly to `start`. See the driver README for Xvfb and Electron
+prerequisites. Report a blocked launch as unverified UI behavior.
 
 4. Read the renderer text before judging the screenshot:
 
 ```bash
-pnpm --filter canvas-workspace harness eval-renderer "(() => { const text = document.body.innerText || ''; return { title: document.title, hasPersistentWorkspace: text.includes('Persistent workspace'), actions: [...document.querySelectorAll('.canvas-empty-action')].map((node) => node.textContent?.trim()), layerCount: document.querySelectorAll('[data-node-id]').length, sample: text.slice(0, 800) }; })()" --json
+pnpm --filter canvas-workspace harness eval-renderer "(async () => { const result = await window.canvasWorkspace.store.load('default'); return { title: document.title, route: location.hash, actions: [...document.querySelectorAll('[data-canvas-id=default] .canvas-empty-action')].map((node) => node.textContent?.trim()), nodes: result.data?.nodes.length, edges: result.data?.edges.length, sample: document.body.innerText.slice(0, 800) }; })()" --json
 ```
 
 The current first-run contract is an empty `Pulse Canvas` workspace with zero

@@ -128,6 +128,7 @@ export const CanvasRootView = ({
       onDoubleClick={ctxMenu.handleDoubleClick}
       onContextMenu={ctxMenu.handleContextMenu}
       onClick={mouse.handleCanvasClick}
+      data-canvas-id={canvasId}
       data-focus-mode={focus.focusModeActive ? 'on' : undefined}
       data-fullscreen={focus.fullscreenNodeId ? 'on' : undefined}
       data-moving={moving ? 'on' : undefined}
