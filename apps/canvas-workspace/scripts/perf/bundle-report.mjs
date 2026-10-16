@@ -37,10 +37,11 @@ const depStatsPath = join(outDir, 'entry-dep-stats.json');
 const mainBundlePath = join(appRoot, 'dist/main/index.js');
 const preloadBundlePath = join(appRoot, 'dist/preload/index.js');
 
-// Rollup module IDs are the source of truth for heavy libraries in the entry.
+// Rollup module IDs are the source of truth for on-demand code in the entry.
 // This remains stable under minification and cannot false-positive on strings
 // that merely resemble a library implementation detail.
 const ENTRY_MODULE_WATCHLIST = [
+  { lib: 'composer mention placement (must stay on demand)', matches: /\/modules\/chat\/components\/ChatMentionPopup\/useMentionPopupPlacement\.ts$/ },
   { lib: 'xterm', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@xterm\// },
   { lib: 'tiptap/prosemirror', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:@tiptap\/|prosemirror-)/ },
   { lib: 'highlight.js', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:highlight\.js|lowlight)\// },

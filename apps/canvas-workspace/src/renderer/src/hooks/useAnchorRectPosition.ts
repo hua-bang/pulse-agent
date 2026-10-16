@@ -126,5 +126,5 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
     return () => observer.disconnect();
   }, [enabled, reposition]);
 
-  return { ref, pos };
+  return { ref, pos, reposition };
 };
