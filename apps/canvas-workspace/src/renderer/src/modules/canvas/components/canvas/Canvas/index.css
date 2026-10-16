@@ -130,6 +130,8 @@
 @container (max-width: 620px) {
   .canvas-bottom-chrome > .floating-toolbar {
     grid-column: 1 / -1;
+    min-width: 0;
+    max-width: 100cqw;
     box-sizing: border-box;
     flex-wrap: wrap;
     justify-content: center;
