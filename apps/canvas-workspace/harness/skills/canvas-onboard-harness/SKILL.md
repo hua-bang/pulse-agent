@@ -37,6 +37,8 @@ Expect `alive: true`, `cdpReady: true`, and a `Pulse Canvas` page target.
 `start` writes the session only after the visible default canvas has an empty
 card with three enabled actions and the stored document has no nodes or edges.
 The target route is `/?workspaceId=default`, without a legacy tutorial node.
+App consumes the workspace query and normalizes it to `/`; readiness then uses
+the visible canvas ID to confirm the default workspace.
 Hidden canvases and other routes do not satisfy this readiness check.
 
 On Linux without a display, use the supported bootstrap command:

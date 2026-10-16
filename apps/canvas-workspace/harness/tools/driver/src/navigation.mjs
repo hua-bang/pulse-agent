@@ -19,10 +19,13 @@ export function onboardHashRoute() {
 // Inspect visible React output as well as the stored document. Background
 // canvases stay mounted on other routes; their empty hints are not readiness.
 export const ONBOARD_READY_EXPRESSION = `(${String(async function onboardReady() {
+  // App consumes the workspace query after selecting it, then returns to #/.
+  // The visible canvas ID below remains authoritative after that handoff.
   const isOnboardRoute = () => {
     const route = new URL(location.hash.slice(1), 'http://harness.local');
     return route.pathname === '/'
-      && route.searchParams.get('workspaceId') === 'default'
+      && (!route.searchParams.has('workspaceId')
+        || route.searchParams.get('workspaceId') === 'default')
       && !route.searchParams.has('nodeId');
   };
   const isVisible = (element) => {

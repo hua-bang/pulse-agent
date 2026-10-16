@@ -55,6 +55,13 @@ describe('onboard navigation', () => {
     expect(page.load).toHaveBeenCalledWith('default');
   });
 
+  it('accepts the normalized canvas route after App consumes the workspace query', async () => {
+    const page = fixture({ route: '/' });
+    expect(await page.ready()).toBe(true);
+    window.document.querySelector('.canvas-container').setAttribute('data-canvas-id', 'other');
+    expect(await page.ready()).toBe(false);
+  });
+
   it('requires an empty stored document including edges', async () => {
     expect(await fixture().ready()).toBe(true);
     expect(await fixture({ nodes: [{ id: 'node-welcome-note' }] }).ready()).toBe(false);
