@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { Router } from "wouter";
+import { Router, type AroundNavHandler } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import App from "./app/App";
 import "./styles.css";
@@ -11,6 +11,7 @@ import {
 import { installPerfMonitor, markOnce } from "./perf/monitor";
 import { installJankMonitor } from "./perf/jank-monitor";
 import { installBeforeQuitFlush } from "./modules/canvas/document/beforeQuit";
+import { runViewTransition } from "./shared/viewTransition";
 
 installPerfMonitor();
 installJankMonitor();
@@ -32,9 +33,14 @@ void activateConfiguredFederatedRendererPlugins().catch((err) => {
   console.error('[canvas-plugins] federated renderer bootstrap failed', err);
 });
 
+// Every route change cross-fades the old page into the new one.
+const aroundNav: AroundNavHandler = (navigate, to, options) => {
+  runViewTransition(() => navigate(to, options));
+};
+
 markOnce("renderer:render-called");
 createRoot(root).render(
-  <Router hook={useHashLocation}>
+  <Router hook={useHashLocation} aroundNav={aroundNav}>
     <App />
   </Router>,
 );

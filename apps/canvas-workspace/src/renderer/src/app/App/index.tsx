@@ -20,7 +20,7 @@ import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
 import type { KnowledgeNodeSelection } from '../../types';
-import { HomeRouteView, NodesRouteViews, PluginMarketRouteView, ScheduledRouteViews, SettingsRouteView, SkillsRouteView } from '../shell/RouteViews';
+import { HomeRouteView, NodesRouteViews, PluginMarketRouteView, preloadRoutePages, ScheduledRouteViews, SettingsRouteView, SkillsRouteView } from '../shell/RouteViews';
 import type { SettingsSection } from '../../modules/settings';
 import { useScheduledRunChatOpener } from '../../modules/scheduled';
 import {
@@ -229,6 +229,8 @@ const AppContent = () => {
   useEffect(() => {
     ensureWorkspaceNodesLoaded(activeId);
   }, [activeId, ensureWorkspaceNodesLoaded]);
+
+  useEffect(() => preloadRoutePages(), []);
 
   const handlePanelsToggle = usePanelsToggle({
     sidebarCollapsed,

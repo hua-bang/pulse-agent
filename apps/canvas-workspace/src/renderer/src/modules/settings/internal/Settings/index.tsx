@@ -27,6 +27,7 @@ import { UpdateSection } from './UpdateSection';
 import { McpManager } from '../settings-config/McpManager';
 import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../../../i18n';
+import { runViewTransition } from '../../../../shared/viewTransition';
 import './index.css';
 
 type SettingsPage = 'models' | 'chat' | 'agent' | 'tools-integrations' | 'general' | 'experimental';
@@ -179,7 +180,7 @@ export const Settings = ({ initialSection, onClose }: SettingsProps) => {
                         className={`settings-rail-item${active ? ' settings-rail-item--active' : ''}`}
                         aria-current={active ? 'page' : undefined}
                         title={t(section.descriptionKey)}
-                        onClick={() => setActivePage(section.id)}
+                        onClick={() => runViewTransition(() => setActivePage(section.id))}
                       >
                         <span className="settings-rail-label">{t(section.labelKey)}</span>
                       </button>

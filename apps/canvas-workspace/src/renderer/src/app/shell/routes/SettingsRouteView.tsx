@@ -1,8 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { preloadableLazy } from '../../../shared/preloadableLazy';
 import type { SettingsSection } from '../../../modules/settings';
 import { PulseRouterView } from '../router';
 
-const Settings = lazy(() => import('../../../modules/settings/app').then((module) => ({ default: module.Settings })));
+const Settings = preloadableLazy(() => import('../../../modules/settings/app').then((module) => ({ default: module.Settings })));
+
+export const preloadSettings = Settings.preload;
 
 interface Props {
   section: SettingsSection;
