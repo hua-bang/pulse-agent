@@ -195,3 +195,6 @@ worktrees/
 apps/canvas-workspace/test-results/
 
 tsup.config.bundled_*.mjs
+
+# Canvas CLI embeds the existing DevTools renderer at build time.
+packages/canvas-cli/src/generated/log-viewer.ts

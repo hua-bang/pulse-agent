@@ -133,3 +133,32 @@ cross-run filtering and comparison than a local-only store. It does **not**
 remove the need for Canvas-side instrumentation or the local compact DevTools
 surface: Canvas must define the phase boundaries, attach the actual runtime,
 and enforce privacy before exporting.
+
+## Local CLI inspection
+
+`pulse-canvas log --run <runId>` and `log --session <sessionId>` read saved
+DevTools `StoredRun` JSON directly, with no running app or experimental flags.
+Results are `{ runs: [...] }`, confined to the selected workspace and ordered
+newest first. The CLI retries partial live JSON writes; invalid records fail
+with `log_corrupt`. `--log-dir` selects a custom profile's runs directory.
+
+`--open` launches a self-contained offline HTML snapshot in the default browser,
+reusing `AgentDebugPage` and its styles rather than starting Electron. It embeds
+only the requested run/session; run selection and timing export remain local.
+The page labels itself a snapshot and has no live refresh or Canvas navigation.
+The CLI build embeds the renderer as Brotli-compressed data in `index.cjs`,
+inflating it only when generating a snapshot, so the existing tooling
+fingerprint, install, and repair mechanisms cover it without extra asset rules.
+`packages/canvas-cli/scripts/build-log-viewer.mjs` generates the ignored module;
+the declaration stays available to a fresh checkout's typecheck. CLI build/dev
+and tests generate the asset; the app's offline-log-viewer validation rule
+requires a CLI build when the shared renderer or theme changes.
+
+The live plugin still exposes `devtools.logs.query` / `devtools.logs.open` to
+runtime clients when loaded. Querying saved logs is independent of the trace flag; the in-app open
+capability follows the renderer's trace flag so an unavailable route cannot
+report success. The generic external runtime transport retains authentication and
+`agent-runtime-control`. The existing development-only observability loader
+continues to control collection. Reading saved traces grants no collection or
+runtime-control authority. No engine/session storage changes or historical
+trace reconstruction are involved.

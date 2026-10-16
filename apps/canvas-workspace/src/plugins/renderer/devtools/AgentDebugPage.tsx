@@ -17,6 +17,9 @@ import './AgentDebugPage.css';
 interface AgentDebugPageProps {
   invoke: RendererCtx['invoke'];
   selectedRunId?: string | null;
+  sessionId?: string | null;
+  workspaceId?: string | null;
+  snapshot?: boolean;
   onSelectRun: (runId: string) => void;
   onBackToCanvas: () => void;
 }
@@ -33,7 +36,7 @@ const milestoneLabel = (label: string) => ({
   'ui.response-completed': 'UI response completed',
 }[label] ?? label);
 
-export const AgentDebugPage = ({ invoke, selectedRunId, onSelectRun, onBackToCanvas }: AgentDebugPageProps) => {
+export const AgentDebugPage = ({ invoke, selectedRunId, sessionId, workspaceId, snapshot, onSelectRun, onBackToCanvas }: AgentDebugPageProps) => {
   const [runs, setRuns] = useState<AgentDebugRunSummary[]>([]);
   const [detail, setDetail] = useState<AgentDebugRunDetail | null>(null);
   const [loadingRuns, setLoadingRuns] = useState(true);
@@ -45,13 +48,15 @@ export const AgentDebugPage = ({ invoke, selectedRunId, onSelectRun, onBackToCan
     setLoadingRuns(true);
     setError(null);
     try {
-      setRuns(await invoke<AgentDebugRunSummary[]>('list-runs'));
+      const all = await invoke<AgentDebugRunSummary[]>('list-runs');
+      setRuns(all.filter(run => (!sessionId || run.sessionId === sessionId)
+        && (!workspaceId || run.workspaceId === workspaceId)));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingRuns(false);
     }
-  }, [invoke]);
+  }, [invoke, sessionId, workspaceId]);
 
   useEffect(() => { void loadRuns(); }, [loadRuns]);
   useEffect(() => {
@@ -86,13 +91,13 @@ export const AgentDebugPage = ({ invoke, selectedRunId, onSelectRun, onBackToCan
       <aside className="agent-debug-rail">
         <div className="agent-debug-brand">
           <div><span className="agent-debug-logo">⌁</span><strong>Agent DevTools</strong></div>
-          <button type="button" onClick={onBackToCanvas} title="Back to Canvas">×</button>
+          {!snapshot && <button type="button" onClick={onBackToCanvas} title="Back to Canvas">×</button>}
         </div>
         <div className="agent-debug-search">
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter runs…" />
-          <button type="button" onClick={() => void loadRuns()} title="Refresh">↻</button>
+          {!snapshot && <button type="button" onClick={() => void loadRuns()} title="Refresh">↻</button>}
         </div>
-        <div className="agent-debug-rail-heading"><span>Recent runs</span><code>{filteredRuns.length}</code></div>
+        <div className="agent-debug-rail-heading"><span>{sessionId ? 'Session runs' : 'Recent runs'}</span><code>{filteredRuns.length}</code></div>
         {loadingRuns ? <Empty>Loading traces…</Empty> : filteredRuns.length === 0 ? (
           <Empty>No traces yet. Run a Canvas chat turn.</Empty>
         ) : (
@@ -114,7 +119,7 @@ export const AgentDebugPage = ({ invoke, selectedRunId, onSelectRun, onBackToCan
             ))}
           </div>
         )}
-        <footer className="agent-debug-rail-footer">Local trace sink · timing metadata only</footer>
+        <footer className="agent-debug-rail-footer">{snapshot ? 'Saved snapshot · rerun log to refresh' : 'Local trace sink · timing metadata only'}</footer>
       </aside>
 
       <main className="agent-debug-main">

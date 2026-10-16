@@ -1,4 +1,9 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+
+const register = vi.hoisted(() => vi.fn());
+vi.mock('../../main/runtime/capabilities', () => ({
+  getCanvasCapabilityRuntime: () => ({ register }),
+}));
 import { DevtoolsMainPlugin } from './devtools';
 import type { AgentObservabilitySubscriber } from '../../shared/agent-observability';
 import type { PluginIpcHandler, PluginStore } from '../types';
@@ -34,6 +39,8 @@ it('serializes reads with trace writes and retains terminal/late UI events witho
       return () => undefined;
     },
   } as never);
+  expect(register.mock.calls.map(([capability]) => capability.name))
+    .toEqual(['devtools.logs.query', 'devtools.logs.open']);
   await subscriber.onEvent({ type: 'run.started', runId: 'one', timestamp: 100, scope: 'global', host: 'canvas' });
   await subscriber.onEvent({ type: 'milestone', runId: 'one', timestamp: 90, milestone: 'ui.request-dispatched', owner: 'renderer' });
   const completed = subscriber.onEvent({ type: 'run.completed', runId: 'one', timestamp: 200, status: 'error' });

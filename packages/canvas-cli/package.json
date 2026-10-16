@@ -19,9 +19,9 @@
     }
   },
   "scripts": {
-    "build": "tsup && node scripts/prepare-native.mjs && cp -r skills dist/",
-    "dev": "tsup --watch",
-    "test": "vitest run --no-file-parallelism",
+    "build": "node scripts/build-log-viewer.mjs && tsup && node scripts/prepare-native.mjs && cp -r skills dist/",
+    "dev": "node scripts/build-log-viewer.mjs && tsup --watch",
+    "test": "node scripts/build-log-viewer.mjs && vitest run --no-file-parallelism",
     "typecheck": "tsc --noEmit"
   },
   "files": [
