@@ -71,6 +71,24 @@ describe('useSubmitPrompt', () => {
     harness.unmount();
   });
 
+  it('lets the sender mention context override the composer context', async () => {
+    const harness = mountSubmit();
+    const canvases = [{ id: 'b', name: 'Beta' }];
+
+    await harness.submit({
+      text: 'compare @[canvas:Beta]',
+      nodes: [],
+      context: { scope: 'selected_nodes', selectedNodes: [], canvases },
+    });
+
+    expect(harness.sendMessage).toHaveBeenCalledWith('compare @[canvas:Beta]', {
+      scope: 'selected_nodes',
+      selectedNodes: [],
+      canvases,
+    });
+    harness.unmount();
+  });
+
   it('does not repeat a chip the question already carries', async () => {
     const harness = mountSubmit();
     const card = { id: 'node-1', title: 'Research', type: 'text' as const };

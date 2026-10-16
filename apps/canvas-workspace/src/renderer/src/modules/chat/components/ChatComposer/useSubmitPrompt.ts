@@ -97,10 +97,11 @@ export const useSubmitPrompt = ({
     }
 
     const text = withNodeChips(question, prompt.nodes);
+    const baseContext: AgentRequestContext = { ...requestContext, ...prompt.context };
     const turnContext: AgentRequestContext = {
-      ...requestContext,
-      scope: prompt.nodes.length > 0 ? 'selected_nodes' : requestContext.scope,
-      selectedNodes: prompt.nodes.length > 0 ? prompt.nodes : requestContext.selectedNodes,
+      ...baseContext,
+      scope: prompt.nodes.length > 0 ? 'selected_nodes' : baseContext.scope,
+      selectedNodes: prompt.nodes.length > 0 ? prompt.nodes : baseContext.selectedNodes,
     };
     if (!prompt.newSession) return sendMessage(text, turnContext);
 

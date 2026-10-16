@@ -37,6 +37,7 @@
 }
 
 .launcher__ask {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -52,21 +53,29 @@
 }
 
 /* Borderless inside the form: the form itself is the field's frame. */
-.launcher__ask-input.ui-textfield__control {
+.launcher__ask-input {
   min-height: 48px;
-  padding: 0;
-  border: 0;
-  box-shadow: none;
-  background: transparent;
+  max-height: 200px;
+  overflow-y: auto;
+  outline: none;
   color: var(--text);
-  font: inherit;
   font-size: 14px;
   line-height: 1.5;
-  resize: none;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.launcher__ask-input::placeholder {
+.launcher__ask-input:empty::before {
+  content: attr(data-placeholder);
   color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* The field sits near the top of the page, so mentions open below it. */
+.launcher__ask .chat-mention-popup {
+  top: 100%;
+  bottom: auto;
+  margin: 4px 0 0;
 }
 
 .launcher__ask-bar {

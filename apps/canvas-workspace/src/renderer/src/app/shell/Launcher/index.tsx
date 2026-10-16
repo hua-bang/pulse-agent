@@ -1,6 +1,6 @@
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
-import type { AgentNewSessionResult, AgentScope } from '../../../types';
+import type { AgentNewSessionResult, AgentRequestContext, AgentScope } from '../../../types';
 import type { ChatTarget } from '../../../modules/chat';
 import { useChatTargetBroker } from '../../../modules/chat';
 import { useChatDeliveryNotifier } from '../../../modules/chat/delivery';
@@ -17,6 +17,8 @@ interface Props {
   workspaces: WorkspaceEntry[];
   /** Node snapshots this window already holds, keyed by workspace id. */
   loadedNodes: Record<string, CanvasNode[]>;
+  /** Loads a workspace's nodes, so the composer can mention its cards. */
+  onWorkspaceContextRequest?: (workspaceId: string) => void;
   onEnterChat: (target: ChatTarget) => void;
   onOpenSession: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
   /** Opens the chat page, whose session list holds every conversation. */
@@ -32,6 +34,7 @@ interface Props {
 export const Launcher = ({
   workspaces,
   loadedNodes,
+  onWorkspaceContextRequest,
   onEnterChat,
   onOpenSession,
   onOpenAllChats,
@@ -45,7 +48,7 @@ export const Launcher = ({
 
   // Create the new session before entering the page, so the page opens on
   // it. Entering first showed the scope's previous chat until the swap.
-  const ask = async (text: string, scope: AgentScope, label: string) => {
+  const ask = async (text: string, scope: AgentScope, label: string, context?: AgentRequestContext) => {
     const created: AgentNewSessionResult = await window.canvasWorkspace.agent.newSession({ scope })
       .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
     if (!created.ok || !created.activeSessionId) {
@@ -54,7 +57,7 @@ export const Launcher = ({
     }
     const target = createChatPageSessionTarget(scope, created.activeSessionId, label);
     onEnterChat(target);
-    const receipt = await deliverWhenReady(broker, target, { text, nodes: [] });
+    const receipt = await deliverWhenReady(broker, target, { text, nodes: [], context });
     if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
     return receipt.status === 'delivered' || receipt.status === 'queued';
   };
@@ -67,7 +70,12 @@ export const Launcher = ({
     <div className="launcher">
       <div className="launcher__inner">
         <h1 className="launcher__title">{t('launcher.title')}</h1>
-        <LauncherComposer workspaces={workspaces} onAsk={ask} />
+        <LauncherComposer
+          workspaces={workspaces}
+          loadedNodes={loadedNodes}
+          onWorkspaceContextRequest={onWorkspaceContextRequest}
+          onAsk={ask}
+        />
         <RecentWorkspaces
           workspaces={recentWorkspaces}
           summaries={summaries}

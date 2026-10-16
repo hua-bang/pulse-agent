@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import './index.css';
+import '../../mentions/mentionChip.css';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from '../../../../types';
 import { MentionNodeIcon, tabMentionIconType } from '../../mentions/mentions';
