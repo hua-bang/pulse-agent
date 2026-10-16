@@ -1,8 +1,9 @@
-import { useCallback, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import { getNodeDefaultSize, type CreatableCanvasNodeType } from '../../../../../../utils/nodeFactory';
 import type { ToastInput } from '../../../../../../types/ui-interaction';
 import type { AddNodeOptions } from '../../../..';
+import { useFileNodeEditorRegistry } from '../../../../../../shared/fileNodeEditorRegistry';
 import { useI18n, type I18nKey } from '../../../../../../i18n';
 
 interface ContextMenuState {
@@ -48,6 +49,7 @@ interface Options {
 }
 
 interface AddNodeUiOptions extends AddNodeOptions {
+  focusEditor?: boolean;
   label?: string;
 }
 
@@ -103,6 +105,27 @@ export const useCanvasContextMenu = ({
   notify,
 }: Options) => {
   const { t } = useI18n();
+  const registry = useFileNodeEditorRegistry();
+  const pendingFocus = useRef<string | null>(null);
+  useEffect(() => {
+    const focus = (nodeId: string) => {
+      if (pendingFocus.current !== nodeId) return;
+      const editor = registry?.get(nodeId);
+      if (editor) {
+        pendingFocus.current = null;
+        editor.commands.focus('start');
+      } else {
+        registry?.requestActivation(nodeId);
+      }
+    };
+    const cancel = () => { pendingFocus.current = null; };
+    const unsubscribe = registry?.subscribe(focus);
+    document.addEventListener('pointerdown', cancel, true);
+    return () => {
+      unsubscribe?.();
+      document.removeEventListener('pointerdown', cancel, true);
+    };
+  }, [registry]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   /** Shared post-add side effects: select, flash, and toast the new node
@@ -164,6 +187,7 @@ export const useCanvasContextMenu = ({
         contextMenu.canvasY,
       );
       const node = addNode(type, slot.x, slot.y, options);
+      if (options?.focusEditor && type === 'file') pendingFocus.current = node.id;
       finalizeAddedNode(
         node,
         type,
@@ -205,6 +229,7 @@ export const useCanvasContextMenu = ({
         center.y - height / 2,
       );
       const node = addNode(type, slot.x, slot.y, options);
+      if (options?.focusEditor && type === 'file') pendingFocus.current = node.id;
       finalizeAddedNode(
         node,
         type,

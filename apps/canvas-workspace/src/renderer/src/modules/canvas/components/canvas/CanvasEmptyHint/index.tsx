@@ -3,8 +3,12 @@ import { AppLogoIcon } from '../../../../../components/icons';
 import { NodeTypeBadge } from '../CanvasNodeView/NodeTypeBadge';
 import { useI18n } from '../../../../../i18n';
 import './index.css';
+import { Button } from '../../../../../components/ui';
 
 interface Props {
+  compact?: boolean;
+  completedTypes?: ('file' | 'agent')[];
+  onDismiss?: () => void;
   onCreateNode: (type: Extract<CanvasNode['type'], 'agent' | 'file'>) => void;
   onCreateDemo?: () => void;
   onOpenShortcuts: () => void;
@@ -12,6 +16,9 @@ interface Props {
 }
 
 export const CanvasEmptyHint = ({
+  compact = false,
+  completedTypes = [],
+  onDismiss,
   onCreateNode,
   onCreateDemo,
   onOpenShortcuts,
@@ -41,6 +48,20 @@ export const CanvasEmptyHint = ({
       onClick: () => onCreateNode('agent'),
     },
   ].filter((action) => Boolean(action.onClick));
+
+  if (compact) {
+    return (
+      <div className="canvas-next-steps">
+        {actions.filter((action) => !(action.key === 'brief' && completedTypes.includes('file'))
+          && !(action.key === 'agent' && completedTypes.includes('agent'))).map((action) => (
+          <Button key={action.key} size="sm" variant="secondary" onClick={action.onClick}>
+            {action.label}
+          </Button>
+        ))}
+        <Button size="sm" variant="icon" aria-label={t('canvas.empty.dismissNextSteps')} onClick={onDismiss}>×</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="canvas-empty-hint">

@@ -229,3 +229,9 @@ distinct mark, none falls through to the generic glyph),
 `utils/__tests__/codingAgentCommand.test.ts` (detection, including that
 `pip`/`ping` are not the Pi CLI),
 `RightDock/__tests__/DockTabIcon.test.tsx` (branded dock icon slots).
+
+A launch preflight reports the missing command separately from the selected
+agent. A missing bundled `pulse-canvas` connection points to External Agents
+settings and its enable/repair action. It must not show the selected CLI's
+install guide for that internal dependency or bypass it with Start anyway.
+`AgentAvailability/index.test.tsx` guards both dependency cases.

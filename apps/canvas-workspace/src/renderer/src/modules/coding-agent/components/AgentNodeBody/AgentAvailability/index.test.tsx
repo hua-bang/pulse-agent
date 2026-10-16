@@ -8,6 +8,25 @@ import { AgentAvailability } from '.';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('AgentAvailability', () => {
+  it('explains a missing bundled Canvas dependency without recommending Codex installation', async () => {
+    (window as any).canvasWorkspace = {
+      pty: { checkCommand: vi.fn().mockResolvedValue({ ok: true, available: true }) },
+    };
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    await act(async () => root.render(
+      <I18nProvider>
+        <AgentAvailability selectedAgent="codex" launchErrorCommand="pulse-canvas" onAgentChange={vi.fn()} onStartAnyway={vi.fn()} />
+      </I18nProvider>,
+    ));
+    expect(host.textContent).toContain('pulse-canvas');
+    expect(host.textContent).toContain('External Agents');
+    expect(host.textContent).not.toContain('Install Codex');
+    expect(host.textContent).not.toContain('curl ');
+    expect(host.textContent).not.toContain('Start anyway');
+    act(() => root.unmount());
+  });
+
   it('disables a missing CLI and presents its installation guide', async () => {
     (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
       pty: { checkCommand: vi.fn().mockResolvedValue({ ok: true, available: false }) },

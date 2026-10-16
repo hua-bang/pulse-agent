@@ -77,7 +77,7 @@ The workbench has exactly two side regions plus a modal tier:
   scope picker (global or one workspace) and starter prompts, recent
   workspaces, and recent non-empty chats across scopes
   (`agent.listAllSessions`). The global scope reads "General". A question
-  first creates a new session in its scope (`agent.newSession`), then enters
+  checks model setup, creates a new session in its scope (`agent.newSession`), then enters
   the full-page chat on that session, and submits once the page composer
   registers with the chat target broker (`chatPageTarget.ts`, retried for up
   to 5 s). Entering first showed the scope's previous chat until the swap. If
@@ -96,10 +96,12 @@ The workbench has exactly two side regions plus a modal tier:
   re-renders synchronously, so the page otherwise mounted on the previous
   target, loaded that session, and dropped the new empty draft. A recent
   chat reopens in its owning scope, and "View all" enters the chat page with
-  its session list shown (`ChatPage` `sessionListRequest`). The page mounts
-  fresh on each entry, so a request it has not consumed opens the list in its
-  initial state (no width transition or message reflow). The page fits the
-  window: two rows of three hold the five latest workspaces and New, and only the
+  its session list shown (`ChatPage` `sessionListRequest`). The launcher mounts
+  on its first visit and stays mounted behind hidden routes. Its question,
+  mention chips, scope, and submission lock survive Settings and failed
+  delivery. Model setup is checked before creating a session. Delivery waits
+  for that exact session and does not retry a rejected submission. The page fits
+  the window: two rows of three hold the five latest workspaces and New, and only the
   recent chats list (up to 20 rows) scrolls. A chat row is one line in a
   bordered list: the title on the left, and the place (General or the
   workspace) and time muted on the right. The page itself scrolls only
@@ -118,6 +120,17 @@ The workbench has exactly two side regions plus a modal tier:
   and the RightDock is `hidden` on both routes: it stays mounted so terminals
   and chats survive, but shows no panel, strip, or reserved width. Guards: `Launcher/index.test.tsx`,
   `src/main/canvas/__tests__/summary.test.ts`.
+- **Brief entry.** The empty-canvas hint loads on demand. Write the brief creates a localized Project brief note with
+  Goal, Context, and Done when sections. It activates the existing file editor
+  and focuses it when ready. After creation, a compact, dismissible row keeps
+  Connect a project and Start a coding agent available for this mounted visit.
+  It does not require completing onboarding. Guard: `CanvasOverlays.selection.test.ts`.
+- **Chat references.** Adding a canvas node to chat reveals it beside the actual
+  dock and canvas bounds. `useCanvasFit.revealNode` loads its observer only for
+  that action, then pans the viewport through
+  dock reflow without changing scale, node positions, or selection. A pointer
+  or wheel interaction releases that temporary visibility request. Guard:
+  `modules/canvas/runtime/useCanvasFit.reveal.test.tsx`.
 - **Route transitions.** Every route view (`.app-body > :not(.sidebar)`)
   fades in and rises 6 px over 180 ms; the canvas route only fades, so its
   cards and embedded pages do not move. Reduced motion turns it off. The
@@ -130,7 +143,8 @@ The workbench has exactly two side regions plus a modal tier:
   the user's own panel or dock toggle animates.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
-  route and closing returns to it (`app/App/useShellNavigation.ts`); unknown
+  route and closing returns to it (`app/App/useShellNavigation.ts`). The section
+  accepts both hash query links and Wouter navigation's browser search; unknown
   sections fall back to Models. Workspace settings stay a modal drawer.
 - **Left region — Library.** `ReferenceDrawer` is the only left-side
   container. Its card browser combines workspace node metadata, artifacts

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode, CanvasTransform } from '../../../types';
 
 export const useCanvasFit = (
@@ -62,5 +62,30 @@ export const useCanvasFit = (
     [containerRef, setTransform, triggerAnimation]
   );
 
-  return { animating, handleFocusNode, fitAllNodes };
+  const revealCleanup = useRef<() => void>();
+  useEffect(() => () => revealCleanup.current?.(), []);
+
+  // Follow only this explicit reference action through dock reflow. Stop as
+  // soon as the user interacts again; later navigation owns its own viewport.
+  const revealNode = useCallback(async (node: CanvasNode, getTransform: () => CanvasTransform) => {
+    revealCleanup.current?.();
+    const container = containerRef.current;
+    if (!container) return;
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    revealCleanup.current = cancel;
+    const options = { capture: true, once: true, signal: controller.signal };
+    document.addEventListener('pointerdown', cancel, options);
+    document.addEventListener('wheel', cancel, options);
+    try {
+      const { revealCanvasNode } = await import('./revealCanvasNode');
+      if (!controller.signal.aborted) {
+        revealCanvasNode(container, node, getTransform, setTransform, controller.signal);
+      }
+    } catch {
+      cancel();
+    }
+  }, [containerRef, setTransform]);
+
+  return { animating, handleFocusNode, fitAllNodes, revealNode };
 };

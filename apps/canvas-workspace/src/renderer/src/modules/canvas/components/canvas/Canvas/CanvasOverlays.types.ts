@@ -7,6 +7,7 @@ import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
 import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
 
 interface AddNodeUiOptions extends AddNodeOptions {
+  focusEditor?: boolean;
   label?: string;
 }
 

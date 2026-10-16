@@ -21,9 +21,10 @@ export const deliverWhenReady = async (
   const deadline = Date.now() + timeoutMs;
   let last: ChatDeliveryReceipt = { status: 'unavailable', target: null };
   while (Date.now() < deadline) {
-    if (broker.getActiveTarget()?.composerId === target.composerId) {
+    const active = broker.getActiveTarget();
+    if (active?.composerId === target.composerId && active.sessionId === target.sessionId) {
       last = await broker.deliver({ kind: 'prompt', prompt });
-      if (last.status === 'delivered' || last.status === 'queued') return last;
+      if (last.status !== 'unavailable') return last;
     }
     await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
   }

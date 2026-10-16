@@ -35,6 +35,13 @@ describe('app route model', () => {
     expect(resolveAppRoute('/home', options).activeView).toBe('home');
   });
 
+  it('reads the settings section from the browser search used by hash navigation', () => {
+    const options = { nodesEnabled: false, graphEnabled: false, pluginPaths: [] };
+    expect(resolveAppRoute('/settings', options, '?section=agent').params.get('section')).toBe('agent');
+    expect(resolveAppRoute('/settings?section=models', options, '?section=agent').params.get('section')).toBe('models');
+    expect(resolveAppRoute('/home', options, '?section=agent').params.has('section')).toBe(false);
+  });
+
   it('round-trips global MCP App routes with encoded server and tool names', () => {
     const target = { serverName: 'mock apps/v2', toolName: 'parts.library' };
     const path = mcpAppRoutePath(target);

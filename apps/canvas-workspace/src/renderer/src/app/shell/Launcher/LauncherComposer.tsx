@@ -41,6 +41,7 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
   const { t } = useI18n();
   const [scopeValue, setScopeValue] = useState(GLOBAL_SCOPE);
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const workspace = workspaces.find((item) => item.id === scopeValue);
   const scope = useMemo<AgentScope>(() => (workspace
     ? { kind: 'workspace', workspaceId: workspace.id }
@@ -68,12 +69,14 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
 
   const submit = async () => {
     const question = field.input.trim();
-    if (!question || sending) return;
+    if (!question || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const sent = await onAsk(question, scope, workspace?.name ?? t('chat.scope.global'), field.collectContext());
       if (sent) field.replaceInput('');
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -125,7 +128,7 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
             className="launcher__scope"
             value={scopeValue}
             options={options}
-            onChange={setScopeValue}
+            onChange={(value) => { if (!sendingRef.current) setScopeValue(value); }}
             ariaLabel={t('launcher.scopeLabel')}
           />
           <Button
@@ -145,6 +148,7 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
             variant="secondary"
             size="xs"
             className="launcher__starter"
+            disabled={sending}
             onClick={() => field.replaceInput(t(key))}
           >
             {t(key)}
