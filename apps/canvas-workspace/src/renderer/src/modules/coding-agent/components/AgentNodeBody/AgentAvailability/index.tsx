@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import './index.css';
+import { useLocation } from 'wouter';
+import { Button } from '../../../../../components/ui';
 import { AGENT_REGISTRY, type AgentDef } from '../../../../../config/agentRegistry';
 import { useI18n } from '../../../../../i18n';
 import { AgentIcon } from '../AgentIcon';
@@ -48,6 +50,8 @@ export const AgentAvailability = ({
   onStartAnyway,
 }: Props) => {
   const { t } = useI18n();
+  const [, setLocation] = useLocation();
+  const canvasToolingMissing = launchErrorCommand === 'pulse-canvas';
   const [statuses, setStatuses] = useState<Record<string, CommandStatus>>(() =>
     Object.fromEntries(AGENT_REGISTRY.map((agent) => [agent.id, 'checking'])),
   );
@@ -58,7 +62,7 @@ export const AgentAvailability = ({
     () => guide ? [guide.primaryCommand, ...(guide.alternateCommands ?? [])] : [],
     [guide],
   );
-  const showGuide = !!guide && (statuses[selectedAgent] === 'missing' || !!launchErrorCommand);
+  const showGuide = !!guide && (statuses[selectedAgent] === 'missing' || launchErrorCommand === agent?.command);
 
   useEffect(() => {
     const checker = window.canvasWorkspace?.pty?.checkCommand;
@@ -123,8 +127,14 @@ export const AgentAvailability = ({
       {launchErrorCommand && (
         <div className="agent-cli-warning" role="status">
           <strong>{t('agent.cliMissingTitle', { command: launchErrorCommand })}</strong>
-          <span>{t('agent.cliMissingDescription')}</span>
-          <button type="button" className="agent-text-link" onClick={onStartAnyway}>{t('agent.startAnyway')}</button>
+          <span>{t(canvasToolingMissing ? 'agent.canvasToolingMissingDescription' : 'agent.cliMissingDescription')}</span>
+          {canvasToolingMissing ? (
+            <Button size="sm" variant="secondary" onClick={() => setLocation('/settings?section=agent')}>
+              {t('agent.openConnectionSettings')}
+            </Button>
+          ) : (
+            <button type="button" className="agent-text-link" onClick={onStartAnyway}>{t('agent.startAnyway')}</button>
+          )}
         </div>
       )}
 

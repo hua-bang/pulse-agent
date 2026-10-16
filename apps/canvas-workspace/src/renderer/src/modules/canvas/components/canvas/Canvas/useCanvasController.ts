@@ -95,7 +95,7 @@ export const useCanvasController = ({
     screenToCanvas, resetTransform, zoomByStep, getLiveTransform,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
-  const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
+  const { animating, handleFocusNode, fitAllNodes, revealNode } = useCanvasFit(containerRef, setTransform);
 
   const {
     nodes, edges, loaded, externallyEditedIds,
@@ -136,6 +136,15 @@ export const useCanvasController = ({
     handleMarqueeSelect,
     getAllNodes,
   } = useCanvasSelection({ nodesRef });
+
+  const addReferenceToChat = useCallback(async (nodeId: string) => {
+    const receipt = await onAddToChat?.(nodeId);
+    const node = nodesRef.current.find((item) => item.id === nodeId);
+    if (node && (receipt?.status === 'delivered' || receipt?.status === 'queued')) {
+      revealNode(node, getLiveTransform);
+    }
+    return receipt ?? { status: 'unavailable' as const, target: null };
+  }, [getLiveTransform, onAddToChat, revealNode]);
 
   const creation = useCanvasCreationActions({
     surface: { canvasId, canvasName, rootFolder, containerRef, screenToCanvas },
@@ -404,7 +413,7 @@ export const useCanvasController = ({
     onFitAll: handleFitAll,
     onOpenReferenceSource,
     onPinReferenceNode,
-    onAddToChat,
+    onAddToChat: onAddToChat ? addReferenceToChat : undefined,
     onAddDomSelectionToChat,
     onSubmitDomReviewComments,
     onAskAboutNodes,

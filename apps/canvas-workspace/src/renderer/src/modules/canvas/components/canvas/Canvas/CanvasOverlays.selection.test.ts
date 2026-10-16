@@ -76,6 +76,23 @@ describe('CanvasOverlays selection actions', () => {
     });
   };
 
+  it('creates a named editable brief and keeps dismissible next steps after the node appears', () => {
+    const props = { ...baseProps(), nodes: [] as CanvasOverlaysProps['nodes'], onSetRootFolder: vi.fn() };
+    render(props);
+    act(() => [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Write the brief'))!.click());
+    expect(props.onAddNode).toHaveBeenCalledWith('file', expect.objectContaining({
+      fileName: 'Project brief',
+      fileContent: expect.stringContaining('## Goal'),
+      nodePatch: expect.objectContaining({ title: 'Project brief' }),
+    }));
+    render({ ...props, nodes: [sampleNode] });
+    expect(host.textContent).toContain('Connect a project');
+    expect(host.textContent).toContain('Start a coding agent');
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Dismiss next steps"]')!.click());
+    expect(host.textContent).not.toContain('Connect a project');
+  });
+
   // The selection toolbar surface was removed on purpose (the SelectionToolbar
   // component, its selection props, and the --selection chrome CSS are gone).
   // This pins that the overlay tree does not grow it back silently.

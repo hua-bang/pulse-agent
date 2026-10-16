@@ -19,6 +19,7 @@ interface Props {
   loadedNodes: Record<string, CanvasNode[]>;
   /** Loads a workspace's nodes, so the composer can mention its cards. */
   onWorkspaceContextRequest?: (workspaceId: string) => void;
+  onOpenModelSettings: () => void;
   onEnterChat: (target: ChatTarget) => void;
   onOpenSession: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
   /** Opens the chat page, whose session list holds every conversation. */
@@ -35,6 +36,7 @@ export const Launcher = ({
   workspaces,
   loadedNodes,
   onWorkspaceContextRequest,
+  onOpenModelSettings,
   onEnterChat,
   onOpenSession,
   onOpenAllChats,
@@ -49,6 +51,17 @@ export const Launcher = ({
   // Create the new session before entering the page, so the page opens on
   // it. Entering first showed the scope's previous chat until the swap.
   const ask = async (text: string, scope: AgentScope, label: string, context?: AgentRequestContext) => {
+    const model = await window.canvasWorkspace.model.status().catch((error: unknown) => ({
+      ok: false, error: error instanceof Error ? error.message : String(error), status: undefined,
+    }));
+    if (!model.ok || !model.status) {
+      notifyChatDelivery({ status: 'failed', target: null, error: model.error }, label);
+      return false;
+    }
+    if (!model.status.apiKeyPresent) {
+      onOpenModelSettings();
+      return false;
+    }
     const created: AgentNewSessionResult = await window.canvasWorkspace.agent.newSession({ scope })
       .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
     if (!created.ok || !created.activeSessionId) {

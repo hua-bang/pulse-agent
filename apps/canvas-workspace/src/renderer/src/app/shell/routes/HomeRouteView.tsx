@@ -1,13 +1,18 @@
-import { lazy, Suspense, type ComponentProps } from 'react';
+import { lazy, Suspense, useState, type ComponentProps } from 'react';
 import { PulseRouterView } from '../router';
 
 const Launcher = lazy(() => import('../Launcher').then((module) => ({ default: module.Launcher })));
 
 /** The launcher page at `/home`; lazy so it stays out of the startup chunk. */
-export const HomeRouteView = (props: ComponentProps<typeof Launcher>) => (
-  <PulseRouterView name="home">
-    <Suspense fallback={null}>
-      <Launcher {...props} />
-    </Suspense>
-  </PulseRouterView>
-);
+export const HomeRouteView = ({ active, ...props }: ComponentProps<typeof Launcher> & { active: boolean }) => {
+  const [visited, setVisited] = useState(active);
+  if (active && !visited) setVisited(true);
+  if (!visited && !active) return null;
+  return (
+    <PulseRouterView name="home" keepAlive>
+      <Suspense fallback={null}>
+        <Launcher {...props} />
+      </Suspense>
+    </PulseRouterView>
+  );
+};

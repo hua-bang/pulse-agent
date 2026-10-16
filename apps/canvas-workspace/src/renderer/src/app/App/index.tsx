@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, useSearch } from 'wouter';
 import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
 import { ConversationCompletionToastBridge } from '../shell/ConversationCompletionToastBridge';
@@ -65,6 +65,7 @@ const AppContent = () => {
   const { t } = useI18n();
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
+  const search = useSearch();
   // so a one-shot read is sufficient.
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
@@ -72,7 +73,7 @@ const AppContent = () => {
     nodesEnabled: NODES_ENABLED,
     graphEnabled: GRAPH_ENABLED,
     pluginPaths: pluginRoutes.map((item) => item.path),
-  }), [location, pluginRoutes]);
+  }, search), [location, pluginRoutes, search]);
   const {
     path: routePath,
     params: routeParams,
@@ -385,6 +386,8 @@ const AppContent = () => {
             onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
           <HomeRouteView
+            active={activeView === 'home'}
+            onOpenModelSettings={() => openAppSettings('models')}
             workspaces={workspaces}
             loadedNodes={workbench.allNodes}
             onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}

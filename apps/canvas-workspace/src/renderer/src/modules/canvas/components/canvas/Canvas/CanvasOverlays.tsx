@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useMemo } from 'react';
+import React, { lazy, Suspense, useMemo, useState } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import { ChatFloatingButton } from '../../../../chat/floating';
 import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
@@ -93,6 +93,7 @@ export const CanvasOverlays = ({
   onCancelEditEdgeLabel,
 }: CanvasOverlaysProps) => {
   const { t } = useI18n();
+  const [nextSteps, setNextSteps] = useState<('file' | 'agent')[]>([]);
   const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
   const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
   const overlayEdges = useMemo(
@@ -102,9 +103,27 @@ export const CanvasOverlays = ({
 
   return (
     <>
-      {nodes.length === 0 && !contextMenu && (
+      {(nodes.length === 0 || nextSteps.length > 0) && !contextMenu && (
         <CanvasEmptyHint
-          onCreateNode={(type) => onAddNode(type)}
+          compact={nodes.length > 0}
+          completedTypes={nextSteps}
+          onDismiss={() => setNextSteps([])}
+          onCreateNode={(type) => {
+            if (type === 'file') {
+              onAddNode(type, {
+                focusEditor: true,
+                fileName: t('canvas.empty.briefTitle'),
+                fileContent: t('canvas.empty.briefTemplate'),
+                nodePatch: {
+                  title: t('canvas.empty.briefTitle'),
+                  data: { filePath: '', content: t('canvas.empty.briefTemplate') },
+                },
+              });
+            } else {
+              onAddNode(type);
+            }
+            setNextSteps((current) => current.includes(type) ? current : [...current, type]);
+          }}
           onCreateDemo={onCreateDemo}
           onOpenShortcuts={onOpenShortcuts}
           onSetRootFolder={onSetRootFolder}

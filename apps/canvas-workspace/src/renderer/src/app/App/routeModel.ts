@@ -58,8 +58,15 @@ export interface AppRouteModel {
 export const resolveAppRoute = (
   location: string,
   options: ResolveAppRouteOptions,
+  search = '',
 ): AppRouteModel => {
   const { path, params } = parseCanvasLocation(location);
+  // Wouter hash navigation places ?section in the browser search, while
+  // manually opened links can still carry it inside the hash.
+  if (path === APP_ROUTES.settings && !params.has('section')) {
+    const section = new URLSearchParams(search).get('section');
+    if (section) params.set('section', section);
+  }
   const detailMatch = path.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
   const scheduledMatch = path.match(/^\/scheduled\/([^/]+)$/);
   const mcpAppMatch = path.match(/^\/apps\/([^/]+)\/([^/]+)$/);
