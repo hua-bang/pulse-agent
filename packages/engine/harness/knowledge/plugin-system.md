@@ -120,7 +120,13 @@ that target. Final Codemode results still pass through ordinary offload. Existin
 tool-internal truncation remains effective.
 
 Results include `ok`, explicit `output`, optional `value` / `error`, and bounded
-`calls` metadata. `codemodeTool` engine events carry child IDs, parent IDs, names,
+`calls` metadata. Oversized `text()` output becomes a head/tail preview with an
+explicit marker and `outputTruncated: true`; printing a large successful drawing
+result does not fail the script or replay its completed tool calls. The trusted
+worker bounds text before transport. The host gives a valid JSON return value
+priority over text in the shared budget and clips the preview further if needed.
+A return value that alone exceeds the budget remains an error; JSON is never
+partially parsed or silently changed. Preview slicing preserves surrogate pairs. `codemodeTool` engine events carry child IDs, parent IDs, names,
 states and elapsed times without raw results. This does not provide host UI
 integration or durable recovery. Stopping cancels pending/active calls and
 terminates the worker; host tools must honor AbortSignal to stop their own I/O.
@@ -128,8 +134,11 @@ terminates the worker; host tools must honor AbortSignal to stop their own I/O.
 Limits: source 64 KiB UTF-8, wall clock 60 seconds (including tools), heap 64 MiB,
 100 tool calls, arguments 64 KiB (checked before worker transport), queued
 arguments 1 MiB, each result 2 MiB, cumulative results 16 MiB,
-and explicit output plus return 30,000 characters. Hosts may set positive
-`timeoutMs` / `memoryLimitBytes`. `runtimeModulePath` lets bundled hosts supply
+and explicit output plus return 30,000 characters (including preview markers). Hosts may set positive
+`timeoutMs` / `memoryLimitBytes`. `maxToolArgumentBytes` defaults to 64 KiB
+UTF-8 and can be raised by a host up to the fixed 1 MiB total queue budget.
+Canvas uses 512 KiB for complete Excalidraw element patches; the default
+budget for other hosts remains unchanged. Worker and host both enforce it. `runtimeModulePath` lets bundled hosts supply
 an absolute quickjs-emscripten-core entry, and `wasmVariantModulePath` selects
 the release-sync variant entry. `wasmLoaderModulePath` supplies its CommonJS
 Emscripten loader. Only that WASM variant is a runtime dependency;
