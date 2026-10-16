@@ -59,7 +59,7 @@ const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
-const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true, NODES_NAV_VISIBLE = false;
+const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true, GRAPH_NAV_VISIBLE = false;
 const AppContent = () => {
   const { t } = useI18n();
@@ -318,7 +318,7 @@ const AppContent = () => {
           onEnterGraph={enterGraphView}
           onEnterSkills={() => setLocation(ROUTE_PLUGINS)}
           onEnterScheduled={() => setLocation(ROUTE_SCHEDULED)}
-          nodesEnabled={NODES_NAV_VISIBLE && NODES_ENABLED}
+          nodesEnabled={NODES_ENABLED}
           graphEnabled={GRAPH_NAV_VISIBLE && GRAPH_ENABLED}
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
@@ -377,10 +377,10 @@ const AppContent = () => {
               onOpenAppSettings={openAppSettings}
             />
           </PulseRouterView>
-          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} onOpenGraph={GRAPH_ENABLED ? enterGraphView : undefined} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
-              <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} />
+              <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} onOpenList={NODES_ENABLED ? enterNodesView : undefined} />
             </PulseRouterView>
           )}
           <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}

@@ -64,6 +64,8 @@ const COLORS = {
   labelBg: 'rgba(255, 255, 255, 0.92)',
 };
 
+const GRAPH_MAX_ZOOM = 4;
+
 const linkKey = (link: LinkObject<WorkspaceGraphNode, WorkspaceGraphLink>): string =>
   `${getGraphId(link.source)}->${getGraphId(link.target)}`;
 
@@ -177,6 +179,9 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
       linkDirectionalParticleWidth={1.2}
       linkDirectionalParticleSpeed={0.005}
       cooldownTime={12000}
+      // The first fit runs while the layout is still a tight cluster; without a
+      // cap it zooms a handful of nodes to fill the screen.
+      maxZoom={GRAPH_MAX_ZOOM}
       nodeCanvasObject={renderNode}
       nodePointerAreaPaint={(node, paintColor, ctx) => {
         const radius = node.kind === 'workspace' ? 16 : node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;

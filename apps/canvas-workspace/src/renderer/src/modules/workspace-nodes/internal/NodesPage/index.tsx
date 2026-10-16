@@ -5,6 +5,7 @@ import { useI18n } from '../../../../i18n';
 import { useRightDock } from '../../../../shared/dockPort';
 import { dispatchOpenNode, dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
+import { KnowledgeViewTabs } from '../KnowledgeViewTabs';
 import { NodeFilters } from '../NodeFilters';
 import type { NodesAiContext } from '../knowledgeAiContext';
 import {
@@ -16,14 +17,18 @@ import {
   isKnowledgeNodeType,
 } from '../utils';
 import { useNodesPageController } from './useNodesPageController';
+// Shared Knowledge page tokens and layout; this page can open before any detail panel loads them.
+import '../index.css';
 import './index.css';
 
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];
   onAskAi?: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
+  /** Switch to the graph view; omitted when the graph is unavailable. */
+  onOpenGraph?: () => void;
 }
 
-export const NodesPage = ({ workspaces, onAskAi }: NodesPageProps) => {
+export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) => {
   const { t } = useI18n();
   const dock = useRightDock();
   const controller = useNodesPageController({
@@ -37,7 +42,12 @@ export const NodesPage = ({ workspaces, onAskAi }: NodesPageProps) => {
         <div className="workspace-nodes-page__top">
           <header className="workspace-nodes-page__header">
             <div>
-              <h1>{t('workspaceNodes.nodes.title')}</h1>
+              <div className="workspace-nodes-page__title-row">
+                <h1>{t('workspaceNodes.nodes.title')}</h1>
+                {onOpenGraph && (
+                  <KnowledgeViewTabs value="list" onChange={(view) => view === 'graph' && onOpenGraph()} />
+                )}
+              </div>
               <p>{t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}</p>
             </div>
             <div className="workspace-nodes-page__header-actions">

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type RefObject } from 'react';
+import { useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { DropdownShell } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 import type {
@@ -8,6 +8,8 @@ import type {
 import './index.css';
 
 interface Props {
+  /** Rendered first, before the graph controls (the Knowledge view switch). */
+  leading?: ReactNode;
   graphRef: RefObject<ForceGraphCanvasHandle>;
   layoutPreset: GraphLayoutPreset;
   showLabels: boolean;
@@ -22,6 +24,7 @@ interface Props {
 }
 
 export const GraphToolbar = ({
+  leading,
   graphRef,
   layoutPreset,
   showLabels,
@@ -55,6 +58,7 @@ export const GraphToolbar = ({
 
   return (
     <div className="workspace-graph-toolbar">
+      {leading}
       <div className="workspace-graph-toolbar__group">
         <button
           className={`workspace-node-chip${showLabels ? ' is-active' : ''}`}

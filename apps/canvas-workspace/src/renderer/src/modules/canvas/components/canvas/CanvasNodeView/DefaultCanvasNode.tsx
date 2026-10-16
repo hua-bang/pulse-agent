@@ -18,6 +18,7 @@ import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 import { dispatchOpenNodePage } from '../../../../../utils/openNodeBridge';
 import { getWebNodeUrl } from '../../../../../utils/webNode';
+import { isKnowledgeNodeType } from '../../../../../shared/knowledgeNodes';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 
 interface DefaultCanvasNodeProps {
@@ -232,6 +233,7 @@ export const DefaultCanvasNode = ({
       node={node}
       pluginElementPickerActive={pluginElementPickerActive}
       canOpenTab={Boolean(workspaceId)}
+      canOpenDetail={Boolean(workspaceId) && isKnowledgeNodeType(node.type) && !getWebNodeUrl(node)}
       onAddToChat={onAddToChat}
       onAddToCanvas={onAddToCanvas}
       onUngroupSelectedGroups={onUngroupSelectedGroups}

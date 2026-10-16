@@ -17,6 +17,7 @@ import {
   AddToChatButton,
   CloseButton,
   FocusButton,
+  OpenDetailButton,
   OpenTabButton,
   PluginSelectElementButton,
 } from '../NodeButtons';
@@ -51,6 +52,8 @@ interface CanvasNodeHeaderProps {
   node: CanvasNode;
   pluginElementPickerActive: boolean;
   canOpenTab: boolean;
+  /** Show the button that opens the node's full detail page. */
+  canOpenDetail: boolean;
   onAddToChat?: (nodeId: string) => void | Promise<ChatDeliveryReceipt>;
   onAddToCanvas?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
@@ -93,6 +96,7 @@ export const CanvasNodeHeader = ({
   handleFocus,
   handleHeaderMouseDown,
   handlePluginSelectElement,
+  handleOpenDetail,
   handleOpenTab,
   handleAddToChat,
   handleAddToCanvas,
@@ -107,6 +111,7 @@ export const CanvasNodeHeader = ({
   node,
   pluginElementPickerActive,
   canOpenTab,
+  canOpenDetail,
   onAddToChat,
   onAddToCanvas,
   onUngroupSelectedGroups,
@@ -194,6 +199,9 @@ export const CanvasNodeHeader = ({
         <TextColorPicker node={node} onUpdate={onUpdate} />
       )}
       <div className="node-header__actions">
+        {canOpenDetail ? (
+          <OpenDetailButton label={t('workspaceNodes.goToDetail')} onClick={handleOpenDetail} />
+        ) : null}
         {canOpenTab && node.type !== 'file' && isKnowledgeNodeType(node.type) ? (
           <OpenTabButton
             ariaLabel={t('workspaceNodes.openNodeTab', { title: node.title })}

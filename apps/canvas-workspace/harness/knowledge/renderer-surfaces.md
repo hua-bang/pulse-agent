@@ -22,7 +22,7 @@ The workbench has exactly two side regions plus a modal tier:
 ```
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
-  Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
+  Workspaces, Knowledge, Plugins, Scheduled, plugin nav items, global MCP Apps, and
   Settings at the bottom. The toggle above Settings (a chevron with no visible
   label, beside Settings on the wide rail) widens the rail to 240px with a label beside each icon, and the choice persists
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
@@ -171,7 +171,11 @@ The workbench has exactly two side regions plus a modal tier:
   scope; cross-scope pin-to-canvas stays disabled because the mirror resolves
   in the host workspace. New source browsing surfaces belong here, not in a
   new drawer. Sidebar Layers owns the canvas spatial tree; `/nodes` owns
-  full-page knowledge node management.
+  full-page knowledge node management. Knowledge is one rail entry: `/nodes`
+  (list) and `/graph` share it and switch through `KnowledgeViewTabs`, so the
+  graph gets no rail button of its own. Both pages import the shared
+  `workspace-nodes/internal/index.css` themselves; it used to arrive only with
+  the detail panel, and a list opened first rendered at zero width.
 - **Right region — `RightDock`** (`modules/dock/internal/RightDock`): ONE tabbed
   panel whose first tab is the **pinned chat**; preview surfaces open as
   additional tabs — artifacts (`modules/artifacts/tab.ts`)

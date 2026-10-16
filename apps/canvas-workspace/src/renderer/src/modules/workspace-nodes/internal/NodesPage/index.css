@@ -74,6 +74,12 @@
   letter-spacing: 0;
 }
 
+.workspace-nodes-page__title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .workspace-nodes-page__header p {
   margin: 6px 0 0;
   color: var(--nodes-muted);

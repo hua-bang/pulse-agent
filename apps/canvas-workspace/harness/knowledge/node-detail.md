@@ -22,7 +22,9 @@ TWO hosts:
 
 The dock is the primary entry point: list cards, graph nodes, and note
 mentions all open a dock tab — the page is the drill-down from there, not the
-default landing surface. Consequently, a reading aid (or any other piece of
+default landing surface. The page has two direct entries: the canvas node
+header's Go to detail button (knowledge nodes except Web bookmarks, which open
+as web tabs) and the dock tab's More menu. Consequently, a reading aid (or any other piece of
 UI) that renders only when `mode === 'page'` is invisible to most users, who
 never leave the dock. Concretely, `NodeDetailPanel` renders the AI-summary
 "reading aid" inline only in dock mode and hands it to the page's

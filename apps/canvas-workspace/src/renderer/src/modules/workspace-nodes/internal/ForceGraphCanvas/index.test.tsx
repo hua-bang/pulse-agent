@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const graphHarness = vi.hoisted(() => ({
   centerAt: vi.fn(), zoom: vi.fn(), zoomToFit: vi.fn(), pause: vi.fn(), resume: vi.fn(), reheat: vi.fn(),
+  props: {} as Record<string, unknown>,
 }));
 
 vi.mock('react-force-graph-2d', () => {
@@ -14,7 +15,8 @@ vi.mock('react-force-graph-2d', () => {
   force.distanceMax = vi.fn(() => force);
   force.distance = vi.fn(() => force);
   return {
-    default: React.forwardRef((_props: unknown, ref: React.Ref<unknown>) => {
+    default: React.forwardRef((props: Record<string, unknown>, ref: React.Ref<unknown>) => {
+      graphHarness.props = props;
       React.useImperativeHandle(ref, () => ({
         centerAt: graphHarness.centerAt,
         zoom: graphHarness.zoom,
@@ -56,6 +58,8 @@ describe('ForceGraphCanvas', () => {
     expect(graphHarness.zoom).toHaveBeenCalledWith(2.8, 520);
     expect(graphHarness.pause).toHaveBeenCalledTimes(1);
     expect(graphHarness.zoomToFit).toHaveBeenCalledWith(450, 140);
+    // The early fit sees an unsettled cluster; the cap keeps it readable.
+    expect(graphHarness.props.maxZoom).toBe(4);
     act(() => root.unmount());
   });
 });
