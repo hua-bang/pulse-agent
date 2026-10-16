@@ -187,7 +187,7 @@ export const OpenDetailButton = ({
   <NodeHeaderIconButton className="node-open-detail" title={label} ariaLabel={label} onClick={onClick}>
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
-        d="M9.5 2.5h4v4M13.5 2.5l-5 5M7 3.5H4A1.5 1.5 0 0 0 2.5 5v7A1.5 1.5 0 0 0 4 13.5h7a1.5 1.5 0 0 0 1.5-1.5V9"
+        d="M9 3h4v4m0-4L8 8M7 3H3v10h10V9"
         stroke="currentColor"
         strokeWidth="1.4"
         strokeLinecap="round"

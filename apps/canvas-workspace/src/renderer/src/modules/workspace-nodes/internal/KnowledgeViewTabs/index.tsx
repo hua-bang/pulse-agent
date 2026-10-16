@@ -17,13 +17,13 @@ export const KnowledgeViewTabs = ({ value, onChange }: Props) => {
   return (
     <SegmentedControl
       ariaPattern="tab"
-      ariaLabel={t('workspaceNodes.view.label')}
+      ariaLabel={t('sidebar.nodes')}
       className="knowledge-view-tabs"
       value={value}
       onChange={(id) => onChange(id as KnowledgeView)}
       options={[
         { id: 'list', label: t('workspaceNodes.view.list') },
-        { id: 'graph', label: t('workspaceNodes.view.graph') },
+        { id: 'graph', label: t('sidebar.graph') },
       ]}
     />
   );

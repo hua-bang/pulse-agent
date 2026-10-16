@@ -121,7 +121,6 @@ export const SidebarRail = ({
         <RailButton
           active={activeView === 'nodes' || activeView === 'node-detail' || activeView === 'graph'}
           label={t('sidebar.nodes')}
-          title={t('sidebar.nodesTitle')}
           onClick={onEnterNodes}
         >
           <KnowledgeStoreIcon size={15} />
