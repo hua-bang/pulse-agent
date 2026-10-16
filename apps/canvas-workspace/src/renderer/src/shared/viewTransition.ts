@@ -10,19 +10,15 @@ import { flushSync } from 'react-dom';
  * The update runs inside the transition callback with `flushSync`, so React
  * commits it before the browser captures the new state. A call made while a
  * callback runs applies at once: nested switches join the outer transition.
+ * Reduced motion keeps the transition but turns its animations off in CSS.
  */
 export const VIEW_TRANSITION_CLASS = 'app-view-transition';
 
 let updating = false;
 let running = 0;
 
-const prefersReducedMotion = (): boolean => (
-  typeof window.matchMedia === 'function'
-  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-);
-
 export const runViewTransition = (update: () => void): void => {
-  if (updating || typeof document.startViewTransition !== 'function' || prefersReducedMotion()) {
+  if (updating || !document.startViewTransition) {
     update();
     return;
   }

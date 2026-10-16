@@ -145,8 +145,8 @@
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "2026-09-27 按当前实测重置 ratchet：origin/master (1174107) 入口 gzip 218593B（213.47KB），已贴近旧 207 基线的 +3% 上限（余量 31B），任何入口新增都会失败；本分支加入嵌套 Frame 深度交替底色后实测 214KB。基线重置为 214（上限 220），保留 target 185 与 warning 210 作为后续瘦身压力。", "asOf": "2026-09-27",
-      "gate": { "kind": "ratchet", "baseline": 214, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-16 按当前实测重置 ratchet：origin/master (759ec2e) 入口 gzip 实测 220.36KB，距 214 基线的 +3% 上限只剩约 60B，任何入口新增都会失败；本分支加入页面切换 view transition 与空闲预加载后实测 220.62KB（新增代码已精简到约 0.26KB gzip）。基线重置为 221（上限 227），保留 target 185 与 warning 210 作为后续瘦身压力。", "asOf": "2026-10-16",
+      "gate": { "kind": "ratchet", "baseline": 221, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,

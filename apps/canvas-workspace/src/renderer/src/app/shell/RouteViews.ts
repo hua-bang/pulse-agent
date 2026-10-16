@@ -30,6 +30,6 @@ export const preloadRoutePages = () => preloadWhenIdle([
   preloadLauncher,
   preloadChatSurfaces,
   preloadSettings,
-  () => PluginMarketRouteViewInner.preload(),
+  PluginMarketRouteViewInner.preload,
   preloadScheduledPage,
 ]);

@@ -139,14 +139,15 @@ The workbench has exactly two side regions plus a modal tier:
   While a transition runs, `.app-view-transition` names the sidebar and the
   visible route view, so they morph width together; the snapshots keep their
   own size and are clipped, never scaled. A call made inside a running
-  transition callback applies at once, and reduced motion skips the
-  transition. RightDock still sets `right-dock-resizing` for the first frame
+  transition callback applies at once, and reduced motion turns the
+  transition animations off in CSS. RightDock still sets `right-dock-resizing` for the first frame
   of a route change, as on a workspace switch, so the DOM lands in place and
   the transition, not a CSS width transition, carries the motion. Only the
   user's own panel or dock toggle animates in CSS. Page chunks (launcher,
   chat, settings, plugins, scheduled) use `preloadableLazy` and load while
   the app is idle after startup (`preloadRoutePages`). A loaded chunk renders
   in the first frame, so the transition does not fade into a blank fallback.
+  The entry chunk gzip gate has almost no headroom, so keep this path small.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
   route and closing returns to it (`app/App/useShellNavigation.ts`). The section

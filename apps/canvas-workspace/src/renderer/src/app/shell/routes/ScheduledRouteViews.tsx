@@ -6,7 +6,7 @@ import { PulseRouterView } from '../router';
 const ScheduledPage = preloadableLazy(() => import('../../../modules/scheduled/page').then((module) => ({ default: module.ScheduledPage })));
 const ScheduledTaskChatPage = lazy(() => import('../../../modules/scheduled/task-page').then((module) => ({ default: module.ScheduledTaskChatPage })));
 
-export const preloadScheduledPage = () => ScheduledPage.preload();
+export const preloadScheduledPage = ScheduledPage.preload;
 
 interface Props {
   scheduledTaskId: string | null;

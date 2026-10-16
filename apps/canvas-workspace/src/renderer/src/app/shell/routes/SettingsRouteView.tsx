@@ -5,7 +5,7 @@ import { PulseRouterView } from '../router';
 
 const Settings = preloadableLazy(() => import('../../../modules/settings/app').then((module) => ({ default: module.Settings })));
 
-export const preloadSettings = () => Settings.preload();
+export const preloadSettings = Settings.preload;
 
 interface Props {
   section: SettingsSection;
