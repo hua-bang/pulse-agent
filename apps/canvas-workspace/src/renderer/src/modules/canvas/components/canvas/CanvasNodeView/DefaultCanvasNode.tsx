@@ -9,7 +9,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode, IframeNodeData } from '../../../../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useRightDock } from '../../../../../shared/dockPort';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
@@ -17,6 +17,7 @@ import { CanvasNodeBody } from './CanvasNodeBody';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 import { dispatchOpenNodePage } from '../../../../../utils/openNodeBridge';
+import { getWebNodeUrl } from '../../../../../utils/webNode';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 
 interface DefaultCanvasNodeProps {
@@ -192,12 +193,10 @@ export const DefaultCanvasNode = ({
   const handleOpenTab = useCallback((event: MouseEvent) => {
     event.stopPropagation();
     if (!workspaceId) return;
-    if (node.type === 'iframe') {
-      const data = node.data as IframeNodeData;
-      if ((!data.mode || data.mode === 'url') && data.url.trim()) {
-        openLink(data.url);
-        return;
-      }
+    const webUrl = getWebNodeUrl(node);
+    if (webUrl) {
+      openLink(webUrl);
+      return;
     }
     openNodeDetail(workspaceId, node.id, node.title.trim() || 'Untitled');
   }, [node.id, node.title, node.type, node.data, openLink, openNodeDetail, workspaceId]);

@@ -89,9 +89,25 @@ describe('NodeDetailPanel', () => {
     expect(view.querySelector('[data-testid="node-canvas-preview"]')?.getAttribute('data-min-height')).toBe('0');
     expect(view.querySelector('.node-detail-panel__document-meta')).toBeNull();
     expect(view.querySelector('details')).toBeNull();
-    act(() => (view.querySelector('button[aria-label="Info"]') as HTMLButtonElement).click());
+    // The document body opens with its own heading, so the dock hides the title field.
+    expect(view.querySelector('.node-detail-panel__document-title')).toBeNull();
+    act(() => (view.querySelector('button[aria-label="More"]') as HTMLButtonElement).click());
     expect(document.querySelector('.node-detail-panel__inspector [data-testid="node-tag-editor"]')).not.toBeNull();
     expect(document.querySelector('.node-detail-panel__inspector')?.textContent).toContain('RSS shifts');
+    expect(document.querySelector('.node-detail-panel__inspector-actions')?.textContent).toContain('Open on canvas');
+  });
+
+  it('gives every compact dock tab a quiet heading and moves metadata into the inspector', () => {
+    const view = render(
+      <NodeDetailPanel node={{ ...NODE, type: 'text' }} workspaceId="workspace-1" mode="dock" compactDocument />,
+    );
+    expect(view.querySelector('.node-detail-panel--compact-dock')).not.toBeNull();
+    expect(view.querySelector('.node-detail-panel--document-dock')).toBeNull();
+    expect(view.querySelector('.node-detail-panel__document-title')?.textContent).toBe('Search & RSS');
+    expect(view.querySelector('.node-detail-panel__document-meta')).toBeNull();
+    expect(view.querySelector('.node-detail-panel__actions')).toBeNull();
+    expect(view.querySelector('[data-testid="node-tag-editor"]')).toBeNull();
+    expect(view.querySelector('details')).toBeNull();
   });
 
   it.each(['dock', 'page'] as const)(

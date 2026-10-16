@@ -50,12 +50,10 @@ export const NodeDetailDockTab = ({
   }, [missing, node, onTitleChange, t]);
 
   const chatAction = tabRef && targetWorkspaceId && onAddTabToChat ? (
-    <TabChatAction tab={tabRef} targetWorkspaceId={targetWorkspaceId} onAddToChat={onAddTabToChat} />
+    <TabChatAction iconOnly tab={tabRef} targetWorkspaceId={targetWorkspaceId} onAddToChat={onAddTabToChat} />
   ) : undefined;
-  const documentView = node?.type === 'file';
   return (
     <section className="node-detail-dock-tab">
-      {!documentView && chatAction && <div className="node-detail-dock-tab__chat-action">{chatAction}</div>}
       <NodeDetailPanel
         node={node}
         workspaceId={workspaceId}
@@ -64,7 +62,7 @@ export const NodeDetailDockTab = ({
         missing={missing}
         mode="dock"
         compactDocument
-        headerAction={documentView ? chatAction : undefined}
+        headerAction={chatAction}
         tagDefinitions={[...workspaceTags, ...tags]}
         relationCandidates={relationCandidates}
         onNodePatched={setNode}

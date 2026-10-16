@@ -861,7 +861,6 @@
   overflow: hidden;
 }
 
-.node-detail-dock-tab__chat-action,
 .right-dock__pane-chat-action {
   display: flex;
   justify-content: flex-end;

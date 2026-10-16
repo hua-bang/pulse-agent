@@ -3,7 +3,7 @@ import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui/Button';
 import { useI18n } from '../../../../i18n';
 import { useRightDock } from '../../../../shared/dockPort';
-import { dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
+import { dispatchOpenNode, dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
 import { NodeFilters } from '../NodeFilters';
 import type { NodesAiContext } from '../knowledgeAiContext';
@@ -122,7 +122,9 @@ export const NodesPage = ({ workspaces, onAskAi }: NodesPageProps) => {
                   openLabel={t('workspaceNodes.openNodeTab', { title })}
                   selected={controller.isNodeSelected(node)}
                   contextSelected={contextSelected}
-                  onOpen={() => dock.openNodeDetail(workspaceId, node.id, title)}
+                  onOpen={() => (node.type === 'iframe'
+                    ? dispatchOpenNode({ workspaceId, nodeId: node.id })
+                    : dock.openNodeDetail(workspaceId, node.id, title))}
                   onOpenDetail={() => dispatchOpenNodePage({ workspaceId, nodeId: node.id })}
                   onToggleContextSelection={isKnowledgeNodeType(node.type) && onAskAi
                     ? () => controller.toggleAiSelection(node)

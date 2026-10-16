@@ -12,6 +12,7 @@ import { useAllWorkspaceNodeList } from '../useWorkspaceNodes';
 import { getNodeTitle, getNodeWorkspaceId } from '../utils';
 import { useI18n } from '../../../../i18n';
 import { useRightDock } from '../../../../shared/dockPort';
+import { dispatchOpenNode } from '../../../../utils/openNodeBridge';
 import {
   buildWorkspaceGraph,
   getGraphId,
@@ -140,7 +141,8 @@ export const GraphPage = ({
     const graphId = nodeGraphId(workspaceId, item.id);
     setActiveNodeId(graphId);
     onSelectNode?.({ workspaceId, nodeId: item.id });
-    dock.openNodeDetail(workspaceId, item.id, getNodeTitle(item, t('workspaceNodes.untitled')));
+    if (item.type === 'iframe') dispatchOpenNode({ workspaceId, nodeId: item.id });
+    else dock.openNodeDetail(workspaceId, item.id, getNodeTitle(item, t('workspaceNodes.untitled')));
     window.setTimeout(() => focusNode(graphId), 80);
   }, [dock, focusNode, onSelectNode, t]);
 
@@ -166,9 +168,11 @@ export const GraphPage = ({
     // the viewport — the user may be deliberately panning around.
     if (isNodeGraphNode(node)) {
       onSelectNode?.({ workspaceId: node.workspaceId, nodeId: node.nodeId });
-      dock.openNodeDetail(node.workspaceId, node.nodeId, node.label);
+      const item = nodes.find((entry) => entry.id === node.nodeId && getNodeWorkspaceId(entry) === node.workspaceId);
+      if (item?.type === 'iframe') dispatchOpenNode({ workspaceId: node.workspaceId, nodeId: node.nodeId });
+      else dock.openNodeDetail(node.workspaceId, node.nodeId, node.label);
     }
-  }, [dock, focusNode, onSelectNode]);
+  }, [dock, focusNode, nodes, onSelectNode]);
 
   return (
     <main className="workspace-graph-page" ref={containerRef}>

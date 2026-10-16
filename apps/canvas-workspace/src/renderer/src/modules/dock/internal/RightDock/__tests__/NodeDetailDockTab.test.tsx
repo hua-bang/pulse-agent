@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
+import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
@@ -10,7 +11,11 @@ import { NodeDetailDockTab } from '../content/NodeDetailDockTab';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('../../../../workspace-nodes/detail', () => ({
-  NodeDetailPanel: () => <div data-testid="node-detail" />,
+  // Every node type carries Ask AI in its own header now, so render the action
+  // the dock tab hands over instead of a separate bar above the panel.
+  NodeDetailPanel: ({ headerAction }: { headerAction?: ReactNode }) => (
+    <div data-testid="node-detail">{headerAction}</div>
+  ),
 }));
 
 vi.mock('../../../../workspace-nodes', () => ({
