@@ -13,6 +13,8 @@ import { getNodeTypeLabel, isKnowledgeNodeType } from '../utils';
 interface Props {
   candidates: WorkspaceNodeListItem[];
   compact?: boolean;
+  /** Hide the title field (a document's body already opens with its heading). */
+  hideTitle?: boolean;
   action?: ReactNode;
   inspectorContent?: ReactNode;
   dateLocale: string;
@@ -44,9 +46,18 @@ const InfoGlyph = () => (
   </svg>
 );
 
+const MoreGlyph = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="3.5" cy="8" r="1.2" fill="currentColor" />
+    <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+    <circle cx="12.5" cy="8" r="1.2" fill="currentColor" />
+  </svg>
+);
+
 export const NodeDetailHeader = ({
   candidates,
   compact,
+  hideTitle = false,
   action,
   inspectorContent,
   dateLocale,
@@ -96,7 +107,7 @@ export const NodeDetailHeader = ({
     <>
       <header className="node-detail-panel__document-header">
         <div className="node-detail-panel__title-row">
-          <div className="node-detail-panel__title-field">
+          {!hideTitle && <div className="node-detail-panel__title-field">
             <NodeTitleEditor
               node={node}
               workspaceId={workspaceId}
@@ -104,10 +115,10 @@ export const NodeDetailHeader = ({
               readOnly={readOnly}
               onNodePatched={onNodePatched}
             />
-          </div>
+          </div>}
           <div className="node-detail-panel__title-actions">
             {action}
-            {mode === 'dock' && onOpenPage && (
+            {mode === 'dock' && !compact && onOpenPage && (
               <Button variant="icon" size="xs" aria-label={t('workspaceNodes.goToDetail')} title={t('workspaceNodes.goToDetail')} onClick={onOpenPage}>
                 <ListLinesIcon size={13} />
               </Button>
@@ -117,16 +128,16 @@ export const NodeDetailHeader = ({
                 ref={inspectorButtonRef}
                 variant="icon"
                 size="xs"
-                aria-label={t('workspaceNodes.info')}
+                aria-label={compact ? t('workspaceNodes.moreActions') : t('workspaceNodes.info')}
                 aria-expanded={inspectorOpen}
                 aria-controls={inspectorId}
-                title={t('workspaceNodes.info')}
+                title={compact ? t('workspaceNodes.moreActions') : t('workspaceNodes.info')}
                 onClick={() => setInspectorOpen((current) => !current)}
               >
-                <InfoGlyph />
+                {compact ? <MoreGlyph /> : <InfoGlyph />}
               </Button>
             )}
-            <div className="node-detail-panel__actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
+            {!compact && <div className="node-detail-panel__actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
               <Button
                 variant={mode === 'dock' ? 'icon' : 'secondary'}
                 size="xs"
@@ -141,7 +152,7 @@ export const NodeDetailHeader = ({
                 <CopyIcon size={12} />
                 {mode === 'page' && <span>{copyLabel}</span>}
               </Button>
-            </div>
+            </div>}
           </div>
         </div>
         {!compact && <div className="node-detail-panel__document-meta">
@@ -174,8 +185,27 @@ export const NodeDetailHeader = ({
           panelId={inspectorId}
           readOnly={readOnly}
           source={source}
+          title={compact ? t('workspaceNodes.moreActions') : undefined}
           workspaceId={workspaceId}
         >
+          {compact && (
+            <div className="node-detail-panel__inspector-actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
+              {onOpenPage && (
+                <Button size="xs" onClick={onOpenPage}>
+                  <ListLinesIcon size={13} />
+                  <span>{t('workspaceNodes.goToDetail')}</span>
+                </Button>
+              )}
+              <Button size="xs" onClick={() => dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id })}>
+                <TargetGlyph />
+                <span>{t('workspaceNodes.openOnCanvas')}</span>
+              </Button>
+              <Button size="xs" aria-label={copyLabel} onClick={() => { void copyNodeLink(); }}>
+                <CopyIcon size={12} />
+                <span>{copyLabel}</span>
+              </Button>
+            </div>
+          )}
           {inspectorContent}
           {compact && <div className="node-detail-panel__inspector-section">
             <NodeTagEditor node={node} workspaceId={workspaceId} tags={tags} tagDefinitions={tagDefinitions}

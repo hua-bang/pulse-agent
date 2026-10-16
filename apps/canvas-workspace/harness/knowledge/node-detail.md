@@ -109,7 +109,19 @@ Policy per type:
     `src/renderer/src/modules/workspace-nodes/internal/NodeDetailHeader.tsx`
     (`metadata === 'inspector'` branch, backed by
     `NodeDetailInspector.tsx`).
-- **Web** retains its iframe navigation bar.
+- **Web** retains its iframe navigation bar on the full page. In the dock, a
+  URL-mode Web node opens as an ordinary dock web tab, not a node-detail tab:
+  `getWebNodeUrl` (`src/renderer/src/utils/webNode.ts`) decides, and the
+  canvas header, the `OPEN_NODE_EVENT` handler (mentions) in
+  `useWorkbenchState.ts`, the Nodes list and the graph all route through it.
+  HTML-mode Web nodes have no address and keep the node detail.
+- **Dock tabs are compact for every type** (`compactDocument`, set by
+  `NodeDetailDockTab`; class `node-detail-panel--compact-dock`): a quiet
+  heading plus Ask AI and a More button in the header, and the body fills the
+  rest. Tags, relations, info, the AI summary and the open-page / locate /
+  copy-link actions live in the More inspector. File tabs
+  (`node-detail-panel--document-dock`) also hide the title field, because the
+  document body opens with its own heading.
 - **Mindmap** retains selected-topic editing, pointer-event background pan,
   keyboard pan, and an explicit center action — see the `mindmapPan`
   handlers (`onPointerDown`/`onPointerMove`/`onPointerUp`/

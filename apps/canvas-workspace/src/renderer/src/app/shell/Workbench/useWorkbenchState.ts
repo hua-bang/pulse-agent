@@ -3,6 +3,7 @@ import type { CanvasNode } from '../../../types';
 import type { CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 import { OPEN_NODE_EVENT, type OpenNodeDetail } from '../../../utils/openNodeBridge';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
+import { getWebNodeUrl } from '../../../utils/webNode';
 import { useRightDock } from '../../../modules/dock';
 
 interface WorkbenchNodeRequest {
@@ -144,14 +145,23 @@ export function useWorkbenchState({
   // Note mentions (and other deep node links) open the referenced node in the
   // right dock. Resolve from the in-memory snapshot first; cross-workspace
   // links may need one store read before their tab can receive a useful title.
+  // A Web node opens as an ordinary web tab, the same as from its canvas header.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<OpenNodeDetail>).detail;
       if (!detail?.nodeId) return;
       const workspaceId = detail.workspaceId || activeWorkspaceId;
+      const openNode = (node: CanvasNode | undefined) => {
+        const webUrl = getWebNodeUrl(node);
+        if (webUrl) {
+          dock.openLink(webUrl);
+          return;
+        }
+        dock.openNodeDetail(workspaceId, detail.nodeId, node ? getNodeDisplayLabel(node) : detail.nodeId);
+      };
       const cachedNode = allNodesRef.current[workspaceId]?.find((node) => node.id === detail.nodeId);
       if (cachedNode) {
-        dock.openNodeDetail(workspaceId, detail.nodeId, getNodeDisplayLabel(cachedNode));
+        openNode(cachedNode);
         return;
       }
 
@@ -162,12 +172,7 @@ export function useWorkbenchState({
       }
       void api.load(workspaceId).then((result) => {
         const nodes = result.ok && Array.isArray(result.data?.nodes) ? result.data.nodes : [];
-        const node = nodes.find((item) => item.id === detail.nodeId);
-        dock.openNodeDetail(
-          workspaceId,
-          detail.nodeId,
-          node ? getNodeDisplayLabel(node) : detail.nodeId,
-        );
+        openNode(nodes.find((item) => item.id === detail.nodeId));
       });
     };
     window.addEventListener(OPEN_NODE_EVENT, handler);

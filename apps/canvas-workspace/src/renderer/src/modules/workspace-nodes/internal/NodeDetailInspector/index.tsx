@@ -18,6 +18,8 @@ interface Props {
   panelId: string;
   readOnly: boolean;
   source: string;
+  /** Panel heading; defaults to Info. */
+  title?: string;
   workspaceId: string;
 }
 
@@ -32,9 +34,11 @@ export const NodeDetailInspector = ({
   panelId,
   readOnly,
   source,
+  title,
   workspaceId,
 }: Props) => {
   const { t } = useI18n();
+  const heading = title ?? t('workspaceNodes.info');
   const links = node.links ?? [];
   const properties = Object.entries(node.properties ?? {})
     .filter(([key]) => key !== 'tags' && key !== 'source' && key !== 'aiSummary');
@@ -54,12 +58,12 @@ export const NodeDetailInspector = ({
       role="region"
       autoFocus={false}
       keyboardNavigation={false}
-      ariaLabel={t('workspaceNodes.info')}
+      ariaLabel={heading}
       panelId={panelId}
       className="node-detail-panel__inspector"
     >
       <div className="node-detail-panel__inspector-header">
-        <strong>{t('workspaceNodes.info')}</strong>
+        <strong>{heading}</strong>
         <Button variant="icon" size="xs" aria-label={t('shell.close')} onClick={closeAndRestoreFocus}>
           <CloseIcon size={13} />
         </Button>

@@ -24,6 +24,13 @@
   font-size: 12px;
 }
 
+.node-detail-panel__inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 2px 12px;
+}
+
 .node-detail-panel__inspector-section {
   display: grid;
   gap: 9px;

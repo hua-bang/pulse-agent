@@ -342,28 +342,57 @@
   }
 }
 
-/* File tabs are reading/editing surfaces, matching the canvas fullscreen note.
- * Metadata stays available in the header inspector instead of taking body space. */
-.node-detail-panel--document-dock .node-detail-panel__content { overflow: hidden; }
-.node-detail-panel--document-dock .node-detail-panel__layout,
-.node-detail-panel--document-dock .node-detail-panel__document {
+/* Dock tabs are reading/editing surfaces, matching the canvas fullscreen note:
+ * the body leads under a quiet heading, and the header keeps only Ask AI and
+ * the inspector. Tags, relations and info live in that inspector. */
+.node-detail-panel--compact-dock .node-detail-panel__content { overflow: hidden; }
+.node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__layout,
+.node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__document {
   height: 100%; min-height: 0; padding: 0; display: flex; flex-direction: column;
 }
-.node-detail-panel--document-dock .node-detail-panel__document-header {
-  padding: 8px 14px; border-bottom: 1px solid var(--nodes-border);
+.node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__document-header {
+  padding: 18px 10px 6px 24px;
 }
-.node-detail-panel.node-detail-panel--document-dock .node-detail-panel__document-title {
-  font-size: 13px; font-weight: 500; line-height: 1.4;
+.node-detail-panel--compact-dock .node-detail-panel__title-row {
+  align-items: flex-start;
 }
-.node-detail-panel.node-detail-panel--document-dock .node-detail-panel__preview {
-  height: auto; min-height: 0; flex: 1; margin: 0;
+.node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__document-title {
+  font-size: 22px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
+}
+.node-detail-panel--compact-dock .node-detail-panel__title-actions .ui-btn {
+  color: var(--nodes-muted);
+}
+.node-detail-panel--compact-dock .node-detail-panel__title-actions .ui-btn:hover {
+  color: var(--nodes-text);
+}
+.node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__preview {
+  height: auto; min-height: 0; flex: 1; margin: 0; border: 0;
+}
+
+/* Text bodies carry no inset of their own; line them up under the heading. */
+.node-detail-panel--compact-dock .node-canvas-preview > .canvas-node--text {
+  padding-inline: 14px;
+  box-sizing: border-box;
+}
+
+/* The mindmap's Center control pins to the bottom corner of the scrollport so
+ * it never covers the top branches. */
+.node-detail-panel--compact-dock .node-canvas-preview__mindmap-controls {
+  top: calc(100% - 38px);
+}
+
+/* A document's body opens with its own heading, so the header is only the two
+ * actions, floating over the editor's top padding. */
+.node-detail-panel--document-dock .node-detail-panel__document { position: relative; }
+.node-detail-panel.node-detail-panel--document-dock .node-detail-panel__document-header {
+  position: absolute; top: 8px; right: 10px; z-index: 2; padding: 0;
 }
 .node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror {
-  padding: 20px 28px 72px;
+  padding: 44px 28px 72px;
 }
 @container (min-width: 561px) {
   .node-detail-panel--document-dock .node-canvas-preview .note-tiptap-editor .ProseMirror {
-    padding: 32px 40px 96px;
+    padding: 48px 40px 96px;
     font-size: 16px; line-height: 1.8;
     --note-heading-1: 1.75em;
     --note-heading-2: 1.375em;
