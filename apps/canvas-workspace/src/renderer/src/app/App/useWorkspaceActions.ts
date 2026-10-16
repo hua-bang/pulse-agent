@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useAppShell } from '../shell/AppShellProvider';
 import { useI18n } from '../../i18n';
 import { useWorkspaces } from '../workspaces/useWorkspaces';
+import { runViewTransition } from '../../shared/viewTransition';
 
 interface Options {
   store: ReturnType<typeof useWorkspaces>;
@@ -35,10 +36,14 @@ export const useWorkspaceActions = ({
     deleteFolder,
   } = store;
 
+  // One transition covers the workspace swap and the route change, so a tab
+  // switch cross-fades like a page switch.
   const select = useCallback((id: string) => {
-    ensureWorkspaceNodesLoaded(id);
-    selectWorkspace(id);
-    setLocation(canvasRoute);
+    runViewTransition(() => {
+      ensureWorkspaceNodesLoaded(id);
+      selectWorkspace(id);
+      setLocation(canvasRoute);
+    });
   }, [canvasRoute, ensureWorkspaceNodesLoaded, selectWorkspace, setLocation]);
 
   const create = useCallback((name: string, folderId?: string) => {

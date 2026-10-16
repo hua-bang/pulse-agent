@@ -1,9 +1,12 @@
 import { lazy, Suspense } from 'react';
+import { preloadableLazy } from '../../../shared/preloadableLazy';
 import type { SettingsSection } from '../../../modules/settings';
 import { PulseRouterView } from '../router';
 
-const ScheduledPage = lazy(() => import('../../../modules/scheduled/page').then((module) => ({ default: module.ScheduledPage })));
+const ScheduledPage = preloadableLazy(() => import('../../../modules/scheduled/page').then((module) => ({ default: module.ScheduledPage })));
 const ScheduledTaskChatPage = lazy(() => import('../../../modules/scheduled/task-page').then((module) => ({ default: module.ScheduledTaskChatPage })));
+
+export const preloadScheduledPage = () => ScheduledPage.preload();
 
 interface Props {
   scheduledTaskId: string | null;

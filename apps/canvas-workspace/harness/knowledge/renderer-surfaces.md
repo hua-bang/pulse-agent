@@ -131,16 +131,22 @@ The workbench has exactly two side regions plus a modal tier:
   dock reflow without changing scale, node positions, or selection. A pointer
   or wheel interaction releases that temporary visibility request. Guard:
   `modules/canvas/runtime/useCanvasFit.reveal.test.tsx`.
-- **Route transitions.** Every route view (`.app-body > :not(.sidebar)`)
-  fades in and rises 6 px over 180 ms; the canvas route only fades, so its
-  cards and embedded pages do not move. Reduced motion turns it off. The
-  transform exists only while the animation runs, but during it a
-  `position: fixed` child would anchor to the route view, so route views keep
-  popovers and menus portaled out of themselves. RightDock sets
-  `right-dock-resizing` for the first frame of a route change, as on a
-  workspace switch, so the dock, the reserved `.app-body` margin, and the
-  sidebar panel land in place instead of sliding while the page swaps. Only
-  the user's own panel or dock toggle animates.
+- **Route transitions.** Route changes (wouter `aroundNav` in `main.tsx`),
+  workspace selection (`useWorkspaceActions.select`), and settings sections
+  run through `runViewTransition` (`shared/viewTransition.ts`), a view
+  transition that cross-fades the old page into the new one. The old page
+  stays on screen until the new one is committed, so no blank frame shows.
+  While a transition runs, `.app-view-transition` names the sidebar and the
+  visible route view, so they morph width together; the snapshots keep their
+  own size and are clipped, never scaled. A call made inside a running
+  transition callback applies at once, and reduced motion skips the
+  transition. RightDock still sets `right-dock-resizing` for the first frame
+  of a route change, as on a workspace switch, so the DOM lands in place and
+  the transition, not a CSS width transition, carries the motion. Only the
+  user's own panel or dock toggle animates in CSS. Page chunks (launcher,
+  chat, settings, plugins, scheduled) use `preloadableLazy` and load while
+  the app is idle after startup (`preloadRoutePages`). A loaded chunk renders
+  in the first frame, so the transition does not fade into a blank fallback.
 - **Settings page** (`/settings?section=<id>`, `routes/SettingsRouteView`).
   App settings are a full page, not a drawer. Opening remembers the origin
   route and closing returns to it (`app/App/useShellNavigation.ts`). The section
