@@ -4,11 +4,7 @@ import type {
   ChatImageAttachment,
   ChatRunInputMode,
 } from '../../../../types';
-import { collectContextRefsFromEditable, withCollectedTabs } from '../../mentions/mentions';
-import { collectAppMentionContexts } from '../../mentions/appMentionItems';
-import { serializeEditable } from '../../mentions/serializeEditable';
-import { globalMcpAppsStore } from '../../../mcp-apps/global-apps';
-import { withCollectedPlugins } from '../../mentions/pluginMentionItems';
+import { collectEditableContext } from '../../mentions/editableContext';
 
 interface Options {
   attachments: ChatImageAttachment[];
@@ -47,28 +43,11 @@ export const useChatComposerSubmission = ({
   const runInputSubmittingRef = useRef(false);
 
   const collectRequestContext = useCallback((requestContext?: AgentRequestContext) => {
-    let context = requestContext ?? getRequestContext?.();
-    if (editableRef.current) context = withCollectedTabs(editableRef.current, context);
-    if (editableRef.current) context = withCollectedPlugins(editableRef.current, context);
-    if (collectStructuredContext && editableRef.current) {
-      const collected = collectContextRefsFromEditable(editableRef.current);
-      if (collected.nodes.length || collected.tags.length || collected.canvases.length || collected.domSelections.length) {
-        context = {
-          ...(context ?? {}),
-          // Explicit node mentions define this turn's focus, ahead of ambient canvas selection.
-          selectedNodes: collected.nodes.length ? collected.nodes : (context?.selectedNodes ?? []),
-          tags: [...(context?.tags ?? []), ...collected.tags],
-          canvases: [...(context?.canvases ?? []), ...collected.canvases],
-          domSelections: [...(context?.domSelections ?? []), ...collected.domSelections],
-          scope: 'selected_nodes',
-        };
-      }
-    }
-    const mcpAppMentions = editableRef.current
-      ? collectAppMentionContexts(serializeEditable(editableRef.current)) : [];
-    if (mcpAppMentions.length) return { ...context, mcpAppContext: null, mcpAppMentions };
-    const mcpAppContext = globalMcpAppsStore.readActiveContext();
-    return mcpAppContext ? { ...context, mcpAppContext } : context;
+    return collectEditableContext(
+      editableRef.current,
+      requestContext ?? getRequestContext?.(),
+      Boolean(collectStructuredContext),
+    );
   }, [collectStructuredContext, editableRef, getRequestContext]);
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {

@@ -42,6 +42,8 @@ export interface ChatPromptSubmission {
   nodes: AgentContextNodeRef[];
   /** Start the turn in a new conversation instead of the one the target shows. */
   newSession?: boolean;
+  /** Context from the sender's own mention chips; overrides the target's fields. */
+  context?: AgentRequestContext;
 }
 
 export interface ChatTargetHandlers {

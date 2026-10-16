@@ -1,0 +1,187 @@
+/* ─── @ Mention chips: in messages and in contentEditable composers ─── */
+
+.chat-mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  /* Vertical margin gives wrapped rows breathing room (chips are taller
+     than the text line-height, so without it adjacent rows nearly touch). */
+  margin: 2px 1.5px;
+  background: rgba(55, 53, 47, 0.05);
+  border: 1px solid rgba(55, 53, 47, 0.08);
+  border-radius: var(--radius-sm);
+  font-size: 0.92em;
+  line-height: 1.35;
+  color: rgb(55, 53, 47);
+  vertical-align: middle;
+  cursor: default;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chat-mention-chip:hover {
+  background: rgba(55, 53, 47, 0.1);
+}
+
+.chat-mention-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: rgba(55, 53, 47, 0.5);
+}
+
+.chat-mention-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+  font-weight: 500;
+}
+
+.chat-mention-chip-meta {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.78em;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-mention-chip--clickable {
+  cursor: pointer;
+}
+
+.chat-mention-chip--clickable:hover {
+  background: rgba(55, 53, 47, 0.12);
+  border-color: rgba(55, 53, 47, 0.18);
+}
+
+.chat-mention-chip--stale,
+.chat-mention-chip--stale:hover {
+  border-color: var(--border);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+/* Node-type color accents */
+.chat-mention-chip[data-node-type="terminal"] {
+  background: rgba(35, 131, 226, 0.07);
+  border-color: rgba(35, 131, 226, 0.15);
+}
+
+.chat-mention-chip[data-node-type="terminal"] .chat-mention-chip-icon {
+  color: rgba(35, 131, 226, 0.7);
+}
+
+.chat-mention-chip--clickable[data-node-type="terminal"]:hover {
+  background: rgba(35, 131, 226, 0.14);
+  border-color: rgba(35, 131, 226, 0.25);
+}
+
+.chat-mention-chip[data-node-type="agent"] {
+  background: rgba(155, 89, 182, 0.07);
+  border-color: rgba(155, 89, 182, 0.15);
+}
+
+.chat-mention-chip[data-node-type="agent"] .chat-mention-chip-icon {
+  color: rgba(155, 89, 182, 0.7);
+}
+
+.chat-mention-chip--clickable[data-node-type="agent"]:hover {
+  background: rgba(155, 89, 182, 0.14);
+  border-color: rgba(155, 89, 182, 0.25);
+}
+
+.chat-mention-chip[data-node-type="frame"] {
+  background: rgba(233, 168, 0, 0.07);
+  border-color: rgba(233, 168, 0, 0.15);
+}
+
+.chat-mention-chip[data-node-type="frame"] .chat-mention-chip-icon {
+  color: rgba(233, 168, 0, 0.7);
+}
+
+.chat-mention-chip--clickable[data-node-type="frame"]:hover {
+  background: rgba(233, 168, 0, 0.14);
+  border-color: rgba(233, 168, 0, 0.25);
+}
+
+.chat-mention-chip[data-node-type="workspace"],
+.chat-mention-chip--workspace,
+.chat-mention-chip--tab {
+  background: rgba(88, 166, 255, 0.08);
+  border-color: rgba(88, 166, 255, 0.18);
+}
+
+.chat-mention-chip[data-node-type="workspace"] .chat-mention-chip-icon,
+.chat-mention-chip--workspace .chat-mention-chip-icon,
+.chat-mention-chip--tab .chat-mention-chip-icon {
+  color: rgba(88, 166, 255, 0.85);
+}
+
+.chat-mention-chip--clickable[data-node-type="workspace"]:hover,
+.chat-mention-chip--clickable.chat-mention-chip--workspace:hover {
+  background: rgba(88, 166, 255, 0.16);
+  border-color: rgba(88, 166, 255, 0.28);
+}
+
+.chat-mention-chip--tag,
+.chat-mention-chip[data-node-type="tag"] {
+  background: rgba(35, 131, 226, 0.1);
+  border-color: rgba(35, 131, 226, 0.22);
+  color: #2d6cc0;
+}
+
+.chat-mention-chip-hash {
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.chat-mention-chip[data-node-type="skill"],
+.chat-mention-chip--skill {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.chat-mention-chip[data-node-type="skill"] .chat-mention-chip-icon,
+.chat-mention-chip--skill .chat-mention-chip-icon {
+  color: rgba(34, 197, 94, 0.85);
+}
+
+.chat-mention-chip[data-node-type="plugin"],
+.chat-mention-chip--plugin {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.chat-mention-chip[data-node-type="plugin"] .chat-mention-chip-icon,
+.chat-mention-chip--plugin .chat-mention-chip-icon {
+  color: var(--accent);
+}
+
+.chat-mention-chip[data-node-type="folder"],
+.chat-mention-chip--folder {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.chat-mention-chip[data-node-type="folder"] .chat-mention-chip-icon,
+.chat-mention-chip--folder .chat-mention-chip-icon {
+  color: rgba(245, 158, 11, 0.9);
+}
+
+/* Input chip variant — inline non-editable mention in contentEditable */
+.chat-mention-chip--input {
+  font-size: inherit;
+  line-height: 1.4;
+  vertical-align: baseline;
+  user-select: all;
+}

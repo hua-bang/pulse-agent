@@ -82,6 +82,15 @@ The workbench has exactly two side regions plus a modal tier:
   registers with the chat target broker (`chatPageTarget.ts`, retried for up
   to 5 s). Entering first showed the scope's previous chat until the swap. If
   the session fails, the launcher keeps the question and shows an error.
+  The ask box is a contentEditable field with the chat composer's `@` and
+  `/` popup (`modules/chat/mentionInput.ts`, a secondary entry so the popup
+  stays out of the startup chunk). The chat composer and this field share
+  `useMentionPopup`; the field keeps its own text, with no shared draft or
+  attachments. Picking a workspace scope asks the workbench to load its
+  nodes (`ensureWorkspaceNodesLoaded`, as the chat page does), so `@` lists
+  its cards. The chips' context (`collectEditableContext`) travels with the
+  prompt as `ChatPromptSubmission.context`, and the page's `useSubmitPrompt`
+  lays it over its own context.
   `useChatNavigation` commits the entry target with `flushSync` before it
   sets the location: wouter's location store
   re-renders synchronously, so the page otherwise mounted on the previous

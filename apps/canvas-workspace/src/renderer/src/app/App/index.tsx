@@ -387,6 +387,7 @@ const AppContent = () => {
           <HomeRouteView
             workspaces={workspaces}
             loadedNodes={workbench.allNodes}
+            onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
             onEnterChat={enterChatTarget}
             onOpenSession={openSessionInOwningScope}
             onOpenAllChats={openAllChats}

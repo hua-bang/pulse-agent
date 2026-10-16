@@ -11,6 +11,19 @@ const notify = vi.fn();
 vi.mock('../../../shared/appShell', () => ({
   useAppShell: () => ({ notify }),
 }));
+// The `@` popup also lists roles, apps and plugins; keep it to workspaces.
+vi.mock('../../../modules/chat/mentions/roleMentionItems', async (importOriginal) => ({
+  ...await importOriginal<object>(),
+  loadRoleMentionItems: async () => [],
+}));
+vi.mock('../../../modules/chat/mentions/appMentionItems', async (importOriginal) => ({
+  ...await importOriginal<object>(),
+  loadAppMentionItems: async () => [],
+}));
+vi.mock('../../../modules/chat/mentions/pluginMentionItems', async (importOriginal) => ({
+  ...await importOriginal<object>(),
+  loadInstalledPluginMentionItems: async () => [],
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,6 +52,7 @@ const props = {
   onOpenAllChats: vi.fn(),
   onOpenWorkspace: vi.fn(),
   onCreateWorkspace: vi.fn(),
+  onWorkspaceContextRequest: vi.fn(),
 };
 
 const render = async () => {
@@ -54,14 +68,26 @@ const render = async () => {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 };
 
+const field = () => host.querySelector<HTMLDivElement>('.launcher__ask-input')!;
+
+/** Types into the contentEditable field with the caret at the end. */
 const typeQuestion = async (value: string) => {
-  const input = host.querySelector<HTMLTextAreaElement>('.launcher__ask-input')!;
-  const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+  const input = field();
   await act(async () => {
-    setValue.call(input, value);
+    input.textContent = value;
+    const range = document.createRange();
+    range.setStart(input.firstChild!, value.length);
+    range.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
   return input;
+};
+
+const pressEnter = (input: HTMLElement) => {
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
 };
 
 beforeEach(() => {
@@ -153,7 +179,7 @@ describe('Launcher', () => {
   it('fills the composer from a starter', async () => {
     await render();
     await act(async () => host.querySelector<HTMLButtonElement>('.launcher__starter')!.click());
-    expect(host.querySelector<HTMLTextAreaElement>('.launcher__ask-input')!.value).toBe('Plan a product launch');
+    expect(field().textContent).toBe('Plan a product launch');
   });
 
   it('opens the chat page on a new session and sends once its composer registers', async () => {
@@ -166,7 +192,7 @@ describe('Launcher', () => {
     });
 
     await act(async () => {
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      pressEnter(input);
       await new Promise((resolve) => setTimeout(resolve, 400));
     });
 
@@ -178,7 +204,7 @@ describe('Launcher', () => {
       composerId: 'page:__global_chat__',
     }));
     expect(submitPrompt).toHaveBeenCalledWith({ text: 'plan my week', nodes: [] });
-    expect(input.value).toBe('');
+    expect(input.textContent).toBe('');
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -187,12 +213,46 @@ describe('Launcher', () => {
     await render();
     const input = await typeQuestion('plan my week');
 
-    await act(async () => {
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    });
+    await act(async () => pressEnter(input));
 
     expect(props.onEnterChat).not.toHaveBeenCalled();
-    expect(input.value).toBe('plan my week');
+    expect(input.textContent).toBe('plan my week');
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tone: 'error', description: 'disk full' }));
+  });
+
+  it('mentions a workspace with @ and sends it as the turn context', async () => {
+    await render();
+    const input = await typeQuestion('compare @Be');
+    const options = [...host.querySelectorAll('.chat-mention-popup [role="option"]')];
+    expect(options.map((option) => option.textContent)).toEqual([expect.stringContaining('Beta')]);
+
+    await act(async () => pressEnter(input));
+    expect(host.querySelector('.chat-mention-popup')).toBeNull();
+    expect(input.querySelector('.chat-mention-chip')?.textContent).toContain('Beta');
+
+    const submitPrompt = vi.fn().mockResolvedValue(true);
+    props.onEnterChat.mockImplementation((target) => broker.register(target, { submitPrompt }));
+    await act(async () => {
+      pressEnter(input);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(submitPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'compare @[canvas:Beta]',
+      context: expect.objectContaining({ canvases: [{ id: 'b', name: 'Beta' }] }),
+    }));
+  });
+
+  it('loads a workspace for its card mentions only once it is the picked scope', async () => {
+    await render();
+    expect(props.onWorkspaceContextRequest).not.toHaveBeenCalled();
+
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__scope .ui-select__trigger')!.click());
+    const beta = [...host.querySelectorAll<HTMLButtonElement>('.ui-select__option')]
+      .find((option) => option.textContent?.includes('Beta'))!;
+    await act(async () => beta.click());
+
+    expect(props.onWorkspaceContextRequest).toHaveBeenCalledWith('b');
+    expect((window as any).canvasWorkspace.store.load).not.toHaveBeenCalled();
   });
 });
