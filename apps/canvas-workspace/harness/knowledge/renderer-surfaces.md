@@ -120,13 +120,14 @@ The workbench has exactly two side regions plus a modal tier:
   and the RightDock is `hidden` on both routes: it stays mounted so terminals
   and chats survive, but shows no panel, strip, or reserved width. Guards: `Launcher/index.test.tsx`,
   `src/main/canvas/__tests__/summary.test.ts`.
-- **Brief entry.** Write the brief creates a localized Project brief note with
+- **Brief entry.** The empty-canvas hint loads on demand. Write the brief creates a localized Project brief note with
   Goal, Context, and Done when sections. It activates the existing file editor
   and focuses it when ready. After creation, a compact, dismissible row keeps
   Connect a project and Start a coding agent available for this mounted visit.
   It does not require completing onboarding. Guard: `CanvasOverlays.selection.test.ts`.
 - **Chat references.** Adding a canvas node to chat reveals it beside the actual
-  dock and canvas bounds. `useCanvasFit.revealNode` pans the viewport through
+  dock and canvas bounds. `useCanvasFit.revealNode` loads its observer only for
+  that action, then pans the viewport through
   dock reflow without changing scale, node positions, or selection. A pointer
   or wheel interaction releases that temporary visibility request. Guard:
   `modules/canvas/runtime/useCanvasFit.reveal.test.tsx`.

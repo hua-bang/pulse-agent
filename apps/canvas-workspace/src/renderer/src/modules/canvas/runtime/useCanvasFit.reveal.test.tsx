@@ -12,10 +12,11 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe('reference visibility beside the dock', () => {
   it.each([750, 600])('pans only the obscured reference using the measured dock edge %s', async (dockLeft) => {
     let resize = () => {};
+    const disconnected = vi.fn();
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: () => void) { resize = callback; }
       observe() {}
-      disconnect() {}
+      disconnect() { disconnected(); }
     });
     const canvas = document.createElement('div');
     canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }) as DOMRect;
@@ -37,7 +38,7 @@ describe('reference visibility beside the dock', () => {
     act(() => root.render(<Probe />));
     const node = { id: 'brief', x: 600, y: 180, width: 300, height: 350 } as CanvasNode;
     // Optional call lets the old hook demonstrate the missing behavior.
-    act(() => (api as any).revealNode?.(node, () => transform));
+    await act(async () => { await (api as any).revealNode?.(node, () => transform); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); resize(); });
     expect(node.x * transform.scale + transform.x + node.width * transform.scale).toBeLessThanOrEqual(dockLeft - 24);
     expect(transform.scale).toBe(initial.scale);
@@ -46,6 +47,8 @@ describe('reference visibility beside the dock', () => {
     setTransform.mockClear();
     act(() => resize());
     expect(setTransform).not.toHaveBeenCalled();
+    act(() => document.dispatchEvent(new WheelEvent('wheel', { bubbles: true })));
+    expect(disconnected).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
     canvas.remove();
     dock.remove();

@@ -67,49 +67,24 @@ export const useCanvasFit = (
 
   // Follow only this explicit reference action through dock reflow. Stop as
   // soon as the user interacts again; later navigation owns its own viewport.
-  const revealNode = useCallback((node: CanvasNode, getTransform: () => CanvasTransform) => {
+  const revealNode = useCallback(async (node: CanvasNode, getTransform: () => CanvasTransform) => {
     revealCleanup.current?.();
     const container = containerRef.current;
     if (!container) return;
-    let frame = 0;
-    const reveal = () => {
-      const rect = container.getBoundingClientRect();
-      const dock = document.querySelector<HTMLElement>('.right-dock[data-expanded="true"]');
-      const dockRect = dock?.getBoundingClientRect();
-      const right = dockRect && dockRect.bottom > rect.top && dockRect.top < rect.bottom
-        ? Math.min(rect.right, dockRect.left) : rect.right;
-      const width = right - rect.left;
-      if (width <= 48 || rect.height <= 48) return;
-      const current = getTransform();
-      const offset = (start: number, size: number, available: number) => {
-        const end = start + size;
-        if (size > available - 48) return (available - size) / 2 - start;
-        if (start < 24) return 24 - start;
-        return end > available - 24 ? available - 24 - end : 0;
-      };
-      const dx = offset(node.x * current.scale + current.x, node.width * current.scale, width);
-      const dy = offset(node.y * current.scale + current.y, node.height * current.scale, rect.height);
-      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-        setTransform({ ...current, x: current.x + dx, y: current.y + dy });
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    revealCleanup.current = cancel;
+    const options = { capture: true, once: true, signal: controller.signal };
+    document.addEventListener('pointerdown', cancel, options);
+    document.addEventListener('wheel', cancel, options);
+    try {
+      const { revealCanvasNode } = await import('./revealCanvasNode');
+      if (!controller.signal.aborted) {
+        revealCanvasNode(container, node, getTransform, setTransform, controller.signal);
       }
-    };
-    const observer = new ResizeObserver(reveal);
-    observer.observe(container);
-    const dock = document.querySelector<HTMLElement>('.right-dock');
-    if (dock) observer.observe(dock);
-    // A translated dock does not trigger ResizeObserver at transition end.
-    dock?.addEventListener('transitionend', reveal);
-    const cleanup = () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      dock?.removeEventListener('transitionend', reveal);
-      document.removeEventListener('pointerdown', cleanup, true);
-      document.removeEventListener('wheel', cleanup, true);
-    };
-    document.addEventListener('pointerdown', cleanup, true);
-    document.addEventListener('wheel', cleanup, true);
-    frame = requestAnimationFrame(reveal);
-    revealCleanup.current = cleanup;
+    } catch {
+      cancel();
+    }
   }, [containerRef, setTransform]);
 
   return { animating, handleFocusNode, fitAllNodes, revealNode };

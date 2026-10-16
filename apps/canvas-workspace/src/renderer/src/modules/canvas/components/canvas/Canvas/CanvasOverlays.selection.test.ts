@@ -76,9 +76,12 @@ describe('CanvasOverlays selection actions', () => {
     });
   };
 
-  it('creates a named editable brief and keeps dismissible next steps after the node appears', () => {
+  it('creates a named editable brief and keeps dismissible next steps after the node appears', async () => {
     const props = { ...baseProps(), nodes: [] as CanvasOverlaysProps['nodes'], onSetRootFolder: vi.fn() };
-    render(props);
+    await act(async () => {
+      render(props);
+      await import('../CanvasEmptyHint');
+    });
     act(() => [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent?.includes('Write the brief'))!.click());
     expect(props.onAddNode).toHaveBeenCalledWith('file', expect.objectContaining({
