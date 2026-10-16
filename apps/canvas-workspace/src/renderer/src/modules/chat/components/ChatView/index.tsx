@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import './index.css';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from '../ChatInput';
@@ -15,6 +15,7 @@ import type { ChatViewProps } from './types';
  * useChatStream + useChatSessions + useChatComposerInput.
  */
 export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) => {
+  const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const { className, header, beforeHeader, banner, onResizeStart } = chrome;
   const {
     pendingLabel, messages, agentScope, loading, sessionLoading = false, workspaceId, rootFolder,
@@ -134,10 +135,12 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
           if (nodeId) onNodeFocus?.(nodeId);
         }}
         editableRef={editableRef}
+        mentionAnchorRef={mentionAnchorRef}
         mentionOpen={mentionOpen}
         mentionIndex={mentionLoading || mentionItems.length === 0 ? -1 : mentionIndex}
         mentionPopup={mentionOpen ? (
           <ChatMentionPopup
+            anchorRef={mentionAnchorRef}
             mentionItems={mentionItems}
             mentionIndex={mentionIndex}
             isLoading={mentionLoading}
