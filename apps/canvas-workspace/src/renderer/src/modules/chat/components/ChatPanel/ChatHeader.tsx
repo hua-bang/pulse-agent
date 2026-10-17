@@ -27,6 +27,8 @@ interface ChatHeaderProps {
   otherSessions: OtherWorkspaceSession[];
   /** User-facing owner label used to distinguish the current scope. */
   scopeLabel?: string;
+  /** Shown beside the title so the reader knows what this chat works on. */
+  scopeBadge?: string;
   scopeStoreId?: string;
   onToggleSessionMenu: () => Promise<void>;
   onCloseSessionMenu: () => void;
@@ -56,6 +58,7 @@ export const ChatHeader = ({
   sessions,
   otherSessions,
   scopeLabel,
+  scopeBadge,
   scopeStoreId = '',
   onToggleSessionMenu,
   onCloseSessionMenu,
@@ -133,6 +136,7 @@ export const ChatHeader = ({
             </svg>
           )}
         </button>
+        {scopeBadge && <span className="chat-panel-scope-badge" title={scopeBadge}>{scopeBadge}</span>}
         {sessionMenuOpen && (
           <div
             ref={menuRef}

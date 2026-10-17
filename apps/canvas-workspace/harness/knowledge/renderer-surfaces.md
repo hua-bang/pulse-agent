@@ -222,10 +222,12 @@ The workbench has exactly two side regions plus a modal tier:
   mounted while collapsed. On workbench routes it reserves its width via
   the `--right-dock-inset` custom property consumed by `.app-body`, so it
   behaves like an in-flow column and page content remains fully visible.
-  Nodes and node-detail routes reuse this same chat pane with the global
-  agent scope. Their current knowledge node is passed as explicit
-  cross-workspace context; the Nodes list starts with no automatic context,
-  while Graph remains on the active workspace's chat.
+  Nodes, Graph and node-detail routes reuse this same chat pane with the
+  global agent scope, because all three show every workspace's nodes. The
+  detail page passes its node as explicit cross-workspace context; the Nodes
+  list and Graph start with no automatic context. The chat header shows the
+  current scope as a badge beside the title: the workspace name on Canvas,
+  "Knowledge" on these routes (`ChatHeader` `scopeBadge`).
   Workspace ChatPanels remain mounted but hidden while that global instance
   is visible, and the Nodes route itself is kept alive so filters and scroll
   survive a detail-page round trip.

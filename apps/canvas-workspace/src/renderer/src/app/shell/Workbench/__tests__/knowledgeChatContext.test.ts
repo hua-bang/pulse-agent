@@ -50,14 +50,17 @@ describe('resolveKnowledgeChatRouteContext', () => {
     });
   });
 
-  it('leaves Graph and Canvas on workspace-scoped chat', () => {
-    const selectedNode = { workspaceId: 'workspace-a', nodeId: 'node-3' };
-
+  it('uses knowledge chat on Graph without adding the selected node', () => {
     expect(resolveKnowledgeChatRouteContext({
       activeView: 'graph',
-      selectedNode,
+      selectedNode: { workspaceId: 'workspace-a', nodeId: 'node-3' },
       detailNode: null,
-    })).toEqual({ active: false, selectedNode: null });
+    })).toEqual({ active: true, selectedNode: null });
+  });
+
+  it('leaves Canvas on workspace-scoped chat', () => {
+    const selectedNode = { workspaceId: 'workspace-a', nodeId: 'node-3' };
+
     expect(resolveKnowledgeChatRouteContext({
       activeView: 'canvas',
       selectedNode,

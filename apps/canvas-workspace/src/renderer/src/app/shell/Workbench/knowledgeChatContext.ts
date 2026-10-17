@@ -63,6 +63,11 @@ export function resolveKnowledgeChatRouteContext({
   if (activeView === 'node-detail') {
     return { active: true, selectedNode: detailNode };
   }
+  // Graph shows every workspace's nodes, like the list, so it uses the same
+  // knowledge chat. Selecting a graph node never adds chat context.
+  if (activeView === 'graph') {
+    return { active: true, selectedNode: null };
+  }
   return { active: false, selectedNode: null };
 }
 

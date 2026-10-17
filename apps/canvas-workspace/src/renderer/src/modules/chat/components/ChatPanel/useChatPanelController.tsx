@@ -413,6 +413,7 @@ export const useChatPanelController = ({
           disabled={loading || sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
           scopeLabel={scopeLabel}
+          scopeBadge={knowledgeMode ? t('sidebar.nodes') : scopeLabel}
           scopeStoreId={scopeId}
           title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
