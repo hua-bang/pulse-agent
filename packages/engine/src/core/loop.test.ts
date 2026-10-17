@@ -993,4 +993,39 @@ describe('loop', () => {
       expect(streamTextAIMock).toHaveBeenCalledTimes(3);
     });
   });
+
+  describe('duplicate read notes', () => {
+    const readTool: Tool = {
+      name: 'read',
+      description: 'read',
+      inputSchema: {} as any,
+      execute: async () => ({ content: 'file body' }),
+    };
+    const editTool: Tool = {
+      name: 'edit',
+      description: 'edit',
+      inputSchema: {} as any,
+      execute: async () => ({ success: true }),
+    };
+
+    it('flags only a repeated range, and forgets a path after it is edited', async () => {
+      const outputs: any[] = [];
+      streamTextAIMock.mockImplementation((_messages: any, tools: Record<string, Tool>) => {
+        const text = (async () => {
+          const call = (name: string, input: unknown) => tools[name].execute(input, {});
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 0, limit: 100 }));
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 100, limit: 100 }));
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 0, limit: 100 }));
+          await call('edit', { filePath: '/a.ts', oldString: 'x', newString: 'y' });
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 0, limit: 100 }));
+          return 'done';
+        })();
+        return { text, steps: Promise.resolve([]), finishReason: Promise.resolve('stop') };
+      });
+
+      await loop({ messages: [{ role: 'user', content: 'page through' }] }, { tools: { read: readTool, edit: editTool } });
+
+      expect(outputs.map((output) => Boolean(output._note))).toEqual([false, false, true, false]);
+    });
+  });
 });

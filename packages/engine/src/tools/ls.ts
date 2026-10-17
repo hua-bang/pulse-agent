@@ -1,5 +1,5 @@
 import z from "zod";
-import { readdirSync } from "fs";
+import { readdir } from "fs/promises";
 import type { Tool } from "../shared/types";
 
 export const LsTool: Tool<
@@ -12,7 +12,7 @@ export const LsTool: Tool<
     path: z.string().optional().describe('The path to list files from (defaults to current directory)'),
   }),
   execute: async ({ path = '.' }) => {
-    const files = readdirSync(path);
+    const files = await readdir(path);
     return { files };
   },
 };

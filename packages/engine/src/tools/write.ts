@@ -1,5 +1,5 @@
 import z from "zod";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { access, mkdir, writeFile } from "fs/promises";
 import { dirname } from "path";
 import type { Tool } from "../shared/types";
 
@@ -15,18 +15,13 @@ export const WriteTool: Tool<
   }),
   execute: async ({ filePath, content }) => {
     // Check if file already exists
-    const fileExists = existsSync(filePath);
+    const fileExists = await access(filePath).then(() => true, () => false);
 
-    // Get the directory path
-    const dir = dirname(filePath);
-
-    // Create parent directories if they don't exist
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+    // Create parent directories if they don't exist (no-op when present)
+    await mkdir(dirname(filePath), { recursive: true });
 
     // Write the file
-    writeFileSync(filePath, content, 'utf-8');
+    await writeFile(filePath, content, 'utf-8');
 
     // Calculate bytes written
     const bytes = Buffer.byteLength(content, 'utf-8');

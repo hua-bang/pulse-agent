@@ -44,6 +44,17 @@ export const CoderAI = (USE_ANTHROPIC
     baseURL: OPENAI_API_URL,
   }).responses) as (model: string) => LanguageModel;
 
+// Injected by tsup at build time; absent when the engine runs from source.
+declare const __PULSE_ENGINE_VERSION__: string | undefined;
+const ENGINE_VERSION = typeof __PULSE_ENGINE_VERSION__ === 'string' ? __PULSE_ENGINE_VERSION__ : 'dev';
+
+/**
+ * User-Agent for the env-built Anthropic provider. Identifies this client
+ * honestly; gateways that require a specific value can set PULSE_USER_AGENT
+ * or pass `headers` to buildProvider.
+ */
+export const DEFAULT_USER_AGENT = readEnv(['PULSE_USER_AGENT'], `pulse-coder/${ENGINE_VERSION}`);
+
 export interface BuildProviderOptions {
   headers?: Record<string, string>;
   /** Override API key. Falls back to env (OPENAI_API_KEY / ANTHROPIC_API_KEY). */
@@ -54,8 +65,8 @@ export interface BuildProviderOptions {
 
 /**
  * Construct a LLMProviderFactory from a named ModelType using environment variables.
- * Both types use the OpenAI-compatible SDK since most proxies expose models via
- * the OpenAI-compatible endpoint (/v1/chat/completions).
+ * 'claude' uses the Anthropic SDK (Messages API); 'openai' uses the OpenAI SDK
+ * Responses API.
  *
  * Priority: project env (e.g. `OPENAI_API_KEY`) > global `PULSE_`-prefixed env
  * (e.g. `PULSE_OPENAI_API_KEY`) > default.
@@ -71,7 +82,7 @@ export function buildProvider(type: ModelType, options?: BuildProviderOptions): 
       apiKey: options?.apiKey ?? ANTHROPIC_API_KEY,
       baseURL: options?.baseURL ?? ANTHROPIC_API_URL,
       headers: {
-        'user-agent': 'claude-code/2.1.63',
+        'user-agent': DEFAULT_USER_AGENT,
         ...(options?.headers ?? {}),
       },
     }) as LLMProviderFactory;

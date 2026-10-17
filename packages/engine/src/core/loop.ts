@@ -243,16 +243,40 @@ export interface LoopOptions {
 }
 
 /**
- * Wraps read/ls tools to warn the model when it accesses the same path more than once.
- * The seenPaths map persists for the lifetime of a single loop() call.
+ * Wraps read/ls tools to warn the model when it repeats the same access.
+ * Keys include the requested range, so paging through a large file is not a
+ * repeat, and a write or edit forgets the path, so re-reading changed content
+ * is not flagged either. The seenPaths map lives for one loop() call.
  */
 function wrapToolsWithReadDedup(
   tools: Record<string, Tool>,
   seenPaths: Map<string, number>,
 ): Record<string, Tool> {
   const READ_TOOL_NAMES = new Set(['read', 'ls']);
+  const WRITE_TOOL_NAMES = new Set(['write', 'edit']);
+  const accessKey = (name: string, input: any): { path: string; key: string } => {
+    const path = String(input?.filePath ?? input?.path ?? name);
+    return { path, key: `${path}#${input?.offset ?? ''}:${input?.limit ?? ''}` };
+  };
+  const forgetPath = (path: string) => {
+    for (const key of seenPaths.keys()) {
+      if (key.startsWith(`${path}#`)) seenPaths.delete(key);
+    }
+  };
+
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
+    if (WRITE_TOOL_NAMES.has(name)) {
+      wrapped[name] = {
+        ...t,
+        execute: async (input: any, ctx: any) => {
+          const output = await t.execute(input, ctx);
+          if (typeof input?.filePath === 'string') forgetPath(input.filePath);
+          return output;
+        },
+      };
+      continue;
+    }
     if (!READ_TOOL_NAMES.has(name)) {
       wrapped[name] = t;
       continue;
@@ -260,12 +284,12 @@ function wrapToolsWithReadDedup(
     wrapped[name] = {
       ...t,
       execute: async (input: any, ctx: any) => {
-        const pathKey = input?.filePath ?? input?.path ?? name;
-        const count = seenPaths.get(pathKey) ?? 0;
-        seenPaths.set(pathKey, count + 1);
+        const { path, key } = accessKey(name, input);
+        const count = seenPaths.get(key) ?? 0;
+        seenPaths.set(key, count + 1);
         const output = await t.execute(input, ctx);
         if (count > 0) {
-          const note = `[You have already accessed "${pathKey}" ${count} time(s) in this session. Avoid redundant reads unless strictly necessary.]`;
+          const note = `[You have already accessed "${path}" with the same range ${count} time(s) in this session and it has not been modified since. Avoid redundant reads unless strictly necessary.]`;
           if (typeof output === 'string') return `${output}\n${note}`;
           if (output && typeof output === 'object') return { ...output, _note: note };
         }

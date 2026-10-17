@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 
-const DEFAULT_PROMPT = `
+// A function, not a constant: cwd, platform and date must be read per request,
+// not frozen at module load in long-running hosts.
+const buildDefaultPrompt = (): string => `
 You are Pulse Coder, the best coding agent on the planet.
 
 You are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
@@ -9,7 +11,7 @@ You are an interactive CLI tool that helps users with software engineering tasks
 ## Editing constraints
 - Default to ASCII when editing or creating files. Only introduce non-ASCII or other Unicode characters when there is a clear justification and the file already uses them.
 - Only add comments if they are necessary to make a non-obvious block easier to understand.
-- Try to use apply_patch for single file edits, but it is fine to explore other options to make the edit if it does not work well. Do not use apply_patch for changes that are auto-generated (i.e. generating package.json or running a lint or format command like gofmt) or when scripting is more efficient (such as search and replacing a string across a codebase).
+- Use the edit tool for targeted changes to existing files and write for new files or full rewrites. Do not hand-edit generated output (for example lockfiles or formatter results); regenerate it, and prefer a script through bash for mechanical changes across many files.
 
 ## Skills
 - If query matches an available skill's description or instruction [use skill], use the skill tool to get detailed instructions.
@@ -18,9 +20,9 @@ You are an interactive CLI tool that helps users with software engineering tasks
 
 ## Tool usage
 - Prefer specialized tools over shell for file operations:
-  - Use Read to view files, Edit to modify files, and Write only when needed.
-  - Use Glob to find files by name and Grep to search file contents.
-- Use Bash for terminal operations (git, bun, builds, tests, running scripts).
+  - Use read to view files, edit to modify files, and write only when needed.
+  - Use ls to list directories and grep to search file contents.
+- Use bash for terminal operations (git, builds, tests, running scripts).
 - Run tool calls in parallel when neither call needs the other’s output; otherwise run sequentially.
 
 ## Execution discipline
@@ -126,7 +128,7 @@ Example usage: Call clarify with a question, optional context, and optional defa
 Here is some useful information about the environment you are running in:
 <env>
   Working directory: ${process.cwd()}
-  Platform: darwin
+  Platform: ${process.platform}
   Today's date: ${new Date().toLocaleDateString()}
 </env>
 <files>
@@ -178,8 +180,17 @@ const loadAgentsPrompt = () => {
   }
 };
 
-export const generateSystemPrompt = () => {
-  return loadAgentsPrompt() ?? DEFAULT_PROMPT;
+/**
+ * Built-in prompt plus the project's AGENTS.md as an appended section. The
+ * file adds project rules; it does not replace tool usage, clarification and
+ * answer-format guidance.
+ */
+export const generateSystemPrompt = (): string => {
+  const base = buildDefaultPrompt();
+  const projectInstructions = loadAgentsPrompt();
+  return projectInstructions
+    ? `${base}\n\n## Project instructions (AGENTS.md)\n${projectInstructions}`
+    : base;
 };
 
 export default generateSystemPrompt;

@@ -1,5 +1,5 @@
 import z from "zod";
-import { readFileSync, existsSync, statSync } from "fs";
+import { readFile, stat } from "fs/promises";
 import type { Tool } from "../shared/types";
 import { truncateOutput } from "./utils";
 
@@ -15,19 +15,22 @@ export const ReadTool: Tool<
     limit: z.number().optional().describe('The number of lines to read. Only provide if the file is too large to read at once.'),
   }),
   execute: async ({ filePath, offset, limit }) => {
-    // Check if file exists
-    if (!existsSync(filePath)) {
+    // Check if file exists and is not a directory
+    const stats = await stat(filePath).catch(() => undefined);
+    if (!stats) {
       throw new Error(`File does not exist: ${filePath}`);
     }
-
-    // Check if it's a directory
-    const stats = statSync(filePath);
     if (stats.isDirectory()) {
       throw new Error(`Cannot read directory: ${filePath}. Use 'ls' tool to list directory contents.`);
     }
 
-    // Read the entire file
-    const content = readFileSync(filePath, 'utf-8');
+    // Read the entire file. A NUL byte near the start marks binary content,
+    // which would otherwise reach the model as replacement-character noise.
+    const buffer = await readFile(filePath);
+    if (buffer.subarray(0, 8192).includes(0)) {
+      throw new Error(`Cannot read binary file: ${filePath} (${stats.size} bytes).`);
+    }
+    const content = buffer.toString('utf-8');
     const lines = content.split('\n');
     const totalLines = lines.length;
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MockLanguageModelV3 } from 'ai/test';
 
 import { generateTextAI, summarizeMessages } from './index.js';
-import { DEFAULT_MODEL } from '../config/index.js';
+import { DEFAULT_MODEL, DEFAULT_USER_AGENT } from '../config/index.js';
 
 const usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
@@ -56,5 +56,12 @@ describe('generateTextAI request shaping', () => {
     await generateTextAI([{ role: 'user', content: 'plan' }], {}, { provider: () => model, modelType: 'claude' });
 
     expect(model.doGenerateCalls[0].maxOutputTokens).toBe(32768);
+  });
+});
+
+describe('provider identification', () => {
+  it('identifies as pulse-coder instead of another client', () => {
+    expect(DEFAULT_USER_AGENT).toMatch(/^pulse-coder\//);
+    expect(DEFAULT_USER_AGENT).not.toContain('claude-code');
   });
 });
