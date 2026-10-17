@@ -59,6 +59,12 @@
   padding: 16px 16px 44px 36px;
 }
 
+/* That 36px left padding is the block-handle gutter. On the full page it sits
+ * in the margin, so body text lines up with the title above it. */
+.node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__preview {
+  margin-left: -36px;
+}
+
 .node-detail-panel--dock .node-canvas-preview .note-tiptap-editor .ProseMirror {
   padding: 12px 12px 32px 24px;
 }

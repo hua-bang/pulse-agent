@@ -91,9 +91,29 @@
   gap: 8px;
 }
 
+/* Centered like the detail page, so wide windows do not strand the cards
+ * on the left. The scroller stays full width to keep its scrollbar at the
+ * window edge. */
+.workspace-nodes-page__top > *,
+.workspace-nodes-page__scroll > * {
+  max-width: 1240px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Column count and card order come from useMasonryColumns. */
 .workspace-node-grid {
-  column-width: 260px;
-  column-gap: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.workspace-node-grid__column {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .workspace-node-muted {
@@ -141,11 +161,6 @@
 
   .knowledge-node-search {
     width: 100%;
-  }
-
-  .workspace-node-grid {
-    column-width: auto;
-    columns: 1;
   }
 }
 

@@ -257,6 +257,17 @@
   overscroll-behavior: contain;
 }
 
+/* The detail body is much larger than a canvas card; center a small map in
+ * it. Auto margins fall back to the top-left once the map outgrows the view,
+ * so nothing is pushed out of scroll reach. */
+.node-canvas-preview--mindmap .mindmap-viewport {
+  display: flex;
+}
+
+.node-canvas-preview--mindmap .mindmap-content {
+  margin: auto;
+}
+
 .node-canvas-preview--mindmap.is-panning {
   cursor: grabbing;
   user-select: none;

@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
+import type { WorkspaceNodeListItem } from '../../../../types';
 import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui/Button';
 import { useI18n } from '../../../../i18n';
@@ -15,6 +17,7 @@ import {
   getNodeWorkspaceId,
   isKnowledgeNodeType,
 } from '../utils';
+import { distributeIntoColumns, useMasonryColumns } from './useMasonryColumns';
 import { useNodesPageController } from './useNodesPageController';
 // Shared Knowledge page tokens and layout; this page can open before any detail panel loads them.
 import '../index.css';
@@ -33,6 +36,58 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
     workspaces,
     aiEnabled: Boolean(onAskAi),
   });
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const columns = useMasonryColumns(gridRef);
+
+  const renderCard = (node: WorkspaceNodeListItem) => {
+    const tags = getNodeTags(node);
+    const workspaceId = getNodeWorkspaceId(node);
+    const title = getNodeTitle(node, t('workspaceNodes.untitled'));
+    const nodeContext = controller.nodeContext(node);
+    const contextSelected = controller.isContextSelected(node);
+    return (
+      <KnowledgeNodeCard
+        key={`${workspaceId}:${node.id}`}
+        node={node}
+        title={title}
+        typeLabel={getNodeTypeLabel(
+          node.type,
+          t,
+          t('workspaceNodes.genericNode'),
+        )}
+        updatedLabel={formatTime(
+          node.updatedAt,
+          t('workspaceNodes.noTimestamp'),
+          controller.dateLocale,
+        )}
+        tagLabels={tags.map(controller.tagLabel)}
+        contextLabel={node.workspaceName ?? workspaceId}
+        emptyPreviewLabel={t('workspaceNodes.noPreview')}
+        aiSummaryLabel={t('workspaceNodes.aiSummary')}
+        aiSummaryConfirmedLabel={t('workspaceNodes.aiSummaryConfirmed')}
+        aiSummarizeLabel={t('workspaceNodes.aiSummarize')}
+        aiChatLabel={t('workspaceNodes.aiChat')}
+        selectForAiLabel={t('workspaceNodes.selectForAi')}
+        deselectForAiLabel={t('workspaceNodes.deselectForAi')}
+        openLabel={t('workspaceNodes.openNodeTab', { title })}
+        selected={controller.isNodeSelected(node)}
+        contextSelected={contextSelected}
+        // Web nodes have no detail page, so they open as a web tab.
+        onOpen={() => (node.type === 'iframe'
+          ? dispatchOpenNode({ workspaceId, nodeId: node.id })
+          : dispatchOpenNodePage({ workspaceId, nodeId: node.id }))}
+        onToggleContextSelection={isKnowledgeNodeType(node.type) && onAskAi
+          ? () => controller.toggleAiSelection(node)
+          : undefined}
+        onAskAi={nodeContext && onAskAi
+          ? () => onAskAi({ nodes: [nodeContext] }, 'chat')
+          : undefined}
+        onSummarize={nodeContext && onAskAi
+          ? () => onAskAi({ nodes: [nodeContext] }, 'summarize')
+          : undefined}
+      />
+    );
+  };
 
   return (
     <main className="workspace-nodes-page">
@@ -95,56 +150,12 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
               <p>{t('workspaceNodes.emptyDescription')}</p>
             </div>
           )}
-          <div className="workspace-node-grid">
-            {controller.visibleNodes.map((node) => {
-              const tags = getNodeTags(node);
-              const workspaceId = getNodeWorkspaceId(node);
-              const title = getNodeTitle(node, t('workspaceNodes.untitled'));
-              const nodeContext = controller.nodeContext(node);
-              const contextSelected = controller.isContextSelected(node);
-              return (
-                <KnowledgeNodeCard
-                  key={`${workspaceId}:${node.id}`}
-                  node={node}
-                  title={title}
-                  typeLabel={getNodeTypeLabel(
-                    node.type,
-                    t,
-                    t('workspaceNodes.genericNode'),
-                  )}
-                  updatedLabel={formatTime(
-                    node.updatedAt,
-                    t('workspaceNodes.noTimestamp'),
-                    controller.dateLocale,
-                  )}
-                  tagLabels={tags.map(controller.tagLabel)}
-                  contextLabel={node.workspaceName ?? workspaceId}
-                  emptyPreviewLabel={t('workspaceNodes.noPreview')}
-                  aiSummaryLabel={t('workspaceNodes.aiSummary')}
-                  aiSummaryConfirmedLabel={t('workspaceNodes.aiSummaryConfirmed')}
-                  aiSummarizeLabel={t('workspaceNodes.aiSummarize')}
-                  aiChatLabel={t('workspaceNodes.aiChat')}
-                  selectForAiLabel={t('workspaceNodes.selectForAi')}
-                  deselectForAiLabel={t('workspaceNodes.deselectForAi')}
-                  openLabel={t('workspaceNodes.openNodeTab', { title })}
-                  selected={controller.isNodeSelected(node)}
-                  contextSelected={contextSelected}
-                  // Web nodes have no detail page, so they open as a web tab.
-                  onOpen={() => (node.type === 'iframe'
-                    ? dispatchOpenNode({ workspaceId, nodeId: node.id })
-                    : dispatchOpenNodePage({ workspaceId, nodeId: node.id }))}
-                  onToggleContextSelection={isKnowledgeNodeType(node.type) && onAskAi
-                    ? () => controller.toggleAiSelection(node)
-                    : undefined}
-                  onAskAi={nodeContext && onAskAi
-                    ? () => onAskAi({ nodes: [nodeContext] }, 'chat')
-                    : undefined}
-                  onSummarize={nodeContext && onAskAi
-                    ? () => onAskAi({ nodes: [nodeContext] }, 'summarize')
-                    : undefined}
-                />
-              );
-            })}
+          <div className="workspace-node-grid" ref={gridRef}>
+            {distributeIntoColumns(controller.visibleNodes, columns).map((column, index) => (
+              <div key={index} className="workspace-node-grid__column">
+                {column.map(renderCard)}
+              </div>
+            ))}
           </div>
           {controller.hasMore && (
             <div
