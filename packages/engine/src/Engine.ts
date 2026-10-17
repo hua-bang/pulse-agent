@@ -277,6 +277,7 @@ export class Engine {
       afterLLMCall: this.pluginManager.getHooks('afterLLMCall'),
       beforeToolCall: [...this.pluginManager.getHooks('beforeToolCall')],
       afterToolCall: [...this.pluginManager.getHooks('afterToolCall')],
+      onToolError: this.pluginManager.getHooks('onToolError'),
       onToolCall: this.pluginManager.getHooks('onToolCall'),
       onCompacted: this.pluginManager.getHooks('onCompacted'),
     };
@@ -609,6 +610,7 @@ export class Engine {
       context: options.context,
       beforeHooks: hooks.beforeToolCall ?? [],
       afterHooks: hooks.afterToolCall ?? [],
+      errorHooks: hooks.onToolError ?? [],
       toolContext: options.toolContext,
     };
     return executeToolWithHooks(tool, name, input, {

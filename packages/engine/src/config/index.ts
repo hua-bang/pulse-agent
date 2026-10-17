@@ -3,6 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { LanguageModel } from "ai";
 import type { ModelType, LLMProviderFactory } from '../shared/types.js';
+import { createTimedFetch } from '../ai/timed-fetch.js';
 
 dotenv.config({ quiet: true });
 
@@ -38,10 +39,12 @@ export const CoderAI = (USE_ANTHROPIC
   ? createAnthropic({
     apiKey: ANTHROPIC_API_KEY,
     baseURL: ANTHROPIC_API_URL,
+    fetch: createTimedFetch(),
   })
   : createOpenAI({
     apiKey: OPENAI_API_KEY,
     baseURL: OPENAI_API_URL,
+    fetch: createTimedFetch(),
   }).responses) as (model: string) => LanguageModel;
 
 // Injected by tsup at build time; absent when the engine runs from source.
@@ -61,6 +64,8 @@ export interface BuildProviderOptions {
   apiKey?: string;
   /** Override base URL. Falls back to env (OPENAI_API_URL / ANTHROPIC_API_URL). */
   baseURL?: string;
+  /** Base fetch. It is always wrapped by `createTimedFetch` for LLM call timing. */
+  fetch?: typeof fetch;
 }
 
 /**
@@ -85,12 +90,14 @@ export function buildProvider(type: ModelType, options?: BuildProviderOptions): 
         'user-agent': DEFAULT_USER_AGENT,
         ...(options?.headers ?? {}),
       },
+      fetch: createTimedFetch(options?.fetch),
     }) as LLMProviderFactory;
   }
   return createOpenAI({
     apiKey: options?.apiKey ?? OPENAI_API_KEY,
     baseURL: options?.baseURL ?? OPENAI_API_URL,
     headers: options?.headers,
+    fetch: createTimedFetch(options?.fetch),
   }).responses as LLMProviderFactory;
 }
 

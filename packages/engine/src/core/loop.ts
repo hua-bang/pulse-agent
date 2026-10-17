@@ -3,6 +3,7 @@ import type { Context, ClarificationRequest, Tool, LLMProviderFactory, SystemPro
 import type { EngineHookMap, OnCompactedEvent } from "../plugin/EnginePlugin.js";
 import { streamTextAI } from "../ai";
 import { createNestedToolExecutor, executeToolWithHooks, prepareToolPresentation } from './tool-execution.js';
+import { withLLMRequestTiming, type LLMRequestTiming } from '../ai/timed-fetch.js';
 import { maybeCompactContext, type CompactStats } from "../context";
 import { estimateTokens } from "../context/estimate.js";
 import {
@@ -169,6 +170,7 @@ export interface LoopHooks {
   afterLLMCall?: Array<EngineHookMap['afterLLMCall']>;
   beforeToolCall?: Array<EngineHookMap['beforeToolCall']>;
   afterToolCall?: Array<EngineHookMap['afterToolCall']>;
+  onToolError?: Array<EngineHookMap['onToolError']>;
   onToolCall?: Array<EngineHookMap['onToolCall']>;
   onCompacted?: Array<EngineHookMap['onCompacted']>;
 }
@@ -177,6 +179,9 @@ export interface CompactionEvent extends CompactStats {
   attempt: number;
   trigger: 'pre-loop' | 'length-retry';
   reason?: string;
+  /** Summarizer call start and compaction end, for duration tracing. */
+  startedAt?: number;
+  finishedAt?: number;
 }
 
 export interface LoopOptions {
@@ -309,6 +314,7 @@ function wrapToolsWithHooks(
   onToolExecutionStart?: (tool: ActiveToolExecution) => symbol,
   onToolExecutionEnd?: (token: symbol) => void,
   policyTools: Record<string, Tool> = tools,
+  errorHooks: Array<EngineHookMap['onToolError']> = [],
 ): Record<string, Tool> {
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
@@ -330,6 +336,7 @@ function wrapToolsWithHooks(
             context,
             beforeHooks,
             afterHooks,
+            errorHooks,
             validate: false, // Direct tool input is validated by the AI SDK.
             toolContext: ctx,
             createNestedTools: toolContext => createNestedToolExecutor({
@@ -337,6 +344,7 @@ function wrapToolsWithHooks(
               context,
               beforeHooks,
               afterHooks,
+              errorHooks,
               toolContext,
             }),
           });
@@ -369,6 +377,8 @@ async function emitCompactionEvent(
     attempt: number;
     reason?: string;
     stats?: CompactStats;
+    startedAt?: number;
+    finishedAt?: number;
   },
 ): Promise<void> {
   const event: CompactionEvent = {
@@ -381,6 +391,8 @@ async function emitCompactionEvent(
     beforeEstimatedTokens: params.stats?.beforeEstimatedTokens ?? estimateTokens(params.currentMessages),
     afterEstimatedTokens: params.stats?.afterEstimatedTokens ?? estimateTokens(params.newMessages),
     strategy: params.stats?.strategy ?? 'fallback',
+    startedAt: params.startedAt,
+    finishedAt: params.finishedAt,
   };
 
   if (options?.onCompacted) {
@@ -431,15 +443,20 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
   const compact = async (trigger: CompactionEvent['trigger'], force: boolean): Promise<'aborted' | boolean> => {
     if (consecutiveCompactions >= MAX_COMPACTION_ATTEMPTS) return false;
     if (!force && nextPreLoopFloor > 0 && estimateTokens(context.messages) < nextPreLoopFloor) return false;
+    let startedAt: number | undefined;
     const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
       force,
       provider,
       model: options?.model,
       modelType: options?.modelType,
       contextWindowTokens: options?.contextWindowTokens,
-      onStart: (info) => options?.onCompactionStart?.(info),
+      onStart: (info) => {
+        startedAt = Date.now();
+        options?.onCompactionStart?.(info);
+      },
       abortSignal: options?.abortSignal,
     });
+    const finishedAt = Date.now();
     if (options?.abortSignal?.aborted) return 'aborted';
     if (!didCompact || !newMessages) return false;
 
@@ -457,6 +474,8 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       attempt: totalCompactions,
       reason,
       stats,
+      startedAt,
+      finishedAt,
     });
     // Hosts usually apply the result in onCompacted. When none did, apply it
     // in place so the next request really uses the compacted history.
@@ -471,6 +490,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
     let firstChunkAt: number | undefined;
     let firstTextAt: number | undefined;
     let lastChunkAt: number | undefined;
+    // Filled by the provider's timed fetch; splits the first-chunk wait into
+    // "request -> response headers" and "headers -> first chunk".
+    const requestTiming: LLMRequestTiming = { attempts: 0 };
     let llmCallStarted = false;
 
     try {
@@ -549,6 +571,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         onToolExecutionStart,
         onToolExecutionEnd,
         policyTools,
+        loopHooks.onToolError ?? [],
       );
 
       // Prepare tool execution context
@@ -663,7 +686,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         }
         const messagesForLLM = context.messages;
 
-        const result = streamTextAI(messagesForLLM, tools, {
+        const result = withLLMRequestTiming(requestTiming, () => streamTextAI(messagesForLLM, tools, {
           abortSignal: llmAbortController.signal,
           toolExecutionContext: {
             ...toolExecutionContext,
@@ -719,7 +742,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
               options?.onToolInputEnd?.({ id: chunk.id });
             }
           },
-        });
+        }));
 
         // SDK result promises can remain pending when toModelOutput throws
         // during finish-step. Observe the actual stream as well, so a failed
@@ -775,11 +798,14 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             text,
             usage,
             model: options?.model,
+            requestId: requestTiming.requestId,
             timings: {
               requestStartAt,
+              responseHeadersAt: requestTiming.responseHeadersAt,
               firstChunkAt,
               firstTextAt,
               lastChunkAt,
+              httpAttempts: requestTiming.attempts || undefined,
             },
           });
         }
@@ -913,6 +939,11 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         });
       }
 
+      // Tell observers about the backoff wait before it starts, so traces
+      // show it as a span instead of an unexplained gap.
+      const retry = !isContextOverflowError(error) && errorCount + 1 < MAX_ERROR_COUNT && isRetryableError(error)
+        ? { attempt: errorCount + 1, delayMs: retryDelayMs(errorCount + 1) }
+        : undefined;
       if (llmCallStarted && loopHooks.afterLLMCall?.length) {
         try {
           for (const hook of loopHooks.afterLLMCall) {
@@ -923,11 +954,15 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
               usage: undefined,
               error,
               model: options?.model,
+              requestId: requestTiming.requestId,
+              retry,
               timings: {
                 requestStartAt,
+                responseHeadersAt: requestTiming.responseHeadersAt,
                 firstChunkAt,
                 firstTextAt,
                 lastChunkAt,
+                httpAttempts: requestTiming.attempts || undefined,
               },
             });
           }
@@ -958,7 +993,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       if (isRetryableError(error)) {
-        const delay = Math.min(2000 * Math.pow(2, errorCount - 1), 30000);
+        const delay = retryDelayMs(errorCount);
         try {
           await sleep(delay, options?.abortSignal);
         } catch (sleepError: any) {
@@ -1204,6 +1239,10 @@ export function isContextOverflowError(error: unknown): boolean {
     return false;
   }
   return messages.some((message) => CONTEXT_OVERFLOW_PATTERN.test(message));
+}
+
+function retryDelayMs(errorCount: number): number {
+  return Math.min(2000 * Math.pow(2, errorCount - 1), 30000);
 }
 
 function isRetryableError(error: any): boolean {

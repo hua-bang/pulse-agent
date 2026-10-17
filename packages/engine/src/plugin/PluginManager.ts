@@ -29,6 +29,7 @@ export class PluginManager {
     afterLLMCall: [],
     beforeToolCall: [],
     afterToolCall: [],
+    onToolError: [],
     onToolCall: [],
     onCompacted: [],
   };

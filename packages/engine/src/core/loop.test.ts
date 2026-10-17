@@ -346,6 +346,83 @@ describe('loop', () => {
     expect(streamTextAIMock).toHaveBeenCalledTimes(2);
   });
 
+  it('reports the coming backoff wait to afterLLMCall observers', async () => {
+    vi.useFakeTimers();
+
+    const retryableError = Object.assign(new Error('overloaded'), { status: 503 });
+    streamTextAIMock
+      .mockImplementationOnce(() => {
+        throw retryableError;
+      })
+      .mockImplementationOnce(() => ({
+        text: Promise.resolve('ok'),
+        steps: Promise.resolve([]),
+        finishReason: Promise.resolve('stop'),
+      }));
+    const afterLLMCall = vi.fn(async () => undefined);
+
+    const runPromise = loop({ messages: [{ role: 'user', content: 'hi' }] }, { hooks: { afterLLMCall: [afterLLMCall] } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    await runPromise;
+
+    expect(afterLLMCall).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      finishReason: 'error',
+      retry: { attempt: 1, delayMs: 2_000 },
+    }));
+    expect(afterLLMCall).toHaveBeenNthCalledWith(2, expect.objectContaining({ finishReason: 'stop' }));
+    expect((afterLLMCall.mock.calls[1] as any[])[0].retry).toBeUndefined();
+  });
+
+  it('reports no retry for errors the loop will not retry', async () => {
+    streamTextAIMock.mockImplementationOnce(() => {
+      throw Object.assign(new Error('bad request'), { status: 400 });
+    });
+    const afterLLMCall = vi.fn(async () => undefined);
+
+    await loop({ messages: [{ role: 'user', content: 'hi' }] }, { hooks: { afterLLMCall: [afterLLMCall] } });
+
+    expect(afterLLMCall).toHaveBeenCalledWith(expect.objectContaining({ finishReason: 'error' }));
+    expect((afterLLMCall.mock.calls[0] as any[])[0].retry).toBeUndefined();
+  });
+
+  it('fires onToolError when a tool throws and still propagates the error', async () => {
+    const failure = new Error('disk full');
+    const failingTool: Tool = {
+      name: 'save',
+      description: 'save',
+      inputSchema: {} as any,
+      execute: async () => {
+        throw failure;
+      },
+    };
+    let toolError: unknown;
+    streamTextAIMock.mockImplementation((_messages: any, tools: Record<string, Tool>, options: any) => ({
+      text: tools.save.execute({ path: 'a' }, { ...options.toolExecutionContext, toolCallId: 'call-1' })
+        .then(() => 'unexpected', (error: unknown) => {
+          toolError = error;
+          return 'handled';
+        }),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('stop'),
+    }));
+    const onToolError = vi.fn(async () => undefined);
+    const afterToolCall = vi.fn(async () => undefined);
+
+    await loop({ messages: [{ role: 'user', content: 'save' }] }, {
+      tools: { save: failingTool },
+      hooks: { onToolError: [onToolError], afterToolCall: [afterToolCall] },
+    });
+
+    expect(toolError).toBe(failure);
+    expect(afterToolCall).not.toHaveBeenCalled();
+    expect(onToolError).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'save',
+      input: { path: 'a' },
+      error: failure,
+      toolContext: expect.objectContaining({ toolCallId: 'call-1' }),
+    }));
+  });
+
   it('throws the original retryable LLM error after retries when requested', async () => {
     vi.useFakeTimers();
     try {
@@ -535,7 +612,10 @@ describe('loop', () => {
 
     const compacted = [{ role: 'assistant', content: '[COMPACTED_CONTEXT]\nshort summary' }];
     maybeCompactContextMock
-      .mockResolvedValueOnce({
+      .mockImplementationOnce(async (_context: Context, options: any) => {
+        options.onStart({ beforeMessageCount: 1, beforeEstimatedTokens: 1200 });
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return {
         didCompact: true,
         reason: 'summary',
         newMessages: compacted,
@@ -547,6 +627,7 @@ describe('loop', () => {
           afterEstimatedTokens: 300,
           strategy: 'summary',
         },
+        };
       })
       .mockResolvedValueOnce({ didCompact: false });
 
@@ -585,6 +666,9 @@ describe('loop', () => {
         newMessages: compacted,
       }),
     );
+    // Duration covers the summarizer call, so traces can draw it as a span.
+    const { event } = (onCompactedHook.mock.calls[0] as any[])[0];
+    expect(event.finishedAt - event.startedAt).toBeGreaterThanOrEqual(4);
     // The host callback did not apply the result, so the loop applied it in place.
     expect(context.messages).toEqual(compacted);
   });
