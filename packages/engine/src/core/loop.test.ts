@@ -959,25 +959,59 @@ describe('loop', () => {
       // Default cap is 2 consecutive compactions; three across the run must still be allowed.
       maybeCompactContextMock
         .mockResolvedValueOnce(compactedResult('first'))
-        .mockResolvedValueOnce({ didCompact: false })
         .mockResolvedValueOnce(compactedResult('second'))
-        .mockResolvedValueOnce({ didCompact: false })
         .mockResolvedValueOnce(compactedResult('third'))
         .mockResolvedValue({ didCompact: false });
-      const toolStep = {
+      // Each step adds a large tool exchange, so history grows past the
+      // post-compaction floor before the next pre-loop check.
+      const toolStep = () => ({
+        text: Promise.resolve(''),
+        steps: Promise.resolve([{ response: { messages: [{ role: 'assistant', content: 'x'.repeat(4000) }] } }]),
+        finishReason: Promise.resolve('tool-calls'),
+      });
+      streamTextAIMock
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(() => stopResult('finished'));
+      const onCompacted = vi.fn();
+      const onResponse = (messages: any[]) => { context.messages.push(...messages); };
+
+      await expect(loop(context, { onCompacted, onResponse })).resolves.toBe('finished');
+      expect(onCompacted).toHaveBeenCalledTimes(3);
+      expect(onCompacted.mock.calls.map(([, event]) => event.attempt)).toEqual([1, 2, 3]);
+    });
+
+    it('does not re-run pre-loop compaction until history grows after the last one', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'task' }] };
+      maybeCompactContextMock
+        .mockResolvedValueOnce(compactedResult('first'))
+        .mockResolvedValue(compactedResult('again'));
+      const toolStep = () => ({
         text: Promise.resolve(''),
         steps: Promise.resolve([{ response: { messages: [] } }]),
         finishReason: Promise.resolve('tool-calls'),
-      };
+      });
       streamTextAIMock
-        .mockImplementationOnce(() => toolStep)
-        .mockImplementationOnce(() => toolStep)
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(toolStep)
         .mockImplementationOnce(() => stopResult('finished'));
-      const onCompacted = vi.fn();
 
-      await expect(loop(context, { onCompacted })).resolves.toBe('finished');
-      expect(onCompacted).toHaveBeenCalledTimes(3);
-      expect(onCompacted.mock.calls.map(([, event]) => event.attempt)).toEqual([1, 2, 3]);
+      await expect(loop(context)).resolves.toBe('finished');
+      // One compaction; later steps added nothing, so no summarizer calls were spent.
+      expect(maybeCompactContextMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats throughput limits as rate limits, not prompt overflow', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'busy' }] };
+      const tpm = Object.assign(new Error('Request too large for gpt-4o on tokens per min (TPM): Limit 30000'), { statusCode: 429 });
+      const wrapped = Object.assign(new Error('Failed after 3 attempts. Last error: Request too large'), {
+        name: 'AI_RetryError',
+        lastError: tpm,
+      });
+      streamTextAIMock.mockImplementation(() => { throw wrapped; });
+
+      await expect(loop(context, { errorMode: 'throw' })).rejects.toBe(wrapped);
+      expect(maybeCompactContextMock).not.toHaveBeenCalledWith(context, expect.objectContaining({ force: true }));
     });
 
     it('stops resuming after repeated output-cap hits instead of looping forever', async () => {

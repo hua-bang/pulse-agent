@@ -417,6 +417,10 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
   // so a long agent run can compact again once it has made progress.
   let consecutiveCompactions = 0;
   let totalCompactions = 0;
+  // After a compaction, history must grow past this before the pre-loop check
+  // runs again. Without it, a result that stays above the trigger (one huge
+  // recent exchange) would cost a summarizer call on every step.
+  let nextPreLoopFloor = 0;
   let consecutiveOutputCapHits = 0;
   const seenPaths = new Map<string, number>();
 
@@ -426,6 +430,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
   const compact = async (trigger: CompactionEvent['trigger'], force: boolean): Promise<'aborted' | boolean> => {
     if (consecutiveCompactions >= MAX_COMPACTION_ATTEMPTS) return false;
+    if (!force && nextPreLoopFloor > 0 && estimateTokens(context.messages) < nextPreLoopFloor) return false;
     const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
       force,
       provider,
@@ -440,9 +445,13 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
     consecutiveCompactions++;
     totalCompactions++;
+    nextPreLoopFloor = Math.ceil((stats?.afterEstimatedTokens ?? estimateTokens(newMessages)) * 1.25);
     const history = context.messages;
+    // Snapshot first: a host may rewrite `history` in place inside onCompacted,
+    // and plugin hooks must still see the pre-compaction messages.
+    const previousMessages = [...history];
     await emitCompactionEvent(context, options, loopHooks, {
-      currentMessages: history,
+      currentMessages: previousMessages,
       newMessages,
       trigger,
       attempt: totalCompactions,
@@ -1175,13 +1184,26 @@ const MAX_OUTPUT_CAP_CONTINUES = 3;
 
 const CONTEXT_OVERFLOW_PATTERN = /prompt is too long|context[_ ]length[_ ]exceeded|maximum context length|exceeds? the context window|context window (?:is )?exceeded|input is too long|too many (?:input )?tokens|request too large|reduce the length of the messages/i;
 
-/** Prompt-overflow rejection from the provider (any status: gateways vary between 400 and 413). */
+const RATE_LIMIT_PATTERN = /rate limit|per[- ]minute|per min|\bTPM\b/i;
+
+/**
+ * Prompt-overflow rejection from the provider. Gateways use 400 or 413; a
+ * retry wrapper may hide the status on `lastError`/`cause`. Throughput limits
+ * (429, "tokens per minute") reuse similar words and are excluded.
+ */
 export function isContextOverflowError(error: unknown): boolean {
-  const status = (error as any)?.status ?? (error as any)?.statusCode;
-  if (typeof status === 'number' && status !== 400 && status !== 413) {
+  const candidates = [error, (error as any)?.lastError, (error as any)?.cause];
+  for (const candidate of candidates) {
+    const status = (candidate as any)?.status ?? (candidate as any)?.statusCode;
+    if (typeof status === 'number' && status !== 400 && status !== 413) {
+      return false;
+    }
+  }
+  const messages = collectErrorMessages(error);
+  if (messages.some((message) => RATE_LIMIT_PATTERN.test(message))) {
     return false;
   }
-  return collectErrorMessages(error).some((message) => CONTEXT_OVERFLOW_PATTERN.test(message));
+  return messages.some((message) => CONTEXT_OVERFLOW_PATTERN.test(message));
 }
 
 function isRetryableError(error: any): boolean {
