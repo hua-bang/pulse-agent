@@ -241,8 +241,12 @@ The workbench has exactly two side regions plus a modal tier:
   A Scheduled list row's Ask AI sends that task to the global chat as
   context (`scheduledTasks`, rendered for the model by
   `scheduled-task-context.ts`); it clears on any route change.
+  On the Skills page, the skill last shown in a dock tab is context for
+  whichever chat the page uses, while its tab stays open and it belongs to
+  the selected library (`usePublishOpenSkill` → `shared/skillChatContext.ts`,
+  rendered by `skill-context.ts`); leaving the page clears it.
   Context the agent receives is always shown as chips above the input,
-  including Canvas's selected nodes and the open MCP app (no remove button;
+  including Canvas's selected nodes, the open MCP app and the open skill (no remove button;
   they follow the page). `/chat` on the global scope offers the same knowledge node and
   tag @ mentions as the dock (`app/App/ChatRoute.tsx`, lazy so the node list
   stays off the startup chunk).

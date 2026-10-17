@@ -10,10 +10,10 @@ import type {
 
 export interface SelectedContextChip {
   key: string;
-  kind: 'node' | 'tag' | 'canvas' | 'app' | 'task';
+  kind: 'node' | 'tag' | 'canvas' | 'app' | 'task' | 'skill';
   nodeType?: CanvasNode['type'];
   label: string;
-  /** Page-owned context (the open app) follows the page, not the user. */
+  /** Page-owned context (the open app or skill) follows the page, not the user. */
   removable?: boolean;
 }
 

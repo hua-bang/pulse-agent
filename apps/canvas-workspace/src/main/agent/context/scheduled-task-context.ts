@@ -1,6 +1,6 @@
 import type { AgentContextScheduledTaskRef } from '../../../shared/scheduled';
 
-const promptLabel = (value: string): string => (
+export const promptLabel = (value: string): string => (
   value.replace(/[\r\n]+/g, ' ').replace(/`/g, "'").trim().slice(0, 200)
 );
 

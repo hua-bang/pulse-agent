@@ -111,6 +111,17 @@ export interface CanvasSkillEntry {
   resources?: Array<{ name: string; path: string }>;
 }
 
+/** A skill the user has open beside the chat on the Skills page. */
+export interface AgentContextSkillRef {
+  name: string;
+  scope: CanvasSkillEntry['scope'];
+  path: string;
+}
+
+export interface AgentContextSkills {
+  skills?: AgentContextSkillRef[];
+}
+
 export interface CanvasSkillsStatus {
   scope: 'global' | 'workspace';
   dir: string;

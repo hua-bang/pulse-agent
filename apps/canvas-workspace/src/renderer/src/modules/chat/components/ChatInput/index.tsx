@@ -55,6 +55,7 @@ const chipIconType = (chip: SelectedContextChip): string => {
   if (chip.kind === 'canvas') return 'workspace';
   if (chip.kind === 'app') return 'iframe';
   if (chip.kind === 'task') return 'scheduled';
+  if (chip.kind === 'skill') return 'skill';
   return chip.nodeType ?? 'file';
 };
 
@@ -183,7 +184,10 @@ export const ChatInput = ({
                 ? t('chat.askKnowledgeScope')
                 : t('chat.askKnowledge'))
             : contextComposer
-              ? (contextChips.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
+              // Page context (an open app or skill) is not a node selection.
+              ? (contextChips.some(chip => chip.removable !== false)
+                ? t('chat.askSelectedNodes')
+                : t('chat.askCanvas'))
             : (loading ? t('chat.generatingPlaceholder') : t('chat.askAnything')))}
           onInput={onInput}
           onKeyDown={onKeyDown}

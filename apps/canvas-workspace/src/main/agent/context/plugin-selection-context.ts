@@ -1,5 +1,6 @@
 import { formatMcpAppChatContext } from '../mcp-apps/mcp-app-chat-context';
 import { formatScheduledTaskContextBlock } from './scheduled-task-context';
+import { formatSkillContextBlock } from './skill-context';
 import type { AgentRequestContext } from '../../../shared/agent-chat';
 import type { AgentContextPluginRef } from '../../../shared/agent-chat';
 
@@ -24,11 +25,12 @@ export function formatSelectedPluginsBlock(
   return lines.join('\n');
 }
 
-/** User-selected capabilities, the visible App and the scheduled tasks asked
- * about are all turn-owned context. */
+/** User-selected capabilities, the visible App, the scheduled tasks asked
+ * about and the open skills are all turn-owned context. */
 export function formatSelectedAppAndPluginsBlock(context?: AgentRequestContext): string {
   return formatSelectedPluginsBlock(context?.plugins) + (context?.mcpAppMentions?.length
     ? context.mcpAppMentions.map(app => formatMcpAppChatContext(app, true)).join('')
     : formatMcpAppChatContext(context?.mcpAppContext))
-    + formatScheduledTaskContextBlock(context?.scheduledTasks);
+    + formatScheduledTaskContextBlock(context?.scheduledTasks)
+    + formatSkillContextBlock(context?.skills);
 }

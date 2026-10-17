@@ -10,6 +10,7 @@ import type {
 import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
 import type { SelectedContextChip } from '../../ChatComposer/types';
 import { useGlobalMcpApps } from '../../../../mcp-apps/global-apps';
+import { useOpenSkillChatContext } from '../../../../../shared/skillChatContext';
 
 interface Options {
   nodes?: CanvasNode[];
@@ -46,11 +47,18 @@ export const useChatPanelContext = ({
   // so it is shown too.
   const { running, activeKey } = useGlobalMcpApps();
   const activeAppTitle = running.find(app => app.key === activeKey)?.listing.title;
+  const openSkill = useOpenSkillChatContext();
   const selectedContext = useMemo<SelectedContextChip[]>(() => [
     ...(activeAppTitle ? [{
       key: `app:${activeKey}`,
       kind: 'app' as const,
       label: activeAppTitle,
+      removable: false,
+    }] : []),
+    ...(openSkill ? [{
+      key: `skill:${openSkill.path}`,
+      kind: 'skill' as const,
+      label: openSkill.name,
       removable: false,
     }] : []),
     ...contextRefs.map(ref => ({
@@ -74,16 +82,17 @@ export const useChatPanelContext = ({
       kind: 'tag' as const,
       label: tag.name,
     })),
-  ], [activeAppTitle, activeKey, contextCanvases, contextRefs, contextScheduledTasks, contextTags]);
+  ], [activeAppTitle, activeKey, contextCanvases, contextRefs, contextScheduledTasks, contextTags, openSkill]);
   const requestContext = useMemo<AgentRequestContext>(() => ({
     executionMode,
-    // The app chip is page context, not a selection.
-    scope: selectedContext.some(chip => chip.kind !== 'app') ? 'selected_nodes' : 'current_canvas',
+    // App and skill chips are page context, not a selection.
+    scope: selectedContext.some(chip => chip.removable !== false) ? 'selected_nodes' : 'current_canvas',
     selectedNodes: contextRefs,
     tags: contextTags,
     canvases: contextCanvases,
     scheduledTasks: contextScheduledTasks,
-  }), [contextCanvases, contextRefs, contextScheduledTasks, contextTags, executionMode, selectedContext]);
+    skills: openSkill ? [openSkill] : undefined,
+  }), [contextCanvases, contextRefs, contextScheduledTasks, contextTags, executionMode, openSkill, selectedContext]);
 
   return { contextRefs, requestContext, selectedContext };
 };

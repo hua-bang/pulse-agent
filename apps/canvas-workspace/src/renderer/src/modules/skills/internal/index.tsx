@@ -22,6 +22,7 @@ import { SkillList } from './SkillList';
 import { SkillsLibraryLoading } from './SkillsLibraryLoading';
 import { SkillsLibraryHeader } from './SkillsLibraryHeader';
 import { SkillsLibraryTabs } from './SkillsLibraryTabs';
+import { usePublishOpenSkill } from './usePublishOpenSkill';
 import type { DisplaySkill, LibraryContext, ScopeView } from './types';
 import './index.css';
 interface Props {
@@ -60,6 +61,7 @@ export const SkillsLibrary = ({
     ? libraryContext.workspaceId
     : activeWorkspaceId;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === workspaceContextId);
+  usePublishOpenSkill(globalPerspective ? null : workspaceContextId);
 
   useEffect(() => {
     onLibraryKindChange?.(libraryContext.kind);
