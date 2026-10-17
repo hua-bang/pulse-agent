@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import "./index.css";
+import './index.css';
 import { DynamicAppInspector } from "./Inspector";
 import type { CanvasNode, DynamicAppNodeData } from "../../../../../types";
 
