@@ -8,6 +8,7 @@ import type {
 } from '../../../../../types';
 import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
 import type { SelectedContextChip } from '../../ChatComposer/types';
+import { useGlobalMcpApps } from '../../../../mcp-apps/global-apps';
 
 interface Options {
   nodes?: CanvasNode[];
@@ -38,7 +39,17 @@ export const useChatPanelContext = ({
       type: node.type,
     }));
   }, [contextNodes, derivedSelectedNodes]);
+  // The open MCP app's context is sent with every turn (collectEditableContext),
+  // so it is shown too.
+  const { running, activeKey } = useGlobalMcpApps();
+  const activeAppTitle = running.find(app => app.key === activeKey)?.listing.title;
   const selectedContext = useMemo<SelectedContextChip[]>(() => [
+    ...(activeAppTitle ? [{
+      key: `app:${activeKey}`,
+      kind: 'app' as const,
+      label: activeAppTitle,
+      removable: false,
+    }] : []),
     ...contextRefs.map(ref => ({
       key: `node:${ref.workspaceId ?? ''}:${ref.id}`,
       kind: 'node' as const,
@@ -55,14 +66,15 @@ export const useChatPanelContext = ({
       kind: 'tag' as const,
       label: tag.name,
     })),
-  ], [contextCanvases, contextRefs, contextTags]);
+  ], [activeAppTitle, activeKey, contextCanvases, contextRefs, contextTags]);
   const requestContext = useMemo<AgentRequestContext>(() => ({
     executionMode,
-    scope: selectedContext.length > 0 ? 'selected_nodes' : 'current_canvas',
+    // The app chip is page context, not a selection.
+    scope: selectedContext.some(chip => chip.kind !== 'app') ? 'selected_nodes' : 'current_canvas',
     selectedNodes: contextRefs,
     tags: contextTags,
     canvases: contextCanvases,
-  }), [contextCanvases, contextRefs, contextTags, executionMode, selectedContext.length]);
+  }), [contextCanvases, contextRefs, contextTags, executionMode, selectedContext]);
 
   return { contextRefs, requestContext, selectedContext };
 };

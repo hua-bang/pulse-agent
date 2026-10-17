@@ -231,9 +231,16 @@ The workbench has exactly two side regions plus a modal tier:
   Ask AI header button; the Nodes list and Graph start with no automatic
   context. The chat header shows the scope as a badge beside the title: the
   workspace name on Canvas, "General" elsewhere (`ChatHeader` `scopeBadge`).
+  The Skills page follows its library selector: one canvas's library keeps
+  that canvas's chat (its skills and skill tools live there), the global
+  library uses the global chat. On routes with the global chat, insertions
+  made while the dock is collapsed open that chat instead of a hidden
+  workspace chat (`useChatInsertionBridge` `waitForGlobalChat`). A scheduled
+  task chat shows a "Back to page chat" bar and closes on any route change
+  (`closeScheduledChat`).
   Context the agent receives is always shown as chips above the input,
-  including Canvas's selected nodes (no remove button; they follow the
-  selection). `/chat` on the global scope offers the same knowledge node and
+  including Canvas's selected nodes and the open MCP app (no remove button;
+  they follow the page). `/chat` on the global scope offers the same knowledge node and
   tag @ mentions as the dock (`app/App/ChatRoute.tsx`, lazy so the node list
   stays off the startup chunk).
   Workspace ChatPanels remain mounted but hidden while that global instance

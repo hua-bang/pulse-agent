@@ -51,6 +51,12 @@ interface ChatInputProps {
   onMentionNavigate?: (chip: HTMLElement) => void;
 }
 
+const chipIconType = (chip: SelectedContextChip): string => {
+  if (chip.kind === 'canvas') return 'workspace';
+  if (chip.kind === 'app') return 'iframe';
+  return chip.nodeType ?? 'file';
+};
+
 export const ChatInput = ({
   loading,
   input,
@@ -128,10 +134,10 @@ export const ChatInput = ({
                 <span className="chat-context-chip-icon">
                   {chip.kind === 'tag'
                     ? <span className="chat-context-chip-hash">#</span>
-                    : <MentionNodeIcon nodeType={chip.kind === 'canvas' ? 'workspace' : (chip.nodeType ?? 'file')} size={13} />}
+                    : <MentionNodeIcon nodeType={chipIconType(chip)} size={13} />}
                 </span>
                 <span className="chat-context-chip-label">{chip.label}</span>
-                {onRemoveContext && (
+                {onRemoveContext && chip.removable !== false && (
                   <button
                     type="button"
                     className="chat-context-chip-remove"

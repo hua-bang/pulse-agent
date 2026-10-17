@@ -10,9 +10,11 @@ import type {
 
 export interface SelectedContextChip {
   key: string;
-  kind: 'node' | 'tag' | 'canvas';
+  kind: 'node' | 'tag' | 'canvas' | 'app';
   nodeType?: CanvasNode['type'];
   label: string;
+  /** Page-owned context (the open app) follows the page, not the user. */
+  removable?: boolean;
 }
 
 export interface UseChatComposerInputOptions {

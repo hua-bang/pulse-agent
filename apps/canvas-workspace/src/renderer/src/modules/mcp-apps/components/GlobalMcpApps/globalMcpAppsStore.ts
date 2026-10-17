@@ -27,6 +27,8 @@ export interface GlobalMcpAppsSnapshot {
   error?: string;
   /** Opened apps, in opening order. Each keeps one live view until closed. */
   running: RunningGlobalMcpApp[];
+  /** The app on screen; its context rides along with every chat turn. */
+  activeKey?: string | null;
 }
 
 export const globalMcpAppKey = ({ serverName, toolName }: GlobalMcpAppTarget): string => (
@@ -45,7 +47,11 @@ export class GlobalMcpAppsStore {
   private activeKey: string | null = null;
   private contexts = new Map<RunningGlobalMcpApp, AgentContextMcpAppSnapshot['snapshots']>();
 
-  setActive(key: string | null): void { this.activeKey = key; }
+  setActive(key: string | null): void {
+    if (this.activeKey === key) return;
+    this.activeKey = key;
+    this.commit({ activeKey: key });
+  }
 
   publishContext(app: RunningGlobalMcpApp, source: McpAppContextSource, context: unknown): void {
     if (!this.snapshot.running.includes(app)) return;
