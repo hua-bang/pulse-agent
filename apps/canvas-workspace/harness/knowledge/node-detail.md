@@ -35,9 +35,14 @@ hosts rather than gated behind the less-visited one.
 
 `NodeDetailPanel` takes a `mode?: 'page' | 'dock'` prop (default `'dock'`)
 and switches several sibling components on it and on the descriptor's
-`layout` (see below): the back button, the inline AI-insight block, whether
-`NodeDetailSupplementary` (Relations/Info disclosures) renders, and whether
-the page-only `NodeDetailContextRail` renders.
+`layout` (see below): the back button, the inline AI-insight block, and
+whether the page-only `NodeDetailContextRail` renders.
+
+Tags are the only metadata the detail surfaces expose. Source, Relations and
+Info sections were removed (2026-10-17) to keep the surface to one concept;
+`links` stay in the record and still feed the graph. The page rail renders
+only for a document node with a confirmed AI summary; otherwise the layout
+gets `node-detail-panel__layout--single` and centers one 720px column.
 
 ## Entering the page: the `RightDock.enterNodePage` contract
 
@@ -89,29 +94,22 @@ pass a second, potentially contradictory presentation string — every host
 asks this one table.
 
 Current shape (`NodeDetailDescriptor`): `surface: 'document' | 'web' |
-'mindmap'`, `layout: 'document' | 'workspace'`, `metadata: 'inline' |
-'inspector'`, `selectEmbeddedNode: boolean`, `backgroundPan: boolean`.
+'mindmap'`, `layout: 'document' | 'workspace'`, `selectEmbeddedNode:
+boolean`, `backgroundPan: boolean`.
 `getNodeDetailDescriptor(type)` returns `WEB_DETAIL` for `'iframe'`,
 `MINDMAP_DETAIL` for `'mindmap'`, and `DOCUMENT_DETAIL` otherwise.
 
 Policy per type:
 
 - **File/Text and other document-like records** use the generic document
-  layout (`layout: 'document'`, `metadata: 'inline'`) — plain metadata
-  inline, no rich embedded surface.
+  layout (`layout: 'document'`) — no rich embedded surface.
 - **Web (`iframe`) and Mindmap** are rich working surfaces
-  (`layout: 'workspace'`, `metadata: 'inspector'`): the real node body fills
-  the remaining area, compact metadata lives behind the header Info
-  inspector instead of inline, and generic Relations/Info/context-rail
-  chrome stays absent for these types.
+  (`layout: 'workspace'`): the real node body fills the remaining area and
+  the context rail stays absent.
   - `NodeDetailPanel` derives `isRichDetail = detail.layout === 'workspace'`
-    and gates `NodeDetailSupplementary` (Relations/Info disclosures) and the
-    page-only `NodeDetailContextRail` behind `!isRichDetail`; it also adds
-    `node-detail-panel--rich node-detail-panel--<surface>` classes when rich.
-  - The Info inspector itself lives in
-    `src/renderer/src/modules/workspace-nodes/internal/NodeDetailHeader.tsx`
-    (`metadata === 'inspector'` branch, backed by
-    `NodeDetailInspector.tsx`).
+    and gates the page-only `NodeDetailContextRail` behind `!isRichDetail`;
+    it also adds `node-detail-panel--rich node-detail-panel--<surface>`
+    classes when rich.
 - **Web** retains its iframe navigation bar on the full page. In the dock, a
   URL-mode Web node opens as an ordinary dock web tab, not a node-detail tab:
   `getWebNodeUrl` (`src/renderer/src/utils/webNode.ts`) decides, and the
@@ -121,8 +119,9 @@ Policy per type:
 - **Dock tabs are compact for every type** (`compactDocument`, set by
   `NodeDetailDockTab`; class `node-detail-panel--compact-dock`): a quiet
   heading plus Ask AI and a More button in the header, and the body fills the
-  rest. Tags, relations, info, the AI summary and the open-page / locate /
-  copy-link actions live in the More inspector. File tabs
+  rest. Tags, the AI summary and the open-page / locate / copy-link actions
+  live in the More inspector (`NodeDetailHeader`, backed by
+  `NodeDetailInspector`). File tabs
   (`node-detail-panel--document-dock`) also hide the title field, because the
   document body opens with its own heading.
 - **Mindmap** retains selected-topic editing, pointer-event background pan,
@@ -199,8 +198,8 @@ events, never host callbacks threaded down through the shared panel:
 - `src/renderer/src/modules/workspace-nodes/internal/useNodeDetailBridges.ts`
   (`useNodeDetailBridges`) carries page↔canvas travel, including
   `FOCUS_NODE_ON_CANVAS_EVENT`;
-- `dispatchOpenNode` (`src/renderer/src/utils/openNodeBridge.ts`) is used for
-  relation rows.
+- `dispatchOpenNode` (`src/renderer/src/utils/openNodeBridge.ts`) opens a node
+  from a mention or a Web list card.
 
 `openNodeBridge.ts` also defines the sibling events `useNodeDetailBridges`
 listens for: `OPEN_NODE_PAGE_EVENT` (`dispatchOpenNodePage`) to drill into a

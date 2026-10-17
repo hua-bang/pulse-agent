@@ -1,6 +1,6 @@
 import './index.css';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { dispatchFocusNodeOnCanvas, nodeLinkHref } from '../../../../utils/openNodeBridge';
 import { CopyIcon, ListLinesIcon, NodeTypeIcon } from '../../../../components/icons';
@@ -11,21 +11,17 @@ import { NodeTitleEditor } from '../NodeTitleEditor';
 import { getNodeTypeLabel, isKnowledgeNodeType } from '../utils';
 
 interface Props {
-  candidates: WorkspaceNodeListItem[];
   compact?: boolean;
   /** Hide the title field (a document's body already opens with its heading). */
   hideTitle?: boolean;
   action?: ReactNode;
   inspectorContent?: ReactNode;
-  dateLocale: string;
-  metadata: 'inline' | 'inspector';
   mode: 'page' | 'dock';
   node: WorkspaceNodeRecord;
   onNodePatched?: (next: WorkspaceNodeRecord) => void;
   onOpenPage?: () => void;
   onTagsChanged?: () => void;
   readOnly: boolean;
-  source: string;
   tagDefinitions: KnowledgeTagDefinition[];
   tags: string[];
   workspaceId: string;
@@ -38,14 +34,6 @@ const TargetGlyph = () => (
   </svg>
 );
 
-const InfoGlyph = () => (
-  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <circle cx="7" cy="7" r="5.4" stroke="currentColor" strokeWidth="1.2" />
-    <path d="M7 6.2v3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    <circle cx="7" cy="4.25" r="0.75" fill="currentColor" />
-  </svg>
-);
-
 const MoreGlyph = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
     <circle cx="3.5" cy="8" r="1.2" fill="currentColor" />
@@ -55,20 +43,16 @@ const MoreGlyph = () => (
 );
 
 export const NodeDetailHeader = ({
-  candidates,
   compact,
   hideTitle = false,
   action,
   inspectorContent,
-  dateLocale,
-  metadata,
   mode,
   node,
   onNodePatched,
   onOpenPage,
   onTagsChanged,
   readOnly,
-  source,
   tagDefinitions,
   tags,
   workspaceId,
@@ -123,18 +107,18 @@ export const NodeDetailHeader = ({
                 <ListLinesIcon size={13} />
               </Button>
             )}
-            {metadata === 'inspector' && (
+            {compact && (
               <Button
                 ref={inspectorButtonRef}
                 variant="icon"
                 size="xs"
-                aria-label={compact ? t('workspaceNodes.moreActions') : t('workspaceNodes.info')}
+                aria-label={t('workspaceNodes.moreActions')}
                 aria-expanded={inspectorOpen}
                 aria-controls={inspectorId}
-                title={compact ? t('workspaceNodes.moreActions') : t('workspaceNodes.info')}
+                title={t('workspaceNodes.moreActions')}
                 onClick={() => setInspectorOpen((current) => !current)}
               >
-                {compact ? <MoreGlyph /> : <InfoGlyph />}
+                <MoreGlyph />
               </Button>
             )}
             {!compact && <div className="node-detail-panel__actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
@@ -174,43 +158,34 @@ export const NodeDetailHeader = ({
           </div>
         </div>}
       </header>
-      {inspectorOpen && metadata === 'inspector' && (
+      {inspectorOpen && compact && (
         <NodeDetailInspector
           anchorRef={inspectorButtonRef}
-          candidates={candidates}
-          dateLocale={dateLocale}
-          node={node}
           onClose={() => setInspectorOpen(false)}
-          onNodePatched={onNodePatched}
           panelId={inspectorId}
-          readOnly={readOnly}
-          source={source}
-          title={compact ? t('workspaceNodes.moreActions') : undefined}
-          workspaceId={workspaceId}
+          title={t('workspaceNodes.moreActions')}
         >
-          {compact && (
-            <div className="node-detail-panel__inspector-actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
-              {onOpenPage && (
-                <Button size="xs" onClick={onOpenPage}>
-                  <ListLinesIcon size={13} />
-                  <span>{t('workspaceNodes.goToDetail')}</span>
-                </Button>
-              )}
-              <Button size="xs" onClick={() => dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id })}>
-                <TargetGlyph />
-                <span>{t('workspaceNodes.openOnCanvas')}</span>
+          <div className="node-detail-panel__inspector-actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
+            {onOpenPage && (
+              <Button size="xs" onClick={onOpenPage}>
+                <ListLinesIcon size={13} />
+                <span>{t('workspaceNodes.goToDetail')}</span>
               </Button>
-              <Button size="xs" aria-label={copyLabel} onClick={() => { void copyNodeLink(); }}>
-                <CopyIcon size={12} />
-                <span>{copyLabel}</span>
-              </Button>
-            </div>
-          )}
+            )}
+            <Button size="xs" onClick={() => dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id })}>
+              <TargetGlyph />
+              <span>{t('workspaceNodes.openOnCanvas')}</span>
+            </Button>
+            <Button size="xs" aria-label={copyLabel} onClick={() => { void copyNodeLink(); }}>
+              <CopyIcon size={12} />
+              <span>{copyLabel}</span>
+            </Button>
+          </div>
           {inspectorContent}
-          {compact && <div className="node-detail-panel__inspector-section">
+          <div className="node-detail-panel__inspector-section">
             <NodeTagEditor node={node} workspaceId={workspaceId} tags={tags} tagDefinitions={tagDefinitions}
               readOnly={readOnly} onNodePatched={onNodePatched} onTagsChanged={onTagsChanged} />
-          </div>}
+          </div>
         </NodeDetailInspector>
       )}
     </>

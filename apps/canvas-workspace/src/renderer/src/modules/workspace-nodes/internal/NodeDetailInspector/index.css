@@ -38,19 +38,3 @@
   border-top: 1px solid var(--nodes-border);
 }
 
-.node-detail-panel__inspector-section h2 {
-  margin: 0;
-  color: var(--nodes-faint);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.node-detail-panel__inspector .node-detail-panel__property-row {
-  min-height: 30px;
-  grid-template-columns: minmax(72px, 96px) 1fr;
-  border: 0;
-  font-size: 11px;
-}
-

@@ -5,13 +5,11 @@ import { ChevronRightIcon, SparklesIcon } from '../../../components/icons';
 import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeDetailContextRail } from './NodeDetailContextRail';
 import { NodeDetailHeader } from './NodeDetailHeader';
-import { NodeDetailSupplementary } from './NodeDetailSupplementary';
 import { Button } from '../../../components/ui';
 import { getNodeAiSummary, getNodeTags } from './utils';
 import { getNodeDetailDescriptor } from './nodeDetailDescriptor';
-import { renderNodePropertyValue } from './nodeDetailProperties';
 // index.css owns the tag/chip classes and `--nodes-*` tokens this panel's
-// subtree (NodeTagEditor, NodeRelationEditor) relies on. The Nodes pages get
+// subtree (NodeTagEditor) relies on. The Nodes pages get
 // it via their own imports, but the right-dock Node tab renders this panel
 // without any Nodes page on the lazy-loaded path, so the panel must pull it
 // in itself.
@@ -40,11 +38,6 @@ interface Props {
   onClose?: () => void;
 }
 
-const propertyEntries = (node: WorkspaceNodeRecord | null) => {
-  if (!node?.properties) return [];
-  return Object.entries(node.properties).filter(([key]) => key !== 'tags');
-};
-
 export const NodeDetailPanel = ({
   node,
   workspaceId,
@@ -64,22 +57,18 @@ export const NodeDetailPanel = ({
   onRetry,
   onClose,
 }: Props) => {
-  const { language, t } = useI18n();
-  const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
+  const { t } = useI18n();
   const tags = getNodeTags(node);
-  const properties = propertyEntries(node);
-  const source = node ? renderNodePropertyValue(node.properties?.source) : '';
   const aiSummary = getNodeAiSummary(node);
   const detail = getNodeDetailDescriptor(node?.type);
-  // Dock tabs are reading surfaces: the body leads, and identity, tags,
-  // relations and info live behind the header's inspector.
+  // Dock tabs are reading surfaces: the body leads, and actions and tags
+  // live behind the header's More menu.
   const isCompactDock = compactDocument && mode === 'dock';
   const isDocumentDock = isCompactDock && node?.type === 'file';
   const isRichDetail = detail.layout === 'workspace';
-  const infoProperties = mode === 'page'
-    ? properties.filter(([key]) => key !== 'source' && key !== 'aiSummary')
-    : properties.filter(([key]) => key !== 'aiSummary');
 
+  // Tags are the only metadata a person manages here; the page keeps a rail
+  // just for the confirmed AI summary, when there is one.
   const aiInsight = aiSummary ? (
     <section className="node-detail-panel__ai-insight">
       <div className="node-detail-panel__ai-insight-label">
@@ -89,6 +78,7 @@ export const NodeDetailPanel = ({
       <p>{aiSummary}</p>
     </section>
   ) : null;
+  const hasContextRail = mode === 'page' && !isRichDetail && aiInsight !== null;
 
   const renderPlaceholder = () => {
     if (loading) {
@@ -134,7 +124,7 @@ export const NodeDetailPanel = ({
     <section className={`node-detail-panel node-detail-panel--${mode}${isCompactDock ? ' node-detail-panel--compact-dock' : ''}${isDocumentDock ? ' node-detail-panel--document-dock' : ''}${isRichDetail ? ` node-detail-panel--rich node-detail-panel--${detail.surface}` : ''}`}>
       <div className="node-detail-panel__content">
         {!node || loading || error || missing ? renderPlaceholder() : (
-          <div className="node-detail-panel__layout">
+          <div className={`node-detail-panel__layout${hasContextRail ? '' : ' node-detail-panel__layout--single'}`}>
             <article className="node-detail-panel__document">
               {mode === 'page' && onBack && (
                 <Button size="xs" className="node-detail-panel__back" onClick={onBack}>
@@ -143,9 +133,6 @@ export const NodeDetailPanel = ({
                 </Button>
               )}
               <NodeDetailHeader
-                candidates={relationCandidates}
-                dateLocale={dateLocale}
-                metadata={isCompactDock ? 'inspector' : detail.metadata}
                 compact={isCompactDock}
                 hideTitle={isDocumentDock}
                 action={headerAction}
@@ -156,7 +143,6 @@ export const NodeDetailPanel = ({
                 onOpenPage={onOpenPage}
                 onTagsChanged={onTagsChanged}
                 readOnly={readOnly}
-                source={source}
                 tagDefinitions={tagDefinitions}
                 tags={tags}
                 workspaceId={workspaceId}
@@ -177,32 +163,9 @@ export const NodeDetailPanel = ({
                   onPatched={onNodePatched}
                 />
               </div>
-
-              {!isRichDetail && !isCompactDock && (
-                <NodeDetailSupplementary
-                  candidates={relationCandidates}
-                  dateLocale={dateLocale}
-                  infoProperties={infoProperties}
-                  mode={mode}
-                  node={node}
-                  onNodePatched={onNodePatched}
-                  readOnly={readOnly}
-                  workspaceId={workspaceId}
-                />
-              )}
             </article>
 
-            {mode === 'page' && !isRichDetail && (
-              <NodeDetailContextRail
-                aiInsight={aiInsight}
-                candidates={relationCandidates}
-                node={node}
-                onNodePatched={onNodePatched}
-                readOnly={readOnly}
-                source={source}
-                workspaceId={workspaceId}
-              />
-            )}
+            {hasContextRail && <NodeDetailContextRail aiInsight={aiInsight} />}
           </div>
         )}
       </div>

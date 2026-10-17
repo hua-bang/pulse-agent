@@ -1,6 +1,6 @@
 /* Shared document treatment for Node Tabs and Full Page. The surrounding
- * chrome changes by mode; the title, tags, real canvas-node editor, and
- * supplementary disclosures remain one NodeDetailPanel composition. */
+ * chrome changes by mode; the title, tags, and real canvas-node editor
+ * remain one NodeDetailPanel composition. */
 
 .node-detail-panel.node-detail-panel--page {
   max-width: none;
@@ -111,6 +111,11 @@
   align-items: start;
   justify-content: center;
   gap: 42px;
+}
+
+.node-detail-panel__layout--single {
+  width: min(100%, 804px);
+  grid-template-columns: minmax(0, 720px);
 }
 
 .node-detail-panel--dock .node-detail-panel__layout {
@@ -305,10 +310,6 @@
     min-height: 240px;
     margin-top: 18px;
   }
-
-  .node-detail-panel--dock .node-relation-editor__form {
-    grid-template-columns: 1fr;
-  }
 }
 
 @container (max-width: 400px) {
@@ -331,20 +332,11 @@
   .node-detail-panel--dock .node-detail-panel__meta-divider {
     display: none;
   }
-
-  .node-detail-panel--dock .node-relation-editor__row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .node-detail-panel--dock .node-relation-editor__predicate {
-    grid-column: 1 / -1;
-    max-width: 100%;
-  }
 }
 
 /* Dock tabs are reading/editing surfaces, matching the canvas fullscreen note:
  * the body leads under a quiet heading, and the header keeps only Ask AI and
- * the inspector. Tags, relations and info live in that inspector. */
+ * the inspector. Tags live in that inspector. */
 .node-detail-panel--compact-dock .node-detail-panel__content { overflow: hidden; }
 .node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__layout,
 .node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__document {
