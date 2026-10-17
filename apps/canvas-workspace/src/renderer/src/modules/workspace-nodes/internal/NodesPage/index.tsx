@@ -4,7 +4,7 @@ import type { WorkspaceNodeListItem } from '../../../../types';
 import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui/Button';
 import { useI18n } from '../../../../i18n';
-import { dispatchOpenNode, dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
+import { dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
 import { KnowledgeViewTabs } from '../KnowledgeViewTabs';
 import { NodeFilters } from '../NodeFilters';
@@ -72,10 +72,7 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
         openLabel={t('workspaceNodes.openNodeTab', { title })}
         selected={controller.isNodeSelected(node)}
         contextSelected={contextSelected}
-        // Web nodes have no detail page, so they open as a web tab.
-        onOpen={() => (node.type === 'iframe'
-          ? dispatchOpenNode({ workspaceId, nodeId: node.id })
-          : dispatchOpenNodePage({ workspaceId, nodeId: node.id }))}
+        onOpen={() => dispatchOpenNodePage({ workspaceId, nodeId: node.id })}
         onToggleContextSelection={isKnowledgeNodeType(node.type) && onAskAi
           ? () => controller.toggleAiSelection(node)
           : undefined}

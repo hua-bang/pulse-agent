@@ -22,9 +22,9 @@ TWO hosts:
 
 Graph nodes and note mentions open a dock tab, so the dock is still where most
 reading happens. The page has three direct entries: a Knowledge list card
-(Web nodes open through `dispatchOpenNode` instead), the canvas node's Go to
-detail button (knowledge nodes except Web bookmarks, which open as web tabs;
-image and mind-map nodes float it with their other actions), and the dock
+(every type, Web included), the canvas node's Go to detail button (every
+knowledge node, Web included; image and mind-map nodes float it with their
+other actions), and the dock
 tab's More menu. Consequently, a reading aid (or any other piece of
 UI) that renders only when `mode === 'page'` is invisible to most users, who
 never leave the dock. Concretely, `NodeDetailPanel` renders the AI-summary
@@ -110,11 +110,16 @@ Policy per type:
     and gates the page-only `NodeDetailContextRail` behind `!isRichDetail`;
     it also adds `node-detail-panel--rich node-detail-panel--<surface>`
     classes when rich.
+- **Every page type shares one frame**: the 1080px start-aligned layout with
+  the same padding, the same header (round Back hanging left of the title,
+  title size, tags row, actions) and the same left edge. Rich bodies sit
+  below the header in a bordered box; document bodies keep the 720px column.
 - **Web** retains its iframe navigation bar on the full page. In the dock, a
   URL-mode Web node opens as an ordinary dock web tab, not a node-detail tab:
   `getWebNodeUrl` (`src/renderer/src/utils/webNode.ts`) decides, and the
-  canvas header, the `OPEN_NODE_EVENT` handler (mentions) in
-  `useWorkbenchState.ts`, the Nodes list and the graph all route through it.
+  canvas node body, the `OPEN_NODE_EVENT` handler (mentions) in
+  `useWorkbenchState.ts` and the graph route through it. The Knowledge list
+  card and the Go to detail button open the full page instead.
   HTML-mode Web nodes have no address and keep the node detail.
 - **Dock tabs are compact for every type** (`compactDocument`, set by
   `NodeDetailDockTab`; class `node-detail-panel--compact-dock`): a quiet
@@ -199,7 +204,7 @@ events, never host callbacks threaded down through the shared panel:
   (`useNodeDetailBridges`) carries page↔canvas travel, including
   `FOCUS_NODE_ON_CANVAS_EVENT`;
 - `dispatchOpenNode` (`src/renderer/src/utils/openNodeBridge.ts`) opens a node
-  from a mention or a Web list card.
+  from a mention.
 
 `openNodeBridge.ts` also defines the sibling events `useNodeDetailBridges`
 listens for: `OPEN_NODE_PAGE_EVENT` (`dispatchOpenNodePage`) to drill into a
