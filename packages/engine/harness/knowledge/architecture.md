@@ -12,7 +12,7 @@ This file records current implementation facts for `pulse-coder-engine`. It is a
 | Context | `src/context/` | Compaction strategy and message shaping. |
 | AI adapter | `src/ai/` | AI SDK wrapper, provider options, tool context injection. |
 | Config | `src/config/` | Provider construction, env fallback order, runtime constants. |
-| Plugin system | `src/plugin/` | Engine plugins, user config plugins, dependency order, hooks, services. |
+| Plugin system | `src/plugin/` | Engine plugins, dependency order, hooks, services, config, destroy. |
 | Built-in plugins | `src/built-in/` | MCP, skills, tool search, plan mode, task tracking, sub-agents, agent teams, role soul, PTC. |
 | Built-in tools | `src/tools/` | File, shell, Tavily, image, clarification, and deferred demo tools. |
 
@@ -21,9 +21,8 @@ This file records current implementation facts for `pulse-coder-engine`. It is a
 1. `new Engine(options)` creates a `PluginManager`.
 2. `initialize()` prepares built-in plugins unless `disableBuiltInPlugins` is true.
 3. Engine plugins are loaded by dependency order.
-4. User config plugins are loaded after engine plugins.
-5. Built-in tools and plugin tools are merged.
-6. `EngineOptions.tools` are merged last and can override earlier tools.
+4. Built-in tools and plugin tools are merged.
+5. `EngineOptions.tools` are merged last and can override earlier tools.
 
 ## Run Flow
 
@@ -36,19 +35,22 @@ This file records current implementation facts for `pulse-coder-engine`. It is a
 
 ## Prompt Resolution
 
-- The base system prompt is `loadAgentsPrompt() ?? DEFAULT_PROMPT` (`src/prompt/system.ts`): a non-empty `agents.md`/`AGENTS.md` in the runtime `process.cwd()` REPLACES the built-in prompt entirely — the two never combine. Lookup is cwd-only, case-insensitive, mtime-cached (edits apply without restart), and an empty file counts as absent.
-- Plugin `SystemPromptOption.append` values stack on top of whichever base was selected (`resolveSystemPrompt` in `src/ai/index.ts`); a string or function option replaces even that base.
-- Consequence: running any engine host from a directory with a root `AGENTS.md` (this repository included) silently swaps the entire built-in prompt for that file's content.
+- The base system prompt is the built-in prompt plus, when present, a `## Project instructions (AGENTS.md)` section holding a non-empty `agents.md`/`AGENTS.md` from the runtime `process.cwd()` (`generateSystemPrompt`, `src/prompt/system.ts`). The file is appended; it never replaces tool, clarification and answer-format guidance. Lookup is cwd-only, case-insensitive, mtime-cached (edits apply without restart), and an empty file counts as absent. Its text is repository content placed in the system prompt; see security-posture.md.
+- The `<env>` block (cwd, `process.platform`, date) is rendered per request, not at module load. `src/prompt/system.test.ts` guards both behaviors.
+- Plugin `SystemPromptOption.append` values stack on top of that base (`resolveSystemPrompt` in `src/ai/index.ts`); a string or function option replaces the base entirely.
 
 ## Runtime Invariants
 
 Verified against source; each of these has broken (or would silently break) real behavior when violated.
 
-- `maxOutputTokens` is force-set per model family and is a correctness parameter, not a cost knob (`src/ai/index.ts`, `resolveMaxOutputTokens`; Claude 32768 / OpenAI 16384, env-overridable). The AI SDK does not pass it by default, and Anthropic's 4096 fallback can be consumed entirely by reasoning tokens — surfacing as `finishReason='length'` with empty text, historically misdiagnosed as context overflow. CAVEAT: this fix is on the streaming path (`streamTextAI`) only — `generateTextAI` (used by agent-teams and cli) sets no cap and is still exposed to the same bug (backlog).
-- `finishReason === 'length'` is ambiguous and MUST stay disambiguated (`src/core/loop.ts` length branch): only `inputTokens >= modelContextBudget * 0.8` counts as true overflow and may compact; an output-cap hit just continues the loop so the model resumes.
-- Compaction attempts share ONE counter across both trigger sites — pre-loop and length-retry (`compactionAttempts` in `src/core/loop.ts`, cap `MAX_COMPACTION_ATTEMPTS`, default 2, env-overridable). A pre-loop compaction consumes an attempt the length branch can no longer use.
+- `maxOutputTokens` is force-set per model family and is a correctness parameter, not a cost knob (`src/ai/index.ts`, `resolveMaxOutputTokens`; Claude 32768 / OpenAI 16384, env-overridable). The AI SDK does not pass it by default, and Anthropic's 4096 fallback can be consumed entirely by reasoning tokens — surfacing as `finishReason='length'` with empty text, historically misdiagnosed as context overflow. `streamTextAI` and `generateTextAI` both set it (`src/ai/model-resolution.test.ts`).
+- Anthropic prompt caching is placed on messages, not call-level `providerOptions` (which `@ai-sdk/anthropic` ignores): one breakpoint on the system message (covers tools + system) and one on the newest message (`withAnthropicCacheBreakpoints`, `src/ai/index.ts`). History: the call-level option looked correct in unit tests while no request carried `cache_control`; `src/ai/anthropic-cache.test.ts` asserts the request body.
+- `finishReason === 'length'` is ambiguous and MUST stay disambiguated (`src/core/loop.ts` length branch): only `inputTokens >= modelContextBudget * 0.8` counts as true overflow and may compact (the budget is `LoopOptions.contextWindowTokens` when set); an output-cap hit continues the loop so the model resumes, at most 3 times in a row.
+- Provider prompt-overflow rejections (`prompt is too long`, `context_length_exceeded`, … with status 400/413) force-compact and retry instead of failing the turn (`isContextOverflowError`).
+- Compaction is bounded by ONE counter of consecutive compactions across all trigger sites (`consecutiveCompactions`, cap `MAX_COMPACTION_ATTEMPTS`, default 2); it resets after each completed LLM call.
+- Compaction cuts only at tool-exchange boundaries (`findCutBoundaries`, `src/context/index.ts`): the kept tail never starts with a tool result and no summarized call has its result in the tail. This lets a single long agent turn compact its own early steps. History: cutting only at user turns meant one-turn runs (sub-agents, headless) never compacted, and the forced fallback kept a lone tool result whose call was summarized away, which providers reject. Guards: `src/context/compaction.test.ts`.
 - Compacted message lists must never end on an assistant message: `ensureEndsWithUser` (`src/context/index.ts`) strips trailing assistant messages and appends a placeholder user message if that empties the list — some providers reject assistant-final requests.
-- Tool wrapping order in the loop is fixed: `wrapToolsWithReadDedup` first, `wrapToolsWithHooks` second (`src/core/loop.ts`). Plugin `afterToolCall` hooks therefore observe read/ls output with the dedup note already appended; no hook sees the raw output.
+- Tool wrapping order in the loop is fixed: `wrapToolsWithReadDedup` first, `wrapToolsWithHooks` second (`src/core/loop.ts`). Plugin `afterToolCall` hooks therefore observe read/ls output with the dedup note already appended. The nested policy table (`nestedTools`, sub-agents) is taken before the dedup wrapper, so nested callers never get notes. Notes key on path plus offset/limit and reset after `write`/`edit` of that path.
 - Plugin dependency resolution is asymmetric (`src/plugin/PluginManager.ts`): topological sort silently skips a dependency that is not in the plugin list, but initialization throws `Dependency not found`. A misspelled dependency name surfaces only at init time, and only in loading combinations that omit the intended plugin.
 
 ## Built-In Plugin Order

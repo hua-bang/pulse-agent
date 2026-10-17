@@ -5,7 +5,7 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 ## One Turn, End to End
 
 1. Abort check at entry — exit immediately if the external signal is already aborted.
-2. Pre-loop compaction check (`maybeCompactContext`); on success fire `onCompacted` and restart the iteration. Uses the shared attempt counter (see `architecture.md` Runtime Invariants).
+2. Pre-loop compaction check (`maybeCompactContext`); on success fire `onCompacted`, apply the result in place when no host callback replaced `context.messages`, and restart the iteration. Bounded by the consecutive-compaction counter (see `architecture.md` Runtime Invariants).
 3. `beforeRun` hooks (once, in `Engine.run()`) — may replace tools/systemPrompt.
 4. Each iteration: `beforeLLMCall` hooks (run sequentially, retries included).
 5. Tool wrapping, fixed order: read/ls dedup wrapper first, then the beforeToolCall/afterToolCall hook wrapper; active tool executions tracked in a map for hung-tool diagnostics.
@@ -15,11 +15,11 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 9. `afterLLMCall` hooks — fire on success AND on the error path (with `error` populated).
 10. finishReason dispatch:
     - `stop` → return text (or continue if empty).
-    - `length` → disambiguate output-cap vs true overflow (`inputTokens >= budget*0.8`); output-cap just continues; true overflow force-compacts, bounded by the shared counter.
+    - `length` → disambiguate output-cap vs true overflow (`inputTokens >= budget*0.8`); output-cap continues, at most 3 times in a row; true overflow force-compacts, bounded by the consecutive counter.
     - `content-filter` → log with context, return warning.
     - `error` → return failure.
     - `tool-calls` → continue unless `totalSteps >= MAX_STEPS` (500).
-11. On thrown error: abort check → `afterLLMCall` (if the call had started) → retry policy (below) or formatted error return.
+11. On thrown error: abort check → `afterLLMCall` (if the call had started) → a prompt-overflow rejection force-compacts and retries without counting as an error → retry policy (below) or formatted error return.
 12. `afterRun` hooks (once, in `Engine.run()`, including when the loop or a `beforeRun` hook throws; failure cleanup cannot replace the original run error).
 
 ## Host-Visible Context Mutations & Step Accounting
@@ -55,7 +55,8 @@ External `AbortSignal` propagates to the LLM call, `ToolExecutionContext`, and t
 |---|---|
 | `stop` with text | the text |
 | `tool-calls` at `MAX_STEPS` (500) | "Max steps reached, task may be incomplete." |
-| true overflow, compactions exhausted (cap 2) | "Context limit reached." or partial text |
+| true overflow, compactions exhausted (2 consecutive) | "Context limit reached." or partial text |
+| 3 consecutive output-cap hits | partial text or "Output limit reached; the response may be incomplete." |
 | `content-filter` | upstream-filter warning |
 | `error` finish / non-retryable throw | formatted upstream error |
 | retries exhausted (3) | "Failed after 3 errors: {last}" |

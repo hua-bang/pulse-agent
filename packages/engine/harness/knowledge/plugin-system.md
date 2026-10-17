@@ -26,9 +26,10 @@ Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `Plu
 
 ## Lifecycle
 
-1. Registration sources, in order: built-in array (`src/built-in/index.ts`, skipped entirely by `disableBuiltInPlugins`) → `options.plugins[]` → disk scan → user-config plugins (loaded after engine plugins, no dependency sorting).
+1. Registration sources, in order: built-in array (`src/built-in/index.ts`, skipped entirely by `disableBuiltInPlugins`) → `options.plugins[]` → disk scan. A plugin that registers a tool name another plugin already registered replaces it and logs a warning.
 2. Dependency topological sort. Circular dependency THROWS at sort; a dependency missing from the list is skipped at sort but THROWS `Dependency not found` at init (see `architecture.md` Runtime Invariants).
 3. Per plugin: `beforeInitialize?` → `initialize` → `afterInitialize?`.
+4. `Engine.dispose()` → `destroy?(ctx)` per plugin, once, in reverse initialization order; a failing `destroy` is logged and the rest still run.
 
 ## Authoring Walkthrough
 
@@ -140,4 +141,4 @@ Installed Electron compatibility remains a host acceptance requirement.
 ## Registration Sources & Config Paths
 
 - Engine plugin disk scan (`scan !== false`): `.pulse-coder/engine-plugins`, `.coder/engine-plugins`, `~/.pulse-coder/engine-plugins`, `~/.coder/engine-plugins`, `./plugins/engine` — pattern `**/*.plugin.{js,ts}`.
-- User-config plugins: `config.{json,yaml,yml}` / `*.config.{json,yaml,yml}` under `.pulse-coder/config`, `.coder/config` and home equivalents. HONEST STATUS: the schema admits tools/MCP servers/prompts/sub-agents/skills, and files are scanned and validated — but `applyUserConfig` (`PluginManager.ts`) is an unimplemented stub that only logs each entry; nothing is instantiated or registered. The `${VAR}` resolver is also constructed without `process.env`, so substitutions never see real env values. Treat declarative user-config as NOT functional today.
+- Declarative user-config (`.pulse-coder/config/*.json|yaml`) is not loaded: the scan-and-log stub was removed by owner decision (2026-10). `userConfigPlugins` and the `UserConfigPlugin*` types remain as deprecated no-ops. Configure MCP, sub-agents and skills through their own paths (config-reference.md).
