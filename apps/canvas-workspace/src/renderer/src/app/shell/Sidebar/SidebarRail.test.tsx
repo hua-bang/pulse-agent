@@ -56,9 +56,16 @@ describe('SidebarRail', () => {
     render({ ...baseProps(), nodesEnabled: true });
 
     const labels = [...host.querySelectorAll('.sidebar-rail-btn')].map((el) => el.getAttribute('aria-label'));
-    expect(labels).toEqual(['Pulse Agent', 'Workspaces', 'Nodes', 'Plugins', 'Scheduled', 'Show labels', 'Settings']);
+    expect(labels).toEqual(['Pulse Agent', 'Workspaces', 'Knowledge', 'Plugins', 'Scheduled', 'Show labels', 'Settings']);
     expect(button('Workspaces').getAttribute('aria-current')).toBe('page');
     expect(button('Pulse Agent').getAttribute('aria-current')).toBeNull();
+  });
+
+  it('keeps Knowledge current across its list, graph and detail views', () => {
+    for (const activeView of ['nodes', 'graph', 'node-detail']) {
+      render({ ...baseProps(), activeView, nodesEnabled: true });
+      expect(button('Knowledge').getAttribute('aria-current')).toBe('page');
+    }
   });
 
   it('opens the launcher from Pulse Agent and keeps it current on home and chat', () => {

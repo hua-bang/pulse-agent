@@ -12,6 +12,7 @@ describe('resolveKnowledgeChatRouteContext', () => {
       detailNode: null,
     })).toEqual({
       active: true,
+      knowledgeMode: true,
       selectedNode: null,
     });
   });
@@ -45,24 +46,68 @@ describe('resolveKnowledgeChatRouteContext', () => {
       explicitContext,
     })).toEqual({
       active: true,
+      knowledgeMode: true,
       selectedNode: null,
       explicitContext,
     });
   });
 
-  it('leaves Graph and Canvas on workspace-scoped chat', () => {
-    const selectedNode = { workspaceId: 'workspace-a', nodeId: 'node-3' };
-
+  it('uses knowledge chat on Graph without adding the selected node', () => {
     expect(resolveKnowledgeChatRouteContext({
       activeView: 'graph',
-      selectedNode,
+      selectedNode: { workspaceId: 'workspace-a', nodeId: 'node-3' },
       detailNode: null,
-    })).toEqual({ active: false, selectedNode: null });
+    })).toEqual({ active: true, knowledgeMode: true, selectedNode: null });
+  });
+
+  it('leaves Canvas on workspace-scoped chat', () => {
+    const selectedNode = { workspaceId: 'workspace-a', nodeId: 'node-3' };
+
     expect(resolveKnowledgeChatRouteContext({
       activeView: 'canvas',
       selectedNode,
       detailNode: null,
-    })).toEqual({ active: false, selectedNode: null });
+    })).toEqual({ active: false, knowledgeMode: false, selectedNode: null });
+  });
+
+  it('opens the plain global chat on other launcher routes', () => {
+    for (const activeView of ['plugins', 'scheduled', 'mcp-app']) {
+      expect(resolveKnowledgeChatRouteContext({
+        activeView,
+        selectedNode: { workspaceId: 'workspace-a', nodeId: 'node-3' },
+        detailNode: null,
+      })).toEqual({ active: true, knowledgeMode: false, selectedNode: null });
+    }
+  });
+
+  it('follows the library the Skills page shows', () => {
+    const base = { activeView: 'skills', selectedNode: null, detailNode: null };
+    expect(resolveKnowledgeChatRouteContext(base).active).toBe(false);
+    expect(resolveKnowledgeChatRouteContext({ ...base, skillsLibraryGlobal: true }))
+      .toEqual({ active: true, knowledgeMode: false, selectedNode: null });
+  });
+
+  it('carries the task asked about on the Scheduled list only', () => {
+    const scheduledTasks = [{ id: 'daily-brief', title: 'Daily brief' }];
+    const onList = resolveKnowledgeChatRouteContext({
+      activeView: 'scheduled', selectedNode: null, detailNode: null, scheduledTasks,
+    });
+    expect(onList).toEqual({ active: true, knowledgeMode: false, selectedNode: null, scheduledTasks });
+    // The same array reaches the chat, so its request context stays stable.
+    expect(onList.scheduledTasks).toBe(scheduledTasks);
+    expect(resolveKnowledgeChatRouteContext({
+      activeView: 'plugins', selectedNode: null, detailNode: null, scheduledTasks,
+    }).scheduledTasks).toBeUndefined();
+  });
+
+  it('leaves full-page chat, home and settings without a dock chat', () => {
+    for (const activeView of ['chat', 'scheduled-task', 'home', 'settings']) {
+      expect(resolveKnowledgeChatRouteContext({
+        activeView,
+        selectedNode: null,
+        detailNode: null,
+      }).active).toBe(false);
+    }
   });
 });
 

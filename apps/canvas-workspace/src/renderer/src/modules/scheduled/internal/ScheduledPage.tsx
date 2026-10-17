@@ -13,7 +13,12 @@ import './index.css';
  * The Scheduled list. A run's conversation opens in the dock beside it, so
  * the list stays in view while the user reads or follows up on a result.
  */
-export const ScheduledPage = () => {
+interface Props {
+  /** Ask the side chat about one task; it arrives as a context chip. */
+  onAskAi?: (task: ScheduledTask) => void;
+}
+
+export const ScheduledPage = ({ onAskAi }: Props) => {
   const { t } = useI18n();
   const dock = useRightDock();
   const { notify, confirm } = useAppShell();
@@ -142,6 +147,7 @@ export const ScheduledPage = () => {
               onEdit={openEdit}
               onDelete={(target) => void removeTask(target)}
               onOpenResult={openResult}
+              onAskAi={onAskAi}
             />
           ))}
         </ul>

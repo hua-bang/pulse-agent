@@ -176,6 +176,28 @@ export const createChatTargetBroker = (): ChatTargetBroker => {
   };
 };
 
+/** Resolves true once any chat target registers, or false after the timeout.
+ * A dock chat mounts lazily after it opens, so callers wait for it here. */
+export const waitForActiveChatTarget = (
+  broker: ChatTargetBroker,
+  timeoutMs = 5_000,
+): Promise<boolean> => new Promise((resolve) => {
+  if (broker.getActiveTarget()) {
+    resolve(true);
+    return;
+  }
+  const timer = window.setTimeout(() => {
+    unsubscribe();
+    resolve(false);
+  }, timeoutMs);
+  const unsubscribe = broker.subscribe(() => {
+    if (!broker.getActiveTarget()) return;
+    window.clearTimeout(timer);
+    unsubscribe();
+    resolve(true);
+  });
+});
+
 const ChatTargetContext = createContext<ChatTargetBroker | null>(null);
 
 export const ChatTargetProvider = ({ children }: { children: ReactNode }) => {

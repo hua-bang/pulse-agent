@@ -3,10 +3,24 @@
 }
 
 .node-detail-panel__back {
-  align-self: flex-start;
-  gap: 5px;
-  margin-bottom: 20px;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--radius-pill);
   color: var(--nodes-muted);
+}
+
+.node-detail-panel__back:hover {
+  color: var(--nodes-text);
+}
+
+/* The page frame has margin to spare: hang Back to the left of the title so
+ * the title still lines up with the body. 40px is the 28px button plus the
+ * 12px title-row gap. */
+.node-detail-panel--page .node-detail-panel__back {
+  margin-left: -40px;
 }
 
 /* The disclosure chevron, turned around — one glyph for "there is more this

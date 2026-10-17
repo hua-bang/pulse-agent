@@ -1,6 +1,6 @@
 /* Shared document treatment for Node Tabs and Full Page. The surrounding
- * chrome changes by mode; the title, tags, real canvas-node editor, and
- * supplementary disclosures remain one NodeDetailPanel composition. */
+ * chrome changes by mode; the title, tags, and real canvas-node editor
+ * remain one NodeDetailPanel composition. */
 
 .node-detail-panel.node-detail-panel--page {
   max-width: none;
@@ -109,8 +109,21 @@
   display: grid;
   grid-template-columns: minmax(0, 720px) minmax(220px, 260px);
   align-items: start;
-  justify-content: center;
+  justify-content: start;
   gap: 42px;
+}
+
+/* Every page type shares this frame (width, padding, left edge), so the Back
+ * button, title, tags and actions sit in the same place for documents, Web
+ * pages and mind maps. Without a rail the header spans the frame, and a
+ * document body keeps a 720px reading column below it. */
+.node-detail-panel__layout--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__layout--single .node-detail-panel__preview {
+  width: 100%;
+  max-width: 720px;
 }
 
 .node-detail-panel--dock .node-detail-panel__layout {
@@ -134,9 +147,9 @@
   padding: 18px clamp(16px, 4vw, 28px) 32px;
 }
 
-/* Web pages and mindmaps are working surfaces, not long-form documents.
- * Keep their identity/actions in a compact bar and give the real node body
- * every remaining pixel; generic Relations/Info live on document nodes. */
+/* Web pages and mindmaps are working surfaces, not long-form documents: the
+ * page keeps the shared frame and header, and the real node body fills the
+ * rest of the frame. */
 .node-detail-panel--rich .node-detail-panel__content {
   overflow: hidden;
 }
@@ -149,52 +162,47 @@
 }
 
 .node-detail-panel--rich .node-detail-panel__layout {
-  max-width: none;
-  padding: 18px;
-  display: block;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-detail-panel--rich.node-detail-panel--page .node-detail-panel__layout {
+  width: min(100%, 1080px);
+  padding-bottom: 32px;
 }
 
 .node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__layout {
   padding: 0;
 }
 
+.node-detail-panel.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__preview {
+  margin-top: 10px;
+}
+
 .node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document {
   padding: 12px;
 }
 
-/* A Web detail is a browser surface, not a card inside a document. Keep the
- * compact identity bar, then let the browser own the remaining edges. */
-.node-detail-panel--web .node-detail-panel__layout,
+/* In a dock tab a Web detail is a browser surface, not a card inside a
+ * document. Keep the compact identity bar, then let the browser own the
+ * remaining edges. */
 .node-detail-panel--web.node-detail-panel--dock .node-detail-panel__document {
   padding: 0;
-}
-
-.node-detail-panel--web .node-detail-panel__document-header {
-  padding: 14px 18px 0;
 }
 
 .node-detail-panel--web.node-detail-panel--dock .node-detail-panel__document-header {
   padding: 12px 12px 0;
 }
 
-.node-detail-panel--web .node-detail-panel__back {
-  margin: 14px 18px 8px;
-}
-
-.node-detail-panel--rich .node-detail-panel__document-title,
 .node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document-title {
   font-size: clamp(18px, 2.4vw, 22px);
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
 
-.node-detail-panel--rich .node-detail-panel__document-meta {
+.node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document-meta {
   min-height: 24px;
   margin-top: 7px;
-}
-
-.node-detail-panel--rich .node-detail-panel__actions {
-  margin-top: 0;
 }
 .node-detail-panel--dock:not(.node-detail-panel--rich) .node-detail-panel__document-title {
   font-size: 18px;
@@ -213,9 +221,12 @@
 }
 
 @media (max-width: 1050px) {
-  .node-detail-panel--page .node-detail-panel__layout {
-    max-width: 760px;
+  .node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__layout {
     display: block;
+  }
+
+  .node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__document {
+    max-width: 720px;
   }
 
   .node-detail-panel__context-rail {
@@ -232,7 +243,7 @@
 }
 
 @media (max-width: 720px) {
-  .node-detail-panel__layout {
+  .node-detail-panel:not(.node-detail-panel--rich) .node-detail-panel__layout {
     padding: 34px 22px 72px;
     display: block;
   }
@@ -256,9 +267,12 @@
  * in that split layout, where viewport media queries cannot detect the
  * constrained center pane. */
 @container (max-width: 1050px) {
-  .node-detail-panel--page .node-detail-panel__layout {
-    max-width: 760px;
+  .node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__layout {
     display: block;
+  }
+
+  .node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__document {
+    max-width: 720px;
   }
 
   .node-detail-panel--page .node-detail-panel__context-rail {
@@ -275,8 +289,12 @@
 }
 
 @container (max-width: 720px) {
-  .node-detail-panel--page .node-detail-panel__layout {
+  .node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__layout {
     padding: 34px 22px 72px;
+  }
+
+  .node-detail-panel--page .node-detail-panel__back {
+    margin-left: 0;
   }
 
   .node-detail-panel--page .node-detail-panel__context-rail {
@@ -305,10 +323,6 @@
     min-height: 240px;
     margin-top: 18px;
   }
-
-  .node-detail-panel--dock .node-relation-editor__form {
-    grid-template-columns: 1fr;
-  }
 }
 
 @container (max-width: 400px) {
@@ -331,20 +345,11 @@
   .node-detail-panel--dock .node-detail-panel__meta-divider {
     display: none;
   }
-
-  .node-detail-panel--dock .node-relation-editor__row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .node-detail-panel--dock .node-relation-editor__predicate {
-    grid-column: 1 / -1;
-    max-width: 100%;
-  }
 }
 
 /* Dock tabs are reading/editing surfaces, matching the canvas fullscreen note:
  * the body leads under a quiet heading, and the header keeps only Ask AI and
- * the inspector. Tags, relations and info live in that inspector. */
+ * the inspector. Tags live in that inspector. */
 .node-detail-panel--compact-dock .node-detail-panel__content { overflow: hidden; }
 .node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__layout,
 .node-detail-panel.node-detail-panel--compact-dock .node-detail-panel__document {

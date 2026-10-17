@@ -24,7 +24,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
     onAddImageToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onFork, onSessionJump, conversationKey,
   } = thread;
   const {
-    nodes, selectedContext, showContextChips = true, onRemoveContext, onQuickAction, emptyState,
+    nodes, selectedContext, onRemoveContext, onQuickAction, emptyState,
     knowledgeMode = false, emptyStateVariant,
   } = context;
   const {
@@ -114,7 +114,6 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
         input={input}
         attachments={attachments}
         selectedContext={selectedContext}
-        showContextChips={showContextChips}
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
         knowledgeMode={knowledgeMode}

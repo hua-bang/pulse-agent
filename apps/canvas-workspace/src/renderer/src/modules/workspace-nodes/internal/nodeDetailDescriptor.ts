@@ -3,7 +3,6 @@ export type NodeDetailSurface = 'document' | 'web' | 'mindmap';
 export interface NodeDetailDescriptor {
   surface: NodeDetailSurface;
   layout: 'document' | 'workspace';
-  metadata: 'inline' | 'inspector';
   selectEmbeddedNode: boolean;
   backgroundPan: boolean;
 }
@@ -11,7 +10,6 @@ export interface NodeDetailDescriptor {
 const DOCUMENT_DETAIL: NodeDetailDescriptor = {
   surface: 'document',
   layout: 'document',
-  metadata: 'inline',
   selectEmbeddedNode: false,
   backgroundPan: false,
 };
@@ -19,7 +17,6 @@ const DOCUMENT_DETAIL: NodeDetailDescriptor = {
 const WEB_DETAIL: NodeDetailDescriptor = {
   surface: 'web',
   layout: 'workspace',
-  metadata: 'inspector',
   selectEmbeddedNode: false,
   backgroundPan: false,
 };
@@ -27,7 +24,6 @@ const WEB_DETAIL: NodeDetailDescriptor = {
 const MINDMAP_DETAIL: NodeDetailDescriptor = {
   surface: 'mindmap',
   layout: 'workspace',
-  metadata: 'inspector',
   selectEmbeddedNode: true,
   backgroundPan: true,
 };

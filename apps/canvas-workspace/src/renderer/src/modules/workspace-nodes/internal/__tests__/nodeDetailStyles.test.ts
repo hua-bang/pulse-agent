@@ -24,10 +24,8 @@ const STYLESHEETS = [
   '../NodeDetailHeader/index.css',
   '../NodeDetailInspector/index.css',
   '../NodeDetailContextRail/index.css',
-  '../NodeDetailSupplementary/index.css',
   '../NodeCanvasPreview/index.css',
   '../NodeCanvasSaveError/index.css',
-  '../NodeRelationEditor/index.css',
   '../NodeTagEditor/index.css',
 ];
 const MARKUP = [
@@ -35,20 +33,17 @@ const MARKUP = [
   '../NodeDetailHeader/index.tsx',
   '../NodeDetailInspector/index.tsx',
   '../NodeDetailContextRail/index.tsx',
-  '../NodeDetailPropertyRows.tsx',
-  '../NodeDetailSupplementary/index.tsx',
   '../NodeDetailPage.tsx',
   '../NodeCanvasPreview/index.tsx',
   '../NodeCanvasSaveError/index.tsx',
-  '../NodeRelationEditor/index.tsx',
   '../NodeTagEditor/index.tsx',
   '../NodeTitleEditor.tsx',
   '../../../dock/internal/RightDock/content/NodeDetailDockTab.tsx',
 ];
 
-/** The two families this surface owns; other `.workspace-node-*` classes are
+/** The family this surface owns; other `.workspace-node-*` classes are
  *  shared with the Nodes list and graph pages, which this test does not read. */
-const OWNED_CLASS = /\b(node-detail-panel|node-relation-editor)__[a-z-]+/g;
+const OWNED_CLASS = /\bnode-detail-panel__[a-z-]+/g;
 
 const css = STYLESHEETS.map(read).join('\n');
 const markup = MARKUP.map(read).join('\n');

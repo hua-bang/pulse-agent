@@ -55,4 +55,33 @@ describe('ChatHeader cross-scope sessions', () => {
 
     act(() => root.unmount());
   });
+
+  it('shows the scope badge beside the title', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(
+      <I18nProvider>
+        <ChatHeader
+          title="Current chat"
+          sessionMenuOpen={false}
+          sessionMenuRef={createRef<HTMLDivElement>()}
+          sessions={[]}
+          otherSessions={[]}
+          scopeBadge="Knowledge"
+          onToggleSessionMenu={vi.fn(async () => undefined)}
+          onCloseSessionMenu={vi.fn()}
+          onNewSession={vi.fn(async () => undefined)}
+          onLoadSession={vi.fn(async () => undefined)}
+          onOpenSettings={vi.fn()}
+          settingsLabel="Settings"
+          onOpenPromptSettings={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </I18nProvider>,
+    ));
+
+    expect(host.querySelector('.chat-panel-scope-badge')?.textContent).toBe('Knowledge');
+
+    act(() => root.unmount());
+  });
 });

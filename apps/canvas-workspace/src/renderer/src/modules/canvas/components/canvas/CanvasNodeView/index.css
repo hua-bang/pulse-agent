@@ -249,7 +249,8 @@
 }
 
 .node-copy-image--floating,
-.node-add-to-chat--floating {
+.node-add-to-chat--floating,
+.node-open-detail--floating {
   position: absolute;
   top: 4px;
   right: 56px;
@@ -258,10 +259,15 @@
   z-index: 5;
 }
 
-/* Image nodes: left of copy-image. Shape nodes have only the close
+/* Image nodes: chat sits left of copy-image and detail left of chat.
+ * Shape nodes have only the close
  * button, so the chat button takes the next slot. */
 .node-add-to-chat--floating {
   right: 82px;
+}
+
+.node-open-detail--floating {
+  right: 108px;
 }
 
 .canvas-node--shape .node-add-to-chat--floating {

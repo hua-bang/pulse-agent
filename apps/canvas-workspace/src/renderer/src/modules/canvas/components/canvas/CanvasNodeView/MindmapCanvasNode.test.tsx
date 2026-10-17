@@ -68,6 +68,20 @@ describe('MindmapCanvasNode context menu', () => {
   });
 });
 
+describe('MindmapCanvasNode detail action', () => {
+  it('offers the detail page when the host provides it', () => {
+    renderMindmap();
+    expect(host?.querySelector('.node-open-detail')).toBeNull();
+    root?.unmount();
+    host?.remove();
+
+    const handleOpenDetail = vi.fn();
+    renderMindmap({ handleOpenDetail });
+    (host?.querySelector('.node-open-detail') as HTMLButtonElement).click();
+    expect(handleOpenDetail).toHaveBeenCalledTimes(1);
+  });
+});
+
 function renderMindmap(overrides: Partial<Parameters<typeof MindmapCanvasNode>[0]> = {}) {
   host = document.createElement('div');
   document.body.appendChild(host);

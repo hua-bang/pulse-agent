@@ -2,11 +2,10 @@
 import { act, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../../types';
+import type { WorkspaceNodeRecord } from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
 import {
   FOCUS_NODE_ON_CANVAS_EVENT,
-  OPEN_NODE_EVENT,
   nodeLinkHref,
   parseNodeLinkHref,
 } from '../../../../utils/openNodeBridge';
@@ -54,23 +53,6 @@ const NODE: WorkspaceNodeRecord = {
   }],
   updatedAt: 1_720_000_000_000,
 };
-
-const RELATION_CANDIDATE: WorkspaceNodeListItem = {
-  workspaceId: 'workspace-1',
-  id: 'node-2',
-  type: 'text',
-  title: 'Recommendation System',
-  tags: [],
-  hasData: true,
-  linkCount: 0,
-};
-
-/** React tracks direct `input.value` assignments; go through the native
- *  setter so a test follows the same event path as a real keystroke. */
-function setInputValue(input: HTMLInputElement, value: string): void {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
-  input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-}
 
 function render(node: ReactNode): HTMLDivElement {
   host = document.createElement('div');
@@ -164,30 +146,37 @@ describe('NodeDetailPanel', () => {
     expect(view.querySelector('.node-detail-panel__document-title')?.textContent).toBe('File');
   });
 
-  it('shows source, relations, and confirmed AI insight in the page context rail', () => {
+  it('keeps only the confirmed AI summary in the page rail, without source or relations', () => {
     const view = render(
       <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" />,
     );
 
     const rail = view.querySelector('.node-detail-panel__context-rail');
-    expect(rail?.textContent).toContain('research.md');
-    expect(rail?.textContent).toContain('Recommendation System');
     expect(rail?.textContent).toContain('RSS shifts the burden');
+    expect(view.textContent).not.toContain('research.md');
+    expect(view.textContent).not.toContain('Recommendation System');
   });
 
-  it('renders Relations and Info as collapsed disclosures by default', () => {
+  it('drops the page rail and centers a single column when there is no AI summary', () => {
     const view = render(
-      <NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />,
+      <NodeDetailPanel
+        node={{ ...NODE, properties: { tags: ['search'] } }}
+        workspaceId="workspace-1"
+        mode="page"
+      />,
     );
 
-    const disclosures = Array.from(
-      view.querySelectorAll<HTMLDetailsElement>('.node-detail-panel__disclosure'),
-    );
+    expect(view.querySelector('.node-detail-panel__context-rail')).toBeNull();
+    expect(view.querySelector('.node-detail-panel__layout--single')).not.toBeNull();
+  });
 
-    expect(disclosures).toHaveLength(2);
-    expect(disclosures.every((item) => !item.open)).toBe(true);
-    expect(disclosures[0]?.querySelector('summary')?.textContent).toContain('Relations');
-    expect(disclosures[1]?.querySelector('summary')?.textContent).toContain('Info');
+  it.each(['page', 'dock'] as const)('shows tags but no Relations or Info sections in %s mode', (mode) => {
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode={mode} />);
+
+    expect(view.querySelector('[data-testid="node-tag-editor"]')).not.toBeNull();
+    expect(view.textContent).not.toContain('Relations');
+    expect(view.textContent).not.toContain('Info');
+    expect(view.querySelector('details')).toBeNull();
   });
 
   it.each(['iframe', 'mindmap'] as const)('gives %s nodes an immersive detail surface without document supplements', (type) => {
@@ -197,8 +186,8 @@ describe('NodeDetailPanel', () => {
 
     expect(view.querySelector('.node-detail-panel--rich')).not.toBeNull();
     expect(view.querySelector('[data-testid="node-canvas-preview"]')?.getAttribute('data-node-type')).toBe(type);
-    expect(view.querySelector('.node-detail-panel__supplementary')).toBeNull();
     expect(view.querySelector('.node-detail-panel__context-rail')).toBeNull();
+    expect(view.querySelector('[aria-label="Info"]')).toBeNull();
   });
 
   it('uses the mindmap root as its detail identity when the stored title is only a type placeholder', () => {
@@ -251,34 +240,6 @@ describe('NodeDetailPanel', () => {
         root: { id: 'root', text: 'Market strategy', children: [] },
       },
     });
-  });
-
-  it('keeps rich-node metadata available from a compact inspector instead of appending it to the surface', () => {
-    const view = render(
-      <NodeDetailPanel node={{ ...NODE, type: 'iframe' }} workspaceId="workspace-1" mode="dock" />,
-    );
-    const info = view.querySelector<HTMLButtonElement>('[aria-label="Info"]');
-    if (!info) throw new Error('Expected an Info inspector action');
-
-    info.focus();
-    act(() => { info.click(); });
-
-    const inspector = document.querySelector('.node-detail-panel__inspector');
-    expect(inspector?.textContent).toContain('research.md');
-    expect(inspector?.textContent).toContain('Recommendation System');
-    expect(view.querySelector('.node-detail-panel__supplementary')).toBeNull();
-
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    });
-    expect(document.activeElement).toBe(info);
-
-    const close = inspector?.querySelector<HTMLButtonElement>('[aria-label="Close"]');
-    close?.focus();
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    });
-    expect(document.querySelector('.node-detail-panel__inspector')).toBeNull();
   });
 
   it('edits the document title in place and writes it to the same node record', async () => {
@@ -335,48 +296,6 @@ describe('NodeDetailPanel', () => {
 
     expect(document.activeElement).toBe(title);
     expect(update).not.toHaveBeenCalled();
-  });
-
-  it('adds an open-ended relation without restricting the stored relation vocabulary', async () => {
-    const update = vi.fn(async (_workspaceId: string, _nodeId: string, patch: Partial<WorkspaceNodeRecord>) => ({
-      ok: true,
-      node: { ...NODE, ...patch, updatedAt: NODE.updatedAt! + 1 },
-    }));
-    Object.defineProperty(window, 'canvasWorkspace', {
-      configurable: true,
-      value: { workspaceNodes: { update } },
-    });
-    const view = render(
-      <NodeDetailPanel
-        node={{ ...NODE, links: [] }}
-        workspaceId="workspace-1"
-        relationCandidates={[RELATION_CANDIDATE]}
-      />,
-    );
-    const addRelation = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Add relation'));
-    if (!addRelation) throw new Error('Expected add relation button');
-
-    act(() => { addRelation.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-    const [relationInput] = Array.from(view.querySelectorAll<HTMLInputElement>('.node-relation-editor__form input'));
-    if (!relationInput) throw new Error('Expected relation form');
-    act(() => { setInputValue(relationInput, 'challenges'); });
-    const target = Array.from(view.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((option) => option.textContent?.includes('Recommendation System'));
-    if (!target) throw new Error('Expected relation target option');
-    act(() => { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-    const save = Array.from(view.querySelectorAll('button')).find((button) => button.textContent === 'Add');
-    if (!save) throw new Error('Expected relation save button');
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    expect(update).toHaveBeenCalledWith('workspace-1', 'node-1', {
-      links: [{
-        relation: 'challenges',
-        target: { nodeId: 'node-2' },
-        title: 'Recommendation System',
-      }],
-    });
   });
 
   it('preserves a newer focused draft when an earlier title save resolves', async () => {
@@ -493,55 +412,20 @@ describe('NodeDetailPanel', () => {
     });
   });
 
+  it('puts the page Back control in the title row, not on a line of its own', () => {
+    const onBack = vi.fn();
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" onBack={onBack} />);
+    const back = view.querySelector<HTMLButtonElement>('.node-detail-panel__title-row [aria-label="Back"]');
+    if (!back) throw new Error('Expected Back in the title row');
+
+    act(() => { back.click(); });
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the confirmed AI summary readable in the dock, not only on the page', () => {
     const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
 
     expect(view.querySelector('.node-detail-panel__ai-insight')?.textContent).toContain('RSS shifts the burden');
-  });
-
-  it('opens a related node from its relation row', () => {
-    const listener = vi.fn();
-    window.addEventListener(OPEN_NODE_EVENT, listener);
-    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" />);
-    const target = view.querySelector<HTMLButtonElement>('.node-relation-editor__target-link');
-    if (!target) throw new Error('Expected the relation target to be reachable');
-
-    act(() => { target.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-
-    expect((listener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
-      workspaceId: 'workspace-1',
-      nodeId: 'node-2',
-    });
-    window.removeEventListener(OPEN_NODE_EVENT, listener);
-  });
-
-  // ui/Select has no search, so picking out of a large workspace meant
-  // scrolling an unfiltered list of every node.
-  it('filters relation targets by what the user types', () => {
-    const candidates = [
-      RELATION_CANDIDATE,
-      { ...RELATION_CANDIDATE, id: 'node-3', title: 'Search & RSS notes' },
-      { ...RELATION_CANDIDATE, id: 'node-4', title: 'Unrelated ledger' },
-    ];
-    const view = render(
-      <NodeDetailPanel
-        node={{ ...NODE, links: [] }}
-        workspaceId="workspace-1"
-        relationCandidates={candidates}
-      />,
-    );
-    const addRelation = Array.from(view.querySelectorAll('button')).find((button) => button.textContent?.includes('Add relation'));
-    if (!addRelation) throw new Error('Expected add relation button');
-    act(() => { addRelation.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-
-    expect(view.querySelectorAll('.node-relation-editor__option')).toHaveLength(3);
-
-    const targetInput = Array.from(view.querySelectorAll<HTMLInputElement>('.node-relation-editor__form input'))[1];
-    if (!targetInput) throw new Error('Expected the target combobox');
-    act(() => { setInputValue(targetInput, 'ledger'); });
-
-    const options = Array.from(view.querySelectorAll('.node-relation-editor__option'));
-    expect(options).toHaveLength(1);
-    expect(options[0]?.textContent).toBe('Unrelated ledger');
   });
 });

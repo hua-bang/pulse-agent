@@ -1,4 +1,7 @@
 import { useEffect } from 'react';
+import { SparklesIcon } from '../../../components/icons';
+import { Button } from '../../../components/ui';
+import { useI18n } from '../../../i18n';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
 import { useAppShell } from '../../../shared/appShell';
@@ -9,13 +12,17 @@ interface NodeDetailPageProps {
   workspaceId: string;
   nodeId: string | null;
   onBack: () => void;
+  /** Open the side chat. The route already gives it this node as context. */
+  onAskAi?: () => void;
 }
 
 export const NodeDetailPage = ({
   workspaceId,
   nodeId,
   onBack,
+  onAskAi,
 }: NodeDetailPageProps) => {
+  const { t } = useI18n();
   const { node, loading, error, missing, setNode, reload } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
   const { nodes: relationCandidates, tags: workspaceTags, reload: reloadWorkspaceNodes } = useWorkspaceNodeList(workspaceId);
@@ -48,6 +55,12 @@ export const NodeDetailPage = ({
           error={error}
           missing={missing}
           mode="page"
+          headerAction={onAskAi && (
+            <Button variant="secondary" size="xs" onClick={onAskAi}>
+              <SparklesIcon size={12} />
+              <span>{t('workspaceNodes.askAi')}</span>
+            </Button>
+          )}
           onBack={onBack}
           onRetry={() => { void reload(); }}
           tagDefinitions={[...workspaceTags, ...tags]}

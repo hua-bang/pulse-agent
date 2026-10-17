@@ -130,8 +130,8 @@ describe('ChatInput execution and attachment states', () => {
           selectedContext={[
             { key: 'node-a', kind: 'node', label: 'Release notes' },
             { key: 'tag-a', kind: 'tag', label: 'Decisions' },
+            { key: 'app:linear', kind: 'app', label: 'Linear board', removable: false },
           ]}
-          showContextChips
           onRemoveContext={vi.fn()}
           attachments={[
             { id: 'image-a', path: '/tmp/a.png', fileName: 'a.png', status: 'ready' },
@@ -144,6 +144,9 @@ describe('ChatInput execution and attachment states', () => {
 
     expect(host.querySelector('[aria-label="Remove Release notes from context"]')).not.toBeNull();
     expect(host.querySelector('[aria-label="Remove Decisions from context"]')).not.toBeNull();
+    // The open app follows the page, so it shows without a remove control.
+    expect(host.textContent).toContain('Linear board');
+    expect(host.querySelector('[aria-label="Remove Linear board from context"]')).toBeNull();
     expect(host.querySelector('[aria-label="Remove a.png"]')).not.toBeNull();
     expect(host.querySelector('[aria-label="Remove b.png"]')).not.toBeNull();
     act(() => root.unmount());

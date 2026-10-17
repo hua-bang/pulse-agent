@@ -15,7 +15,6 @@ interface ChatInputProps {
   loading: boolean;
   input: string;
   selectedContext?: SelectedContextChip[];
-  showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
@@ -52,11 +51,18 @@ interface ChatInputProps {
   onMentionNavigate?: (chip: HTMLElement) => void;
 }
 
+const chipIconType = (chip: SelectedContextChip): string => {
+  if (chip.kind === 'canvas') return 'workspace';
+  if (chip.kind === 'app') return 'iframe';
+  if (chip.kind === 'task') return 'scheduled';
+  if (chip.kind === 'skill') return 'skill';
+  return chip.nodeType ?? 'file';
+};
+
 export const ChatInput = ({
   loading,
   input,
   selectedContext,
-  showContextChips: showContextChipsProp = true,
   onRemoveContext,
   attachments = [],
   contextComposer = false,
@@ -93,7 +99,7 @@ export const ChatInput = ({
   const contextChips = (selectedContext && selectedContext.length > 0)
     ? selectedContext
     : [];
-  const showContextChips = showContextChipsProp && contextComposer && contextChips.length > 0 && !loading;
+  const showContextChips = contextComposer && contextChips.length > 0 && !loading;
   const readyAttachments = useMemo(
     () => attachments.filter(attachment => (attachment.status ?? 'ready') === 'ready' && attachment.path),
     [attachments],
@@ -130,10 +136,10 @@ export const ChatInput = ({
                 <span className="chat-context-chip-icon">
                   {chip.kind === 'tag'
                     ? <span className="chat-context-chip-hash">#</span>
-                    : <MentionNodeIcon nodeType={chip.kind === 'canvas' ? 'workspace' : (chip.nodeType ?? 'file')} size={13} />}
+                    : <MentionNodeIcon nodeType={chipIconType(chip)} size={13} />}
                 </span>
                 <span className="chat-context-chip-label">{chip.label}</span>
-                {onRemoveContext && (
+                {onRemoveContext && chip.removable !== false && (
                   <button
                     type="button"
                     className="chat-context-chip-remove"
@@ -178,7 +184,10 @@ export const ChatInput = ({
                 ? t('chat.askKnowledgeScope')
                 : t('chat.askKnowledge'))
             : contextComposer
-              ? (contextChips.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
+              // Page context (an open app or skill) is not a node selection.
+              ? (contextChips.some(chip => chip.removable !== false)
+                ? t('chat.askSelectedNodes')
+                : t('chat.askCanvas'))
             : (loading ? t('chat.generatingPlaceholder') : t('chat.askAnything')))}
           onInput={onInput}
           onKeyDown={onKeyDown}

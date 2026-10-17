@@ -22,38 +22,47 @@ const listItem = (
 
 describe('NodeCardPreview', () => {
   it('derives typed previews from list-item fields only', () => {
-    expect(getNodeCardPreviewModel(listItem('file'), 'File title', 'Empty')).toMatchObject({
+    expect(getNodeCardPreviewModel(listItem('file'), 'File title')).toMatchObject({
       kind: 'file',
       sections: ['First point', 'Second point', 'Third point.'],
     });
-    expect(getNodeCardPreviewModel(listItem('text'), 'Text title', 'Empty')).toMatchObject({
+    expect(getNodeCardPreviewModel(listItem('text'), 'Text title')).toMatchObject({
       kind: 'text',
       excerpt: 'First point. Second point. Third point.',
     });
     expect(getNodeCardPreviewModel(
       listItem('iframe', { summary: 'https://www.example.com/library A useful source.' }),
-      'Web title',
-      'Empty',
-    )).toMatchObject({
+      'Web title')).toMatchObject({
       kind: 'iframe',
       source: 'example.com',
       excerpt: 'A useful source.',
     });
     expect(getNodeCardPreviewModel(
       listItem('iframe', { summary: 'file:///tmp/research-source.html' }),
-      'Local source',
-      'Empty',
-    )).toMatchObject({
+      'Local source')).toMatchObject({
       kind: 'iframe',
       source: 'research-source.html',
-      excerpt: 'Empty',
+      excerpt: undefined,
     });
-    expect(getNodeCardPreviewModel(listItem('image'), 'Image title', 'Empty')).toMatchObject({
+    expect(getNodeCardPreviewModel(listItem('image'), 'Image title')).toMatchObject({
       kind: 'image',
+      caption: 'First point. Second point. Third point.',
     });
+    expect(getNodeCardPreviewModel(
+      listItem('image', { summary: '/home/me/shots/sample.png' }),
+      'Image title',
+    )).toMatchObject({ kind: 'image', caption: undefined });
+    expect(getNodeCardPreviewModel(
+      listItem('file', { summary: 'Use `harness click` to drive it.' }),
+      'File title',
+    )).toMatchObject({ kind: 'file', sections: ['Use harness click to drive it.'] });
+    expect(getNodeCardPreviewModel(
+      listItem('file', { summary: '# Plan\nShip it.' }),
+      'Plan',
+    )).toMatchObject({ kind: 'file', sections: ['Ship it.'] });
     expect(getNodeCardPreviewModel(listItem('mindmap', {
       mindmapPreview: { root: 'Research methods', branches: ['Interviews', 'Field notes'] },
-    }), 'Mindmap title', 'Empty')).toMatchObject({
+    }), 'Mindmap title')).toMatchObject({
       kind: 'mindmap',
       root: 'Research methods',
       branches: ['Interviews', 'Field notes'],
@@ -65,14 +74,12 @@ describe('NodeCardPreview', () => {
       <NodeCardPreview
         node={listItem('iframe', { summary: 'https://example.com A useful source.' })}
         title="Web title"
-        emptyLabel="Empty"
       />,
     );
     const image = renderToStaticMarkup(
       <NodeCardPreview
         node={listItem('image', { previewPath: '/tmp/reference.png' })}
         title="Image title"
-        emptyLabel="Empty"
       />,
     );
 
@@ -88,9 +95,7 @@ describe('NodeCardPreview', () => {
         summary: 'https://example.com Long source description.',
         aiSummary: 'A concise, confirmed reading aid.',
       }),
-      'Web title',
-      'Empty',
-    )).toMatchObject({
+      'Web title')).toMatchObject({
       kind: 'ai-summary',
       excerpt: 'A concise, confirmed reading aid.',
       source: 'example.com',
@@ -100,7 +105,6 @@ describe('NodeCardPreview', () => {
       <NodeCardPreview
         node={listItem('text', { aiSummary: 'Confirmed synthesis.' })}
         title="Text title"
-        emptyLabel="Empty"
         aiSummaryLabel="AI insight"
         confirmedLabel="Confirmed"
       />,
@@ -113,15 +117,12 @@ describe('NodeCardPreview', () => {
   it('keeps empty source nodes compact instead of rendering no-preview copy', () => {
     expect(getNodeCardPreviewModel(
       listItem('text', { summary: '' }),
-      'Text title',
-      'No preview available.',
-    )).toEqual({ kind: 'empty' });
+      'Text title')).toEqual({ kind: 'empty' });
 
     const html = renderToStaticMarkup(
       <NodeCardPreview
         node={listItem('file', { summary: '' })}
         title="File title"
-        emptyLabel="No preview available."
       />,
     );
 

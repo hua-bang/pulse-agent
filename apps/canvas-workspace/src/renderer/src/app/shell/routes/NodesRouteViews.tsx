@@ -11,6 +11,8 @@ interface Props {
   detailNode: KnowledgeNodeSelection | null;
   onBack: () => void;
   onAskAi: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
+  onAskAiAboutDetail: () => void;
+  onOpenGraph?: () => void;
 }
 
 /** Keeps the application shell focused on routing, not Nodes route composition. */
@@ -20,18 +22,20 @@ export const NodesRouteViews = ({
   detailNode,
   onBack,
   onAskAi,
+  onAskAiAboutDetail,
+  onOpenGraph,
 }: Props) => {
   if (!enabled) return null;
   return (
     <>
       <PulseRouterView name="nodes" keepAlive>
         <Suspense fallback={null}>
-          <NodesPageLazy workspaces={workspaces} onAskAi={onAskAi} />
+          <NodesPageLazy workspaces={workspaces} onAskAi={onAskAi} onOpenGraph={onOpenGraph} />
         </Suspense>
       </PulseRouterView>
       <PulseRouterView name="node-detail">
         <Suspense fallback={null}>
-          <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} onBack={onBack} />
+          <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} onBack={onBack} onAskAi={onAskAiAboutDetail} />
         </Suspense>
       </PulseRouterView>
     </>

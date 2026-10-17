@@ -3,6 +3,7 @@ import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
+  AgentContextScheduledTaskRef,
   AgentContextTagRef,
   KnowledgeNodeSelection,
 } from '../../../types';
@@ -17,10 +18,12 @@ const GLOBAL_AGENT_SCOPE: AgentScope = { kind: 'global' };
 const EMPTY_CONTEXT_NODES: AgentContextNodeRef[] = [];
 
 interface Props {
+  knowledgeMode: boolean;
   selectedNode: KnowledgeNodeSelection | null;
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
+  contextScheduledTasks?: AgentContextScheduledTaskRef[];
   composerRequest?: ChatComposerRequest;
   onComposerRequestHandled?: (requestId: string) => void;
   onRemoveContext?: (key: string) => void;
@@ -32,12 +35,14 @@ interface Props {
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
-/** Hosts the knowledge routes' global ChatPanel in the one application RightDock. */
+/** Hosts the global ChatPanel for every non-canvas route in the one application RightDock. */
 export const KnowledgeChatPortal = ({
+  knowledgeMode,
   selectedNode,
   contextNodes,
   contextTags,
   contextCanvases,
+  contextScheduledTasks,
   composerRequest,
   onComposerRequestHandled,
   onRemoveContext,
@@ -69,13 +74,14 @@ export const KnowledgeChatPortal = ({
     <div className="right-dock__chat-instance">
       <ChatPanel
         agentScope={GLOBAL_AGENT_SCOPE}
-        knowledgeMode
+        knowledgeMode={knowledgeMode}
         allWorkspaces={workspaces}
         knowledgeNodes={chatContext.knowledgeNodes}
         knowledgeTags={chatContext.knowledgeTags}
         contextNodes={resolvedContextNodes}
         contextTags={contextTags}
         contextCanvases={contextCanvases}
+        contextScheduledTasks={contextScheduledTasks}
         composerRequest={composerRequest}
         onComposerRequestHandled={onComposerRequestHandled}
         onRemoveContext={onRemoveContext}

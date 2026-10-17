@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../../../modules/canvas/surface';
 import { FileNodeEditorRegistryProvider } from '../../../shared/fileNodeEditorRegistry';
@@ -18,7 +18,7 @@ import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 import { ScheduledChatPanel } from '../../../modules/scheduled/surface';
 import type { KnowledgeChatRouteContext } from './knowledgeChatContext';
-import { useOptionalChatTargetBroker } from '../../../modules/chat';
+import { useOptionalChatTargetBroker, waitForActiveChatTarget } from '../../../modules/chat';
 import type { AgentScope } from '../../../types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -113,6 +113,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   // instead of yanking the main canvas over (falls back when unpreviewable).
   const peekNode = usePeekNode({ activeWorkspaceId, workspaces, openCanvasPreview: dock.openCanvasPreview, onSelectWorkspace, requestNodeFocus });
 
+  const waitForGlobalChat = useCallback(
+    () => (chatTargetBroker ? waitForActiveChatTarget(chatTargetBroker) : Promise.resolve(false)),
+    [chatTargetBroker],
+  );
   const {
     handleAddDomSelectionToChat,
     handleAddTabToChat,
@@ -131,6 +135,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     allNodes,
     openChat: dock.openChat,
     deliverToActiveTarget: chatTargetBroker?.deliver,
+    waitForGlobalChat: knowledgeChatContext.active ? waitForGlobalChat : undefined,
   });
 
   useEffect(() => dock.registerPinUrlReference(pinReferenceUrl), [dock, pinReferenceUrl]);
@@ -280,6 +285,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   revision={dockState.scheduledChatRevision ?? 0}
                   allWorkspaces={workspaces}
                   onClose={dock.collapse}
+                  onLeave={dock.closeScheduledChat}
                   onOpenAppSettings={onOpenAppSettings}
                   onTurnComplete={dock.notifyChatActivity}
                   chatTargetActive={chatPanelOpen}
@@ -290,11 +296,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             {!scheduledChatTaskId && knowledgeChatContext.active && (
               <Suspense fallback={null}>
                 <KnowledgeChatPortal
+                  knowledgeMode={knowledgeChatContext.knowledgeMode}
                   selectedNode={knowledgeChatContext.selectedNode}
                   workspaces={workspaces}
                   contextNodes={knowledgeChatContext.explicitContext?.nodes}
                   contextTags={knowledgeChatContext.explicitContext?.tags}
                   contextCanvases={knowledgeChatContext.explicitContext?.canvases}
+                  contextScheduledTasks={knowledgeChatContext.scheduledTasks}
                   composerRequest={knowledgeChatContext.explicitContext?.composerRequest}
                   onComposerRequestHandled={onKnowledgeComposerRequestHandled}
                   onRemoveContext={onRemoveKnowledgeChatContext}

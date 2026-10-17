@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../../types';
-import type { ChatTargetBroker } from '../../../../modules/chat';
+import { createChatTargetBroker, waitForActiveChatTarget, type ChatTargetBroker } from '../../../../modules/chat';
 import { useChatInsertionBridge } from '../useChatInsertionBridge';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -361,5 +361,45 @@ describe('useChatInsertionBridge', () => {
         scopeId: 'workspace-1',
       },
     });
+  });
+
+  it('opens the global chat instead of a hidden workspace chat on global routes', async () => {
+    const broker = createChatTargetBroker();
+    const startGlobalSkillChat = vi.fn(async () => undefined);
+    const startWorkspaceSkillChat = vi.fn(async () => undefined);
+    const openGlobalChat = vi.fn(() => {
+      broker.register({
+        surface: 'dock',
+        scope: { kind: 'global' },
+        scopeId: '__global_chat__',
+        sessionId: null,
+        composerId: 'dock:global',
+        contextSnapshot: { label: 'General' },
+        executionPolicy: 'auto',
+      }, { startSkillChat: startGlobalSkillChat });
+    });
+    act(() => root.unmount());
+    const GlobalRouteHarness = () => {
+      bridge = useChatInsertionBridge({
+        allNodes: { 'workspace-1': [node] },
+        openChat: openGlobalChat,
+        deliverToActiveTarget: broker.deliver,
+        waitForGlobalChat: () => waitForActiveChatTarget(broker),
+      });
+      return null;
+    };
+    root = createRoot(container);
+    act(() => root.render(<GlobalRouteHarness />));
+    act(() => { bridge.registerStartSkillChat('workspace-1', startWorkspaceSkillChat); });
+
+    let receipt;
+    await act(async () => {
+      receipt = await bridge.handleStartSkillChat('workspace-1', 'review');
+    });
+
+    expect(openGlobalChat).toHaveBeenCalledOnce();
+    expect(startGlobalSkillChat).toHaveBeenCalledWith('review');
+    expect(startWorkspaceSkillChat).not.toHaveBeenCalled();
+    expect(receipt).toMatchObject({ status: 'delivered', target: { composerId: 'dock:global' } });
   });
 });

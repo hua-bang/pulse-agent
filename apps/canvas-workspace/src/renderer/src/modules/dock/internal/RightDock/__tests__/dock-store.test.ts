@@ -69,6 +69,21 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().scheduledChatSessionId).toBeUndefined();
   });
 
+  it('leaves a task chat without collapsing or moving the dock', () => {
+    const dock = new DockStore();
+    dock.openScheduledChat('daily-brief', 'run-7');
+    const before = dock.getSnapshot();
+
+    dock.closeScheduledChat();
+
+    expect(dock.getSnapshot()).toMatchObject({
+      expanded: before.expanded,
+      activeTabId: before.activeTabId,
+    });
+    expect(dock.getSnapshot().scheduledChatTaskId).toBeUndefined();
+    expect(dock.getSnapshot().scheduledChatSessionId).toBeUndefined();
+  });
+
   it('refuses to preview a workspace that is already mounted in the main canvas', () => {
     const dock = new DockStore();
     dock.setMountedWorkspaces(['ws1']);

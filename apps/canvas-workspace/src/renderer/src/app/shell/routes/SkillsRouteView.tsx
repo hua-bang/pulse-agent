@@ -10,6 +10,7 @@ interface Props {
   workspaces: WorkspaceEntry[];
   onSelectWorkspace: (workspaceId: string) => void;
   onNavigatePlugins: () => void;
+  onLibraryKindChange: (kind: 'workspace' | 'global') => void;
 }
 
 export const SkillsRouteView = ({
@@ -17,6 +18,7 @@ export const SkillsRouteView = ({
   workspaces,
   onSelectWorkspace,
   onNavigatePlugins,
+  onLibraryKindChange,
 }: Props) => (
   <PulseRouterView name="skills">
     <Suspense fallback={<SkillsRouteLoading />}>
@@ -25,6 +27,7 @@ export const SkillsRouteView = ({
         workspaces={workspaces}
         onSelectWorkspace={onSelectWorkspace}
         onNavigatePlugins={onNavigatePlugins}
+        onLibraryKindChange={onLibraryKindChange}
       />
     </Suspense>
   </PulseRouterView>

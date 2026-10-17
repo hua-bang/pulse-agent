@@ -29,6 +29,24 @@
 .chat-panel-title-wrapper {
   position: relative;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-panel-scope-badge {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 140px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-panel-title-btn {

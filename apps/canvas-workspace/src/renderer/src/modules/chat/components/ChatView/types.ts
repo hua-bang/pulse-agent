@@ -62,7 +62,6 @@ export interface ChatViewThread {
 export interface ChatViewContext {
   nodes?: CanvasNode[];
   selectedContext?: SelectedContextChip[];
-  showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
   onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
   emptyState?: ReactNode;

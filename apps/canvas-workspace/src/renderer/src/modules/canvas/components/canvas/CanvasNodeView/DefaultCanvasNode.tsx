@@ -16,8 +16,8 @@ import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { CanvasNodeBody } from './CanvasNodeBody';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
-import { dispatchOpenNodePage } from '../../../../../utils/openNodeBridge';
 import { getWebNodeUrl } from '../../../../../utils/webNode';
+import { isKnowledgeNodeType } from '../../../../../shared/knowledgeNodes';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 
 interface DefaultCanvasNodeProps {
@@ -30,6 +30,8 @@ interface DefaultCanvasNodeProps {
   getAllNodes?: () => CanvasNode[];
   containerDescendantCount: number;
   handleClose: (e: MouseEvent) => void;
+  /** Opens the detail page; absent outside a workspace. */
+  handleOpenDetail?: (e: MouseEvent) => void;
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
   handleNodeBodyMouseDown: (e: MouseEvent) => void;
@@ -76,6 +78,7 @@ export const DefaultCanvasNode = ({
   getAllNodes,
   containerDescendantCount,
   handleClose,
+  handleOpenDetail,
   handleFocus,
   handleHeaderMouseDown,
   handleNodeBodyMouseDown,
@@ -185,10 +188,6 @@ export const DefaultCanvasNode = ({
     })();
   }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
 
-  const handleOpenDetail = useCallback((event: MouseEvent) => {
-    event.stopPropagation();
-    dispatchOpenNodePage({ workspaceId: workspaceId ?? '', nodeId: node.id });
-  }, [node.id, workspaceId]);
 
   const handleOpenTab = useCallback((event: MouseEvent) => {
     event.stopPropagation();
@@ -216,7 +215,7 @@ export const DefaultCanvasNode = ({
       handleClose={handleClose}
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}
-      handleOpenDetail={handleOpenDetail}
+      handleOpenDetail={isKnowledgeNodeType(node.type) ? handleOpenDetail : undefined}
       handleOpenTab={handleOpenTab}
       handlePluginSelectElement={handlePluginSelectElement}
       handleAddToChat={handleAddToChat}

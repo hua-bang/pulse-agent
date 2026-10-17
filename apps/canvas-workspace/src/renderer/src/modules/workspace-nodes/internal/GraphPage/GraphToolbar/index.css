@@ -5,6 +5,7 @@
   z-index: 4;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   background: transparent;
   border: 0;
@@ -17,8 +18,9 @@
 .workspace-graph-toolbar__group {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
-  height: 34px;
+  min-height: 34px;
   padding: 3px;
   border: 1px solid var(--nodes-border);
   border-radius: 7px;

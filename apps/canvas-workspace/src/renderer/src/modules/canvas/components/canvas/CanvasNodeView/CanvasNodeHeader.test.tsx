@@ -108,6 +108,22 @@ describe('CanvasNodeHeader title', () => {
   });
 });
 
+describe('CanvasNodeHeader detail action', () => {
+  it('shows the detail page button only when the node can open one', () => {
+    renderHeader();
+    expect(host?.querySelector('.node-open-detail')).toBeNull();
+    root?.unmount();
+    host?.remove();
+
+    const handleOpenDetail = vi.fn();
+    renderHeader({ handleOpenDetail });
+    const button = host?.querySelector('.node-open-detail') as HTMLButtonElement;
+    expect(button.getAttribute('aria-label')).toBe('Go to detail');
+    button.click();
+    expect(handleOpenDetail).toHaveBeenCalledTimes(1);
+  });
+});
+
 function renderHeader(overrides: Partial<Parameters<typeof CanvasNodeHeader>[0]> = {}) {
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -123,7 +139,6 @@ function renderHeader(overrides: Partial<Parameters<typeof CanvasNodeHeader>[0]>
           handleFocus={vi.fn()}
           handleHeaderMouseDown={vi.fn()}
           handlePluginSelectElement={vi.fn()}
-          handleOpenDetail={vi.fn()}
           handleOpenTab={vi.fn()}
           handleAddToChat={vi.fn()}
           handleAddToCanvas={vi.fn()}

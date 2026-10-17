@@ -62,6 +62,7 @@ describe('ScheduledChatPanel', () => {
           revision={revision}
           allWorkspaces={[]}
           onClose={vi.fn()}
+          onLeave={vi.fn()}
           onOpenAppSettings={vi.fn()}
           onTurnComplete={vi.fn()}
           onOpenSessionInScope={vi.fn()}

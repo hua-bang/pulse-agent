@@ -3,13 +3,14 @@ import type { CanvasNode } from '../../../../../types';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import { MindmapNodeBody } from '../../node-bodies/MindmapNodeBody';
 import { NodeContextMenu } from '../NodeContextMenu';
-import { AddToChatButton, CloseButton, FocusButton, FullscreenButton } from './NodeButtons';
+import { AddToChatButton, CloseButton, FocusButton, FullscreenButton, OpenDetailButton } from './NodeButtons';
 
 interface MindmapCanvasNodeProps {
   classes: string;
   handleClose: (e: MouseEvent) => void;
   handleAddToChat?: (e: MouseEvent) => void;
   handleFocus?: (e: MouseEvent) => void;
+  handleOpenDetail?: (e: MouseEvent) => void;
   focusAction?: { ariaLabel: string; title: string };
   handleNodeClick: (e: MouseEvent) => void;
   handleToggleFullscreen: (e: MouseEvent) => void;
@@ -39,6 +40,7 @@ export const MindmapCanvasNode = ({
   handleClose,
   handleAddToChat,
   handleFocus,
+  handleOpenDetail,
   focusAction,
   handleNodeClick,
   handleToggleFullscreen,
@@ -92,6 +94,7 @@ export const MindmapCanvasNode = ({
         />
       </div>
       <div className="node-header__actions mindmap-node-actions">
+        {handleOpenDetail ? <OpenDetailButton onClick={handleOpenDetail} /> : null}
         {handleAddToChat ? <AddToChatButton onClick={handleAddToChat} /> : null}
         {supportsFullscreen ? (
           <FullscreenButton isFullscreen={isFullscreen} onClick={handleToggleFullscreen} />

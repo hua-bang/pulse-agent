@@ -4,6 +4,7 @@ import type {
   AgentContextDomReviewComment,
   AgentContextDomSelectionRef,
   AgentContextNodeRef,
+  AgentContextScheduledTaskRef,
   AgentContextTabRef,
   AgentContextTagRef,
   AgentScope,
@@ -36,6 +37,8 @@ export interface ChatPanelProps {
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
+  /** Scheduled tasks the user asked about from the Scheduled list. */
+  contextScheduledTasks?: AgentContextScheduledTaskRef[];
   composerRequest?: ChatComposerRequest;
   onComposerRequestHandled?: (requestId: string) => void;
   onRemoveContext?: (key: string) => void;

@@ -1,3 +1,5 @@
+// Shared Knowledge page tokens and layout; this page can open before any detail panel loads them.
+import '../index.css';
 import './index.css';
 import {
   useCallback,
@@ -28,11 +30,14 @@ import {
 } from '../ForceGraphCanvas';
 import { GraphSearch } from './GraphSearch';
 import { GraphToolbar } from './GraphToolbar';
+import { KnowledgeViewTabs } from '../KnowledgeViewTabs';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
   selectedNode?: KnowledgeNodeSelection | null;
   onSelectNode?: (selection: KnowledgeNodeSelection | null) => void;
+  /** Switch to the list view; omitted when the list is unavailable. */
+  onOpenList?: () => void;
 }
 
 function selectedGraphId(selectedNode?: KnowledgeNodeSelection | null): string | null {
@@ -52,6 +57,7 @@ export const GraphPage = ({
   workspaces,
   selectedNode,
   onSelectNode,
+  onOpenList,
 }: GraphPageProps) => {
   const { t } = useI18n();
   const dock = useRightDock();
@@ -177,6 +183,9 @@ export const GraphPage = ({
   return (
     <main className="workspace-graph-page" ref={containerRef}>
       <GraphToolbar
+        leading={onOpenList && (
+          <KnowledgeViewTabs value="graph" onChange={(view) => view === 'list' && onOpenList()} />
+        )}
         graphRef={graphRef}
         layoutPreset={layoutPreset}
         showLabels={showLabels}

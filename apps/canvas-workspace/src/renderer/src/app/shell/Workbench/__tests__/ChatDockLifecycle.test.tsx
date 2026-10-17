@@ -118,7 +118,7 @@ const controller = {
 const LifecycleHarness = ({ canvasHostActive = true }: { canvasHostActive?: boolean }) => {
   const activeTarget = useActiveChatTarget();
   const knowledgeChatContext = useMemo(
-    () => ({ active: false, selectedNode: null }),
+    () => ({ active: false, knowledgeMode: false, selectedNode: null }),
     [],
   );
 
@@ -166,6 +166,7 @@ const KnowledgeDetailLifecycleHarness = () => {
         controller={controller}
         knowledgeChatContext={{
           active: true,
+          knowledgeMode: true,
           selectedNode: { workspaceId: workspace.id, nodeId: 'node-1' },
         }}
         onSelectWorkspace={noOp}

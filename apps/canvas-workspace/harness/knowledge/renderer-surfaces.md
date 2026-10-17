@@ -22,7 +22,7 @@ The workbench has exactly two side regions plus a modal tier:
 ```
 - **App rail and sidebar panel** (`app/shell/Sidebar`). The 48px rail
   (`SidebarRail`) is always visible and owns app navigation: Pulse Agent,
-  Workspaces, Plugins, Scheduled, plugin nav items, global MCP Apps, and
+  Workspaces, Knowledge, Plugins, Scheduled, plugin nav items, global MCP Apps, and
   Settings at the bottom. The toggle above Settings (a chevron with no visible
   label, beside Settings on the wide rail) widens the rail to 240px with a label beside each icon, and the choice persists
   (`useRailExpanded`); `App` adds the rail width to the dock's left inset,
@@ -171,7 +171,11 @@ The workbench has exactly two side regions plus a modal tier:
   scope; cross-scope pin-to-canvas stays disabled because the mirror resolves
   in the host workspace. New source browsing surfaces belong here, not in a
   new drawer. Sidebar Layers owns the canvas spatial tree; `/nodes` owns
-  full-page knowledge node management.
+  full-page knowledge node management. Knowledge is one rail entry: `/nodes`
+  (list) and `/graph` share it and switch through `KnowledgeViewTabs`, so the
+  graph gets no rail button of its own. Both pages import the shared
+  `workspace-nodes/internal/index.css` themselves; it used to arrive only with
+  the detail panel, and a list opened first rendered at zero width.
 - **Right region — `RightDock`** (`modules/dock/internal/RightDock`): ONE tabbed
   panel whose first tab is the **pinned chat**; preview surfaces open as
   additional tabs — artifacts (`modules/artifacts/tab.ts`)
@@ -218,10 +222,34 @@ The workbench has exactly two side regions plus a modal tier:
   mounted while collapsed. On workbench routes it reserves its width via
   the `--right-dock-inset` custom property consumed by `.app-body`, so it
   behaves like an in-flow column and page content remains fully visible.
-  Nodes and node-detail routes reuse this same chat pane with the global
-  agent scope. Their current knowledge node is passed as explicit
-  cross-workspace context; the Nodes list starts with no automatic context,
-  while Graph remains on the active workspace's chat.
+  Only Canvas shows a workspace chat. Every other route with the floating
+  launcher (Nodes, Graph, node detail, Plugins, Skills, the Scheduled list,
+  MCP apps and plugin routes) reuses this pane with the global agent scope
+  (`resolveKnowledgeChatRouteContext`), so it never borrows the last canvas's
+  conversation. Knowledge routes add their own empty-state prompts
+  (`knowledgeMode`). The detail page passes its node as context and offers an
+  Ask AI header button; the Nodes list and Graph start with no automatic
+  context. The chat header shows the scope as a badge beside the title: the
+  workspace name on Canvas, "General" elsewhere (`ChatHeader` `scopeBadge`).
+  The Skills page follows its library selector: one canvas's library keeps
+  that canvas's chat (its skills and skill tools live there), the global
+  library uses the global chat. On routes with the global chat, insertions
+  made while the dock is collapsed open that chat instead of a hidden
+  workspace chat (`useChatInsertionBridge` `waitForGlobalChat`). A scheduled
+  task chat shows a "Back to page chat" bar and closes on any route change
+  (`closeScheduledChat`).
+  A Scheduled list row's Ask AI sends that task to the global chat as
+  context (`scheduledTasks`, rendered for the model by
+  `scheduled-task-context.ts`); it clears on any route change.
+  On the Skills page, the skill last shown in a dock tab is context for
+  whichever chat the page uses, while its tab stays open and it belongs to
+  the selected library (`usePublishOpenSkill` → `shared/skillChatContext.ts`,
+  rendered by `skill-context.ts`); leaving the page clears it.
+  Context the agent receives is always shown as chips above the input,
+  including Canvas's selected nodes, the open MCP app and the open skill (no remove button;
+  they follow the page). `/chat` on the global scope offers the same knowledge node and
+  tag @ mentions as the dock (`app/App/ChatRoute.tsx`, lazy so the node list
+  stays off the startup chunk).
   Workspace ChatPanels remain mounted but hidden while that global instance
   is visible, and the Nodes route itself is kept alive so filters and scroll
   survive a detail-page round trip.

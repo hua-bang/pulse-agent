@@ -1,5 +1,6 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { AppLogoIcon } from '../../../../../components/icons';
+import { useI18n } from '../../../../../i18n';
 
 interface FullscreenButtonProps {
   floating?: boolean;
@@ -123,6 +124,32 @@ export const PluginSelectElementButton = ({
   </button>
 );
 
+/** Header icon button that never starts a node drag. */
+const NodeHeaderIconButton = ({
+  className,
+  title,
+  ariaLabel,
+  onClick,
+  children,
+}: {
+  className: string;
+  title: string;
+  ariaLabel: string;
+  onClick: (e: MouseEvent) => void;
+  children: ReactNode;
+}) => (
+  <button
+    className={className}
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title={title}
+    aria-label={ariaLabel}
+  >
+    {children}
+  </button>
+);
+
 export const OpenTabButton = ({
   ariaLabel,
   nodeTitle,
@@ -132,13 +159,11 @@ export const OpenTabButton = ({
   nodeTitle: string;
   onClick: (e: MouseEvent) => void;
 }) => (
-  <button
+  <NodeHeaderIconButton
     className="node-open-tab"
-    type="button"
-    onClick={onClick}
-    onMouseDown={(e) => e.stopPropagation()}
     title="Open in tab"
-    aria-label={ariaLabel ?? `Open ${nodeTitle} in tab`}
+    ariaLabel={ariaLabel ?? `Open ${nodeTitle} in tab`}
+    onClick={onClick}
   >
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
       <rect x="2.8" y="3.2" width="12.4" height="11.6" rx="1.5" stroke="currentColor" strokeWidth="1.35" />
@@ -149,8 +174,37 @@ export const OpenTabButton = ({
         strokeLinecap="round"
       />
     </svg>
-  </button>
+  </NodeHeaderIconButton>
 );
+
+/** Open the node's full detail page. */
+export const OpenDetailButton = ({
+  floating,
+  onClick,
+}: {
+  floating?: boolean;
+  onClick: (e: MouseEvent) => void;
+}) => {
+  const label = useI18n().t('workspaceNodes.goToDetail');
+  return (
+    <NodeHeaderIconButton
+      className={`node-open-detail${floating ? ' node-open-detail--floating' : ''}`}
+      title={label}
+      ariaLabel={label}
+      onClick={onClick}
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M9 3h4v4m0-4L8 8M7 3H3v10h10V9"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </NodeHeaderIconButton>
+  );
+};
 
 /** Place this node on the main canvas as a live reference node. Offered on
  *  read-only preview nodes (the dock canvas preview). */

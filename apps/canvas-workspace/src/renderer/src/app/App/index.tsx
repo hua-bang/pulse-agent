@@ -1,10 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
 import { ConversationCompletionToastBridge } from '../shell/ConversationCompletionToastBridge';
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
-import { ChatPageLazy as ChatPage } from '../../modules/chat/lazy';
 import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
@@ -19,7 +18,7 @@ import { useRailExpanded, useSettingsNavigation, useSidebarCollapsed } from './u
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
-import type { KnowledgeNodeSelection } from '../../types';
+import type { AgentContextScheduledTaskRef, KnowledgeNodeSelection, ScheduledTask } from '../../types';
 import { HomeRouteView, NodesRouteViews, PluginMarketRouteView, preloadRoutePages, ScheduledRouteViews, SettingsRouteView, SkillsRouteView } from '../shell/RouteViews';
 import type { SettingsSection } from '../../modules/settings';
 import { useScheduledRunChatOpener } from '../../modules/scheduled';
@@ -42,6 +41,8 @@ setApprovalNodePreviewLoader(() => import('../../modules/canvas/preview').then((
 
 const GlobalMcpAppsView = lazy(() => import('../../modules/mcp-apps').then((module) => ({ default: module.GlobalMcpAppsView })));
 const WorkspaceTabs = lazy(() => import('../shell/WorkspaceTabs').then((module) => ({ default: module.WorkspaceTabs })));
+// Its knowledge @ list loads every workspace's nodes, so it stays off the startup chunk.
+const ChatRoute = lazy(() => import('./ChatRoute').then((module) => ({ default: module.ChatRoute })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const {
   canvas: ROUTE_CANVAS,
@@ -59,7 +60,7 @@ const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
-const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true, NODES_NAV_VISIBLE = false;
+const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true, GRAPH_NAV_VISIBLE = false;
 const AppContent = () => {
   const { t } = useI18n();
@@ -92,6 +93,8 @@ const AppContent = () => {
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
+  const [skillsLibraryGlobal, setSkillsLibraryGlobal] = useState(false);
+  const [scheduledChatTasks, setScheduledChatTasks] = useState<AgentContextScheduledTaskRef[]>();
   const [nodeDetailBackPath, setNodeDetailBackPath] = useState<string | null>(null);
   const {
     explicitContext: knowledgeChatExplicitContext,
@@ -99,11 +102,32 @@ const AppContent = () => {
     removeContext: handleRemoveKnowledgeChatContext,
     consumeComposerRequest: handleKnowledgeComposerRequestHandled,
   } = useKnowledgeAiContext({ openChat: dock.openChat, summarizePrompt: t('workspaceNodes.aiSummarizePrompt') });
+  // A task conversation stays with the page it was opened on; any route
+  // change returns the dock to the new page's own chat.
+  const closeScheduledChatRef = useRef(dock.closeScheduledChat);
+  closeScheduledChatRef.current = dock.closeScheduledChat;
+  useEffect(() => {
+    closeScheduledChatRef.current();
+    setScheduledChatTasks(undefined);
+  }, [activeView]);
+  const handleAskAiAboutTask = useCallback((task: ScheduledTask) => {
+    setScheduledChatTasks([{ id: task.id, title: task.title }]);
+    dock.openChat();
+  }, [dock]);
+  const handleRemoveChatContext = useCallback((key: string) => {
+    if (key.startsWith('task:')) setScheduledChatTasks(undefined);
+    else handleRemoveKnowledgeChatContext(key);
+  }, [handleRemoveKnowledgeChatContext]);
+  const handleSkillsLibraryKindChange = useCallback((kind: 'workspace' | 'global') => {
+    setSkillsLibraryGlobal(kind === 'global');
+  }, []);
   const knowledgeChatContext = resolveKnowledgeChatRouteContext({
     activeView,
     selectedNode,
     detailNode,
     explicitContext: knowledgeChatExplicitContext ?? undefined,
+    skillsLibraryGlobal,
+    scheduledTasks: scheduledChatTasks,
   });
   const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
   const openWorkspaceSettings = useCallback((workspaceId: string) => {
@@ -318,7 +342,7 @@ const AppContent = () => {
           onEnterGraph={enterGraphView}
           onEnterSkills={() => setLocation(ROUTE_PLUGINS)}
           onEnterScheduled={() => setLocation(ROUTE_SCHEDULED)}
-          nodesEnabled={NODES_NAV_VISIBLE && NODES_ENABLED}
+          nodesEnabled={NODES_ENABLED}
           graphEnabled={GRAPH_NAV_VISIBLE && GRAPH_ENABLED}
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
@@ -350,7 +374,7 @@ const AppContent = () => {
                   workspaces={workspaces}
                   controller={workbench}
                   knowledgeChatContext={knowledgeChatContext}
-                  onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+                  onRemoveKnowledgeChatContext={handleRemoveChatContext}
                   onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
                   onSelectWorkspace={workspaceActions.select}
                   onActivateWorkspace={selectWorkspace}
@@ -363,29 +387,32 @@ const AppContent = () => {
             </div>
           </PulseRouterView>
           <PulseRouterView name="chat">
-            <ChatPage
-              allWorkspaces={workspaces}
-              openScheduledTaskId={routeParams.get('scheduledTask')}
-              sessionListRequest={sessionListRequest}
-              initialTarget={chatEntryTarget}
-              getWorkspaceNodes={getWorkspaceNodes}
-              getWorkspaceRootFolder={getWorkspaceRootFolder}
-              onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
-              onWorkspaceScopeChange={reportChatWorkspace}
-              onExit={exitChatView}
-              onNodeFocus={focusNodeOnCanvas}
-              onOpenAppSettings={openAppSettings}
-            />
+            <Suspense fallback={null}>
+              <ChatRoute
+                allWorkspaces={workspaces}
+                openScheduledTaskId={routeParams.get('scheduledTask')}
+                sessionListRequest={sessionListRequest}
+                initialTarget={chatEntryTarget}
+                getWorkspaceNodes={getWorkspaceNodes}
+                getWorkspaceRootFolder={getWorkspaceRootFolder}
+                onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
+                onWorkspaceScopeChange={reportChatWorkspace}
+                onExit={exitChatView}
+                onNodeFocus={focusNodeOnCanvas}
+                onOpenAppSettings={openAppSettings}
+              />
+            </Suspense>
           </PulseRouterView>
-          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} />
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} onAskAiAboutDetail={dock.openChat} onOpenGraph={GRAPH_ENABLED ? enterGraphView : undefined} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
-              <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} />
+              <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} onOpenList={NODES_ENABLED ? enterNodesView : undefined} />
             </PulseRouterView>
           )}
           <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
-            onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
+            onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)}
+            onLibraryKindChange={handleSkillsLibraryKindChange} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
           <HomeRouteView
             active={activeView === 'home'}
@@ -401,7 +428,8 @@ const AppContent = () => {
           />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
-            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings} />
+            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
+            onAskAiAboutTask={handleAskAiAboutTask} />
           <PulseRouterView name={MCP_APP_VIEW} keepAlive>
             {(mcpApp || hasRunningMcpApps) && (
               <Suspense fallback={null}>

@@ -31,6 +31,13 @@ export function getOpenScheduledChatPatch(state: DockState, taskId: string, sess
   };
 }
 
+/** Leave a task conversation without moving the dock: the chat tab then shows
+ * the current page's own chat again. */
+export function getCloseScheduledChatPatch(state: DockState): DockStatePatch {
+  if (!state.scheduledChatTaskId) return undefined;
+  return { scheduledChatTaskId: undefined, scheduledChatSessionId: undefined };
+}
+
 export function getRefreshScheduledChatPatch(state: DockState, taskId: string): DockStatePatch {
   if (state.scheduledChatTaskId !== taskId) return undefined;
   return { scheduledChatRevision: (state.scheduledChatRevision ?? 0) + 1 };

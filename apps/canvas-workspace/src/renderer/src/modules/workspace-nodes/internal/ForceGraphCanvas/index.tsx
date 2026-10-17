@@ -64,6 +64,10 @@ const COLORS = {
   labelBg: 'rgba(255, 255, 255, 0.92)',
 };
 
+const GRAPH_MAX_ZOOM = 2.5;
+// Labels keep one on-screen size at every zoom level.
+const LABEL_SCREEN_PX = 12;
+
 const linkKey = (link: LinkObject<WorkspaceGraphNode, WorkspaceGraphLink>): string =>
   `${getGraphId(link.source)}->${getGraphId(link.target)}`;
 
@@ -71,7 +75,7 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
   const graphRef = useRef<ForceGraphMethods<WorkspaceGraphNode, WorkspaceGraphLink>>();
 
   useImperativeHandle(ref, () => ({
-    focusNode: (node, zoom = 2.8) => {
+    focusNode: (node, zoom = GRAPH_MAX_ZOOM) => {
       if (node.x === undefined || node.y === undefined) return;
       graphRef.current?.centerAt(node.x, node.y, 520);
       graphRef.current?.zoom(zoom, 520);
@@ -131,7 +135,7 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
     const showLabel = view.showLabels || selected || hovered || isWorkspace || globalScale > 2.3;
     if (showLabel && highlighted) {
       const label = node.label || nodeId;
-      const fontSize = Math.max(8, 11 / globalScale);
+      const fontSize = LABEL_SCREEN_PX / globalScale;
       ctx.font = `${fontSize}px "Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const textWidth = ctx.measureText(label).width;
       const textX = (node.x ?? 0) + radius + 6;
@@ -177,6 +181,11 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
       linkDirectionalParticleWidth={1.2}
       linkDirectionalParticleSpeed={0.005}
       cooldownTime={12000}
+      // Settle the layout before the first paint, so the first fit frames the
+      // spread-out graph instead of a tight cluster. The cap stops a handful
+      // of nodes from filling the screen.
+      warmupTicks={80}
+      maxZoom={GRAPH_MAX_ZOOM}
       nodeCanvasObject={renderNode}
       nodePointerAreaPaint={(node, paintColor, ctx) => {
         const radius = node.kind === 'workspace' ? 16 : node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;

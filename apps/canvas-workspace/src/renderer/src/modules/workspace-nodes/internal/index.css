@@ -257,6 +257,17 @@
   overscroll-behavior: contain;
 }
 
+/* The detail body is much larger than a canvas card; center a small map in
+ * it. Auto margins fall back to the top-left once the map outgrows the view,
+ * so nothing is pushed out of scroll reach. */
+.node-canvas-preview--mindmap .mindmap-viewport {
+  display: flex;
+}
+
+.node-canvas-preview--mindmap .mindmap-content {
+  margin: auto;
+}
+
 .node-canvas-preview--mindmap.is-panning {
   cursor: grabbing;
   user-select: none;
@@ -278,27 +289,6 @@
 
 .node-canvas-preview__mindmap-controls > * {
   pointer-events: auto;
-}
-
-.node-detail-panel__property-row {
-  display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 12px;
-  min-height: 38px;
-  align-items: center;
-  border-top: 1px solid var(--nodes-border);
-  font-size: 12px;
-}
-
-.node-detail-panel__property-row > span {
-  color: var(--nodes-muted);
-}
-
-.node-detail-panel__property-row strong {
-  font-weight: 500;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .node-detail-panel__empty {

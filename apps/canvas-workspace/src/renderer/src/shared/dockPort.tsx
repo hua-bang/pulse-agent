@@ -30,6 +30,8 @@ export interface DockActions {
   /** Shows a task's conversation in the dock; `sessionId` picks one exact run. */
   openScheduledChat: (taskId: string, sessionId?: string) => void;
   refreshScheduledChat: (taskId: string) => void;
+  /** Leaves a task conversation; the chat tab shows the page's own chat. */
+  closeScheduledChat: () => void;
   toggleChat: () => void;
   toggleContentTabs: () => void;
   openTerminal: () => void;

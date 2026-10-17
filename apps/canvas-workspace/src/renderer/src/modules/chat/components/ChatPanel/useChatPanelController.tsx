@@ -41,6 +41,7 @@ export const useChatPanelController = ({
   contextNodes,
   contextTags,
   contextCanvases,
+  contextScheduledTasks,
   composerRequest, onComposerRequestHandled,
   onRemoveContext,
   rootFolder,
@@ -214,6 +215,7 @@ export const useChatPanelController = ({
     contextNodes,
     contextTags,
     contextCanvases,
+    contextScheduledTasks,
     executionMode,
   });
   requestContextRef.current = requestContext;
@@ -401,6 +403,8 @@ export const useChatPanelController = ({
     onRegister: onRegisterStartSkillChat,
   });
 
+  const plainGlobal = agentScope.kind === 'global' && !knowledgeMode;
+
   return {
     chrome: {
         className: 'chat-panel',
@@ -413,6 +417,7 @@ export const useChatPanelController = ({
           disabled={loading || sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
           scopeLabel={scopeLabel}
+          scopeBadge={scopeLabel}
           scopeStoreId={scopeId}
           title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
@@ -457,12 +462,16 @@ export const useChatPanelController = ({
         onSessionJump: handleSessionJump,
     },
     context: {
-        nodes, selectedContext, showContextChips: agentScope.kind === 'global', onRemoveContext,
+        nodes, selectedContext, onRemoveContext,
         onQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); },
         knowledgeMode,
+        // Outside knowledge routes the global chat reads like /chat's global scope.
+        emptyStateVariant: plainGlobal ? 'global' : undefined,
     },
     composer: {
-        inputPlaceholder: agentScope.kind === 'scheduled' ? t('scheduled.followUpPlaceholder') : undefined,
+        inputPlaceholder: agentScope.kind === 'scheduled'
+          ? t('scheduled.followUpPlaceholder')
+          : plainGlobal ? t('chat.askAnything') : undefined,
         input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading, mentionIndex,
         onSelectMention: selectMention, onMentionIndexChange: setMentionIndex,
         onInput: handleInput, onKeyDown: handleComposerKeyDown, onPaste: handlePaste,

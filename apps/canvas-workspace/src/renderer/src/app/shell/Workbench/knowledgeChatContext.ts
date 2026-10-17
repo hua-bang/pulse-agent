@@ -1,12 +1,14 @@
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
+  AgentContextScheduledTaskRef,
   AgentContextTagRef,
   KnowledgeNodeSelection,
   KnowledgeTagDefinition,
   WorkspaceNodeListItem,
 } from '../../../types';
 import type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
+import { isGlobalChatLauncherVisible } from '../../../shared/dock/dock-chat-availability';
 import {
   getNodeTags,
   getNodeTitle,
@@ -15,9 +17,14 @@ import {
 } from '../../../modules/workspace-nodes';
 
 export interface KnowledgeChatRouteContext {
+  /** The route uses the dock's global chat instead of a workspace chat. */
   active: boolean;
+  /** Knowledge routes add knowledge prompts to the global chat. */
+  knowledgeMode: boolean;
   selectedNode: KnowledgeNodeSelection | null;
   explicitContext?: KnowledgeChatExplicitContext;
+  /** Scheduled list only: tasks the user asked about with a row's Ask AI. */
+  scheduledTasks?: AgentContextScheduledTaskRef[];
 }
 
 export type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
@@ -27,6 +34,10 @@ interface ResolveKnowledgeChatRouteContextOptions {
   selectedNode: KnowledgeNodeSelection | null;
   detailNode: KnowledgeNodeSelection | null;
   explicitContext?: KnowledgeChatRouteContext['explicitContext'];
+  /** The Skills page shows the global library rather than one canvas's. */
+  skillsLibraryGlobal?: boolean;
+  /** Kept by reference: the chat derives its request context from it. */
+  scheduledTasks?: AgentContextScheduledTaskRef[];
 }
 
 type KnowledgeNodeMentionCandidate = AgentContextNodeRef;
@@ -56,14 +67,40 @@ export function resolveKnowledgeChatRouteContext({
   selectedNode,
   detailNode,
   explicitContext,
+  skillsLibraryGlobal = false,
+  scheduledTasks,
 }: ResolveKnowledgeChatRouteContextOptions): KnowledgeChatRouteContext {
   if (activeView === 'nodes') {
-    return { active: true, selectedNode, ...(explicitContext ? { explicitContext } : {}) };
+    return {
+      active: true,
+      knowledgeMode: true,
+      selectedNode,
+      ...(explicitContext ? { explicitContext } : {}),
+    };
   }
   if (activeView === 'node-detail') {
-    return { active: true, selectedNode: detailNode };
+    return { active: true, knowledgeMode: true, selectedNode: detailNode };
   }
-  return { active: false, selectedNode: null };
+  // Graph shows every workspace's nodes, like the list, so it uses the same
+  // knowledge chat. Selecting a graph node never adds chat context.
+  if (activeView === 'graph') {
+    return { active: true, knowledgeMode: true, selectedNode: null };
+  }
+  // Canvas skills only work in that canvas's chat, so the Skills page uses
+  // the canvas chat while it shows one canvas's library.
+  if (activeView === 'skills' && !skillsLibraryGlobal) {
+    return { active: false, knowledgeMode: false, selectedNode: null };
+  }
+  if (activeView === 'scheduled' && scheduledTasks?.length) {
+    return { active: true, knowledgeMode: false, selectedNode: null, scheduledTasks };
+  }
+  // Only the canvas belongs to one workspace. Every other route with the
+  // floating launcher (plugins, skills, scheduled list, apps) opens the
+  // global chat, so it never borrows the last canvas's conversation.
+  if (isGlobalChatLauncherVisible(activeView)) {
+    return { active: true, knowledgeMode: false, selectedNode: null };
+  }
+  return { active: false, knowledgeMode: false, selectedNode: null };
 }
 
 export function buildKnowledgeChatContext(

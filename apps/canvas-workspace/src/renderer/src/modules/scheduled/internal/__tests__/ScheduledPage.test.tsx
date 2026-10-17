@@ -15,10 +15,10 @@ import { ScheduledPage } from '../ScheduledPage';
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-const renderPage = () => (
+const renderPage = (onAskAi?: (task: { id: string; title: string }) => void) => (
   <I18nProvider>
     <AppShellProvider>
-      <ScheduledPage />
+      <ScheduledPage onAskAi={onAskAi} />
     </AppShellProvider>
   </I18nProvider>
 );
@@ -46,12 +46,12 @@ const baseTask = {
   status: 'idle',
 };
 
-const mount = async () => {
+const mount = async (onAskAi?: (task: { id: string; title: string }) => void) => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root?.render(renderPage());
+    root?.render(renderPage(onAskAi));
   });
 };
 
@@ -258,5 +258,26 @@ describe('ScheduledPage', () => {
     });
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Run now"]')?.disabled).toBe(false);
     expect(dock.openScheduledChat).toHaveBeenCalledWith('daily-brief', 'manual-run-session');
+  });
+
+  it('asks the side chat about one task from its row', async () => {
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        scheduled: {
+          list: vi.fn(async () => ({ ok: true, tasks: [baseTask] })),
+          onChanged: vi.fn(() => () => undefined),
+        },
+      },
+    });
+    const onAskAi = vi.fn();
+    await mount(onAskAi);
+
+    const ask = host?.querySelector<HTMLButtonElement>('[aria-label="Ask AI about this task"]');
+    expect(ask).not.toBeNull();
+    act(() => ask?.click());
+
+    expect(onAskAi).toHaveBeenCalledWith(expect.objectContaining({ id: 'daily-brief', title: 'Daily brief' }));
+    expect(dock.openScheduledChat).not.toHaveBeenCalled();
   });
 });

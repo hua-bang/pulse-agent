@@ -6,6 +6,7 @@ import type { WorkspaceOption } from '../../../types';
 import type { AgentScope } from '../../../types';
 import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';
 import { useI18n } from '../../../i18n';
+import { Button } from '../../../components/ui';
 import './index.css';
 
 interface ScheduledChatPanelProps {
@@ -15,6 +16,8 @@ interface ScheduledChatPanelProps {
   revision: number;
   allWorkspaces: WorkspaceOption[];
   onClose: () => void;
+  /** Return the dock to the current page's own chat. */
+  onLeave: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
   onTurnComplete: () => void;
   chatTargetActive?: boolean;
@@ -27,6 +30,7 @@ export const ScheduledChatPanel = ({
   revision,
   allWorkspaces,
   onClose,
+  onLeave,
   onOpenAppSettings,
   onTurnComplete,
   chatTargetActive,
@@ -68,6 +72,13 @@ export const ScheduledChatPanel = ({
       </span>
     </div>
   ) : undefined;
+  // The task chat sits in place of the page's chat, so say so and offer the way back.
+  const leaveBar = (
+    <div className="scheduled-chat-leave">
+      <span>{t('scheduled.taskChatHint')}</span>
+      <Button size="xs" onClick={onLeave}>{t('scheduled.backToPageChat')}</Button>
+    </div>
+  );
 
   return (
     <ChatPanel
@@ -76,7 +87,7 @@ export const ScheduledChatPanel = ({
       sessionRefreshKey={revision}
       requestedSessionId={sessionId}
       allWorkspaces={allWorkspaces}
-      banner={banner}
+      banner={<>{leaveBar}{banner}</>}
       pendingLabel={task?.status === 'running' ? t('scheduled.runningInline') : undefined}
       chatTargetLabel={task?.title}
       onClose={onClose}
