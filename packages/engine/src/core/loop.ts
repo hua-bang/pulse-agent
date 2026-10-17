@@ -476,8 +476,10 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       // Inject read/ls deduplication warnings
-      tools = wrapToolsWithReadDedup(tools, seenPaths);
+      // Nested callers (scripts, sub-agents) get the policy table without the
+      // model-facing duplicate-read notes.
       const policyTools = tools;
+      tools = wrapToolsWithReadDedup(tools, seenPaths);
       const presentation = await prepareToolPresentation({
         context, tools, systemPrompt, runContext: options?.runContext, model: options?.model,
       }, loopHooks.prepareToolPresentation);
@@ -521,6 +523,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         onClarificationRequest: options?.onClarificationRequest,
         abortSignal: options?.abortSignal,
         runContext: options?.runContext,
+        llm: {
+          provider,
+          model: options?.model,
+          modelType: options?.modelType,
+          contextWindowTokens: options?.contextWindowTokens,
+        },
       };
 
       if (options?.abortSignal?.aborted) {

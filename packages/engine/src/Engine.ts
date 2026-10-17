@@ -1,5 +1,5 @@
 import type { EventEmitter } from 'events';
-import type { Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
+import type { ChildRunOptions, Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
 import type { LoopOptions, LoopHooks } from './core/loop';
 import type { EnginePluginLoadOptions } from './plugin/EnginePlugin.js';
 import type { UserConfigPluginLoadOptions } from './plugin/UserConfigPlugin.js';
@@ -163,7 +163,33 @@ export class Engine {
   get instance(): PulseEngineInstance {
     return {
       tools: this.tools,
+      runChild: (context, options) => this.runChild(context, options),
     };
+  }
+
+  /**
+   * Nested run for tools such as sub-agents: same provider/model resolution
+   * and loop hooks as `run()`, so tool policy, offload and tracing apply
+   * inside the child. Run-level hooks (`beforeRun`/`afterRun`) stay with the
+   * parent run.
+   */
+  private async runChild(context: Context, options: ChildRunOptions): Promise<string> {
+    return await loop(context, {
+      ...this.resolveModelConfig(options.llm),
+      contextWindowTokens: options.llm?.contextWindowTokens,
+      tools: options.tools,
+      systemPrompt: options.systemPrompt,
+      maxSteps: options.maxSteps,
+      abortSignal: options.abortSignal,
+      runContext: options.runContext,
+      hooks: this.collectLoopHooks(),
+      onText: options.onText,
+      onToolCall: options.onToolCall,
+      onToolResult: options.onToolResult,
+      onResponse: (messages) => {
+        context.messages.push(...messages);
+      },
+    });
   }
 
   /**
