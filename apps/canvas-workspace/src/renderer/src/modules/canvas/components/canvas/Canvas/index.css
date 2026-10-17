@@ -82,7 +82,7 @@
   right: 16px;
   bottom: 16px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   gap: 12px;
   z-index: var(--layer-canvas-chrome);
@@ -122,6 +122,25 @@
 .canvas-bottom-chrome__right .zoom-indicator-group {
   grid-column: auto;
   justify-self: auto;
+}
+
+/* Dock/sidebar widths reduce the canvas independently of the window. Once
+ * the compact toolbar and both side controls cannot share a row, give the
+ * toolbar its own lane. Keep toolbar-free previews on their existing row. */
+@container (max-width: 620px) {
+  .canvas-bottom-chrome > .floating-toolbar {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: 100cqw;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .canvas-bottom-chrome:has(> .floating-toolbar) > .canvas-bottom-chrome__left,
+  .canvas-bottom-chrome:has(> .floating-toolbar) > .canvas-bottom-chrome__right {
+    grid-row: 2;
+  }
 }
 
 .canvas-transform {
