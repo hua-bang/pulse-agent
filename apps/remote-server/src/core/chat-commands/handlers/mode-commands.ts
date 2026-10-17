@@ -1,9 +1,10 @@
 import { engine } from '../../engine-singleton.js';
 import type { CommandResult } from '../types.js';
 
-export function handleModeCommand(args: string[]): CommandResult {
+/** `platformKey` scopes the mode to one conversation (see agent-runner planModeScope). */
+export function handleModeCommand(args: string[], platformKey: string): CommandResult {
   const sub = args[0]?.toLowerCase();
-  const mode = engine.getMode();
+  const mode = engine.getMode(platformKey);
 
   if (!mode) {
     return {
@@ -26,7 +27,7 @@ export function handleModeCommand(args: string[]): CommandResult {
     };
   }
 
-  const changed = engine.setMode(sub, 'command');
+  const changed = engine.setMode(sub, 'command', platformKey);
   return {
     type: 'handled',
     message: changed ? `✅ 已切换为 ${sub} 模式` : '⚠️ 无法切换模式（plan mode 服务不可用）',

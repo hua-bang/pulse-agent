@@ -599,22 +599,24 @@ export class Engine {
   }
 
   /**
-   * 获取当前模式
+   * 获取当前模式。`scope` selects one conversation's mode (the value a run
+   * passes as `runContext.planModeScope`); omit it for the engine default.
    */
-  getMode(): PlanMode | undefined {
-    return this.getPlanModeService()?.getMode();
+  getMode(scope?: string): PlanMode | undefined {
+    return this.getPlanModeService()?.getMode(scope);
   }
 
   /**
-   * 设置当前模式
+   * 设置当前模式。Hosts that share one Engine across conversations must pass
+   * `scope`, or the change applies to every conversation without a scope.
    */
-  setMode(mode: PlanMode, reason: string = 'manual'): boolean {
+  setMode(mode: PlanMode, reason: string = 'manual', scope?: string): boolean {
     const planModeService = this.getPlanModeService();
     if (!planModeService) {
       return false;
     }
 
-    planModeService.setMode(mode, reason);
+    planModeService.setMode(mode, reason, scope);
     return true;
   }
 
