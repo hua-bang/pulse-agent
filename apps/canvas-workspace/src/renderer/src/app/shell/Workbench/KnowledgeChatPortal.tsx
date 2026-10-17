@@ -17,6 +17,7 @@ const GLOBAL_AGENT_SCOPE: AgentScope = { kind: 'global' };
 const EMPTY_CONTEXT_NODES: AgentContextNodeRef[] = [];
 
 interface Props {
+  knowledgeMode: boolean;
   selectedNode: KnowledgeNodeSelection | null;
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
@@ -32,8 +33,9 @@ interface Props {
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
 }
 
-/** Hosts the knowledge routes' global ChatPanel in the one application RightDock. */
+/** Hosts the global ChatPanel for every non-canvas route in the one application RightDock. */
 export const KnowledgeChatPortal = ({
+  knowledgeMode,
   selectedNode,
   contextNodes,
   contextTags,
@@ -69,7 +71,7 @@ export const KnowledgeChatPortal = ({
     <div className="right-dock__chat-instance">
       <ChatPanel
         agentScope={GLOBAL_AGENT_SCOPE}
-        knowledgeMode
+        knowledgeMode={knowledgeMode}
         allWorkspaces={workspaces}
         knowledgeNodes={chatContext.knowledgeNodes}
         knowledgeTags={chatContext.knowledgeTags}

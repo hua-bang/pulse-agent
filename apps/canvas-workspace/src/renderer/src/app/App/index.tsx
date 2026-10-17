@@ -4,7 +4,6 @@ import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
 import { ConversationCompletionToastBridge } from '../shell/ConversationCompletionToastBridge';
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
-import { ChatPageLazy as ChatPage } from '../../modules/chat/lazy';
 import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
@@ -42,6 +41,8 @@ setApprovalNodePreviewLoader(() => import('../../modules/canvas/preview').then((
 
 const GlobalMcpAppsView = lazy(() => import('../../modules/mcp-apps').then((module) => ({ default: module.GlobalMcpAppsView })));
 const WorkspaceTabs = lazy(() => import('../shell/WorkspaceTabs').then((module) => ({ default: module.WorkspaceTabs })));
+// Its knowledge @ list loads every workspace's nodes, so it stays off the startup chunk.
+const ChatRoute = lazy(() => import('./ChatRoute').then((module) => ({ default: module.ChatRoute })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
 const {
   canvas: ROUTE_CANVAS,
@@ -363,21 +364,23 @@ const AppContent = () => {
             </div>
           </PulseRouterView>
           <PulseRouterView name="chat">
-            <ChatPage
-              allWorkspaces={workspaces}
-              openScheduledTaskId={routeParams.get('scheduledTask')}
-              sessionListRequest={sessionListRequest}
-              initialTarget={chatEntryTarget}
-              getWorkspaceNodes={getWorkspaceNodes}
-              getWorkspaceRootFolder={getWorkspaceRootFolder}
-              onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
-              onWorkspaceScopeChange={reportChatWorkspace}
-              onExit={exitChatView}
-              onNodeFocus={focusNodeOnCanvas}
-              onOpenAppSettings={openAppSettings}
-            />
+            <Suspense fallback={null}>
+              <ChatRoute
+                allWorkspaces={workspaces}
+                openScheduledTaskId={routeParams.get('scheduledTask')}
+                sessionListRequest={sessionListRequest}
+                initialTarget={chatEntryTarget}
+                getWorkspaceNodes={getWorkspaceNodes}
+                getWorkspaceRootFolder={getWorkspaceRootFolder}
+                onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
+                onWorkspaceScopeChange={reportChatWorkspace}
+                onExit={exitChatView}
+                onNodeFocus={focusNodeOnCanvas}
+                onOpenAppSettings={openAppSettings}
+              />
+            </Suspense>
           </PulseRouterView>
-          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} onOpenGraph={GRAPH_ENABLED ? enterGraphView : undefined} />
+          <NodesRouteViews enabled={NODES_ENABLED} workspaces={workspaces} detailNode={detailNode} onBack={exitNodeDetailView} onAskAi={handleAskKnowledgeAi} onAskAiAboutDetail={dock.openChat} onOpenGraph={GRAPH_ENABLED ? enterGraphView : undefined} />
           {GRAPH_ENABLED && (
             <PulseRouterView name="graph">
               <GraphPage workspaces={workspaces} selectedNode={selectedNode} onSelectNode={setSelectedNode} onOpenList={NODES_ENABLED ? enterNodesView : undefined} />

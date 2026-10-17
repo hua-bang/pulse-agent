@@ -131,7 +131,6 @@ describe('ChatInput execution and attachment states', () => {
             { key: 'node-a', kind: 'node', label: 'Release notes' },
             { key: 'tag-a', kind: 'tag', label: 'Decisions' },
           ]}
-          showContextChips
           onRemoveContext={vi.fn()}
           attachments={[
             { id: 'image-a', path: '/tmp/a.png', fileName: 'a.png', status: 'ready' },

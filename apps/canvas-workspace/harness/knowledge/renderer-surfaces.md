@@ -222,12 +222,20 @@ The workbench has exactly two side regions plus a modal tier:
   mounted while collapsed. On workbench routes it reserves its width via
   the `--right-dock-inset` custom property consumed by `.app-body`, so it
   behaves like an in-flow column and page content remains fully visible.
-  Nodes, Graph and node-detail routes reuse this same chat pane with the
-  global agent scope, because all three show every workspace's nodes. The
-  detail page passes its node as explicit cross-workspace context; the Nodes
-  list and Graph start with no automatic context. The chat header shows the
-  current scope as a badge beside the title: the workspace name on Canvas,
-  "Knowledge" on these routes (`ChatHeader` `scopeBadge`).
+  Only Canvas shows a workspace chat. Every other route with the floating
+  launcher (Nodes, Graph, node detail, Plugins, Skills, the Scheduled list,
+  MCP apps and plugin routes) reuses this pane with the global agent scope
+  (`resolveKnowledgeChatRouteContext`), so it never borrows the last canvas's
+  conversation. Knowledge routes add their own empty-state prompts
+  (`knowledgeMode`). The detail page passes its node as context and offers an
+  Ask AI header button; the Nodes list and Graph start with no automatic
+  context. The chat header shows the scope as a badge beside the title: the
+  workspace name on Canvas, "General" elsewhere (`ChatHeader` `scopeBadge`).
+  Context the agent receives is always shown as chips above the input,
+  including Canvas's selected nodes (no remove button; they follow the
+  selection). `/chat` on the global scope offers the same knowledge node and
+  tag @ mentions as the dock (`app/App/ChatRoute.tsx`, lazy so the node list
+  stays off the startup chunk).
   Workspace ChatPanels remain mounted but hidden while that global instance
   is visible, and the Nodes route itself is kept alive so filters and scroll
   survive a detail-page round trip.

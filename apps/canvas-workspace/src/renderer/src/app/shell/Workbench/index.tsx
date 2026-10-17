@@ -290,6 +290,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             {!scheduledChatTaskId && knowledgeChatContext.active && (
               <Suspense fallback={null}>
                 <KnowledgeChatPortal
+                  knowledgeMode={knowledgeChatContext.knowledgeMode}
                   selectedNode={knowledgeChatContext.selectedNode}
                   workspaces={workspaces}
                   contextNodes={knowledgeChatContext.explicitContext?.nodes}

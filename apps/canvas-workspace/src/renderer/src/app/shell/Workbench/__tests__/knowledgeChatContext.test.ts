@@ -12,6 +12,7 @@ describe('resolveKnowledgeChatRouteContext', () => {
       detailNode: null,
     })).toEqual({
       active: true,
+      knowledgeMode: true,
       selectedNode: null,
     });
   });
@@ -45,6 +46,7 @@ describe('resolveKnowledgeChatRouteContext', () => {
       explicitContext,
     })).toEqual({
       active: true,
+      knowledgeMode: true,
       selectedNode: null,
       explicitContext,
     });
@@ -55,7 +57,7 @@ describe('resolveKnowledgeChatRouteContext', () => {
       activeView: 'graph',
       selectedNode: { workspaceId: 'workspace-a', nodeId: 'node-3' },
       detailNode: null,
-    })).toEqual({ active: true, selectedNode: null });
+    })).toEqual({ active: true, knowledgeMode: true, selectedNode: null });
   });
 
   it('leaves Canvas on workspace-scoped chat', () => {
@@ -65,7 +67,27 @@ describe('resolveKnowledgeChatRouteContext', () => {
       activeView: 'canvas',
       selectedNode,
       detailNode: null,
-    })).toEqual({ active: false, selectedNode: null });
+    })).toEqual({ active: false, knowledgeMode: false, selectedNode: null });
+  });
+
+  it('opens the plain global chat on other launcher routes', () => {
+    for (const activeView of ['plugins', 'skills', 'scheduled', 'mcp-app']) {
+      expect(resolveKnowledgeChatRouteContext({
+        activeView,
+        selectedNode: { workspaceId: 'workspace-a', nodeId: 'node-3' },
+        detailNode: null,
+      })).toEqual({ active: true, knowledgeMode: false, selectedNode: null });
+    }
+  });
+
+  it('leaves full-page chat, home and settings without a dock chat', () => {
+    for (const activeView of ['chat', 'scheduled-task', 'home', 'settings']) {
+      expect(resolveKnowledgeChatRouteContext({
+        activeView,
+        selectedNode: null,
+        detailNode: null,
+      }).active).toBe(false);
+    }
   });
 });
 

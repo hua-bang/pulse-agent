@@ -413,7 +413,7 @@ export const useChatPanelController = ({
           disabled={loading || sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
           scopeLabel={scopeLabel}
-          scopeBadge={knowledgeMode ? t('sidebar.nodes') : scopeLabel}
+          scopeBadge={scopeLabel}
           scopeStoreId={scopeId}
           title={firstUserMessage ? <SessionTitle value={firstUserMessage} /> : sessionTitle}
           onToggleSessionMenu={openSessionMenu}
@@ -458,7 +458,7 @@ export const useChatPanelController = ({
         onSessionJump: handleSessionJump,
     },
     context: {
-        nodes, selectedContext, showContextChips: agentScope.kind === 'global', onRemoveContext,
+        nodes, selectedContext, onRemoveContext,
         onQuickAction: (prompt, quickAction) => { void handleQuickAction(prompt, quickAction); },
         knowledgeMode,
     },

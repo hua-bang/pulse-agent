@@ -48,6 +48,7 @@ describe('KnowledgeChatPortal', () => {
     act(() => {
       root?.render(
         <KnowledgeChatPortal
+          knowledgeMode
           selectedNode={null}
           workspaces={[]}
           onClose={() => undefined}
@@ -70,6 +71,7 @@ describe('KnowledgeChatPortal', () => {
     act(() => {
       root?.render(
         <KnowledgeChatPortal
+          knowledgeMode
           selectedNode={{ workspaceId: 'workspace-a', nodeId: 'node-1' }}
           contextNodes={[]}
           contextTags={[{ name: 'Research', workspaceIds: ['workspace-a'] }]}

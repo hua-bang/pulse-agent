@@ -11,6 +11,7 @@ interface Props {
   detailNode: KnowledgeNodeSelection | null;
   onBack: () => void;
   onAskAi: (context: NodesAiContext, action: 'chat' | 'summarize') => void;
+  onAskAiAboutDetail: () => void;
   onOpenGraph?: () => void;
 }
 
@@ -21,6 +22,7 @@ export const NodesRouteViews = ({
   detailNode,
   onBack,
   onAskAi,
+  onAskAiAboutDetail,
   onOpenGraph,
 }: Props) => {
   if (!enabled) return null;
@@ -33,7 +35,7 @@ export const NodesRouteViews = ({
       </PulseRouterView>
       <PulseRouterView name="node-detail">
         <Suspense fallback={null}>
-          <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} onBack={onBack} />
+          <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} onBack={onBack} onAskAi={onAskAiAboutDetail} />
         </Suspense>
       </PulseRouterView>
     </>

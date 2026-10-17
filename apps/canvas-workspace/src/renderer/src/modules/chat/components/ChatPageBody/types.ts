@@ -4,6 +4,7 @@ import type { SettingsSection } from '../../../settings';
 import type { ChatContextSnapshot, ChatExecutionPolicy } from '../../target';
 import type { UnifiedSession } from '../ChatSessionsRail';
 import type { SessionBackEntry } from '../SessionBackBar';
+import type { UseChatComposerInputOptions } from '../ChatComposer/types';
 
 export interface ChatPageBodyProps {
   agentScope: AgentScope;
@@ -27,6 +28,8 @@ export interface ChatPageBodyProps {
   onWorkspaceContextRequest?: (workspaceId: string) => void;
   allWorkspaces: WorkspaceOption[];
   nodes?: CanvasNode[];
+  knowledgeNodes?: UseChatComposerInputOptions['knowledgeNodes'];
+  knowledgeTags?: UseChatComposerInputOptions['knowledgeTags'];
   rootFolder?: string;
   onExit: () => void;
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;

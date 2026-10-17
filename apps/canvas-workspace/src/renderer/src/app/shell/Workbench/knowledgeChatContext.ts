@@ -7,6 +7,7 @@ import type {
   WorkspaceNodeListItem,
 } from '../../../types';
 import type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
+import { isGlobalChatLauncherVisible } from '../../../shared/dock/dock-chat-availability';
 import {
   getNodeTags,
   getNodeTitle,
@@ -15,7 +16,10 @@ import {
 } from '../../../modules/workspace-nodes';
 
 export interface KnowledgeChatRouteContext {
+  /** The route uses the dock's global chat instead of a workspace chat. */
   active: boolean;
+  /** Knowledge routes add knowledge prompts to the global chat. */
+  knowledgeMode: boolean;
   selectedNode: KnowledgeNodeSelection | null;
   explicitContext?: KnowledgeChatExplicitContext;
 }
@@ -58,17 +62,28 @@ export function resolveKnowledgeChatRouteContext({
   explicitContext,
 }: ResolveKnowledgeChatRouteContextOptions): KnowledgeChatRouteContext {
   if (activeView === 'nodes') {
-    return { active: true, selectedNode, ...(explicitContext ? { explicitContext } : {}) };
+    return {
+      active: true,
+      knowledgeMode: true,
+      selectedNode,
+      ...(explicitContext ? { explicitContext } : {}),
+    };
   }
   if (activeView === 'node-detail') {
-    return { active: true, selectedNode: detailNode };
+    return { active: true, knowledgeMode: true, selectedNode: detailNode };
   }
   // Graph shows every workspace's nodes, like the list, so it uses the same
   // knowledge chat. Selecting a graph node never adds chat context.
   if (activeView === 'graph') {
-    return { active: true, selectedNode: null };
+    return { active: true, knowledgeMode: true, selectedNode: null };
   }
-  return { active: false, selectedNode: null };
+  // Only the canvas belongs to one workspace. Every other route with the
+  // floating launcher (plugins, skills, scheduled list, apps) opens the
+  // global chat, so it never borrows the last canvas's conversation.
+  if (isGlobalChatLauncherVisible(activeView)) {
+    return { active: true, knowledgeMode: false, selectedNode: null };
+  }
+  return { active: false, knowledgeMode: false, selectedNode: null };
 }
 
 export function buildKnowledgeChatContext(

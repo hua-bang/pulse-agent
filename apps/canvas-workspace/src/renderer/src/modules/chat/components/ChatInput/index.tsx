@@ -15,7 +15,6 @@ interface ChatInputProps {
   loading: boolean;
   input: string;
   selectedContext?: SelectedContextChip[];
-  showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
@@ -56,7 +55,6 @@ export const ChatInput = ({
   loading,
   input,
   selectedContext,
-  showContextChips: showContextChipsProp = true,
   onRemoveContext,
   attachments = [],
   contextComposer = false,
@@ -93,7 +91,7 @@ export const ChatInput = ({
   const contextChips = (selectedContext && selectedContext.length > 0)
     ? selectedContext
     : [];
-  const showContextChips = showContextChipsProp && contextComposer && contextChips.length > 0 && !loading;
+  const showContextChips = contextComposer && contextChips.length > 0 && !loading;
   const readyAttachments = useMemo(
     () => attachments.filter(attachment => (attachment.status ?? 'ready') === 'ready' && attachment.path),
     [attachments],
