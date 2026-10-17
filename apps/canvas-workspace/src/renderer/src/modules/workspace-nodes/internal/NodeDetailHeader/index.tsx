@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { dispatchFocusNodeOnCanvas, nodeLinkHref } from '../../../../utils/openNodeBridge';
-import { CopyIcon, ListLinesIcon, NodeTypeIcon } from '../../../../components/icons';
+import { ChevronRightIcon, CopyIcon, ListLinesIcon, NodeTypeIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
 import { NodeDetailInspector } from '../NodeDetailInspector';
 import { NodeTagEditor } from '../NodeTagEditor';
@@ -18,6 +18,8 @@ interface Props {
   inspectorContent?: ReactNode;
   mode: 'page' | 'dock';
   node: WorkspaceNodeRecord;
+  /** Page only: return to the view the page was opened from. */
+  onBack?: () => void;
   onNodePatched?: (next: WorkspaceNodeRecord) => void;
   onOpenPage?: () => void;
   onTagsChanged?: () => void;
@@ -49,6 +51,7 @@ export const NodeDetailHeader = ({
   inspectorContent,
   mode,
   node,
+  onBack,
   onNodePatched,
   onOpenPage,
   onTagsChanged,
@@ -91,6 +94,18 @@ export const NodeDetailHeader = ({
     <>
       <header className="node-detail-panel__document-header">
         <div className="node-detail-panel__title-row">
+          {onBack && (
+            <Button
+              variant="icon"
+              size="xs"
+              className="node-detail-panel__back"
+              aria-label={t('workspaceNodes.back')}
+              title={t('workspaceNodes.back')}
+              onClick={onBack}
+            >
+              <ChevronRightIcon className="node-detail-panel__back-chevron" />
+            </Button>
+          )}
           {!hideTitle && <div className="node-detail-panel__title-field">
             <NodeTitleEditor
               node={node}

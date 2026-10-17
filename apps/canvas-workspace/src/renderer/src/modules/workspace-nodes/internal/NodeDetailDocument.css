@@ -182,10 +182,6 @@
   padding: 12px 12px 0;
 }
 
-.node-detail-panel--web .node-detail-panel__back {
-  margin: 14px 18px 8px;
-}
-
 .node-detail-panel--rich .node-detail-panel__document-title,
 .node-detail-panel--rich.node-detail-panel--dock .node-detail-panel__document-title {
   font-size: clamp(18px, 2.4vw, 22px);

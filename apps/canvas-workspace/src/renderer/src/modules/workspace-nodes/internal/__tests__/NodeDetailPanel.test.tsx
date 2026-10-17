@@ -412,6 +412,17 @@ describe('NodeDetailPanel', () => {
     });
   });
 
+  it('puts the page Back control in the title row, not on a line of its own', () => {
+    const onBack = vi.fn();
+    const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="page" onBack={onBack} />);
+    const back = view.querySelector<HTMLButtonElement>('.node-detail-panel__title-row [aria-label="Back"]');
+    if (!back) throw new Error('Expected Back in the title row');
+
+    act(() => { back.click(); });
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the confirmed AI summary readable in the dock, not only on the page', () => {
     const view = render(<NodeDetailPanel node={NODE} workspaceId="workspace-1" mode="dock" />);
 

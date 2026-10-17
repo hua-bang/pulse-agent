@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
 import { useI18n } from '../../../i18n';
-import { ChevronRightIcon, SparklesIcon } from '../../../components/icons';
+import { SparklesIcon } from '../../../components/icons';
 import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeDetailContextRail } from './NodeDetailContextRail';
 import { NodeDetailHeader } from './NodeDetailHeader';
@@ -126,15 +126,10 @@ export const NodeDetailPanel = ({
         {!node || loading || error || missing ? renderPlaceholder() : (
           <div className={`node-detail-panel__layout${hasContextRail ? '' : ' node-detail-panel__layout--single'}`}>
             <article className="node-detail-panel__document">
-              {mode === 'page' && onBack && (
-                <Button size="xs" className="node-detail-panel__back" onClick={onBack}>
-                  <ChevronRightIcon className="node-detail-panel__back-chevron" />
-                  {t('workspaceNodes.back')}
-                </Button>
-              )}
               <NodeDetailHeader
                 compact={isCompactDock}
                 hideTitle={isDocumentDock}
+                onBack={mode === 'page' ? onBack : undefined}
                 action={headerAction}
                 inspectorContent={isCompactDock ? aiInsight : undefined}
                 mode={mode}

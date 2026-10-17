@@ -3,10 +3,15 @@
 }
 
 .node-detail-panel__back {
-  align-self: flex-start;
-  gap: 5px;
-  margin-bottom: 20px;
+  flex-shrink: 0;
   color: var(--nodes-muted);
+}
+
+/* A document page has margin to spare: hang Back to the left of the title so
+ * the title still lines up with the body. 34px is the 22px icon button plus
+ * the 12px title-row gap. */
+.node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__back {
+  margin-left: -34px;
 }
 
 /* The disclosure chevron, turned around — one glyph for "there is more this
