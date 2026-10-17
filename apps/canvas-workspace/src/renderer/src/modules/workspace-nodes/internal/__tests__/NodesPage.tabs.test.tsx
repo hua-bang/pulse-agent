@@ -6,6 +6,7 @@ import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import type { WorkspaceNodeListItem } from '../../../../types';
 import { I18nProvider } from '../../../../i18n';
 import { RightDockProvider, useRightDockState } from '../../../dock/internal/RightDock';
+import { OPEN_NODE_PAGE_EVENT, type OpenNodeDetail } from '../../../../utils/openNodeBridge';
 
 const NODE: WorkspaceNodeListItem = {
   id: 'node-1',
@@ -57,9 +58,12 @@ const DockProbe = () => {
   );
 };
 
-describe('NodesPage node tabs', () => {
-  it('opens and reuses a node detail tab instead of mounting an inline drawer', () => {
+describe('NodesPage card open', () => {
+  it('opens the node detail page from a card without a dock tab or inline drawer', () => {
     const workspaces: WorkspaceEntry[] = [{ id: 'workspace-1', name: 'Research' } as WorkspaceEntry];
+    const opened: OpenNodeDetail[] = [];
+    const onOpenPage = (event: Event) => opened.push((event as CustomEvent<OpenNodeDetail>).detail);
+    window.addEventListener(OPEN_NODE_PAGE_EVENT, onOpenPage);
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -75,13 +79,11 @@ describe('NodesPage node tabs', () => {
     const open = host.querySelector<HTMLButtonElement>('.knowledge-node-card__button');
     if (!open) throw new Error('Expected a node card action');
     act(() => open.click());
-    act(() => open.click());
+    window.removeEventListener(OPEN_NODE_PAGE_EVENT, onOpenPage);
 
+    expect(opened).toEqual([{ workspaceId: 'workspace-1', nodeId: 'node-1' }]);
     const probe = host.querySelector<HTMLOutputElement>('[data-testid="dock-probe"]');
-    expect(probe?.dataset.count).toBe('1');
-    expect(probe?.dataset.active).toContain('node-detail:workspace-1:node-1');
-    expect(probe?.dataset.expanded).toBe('true');
-    expect(host.querySelector('.knowledge-node-card')?.classList.contains('is-selected')).toBe(true);
+    expect(probe?.dataset.count).toBe('0');
     expect(host.querySelector('.node-detail-drawer')).toBeNull();
   });
 });

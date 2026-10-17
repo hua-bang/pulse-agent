@@ -20,11 +20,12 @@ TWO hosts:
   (`src/renderer/src/modules/dock/internal/RightDock/content/NodeDetailDockTab.tsx`, which
   renders the panel with `mode="dock"`).
 
-The dock is the primary entry point: list cards, graph nodes, and note
-mentions all open a dock tab — the page is the drill-down from there, not the
-default landing surface. The page has two direct entries: the canvas node's
-Go to detail button (knowledge nodes except Web bookmarks, which open as web
-tabs; image and mind-map nodes float it with their other actions) and the dock tab's More menu. Consequently, a reading aid (or any other piece of
+Graph nodes and note mentions open a dock tab, so the dock is still where most
+reading happens. The page has three direct entries: a Knowledge list card
+(Web nodes open through `dispatchOpenNode` instead), the canvas node's Go to
+detail button (knowledge nodes except Web bookmarks, which open as web tabs;
+image and mind-map nodes float it with their other actions), and the dock
+tab's More menu. Consequently, a reading aid (or any other piece of
 UI) that renders only when `mode === 'page'` is invisible to most users, who
 never leave the dock. Concretely, `NodeDetailPanel` renders the AI-summary
 "reading aid" inline only in dock mode and hands it to the page's

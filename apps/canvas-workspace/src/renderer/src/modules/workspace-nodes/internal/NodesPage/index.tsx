@@ -2,7 +2,6 @@ import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui/Button';
 import { useI18n } from '../../../../i18n';
-import { useRightDock } from '../../../../shared/dockPort';
 import { dispatchOpenNode, dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
 import { KnowledgeViewTabs } from '../KnowledgeViewTabs';
@@ -30,7 +29,6 @@ interface NodesPageProps {
 
 export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) => {
   const { t } = useI18n();
-  const dock = useRightDock();
   const controller = useNodesPageController({
     workspaces,
     aiEnabled: Boolean(onAskAi),
@@ -126,16 +124,15 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
                   aiSummaryConfirmedLabel={t('workspaceNodes.aiSummaryConfirmed')}
                   aiSummarizeLabel={t('workspaceNodes.aiSummarize')}
                   aiChatLabel={t('workspaceNodes.aiChat')}
-                  goToDetailLabel={t('workspaceNodes.goToDetail')}
                   selectForAiLabel={t('workspaceNodes.selectForAi')}
                   deselectForAiLabel={t('workspaceNodes.deselectForAi')}
                   openLabel={t('workspaceNodes.openNodeTab', { title })}
                   selected={controller.isNodeSelected(node)}
                   contextSelected={contextSelected}
+                  // Web nodes have no detail page, so they open as a web tab.
                   onOpen={() => (node.type === 'iframe'
                     ? dispatchOpenNode({ workspaceId, nodeId: node.id })
-                    : dock.openNodeDetail(workspaceId, node.id, title))}
-                  onOpenDetail={() => dispatchOpenNodePage({ workspaceId, nodeId: node.id })}
+                    : dispatchOpenNodePage({ workspaceId, nodeId: node.id }))}
                   onToggleContextSelection={isKnowledgeNodeType(node.type) && onAskAi
                     ? () => controller.toggleAiSelection(node)
                     : undefined}
