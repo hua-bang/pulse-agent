@@ -71,13 +71,20 @@ describe('resolveKnowledgeChatRouteContext', () => {
   });
 
   it('opens the plain global chat on other launcher routes', () => {
-    for (const activeView of ['plugins', 'skills', 'scheduled', 'mcp-app']) {
+    for (const activeView of ['plugins', 'scheduled', 'mcp-app']) {
       expect(resolveKnowledgeChatRouteContext({
         activeView,
         selectedNode: { workspaceId: 'workspace-a', nodeId: 'node-3' },
         detailNode: null,
       })).toEqual({ active: true, knowledgeMode: false, selectedNode: null });
     }
+  });
+
+  it('follows the library the Skills page shows', () => {
+    const base = { activeView: 'skills', selectedNode: null, detailNode: null };
+    expect(resolveKnowledgeChatRouteContext(base).active).toBe(false);
+    expect(resolveKnowledgeChatRouteContext({ ...base, skillsLibraryGlobal: true }))
+      .toEqual({ active: true, knowledgeMode: false, selectedNode: null });
   });
 
   it('leaves full-page chat, home and settings without a dock chat', () => {

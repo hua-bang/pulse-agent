@@ -29,6 +29,8 @@ interface Props {
   workspaces: WorkspaceEntry[];
   onSelectWorkspace: (workspaceId: string) => void;
   onNavigatePlugins: () => void;
+  /** Reports which library the page shows, so the side chat can follow it. */
+  onLibraryKindChange?: (kind: LibraryContext['kind']) => void;
 }
 
 export const SkillsLibrary = ({
@@ -36,6 +38,7 @@ export const SkillsLibrary = ({
   workspaces,
   onSelectWorkspace,
   onNavigatePlugins,
+  onLibraryKindChange,
 }: Props) => {
   const { t } = useI18n();
   const { notify, confirm } = useAppShell();
@@ -57,6 +60,10 @@ export const SkillsLibrary = ({
     ? libraryContext.workspaceId
     : activeWorkspaceId;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === workspaceContextId);
+
+  useEffect(() => {
+    onLibraryKindChange?.(libraryContext.kind);
+  }, [libraryContext.kind, onLibraryKindChange]);
 
   useEffect(() => {
     setLibraryContext((current) => {

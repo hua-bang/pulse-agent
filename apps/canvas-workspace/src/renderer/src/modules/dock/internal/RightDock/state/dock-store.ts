@@ -25,7 +25,7 @@ import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from '
 import { applyDockSplitState, getComparisonSurvivorId, getSplitViewToggle, getDockPaneSelection } from '../../../../../shared/dock/dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
-import { getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
+import { getCloseScheduledChatPatch, getOpenChatPatch, getOpenScheduledChatPatch, getRefreshScheduledChatPatch } from './dock-chat-state';
 import { getToggleContentTabsPatch } from '../../../../../shared/dock/dock-content-tabs';
 import { getOpenWorkspaceLinkMutation, getRetainedLinkTabMutation } from '../links/dock-retained-links';
 import { getOpenMcpAppPatch } from './dock-mcp-app';
@@ -306,6 +306,9 @@ export class DockStore {
 
   /** Open Pulse AI on a scheduled task's dedicated chat scope. */
   openScheduledChat(taskId: string, sessionId?: string): void { const next = getOpenScheduledChatPatch(this.state, taskId, sessionId); if (next) this.commit(next); }
+
+  /** Return the chat tab to the page's own chat. */
+  closeScheduledChat(): void { const next = getCloseScheduledChatPatch(this.state); if (next) this.commit(next); }
 
   /** Reload the visible task conversation after its background run persists. */
   refreshScheduledChat(taskId: string): void { const next = getRefreshScheduledChatPatch(this.state, taskId); if (next) this.commit(next); }

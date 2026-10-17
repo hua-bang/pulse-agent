@@ -376,3 +376,15 @@
     padding: 0 12px 12px 34px;
   }
 }
+
+.scheduled-chat-leave {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 18px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+}

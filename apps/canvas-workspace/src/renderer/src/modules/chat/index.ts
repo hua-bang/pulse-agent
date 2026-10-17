@@ -5,6 +5,7 @@ export {
   useActiveChatTarget,
   useChatTargetBroker,
   useOptionalChatTargetBroker,
+  waitForActiveChatTarget,
   type ChatContextSnapshot,
   type ChatDeliveryReceipt,
   type ChatExecutionPolicy,

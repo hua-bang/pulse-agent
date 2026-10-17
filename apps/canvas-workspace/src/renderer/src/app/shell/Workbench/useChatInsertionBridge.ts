@@ -12,6 +12,9 @@ interface UseChatInsertionBridgeOptions {
   allNodes: Record<string, CanvasNode[]>;
   openChat: () => void;
   deliverToActiveTarget?: ChatTargetBroker['deliver'];
+  /** Set on routes whose dock shows the global chat: waits for it to mount.
+   * Those routes never fall back to a hidden workspace chat. */
+  waitForGlobalChat?: () => Promise<boolean>;
 }
 
 interface PendingNodeMention {
@@ -86,6 +89,7 @@ export function useChatInsertionBridge({
   allNodes,
   openChat,
   deliverToActiveTarget,
+  waitForGlobalChat,
 }: UseChatInsertionBridgeOptions) {
   const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode, sourceWorkspaceId?: string) => void>>(new Map());
   const pendingNodeMentionsByWorkspaceRef = useRef<Map<string, PendingNodeMention[]>>(new Map());
@@ -141,8 +145,14 @@ export function useChatInsertionBridge({
   ): Promise<ChatDeliveryReceipt | null> => {
     if (!deliverToActiveTarget) return null;
     const receipt = await deliverToActiveTarget(insertion);
-    return receipt.status === 'unavailable' ? null : receipt;
-  }, [deliverToActiveTarget]);
+    if (receipt.status !== 'unavailable') return receipt;
+    if (!waitForGlobalChat) return null;
+    if (receipt.target) return receipt;
+    // The collapsed dock has no target yet: open the global chat and wait.
+    openChat();
+    if (!(await waitForGlobalChat())) return receipt;
+    return await deliverToActiveTarget(insertion);
+  }, [deliverToActiveTarget, openChat, waitForGlobalChat]);
 
   const registerInsertDomSelectionMention = useCallback((workspaceId: string, fn: (selection: AgentContextDomSelectionRef) => void) => {
     insertDomSelectionByWorkspaceRef.current.set(workspaceId, fn);

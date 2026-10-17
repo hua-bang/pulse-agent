@@ -31,6 +31,8 @@ interface ResolveKnowledgeChatRouteContextOptions {
   selectedNode: KnowledgeNodeSelection | null;
   detailNode: KnowledgeNodeSelection | null;
   explicitContext?: KnowledgeChatRouteContext['explicitContext'];
+  /** The Skills page shows the global library rather than one canvas's. */
+  skillsLibraryGlobal?: boolean;
 }
 
 type KnowledgeNodeMentionCandidate = AgentContextNodeRef;
@@ -60,6 +62,7 @@ export function resolveKnowledgeChatRouteContext({
   selectedNode,
   detailNode,
   explicitContext,
+  skillsLibraryGlobal = false,
 }: ResolveKnowledgeChatRouteContextOptions): KnowledgeChatRouteContext {
   if (activeView === 'nodes') {
     return {
@@ -76,6 +79,11 @@ export function resolveKnowledgeChatRouteContext({
   // knowledge chat. Selecting a graph node never adds chat context.
   if (activeView === 'graph') {
     return { active: true, knowledgeMode: true, selectedNode: null };
+  }
+  // Canvas skills only work in that canvas's chat, so the Skills page uses
+  // the canvas chat while it shows one canvas's library.
+  if (activeView === 'skills' && !skillsLibraryGlobal) {
+    return { active: false, knowledgeMode: false, selectedNode: null };
   }
   // Only the canvas belongs to one workspace. Every other route with the
   // floating launcher (plugins, skills, scheduled list, apps) opens the

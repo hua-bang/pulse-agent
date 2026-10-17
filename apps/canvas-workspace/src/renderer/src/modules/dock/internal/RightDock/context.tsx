@@ -182,6 +182,7 @@ export function useRightDock(): DockActions {
     openChat: () => store.openChat(),
     openScheduledChat: (taskId: string, sessionId?: string) => store.openScheduledChat(taskId, sessionId),
     refreshScheduledChat: (taskId: string) => store.refreshScheduledChat(taskId),
+    closeScheduledChat: () => store.closeScheduledChat(),
     toggleChat: () => store.toggleChat(),
     toggleContentTabs: () => store.toggleContentTabs(),
     openTerminal: () => store.openTerminal(),

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
@@ -93,6 +93,7 @@ const AppContent = () => {
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
+  const [skillsLibraryGlobal, setSkillsLibraryGlobal] = useState(false);
   const [nodeDetailBackPath, setNodeDetailBackPath] = useState<string | null>(null);
   const {
     explicitContext: knowledgeChatExplicitContext,
@@ -100,11 +101,22 @@ const AppContent = () => {
     removeContext: handleRemoveKnowledgeChatContext,
     consumeComposerRequest: handleKnowledgeComposerRequestHandled,
   } = useKnowledgeAiContext({ openChat: dock.openChat, summarizePrompt: t('workspaceNodes.aiSummarizePrompt') });
+  // A task conversation stays with the page it was opened on; any route
+  // change returns the dock to the new page's own chat.
+  const closeScheduledChatRef = useRef(dock.closeScheduledChat);
+  closeScheduledChatRef.current = dock.closeScheduledChat;
+  useEffect(() => {
+    closeScheduledChatRef.current();
+  }, [activeView]);
+  const handleSkillsLibraryKindChange = useCallback((kind: 'workspace' | 'global') => {
+    setSkillsLibraryGlobal(kind === 'global');
+  }, []);
   const knowledgeChatContext = resolveKnowledgeChatRouteContext({
     activeView,
     selectedNode,
     detailNode,
     explicitContext: knowledgeChatExplicitContext ?? undefined,
+    skillsLibraryGlobal,
   });
   const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
   const openWorkspaceSettings = useCallback((workspaceId: string) => {
@@ -388,7 +400,8 @@ const AppContent = () => {
           )}
           <SkillsRouteView activeWorkspaceId={activeId} workspaces={workspaces}
             onSelectWorkspace={(workspaceId) => { ensureWorkspaceNodesLoaded(workspaceId); selectWorkspace(workspaceId); }}
-            onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)} />
+            onNavigatePlugins={() => setLocation(ROUTE_PLUGINS)}
+            onLibraryKindChange={handleSkillsLibraryKindChange} />
           <PulseRouterView name="plugins"><PluginMarketRouteView onNavigateSkills={() => setLocation(ROUTE_SKILLS)} onOpenSettings={() => openAppSettings('plugins')} /></PulseRouterView>
           <HomeRouteView
             active={activeView === 'home'}
