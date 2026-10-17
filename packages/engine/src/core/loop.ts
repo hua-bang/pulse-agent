@@ -4,6 +4,7 @@ import type { EngineHookMap, OnCompactedEvent } from "../plugin/EnginePlugin.js"
 import { streamTextAI } from "../ai";
 import { createNestedToolExecutor, executeToolWithHooks, prepareToolPresentation } from './tool-execution.js';
 import { maybeCompactContext, type CompactStats } from "../context";
+import { estimateTokens } from "../context/estimate.js";
 import {
   LLM_CALL_TIMEOUT_MS,
   LLM_FIRST_CHUNK_TIMEOUT_MS,
@@ -333,19 +334,6 @@ function safeStringify(value: unknown): string {
   }
 }
 
-function estimateMessageTokens(messages: ModelMessage[]): number {
-  let totalChars = 0;
-  for (const message of messages) {
-    totalChars += message.role.length;
-    if (typeof message.content === 'string') {
-      totalChars += message.content.length;
-    } else {
-      totalChars += safeStringify(message.content).length;
-    }
-  }
-  return Math.ceil(totalChars / 4);
-}
-
 async function emitCompactionEvent(
   context: Context,
   options: LoopOptions | undefined,
@@ -366,8 +354,8 @@ async function emitCompactionEvent(
     forced: params.stats?.forced ?? params.trigger === 'length-retry',
     beforeMessageCount: params.stats?.beforeMessageCount ?? params.currentMessages.length,
     afterMessageCount: params.stats?.afterMessageCount ?? params.newMessages.length,
-    beforeEstimatedTokens: params.stats?.beforeEstimatedTokens ?? estimateMessageTokens(params.currentMessages),
-    afterEstimatedTokens: params.stats?.afterEstimatedTokens ?? estimateMessageTokens(params.newMessages),
+    beforeEstimatedTokens: params.stats?.beforeEstimatedTokens ?? estimateTokens(params.currentMessages),
+    afterEstimatedTokens: params.stats?.afterEstimatedTokens ?? estimateTokens(params.newMessages),
     strategy: params.stats?.strategy ?? 'fallback',
   };
 
@@ -400,12 +388,50 @@ async function emitCompactionEvent(
 export async function loop(context: Context, options?: LoopOptions): Promise<string> {
   let errorCount = 0;
   let totalSteps = 0;
-  let compactionAttempts = 0;
+  // Compactions since the last completed LLM call. The cap stops a loop of
+  // compactions that never let a request through; it is not a per-run quota,
+  // so a long agent run can compact again once it has made progress.
+  let consecutiveCompactions = 0;
+  let totalCompactions = 0;
+  let consecutiveOutputCapHits = 0;
   const seenPaths = new Map<string, number>();
 
   const loopHooks = options?.hooks ?? {};
   // Resolve once so streaming and compaction always talk to the same provider.
   const provider = resolveProvider(options?.provider, options?.modelType);
+
+  const compact = async (trigger: CompactionEvent['trigger'], force: boolean): Promise<'aborted' | boolean> => {
+    if (consecutiveCompactions >= MAX_COMPACTION_ATTEMPTS) return false;
+    const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
+      force,
+      provider,
+      model: options?.model,
+      modelType: options?.modelType,
+      contextWindowTokens: options?.contextWindowTokens,
+      onStart: (info) => options?.onCompactionStart?.(info),
+      abortSignal: options?.abortSignal,
+    });
+    if (options?.abortSignal?.aborted) return 'aborted';
+    if (!didCompact || !newMessages) return false;
+
+    consecutiveCompactions++;
+    totalCompactions++;
+    const history = context.messages;
+    await emitCompactionEvent(context, options, loopHooks, {
+      currentMessages: history,
+      newMessages,
+      trigger,
+      attempt: totalCompactions,
+      reason,
+      stats,
+    });
+    // Hosts usually apply the result in onCompacted. When none did, apply it
+    // in place so the next request really uses the compacted history.
+    if (context.messages === history && history !== newMessages) {
+      history.splice(0, history.length, ...newMessages);
+    }
+    return true;
+  };
 
   while (true) {
     let requestStartAt: number | undefined;
@@ -419,34 +445,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         return 'Request aborted.';
       }
 
-      if (compactionAttempts < MAX_COMPACTION_ATTEMPTS) {
-        const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
-          provider,
-          model: options?.model,
-          modelType: options?.modelType,
-          contextWindowTokens: options?.contextWindowTokens,
-          onStart: (info) => options?.onCompactionStart?.(info),
-          abortSignal: options?.abortSignal,
-        });
-        if (options?.abortSignal?.aborted) {
-          return 'Request aborted.';
-        }
-        if (didCompact) {
-          const nextAttempt = compactionAttempts + 1;
-          compactionAttempts = nextAttempt;
-
-          if (newMessages) {
-            await emitCompactionEvent(context, options, loopHooks, {
-              currentMessages: context.messages,
-              newMessages,
-              trigger: 'pre-loop',
-              attempt: nextAttempt,
-              reason,
-              stats,
-            });
-          }
-          continue;
-        }
+      const preLoop = await compact('pre-loop', false);
+      if (preLoop === 'aborted') {
+        return 'Request aborted.';
+      }
+      if (preLoop) {
+        continue;
       }
 
       if (options?.abortSignal?.aborted) {
@@ -709,6 +713,10 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       totalSteps += steps.length;
+      consecutiveCompactions = 0;
+      if (finishReason !== 'length') {
+        consecutiveOutputCapHits = 0;
+      }
 
       for (const step of steps) {
         if (step.response?.messages?.length) {
@@ -760,7 +768,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         // budget. Output-cap hits just continue the loop so the model can
         // resume; only true overflow triggers compaction.
         const inputTokens = (usage as any)?.inputTokens ?? (usage as any)?.input_tokens;
-        const modelContextBudget = resolveModelContextBudget(options?.model, options?.modelType);
+        const modelContextBudget = options?.contextWindowTokens && options.contextWindowTokens > 0
+          ? options.contextWindowTokens
+          : resolveModelContextBudget(options?.model, options?.modelType);
         const looksLikeContextOverflow =
           typeof inputTokens === 'number' && inputTokens >= modelContextBudget * 0.8;
 
@@ -768,38 +778,25 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           // Output-cap hit (case b). Don't compact. Loop continues; if the
           // SDK already wrote a partial assistant message into the step
           // history, the next iteration will see it and resume naturally.
+          // Bounded: a model that spends the whole cap on reasoning every
+          // time would otherwise loop without limit.
+          consecutiveOutputCapHits++;
+          if (
+            consecutiveOutputCapHits >= MAX_OUTPUT_CAP_CONTINUES
+            || totalSteps >= (options?.maxSteps ?? MAX_STEPS)
+          ) {
+            return text || 'Output limit reached; the response may be incomplete.';
+          }
           continue;
         }
 
-        // True context overflow (case a): compact up to N times.
-        if (compactionAttempts < MAX_COMPACTION_ATTEMPTS) {
-          const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
-            force: true,
-            provider,
-            model: options?.model,
-            modelType: options?.modelType,
-            contextWindowTokens: options?.contextWindowTokens,
-            onStart: (info) => options?.onCompactionStart?.(info),
-            abortSignal: options?.abortSignal,
-          });
-          if (options?.abortSignal?.aborted) {
-            return 'Request aborted.';
-          }
-          if (didCompact) {
-            const nextAttempt = compactionAttempts + 1;
-            compactionAttempts = nextAttempt;
-            if (newMessages) {
-              await emitCompactionEvent(context, options, loopHooks, {
-                currentMessages: context.messages,
-                newMessages,
-                trigger: 'length-retry',
-                attempt: nextAttempt,
-                reason,
-                stats,
-              });
-            }
-            continue;
-          }
+        // True context overflow (case a).
+        const compacted = await compact('length-retry', true);
+        if (compacted === 'aborted') {
+          return 'Request aborted.';
+        }
+        if (compacted) {
+          continue;
         }
         return text || 'Context limit reached.';
       }
@@ -895,6 +892,18 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           }
         } catch (hookError) {
           console.warn('[loop] afterLLMCall hook failed while recording LLM error', hookError);
+        }
+      }
+
+      // Most providers report prompt overflow as a 400 error, not as
+      // finishReason 'length'. Compact and retry instead of failing the turn.
+      if (isContextOverflowError(error)) {
+        const compacted = await compact('length-retry', true);
+        if (compacted === 'aborted') {
+          return 'Request aborted.';
+        }
+        if (compacted) {
+          continue;
         }
       }
 
@@ -1128,6 +1137,19 @@ function findJsonEnd(text: string): number {
     }
   }
   return -1;
+}
+
+const MAX_OUTPUT_CAP_CONTINUES = 3;
+
+const CONTEXT_OVERFLOW_PATTERN = /prompt is too long|context[_ ]length[_ ]exceeded|maximum context length|exceeds? the context window|context window (?:is )?exceeded|input is too long|too many (?:input )?tokens|request too large|reduce the length of the messages/i;
+
+/** Prompt-overflow rejection from the provider (any status: gateways vary between 400 and 413). */
+export function isContextOverflowError(error: unknown): boolean {
+  const status = (error as any)?.status ?? (error as any)?.statusCode;
+  if (typeof status === 'number' && status !== 400 && status !== 413) {
+    return false;
+  }
+  return collectErrorMessages(error).some((message) => CONTEXT_OVERFLOW_PATTERN.test(message));
 }
 
 function isRetryableError(error: any): boolean {

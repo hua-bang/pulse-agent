@@ -1,11 +1,16 @@
-import { pruneMessages, type ModelMessage } from "ai";
+import type { ModelMessage } from "ai";
 import { summarizeMessages } from "../ai";
 import {
   COMPACT_TRIGGER,
   COMPACT_TARGET,
+  CONTEXT_WINDOW_TOKENS,
   KEEP_LAST_TURNS,
 } from "../config/index";
 import type { Context, LLMProviderFactory, ModelType } from "../shared/types";
+import { estimateMessageTokens, estimateTokens } from "./estimate.js";
+import { fitTranscript, renderTranscript } from "./transcript.js";
+
+export { estimateTokens } from "./estimate.js";
 
 export type CompactStats = {
   forced: boolean;
@@ -13,6 +18,12 @@ export type CompactStats = {
   afterMessageCount: number;
   beforeEstimatedTokens: number;
   afterEstimatedTokens: number;
+  /**
+   * `summary`: summary plus a recent tail within target.
+   * `summary-too-large`: the smallest valid tail still exceeds target; the
+   * summary is kept and the result is smaller than before.
+   * `fallback`: the summarizer failed; a clipped transcript replaces it.
+   */
   strategy: 'summary' | 'summary-too-large' | 'fallback';
 };
 
@@ -23,15 +34,24 @@ export type CompactResult = {
   stats?: CompactStats;
 };
 
+const SUMMARY_PREFIX = '[COMPACTED_CONTEXT]';
+/** Share of the target left for the verbatim tail; the rest is summary headroom. */
+const RECENT_SHARE = 0.6;
+const FORCED_RECENT_SHARE = 0.4;
+/** Summarizer input budget as a share of the context window. */
+const SUMMARY_INPUT_SHARE = 0.5;
+/** Clipped-transcript budget used when the summarizer fails. */
+const FALLBACK_SHARE = 0.2;
+
 const ensureSummaryPrefix = (summary: string): string => {
   const trimmed = summary.trim();
   if (trimmed.length === 0) {
     return '';
   }
-  if (trimmed.startsWith('[COMPACTED_CONTEXT]')) {
+  if (trimmed.startsWith(SUMMARY_PREFIX)) {
     return trimmed;
   }
-  return `[COMPACTED_CONTEXT]\n${trimmed}`;
+  return `${SUMMARY_PREFIX}\n${trimmed}`;
 };
 
 /**
@@ -57,109 +77,98 @@ const ensureEndsWithUser = (messages: ModelMessage[]): ModelMessage[] => {
     end--;
   }
   if (end === 0) {
-    // All messages are assistant — keep them and append a placeholder user
-    // message so the request is well-formed for providers without prefill support.
     return [...messages, PLACEHOLDER_USER_MESSAGE];
   }
   return end === messages.length ? messages : messages.slice(0, end);
 };
 
-const safeStringify = (value: unknown): string => {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+const contentParts = (message: ModelMessage): any[] => {
+  const content = (message as { content?: unknown }).content;
+  return Array.isArray(content) ? content : [];
 };
 
-const estimateTokens = (messages: ModelMessage[]): number => {
-  let totalChars = 0;
+/**
+ * Indices where history may be cut: the kept tail never starts with a tool
+ * result, and no tool call in the summarized head has its result in the tail.
+ * Calls that never receive a result anywhere (an aborted step) do not block
+ * cutting; the loop prunes them before the next request.
+ */
+function findCutBoundaries(messages: ModelMessage[]): number[] {
+  const answered = new Set<string>();
   for (const message of messages) {
-    totalChars += message.role.length;
-    if (typeof message.content === 'string') {
-      totalChars += message.content.length;
-    } else {
-      totalChars += safeStringify(message.content).length;
+    for (const part of contentParts(message)) {
+      if (part?.type === 'tool-result' && typeof part.toolCallId === 'string') answered.add(part.toolCallId);
     }
   }
-  return Math.ceil(totalChars / 4);
-};
 
-const splitByTurns = (messages: ModelMessage[], keepLastTurns: number) => {
-  const userIndices: number[] = [];
+  const open = new Set<string>();
+  const boundaries: number[] = [];
   messages.forEach((message, index) => {
-    if (message.role === 'user') {
-      userIndices.push(index);
+    if (index > 0 && open.size === 0 && message.role !== 'tool') boundaries.push(index);
+    for (const part of contentParts(message)) {
+      if (part?.type === 'tool-call' && answered.has(part.toolCallId)) open.add(part.toolCallId);
+      if (part?.type === 'tool-result') open.delete(part.toolCallId);
     }
   });
+  return boundaries;
+}
 
-  if (userIndices.length <= keepLastTurns) {
-    return { oldMessages: [], recentMessages: messages };
+/** Suffix sums so tail sizes are O(1) per candidate cut. */
+function tailTokens(messages: ModelMessage[]): number[] {
+  const sums = new Array<number>(messages.length + 1).fill(0);
+  for (let index = messages.length - 1; index >= 0; index--) {
+    sums[index] = sums[index + 1] + estimateMessageTokens(messages[index]);
   }
+  return sums;
+}
 
-  const cutIndex = userIndices[userIndices.length - keepLastTurns];
-  return {
-    oldMessages: messages.slice(0, cutIndex),
-    recentMessages: messages.slice(cutIndex),
-  };
-};
+/**
+ * Pick the cut. Prefer keeping the last `keepTurns` user turns when they fit
+ * the tail budget (multi-turn chats behave as before; a forced compaction
+ * keeps only the current turn). Otherwise keep the largest tail that fits,
+ * which also lets a single long agent turn compact its own earlier tool
+ * exchanges. Without a fitting tail, keep the smallest valid one.
+ */
+function chooseCut(
+  messages: ModelMessage[],
+  boundaries: number[],
+  recentBudget: number,
+  keepTurns: number,
+): number | undefined {
+  if (boundaries.length === 0) return undefined;
+  const sums = tailTokens(messages);
+  const userIndices = messages.flatMap((message, index) => (message.role === 'user' ? [index] : []));
+  if (userIndices.length > keepTurns) {
+    const turnCut = userIndices[userIndices.length - keepTurns];
+    if (boundaries.includes(turnCut) && sums[turnCut] <= recentBudget) return turnCut;
+  }
+  const fitting = boundaries.find((index) => sums[index] <= recentBudget);
+  return fitting ?? boundaries[boundaries.length - 1];
+}
 
-const takeLastTurns = (messages: ModelMessage[], keepLastTurns: number): ModelMessage[] => {
-  const userIndices: number[] = [];
-  messages.forEach((message, index) => {
-    if (message.role === 'user') {
-      userIndices.push(index);
+/**
+ * Split at the cut. The newest user message states the current task; when it
+ * would fall into the summarized head, it stays verbatim at the front of the
+ * tail unless it alone is too large to pin.
+ */
+function splitAtCut(messages: ModelMessage[], cut: number, recentBudget: number) {
+  let pinnedIndex = -1;
+  for (let index = cut - 1; index >= 0; index--) {
+    if (messages[index].role === 'user') {
+      pinnedIndex = index;
+      break;
     }
-  });
-
-  if (userIndices.length === 0) {
-    return messages;
   }
+  const lastUserAfterCut = messages.slice(cut).some((message) => message.role === 'user');
+  const pin = pinnedIndex >= 0 && !lastUserAfterCut
+    && estimateMessageTokens(messages[pinnedIndex]) <= recentBudget / 2;
 
-  if (userIndices.length <= keepLastTurns) {
-    return messages;
-  }
-
-  const startIndex = userIndices[userIndices.length - keepLastTurns];
-  return messages.slice(startIndex);
-};
-
-type BuildCompactedResultParams = {
-  reason: string;
-  strategy: CompactStats['strategy'];
-  newMessages: ModelMessage[];
-  force: boolean;
-  beforeMessageCount: number;
-  beforeEstimatedTokens: number;
-};
-
-const buildCompactedResult = ({
-  reason,
-  strategy,
-  newMessages,
-  force,
-  beforeMessageCount,
-  beforeEstimatedTokens,
-}: BuildCompactedResultParams): CompactResult => {
-  const afterEstimatedTokens = estimateTokens(newMessages);
-  if (afterEstimatedTokens >= beforeEstimatedTokens) {
-    return { didCompact: false, reason };
-  }
-
-  return {
-    didCompact: true,
-    reason,
-    newMessages,
-    stats: {
-      forced: force,
-      beforeMessageCount,
-      afterMessageCount: newMessages.length,
-      beforeEstimatedTokens,
-      afterEstimatedTokens,
-      strategy,
-    },
-  };
-};
+  const oldMessages = pin
+    ? messages.slice(0, cut).filter((_message, index) => index !== pinnedIndex)
+    : messages.slice(0, cut);
+  const recentMessages = pin ? [messages[pinnedIndex], ...messages.slice(cut)] : messages.slice(cut);
+  return { oldMessages, recentMessages };
+}
 
 export const maybeCompactContext = async (
   context: Context,
@@ -174,6 +183,13 @@ export const maybeCompactContext = async (
      * env-level CONTEXT_WINDOW_TOKENS / COMPACT_* values.
      */
     contextWindowTokens?: number;
+    /**
+     * Provider-reported prompt size for the current history (last request's
+     * input tokens plus an estimate of messages added since). Used when it is
+     * larger than the local estimate, which cannot see system prompt or tool
+     * schema cost.
+     */
+    observedTokens?: number;
     /** Fired once compaction is actually going to run (summarization LLM call imminent) — lets hosts show progress. */
     onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
     /** Cancels the summarization call. An aborted compaction never rewrites history. */
@@ -185,112 +201,85 @@ export const maybeCompactContext = async (
     return { didCompact: false };
   }
 
-  const windowOverride = options?.contextWindowTokens;
-  const compactTrigger = windowOverride && windowOverride > 0 ? Math.floor(windowOverride * 0.75) : COMPACT_TRIGGER;
+  const windowOverride = options?.contextWindowTokens && options.contextWindowTokens > 0
+    ? options.contextWindowTokens
+    : undefined;
+  const compactTrigger = windowOverride ? Math.floor(windowOverride * 0.75) : COMPACT_TRIGGER;
+  const compactTarget = windowOverride ? Math.floor(windowOverride * 0.5) : COMPACT_TARGET;
+  const windowTokens = windowOverride ?? CONTEXT_WINDOW_TOKENS;
 
   const force = Boolean(options?.force);
   const beforeMessageCount = messages.length;
-  const beforeEstimatedTokens = estimateTokens(messages);
+  const beforeEstimatedTokens = Math.max(estimateTokens(messages), options?.observedTokens ?? 0);
   if (!force && beforeEstimatedTokens < compactTrigger) {
     return { didCompact: false };
   }
 
-  let { oldMessages, recentMessages } = splitByTurns(messages, KEEP_LAST_TURNS);
+  const recentBudget = Math.floor(compactTarget * (force ? FORCED_RECENT_SHARE : RECENT_SHARE));
+  const cut = chooseCut(messages, findCutBoundaries(messages), recentBudget, force ? 1 : KEEP_LAST_TURNS);
+  if (cut === undefined) {
+    return { didCompact: false, reason: 'no-safe-boundary' };
+  }
+  const { oldMessages, recentMessages } = splitAtCut(messages, cut, recentBudget);
   if (oldMessages.length === 0) {
-    if (!force) {
-      return { didCompact: false };
-    }
-
-    // In force mode, still try to compact short conversations:
-    // 1) keep the latest user turn when possible;
-    // 2) if there is only one user turn, keep the last message.
-    const forcedByTurn = splitByTurns(messages, 1);
-    oldMessages = forcedByTurn.oldMessages;
-    recentMessages = forcedByTurn.recentMessages;
-
-    if (oldMessages.length === 0) {
-      if (messages.length <= 1) {
-        return { didCompact: false };
-      }
-      oldMessages = messages.slice(0, -1);
-      recentMessages = messages.slice(-1);
-    }
+    return { didCompact: false };
   }
 
   options?.onStart?.({ beforeMessageCount, beforeEstimatedTokens });
 
+  const transcript = renderTranscript(oldMessages);
+  let summaryText: string;
+  let strategy: CompactStats['strategy'] = 'summary';
   try {
-    const summary = await summarizeMessages(oldMessages, {
-      provider: options?.provider,
-      model: options?.model,
-      modelType: options?.modelType,
-      abortSignal: options?.abortSignal,
-    });
+    const summary = await summarizeMessages(
+      [{ role: 'user', content: `Conversation transcript:\n${fitTranscript(transcript, Math.floor(windowTokens * SUMMARY_INPUT_SHARE))}` }],
+      {
+        provider: options?.provider,
+        model: options?.model,
+        modelType: options?.modelType,
+        abortSignal: options?.abortSignal,
+      },
+    );
     // Providers may resolve after a stop; the result must still be discarded.
     if (options?.abortSignal?.aborted) {
       return { didCompact: false, reason: 'aborted' };
     }
-    const summaryText = ensureSummaryPrefix(summary);
+    summaryText = ensureSummaryPrefix(summary);
     if (!summaryText) {
       throw new Error('Empty summary result');
     }
-
-    const nextMessages: ModelMessage[] = [
-      { role: 'assistant', content: summaryText },
-      ...recentMessages,
-    ];
-
-    const compactTarget = windowOverride && windowOverride > 0 ? Math.floor(windowOverride * 0.5) : COMPACT_TARGET;
-    const nextEstimatedTokens = estimateTokens(nextMessages);
-    if (nextEstimatedTokens > compactTarget || nextEstimatedTokens >= beforeEstimatedTokens) {
-      const fallbackReason = nextEstimatedTokens > compactTarget ? 'summary-too-large' : 'summary-no-gain';
-      const fallbackStrategy: CompactStats['strategy'] = nextEstimatedTokens > compactTarget
-        ? 'summary-too-large'
-        : 'fallback';
-      const fallbackMessages = ensureEndsWithUser(takeLastTurns(messages, KEEP_LAST_TURNS));
-      return buildCompactedResult({
-        reason: fallbackReason,
-        strategy: fallbackStrategy,
-        newMessages: fallbackMessages,
-        force,
-        beforeMessageCount,
-        beforeEstimatedTokens,
-      });
-    }
-
-    return {
-      didCompact: true,
-      reason: force ? 'force-summary' : 'summary',
-      newMessages: ensureEndsWithUser(nextMessages),
-      stats: {
-        forced: force,
-        beforeMessageCount,
-        afterMessageCount: nextMessages.length,
-        beforeEstimatedTokens,
-        afterEstimatedTokens: nextEstimatedTokens,
-        strategy: 'summary',
-      },
-    };
   } catch {
-    // A user stop is not a summarizer failure: keep history intact instead of
-    // applying the lossy prune fallback.
+    // A user stop is not a summarizer failure: keep history intact.
     if (options?.abortSignal?.aborted) {
       return { didCompact: false, reason: 'aborted' };
     }
-    const pruned = pruneMessages({
-      messages,
-      reasoning: 'all',
-      toolCalls: 'all',
-      emptyMessages: 'remove',
-    });
-    const fallbackMessages = ensureEndsWithUser(takeLastTurns(pruned, KEEP_LAST_TURNS));
-    return buildCompactedResult({
-      reason: 'fallback',
-      strategy: 'fallback',
-      newMessages: fallbackMessages,
-      force,
-      beforeMessageCount,
-      beforeEstimatedTokens,
-    });
+    strategy = 'fallback';
+    summaryText = `${SUMMARY_PREFIX}\n(Summary unavailable; clipped transcript of earlier history.)\n${fitTranscript(transcript, Math.floor(compactTarget * FALLBACK_SHARE))}`;
   }
+
+  const newMessages = ensureEndsWithUser([
+    { role: 'assistant', content: summaryText },
+    ...recentMessages,
+  ]);
+  const afterEstimatedTokens = estimateTokens(newMessages);
+  if (afterEstimatedTokens >= estimateTokens(messages)) {
+    return { didCompact: false, reason: 'no-gain' };
+  }
+  if (strategy === 'summary' && afterEstimatedTokens > compactTarget) {
+    strategy = 'summary-too-large';
+  }
+
+  return {
+    didCompact: true,
+    reason: strategy === 'fallback' ? 'fallback' : force ? 'force-summary' : 'summary',
+    newMessages,
+    stats: {
+      forced: force,
+      beforeMessageCount,
+      afterMessageCount: newMessages.length,
+      beforeEstimatedTokens,
+      afterEstimatedTokens,
+      strategy,
+    },
+  };
 };
