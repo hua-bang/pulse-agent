@@ -180,4 +180,70 @@ describe('timeline clipping and generation segments', () => {
       ['Generation › Non-text output', 600],
     ]);
   });
+
+  it('splits the first-chunk wait at response headers and keeps the request id for the tooltip', () => {
+    const input = trace();
+    input.observabilityEvents = [
+      { type: 'run.started', runId: 'run-1', timestamp: 1_000, scope: 'workspace', host: 'canvas' },
+      { type: 'generation.started', runId: 'run-1', timestamp: 1_100, generationId: 'g1', owner: 'engine' },
+      {
+        type: 'generation.completed', runId: 'run-1', timestamp: 1_900, generationId: 'g1', owner: 'engine',
+        finishReason: 'stop', requestId: 'req_9', httpAttempts: 2,
+        timings: { requestStartedAt: 1_100, responseHeadersAt: 1_250, firstChunkAt: 1_600, firstTextAt: 1_600 },
+      },
+    ];
+
+    const timeline = buildTraceTimeline(input)!;
+    const segments = timeline.items
+      .filter(item => item.label.startsWith('Generation ›'))
+      .map(item => [item.label, item.durationMs]);
+    expect(segments).toEqual([
+      ['Generation › Wait › network', 150],
+      ['Generation › Wait › provider', 350],
+      ['Generation › Text streaming', 300],
+    ]);
+    expect(timeline.items.find(item => item.label === 'LLM generation')).toMatchObject({
+      detail: '800ms · stop · 2 HTTP attempts',
+      hint: 'request req_9',
+    });
+  });
+
+  it('draws retry waits, timed compactions and slow hooks as spans', () => {
+    const input = trace();
+    input.observabilityEvents = [
+      { type: 'run.started', runId: 'run-1', timestamp: 1_000, scope: 'workspace', host: 'canvas' },
+      {
+        type: 'hook.completed', runId: 'run-1', timestamp: 1_060, owner: 'engine',
+        hookName: 'beforeRun', pluginName: 'memory', startedAt: 1_020, finishedAt: 1_060,
+      },
+      {
+        type: 'hook.completed', runId: 'run-1', timestamp: 1_090, owner: 'engine',
+        hookName: 'beforeRun', pluginName: 'memory', startedAt: 1_070, finishedAt: 1_090,
+      },
+      {
+        type: 'context.compacted', runId: 'run-1', timestamp: 1_400, owner: 'engine',
+        beforeTokens: 900, afterTokens: 200, startedAt: 1_100, finishedAt: 1_400,
+      },
+      { type: 'generation.started', runId: 'run-1', timestamp: 1_400, generationId: 'g1', owner: 'engine' },
+      {
+        type: 'generation.completed', runId: 'run-1', timestamp: 1_500, generationId: 'g1', owner: 'engine',
+        finishReason: 'error', error: 'overloaded', retry: { attempt: 1, delayMs: 2_000 },
+      },
+      // A stop during the backoff ends the wait early.
+      { type: 'run.completed', runId: 'run-1', timestamp: 2_000, status: 'stopped' },
+    ];
+
+    const timeline = buildTraceTimeline(input)!;
+    const byKind = (kind: string) => timeline.items
+      .filter(item => item.kind === kind)
+      .map(item => [item.label, item.startMs, item.durationMs, item.detail]);
+    expect(byKind('retry')).toEqual([['Retry backoff › attempt 1', 500, 500, undefined]]);
+    expect(byKind('compaction')).toEqual([['Context compacted', 100, 300, '300ms · 900 → 200']]);
+    expect(byKind('hook')).toEqual([
+      ['Hook › memory.beforeRun', 20, 40, undefined],
+      ['Hook › memory.beforeRun', 70, 20, undefined],
+    ]);
+    expect(timeline.hookTotals).toEqual([{ label: 'memory.beforeRun', count: 2, totalMs: 60 }]);
+  });
 });
+

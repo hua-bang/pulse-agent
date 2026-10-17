@@ -6,6 +6,8 @@ declare module 'pulse-coder-engine' {
   export type ModelType = 'openai' | 'claude';
   export type LLMProviderFactory = (model: string) => any;
   export function buildProvider(type: ModelType, options?: any): LLMProviderFactory;
+  /** Provider fetch that records response-header timing for Engine LLM calls. */
+  export function createTimedFetch(base?: typeof fetch): typeof fetch;
 
   export interface EngineToolSession {
     getRegisteredTools(): Record<string, any>;

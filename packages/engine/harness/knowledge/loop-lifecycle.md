@@ -12,7 +12,7 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 6. LLM call setup: fresh AbortController, arm first-chunk timer and total-call timer.
 7. `streamTextAI` streams chunks: text-delta → onText; tool-call → onToolCall (+ hook, fire-and-forget); tool-result → onToolResult; tool-input-* → UI feedback.
 8. `Promise.race([llmCompletion, llmWaitAbort])` — timeout handlers and caller aborts reject the wait promise; first chunk clears the first-chunk timer; a finally block disposes all timers.
-9. `afterLLMCall` hooks — fire on success AND on the error path (with `error` populated).
+9. `afterLLMCall` hooks — fire on success AND on the error path (with `error` populated, and `retry` set when a backoff wait follows). Compaction events carry `startedAt` (summarizer call start) and `finishedAt`, so observers can draw them as spans.
 10. finishReason dispatch:
     - `stop` → return text (or continue if empty).
     - `length` → disambiguate output-cap vs true overflow (`inputTokens >= budget*0.8`); output-cap continues, at most 3 times in a row; true overflow force-compacts, bounded by the consecutive counter.

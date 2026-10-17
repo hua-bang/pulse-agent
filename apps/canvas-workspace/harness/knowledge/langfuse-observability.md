@@ -96,6 +96,10 @@ prompt/response content, tool arguments/results, or filesystem paths.
 5. Add thin runtime probes rather than a second root trace:
    - Engine: Canvas-owned Engine hooks create one generation per
      `beforeLLMCall`/`afterLLMCall` pair and tool children for tool hooks.
+     Tool ends pair with starts by `toolCallId`, because parallel calls of one
+     tool finish in any order; `onToolError` closes a thrown call as an error.
+     Timed compactions and plugin hook calls of 10 ms or more (`hook.completed`,
+     from the Engine's `hookTiming`) become spans.
    - Pi: wrap the provider/model call used by `AgentHarness`, or subscribe to
      the harness's model/tool events, to create generation and tool children.
      The official `pi-langfuse` extension shows that Pi sessions are traceable,

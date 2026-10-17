@@ -37,4 +37,23 @@ describe('LocalAgentTraceSink', () => {
 
     expect(sink.snapshot('run-1').map(event => event.type)).toEqual(['run.started']);
   });
+
+  it('keeps run boundaries when a long run exceeds the event cap', () => {
+    const sink = new LocalAgentTraceSink();
+    sink.onEvent({ type: 'run.started', runId: 'long', timestamp: 0, scope: 'global', host: 'canvas' });
+    for (let index = 1; index <= 600; index++) {
+      sink.onEvent({
+        type: 'tool.started', runId: 'long', timestamp: index,
+        toolCallId: `call-${index}`, toolName: 'read', owner: 'engine',
+      });
+    }
+    sink.onEvent({ type: 'run.completed', runId: 'long', timestamp: 601, status: 'success' });
+
+    const events = sink.snapshot('long');
+    expect(events).toHaveLength(500);
+    expect(events[0].type).toBe('run.started');
+    expect(events.at(-1)?.type).toBe('run.completed');
+    // The oldest detail events went first.
+    expect(events[1]).toMatchObject({ toolCallId: 'call-103' });
+  });
 });

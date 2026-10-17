@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
-import { createOpenAI } from '@ai-sdk/openai';
 import { buildProvider, type LLMProviderFactory, type ModelType } from 'pulse-coder-engine';
 import type {
   CanvasModelConfig,
@@ -528,9 +527,8 @@ export async function fetchCanvasProviderModels(input: FetchCanvasModelsInput): 
 export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
   const config = sanitizeConfig(await readConfig());
   const resolved = resolveEffectiveFields(config);
-  const provider = resolved.providerType === 'claude'
-    ? buildProvider('claude', { apiKey: resolved.apiKey, baseURL: resolved.baseURL, headers: resolved.headers })
-    : createOpenAI({ apiKey: resolved.apiKey, baseURL: resolved.baseURL, headers: resolved.headers });
+  // Engine-built providers carry the timed fetch used for LLM call tracing.
+  const provider = buildProvider(resolved.providerType, { apiKey: resolved.apiKey, baseURL: resolved.baseURL, headers: resolved.headers });
 
   return {
     providerId: resolved.provider?.id,
