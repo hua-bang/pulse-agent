@@ -6,7 +6,7 @@ import type { Tool as CoderTool, ToolExecutionContext, LLMProviderFactory, Syste
 
 
 const openaiProviderOptions = { openai: { store: false, reasoningEffort: OPENAI_REASONING_EFFORT } };
-const claudeProviderOptions = { anthropic: { cacheControl: { type: 'ephemeral' as const } } };
+const ANTHROPIC_CACHE_BREAKPOINT = { anthropic: { cacheControl: { type: 'ephemeral' as const } } };
 
 /**
  * Default per-call output token caps.
@@ -36,12 +36,13 @@ function resolveMaxOutputTokens(modelType?: ModelType): number {
  * OpenAI-compatible path: gateways with several upstream accounts/cache nodes
  * route by this key, so a stable value keeps a session's requests on the same
  * cache node (routing affinity, not cache isolation). The Claude path drops it
- * — Anthropic caching works via cacheControl and an unknown option would leak
- * into the request.
+ * — an unknown option would leak into the request. Anthropic caching is not a
+ * call-level option: the SDK only reads `cacheControl` on messages, parts and
+ * tools, so breakpoints are placed by `withAnthropicCacheBreakpoints`.
  */
 export function resolveProviderOptions(modelType?: ModelType, promptCacheKey?: string) {
   if (modelType === 'claude') {
-    return { ...openaiProviderOptions, ...claudeProviderOptions };
+    return openaiProviderOptions;
   }
   if (promptCacheKey) {
     return { openai: { ...openaiProviderOptions.openai, promptCacheKey } };
@@ -136,6 +137,29 @@ export const wrapToolsWithContext = (
   return wrappedTools;
 };
 
+/**
+ * Place Anthropic prompt-cache breakpoints where the SDK reads them. Anthropic
+ * orders the cache prefix tools -> system -> messages, so one breakpoint on
+ * the system message covers tools and system, and one on the newest message
+ * lets the next step reuse the whole history. Two of the four allowed
+ * breakpoints; history objects are copied, never mutated.
+ */
+export function withAnthropicCacheBreakpoints(system: string, messages: ModelMessage[]): ModelMessage[] {
+  const cached: ModelMessage[] = [
+    { role: 'system', content: system, providerOptions: ANTHROPIC_CACHE_BREAKPOINT },
+    ...messages,
+  ];
+  const lastIndex = cached.length - 1;
+  if (lastIndex > 0) {
+    const last = cached[lastIndex];
+    cached[lastIndex] = {
+      ...last,
+      providerOptions: { ...last.providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT },
+    } as ModelMessage;
+  }
+  return cached;
+}
+
 export const streamTextAI = (messages: ModelMessage[], tools: Record<string, CoderTool>, options?: StreamOptions) => {
   const provider = resolveProvider(options?.provider, options?.modelType);
   const model = options?.model ?? DEFAULT_MODEL;
@@ -168,10 +192,13 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
     ? `${baseSystemPrompt}${gptExtra}\n\n${extraSystemParts.join('\n\n')}`
     : `${baseSystemPrompt}${gptExtra}`;
 
+  const isClaude = options?.modelType === 'claude';
+
   return streamText({
     model: provider(model),
-    system: finalSystemPrompt,
-    messages: filteredMessages,
+    ...(isClaude
+      ? { messages: withAnthropicCacheBreakpoints(finalSystemPrompt, filteredMessages) }
+      : { system: finalSystemPrompt, messages: filteredMessages }),
     tools: wrappedTools as Record<string, Tool>,
     providerOptions: resolveProviderOptions(options?.modelType, options?.promptCacheKey),
     maxOutputTokens: resolveMaxOutputTokens(options?.modelType),
