@@ -96,14 +96,13 @@ export const NodeDetailHeader = ({
         <div className="node-detail-panel__title-row">
           {onBack && (
             <Button
-              variant="icon"
               size="xs"
               className="node-detail-panel__back"
               aria-label={t('workspaceNodes.back')}
               title={t('workspaceNodes.back')}
               onClick={onBack}
             >
-              <ChevronRightIcon className="node-detail-panel__back-chevron" />
+              <ChevronRightIcon size={14} className="node-detail-panel__back-chevron" />
             </Button>
           )}
           {!hideTitle && <div className="node-detail-panel__title-field">

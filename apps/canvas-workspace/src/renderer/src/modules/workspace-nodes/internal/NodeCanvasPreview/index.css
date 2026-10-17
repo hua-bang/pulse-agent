@@ -60,8 +60,9 @@
 }
 
 /* That 36px left padding is the block-handle gutter. On the full page it sits
- * in the margin, so body text lines up with the title above it. */
-.node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__preview {
+ * in the margin, so body text lines up with the title above it. Text and
+ * image bodies have no gutter and stay where they are. */
+.node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__preview:has(.note-tiptap-editor) {
   margin-left: -36px;
 }
 

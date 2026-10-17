@@ -4,14 +4,23 @@
 
 .node-detail-panel__back {
   flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--radius-pill);
   color: var(--nodes-muted);
 }
 
+.node-detail-panel__back:hover {
+  color: var(--nodes-text);
+}
+
 /* A document page has margin to spare: hang Back to the left of the title so
- * the title still lines up with the body. 34px is the 22px icon button plus
- * the 12px title-row gap. */
+ * the title still lines up with the body. 40px is the 28px button plus the
+ * 12px title-row gap. */
 .node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__back {
-  margin-left: -34px;
+  margin-left: -40px;
 }
 
 /* The disclosure chevron, turned around — one glyph for "there is more this
