@@ -1,5 +1,5 @@
 import { generateText, streamText, tool, type ModelMessage, type StepResult, type Tool } from 'ai';
-import { CoderAI, DEFAULT_MODEL, COMPACT_SUMMARY_MAX_TOKENS, COMPACT_SUMMARY_MODEL, OPENAI_REASONING_EFFORT } from '../config';
+import { DEFAULT_MODEL, COMPACT_SUMMARY_MAX_TOKENS, COMPACT_SUMMARY_MODEL, OPENAI_REASONING_EFFORT, resolveProvider } from '../config';
 import z from 'zod';
 import { generateSystemPrompt } from '../prompt';
 import type { Tool as CoderTool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ModelType } from '../shared/types';
@@ -59,19 +59,19 @@ const GPT_EXPLORATION_CONSTRAINT = `
 
 /** Resolve a SystemPromptOption into a final string. */
 const resolveSystemPrompt = (option: SystemPromptOption | undefined): string => {
-  const base = generateSystemPrompt();
-  if (!option) return base;
   if (typeof option === 'string') return option;
   if (typeof option === 'function') return option();
-  return `${base}\n\n${option.append}`;
+  const base = generateSystemPrompt();
+  return option ? `${base}\n\n${option.append}` : base;
 };
+
 
 export const generateTextAI = (
   messages: ModelMessage[],
   tools: Record<string, Tool>,
-  options?: { provider?: LLMProviderFactory; model?: string; systemPrompt?: SystemPromptOption }
+  options?: { provider?: LLMProviderFactory; model?: string; modelType?: ModelType; systemPrompt?: SystemPromptOption }
 ) => {
-  const provider = options?.provider ?? CoderAI;
+  const provider = resolveProvider(options?.provider, options?.modelType);
   const model = options?.model ?? DEFAULT_MODEL;
 
   return generateText({
@@ -79,7 +79,8 @@ export const generateTextAI = (
     system: resolveSystemPrompt(options?.systemPrompt),
     messages,
     tools,
-    providerOptions: openaiProviderOptions,
+    providerOptions: resolveProviderOptions(options?.modelType),
+    maxOutputTokens: resolveMaxOutputTokens(options?.modelType),
   }) as unknown as ReturnType<typeof generateText> & { steps: StepResult<any>[]; finishReason: string };
 }
 
@@ -136,7 +137,7 @@ export const wrapToolsWithContext = (
 };
 
 export const streamTextAI = (messages: ModelMessage[], tools: Record<string, CoderTool>, options?: StreamOptions) => {
-  const provider = options?.provider ?? CoderAI;
+  const provider = resolveProvider(options?.provider, options?.modelType);
   const model = options?.model ?? DEFAULT_MODEL;
 
   // Wrap tools with execution context if provided
@@ -187,16 +188,19 @@ export const summarizeMessages = async (
     maxOutputTokens?: number;
     provider?: LLMProviderFactory;
     model?: string;
+    modelType?: ModelType;
     abortSignal?: AbortSignal;
   }
 ): Promise<string> => {
-  const provider = options?.provider ?? CoderAI;
-  const model = options?.model ?? COMPACT_SUMMARY_MODEL ?? DEFAULT_MODEL;
+  const provider = resolveProvider(options?.provider, options?.modelType);
+  // An explicit COMPACT_SUMMARY_MODEL is an operator override; otherwise
+  // summarize with the run's own model so the provider can serve it.
+  const model = COMPACT_SUMMARY_MODEL ?? options?.model ?? DEFAULT_MODEL;
   const SUMMARY_SYSTEM_PROMPT =
     '你是负责压缩对话上下文的助手。请基于给定历史消息，提炼关键事实与决策，避免臆测或扩展。';
 
   const SUMMARY_USER_PROMPT = [
-    '请将以上对话压缩为以下格式，使用中文：',
+    '请将以上对话压缩为以下格式，使用对话的主要语言：',
     '[COMPACTED_CONTEXT]',
     '- 目标: ...',
     '- 进展: ...',
@@ -216,7 +220,7 @@ export const summarizeMessages = async (
       { role: 'user', content: SUMMARY_USER_PROMPT },
     ],
     maxOutputTokens: options?.maxOutputTokens ?? COMPACT_SUMMARY_MAX_TOKENS,
-    providerOptions: openaiProviderOptions,
+    providerOptions: resolveProviderOptions(options?.modelType),
     abortSignal: options?.abortSignal,
   });
 

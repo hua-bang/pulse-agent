@@ -48,3 +48,39 @@ describe('Engine.run lifecycle', () => {
     expect(afterRun).toHaveBeenCalledWith({ context, result: '' });
   });
 });
+
+describe('Engine.run model resolution', () => {
+  beforeEach(() => {
+    loopMock.mockReset();
+    loopMock.mockResolvedValue('done');
+  });
+
+  const createEngine = (options: Record<string, unknown>) => new Engine({
+    disableBuiltInPlugins: true,
+    enginePlugins: { scan: false },
+    builtInTools: {},
+    logger: createLogger(),
+    ...options,
+  });
+
+  it('forwards a constructor modelType to the loop with its provider', async () => {
+    const engine = createEngine({ modelType: 'claude', model: 'claude-x' });
+    await engine.initialize();
+
+    await engine.run({ messages: [{ role: 'user', content: 'hi' }] });
+
+    const loopOptions = loopMock.mock.calls[0][1];
+    expect(loopOptions.modelType).toBe('claude');
+    expect(loopOptions.model).toBe('claude-x');
+    expect(typeof loopOptions.provider).toBe('function');
+  });
+
+  it('lets a per-run modelType override the constructor default', async () => {
+    const engine = createEngine({ modelType: 'claude' });
+    await engine.initialize();
+
+    await engine.run({ messages: [{ role: 'user', content: 'hi' }] }, { modelType: 'openai' });
+
+    expect(loopMock.mock.calls[0][1].modelType).toBe('openai');
+  });
+});

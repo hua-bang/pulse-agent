@@ -304,11 +304,7 @@ export class Engine {
       resultText = await loop(context, {
         ...options,
         tools,
-        provider: options?.provider
-          ?? (options?.modelType ? buildProvider(options.modelType) : undefined)
-          ?? this.options.llmProvider
-          ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined),
-        model: options?.model ?? this.options.model,
+        ...this.resolveModelConfig(options),
         systemPrompt,
         hooks: loopHooks,
         onToolCall: (toolCall) => {
@@ -349,6 +345,7 @@ export class Engine {
       force?: boolean;
       provider?: LLMProviderFactory;
       model?: string;
+      modelType?: ModelType;
       contextWindowTokens?: number;
       onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
       abortSignal?: AbortSignal;
@@ -356,12 +353,31 @@ export class Engine {
   ): Promise<{ didCompact: boolean; reason?: string; newMessages?: Context['messages'] }> {
     return await maybeCompactContext(context, {
       force: options?.force,
-      provider: options?.provider ?? this.options.llmProvider,
-      model: options?.model ?? this.options.model,
+      ...this.resolveModelConfig(options),
       contextWindowTokens: options?.contextWindowTokens,
       onStart: options?.onStart,
       abortSignal: options?.abortSignal,
     });
+  }
+
+  /**
+   * Single resolution point for provider/model/modelType. Per-call values win
+   * over constructor defaults; a per-call `modelType` without a `provider`
+   * builds that type's env provider instead of inheriting a constructor
+   * factory for a different type. `modelType` always travels with the
+   * provider so Claude-specific request shaping is never lost.
+   */
+  private resolveModelConfig(options?: { provider?: LLMProviderFactory; model?: string; modelType?: ModelType }): {
+    provider?: LLMProviderFactory;
+    model?: string;
+    modelType?: ModelType;
+  } {
+    const modelType = options?.modelType ?? this.options.modelType;
+    const provider = options?.provider
+      ?? (options?.modelType ? buildProvider(options.modelType) : undefined)
+      ?? this.options.llmProvider
+      ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined);
+    return { provider, model: options?.model ?? this.options.model, modelType };
   }
 
   /**

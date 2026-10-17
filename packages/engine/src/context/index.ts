@@ -5,7 +5,7 @@ import {
   COMPACT_TARGET,
   KEEP_LAST_TURNS,
 } from "../config/index";
-import type { Context, LLMProviderFactory } from "../shared/types";
+import type { Context, LLMProviderFactory, ModelType } from "../shared/types";
 
 export type CompactStats = {
   forced: boolean;
@@ -167,6 +167,7 @@ export const maybeCompactContext = async (
     force?: boolean;
     provider?: LLMProviderFactory;
     model?: string;
+    modelType?: ModelType;
     /**
      * Per-run context window override (e.g. per-model). When set, the trigger
      * (75%) and target (50%) are derived from it, taking precedence over the
@@ -222,6 +223,7 @@ export const maybeCompactContext = async (
     const summary = await summarizeMessages(oldMessages, {
       provider: options?.provider,
       model: options?.model,
+      modelType: options?.modelType,
       abortSignal: options?.abortSignal,
     });
     // Providers may resolve after a stop; the result must still be discarded.

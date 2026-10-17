@@ -83,6 +83,23 @@ export function buildProvider(type: ModelType, options?: BuildProviderOptions): 
   }).responses as LLMProviderFactory;
 }
 
+const envProviders = new Map<ModelType, LLMProviderFactory>();
+
+/**
+ * One provider fallback for every request path: an explicit factory wins, then
+ * a named `modelType` (env-built once per type), then the env-selected default.
+ */
+export const resolveProvider = (provider?: LLMProviderFactory, modelType?: ModelType): LLMProviderFactory => {
+  if (provider) return provider;
+  if (!modelType) return CoderAI;
+  let built = envProviders.get(modelType);
+  if (!built) {
+    built = buildProvider(modelType);
+    envProviders.set(modelType, built);
+  }
+  return built;
+};
+
 export const DEFAULT_MODEL = readEnv(
   [
     'ANTHROPIC_MODEL',
@@ -117,7 +134,8 @@ export const CONTEXT_WINDOW_TOKENS = Number(process.env.CONTEXT_WINDOW_TOKENS ??
 export const COMPACT_TRIGGER = Number(process.env.COMPACT_TRIGGER ?? Math.floor(CONTEXT_WINDOW_TOKENS * 0.75));
 export const COMPACT_TARGET = Number(process.env.COMPACT_TARGET ?? Math.floor(CONTEXT_WINDOW_TOKENS * 0.5));
 export const KEEP_LAST_TURNS = Number(process.env.KEEP_LAST_TURNS ?? 4);
-export const COMPACT_SUMMARY_MODEL = (process.env.COMPACT_SUMMARY_MODEL ?? '').trim();
+// Unset or blank means "no override": `undefined`, never '', so `??` fallbacks reach the run model.
+export const COMPACT_SUMMARY_MODEL: string | undefined = (process.env.COMPACT_SUMMARY_MODEL ?? '').trim() || undefined;
 export const COMPACT_SUMMARY_MAX_TOKENS = Number(process.env.COMPACT_SUMMARY_MAX_TOKENS ?? 1200);
 export const MAX_COMPACTION_ATTEMPTS = Number(process.env.MAX_COMPACTION_ATTEMPTS ?? 2);
 export const OPENAI_REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT;

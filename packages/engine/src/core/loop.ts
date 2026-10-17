@@ -10,7 +10,7 @@ import {
   MAX_COMPACTION_ATTEMPTS,
   MAX_ERROR_COUNT,
   MAX_STEPS,
-  buildProvider,
+  resolveProvider,
 } from "../config/index.js";
 
 /**
@@ -404,6 +404,8 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
   const seenPaths = new Map<string, number>();
 
   const loopHooks = options?.hooks ?? {};
+  // Resolve once so streaming and compaction always talk to the same provider.
+  const provider = resolveProvider(options?.provider, options?.modelType);
 
   while (true) {
     let requestStartAt: number | undefined;
@@ -419,8 +421,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
       if (compactionAttempts < MAX_COMPACTION_ATTEMPTS) {
         const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
-          provider: options?.provider,
+          provider,
           model: options?.model,
+          modelType: options?.modelType,
           contextWindowTokens: options?.contextWindowTokens,
           onStart: (info) => options?.onCompactionStart?.(info),
           abortSignal: options?.abortSignal,
@@ -621,7 +624,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             ...toolExecutionContext,
             abortSignal: llmAbortController.signal,
           },
-          provider: options?.provider ?? (options?.modelType ? buildProvider(options.modelType) : undefined),
+          provider,
           model: options?.model,
           modelType: options?.modelType,
           promptCacheKey: options?.promptCacheKey,
@@ -772,8 +775,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         if (compactionAttempts < MAX_COMPACTION_ATTEMPTS) {
           const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
             force: true,
-            provider: options?.provider,
+            provider,
             model: options?.model,
+            modelType: options?.modelType,
             contextWindowTokens: options?.contextWindowTokens,
             onStart: (info) => options?.onCompactionStart?.(info),
             abortSignal: options?.abortSignal,
