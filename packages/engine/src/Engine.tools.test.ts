@@ -314,3 +314,36 @@ describe('Engine built-in tool policy', () => {
     await allowed.dispose();
   });
 });
+
+describe('Engine config and dispose', () => {
+  it('shares EngineOptions.config with plugin config and releases plugins on dispose', async () => {
+    let seen: unknown;
+    const destroy = vi.fn(async () => undefined);
+    const engine = new Engine({
+      disableBuiltInPlugins: true,
+      enginePlugins: {
+        scan: false,
+        plugins: [{
+          name: 'test/config-reader',
+          version: '1.0.0',
+          async initialize(context: any) {
+            seen = context.getConfig('region');
+            context.setConfig('ready', true);
+          },
+          destroy,
+        }],
+      },
+      builtInTools: {},
+      config: { region: 'eu' },
+      logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    });
+    await engine.initialize();
+
+    expect(seen).toBe('eu');
+    expect(engine.getConfig('ready')).toBe(true);
+
+    await engine.dispose();
+    await engine.dispose();
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+});

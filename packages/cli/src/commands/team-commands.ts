@@ -276,6 +276,7 @@ export class TeamsSession {
   async stop(): Promise<void> {
     this._active = false;
     try { await this.lead.team.cleanup(); } catch { /* best effort */ }
+    try { await this.lead.dispose(); } catch { /* best effort */ }
     this.display.stop();
     console.log(`\n${dim}Exited teams mode.${reset}`);
   }

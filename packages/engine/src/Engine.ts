@@ -35,7 +35,11 @@ export interface EngineOptions {
   // 引擎插件配置
   enginePlugins?: EnginePluginLoadOptions;
 
-  // 用户配置插件配置
+  /**
+   * @deprecated Ignored. The declarative user-config loader never applied
+   * anything and was removed; working config lives in `.pulse-coder/mcp.json`,
+   * `.pulse-coder/agents/`, `.pulse-coder/skills/` and engine plugins.
+   */
   userConfigPlugins?: UserConfigPluginLoadOptions;
 
   // 是否禁用内置插件（默认启用）
@@ -158,7 +162,6 @@ export class Engine {
   private pluginManager: PluginManager;
   private tools: Record<string, any>;
   private options: EngineOptions = {};
-  private config: Record<string, any> = {};
 
   get instance(): PulseEngineInstance {
     return {
@@ -204,8 +207,10 @@ export class Engine {
     this.tools = { ...(options?.builtInTools ?? BuiltinToolsMap) };
     this.pluginManager = new PluginManager(() => this.instance, options?.logger);
 
-    // 初始化全局配置
-    this.config = options?.config || {};
+    // One config store: plugins read EngineOptions.config through ctx.getConfig.
+    for (const [key, value] of Object.entries(options?.config ?? {})) {
+      this.pluginManager.setConfig(key, value);
+    }
     this.options = options || {};
   }
 
@@ -227,9 +232,6 @@ export class Engine {
       enginePlugins: {
         ...allEnginePlugins
       },
-      userConfigPlugins: {
-        ...(this.options.userConfigPlugins || {})
-      }
     });
 
     // 合并插件工具到引擎工具库
@@ -404,6 +406,15 @@ export class Engine {
       ?? this.options.llmProvider
       ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined);
     return { provider, model: options?.model ?? this.options.model, modelType };
+  }
+
+  /**
+   * Release plugin resources (MCP child processes and connections, watchers)
+   * by calling each plugin's `destroy` in reverse initialization order.
+   * Idempotent. Do not run the engine after disposing it.
+   */
+  async dispose(): Promise<void> {
+    await this.pluginManager.destroy();
   }
 
   /**
@@ -650,14 +661,14 @@ export class Engine {
    * 获取配置
    */
   getConfig<T>(key: string): T | undefined {
-    return this.config[key];
+    return this.pluginManager.getConfig<T>(key);
   }
 
   /**
    * 设置配置
    */
   setConfig<T>(key: string, value: T): void {
-    this.config[key] = value;
+    this.pluginManager.setConfig(key, value);
   }
 }
 
