@@ -114,10 +114,16 @@
 }
 
 /* Every page type shares this frame (width, padding, left edge), so the Back
- * button, title and tags sit in the same place for documents, Web pages and
- * mind maps. A document without a rail keeps a 720px reading column. */
+ * button, title, tags and actions sit in the same place for documents, Web
+ * pages and mind maps. Without a rail the header spans the frame, and a
+ * document body keeps a 720px reading column below it. */
 .node-detail-panel__layout--single {
-  grid-template-columns: minmax(0, 720px);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.node-detail-panel--page:not(.node-detail-panel--rich) .node-detail-panel__layout--single .node-detail-panel__preview {
+  width: 100%;
+  max-width: 720px;
 }
 
 .node-detail-panel--dock .node-detail-panel__layout {

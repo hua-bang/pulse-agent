@@ -24,12 +24,12 @@ interface TextPreviewModel {
 interface WebPreviewModel {
   kind: 'iframe';
   source: string;
-  excerpt: string;
+  excerpt?: string;
 }
 
 interface ImagePreviewModel {
   kind: 'image';
-  caption: string;
+  caption?: string;
   src?: string;
 }
 
@@ -61,10 +61,13 @@ export type NodeCardPreviewModel =
 const compactText = (value: string): string => value.replace(/\s+/g, ' ').trim();
 const URL_PATTERN = /[a-z][a-z0-9+.-]*:\/\/[^\s)\]}]+/gi;
 
+// A path says nothing the title does not; the card shows no caption for it.
+const LOCAL_PATH_PATTERN = /^(?:[a-z]:)?[\\/][^\s]*$/i;
+
 const previewSegments = (value: string, limit: number): string[] => {
   const segments = value
     .split(/[\n\r]+|[。！？；!?;]+|\.\s+/u)
-    .map((segment) => compactText(segment.replace(/^\s*(?:[-*#>]|\d+[.)])\s*/, '')))
+    .map((segment) => compactText(segment.replace(/^\s*(?:[-*#>]|\d+[.)])\s*/, '').replace(/`/g, '')))
     .filter(Boolean);
 
   const unique = Array.from(new Set(segments));
@@ -86,10 +89,14 @@ const findWebSource = (node: WorkspaceNodeListItem, summary: string): string => 
   }
 };
 
-const webExcerpt = (summary: string, emptyLabel: string): string => {
-  const withoutUrl = summary.replace(URL_PATTERN, '');
-  const compact = compactText(withoutUrl);
-  return compact ? truncateText(compact, 190) : emptyLabel;
+const webExcerpt = (summary: string): string | undefined => {
+  const compact = compactText(summary.replace(URL_PATTERN, ''));
+  return compact ? truncateText(compact, 190) : undefined;
+};
+
+const imageCaption = (summary: string): string | undefined => {
+  const compact = compactText(summary);
+  return compact && !LOCAL_PATH_PATTERN.test(compact) ? truncateText(compact, 110) : undefined;
 };
 
 /**
@@ -100,7 +107,6 @@ const webExcerpt = (summary: string, emptyLabel: string): string => {
 export const getNodeCardPreviewModel = (
   node: WorkspaceNodeListItem,
   title: string,
-  emptyLabel: string,
 ): NodeCardPreviewModel => {
   const summary = getNodeSummary(node);
   const aiSummary = getNodeAiSummary(node);
@@ -115,7 +121,10 @@ export const getNodeCardPreviewModel = (
 
   switch (node.type) {
     case 'file': {
-      const sections = previewSegments(summary, 3);
+      // Files often open with their own title as a heading; the card already shows it.
+      const lead = summary.replace(/^\s*#*\s*/, '');
+      const body = title && lead.startsWith(title) ? lead.slice(title.length) : summary;
+      const sections = previewSegments(body, 3);
       return sections.length > 0 ? { kind: 'file', sections } : { kind: 'empty' };
     }
     case 'text':
@@ -126,12 +135,12 @@ export const getNodeCardPreviewModel = (
       return {
         kind: 'iframe',
         source: findWebSource(node, summary),
-        excerpt: webExcerpt(summary, emptyLabel),
+        excerpt: webExcerpt(summary),
       };
     case 'image':
       return {
         kind: 'image',
-        caption: summary ? truncateText(compactText(summary), 110) : emptyLabel,
+        caption: imageCaption(summary),
         src: node.previewPath ? toFileUrl(node.previewPath) : undefined,
       };
     case 'mindmap': {
@@ -149,7 +158,6 @@ export const getNodeCardPreviewModel = (
 interface Props {
   node: WorkspaceNodeListItem;
   title: string;
-  emptyLabel: string;
   aiSummaryLabel?: string;
   confirmedLabel?: string;
 }
@@ -157,11 +165,10 @@ interface Props {
 export const NodeCardPreview = ({
   node,
   title,
-  emptyLabel,
   aiSummaryLabel = 'AI insight',
   confirmedLabel = 'Confirmed',
 }: Props) => {
-  const model = getNodeCardPreviewModel(node, title, emptyLabel);
+  const model = getNodeCardPreviewModel(node, title);
 
   if (model.kind === 'empty') return null;
 
@@ -207,7 +214,7 @@ export const NodeCardPreview = ({
           <span>{model.source}</span>
           <span aria-hidden="true">↗</span>
         </span>
-        <span className="knowledge-card-preview__web-copy">{model.excerpt}</span>
+        {model.excerpt && <span className="knowledge-card-preview__web-copy">{model.excerpt}</span>}
       </span>
     );
   }
@@ -228,7 +235,7 @@ export const NodeCardPreview = ({
             />
           )}
         </span>
-        <span className="knowledge-card-preview__image-caption">{model.caption}</span>
+        {model.caption && <span className="knowledge-card-preview__image-caption">{model.caption}</span>}
       </span>
     );
   }

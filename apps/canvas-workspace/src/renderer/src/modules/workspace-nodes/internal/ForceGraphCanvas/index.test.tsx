@@ -55,11 +55,12 @@ describe('ForceGraphCanvas', () => {
       ref.current?.zoomToFit();
     });
     expect(graphHarness.centerAt).toHaveBeenCalledWith(10, 20, 520);
-    expect(graphHarness.zoom).toHaveBeenCalledWith(2.8, 520);
+    expect(graphHarness.zoom).toHaveBeenCalledWith(2.5, 520);
     expect(graphHarness.pause).toHaveBeenCalledTimes(1);
     expect(graphHarness.zoomToFit).toHaveBeenCalledWith(450, 140);
     // The early fit sees an unsettled cluster; the cap keeps it readable.
-    expect(graphHarness.props.maxZoom).toBe(4);
+    expect(graphHarness.props.maxZoom).toBe(2.5);
+    expect(graphHarness.props.warmupTicks).toBe(80);
     act(() => root.unmount());
   });
 });

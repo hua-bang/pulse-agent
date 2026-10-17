@@ -14,7 +14,6 @@ interface Props {
   updatedLabel: string;
   tagLabels: string[];
   contextLabel: string;
-  emptyPreviewLabel: string;
   aiSummaryLabel: string;
   aiSummaryConfirmedLabel: string;
   aiSummarizeLabel: string;
@@ -45,7 +44,6 @@ export const KnowledgeNodeCard = ({
   updatedLabel,
   tagLabels,
   contextLabel,
-  emptyPreviewLabel,
   aiSummaryLabel,
   aiSummaryConfirmedLabel,
   aiSummarizeLabel,
@@ -118,7 +116,6 @@ export const KnowledgeNodeCard = ({
       <NodeCardPreview
         node={node}
         title={title}
-        emptyLabel={emptyPreviewLabel}
         aiSummaryLabel={aiSummaryLabel}
         confirmedLabel={aiSummaryConfirmedLabel}
       />

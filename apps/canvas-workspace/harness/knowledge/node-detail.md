@@ -42,7 +42,8 @@ Tags are the only metadata the detail surfaces expose. Source, Relations and
 Info sections were removed (2026-10-17) to keep the surface to one concept;
 `links` stay in the record and still feed the graph. The page rail renders
 only for a document node with a confirmed AI summary; otherwise the layout
-gets `node-detail-panel__layout--single` and centers one 720px column.
+gets `node-detail-panel__layout--single`: the header spans the frame and a
+document body keeps a 720px reading column.
 
 ## Entering the page: the `RightDock.enterNodePage` contract
 
@@ -112,8 +113,9 @@ Policy per type:
     classes when rich.
 - **Every page type shares one frame**: the 1080px start-aligned layout with
   the same padding, the same header (round Back hanging left of the title,
-  title size, tags row, actions) and the same left edge. Rich bodies sit
-  below the header in a bordered box; document bodies keep the 720px column.
+  title size, tags row, actions at the frame's right edge) and the same left
+  edge. Rich bodies sit below the header in a bordered box; document bodies
+  keep the 720px column.
 - **Web** retains its iframe navigation bar on the full page. In the dock, a
   URL-mode Web node opens as an ordinary dock web tab, not a node-detail tab:
   `getWebNodeUrl` (`src/renderer/src/utils/webNode.ts`) decides, and the

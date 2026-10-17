@@ -62,7 +62,6 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
         )}
         tagLabels={tags.map(controller.tagLabel)}
         contextLabel={node.workspaceName ?? workspaceId}
-        emptyPreviewLabel={t('workspaceNodes.noPreview')}
         aiSummaryLabel={t('workspaceNodes.aiSummary')}
         aiSummaryConfirmedLabel={t('workspaceNodes.aiSummaryConfirmed')}
         aiSummarizeLabel={t('workspaceNodes.aiSummarize')}
