@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import "./index.css";
+import './index.css';
 import { TextSelectionBubble } from "./TextSelectionBubble";
 import { useTextNodeSize } from "./useTextNodeSize";
 import { applyDeferredEditorInput, type DeferredEditorReady } from "../applyDeferredEditorInput";
