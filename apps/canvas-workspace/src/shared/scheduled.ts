@@ -22,6 +22,17 @@ export type ScheduledTaskSource = 'user' | 'memory-report';
 export type ScheduledTaskRunStatus = 'idle' | 'running';
 export type ScheduledRunTrigger = 'manual' | 'schedule';
 
+/** A scheduled task the user asked about from the Scheduled list. */
+export interface AgentContextScheduledTaskRef {
+  id: string;
+  title: string;
+}
+
+/** Turn context added by a Scheduled list row's Ask AI. */
+export interface AgentContextScheduledTasks {
+  scheduledTasks?: AgentContextScheduledTaskRef[];
+}
+
 export interface ScheduledTask {
   id: string;
   title: string;

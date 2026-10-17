@@ -5,6 +5,7 @@ import {
   Pause,
   PencilSimple,
   Play,
+  Sparkle,
   SpinnerGap,
   Trash,
   WarningCircle,
@@ -23,6 +24,8 @@ interface Props {
   onEdit: (task: ScheduledTask) => void;
   onDelete: (task: ScheduledTask) => void;
   onOpenResult: (task: ScheduledTask, sessionId: string) => void;
+  /** Ask the side chat about this task. */
+  onAskAi?: (task: ScheduledTask) => void;
 }
 
 /**
@@ -106,6 +109,7 @@ export const TaskRow = ({
   onEdit,
   onDelete,
   onOpenResult,
+  onAskAi,
 }: Props) => {
   const { t, language } = useI18n();
   const running = starting || task.status === 'running';
@@ -146,6 +150,17 @@ export const TaskRow = ({
           {running ? <SpinnerGap className="scheduled-spin" size={13} /> : <Play size={13} />}
           {running ? t('scheduled.runningShort') : t('scheduled.runNow')}
         </Button>
+        {onAskAi && (
+          <Button
+            variant="icon"
+            size="sm"
+            aria-label={t('scheduled.askAi')}
+            title={t('scheduled.askAi')}
+            onClick={() => onAskAi(task)}
+          >
+            <Sparkle size={15} />
+          </Button>
+        )}
         <Button
           variant="icon"
           size="sm"

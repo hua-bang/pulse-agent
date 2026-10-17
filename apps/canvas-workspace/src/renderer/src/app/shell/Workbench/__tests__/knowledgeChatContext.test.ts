@@ -87,6 +87,19 @@ describe('resolveKnowledgeChatRouteContext', () => {
       .toEqual({ active: true, knowledgeMode: false, selectedNode: null });
   });
 
+  it('carries the task asked about on the Scheduled list only', () => {
+    const scheduledTasks = [{ id: 'daily-brief', title: 'Daily brief' }];
+    const onList = resolveKnowledgeChatRouteContext({
+      activeView: 'scheduled', selectedNode: null, detailNode: null, scheduledTasks,
+    });
+    expect(onList).toEqual({ active: true, knowledgeMode: false, selectedNode: null, scheduledTasks });
+    // The same array reaches the chat, so its request context stays stable.
+    expect(onList.scheduledTasks).toBe(scheduledTasks);
+    expect(resolveKnowledgeChatRouteContext({
+      activeView: 'plugins', selectedNode: null, detailNode: null, scheduledTasks,
+    }).scheduledTasks).toBeUndefined();
+  });
+
   it('leaves full-page chat, home and settings without a dock chat', () => {
     for (const activeView of ['chat', 'scheduled-task', 'home', 'settings']) {
       expect(resolveKnowledgeChatRouteContext({

@@ -1,4 +1,5 @@
 import type { AgentContextMcpApps } from './mcp-app-context';
+import type { AgentContextScheduledTasks } from './scheduled';
 export type { AgentContextMcpAppSnapshot } from './mcp-app-context';
 import type { CanvasNode } from './canvas';
 import type { AgentTraceEvent } from './agent-observability';
@@ -425,7 +426,7 @@ export interface AgentContextPluginRef {
   name: string;
 }
 
-export interface AgentRequestContext extends AgentContextMcpApps {
+export interface AgentRequestContext extends AgentContextMcpApps, AgentContextScheduledTasks {
   executionMode?: 'auto' | 'ask';
   /** Renderer-visible conversation pointer used as a main-process CAS. */
   expectedConversationSessionId?: string | null;

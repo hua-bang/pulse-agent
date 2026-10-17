@@ -18,7 +18,7 @@ import { useRailExpanded, useSettingsNavigation, useSidebarCollapsed } from './u
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
-import type { KnowledgeNodeSelection } from '../../types';
+import type { AgentContextScheduledTaskRef, KnowledgeNodeSelection, ScheduledTask } from '../../types';
 import { HomeRouteView, NodesRouteViews, PluginMarketRouteView, preloadRoutePages, ScheduledRouteViews, SettingsRouteView, SkillsRouteView } from '../shell/RouteViews';
 import type { SettingsSection } from '../../modules/settings';
 import { useScheduledRunChatOpener } from '../../modules/scheduled';
@@ -94,6 +94,7 @@ const AppContent = () => {
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
   const [skillsLibraryGlobal, setSkillsLibraryGlobal] = useState(false);
+  const [scheduledChatTasks, setScheduledChatTasks] = useState<AgentContextScheduledTaskRef[]>();
   const [nodeDetailBackPath, setNodeDetailBackPath] = useState<string | null>(null);
   const {
     explicitContext: knowledgeChatExplicitContext,
@@ -107,7 +108,16 @@ const AppContent = () => {
   closeScheduledChatRef.current = dock.closeScheduledChat;
   useEffect(() => {
     closeScheduledChatRef.current();
+    setScheduledChatTasks(undefined);
   }, [activeView]);
+  const handleAskAiAboutTask = useCallback((task: ScheduledTask) => {
+    setScheduledChatTasks([{ id: task.id, title: task.title }]);
+    dock.openChat();
+  }, [dock]);
+  const handleRemoveChatContext = useCallback((key: string) => {
+    if (key.startsWith('task:')) setScheduledChatTasks(undefined);
+    else handleRemoveKnowledgeChatContext(key);
+  }, [handleRemoveKnowledgeChatContext]);
   const handleSkillsLibraryKindChange = useCallback((kind: 'workspace' | 'global') => {
     setSkillsLibraryGlobal(kind === 'global');
   }, []);
@@ -117,6 +127,7 @@ const AppContent = () => {
     detailNode,
     explicitContext: knowledgeChatExplicitContext ?? undefined,
     skillsLibraryGlobal,
+    scheduledTasks: scheduledChatTasks,
   });
   const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
   const openWorkspaceSettings = useCallback((workspaceId: string) => {
@@ -363,7 +374,7 @@ const AppContent = () => {
                   workspaces={workspaces}
                   controller={workbench}
                   knowledgeChatContext={knowledgeChatContext}
-                  onRemoveKnowledgeChatContext={handleRemoveKnowledgeChatContext}
+                  onRemoveKnowledgeChatContext={handleRemoveChatContext}
                   onKnowledgeComposerRequestHandled={handleKnowledgeComposerRequestHandled}
                   onSelectWorkspace={workspaceActions.select}
                   onActivateWorkspace={selectWorkspace}
@@ -417,7 +428,8 @@ const AppContent = () => {
           />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}
-            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings} />
+            onExitScheduledTask={() => setLocation(ROUTE_SCHEDULED)} onOpenAppSettings={openAppSettings}
+            onAskAiAboutTask={handleAskAiAboutTask} />
           <PulseRouterView name={MCP_APP_VIEW} keepAlive>
             {(mcpApp || hasRunningMcpApps) && (
               <Suspense fallback={null}>

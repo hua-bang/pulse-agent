@@ -54,6 +54,7 @@ interface ChatInputProps {
 const chipIconType = (chip: SelectedContextChip): string => {
   if (chip.kind === 'canvas') return 'workspace';
   if (chip.kind === 'app') return 'iframe';
+  if (chip.kind === 'task') return 'scheduled';
   return chip.nodeType ?? 'file';
 };
 

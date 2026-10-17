@@ -302,6 +302,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   contextNodes={knowledgeChatContext.explicitContext?.nodes}
                   contextTags={knowledgeChatContext.explicitContext?.tags}
                   contextCanvases={knowledgeChatContext.explicitContext?.canvases}
+                  contextScheduledTasks={knowledgeChatContext.scheduledTasks}
                   composerRequest={knowledgeChatContext.explicitContext?.composerRequest}
                   onComposerRequestHandled={onKnowledgeComposerRequestHandled}
                   onRemoveContext={onRemoveKnowledgeChatContext}

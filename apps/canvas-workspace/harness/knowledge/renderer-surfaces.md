@@ -238,6 +238,9 @@ The workbench has exactly two side regions plus a modal tier:
   workspace chat (`useChatInsertionBridge` `waitForGlobalChat`). A scheduled
   task chat shows a "Back to page chat" bar and closes on any route change
   (`closeScheduledChat`).
+  A Scheduled list row's Ask AI sends that task to the global chat as
+  context (`scheduledTasks`, rendered for the model by
+  `scheduled-task-context.ts`); it clears on any route change.
   Context the agent receives is always shown as chips above the input,
   including Canvas's selected nodes and the open MCP app (no remove button;
   they follow the page). `/chat` on the global scope offers the same knowledge node and

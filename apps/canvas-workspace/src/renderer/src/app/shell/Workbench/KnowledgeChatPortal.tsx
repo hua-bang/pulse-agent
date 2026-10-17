@@ -3,6 +3,7 @@ import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
+  AgentContextScheduledTaskRef,
   AgentContextTagRef,
   KnowledgeNodeSelection,
 } from '../../../types';
@@ -22,6 +23,7 @@ interface Props {
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
+  contextScheduledTasks?: AgentContextScheduledTaskRef[];
   composerRequest?: ChatComposerRequest;
   onComposerRequestHandled?: (requestId: string) => void;
   onRemoveContext?: (key: string) => void;
@@ -40,6 +42,7 @@ export const KnowledgeChatPortal = ({
   contextNodes,
   contextTags,
   contextCanvases,
+  contextScheduledTasks,
   composerRequest,
   onComposerRequestHandled,
   onRemoveContext,
@@ -78,6 +81,7 @@ export const KnowledgeChatPortal = ({
         contextNodes={resolvedContextNodes}
         contextTags={contextTags}
         contextCanvases={contextCanvases}
+        contextScheduledTasks={contextScheduledTasks}
         composerRequest={composerRequest}
         onComposerRequestHandled={onComposerRequestHandled}
         onRemoveContext={onRemoveContext}

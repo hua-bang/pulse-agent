@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
+  AgentContextScheduledTaskRef,
   AgentContextTagRef,
   AgentRequestContext,
   CanvasNode,
@@ -16,6 +17,7 @@ interface Options {
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
+  contextScheduledTasks?: AgentContextScheduledTaskRef[];
   executionMode: 'auto' | 'ask';
 }
 
@@ -25,6 +27,7 @@ export const useChatPanelContext = ({
   contextNodes,
   contextTags,
   contextCanvases,
+  contextScheduledTasks,
   executionMode,
 }: Options) => {
   const derivedSelectedNodes = useMemo(() => {
@@ -61,12 +64,17 @@ export const useChatPanelContext = ({
       kind: 'canvas' as const,
       label: canvas.name,
     })),
+    ...(contextScheduledTasks ?? []).map(task => ({
+      key: `task:${task.id}`,
+      kind: 'task' as const,
+      label: task.title,
+    })),
     ...(contextTags ?? []).map(tag => ({
       key: `tag:${tag.name}`,
       kind: 'tag' as const,
       label: tag.name,
     })),
-  ], [activeAppTitle, activeKey, contextCanvases, contextRefs, contextTags]);
+  ], [activeAppTitle, activeKey, contextCanvases, contextRefs, contextScheduledTasks, contextTags]);
   const requestContext = useMemo<AgentRequestContext>(() => ({
     executionMode,
     // The app chip is page context, not a selection.
@@ -74,7 +82,8 @@ export const useChatPanelContext = ({
     selectedNodes: contextRefs,
     tags: contextTags,
     canvases: contextCanvases,
-  }), [contextCanvases, contextRefs, contextTags, executionMode, selectedContext]);
+    scheduledTasks: contextScheduledTasks,
+  }), [contextCanvases, contextRefs, contextScheduledTasks, contextTags, executionMode, selectedContext]);
 
   return { contextRefs, requestContext, selectedContext };
 };

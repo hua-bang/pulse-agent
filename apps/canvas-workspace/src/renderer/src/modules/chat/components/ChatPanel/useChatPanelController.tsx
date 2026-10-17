@@ -41,6 +41,7 @@ export const useChatPanelController = ({
   contextNodes,
   contextTags,
   contextCanvases,
+  contextScheduledTasks,
   composerRequest, onComposerRequestHandled,
   onRemoveContext,
   rootFolder,
@@ -214,6 +215,7 @@ export const useChatPanelController = ({
     contextNodes,
     contextTags,
     contextCanvases,
+    contextScheduledTasks,
     executionMode,
   });
   requestContextRef.current = requestContext;

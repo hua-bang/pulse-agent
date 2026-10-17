@@ -1,6 +1,7 @@
 import type {
   AgentContextCanvasRef,
   AgentContextNodeRef,
+  AgentContextScheduledTaskRef,
   AgentContextTagRef,
   KnowledgeNodeSelection,
   KnowledgeTagDefinition,
@@ -22,6 +23,8 @@ export interface KnowledgeChatRouteContext {
   knowledgeMode: boolean;
   selectedNode: KnowledgeNodeSelection | null;
   explicitContext?: KnowledgeChatExplicitContext;
+  /** Scheduled list only: tasks the user asked about with a row's Ask AI. */
+  scheduledTasks?: AgentContextScheduledTaskRef[];
 }
 
 export type { KnowledgeChatExplicitContext } from '../../../shared/knowledgeChat';
@@ -33,6 +36,8 @@ interface ResolveKnowledgeChatRouteContextOptions {
   explicitContext?: KnowledgeChatRouteContext['explicitContext'];
   /** The Skills page shows the global library rather than one canvas's. */
   skillsLibraryGlobal?: boolean;
+  /** Kept by reference: the chat derives its request context from it. */
+  scheduledTasks?: AgentContextScheduledTaskRef[];
 }
 
 type KnowledgeNodeMentionCandidate = AgentContextNodeRef;
@@ -63,6 +68,7 @@ export function resolveKnowledgeChatRouteContext({
   detailNode,
   explicitContext,
   skillsLibraryGlobal = false,
+  scheduledTasks,
 }: ResolveKnowledgeChatRouteContextOptions): KnowledgeChatRouteContext {
   if (activeView === 'nodes') {
     return {
@@ -84,6 +90,9 @@ export function resolveKnowledgeChatRouteContext({
   // the canvas chat while it shows one canvas's library.
   if (activeView === 'skills' && !skillsLibraryGlobal) {
     return { active: false, knowledgeMode: false, selectedNode: null };
+  }
+  if (activeView === 'scheduled' && scheduledTasks?.length) {
+    return { active: true, knowledgeMode: false, selectedNode: null, scheduledTasks };
   }
   // Only the canvas belongs to one workspace. Every other route with the
   // floating launcher (plugins, skills, scheduled list, apps) opens the
