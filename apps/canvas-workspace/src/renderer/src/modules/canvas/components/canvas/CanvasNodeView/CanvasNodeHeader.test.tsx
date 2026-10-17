@@ -116,7 +116,7 @@ describe('CanvasNodeHeader detail action', () => {
     host?.remove();
 
     const handleOpenDetail = vi.fn();
-    renderHeader({ canOpenDetail: true, handleOpenDetail });
+    renderHeader({ handleOpenDetail });
     const button = host?.querySelector('.node-open-detail') as HTMLButtonElement;
     expect(button.getAttribute('aria-label')).toBe('Go to detail');
     button.click();
@@ -139,7 +139,6 @@ function renderHeader(overrides: Partial<Parameters<typeof CanvasNodeHeader>[0]>
           handleFocus={vi.fn()}
           handleHeaderMouseDown={vi.fn()}
           handlePluginSelectElement={vi.fn()}
-          handleOpenDetail={vi.fn()}
           handleOpenTab={vi.fn()}
           handleAddToChat={vi.fn()}
           handleAddToCanvas={vi.fn()}
@@ -154,7 +153,6 @@ function renderHeader(overrides: Partial<Parameters<typeof CanvasNodeHeader>[0]>
           node={node}
           pluginElementPickerActive={false}
           canOpenTab={false}
-          canOpenDetail={false}
           onUpdate={vi.fn()}
           readOnly={false}
           relativeTime={null}

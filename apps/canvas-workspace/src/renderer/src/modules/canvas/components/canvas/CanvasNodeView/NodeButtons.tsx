@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { AppLogoIcon } from '../../../../../components/icons';
+import { useI18n } from '../../../../../i18n';
 
 interface FullscreenButtonProps {
   floating?: boolean;
@@ -178,24 +179,32 @@ export const OpenTabButton = ({
 
 /** Open the node's full detail page. */
 export const OpenDetailButton = ({
-  label,
+  floating,
   onClick,
 }: {
-  label: string;
+  floating?: boolean;
   onClick: (e: MouseEvent) => void;
-}) => (
-  <NodeHeaderIconButton className="node-open-detail" title={label} ariaLabel={label} onClick={onClick}>
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h4v4m0-4L8 8M7 3H3v10h10V9"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  </NodeHeaderIconButton>
-);
+}) => {
+  const label = useI18n().t('workspaceNodes.goToDetail');
+  return (
+    <NodeHeaderIconButton
+      className={`node-open-detail${floating ? ' node-open-detail--floating' : ''}`}
+      title={label}
+      ariaLabel={label}
+      onClick={onClick}
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M9 3h4v4m0-4L8 8M7 3H3v10h10V9"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </NodeHeaderIconButton>
+  );
+};
 
 /** Place this node on the main canvas as a live reference node. Offered on
  *  read-only preview nodes (the dock canvas preview). */

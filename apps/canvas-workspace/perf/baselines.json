@@ -140,8 +140,8 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "2026-10-13 master 已贴 744KB 上限；画布「选中即问」的问题投递链路与 Mod+Shift+F 面板切换常驻后实测 747KB，输入条组件与样式已拆为首次单选时才加载的独立 chunk。保留 680 target 作为后续常驻聊天壳瘦身压力。", "asOf": "2026-10-13",
-      "gate": { "kind": "ratchet", "baseline": 726, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-17 侧栏「知识」入口与画布节点「进入详情」按钮常驻后实测 766568B（749KB）；新增文案已复用现有词条、图标与按钮共用实现，余量仍差约 0.1KB，基线由 726 调到 727（上限 749）。此前 2026-10-13 选中即问链路与面板切换常驻后实测 747KB。保留 680 target 作为后续常驻聊天壳瘦身压力。", "asOf": "2026-10-17",
+      "gate": { "kind": "ratchet", "baseline": 727, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
@@ -150,8 +150,8 @@
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "2026-10-13 画布「选中即问」投递链路与面板切换进入启动闭包后实测 747KB（master 744KB）；输入条 UI 已 lazy 拆出。保留 650 target 作为后续启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-10-13",
-      "gate": { "kind": "ratchet", "baseline": 726, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-17 侧栏「知识」入口与画布节点「进入详情」按钮进入启动闭包后实测 749KB，基线由 726 调到 727（上限 749）；2026-10-13 选中即问投递链路与面板切换进入后实测 747KB，输入条 UI 已 lazy 拆出。保留 650 target 作为后续启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-10-17",
+      "gate": { "kind": "ratchet", "baseline": 727, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,

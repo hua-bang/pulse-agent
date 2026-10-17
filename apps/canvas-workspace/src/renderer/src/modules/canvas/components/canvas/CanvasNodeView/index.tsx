@@ -1,8 +1,9 @@
-import { memo } from 'react';
+import { memo, type MouseEvent } from 'react';
 import './index.css';
 import './interaction-polish.css';
 import { DefaultCanvasNode } from './DefaultCanvasNode';
 import { FullscreenButton } from './NodeButtons';
+import { dispatchOpenNodePage } from '../../../../../utils/openNodeBridge';
 import { ImageCanvasNode } from './ImageCanvasNode';
 import { MindmapCanvasNode } from './MindmapCanvasNode';
 import { ReferenceCanvasNode } from './ReferenceCanvasNode';
@@ -86,11 +87,20 @@ const CanvasNodeViewComponent = ({
   const fullscreenButton = viewModel.fullscreenButtonEnabled ? (
     <FullscreenButton isFullscreen={isFullscreen} onClick={viewModel.handleToggleFullscreen} />
   ) : null;
+  // Shared by the header (DefaultCanvasNode) and the header-less image and
+  // mind-map renderers.
+  const handleOpenDetail = workspaceId
+    ? (e: MouseEvent) => {
+      e.stopPropagation();
+      dispatchOpenNodePage({ workspaceId, nodeId: node.id });
+    }
+    : undefined;
 
   if (node.type === 'image') {
     return (
       <ImageCanvasNode
         classes={viewModel.classes}
+        handleOpenDetail={handleOpenDetail}
         handleAddToChat={onAddToChat ? viewModel.handleAddToChat : undefined}
         handleClose={viewModel.handleClose}
         handleNodeClick={viewModel.handleNodeClick}
@@ -174,6 +184,7 @@ const CanvasNodeViewComponent = ({
     return (
       <MindmapCanvasNode
         classes={viewModel.classes}
+        handleOpenDetail={handleOpenDetail}
         handleClose={viewModel.handleClose}
         handleAddToChat={onAddToChat ? viewModel.handleAddToChat : undefined}
         handleFocus={viewModel.handleFocus}
@@ -202,6 +213,7 @@ const CanvasNodeViewComponent = ({
     <DefaultCanvasNode
       // Only nested frames carry a depth; every depth renders the same region.
       classes={`${viewModel.classes}${frameDepth ? ' canvas-node--nested-frame' : ''}`}
+      handleOpenDetail={handleOpenDetail}
       fullscreenButton={fullscreenButton}
       focusAction={focusAction}
       getAllNodes={getAllNodes}
