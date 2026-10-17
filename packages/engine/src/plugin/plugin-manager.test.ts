@@ -154,3 +154,63 @@ describe('PluginManager', () => {
     expect(timings.every(timing => timing.durationMs >= 0 && typeof timing.startedAt === 'number')).toBe(true);
   });
 });
+
+describe('PluginManager lifecycle', () => {
+  const plugin = (name: string, overrides: Partial<EnginePlugin> = {}): EnginePlugin => ({
+    name,
+    version: '1.0.0',
+    initialize: async () => undefined,
+    ...overrides,
+  });
+
+  it('destroys plugins once, in reverse initialization order, past failures', async () => {
+    const destroyed: string[] = [];
+    const logger = createLogger();
+    const manager = new PluginManager(() => ({ tools: {} }), logger);
+    await manager.initialize({
+      enginePlugins: {
+        scan: false,
+        plugins: [
+          plugin('first', { destroy: async () => { destroyed.push('first'); } }),
+          plugin('second', { dependencies: ['first'], destroy: async () => { throw new Error('boom'); } }),
+          plugin('third', { dependencies: ['second'], destroy: async () => { destroyed.push('third'); } }),
+        ],
+      },
+    });
+
+    await manager.destroy();
+    await manager.destroy();
+
+    expect(destroyed).toEqual(['third', 'first']);
+    expect(logger.error).toHaveBeenCalledWith('Failed to destroy engine plugin second', expect.any(Error));
+  });
+
+  it('warns when a plugin replaces another plugin tool', async () => {
+    const logger = createLogger();
+    const manager = new PluginManager(() => ({ tools: {} }), logger);
+    await manager.initialize({
+      enginePlugins: {
+        scan: false,
+        plugins: [
+          plugin('owner', { initialize: async (context) => context.registerTool('shared', { name: 'shared' }) }),
+          plugin('intruder', {
+            dependencies: ['owner'],
+            initialize: async (context) => context.registerTool('shared', { name: 'shared', v: 2 }),
+          }),
+        ],
+      },
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith('Tool "shared" from plugin "intruder" replaces the one from "owner"');
+  });
+
+  it('no longer reports or loads declarative user-config', async () => {
+    const manager = new PluginManager(() => ({ tools: {} }), createLogger());
+    await manager.initialize({
+      enginePlugins: { scan: false },
+      userConfigPlugins: { configs: [{ version: '1', name: 'ignored' }], scan: true },
+    });
+
+    expect(manager.getStatus()).not.toHaveProperty('userConfigPlugins');
+  });
+});

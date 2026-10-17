@@ -531,6 +531,7 @@ describe('loop', () => {
     const context: Context = {
       messages: [{ role: 'user', content: 'long context' }],
     };
+    const originalMessages = [...context.messages];
 
     const compacted = [{ role: 'assistant', content: '[COMPACTED_CONTEXT]\nshort summary' }];
     maybeCompactContextMock
@@ -580,10 +581,12 @@ describe('loop', () => {
     expect(onCompactedHook).toHaveBeenCalledWith(
       expect.objectContaining({
         context,
-        previousMessages: context.messages,
+        previousMessages: originalMessages,
         newMessages: compacted,
       }),
     );
+    // The host callback did not apply the result, so the loop applied it in place.
+    expect(context.messages).toEqual(compacted);
   });
 
   it('stops when tool-call steps reach max step limit', async () => {
@@ -901,5 +904,162 @@ describe('loop', () => {
 
     await expect(runPromise).resolves.toBe('Request aborted.');
     expect(llmAbortSignal?.aborted).toBe(true);
+  });
+
+  describe('compaction recovery', () => {
+    const compactedResult = (label: string) => ({
+      didCompact: true,
+      reason: 'force-summary',
+      newMessages: [
+        { role: 'assistant', content: `[COMPACTED_CONTEXT]\n${label}` },
+        { role: 'user', content: 'continue' },
+      ],
+      stats: {
+        forced: true,
+        beforeMessageCount: 2,
+        afterMessageCount: 2,
+        beforeEstimatedTokens: 1000,
+        afterEstimatedTokens: 100,
+        strategy: 'summary',
+      },
+    });
+    const stopResult = (text: string) => ({
+      text: Promise.resolve(text),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('stop'),
+    });
+
+    it('compacts and retries when the provider rejects the prompt as too long', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'huge history' }] };
+      const overflow = Object.assign(new Error('prompt is too long: 230000 tokens > 200000 maximum'), { statusCode: 400 });
+      maybeCompactContextMock
+        .mockResolvedValueOnce({ didCompact: false })
+        .mockResolvedValueOnce(compactedResult('after overflow'))
+        .mockResolvedValue({ didCompact: false });
+      streamTextAIMock
+        .mockImplementationOnce(() => { throw overflow; })
+        .mockImplementationOnce(() => stopResult('recovered'));
+
+      await expect(loop(context, { errorMode: 'throw' })).resolves.toBe('recovered');
+      expect(maybeCompactContextMock).toHaveBeenCalledWith(context, expect.objectContaining({ force: true }));
+      expect(context.messages[0].content).toContain('after overflow');
+    });
+
+    it('does not treat unrelated 400 errors as overflow', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'bad request' }] };
+      const invalid = Object.assign(new Error('invalid tool schema'), { statusCode: 400 });
+      streamTextAIMock.mockImplementation(() => { throw invalid; });
+
+      await expect(loop(context, { errorMode: 'throw' })).rejects.toBe(invalid);
+      expect(maybeCompactContextMock).not.toHaveBeenCalledWith(context, expect.objectContaining({ force: true }));
+    });
+
+    it('can compact again later in the same run once a request has gone through', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'long agent task' }] };
+      // Default cap is 2 consecutive compactions; three across the run must still be allowed.
+      maybeCompactContextMock
+        .mockResolvedValueOnce(compactedResult('first'))
+        .mockResolvedValueOnce(compactedResult('second'))
+        .mockResolvedValueOnce(compactedResult('third'))
+        .mockResolvedValue({ didCompact: false });
+      // Each step adds a large tool exchange, so history grows past the
+      // post-compaction floor before the next pre-loop check.
+      const toolStep = () => ({
+        text: Promise.resolve(''),
+        steps: Promise.resolve([{ response: { messages: [{ role: 'assistant', content: 'x'.repeat(4000) }] } }]),
+        finishReason: Promise.resolve('tool-calls'),
+      });
+      streamTextAIMock
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(() => stopResult('finished'));
+      const onCompacted = vi.fn();
+      const onResponse = (messages: any[]) => { context.messages.push(...messages); };
+
+      await expect(loop(context, { onCompacted, onResponse })).resolves.toBe('finished');
+      expect(onCompacted).toHaveBeenCalledTimes(3);
+      expect(onCompacted.mock.calls.map(([, event]) => event.attempt)).toEqual([1, 2, 3]);
+    });
+
+    it('does not re-run pre-loop compaction until history grows after the last one', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'task' }] };
+      maybeCompactContextMock
+        .mockResolvedValueOnce(compactedResult('first'))
+        .mockResolvedValue(compactedResult('again'));
+      const toolStep = () => ({
+        text: Promise.resolve(''),
+        steps: Promise.resolve([{ response: { messages: [] } }]),
+        finishReason: Promise.resolve('tool-calls'),
+      });
+      streamTextAIMock
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(toolStep)
+        .mockImplementationOnce(() => stopResult('finished'));
+
+      await expect(loop(context)).resolves.toBe('finished');
+      // One compaction; later steps added nothing, so no summarizer calls were spent.
+      expect(maybeCompactContextMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats throughput limits as rate limits, not prompt overflow', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'busy' }] };
+      const tpm = Object.assign(new Error('Request too large for gpt-4o on tokens per min (TPM): Limit 30000'), { statusCode: 429 });
+      const wrapped = Object.assign(new Error('Failed after 3 attempts. Last error: Request too large'), {
+        name: 'AI_RetryError',
+        lastError: tpm,
+      });
+      streamTextAIMock.mockImplementation(() => { throw wrapped; });
+
+      await expect(loop(context, { errorMode: 'throw' })).rejects.toBe(wrapped);
+      expect(maybeCompactContextMock).not.toHaveBeenCalledWith(context, expect.objectContaining({ force: true }));
+    });
+
+    it('stops resuming after repeated output-cap hits instead of looping forever', async () => {
+      const context: Context = { messages: [{ role: 'user', content: 'think hard' }] };
+      streamTextAIMock.mockImplementation(() => ({
+        text: Promise.resolve(''),
+        steps: Promise.resolve([{ response: { messages: [] } }]),
+        finishReason: Promise.resolve('length'),
+        usage: Promise.resolve({ inputTokens: 1000, outputTokens: 32000 }),
+      }));
+
+      await expect(loop(context)).resolves.toMatch(/Output limit reached/);
+      expect(streamTextAIMock).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('duplicate read notes', () => {
+    const readTool: Tool = {
+      name: 'read',
+      description: 'read',
+      inputSchema: {} as any,
+      execute: async () => ({ content: 'file body' }),
+    };
+    const editTool: Tool = {
+      name: 'edit',
+      description: 'edit',
+      inputSchema: {} as any,
+      execute: async () => ({ success: true }),
+    };
+
+    it('flags only a repeated range, and forgets a path after it is edited', async () => {
+      const outputs: any[] = [];
+      streamTextAIMock.mockImplementation((_messages: any, tools: Record<string, Tool>) => {
+        const text = (async () => {
+          const call = (name: string, input: unknown) => tools[name].execute(input, {});
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 0, limit: 100 }));
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 100, limit: 100 }));
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 0, limit: 100 }));
+          await call('edit', { filePath: '/a.ts', oldString: 'x', newString: 'y' });
+          outputs.push(await call('read', { filePath: '/a.ts', offset: 0, limit: 100 }));
+          return 'done';
+        })();
+        return { text, steps: Promise.resolve([]), finishReason: Promise.resolve('stop') };
+      });
+
+      await loop({ messages: [{ role: 'user', content: 'page through' }] }, { tools: { read: readTool, edit: editTool } });
+
+      expect(outputs.map((output) => Boolean(output._note))).toEqual([false, false, true, false]);
+    });
   });
 });

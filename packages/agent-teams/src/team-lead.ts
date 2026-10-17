@@ -90,6 +90,14 @@ export class TeamLead {
     await this.engine.initialize();
   }
 
+  /**
+   * Release the lead engine's plugin resources (MCP child processes and
+   * connections). Call once the team session is over.
+   */
+  async dispose(): Promise<void> {
+    await this.engine.dispose();
+  }
+
   // ─── High-level flows ────────────────────────────────────────────
 
   /**

@@ -46,15 +46,27 @@ export interface PlanModeTransitionResult {
   userInput: string;
 }
 
+/**
+ * `scope` isolates the mode per conversation when one Engine serves several
+ * (remote-server shares one instance across chats). Runs select their scope
+ * with `runContext.planModeScope`; omitting it uses the engine-wide default,
+ * which is what single-conversation hosts (CLI) rely on.
+ */
 export interface PlanModeService {
-  getMode(): PlanMode;
-  setMode(mode: PlanMode, reason?: string): void;
+  getMode(scope?: string): PlanMode;
+  setMode(mode: PlanMode, reason?: string, scope?: string): void;
   detectIntent(input: string): PlanIntentLabel;
-  processContextMessages(messages: ModelMessage[]): PlanModeTransitionResult;
+  processContextMessages(messages: ModelMessage[], scope?: string): PlanModeTransitionResult;
   getModePolicy(mode?: PlanMode): ModePolicy;
   getToolMetadata(toolNames: string[]): ToolMeta[];
-  buildPromptAppend(toolNames: string[], transition?: PlanModeTransitionResult): string;
+  buildPromptAppend(toolNames: string[], transition?: PlanModeTransitionResult, scope?: string): string;
   getEvents(limit?: number): PlanModeEvent[];
+}
+
+/** The plan-mode scope a run selected through its runContext, if any. */
+export function getPlanModeScope(runContext?: Record<string, any>): string | undefined {
+  const scope = runContext?.planModeScope;
+  return typeof scope === 'string' && scope ? scope : undefined;
 }
 
 type LoggerLike = EnginePluginContext['logger'];
@@ -219,6 +231,7 @@ const KNOWN_TOOL_META: Record<string, Omit<ToolMeta, 'name'>> = {
 
 class BuiltInPlanModeService implements PlanModeService {
   private mode: PlanMode;
+  private readonly scopedModes = new Map<string, PlanMode>();
   private readonly events: PlanModeEvent[] = [];
 
   constructor(
@@ -230,17 +243,27 @@ class BuiltInPlanModeService implements PlanModeService {
     this.emitEvent('mode_entered', { reason: 'initialize' });
   }
 
-  getMode(): PlanMode {
-    return this.mode;
+  getMode(scope?: string): PlanMode {
+    return scope === undefined ? this.mode : this.scopedModes.get(scope) ?? this.mode;
   }
 
-  setMode(mode: PlanMode, reason: string = 'manual'): void {
-    if (this.mode === mode) {
+  setMode(mode: PlanMode, reason: string = 'manual', scope?: string): void {
+    if (this.getMode(scope) === mode) {
       return;
     }
 
-    this.mode = mode;
-    this.emitEvent('mode_entered', { reason });
+    this.writeMode(mode, scope);
+    this.emitEvent('mode_entered', { reason }, scope);
+  }
+
+  private writeMode(mode: PlanMode, scope?: string): void {
+    if (scope === undefined) {
+      this.mode = mode;
+      return;
+    }
+    // Scopes only record deviations from the default, so the map stays small.
+    if (mode === this.mode) this.scopedModes.delete(scope);
+    else this.scopedModes.set(scope, mode);
   }
 
   detectIntent(input: string): PlanIntentLabel {
@@ -264,14 +287,14 @@ class BuiltInPlanModeService implements PlanModeService {
     return 'UNCLEAR';
   }
 
-  processContextMessages(messages: ModelMessage[]): PlanModeTransitionResult {
+  processContextMessages(messages: ModelMessage[], scope?: string): PlanModeTransitionResult {
     const userInput = this.getLatestUserText(messages);
-    const modeBefore = this.mode;
+    const modeBefore = this.getMode(scope);
 
     if (!userInput) {
       return {
         modeBefore,
-        modeAfter: this.mode,
+        modeAfter: modeBefore,
         switched: false,
         intent: 'UNCLEAR',
         userInput: ''
@@ -281,26 +304,27 @@ class BuiltInPlanModeService implements PlanModeService {
     const intent = this.detectIntent(userInput);
 
     if (intent === 'EXECUTE_NOW') {
-      this.emitEvent('execution_intent_detected', { intent, userInput });
+      this.emitEvent('execution_intent_detected', { intent, userInput }, scope);
 
-      if (this.mode === 'planning') {
-        this.mode = 'executing';
+      if (this.getMode(scope) === 'planning') {
+        this.writeMode('executing', scope);
         this.emitEvent('mode_switched_by_intent', {
           from: 'planning',
           to: 'executing',
           userInput
-        });
+        }, scope);
         this.emitEvent('mode_entered', {
           reason: 'intent',
           from: 'planning'
-        });
+        }, scope);
       }
     }
 
+    const modeAfter = this.getMode(scope);
     return {
       modeBefore,
-      modeAfter: this.mode,
-      switched: modeBefore !== this.mode,
+      modeAfter,
+      switched: modeBefore !== modeAfter,
       intent,
       userInput
     };
@@ -314,8 +338,8 @@ class BuiltInPlanModeService implements PlanModeService {
     return Array.from(new Set(toolNames)).sort().map((name) => this.inferToolMeta(name));
   }
 
-  buildPromptAppend(toolNames: string[], transition?: PlanModeTransitionResult): string {
-    const mode = this.mode;
+  buildPromptAppend(toolNames: string[], transition?: PlanModeTransitionResult, scope?: string): string {
+    const mode = this.getMode(scope);
     const policy = this.getModePolicy(mode);
     const toolMeta = this.getToolMetadata(toolNames);
     const shownTools = toolMeta.slice(0, 40);
@@ -368,8 +392,8 @@ class BuiltInPlanModeService implements PlanModeService {
     return this.events.slice(-Math.max(0, limit));
   }
 
-  observePotentialPolicyViolation(toolName: string, input: unknown): void {
-    if (this.mode !== 'planning') {
+  observePotentialPolicyViolation(toolName: string, input: unknown, scope?: string): void {
+    if (this.getMode(scope) !== 'planning') {
       return;
     }
 
@@ -385,7 +409,7 @@ class BuiltInPlanModeService implements PlanModeService {
       category: meta.category,
       risk: meta.risk,
       input
-    });
+    }, scope);
   }
 
   private inferToolMeta(name: string): ToolMeta {
@@ -497,12 +521,12 @@ class BuiltInPlanModeService implements PlanModeService {
     return textParts.join('\n');
   }
 
-  private emitEvent(name: PlanModeEventName, payload?: Record<string, unknown>): void {
+  private emitEvent(name: PlanModeEventName, payload?: Record<string, unknown>, scope?: string): void {
     const event: PlanModeEvent = {
       name,
-      mode: this.mode,
+      mode: this.getMode(scope),
       timestamp: Date.now(),
-      payload
+      payload: scope === undefined ? payload : { ...payload, scope }
     };
 
     this.events.push(event);
@@ -533,14 +557,15 @@ export const builtInPlanModePlugin: EnginePlugin = {
     // stay stable — the hard boundary is beforeToolCall below, not tool
     // removal, so write/edit remain visible and the model learns from the
     // synthetic rejection why a mutating call is not allowed.
-    context.registerHook('beforeLLMCall', ({ context: runContext, tools, systemPrompt }) => {
-      const mode = service.getMode();
+    context.registerHook('beforeLLMCall', ({ context: runHistory, tools, systemPrompt, runContext }) => {
+      const scope = getPlanModeScope(runContext);
+      const mode = service.getMode(scope);
       if (mode === 'executing') {
         return;
       }
 
-      const transition = service.processContextMessages(runContext.messages);
-      const append = service.buildPromptAppend(Object.keys(tools), transition);
+      const transition = service.processContextMessages(runHistory.messages, scope);
+      const append = service.buildPromptAppend(Object.keys(tools), transition, scope);
       const finalSystemPrompt = appendSystemPrompt(systemPrompt, append);
 
       return { systemPrompt: finalSystemPrompt };
@@ -553,8 +578,9 @@ export const builtInPlanModePlugin: EnginePlugin = {
     // invocations, MCP tools, and sub-agent tools because every execution path
     // (loop.ts wrapToolsWithHooks, Engine.executeResolvedTool) passes through
     // beforeToolCall hooks.
-    context.registerHook('beforeToolCall', ({ name, input }) => {
-      if (service.getMode() !== 'planning') {
+    context.registerHook('beforeToolCall', ({ name, input, toolContext }) => {
+      const scope = getPlanModeScope(toolContext?.runContext);
+      if (service.getMode(scope) !== 'planning') {
         return;
       }
 
@@ -566,19 +592,19 @@ export const builtInPlanModePlugin: EnginePlugin = {
       if (name === 'bash') {
         const command = (input as { command?: unknown } | undefined)?.command;
         if (typeof command !== 'string' || command.trim() === '') {
-          service.observePotentialPolicyViolation(name, input);
+          service.observePotentialPolicyViolation(name, input, scope);
           return { output: buildBlockedBashResult('command is missing or empty') };
         }
         const verdict = isReadonlyBashCommand(command);
         if (!verdict.allowed) {
-          service.observePotentialPolicyViolation(name, input);
+          service.observePotentialPolicyViolation(name, input, scope);
           return { output: buildBlockedBashResult(verdict.reason ?? 'not provably read-only') };
         }
         return;
       }
 
       if (policy.disallowedCategories.includes(meta.category)) {
-        service.observePotentialPolicyViolation(name, input);
+        service.observePotentialPolicyViolation(name, input, scope);
         return {
           output: buildBlockedToolResult(name, meta.category),
         };

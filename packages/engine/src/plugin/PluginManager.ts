@@ -1,12 +1,10 @@
-import { promises as fs } from 'fs';
 import path from 'path';
 import { glob } from 'glob';
 import { EventEmitter } from 'events';
 
 import type { EnginePlugin, EnginePluginContext, EnginePluginLoadOptions, EngineHookMap, EngineHookName } from './EnginePlugin.js';
-import type { UserConfigPlugin, UserConfigPluginLoadOptions } from './UserConfigPlugin.js';
+import type { UserConfigPluginLoadOptions } from './UserConfigPlugin.js';
 import type { ILogger, PulseEngineInstance } from '../shared/types.js';
-import { ConfigVariableResolver } from './UserConfigPlugin.js';
 
 // Internal storage: each hook name maps to an array of handlers
 type HookStore = {
@@ -18,8 +16,11 @@ type HookStore = {
  */
 export class PluginManager {
   private enginePlugins = new Map<string, EnginePlugin>();
-  private userConfigPlugins: UserConfigPlugin[] = [];
+  /** Initialization order with each plugin's context, for reverse-order destroy. */
+  private initialized: Array<{ plugin: EnginePlugin; context: EnginePluginContext }> = [];
+  private destroyed = false;
   private tools = new Map<string, any>();
+  private toolOwners = new Map<string, string>();
   private hooks: HookStore = {
     beforeRun: [],
     afterRun: [],
@@ -55,6 +56,7 @@ export class PluginManager {
    */
   async initialize(options: {
     enginePlugins?: EnginePluginLoadOptions;
+    /** @deprecated Ignored. Declarative user-config was never applied and has been removed. */
     userConfigPlugins?: UserConfigPluginLoadOptions;
   } = {}): Promise<void> {
     this.logger.info('Initializing plugin system...');
@@ -65,9 +67,6 @@ export class PluginManager {
 
       // 2. 验证核心能力
       await this.validateCoreCapabilities();
-
-      // 3. 加载用户配置插件
-      await this.loadUserConfigPlugins(options.userConfigPlugins);
 
       this.logger.info('Plugin system initialized successfully');
     } catch (error) {
@@ -170,14 +169,18 @@ export class PluginManager {
         }
       }
 
+      const registerTool = (name: string, tool: any) => {
+        const owner = this.toolOwners.get(name);
+        if (owner !== undefined && owner !== plugin.name) {
+          this.logger.warn(`Tool "${name}" from plugin "${plugin.name}" replaces the one from "${owner}"`);
+        }
+        this.tools.set(name, tool);
+        this.toolOwners.set(name, plugin.name);
+      };
       const context: EnginePluginContext = {
-        registerTool: (name, tool) => {
-          this.tools.set(name, tool);
-        },
+        registerTool,
         registerTools: (tools) => {
-          Object.entries(tools).forEach(([name, tool]) => {
-            this.tools.set(name, tool);
-          });
+          Object.entries(tools).forEach(([name, tool]) => registerTool(name, tool));
         },
         getTool: (name) => this.tools.get(name),
         getTools: () => Object.fromEntries(this.tools),
@@ -234,6 +237,7 @@ export class PluginManager {
       }
 
       this.enginePlugins.set(plugin.name, plugin);
+      this.initialized.push({ plugin, context });
       ok = true;
 
     } catch (error) {
@@ -249,143 +253,6 @@ export class PluginManager {
       } catch {
         // best-effort only
       }
-    }
-  }
-
-  /**
-   * 加载用户配置插件
-   */
-  private async loadUserConfigPlugins(options: UserConfigPluginLoadOptions = {}): Promise<void> {
-    const configs: UserConfigPlugin[] = [];
-
-    // 1. API传入的配置
-    if (options.configs) {
-      configs.push(...options.configs);
-    }
-
-    // 2. 目录扫描的配置
-    if (options.scan !== false) {
-      const scanPaths = options.dirs || [
-        '.pulse-coder/config',
-        '.coder/config',
-        '~/.pulse-coder/config',
-        '~/.coder/config'
-      ];
-
-      for (const dir of scanPaths) {
-        const scannedConfigs = await this.scanUserConfigPlugins(dir);
-        configs.push(...scannedConfigs);
-      }
-    }
-
-    // 3. 应用所有配置
-    for (const config of configs) {
-      await this.applyUserConfig(config);
-    }
-  }
-
-  /**
-   * 扫描用户配置插件目录
-   */
-  private async scanUserConfigPlugins(dir: string): Promise<UserConfigPlugin[]> {
-    const configs: UserConfigPlugin[] = [];
-    const resolvedDir = this.resolvePath(dir);
-
-    try {
-      const patterns = ['config.{json,yaml,yml}', '*.config.{json,yaml,yml}'];
-
-      for (const pattern of patterns) {
-        const files = await glob(pattern, { cwd: resolvedDir, absolute: true });
-
-        for (const file of files) {
-          try {
-            const config = await this.loadUserConfigFile(file);
-            configs.push(config);
-            this.logger.info(`Loaded user config: ${config.name || file}`);
-          } catch (error) {
-            this.logger.error(`Failed to load user config from ${file}`, error as Error);
-          }
-        }
-      }
-    } catch (error) {
-      this.logger.debug(`Directory not found: ${resolvedDir}`);
-    }
-
-    return configs;
-  }
-
-  /**
-   * 加载单个用户配置文件
-   */
-  private async loadUserConfigFile(filePath: string): Promise<UserConfigPlugin> {
-    const content = await fs.readFile(filePath, 'utf-8');
-    const ext = path.extname(filePath);
-
-    let config: UserConfigPlugin;
-
-    try {
-      if (ext === '.json') {
-        config = JSON.parse(content);
-      } else if (ext === '.yaml' || ext === '.yml') {
-        // 使用动态导入避免依赖问题
-        const YAML = await import('yaml');
-        config = YAML.parse(content);
-      } else {
-        throw new Error(`Unsupported config format: ${ext}`);
-      }
-    } catch (error) {
-      throw new Error(`Failed to parse config file ${filePath}: ${error}`);
-    }
-
-    // 环境变量替换
-    const resolver = new ConfigVariableResolver();
-    config = resolver.resolveObject(config);
-
-    return config;
-  }
-
-  /**
-   * 应用用户配置
-   */
-  private async applyUserConfig(config: UserConfigPlugin): Promise<void> {
-    try {
-      // 配置工具
-      if (config.tools) {
-        for (const [name, toolConfig] of Object.entries(config.tools)) {
-          if (toolConfig.enabled !== false) {
-            // 这里将根据配置创建具体工具实例
-            this.logger.debug(`Configured tool: ${name}`);
-          }
-        }
-      }
-
-      // 配置MCP服务器
-      if (config.mcp?.servers) {
-        for (const server of config.mcp.servers) {
-          if (server.enabled !== false) {
-            this.logger.debug(`Configured MCP server: ${server.name}`);
-          }
-        }
-      }
-
-      // 配置子代理
-      if (config.subAgents) {
-        for (const agent of config.subAgents) {
-          if (agent.enabled !== false) {
-            this.logger.debug(`Configured sub-agent: ${agent.name}`);
-          }
-        }
-      }
-
-      // 配置技能（向后兼容）
-      if (config.skills) {
-        this.logger.debug(`Configured skills scanning`, config.skills);
-      }
-
-      this.userConfigPlugins.push(config);
-
-    } catch (error) {
-      this.logger.error('Failed to apply user config', error as Error);
     }
   }
 
@@ -486,6 +353,32 @@ export class PluginManager {
     return this.services.get(name);
   }
 
+  getConfig<T>(key: string): T | undefined {
+    return this.config.get(key);
+  }
+
+  setConfig<T>(key: string, value: T): void {
+    this.config.set(key, value);
+  }
+
+  /**
+   * Destroy plugins in reverse initialization order so dependents release
+   * before their dependencies. Idempotent; one failing plugin does not stop
+   * the others from releasing resources (MCP child processes, connections).
+   */
+  async destroy(): Promise<void> {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    for (const { plugin, context } of [...this.initialized].reverse()) {
+      if (!plugin.destroy) continue;
+      try {
+        await plugin.destroy(context);
+      } catch (error) {
+        this.logger.error(`Failed to destroy engine plugin ${plugin.name}`, error as Error);
+      }
+    }
+  }
+
   /**
    * 事件发射器（插件上下文共享同一个实例）
    */
@@ -499,7 +392,6 @@ export class PluginManager {
   getStatus() {
     return {
       enginePlugins: Array.from(this.enginePlugins.keys()),
-      userConfigPlugins: this.userConfigPlugins.map(c => c.name || 'unnamed'),
       tools: Array.from(this.tools.keys()),
       hooks: Object.fromEntries(
         Object.entries(this.hooks).map(([k, v]) => [k, (v as any[]).length])

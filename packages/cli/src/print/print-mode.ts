@@ -33,7 +33,6 @@ function agentOptions(isolated: boolean, memory?: MemoryIntegration): EngineOpti
     return {
       disableBuiltInPlugins: true,
       enginePlugins: { plugins: [builtInPlanModePlugin], dirs: [], scan: false },
-      userConfigPlugins: { dirs: [], scan: false },
       tools: createPulseCliTools({}),
     };
   }
@@ -41,10 +40,6 @@ function agentOptions(isolated: boolean, memory?: MemoryIntegration): EngineOpti
     enginePlugins: {
       plugins: memory ? [memory.enginePlugin] : [],
       dirs: ['.pulse-coder/engine-plugins', '.coder/engine-plugins', '~/.pulse-coder/engine-plugins', '~/.coder/engine-plugins'],
-      scan: true,
-    },
-    userConfigPlugins: {
-      dirs: ['.pulse-coder/config', '.coder/config', '~/.pulse-coder/config', '~/.coder/config'],
       scan: true,
     },
     tools: createPulseCliTools(),

@@ -126,7 +126,7 @@ export async function processIncomingCommand(incoming: IncomingMessage): Promise
       return await handleMemoryCommand(incoming.platformKey, memoryKey, args);
 
     case 'mode':
-      return handleModeCommand(args);
+      return handleModeCommand(args, incoming.platformKey);
 
     case 'model':
       return await handleModelCommand(args);

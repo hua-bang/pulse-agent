@@ -167,3 +167,34 @@ describe('built-in plan mode hard blocking', () => {
     expect(output.output).toContain('EXECUTED:cd src && grep -r TODO .');
   });
 });
+
+describe('built-in plan mode scopes', () => {
+  it('keeps one conversation in planning without affecting another', async () => {
+    const engine = await makeEngine();
+    expect(engine.setMode('planning', 'command', 'chat-a')).toBe(true);
+
+    expect(engine.getMode('chat-a')).toBe('planning');
+    expect(engine.getMode('chat-b')).toBe('executing');
+    expect(engine.getMode()).toBe('executing');
+
+    const planning = await engine.createToolSession({ messages: [] }, { runContext: { planModeScope: 'chat-a' } });
+    const executing = await engine.createToolSession({ messages: [] }, { runContext: { planModeScope: 'chat-b' } });
+    const blocked = (await planning.executeTool('bash', { command: 'rm -rf /tmp/x' })) as { error?: string };
+    const allowed = (await executing.executeTool('bash', { command: 'rm -rf /tmp/x' })) as { output?: string };
+
+    expect(blocked.error).toContain('Blocked by planning mode');
+    expect(allowed.output).toBe('EXECUTED:rm -rf /tmp/x');
+    await planning.dispose();
+    await executing.dispose();
+  });
+
+  it('applies the engine default to runs without a scope', async () => {
+    const engine = await makeEngine();
+    engine.setMode('planning');
+
+    expect(engine.getMode('any-chat')).toBe('planning');
+    engine.setMode('executing', 'command', 'any-chat');
+    expect(engine.getMode('any-chat')).toBe('executing');
+    expect(engine.getMode()).toBe('planning');
+  });
+});
