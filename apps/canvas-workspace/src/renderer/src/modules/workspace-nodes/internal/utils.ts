@@ -19,10 +19,12 @@ export const NODE_TYPE_FILTERS = [
   'iframe',
   'image',
   'mindmap',
-  'untagged',
 ] as const;
 
 export type NodeTypeFilter = typeof NODE_TYPE_FILTERS[number];
+
+/** Tag filter value for nodes without tags. Generated tag ids are [a-z0-9-] slugs, so it cannot collide. */
+export const UNTAGGED_TAG_FILTER = '__untagged__';
 
 export function getNodeTitle(
   node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined,

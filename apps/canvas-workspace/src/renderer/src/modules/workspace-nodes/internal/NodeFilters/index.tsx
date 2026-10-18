@@ -5,7 +5,7 @@ import { Button } from '../../../../components/ui/Button';
 import { Popover } from '../../../../components/ui/Popover';
 import { TextField } from '../../../../components/ui/TextField';
 import { CheckIcon, CloseIcon, SparklesIcon } from '../../../../components/icons';
-import { NODE_TYPE_FILTERS, getNodeTypeLabel, type NodeTypeFilter } from '../utils';
+import type { NodeTypeFilter } from '../utils';
 
 export interface CountedFilterOption {
   id: string;
@@ -21,12 +21,17 @@ interface Props {
   activeWorkspaceIds: ReadonlySet<string>;
   selectedWorkspaceIds: ReadonlySet<string> | null;
   onToggleWorkspace: (workspaceId: string) => void;
+  workspacesAllCount: number;
   onResetWorkspaces: () => void;
+  types: Array<CountedFilterOption & { id: NodeTypeFilter }>;
+  typesAllCount: number;
   typeFilter: NodeTypeFilter;
   onTypeFilterChange: (type: NodeTypeFilter) => void;
   tags: CountedFilterOption[];
+  tagsAllCount: number;
   tagFilter: string | null;
   onTagFilterChange: (tag: string | null) => void;
+  onClearFilters: () => void;
   /** A bounded search result or durable Workspace/Tag scope for the existing AI chat. */
   aiScopeLabel?: string;
   onAskAiAboutScope?: () => void;
@@ -44,7 +49,7 @@ interface FilterOptionRowProps {
 const FilterOptionRow = ({ label, selected, selectionRole, count, title, onClick }: FilterOptionRowProps) => (
   <Button
     size="sm"
-    className={`knowledge-node-filter-option${selected ? ' is-selected' : ''}`}
+    className={`knowledge-node-filter-option${selected ? ' is-selected' : ''}${count === 0 && !selected ? ' is-empty' : ''}`}
     role={selectionRole}
     aria-checked={selected}
     title={title}
@@ -61,13 +66,15 @@ const FilterOptionRow = ({ label, selected, selectionRole, count, title, onClick
 );
 
 interface ActiveFilterProps {
+  dimension: string;
   label: string;
   removeLabel: string;
   onRemove: () => void;
 }
 
-const ActiveFilter = ({ label, removeLabel, onRemove }: ActiveFilterProps) => (
+const ActiveFilter = ({ dimension, label, removeLabel, onRemove }: ActiveFilterProps) => (
   <span className="knowledge-node-active-filter">
+    <span className="knowledge-node-active-filter__dimension">{dimension}</span>
     <span>{label}</span>
     <Button variant="icon" size="xs" aria-label={removeLabel} onClick={onRemove}>
       <CloseIcon size={12} />
@@ -95,12 +102,17 @@ export const NodeFilters = ({
   activeWorkspaceIds,
   selectedWorkspaceIds,
   onToggleWorkspace,
+  workspacesAllCount,
   onResetWorkspaces,
+  types,
+  typesAllCount,
   typeFilter,
   onTypeFilterChange,
   tags,
+  tagsAllCount,
   tagFilter,
   onTagFilterChange,
+  onClearFilters,
   aiScopeLabel,
   onAskAiAboutScope,
 }: Props) => {
@@ -125,11 +137,7 @@ export const NodeFilters = ({
     });
   }, [selectedWorkspaceIds, t, workspaces]);
 
-  const typeFilterLabel = typeFilter === 'all'
-    ? ''
-    : typeFilter === 'untagged'
-      ? t('workspaceNodes.filter.untagged')
-      : getNodeTypeLabel(typeFilter, t, t('workspaceNodes.genericNode'));
+  const typeFilterLabel = types.find((type) => type.id === typeFilter)?.label ?? typeFilter;
 
   const tagFilterLabel = tagFilter
     ? tags.find((tag) => tag.id === tagFilter)?.label ?? tagFilter
@@ -139,12 +147,6 @@ export const NodeFilters = ({
     setOpen(false);
     if (reason === 'escape') anchorRef.current?.querySelector('button')?.focus();
   }, []);
-
-  const clearFilters = () => {
-    onResetWorkspaces();
-    onTypeFilterChange('all');
-    onTagFilterChange(null);
-  };
 
   return (
     <div className="knowledge-node-filters">
@@ -179,6 +181,7 @@ export const NodeFilters = ({
         <div className="knowledge-node-active-filters" aria-label={t('workspaceNodes.filter.active')}>
           {selectedWorkspaceIds !== null && (
             <ActiveFilter
+              dimension={t('workspaceNodes.filter.workspaces')}
               label={workspaceFilterLabel}
               removeLabel={t('workspaceNodes.filter.remove', { filter: workspaceFilterLabel })}
               onRemove={onResetWorkspaces}
@@ -186,6 +189,7 @@ export const NodeFilters = ({
           )}
           {typeFilter !== 'all' && (
             <ActiveFilter
+              dimension={t('workspaceNodes.filter.types')}
               label={typeFilterLabel}
               removeLabel={t('workspaceNodes.filter.remove', { filter: typeFilterLabel })}
               onRemove={() => onTypeFilterChange('all')}
@@ -193,11 +197,15 @@ export const NodeFilters = ({
           )}
           {tagFilter !== null && (
             <ActiveFilter
+              dimension={t('workspaceNodes.filter.tags')}
               label={tagFilterLabel}
               removeLabel={t('workspaceNodes.filter.remove', { filter: tagFilterLabel })}
               onRemove={() => onTagFilterChange(null)}
             />
           )}
+          <Button size="xs" className="knowledge-node-active-filters__clear" onClick={onClearFilters}>
+            {t('workspaceNodes.filter.clearAll')}
+          </Button>
         </div>
       )}
 
@@ -222,7 +230,7 @@ export const NodeFilters = ({
         >
           <div className="knowledge-node-filter-popover__header">
             <strong>{t('workspaceNodes.filter.title')}</strong>
-            <Button size="xs" role="menuitem" onClick={clearFilters} disabled={activeCount === 0}>
+            <Button size="xs" role="menuitem" onClick={onClearFilters} disabled={activeCount === 0}>
               {t('workspaceNodes.filter.clear')}
             </Button>
           </div>
@@ -232,6 +240,7 @@ export const NodeFilters = ({
               <span className="knowledge-node-filter-section__label">{t('workspaceNodes.filter.workspaces')}</span>
               <FilterOptionRow
                 label={t('workspaceNodes.allWorkspaces')}
+                count={workspacesAllCount}
                 selected={selectedWorkspaceIds === null}
                 selectionRole="menuitemcheckbox"
                 onClick={onResetWorkspaces}
@@ -251,17 +260,21 @@ export const NodeFilters = ({
 
           <section className="knowledge-node-filter-section" role="group" aria-label={t('workspaceNodes.filter.types')}>
             <span className="knowledge-node-filter-section__label">{t('workspaceNodes.filter.types')}</span>
-            {NODE_TYPE_FILTERS.map((type) => (
+            <FilterOptionRow
+              label={t('workspaceNodes.filter.allTypes')}
+              count={typesAllCount}
+              selected={typeFilter === 'all'}
+              selectionRole="menuitemradio"
+              onClick={() => onTypeFilterChange('all')}
+            />
+            {types.map((type) => (
               <FilterOptionRow
-                key={type}
-                label={type === 'all'
-                  ? t('workspaceNodes.filter.all')
-                  : type === 'untagged'
-                    ? t('workspaceNodes.filter.untagged')
-                    : getNodeTypeLabel(type, t, t('workspaceNodes.genericNode'))}
-                selected={typeFilter === type}
+                key={type.id}
+                label={type.label}
+                count={type.count}
+                selected={typeFilter === type.id}
                 selectionRole="menuitemradio"
-                onClick={() => onTypeFilterChange(type)}
+                onClick={() => onTypeFilterChange(type.id)}
               />
             ))}
           </section>
@@ -271,6 +284,7 @@ export const NodeFilters = ({
               <span className="knowledge-node-filter-section__label">{t('workspaceNodes.filter.tags')}</span>
               <FilterOptionRow
                 label={t('workspaceNodes.allTags')}
+                count={tagsAllCount}
                 selected={tagFilter === null}
                 selectionRole="menuitemradio"
                 onClick={() => onTagFilterChange(null)}

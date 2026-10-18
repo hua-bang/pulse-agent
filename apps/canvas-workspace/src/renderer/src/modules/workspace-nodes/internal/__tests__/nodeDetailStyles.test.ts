@@ -64,6 +64,12 @@ describe('Node Detail styles', () => {
     );
   });
 
+  it('extends the Nodes token scope to the body-portaled list filter popover', () => {
+    expect(css).toMatch(
+      /\.knowledge-node-filter-popover,[^{]*\{[^}]*--nodes-border:/s,
+    );
+  });
+
   it('has no rule for a class the markup never renders', () => {
     // A `.cls` that is never followed by another class-name character, so
     // `.node-detail-panel__title` does not count as used by `__title-row`.

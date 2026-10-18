@@ -1,9 +1,11 @@
 /* Design tokens for the Nodes surfaces. The detail panel is shared between
- * the full page and dock; its inspector is portaled to document.body, so both
- * hosts must establish the same local token scope themselves. */
+ * the full page and dock; its inspector and the list filter popover are
+ * portaled to document.body, so each must establish the same local token
+ * scope itself. */
 .workspace-nodes-page,
 .workspace-node-detail-page,
 .workspace-graph-page,
+.knowledge-node-filter-popover,
 .node-detail-panel__inspector,
 .node-detail-panel {
   --nodes-bg: #fbfbfa;

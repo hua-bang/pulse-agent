@@ -14,6 +14,7 @@ import {
   isKnowledgeNodeType,
   matchesSearch,
   tagName,
+  UNTAGGED_TAG_FILTER,
 } from '../utils';
 
 export interface NodesPageFilters {
@@ -42,21 +43,78 @@ export const toAgentContextNodeRef = (
   };
 };
 
+const matchesType = (node: WorkspaceNodeListItem, typeFilter: NodeTypeFilter): boolean => (
+  typeFilter === 'all' || node.type === typeFilter
+);
+
+const matchesTag = (node: WorkspaceNodeListItem, tagFilter: string | null): boolean => {
+  if (tagFilter === null) return true;
+  const tags = getNodeTags(node);
+  return tagFilter === UNTAGGED_TAG_FILTER ? tags.length === 0 : tags.includes(tagFilter);
+};
+
 export const filterWorkspaceNodes = (
   nodes: WorkspaceNodeListItem[],
   filters: NodesPageFilters,
-): WorkspaceNodeListItem[] => nodes.filter((node) => {
-  if (!filters.activeWorkspaceIds.has(getNodeWorkspaceId(node))) return false;
-  if (!matchesSearch(node, filters.query)) return false;
-  if (filters.typeFilter === 'untagged' && getNodeTags(node).length > 0) return false;
-  if (
-    filters.typeFilter !== 'all'
-    && filters.typeFilter !== 'untagged'
-    && node.type !== filters.typeFilter
-  ) return false;
-  if (filters.tagFilter && !getNodeTags(node).includes(filters.tagFilter)) return false;
-  return true;
-});
+): WorkspaceNodeListItem[] => nodes.filter((node) => (
+  filters.activeWorkspaceIds.has(getNodeWorkspaceId(node))
+  && matchesSearch(node, filters.query)
+  && matchesType(node, filters.typeFilter)
+  && matchesTag(node, filters.tagFilter)
+));
+
+export interface NodeFacetCounts {
+  workspaces: Map<string, number>;
+  workspacesAll: number;
+  types: Map<string, number>;
+  typesAll: number;
+  /** Per-tag counts, keyed by tag id or UNTAGGED_TAG_FILTER. */
+  tags: Map<string, number>;
+  tagsAll: number;
+}
+
+const increment = <K>(counts: Map<K, number>, key: K) => {
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+};
+
+/**
+ * Counts what each filter option would show if picked now: every count
+ * applies the search and the other two dimensions, but not its own.
+ */
+export const countNodeFacets = (
+  nodes: WorkspaceNodeListItem[],
+  filters: NodesPageFilters,
+): NodeFacetCounts => {
+  const counts: NodeFacetCounts = {
+    workspaces: new Map(),
+    workspacesAll: 0,
+    types: new Map(),
+    typesAll: 0,
+    tags: new Map(),
+    tagsAll: 0,
+  };
+  for (const node of nodes) {
+    if (!matchesSearch(node, filters.query)) continue;
+    const inWorkspace = filters.activeWorkspaceIds.has(getNodeWorkspaceId(node));
+    const inType = matchesType(node, filters.typeFilter);
+    const inTag = matchesTag(node, filters.tagFilter);
+    if (inType && inTag) {
+      increment(counts.workspaces, getNodeWorkspaceId(node));
+      counts.workspacesAll += 1;
+    }
+    if (inWorkspace && inTag) {
+      increment(counts.types, node.type);
+      counts.typesAll += 1;
+    }
+    if (inWorkspace && inType) {
+      const tags = getNodeTags(node);
+      counts.tagsAll += 1;
+      if (tags.length === 0) increment(counts.tags, UNTAGGED_TAG_FILTER);
+      for (const tag of tags) increment(counts.tags, tag);
+    }
+  }
+  return counts;
+};
 
 interface BuildNodesAiScopeInput extends NodesPageFilters {
   filteredNodes: WorkspaceNodeListItem[];
@@ -87,7 +145,11 @@ export const buildNodesAiScope = ({
     .map((node) => toAgentContextNodeRef(node, untitled))
     .filter((node): node is AgentContextNodeRef => node !== null);
   if (nodeRefs.length > 0 && nodeRefs.length <= 12) return { nodes: nodeRefs };
-  if (query.trim().length > 0 || typeFilter !== 'all') return null;
+  if (
+    query.trim().length > 0
+    || typeFilter !== 'all'
+    || tagFilter === UNTAGGED_TAG_FILTER
+  ) return null;
 
   const canvases = selectedWorkspaceIds === null
     ? []

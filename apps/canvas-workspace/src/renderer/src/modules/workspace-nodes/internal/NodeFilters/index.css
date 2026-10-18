@@ -112,8 +112,22 @@
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.3;
+}
+
+.knowledge-node-active-filter__dimension {
+  color: var(--nodes-muted);
+}
+
+.knowledge-node-active-filters__clear.ui-btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--nodes-muted);
+}
+
+.knowledge-node-active-filters__clear.ui-btn:hover:not(:disabled) {
+  color: var(--nodes-text);
 }
 
 .knowledge-node-active-filter .ui-btn {
@@ -159,11 +173,9 @@
 
 .knowledge-node-filter-section__label {
   padding: 5px 9px 4px;
-  color: var(--nodes-faint);
-  font-size: 9px;
+  color: var(--nodes-muted);
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .knowledge-node-filter-option {
@@ -189,6 +201,10 @@
 .knowledge-node-filter-option.is-selected {
   background: var(--nodes-surface-soft);
   font-weight: 500;
+}
+
+.knowledge-node-filter-option.is-empty {
+  color: var(--nodes-faint);
 }
 
 .knowledge-node-filter-option:focus-visible {
