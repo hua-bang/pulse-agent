@@ -23,8 +23,10 @@ export const NODE_TYPE_FILTERS = [
 
 export type NodeTypeFilter = typeof NODE_TYPE_FILTERS[number];
 
-/** Tag filter value for nodes without tags. Generated tag ids are [a-z0-9-] slugs, so it cannot collide. */
-export const UNTAGGED_TAG_FILTER = '__untagged__';
+/** Tag filter value for nodes without tags. Tag storage rejects ids with control
+ * characters (assertSafeTagId in main/canvas/nodes/tags.ts), so even an
+ * explicit tag id cannot collide with it. */
+export const UNTAGGED_TAG_FILTER = '\u0000untagged';
 
 export function getNodeTitle(
   node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined,

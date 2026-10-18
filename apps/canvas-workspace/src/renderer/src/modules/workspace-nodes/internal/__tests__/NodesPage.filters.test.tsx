@@ -59,7 +59,7 @@ const WORKSPACES = [
   { id: 'ws-2', name: 'Two' },
 ] as WorkspaceEntry[];
 
-const renderPage = () => {
+const renderPage = (workspaces: WorkspaceEntry[] = WORKSPACES) => {
   window.localStorage.setItem('pulse-canvas.language', 'en');
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -67,7 +67,7 @@ const renderPage = () => {
   act(() => root?.render(
     <I18nProvider>
       <RightDockProvider>
-        <NodesPage workspaces={WORKSPACES} />
+        <NodesPage workspaces={workspaces} />
       </RightDockProvider>
     </I18nProvider>,
   ));
@@ -120,5 +120,21 @@ describe('NodesPage inline filters', () => {
     const more = chip(page, 'Tags', '+3');
     act(() => more.click());
     expect(chips(page, 'Tags').map((button) => button.textContent)).toContain('Untagged1');
+  });
+
+  it('collapses a long workspace row and keeps selected workspaces visible', () => {
+    const many = [
+      ...WORKSPACES,
+      ...Array.from({ length: 8 }, (_, index) => ({ id: `ws-x${index}`, name: `Extra ${index}` })),
+    ] as WorkspaceEntry[];
+    const page = renderPage(many);
+    // "All", eight workspaces, then "+2".
+    expect(chips(page, 'Workspaces')).toHaveLength(10);
+
+    act(() => chip(page, 'Workspaces', '+2').click());
+    act(() => chip(page, 'Workspaces', 'Extra 7').click());
+    act(() => chip(page, 'Workspaces', 'Less').click());
+    expect(chip(page, 'Workspaces', 'Extra 7').getAttribute('aria-pressed')).toBe('true');
+    expect(chip(page, 'Workspaces', '+1')).toBeTruthy();
   });
 });

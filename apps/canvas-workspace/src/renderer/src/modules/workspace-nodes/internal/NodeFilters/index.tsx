@@ -36,7 +36,23 @@ interface Props {
 }
 
 /** Tags shown before the row collapses the rest behind a "+N" toggle. */
-const VISIBLE_TAG_LIMIT = 8;
+const VISIBLE_FACET_LIMIT = 8;
+
+/** Long facet rows show the first few chips; selected chips always stay visible. */
+function collapseFacet<T extends { id: string }>(
+  items: T[],
+  expanded: boolean,
+  isSelected: (item: T) => boolean,
+): { visible: T[]; hiddenCount: number; collapsible: boolean } {
+  const visible = expanded
+    ? items
+    : items.filter((item, index) => index < VISIBLE_FACET_LIMIT || isSelected(item));
+  return {
+    visible,
+    hiddenCount: items.length - visible.length,
+    collapsible: items.length > VISIBLE_FACET_LIMIT,
+  };
+}
 
 interface FacetChipProps {
   label: string;
@@ -78,6 +94,28 @@ const SearchGlyph = () => (
   </svg>
 );
 
+interface FacetMoreToggleProps {
+  expanded: boolean;
+  hiddenCount: number;
+  onToggle: () => void;
+}
+
+const FacetMoreToggle = ({ expanded, hiddenCount, onToggle }: FacetMoreToggleProps) => {
+  const { t } = useI18n();
+  // Every chip past the limit is selected, so there is nothing to reveal.
+  if (!expanded && hiddenCount === 0) return null;
+  return (
+    <Button
+      size="xs"
+      className="knowledge-node-facet-more"
+      aria-expanded={expanded}
+      onClick={onToggle}
+    >
+      {expanded ? t('workspaceNodes.filter.less') : `+${hiddenCount}`}
+    </Button>
+  );
+};
+
 export const NodeFilters = ({
   query,
   onQueryChange,
@@ -99,17 +137,19 @@ export const NodeFilters = ({
   onAskAiAboutScope,
 }: Props) => {
   const { t } = useI18n();
+  const [workspacesExpanded, setWorkspacesExpanded] = useState(false);
   const [tagsExpanded, setTagsExpanded] = useState(false);
 
   const hasActiveFilters = selectedWorkspaceIds !== null
     || typeFilter !== 'all'
     || tagFilter !== null;
 
-  // Keep the selected tag visible even when it falls past the collapsed limit.
-  const visibleTags = tagsExpanded
-    ? tags
-    : tags.filter((tag, index) => index < VISIBLE_TAG_LIMIT || tag.id === tagFilter);
-  const hiddenTagCount = tags.length - visibleTags.length;
+  const workspaceFacet = collapseFacet(
+    workspaces,
+    workspacesExpanded,
+    (workspace) => selectedWorkspaceIds?.has(workspace.id) ?? false,
+  );
+  const tagFacet = collapseFacet(tags, tagsExpanded, (tag) => tag.id === tagFilter);
 
   return (
     <div className="knowledge-node-filters">
@@ -133,7 +173,7 @@ export const NodeFilters = ({
               pressed={selectedWorkspaceIds === null}
               onClick={onResetWorkspaces}
             />
-            {workspaces.map((workspace) => (
+            {workspaceFacet.visible.map((workspace) => (
               <FacetChip
                 key={workspace.id}
                 label={workspace.label}
@@ -142,6 +182,13 @@ export const NodeFilters = ({
                 onClick={() => onToggleWorkspace(workspace.id)}
               />
             ))}
+            {workspaceFacet.collapsible && (
+              <FacetMoreToggle
+                expanded={workspacesExpanded}
+                hiddenCount={workspaceFacet.hiddenCount}
+                onToggle={() => setWorkspacesExpanded((current) => !current)}
+              />
+            )}
           </FacetRow>
         )}
 
@@ -171,7 +218,7 @@ export const NodeFilters = ({
               pressed={tagFilter === null}
               onClick={() => onTagFilterChange(null)}
             />
-            {visibleTags.map((tag) => (
+            {tagFacet.visible.map((tag) => (
               <FacetChip
                 key={tag.id}
                 label={tag.label}
@@ -181,15 +228,12 @@ export const NodeFilters = ({
                 onClick={() => onTagFilterChange(tagFilter === tag.id ? null : tag.id)}
               />
             ))}
-            {(hiddenTagCount > 0 || tagsExpanded) && tags.length > VISIBLE_TAG_LIMIT && (
-              <Button
-                size="xs"
-                className="knowledge-node-facet-more"
-                aria-expanded={tagsExpanded}
-                onClick={() => setTagsExpanded((current) => !current)}
-              >
-                {tagsExpanded ? t('workspaceNodes.filter.less') : `+${hiddenTagCount}`}
-              </Button>
+            {tagFacet.collapsible && (
+              <FacetMoreToggle
+                expanded={tagsExpanded}
+                hiddenCount={tagFacet.hiddenCount}
+                onToggle={() => setTagsExpanded((current) => !current)}
+              />
             )}
           </FacetRow>
         )}
