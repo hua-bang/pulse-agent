@@ -5,16 +5,15 @@ import type {
   AgentContextScheduledTaskRef,
   AgentContextTagRef,
   AgentRequestContext,
-  CanvasNode,
 } from '../../../../../types';
-import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
 import type { SelectedContextChip } from '../../ChatComposer/types';
 import { useGlobalMcpApps } from '../../../../mcp-apps/global-apps';
 import { useOpenSkillChatContext } from '../../../../../shared/skillChatContext';
 
+/** Canvas selection is not chat context: a user may select a node only to
+ * edit it. Nodes reach the turn through an inline @ mention or an explicit
+ * `contextNodes` list (e.g. the Knowledge page's opened node). */
 interface Options {
-  nodes?: CanvasNode[];
-  selectedNodeIds?: string[];
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];
@@ -22,27 +21,16 @@ interface Options {
   executionMode: 'auto' | 'ask';
 }
 
+const EMPTY_CONTEXT_NODES: AgentContextNodeRef[] = [];
+
 export const useChatPanelContext = ({
-  nodes,
-  selectedNodeIds,
   contextNodes,
   contextTags,
   contextCanvases,
   contextScheduledTasks,
   executionMode,
 }: Options) => {
-  const derivedSelectedNodes = useMemo(() => {
-    const ids = new Set(selectedNodeIds ?? []);
-    return (nodes ?? []).filter(node => ids.has(node.id));
-  }, [nodes, selectedNodeIds]);
-  const contextRefs = useMemo<AgentContextNodeRef[]>(() => {
-    if (contextNodes) return contextNodes;
-    return derivedSelectedNodes.map(node => ({
-      id: node.id,
-      title: getNodeDisplayLabel(node),
-      type: node.type,
-    }));
-  }, [contextNodes, derivedSelectedNodes]);
+  const contextRefs = contextNodes ?? EMPTY_CONTEXT_NODES;
   // The open MCP app's context is sent with every turn (collectEditableContext),
   // so it is shown too.
   const { running, activeKey } = useGlobalMcpApps();
