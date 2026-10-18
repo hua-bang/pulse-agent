@@ -32,6 +32,8 @@ interface Props {
   onCreateWorkspace: (name: string, folderId?: string) => void;
   /** Shows every workspace in the sidebar; absent when it is already shown. */
   onOpenAllWorkspaces?: () => void;
+  /** False while the kept-alive launcher is hidden behind another route. */
+  active?: boolean;
 }
 
 /**
@@ -50,12 +52,13 @@ export const Launcher = ({
   onOpenWorkspace,
   onCreateWorkspace,
   onOpenAllWorkspaces,
+  active = true,
 }: Props) => {
   const { t } = useI18n();
   const [creating, setCreating] = useState(false);
   const broker = useChatTargetBroker();
   const notifyChatDelivery = useChatDeliveryNotifier();
-  const { recentWorkspaces, summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'));
+  const { recentWorkspaces, summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'), active);
 
   // Create the new session before entering the page, so the page opens on
   // it. Entering first showed the scope's previous chat until the swap.

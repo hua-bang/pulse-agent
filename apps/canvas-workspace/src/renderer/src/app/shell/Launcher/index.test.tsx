@@ -60,12 +60,12 @@ const props = {
   onWorkspaceContextRequest: vi.fn(),
 };
 
-const render = async () => {
+const render = async (active = true) => {
   await act(async () => root.render(
     <I18nProvider>
       <ChatTargetProvider>
         <BrokerProbe />
-        <Launcher {...props} />
+        <Launcher {...props} active={active} />
       </ChatTargetProvider>
     </I18nProvider>,
   ));
@@ -164,6 +164,26 @@ describe('Launcher', () => {
 
     await act(async () => cards[0].click());
     expect(props.onOpenWorkspace).toHaveBeenCalledWith('b');
+  });
+
+  it('reloads recent chats each time the kept-alive launcher is shown again', async () => {
+    await render();
+    const listAllSessions = (window as any).canvasWorkspace.agent.listAllSessions;
+    expect(listAllSessions).toHaveBeenCalledTimes(1);
+
+    await render(false);
+    expect(listAllSessions).toHaveBeenCalledTimes(1);
+    listAllSessions.mockResolvedValueOnce({
+      ok: true,
+      groups: [{
+        workspaceId: 'a',
+        workspaceName: 'Alpha',
+        sessions: [{ sessionId: 's9', date: '', updatedAt: 99, messageCount: 1, isCurrent: true, title: 'Fresh chat' }],
+      }],
+    });
+    await render(true);
+    expect(listAllSessions).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('.launcher__chat-title')?.textContent).toBe('Fresh chat');
   });
 
   it('names a new workspace and picks its folder in a dialog', async () => {

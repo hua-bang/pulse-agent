@@ -67,12 +67,21 @@ export const useLauncherData = (
   workspaces: WorkspaceEntry[],
   loadedNodes: Record<string, NodeBox[]>,
   globalName: string,
+  /** The launcher stays mounted while hidden; each return to it reloads the
+   * recent lists, so chats and workspaces opened elsewhere show up. */
+  active = true,
 ) => {
+  const [visits, setVisits] = useState(0);
+  const [wasActive, setWasActive] = useState(active);
+  if (active !== wasActive) {
+    setWasActive(active);
+    if (active) setVisits((count) => count + 1);
+  }
   const [recentChats, setRecentChats] = useState<RecentChat[] | null>(null);
   const [stored, setStored] = useState<Record<string, CanvasSummary | null>>({});
   const workspaceKey = workspaces.map((workspace) => workspace.id).join('|');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const recentWorkspaces = useMemo(() => pickRecentWorkspaces(workspaces), [workspaceKey]);
+  const recentWorkspaces = useMemo(() => pickRecentWorkspaces(workspaces), [workspaceKey, visits]);
 
   useEffect(() => {
     const store = window.canvasWorkspace?.store;
@@ -105,7 +114,7 @@ export const useLauncherData = (
 
   useEffect(() => {
     const agent = window.canvasWorkspace?.agent;
-    if (!agent) return;
+    if (!agent || !active) return;
     let cancelled = false;
     const names = Object.fromEntries(workspaces.map((workspace) => [workspace.id, workspace.name]));
     void agent.listAllSessions(names).then((result) => {
@@ -124,7 +133,7 @@ export const useLauncherData = (
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceKey, globalName]);
+  }, [workspaceKey, globalName, visits]);
 
   return { recentWorkspaces, summaries, recentChats };
 };

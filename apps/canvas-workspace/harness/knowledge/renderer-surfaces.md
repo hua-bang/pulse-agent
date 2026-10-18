@@ -99,7 +99,9 @@ The workbench has exactly two side regions plus a modal tier:
   its session list shown (`ChatPage` `sessionListRequest`). The launcher mounts
   on its first visit and stays mounted behind hidden routes. Its question,
   mention chips, scope, and submission lock survive Settings and failed
-  delivery. Model setup is checked before creating a session. Delivery waits
+  delivery. Each return to the launcher reloads its recent workspaces
+  and recent chats (`useLauncherData` `active`); loading them once on mount
+  left chats from other routes missing. Model setup is checked before creating a session. Delivery waits
   for that exact session and does not retry a rejected submission. The page fits
   the window: two rows of three hold the five latest workspaces and New, and only the
   recent chats list (up to 20 rows) scrolls. A chat row is one line in a
