@@ -247,6 +247,23 @@ describe('Launcher', () => {
     }));
   });
 
+  it('mentions cards from every workspace in the global scope', async () => {
+    (window as any).canvasWorkspace.workspaceNodes = {
+      list: vi.fn(async (workspaceId: string) => ({
+        ok: true,
+        nodes: workspaceId === 'b'
+          ? [{ id: 'n1', type: 'text', title: 'Pricing notes', tags: [], hasData: true, linkCount: 0 }]
+          : [],
+      })),
+    };
+    await render();
+    await typeQuestion('see @Pricing');
+    const options = [...host.querySelectorAll('.chat-mention-popup [role="option"]')];
+    expect(options.map((option) => option.textContent)).toEqual([
+      expect.stringMatching(/Pricing notes.*Beta/),
+    ]);
+  });
+
   it('submits only once when Enter is pressed twice before React commits', async () => {
     await render();
     const input = await typeQuestion('one question');
