@@ -475,6 +475,13 @@ visual verification must include a populated cold chat route, not only canvas-fi
   when possible; global/scheduled scopes and an already-mounted canvas create
   a blank browser tab instead. Its topbar position must not jump as tabs land.
 
+**Entry rule.** The AI Chat page opens on its conversation alone: each
+entry, and each Dock scope change while on the page, collapses the dock, and
+the Tabs button shows the scope's tabs. A Workspace's Canvas and its AI Chat
+share one Dock scope, so leaving the page restores what the scope showed
+before (an open dock chat stays the dock chat, not the first content tab).
+Owner: `RightDock/useChatPageDockEntry.ts`; guard: its adjacent test.
+
 **Inset rule.** These routes reflow like any other route, through
 `reserveSpace` — the dock inset must NOT be gated on `chatTabEnabled`. Gating
 it on `chatTabEnabled` is what previously let a link tab overlay and cover

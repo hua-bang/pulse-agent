@@ -16,6 +16,7 @@ import type { RightDockProps } from './state/dock-types';
 import { useConsumePendingLinks } from '../../../../platform/browser/useConsumePendingLinks';
 import { useDockLinkOpens } from './links/useDockLinkOpens';
 import { useDockAgentBridge } from './useDockAgentBridge';
+import { useChatPageDockEntry } from './useChatPageDockEntry';
 import { useDockSplitView } from './useDockSplitView';
 import {
   clampDockWidth,
@@ -132,6 +133,7 @@ export const RightDock = ({
       classList.remove(RESIZING_CLASS);
     };
   }, [activeWorkspaceId, hostView, store]);
+  useChatPageDockEntry(store, hostView === 'chat' && !hidden, activeWorkspaceId);
 
   const activateKnownWorkspace = useCallback((workspaceId: string): boolean => {
     if (!onActivateWorkspace || !workspaces.some(workspace => workspace.id === workspaceId)) return false;
