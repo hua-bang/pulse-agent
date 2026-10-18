@@ -24,7 +24,6 @@ import type { SettingsSection } from '../../modules/settings';
 import { useScheduledRunChatOpener } from '../../modules/scheduled';
 import {
   ChatTargetProvider,
-  type ChatTarget,
   useActiveChatTarget,
   useChatTargetBroker,
 } from '../../modules/chat';
@@ -210,11 +209,7 @@ const AppContent = () => {
     setLocation,
     canvasRoute: ROUTE_CANVAS,
   });
-  const { dockWorkspaceId, reportChatWorkspace, activateDockWorkspace, collapseDockOnEntry } = useChatDockWorkspace(activeView, activeId, chatEntryTarget?.scope, selectWorkspace, dock.collapse);
-  const enterLauncherChat = useCallback((target: ChatTarget) => {
-    collapseDockOnEntry(target.scope);
-    enterChatTarget(target);
-  }, [collapseDockOnEntry, enterChatTarget]);
+  const { dockWorkspaceId, reportChatWorkspace, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, chatEntryTarget?.scope, selectWorkspace);
   const openSessionInOwningScope = useCallback(async (
     scope: AgentScope,
     sessionId: string,
@@ -425,7 +420,7 @@ const AppContent = () => {
             workspaces={workspaces}
             loadedNodes={workbench.allNodes}
             onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
-            onEnterChat={enterLauncherChat}
+            onEnterChat={enterChatTarget}
             onOpenSession={openSessionInOwningScope}
             onOpenAllChats={openAllChats}
             onOpenWorkspace={workspaceActions.select}
