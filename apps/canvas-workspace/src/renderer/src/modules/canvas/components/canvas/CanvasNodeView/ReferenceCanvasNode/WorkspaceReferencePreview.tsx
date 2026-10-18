@@ -59,7 +59,8 @@ const useStoredLayout = (workspaceId: string, skip: boolean) => {
     let cancelled = false;
     void store.summaries([workspaceId]).then((result) => {
       const summary = result.ok ? result.summaries?.[workspaceId] : null;
-      if (!cancelled && summary) setLayout(summary);
+      // Frames come first so they draw behind the cards.
+      if (!cancelled && summary) setLayout({ nodeCount: summary.nodeCount, boxes: [...(summary.frames ?? []), ...summary.boxes] });
     });
     return () => {
       cancelled = true;

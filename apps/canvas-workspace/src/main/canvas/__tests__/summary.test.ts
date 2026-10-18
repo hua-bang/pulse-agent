@@ -35,6 +35,15 @@ describe('summarizeCanvasData', () => {
     expect(summary?.nodeCount).toBe(10);
     expect(summary?.boxes).toHaveLength(6);
     expect(summary?.boxes[0]).toEqual({ type: 'text', title: 'x', x: 0, y: 5, width: 100, height: 50 });
+    // Frames travel separately so the launcher keeps only card boxes.
+    expect(summary?.frames).toEqual([{ type: 'frame', x: 0, y: 0, width: 900, height: 600 }]);
+  });
+
+  it('decodes HTML entities in the text line', () => {
+    const summary = summarizeCanvasData({
+      nodes: [{ id: 't', type: 'text', x: 0, y: 0, width: 10, height: 10, data: { content: '<p>A &amp; B &lt;x&gt; &quot;q&quot; it&#39;s</p>' } }],
+    });
+    expect(summary?.boxes[0].title).toBe('A & B <x> "q" it\'s');
   });
 
   it('labels a text box with the first line of its content, not its placeholder title', () => {

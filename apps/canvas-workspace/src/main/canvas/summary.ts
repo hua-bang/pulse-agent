@@ -7,7 +7,7 @@
  *
  * Unlike `canvas:load`, this never migrates, recovers, writes, seeds merge
  * state, or starts watchers. It reads the stored layout and keeps only the
- * node count and the first few card boxes and titles, so the renderer gets a few
+ * node count and the first few card and frame boxes and titles, so the renderer gets a few
  * hundred bytes per workspace instead of the full node payload.
  */
 
@@ -35,6 +35,12 @@ const textFirstLine = (data: unknown): string => {
     .replace(/<br\s*\/?>|<\/(?:p|div|li|h[1-6]|blockquote|pre)>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&apos;/gi, "'")
+    // Decode &amp; last so an escaped entity like `&amp;lt;` survives as text.
+    .replace(/&amp;/gi, '&')
     .split('\n')
     .map((line) => line.trim())
     .find(Boolean) ?? '';
@@ -43,7 +49,7 @@ const textFirstLine = (data: unknown): string => {
 const toBox = (node: unknown): CanvasSummaryBox | null => {
   if (!node || typeof node !== 'object') return null;
   const { type, title, x, y, width, height, data } = node as Record<string, unknown>;
-  if (typeof type !== 'string' || type === 'frame') return null;
+  if (typeof type !== 'string') return null;
   if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(width) || !isFiniteNumber(height)) {
     return null;
   }
@@ -59,12 +65,15 @@ export const summarizeCanvasData = (data: unknown): CanvasSummary | null => {
   const { nodes } = data as { nodes?: unknown };
   const list = Array.isArray(nodes) ? nodes : [];
   const boxes: CanvasSummaryBox[] = [];
+  const frames: CanvasSummaryBox[] = [];
   for (const node of list) {
-    if (boxes.length >= SUMMARY_BOX_LIMIT) break;
+    if (boxes.length >= SUMMARY_BOX_LIMIT && frames.length >= SUMMARY_BOX_LIMIT) break;
     const box = toBox(node);
-    if (box) boxes.push(box);
+    if (!box) continue;
+    const bucket = box.type === 'frame' ? frames : boxes;
+    if (bucket.length < SUMMARY_BOX_LIMIT) bucket.push(box);
   }
-  return { nodeCount: list.length, boxes };
+  return frames.length > 0 ? { nodeCount: list.length, boxes, frames } : { nodeCount: list.length, boxes };
 };
 
 const readStoredCanvas = async (id: string, root: string): Promise<unknown> => {
