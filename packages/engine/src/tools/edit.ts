@@ -1,6 +1,7 @@
 import z from "zod";
 import { readFile, writeFile } from "fs/promises";
 import type { Tool } from "../shared/types";
+import { withFileMutation } from './file-mutation.js';
 import { truncateOutput } from "./utils";
 
 export const EditTool: Tool<
@@ -21,60 +22,62 @@ export const EditTool: Tool<
       throw new Error('old_string and new_string must be different');
     }
 
-    // Read the file
-    const content = await readFile(filePath, 'utf-8');
+    return withFileMutation(filePath, async () => {
+      // Read the file
+      const content = await readFile(filePath, 'utf-8');
 
-    // Check if oldString exists in the file
-    if (!content.includes(oldString)) {
-      throw new Error(`old_string not found in file: ${filePath}`);
-    }
-
-    let newContent: string;
-    let replacements = 0;
-    // The first replacement starts where the first match was.
-    const changedIndex = content.indexOf(oldString);
-
-    if (replaceAll) {
-      // Replace all occurrences
-      const parts = content.split(oldString);
-      replacements = parts.length - 1;
-      newContent = parts.join(newString);
-    } else {
-      // Replace only the first occurrence
-      const index = content.indexOf(oldString);
-      if (index === -1) {
+      // Check if oldString exists in the file
+      if (!content.includes(oldString)) {
         throw new Error(`old_string not found in file: ${filePath}`);
       }
 
-      // Check if the string is unique (appears only once)
-      const secondIndex = content.indexOf(oldString, index + oldString.length);
-      if (secondIndex !== -1) {
-        throw new Error(
-          'old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance.'
-        );
+      let newContent: string;
+      let replacements = 0;
+      // The first replacement starts where the first match was.
+      const changedIndex = content.indexOf(oldString);
+
+      if (replaceAll) {
+        // Replace all occurrences
+        const parts = content.split(oldString);
+        replacements = parts.length - 1;
+        newContent = parts.join(newString);
+      } else {
+        // Replace only the first occurrence
+        const index = content.indexOf(oldString);
+        if (index === -1) {
+          throw new Error(`old_string not found in file: ${filePath}`);
+        }
+
+        // Check if the string is unique (appears only once)
+        const secondIndex = content.indexOf(oldString, index + oldString.length);
+        if (secondIndex !== -1) {
+          throw new Error(
+            'old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance.'
+          );
+        }
+
+        newContent = content.slice(0, index) + newString + content.slice(index + oldString.length);
+        replacements = 1;
       }
 
-      newContent = content.slice(0, index) + newString + content.slice(index + oldString.length);
-      replacements = 1;
-    }
+      // Write the modified content back
+      await writeFile(filePath, newContent, 'utf-8');
 
-    // Write the modified content back
-    await writeFile(filePath, newContent, 'utf-8');
+      // Preview around the first replacement. Searching newContent for
+      // newString could land on an unrelated earlier occurrence.
+      const contextLength = 200;
+      const start = Math.max(0, changedIndex - contextLength);
+      const end = Math.min(newContent.length, changedIndex + newString.length + contextLength);
+      const preview = truncateOutput(
+        `...${newContent.slice(start, end)}...`
+      );
 
-    // Preview around the first replacement. Searching newContent for
-    // newString could land on an unrelated earlier occurrence.
-    const contextLength = 200;
-    const start = Math.max(0, changedIndex - contextLength);
-    const end = Math.min(newContent.length, changedIndex + newString.length + contextLength);
-    const preview = truncateOutput(
-      `...${newContent.slice(start, end)}...`
-    );
-
-    return {
-      success: true,
-      replacements,
-      preview,
-    };
+      return {
+        success: true,
+        replacements,
+        preview,
+      };
+    });
   },
 };
 

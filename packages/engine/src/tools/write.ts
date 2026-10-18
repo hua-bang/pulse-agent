@@ -1,6 +1,7 @@
 import z from "zod";
 import { access, mkdir, writeFile } from "fs/promises";
 import { dirname } from "path";
+import { withFileMutation } from './file-mutation.js';
 import type { Tool } from "../shared/types";
 
 export const WriteTool: Tool<
@@ -14,23 +15,25 @@ export const WriteTool: Tool<
     content: z.string().describe('The content to write to the file'),
   }),
   execute: async ({ filePath, content }) => {
-    // Check if file already exists
-    const fileExists = await access(filePath).then(() => true, () => false);
+    return withFileMutation(filePath, async () => {
+      // Check if file already exists
+      const fileExists = await access(filePath).then(() => true, () => false);
 
-    // Create parent directories if they don't exist (no-op when present)
-    await mkdir(dirname(filePath), { recursive: true });
+      // Create parent directories if they don't exist (no-op when present)
+      await mkdir(dirname(filePath), { recursive: true });
 
-    // Write the file
-    await writeFile(filePath, content, 'utf-8');
+      // Write the file
+      await writeFile(filePath, content, 'utf-8');
 
-    // Calculate bytes written
-    const bytes = Buffer.byteLength(content, 'utf-8');
+      // Calculate bytes written
+      const bytes = Buffer.byteLength(content, 'utf-8');
 
-    return {
-      success: true,
-      created: !fileExists,
-      bytes,
-    };
+      return {
+        success: true,
+        created: !fileExists,
+        bytes,
+      };
+    });
   },
 };
 
