@@ -221,6 +221,18 @@ describe('DockStore', () => {
     expect(ids()).toContain(nodeDetailTabId('ws1', 'node3'));
   });
 
+  it('keeps a preview tab once the user works in it', () => {
+    const dock = new DockStore();
+    dock.openNodeDetail('ws1', 'edited', 'Edited', true);
+    dock.keepNodeDetail(nodeDetailTabId('ws1', 'edited'));
+    dock.openNodeDetail('ws1', 'next', 'Next', true);
+
+    expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+      nodeDetailTabId('ws1', 'edited'),
+      nodeDetailTabId('ws1', 'next'),
+    ]);
+  });
+
   it('yields the dock to a full-page node detail without discarding other tabs', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');

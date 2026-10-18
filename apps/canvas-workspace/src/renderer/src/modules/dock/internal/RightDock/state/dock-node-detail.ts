@@ -7,6 +7,17 @@ import type { DockPreviewTab, DockState } from './dock-types';
  * tabs. A plain open keeps the tab: it never replaces, and it clears the
  * preview mark when it lands on the current preview tab.
  */
+/** Keep a preview tab once the user works in it, so a later preview open
+ * cannot unmount unsaved edits. Returns null when there is nothing to change. */
+export function getKeepNodeDetailPatch(state: DockState, id: string): Partial<DockState> | null {
+  if (!state.tabs.some((tab) => tab.id === id && tab.kind === 'node-detail' && tab.preview)) return null;
+  return {
+    tabs: state.tabs.map((tab) => (tab.id === id && tab.kind === 'node-detail'
+      ? { ...tab, preview: undefined }
+      : tab)),
+  };
+}
+
 export function getOpenNodeDetailPatch(
   state: DockState,
   workspaceId: string,

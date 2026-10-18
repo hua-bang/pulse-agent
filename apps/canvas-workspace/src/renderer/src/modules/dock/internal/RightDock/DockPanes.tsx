@@ -300,6 +300,7 @@ export const DockPanes = ({
                 targetWorkspaceId={activeWorkspaceId}
                 onAddTabToChat={onAddTabToChat}
                 onTitleChange={(title) => store.setTitle(tab.id, title)}
+                onEngage={tab.preview ? () => store.keepNodeDetail(tab.id) : undefined}
                 onOpenPage={() => {
                   onOpenNodePage(tab.workspaceId, tab.nodeId);
                 }}

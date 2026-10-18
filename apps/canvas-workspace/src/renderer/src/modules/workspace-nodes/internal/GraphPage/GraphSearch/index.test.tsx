@@ -89,6 +89,24 @@ describe('GraphSearch', () => {
     expect(host?.querySelector('[role="combobox"]')).toBeNull();
   });
 
+  it('opens from its toolbar button and returns focus there on Escape', () => {
+    render(<GraphSearch nodes={NODES} tags={[]} showTags onPick={vi.fn()} />);
+    const trigger = host!.querySelector<HTMLButtonElement>('.workspace-graph-search-trigger');
+    act(() => trigger?.click());
+    const input = host!.querySelector('[role="combobox"]');
+    expect(input).not.toBeNull();
+
+    act(() => {
+      input?.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    expect(host?.querySelector('[role="combobox"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('moves through results with arrows and picks the active result on Enter', () => {
     const onPick = vi.fn();
     render(<GraphSearch nodes={NODES} tags={[]} showTags onPick={onPick} />);

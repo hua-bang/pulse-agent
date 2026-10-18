@@ -24,7 +24,9 @@ Graph nodes and note mentions open a dock tab, so the dock is still where most
 reading happens. Graph clicks and graph search open it as a preview
 (`openNodeDetail(..., preview = true)`): the next preview replaces that tab in
 place, so browsing does not add one tab per click. A plain open of the same
-node keeps the tab (`dock-node-detail.ts`, guarded in `dock-store.test.ts`). The page has three direct entries: a Knowledge list card
+node keeps the tab, and so does any pointer, key, paste, or drop inside it:
+unsaved and failed edits live in the tab's own subtree, so a worked-in preview
+must never be replaced (`dock-node-detail.ts`, guarded in `dock-store.test.ts`). The page has three direct entries: a Knowledge list card
 (every type, Web included), the canvas node's Go to detail button (every
 knowledge node, Web included; image and mind-map nodes float it with their
 other actions), and the dock

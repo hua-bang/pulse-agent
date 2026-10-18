@@ -32,6 +32,8 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [panelMaxWidth, setPanelMaxWidth] = useState<number>();
   const listboxRef = useRef<HTMLDivElement>(null);
   const suggestions = useMemo<WorkspaceGraphSearchResult[]>(
     () => searchWorkspaceGraph({ nodes, tags, query, showTags }),
@@ -39,8 +41,24 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
   );
 
   useEffect(() => {
-    if (open) requestAnimationFrame(() => inputRef.current?.focus());
+    if (!open) return;
+    // The dock can leave the graph narrower than the window, so fit the panel
+    // to the graph page instead of the viewport.
+    const trigger = triggerRef.current;
+    const page = trigger?.closest('.workspace-graph-page');
+    if (trigger && page) {
+      const available = page.getBoundingClientRect().right - trigger.getBoundingClientRect().left - 12;
+      setPanelMaxWidth(Math.max(240, Math.floor(available)));
+    }
+    requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
+
+  // Escape closes the panel and returns focus to the trigger, so keyboard
+  // users continue through the toolbar from where they were.
+  const dismiss = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -49,7 +67,7 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
         event.preventDefault();
         setOpen(true);
       } else if (event.key === 'Escape' && open) {
-        setOpen(false);
+        dismiss();
       }
     };
     window.addEventListener('keydown', handler);
@@ -87,6 +105,7 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
   return (
     <div className="workspace-graph-search-anchor">
       <button
+        ref={triggerRef}
         type="button"
         className={`workspace-node-chip workspace-graph-search-trigger${open ? ' is-active' : ''}`}
         onClick={() => (open ? close() : setOpen(true))}
@@ -97,7 +116,7 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
         <SearchGlyph />
       </button>
       {open && (
-        <div className="workspace-graph-search">
+        <div className="workspace-graph-search" style={{ maxWidth: panelMaxWidth }}>
           <div className="workspace-graph-search__row">
             <input
               ref={inputRef}
@@ -113,7 +132,7 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
               onKeyDown={(event) => {
                 if (isImeComposing(event)) return;
                 if (event.key === 'Escape') {
-                  setOpen(false);
+                  dismiss();
                   return;
                 }
                 if (event.key === 'ArrowDown') {

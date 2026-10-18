@@ -29,7 +29,7 @@ import { getCloseScheduledChatPatch, getOpenChatPatch, getOpenScheduledChatPatch
 import { getToggleContentTabsPatch } from '../../../../../shared/dock/dock-content-tabs';
 import { getOpenWorkspaceLinkMutation, getRetainedLinkTabMutation } from '../links/dock-retained-links';
 import { getOpenMcpAppPatch } from './dock-mcp-app';
-import { getOpenNodeDetailPatch } from './dock-node-detail';
+import { getKeepNodeDetailPatch, getOpenNodeDetailPatch } from './dock-node-detail';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../../../types';
 export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, mcpAppTabId, nodeDetailTabId, skillTabId, terminalTabId } from '../../../../../shared/dock/dock-tab-ids';
@@ -146,6 +146,11 @@ export class DockStore {
   }
   openNodeDetail(workspaceId: string, nodeId: string, title: string, preview?: boolean): void {
     this.commit(getOpenNodeDetailPatch(this.state, workspaceId, nodeId, title, preview));
+  }
+
+  keepNodeDetail(id: string): void {
+    const next = getKeepNodeDetailPatch(this.state, id);
+    if (next) this.commit(next);
   }
 
   /** A node's full page and its dock preview are mutually exclusive. Remove
