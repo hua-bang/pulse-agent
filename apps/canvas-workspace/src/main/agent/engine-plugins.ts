@@ -13,7 +13,7 @@ import { getCanvasPluginSkillScanPathsSync } from '../plugin-market/config';
 import { getPluginMarketMcpConfigPathsSync } from '../plugin-market/store';
 import { createCanvasMcpOAuthProvider, getCanvasMcpOAuthStatus } from './mcp/oauth';
 import type { AgentScope } from './types';
-import { canvasAgentObservabilityEnginePlugin } from './observability/engine-plugin';
+import { isAgentObservabilityEnabled } from '../../plugins/main';
 import { getExperimentalFlagSync } from '../settings/experimental-ipc';
 import { EXPERIMENTAL_FLAG_AGENT_CODEMODE } from '../../shared/experimental-features';
 
@@ -31,6 +31,21 @@ export const CANVAS_CODEMODE_TOOLS = [
   'canvas_list_edges',
   'canvas_read_layout',
 ] as const;
+
+/**
+ * Trace hooks only matter when a trace subscriber can exist, which is a
+ * development-only opt-in. Loading them on demand keeps them, and the work
+ * they do per hook call, out of production builds and the main bundle.
+ */
+const canvasAgentObservabilityEnginePlugin = {
+  name: 'canvas-agent-observability',
+  version: '1.0.0',
+  async initialize(ctx: unknown) {
+    if (!isAgentObservabilityEnabled()) return;
+    const { canvasAgentObservabilityEnginePlugin: plugin } = await import('./observability/engine-plugin');
+    await plugin.initialize(ctx);
+  },
+};
 
 export interface CanvasEnginePluginOptions {
   /** Overrides the `agent-codemode` experimental flag (off by default). */
