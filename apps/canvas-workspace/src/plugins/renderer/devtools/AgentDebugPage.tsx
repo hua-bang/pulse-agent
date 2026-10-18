@@ -10,6 +10,7 @@ import {
   runtimeDisplayName,
   runtimeOwner,
   type PerformanceOwner,
+  type TraceTimeline,
   type TraceTimelineItem,
 } from './performance-model';
 import './AgentDebugPage.css';
@@ -206,8 +207,11 @@ const Waterfall = ({ trace, timeline }: { trace: AgentDebugTrace; timeline: NonN
   return (
     <section className="agent-debug-panel agent-debug-waterfall">
       <div className="agent-debug-panel-title">
-        <div><strong>Critical path</strong><span>Host → {ownerLabel(runtime)} → UI</span></div>
-        <div className="agent-debug-legend"><i className="is-phase" /> phase <i className="is-generation" /> generation <i className="is-tool" /> tool</div>
+        <div><strong>Critical path</strong><span>Host → {ownerLabel(runtime)} → UI{hookSummary(timeline.hookTotals)}</span></div>
+        <div className="agent-debug-legend">
+          <i className="is-phase" /> phase <i className="is-generation" /> generation <i className="is-tool" /> tool
+          <i className="is-hook" /> hook <i className="is-retry" /> retry wait
+        </div>
       </div>
       <div className="agent-debug-ruler">
         <span /><span>0</span><span>{formatDuration(total * .25)}</span><span>{formatDuration(total * .5)}</span><span>{formatDuration(total * .75)}</span><span>{formatDuration(total)}</span>
@@ -229,17 +233,29 @@ const Waterfall = ({ trace, timeline }: { trace: AgentDebugTrace; timeline: NonN
   );
 };
 
+/** Total of slow plugin hook calls, with the largest contributor. */
+const hookSummary = (totals: TraceTimeline['hookTotals']): string => {
+  if (!totals?.length) return '';
+  const sum = totals.reduce((acc, item) => acc + item.totalMs, 0);
+  return ` · slow hooks ${formatDuration(sum)} (top: ${totals[0].label} ${formatDuration(totals[0].totalMs)})`;
+};
+
 const TimelineRow = ({ item, total }: { item: TraceTimelineItem; total: number }) => {
+  // Compactions without a reported duration stay point markers.
+  const isPoint = item.kind === 'milestone' || (item.kind === 'compaction' && item.durationMs === 0);
   const left = Math.min(100, (item.startMs / total) * 100);
   const width = item.durationMs === 0 ? 0 : Math.max(1, Math.min(100 - left, (item.durationMs / total) * 100));
+  const label = item.kind === 'milestone' ? milestoneLabel(item.label) : item.label;
+  const detail = item.detail ?? (isPoint ? `+${formatDuration(item.startMs)}` : formatDuration(item.durationMs));
   return (
-    <div className="agent-debug-timeline-row">
+    // Labels truncate in the narrow column; the tooltip keeps the full text.
+    <div className="agent-debug-timeline-row" title={[label, detail, item.hint].filter(Boolean).join(' · ')}>
       <div className="agent-debug-event-label">
-        <strong>{item.kind === 'milestone' ? milestoneLabel(item.label) : item.label}</strong>
-        <span>{item.detail ?? (item.kind === 'milestone' || item.kind === 'compaction' ? `+${formatDuration(item.startMs)}` : formatDuration(item.durationMs))}</span>
+        <strong>{label}</strong>
+        <span>{detail}</span>
       </div>
       <div className="agent-debug-track">
-        {item.kind === 'milestone' || item.kind === 'compaction' ? (
+        {isPoint ? (
           <i className={`agent-debug-marker is-${item.kind}`} style={{ left: `${left}%` }} />
         ) : (
           <i className={`agent-debug-bar is-${item.kind}${item.status === 'error' ? ' is-error' : ''}`} style={{ left: `${left}%`, width: `${width}%` }} />

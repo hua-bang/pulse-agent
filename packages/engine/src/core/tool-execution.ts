@@ -8,6 +8,7 @@ interface ExecutionOptions {
   toolContext?: ToolExecutionContext;
   beforeHooks: Array<EngineHookMap['beforeToolCall']>;
   afterHooks: Array<EngineHookMap['afterToolCall']>;
+  errorHooks?: Array<EngineHookMap['onToolError']>;
   validate?: boolean;
   onIntercepted?: () => void;
   createNestedTools?: (context?: ToolExecutionContext) => NestedToolExecutor;
@@ -81,7 +82,20 @@ export async function executeToolWithHooks(
   if (options.createNestedTools) {
     finalContext = { ...finalContext, nestedTools: options.createNestedTools(finalContext) };
   }
-  if (!blocked) output = await tool.execute(finalInput, finalContext);
+  if (!blocked) {
+    try {
+      output = await tool.execute(finalInput, finalContext);
+    } catch (error) {
+      for (const hook of options.errorHooks ?? []) {
+        try {
+          await hook({ context: options.context, name, input: finalInput, error, toolContext: finalContext });
+        } catch {
+          // Observers must not replace the tool's own error.
+        }
+      }
+      throw error;
+    }
+  }
   for (const hook of options.afterHooks) {
     const result = await hook({ context: options.context, name, input: finalInput, output, toolContext: finalContext });
     if (result && 'output' in result) output = result.output;
@@ -112,6 +126,7 @@ export function createNestedToolExecutor(options: {
   context: Context;
   beforeHooks: Array<EngineHookMap['beforeToolCall']>;
   afterHooks: Array<EngineHookMap['afterToolCall']>;
+  errorHooks?: Array<EngineHookMap['onToolError']>;
   toolContext?: ToolExecutionContext;
 }): NestedToolExecutor {
   const getTools = () => Object.fromEntries(Object.entries(options.getTools())

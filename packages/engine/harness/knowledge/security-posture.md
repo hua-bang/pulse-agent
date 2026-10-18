@@ -19,12 +19,17 @@ These make on-disk config an execution surface, not just data:
 
 - **`.pulse-coder/engine-plugins/**/*.plugin.{js,ts}`** (and `.coder/`, home equivalents) — scanned by default and `await import()`ed; the loader only checks that `.name`/`.initialize` exist. Dropping a file here is arbitrary Node code execution on the next Engine build.
 - **MCP config** (`.pulse-coder/mcp.json` + variants) — `http`/`sse` servers take an arbitrary `url` plus arbitrary `headers`/OAuth with no host allowlist (SSRF-shaped); `stdio` servers spawn an arbitrary `command`/`args`/`env`/`cwd`. Loaded automatically at init.
+- **`AGENTS.md` in `process.cwd()`** — appended to the system prompt as project instructions, so repository text reaches the model with system-prompt weight.
+- **No workspace trust gate (owner decision, 2026-10: document, do not gate).** The project-relative paths above resolve against `process.cwd()`. Starting the CLI inside a cloned repository therefore imports that repository's `*.plugin.js` files and spawns its `stdio` MCP commands without any prompt. `disableBuiltInPlugins` does not turn the engine-plugin scan off: the scan runs unless `enginePlugins.scan === false`. Hosts that run in untrusted directories must set `scan: false` and pass explicit MCP config files (`createMcpPlugin({ configPaths })`).
+
+Declarative user-config files (`.pulse-coder/config/*`) are no longer parsed at all (removed 2026-10).
 
 ## What little gating exists (and its limits)
 
 - **plan-mode** (since 2026-08-16) hard-blocks mutating tools in planning mode at the `beforeToolCall` boundary: any tool classified `write`/`execute` is short-circuited with a synthetic rejection, and `bash` runs a read-only command classifier (`plan-mode-plugin/readonly-command.ts`) so only the built-in read-only set (`ls`, `cat`, `echo`, `pwd`, `head`, `tail`, `grep`, `find`, `wc`, `which`, `diff`, `stat`, `du`, `cd`, read-only `git`) executes. It is a *policy boundary for the LLM loop*, still not a sandbox: it assumes the engine process itself is trusted, and its mutating classification falls back to name inference for unknown tools (`KNOWN_TOOL_META` + regex). It is not human-in-the-loop and does not cover executing mode.
 - **ptc `allowed_callers`** is an exposure filter, not an approval gate, and it UNIONS typed + untyped allowlists (declaring both broadens access). Registered last in the pipeline, so it only sees tools earlier stages left.
 - Neither is human-in-the-loop.
+- Sub-agent runs execute through the parent engine's loop hooks with the parent's policy tool table and abort signal (`Engine.runChild`), so plan-mode, ptc, host `builtInTools` selection and `beforeToolCall` policies apply inside them, and they cannot call further `*_agent` tools. Before 2026-10 they rebuilt tools from `BuiltinToolsMap` with no hooks.
 
 ## Host checklist
 

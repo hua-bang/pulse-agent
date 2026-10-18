@@ -118,6 +118,8 @@ function buildRunContext(input: {
     sessionId: input.sessionId,
     userText: input.userText,
     platformKey: input.platformKey,
+    // One shared Engine serves every chat; scope /mode to this conversation.
+    planModeScope: input.platformKey,
     ownerKey: input.ownerKey,
     channel: channel ?? undefined,
     caller: callerContext.caller,

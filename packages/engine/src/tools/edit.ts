@@ -1,7 +1,7 @@
 import z from "zod";
-import { readFileSync, writeFileSync } from "fs";
+import { readFile, writeFile } from "fs/promises";
 import type { Tool } from "../shared/types";
-import { truncateOutput } from "./utils";
+import { truncateOutput, withFileLock } from "./utils";
 
 export const EditTool: Tool<
   { filePath: string; oldString: string; newString: string; replaceAll?: boolean },
@@ -15,14 +15,14 @@ export const EditTool: Tool<
     newString: z.string().describe('The text to replace it with (must be different from old_string)'),
     replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences of old_string (default false)'),
   }),
-  execute: async ({ filePath, oldString, newString, replaceAll = false }) => {
+  execute: ({ filePath, oldString, newString, replaceAll = false }) => withFileLock(filePath, async () => {
     // Validate that old and new strings are different
     if (oldString === newString) {
       throw new Error('old_string and new_string must be different');
     }
 
     // Read the file
-    const content = readFileSync(filePath, 'utf-8');
+    const content = await readFile(filePath, 'utf-8');
 
     // Check if oldString exists in the file
     if (!content.includes(oldString)) {
@@ -31,6 +31,8 @@ export const EditTool: Tool<
 
     let newContent: string;
     let replacements = 0;
+    // The first replacement starts where the first match was.
+    const changedIndex = content.indexOf(oldString);
 
     if (replaceAll) {
       // Replace all occurrences
@@ -57,10 +59,10 @@ export const EditTool: Tool<
     }
 
     // Write the modified content back
-    writeFileSync(filePath, newContent, 'utf-8');
+    await writeFile(filePath, newContent, 'utf-8');
 
-    // Generate a preview of the changes (show the changed section with context)
-    const changedIndex = newContent.indexOf(newString);
+    // Preview around the first replacement. Searching newContent for
+    // newString could land on an unrelated earlier occurrence.
     const contextLength = 200;
     const start = Math.max(0, changedIndex - contextLength);
     const end = Math.min(newContent.length, changedIndex + newString.length + contextLength);
@@ -73,7 +75,7 @@ export const EditTool: Tool<
       replacements,
       preview,
     };
-  },
+  }),
 };
 
 export default EditTool;

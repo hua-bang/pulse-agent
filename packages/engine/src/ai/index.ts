@@ -1,12 +1,12 @@
 import { generateText, streamText, tool, type ModelMessage, type StepResult, type Tool } from 'ai';
-import { CoderAI, DEFAULT_MODEL, COMPACT_SUMMARY_MAX_TOKENS, COMPACT_SUMMARY_MODEL, OPENAI_REASONING_EFFORT } from '../config';
+import { DEFAULT_MODEL, COMPACT_SUMMARY_MAX_TOKENS, COMPACT_SUMMARY_MODEL, OPENAI_REASONING_EFFORT, resolveProvider } from '../config';
 import z from 'zod';
 import { generateSystemPrompt } from '../prompt';
 import type { Tool as CoderTool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ModelType } from '../shared/types';
 
 
 const openaiProviderOptions = { openai: { store: false, reasoningEffort: OPENAI_REASONING_EFFORT } };
-const claudeProviderOptions = { anthropic: { cacheControl: { type: 'ephemeral' as const } } };
+const ANTHROPIC_CACHE_BREAKPOINT = { anthropic: { cacheControl: { type: 'ephemeral' as const } } };
 
 /**
  * Default per-call output token caps.
@@ -36,12 +36,13 @@ function resolveMaxOutputTokens(modelType?: ModelType): number {
  * OpenAI-compatible path: gateways with several upstream accounts/cache nodes
  * route by this key, so a stable value keeps a session's requests on the same
  * cache node (routing affinity, not cache isolation). The Claude path drops it
- * — Anthropic caching works via cacheControl and an unknown option would leak
- * into the request.
+ * — an unknown option would leak into the request. Anthropic caching is not a
+ * call-level option: the SDK only reads `cacheControl` on messages, parts and
+ * tools, so breakpoints are placed by `withAnthropicCacheBreakpoints`.
  */
 export function resolveProviderOptions(modelType?: ModelType, promptCacheKey?: string) {
   if (modelType === 'claude') {
-    return { ...openaiProviderOptions, ...claudeProviderOptions };
+    return openaiProviderOptions;
   }
   if (promptCacheKey) {
     return { openai: { ...openaiProviderOptions.openai, promptCacheKey } };
@@ -59,19 +60,19 @@ const GPT_EXPLORATION_CONSTRAINT = `
 
 /** Resolve a SystemPromptOption into a final string. */
 const resolveSystemPrompt = (option: SystemPromptOption | undefined): string => {
-  const base = generateSystemPrompt();
-  if (!option) return base;
   if (typeof option === 'string') return option;
   if (typeof option === 'function') return option();
-  return `${base}\n\n${option.append}`;
+  const base = generateSystemPrompt();
+  return option ? `${base}\n\n${option.append}` : base;
 };
+
 
 export const generateTextAI = (
   messages: ModelMessage[],
   tools: Record<string, Tool>,
-  options?: { provider?: LLMProviderFactory; model?: string; systemPrompt?: SystemPromptOption }
+  options?: { provider?: LLMProviderFactory; model?: string; modelType?: ModelType; systemPrompt?: SystemPromptOption }
 ) => {
-  const provider = options?.provider ?? CoderAI;
+  const provider = resolveProvider(options?.provider, options?.modelType);
   const model = options?.model ?? DEFAULT_MODEL;
 
   return generateText({
@@ -79,7 +80,8 @@ export const generateTextAI = (
     system: resolveSystemPrompt(options?.systemPrompt),
     messages,
     tools,
-    providerOptions: openaiProviderOptions,
+    providerOptions: resolveProviderOptions(options?.modelType),
+    maxOutputTokens: resolveMaxOutputTokens(options?.modelType),
   }) as unknown as ReturnType<typeof generateText> & { steps: StepResult<any>[]; finishReason: string };
 }
 
@@ -111,20 +113,9 @@ export const wrapToolsWithContext = (
   const wrappedTools: Record<string, Tool> = {};
 
   for (const [name, tool] of Object.entries(tools)) {
-    let firstCall = true;
     wrappedTools[name] = {
       ...tool,
       execute: async (input: any, options?: any) => {
-        // One-shot diagnostic per tool: log what the AI SDK actually passes
-        // as the second arg, so we can confirm toolCallId is there.
-        if (firstCall) {
-          firstCall = false;
-          const keys = options && typeof options === 'object' ? Object.keys(options) : null;
-          console.info(
-            `[wrapToolsWithContext] ${name}: options keys=${keys ? `[${keys.join(', ')}]` : '(no options arg)'}, ` +
-            `toolCallId=${options?.toolCallId ?? '(undefined)'}`,
-          );
-        }
         // Forward the AI SDK's toolCallId so tools can stream side-channel
         // updates that the renderer correlates back to the tool-call frame.
         return await tool.execute(input, { ...context, toolCallId: options?.toolCallId });
@@ -135,8 +126,31 @@ export const wrapToolsWithContext = (
   return wrappedTools;
 };
 
+/**
+ * Place Anthropic prompt-cache breakpoints where the SDK reads them. Anthropic
+ * orders the cache prefix tools -> system -> messages, so one breakpoint on
+ * the system message covers tools and system, and one on the newest message
+ * lets the next step reuse the whole history. Two of the four allowed
+ * breakpoints; history objects are copied, never mutated.
+ */
+export function withAnthropicCacheBreakpoints(system: string, messages: ModelMessage[]): ModelMessage[] {
+  const cached: ModelMessage[] = [
+    { role: 'system', content: system, providerOptions: ANTHROPIC_CACHE_BREAKPOINT },
+    ...messages,
+  ];
+  const lastIndex = cached.length - 1;
+  if (lastIndex > 0) {
+    const last = cached[lastIndex];
+    cached[lastIndex] = {
+      ...last,
+      providerOptions: { ...last.providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT },
+    } as ModelMessage;
+  }
+  return cached;
+}
+
 export const streamTextAI = (messages: ModelMessage[], tools: Record<string, CoderTool>, options?: StreamOptions) => {
-  const provider = options?.provider ?? CoderAI;
+  const provider = resolveProvider(options?.provider, options?.modelType);
   const model = options?.model ?? DEFAULT_MODEL;
 
   // Wrap tools with execution context if provided
@@ -167,10 +181,13 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
     ? `${baseSystemPrompt}${gptExtra}\n\n${extraSystemParts.join('\n\n')}`
     : `${baseSystemPrompt}${gptExtra}`;
 
+  const isClaude = options?.modelType === 'claude';
+
   return streamText({
     model: provider(model),
-    system: finalSystemPrompt,
-    messages: filteredMessages,
+    ...(isClaude
+      ? { messages: withAnthropicCacheBreakpoints(finalSystemPrompt, filteredMessages) }
+      : { system: finalSystemPrompt, messages: filteredMessages }),
     tools: wrappedTools as Record<string, Tool>,
     providerOptions: resolveProviderOptions(options?.modelType, options?.promptCacheKey),
     maxOutputTokens: resolveMaxOutputTokens(options?.modelType),
@@ -187,16 +204,19 @@ export const summarizeMessages = async (
     maxOutputTokens?: number;
     provider?: LLMProviderFactory;
     model?: string;
+    modelType?: ModelType;
     abortSignal?: AbortSignal;
   }
 ): Promise<string> => {
-  const provider = options?.provider ?? CoderAI;
-  const model = options?.model ?? COMPACT_SUMMARY_MODEL ?? DEFAULT_MODEL;
+  const provider = resolveProvider(options?.provider, options?.modelType);
+  // An explicit COMPACT_SUMMARY_MODEL is an operator override; otherwise
+  // summarize with the run's own model so the provider can serve it.
+  const model = COMPACT_SUMMARY_MODEL ?? options?.model ?? DEFAULT_MODEL;
   const SUMMARY_SYSTEM_PROMPT =
     '你是负责压缩对话上下文的助手。请基于给定历史消息，提炼关键事实与决策，避免臆测或扩展。';
 
   const SUMMARY_USER_PROMPT = [
-    '请将以上对话压缩为以下格式，使用中文：',
+    '请将以上对话压缩为以下格式，使用对话的主要语言：',
     '[COMPACTED_CONTEXT]',
     '- 目标: ...',
     '- 进展: ...',
@@ -216,7 +236,7 @@ export const summarizeMessages = async (
       { role: 'user', content: SUMMARY_USER_PROMPT },
     ],
     maxOutputTokens: options?.maxOutputTokens ?? COMPACT_SUMMARY_MAX_TOKENS,
-    providerOptions: openaiProviderOptions,
+    providerOptions: resolveProviderOptions(options?.modelType),
     abortSignal: options?.abortSignal,
   });
 

@@ -52,10 +52,6 @@ export class CoderCLI {
         dirs: ['.pulse-coder/engine-plugins', '.coder/engine-plugins', '~/.pulse-coder/engine-plugins', '~/.coder/engine-plugins'],
         scan: true
       },
-      userConfigPlugins: {
-        dirs: ['.pulse-coder/config', '.coder/config', '~/.pulse-coder/config', '~/.coder/config'],
-        scan: true
-      },
       tools: createPulseCliTools()
       // 注意：不再需要 plugins: [...] 配置
     });

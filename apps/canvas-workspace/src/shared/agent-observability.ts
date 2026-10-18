@@ -29,6 +29,11 @@ export type AgentTracePhase =
 export interface AgentTraceGenerationTimings {
   /** Request handed to the provider SDK, after hooks and tool wrapping. */
   requestStartedAt?: number;
+  /**
+   * Response headers arrived. Before it: network, TLS, gateway and queueing.
+   * After it, until the first chunk: provider-side work.
+   */
+  responseHeadersAt?: number;
   /** First streamed chunk of any kind (reasoning, tool input, or text). */
   firstChunkAt?: number;
   firstTextAt?: number;
@@ -110,6 +115,12 @@ export type AgentTraceEvent =
       /** Provider-call boundaries when the runtime reports them (Engine does). */
       timings?: AgentTraceGenerationTimings;
       usage?: AgentTraceGenerationUsage;
+      /** Provider request id, to match a slow call with provider-side logs. */
+      requestId?: string;
+      /** HTTP requests for this call; above 1 means the SDK retried by itself. */
+      httpAttempts?: number;
+      /** The runtime waits `delayMs` after this failed call, then retries. */
+      retry?: { attempt: number; delayMs: number };
     })
   | (AgentTraceEventBase & {
       type: 'tool.started';
@@ -138,6 +149,19 @@ export type AgentTraceEvent =
       owner: 'engine' | 'pi';
       beforeTokens?: number;
       afterTokens?: number;
+      trigger?: 'pre-loop' | 'length-retry';
+      /** Summarizer call start and compaction end, when the runtime reports them. */
+      startedAt?: number;
+      finishedAt?: number;
+    })
+  | (AgentTraceEventBase & {
+      /** One slow plugin hook call. Fast calls are not recorded. */
+      type: 'hook.completed';
+      owner: 'engine' | 'pi';
+      hookName: string;
+      pluginName: string;
+      startedAt: number;
+      finishedAt: number;
     })
   | (AgentTraceEventBase & {
       type: 'run.completed';

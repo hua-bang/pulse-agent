@@ -3,14 +3,16 @@ import type { Context, ClarificationRequest, Tool, LLMProviderFactory, SystemPro
 import type { EngineHookMap, OnCompactedEvent } from "../plugin/EnginePlugin.js";
 import { streamTextAI } from "../ai";
 import { createNestedToolExecutor, executeToolWithHooks, prepareToolPresentation } from './tool-execution.js';
+import { withLLMRequestTiming, type LLMRequestTiming } from '../ai/timed-fetch.js';
 import { maybeCompactContext, type CompactStats } from "../context";
+import { estimateTokens } from "../context/estimate.js";
 import {
   LLM_CALL_TIMEOUT_MS,
   LLM_FIRST_CHUNK_TIMEOUT_MS,
   MAX_COMPACTION_ATTEMPTS,
   MAX_ERROR_COUNT,
   MAX_STEPS,
-  buildProvider,
+  resolveProvider,
 } from "../config/index.js";
 
 /**
@@ -168,6 +170,7 @@ export interface LoopHooks {
   afterLLMCall?: Array<EngineHookMap['afterLLMCall']>;
   beforeToolCall?: Array<EngineHookMap['beforeToolCall']>;
   afterToolCall?: Array<EngineHookMap['afterToolCall']>;
+  onToolError?: Array<EngineHookMap['onToolError']>;
   onToolCall?: Array<EngineHookMap['onToolCall']>;
   onCompacted?: Array<EngineHookMap['onCompacted']>;
 }
@@ -176,6 +179,9 @@ export interface CompactionEvent extends CompactStats {
   attempt: number;
   trigger: 'pre-loop' | 'length-retry';
   reason?: string;
+  /** Summarizer call start and compaction end, for duration tracing. */
+  startedAt?: number;
+  finishedAt?: number;
 }
 
 export interface LoopOptions {
@@ -242,16 +248,40 @@ export interface LoopOptions {
 }
 
 /**
- * Wraps read/ls tools to warn the model when it accesses the same path more than once.
- * The seenPaths map persists for the lifetime of a single loop() call.
+ * Wraps read/ls tools to warn the model when it repeats the same access.
+ * Keys include the requested range, so paging through a large file is not a
+ * repeat, and a write or edit forgets the path, so re-reading changed content
+ * is not flagged either. The seenPaths map lives for one loop() call.
  */
 function wrapToolsWithReadDedup(
   tools: Record<string, Tool>,
   seenPaths: Map<string, number>,
 ): Record<string, Tool> {
   const READ_TOOL_NAMES = new Set(['read', 'ls']);
+  const WRITE_TOOL_NAMES = new Set(['write', 'edit']);
+  const accessKey = (name: string, input: any): { path: string; key: string } => {
+    const path = String(input?.filePath ?? input?.path ?? name);
+    return { path, key: `${path}#${input?.offset ?? ''}:${input?.limit ?? ''}` };
+  };
+  const forgetPath = (path: string) => {
+    for (const key of seenPaths.keys()) {
+      if (key.startsWith(`${path}#`)) seenPaths.delete(key);
+    }
+  };
+
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
+    if (WRITE_TOOL_NAMES.has(name)) {
+      wrapped[name] = {
+        ...t,
+        execute: async (input: any, ctx: any) => {
+          const output = await t.execute(input, ctx);
+          if (typeof input?.filePath === 'string') forgetPath(input.filePath);
+          return output;
+        },
+      };
+      continue;
+    }
     if (!READ_TOOL_NAMES.has(name)) {
       wrapped[name] = t;
       continue;
@@ -259,12 +289,12 @@ function wrapToolsWithReadDedup(
     wrapped[name] = {
       ...t,
       execute: async (input: any, ctx: any) => {
-        const pathKey = input?.filePath ?? input?.path ?? name;
-        const count = seenPaths.get(pathKey) ?? 0;
-        seenPaths.set(pathKey, count + 1);
+        const { path, key } = accessKey(name, input);
+        const count = seenPaths.get(key) ?? 0;
+        seenPaths.set(key, count + 1);
         const output = await t.execute(input, ctx);
         if (count > 0) {
-          const note = `[You have already accessed "${pathKey}" ${count} time(s) in this session. Avoid redundant reads unless strictly necessary.]`;
+          const note = `[You have already accessed "${path}" with the same range ${count} time(s) in this session and it has not been modified since. Avoid redundant reads unless strictly necessary.]`;
           if (typeof output === 'string') return `${output}\n${note}`;
           if (output && typeof output === 'object') return { ...output, _note: note };
         }
@@ -284,6 +314,7 @@ function wrapToolsWithHooks(
   onToolExecutionStart?: (tool: ActiveToolExecution) => symbol,
   onToolExecutionEnd?: (token: symbol) => void,
   policyTools: Record<string, Tool> = tools,
+  errorHooks: Array<EngineHookMap['onToolError']> = [],
 ): Record<string, Tool> {
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
@@ -305,6 +336,7 @@ function wrapToolsWithHooks(
             context,
             beforeHooks,
             afterHooks,
+            errorHooks,
             validate: false, // Direct tool input is validated by the AI SDK.
             toolContext: ctx,
             createNestedTools: toolContext => createNestedToolExecutor({
@@ -312,6 +344,7 @@ function wrapToolsWithHooks(
               context,
               beforeHooks,
               afterHooks,
+              errorHooks,
               toolContext,
             }),
           });
@@ -333,19 +366,6 @@ function safeStringify(value: unknown): string {
   }
 }
 
-function estimateMessageTokens(messages: ModelMessage[]): number {
-  let totalChars = 0;
-  for (const message of messages) {
-    totalChars += message.role.length;
-    if (typeof message.content === 'string') {
-      totalChars += message.content.length;
-    } else {
-      totalChars += safeStringify(message.content).length;
-    }
-  }
-  return Math.ceil(totalChars / 4);
-}
-
 async function emitCompactionEvent(
   context: Context,
   options: LoopOptions | undefined,
@@ -357,6 +377,8 @@ async function emitCompactionEvent(
     attempt: number;
     reason?: string;
     stats?: CompactStats;
+    startedAt?: number;
+    finishedAt?: number;
   },
 ): Promise<void> {
   const event: CompactionEvent = {
@@ -366,9 +388,11 @@ async function emitCompactionEvent(
     forced: params.stats?.forced ?? params.trigger === 'length-retry',
     beforeMessageCount: params.stats?.beforeMessageCount ?? params.currentMessages.length,
     afterMessageCount: params.stats?.afterMessageCount ?? params.newMessages.length,
-    beforeEstimatedTokens: params.stats?.beforeEstimatedTokens ?? estimateMessageTokens(params.currentMessages),
-    afterEstimatedTokens: params.stats?.afterEstimatedTokens ?? estimateMessageTokens(params.newMessages),
+    beforeEstimatedTokens: params.stats?.beforeEstimatedTokens ?? estimateTokens(params.currentMessages),
+    afterEstimatedTokens: params.stats?.afterEstimatedTokens ?? estimateTokens(params.newMessages),
     strategy: params.stats?.strategy ?? 'fallback',
+    startedAt: params.startedAt,
+    finishedAt: params.finishedAt,
   };
 
   if (options?.onCompacted) {
@@ -400,16 +424,75 @@ async function emitCompactionEvent(
 export async function loop(context: Context, options?: LoopOptions): Promise<string> {
   let errorCount = 0;
   let totalSteps = 0;
-  let compactionAttempts = 0;
+  // Compactions since the last completed LLM call. The cap stops a loop of
+  // compactions that never let a request through; it is not a per-run quota,
+  // so a long agent run can compact again once it has made progress.
+  let consecutiveCompactions = 0;
+  let totalCompactions = 0;
+  // After a compaction, history must grow past this before the pre-loop check
+  // runs again. Without it, a result that stays above the trigger (one huge
+  // recent exchange) would cost a summarizer call on every step.
+  let nextPreLoopFloor = 0;
+  let consecutiveOutputCapHits = 0;
   const seenPaths = new Map<string, number>();
 
   const loopHooks = options?.hooks ?? {};
+  // Resolve once so streaming and compaction always talk to the same provider.
+  const provider = resolveProvider(options?.provider, options?.modelType);
+
+  const compact = async (trigger: CompactionEvent['trigger'], force: boolean): Promise<'aborted' | boolean> => {
+    if (consecutiveCompactions >= MAX_COMPACTION_ATTEMPTS) return false;
+    if (!force && nextPreLoopFloor > 0 && estimateTokens(context.messages) < nextPreLoopFloor) return false;
+    let startedAt: number | undefined;
+    const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
+      force,
+      provider,
+      model: options?.model,
+      modelType: options?.modelType,
+      contextWindowTokens: options?.contextWindowTokens,
+      onStart: (info) => {
+        startedAt = Date.now();
+        options?.onCompactionStart?.(info);
+      },
+      abortSignal: options?.abortSignal,
+    });
+    const finishedAt = Date.now();
+    if (options?.abortSignal?.aborted) return 'aborted';
+    if (!didCompact || !newMessages) return false;
+
+    consecutiveCompactions++;
+    totalCompactions++;
+    nextPreLoopFloor = Math.ceil((stats?.afterEstimatedTokens ?? estimateTokens(newMessages)) * 1.25);
+    const history = context.messages;
+    // Snapshot first: a host may rewrite `history` in place inside onCompacted,
+    // and plugin hooks must still see the pre-compaction messages.
+    const previousMessages = [...history];
+    await emitCompactionEvent(context, options, loopHooks, {
+      currentMessages: previousMessages,
+      newMessages,
+      trigger,
+      attempt: totalCompactions,
+      reason,
+      stats,
+      startedAt,
+      finishedAt,
+    });
+    // Hosts usually apply the result in onCompacted. When none did, apply it
+    // in place so the next request really uses the compacted history.
+    if (context.messages === history && history !== newMessages) {
+      history.splice(0, history.length, ...newMessages);
+    }
+    return true;
+  };
 
   while (true) {
     let requestStartAt: number | undefined;
     let firstChunkAt: number | undefined;
     let firstTextAt: number | undefined;
     let lastChunkAt: number | undefined;
+    // Filled by the provider's timed fetch; splits the first-chunk wait into
+    // "request -> response headers" and "headers -> first chunk".
+    const requestTiming: LLMRequestTiming = { attempts: 0 };
     let llmCallStarted = false;
 
     try {
@@ -417,33 +500,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         return 'Request aborted.';
       }
 
-      if (compactionAttempts < MAX_COMPACTION_ATTEMPTS) {
-        const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
-          provider: options?.provider,
-          model: options?.model,
-          contextWindowTokens: options?.contextWindowTokens,
-          onStart: (info) => options?.onCompactionStart?.(info),
-          abortSignal: options?.abortSignal,
-        });
-        if (options?.abortSignal?.aborted) {
-          return 'Request aborted.';
-        }
-        if (didCompact) {
-          const nextAttempt = compactionAttempts + 1;
-          compactionAttempts = nextAttempt;
-
-          if (newMessages) {
-            await emitCompactionEvent(context, options, loopHooks, {
-              currentMessages: context.messages,
-              newMessages,
-              trigger: 'pre-loop',
-              attempt: nextAttempt,
-              reason,
-              stats,
-            });
-          }
-          continue;
-        }
+      const preLoop = await compact('pre-loop', false);
+      if (preLoop === 'aborted') {
+        return 'Request aborted.';
+      }
+      if (preLoop) {
+        continue;
       }
 
       if (options?.abortSignal?.aborted) {
@@ -469,8 +531,10 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       // Inject read/ls deduplication warnings
-      tools = wrapToolsWithReadDedup(tools, seenPaths);
+      // Nested callers (scripts, sub-agents) get the policy table without the
+      // model-facing duplicate-read notes.
       const policyTools = tools;
+      tools = wrapToolsWithReadDedup(tools, seenPaths);
       const presentation = await prepareToolPresentation({
         context, tools, systemPrompt, runContext: options?.runContext, model: options?.model,
       }, loopHooks.prepareToolPresentation);
@@ -507,6 +571,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         onToolExecutionStart,
         onToolExecutionEnd,
         policyTools,
+        loopHooks.onToolError ?? [],
       );
 
       // Prepare tool execution context
@@ -514,6 +579,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         onClarificationRequest: options?.onClarificationRequest,
         abortSignal: options?.abortSignal,
         runContext: options?.runContext,
+        llm: {
+          provider,
+          model: options?.model,
+          modelType: options?.modelType,
+          contextWindowTokens: options?.contextWindowTokens,
+        },
       };
 
       if (options?.abortSignal?.aborted) {
@@ -615,13 +686,13 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         }
         const messagesForLLM = context.messages;
 
-        const result = streamTextAI(messagesForLLM, tools, {
+        const result = withLLMRequestTiming(requestTiming, () => streamTextAI(messagesForLLM, tools, {
           abortSignal: llmAbortController.signal,
           toolExecutionContext: {
             ...toolExecutionContext,
             abortSignal: llmAbortController.signal,
           },
-          provider: options?.provider ?? (options?.modelType ? buildProvider(options.modelType) : undefined),
+          provider,
           model: options?.model,
           modelType: options?.modelType,
           promptCacheKey: options?.promptCacheKey,
@@ -671,7 +742,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
               options?.onToolInputEnd?.({ id: chunk.id });
             }
           },
-        });
+        }));
 
         // SDK result promises can remain pending when toModelOutput throws
         // during finish-step. Observe the actual stream as well, so a failed
@@ -706,6 +777,10 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       totalSteps += steps.length;
+      consecutiveCompactions = 0;
+      if (finishReason !== 'length') {
+        consecutiveOutputCapHits = 0;
+      }
 
       for (const step of steps) {
         if (step.response?.messages?.length) {
@@ -723,11 +798,14 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             text,
             usage,
             model: options?.model,
+            requestId: requestTiming.requestId,
             timings: {
               requestStartAt,
+              responseHeadersAt: requestTiming.responseHeadersAt,
               firstChunkAt,
               firstTextAt,
               lastChunkAt,
+              httpAttempts: requestTiming.attempts || undefined,
             },
           });
         }
@@ -757,7 +835,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         // budget. Output-cap hits just continue the loop so the model can
         // resume; only true overflow triggers compaction.
         const inputTokens = (usage as any)?.inputTokens ?? (usage as any)?.input_tokens;
-        const modelContextBudget = resolveModelContextBudget(options?.model, options?.modelType);
+        const modelContextBudget = options?.contextWindowTokens && options.contextWindowTokens > 0
+          ? options.contextWindowTokens
+          : resolveModelContextBudget(options?.model, options?.modelType);
         const looksLikeContextOverflow =
           typeof inputTokens === 'number' && inputTokens >= modelContextBudget * 0.8;
 
@@ -765,37 +845,25 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
           // Output-cap hit (case b). Don't compact. Loop continues; if the
           // SDK already wrote a partial assistant message into the step
           // history, the next iteration will see it and resume naturally.
+          // Bounded: a model that spends the whole cap on reasoning every
+          // time would otherwise loop without limit.
+          consecutiveOutputCapHits++;
+          if (
+            consecutiveOutputCapHits >= MAX_OUTPUT_CAP_CONTINUES
+            || totalSteps >= (options?.maxSteps ?? MAX_STEPS)
+          ) {
+            return text || 'Output limit reached; the response may be incomplete.';
+          }
           continue;
         }
 
-        // True context overflow (case a): compact up to N times.
-        if (compactionAttempts < MAX_COMPACTION_ATTEMPTS) {
-          const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
-            force: true,
-            provider: options?.provider,
-            model: options?.model,
-            contextWindowTokens: options?.contextWindowTokens,
-            onStart: (info) => options?.onCompactionStart?.(info),
-            abortSignal: options?.abortSignal,
-          });
-          if (options?.abortSignal?.aborted) {
-            return 'Request aborted.';
-          }
-          if (didCompact) {
-            const nextAttempt = compactionAttempts + 1;
-            compactionAttempts = nextAttempt;
-            if (newMessages) {
-              await emitCompactionEvent(context, options, loopHooks, {
-                currentMessages: context.messages,
-                newMessages,
-                trigger: 'length-retry',
-                attempt: nextAttempt,
-                reason,
-                stats,
-              });
-            }
-            continue;
-          }
+        // True context overflow (case a).
+        const compacted = await compact('length-retry', true);
+        if (compacted === 'aborted') {
+          return 'Request aborted.';
+        }
+        if (compacted) {
+          continue;
         }
         return text || 'Context limit reached.';
       }
@@ -871,6 +939,11 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         });
       }
 
+      // Tell observers about the backoff wait before it starts, so traces
+      // show it as a span instead of an unexplained gap.
+      const retry = !isContextOverflowError(error) && errorCount + 1 < MAX_ERROR_COUNT && isRetryableError(error)
+        ? { attempt: errorCount + 1, delayMs: retryDelayMs(errorCount + 1) }
+        : undefined;
       if (llmCallStarted && loopHooks.afterLLMCall?.length) {
         try {
           for (const hook of loopHooks.afterLLMCall) {
@@ -881,16 +954,32 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
               usage: undefined,
               error,
               model: options?.model,
+              requestId: requestTiming.requestId,
+              retry,
               timings: {
                 requestStartAt,
+                responseHeadersAt: requestTiming.responseHeadersAt,
                 firstChunkAt,
                 firstTextAt,
                 lastChunkAt,
+                httpAttempts: requestTiming.attempts || undefined,
               },
             });
           }
         } catch (hookError) {
           console.warn('[loop] afterLLMCall hook failed while recording LLM error', hookError);
+        }
+      }
+
+      // Most providers report prompt overflow as a 400 error, not as
+      // finishReason 'length'. Compact and retry instead of failing the turn.
+      if (isContextOverflowError(error)) {
+        const compacted = await compact('length-retry', true);
+        if (compacted === 'aborted') {
+          return 'Request aborted.';
+        }
+        if (compacted) {
+          continue;
         }
       }
 
@@ -904,7 +993,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       if (isRetryableError(error)) {
-        const delay = Math.min(2000 * Math.pow(2, errorCount - 1), 30000);
+        const delay = retryDelayMs(errorCount);
         try {
           await sleep(delay, options?.abortSignal);
         } catch (sleepError: any) {
@@ -1124,6 +1213,36 @@ function findJsonEnd(text: string): number {
     }
   }
   return -1;
+}
+
+const MAX_OUTPUT_CAP_CONTINUES = 3;
+
+const CONTEXT_OVERFLOW_PATTERN = /prompt is too long|context[_ ]length[_ ]exceeded|maximum context length|exceeds? the context window|context window (?:is )?exceeded|input is too long|too many (?:input )?tokens|request too large|reduce the length of the messages/i;
+
+const RATE_LIMIT_PATTERN = /rate limit|per[- ]minute|per min|\bTPM\b/i;
+
+/**
+ * Prompt-overflow rejection from the provider. Gateways use 400 or 413; a
+ * retry wrapper may hide the status on `lastError`/`cause`. Throughput limits
+ * (429, "tokens per minute") reuse similar words and are excluded.
+ */
+export function isContextOverflowError(error: unknown): boolean {
+  const candidates = [error, (error as any)?.lastError, (error as any)?.cause];
+  for (const candidate of candidates) {
+    const status = (candidate as any)?.status ?? (candidate as any)?.statusCode;
+    if (typeof status === 'number' && status !== 400 && status !== 413) {
+      return false;
+    }
+  }
+  const messages = collectErrorMessages(error);
+  if (messages.some((message) => RATE_LIMIT_PATTERN.test(message))) {
+    return false;
+  }
+  return messages.some((message) => CONTEXT_OVERFLOW_PATTERN.test(message));
+}
+
+function retryDelayMs(errorCount: number): number {
+  return Math.min(2000 * Math.pow(2, errorCount - 1), 30000);
 }
 
 function isRetryableError(error: any): boolean {

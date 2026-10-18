@@ -1,7 +1,8 @@
 import z from "zod";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { access, mkdir, writeFile } from "fs/promises";
 import { dirname } from "path";
 import type { Tool } from "../shared/types";
+import { withFileLock } from "./utils";
 
 export const WriteTool: Tool<
   { filePath: string; content: string },
@@ -13,20 +14,16 @@ export const WriteTool: Tool<
     filePath: z.string().describe('The absolute path to the file to write (must be absolute, not relative)'),
     content: z.string().describe('The content to write to the file'),
   }),
-  execute: async ({ filePath, content }) => {
+  // Shares the edit lock, so a write never lands between an edit's read and write.
+  execute: ({ filePath, content }) => withFileLock(filePath, async () => {
     // Check if file already exists
-    const fileExists = existsSync(filePath);
+    const fileExists = await access(filePath).then(() => true, () => false);
 
-    // Get the directory path
-    const dir = dirname(filePath);
-
-    // Create parent directories if they don't exist
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+    // Create parent directories if they don't exist (no-op when present)
+    await mkdir(dirname(filePath), { recursive: true });
 
     // Write the file
-    writeFileSync(filePath, content, 'utf-8');
+    await writeFile(filePath, content, 'utf-8');
 
     // Calculate bytes written
     const bytes = Buffer.byteLength(content, 'utf-8');
@@ -36,7 +33,7 @@ export const WriteTool: Tool<
       created: !fileExists,
       bytes,
     };
-  },
+  }),
 };
 
 export default WriteTool;

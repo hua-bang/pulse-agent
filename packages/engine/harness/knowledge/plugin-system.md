@@ -18,17 +18,20 @@ How to author, register, and reason about `EnginePlugin`s. Facts verified agains
 | `beforeToolCall` | before each tool execution (inside the wrapped tool) | input; throw to abort |
 | `onToolCall` | when the LLM emits a tool-call chunk (fire-and-forget) | — |
 | `afterToolCall` | after each tool execution | output |
+| `onToolError` | when a tool's `execute` throws; `afterToolCall` does not run then | — (the error still propagates; a hook failure is ignored) |
 | `onCompacted` | after compaction produced a new message list (best-effort) | — |
 | `afterLLMCall` | after every LLM call, including the error path | — |
 | `afterRun` | once after the loop exits | — |
 
-Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `PluginManager`). Each engine plugin's initialization emits `pluginInitTiming` (`pluginName`, `startedAt`, `durationMs`, `ok`), and the MCP built-in emits `mcpServerTiming` (`McpServerTiming`) per configured server; both are best-effort diagnostics on `engine.events`. `beforeToolCall`/`afterToolCall` observe read/ls output with the dedup note already appended (see `architecture.md` Runtime Invariants).
+Hook handlers are wrapped with timing instrumentation (`hookTiming` events, `PluginManager`).
+`afterLLMCall` also reports `requestId`, and on the error path `retry` (`attempt`, `delayMs`) when the loop will back off before the next call. `timings.responseHeadersAt` and `timings.httpAttempts` come from `createTimedFetch` (`src/ai/timed-fetch.ts`). Env-built providers (`buildProvider`, `CoderAI`) always use it. A host-built provider reports them only when it passes `fetch: createTimedFetch()`. The wrapper records per call through `AsyncLocalStorage` and never reads, clones or buffers the response body; `src/ai/timed-fetch.test.ts` pins this on the wire. Each engine plugin's initialization emits `pluginInitTiming` (`pluginName`, `startedAt`, `durationMs`, `ok`), and the MCP built-in emits `mcpServerTiming` (`McpServerTiming`) per configured server; both are best-effort diagnostics on `engine.events`. `beforeToolCall`/`afterToolCall` observe read/ls output with the dedup note already appended (see `architecture.md` Runtime Invariants).
 
 ## Lifecycle
 
-1. Registration sources, in order: built-in array (`src/built-in/index.ts`, skipped entirely by `disableBuiltInPlugins`) → `options.plugins[]` → disk scan → user-config plugins (loaded after engine plugins, no dependency sorting).
+1. Registration sources, in order: built-in array (`src/built-in/index.ts`, skipped entirely by `disableBuiltInPlugins`) → `options.plugins[]` → disk scan. A plugin that registers a tool name another plugin already registered replaces it and logs a warning.
 2. Dependency topological sort. Circular dependency THROWS at sort; a dependency missing from the list is skipped at sort but THROWS `Dependency not found` at init (see `architecture.md` Runtime Invariants).
 3. Per plugin: `beforeInitialize?` → `initialize` → `afterInitialize?`.
+4. `Engine.dispose()` → `destroy?(ctx)` per plugin, once, in reverse initialization order; a failing `destroy` is logged and the rest still run.
 
 ## Authoring Walkthrough
 
@@ -140,4 +143,4 @@ Installed Electron compatibility remains a host acceptance requirement.
 ## Registration Sources & Config Paths
 
 - Engine plugin disk scan (`scan !== false`): `.pulse-coder/engine-plugins`, `.coder/engine-plugins`, `~/.pulse-coder/engine-plugins`, `~/.coder/engine-plugins`, `./plugins/engine` — pattern `**/*.plugin.{js,ts}`.
-- User-config plugins: `config.{json,yaml,yml}` / `*.config.{json,yaml,yml}` under `.pulse-coder/config`, `.coder/config` and home equivalents. HONEST STATUS: the schema admits tools/MCP servers/prompts/sub-agents/skills, and files are scanned and validated — but `applyUserConfig` (`PluginManager.ts`) is an unimplemented stub that only logs each entry; nothing is instantiated or registered. The `${VAR}` resolver is also constructed without `process.env`, so substitutions never see real env values. Treat declarative user-config as NOT functional today.
+- Declarative user-config (`.pulse-coder/config/*.json|yaml`) is not loaded: the scan-and-log stub was removed by owner decision (2026-10). `userConfigPlugins` and the `UserConfigPlugin*` types remain as deprecated no-ops. Configure MCP, sub-agents and skills through their own paths (config-reference.md).

@@ -1,3 +1,4 @@
+import { resolve } from "path";
 import { MAX_TOOL_OUTPUT_LENGTH } from "../config";
 
 export const truncateOutput = (output: string): string => {
@@ -20,4 +21,23 @@ export const truncateOutput = (output: string): string => {
   const head = Math.ceil(retained / 2);
   const tail = retained - head;
   return output.slice(0, head) + marker + output.slice(-tail);
+};
+
+const fileQueues = new Map<string, Promise<void>>();
+
+/**
+ * Run file read-modify-write work one at a time per path. Tool calls from one
+ * model step run concurrently; without this, two edits of one file both read
+ * the old content and the later write silently drops the earlier edit.
+ */
+export const withFileLock = async <T>(filePath: string, operation: () => Promise<T>): Promise<T> => {
+  const key = resolve(filePath);
+  const current = (fileQueues.get(key) ?? Promise.resolve()).then(operation);
+  const settled = current.then(() => undefined, () => undefined);
+  fileQueues.set(key, settled);
+  try {
+    return await current;
+  } finally {
+    if (fileQueues.get(key) === settled) fileQueues.delete(key);
+  }
 };

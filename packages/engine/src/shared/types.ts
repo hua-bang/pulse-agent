@@ -87,6 +87,33 @@ export interface ToolExecutionContext {
   parentToolCallId?: string;
   /** Current run's policy-safe tool capability, without model lifecycle steps. */
   nestedTools?: NestedToolExecutor;
+  /**
+   * The model configuration of the run executing this tool. Tools that start
+   * their own model run (sub-agents) inherit it instead of the env default.
+   */
+  llm?: RunModelConfig;
+}
+
+export interface RunModelConfig {
+  provider?: LLMProviderFactory;
+  model?: string;
+  modelType?: ModelType;
+  contextWindowTokens?: number;
+}
+
+/** A nested model run started by a tool, executed with the engine's hooks. */
+export interface ChildRunOptions {
+  tools: Record<string, Tool>;
+  systemPrompt?: SystemPromptOption;
+  maxSteps?: number;
+  abortSignal?: AbortSignal;
+  /** Parent run context; keeps per-conversation policy (e.g. plan-mode scope) and tracing ids. */
+  runContext?: Record<string, any>;
+  /** Parent model configuration; engine defaults apply when omitted. */
+  llm?: RunModelConfig;
+  onText?: (delta: string) => void;
+  onToolCall?: (toolCall: any) => void;
+  onToolResult?: (toolResult: any) => void;
 }
 
 export interface NestedToolExecutor {
@@ -121,4 +148,9 @@ export interface ILogger {
 // Engine instance, 不能直接暴露实际例子，只能通过插件上下文获取
 export interface PulseEngineInstance {
   tools: Record<string, Tool>;
+  /**
+   * Run a nested model loop with this engine's model defaults and loop hooks
+   * (tool policy, offload, tracing). History stays owned by `context`.
+   */
+  runChild?(context: Context, options: ChildRunOptions): Promise<string>;
 }

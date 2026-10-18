@@ -208,7 +208,12 @@ function buildToolSearchSystemAppend(tools: Record<string, Tool>, config: ToolSe
 class ToolSearchService {
   private readonly config: ToolSearchConfig;
   private readonly logger: EnginePluginContext['logger'];
-  private readonly loadedToolNames = new Set<string>();
+  /**
+   * Discovered tools per run history. One Engine serves concurrent runs
+   * (remote-server shares a single instance across users), so this state must
+   * never be engine-global: a new run must not clear another run's tools.
+   */
+  private readonly loadedToolNames = new WeakMap<object, Set<string>>();
 
   constructor(config: ToolSearchConfig, logger: EnginePluginContext['logger']) {
     this.config = config;
@@ -230,9 +235,18 @@ class ToolSearchService {
     };
   }
 
-  getLoadedTools(tools: Record<string, Tool>): Record<string, Tool> {
+  private loadedFor(scope: object): Set<string> {
+    let names = this.loadedToolNames.get(scope);
+    if (!names) {
+      names = new Set<string>();
+      this.loadedToolNames.set(scope, names);
+    }
+    return names;
+  }
+
+  getLoadedTools(tools: Record<string, Tool>, scope: object): Record<string, Tool> {
     const loaded: Record<string, Tool> = {};
-    for (const name of this.loadedToolNames) {
+    for (const name of this.loadedFor(scope)) {
       const tool = tools[name];
       if (tool) {
         loaded[name] = tool;
@@ -241,20 +255,21 @@ class ToolSearchService {
     return loaded;
   }
 
-  addLoadedTools(toolNames: string[]): string[] {
+  addLoadedTools(toolNames: string[], scope: object): string[] {
+    const loadedNames = this.loadedFor(scope);
     const added: string[] = [];
     for (const name of toolNames) {
-      if (!name || this.loadedToolNames.has(name)) {
+      if (!name || loadedNames.has(name)) {
         continue;
       }
-      this.loadedToolNames.add(name);
+      loadedNames.add(name);
       added.push(name);
     }
     return added;
   }
 
-  resetLoadedTools(): void {
-    this.loadedToolNames.clear();
+  resetLoadedTools(scope: object): void {
+    this.loadedToolNames.delete(scope);
   }
 }
 
@@ -343,11 +358,11 @@ export const builtInToolSearchPlugin: EnginePlugin = {
     const service = new ToolSearchService(config, context.logger);
     context.registerService(TOOL_SEARCH_SERVICE_NAME, service);
 
-    context.registerHook('beforeRun', () => {
-      service.resetLoadedTools();
+    context.registerHook('beforeRun', ({ context: runHistory }) => {
+      service.resetLoadedTools(runHistory);
     });
 
-    context.registerHook('prepareToolPresentation', ({ tools, systemPrompt }) => {
+    context.registerHook('prepareToolPresentation', ({ context: runHistory, tools, systemPrompt }) => {
       const toolSearchService = context.getService<ToolSearchService>(TOOL_SEARCH_SERVICE_NAME) ?? service;
 
       // Auto threshold: when deferred schemas fit comfortably in the context
@@ -374,7 +389,7 @@ export const builtInToolSearchPlugin: EnginePlugin = {
       // Defer + search: immediate tools stay, search tools are exposed,
       // previously-loaded deferred tools are injected back into the top level.
       const split = toolSearchService.splitTools(tools);
-      const loadedTools = toolSearchService.getLoadedTools(tools);
+      const loadedTools = toolSearchService.getLoadedTools(tools, runHistory);
       const nextPrompt = appendSystemPrompt(systemPrompt, toolSearchService.buildSystemPrompt(tools));
 
       return {
@@ -390,11 +405,11 @@ export const builtInToolSearchPlugin: EnginePlugin = {
 
     // External model harnesses do not append results to Engine's transcript,
     // so load discovered tools at the shared execution boundary as well.
-    context.registerHook('afterToolCall', ({ name, output }) => {
-      if (name !== regexTool.name && name !== bm25Tool.name) return;
+    context.registerHook('afterToolCall', ({ context: runHistory, name, output }) => {
+      if (!runHistory || (name !== regexTool.name && name !== bm25Tool.name)) return;
       const references = (output as ToolSearchResultPayload | undefined)?.tool_references;
       if (!Array.isArray(references)) return;
-      service.addLoadedTools(references.map(reference => reference.tool_name));
+      service.addLoadedTools(references.map(reference => reference.tool_name), runHistory);
     });
 
     // Track which deferred tools the model discovered so the next prepareToolPresentation
@@ -411,7 +426,7 @@ export const builtInToolSearchPlugin: EnginePlugin = {
         return;
       }
 
-      service.addLoadedTools(references);
+      service.addLoadedTools(references, runContext);
     });
 
     context.logger.info('[ToolSearch] Built-in tool search plugin initialized', {

@@ -37,6 +37,22 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
   policy-adjusted prompt; execution still performs schema validation and the
   normal before/after tool hooks. Callers must always `dispose()` it so
   `afterLLMCall` / `afterRun` lifecycle hooks close.
+- `Engine.dispose()` runs each plugin's `destroy(context)` once, in reverse
+  initialization order, logging and skipping failures. Hosts call it when an
+  engine is retired; `TeamLead.dispose()` forwards it.
+- `EngineOptions.config`, `Engine.getConfig/setConfig` and plugin
+  `ctx.getConfig/setConfig` are one store.
+- `EngineOptions.userConfigPlugins` and the `UserConfigPlugin*` types are
+  deprecated no-ops kept for source compatibility; nothing scans config files.
+- Plan mode accepts an optional `scope` on `getMode/setMode` (service and
+  Engine helpers). Runs select one with `runContext.planModeScope`; unscoped
+  runs and calls use the engine-wide default.
+- `ToolExecutionContext.llm` carries the executing run's provider, model,
+  modelType and context window to tools. `PulseEngineInstance.runChild(context,
+  options)` (reached via `ctx.getEngineInstance()`) runs a nested loop with
+  the engine's model resolution and loop hooks; `SubAgentPlugin` uses both and
+  removes `*_agent` tools from the child table. `SubAgentPlugin` accepts
+  `{ agentDirs }`.
 - Preserve `.pulse-coder/*` as the preferred runtime config root and `.coder/*` compatibility unless there is an explicit migration plan.
 
 ## Extension Boundary

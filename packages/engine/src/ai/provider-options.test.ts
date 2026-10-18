@@ -14,8 +14,8 @@ describe('resolveProviderOptions', () => {
   it('drops promptCacheKey entirely on the Claude path', () => {
     const claude = resolveProviderOptions('claude', 'b'.repeat(64)) as Record<string, any>;
     expect(JSON.stringify(claude)).not.toContain('promptCacheKey');
-    // Claude keeps its cacheControl mechanism.
-    expect(claude.anthropic.cacheControl.type).toBe('ephemeral');
+    // Anthropic caching is placed on messages (anthropic-cache.test.ts), not here.
+    expect(claude.anthropic).toBeUndefined();
   });
 
   it('leaves requests untouched when no key is provided', () => {

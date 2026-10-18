@@ -21,6 +21,7 @@ export type {
   BeforeToolCallResult,
   AfterToolCallInput,
   AfterToolCallResult,
+  OnToolErrorInput,
   OnCompactedEvent,
   OnCompactedInput,
 } from './plugin/EnginePlugin.js';
@@ -78,4 +79,5 @@ export type { LoopOptions, LoopHooks, CompactionEvent } from './core/loop.js';
 export { streamTextAI, generateTextAI } from './ai/index.js';
 export { maybeCompactContext } from './context/index.js';
 export { buildProvider, CONTEXT_WINDOW_TOKENS, DEFAULT_MODEL } from './config/index.js';
+export { createTimedFetch } from './ai/timed-fetch.js';
 export * from './tools/index.js';

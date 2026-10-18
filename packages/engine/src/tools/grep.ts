@@ -1,7 +1,7 @@
 import z from "zod";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { existsSync } from "fs";
+import { access } from "fs/promises";
 import type { Tool } from "../shared/types";
 import { truncateOutput } from "./utils";
 
@@ -92,7 +92,7 @@ export const GrepTool: Tool<
     // Path
     if (path && path !== '.') {
       // Verify path exists
-      if (!existsSync(path)) {
+      if (!(await access(path).then(() => true, () => false))) {
         throw new Error(`Path does not exist: ${path}`);
       }
       args.push(path);

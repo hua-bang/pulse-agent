@@ -100,6 +100,9 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
         const metadata = {
           ...(event.finishReason ? { finishReason: event.finishReason } : {}),
           ...(event.timings ? { timings: event.timings } : {}),
+          ...(event.requestId ? { requestId: event.requestId } : {}),
+          ...(event.httpAttempts ? { httpAttempts: event.httpAttempts } : {}),
+          ...(event.retry ? { retry: event.retry } : {}),
         };
         generation.update({
           ...(Object.keys(metadata).length ? { metadata } : {}),
@@ -141,14 +144,24 @@ export class LangfuseAgentTraceSubscriber implements AgentObservabilitySubscribe
           metadata: { detail: event.detail, owner: event.owner },
         });
         break;
-      case 'context.compacted':
-        this.start(run.runtime ?? run.root, 'context.compacted', 'event', event.timestamp, {
+      case 'context.compacted': {
+        // A span when the runtime reports the summarizer duration, else a point.
+        const kind = event.startedAt ? 'span' : 'event';
+        const compaction = this.start(run.runtime ?? run.root, 'context.compacted', kind, event.startedAt ?? event.timestamp, {
           metadata: {
             afterTokens: event.afterTokens,
             beforeTokens: event.beforeTokens,
             owner: event.owner,
+            ...(event.trigger ? { trigger: event.trigger } : {}),
           },
         });
+        if (event.startedAt) compaction.end(at(event.finishedAt ?? event.timestamp));
+        break;
+      }
+      case 'hook.completed':
+        this.start(run.runtime ?? run.root, `hook.${event.hookName}`, 'span', event.startedAt, {
+          metadata: { hookName: event.hookName, owner: event.owner, pluginName: event.pluginName },
+        }).end(at(event.finishedAt));
         break;
       case 'run.completed':
         this.finishRun(event.runId, event.timestamp, event.status, event.error);

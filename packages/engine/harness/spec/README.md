@@ -35,7 +35,6 @@ No fix steps. When a decision is made, the outcome becomes a code change + a `kn
 | Entry | Undecided question |
 |---|---|
 | `public-surface.md` | What is the engine's intended public API — and are four current exports intended contracts or accidents? |
-| `user-config.md` | Should declarative user-config be implemented, or removed? The loader is an inert stub. |
 | `gating-posture.md` | Is "engine ships zero containment" a deliberate contract, and do plan-mode / ptc mean what they appear to? |
 | `dead-knobs.md` | Two env knobs are read but never change behavior — wire them or delete them? |
 

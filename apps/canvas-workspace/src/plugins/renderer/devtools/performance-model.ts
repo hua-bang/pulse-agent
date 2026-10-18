@@ -34,11 +34,13 @@ export interface TraceTimelineItem {
   id: string;
   label: string;
   owner: PerformanceOwner | 'renderer';
-  kind: 'phase' | 'generation' | 'tool' | 'milestone' | 'compaction';
+  kind: 'phase' | 'generation' | 'tool' | 'milestone' | 'compaction' | 'retry' | 'hook';
   startMs: number;
   durationMs: number;
   endMs: number;
   detail?: string;
+  /** Extra text for the row tooltip only, e.g. a provider request id. */
+  hint?: string;
   status?: 'success' | 'error';
 }
 
@@ -47,6 +49,8 @@ export interface TraceTimeline {
   items: TraceTimelineItem[];
   milestones: Partial<Record<'ttfa' | 'ttft' | 'render' | 'completed', number>>;
   bottleneck?: TraceTimelineItem;
+  /** Slow plugin hook calls summed per plugin hook, largest first. */
+  hookTotals?: Array<{ label: string; count: number; totalMs: number }>;
 }
 
 const nonNegative = (value: number): number => Math.max(0, value);
@@ -214,10 +218,10 @@ const formatTokens = (value: number): string => (
 /** Duration stays first because an item's detail replaces its duration in the waterfall. */
 const generationDetail = (
   durationMs: number,
-  finishReason: string | undefined,
-  usage: GenerationCompletedEvent['usage'],
+  event: GenerationCompletedEvent,
   toolCount?: number,
 ): string => {
+  const { finishReason, usage } = event;
   const parts = [formatMs(durationMs)];
   if (toolCount !== undefined) parts.push(`${toolCount} tools`);
   if (usage?.inputTokens !== undefined) {
@@ -229,13 +233,15 @@ const generationDetail = (
     parts.push(`out ${formatTokens(usage.outputTokens)}${reasoning}`);
   }
   if (finishReason) parts.push(finishReason);
+  if (event.httpAttempts && event.httpAttempts > 1) parts.push(`${event.httpAttempts} HTTP attempts`);
   return parts.join(' · ');
 };
 
 /**
  * Split one provider call at the boundaries the runtime reported: request
- * preparation, waiting for the first chunk (provider queue + prefill), output
- * before any text (reasoning or tool input), and text streaming.
+ * preparation, waiting for the first chunk, output before any text
+ * (reasoning or tool input), and text streaming. With response-header timing,
+ * the wait splits into network (until headers) and provider (until first chunk).
  */
 const generationSegments = (
   event: GenerationCompletedEvent,
@@ -244,20 +250,22 @@ const generationSegments = (
 ): TraceTimelineItem[] => {
   const timings = event.timings;
   if (!timings) return [];
+  type Bound = [string, number | undefined, number | undefined];
+  const wait: Bound[] = timings.responseHeadersAt === undefined
+    ? [['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt]]
+    : [
+      ['Wait › network', timings.requestStartedAt, timings.responseHeadersAt],
+      ['Wait › provider', timings.responseHeadersAt, timings.firstChunkAt],
+    ];
   // Tool-call-only or reasoning-only calls stream no text; their whole
   // output phase still belongs in the breakdown.
-  const bounds: Array<[string, number | undefined, number | undefined]> = timings.firstTextAt === undefined
-    ? [
-      ['Request preparation', startedAt, timings.requestStartedAt],
-      ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
-      ['Non-text output', timings.firstChunkAt, event.timestamp],
-    ]
+  const output: Bound[] = timings.firstTextAt === undefined
+    ? [['Non-text output', timings.firstChunkAt, event.timestamp]]
     : [
-      ['Request preparation', startedAt, timings.requestStartedAt],
-      ['Wait for first chunk', timings.requestStartedAt, timings.firstChunkAt],
       ['Output before text', timings.firstChunkAt, timings.firstTextAt],
       ['Text streaming', timings.firstTextAt, event.timestamp],
     ];
+  const bounds: Bound[] = [['Request preparation', startedAt, timings.requestStartedAt], ...wait, ...output];
   return bounds.flatMap(([label, from, to]) => {
     if (from === undefined || to === undefined || to <= from) return [];
     return [{
@@ -310,6 +318,7 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
   }
 
   const starts = new Map<string, typeof events[number]>();
+  const hookTotals = new Map<string, NonNullable<TraceTimeline['hookTotals']>[number]>();
   const items: TraceTimelineItem[] = [];
   const milestones: TraceTimeline['milestones'] = {};
   for (const event of events) {
@@ -346,13 +355,37 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
         endMs: Math.max(0, event.timestamp - origin),
         detail: generationDetail(
           event.timestamp - startedAt,
-          event.finishReason,
-          event.usage,
+          event,
           start?.type === 'generation.started' ? start.prompt?.toolCount : undefined,
         ),
+        ...(event.requestId ? { hint: `request ${event.requestId}` } : {}),
         status: event.error ? 'error' : 'success',
       });
       items.push(...generationSegments(event, startedAt, origin));
+      if (event.retry) {
+        // The runtime sleeps before the next attempt; a stop cuts the wait short.
+        const waitEnd = Math.min(event.timestamp + event.retry.delayMs, completedAt ?? Infinity);
+        items.push({
+          id: `retry:${event.generationId}`, label: `Retry backoff › attempt ${event.retry.attempt}`,
+          owner: eventOwner(event.owner), kind: 'retry',
+          startMs: Math.max(0, event.timestamp - origin),
+          durationMs: Math.max(0, waitEnd - event.timestamp),
+          endMs: Math.max(0, waitEnd - origin),
+        });
+      }
+    }
+    if (event.type === 'hook.completed') {
+      const label = `${event.pluginName}.${event.hookName}`;
+      const durationMs = Math.max(0, event.finishedAt - event.startedAt);
+      const total = hookTotals.get(label) ?? { label, count: 0, totalMs: 0 };
+      hookTotals.set(label, { label, count: total.count + 1, totalMs: total.totalMs + durationMs });
+      items.push({
+        id: `hook:${label}:${event.startedAt}:${items.length}`, label: `Hook › ${label}`,
+        owner: eventOwner(event.owner), kind: 'hook',
+        startMs: Math.max(0, event.startedAt - origin),
+        durationMs,
+        endMs: Math.max(0, event.finishedAt - origin),
+      });
     }
     if (event.type === 'tool.completed') {
       const start = starts.get(`tool:${event.toolCallId}`);
@@ -381,13 +414,17 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
       });
     }
     if (event.type === 'context.compacted') {
-      const atMs = Math.max(0, event.timestamp - origin);
+      // A span when the runtime reported the summarizer duration, else a point.
+      const startedAt = event.startedAt ?? event.timestamp;
+      const finishedAt = event.startedAt === undefined ? event.timestamp : event.finishedAt ?? event.timestamp;
+      const durationMs = Math.max(0, finishedAt - startedAt);
+      const tokens = event.beforeTokens == null ? undefined
+        : `${formatTokens(event.beforeTokens)} → ${event.afterTokens == null ? '?' : formatTokens(event.afterTokens)}`;
       items.push({
         id: `compaction:${event.timestamp}`, label: 'Context compacted',
         owner: eventOwner(event.owner), kind: 'compaction',
-        startMs: atMs, durationMs: 0, endMs: atMs,
-        detail: event.beforeTokens == null ? undefined
-          : `${event.beforeTokens} → ${event.afterTokens ?? '?'} tokens`,
+        startMs: Math.max(0, startedAt - origin), durationMs, endMs: Math.max(0, finishedAt - origin),
+        detail: durationMs > 0 ? [formatMs(durationMs), tokens].filter(Boolean).join(' · ') : tokens && `${tokens} tokens`,
       });
     }
   }
@@ -396,6 +433,7 @@ export function buildTraceTimeline(trace: AgentDebugTrace): TraceTimeline | unde
     totalMs,
     items,
     milestones,
+    ...(hookTotals.size ? { hookTotals: [...hookTotals.values()].sort((left, right) => right.totalMs - left.totalMs) } : {}),
     bottleneck: items.filter(item => item.durationMs > 0).reduce<TraceTimelineItem | undefined>(
       (largest, item) => !largest || item.durationMs > largest.durationMs ? item : largest,
       undefined,

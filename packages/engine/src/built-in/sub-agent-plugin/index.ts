@@ -3,9 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import type { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
 import type { Context } from '../../shared/types.js';
-import { loop } from '../../core/loop';
-import { BuiltinToolsMap } from '../../tools';
-import type { Tool } from '../../shared/types';
+import type { Tool, ToolExecutionContext } from '../../shared/types';
 import { AGENT_BASE_RULES } from '../../prompt/agent-base';
 
 const DEFAULT_SUB_AGENT_MAX_STEPS = 30;
@@ -118,47 +116,22 @@ class ConfigLoader {
   }
 }
 
-class AgentRunner {
-  async runAgent(
-    config: AgentConfig,
-    task: string,
-    context?: Record<string, any>,
-    tools?: Record<string, any>,
-    callbacks?: {
-      onText?: (delta: string) => void;
-      onToolCall?: (toolCall: any) => void;
-      onToolResult?: (toolResult: any) => void;
-    },
-    maxSteps?: number,
-  ): Promise<string> {
-    const subContext: Context = {
-      messages: [
-        { role: 'user', content: task }
-      ]
-    };
+/**
+ * Sub-agent tools never reach other sub-agent tools: one level of delegation,
+ * no unbounded recursion.
+ */
+function childTools(tools: Record<string, Tool>): Record<string, Tool> {
+  return Object.fromEntries(Object.entries(tools).filter(([name]) => !name.endsWith('_agent')));
+}
 
-    if (context && Object.keys(context).length > 0) {
-      subContext.messages.push({
-        role: 'user',
-        content: `上下文信息：\n${JSON.stringify(context, null, 2)}`
-      });
-    }
+function buildTaskMessage(task: string, taskContext?: Record<string, any>): string {
+  if (!taskContext || Object.keys(taskContext).length === 0) return task;
+  return `${task}\n\nContext:\n${JSON.stringify(taskContext, null, 2)}`;
+}
 
-    return await loop(subContext, {
-      tools,
-      systemPrompt: `${AGENT_BASE_RULES}\n\n${config.systemPrompt}`,
-      maxSteps,
-      onText: callbacks?.onText,
-      onToolCall: callbacks?.onToolCall,
-      onToolResult: callbacks?.onToolResult,
-      onCompacted: (newMessages) => {
-        subContext.messages = newMessages;
-      },
-      onResponse: (messages) => {
-        subContext.messages.push(...messages);
-      },
-    });
-  }
+export interface SubAgentPluginOptions {
+  /** Directories scanned for agent Markdown files. Defaults to `.pulse-coder/agents` and `.coder/agents`. */
+  agentDirs?: string[];
 }
 
 export class SubAgentPlugin implements EnginePlugin {
@@ -166,11 +139,12 @@ export class SubAgentPlugin implements EnginePlugin {
   version = '1.0.0';
 
   private configLoader = new ConfigLoader();
-  private agentRunner = new AgentRunner();
+
+  constructor(private readonly options: SubAgentPluginOptions = {}) {}
 
   async initialize(context: EnginePluginContext): Promise<void> {
     try {
-      const configs = await this.configLoader.loadAgentConfigs();
+      const configs = await this.configLoader.loadAgentConfigs(this.options.agentDirs);
 
       for (const config of configs) {
         this.registerAgentTool(context, config);
@@ -196,10 +170,17 @@ export class SubAgentPlugin implements EnginePlugin {
         task: z.string().describe('要执行的任务描述'),
         context: z.any().optional().describe('任务上下文信息')
       }),
-      execute: async ({ task, context: taskContext }: { task: string; context?: Record<string, any> }) => {
-        // 延迟求值：在工具真正被调用时合并 builtin 工具与所有已注册插件工具，
-        // 避免初始化阶段的静态快照导致后注册的插件工具缺失。
-        const tools = { ...BuiltinToolsMap, ...context.getTools() };
+      execute: async (
+        { task, context: taskContext }: { task: string; context?: Record<string, any> },
+        executionContext?: ToolExecutionContext,
+      ) => {
+        const engine = context.getEngineInstance();
+        if (!engine.runChild) {
+          throw new Error(`Agent ${config.name} requires an Engine host`);
+        }
+        // The parent run's policy table (host tool selection, beforeRun /
+        // beforeLLMCall policy) rather than a rebuilt built-in set.
+        const tools = childTools(executionContext?.nestedTools?.getTools() ?? engine.tools);
         const tag = `[agent:${config.name}]`;
         // console, never process.stdout.write: the engine is host-agnostic and
         // hosts own the terminal. Raw stdout bytes tear an Ink host's frame —
@@ -218,7 +199,16 @@ export class SubAgentPlugin implements EnginePlugin {
             return '';
           };
 
-          const result = await this.agentRunner.runAgent(config, task, taskContext, tools, {
+          const subContext: Context = {
+            messages: [{ role: 'user', content: buildTaskMessage(task, taskContext) }],
+          };
+          const result = await engine.runChild(subContext, {
+            tools,
+            systemPrompt: `${AGENT_BASE_RULES}\n\n${config.systemPrompt}`,
+            maxSteps: DEFAULT_SUB_AGENT_MAX_STEPS,
+            abortSignal: executionContext?.abortSignal,
+            runContext: executionContext?.runContext,
+            llm: executionContext?.llm,
             onToolCall: (toolCall) => {
               const name = toolCall?.toolName ?? toolCall?.name ?? 'tool';
               const hint = summarizeArgs(toolCall?.args);
@@ -228,7 +218,7 @@ export class SubAgentPlugin implements EnginePlugin {
               const name = (toolResult as any)?.toolName ?? (toolResult as any)?.name ?? 'tool';
               log(`✅ ${name}`);
             },
-          }, DEFAULT_SUB_AGENT_MAX_STEPS);
+          });
           log('Done');
           return result;
         } catch (error) {

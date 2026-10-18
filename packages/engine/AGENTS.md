@@ -64,7 +64,7 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 - `src/index.ts`: public exports, including the `PulseAgent` alias and built-in plugin/type exports.
 - `src/Engine.ts`: engine bootstrap, provider/model option resolution, plugin/tool merge order, compaction helper, and plan-mode service helpers.
 - `src/core/loop.ts`: streaming loop, LLM/tool hooks, retries/backoff, abort handling, timeout handling, tool results, and context compaction.
-- `src/plugin/`: plugin manager, hook map, service/config APIs, dependency ordering, and user config plugin loading.
+- `src/plugin/`: plugin manager, hook map, service/config APIs, dependency ordering, and plugin destroy lifecycle.
 - `src/built-in/index.ts`: built-in plugin registration order and public built-in plugin exports.
 - `src/tools/index.ts`: built-in tool registry for file, shell, Tavily, image generation, clarification, and deferred demo tools.
 - `harness/knowledge/`, `harness/validate/`: package contract, architecture, and validation source of truth.
@@ -73,7 +73,7 @@ Local harness surfaces: `knowledge/`, `spec/`, `validate/`, `tools/`, `skills/`.
 - `harness/tools/describe-engine.mjs` — structure snapshot (plugin order + deps, both-barrel asymmetry, full tool registry with defer_loading) from the built package. Run before changing built-in plugins/tools so you edit against ground truth, not drift-prone prose. Reads `dist`, so build first.
 - `harness/skills/add-builtin-plugin.md` — ordered procedure for adding/modifying a built-in plugin (sequence + landmines + pointers, not restated facts).
 - `harness/skills/add-builtin-tool.md` — the parallel procedure for adding/modifying a built-in tool (non-blocking/shell-safe rule, defer_loading, registry + escalation).
-- `harness/spec/` — decision-pending intent: places where current behavior may not be intended and a maintainer must choose (public-surface accidents, inert user-config, gating posture, dead knobs). Distinct from `knowledge/` (current-state facts, incl. `known-defects.md`) and `skills/` (how-to). An empty `spec/` is the success state.
+- `harness/spec/` — decision-pending intent: places where current behavior may not be intended and a maintainer must choose (public-surface accidents, gating posture, dead knobs). Distinct from `knowledge/` (current-state facts, incl. `known-defects.md`) and `skills/` (how-to). An empty `spec/` is the success state.
 Pass/fail checks stay in the repo runner (`scripts/harness/run-harness-check.mjs`); these local surfaces cover orientation (tool) and safe-change sequence (skill), which the runner does not.
 
 ## Failure Capture

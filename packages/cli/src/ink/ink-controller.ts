@@ -63,10 +63,6 @@ export class InkCoderController implements InkCliController {
         dirs: ['.pulse-coder/engine-plugins', '.coder/engine-plugins', '~/.pulse-coder/engine-plugins', '~/.coder/engine-plugins'],
         scan: true
       },
-      userConfigPlugins: {
-        dirs: ['.pulse-coder/config', '.coder/config', '~/.pulse-coder/config', '~/.coder/config'],
-        scan: true
-      },
       tools: createPulseCliTools()
     });
     this.context = { messages: [] };

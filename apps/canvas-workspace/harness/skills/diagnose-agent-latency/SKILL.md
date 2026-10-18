@@ -40,6 +40,13 @@ events, without prompt/response or tool input/output payloads. Preserve the file
 when reporting a slow request. Host and UI totals have separate end boundaries;
 the waterfall extends to the last observed event.
 
+DevTools keeps the newest 200 runs and at most 50 MB of run files under
+`<userData>/plugins/devtools/runs/`; an `index.json` beside them lists the
+summaries (`src/plugins/main/devtools-run-store.ts`). Each write prunes the
+oldest runs. Export a run you need before it ages out. In memory, a run keeps
+at most 500 events; the cap drops the oldest detail events and never
+`run.started` or `run.completed`.
+
 For isolated development launches, set both a temporary `HOME` and Electron's
 `--user-data-dir` (the plugin store uses Electron userData, not HOME). Use the
 installed electron-vite entry after dependency preparation so changing HOME does
@@ -117,10 +124,16 @@ Use this order:
    Steps overlap their parent; the parent minus its steps is unattributed time.
 2. Large activity wait with one generation: when the runtime reports provider
    boundaries (Engine does), the generation is split into `Generation ›`
-   request preparation, wait for first chunk (provider queue, network, prefill
-   of the input), output before text (reasoning or tool input), and text
-   streaming. The generation detail carries input/cached/output/reasoning
-   tokens. A long first-chunk wait with a large uncached input points at
+   request preparation, wait for first chunk, output before text (reasoning
+   or tool input), and text streaming. When the provider fetch reports
+   response headers (Engine-built providers do), the wait splits into
+   `Wait › network` (connection, TLS, gateway, queueing until headers) and
+   `Wait › provider` (headers to first chunk: prefill and provider work). A
+   long network wait with a short provider wait points at the network or a
+   gateway, not at the prompt. The generation detail carries
+   input/cached/output/reasoning tokens and the HTTP attempt count when the
+   SDK retried; the row tooltip carries the provider request id for
+   provider-side log lookup. A long first-chunk wait with a large uncached input points at
    prompt size or cache misses; a long pre-text segment with reasoning tokens
    points at model reasoning. Providers that do not stream reasoning content
    put reasoning time inside the first-chunk wait instead, so read that
@@ -132,14 +145,20 @@ Use this order:
    changing hashes point at a prompt prefix that varies. Otherwise suspect provider latency, network,
    model queueing, or delayed runtime callbacks. Compare the same prompt across
    providers only as a separately named experiment.
-3. Small TTFA but large text wait: inspect tool-first behavior, multiple model
+3. Gaps between generations: a `Retry backoff › attempt N` striped bar is
+   the loop sleeping after a retryable provider error (the failed generation
+   before it is red). A `Context compacted` bar is the summarizer call.
+   `Hook › <plugin>.<hook>` bars are plugin hook calls of 10 ms or more; the
+   waterfall header sums them and names the largest. Time left unexplained
+   after these is host or runtime code without a probe.
+4. Small TTFA but large text wait: inspect tool-first behavior, multiple model
    iterations, clarification, or reasoning before the first text. Do not label
    this as renderer slowness.
-4. Long runtime after TTFT: inspect long generations, serial tools, repeated
+5. Long runtime after TTFT: inspect long generations, serial tools, repeated
    model calls, or work that needlessly blocks turn completion.
-5. Large render lag: inspect stream batching, main-to-renderer IPC, React
+6. Large render lag: inspect stream batching, main-to-renderer IPC, React
    scheduling, and Markdown/render cost.
-6. Large post-runtime tail: inspect response processing, persistence, trace
+7. Large post-runtime tail: inspect response processing, persistence, trace
    serialization, and completion notifications.
 
 Correlate the timeline with tool names and generation boundaries. A large

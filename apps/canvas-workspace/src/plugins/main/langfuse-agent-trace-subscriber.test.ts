@@ -85,4 +85,21 @@ describe('LangfuseAgentTraceSubscriber', () => {
     expect(outer.parent).toBe(root);
     expect(nested.parent).toBe(outer.handle);
   });
+
+  it('maps timed compactions and slow hooks to spans with their own boundaries', async () => {
+    const { adapter, children, subscriber } = setup();
+    await subscriber.onEvent({ type: 'run.started', runId: 'run-9', timestamp: 100, scope: 'global', host: 'canvas' });
+    await subscriber.onEvent({
+      type: 'context.compacted', runId: 'run-9', timestamp: 190, owner: 'engine', startedAt: 110, finishedAt: 180,
+    });
+    await subscriber.onEvent({
+      type: 'hook.completed', runId: 'run-9', timestamp: 230, owner: 'engine',
+      hookName: 'beforeRun', pluginName: 'memory', startedAt: 200, finishedAt: 230,
+    });
+
+    expect(children.map(({ kind, name }) => `${kind}:${name}`)).toEqual(['span:context.compacted', 'span:hook.beforeRun']);
+    expect(adapter.start).toHaveBeenNthCalledWith(1, expect.anything(), 'context.compacted', 'span', new Date(110), expect.anything());
+    expect(children[0].handle.end).toHaveBeenCalledWith(new Date(180));
+    expect(children[1].handle.end).toHaveBeenCalledWith(new Date(230));
+  });
 });

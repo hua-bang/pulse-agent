@@ -40,6 +40,20 @@ describe('canvas engine plugin list', () => {
   }
 });
 
+describe('canvas trace hooks', () => {
+  it('register nothing unless development observability is on', async () => {
+    const plugin = createCanvasEnginePlugins({ kind: 'global' })
+      .find((item) => pluginName(item) === 'canvas-agent-observability') as {
+        initialize(ctx: unknown): Promise<void>;
+      };
+    const registerHook = vi.fn();
+
+    await plugin.initialize({ registerHook, events: { on: vi.fn() } });
+
+    expect(registerHook).not.toHaveBeenCalled();
+  });
+});
+
 describe('canvas Codemode opt-in', () => {
   const codemode = 'pulse-coder-engine/codemode';
   const scope = { kind: 'workspace' as const, workspaceId: 'ws-1' };

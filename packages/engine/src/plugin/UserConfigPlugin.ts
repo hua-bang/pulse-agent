@@ -1,8 +1,13 @@
 import { z } from 'zod';
 
 /**
+ * @deprecated The declarative user-config loader was removed: it scanned
+ * `.pulse-coder/config` but never applied tools, MCP servers or sub-agents.
+ * These types remain exported for source compatibility only. Use
+ * `.pulse-coder/mcp.json`, `.pulse-coder/agents/`, `.pulse-coder/skills/` or
+ * an engine plugin instead.
+ *
  * 用户配置插件接口 - 面向终端用户
- * 使用声明式配置扩展引擎能力
  */
 export interface UserConfigPlugin {
   version: string;
@@ -116,6 +121,7 @@ export type SubAgentConfig = z.infer<typeof SubAgentConfigSchema>;
 /**
  * 用户配置插件加载选项
  */
+/** @deprecated Accepted and ignored by Engine/PluginManager. */
 export interface UserConfigPluginLoadOptions {
   configs?: UserConfigPlugin[];
   dirs?: string[];

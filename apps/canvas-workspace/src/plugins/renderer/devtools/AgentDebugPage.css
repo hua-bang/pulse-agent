@@ -156,6 +156,8 @@
 .agent-debug-legend i { width: 12px; height: 4px; border-radius: 2px; margin-left: 6px; background: #3f81d1; }
 .agent-debug-legend i.is-generation { background: #8c61d2; }
 .agent-debug-legend i.is-tool { background: #d17b3f; }
+.agent-debug-legend i.is-hook { background: #3fa7a0; }
+.agent-debug-legend i.is-retry { background: repeating-linear-gradient(135deg, #8a8f98 0 3px, transparent 3px 5px); }
 
 .agent-debug-ruler { display: grid; grid-template-columns: 340px repeat(5, 1fr); height: 25px; align-items: center; border-bottom: 1px solid var(--debug-border); color: var(--text-muted); font: 8px var(--font-mono); }
 .agent-debug-ruler span:not(:first-child) { border-left: 1px solid var(--border-light); padding-left: 4px; }
@@ -174,6 +176,10 @@
 .agent-debug-bar { position: absolute; top: 3px; height: 7px; min-width: 3px; border-radius: 2px; background: #3f81d1; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
 .agent-debug-bar.is-generation { background: #8c61d2; }
 .agent-debug-bar.is-tool { background: #d17b3f; }
+.agent-debug-bar.is-hook { background: #3fa7a0; }
+.agent-debug-bar.is-compaction { background: #e8c85b; }
+/* Idle time: striped so it reads as waiting, not work. */
+.agent-debug-bar.is-retry { background: repeating-linear-gradient(135deg, #8a8f98 0 3px, transparent 3px 5px); }
 .agent-debug-bar.is-error { background: #e05c64; }
 .agent-debug-marker { position: absolute; top: 1px; width: 2px; height: 12px; background: var(--debug-renderer); box-shadow: 0 0 7px rgba(66, 211, 146, .65); }
 .agent-debug-marker::after { content: ""; position: absolute; top: -2px; left: -2px; width: 6px; height: 6px; transform: rotate(45deg); background: inherit; }

@@ -1,5 +1,5 @@
 import type { EventEmitter } from 'events';
-import type { Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
+import type { ChildRunOptions, Context, Tool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ToolHooks, ILogger, PulseEngineInstance, ModelType } from './shared/types';
 import type { LoopOptions, LoopHooks } from './core/loop';
 import type { EnginePluginLoadOptions } from './plugin/EnginePlugin.js';
 import type { UserConfigPluginLoadOptions } from './plugin/UserConfigPlugin.js';
@@ -35,7 +35,11 @@ export interface EngineOptions {
   // 引擎插件配置
   enginePlugins?: EnginePluginLoadOptions;
 
-  // 用户配置插件配置
+  /**
+   * @deprecated Ignored. The declarative user-config loader never applied
+   * anything and was removed; working config lives in `.pulse-coder/mcp.json`,
+   * `.pulse-coder/agents/`, `.pulse-coder/skills/` and engine plugins.
+   */
   userConfigPlugins?: UserConfigPluginLoadOptions;
 
   // 是否禁用内置插件（默认启用）
@@ -158,12 +162,37 @@ export class Engine {
   private pluginManager: PluginManager;
   private tools: Record<string, any>;
   private options: EngineOptions = {};
-  private config: Record<string, any> = {};
 
   get instance(): PulseEngineInstance {
     return {
       tools: this.tools,
+      runChild: (context, options) => this.runChild(context, options),
     };
+  }
+
+  /**
+   * Nested run for tools such as sub-agents: same provider/model resolution
+   * and loop hooks as `run()`, so tool policy, offload and tracing apply
+   * inside the child. Run-level hooks (`beforeRun`/`afterRun`) stay with the
+   * parent run.
+   */
+  private async runChild(context: Context, options: ChildRunOptions): Promise<string> {
+    return await loop(context, {
+      ...this.resolveModelConfig(options.llm),
+      contextWindowTokens: options.llm?.contextWindowTokens,
+      tools: options.tools,
+      systemPrompt: options.systemPrompt,
+      maxSteps: options.maxSteps,
+      abortSignal: options.abortSignal,
+      runContext: options.runContext,
+      hooks: this.collectLoopHooks(),
+      onText: options.onText,
+      onToolCall: options.onToolCall,
+      onToolResult: options.onToolResult,
+      onResponse: (messages) => {
+        context.messages.push(...messages);
+      },
+    });
   }
 
   /**
@@ -178,8 +207,10 @@ export class Engine {
     this.tools = { ...(options?.builtInTools ?? BuiltinToolsMap) };
     this.pluginManager = new PluginManager(() => this.instance, options?.logger);
 
-    // 初始化全局配置
-    this.config = options?.config || {};
+    // One config store: plugins read EngineOptions.config through ctx.getConfig.
+    for (const [key, value] of Object.entries(options?.config ?? {})) {
+      this.pluginManager.setConfig(key, value);
+    }
     this.options = options || {};
   }
 
@@ -201,9 +232,6 @@ export class Engine {
       enginePlugins: {
         ...allEnginePlugins
       },
-      userConfigPlugins: {
-        ...(this.options.userConfigPlugins || {})
-      }
     });
 
     // 合并插件工具到引擎工具库
@@ -249,6 +277,7 @@ export class Engine {
       afterLLMCall: this.pluginManager.getHooks('afterLLMCall'),
       beforeToolCall: [...this.pluginManager.getHooks('beforeToolCall')],
       afterToolCall: [...this.pluginManager.getHooks('afterToolCall')],
+      onToolError: this.pluginManager.getHooks('onToolError'),
       onToolCall: this.pluginManager.getHooks('onToolCall'),
       onCompacted: this.pluginManager.getHooks('onCompacted'),
     };
@@ -304,11 +333,7 @@ export class Engine {
       resultText = await loop(context, {
         ...options,
         tools,
-        provider: options?.provider
-          ?? (options?.modelType ? buildProvider(options.modelType) : undefined)
-          ?? this.options.llmProvider
-          ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined),
-        model: options?.model ?? this.options.model,
+        ...this.resolveModelConfig(options),
         systemPrompt,
         hooks: loopHooks,
         onToolCall: (toolCall) => {
@@ -349,6 +374,7 @@ export class Engine {
       force?: boolean;
       provider?: LLMProviderFactory;
       model?: string;
+      modelType?: ModelType;
       contextWindowTokens?: number;
       onStart?: (info: { beforeMessageCount: number; beforeEstimatedTokens: number }) => void;
       abortSignal?: AbortSignal;
@@ -356,12 +382,40 @@ export class Engine {
   ): Promise<{ didCompact: boolean; reason?: string; newMessages?: Context['messages'] }> {
     return await maybeCompactContext(context, {
       force: options?.force,
-      provider: options?.provider ?? this.options.llmProvider,
-      model: options?.model ?? this.options.model,
+      ...this.resolveModelConfig(options),
       contextWindowTokens: options?.contextWindowTokens,
       onStart: options?.onStart,
       abortSignal: options?.abortSignal,
     });
+  }
+
+  /**
+   * Single resolution point for provider/model/modelType. Per-call values win
+   * over constructor defaults; a per-call `modelType` without a `provider`
+   * builds that type's env provider instead of inheriting a constructor
+   * factory for a different type. `modelType` always travels with the
+   * provider so Claude-specific request shaping is never lost.
+   */
+  private resolveModelConfig(options?: { provider?: LLMProviderFactory; model?: string; modelType?: ModelType }): {
+    provider?: LLMProviderFactory;
+    model?: string;
+    modelType?: ModelType;
+  } {
+    const modelType = options?.modelType ?? this.options.modelType;
+    const provider = options?.provider
+      ?? (options?.modelType ? buildProvider(options.modelType) : undefined)
+      ?? this.options.llmProvider
+      ?? (this.options.modelType ? buildProvider(this.options.modelType) : undefined);
+    return { provider, model: options?.model ?? this.options.model, modelType };
+  }
+
+  /**
+   * Release plugin resources (MCP child processes and connections, watchers)
+   * by calling each plugin's `destroy` in reverse initialization order.
+   * Idempotent. Do not run the engine after disposing it.
+   */
+  async dispose(): Promise<void> {
+    await this.pluginManager.destroy();
   }
 
   /**
@@ -556,6 +610,7 @@ export class Engine {
       context: options.context,
       beforeHooks: hooks.beforeToolCall ?? [],
       afterHooks: hooks.afterToolCall ?? [],
+      errorHooks: hooks.onToolError ?? [],
       toolContext: options.toolContext,
     };
     return executeToolWithHooks(tool, name, input, {
@@ -583,22 +638,24 @@ export class Engine {
   }
 
   /**
-   * 获取当前模式
+   * 获取当前模式。`scope` selects one conversation's mode (the value a run
+   * passes as `runContext.planModeScope`); omit it for the engine default.
    */
-  getMode(): PlanMode | undefined {
-    return this.getPlanModeService()?.getMode();
+  getMode(scope?: string): PlanMode | undefined {
+    return this.getPlanModeService()?.getMode(scope);
   }
 
   /**
-   * 设置当前模式
+   * 设置当前模式。Hosts that share one Engine across conversations must pass
+   * `scope`, or the change applies to every conversation without a scope.
    */
-  setMode(mode: PlanMode, reason: string = 'manual'): boolean {
+  setMode(mode: PlanMode, reason: string = 'manual', scope?: string): boolean {
     const planModeService = this.getPlanModeService();
     if (!planModeService) {
       return false;
     }
 
-    planModeService.setMode(mode, reason);
+    planModeService.setMode(mode, reason, scope);
     return true;
   }
 
@@ -606,14 +663,14 @@ export class Engine {
    * 获取配置
    */
   getConfig<T>(key: string): T | undefined {
-    return this.config[key];
+    return this.pluginManager.getConfig<T>(key);
   }
 
   /**
    * 设置配置
    */
   setConfig<T>(key: string, value: T): void {
-    this.config[key] = value;
+    this.pluginManager.setConfig(key, value);
   }
 }
 

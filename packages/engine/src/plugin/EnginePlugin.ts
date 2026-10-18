@@ -50,10 +50,23 @@ export interface AfterLLMCallInput {
   usage?: any;
   /** Error thrown by the LLM call before a normal finishReason was produced. */
   error?: unknown;
+  /** Provider request id from the response headers, when the provider sent one. */
+  requestId?: string;
+  /** Set on the error path when the loop will back off and retry this call. */
+  retry?: { attempt: number; delayMs: number };
   /** Model identifier that produced this response. */
   model?: string;
   timings?: {
     requestStartAt?: number;
+    /**
+     * Response headers of the provider request arrived (engine-built
+     * providers and hosts using `createTimedFetch`). Splits the first-chunk
+     * wait: before it is mostly network, TLS, gateway and queueing; after it
+     * is mostly provider-side work before the first streamed chunk.
+     */
+    responseHeadersAt?: number;
+    /** HTTP requests the SDK made for this call (more than one means SDK-level retries). */
+    httpAttempts?: number;
     firstChunkAt?: number;
     firstTextAt?: number;
     lastChunkAt?: number;
@@ -100,6 +113,16 @@ export interface AfterToolCallResult {
   output?: any;
 }
 
+// -- onToolError --
+
+export interface OnToolErrorInput {
+  context?: Context;
+  name: string;
+  input: any;
+  error: unknown;
+  toolContext?: ToolExecutionContext;
+}
+
 // -- onToolCall --
 
 export interface OnToolCallInput {
@@ -119,6 +142,9 @@ export interface OnCompactedEvent {
   beforeEstimatedTokens: number;
   afterEstimatedTokens: number;
   strategy: 'summary' | 'summary-too-large' | 'fallback';
+  /** Summarizer call start and compaction end, for duration tracing. */
+  startedAt?: number;
+  finishedAt?: number;
 }
 
 export interface OnCompactedInput {
@@ -153,6 +179,12 @@ export interface EngineHookMap {
 
   /** Fires after each individual tool execution. Can modify output. */
   afterToolCall: (input: AfterToolCallInput) => Promisable<AfterToolCallResult | void>;
+
+  /**
+   * Fires when a tool throws, instead of afterToolCall. Read-only; the error
+   * still propagates. Lets tracing close the tool interval.
+   */
+  onToolError: (input: OnToolErrorInput) => Promisable<void>;
 
   /** Fires when the LLM emits a tool-call chunk. Read-only. */
   onToolCall: (input: OnToolCallInput) => Promisable<void>;
