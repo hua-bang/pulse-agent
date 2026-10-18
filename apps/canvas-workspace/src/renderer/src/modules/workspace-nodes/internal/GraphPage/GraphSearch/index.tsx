@@ -16,6 +16,15 @@ interface Props {
   onPick: (result: WorkspaceGraphSearchResult) => void;
 }
 
+const SearchGlyph = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+/** A visible search button in the graph toolbar; Ctrl/Cmd+F opens it too.
+ * The panel drops below the button, so it never covers the toolbar. */
 export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -23,6 +32,8 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [panelMaxWidth, setPanelMaxWidth] = useState<number>();
   const listboxRef = useRef<HTMLDivElement>(null);
   const suggestions = useMemo<WorkspaceGraphSearchResult[]>(
     () => searchWorkspaceGraph({ nodes, tags, query, showTags }),
@@ -30,14 +41,33 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
   );
 
   useEffect(() => {
+    if (!open) return;
+    // The dock can leave the graph narrower than the window, so fit the panel
+    // to the graph page instead of the viewport.
+    const trigger = triggerRef.current;
+    const page = trigger?.closest('.workspace-graph-page');
+    if (trigger && page) {
+      const available = page.getBoundingClientRect().right - trigger.getBoundingClientRect().left - 12;
+      setPanelMaxWidth(Math.max(240, Math.floor(available)));
+    }
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [open]);
+
+  // Escape closes the panel and returns focus to the trigger, so keyboard
+  // users continue through the toolbar from where they were.
+  const dismiss = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === 'f') {
         event.preventDefault();
         setOpen(true);
-        requestAnimationFrame(() => inputRef.current?.focus());
       } else if (event.key === 'Escape' && open) {
-        setOpen(false);
+        dismiss();
       }
     };
     window.addEventListener('keydown', handler);
@@ -72,102 +102,115 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
     ? `${listboxId}-option-${suggestionIndex}`
     : undefined;
 
-  if (!open) return null;
-
   return (
-    <div className="workspace-graph-search">
-      <div className="workspace-graph-search__row">
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('workspaceGraph.searchPlaceholder')}
-          role="combobox"
-          aria-label={t('workspaceGraph.searchLabel')}
-          aria-autocomplete="list"
-          aria-expanded={Boolean(query.trim())}
-          aria-controls={query.trim() ? listboxId : undefined}
-          aria-activedescendant={activeOptionId}
-          onKeyDown={(event) => {
-            if (isImeComposing(event)) return;
-            if (event.key === 'Escape') {
-              setOpen(false);
-              return;
-            }
-            if (event.key === 'ArrowDown') {
-              event.preventDefault();
-              setSuggestionIndex((index) => Math.min(
-                index + 1,
-                Math.max(0, suggestions.length - 1),
-              ));
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault();
-              setSuggestionIndex((index) => Math.max(0, index - 1));
-            } else if (event.key === 'Enter') {
-              event.preventDefault();
-              const target = suggestions[suggestionIndex];
-              if (target) pick(target);
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="workspace-node-chip"
-          onClick={close}
-          title={t('workspaceGraph.close')}
-          aria-label={t('workspaceGraph.close')}
-        >
-          ✕
-        </button>
-      </div>
-      {query.trim() && (
-        <div
-          ref={listboxRef}
-          id={listboxId}
-          className="workspace-graph-search__list"
-          role="listbox"
-          aria-label={t('workspaceGraph.searchResults')}
-        >
-          {suggestions.length === 0 ? (
-            <div className="workspace-graph-search__empty">
-              {t('workspaceGraph.noMatches')}
+    <div className="workspace-graph-search-anchor">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`workspace-node-chip workspace-graph-search-trigger${open ? ' is-active' : ''}`}
+        onClick={() => (open ? close() : setOpen(true))}
+        title={`${t('workspaceGraph.searchLabel')} (Ctrl/⌘ F)`}
+        aria-label={t('workspaceGraph.searchLabel')}
+        aria-expanded={open}
+      >
+        <SearchGlyph />
+      </button>
+      {open && (
+        <div className="workspace-graph-search" style={{ maxWidth: panelMaxWidth }}>
+          <div className="workspace-graph-search__row">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('workspaceGraph.searchPlaceholder')}
+              role="combobox"
+              aria-label={t('workspaceGraph.searchLabel')}
+              aria-autocomplete="list"
+              aria-expanded={Boolean(query.trim())}
+              aria-controls={query.trim() ? listboxId : undefined}
+              aria-activedescendant={activeOptionId}
+              onKeyDown={(event) => {
+                if (isImeComposing(event)) return;
+                if (event.key === 'Escape') {
+                  dismiss();
+                  return;
+                }
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  setSuggestionIndex((index) => Math.min(
+                    index + 1,
+                    Math.max(0, suggestions.length - 1),
+                  ));
+                } else if (event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  setSuggestionIndex((index) => Math.max(0, index - 1));
+                } else if (event.key === 'Enter') {
+                  event.preventDefault();
+                  const target = suggestions[suggestionIndex];
+                  if (target) pick(target);
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="workspace-node-chip"
+              onClick={close}
+              title={t('workspaceGraph.close')}
+              aria-label={t('workspaceGraph.close')}
+            >
+              ✕
+            </button>
+          </div>
+          {query.trim() && (
+            <div
+              ref={listboxRef}
+              id={listboxId}
+              className="workspace-graph-search__list"
+              role="listbox"
+              aria-label={t('workspaceGraph.searchResults')}
+            >
+              {suggestions.length === 0 ? (
+                <div className="workspace-graph-search__empty">
+                  {t('workspaceGraph.noMatches')}
+                </div>
+              ) : (
+                suggestions.map((result, index) => {
+                  const isTag = result.kind === 'tag';
+                  const key = result.kind === 'tag'
+                    ? result.graphId
+                    : `${getNodeWorkspaceId(result.node)}:${result.node.id}`;
+                  const title = result.kind === 'tag'
+                    ? result.label
+                    : getNodeTitle(result.node, t('workspaceNodes.untitled'));
+                  const meta = result.kind === 'tag'
+                    ? t('workspaceGraph.tagResult')
+                    : (result.node.workspaceName ?? '');
+                  return (
+                    <button
+                      key={key}
+                      id={`${listboxId}-option-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === suggestionIndex}
+                      aria-label={t('workspaceGraph.searchOption', {
+                        type: meta,
+                        title: isTag ? `# ${title}` : title,
+                      })}
+                      data-search-index={index}
+                      className={`workspace-graph-search__item${index === suggestionIndex ? ' is-active' : ''}${isTag ? ' workspace-graph-search__item--tag' : ''}`}
+                      onMouseEnter={() => setSuggestionIndex(index)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => pick(result)}
+                    >
+                      <span className="workspace-graph-search__title">
+                        {isTag ? `# ${title}` : title}
+                      </span>
+                      <span className="workspace-graph-search__meta">{meta}</span>
+                    </button>
+                  );
+                })
+              )}
             </div>
-          ) : (
-            suggestions.map((result, index) => {
-              const isTag = result.kind === 'tag';
-              const key = result.kind === 'tag'
-                ? result.graphId
-                : `${getNodeWorkspaceId(result.node)}:${result.node.id}`;
-              const title = result.kind === 'tag'
-                ? result.label
-                : getNodeTitle(result.node, t('workspaceNodes.untitled'));
-              const meta = result.kind === 'tag'
-                ? t('workspaceGraph.tagResult')
-                : (result.node.workspaceName ?? '');
-              return (
-                <button
-                  key={key}
-                  id={`${listboxId}-option-${index}`}
-                  type="button"
-                  role="option"
-                  aria-selected={index === suggestionIndex}
-                  aria-label={t('workspaceGraph.searchOption', {
-                    type: meta,
-                    title: isTag ? `# ${title}` : title,
-                  })}
-                  data-search-index={index}
-                  className={`workspace-graph-search__item${index === suggestionIndex ? ' is-active' : ''}${isTag ? ' workspace-graph-search__item--tag' : ''}`}
-                  onMouseEnter={() => setSuggestionIndex(index)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => pick(result)}
-                >
-                  <span className="workspace-graph-search__title">
-                    {isTag ? `# ${title}` : title}
-                  </span>
-                  <span className="workspace-graph-search__meta">{meta}</span>
-                </button>
-              );
-            })
           )}
         </div>
       )}

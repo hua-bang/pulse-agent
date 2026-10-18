@@ -14,7 +14,7 @@ export const HomeRouteView = ({ active, ...props }: ComponentProps<typeof Launch
   return (
     <PulseRouterView name="home" keepAlive>
       <Suspense fallback={null}>
-        <Launcher {...props} />
+        <Launcher {...props} active={active} />
       </Suspense>
     </PulseRouterView>
   );

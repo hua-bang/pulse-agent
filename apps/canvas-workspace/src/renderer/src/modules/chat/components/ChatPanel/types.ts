@@ -33,7 +33,6 @@ export interface ChatPanelProps {
   knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   dockTabs?: AgentContextTabRef[];
-  selectedNodeIds?: string[];
   contextNodes?: AgentContextNodeRef[];
   contextTags?: AgentContextTagRef[];
   contextCanvases?: AgentContextCanvasRef[];

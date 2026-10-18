@@ -38,6 +38,9 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
   });
   const gridRef = useRef<HTMLDivElement | null>(null);
   const columns = useMasonryColumns(gridRef);
+  const isFiltering = controller.hasActiveFilters || controller.query.trim().length > 0;
+  // Search or filters hid every node; the migration hint would wrongly suggest there are none.
+  const noMatches = isFiltering && controller.nodesCount > 0;
 
   const renderCard = (node: WorkspaceNodeListItem) => {
     const tags = getNodeTags(node);
@@ -97,7 +100,10 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
                   <KnowledgeViewTabs value="list" onChange={(view) => view === 'graph' && onOpenGraph()} />
                 )}
               </div>
-              <p>{t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}</p>
+              <p>
+                {isFiltering && `${controller.filteredCount} / `}
+                {t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}
+              </p>
             </div>
             <div className="workspace-nodes-page__header-actions">
               <Button size="sm" onClick={() => void controller.reload()}>
@@ -111,15 +117,19 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
             query={controller.query}
             onQueryChange={controller.setQuery}
             workspaces={controller.workspaceOptions}
-            activeWorkspaceIds={controller.activeWorkspaceIds}
             selectedWorkspaceIds={controller.selectedWorkspaceIds}
             onToggleWorkspace={controller.toggleWorkspace}
+            workspacesAllCount={controller.workspacesAllCount}
             onResetWorkspaces={controller.resetWorkspaces}
+            types={controller.typeOptions}
+            typesAllCount={controller.typesAllCount}
             typeFilter={controller.typeFilter}
             onTypeFilterChange={controller.setTypeFilter}
             tags={controller.tags}
+            tagsAllCount={controller.tagsAllCount}
             tagFilter={controller.tagFilter}
             onTagFilterChange={controller.setTagFilter}
+            onClearFilters={controller.clearFilters}
             aiScopeLabel={controller.aiScope
               ? controller.aiScope.nodes.length > 0
                 ? t('workspaceNodes.scope.askAi', { count: controller.aiScope.nodes.length })
@@ -143,7 +153,13 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
           {!controller.loading && controller.filteredCount === 0 && (
             <div className="workspace-nodes-empty">
               <h2>{t('workspaceNodes.emptyTitle')}</h2>
-              <p>{t('workspaceNodes.emptyDescription')}</p>
+              {noMatches ? (
+                <Button size="sm" onClick={controller.clearFiltersAndQuery}>
+                  {t('workspaceNodes.filter.clearAll')}
+                </Button>
+              ) : (
+                <p>{t('workspaceNodes.emptyDescription')}</p>
+              )}
             </div>
           )}
           <div className="workspace-node-grid" ref={gridRef}>

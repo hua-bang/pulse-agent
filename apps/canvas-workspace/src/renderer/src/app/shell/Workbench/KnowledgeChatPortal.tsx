@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type {
   AgentContextCanvasRef,
@@ -16,6 +16,9 @@ import { buildKnowledgeChatContext } from './knowledgeChatContext';
 
 const GLOBAL_AGENT_SCOPE: AgentScope = { kind: 'global' };
 const EMPTY_CONTEXT_NODES: AgentContextNodeRef[] = [];
+
+// Matches the chip key ChatPanel builds for a node context ref.
+const contextNodeKey = (node: AgentContextNodeRef): string => `node:${node.workspaceId ?? ''}:${node.id}`;
 
 interface Props {
   knowledgeMode: boolean;
@@ -66,9 +69,20 @@ export const KnowledgeChatPortal = ({
   const hasExplicitContext = contextNodes !== undefined
     || contextTags !== undefined
     || contextCanvases !== undefined;
+  // The opened node is shown as a chip the user can remove. That chip is
+  // derived, not stored, so remember the removal until the selection changes.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const derivedContextNodes = useMemo(
+    () => chatContext.contextNodes.filter((node) => contextNodeKey(node) !== dismissedKey),
+    [chatContext.contextNodes, dismissedKey],
+  );
   const resolvedContextNodes = hasExplicitContext
     ? (contextNodes ?? EMPTY_CONTEXT_NODES)
-    : chatContext.contextNodes;
+    : derivedContextNodes;
+  const handleRemoveContext = useCallback((key: string) => {
+    if (chatContext.contextNodes.some((node) => contextNodeKey(node) === key)) setDismissedKey(key);
+    onRemoveContext?.(key);
+  }, [chatContext.contextNodes, onRemoveContext]);
 
   return (
     <div className="right-dock__chat-instance">
@@ -84,7 +98,7 @@ export const KnowledgeChatPortal = ({
         contextScheduledTasks={contextScheduledTasks}
         composerRequest={composerRequest}
         onComposerRequestHandled={onComposerRequestHandled}
-        onRemoveContext={onRemoveContext}
+        onRemoveContext={handleRemoveContext}
         onClose={onClose}
         onOpenAppSettings={onOpenAppSettings}
         onTurnComplete={onTurnComplete}

@@ -99,7 +99,9 @@ The workbench has exactly two side regions plus a modal tier:
   its session list shown (`ChatPage` `sessionListRequest`). The launcher mounts
   on its first visit and stays mounted behind hidden routes. Its question,
   mention chips, scope, and submission lock survive Settings and failed
-  delivery. Model setup is checked before creating a session. Delivery waits
+  delivery. Each return to the launcher reloads its recent workspaces
+  and recent chats (`useLauncherData` `active`); loading them once on mount
+  left chats from other routes missing. Model setup is checked before creating a session. Delivery waits
   for that exact session and does not retry a rejected submission. The page fits
   the window: two rows of three hold the five latest workspaces and New, and only the
   recent chats list (up to 20 rows) scrolls. A chat row is one line in a
@@ -161,6 +163,16 @@ The workbench has exactly two side regions plus a modal tier:
   Cards render in a bounded scroll window without mounting full editors.
   Dragging a node card onto the canvas creates a reference at the drop point,
   retaining the source workspace/node identity without moving the source.
+- **Canvas references.** A reference node with `ref.kind: 'workspace'` shows a
+  whole other canvas, read-only. The canvas right-click menu ("Canvas
+  reference", a hover submenu of workspaces) and a sidebar workspace drag
+  both create one. The submenu stays a DOM child of the menu so Popover's
+  outside-press dismissal ignores it. The current
+  canvas is never offered. The card draws the live layout when that canvas is
+  loaded in this window, else the stored boxes from `store.summaries`.
+  Double-click or Open source switches to that canvas; a deleted workspace
+  shows a deleted state. It joins chat only through @ or Add to chat, and the
+  agent reads it as that canvas's card list (`context-builder.ts`).
   Clicking opens an in-drawer detail page; back restores the filter and scroll
   position, and previous/next follows the browsing result snapshot. Content
   records load on demand. Visited web previews retain their guest layout

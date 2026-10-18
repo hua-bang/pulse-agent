@@ -140,7 +140,8 @@
  * node of that type. When the reference is selected we add a soft accent
  * ring around the inner node as the "this is the active reference" cue. */
 .canvas-node--reference.canvas-node--selected .canvas-node--readonly,
-.canvas-node--reference.canvas-node--selected .canvas-node--embedded {
+.canvas-node--reference.canvas-node--selected .canvas-node--embedded,
+.canvas-node--reference.canvas-node--selected .workspace-reference {
   box-shadow: 0 0 0 2px var(--accent-border);
   border-radius: var(--radius-lg);
 }
@@ -288,3 +289,4 @@
 }
 .canvas-node--reference > .resize-handle--corner { right: calc(-5px / var(--canvas-scale, 1)); }
 .canvas-node--reference > .resize-handle--bottom-left { left: calc(-5px / var(--canvas-scale, 1)); }
+

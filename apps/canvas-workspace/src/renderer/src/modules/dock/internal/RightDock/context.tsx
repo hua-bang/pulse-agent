@@ -169,7 +169,9 @@ export function useRightDock(): DockActions {
     openMcpApp: (instanceId: string, title: string) => store.openMcpApp(instanceId, title),
     activateMcpApp: (instanceId: string) => { store.activate(mcpAppTabId(instanceId)); },
     closeMcpApp: (instanceId: string) => store.closeMcpApp(instanceId),
-    openNodeDetail: (workspaceId: string, nodeId: string, title: string) => store.openNodeDetail(workspaceId, nodeId, title),
+    openNodeDetail: (workspaceId: string, nodeId: string, title: string, preview?: boolean) => (
+      store.openNodeDetail(workspaceId, nodeId, title, preview)
+    ),
     enterNodePage: (workspaceId: string, nodeId: string) => store.enterNodePage(workspaceId, nodeId),
     openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => store.openSkill(scope, skill),
     closeSkill: (scope: CanvasConfigScope, skillName: string) => store.close(skillTabId(

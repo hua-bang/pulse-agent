@@ -29,6 +29,7 @@ import { getCloseScheduledChatPatch, getOpenChatPatch, getOpenScheduledChatPatch
 import { getToggleContentTabsPatch } from '../../../../../shared/dock/dock-content-tabs';
 import { getOpenWorkspaceLinkMutation, getRetainedLinkTabMutation } from '../links/dock-retained-links';
 import { getOpenMcpAppPatch } from './dock-mcp-app';
+import { getKeepNodeDetailPatch, getOpenNodeDetailPatch } from './dock-node-detail';
 import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../../../types';
 export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, mcpAppTabId, nodeDetailTabId, skillTabId, terminalTabId } from '../../../../../shared/dock/dock-tab-ids';
@@ -143,19 +144,13 @@ export class DockStore {
     this.linkSessions.removePreview(mcpAppTabId(instanceId));
     this.close(mcpAppTabId(instanceId));
   }
-  openNodeDetail(workspaceId: string, nodeId: string, title: string): void {
-    const id = nodeDetailTabId(workspaceId, nodeId);
-    const existing = this.state.tabs.find((tab) => tab.id === id);
-    if (existing) {
-      this.commit({
-        tabs: this.state.tabs.map((tab) => (tab.id === id ? { ...tab, title } : tab)),
-        activeTabId: id,
-        expanded: true,
-      });
-      return;
-    }
-    const tab: DockPreviewTab = { id, kind: 'node-detail', title, workspaceId, nodeId };
-    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: id, expanded: true });
+  openNodeDetail(workspaceId: string, nodeId: string, title: string, preview?: boolean): void {
+    this.commit(getOpenNodeDetailPatch(this.state, workspaceId, nodeId, title, preview));
+  }
+
+  keepNodeDetail(id: string): void {
+    const next = getKeepNodeDetailPatch(this.state, id);
+    if (next) this.commit(next);
   }
 
   /** A node's full page and its dock preview are mutually exclusive. Remove

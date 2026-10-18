@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { REFERENCE_DRAG_TYPE, readReferenceDrag } from '../../../../../../shared/reference/drag';
 import type { CanvasNode } from '../../../../../../types';
+import { WORKSPACE_DRAG_TYPE } from '../../../../../../shared/workspaces';
 import type { CanvasClipboard } from '../../../../../../types/ui-interaction';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../../shared/reference/types';
 
@@ -9,6 +10,7 @@ interface UseCanvasReferenceActionsParams {
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
   createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
+  createCanvasReferenceNode?: (workspaceId: string, x: number, y: number) => CanvasNode | null;
   onPasteReferences?: (targetWorkspaceId: string, clipboard: CanvasClipboard) => CanvasNode[];
   onReferencePlacementComplete?: () => void;
   referencePlacementRequest?: NodeReferenceEntryForCanvas | null;
@@ -26,6 +28,7 @@ export const useCanvasReferenceActions = ({
   canvasId,
   containerRef,
   createReferenceNode,
+  createCanvasReferenceNode,
   onPasteReferences,
   onReferencePlacementComplete,
   referencePlacementRequest,
@@ -154,5 +157,38 @@ export const useCanvasReferenceActions = ({
     updateNode,
   ]);
 
-  return { pasteReferenceNodes };
+  /** Adds a whole-canvas reference card with its top-left at (x, y). */
+  const placeCanvasReference = useCallback((workspaceId: string, x: number, y: number) => {
+    if (workspaceId === canvasId) return null;
+    const template = createCanvasReferenceNode?.(workspaceId, x, y);
+    if (!template) return null;
+    const node = addNode('reference', x, y);
+    updateNode(node.id, { title: template.title, ref: template.ref, data: template.data,
+      width: template.width, height: template.height });
+    setSelectedNodeIds([node.id]);
+    return node;
+  }, [addNode, canvasId, createCanvasReferenceNode, setSelectedNodeIds, updateNode]);
+
+  // A workspace dragged in from the sidebar lands as a canvas reference card.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !createCanvasReferenceNode) return;
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes(WORKSPACE_DRAG_TYPE)) return;
+      // The sidebar only allows 'move'; any other effect cancels the drop.
+      event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+    };
+    const drop = (event: DragEvent) => {
+      const workspaceId = event.dataTransfer?.getData(WORKSPACE_DRAG_TYPE);
+      if (!workspaceId) return;
+      event.preventDefault(); event.stopPropagation();
+      const point = screenToCanvas(event.clientX, event.clientY, container);
+      placeCanvasReference(workspaceId, point.x, point.y);
+    };
+    container.addEventListener('dragover', over);
+    container.addEventListener('drop', drop);
+    return () => { container.removeEventListener('dragover', over); container.removeEventListener('drop', drop); };
+  }, [containerRef, createCanvasReferenceNode, placeCanvasReference, screenToCanvas]);
+
+  return { pasteReferenceNodes, placeCanvasReference };
 };

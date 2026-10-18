@@ -45,7 +45,17 @@
   transition: background 0.08s;
 }
 
-.context-menu-item:hover {
+/* Rows built on ui/Button (MCP app entries) inherit its fixed height, zero
+   vertical padding, and nowrap, so their two-line labels touched the next
+   row. Restore the menu row metrics. */
+.context-menu .context-menu-item {
+  height: auto;
+  padding: 7px 10px;
+  white-space: normal;
+}
+
+.context-menu-item:hover,
+.context-menu-item[aria-expanded='true'] {
   background: var(--accent-light);
 }
 
@@ -94,9 +104,36 @@
 
 .context-menu-icon--agent,
 .context-menu-icon--mindmap,
+.context-menu-icon--reference,
 .context-menu-icon--export {
   background: rgba(35, 131, 226, 0.08);
   color: var(--accent);
+}
+
+/* Canvas reference submenu. It is a DOM child of the menu (so outside-press
+   dismissal ignores it) but fixed-positioned beside its row. */
+.context-menu-submenu {
+  max-height: min(320px, calc(100vh - 16px));
+}
+
+.context-menu-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.context-menu .context-menu-workspace {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.context-menu-workspace__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .context-menu-label {

@@ -37,7 +37,7 @@ export const useChatPanelController = ({
   nodes,
   knowledgeNodes,
   knowledgeTags,
-  dockTabs, selectedNodeIds,
+  dockTabs,
   contextNodes,
   contextTags,
   contextCanvases,
@@ -210,8 +210,6 @@ export const useChatPanelController = ({
   }, [loading]);
 
   const { requestContext, selectedContext } = useChatPanelContext({
-    nodes,
-    selectedNodeIds,
     contextNodes,
     contextTags,
     contextCanvases,

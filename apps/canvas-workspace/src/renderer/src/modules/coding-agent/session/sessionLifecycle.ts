@@ -6,6 +6,17 @@ const CLEAR_TERMINAL_COMMAND = "printf '\\033[2J\\033[H'";
 
 const shellQuote = (value: string): string => `'${value.replace(/'/g, "'\\''")}'`;
 
+/**
+ * Codex can run tool commands in a shared app-server daemon. That daemon keeps
+ * the environment of the PTY that first started it, so a second Codex node
+ * read and wrote the first node's canvas. These overrides re-apply this PTY's
+ * canvas identity to every command the session runs. The shell expands the
+ * values from the PTY env, which ownerTerminal sets per node.
+ */
+const CODEX_CANVAS_ENV_FLAGS = ['PULSE_CANVAS_WORKSPACE_ID', 'PULSE_CANVAS_NODE_ID']
+  .map((name) => ` -c "shell_environment_policy.set.${name}=\\"$${name}\\""`)
+  .join('');
+
 const hasQueuedLaunchPrompt = (data: AgentNodeData): boolean =>
   !!(data.inlinePrompt?.trim() || data.promptFile?.trim());
 
@@ -132,7 +143,8 @@ export const planCodingAgentLaunchCommand = (
         ? ' --dangerously-bypass-approvals-and-sandbox'
         : ''
     : '';
-  const commonFlags = dangerousFlag + (request.agentArgs ? ` ${request.agentArgs}` : '');
+  const canvasEnvFlags = request.agentType === 'codex' ? CODEX_CANVAS_ENV_FLAGS : '';
+  const commonFlags = canvasEnvFlags + dangerousFlag + (request.agentArgs ? ` ${request.agentArgs}` : '');
   const teamExitSuffix = request.teamManaged ? '; exit' : '';
 
   if (

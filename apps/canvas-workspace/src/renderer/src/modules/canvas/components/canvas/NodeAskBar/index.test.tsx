@@ -110,7 +110,6 @@ describe('NodeAskBar', () => {
     expect(onAsk).toHaveBeenCalledWith({
       text: 'Which tier?',
       nodes: [{ id: 'node-1', title: 'Research', type: 'text' }],
-      newSession: true,
     });
     // Sent: the bar folds back to its chip.
     expect(host.querySelector('input')).toBeNull();

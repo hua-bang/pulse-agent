@@ -23,6 +23,7 @@ const patchNodeSnapshot = vi.fn((_workspaceId: string, _nodeId: string, _patch: 
 const ensureWorkspaceNodesLoaded = vi.fn();
 const setReferenceDrawerOpen = vi.fn();
 const peekNode = vi.fn();
+const selectWorkspace = vi.fn();
 const Harness = () => {
   current = useReferenceOperations(options);
   return null;
@@ -34,7 +35,7 @@ beforeEach(() => {
   source = { ...createDefaultNode('text', 10, 20), id: 'note', title: 'Live title', width: 250, height: 140 };
   options = {
     allNodes: { source: [source] }, workspaces: [{ id: 'source', name: 'Source workspace' }],
-    mountedWorkspaceIds: new Set(), patchNodeSnapshot, ensureWorkspaceNodesLoaded, setReferenceDrawerOpen, peekNode,
+    mountedWorkspaceIds: new Set(), patchNodeSnapshot, ensureWorkspaceNodesLoaded, setReferenceDrawerOpen, peekNode, selectWorkspace,
   };
   load.mockResolvedValue({ ok: true, data: { nodes: [], edges: [{ id: 'edge' }], transform: { x: 4, y: 5, scale: 2 } } });
   save.mockResolvedValue({ ok: true });
@@ -91,6 +92,24 @@ describe('reference operations', () => {
     const pasted = current.pasteReferencesIntoCanvas('target', clipboard);
     expect(pasted).toHaveLength(1);
     expect(pasted[0]).toMatchObject({ x: 54, y: 64, ref: reference.ref, data: reference.data });
+  });
+
+  it('creates a whole-canvas reference that previews live nodes, opens the canvas, and reads as deleted once it is gone', () => {
+    expect(current.createCanvasReferenceNode('missing', 0, 0)).toBeNull();
+    const reference = current.createCanvasReferenceNode('source', 30, 40)!;
+    expect(reference).toMatchObject({
+      type: 'reference', x: 30, y: 40, width: 360, height: 260, title: 'Source workspace',
+      ref: { kind: 'workspace', workspaceId: 'source' },
+      data: { workspaceNameSnapshot: 'Source workspace' },
+    });
+    expect(current.resolveReferenceNode(reference)).toEqual({ workspaceName: 'Source workspace', workspaceNodes: [source] });
+    current.handleOpenReferenceSource(reference);
+    expect(selectWorkspace).toHaveBeenCalledWith('source');
+    options = { ...options, allNodes: {}, workspaces: [] };
+    render();
+    expect(current.resolveReferenceNode(reference)).toEqual({ workspaceName: undefined, workspaceNodes: undefined });
+    current.handleOpenReferenceSource(reference);
+    expect(selectWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it('routes mounted-source edits through requests, ignores stale completions, and does not save directly', () => {

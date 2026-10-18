@@ -198,6 +198,41 @@ describe('DockStore', () => {
     ]);
   });
 
+  it('reuses one preview tab while browsing and keeps tabs opened plainly', () => {
+    const dock = new DockStore();
+    dock.openNodeDetail('ws1', 'kept', 'Kept');
+    dock.openNodeDetail('ws1', 'node1', 'One', true);
+    dock.openArtifact('ws1', 'a1');
+    dock.openNodeDetail('ws1', 'node2', 'Two', true);
+    dock.openNodeDetail('ws1', 'kept', 'Kept', true);
+
+    const ids = () => dock.getSnapshot().tabs.map((tab) => tab.id);
+    expect(ids()).toEqual([
+      nodeDetailTabId('ws1', 'kept'),
+      nodeDetailTabId('ws1', 'node2'),
+      artifactTabId('ws1', 'a1'),
+    ]);
+    expect(dock.getSnapshot().activeTabId).toBe(nodeDetailTabId('ws1', 'kept'));
+
+    // A plain open of the preview tab keeps it, so the next preview adds a tab.
+    dock.openNodeDetail('ws1', 'node2', 'Two');
+    dock.openNodeDetail('ws1', 'node3', 'Three', true);
+    expect(ids()).toContain(nodeDetailTabId('ws1', 'node2'));
+    expect(ids()).toContain(nodeDetailTabId('ws1', 'node3'));
+  });
+
+  it('keeps a preview tab once the user works in it', () => {
+    const dock = new DockStore();
+    dock.openNodeDetail('ws1', 'edited', 'Edited', true);
+    dock.keepNodeDetail(nodeDetailTabId('ws1', 'edited'));
+    dock.openNodeDetail('ws1', 'next', 'Next', true);
+
+    expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+      nodeDetailTabId('ws1', 'edited'),
+      nodeDetailTabId('ws1', 'next'),
+    ]);
+  });
+
   it('yields the dock to a full-page node detail without discarding other tabs', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');

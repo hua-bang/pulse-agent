@@ -1,4 +1,5 @@
-import type { WorkspaceEntry } from '../../../shared/workspaces';
+import { useState } from 'react';
+import type { FolderEntry, WorkspaceEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
 import type { AgentNewSessionResult, AgentRequestContext, AgentScope } from '../../../types';
 import type { ChatTarget } from '../../../modules/chat';
@@ -8,6 +9,7 @@ import { createChatPageSessionTarget, scopeFromSessionStoreId } from '../../../m
 import { useI18n } from '../../../i18n';
 import { deliverWhenReady } from './chatPageTarget';
 import { LauncherComposer } from './LauncherComposer';
+import { NewWorkspaceDialog } from './NewWorkspaceDialog';
 import { RecentChats } from './RecentChats';
 import { RecentWorkspaces } from './RecentWorkspaces';
 import { useLauncherData, type RecentChat } from './useLauncherData';
@@ -15,6 +17,7 @@ import './index.css';
 
 interface Props {
   workspaces: WorkspaceEntry[];
+  folders: FolderEntry[];
   /** Node snapshots this window already holds, keyed by workspace id. */
   loadedNodes: Record<string, CanvasNode[]>;
   /** Loads a workspace's nodes, so the composer can mention its cards. */
@@ -25,7 +28,12 @@ interface Props {
   /** Opens the chat page, whose session list holds every conversation. */
   onOpenAllChats: () => void;
   onOpenWorkspace: (id: string) => void;
-  onCreateWorkspace: () => void;
+  /** Creates and opens a workspace named in the New workspace dialog. */
+  onCreateWorkspace: (name: string, folderId?: string) => void;
+  /** Shows every workspace in the sidebar; absent when it is already shown. */
+  onOpenAllWorkspaces?: () => void;
+  /** False while the kept-alive launcher is hidden behind another route. */
+  active?: boolean;
 }
 
 /**
@@ -34,6 +42,7 @@ interface Props {
  */
 export const Launcher = ({
   workspaces,
+  folders,
   loadedNodes,
   onWorkspaceContextRequest,
   onOpenModelSettings,
@@ -42,11 +51,14 @@ export const Launcher = ({
   onOpenAllChats,
   onOpenWorkspace,
   onCreateWorkspace,
+  onOpenAllWorkspaces,
+  active = true,
 }: Props) => {
   const { t } = useI18n();
+  const [creating, setCreating] = useState(false);
   const broker = useChatTargetBroker();
   const notifyChatDelivery = useChatDeliveryNotifier();
-  const { recentWorkspaces, summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'));
+  const { recentWorkspaces, summaries, recentChats } = useLauncherData(workspaces, loadedNodes, t('chat.scope.global'), active);
 
   // Create the new session before entering the page, so the page opens on
   // it. Entering first showed the scope's previous chat until the swap.
@@ -93,10 +105,17 @@ export const Launcher = ({
           workspaces={recentWorkspaces}
           summaries={summaries}
           onOpenWorkspace={onOpenWorkspace}
-          onCreateWorkspace={onCreateWorkspace}
+          onCreateWorkspace={() => setCreating(true)}
+          onOpenAll={onOpenAllWorkspaces}
         />
         <RecentChats chats={recentChats} onOpenChat={openChat} onOpenAll={onOpenAllChats} />
       </div>
+      <NewWorkspaceDialog
+        open={creating}
+        folders={folders}
+        onClose={() => setCreating(false)}
+        onCreate={onCreateWorkspace}
+      />
     </div>
   );
 };

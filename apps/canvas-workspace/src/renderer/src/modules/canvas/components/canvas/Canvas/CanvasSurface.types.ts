@@ -14,6 +14,7 @@ import type { MarqueeRect } from '../../../runtime/useMarqueeSelect';
 import type { NodeDragOffset, NodeDragPreview } from '../../../runtime/useNodeDrag';
 import type { NodeResizePreview, ResizeEdge } from '../../../runtime/useNodeResize';
 import type { ShapeDraft } from '../../../runtime/useShapeDraw';
+import type { ResolvedReference } from '../../../../../shared/reference/types';
 
 interface NodeRenderGroup {
   containers: CanvasNode[];
@@ -103,7 +104,7 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
   onAddToCanvas?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
-  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  resolveReferenceNode?: (node: CanvasNode) => ResolvedReference;
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
   onUngroupSelectedGroups?: () => void;

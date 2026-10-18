@@ -6,6 +6,8 @@ import { useRightDock } from "../../../../../shared/dockPort";
 import { ExportIcon, NodeTypeIcon } from "../../../../../components/icons";
 import type { AddNodeUiOptions } from "../FloatingToolbar/types";
 import { McpAppMenuItems } from "./McpAppMenuItems";
+import { CanvasReferenceMenuItems } from "./CanvasReferenceMenuItems";
+import type { WorkspaceEntry } from "../../../../../shared/workspaces";
 
 interface Props {
   x: number;
@@ -13,6 +15,8 @@ interface Props {
   mode?: "create" | "mindmap";
   onCreate?: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
   workspaceId?: string;
+  canvasReferenceWorkspaces?: WorkspaceEntry[];
+  onCreateCanvasReference?: (workspaceId: string) => void;
   onExportImage?: () => void;
   onClose: () => void;
 }
@@ -57,6 +61,8 @@ export const NodeContextMenu = ({
   mode = "create",
   onCreate,
   workspaceId,
+  canvasReferenceWorkspaces,
+  onCreateCanvasReference,
   onExportImage,
   onClose,
 }: Props) => {
@@ -106,6 +112,12 @@ export const NodeContextMenu = ({
           </button>
           <CreateMenuItem type="agent" title={t('canvas.menu.agent')} description={t('canvas.menu.agentDesc')} onCreate={onCreate} />
           <CreateMenuItem type="mindmap" title={t('canvas.menu.mindmap')} description={t('canvas.menu.mindmapDesc')} onCreate={onCreate} />
+          {canvasReferenceWorkspaces && onCreateCanvasReference && (
+            <CanvasReferenceMenuItems
+              workspaces={canvasReferenceWorkspaces}
+              onCreate={onCreateCanvasReference}
+            />
+          )}
           {workspaceId && onCreate && (
             <McpAppMenuItems
               workspaceId={workspaceId}

@@ -46,18 +46,16 @@ vi.mock('../../../../modules/chat/lazy', async () => {
       workspaceId,
       agentScope,
       nodes,
-      selectedNodeIds,
       contextNodes,
       chatTargetActive,
     }: {
       workspaceId?: string;
       agentScope?: { kind: 'global' };
       nodes?: Array<{ id: string }>;
-      selectedNodeIds?: string[];
       contextNodes?: Array<unknown>;
       chatTargetActive?: boolean;
     }) => {
-      // Match ChatPanel's target derivation: nodes and selection feed the
+      // Match ChatPanel's target derivation: nodes and context feed the
       // memo, so a new array identity for either yields a new target object —
       // which is exactly what an unstable `[]` fallback would produce on every
       // broker-driven root render.
@@ -70,7 +68,7 @@ vi.mock('../../../../modules/chat/lazy', async () => {
         composerId: `dock:${scopeId}`,
         contextSnapshot: { label: scopeId },
         executionPolicy: 'auto',
-      }), [agentScope, contextNodes, nodes, scopeId, selectedNodeIds, workspaceId]);
+      }), [agentScope, contextNodes, nodes, scopeId, workspaceId]);
       useRegister(chatTargetActive !== false ? target : null, {});
       return <div data-testid="chat-panel-fixture" />;
     },
@@ -92,7 +90,7 @@ vi.mock('../../../../platform/browser/useConsumePendingLinks', () => ({
 const workspace = { id: 'workspace-a', name: 'Workspace A' };
 const noOp = () => undefined;
 const controller = {
-  // Deliberately no workspace keys. Both ChatPanel collection props must use
+  // Deliberately no workspace keys. The ChatPanel nodes prop must use
   // stable empty fallbacks across broker-driven root renders.
   allNodes: {},
   activeNodes: [],

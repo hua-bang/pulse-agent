@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkspaceNodeListItem } from '../../../../types';
+import { UNTAGGED_TAG_FILTER } from '../utils';
 import {
   buildNodesAiScope,
+  countNodeFacets,
   filterWorkspaceNodes,
   nodeKey,
   reconcileNodeSelection,
@@ -36,6 +38,45 @@ describe('nodesPageModel', () => {
       typeFilter: 'text',
       tagFilter: 'keep',
     })).toEqual([nodes[0]]);
+  });
+
+  it('filters untagged nodes through the tag dimension', () => {
+    const nodes = [
+      node('one', { tags: [] }),
+      node('two', { type: 'file', tags: [] }),
+      node('three', { tags: ['keep'] }),
+    ];
+
+    expect(filterWorkspaceNodes(nodes, {
+      activeWorkspaceIds: new Set(['ws-1']),
+      query: '',
+      typeFilter: 'text',
+      tagFilter: UNTAGGED_TAG_FILTER,
+    })).toEqual([nodes[0]]);
+  });
+
+  it('counts each option against the other active filters but not its own', () => {
+    const nodes = [
+      node('one', { tags: ['keep'] }),
+      node('two', { type: 'file', tags: ['keep'] }),
+      node('three', { tags: [] }),
+      node('four', { tags: ['keep'], workspaceId: 'ws-2' }),
+      node('five', { title: 'Hidden by search', tags: ['keep'] }),
+    ];
+
+    const facets = countNodeFacets(nodes, {
+      activeWorkspaceIds: new Set(['ws-1']),
+      query: 'node',
+      typeFilter: 'text',
+      tagFilter: 'keep',
+    });
+
+    expect(Object.fromEntries(facets.workspaces)).toEqual({ 'ws-1': 1, 'ws-2': 1 });
+    expect(facets.workspacesAll).toBe(2);
+    expect(Object.fromEntries(facets.types)).toEqual({ text: 1, file: 1 });
+    expect(facets.typesAll).toBe(2);
+    expect(Object.fromEntries(facets.tags)).toEqual({ keep: 1, [UNTAGGED_TAG_FILTER]: 1 });
+    expect(facets.tagsAll).toBe(2);
   });
 
   it('uses exact node refs for a bounded filtered result', () => {
@@ -74,6 +115,7 @@ describe('nodesPageModel', () => {
     };
 
     expect(buildNodesAiScope({ ...base, query: 'node', tagFilter: null })).toBeNull();
+    expect(buildNodesAiScope({ ...base, query: '', tagFilter: UNTAGGED_TAG_FILTER })).toBeNull();
     expect(buildNodesAiScope({ ...base, query: '', tagFilter: 'tag-1' })).toEqual({
       nodes: [],
       tags: [{ name: 'Important', workspaceIds: ['ws-1'] }],

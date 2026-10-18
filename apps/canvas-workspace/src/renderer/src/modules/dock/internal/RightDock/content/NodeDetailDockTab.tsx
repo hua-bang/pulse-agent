@@ -10,6 +10,8 @@ interface NodeDetailDockTabProps {
   workspaceId: string;
   nodeId: string;
   onTitleChange: (title: string) => void;
+  /** The user started working in the tab (pointer, keyboard, paste, drop). */
+  onEngage?: () => void;
   onOpenPage: () => void;
   onClose: () => void;
   tabRef?: AgentContextTabRef;
@@ -21,6 +23,7 @@ export const NodeDetailDockTab = ({
   workspaceId,
   nodeId,
   onTitleChange,
+  onEngage,
   onOpenPage,
   onClose,
   tabRef,
@@ -53,7 +56,15 @@ export const NodeDetailDockTab = ({
     <TabChatAction iconOnly tab={tabRef} targetWorkspaceId={targetWorkspaceId} onAddToChat={onAddTabToChat} />
   ) : undefined;
   return (
-    <section className="node-detail-dock-tab">
+    // Any edit starts with a pointer or key press. Reporting it lets the dock
+    // keep a graph preview tab, whose unsaved edits live in this subtree.
+    <section
+      className="node-detail-dock-tab"
+      onPointerDownCapture={onEngage}
+      onKeyDownCapture={onEngage}
+      onPasteCapture={onEngage}
+      onDropCapture={onEngage}
+    >
       <NodeDetailPanel
         node={node}
         workspaceId={workspaceId}

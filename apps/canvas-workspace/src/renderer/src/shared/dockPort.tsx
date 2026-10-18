@@ -19,7 +19,8 @@ export interface DockActions {
   openMcpApp: (instanceId: string, title: string) => void;
   activateMcpApp: (instanceId: string) => void;
   closeMcpApp: (instanceId: string) => void;
-  openNodeDetail: (workspaceId: string, nodeId: string, title: string) => void;
+  /** `preview` reuses one browsing tab instead of adding a tab per open. */
+  openNodeDetail: (workspaceId: string, nodeId: string, title: string, preview?: boolean) => void;
   enterNodePage: (workspaceId: string, nodeId: string) => void;
   openSkill: (scope: CanvasConfigScope, skill: CanvasSkillEntry) => void;
   closeSkill: (scope: CanvasConfigScope, skillName: string) => void;

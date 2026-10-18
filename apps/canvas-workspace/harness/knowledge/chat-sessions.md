@@ -527,13 +527,20 @@ Chat-target broker as node, DOM-selection, and Tab context. The full-page Chat
 composer registers the review submission handler, so reviews never fall through
 to a hidden workspace composer while `/chat` is visible.
 
+Canvas selection is not chat context. Selecting a node only edits it; the dock
+composer shows no chip for it and the turn does not carry it. A node joins a
+turn through an inline @ mention, an "Add to chat" insertion, the ask bar, or
+an explicit `contextNodes` list such as the Knowledge page's opened node.
+
 The canvas ask bar (`NodeAskBar`, shown under one settled selected node) starts
 as a small "Ask" chip; pressing it opens the input, and an empty input folds
 back on blur or Escape. It sends a `prompt` insertion on the same path. The
 turn is scoped to the asked-about node (`selected_nodes`), not to the
 composer's current selection, and the sent text ends with a node chip
 (`@[node:<id>|<title>]`) so the bubble and history keep the node id. Ask-bar
-prompts carry `newSession`: `useSubmitPrompt` first calls
+prompts join the current conversation; a new session per question lost the
+thread's history. No surface sends `newSession` today. A prompt that carries
+it makes `useSubmitPrompt` first call
 `handleNewSession`, registers a cancellable request before awaiting its IPC,
 holds the acknowledged prompt in state, and sends once
 `conversationSessionId` (the key `sendMessage` uses) is the new session. That
@@ -976,7 +983,7 @@ stable empty-collection fallbacks. An inline `[]` makes the target
 unregister and re-register on every broker-driven root render, reaches
 React's maximum update depth, and clears the renderer.
 
-Workbench's node and selection fallbacks are module constants, and are
+Workbench's node fallback is a module constant, and is
 covered by `Workbench/__tests__/ChatDockLifecycle.test.tsx`
 (`src/renderer/src/app/shell/Workbench/__tests__/ChatDockLifecycle.test.tsx`).
 Knowledge chat applies the same stable-fallback rule, but is NOT exercised by

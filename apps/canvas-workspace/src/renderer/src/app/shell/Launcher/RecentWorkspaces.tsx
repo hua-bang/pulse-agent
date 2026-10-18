@@ -10,13 +10,16 @@ interface Props {
   summaries: Record<string, WorkspaceSummary>;
   onOpenWorkspace: (id: string) => void;
   onCreateWorkspace: () => void;
+  /** Shows the full workspace tree; absent when it is already on screen. */
+  onOpenAll?: () => void;
 }
 
 /**
  * Recently opened workspaces as cards, each with a peek at its first cards
- * (real titles, colored by card type) and its card count.
+ * (real titles, colored by card type) and its card count. "View all" shows
+ * the full workspace tree, folders included.
  */
-export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCreateWorkspace }: Props) => {
+export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCreateWorkspace, onOpenAll }: Props) => {
   const { t } = useI18n();
   const describe = (summary: WorkspaceSummary | undefined) => {
     if (!summary) return '';
@@ -26,9 +29,16 @@ export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCre
 
   return (
     <section className="launcher__section" aria-labelledby="launcher-workspaces">
-      <h2 id="launcher-workspaces" className="launcher__section-title">
-        {t('launcher.recentWorkspaces')}
-      </h2>
+      <div className="launcher__section-header">
+        <h2 id="launcher-workspaces" className="launcher__section-title">
+          {t('launcher.recentWorkspaces')}
+        </h2>
+        {onOpenAll && (
+          <Button size="xs" className="launcher__view-all" onClick={onOpenAll}>
+            {t('launcher.viewAllChats')}
+          </Button>
+        )}
+      </div>
       <div className="launcher__grid">
         {workspaces.map((workspace) => {
           const summary = summaries[workspace.id];

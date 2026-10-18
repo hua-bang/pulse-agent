@@ -64,6 +64,21 @@ describe('coding-agent session lifecycle', () => {
     });
   });
 
+  it('pins Codex tool commands to this PTY canvas identity, not a shared daemon env', () => {
+    const env = ' -c "shell_environment_policy.set.PULSE_CANVAS_WORKSPACE_ID=\\"$PULSE_CANVAS_WORKSPACE_ID\\""'
+      + ' -c "shell_environment_policy.set.PULSE_CANVAS_NODE_ID=\\"$PULSE_CANVAS_NODE_ID\\""';
+    expect(planCodingAgentLaunchCommand({
+      agentType: 'codex', command: 'codex', resume: false, dangerousMode: true,
+    })).toEqual({
+      commandLine: `printf '\\033[2J\\033[H'; codex${env} --dangerously-bypass-approvals-and-sandbox\n`,
+    });
+    expect(planCodingAgentLaunchCommand({
+      agentType: 'codex', command: 'codex', resume: true, codexSessionId: 'codex-1',
+    })).toEqual({
+      commandLine: `printf '\\033[2J\\033[H'; codex${env} resume 'codex-1'\n`,
+    });
+  });
+
   it('backs off team auto-resume after two attempts and resets after the retry window', () => {
     const data = agent({
       agentTeamId: 'team-1',

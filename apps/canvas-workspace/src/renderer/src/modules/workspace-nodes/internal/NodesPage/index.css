@@ -136,6 +136,10 @@
   padding: 28px;
 }
 
+.workspace-nodes-empty .ui-btn {
+  margin-top: 12px;
+}
+
 .workspace-nodes-sentinel {
   height: 1px;
   width: 100%;

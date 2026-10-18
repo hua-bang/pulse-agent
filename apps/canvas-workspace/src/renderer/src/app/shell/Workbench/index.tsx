@@ -23,7 +23,6 @@ import type { AgentScope } from '../../../types';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 const EMPTY_CHAT_NODES: CanvasNode[] = [];
-const EMPTY_CHAT_SELECTED_NODE_IDS: string[] = [];
 const ReferenceDrawer = lazy(() => import('../../../modules/dock/reference').then((m) => ({ default: m.ReferenceDrawer })));
 const KnowledgeChatPortal = lazy(() => import('./KnowledgeChatPortal').then((m) => ({ default: m.KnowledgeChatPortal })));
 interface WorkbenchProps {
@@ -63,7 +62,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     allNodes,
     activeNodes,
     activeSelectedNode,
-    selectedNodeIdsByWorkspace,
     focusRequest,
     deleteRequest,
     renameRequest,
@@ -158,6 +156,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     ensureWorkspaceNodesLoaded,
     setReferenceDrawerOpen,
     peekNode,
+    selectWorkspace: onSelectWorkspace,
   });
 
   usePreviewNodeActionBridge({ activeWorkspaceId, workspaces, addPreviewNodeToChat: handleAddPreviewNodeToChat, pinReferenceNode, addReferenceToCanvas: referenceOperations.addReferenceToCanvas, ensureWorkspaceNodesLoaded });
@@ -230,6 +229,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     referencePlacementRequest={isActive ? referenceOperations.referencePlacementRequest : null}
                     onReferencePlacementComplete={referenceOperations.consumeReferencePlacementRequest}
                     createReferenceNode={referenceOperations.createReferenceNodeFromEntry}
+                    referenceWorkspaces={workspaces}
+                    createCanvasReferenceNode={referenceOperations.createCanvasReferenceNode}
                     clipboard={referenceOperations.canvasClipboard}
                     onClipboardChange={referenceOperations.setCanvasClipboard}
                     onPasteReferences={referenceOperations.pasteReferencesIntoCanvas}
@@ -255,7 +256,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   allWorkspaces={workspaces}
                   nodes={allNodes[ws.id] ?? EMPTY_CHAT_NODES}
                   dockTabs={buildDockTabRefs(dockState, ws.id)}
-                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] ?? EMPTY_CHAT_SELECTED_NODE_IDS}
                   rootFolder={ws.rootFolder}
                   onClose={dock.collapse}
                   onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}

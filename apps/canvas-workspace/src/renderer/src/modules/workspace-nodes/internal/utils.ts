@@ -19,10 +19,14 @@ export const NODE_TYPE_FILTERS = [
   'iframe',
   'image',
   'mindmap',
-  'untagged',
 ] as const;
 
 export type NodeTypeFilter = typeof NODE_TYPE_FILTERS[number];
+
+/** Tag filter value for nodes without tags. Tag storage rejects ids with control
+ * characters (assertSafeTagId in main/canvas/nodes/tags.ts), so even an
+ * explicit tag id cannot collide with it. */
+export const UNTAGGED_TAG_FILTER = '\u0000untagged';
 
 export function getNodeTitle(
   node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined,

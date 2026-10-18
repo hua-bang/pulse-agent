@@ -30,6 +30,8 @@ export const CanvasRootView = ({
   handleNodeViewportFocus,
   handleCreateAgentTeam,
   handleCreateDemoCanvas,
+  canvasReferenceWorkspaces,
+  handleCreateCanvasReference,
   handleSearchMatchActivate,
   handleSelectNode,
   handleWheel,
@@ -245,6 +247,8 @@ export const CanvasRootView = ({
         referenceDrawerOpen={referenceDrawerOpen}
         onReferenceToggle={onReferenceToggle}
         onCreateNode={ctxMenu.handleCreateNode}
+        canvasReferenceWorkspaces={canvasReferenceWorkspaces}
+        onCreateCanvasReference={handleCreateCanvasReference}
         workspaceId={canvasId}
         onCreateDemo={handleCreateDemoCanvas}
         onCreateAgentTeam={handleCreateAgentTeam}

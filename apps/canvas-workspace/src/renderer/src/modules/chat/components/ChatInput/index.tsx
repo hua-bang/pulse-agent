@@ -51,6 +51,16 @@ interface ChatInputProps {
   onMentionNavigate?: (chip: HTMLElement) => void;
 }
 
+/** Node chips already mentioned inline in the draft, which would show the
+ * same node twice. Reads the editable on each render; `input` changes with
+ * every chip insert or delete, so the result stays current. */
+const inlineMentionedNodeIds = (editable: HTMLElement | null): string[] => (
+  editable
+    ? Array.from(editable.querySelectorAll<HTMLElement>('[data-mention-kind="node"][data-node-id]'))
+      .map(chip => chip.dataset.nodeId as string)
+    : []
+);
+
 const chipIconType = (chip: SelectedContextChip): string => {
   if (chip.kind === 'canvas') return 'workspace';
   if (chip.kind === 'app') return 'iframe';
@@ -96,9 +106,10 @@ export const ChatInput = ({
   onMentionNavigate,
 }: ChatInputProps) => {
   const { t } = useI18n();
-  const contextChips = (selectedContext && selectedContext.length > 0)
-    ? selectedContext
-    : [];
+  const mentionedNodeIds = input ? inlineMentionedNodeIds(editableRef.current) : [];
+  const contextChips = (selectedContext ?? []).filter(chip => (
+    chip.kind !== 'node' || !mentionedNodeIds.some(id => chip.key.endsWith(`:${id}`))
+  ));
   const showContextChips = contextComposer && contextChips.length > 0 && !loading;
   const readyAttachments = useMemo(
     () => attachments.filter(attachment => (attachment.status ?? 'ready') === 'ready' && attachment.path),

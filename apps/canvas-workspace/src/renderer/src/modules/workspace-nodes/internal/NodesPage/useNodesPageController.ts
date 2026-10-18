@@ -12,13 +12,17 @@ import { useRightDockState } from '../../../../shared/dockPort';
 import type { NodesAiContext } from '../knowledgeAiContext';
 import { useAllWorkspaceNodeList } from '../useWorkspaceNodes';
 import {
+  NODE_TYPE_FILTERS,
   type NodeTypeFilter,
+  UNTAGGED_TAG_FILTER,
   getNodeTags,
+  getNodeTypeLabel,
   getNodeWorkspaceId,
   tagName,
 } from '../utils';
 import {
   buildNodesAiScope,
+  countNodeFacets,
   filterWorkspaceNodes,
   nodeKey,
   reconcileNodeSelection,
@@ -50,48 +54,79 @@ export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
     selectedWorkspaceIds ?? new Set(workspaces.map((workspace) => workspace.id))
   ), [selectedWorkspaceIds, workspaces]);
 
+  // From "all", a click narrows to that one workspace; later clicks add or
+  // remove workspaces, and an empty or complete set returns to "all".
   const toggleWorkspace = useCallback((workspaceId: string) => {
     setSelectedWorkspaceIds((previous) => {
-      const current = new Set(previous ?? workspaces.map((workspace) => workspace.id));
+      if (previous === null) return new Set([workspaceId]);
+      const current = new Set(previous);
       if (current.has(workspaceId)) current.delete(workspaceId);
       else current.add(workspaceId);
-      return current.size === workspaces.length
-        && workspaces.every((workspace) => current.has(workspace.id))
+      return current.size === 0 || workspaces.every((workspace) => current.has(workspace.id))
         ? null
         : current;
     });
   }, [workspaces]);
 
-  const workspaceCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const node of nodes) {
-      const workspaceId = getNodeWorkspaceId(node);
-      counts.set(workspaceId, (counts.get(workspaceId) ?? 0) + 1);
-    }
-    return counts;
-  }, [nodes]);
-
-  const tags = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const node of nodes) {
-      for (const tag of getNodeTags(node)) counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-      .map(([id, count]) => ({
-        id,
-        label: tagName(id, tagDefinitions),
-        count,
-        description: tagDefinitions.find((definition) => definition.id === id)?.description,
-      }));
-  }, [nodes, tagDefinitions]);
-
-  const filteredNodes = useMemo(() => filterWorkspaceNodes(nodes, {
+  const filters = useMemo(() => ({
     activeWorkspaceIds,
     query,
     typeFilter,
     tagFilter,
-  }), [activeWorkspaceIds, nodes, query, tagFilter, typeFilter]);
+  }), [activeWorkspaceIds, query, tagFilter, typeFilter]);
+
+  const facets = useMemo(() => countNodeFacets(nodes, filters), [filters, nodes]);
+
+  // Option lists come from all nodes so they stay put while filtering;
+  // only their counts follow the other active filters.
+  const typeOptions = useMemo(() => {
+    const present = new Set(nodes.map((node) => node.type));
+    return NODE_TYPE_FILTERS
+      .filter((type) => type !== 'all' && (present.has(type) || type === typeFilter))
+      .map((type) => ({
+        id: type,
+        label: getNodeTypeLabel(type, t, t('workspaceNodes.genericNode')),
+        count: facets.types.get(type) ?? 0,
+      }));
+  }, [facets, nodes, t, typeFilter]);
+
+  const tags = useMemo(() => {
+    const totals = new Map<string, number>();
+    let untagged = 0;
+    for (const node of nodes) {
+      const nodeTags = getNodeTags(node);
+      if (nodeTags.length === 0) untagged += 1;
+      for (const tag of nodeTags) totals.set(tag, (totals.get(tag) ?? 0) + 1);
+    }
+    const options = Array.from(totals.entries())
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([id]) => ({
+        id,
+        label: tagName(id, tagDefinitions),
+        count: facets.tags.get(id) ?? 0,
+        description: tagDefinitions.find((definition) => definition.id === id)?.description,
+      }));
+    if (untagged > 0 || tagFilter === UNTAGGED_TAG_FILTER) {
+      options.push({
+        id: UNTAGGED_TAG_FILTER,
+        label: t('workspaceNodes.filter.untagged'),
+        count: facets.tags.get(UNTAGGED_TAG_FILTER) ?? 0,
+        description: undefined,
+      });
+    }
+    return options;
+  }, [facets, nodes, t, tagDefinitions, tagFilter]);
+
+  const filteredNodes = useMemo(() => filterWorkspaceNodes(nodes, filters), [filters, nodes]);
+  const hasActiveFilters = selectedWorkspaceIds !== null
+    || typeFilter !== 'all'
+    || tagFilter !== null;
+
+  const clearFilters = useCallback(() => {
+    setSelectedWorkspaceIds(null);
+    setTypeFilter('all');
+    setTagFilter(null);
+  }, []);
 
   const aiScope = useMemo<NodesAiContext | null>(() => aiEnabled
     ? buildNodesAiScope({
@@ -176,12 +211,17 @@ export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
   }, [dockState.activeTabId, dockState.tabs]);
 
   return {
-    activeWorkspaceIds,
     aiScope,
     clearAiSelection: () => setAiSelection(new Set()),
+    clearFilters,
+    clearFiltersAndQuery: () => {
+      clearFilters();
+      setQuery('');
+    },
     dateLocale: language === 'zh' ? 'zh-CN' : 'en-US',
     error,
     filteredCount: filteredNodes.length,
+    hasActiveFilters,
     hasMore,
     isContextSelected: (node: WorkspaceNodeListItem) => aiSelection.has(nodeKey(node)),
     isNodeSelected,
@@ -204,11 +244,15 @@ export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
     toggleAiSelection,
     toggleWorkspace,
     typeFilter,
+    typeOptions,
+    typesAllCount: facets.typesAll,
+    tagsAllCount: facets.tagsAll,
     visibleNodes,
     workspaceOptions: workspaces.map((workspace) => ({
       id: workspace.id,
       label: workspace.name,
-      count: workspaceCounts.get(workspace.id) ?? 0,
+      count: facets.workspaces.get(workspace.id) ?? 0,
     })),
+    workspacesAllCount: facets.workspacesAll,
   };
 };

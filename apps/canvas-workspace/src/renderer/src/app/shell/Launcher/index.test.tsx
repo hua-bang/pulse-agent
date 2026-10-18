@@ -48,6 +48,7 @@ const loadedNodes = {
 
 const props = {
   workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }, { id: 'c', name: 'Gamma' }],
+  folders: [{ id: 'f1', name: 'Clients' }],
   loadedNodes,
   onOpenModelSettings: vi.fn(),
   onEnterChat: vi.fn(),
@@ -55,15 +56,16 @@ const props = {
   onOpenAllChats: vi.fn(),
   onOpenWorkspace: vi.fn(),
   onCreateWorkspace: vi.fn(),
+  onOpenAllWorkspaces: vi.fn(),
   onWorkspaceContextRequest: vi.fn(),
 };
 
-const render = async () => {
+const render = async (active = true) => {
   await act(async () => root.render(
     <I18nProvider>
       <ChatTargetProvider>
         <BrokerProbe />
-        <Launcher {...props} />
+        <Launcher {...props} active={active} />
       </ChatTargetProvider>
     </I18nProvider>,
   ));
@@ -161,9 +163,51 @@ describe('Launcher', () => {
     expect((window as any).canvasWorkspace.store.load).not.toHaveBeenCalled();
 
     await act(async () => cards[0].click());
-    await act(async () => cards[3].click());
     expect(props.onOpenWorkspace).toHaveBeenCalledWith('b');
-    expect(props.onCreateWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads recent chats each time the kept-alive launcher is shown again', async () => {
+    await render();
+    const listAllSessions = (window as any).canvasWorkspace.agent.listAllSessions;
+    expect(listAllSessions).toHaveBeenCalledTimes(1);
+
+    await render(false);
+    expect(listAllSessions).toHaveBeenCalledTimes(1);
+    listAllSessions.mockResolvedValueOnce({
+      ok: true,
+      groups: [{
+        workspaceId: 'a',
+        workspaceName: 'Alpha',
+        sessions: [{ sessionId: 's9', date: '', updatedAt: 99, messageCount: 1, isCurrent: true, title: 'Fresh chat' }],
+      }],
+    });
+    await render(true);
+    expect(listAllSessions).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('.launcher__chat-title')?.textContent).toBe('Fresh chat');
+  });
+
+  it('names a new workspace and picks its folder in a dialog', async () => {
+    await render();
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__card--new')!.click());
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const input = dialog.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Roadmap');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => dialog.querySelector<HTMLButtonElement>('.ui-select__trigger')!.click());
+    await act(async () => [...dialog.querySelectorAll<HTMLButtonElement>('.ui-select__option')]
+      .find((option) => option.textContent?.includes('Clients'))!.click());
+    await act(async () => dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(props.onCreateWorkspace).toHaveBeenCalledWith('Roadmap', 'f1');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('opens the full workspace list from View all', async () => {
+    await render();
+    const section = host.querySelector<HTMLElement>('[aria-labelledby="launcher-workspaces"]')!;
+    await act(async () => section.querySelector<HTMLButtonElement>('.launcher__view-all')!.click());
+    expect(props.onOpenAllWorkspaces).toHaveBeenCalledTimes(1);
   });
 
   it('shows recent non-empty chats across scopes and reopens one in its scope', async () => {
@@ -171,19 +215,19 @@ describe('Launcher', () => {
     const rows = [...host.querySelectorAll<HTMLButtonElement>('.launcher__chat')];
     expect(rows.map((row) => row.querySelector('.launcher__chat-title')?.textContent))
       .toEqual(['Newest chat', 'Older chat']);
-    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^General/);
+    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^All workspaces/);
 
     await act(async () => rows[0].click());
     expect(props.onOpenSession).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'b' }, 's2', 'Beta');
 
-    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__view-all')!.click());
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__section--chats .launcher__view-all')!.click());
     expect(props.onOpenAllChats).toHaveBeenCalledTimes(1);
   });
 
   it('fills the composer from a starter', async () => {
     await render();
     await act(async () => host.querySelector<HTMLButtonElement>('.launcher__starter')!.click());
-    expect(field().textContent).toBe('Plan a product launch');
+    expect(field().textContent).toBe('Summarize this week across my workspaces');
   });
 
   it('opens the chat page on a new session and sends once its composer registers', async () => {
@@ -245,6 +289,23 @@ describe('Launcher', () => {
       text: 'compare @[canvas:Beta]',
       context: expect.objectContaining({ canvases: [{ id: 'b', name: 'Beta' }] }),
     }));
+  });
+
+  it('mentions cards from every workspace in the global scope', async () => {
+    (window as any).canvasWorkspace.workspaceNodes = {
+      list: vi.fn(async (workspaceId: string) => ({
+        ok: true,
+        nodes: workspaceId === 'b'
+          ? [{ id: 'n1', type: 'text', title: 'Pricing notes', tags: [], hasData: true, linkCount: 0 }]
+          : [],
+      })),
+    };
+    await render();
+    await typeQuestion('see @Pricing');
+    const options = [...host.querySelectorAll('.chat-mention-popup [role="option"]')];
+    expect(options.map((option) => option.textContent)).toEqual([
+      expect.stringMatching(/Pricing notes.*Beta/),
+    ]);
   });
 
   it('submits only once when Enter is pressed twice before React commits', async () => {

@@ -69,10 +69,10 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
     if (!question || sending) return;
     setSending(true);
     try {
+      // Joins the current conversation, so follow-ups keep their history.
       const receipt = await onAsk({
         text: question,
         nodes: [{ id: node.id, title: label, type: node.type }],
-        newSession: true,
       });
       // A delivered question is visible in the chat itself; only report problems.
       if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);

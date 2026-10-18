@@ -10,6 +10,7 @@ import type { useCanvasNodeGestures } from './hooks/useCanvasNodeGestures';
 import type { useCanvasPaletteCommands } from './hooks/useCanvasPaletteCommands';
 import type { useCanvasSearch } from '../../../runtime/useCanvasSearch';
 import type { CanvasProps } from './types';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 export type CanvasRootViewProps = Pick<
   CanvasProps,
@@ -47,6 +48,9 @@ export type CanvasRootViewProps = Pick<
   handleNodeViewportFocus: (node: CanvasNode) => void;
   handleCreateAgentTeam?: () => void;
   handleCreateDemoCanvas?: () => void;
+  /** Other workspaces offered by the menu's canvas reference entry. */
+  canvasReferenceWorkspaces?: WorkspaceEntry[];
+  handleCreateCanvasReference: (workspaceId: string) => void;
   handleSearchMatchActivate: (node: CanvasNode) => void;
   handleSelectNode: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   handleWheel: (event: React.WheelEvent) => void;
