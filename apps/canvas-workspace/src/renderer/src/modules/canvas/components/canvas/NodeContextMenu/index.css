@@ -45,6 +45,15 @@
   transition: background 0.08s;
 }
 
+/* Rows built on ui/Button (MCP app entries) inherit its fixed height, zero
+   vertical padding, and nowrap, so their two-line labels touched the next
+   row. Restore the menu row metrics. */
+.context-menu .context-menu-item {
+  height: auto;
+  padding: 7px 10px;
+  white-space: normal;
+}
+
 .context-menu-item:hover {
   background: var(--accent-light);
 }
