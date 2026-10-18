@@ -84,6 +84,13 @@ retry, subscription, and late-unmount cleanup are owned by
   executes tools without asking by default, so it has no flag and no toggle.
   Keep the picker's flag map and `sessionLifecycle.ts`'s `dangerousFlag` chain in
   sync — they are two copies of the same mapping.
+- **Canvas identity for Codex.** Codex can run tool commands in a shared
+  app-server daemon that keeps the env of the PTY that first started it. A
+  second Codex node then read and wrote the first node's canvas through
+  `pulse-canvas`, which prefers `PULSE_CANVAS_WORKSPACE_ID`. Every Codex launch
+  and resume therefore passes `-c shell_environment_policy.set.<VAR>` for
+  `PULSE_CANVAS_WORKSPACE_ID` and `PULSE_CANVAS_NODE_ID`, expanded from the
+  node's own PTY env (`CODEX_CANVAS_ENV_FLAGS`; guard `sessionLifecycle.test.ts`).
 - **Resume.** See "Binding a node to one conversation" below. The rule the
   lifecycle interface enforces: `AgentRestart` offers "resume" only when the node can name
   its OWN conversation. A bare "continue the most recent session" fallback
