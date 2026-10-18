@@ -62,7 +62,8 @@ export function createRunStore(store: PluginStore, limits: RunStoreLimits = DEFA
 
   const load = async (): Promise<RunIndex> => {
     if (index) return index;
-    const saved = await store.get<RunIndex>(INDEX_KEY);
+    // A quit during a write can leave the index truncated; treat it as missing.
+    const saved = await store.get<RunIndex>(INDEX_KEY).catch(() => undefined);
     if (saved?.version === 1 && Array.isArray(saved.runs)) {
       index = saved;
       return index;

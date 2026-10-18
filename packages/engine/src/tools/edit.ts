@@ -1,7 +1,7 @@
 import z from "zod";
 import { readFile, writeFile } from "fs/promises";
 import type { Tool } from "../shared/types";
-import { truncateOutput } from "./utils";
+import { truncateOutput, withFileLock } from "./utils";
 
 export const EditTool: Tool<
   { filePath: string; oldString: string; newString: string; replaceAll?: boolean },
@@ -15,7 +15,7 @@ export const EditTool: Tool<
     newString: z.string().describe('The text to replace it with (must be different from old_string)'),
     replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences of old_string (default false)'),
   }),
-  execute: async ({ filePath, oldString, newString, replaceAll = false }) => {
+  execute: ({ filePath, oldString, newString, replaceAll = false }) => withFileLock(filePath, async () => {
     // Validate that old and new strings are different
     if (oldString === newString) {
       throw new Error('old_string and new_string must be different');
@@ -75,7 +75,7 @@ export const EditTool: Tool<
       replacements,
       preview,
     };
-  },
+  }),
 };
 
 export default EditTool;

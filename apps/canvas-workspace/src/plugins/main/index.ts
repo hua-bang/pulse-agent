@@ -14,5 +14,5 @@ export {
   deactivateCanvasPlugin,
   setAgentServiceAccessor,
 } from './registry';
-export { BUILT_IN_MAIN_PLUGINS } from './built-in';
+export { BUILT_IN_MAIN_PLUGINS, isAgentObservabilityEnabled } from './built-in';
 export { reloadConfiguredExternalMainPlugins } from './external';

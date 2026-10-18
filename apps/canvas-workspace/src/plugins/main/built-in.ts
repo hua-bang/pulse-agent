@@ -29,10 +29,11 @@ const lazyPlugin = (
   };
 };
 
-const isAgentObservabilityEnabled = (): boolean => (
-  !app.isPackaged
-  && process.env.NODE_ENV === 'development'
+/** Development-only master switch for agent tracing (DevTools, Langfuse, Engine hooks). */
+export const isAgentObservabilityEnabled = (): boolean => (
+  process.env.NODE_ENV === 'development'
   && process.env.PULSE_CANVAS_AGENT_OBSERVABILITY === '1'
+  && !app.isPackaged
 );
 
 const DevtoolsMainPlugin = lazyPlugin(

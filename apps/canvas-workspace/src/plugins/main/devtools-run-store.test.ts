@@ -62,6 +62,16 @@ describe('DevTools run store', () => {
     expect((await runs.get('a'))?.summary).toMatchObject({ payload: 'updated' });
   });
 
+  it('rebuilds an index that no longer parses', async () => {
+    const { store, records } = memoryStore();
+    await store.set('runs/kept', run('kept', 1));
+    records.set('index', '{"version":1,"runs":[');
+
+    const runs = createRunStore(store);
+
+    expect((await runs.list()).map(item => item.runId)).toEqual(['kept']);
+  });
+
   it('rebuilds a missing index from existing run files and prunes the backlog', async () => {
     const { store, records } = memoryStore();
     for (let index = 0; index < 5; index++) await store.set(`runs/r${index}`, run(`r${index}`, index));

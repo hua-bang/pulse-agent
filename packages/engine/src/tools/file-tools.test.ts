@@ -37,6 +37,19 @@ describe('file tools', () => {
     expect(result.preview).not.toContain('NEW header');
   });
 
+  it('keeps every edit when one step edits the same file concurrently', async () => {
+    const file = path.join(workdir(), 'parallel.txt');
+    writeFileSync(file, 'alpha\nbeta\ngamma\n');
+
+    await Promise.all([
+      EditTool.execute({ filePath: file, oldString: 'alpha', newString: 'ALPHA' }),
+      EditTool.execute({ filePath: file, oldString: 'beta', newString: 'BETA' }),
+      EditTool.execute({ filePath: file, oldString: 'gamma', newString: 'GAMMA' }),
+    ]);
+
+    expect(readFileSync(file, 'utf-8')).toBe('ALPHA\nBETA\nGAMMA\n');
+  });
+
   it('creates parent directories on write and lists them asynchronously', async () => {
     const dir = workdir();
     const file = path.join(dir, 'nested', 'deep', 'out.txt');
