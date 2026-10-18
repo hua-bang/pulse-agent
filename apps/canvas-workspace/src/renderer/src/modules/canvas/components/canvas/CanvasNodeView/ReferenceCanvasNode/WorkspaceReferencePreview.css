@@ -23,18 +23,16 @@
   background: var(--bg);
 }
 
-.workspace-reference__frame {
-  position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  width: 100%;
+/* Fit the layout inside the map at its own aspect ratio (--ratio is
+   width / height): as wide as the map allows, unless that makes it too tall. */
+.workspace-reference__map {
+  container-type: size;
 }
 
-@supports (aspect-ratio: 1) {
-  .workspace-reference__frame {
-    width: auto;
-    height: 100%;
-  }
+.workspace-reference__frame {
+  position: relative;
+  width: min(100cqw, calc(100cqh * var(--ratio)));
+  aspect-ratio: var(--ratio);
 }
 
 .workspace-reference__box {
@@ -57,12 +55,42 @@
 .workspace-reference__box[data-type='frame'] {
   background: transparent;
   border: 1px dashed var(--border);
+  overflow: visible;
+}
+
+/* The frame name sits above its outline, as on the canvas. */
+.workspace-reference__frame-title {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  max-width: 100%;
+  padding-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+}
+
+/* Text has no card on the canvas, so it draws as a bare line. Its height
+   follows the line, so a short text box still shows it. */
+.workspace-reference__box[data-type='text'] {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+}
+
+.workspace-reference__line {
+  display: block;
+  width: 70%;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--border);
 }
 
 .workspace-reference__box[data-type='file'] { --box-accent: var(--accent-file); }
 .workspace-reference__box[data-type='terminal'],
 .workspace-reference__box[data-type='agent'] { --box-accent: var(--accent-term); }
-.workspace-reference__box[data-type='text'] { --box-accent: var(--accent-text); }
 .workspace-reference__box[data-type='image'] { --box-accent: var(--accent-image); }
 .workspace-reference__box[data-type='mindmap'] { --box-accent: var(--accent-mindmap); }
 .workspace-reference__box[data-type='iframe'],

@@ -34,7 +34,26 @@ describe('summarizeCanvasData', () => {
     const summary = summarizeCanvasData({ nodes });
     expect(summary?.nodeCount).toBe(10);
     expect(summary?.boxes).toHaveLength(6);
-    expect(summary?.boxes[0]).toEqual({ type: 'text', x: 0, y: 5, width: 100, height: 50 });
+    expect(summary?.boxes[0]).toEqual({ type: 'text', title: 'x', x: 0, y: 5, width: 100, height: 50 });
+    // Frames travel separately so the launcher keeps only card boxes.
+    expect(summary?.frames).toEqual([{ type: 'frame', x: 0, y: 0, width: 900, height: 600 }]);
+  });
+
+  it('decodes HTML entities in the text line', () => {
+    const summary = summarizeCanvasData({
+      nodes: [{ id: 't', type: 'text', x: 0, y: 0, width: 10, height: 10, data: { content: '<p>A &amp; B &lt;x&gt; &quot;q&quot; it&#39;s</p>' } }],
+    });
+    expect(summary?.boxes[0].title).toBe('A & B <x> "q" it\'s');
+  });
+
+  it('labels a text box with the first line of its content, not its placeholder title', () => {
+    const summary = summarizeCanvasData({
+      nodes: [{
+        id: 't', type: 'text', title: 'Text', x: 0, y: 0, width: 10, height: 10,
+        data: { content: '<p></p><p>当前策略：&nbsp;找 5 个人</p><p>second</p>' },
+      }],
+    });
+    expect(summary?.boxes[0].title).toBe('当前策略： 找 5 个人');
   });
 
   it('keeps a shortened title so the preview can show what each card is', () => {
@@ -90,6 +109,7 @@ describe('readCanvasSummaries', () => {
     const summaries = await readCanvasSummaries(['ws'], root);
 
     expect(summaries.ws?.nodeCount).toBe(1);
-    expect(summaries.ws?.boxes).toEqual([{ type: 'text', x: 1, y: 2, width: 30, height: 40 }]);
+    // SQLite keeps node data, so the text box carries its content line.
+    expect(summaries.ws?.boxes).toEqual([{ type: 'text', title: 'hi', x: 1, y: 2, width: 30, height: 40 }]);
   });
 });

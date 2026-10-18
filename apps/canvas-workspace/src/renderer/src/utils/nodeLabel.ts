@@ -75,7 +75,7 @@ function htmlToPlainText(html: string): string {
  * `* `, `> `, etc.) so the user sees the actual first words instead of a tag or
  * formatting glyph, then keeps the first N chars with an ellipsis if we cut.
  */
-function textContentPreview(content: string | undefined): string {
+export function textContentPreview(content: string | undefined, maxChars = TEXT_LABEL_MAX_CHARS): string {
   if (!content) return "";
 
   const firstLine = htmlToPlainText(content)
@@ -96,6 +96,6 @@ function textContentPreview(content: string | undefined): string {
   // split surrogate pairs (emoji, rare Han outside BMP) in half — good enough
   // for a sidebar label; we'd lean on Intl.Segmenter only if this became a
   // user-visible problem.
-  if (stripped.length <= TEXT_LABEL_MAX_CHARS) return stripped;
-  return `${stripped.slice(0, TEXT_LABEL_MAX_CHARS)}…`;
+  if (stripped.length <= maxChars) return stripped;
+  return `${stripped.slice(0, maxChars)}…`;
 }

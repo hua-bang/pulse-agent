@@ -456,6 +456,9 @@ export interface CanvasSummary {
   nodeCount: number;
   /** The first few non-frame cards, in canvas order. */
   boxes: CanvasSummaryBox[];
+  /** The first few frames, kept apart so card previews need not skip
+   * them. Canvas reference cards draw them behind the cards. */
+  frames?: CanvasSummaryBox[];
 }
 
 export interface CanvasSaveData {
