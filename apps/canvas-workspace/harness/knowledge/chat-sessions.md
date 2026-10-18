@@ -538,7 +538,9 @@ back on blur or Escape. It sends a `prompt` insertion on the same path. The
 turn is scoped to the asked-about node (`selected_nodes`), not to the
 composer's current selection, and the sent text ends with a node chip
 (`@[node:<id>|<title>]`) so the bubble and history keep the node id. Ask-bar
-prompts carry `newSession`: `useSubmitPrompt` first calls
+prompts join the current conversation; a new session per question lost the
+thread's history. No surface sends `newSession` today. A prompt that carries
+it makes `useSubmitPrompt` first call
 `handleNewSession`, registers a cancellable request before awaiting its IPC,
 holds the acknowledged prompt in state, and sends once
 `conversationSessionId` (the key `sendMessage` uses) is the new session. That
