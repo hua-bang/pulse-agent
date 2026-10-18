@@ -1,21 +1,22 @@
 import { realpath } from 'fs/promises';
-import { basename, dirname, join, resolve } from 'path';
+import { basename, dirname, join } from 'path';
 
 // Shared by built-in edit and write calls in this module instance. These tails
 // never reject: a failed mutation must not poison the next queued operation.
 const pending = new Map<string, Promise<void>>();
 
 async function mutationKey(filePath: string): Promise<string> {
-  const absolute = resolve(filePath);
   try {
-    return await realpath(absolute);
+    // Resolve on the filesystem before normalizing: link/../file can refer
+    // to a different file from the lexically normalized path.
+    return await realpath(filePath);
   } catch (error) {
     // write may create a file and its parents. Resolve the existing ancestor
     // so a symlinked directory and its real path use the same queue.
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    const parent = dirname(absolute);
-    if (parent === absolute) throw error;
-    return join(await mutationKey(parent), basename(absolute));
+    const parent = dirname(filePath);
+    if (parent === filePath) throw error;
+    return join(await mutationKey(parent), basename(filePath));
   }
 }
 

@@ -11,7 +11,7 @@ vi.mock('fs/promises', async () => {
   const sync = await vi.importActual<typeof import('fs')>('fs');
   return {
     ...actual,
-    realpath: vi.fn(async (file: string) => sync.realpathSync(file)),
+    realpath: vi.fn(async (file: string) => sync.realpathSync.native(file)),
     access: vi.fn(async (file: string) => sync.accessSync(file)),
     mkdir: vi.fn(async (file: string, options: fs.MakeDirectoryOptions) => sync.mkdirSync(file, options)),
     readFile: vi.fn(async (file: string) => sync.readFileSync(file, 'utf-8')),
@@ -58,7 +58,7 @@ const editAlpha = (filePath: string) => EditTool.execute({ filePath, oldString: 
 const editBeta = (filePath: string) => EditTool.execute({ filePath, oldString: 'beta', newString: 'BETA' });
 
 describe('file mutation coordination', () => {
-  it.each(['same path', 'normalized relative path', 'file symlink', 'directory symlink'])(
+  it.each(['same path', 'normalized relative path', 'file symlink', 'directory symlink', 'symlink followed by parent segment'])(
     'preserves both successful edits through %s', async (alias) => {
       let secondPath = file;
       if (alias === 'normalized relative path') secondPath = path.relative(process.cwd(), `${dir}/./notes.txt`);
@@ -69,6 +69,13 @@ describe('file mutation coordination', () => {
       if (alias === 'directory symlink') {
         fs.symlinkSync(dir, path.join(dir, 'alias-dir'));
         secondPath = path.join(dir, 'alias-dir', 'notes.txt');
+      }
+      if (alias === 'symlink followed by parent segment') {
+        fs.mkdirSync(path.join(dir, 'real', 'inner'), { recursive: true });
+        file = path.join(dir, 'real', 'notes.txt');
+        fs.writeFileSync(file, 'alpha\nbeta\n');
+        fs.symlinkSync(path.join(dir, 'real', 'inner'), path.join(dir, 'link'));
+        secondPath = `${dir}/link/../notes.txt`;
       }
       const gate = holdFirstRead();
       const first = editAlpha(file);
