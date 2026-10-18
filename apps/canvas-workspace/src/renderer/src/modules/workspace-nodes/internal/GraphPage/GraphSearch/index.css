@@ -1,8 +1,20 @@
+.workspace-graph-search-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.workspace-graph-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Drops below the toolbar button, so the open search never covers the
+ * toolbar or the top of the graph's centre. */
 .workspace-graph-search {
   position: absolute;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(100% + 8px);
+  left: -4px;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -12,8 +24,8 @@
   border-radius: var(--radius-sm);
   padding: 6px;
   box-shadow: var(--nodes-shadow);
-  min-width: 360px;
-  max-width: 480px;
+  width: min(420px, calc(100vw - 48px));
+  box-sizing: border-box;
 }
 
 .workspace-graph-search__row {

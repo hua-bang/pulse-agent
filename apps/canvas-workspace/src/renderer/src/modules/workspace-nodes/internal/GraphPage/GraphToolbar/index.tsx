@@ -10,6 +10,8 @@ import './index.css';
 interface Props {
   /** Rendered first, before the graph controls (the Knowledge view switch). */
   leading?: ReactNode;
+  /** The graph search trigger, first inside the control group. */
+  search?: ReactNode;
   graphRef: RefObject<ForceGraphCanvasHandle>;
   layoutPreset: GraphLayoutPreset;
   showLabels: boolean;
@@ -23,8 +25,29 @@ interface Props {
   onShowWorkspaceHubsChange: (value: boolean) => void;
 }
 
+interface GraphToggleProps {
+  label: string;
+  pressed: boolean;
+  onChange: (value: boolean) => void;
+}
+
+/** A view switch: the label names the setting and stays fixed; the check
+ * mark and highlight show whether it is on. */
+const GraphToggle = ({ label, pressed, onChange }: GraphToggleProps) => (
+  <button
+    type="button"
+    className={`workspace-node-chip workspace-graph-toggle${pressed ? ' is-active' : ''}`}
+    aria-pressed={pressed}
+    onClick={() => onChange(!pressed)}
+  >
+    <span className="workspace-graph-toggle__check" aria-hidden="true" />
+    {label}
+  </button>
+);
+
 export const GraphToolbar = ({
   leading,
+  search,
   graphRef,
   layoutPreset,
   showLabels,
@@ -60,26 +83,24 @@ export const GraphToolbar = ({
     <div className="workspace-graph-toolbar">
       {leading}
       <div className="workspace-graph-toolbar__group">
-        <button
-          className={`workspace-node-chip${showLabels ? ' is-active' : ''}`}
-          onClick={() => onShowLabelsChange(!showLabels)}
-        >
-          {showLabels ? t('workspaceGraph.hideLabels') : t('workspaceGraph.showLabels')}
-        </button>
+        {search}
+        <GraphToggle
+          label={t('workspaceGraph.showLabels')}
+          pressed={showLabels}
+          onChange={onShowLabelsChange}
+        />
         {workspaceCount > 1 && (
-          <button
-            className={`workspace-node-chip${showWorkspaceHubs ? ' is-active' : ''}`}
-            onClick={() => onShowWorkspaceHubsChange(!showWorkspaceHubs)}
-          >
-            {showWorkspaceHubs ? t('workspaceGraph.hideWorkspaces') : t('workspaceGraph.groupByWorkspace')}
-          </button>
+          <GraphToggle
+            label={t('workspaceGraph.groupByWorkspace')}
+            pressed={showWorkspaceHubs}
+            onChange={onShowWorkspaceHubsChange}
+          />
         )}
-        <button
-          className={`workspace-node-chip${showOffCanvas ? ' is-active' : ''}`}
-          onClick={() => onShowOffCanvasChange(!showOffCanvas)}
-        >
-          {showOffCanvas ? t('workspaceGraph.hideOffCanvas') : t('workspaceGraph.showOffCanvas')}
-        </button>
+        <GraphToggle
+          label={t('workspaceGraph.showOffCanvas')}
+          pressed={showOffCanvas}
+          onChange={onShowOffCanvasChange}
+        />
         <button
           className="workspace-node-chip workspace-node-chip--toolbar-action"
           onClick={() => graphRef.current?.zoomToFit()}
