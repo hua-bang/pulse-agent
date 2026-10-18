@@ -1,6 +1,7 @@
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../../../types/ui-interaction';
-import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../shared/reference/types';
+import type { NodeReferenceEntry as NodeReferenceEntryForCanvas, ResolvedReference } from '../../../../../shared/reference/types';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 import type { ChatDeliveryReceipt, ChatPromptSubmission } from '../../../../chat';
 
 export interface CanvasProps {
@@ -42,12 +43,15 @@ export interface CanvasProps {
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   /** Sends a question about the selected node to this workspace's chat. */
   onAskAboutNodes?: (prompt: ChatPromptSubmission) => Promise<ChatDeliveryReceipt>;
-  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  resolveReferenceNode?: (node: CanvasNode) => ResolvedReference;
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
   referencePlacementRequest?: NodeReferenceEntryForCanvas | null;
   onReferencePlacementComplete?: () => void;
   createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
+  /** Workspaces this canvas can show as a whole-canvas reference card. */
+  referenceWorkspaces?: WorkspaceEntry[];
+  createCanvasReferenceNode?: (workspaceId: string, x: number, y: number) => CanvasNode | null;
   clipboard?: CanvasClipboard | null;
   onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
   onPasteReferences?: (targetWorkspaceId: string, clipboard: CanvasClipboard) => CanvasNode[];

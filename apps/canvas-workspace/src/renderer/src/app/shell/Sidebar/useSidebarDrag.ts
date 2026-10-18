@@ -1,8 +1,8 @@
 import { useState, type DragEvent } from 'react';
-import type { WorkspaceEntry } from '../../../shared/workspaces';
+import { WORKSPACE_DRAG_TYPE, type WorkspaceEntry } from '../../../shared/workspaces';
 import type { SidebarProps } from './types';
 
-const WS_DRAG = 'application/x-workspace-id';
+const WS_DRAG = WORKSPACE_DRAG_TYPE;
 const FOLDER_DRAG = 'application/x-folder-id';
 type Options = Pick<SidebarProps, 'onMoveWorkspace' | 'onReorderWorkspace' | 'onReorderFolder'>;
 

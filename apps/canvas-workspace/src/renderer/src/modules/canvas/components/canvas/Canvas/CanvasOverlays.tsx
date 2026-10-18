@@ -5,7 +5,6 @@ import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
 import { applyEdgeInteractionPreview } from '../CanvasEdgesLayer';
 import { EdgeLabel } from '../EdgeLabel';
 import { FloatingToolbar } from '../FloatingToolbar';
-import { NodeContextMenu } from '../NodeContextMenu';
 import { ZoomIndicator } from '../ZoomIndicator';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasOverlaysProps } from './CanvasOverlays.types';
@@ -18,6 +17,10 @@ const CommandPalette = lazy(() =>
 );
 const SearchBar = lazy(() =>
   import('../SearchBar').then((module) => ({ default: module.SearchBar })),
+);
+// The create menu only mounts on right-click, so it stays out of the entry chunk.
+const NodeContextMenu = lazy(() =>
+  import('../NodeContextMenu').then((module) => ({ default: module.NodeContextMenu })),
 );
 const EdgeStylePanel = lazy(() =>
   import('../EdgeStylePanel').then((module) => ({ default: module.EdgeStylePanel })),
@@ -65,6 +68,8 @@ export const CanvasOverlays = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onCreateNode,
+  canvasReferenceWorkspaces,
+  onCreateCanvasReference,
   workspaceId,
   onCreateDemo,
   onCreateAgentTeam,
@@ -135,13 +140,17 @@ export const CanvasOverlays = ({
       )}
 
       {contextMenu && (
-        <NodeContextMenu
-          x={contextMenu.screenX}
-          y={contextMenu.screenY}
-          onCreate={onCreateNode}
-          workspaceId={workspaceId}
-          onClose={onCloseContextMenu}
-        />
+        <Suspense fallback={null}>
+          <NodeContextMenu
+            x={contextMenu.screenX}
+            y={contextMenu.screenY}
+            onCreate={onCreateNode}
+            canvasReferenceWorkspaces={canvasReferenceWorkspaces}
+            onCreateCanvasReference={onCreateCanvasReference}
+            workspaceId={workspaceId}
+            onClose={onCloseContextMenu}
+          />
+        </Suspense>
       )}
 
       {/* Full-canvas overlay active only in Connect mode. It intercepts

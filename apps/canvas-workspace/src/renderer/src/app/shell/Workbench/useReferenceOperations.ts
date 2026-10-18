@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, type Dispatch, type SetStateAction } fro
 import type { CanvasNode, ReferenceNodeData } from '../../../types';
 import type { CanvasClipboard, CanvasNodePatchRequest } from '../../../types/ui-interaction';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
-import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../shared/reference/types';
+import type { NodeReferenceEntry as NodeReferenceEntryForCanvas, ResolvedReference } from '../../../shared/reference/types';
 import { createReferenceNodeDataSnapshot } from '../../../shared/reference/utils';
 import { createDefaultNode } from '../../../utils/nodeFactory';
 import { isReferenceableNode, isReferenceableNodeType } from '../../../utils/referenceNodes';
@@ -16,6 +16,8 @@ interface Options {
   ensureWorkspaceNodesLoaded: WorkbenchController['ensureWorkspaceNodesLoaded'];
   setReferenceDrawerOpen: Dispatch<SetStateAction<boolean>>;
   peekNode: (workspaceId: string, nodeId: string) => void;
+  /** Opens a workspace canvas; a whole-canvas reference jumps there. */
+  selectWorkspace: (workspaceId: string) => void;
 }
 
 /** Owns cross-workspace reference creation, placement, clipboard and source updates. */
@@ -27,6 +29,7 @@ export const useReferenceOperations = ({
   ensureWorkspaceNodesLoaded,
   setReferenceDrawerOpen,
   peekNode,
+  selectWorkspace,
 }: Options) => {
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
@@ -36,8 +39,11 @@ export const useReferenceOperations = ({
     [workspaces],
   );
 
-  const resolveReferenceNode = useCallback((node: CanvasNode) => {
+  const resolveReferenceNode = useCallback((node: CanvasNode): ResolvedReference => {
     const ref = node.ref;
+    if (ref?.kind === 'workspace') {
+      return { workspaceName: workspaceNameById(ref.workspaceId), workspaceNodes: allNodes[ref.workspaceId] };
+    }
     if (!ref || ref.kind !== 'workspace-node') return {};
     return {
       node: (allNodes[ref.workspaceId] ?? []).find((item) => item.id === ref.nodeId),
@@ -46,10 +52,11 @@ export const useReferenceOperations = ({
   }, [allNodes, workspaceNameById]);
 
   const resolveReferenceSource = useCallback((node: CanvasNode, fallbackWorkspaceId: string) => {
-    if (node.type === 'reference' && node.ref?.kind === 'workspace-node') {
-      const sourceNode = (allNodes[node.ref.workspaceId] ?? []).find((item) => item.id === node.ref?.nodeId);
+    const ref = node.ref;
+    if (node.type === 'reference' && ref?.kind === 'workspace-node') {
+      const sourceNode = (allNodes[ref.workspaceId] ?? []).find((item) => item.id === ref.nodeId);
       return sourceNode
-        ? { workspaceId: node.ref.workspaceId, node: sourceNode }
+        ? { workspaceId: ref.workspaceId, node: sourceNode }
         : undefined;
     }
     return { workspaceId: fallbackWorkspaceId, node };
@@ -57,9 +64,29 @@ export const useReferenceOperations = ({
 
   const handleOpenReferenceSource = useCallback((node: CanvasNode) => {
     const ref = node.ref;
+    if (ref?.kind === 'workspace') {
+      if (workspaceNameById(ref.workspaceId) !== undefined) selectWorkspace(ref.workspaceId);
+      return;
+    }
     if (!ref || ref.kind !== 'workspace-node') return;
     peekNode(ref.workspaceId, ref.nodeId);
-  }, [peekNode]);
+  }, [peekNode, selectWorkspace, workspaceNameById]);
+
+  /** A read-only card for a whole workspace canvas; the canvas content is
+   * never copied into this node. */
+  const createCanvasReferenceNode = useCallback((workspaceId: string, x: number, y: number): CanvasNode | null => {
+    const workspaceName = workspaceNameById(workspaceId);
+    if (workspaceName === undefined) return null;
+    return {
+      ...createDefaultNode('reference', x, y),
+      width: 360,
+      height: 260,
+      title: workspaceName,
+      ref: { kind: 'workspace' as const, workspaceId },
+      data: { workspaceNameSnapshot: workspaceName },
+      updatedAt: Date.now(),
+    };
+  }, [workspaceNameById]);
 
   const [referencePlacementRequest, setReferencePlacementRequest] = useState<NodeReferenceEntryForCanvas | null>(null);
 
@@ -229,6 +256,7 @@ export const useReferenceOperations = ({
     addReferenceToCanvas,
     consumeReferencePlacementRequest,
     createReferenceNodeFromEntry,
+    createCanvasReferenceNode,
     pasteReferencesIntoCanvas,
     updateReferenceSourceNode,
     completeNodePatch,

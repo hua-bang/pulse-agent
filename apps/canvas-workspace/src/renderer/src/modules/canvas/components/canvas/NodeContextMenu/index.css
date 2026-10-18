@@ -103,9 +103,28 @@
 
 .context-menu-icon--agent,
 .context-menu-icon--mindmap,
+.context-menu-icon--reference,
 .context-menu-icon--export {
   background: rgba(35, 131, 226, 0.08);
   color: var(--accent);
+}
+
+/* Workspace picker under the canvas reference row, indented to the label. */
+.context-menu-workspaces {
+  max-height: 220px;
+  overflow-y: auto;
+  padding-left: 36px;
+}
+
+.context-menu .context-menu-workspace {
+  display: block;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .context-menu-label {

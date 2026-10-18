@@ -5,6 +5,7 @@ import type { AddNodeOptions } from '../../..';
 import type { PaletteCommand } from '../CommandPalette';
 import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
 import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 interface AddNodeUiOptions extends AddNodeOptions {
   focusEditor?: boolean;
@@ -32,6 +33,8 @@ export interface CanvasOverlaysProps {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onCreateNode: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
+  canvasReferenceWorkspaces?: WorkspaceEntry[];
+  onCreateCanvasReference?: (workspaceId: string) => void;
   /** Canvas workspace id; scopes MCP App entrypoints in the create menu. */
   workspaceId?: string;
   onCreateDemo?: () => void;

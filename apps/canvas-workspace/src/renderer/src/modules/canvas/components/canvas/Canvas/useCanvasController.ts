@@ -64,6 +64,8 @@ export const useCanvasController = ({
   referencePlacementRequest,
   onReferencePlacementComplete,
   createReferenceNode,
+  referenceWorkspaces,
+  createCanvasReferenceNode,
   clipboard = null,
   onClipboardChange,
   onPasteReferences,
@@ -199,11 +201,12 @@ export const useCanvasController = ({
     if (!focus.focusModeActive) handleFocusNode(node);
   }, [handleFocusNode, focus.focusModeActive, setHighlightedId, setSelectedEdgeId, setSelectedNodeIds]);
 
-  const { pasteReferenceNodes } = useCanvasReferenceActions({
+  const { pasteReferenceNodes, placeCanvasReference } = useCanvasReferenceActions({
     addNode,
     canvasId,
     containerRef,
     createReferenceNode,
+    createCanvasReferenceNode,
     onPasteReferences,
     onReferencePlacementComplete,
     referencePlacementRequest,
@@ -211,6 +214,16 @@ export const useCanvasController = ({
     setSelectedNodeIds,
     updateNode,
   });
+  const canvasReferenceWorkspaces = useMemo(
+    () => (createCanvasReferenceNode ? referenceWorkspaces?.filter((workspace) => workspace.id !== canvasId) : undefined),
+    [canvasId, createCanvasReferenceNode, referenceWorkspaces],
+  );
+  const contextMenuPoint = ctxMenu.contextMenu;
+  const closeContextMenu = ctxMenu.closeContextMenu;
+  const handleCreateCanvasReference = useCallback((workspaceId: string) => {
+    if (contextMenuPoint) placeCanvasReference(workspaceId, contextMenuPoint.canvasX, contextMenuPoint.canvasY);
+    closeContextMenu();
+  }, [closeContextMenu, contextMenuPoint, placeCanvasReference]);
   const feedbackCommands = useCanvasFeedbackCommands({ undo, redo, pasteReferenceNodes });
 
   /** Keyboard zoom, anchored on the canvas viewport centre. */
@@ -398,6 +411,8 @@ export const useCanvasController = ({
     handleNodeViewportFocus,
     handleCreateAgentTeam: AGENT_TEAMS_ENABLED ? creation.createAgentTeam : undefined,
     handleCreateDemoCanvas: creation.createDemoCanvas,
+    canvasReferenceWorkspaces,
+    handleCreateCanvasReference,
     handleSearchMatchActivate,
     handleSelectNode,
     handleWheel,

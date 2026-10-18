@@ -4,6 +4,7 @@ import type { ResizeEdge } from '../../../runtime/useNodeResize';
 import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import type { ChatDeliveryReceipt } from '../../../../chat';
+import type { ResolvedReference } from '../../../../../shared/reference/types';
 
 export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';
 
@@ -67,7 +68,7 @@ export interface CanvasNodeViewProps {
   onAddToCanvas?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => Promise<ChatDeliveryReceipt>;
   onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
-  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  resolveReferenceNode?: (node: CanvasNode) => ResolvedReference;
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
   onUngroupSelectedGroups?: () => void;

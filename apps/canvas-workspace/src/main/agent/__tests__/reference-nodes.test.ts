@@ -171,3 +171,42 @@ describe('formatSummaryForPrompt — reference nodes', () => {
     expect(prompt).toContain('Source Canvas');
   });
 });
+
+describe('whole-canvas reference nodes', () => {
+  async function setupMainWithCanvasReference(workspaceId = SOURCE_WS): Promise<void> {
+    await writeCanvasFull(MAIN_WS, {
+      nodes: [{
+        id: 'canvas-ref', type: 'reference', title: 'Source Canvas', x: 0, y: 0, width: 360, height: 260,
+        ref: { kind: 'workspace', workspaceId },
+        data: { workspaceNameSnapshot: 'Source Canvas' },
+      }],
+      edges: [],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: new Date().toISOString(),
+    });
+  }
+
+  it('reads as the referenced canvas card list and tells the agent its workspaceId', async () => {
+    await setupSource();
+    await setupMainWithCanvasReference();
+
+    const detail = await readNodeDetail(MAIN_WS, 'canvas-ref');
+    expect(detail!.content).toContain('read-only reference to the canvas "Source Canvas"');
+    expect(detail!.content).toContain('[src-text] (text) Lego Plan');
+    // Card bodies stay out; the agent reads one card on demand.
+    expect(detail!.content).not.toContain(SOURCE_CONTENT);
+    expect(detail!.refType).toBe('canvas');
+    expect(detail!.refWorkspaceId).toBe(SOURCE_WS);
+
+    const prompt = formatSummaryForPrompt((await buildWorkspaceSummary(MAIN_WS))!);
+    expect(prompt).toContain(`whole canvas "Source Canvas" (workspaceId: ${SOURCE_WS})`);
+  });
+
+  it('falls back to the snapshot when the referenced canvas is gone', async () => {
+    await setupMainWithCanvasReference('ws-deleted');
+
+    const detail = await readNodeDetail(MAIN_WS, 'canvas-ref');
+    expect(detail!.content).toContain('source content unavailable');
+    expect(detail!.content).toContain('the whole canvas "Source Canvas"');
+  });
+});

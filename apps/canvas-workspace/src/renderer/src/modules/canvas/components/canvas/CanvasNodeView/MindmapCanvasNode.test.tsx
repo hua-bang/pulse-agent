@@ -52,7 +52,7 @@ describe('MindmapCanvasNode context menu', () => {
     expect(document.querySelector('.context-menu')).toBeNull();
   });
 
-  it('opens the export menu when the host provides the capability', () => {
+  it('opens the export menu when the host provides the capability', async () => {
     renderMindmap({ onExportMindmapImage: vi.fn() });
 
     flushSync(() => {
@@ -64,7 +64,8 @@ describe('MindmapCanvasNode context menu', () => {
       }));
     });
 
-    expect(document.querySelector('.context-menu')).toBeInstanceOf(HTMLElement);
+    // The menu is lazy-loaded, so it appears after its chunk resolves.
+    await vi.waitFor(() => expect(document.querySelector('.context-menu')).toBeInstanceOf(HTMLElement));
   });
 });
 

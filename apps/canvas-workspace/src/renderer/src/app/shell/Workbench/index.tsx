@@ -156,6 +156,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     ensureWorkspaceNodesLoaded,
     setReferenceDrawerOpen,
     peekNode,
+    selectWorkspace: onSelectWorkspace,
   });
 
   usePreviewNodeActionBridge({ activeWorkspaceId, workspaces, addPreviewNodeToChat: handleAddPreviewNodeToChat, pinReferenceNode, addReferenceToCanvas: referenceOperations.addReferenceToCanvas, ensureWorkspaceNodesLoaded });
@@ -228,6 +229,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     referencePlacementRequest={isActive ? referenceOperations.referencePlacementRequest : null}
                     onReferencePlacementComplete={referenceOperations.consumeReferencePlacementRequest}
                     createReferenceNode={referenceOperations.createReferenceNodeFromEntry}
+                    referenceWorkspaces={workspaces}
+                    createCanvasReferenceNode={referenceOperations.createCanvasReferenceNode}
                     clipboard={referenceOperations.canvasClipboard}
                     onClipboardChange={referenceOperations.setCanvasClipboard}
                     onPasteReferences={referenceOperations.pasteReferencesIntoCanvas}

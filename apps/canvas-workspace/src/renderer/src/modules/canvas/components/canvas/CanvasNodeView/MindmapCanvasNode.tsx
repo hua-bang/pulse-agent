@@ -1,9 +1,13 @@
-import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { lazy, Suspense, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode } from '../../../../../types';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import { MindmapNodeBody } from '../../node-bodies/MindmapNodeBody';
-import { NodeContextMenu } from '../NodeContextMenu';
 import { AddToChatButton, CloseButton, FocusButton, FullscreenButton, OpenDetailButton } from './NodeButtons';
+
+// Mounts only on right-click; kept out of the entry chunk like the canvas menu.
+const NodeContextMenu = lazy(() =>
+  import('../NodeContextMenu').then((module) => ({ default: module.NodeContextMenu })),
+);
 
 interface MindmapCanvasNodeProps {
   classes: string;
@@ -109,16 +113,18 @@ export const MindmapCanvasNode = ({
         {readOnly ? null : <CloseButton onClick={handleClose} />}
       </div>
       {mindmapMenu && onExportMindmapImage && (
-        <NodeContextMenu
-          x={mindmapMenu.x}
-          y={mindmapMenu.y}
-          mode="mindmap"
-          onClose={() => setMindmapMenu(null)}
-          onExportImage={() => {
-            setMindmapMenu(null);
-            onExportMindmapImage(node.id);
-          }}
-        />
+        <Suspense fallback={null}>
+          <NodeContextMenu
+            x={mindmapMenu.x}
+            y={mindmapMenu.y}
+            mode="mindmap"
+            onClose={() => setMindmapMenu(null)}
+            onExportImage={() => {
+              setMindmapMenu(null);
+              onExportMindmapImage(node.id);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

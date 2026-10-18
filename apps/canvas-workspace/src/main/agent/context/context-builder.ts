@@ -247,6 +247,10 @@ function summarizeNode(node: CanvasNode): NodeSummary {
         summary.refWorkspaceName = workspaceNameSnapshot;
       } else if (ref?.kind === 'global-node') {
         summary.refNodeId = ref.nodeId;
+      } else if (ref?.kind === 'workspace') {
+        summary.refType = 'canvas';
+        summary.refWorkspaceId = ref.workspaceId;
+        summary.refWorkspaceName = workspaceNameSnapshot;
       }
       break;
     }
@@ -387,6 +391,9 @@ function describeRefTarget(node: CanvasNode): string {
   if (ref?.kind === 'global-node') {
     return `global node "${ref.nodeId}"`;
   }
+  if (ref?.kind === 'workspace') {
+    return `the whole canvas "${(node.data.workspaceNameSnapshot as string | undefined) ?? ref.workspaceId}"`;
+  }
   return 'an unknown source';
 }
 
@@ -403,6 +410,10 @@ async function populateReferenceDetail(
   node: CanvasNode,
   depth: number,
 ): Promise<void> {
+  if (node.ref?.kind === 'workspace') {
+    await populateCanvasReferenceDetail(detailed, node.ref.workspaceId);
+    if (detailed.content) return;
+  }
   const resolved = depth < MAX_REFERENCE_DEPTH ? await resolveReferenceSource(node) : null;
 
   if (!resolved) {
@@ -435,6 +446,24 @@ async function populateReferenceDetail(
   detailed.refNodeId = resolved.node.id;
   detailed.refWorkspaceId = resolved.workspaceId;
   detailed.refWorkspaceName = resolved.workspaceName;
+}
+
+/** A whole-canvas reference reads as that canvas's card list, never its
+ * card bodies; `canvas_read_node` with its workspaceId reads one card. */
+async function populateCanvasReferenceDetail(
+  detailed: DetailedNodeContext,
+  workspaceId: string,
+): Promise<void> {
+  const [visible] = await resolveWorkspaceNames([workspaceId]);
+  const summary = visible ? await buildWorkspaceSummary(workspaceId) : null;
+  if (!summary) return;
+  detailed.content = [
+    `[read-only reference to the canvas "${summary.workspaceName}" (workspaceId: ${workspaceId}), ${summary.nodeCount} nodes]`,
+    ...summary.nodes.map((n) => `- [${n.id}] (${n.type}) ${n.title}`),
+  ].join('\n');
+  detailed.refType = 'canvas';
+  detailed.refWorkspaceId = workspaceId;
+  detailed.refWorkspaceName = summary.workspaceName;
 }
 
 /**
@@ -678,7 +707,9 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
     );
     for (const n of byType.reference) {
       const typeHint = n.refType ? ` (${n.refType})` : '';
-      const wsHint = n.refWorkspaceName ? ` — in "${n.refWorkspaceName}"` : '';
+      const wsHint = n.refType === 'canvas'
+        ? ` — whole canvas "${n.refWorkspaceName ?? n.refWorkspaceId}" (workspaceId: ${n.refWorkspaceId})`
+        : n.refWorkspaceName ? ` — in "${n.refWorkspaceName}"` : '';
       const idHint = n.refNodeId ? ` → [${n.refNodeId}]` : '';
       lines.push(`- [${n.id}] **${n.title}**${typeHint}${wsHint}${idHint}`);
     }

@@ -150,6 +150,11 @@ export type CanvasNodeRef =
   | {
       kind: 'global-node';
       nodeId: string;
+    }
+  | {
+      /** A read-only preview of a whole workspace canvas. */
+      kind: 'workspace';
+      workspaceId: string;
     };
 
 export interface FileNodeData {

@@ -47,3 +47,6 @@ export const selectActiveAfterDeletion = (
   const adjacentIndex = Math.min(Math.max(deletedIndex, 0), remaining.length - 1);
   return { newActiveId: remaining[adjacentIndex].id, switchedActive: true };
 };
+
+/** Drag payload for a sidebar workspace row: the workspace id. */
+export const WORKSPACE_DRAG_TYPE = 'application/x-workspace-id';

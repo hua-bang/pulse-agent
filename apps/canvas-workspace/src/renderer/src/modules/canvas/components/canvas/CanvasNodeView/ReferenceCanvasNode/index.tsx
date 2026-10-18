@@ -1,11 +1,17 @@
 import './index.css';
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, RefObject } from 'react';
+import { lazy, Suspense, type CSSProperties, type FocusEvent, type KeyboardEvent, type MouseEvent, type RefObject } from 'react';
 import type { CanvasNode, ReferenceNodeData } from '../../../../../../types';
 import { useI18n } from '../../../../../../i18n';
 import { OpenSourceButton, AddToChatButton, FullscreenButton, FocusButton } from '../NodeButtons';
 import { NodeResizeHandles } from '../NodeResizeHandles';
 import { NodeTypeBadge } from '../NodeTypeBadge';
 import type { ReferenceSourceRenderer, ResizeHandlerFactory } from '../types';
+import type { ResolvedReference } from '../../../../../../shared/reference/types';
+
+// Whole-canvas references are rare, so their preview loads on first use.
+const WorkspaceReferencePreview = lazy(() =>
+  import('./WorkspaceReferencePreview').then((module) => ({ default: module.WorkspaceReferencePreview })),
+);
 
 interface ReferenceCanvasNodeProps {
   classes: string;
@@ -27,7 +33,7 @@ interface ReferenceCanvasNodeProps {
   node: CanvasNode;
   readOnly: boolean;
   renderReferenceSource: ReferenceSourceRenderer;
-  resolved?: { node?: CanvasNode; workspaceName?: string };
+  resolved?: ResolvedReference;
   titleRef: RefObject<HTMLSpanElement>;
   wrapperStyle: CSSProperties;
 }
@@ -60,6 +66,8 @@ export const ReferenceCanvasNode = ({
   const sourceNode = resolved?.node;
   const refData = node.data as ReferenceNodeData;
   const workspaceLabel = resolved?.workspaceName ?? refData.workspaceNameSnapshot ?? 'Workspace';
+  const canvasRef = node.ref?.kind === 'workspace' ? node.ref : undefined;
+  const canOpenSource = canvasRef ? resolved?.workspaceName !== undefined : Boolean(sourceNode);
 
   return (
     <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
@@ -90,7 +98,7 @@ export const ReferenceCanvasNode = ({
         {handleAddToChat && <AddToChatButton onClick={handleAddToChat} />}
         {handleToggleFullscreen && <FullscreenButton isFullscreen={isFullscreen} onClick={handleToggleFullscreen} />}
         {handleFocus && <FocusButton onClick={handleFocus} />}
-        <OpenSourceButton onClick={handleOpenReferenceSource} disabled={!sourceNode} />
+        <OpenSourceButton onClick={handleOpenReferenceSource} disabled={!canOpenSource} />
         {readOnly ? null : (
           <button
             className="node-close"
@@ -126,7 +134,17 @@ export const ReferenceCanvasNode = ({
             className="reference-drag-overlay"
           />
         )}
-        {sourceNode ? (
+        {canvasRef ? (
+          <Suspense fallback={null}>
+            <WorkspaceReferencePreview
+              workspaceId={canvasRef.workspaceId}
+              workspaceName={resolved?.workspaceName}
+              workspaceNodes={resolved?.workspaceNodes}
+              nameSnapshot={refData.workspaceNameSnapshot || node.title}
+              onOpen={handleOpenReferenceSource}
+            />
+          </Suspense>
+        ) : sourceNode ? (
           renderReferenceSource(sourceNode, workspaceLabel)
         ) : (
           <div className="reference-node-missing">

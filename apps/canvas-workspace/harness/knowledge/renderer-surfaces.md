@@ -163,6 +163,14 @@ The workbench has exactly two side regions plus a modal tier:
   Cards render in a bounded scroll window without mounting full editors.
   Dragging a node card onto the canvas creates a reference at the drop point,
   retaining the source workspace/node identity without moving the source.
+- **Canvas references.** A reference node with `ref.kind: 'workspace'` shows a
+  whole other canvas, read-only. The canvas right-click menu ("Canvas
+  reference") and a sidebar workspace drag both create one; the current
+  canvas is never offered. The card draws the live layout when that canvas is
+  loaded in this window, else the stored boxes from `store.summaries`.
+  Double-click or Open source switches to that canvas; a deleted workspace
+  shows a deleted state. It joins chat only through @ or Add to chat, and the
+  agent reads it as that canvas's card list (`context-builder.ts`).
   Clicking opens an in-drawer detail page; back restores the filter and scroll
   position, and previous/next follows the browsing result snapshot. Content
   records load on demand. Visited web previews retain their guest layout

@@ -103,6 +103,36 @@ describe('ReferenceCanvasNode', () => {
     expect(host?.querySelector('button[aria-label="Open source"]')).not.toBeNull();
   });
 
+  it('previews a whole canvas read-only from its live nodes and opens it on double-click', async () => {
+    const handleOpenReferenceSource = vi.fn();
+    const canvasReference: CanvasNode = {
+      ...referenceNode, title: 'Research', ref: { kind: 'workspace', workspaceId: 'workspace-2' },
+      data: { workspaceNameSnapshot: 'Research' },
+    };
+    renderReferenceNode({
+      node: canvasReference,
+      handleOpenReferenceSource,
+      resolved: { workspaceName: 'Research', workspaceNodes: [sourceNode, { ...sourceNode, id: 'two', x: 300 }] },
+    });
+    expect(host?.querySelector('[data-testid="reference-source"]')).toBeNull();
+    await vi.waitFor(() => expect(host?.querySelectorAll('.workspace-reference__box')).toHaveLength(2));
+    expect(host?.querySelector('.workspace-reference__meta')?.textContent).toBe('2 cards');
+    expect(host?.querySelector('.workspace-reference__badge')?.textContent).toBe('Read-only');
+    expect((host?.querySelector('button[aria-label="Open source"]') as HTMLButtonElement).disabled).toBe(false);
+    host?.querySelector('.workspace-reference')?.dispatchEvent(new globalThis.MouseEvent('dblclick', { bubbles: true }));
+    expect(handleOpenReferenceSource).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a deleted canvas reference as deleted and cannot open it', async () => {
+    renderReferenceNode({
+      node: { ...referenceNode, ref: { kind: 'workspace', workspaceId: 'gone' }, data: { workspaceNameSnapshot: 'Old plan' } },
+      resolved: {},
+    });
+    await vi.waitFor(() => expect(host?.querySelector('.workspace-reference__empty')?.textContent).toBe('This canvas was deleted'));
+    expect(host?.querySelector('.workspace-reference__name')?.textContent).toBe('Old plan');
+    expect((host?.querySelector('button[aria-label="Open source"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('announces title editing as a single-line text box', () => {
     renderReferenceNode({ isEditingTitle: true });
 
