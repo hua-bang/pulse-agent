@@ -48,6 +48,7 @@ const loadedNodes = {
 
 const props = {
   workspaces: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }, { id: 'c', name: 'Gamma' }],
+  folders: [{ id: 'f1', name: 'Clients' }],
   loadedNodes,
   onOpenModelSettings: vi.fn(),
   onEnterChat: vi.fn(),
@@ -55,6 +56,7 @@ const props = {
   onOpenAllChats: vi.fn(),
   onOpenWorkspace: vi.fn(),
   onCreateWorkspace: vi.fn(),
+  onOpenAllWorkspaces: vi.fn(),
   onWorkspaceContextRequest: vi.fn(),
 };
 
@@ -161,9 +163,31 @@ describe('Launcher', () => {
     expect((window as any).canvasWorkspace.store.load).not.toHaveBeenCalled();
 
     await act(async () => cards[0].click());
-    await act(async () => cards[3].click());
     expect(props.onOpenWorkspace).toHaveBeenCalledWith('b');
-    expect(props.onCreateWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('names a new workspace and picks its folder in a dialog', async () => {
+    await render();
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__card--new')!.click());
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const input = dialog.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Roadmap');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => dialog.querySelector<HTMLButtonElement>('.ui-select__trigger')!.click());
+    await act(async () => [...dialog.querySelectorAll<HTMLButtonElement>('.ui-select__option')]
+      .find((option) => option.textContent?.includes('Clients'))!.click());
+    await act(async () => dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(props.onCreateWorkspace).toHaveBeenCalledWith('Roadmap', 'f1');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('opens the full workspace list from View all', async () => {
+    await render();
+    const section = host.querySelector<HTMLElement>('[aria-labelledby="launcher-workspaces"]')!;
+    await act(async () => section.querySelector<HTMLButtonElement>('.launcher__view-all')!.click());
+    expect(props.onOpenAllWorkspaces).toHaveBeenCalledTimes(1);
   });
 
   it('shows recent non-empty chats across scopes and reopens one in its scope', async () => {
@@ -176,7 +200,7 @@ describe('Launcher', () => {
     await act(async () => rows[0].click());
     expect(props.onOpenSession).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'b' }, 's2', 'Beta');
 
-    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__view-all')!.click());
+    await act(async () => host.querySelector<HTMLButtonElement>('.launcher__section--chats .launcher__view-all')!.click());
     expect(props.onOpenAllChats).toHaveBeenCalledTimes(1);
   });
 

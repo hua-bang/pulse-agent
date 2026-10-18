@@ -418,13 +418,15 @@ const AppContent = () => {
             active={activeView === 'home'}
             onOpenModelSettings={() => openAppSettings('models')}
             workspaces={workspaces}
+            folders={folders}
             loadedNodes={workbench.allNodes}
             onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
             onEnterChat={enterChatTarget}
             onOpenSession={openSessionInOwningScope}
             onOpenAllChats={openAllChats}
             onOpenWorkspace={workspaceActions.select}
-            onCreateWorkspace={() => workspaceActions.select(workspaceActions.create(''))}
+            onCreateWorkspace={(name, folderId) => workspaceActions.select(workspaceActions.create(name, folderId))}
+            onOpenAllWorkspaces={railExpanded ? undefined : toggleRailExpanded}
           />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
           <ScheduledRouteViews scheduledTaskId={scheduledTaskId}

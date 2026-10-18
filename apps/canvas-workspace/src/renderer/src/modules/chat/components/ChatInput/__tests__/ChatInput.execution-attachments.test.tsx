@@ -37,6 +37,36 @@ describe('ChatInput execution and attachment states', () => {
     act(() => root.unmount());
   });
 
+  it('hides a context chip for a node the draft already mentions inline', () => {
+    const editableRef = createRef<HTMLDivElement>();
+    const selectedContext = [
+      { key: 'node::n1', kind: 'node' as const, label: 'Plan' },
+      { key: 'node::n2', kind: 'node' as const, label: 'Notes' },
+    ];
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const renderInput = (input: string) => act(() => root.render(
+      <I18nProvider>
+        <ChatInput {...baseProps} editableRef={editableRef} input={input} selectedContext={selectedContext} />
+      </I18nProvider>,
+    ));
+    const labels = () => Array.from(host.querySelectorAll('.chat-context-chip'))
+      .map(chip => chip.textContent);
+
+    renderInput('');
+    expect(labels()).toHaveLength(2);
+
+    const mention = document.createElement('span');
+    mention.dataset.mentionKind = 'node';
+    mention.dataset.nodeId = 'n1';
+    editableRef.current!.appendChild(mention);
+    renderInput('@[Plan]');
+    expect(labels()).toHaveLength(1);
+    expect(labels()[0]).toContain('Notes');
+
+    act(() => root.unmount());
+  });
+
   it('exposes the multiline contenteditable as the mention combobox', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
