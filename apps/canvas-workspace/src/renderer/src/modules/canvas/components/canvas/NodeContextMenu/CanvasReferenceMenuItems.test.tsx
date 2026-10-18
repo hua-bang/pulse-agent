@@ -7,7 +7,7 @@ import { CanvasReferenceMenuItems } from './CanvasReferenceMenuItems';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it('opens the workspace list in place and creates a reference for the picked canvas', () => {
+it('opens the workspace submenu on hover and creates a reference for the picked canvas', () => {
   const host = document.createElement('div');
   document.body.append(host);
   const onCreate = vi.fn();
@@ -22,7 +22,10 @@ it('opens the workspace list in place and creates a reference for the picked can
       </I18nProvider>,
     ));
     expect(host.querySelectorAll('.context-menu-workspace')).toHaveLength(0);
-    act(() => (host.querySelector('[aria-expanded]') as HTMLButtonElement).click());
+    const row = host.querySelector('[aria-haspopup="menu"]') as HTMLButtonElement;
+    act(() => row.parentElement!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body })));
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    expect(host.querySelector('.context-menu-submenu')).toBeInstanceOf(HTMLElement);
     const rows = host.querySelectorAll<HTMLButtonElement>('.context-menu-workspace');
     expect([...rows].map((row) => row.textContent)).toEqual(['Research', 'Roadmap']);
     act(() => rows[1].click());

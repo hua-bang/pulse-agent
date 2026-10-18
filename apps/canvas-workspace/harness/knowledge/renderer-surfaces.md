@@ -165,7 +165,9 @@ The workbench has exactly two side regions plus a modal tier:
   retaining the source workspace/node identity without moving the source.
 - **Canvas references.** A reference node with `ref.kind: 'workspace'` shows a
   whole other canvas, read-only. The canvas right-click menu ("Canvas
-  reference") and a sidebar workspace drag both create one; the current
+  reference", a hover submenu of workspaces) and a sidebar workspace drag
+  both create one. The submenu stays a DOM child of the menu so Popover's
+  outside-press dismissal ignores it. The current
   canvas is never offered. The card draws the live layout when that canvas is
   loaded in this window, else the stored boxes from `store.summaries`.
   Double-click or Open source switches to that canvas; a deleted workspace

@@ -54,7 +54,8 @@
   white-space: normal;
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item[aria-expanded='true'] {
   background: var(--accent-light);
 }
 
@@ -109,19 +110,27 @@
   color: var(--accent);
 }
 
-/* Workspace picker under the canvas reference row, indented to the label. */
-.context-menu-workspaces {
-  max-height: 220px;
-  overflow-y: auto;
-  padding-left: 36px;
+/* Canvas reference submenu. It is a DOM child of the menu (so outside-press
+   dismissal ignores it) but fixed-positioned beside its row. */
+.context-menu-submenu {
+  max-height: min(320px, calc(100vh - 16px));
+}
+
+.context-menu-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-muted);
 }
 
 .context-menu .context-menu-workspace {
-  display: block;
   padding: 6px 10px;
   font-size: 13px;
   font-weight: 400;
   color: var(--text);
+}
+
+.context-menu-workspace__name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
