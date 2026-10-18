@@ -123,6 +123,27 @@ describe('ReferenceCanvasNode', () => {
     expect(handleOpenReferenceSource).toHaveBeenCalledTimes(1);
   });
 
+  it('draws text nodes as their first line and frames with their name', async () => {
+    const canvasReference: CanvasNode = {
+      ...referenceNode, ref: { kind: 'workspace', workspaceId: 'workspace-2' }, data: { workspaceNameSnapshot: 'Research' },
+    };
+    const frame: CanvasNode = { ...sourceNode, id: 'frame', type: 'frame', title: '宏观层面', width: 600, height: 400, data: {} };
+    const text: CanvasNode = {
+      ...sourceNode, id: 'text', title: 'Text', x: 20, y: 20, width: 500, height: 12,
+      data: { content: '<p>当前策略：找 5 个人聊天</p><p>more</p>' },
+    };
+    const empty: CanvasNode = { ...text, id: 'empty', y: 200, data: { content: '' } };
+    renderReferenceNode({
+      node: canvasReference,
+      resolved: { workspaceName: 'Research', workspaceNodes: [frame, text, empty] },
+    });
+    await vi.waitFor(() => expect(host?.querySelectorAll('.workspace-reference__box')).toHaveLength(3));
+    expect(host?.querySelector('.workspace-reference__frame-title')?.textContent).toBe('宏观层面');
+    const textBoxes = host?.querySelectorAll('.workspace-reference__box[data-type="text"]');
+    expect(textBoxes?.[0].textContent).toBe('当前策略：找 5 个人聊天');
+    expect(textBoxes?.[1].querySelector('.workspace-reference__line')).not.toBeNull();
+  });
+
   it('shows a deleted canvas reference as deleted and cannot open it', async () => {
     renderReferenceNode({
       node: { ...referenceNode, ref: { kind: 'workspace', workspaceId: 'gone' }, data: { workspaceNameSnapshot: 'Old plan' } },

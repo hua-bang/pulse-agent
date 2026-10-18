@@ -1,7 +1,8 @@
 import './WorkspaceReferencePreview.css';
-import { useEffect, useState, type MouseEvent } from 'react';
-import type { CanvasNode, CanvasSummaryBox } from '../../../../../../../../shared/canvas';
+import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
+import type { CanvasNode, CanvasSummaryBox, TextNodeData } from '../../../../../../../../shared/canvas';
 import { useI18n } from '../../../../../../i18n';
+import { textContentPreview } from '../../../../../../utils/nodeLabel';
 
 interface Props {
   workspaceId: string;
@@ -13,8 +14,10 @@ interface Props {
   onOpen: (event: MouseEvent) => void;
 }
 
-/** Boxes shorter than this share of the drawn height cannot fit a title line. */
+/** Cards shorter than this share of the drawn height cannot fit a title line. */
 const MIN_TITLED_BOX_SHARE = 0.1;
+/** Text nodes draw as their first line, like the text on the canvas itself. */
+const TEXT_LINE_MAX_CHARS = 80;
 
 interface Layout {
   nodeCount: number;
@@ -25,8 +28,26 @@ const toLayout = (nodes: CanvasNode[]): Layout => ({
   nodeCount: nodes.length,
   boxes: nodes
     .filter((node) => node.width > 0 && node.height > 0)
-    .map(({ type, title, x, y, width, height }) => ({ type, title, x, y, width, height })),
+    .map(({ type, title, x, y, width, height, data }) => ({
+      type,
+      // The canvas shows a text node's content, not its (usually "Text") title.
+      title: type === 'text'
+        ? textContentPreview((data as TextNodeData).content, TEXT_LINE_MAX_CHARS) || (title === 'Text' ? '' : title)
+        : title,
+      x,
+      y,
+      width,
+      height,
+    })),
 });
+
+/** What a box shows: frames carry their name above the outline (CSS),
+ * text shows its line, and cards show a title only when it fits. */
+const boxLabel = (box: CanvasSummaryBox, drawnHeight: number) => {
+  if (box.type === 'text') return box.title || <span className="workspace-reference__line" />;
+  if (box.type === 'frame' || box.height / drawnHeight < MIN_TITLED_BOX_SHARE) return null;
+  return box.title;
+};
 
 /** Stored layout for a canvas this window has not loaded. `store.summaries`
  * reads only node boxes and starts no file watchers. */
@@ -91,7 +112,7 @@ export const WorkspaceReferencePreview = ({
     <div className="workspace-reference" onDoubleClick={onOpen} title={t('reference.canvas.openHint')}>
       <div className="workspace-reference__map" aria-hidden="true">
         {boxes.length > 0 && (
-          <div className="workspace-reference__frame" style={{ aspectRatio: `${width} / ${height}` }}>
+          <div className="workspace-reference__frame" style={{ '--ratio': width / height } as CSSProperties}>
             {boxes.map((box, index) => (
               <div
                 key={index}
@@ -101,10 +122,12 @@ export const WorkspaceReferencePreview = ({
                   left: percent(box.x - minX, width),
                   top: percent(box.y - minY, height),
                   width: percent(box.width, width),
-                  height: percent(box.height, height),
+                  height: box.type === 'text' ? undefined : percent(box.height, height),
                 }}
               >
-                {box.type === 'frame' || box.height / height < MIN_TITLED_BOX_SHARE ? null : box.title}
+                {box.type === 'frame' && box.title ? (
+                  <span className="workspace-reference__frame-title">{box.title}</span>
+                ) : boxLabel(box, height)}
               </div>
             ))}
           </div>

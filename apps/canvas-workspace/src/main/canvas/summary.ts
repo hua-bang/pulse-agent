@@ -26,15 +26,30 @@ const EMPTY_SUMMARY: CanvasSummary = { nodeCount: 0, boxes: [] };
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
+/** Text nodes keep their words in `data.content` (Tiptap HTML). v2 layouts
+ * strip node data, so this only fills in where the store still has it. */
+const textFirstLine = (data: unknown): string => {
+  const content = (data as { content?: unknown } | undefined)?.content;
+  if (typeof content !== 'string') return '';
+  return content
+    .replace(/<br\s*\/?>|<\/(?:p|div|li|h[1-6]|blockquote|pre)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) ?? '';
+};
+
 const toBox = (node: unknown): CanvasSummaryBox | null => {
   if (!node || typeof node !== 'object') return null;
-  const { type, title, x, y, width, height } = node as Record<string, unknown>;
+  const { type, title, x, y, width, height, data } = node as Record<string, unknown>;
   if (typeof type !== 'string' || type === 'frame') return null;
   if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(width) || !isFiniteNumber(height)) {
     return null;
   }
   if (width <= 0 || height <= 0) return null;
-  const shortTitle = typeof title === 'string' ? title.trim().slice(0, SUMMARY_TITLE_LIMIT) : '';
+  const label = type === 'text' ? textFirstLine(data) || (title === 'Text' ? '' : title) : title;
+  const shortTitle = typeof label === 'string' ? label.trim().slice(0, SUMMARY_TITLE_LIMIT) : '';
   return shortTitle ? { type, title: shortTitle, x, y, width, height } : { type, x, y, width, height };
 };
 
