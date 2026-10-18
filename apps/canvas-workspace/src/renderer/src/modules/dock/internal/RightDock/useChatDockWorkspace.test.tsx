@@ -16,17 +16,20 @@ const Harness = ({
   activeCanvasWorkspaceId,
   entryScope,
   selectCanvasWorkspace,
+  collapseDock,
 }: {
   activeView: string;
   activeCanvasWorkspaceId: string;
   entryScope?: AgentScope;
   selectCanvasWorkspace: (workspaceId: string) => void;
+  collapseDock?: () => void;
 }) => {
   latest = useChatDockWorkspace(
     activeView,
     activeCanvasWorkspaceId,
     entryScope,
     selectCanvasWorkspace,
+    collapseDock,
   );
   return null;
 };
@@ -66,5 +69,34 @@ describe('useChatDockWorkspace', () => {
     act(() => latest?.reportChatWorkspace(null));
     expect(latest?.dockWorkspaceId).toBe('__global_chat__');
     expect(selectCanvasWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('collapses the incoming dock once when the Launcher starts a chat', async () => {
+    host = document.createElement('div');
+    root = createRoot(host);
+    const selectCanvasWorkspace = vi.fn();
+    const collapseDock = vi.fn();
+    const render = (activeView: string, entryScope?: AgentScope) => root?.render(
+      <Harness
+        activeView={activeView}
+        activeCanvasWorkspaceId="canvas-a"
+        entryScope={entryScope}
+        selectCanvasWorkspace={selectCanvasWorkspace}
+        collapseDock={collapseDock}
+      />,
+    );
+
+    await act(async () => render('home'));
+    act(() => latest?.collapseDockOnEntry({ kind: 'global' }));
+    expect(collapseDock).not.toHaveBeenCalled();
+
+    await act(async () => render('chat', { kind: 'global' }));
+    expect(latest?.dockWorkspaceId).toBe('__global_chat__');
+    expect(collapseDock).toHaveBeenCalledTimes(1);
+
+    // Later visits keep whatever the user chose for the dock.
+    await act(async () => render('home'));
+    await act(async () => render('chat', { kind: 'global' }));
+    expect(collapseDock).toHaveBeenCalledTimes(1);
   });
 });

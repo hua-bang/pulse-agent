@@ -569,7 +569,10 @@ binds the dock to the visible conversation's scope: Workspace sessions share
 their Canvas Dock; Global owns `__global_chat__` independently of the last
 Canvas. Switching conversations within one scope keeps the same Dock session.
 Preview tabs, selected tab and comparison layout are scope-owned; web metadata
-and expansion persist across app restart. Scheduled-task routes retain their
+and expansion persist across app restart. A prompt sent from the Launcher starts a
+new conversation, so its Dock scope opens collapsed; the scope's tabs stay and
+the topbar "Tabs" button shows them (`useChatDockWorkspace.collapseDockOnEntry`,
+guard `RightDock/useChatDockWorkspace.test.tsx`). Scheduled-task routes retain their
 existing Canvas routing. Interactive Global browser tools can omit
 `workspaceId` to operate the published Dock scope; Canvas/node/resource tools
 still require an explicit Workspace target. Exact tab activation cannot
