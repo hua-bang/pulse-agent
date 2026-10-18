@@ -215,7 +215,7 @@ describe('Launcher', () => {
     const rows = [...host.querySelectorAll<HTMLButtonElement>('.launcher__chat')];
     expect(rows.map((row) => row.querySelector('.launcher__chat-title')?.textContent))
       .toEqual(['Newest chat', 'Older chat']);
-    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^General/);
+    expect(rows[1].querySelector('.launcher__chat-meta')?.textContent).toMatch(/^All workspaces/);
 
     await act(async () => rows[0].click());
     expect(props.onOpenSession).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'b' }, 's2', 'Beta');
@@ -227,7 +227,7 @@ describe('Launcher', () => {
   it('fills the composer from a starter', async () => {
     await render();
     await act(async () => host.querySelector<HTMLButtonElement>('.launcher__starter')!.click());
-    expect(field().textContent).toBe('Plan a product launch');
+    expect(field().textContent).toBe('Summarize this week across my workspaces');
   });
 
   it('opens the chat page on a new session and sends once its composer registers', async () => {

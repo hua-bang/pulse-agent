@@ -14,9 +14,9 @@ import { buildKnowledgeChatContext } from '../Workbench/knowledgeChatContext';
 
 const GLOBAL_SCOPE = '__global__';
 const STARTERS: I18nKey[] = [
-  'launcher.starter.plan',
-  'launcher.starter.research',
-  'launcher.starter.notes',
+  'launcher.starter.weekly',
+  'launcher.starter.find',
+  'launcher.starter.knowledge',
 ];
 const NO_NODES: CanvasNode[] = [];
 
