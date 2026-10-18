@@ -1,4 +1,5 @@
-import { resolve } from "path";
+import { realpath } from 'fs/promises';
+import { basename, dirname, join } from 'path';
 import { MAX_TOOL_OUTPUT_LENGTH } from "../config";
 
 export const truncateOutput = (output: string): string => {
@@ -23,6 +24,21 @@ export const truncateOutput = (output: string): string => {
   return output.slice(0, head) + marker + output.slice(-tail);
 };
 
+async function fileLockKey(filePath: string): Promise<string> {
+  try {
+    // Resolve before lexical normalization: link/../file follows the link's
+    // real parent, which can differ from the parent in the supplied string.
+    return await realpath(filePath);
+  } catch (error) {
+    // write can create missing parents. Resolve the nearest existing ancestor
+    // so aliases through a directory symlink still share the same queue.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    const parent = dirname(filePath);
+    if (parent === filePath) throw error;
+    return join(await fileLockKey(parent), basename(filePath));
+  }
+}
+
 const fileQueues = new Map<string, Promise<void>>();
 
 /**
@@ -31,7 +47,7 @@ const fileQueues = new Map<string, Promise<void>>();
  * the old content and the later write silently drops the earlier edit.
  */
 export const withFileLock = async <T>(filePath: string, operation: () => Promise<T>): Promise<T> => {
-  const key = resolve(filePath);
+  const key = await fileLockKey(filePath);
   const current = (fileQueues.get(key) ?? Promise.resolve()).then(operation);
   const settled = current.then(() => undefined, () => undefined);
   fileQueues.set(key, settled);

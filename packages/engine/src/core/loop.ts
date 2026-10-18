@@ -776,7 +776,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         disposeLLMTimeouts();
       }
 
-      totalSteps += steps.length;
+      // Every LLM call spends at least one step, even when the provider
+      // reports none, so retry paths always move toward maxSteps.
+      totalSteps += Math.max(steps.length, 1);
       consecutiveCompactions = 0;
       if (finishReason !== 'length') {
         consecutiveOutputCapHits = 0;
@@ -817,6 +819,11 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
       if (finishReason === 'stop') {
         if (!text) {
+          // An empty stop retries, but a model that keeps answering empty
+          // must not loop past the step budget.
+          if (totalSteps >= (options?.maxSteps ?? MAX_STEPS)) {
+            return EMPTY_RESPONSE_MESSAGE;
+          }
           continue;
         }
         return text || 'Task completed.';
@@ -910,6 +917,9 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       }
 
       if (!text) {
+        if (totalSteps >= (options?.maxSteps ?? MAX_STEPS)) {
+          return EMPTY_RESPONSE_MESSAGE;
+        }
         continue;
       }
 
@@ -1216,6 +1226,7 @@ function findJsonEnd(text: string): number {
 }
 
 const MAX_OUTPUT_CAP_CONTINUES = 3;
+const EMPTY_RESPONSE_MESSAGE = 'Max steps reached; the model returned an empty response.';
 
 const CONTEXT_OVERFLOW_PATTERN = /prompt is too long|context[_ ]length[_ ]exceeded|maximum context length|exceeds? the context window|context window (?:is )?exceeded|input is too long|too many (?:input )?tokens|request too large|reduce the length of the messages/i;
 
