@@ -130,9 +130,9 @@ describe('ReferenceCanvasNode', () => {
     const frame: CanvasNode = { ...sourceNode, id: 'frame', type: 'frame', title: '宏观层面', width: 600, height: 400, data: {} };
     const text: CanvasNode = {
       ...sourceNode, id: 'text', title: 'Text', x: 20, y: 20, width: 500, height: 12,
-      data: { content: '<p>当前策略：找 5 个人聊天</p><p>more</p>' },
+      data: { ...sourceNode.data, content: '<p>当前策略：找 5 个人聊天</p><p>more</p>' } as CanvasNode['data'],
     };
-    const empty: CanvasNode = { ...text, id: 'empty', y: 200, data: { content: '' } };
+    const empty: CanvasNode = { ...text, id: 'empty', y: 200, data: { ...sourceNode.data, content: '' } as CanvasNode['data'] };
     renderReferenceNode({
       node: canvasReference,
       resolved: { workspaceName: 'Research', workspaceNodes: [frame, text, empty] },
