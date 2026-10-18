@@ -29,6 +29,7 @@ import {
   type GraphLayoutPreset,
 } from '../ForceGraphCanvas';
 import { GraphSearch } from './GraphSearch';
+import { GraphLegend } from './GraphLegend';
 import { GraphToolbar } from './GraphToolbar';
 import { KnowledgeViewTabs } from '../KnowledgeViewTabs';
 
@@ -128,6 +129,18 @@ export const GraphPage = ({
     };
   }, []);
 
+  // Opening the dock narrows the graph. Pan only when that hides the active
+  // node, so the node the user just clicked stays in view beside its detail.
+  useEffect(() => {
+    if (!activeNodeId) return undefined;
+    const timeout = window.setTimeout(() => {
+      const node = graphData.nodes.find((item) => getGraphId(item.id) === activeNodeId);
+      if (node) graphRef.current?.revealNode(node);
+    }, 80);
+    return () => window.clearTimeout(timeout);
+    // Only a size change should move the view; selection alone never does.
+  }, [dimensions.width, dimensions.height]);
+
   // Note: we deliberately do NOT auto-focus when `selectedNode` changes.
   // Single-click on a graph node opens its dock tab, and a focus effect
   // here would yank the viewport on every click. Double-click remains the
@@ -148,7 +161,7 @@ export const GraphPage = ({
     setActiveNodeId(graphId);
     onSelectNode?.({ workspaceId, nodeId: item.id });
     if (item.type === 'iframe') dispatchOpenNode({ workspaceId, nodeId: item.id });
-    else dock.openNodeDetail(workspaceId, item.id, getNodeTitle(item, t('workspaceNodes.untitled')));
+    else dock.openNodeDetail(workspaceId, item.id, getNodeTitle(item, t('workspaceNodes.untitled')), true);
     window.setTimeout(() => focusNode(graphId), 80);
   }, [dock, focusNode, onSelectNode, t]);
 
@@ -170,13 +183,14 @@ export const GraphPage = ({
       return;
     }
 
-    // Single click: open a detail tab for real nodes. Don't reframe
-    // the viewport — the user may be deliberately panning around.
+    // Single click: show the node in the one graph preview tab, so browsing
+    // does not add a tab per click. Don't reframe the viewport — the user
+    // may be deliberately panning around.
     if (isNodeGraphNode(node)) {
       onSelectNode?.({ workspaceId: node.workspaceId, nodeId: node.nodeId });
       const item = nodes.find((entry) => entry.id === node.nodeId && getNodeWorkspaceId(entry) === node.workspaceId);
       if (item?.type === 'iframe') dispatchOpenNode({ workspaceId: node.workspaceId, nodeId: node.nodeId });
-      else dock.openNodeDetail(node.workspaceId, node.nodeId, node.label);
+      else dock.openNodeDetail(node.workspaceId, node.nodeId, node.label, true);
     }
   }, [dock, focusNode, nodes, onSelectNode]);
 
@@ -185,6 +199,14 @@ export const GraphPage = ({
       <GraphToolbar
         leading={onOpenList && (
           <KnowledgeViewTabs value="graph" onChange={(view) => view === 'list' && onOpenList()} />
+        )}
+        search={(
+          <GraphSearch
+            nodes={visibleNodes}
+            tags={tags}
+            showTags={showTags}
+            onPick={pickSuggestion}
+          />
         )}
         graphRef={graphRef}
         layoutPreset={layoutPreset}
@@ -197,13 +219,6 @@ export const GraphPage = ({
         onShowLabelsChange={setShowLabels}
         onShowOffCanvasChange={setShowOffCanvas}
         onShowWorkspaceHubsChange={setShowWorkspaceHubs}
-      />
-
-      <GraphSearch
-        nodes={visibleNodes}
-        tags={tags}
-        showTags={showTags}
-        onPick={pickSuggestion}
       />
 
       {error && <div className="workspace-graph-state workspace-graph-state--error">{error}</div>}
@@ -240,6 +255,12 @@ export const GraphPage = ({
         />
       </div>
 
+      {visibleNodes.length > 0 && (
+        <GraphLegend
+          showTags={graphData.nodes.some((node) => node.kind === 'tag')}
+          showWorkspaces={graphData.nodes.some((node) => node.kind === 'workspace')}
+        />
+      )}
     </main>
   );
 };

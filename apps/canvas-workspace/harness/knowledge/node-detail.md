@@ -21,7 +21,10 @@ TWO hosts:
   renders the panel with `mode="dock"`).
 
 Graph nodes and note mentions open a dock tab, so the dock is still where most
-reading happens. The page has three direct entries: a Knowledge list card
+reading happens. Graph clicks and graph search open it as a preview
+(`openNodeDetail(..., preview = true)`): the next preview replaces that tab in
+place, so browsing does not add one tab per click. A plain open of the same
+node keeps the tab (`dock-node-detail.ts`, guarded in `dock-store.test.ts`). The page has three direct entries: a Knowledge list card
 (every type, Web included), the canvas node's Go to detail button (every
 knowledge node, Web included; image and mind-map nodes float it with their
 other actions), and the dock

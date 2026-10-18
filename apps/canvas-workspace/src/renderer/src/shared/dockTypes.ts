@@ -13,7 +13,15 @@ export type DockPreviewTab =
      *  its opener instead of at the far end of the strip. */
     openerTabId?: string;
   }
-  | { id: string; kind: 'node-detail'; title: string; workspaceId: string; nodeId: string }
+  | {
+    id: string;
+    kind: 'node-detail';
+    title: string;
+    workspaceId: string;
+    nodeId: string;
+    /** Opened while browsing; the next browsing open replaces it in place. */
+    preview?: boolean;
+  }
   | { id: string; kind: 'canvas'; title: string; workspaceId: string }
   | { id: string; kind: 'mcp-app'; title: string; instanceId: string }
   | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry };
