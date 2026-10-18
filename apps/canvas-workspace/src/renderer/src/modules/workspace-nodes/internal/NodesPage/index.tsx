@@ -117,7 +117,6 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
             query={controller.query}
             onQueryChange={controller.setQuery}
             workspaces={controller.workspaceOptions}
-            activeWorkspaceIds={controller.activeWorkspaceIds}
             selectedWorkspaceIds={controller.selectedWorkspaceIds}
             onToggleWorkspace={controller.toggleWorkspace}
             workspacesAllCount={controller.workspacesAllCount}

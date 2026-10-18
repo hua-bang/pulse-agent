@@ -54,13 +54,15 @@ export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
     selectedWorkspaceIds ?? new Set(workspaces.map((workspace) => workspace.id))
   ), [selectedWorkspaceIds, workspaces]);
 
+  // From "all", a click narrows to that one workspace; later clicks add or
+  // remove workspaces, and an empty or complete set returns to "all".
   const toggleWorkspace = useCallback((workspaceId: string) => {
     setSelectedWorkspaceIds((previous) => {
-      const current = new Set(previous ?? workspaces.map((workspace) => workspace.id));
+      if (previous === null) return new Set([workspaceId]);
+      const current = new Set(previous);
       if (current.has(workspaceId)) current.delete(workspaceId);
       else current.add(workspaceId);
-      return current.size === workspaces.length
-        && workspaces.every((workspace) => current.has(workspace.id))
+      return current.size === 0 || workspaces.every((workspace) => current.has(workspace.id))
         ? null
         : current;
     });
@@ -209,7 +211,6 @@ export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
   }, [dockState.activeTabId, dockState.tabs]);
 
   return {
-    activeWorkspaceIds,
     aiScope,
     clearAiSelection: () => setAiSelection(new Set()),
     clearFilters,
