@@ -39,7 +39,7 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const columns = useMasonryColumns(gridRef);
   const isFiltering = controller.hasActiveFilters || controller.query.trim().length > 0;
-  // Filters hid every node; the general empty copy would wrongly suggest there are none.
+  // Search or filters hid every node; the migration hint would wrongly suggest there are none.
   const noMatches = isFiltering && controller.nodesCount > 0;
 
   const renderCard = (node: WorkspaceNodeListItem) => {
@@ -101,12 +101,8 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
                 )}
               </div>
               <p>
-                {isFiltering
-                  ? t('workspaceNodes.nodes.subtitleFiltered', {
-                      count: controller.filteredCount,
-                      total: controller.nodesCount,
-                    })
-                  : t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}
+                {isFiltering && `${controller.filteredCount} / `}
+                {t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}
               </p>
             </div>
             <div className="workspace-nodes-page__header-actions">
@@ -157,19 +153,13 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
           )}
           {!controller.loading && controller.filteredCount === 0 && (
             <div className="workspace-nodes-empty">
+              <h2>{t('workspaceNodes.emptyTitle')}</h2>
               {noMatches ? (
-                <>
-                  <h2>{t('workspaceNodes.filteredEmptyTitle')}</h2>
-                  <p>{t('workspaceNodes.filteredEmptyDescription')}</p>
-                  <Button size="sm" onClick={controller.clearFiltersAndQuery}>
-                    {t('workspaceNodes.filteredEmptyAction')}
-                  </Button>
-                </>
+                <Button size="sm" onClick={controller.clearFiltersAndQuery}>
+                  {t('workspaceNodes.filter.clearAll')}
+                </Button>
               ) : (
-                <>
-                  <h2>{t('workspaceNodes.emptyTitle')}</h2>
-                  <p>{t('workspaceNodes.emptyDescription')}</p>
-                </>
+                <p>{t('workspaceNodes.emptyDescription')}</p>
               )}
             </div>
           )}
