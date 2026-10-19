@@ -14,11 +14,12 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 8. `Promise.race([llmCompletion, llmWaitAbort])` — timeout handlers and caller aborts reject the wait promise; first chunk clears the first-chunk timer; a finally block disposes all timers.
 9. `afterLLMCall` hooks — fire on success AND on the error path (with `error` populated, and `retry` set when a backoff wait follows). Compaction events carry `startedAt` (summarizer call start) and `finishedAt`, so observers can draw them as spans.
 10. finishReason dispatch:
-    - `stop` → return text (or continue if empty).
+    - `stop` → return non-empty text. Empty responses continue below the step cap; at the cap, return the empty-response message (see Exit Conditions).
     - `length` → disambiguate output-cap vs true overflow (`inputTokens >= budget*0.8`); output-cap continues, at most 3 times in a row; true overflow force-compacts, bounded by the consecutive counter.
     - `content-filter` → log with context, return warning.
     - `error` → return failure.
-    - `tool-calls` → continue unless `totalSteps >= MAX_STEPS` (500).
+    - `tool-calls` → continue below the step cap; at the cap, return partial text or the max-steps warning.
+    - Other finish reasons → return non-empty text. Empty responses use the same step-cap check as empty `stop` responses.
 11. On thrown error: abort check → `afterLLMCall` (if the call had started) → a prompt-overflow rejection force-compacts and retries without counting as an error → retry policy (below) or formatted error return.
 12. `afterRun` hooks (once, in `Engine.run()`, including when the loop or a `beforeRun` hook throws; failure cleanup cannot replace the original run error).
 
@@ -26,7 +27,8 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 
 - The loop silently rewrites the host's `context.messages` in TWO places, not just compaction: before every LLM call `pruneIncompleteToolExchanges` strips dangling tool-call parts by splicing the existing `context.messages` array (identity is kept); and the compaction path hands the host a replacement through `onCompacted`. A host persisting `Context` must expect both. A host that appends step messages to a captured array reference must also replace history in place on compaction. History: prune once reassigned `context.messages`, so Canvas kept appending tool results to the detached host array. The model never saw its own results and repeated the same tool calls until `maxSteps`. `src/core/loop.test.ts` pins in-place pruning. History: the first cleanup implementation sliced `messages` at the first incomplete tool-call and dropped legitimate later user turns; `pruneIncompleteToolExchanges` now filters only the incomplete exchange, and `src/core/loop.test.ts` pins that later user turns survive. Any new message-history cleanup in `loop.ts` must ship a parallel regression test.
 - `onResponse` is dispatched fire-and-forget inside the step loop (not awaited). If your handler persists-then-mutates asynchronously, the next turn can start before it lands — do not rely on ordering.
-- `MAX_STEPS` (500) counts AI-SDK internal sub-steps (`totalSteps += steps.length`), and the engine passes no `stopWhen` to `streamText`, so the cap is NOT 1:1 with LLM turns — budget accordingly when tuning it.
+- After each completed LLM call, `totalSteps += Math.max(steps.length, 1)`: count the AI-SDK internal sub-steps, with a minimum of one even when `steps` is empty. Thrown calls use the separate error/retry policy below and do not reach this increment. The step cap is `options?.maxSteps ?? MAX_STEPS` (default 500). The engine passes no `stopWhen` to `streamText`, so the count is not necessarily 1:1 with LLM calls or tool executions.
+- Empty `stop` responses and empty responses with an unhandled finish reason retry only while `totalSteps` is below the cap. At the cap they return `Max steps reached; the model returned an empty response.` This is a resolved string in either `errorMode`, not a thrown error. Existing regression coverage: `src/core/loop.test.ts` (`stops retrying empty %s responses at maxSteps`, for `stop` and `other`, with zero SDK steps and `maxSteps: 5`).
 
 ## Timeout & Abort Model
 
@@ -54,9 +56,10 @@ External `AbortSignal` propagates to the LLM call, `ToolExecutionContext`, and t
 | Exit | Caller receives |
 |---|---|
 | `stop` with text | the text |
-| `tool-calls` at `MAX_STEPS` (500) | "Max steps reached, task may be incomplete." |
+| empty `stop` / unhandled finish reason at the step cap (`maxSteps`, default 500) | "Max steps reached; the model returned an empty response." |
+| `tool-calls` at the step cap | partial text or "Max steps reached, task may be incomplete." |
 | true overflow, compactions exhausted (2 consecutive) | "Context limit reached." or partial text |
-| 3 consecutive output-cap hits | partial text or "Output limit reached; the response may be incomplete." |
+| 3 consecutive output-cap hits, or an output-cap hit at the step cap | partial text or "Output limit reached; the response may be incomplete." |
 | `content-filter` | upstream-filter warning |
 | `error` finish / non-retryable throw | formatted upstream error |
 | retries exhausted (3) | "Failed after 3 errors: {last}" |
