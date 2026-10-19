@@ -103,6 +103,19 @@ describe('loop', () => {
     expect(onResponse).toHaveBeenCalledWith([{ role: 'assistant', content: 'step response' }]);
   });
 
+  it.each(['stop', 'other'])('stops retrying empty %s responses at maxSteps', async (finishReason) => {
+    streamTextAIMock.mockImplementation(() => ({
+      text: Promise.resolve(''),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve(finishReason),
+    }));
+
+    const result = await loop({ messages: [{ role: 'user', content: 'hi' }] }, { maxSteps: 5 });
+
+    expect(result).toBe('Max steps reached; the model returned an empty response.');
+    expect(streamTextAIMock).toHaveBeenCalledTimes(5);
+  });
+
   it('lets a final beforeToolCall policy short-circuit a late-injected tool', async () => {
     const execute = vi.fn(async () => 'MUTATED');
     const deny = vi.fn(async ({ name, toolContext }) => {

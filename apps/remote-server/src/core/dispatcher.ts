@@ -117,7 +117,9 @@ async function runAgentAsync(adapter: PlatformAdapter, incoming: IncomingMessage
 
   // Prevent concurrent runs for the same user
   if (hasActiveRun(platformKey)) {
-    const handle = await adapter.createStreamHandle(incoming, 'busy');
+    // Use the message's own stream: the Web client listens on its pre-allocated
+    // streamId, and the error must close that slot.
+    const handle = commandHandle ?? await adapter.createStreamHandle(incoming, getCommandStreamId());
     await handle.onError(new Error('正在处理上一条消息，请稍候再试。'));
     return;
   }

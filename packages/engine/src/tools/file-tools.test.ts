@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
@@ -45,6 +45,24 @@ describe('file tools', () => {
       EditTool.execute({ filePath: file, oldString: 'alpha', newString: 'ALPHA' }),
       EditTool.execute({ filePath: file, oldString: 'beta', newString: 'BETA' }),
       EditTool.execute({ filePath: file, oldString: 'gamma', newString: 'GAMMA' }),
+    ]);
+
+    expect(readFileSync(file, 'utf-8')).toBe('ALPHA\nBETA\nGAMMA\n');
+  });
+
+  it('keeps every edit when concurrent edits reach one file through symlinks', async () => {
+    const dir = workdir();
+    const file = path.join(dir, 'real', 'notes.txt');
+    mkdirSync(path.join(dir, 'real', 'inner'), { recursive: true });
+    writeFileSync(file, 'alpha\nbeta\ngamma\n');
+    symlinkSync(file, path.join(dir, 'file-link.txt'));
+    symlinkSync(path.join(dir, 'real', 'inner'), path.join(dir, 'dir-link'));
+
+    await Promise.all([
+      EditTool.execute({ filePath: file, oldString: 'alpha', newString: 'ALPHA' }),
+      EditTool.execute({ filePath: path.join(dir, 'file-link.txt'), oldString: 'beta', newString: 'BETA' }),
+      // link/../notes.txt follows the link's real parent, not the lexical one.
+      EditTool.execute({ filePath: `${dir}/dir-link/../notes.txt`, oldString: 'gamma', newString: 'GAMMA' }),
     ]);
 
     expect(readFileSync(file, 'utf-8')).toBe('ALPHA\nBETA\nGAMMA\n');
