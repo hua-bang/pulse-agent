@@ -171,6 +171,7 @@ export const Sidebar = ({
             {workspaceList}
           </div>
         ) : undefined}
+        workspaceFlyout={{ workspaces, folders, activeId, onSelect }}
       />
       <div className="sidebar-panel" hidden={collapsed}>
         {(layersLoaded || layersVisible) && (

@@ -156,3 +156,59 @@
   outline: none;
   box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
 }
+
+/* Narrow rail: hovering Workspaces lists the canvases beside the rail. */
+.sidebar-rail > span {
+  display: flex;
+}
+
+/* The wide rail stretches each destination; the hover wrapper must too. */
+.sidebar--rail-expanded .sidebar-rail > span > .sidebar-rail-btn {
+  flex: 1;
+}
+
+.sidebar-flyout {
+  width: 220px;
+  max-height: min(420px, calc(100vh - 32px));
+  overflow-y: auto;
+}
+
+.sidebar-flyout-title,
+.sidebar-flyout-folder {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sidebar-flyout-folder {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sidebar-flyout-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-flyout-item--active.ui-btn,
+.sidebar-flyout-item--active.ui-btn:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.sidebar-flyout-item--active > svg {
+  color: var(--accent);
+}
+
+.sidebar-flyout-group + .sidebar-flyout-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}

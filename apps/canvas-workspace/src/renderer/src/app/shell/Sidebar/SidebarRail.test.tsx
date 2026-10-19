@@ -32,6 +32,7 @@ const baseProps = (): ComponentProps<typeof SidebarRail> => ({
   pluginNavItems: [],
   onNavigate: vi.fn(),
   activeMcpAppKey: null,
+  workspaceFlyout: { workspaces: [], folders: [], activeId: '', onSelect: vi.fn() },
 });
 
 const render = (props: ComponentProps<typeof SidebarRail>) => act(() => root.render(
@@ -108,5 +109,41 @@ describe('SidebarRail', () => {
 
     const order = [...host.querySelectorAll('[data-testid]')].map((el) => el.getAttribute('data-testid'));
     expect(order).toEqual(['apps', 'tree']);
+  });
+
+  it('lists workspaces on hover over the narrow rail and opens the picked one', async () => {
+    const onSelect = vi.fn();
+    const workspaceFlyout = {
+      workspaces: [
+        { id: 'a', name: 'Alpha', folderId: 'f1' },
+        { id: 'b', name: 'Beta' },
+      ],
+      folders: [{ id: 'f1', name: 'Work' }],
+      activeId: 'b',
+      onSelect,
+    };
+    const hover = () => act(() => {
+      button('Workspaces').parentElement!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+
+    render({ ...baseProps(), workspaceFlyout });
+    hover();
+    const flyout = await vi.waitFor(() => {
+      const panel = document.querySelector('.sidebar-flyout');
+      expect(panel).not.toBeNull();
+      return panel!;
+    });
+    const names = [...flyout.querySelectorAll('.sidebar-flyout-name')].map((el) => el.textContent);
+    expect(names).toEqual(['Alpha', 'Beta']);
+    expect(flyout.querySelector('[aria-current="true"]')?.textContent).toBe('Beta');
+
+    act(() => (flyout.querySelectorAll('.sidebar-flyout-item')[0] as HTMLButtonElement).click());
+    expect(onSelect).toHaveBeenCalledWith('a');
+    expect(document.querySelector('.sidebar-flyout')).toBeNull();
+
+    render({ ...baseProps(), expanded: true, workspaceFlyout });
+    hover();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(document.querySelector('.sidebar-flyout')).toBeNull();
   });
 });

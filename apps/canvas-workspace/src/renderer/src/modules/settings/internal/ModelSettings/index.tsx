@@ -11,6 +11,7 @@ import { ModelProviderRail } from './ModelProviderRail';
 import { useProviderModelActions } from './hooks/useProviderModelActions';
 import { useProviderModelSelection } from './hooks/useProviderModelSelection';
 import { useI18n } from '../../../../i18n';
+import { mergeModels } from '../../../../utils/modelCatalog';
 import './index.css';
 
 interface ModelsSectionProps {
@@ -97,8 +98,13 @@ const providerToDraft = (provider?: CanvasModelProviderStatus): CanvasModelProvi
     api_key_env: provider.api_key_env,
     headers: provider.headers,
     models: provider.models,
+    context_window: provider.context_window,
   };
 };
+
+const providerCatalog = (provider?: CanvasModelProviderStatus) => (
+  mergeModels(provider?.available_models, provider?.models)
+);
 
 const inferProviderId = (name: string) => name
   .trim()
@@ -118,7 +124,13 @@ export const ModelsSection = ({
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const [activeProviderId, setActiveProviderId] = useState<string>('new');
   const [draft, setDraft] = useState<CanvasModelProviderConfig>(emptyProvider());
-  const { availableModels, mergeModelCatalog, resetModelCatalog, toggleModel } = useProviderModelSelection(setDraft);
+  const {
+    availableModels,
+    mergeModelCatalog,
+    resetModelCatalog,
+    setModelsSelected,
+    toggleModel,
+  } = useProviderModelSelection(setDraft);
   const [manualModel, setManualModel] = useState('');
   // Deleting a provider discards its saved API-key config with no undo, so
   // the trash button arms on the first click and deletes on the second.
@@ -158,7 +170,7 @@ export const ModelsSection = ({
     setActiveProviderId(initial);
     const provider = providers.find((item) => item.id === initial);
     setDraft(providerToDraft(provider));
-    resetModelCatalog(provider?.models);
+    resetModelCatalog(providerCatalog(provider));
     setManualModel('');
     setLocalError(undefined);
   }, [providers, resetModelCatalog, status]);
@@ -167,7 +179,7 @@ export const ModelsSection = ({
     const provider = providers.find((item) => item.id === providerId);
     setActiveProviderId(providerId);
     setDraft(providerToDraft(provider));
-    resetModelCatalog(provider?.models);
+    resetModelCatalog(providerCatalog(provider));
     setManualModel('');
     setLocalError(undefined);
   }, [providers, resetModelCatalog]);
@@ -282,6 +294,7 @@ export const ModelsSection = ({
             manualModel={manualModel}
             setDraftField={setDraftField}
             setManualModel={setManualModel}
+            setModelsSelected={setModelsSelected}
             toggleModel={toggleModel}
           />
         </div>

@@ -489,6 +489,7 @@ export const useIframeNodeState = ({
     streamIframeRef,
     streamingActive,
     textareaRef,
+    unloadPrompt: browser.unloadPrompt,
     url,
     webviewHostRef,
     webviewKey,

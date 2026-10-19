@@ -5,6 +5,7 @@ import type {
   EmbeddedWebviewTag,
 } from './types';
 import type { InitialLoadReleaseReason } from './initial-load-scheduler';
+import { useUnloadPrompt, type UnloadPrompt } from './useUnloadPrompt';
 
 interface Options {
   className: string;
@@ -38,6 +39,7 @@ interface Result {
   reload: () => void;
   /** Abort the in-flight navigation (the stop half of reload/stop). */
   stop: () => void;
+  unloadPrompt: UnloadPrompt;
   webview: EmbeddedWebviewTag | null;
 }
 
@@ -219,22 +221,32 @@ export const useEmbeddedBrowser = ({
     setLoadError(null);
   }, [navigationGateEnabled, navigationReadyWebContentsId, url, webview]);
 
+  // A vetoed reload never starts loading, so settle the spinner it raised.
+  const unload = useUnloadPrompt(webview, () => {
+    setLoadState((state) => (state === 'loading' ? 'ready' : state));
+  });
+  const { announce } = unload;
   const goBack = useCallback(() => {
-    if (webview?.canGoBack()) webview.goBack();
-  }, [webview]);
+    if (!webview?.canGoBack()) return;
+    announce(() => webview.goBack());
+    webview.goBack();
+  }, [announce, webview]);
   const goForward = useCallback(() => {
-    if (webview?.canGoForward()) webview.goForward();
-  }, [webview]);
+    if (!webview?.canGoForward()) return;
+    announce(() => webview.goForward());
+    webview.goForward();
+  }, [announce, webview]);
   const reload = useCallback(() => {
     if (!webview) return;
     setLoadState(url ? 'loading' : 'idle');
     setLoadError(null);
     try {
+      announce(() => webview.reload());
       webview.reload();
     } catch {
       setReloadKey((key) => key + 1);
     }
-  }, [url, webview]);
+  }, [announce, url, webview]);
   // Abort an in-flight navigation. `did-stop-loading` normally settles the
   // state, but a guest that never fires it (torn-down frame) would leave the
   // chrome spinning, so the state is settled here too.
@@ -259,6 +271,7 @@ export const useEmbeddedBrowser = ({
     loadState,
     reload,
     stop,
+    unloadPrompt: unload.prompt,
     webview,
   };
 };

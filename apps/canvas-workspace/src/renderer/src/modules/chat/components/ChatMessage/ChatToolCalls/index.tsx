@@ -101,7 +101,7 @@ export const ChatToolCalls = ({
             </svg>
           )}
         </span>
-        <span className="chat-tool-calls-summary">{summaryLabel}</span>
+        <span className="chat-tool-calls-summary" title={summaryLabel}>{summaryLabel}</span>
         <span className="chat-tool-call-chevron">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -121,7 +121,7 @@ export const ChatToolCalls = ({
           aria-label={t('chat.toolCalls.collapseSection', { count: tools.length })}
           onClick={onToggleSection}
         >
-          <span className="chat-tool-calls-summary">{summaryLabel}</span>
+          <span className="chat-tool-calls-summary" title={summaryLabel}>{summaryLabel}</span>
           <span className="chat-tool-call-chevron chat-tool-call-chevron--open">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />

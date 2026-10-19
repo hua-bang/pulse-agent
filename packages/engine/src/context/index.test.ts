@@ -35,6 +35,17 @@ describe('maybeCompactContext abort', () => {
     );
   });
 
+  it('scales the summary output cap with the context window', async () => {
+    summarizeMessagesMock.mockResolvedValue('short');
+
+    await maybeCompactContext(longContext(), { force: true, contextWindowTokens: 64_000 });
+    await maybeCompactContext(longContext(), { force: true, contextWindowTokens: 200_000 });
+    await maybeCompactContext(longContext(), { force: true, contextWindowTokens: 1_050_000 });
+    await maybeCompactContext(longContext(), { force: true, contextWindowTokens: 8_000 });
+
+    expect(summarizeMessagesMock.mock.calls.map(([, options]) => options.maxOutputTokens)).toEqual([4000, 6000, 8000, 2000]);
+  });
+
   it('keeps history instead of the prune fallback when stopped mid-summary', async () => {
     const controller = new AbortController();
     summarizeMessagesMock.mockImplementation(async () => {

@@ -10,6 +10,13 @@ import type {
   CanvasModelStatus,
   CanvasProviderModel,
 } from '../../shared/model-config';
+import {
+  buildModelsUrl,
+  normalizeContextWindow,
+  normalizeProviderModels,
+  normalizeStr,
+  parseModelsPayload,
+} from './provider-models';
 export type {
   CanvasModelConfig,
   CanvasModelOption,
@@ -30,6 +37,8 @@ export interface CanvasModelProviderConfig {
   encrypted_api_key?: string;
   headers?: Record<string, string>;
   models?: CanvasProviderModel[];
+  available_models?: CanvasProviderModel[];
+  context_window?: number;
 }
 
 export interface ResolvedCanvasModel {
@@ -40,6 +49,8 @@ export interface ResolvedCanvasModel {
   model: string;
   modelLabel: string;
   modelType?: ModelType;
+  /** Compaction budget for this model: its own window, the provider's, or the default. */
+  contextWindowTokens: number;
   /** Main-memory only; never expose through status IPC or debug traces. */
   connection?: { baseURL?: string; apiKey?: string; headers?: Record<string, string> };
 }
@@ -49,14 +60,15 @@ export interface FetchCanvasModelsInput {
 }
 
 const DEFAULT_CANVAS_MODEL = 'gpt-4o';
+/**
+ * Used when neither the model nor its provider names a window. Current chat
+ * models start at 128K; the engine's own 64K default made long agent turns
+ * compact every few steps.
+ */
+export const DEFAULT_CONTEXT_WINDOW_TOKENS = 128_000;
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 export const DEFAULT_CLAUDE_BASE_URL = 'https://api.anthropic.com';
 
-function normalizeStr(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}
 function normalizeHeaders(headers: unknown): Record<string, string> | undefined {
   if (!headers || typeof headers !== 'object' || Array.isArray(headers)) {
     return undefined;
@@ -87,30 +99,6 @@ function normalizeProviderId(value: unknown, fallback?: string): string {
   if (!normalized) throw new Error('Provider id is required');
   return normalized;
 }
-function normalizeModelId(value: unknown): string | undefined {
-  return normalizeStr(value);
-}
-
-function normalizeProviderModels(models: unknown): CanvasProviderModel[] {
-  if (!Array.isArray(models)) return [];
-  const seen = new Set<string>();
-  const result: CanvasProviderModel[] = [];
-  for (const item of models) {
-    const id = typeof item === 'string'
-      ? normalizeModelId(item)
-      : item && typeof item === 'object'
-        ? normalizeModelId((item as CanvasProviderModel).id)
-        : undefined;
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    const name = item && typeof item === 'object'
-      ? normalizeStr((item as CanvasProviderModel).name)
-      : undefined;
-    result.push(name && name !== id ? { id, name } : { id });
-  }
-  return result;
-}
-
 function normalizeModelOption(option: CanvasModelOption): CanvasModelOption {
   const name = normalizeStr(option.name);
   if (!name) throw new Error('Model option name is required');
@@ -180,6 +168,16 @@ function normalizeProviderConfig(
   const models = normalizeProviderModels(provider.models);
   const existingModels = normalizeProviderModels(existing?.models);
   normalized.models = models.length > 0 ? models : existingModels;
+  const available = normalizeProviderModels(provider.available_models);
+  const existingAvailable = normalizeProviderModels(existing?.available_models);
+  const catalog = available.length > 0 ? available : existingAvailable;
+  if (catalog.length > 0) normalized.available_models = catalog;
+  // A key present in the draft (even as undefined) means the user edited the
+  // field; clearing it must not fall back to the saved value.
+  const contextWindow = 'context_window' in provider
+    ? normalizeContextWindow(provider.context_window)
+    : normalizeContextWindow(existing?.context_window);
+  if (contextWindow) normalized.context_window = contextWindow;
   return normalized;
 }
 
@@ -314,6 +312,8 @@ function toProviderStatus(provider: CanvasModelProviderConfig): CanvasModelProvi
     apiKeyLength: resolvedKey ? resolvedKey.length : undefined,
     headers: provider.headers,
     models: normalizeProviderModels(provider.models),
+    available_models: normalizeProviderModels(provider.available_models),
+    context_window: normalizeContextWindow(provider.context_window),
   };
 }
 
@@ -451,33 +451,6 @@ export async function resetCanvasModelConfig(): Promise<CanvasModelStatus> {
   return await getCanvasModelStatus();
 }
 
-function joinUrl(baseURL: string, path: string): string {
-  return `${baseURL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-}
-
-function buildOpenAIModelsUrl(baseURL: string): string {
-  const trimmed = baseURL.replace(/\/+$/, '');
-  if (/\/models$/i.test(trimmed)) return trimmed;
-  if (/\/v\d+$/i.test(trimmed)) return joinUrl(trimmed, '/models');
-  return joinUrl(joinUrl(trimmed, '/v1'), '/models');
-}
-
-function buildClaudeModelsUrl(baseURL: string): string {
-  const trimmed = baseURL.replace(/\/+$/, '');
-  if (/\/models$/i.test(trimmed)) return trimmed;
-  if (/\/v\d+$/i.test(trimmed)) return joinUrl(trimmed, '/models');
-  return joinUrl(joinUrl(trimmed, '/v1'), '/models');
-}
-
-function parseModelsPayload(payload: unknown): CanvasProviderModel[] {
-  const data = payload && typeof payload === 'object' ? (payload as any).data : undefined;
-  const list = Array.isArray(data) ? data : Array.isArray(payload) ? payload : [];
-  return normalizeProviderModels(list.map((item: any) => {
-    if (typeof item === 'string') return item;
-    return { id: item?.id ?? item?.name, name: item?.display_name ?? item?.name };
-  }));
-}
-
 export async function fetchCanvasProviderModels(input: FetchCanvasModelsInput): Promise<CanvasProviderModel[]> {
   const config = sanitizeConfig(await readConfig());
   let provider: CanvasModelProviderConfig | undefined;
@@ -512,8 +485,7 @@ export async function fetchCanvasProviderModels(input: FetchCanvasModelsInput): 
     }
   }
 
-  const modelsUrl = providerType === 'claude' ? buildClaudeModelsUrl(baseURL) : buildOpenAIModelsUrl(baseURL);
-  const response = await fetch(modelsUrl, { headers });
+  const response = await fetch(buildModelsUrl(baseURL), { headers });
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     throw new Error(`Fetch models failed: HTTP ${response.status}${text ? ` - ${text.slice(0, 180)}` : ''}`);
@@ -530,14 +502,19 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
   // Engine-built providers carry the timed fetch used for LLM call tracing.
   const provider = buildProvider(resolved.providerType, { apiKey: resolved.apiKey, baseURL: resolved.baseURL, headers: resolved.headers });
 
+  const entry = normalizeProviderModels(resolved.provider?.models)
+    .find((item) => item.id === resolved.model);
+
   return {
     providerId: resolved.provider?.id,
     providerName: resolved.provider?.name,
     providerType: resolved.providerType,
     provider,
     model: resolved.model,
-    modelLabel: normalizeProviderModels(resolved.provider?.models)
-      .find((entry) => entry.id === resolved.model)?.name ?? resolved.model,
+    modelLabel: entry?.name ?? resolved.model,
+    contextWindowTokens: entry?.context_window
+      ?? normalizeContextWindow(resolved.provider?.context_window)
+      ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
     modelType: resolved.providerType === 'claude' ? 'claude' : 'openai',
     connection: { baseURL: resolved.baseURL, apiKey: resolved.apiKey, headers: resolved.headers },
   };

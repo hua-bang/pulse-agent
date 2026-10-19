@@ -1,5 +1,6 @@
 import type { KeyboardEventHandler, RefObject } from 'react';
 import type { Artifact } from '../../../../../../types';
+import type { UnloadPrompt } from '../../../../../../platform/browser/useUnloadPrompt';
 import type { LoadState } from '../types';
 
 export interface IframeRenderedViewProps {
@@ -45,6 +46,7 @@ export interface IframeRenderedViewProps {
   streamingActive: boolean;
   webviewDiscarded: boolean;
   title?: string;
+  unloadPrompt: UnloadPrompt;
   url: string;
   webviewHostRef: RefObject<HTMLDivElement>;
   webviewKey: number;

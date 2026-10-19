@@ -20,10 +20,16 @@
   font-weight: 500;
 }
 
+/* Count, then the bulk action pushed to the right edge. */
 .chat-model-catalog-head span {
+  margin-left: auto;
   color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.chat-model-catalog-bulk.ui-btn {
+  flex-shrink: 0;
 }
 
 .chat-model-model-search-wrap {
@@ -112,6 +118,13 @@
 .chat-model-model-row-copy small {
   color: var(--text-muted);
   font-size: 10px;
+}
+
+.chat-model-model-window {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .chat-model-catalog-empty {

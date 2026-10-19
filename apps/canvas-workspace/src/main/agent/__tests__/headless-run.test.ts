@@ -44,6 +44,7 @@ vi.mock('../../models/config', () => ({
     providerType: 'stub',
     model: 'stub-model',
     modelType: 'chat',
+    contextWindowTokens: 200_000,
   }),
 }));
 
@@ -97,6 +98,7 @@ describe('runHeadlessAgentTask', () => {
     expect(captured.runOptions).toMatchObject({
       systemPrompt: 'SYS',
       model: 'stub-model',
+      contextWindowTokens: 200_000,
       maxSteps: 12,
     });
     expect(captured.runOptions?.abortSignal).toBeInstanceOf(AbortSignal);

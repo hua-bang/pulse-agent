@@ -55,7 +55,7 @@ describe('ModelProviderFields model picker', () => {
     act(() => root?.render(<I18nProvider>{content}</I18nProvider>));
   };
 
-  const renderProviderFields = (toggleModel = vi.fn()) => {
+  const renderProviderFields = (toggleModel = vi.fn(), setModelsSelected = vi.fn()) => {
     mount(
       <ModelProviderFields
         activeProviderId="openai"
@@ -67,6 +67,7 @@ describe('ModelProviderFields model picker', () => {
         manualModel=""
         setDraftField={vi.fn()}
         setManualModel={vi.fn()}
+        setModelsSelected={setModelsSelected}
         toggleModel={toggleModel}
       />,
     );
@@ -97,6 +98,25 @@ describe('ModelProviderFields model picker', () => {
     const checkbox = host.querySelector<HTMLButtonElement>('.chat-model-model-row[role="checkbox"]');
     act(() => checkbox?.click());
     expect(onToggleModel).toHaveBeenCalledWith(availableModels[2], true);
+  });
+
+  it('selects every shown model, then clears them', () => {
+    const setModelsSelected = vi.fn();
+    renderProviderFields(vi.fn(), setModelsSelected);
+    const bulk = () => host.querySelector<HTMLButtonElement>('.chat-model-catalog-bulk');
+
+    expect(bulk()?.textContent).toBe('Select all');
+    act(() => bulk()?.click());
+    expect(setModelsSelected).toHaveBeenLastCalledWith(availableModels, true);
+
+    const search = host.querySelector<HTMLInputElement>('[aria-label="Search models"]');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'gpt');
+      search?.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+    expect(bulk()?.textContent).toBe('Clear');
+    act(() => bulk()?.click());
+    expect(setModelsSelected).toHaveBeenLastCalledWith(availableModels.slice(0, 2), false);
   });
 
   it('can narrow the catalog to selected models', () => {
@@ -144,6 +164,57 @@ describe('ModelProviderFields model picker', () => {
 
     expect(onSaveProvider).toHaveBeenCalledTimes(1);
     expect(onSaveProvider.mock.calls[0]?.[0].models).toEqual(availableModels.slice(0, 1));
+    expect(onSaveProvider.mock.calls[0]?.[0].available_models).toEqual(availableModels);
+  });
+
+  it('lists the saved catalog again after reopening, not just the selection', () => {
+    mount(
+      <ModelsSection
+        status={{
+          ...status,
+          providers: [{
+            ...status.providers[0],
+            available_models: [...availableModels, { id: 'gpt-6', context_window: 1_050_000 }],
+          }],
+        }}
+        onClose={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onRemoveProvider={vi.fn()}
+        onFetchModels={vi.fn()}
+      />,
+    );
+
+    expect(host.textContent).toContain('1 selected / 4');
+    expect(host.querySelectorAll('.chat-model-model-row')).toHaveLength(4);
+    expect(host.textContent).toContain('1.05M');
+  });
+
+  it('drops unselected models the provider no longer returns when saving', async () => {
+    const onSaveProvider = vi.fn().mockResolvedValue(status);
+    mount(
+      <ModelsSection
+        status={{
+          ...status,
+          providers: [{
+            ...status.providers[0],
+            available_models: [...availableModels, { id: 'retired-model' }],
+          }],
+        }}
+        onClose={vi.fn()}
+        onSaveProvider={onSaveProvider}
+        onRemoveProvider={vi.fn()}
+        onFetchModels={vi.fn().mockResolvedValue(availableModels)}
+      />,
+    );
+
+    const saveButton = Array.from(host.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'Test & Save');
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSaveProvider.mock.calls[0]?.[0].available_models).toEqual(availableModels);
   });
 
   it('pauses first-time save after fetching so the user can select a model', async () => {

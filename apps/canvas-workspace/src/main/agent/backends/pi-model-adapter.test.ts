@@ -10,6 +10,7 @@ describe('createPiModelRuntime', () => {
       providerType: 'openai',
       model: 'vendor/model-x',
       modelLabel: 'Model X',
+      contextWindowTokens: 128_000,
       provider: (() => undefined) as never,
       connection: {
         baseURL: 'https://gateway.example/v1',
@@ -41,6 +42,7 @@ describe('createPiModelRuntime', () => {
       providerType: 'claude',
       model: 'claude-test',
       modelLabel: 'Claude Test',
+      contextWindowTokens: 128_000,
       provider: (() => undefined) as never,
       connection: {},
     });

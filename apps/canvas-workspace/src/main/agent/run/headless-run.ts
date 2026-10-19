@@ -101,6 +101,7 @@ export async function runHeadlessAgentTask(
         provider: modelConfig.provider,
         model: modelConfig.model,
         modelType: modelConfig.modelType,
+        contextWindowTokens: modelConfig.contextWindowTokens,
         systemPrompt: options.systemPrompt,
         maxSteps: options.maxSteps ?? DEFAULT_MAX_STEPS,
         abortSignal: abortController.signal,

@@ -183,6 +183,51 @@
   gap: 8px;
 }
 
+/* Leave-page prompt: the page's beforeunload handler vetoed a toolbar
+ * reload/back/forward. Floats over the page top like Chrome's prompt, but in
+ * app chrome instead of a native dialog. */
+.iframe-leave-prompt {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: calc(100% - 20px);
+  padding: 10px 10px 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+  transform: translateX(-50%);
+}
+
+.iframe-leave-prompt-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.iframe-leave-prompt-text strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.iframe-leave-prompt-text span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.iframe-leave-prompt-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
 /* Empty state — URL input */
 
 

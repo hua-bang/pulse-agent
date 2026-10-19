@@ -1,5 +1,5 @@
 import { generateText, streamText, tool, type ModelMessage, type StepResult, type Tool } from 'ai';
-import { DEFAULT_MODEL, COMPACT_SUMMARY_MAX_TOKENS, COMPACT_SUMMARY_MODEL, OPENAI_REASONING_EFFORT, resolveProvider } from '../config';
+import { DEFAULT_MODEL, COMPACT_SUMMARY_MODEL, OPENAI_REASONING_EFFORT, resolveProvider } from '../config';
 import z from 'zod';
 import { generateSystemPrompt } from '../prompt';
 import type { Tool as CoderTool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ModelType } from '../shared/types';
@@ -198,6 +198,9 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
   }) as unknown as ReturnType<typeof streamText> & { steps: StepResult<any>[]; finishReason: string };
 }
 
+/** Default summary output cap; compaction passes one scaled to the window. */
+const SUMMARY_DEFAULT_OUTPUT_TOKENS = 4000;
+
 export const summarizeMessages = async (
   messages: ModelMessage[],
   options?: {
@@ -235,7 +238,7 @@ export const summarizeMessages = async (
       ...messages,
       { role: 'user', content: SUMMARY_USER_PROMPT },
     ],
-    maxOutputTokens: options?.maxOutputTokens ?? COMPACT_SUMMARY_MAX_TOKENS,
+    maxOutputTokens: options?.maxOutputTokens ?? SUMMARY_DEFAULT_OUTPUT_TOKENS,
     providerOptions: resolveProviderOptions(options?.modelType),
     abortSignal: options?.abortSignal,
   });

@@ -21,6 +21,7 @@ vi.mock('../../../../../platform/browser/useEmbeddedBrowser', () => ({
     hostRef: vi.fn(),
     loadState: 'ready',
     reload: vi.fn(),
+    unloadPrompt: { blocked: false, leave: vi.fn(), stay: vi.fn() },
     webview: null,
   }),
 }));

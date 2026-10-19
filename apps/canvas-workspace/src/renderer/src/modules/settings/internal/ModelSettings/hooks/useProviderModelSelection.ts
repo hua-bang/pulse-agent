@@ -29,8 +29,19 @@ export const useProviderModelSelection = (
     });
   }, [setDraft]);
 
+  const setModelsSelected = useCallback((targets: ReadonlyArray<CanvasProviderModel>, selected: boolean) => {
+    const ids = new Set(targets.map((model) => model.id));
+    setDraft((current) => ({
+      ...current,
+      models: selected
+        ? mergeModels(current.models, targets)
+        : (current.models ?? []).filter((item) => !ids.has(item.id)),
+    }));
+  }, [setDraft]);
+
   return {
     availableModels,
+    setModelsSelected,
     mergeModelCatalog,
     resetModelCatalog,
     toggleModel,

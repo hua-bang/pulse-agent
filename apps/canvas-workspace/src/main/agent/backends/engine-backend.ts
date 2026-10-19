@@ -28,6 +28,7 @@ export const engineTurnBackend: AgentRuntime = {
       provider: request.modelConfig.provider,
       model: request.configuredModel ?? request.modelConfig.model,
       modelType: request.modelConfig.modelType,
+      contextWindowTokens: request.modelConfig.contextWindowTokens,
       systemPrompt: request.systemPrompt,
       maxSteps: CANVAS_AGENT_MAX_STEPS,
       errorMode: 'throw',

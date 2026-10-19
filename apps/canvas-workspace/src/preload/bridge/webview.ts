@@ -40,7 +40,16 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
     ipcRenderer.invoke("iframe:cancel-dom-element-pick", { workspaceId, nodeId }),
 
   onContextMenu: (callback) =>
-    subscribe<WebviewContextMenuRequest>(ipcRenderer, "webview:context-menu", callback)
+    subscribe<WebviewContextMenuRequest>(ipcRenderer, "webview:context-menu", callback),
+
+  expectUnload: (webContentsId) =>
+    ipcRenderer.send("iframe:expect-unload", { webContentsId }),
+
+  allowUnload: (webContentsId) =>
+    ipcRenderer.send("iframe:allow-unload", { webContentsId }),
+
+  onUnloadBlocked: (callback) =>
+    subscribe(ipcRenderer, "iframe:unload-blocked", callback)
 });
 
 export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, useRef, useState, type ReactNode } from 'react';
 import type { NavItem } from '../../../../../plugins/types';
+import type { FolderEntry, WorkspaceEntry } from '../../../shared/workspaces';
 import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 import {
   AppLogoIcon,
@@ -13,6 +14,16 @@ import {
 } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 import { AppsSection } from './AppsSection';
+// Loaded on first hover, so the flyout stays out of the startup bundle.
+const WorkspaceFlyout = lazy(() => import('./WorkspaceFlyout'));
+
+/** What the narrow rail's workspace flyout lists and opens. */
+interface WorkspaceFlyoutData {
+  workspaces: WorkspaceEntry[];
+  folders: FolderEntry[];
+  activeId: string;
+  onSelect: (id: string) => void;
+}
 
 interface SidebarRailProps {
   activeView: string;
@@ -38,6 +49,8 @@ interface SidebarRailProps {
   onOpenMcpApp?: (listing: McpAppEntrypointListing) => void;
   /** The workspace tree the wide rail shows under its destinations. */
   tree?: ReactNode;
+  /** Workspaces listed on hover over the narrow rail's Workspaces icon. */
+  workspaceFlyout: WorkspaceFlyoutData;
 }
 
 interface RailButtonProps {
@@ -92,8 +105,14 @@ export const SidebarRail = ({
   activeMcpAppKey,
   onOpenMcpApp,
   tree,
+  workspaceFlyout,
 }: SidebarRailProps) => {
   const { t } = useI18n();
+  // null until the first hover, so the lazy flyout loads only when used.
+  const [flyoutHovered, setFlyoutHovered] = useState<boolean | null>(null);
+  const flyoutAnchorRef = useRef<HTMLSpanElement>(null);
+  // The wide rail already lists workspaces, so only the narrow rail hovers.
+  const flyoutEnabled = !expanded;
   // Pulse Agent is one destination: the launcher, plus the chat page that
   // its questions and recent chats open. On the canvas the Workspaces icon
   // opens or closes the panel; elsewhere it returns to the canvas.
@@ -109,14 +128,28 @@ export const SidebarRail = ({
       >
         <AppLogoIcon size={18} />
       </RailButton>
-      <RailButton
-        active={activeView === 'canvas'}
-        label={t('sidebar.workspaces')}
-        title={activeView === 'canvas' ? t(panelCollapsed ? 'sidebar.expand' : 'sidebar.collapse') : undefined}
-        onClick={handleWorkspaces}
+      <span
+        ref={flyoutAnchorRef}
+        onMouseEnter={() => setFlyoutHovered(true)}
+        onMouseLeave={() => setFlyoutHovered(false)}
       >
-        <WorkspaceIcon size={16} />
-      </RailButton>
+        <RailButton
+          active={activeView === 'canvas'}
+          label={t('sidebar.workspaces')}
+          // The flyout names the destination, so skip the native tooltip.
+          title={flyoutEnabled
+            ? ''
+            : activeView === 'canvas' ? t(panelCollapsed ? 'sidebar.expand' : 'sidebar.collapse') : undefined}
+          onClick={handleWorkspaces}
+        >
+          <WorkspaceIcon size={16} />
+        </RailButton>
+      </span>
+      {flyoutEnabled && flyoutHovered !== null && (
+        <Suspense fallback={null}>
+          <WorkspaceFlyout {...workspaceFlyout} anchorRef={flyoutAnchorRef} triggerHovered={flyoutHovered} />
+        </Suspense>
+      )}
       {nodesEnabled && (
         <RailButton
           active={activeView === 'nodes' || activeView === 'node-detail' || activeView === 'graph'}

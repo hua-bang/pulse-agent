@@ -6,6 +6,7 @@ import type {
   CanvasModelStatus,
   CanvasProviderModel,
 } from '../../../../../types';
+import { mergeModels } from '../../../../../utils/modelCatalog';
 
 interface Props {
   activeProviderStatus?: CanvasModelProviderStatus;
@@ -69,10 +70,17 @@ export const useProviderModelActions = ({
         setLocalError(t('models.selectAtLeastOne'));
         return;
       }
-      const saved = await onSaveProvider(draft);
+      // Save the whole catalog, not just the selection, so reopening the
+      // provider still lists every fetched model. It is rebuilt from this
+      // fetch plus the selection, so models the provider dropped disappear
+      // unless selected. Selected models pick up the reported window.
+      const catalog = mergeModels(draft.models, fetchedModels);
+      const byId = new Map(catalog.map((model) => [model.id, model]));
+      const models = (draft.models ?? []).map((model) => byId.get(model.id) ?? model);
+      const saved = await onSaveProvider({ ...draft, models, available_models: catalog });
       if (saved) {
         setActiveProviderId(draft.id);
-        setDraft((current) => ({ ...current, api_key: '' }));
+        setDraft((current) => ({ ...current, api_key: '', models }));
       }
     } finally {
       setSaving(false);

@@ -5,6 +5,7 @@ import { Button } from '../../../../../../../components/ui';
 import { STREAMING_SHELL } from '../../../../../../artifacts/rendering';
 import { markOnce } from '../../../../../../../perf/monitor';
 import { useI18n } from '../../../../../../../i18n';
+import { leavePageCopy } from '../../../../../../../platform/browser/useUnloadPrompt';
 import { IframeOverviewBadge } from '../../IframeOverviewBadge';
 import type { LoadState } from '../../types';
 
@@ -26,6 +27,8 @@ interface IframeContentView {
   discardSnapshot: string | null;
   loadState: LoadState;
   loadError: string | null;
+  /** The page's beforeunload handler vetoed a toolbar reload/back/forward. */
+  unloadBlocked: boolean;
   webviewKey: number;
 }
 
@@ -40,6 +43,8 @@ interface IframeContentActions {
   reload: () => void;
   openExternal: () => void;
   wakeWebview: () => void;
+  leavePage: () => void;
+  stayOnPage: () => void;
 }
 
 export const IframeContent = ({
@@ -51,7 +56,8 @@ export const IframeContent = ({
   refs: IframeContentRefs;
   actions: IframeContentActions;
 }) => {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
+  const leaveCopy = leavePageCopy(language);
   useEffect(() => {
     if (view.nodeId !== 'node-welcome-download' || !view.localUrl) return undefined;
     const handleMessage = (event: MessageEvent) => {
@@ -92,6 +98,22 @@ export const IframeContent = ({
             >
               {view.discardSnapshot && <img className="iframe-discarded-snapshot" src={view.discardSnapshot} alt="" />}
               <div className="iframe-discarded-chip">Sleeping — click to wake</div>
+            </div>
+          )}
+          {view.unloadBlocked && (
+            <div className="iframe-leave-prompt" role="alertdialog" aria-label={leaveCopy.title}>
+              <div className="iframe-leave-prompt-text">
+                <strong>{leaveCopy.title}</strong>
+                <span>{leaveCopy.message}</span>
+              </div>
+              <div className="iframe-leave-prompt-actions">
+                <Button type="button" variant="secondary" size="xs" onClick={actions.stayOnPage}>
+                  {leaveCopy.stay}
+                </Button>
+                <Button type="button" variant="primary" size="xs" onClick={actions.leavePage}>
+                  {leaveCopy.leave}
+                </Button>
+              </div>
             </div>
           )}
           {view.loadState === 'failed' && (

@@ -24,7 +24,7 @@ Every tunable the engine reads, with defaults and read sites. All `config/index.
 | `COMPACT_TARGET` | 50% of window = 32000 | post-compaction size target; the verbatim tail is budgeted at 60% of it (40% when forced) |
 | `KEEP_LAST_TURNS` | 4 | preferred number of recent user turns kept verbatim when they fit the tail budget (forced compaction prefers 1) |
 | `COMPACT_SUMMARY_MODEL` | unset | operator override for the summary model; unset or blank → the run model, then `DEFAULT_MODEL` |
-| `COMPACT_SUMMARY_MAX_TOKENS` | 1200 | output cap of the summary call |
+| `COMPACT_SUMMARY_MAX_TOKENS` | unset → 3% of the window, clamped to 4000–8000 | output cap of the summary call; reasoning models spend part of it thinking |
 | `MAX_COMPACTION_ATTEMPTS` | 2 | consecutive compactions without a completed LLM call (see architecture.md) |
 | `PULSE_USER_AGENT` | `pulse-coder/<version>` | User-Agent of the env-built Anthropic provider |
 | `MODEL_CONTEXT_BUDGET` | 0 = use per-family table | overrides the length-disambiguation budget only |
