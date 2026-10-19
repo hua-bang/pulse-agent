@@ -10,7 +10,6 @@ import { mergeModels } from '../../../../../utils/modelCatalog';
 
 interface Props {
   activeProviderStatus?: CanvasModelProviderStatus;
-  availableModels: CanvasProviderModel[];
   draft: CanvasModelProviderConfig;
   mergeModelCatalog: (...groups: Array<ReadonlyArray<CanvasProviderModel> | undefined>) => void;
   onFetchModels: (provider: CanvasModelProviderConfig) => Promise<CanvasProviderModel[]>;
@@ -21,7 +20,6 @@ interface Props {
 
 export const useProviderModelActions = ({
   activeProviderStatus,
-  availableModels,
   draft,
   mergeModelCatalog,
   onFetchModels,
@@ -73,9 +71,10 @@ export const useProviderModelActions = ({
         return;
       }
       // Save the whole catalog, not just the selection, so reopening the
-      // provider still lists every fetched model. Selected models pick up
-      // the window the provider reported for them.
-      const catalog = mergeModels(availableModels, draft.models, fetchedModels);
+      // provider still lists every fetched model. It is rebuilt from this
+      // fetch plus the selection, so models the provider dropped disappear
+      // unless selected. Selected models pick up the reported window.
+      const catalog = mergeModels(draft.models, fetchedModels);
       const byId = new Map(catalog.map((model) => [model.id, model]));
       const models = (draft.models ?? []).map((model) => byId.get(model.id) ?? model);
       const saved = await onSaveProvider({ ...draft, models, available_models: catalog });
@@ -86,7 +85,7 @@ export const useProviderModelActions = ({
     } finally {
       setSaving(false);
     }
-  }, [activeProviderStatus, availableModels, draft, mergeModelCatalog, onFetchModels, onSaveProvider, setActiveProviderId, setDraft, t]);
+  }, [activeProviderStatus, draft, mergeModelCatalog, onFetchModels, onSaveProvider, setActiveProviderId, setDraft, t]);
 
   return { fetching, fetchModels, localError, save, saving, setLocalError };
 };

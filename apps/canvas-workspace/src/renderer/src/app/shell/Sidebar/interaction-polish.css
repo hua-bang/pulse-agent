@@ -162,6 +162,11 @@
   display: flex;
 }
 
+/* The wide rail stretches each destination; the hover wrapper must too. */
+.sidebar--rail-expanded .sidebar-rail > span > .sidebar-rail-btn {
+  flex: 1;
+}
+
 .sidebar-flyout {
   width: 220px;
   max-height: min(420px, calc(100vh - 32px));

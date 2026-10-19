@@ -42,7 +42,8 @@ const askNatively = (contents: WebContents): boolean => {
   const options = {
     type: "question" as const,
     buttons: zh ? ["离开", "留在此页"] : ["Leave", "Stay"],
-    defaultId: 0,
+    // Enter keeps the page; leaving discards the page's unsaved changes.
+    defaultId: 1,
     cancelId: 1,
     message: zh ? "要离开此网站吗？" : "Leave site?",
     detail: zh ? "系统可能不会保存你所做的更改。" : "Changes you made may not be saved.",

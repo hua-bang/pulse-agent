@@ -81,7 +81,7 @@ describe('unload prompt', () => {
     handler!(event);
     expect(electronMocks.showMessageBoxSync).toHaveBeenCalledWith(
       { id: 'window' },
-      expect.objectContaining({ buttons: ['Leave', 'Stay'], message: 'Leave site?' }),
+      expect.objectContaining({ buttons: ['Leave', 'Stay'], defaultId: 1, message: 'Leave site?' }),
     );
     expect(event.preventDefault).toHaveBeenCalledOnce();
   });

@@ -153,7 +153,6 @@ export const ModelsSection = ({
   );
   const { fetching, fetchModels, localError, save, saving, setLocalError } = useProviderModelActions({
     activeProviderStatus,
-    availableModels,
     draft,
     mergeModelCatalog,
     onFetchModels,

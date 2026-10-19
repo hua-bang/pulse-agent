@@ -189,6 +189,34 @@ describe('ModelProviderFields model picker', () => {
     expect(host.textContent).toContain('1.05M');
   });
 
+  it('drops unselected models the provider no longer returns when saving', async () => {
+    const onSaveProvider = vi.fn().mockResolvedValue(status);
+    mount(
+      <ModelsSection
+        status={{
+          ...status,
+          providers: [{
+            ...status.providers[0],
+            available_models: [...availableModels, { id: 'retired-model' }],
+          }],
+        }}
+        onClose={vi.fn()}
+        onSaveProvider={onSaveProvider}
+        onRemoveProvider={vi.fn()}
+        onFetchModels={vi.fn().mockResolvedValue(availableModels)}
+      />,
+    );
+
+    const saveButton = Array.from(host.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'Test & Save');
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSaveProvider.mock.calls[0]?.[0].available_models).toEqual(availableModels);
+  });
+
   it('pauses first-time save after fetching so the user can select a model', async () => {
     const onFetchModels = vi.fn().mockResolvedValue(availableModels);
     const onSaveProvider = vi.fn().mockResolvedValue(status);

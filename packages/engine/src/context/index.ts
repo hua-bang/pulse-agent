@@ -47,10 +47,13 @@ const FALLBACK_SHARE = 0.2;
 /**
  * Summary output cap: 3% of the window, between 4K and 8K tokens. A fixed
  * 1200 left reasoning models too little room after thinking, so summaries
- * came back cut short and each compaction lost more earlier history.
+ * came back cut short and each compaction lost more earlier history. The
+ * transcript takes up to half the window, so the cap never exceeds a quarter
+ * of it; small local models must fit input plus output.
  */
-export const summaryOutputTokens = (windowTokens: number): number => (
-  Math.min(8000, Math.max(4000, Math.round(windowTokens * 0.03)))
+export const summaryOutputTokens = (windowTokens: number): number => Math.min(
+  Math.floor(windowTokens * 0.25),
+  Math.min(8000, Math.max(4000, Math.round(windowTokens * 0.03))),
 );
 
 const ensureSummaryPrefix = (summary: string): string => {
