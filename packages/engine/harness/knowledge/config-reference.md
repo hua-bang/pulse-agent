@@ -42,7 +42,7 @@ Every tunable the engine reads, with defaults and read sites. All `config/index.
 
 1. The length-disambiguation budgets (`loop.ts` per-family table, `MODEL_CONTEXT_BUDGET`) are INDEPENDENT of `CONTEXT_WINDOW_TOKENS`/`COMPACT_TRIGGER` — the former reads real `usage.inputTokens`, the latter a cheap char estimate; their default scales disagree (64K vs 180K for Claude) by design.
 2. Raising the output-token caps reduces false compactions: an under-budget `length` finish is treated as an output-cap hit and just continues.
-3. The summarizer receives a clipped plain-text transcript bounded by 50% of the window, never raw history, so the summary request cannot overflow. When it fails, a shorter clipped transcript (20% of target) stands in for the summary (`strategy: 'fallback'`).
+3. The summarizer receives a clipped plain-text transcript with an estimated token budget of 50% of the window, including the omission marker. When it fails, a shorter clipped transcript (20% of target) stands in for the summary (`strategy: 'fallback'`). Both use the engine text estimator, not the provider tokenizer. Request framing and prompts add overhead, so these transcript budgets do not guarantee that a model request cannot overflow.
 4. When even the smallest valid tail exceeds `COMPACT_TARGET`, the summary is still kept and the result reports `strategy: 'summary-too-large'`; a result that is not smaller than the input is discarded.
 5. `MAX_COMPACTION_ATTEMPTS` counts consecutive compactions across the pre-loop, length-retry and overflow-error sites and resets after each completed LLM call, so a long run can compact again after progress.
 

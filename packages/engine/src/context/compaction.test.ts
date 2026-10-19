@@ -122,6 +122,34 @@ describe('maybeCompactContext boundaries', () => {
     expect(result.stats!.afterEstimatedTokens).toBeLessThan(result.stats!.beforeEstimatedTokens);
   });
 
+  it.each([false, true])('bounds mixed-density transcripts through compaction (fallback: %s)', async (fallback) => {
+    if (fallback) summarizeMessagesMock.mockRejectedValue(new Error('provider down'));
+    const chunks = [
+      ...Array.from({ length: 25 }, () => '中'.repeat(1000)),
+      ...Array.from({ length: 900 }, () => 'a'.repeat(1000)),
+      ...Array.from({ length: 75 }, () => '文'.repeat(1000)),
+    ];
+    const context: Context = {
+      messages: chunks.map((content, index) => ({
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        content,
+      })),
+    };
+
+    const result = await maybeCompactContext(context);
+
+    expect(result.didCompact).toBe(true);
+    const [summaryInput] = summarizeMessagesMock.mock.calls[0];
+    const transcript = summaryInput[0].content.slice('Conversation transcript:\n'.length);
+    expect(estimateTextTokens(transcript)).toBeLessThanOrEqual(Math.floor(CONTEXT_WINDOW_TOKENS * 0.5));
+    if (fallback) {
+      expect(result.stats!.strategy).toBe('fallback');
+      const summary = String(result.newMessages![0].content);
+      const clipped = summary.slice(summary.indexOf('\n', summary.indexOf('\n') + 1) + 1);
+      expect(estimateTextTokens(clipped)).toBeLessThanOrEqual(Math.floor(COMPACT_TARGET * 0.2));
+    }
+  });
+
   it('does nothing below the trigger', async () => {
     const result = await maybeCompactContext(singleTurnRun(3));
 
