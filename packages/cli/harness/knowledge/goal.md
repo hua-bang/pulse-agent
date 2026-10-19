@@ -27,7 +27,7 @@ goal costs ZERO cache misses.
 ## Budgets
 
 Two independent budgets guard a goal run:
-- engine `MAX_STEPS` (per-round step cap, inside one `agent.run`; each completed LLM call counts at least one step, including empty responses; see [Loop Lifecycle](../../../engine/harness/knowledge/loop-lifecycle.md))
+- engine `MAX_STEPS` (step limit inside one `agent.run`, checked on tool-call, empty-response and output-cap continuations; the locked SDK counts one step per completed LLM call, including empty responses. True context-overflow retries bypass this limit; see [Loop Lifecycle](../../../engine/harness/knowledge/loop-lifecycle.md))
 - goal `maxRounds` (host-side continuation rounds, enforced by `runGoalLoop`)
 
 ## Completion gate

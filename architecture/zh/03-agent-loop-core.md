@@ -18,7 +18,7 @@
 
 运行时维护三个关键计数器：
 - `errorCount`：错误累计，达到 `MAX_ERROR_COUNT` 终止
-- `totalSteps`：每次完成的 LLM 调用累加 `Math.max(steps.length, 1)`，空响应也至少计一个 step。步数上限为 `LoopOptions.maxSteps ?? MAX_STEPS`（默认 500）。退出条件和返回值以 [Loop Lifecycle](../../packages/engine/harness/knowledge/loop-lifecycle.md) 为准。
+- `totalSteps`：每次完成的 LLM 调用累加 `Math.max(steps.length, 1)`，空响应也至少计一个 step。步数限制为 `LoopOptions.maxSteps ?? MAX_STEPS`（默认 500）。锁定的 SDK 每次完成的外层 LLM 调用计一个 step。工具调用、空响应和输出上限续写分支检查此限制；真正的上下文溢出重试分支不检查。退出条件和返回值以 [Loop Lifecycle](../../packages/engine/harness/knowledge/loop-lifecycle.md) 为准。
 - `compactionAttempts`：压缩次数，达到 `MAX_COMPACTION_ATTEMPTS` 停止压缩
 
 ## 3. 执行流程图

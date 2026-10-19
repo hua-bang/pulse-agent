@@ -18,7 +18,7 @@ It is not responsible for:
 
 The loop maintains three key counters:
 - `errorCount`: terminate when reaching `MAX_ERROR_COUNT`
-- `totalSteps`: each completed LLM call adds `Math.max(steps.length, 1)`, including empty responses. The step cap is `LoopOptions.maxSteps ?? MAX_STEPS` (default 500). See the authoritative [Loop Lifecycle](../../packages/engine/harness/knowledge/loop-lifecycle.md) for exit conditions and return values.
+- `totalSteps`: each completed LLM call adds `Math.max(steps.length, 1)`, including empty responses. The step limit is `LoopOptions.maxSteps ?? MAX_STEPS` (default 500). The locked SDK counts one step per completed outer LLM call. Tool-call, empty-response and output-cap continuations check this limit; true context-overflow retries bypass it. See the authoritative [Loop Lifecycle](../../packages/engine/harness/knowledge/loop-lifecycle.md) for exit conditions and return values.
 - `compactionAttempts`: stop compacting when reaching `MAX_COMPACTION_ATTEMPTS`
 
 ## 3. Execution Flow
