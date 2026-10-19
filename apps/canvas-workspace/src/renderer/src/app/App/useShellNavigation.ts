@@ -5,13 +5,14 @@ import { APP_ROUTES } from './routeModel';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const RAIL_EXPANDED_KEY = 'pulse-canvas.rail-expanded';
 
-/** A boolean shell preference kept in localStorage; off when unset or unreadable. */
-const usePersistedToggle = (key: string) => {
+/** A boolean shell preference kept in localStorage; `fallback` when unset or unreadable. */
+const usePersistedToggle = (key: string, fallback = false) => {
   const [on, setOn] = useState(() => {
     try {
-      return window.localStorage.getItem(key) === '1';
+      const stored = window.localStorage.getItem(key);
+      return stored === null ? fallback : stored === '1';
     } catch {
-      return false;
+      return fallback;
     }
   });
   const toggle = useCallback(() => {
@@ -30,8 +31,11 @@ const usePersistedToggle = (key: string) => {
 /** Persisted open/closed state of the sidebar panel next to the app rail. */
 export const useSidebarCollapsed = () => usePersistedToggle(SIDEBAR_COLLAPSED_KEY);
 
-/** Persisted choice to show the app rail wide, with a label beside each icon. */
-export const useRailExpanded = () => usePersistedToggle(RAIL_EXPANDED_KEY);
+/**
+ * Persisted choice to show the app rail wide, with a label beside each icon.
+ * Wide by default, because the workspace list only shows in the wide rail.
+ */
+export const useRailExpanded = () => usePersistedToggle(RAIL_EXPANDED_KEY, true);
 
 interface SettingsNavigationOptions {
   location: string;
