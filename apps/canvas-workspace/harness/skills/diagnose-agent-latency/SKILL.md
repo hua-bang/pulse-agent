@@ -40,10 +40,14 @@ events, without prompt/response or tool input/output payloads. Preserve the file
 when reporting a slow request. Host and UI totals have separate end boundaries;
 the waterfall extends to the last observed event.
 
-DevTools keeps the newest 200 runs and at most 50 MB of run files under
-`<userData>/plugins/devtools/runs/`; an `index.json` beside them lists the
-summaries (`src/plugins/main/devtools-run-store.ts`). Each write prunes the
-oldest runs. Export a run you need before it ages out. In memory, a run keeps
+DevTools retains up to 200 runs with a soft target of 50 MiB (50 × 1024 × 1024
+bytes) for serialized run files. It always keeps the newest run, even if that
+run alone exceeds the target. Run files are under
+`<userData>/plugins/devtools/runs/`; summaries are in
+`<userData>/plugins/devtools/index.json` (`src/plugins/main/devtools-run-store.ts`
+and `src/plugins/main/plugin-store.ts`). The byte target excludes the index.
+Each write prunes older runs against these limits. Export a run you need before
+it ages out. In memory, a run keeps
 at most 500 events; the cap drops the oldest detail events and never
 `run.started` or `run.completed`.
 
