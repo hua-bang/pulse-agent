@@ -800,7 +800,10 @@ const PERF_WEBPAGE_HTML = [
 // widens to fit the larger default iframe size (520x400 vs 200x120) so
 // nothing overlaps regardless of mix.
 const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
+  // Baselines and the seed transform assume the narrow rail; the app opens
+  // the wide rail by default, so pin it narrow before the reload.
   await evaluate(cdp, `(async () => {
+    localStorage.setItem('pulse-canvas.rail-expanded', '0');
     const store = window.canvasWorkspace.store;
     const list = await store.list();
     const wsId = list.ids[0];
