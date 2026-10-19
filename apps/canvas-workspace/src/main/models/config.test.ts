@@ -79,3 +79,73 @@ describe('canvas model config key storage', () => {
     expect(raw.providers[0].encrypted_api_key).toBe(`plain:${Buffer.from('sk-new', 'utf8').toString('base64')}`);
   });
 });
+
+describe('canvas model context windows', () => {
+  it('keeps the fetched catalog and resolves the selected model window', async () => {
+    const { getCanvasModelStatus, resolveCanvasModel, upsertCanvasModelProvider } = await import('./config');
+    await upsertCanvasModelProvider({
+      id: 'codex',
+      name: 'Codex',
+      provider_type: 'openai',
+      base_url: 'https://gateway.example/v1',
+      api_key: 'sk-test',
+      models: [{ id: 'gpt-6-astra', context_window: 1_050_000 }],
+      available_models: [{ id: 'gpt-6-astra', context_window: 1_050_000 }, { id: 'gpt-5' }],
+    });
+
+    const status = await getCanvasModelStatus();
+    expect(status.providers[0]?.available_models).toEqual([
+      { id: 'gpt-6-astra', context_window: 1_050_000 },
+      { id: 'gpt-5' },
+    ]);
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(1_050_000);
+  });
+
+  it('falls back to the provider window, then the default', async () => {
+    const { resolveCanvasModel, upsertCanvasModelProvider, DEFAULT_CONTEXT_WINDOW_TOKENS } = await import('./config');
+    await upsertCanvasModelProvider({
+      id: 'gw',
+      name: 'Gateway',
+      api_key: 'sk-test',
+      base_url: 'https://gateway.example/v1',
+      models: [{ id: 'm1' }],
+    });
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(DEFAULT_CONTEXT_WINDOW_TOKENS);
+
+    await upsertCanvasModelProvider({ id: 'gw', name: 'Gateway', models: [{ id: 'm1' }], context_window: 256_000 });
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(256_000);
+
+    // Clearing the field in the form removes the saved value.
+    await upsertCanvasModelProvider({ id: 'gw', name: 'Gateway', models: [{ id: 'm1' }], context_window: undefined });
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(DEFAULT_CONTEXT_WINDOW_TOKENS);
+  });
+
+  it('reads the window a gateway reports in /models', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { id: 'a', context_length: 200_000 },
+          { id: 'b', top_provider: { context_length: 131_072 } },
+          { id: 'c', max_model_len: '32768' },
+          { id: 'd' },
+        ],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { fetchCanvasProviderModels } = await import('./config');
+      const models = await fetchCanvasProviderModels({
+        provider: { id: 'gw', name: 'Gateway', base_url: 'https://gateway.example/v1', api_key: 'sk-test' },
+      });
+      expect(models).toEqual([
+        { id: 'a', context_window: 200_000 },
+        { id: 'b', context_window: 131_072 },
+        { id: 'c', context_window: 32_768 },
+        { id: 'd' },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

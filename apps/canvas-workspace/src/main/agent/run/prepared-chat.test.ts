@@ -99,6 +99,7 @@ describe('startPreparedChat', () => {
       model: 'model-real',
       modelLabel: 'Model Real',
       modelType: 'openai',
+      contextWindowTokens: 128_000,
     });
 
     expect(resolution).toEqual({

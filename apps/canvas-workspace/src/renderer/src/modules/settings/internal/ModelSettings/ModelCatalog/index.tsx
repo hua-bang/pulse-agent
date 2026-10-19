@@ -3,6 +3,7 @@ import { useI18n } from '../../../../../i18n';
 import type { CanvasProviderModel } from '../../../../../types';
 import { Button, SegmentedControl, TextField } from '../../../../../components/ui';
 import { matchesModelQuery } from '../../../../../utils/modelCatalog';
+import { formatContextWindow, modelSettingsCopy } from '../copy';
 import './index.css';
 
 interface Props {
@@ -10,6 +11,8 @@ interface Props {
   availableModels: CanvasProviderModel[];
   selectedModels: CanvasProviderModel[];
   onToggleModel: (model: CanvasProviderModel, selected: boolean) => void;
+  /** Select or clear every model the current search and filter show. */
+  onSetModelsSelected: (models: CanvasProviderModel[], selected: boolean) => void;
 }
 
 export const ModelCatalog = ({
@@ -17,8 +20,10 @@ export const ModelCatalog = ({
   availableModels,
   selectedModels,
   onToggleModel,
+  onSetModelsSelected,
 }: Props) => {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
+  const copy = modelSettingsCopy(language);
   const [query, setQuery] = useState('');
   const [selectedOnly, setSelectedOnly] = useState(false);
   const selectedModelIds = useMemo(
@@ -31,6 +36,9 @@ export const ModelCatalog = ({
     if (!normalizedQuery) return true;
     return matchesModelQuery(model, normalizedQuery);
   }), [availableModels, normalizedQuery, selectedModelIds, selectedOnly]);
+
+  const allShownSelected = filteredModels.length > 0
+    && filteredModels.every((model) => selectedModelIds.has(model.id));
 
   useEffect(() => {
     setQuery('');
@@ -45,6 +53,15 @@ export const ModelCatalog = ({
           selected: selectedModelIds.size,
           total: availableModels.length,
         })}</span>
+        <Button
+          size="xs"
+          variant="secondary"
+          className="chat-model-catalog-bulk"
+          disabled={filteredModels.length === 0}
+          onClick={() => onSetModelsSelected(filteredModels, !allShownSelected)}
+        >
+          {allShownSelected ? copy.clearAll : copy.selectAll}
+        </Button>
       </div>
       <div className="chat-model-model-search-wrap">
         <TextField
@@ -84,6 +101,9 @@ export const ModelCatalog = ({
                 <strong>{model.name ?? model.id}</strong>
                 {model.name && model.name !== model.id && <small>{model.id}</small>}
               </span>
+              {model.context_window && (
+                <span className="chat-model-model-window">{formatContextWindow(model.context_window)}</span>
+              )}
             </Button>
           );
         }) : (

@@ -154,7 +154,10 @@ export const COMPACT_TARGET = Number(process.env.COMPACT_TARGET ?? Math.floor(CO
 export const KEEP_LAST_TURNS = Number(process.env.KEEP_LAST_TURNS ?? 4);
 // Unset or blank means "no override": `undefined`, never '', so `??` fallbacks reach the run model.
 export const COMPACT_SUMMARY_MODEL: string | undefined = (process.env.COMPACT_SUMMARY_MODEL ?? '').trim() || undefined;
-export const COMPACT_SUMMARY_MAX_TOKENS = Number(process.env.COMPACT_SUMMARY_MAX_TOKENS ?? 1200);
+/** Operator override for the summary output cap; unset → scaled to the context window (see context/index.ts). */
+export const COMPACT_SUMMARY_MAX_TOKENS: number | undefined = process.env.COMPACT_SUMMARY_MAX_TOKENS
+  ? Number(process.env.COMPACT_SUMMARY_MAX_TOKENS)
+  : undefined;
 export const MAX_COMPACTION_ATTEMPTS = Number(process.env.MAX_COMPACTION_ATTEMPTS ?? 2);
 export const OPENAI_REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT;
 
