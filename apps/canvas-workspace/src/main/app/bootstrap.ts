@@ -85,6 +85,7 @@ import {
 
 let teardownConversationRuntime: () => void = () => undefined;
 import { setupLinkPolicy } from "./browsing/link-policy";
+import { setupUnloadPrompt } from "./browsing/unload-prompt";
 import { setupWebviewShortcuts } from "../webview/webview-shortcuts";
 import { setupWebviewContextMenu } from "../webview/webview-context-menu";
 import { setupGoogleAuthCompat } from "./browsing/google-auth";
@@ -154,6 +155,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   // hook must be installed before any guest can take focus.
   setupWebviewShortcuts();
   setupWebviewContextMenu();
+  setupUnloadPrompt();
 
   // Default-browser support (single-instance lock + OS deep-link listeners)
   // is opt-in behind the "Set as default browser" experimental flag, and MUST

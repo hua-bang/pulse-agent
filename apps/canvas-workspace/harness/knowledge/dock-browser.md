@@ -33,6 +33,12 @@ like a normal browser. A `canvas-node` remains a preview: its cross-origin
 navigation becomes a dock link. OAuth redirects and external editor protocols
 retain their dedicated policies.
 
+`main/app/browsing/unload-prompt.ts` answers `will-prevent-unload` for every
+guest. Electron cancels a reload or navigation that a page's `beforeunload`
+blocks without asking, so pages such as Notion looked like reload did nothing.
+The handler asks "Leave site?" on the host window, and Leave lets the page
+unload.
+
 Only a registered `dock-browser` guest receives browser shortcut interception
 from `main/webview/webview-shortcuts.ts`. Canvas-node pages keep owning their
 keystrokes.
