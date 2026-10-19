@@ -34,6 +34,7 @@ export const IframeRenderedView = (props: IframeRenderedViewProps) => {
           discardSnapshot: props.discardSnapshot,
           loadState: props.loadState,
           loadError: props.loadError,
+          unloadBlocked: props.unloadPrompt.blocked,
           webviewKey: props.webviewKey,
         }}
         refs={{
@@ -46,6 +47,8 @@ export const IframeRenderedView = (props: IframeRenderedViewProps) => {
           reload: props.handleReload,
           openExternal: props.handleOpenExternal,
           wakeWebview: props.onWakeWebview,
+          leavePage: props.unloadPrompt.leave,
+          stayOnPage: props.unloadPrompt.stay,
         }}
       />
     </div>

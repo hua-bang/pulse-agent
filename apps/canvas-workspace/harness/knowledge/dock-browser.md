@@ -36,8 +36,12 @@ retain their dedicated policies.
 `main/app/browsing/unload-prompt.ts` answers `will-prevent-unload` for every
 guest. Electron cancels a reload or navigation that a page's `beforeunload`
 blocks without asking, so pages such as Notion looked like reload did nothing.
-The handler asks "Leave site?" on the host window, and Leave lets the page
-unload.
+Toolbar reload, back, and forward first announce themselves
+(`useUnloadPrompt` → `iframe:expect-unload`). Main cancels an announced action
+that the page vetoes and sends `iframe:unload-blocked`; the web card or dock tab
+then asks in app chrome, and Leave sends `iframe:allow-unload` and replays the
+action. A navigation that the page starts itself has nothing to replay, so it
+keeps the native "Leave site?" dialog on the host window.
 
 Only a registered `dock-browser` guest receives browser shortcut interception
 from `main/webview/webview-shortcuts.ts`. Canvas-node pages keep owning their

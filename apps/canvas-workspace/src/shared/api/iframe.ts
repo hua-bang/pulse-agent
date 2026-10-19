@@ -111,4 +111,15 @@ export interface IframeApi {
    * `sourceWebContentsId` draws the menu. Returns unsubscribe fn.
    */
   onContextMenu: (callback: (request: WebviewContextMenuRequest) => void) => () => void;
+  /**
+   * Announce a reload/back/forward from host chrome. If the page's
+   * beforeunload handler vetoes it, main cancels it and fires
+   * `onUnloadBlocked` instead of showing a native dialog. Fire-and-forget,
+   * so it reaches main before the webview call that follows it.
+   */
+  expectUnload: (webContentsId: number) => void;
+  /** The user chose Leave: the guest's next unload skips its beforeunload veto. */
+  allowUnload: (webContentsId: number) => void;
+  /** An announced action was vetoed; the surface owning the guest asks the user. */
+  onUnloadBlocked: (callback: (payload: { webContentsId: number }) => void) => () => void;
 }

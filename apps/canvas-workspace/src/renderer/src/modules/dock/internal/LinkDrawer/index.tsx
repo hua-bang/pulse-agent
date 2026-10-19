@@ -14,6 +14,7 @@ import { AddressSuggestionList } from './AddressSuggestions';
 import { LinkTabLoadError } from './LinkTabLoadError';
 import { PageContextMenu } from './PageContextMenu';
 import { FindInPageBar } from './FindInPageBar';
+import { LeavePagePrompt } from './LeavePagePrompt';
 import { InspectIcon, ReferenceIcon } from './icons';
 import { useAddressBar } from './useAddressBar';
 import { useFindInPage } from './useFindInPage';
@@ -439,6 +440,7 @@ export const LinkTabView = ({
           )}
         </div>
       )}
+      <LeavePagePrompt prompt={browser.unloadPrompt} />
       <div className="link-drawer__webview-surface">
         <div ref={browser.hostRef} className="link-drawer__webview-host" />
         {find.open && (

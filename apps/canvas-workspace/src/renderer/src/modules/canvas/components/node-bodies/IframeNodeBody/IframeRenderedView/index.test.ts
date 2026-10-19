@@ -64,6 +64,7 @@ const renderUrlView = async () => {
         streamingActive: false,
         webviewDiscarded: false,
         title: 'Example',
+        unloadPrompt: { blocked: false, leave: vi.fn(), stay: vi.fn() },
         url: 'https://example.com',
         webviewHostRef: divRef(),
         webviewKey: 1,
