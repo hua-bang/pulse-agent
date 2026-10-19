@@ -74,15 +74,20 @@
   background: rgba(35, 131, 226, 0.08);
 }
 
+/* One left-aligned line, like a tool row: a long path ends in an ellipsis
+   (full text in the title) instead of wrapping centered inside the button. */
 .chat-tool-calls-summary {
-  display: inline-flex;
-  align-items: center;
+  display: block;
   min-width: 0;
   min-height: 16px;
+  overflow: hidden;
   color: rgba(55, 53, 47, 0.4);
   font-family: var(--font-ui);
   font-size: 12px;
   line-height: 16px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-tool-calls-section-header {
