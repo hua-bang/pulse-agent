@@ -67,16 +67,37 @@ export function renderTranscript(messages: ModelMessage[]): string {
 }
 
 /**
- * Keep the transcript within a token budget. The head is kept because it
+ * Keep the transcript within an estimated token budget, including the omission
+ * marker. This is not a model tokenizer guarantee. The head is kept because it
  * carries any earlier compaction summary and the original goal; the tail is
  * kept because it carries the latest progress.
  */
 export function fitTranscript(transcript: string, budgetTokens: number): string {
-  const tokens = estimateTextTokens(transcript);
-  if (tokens <= budgetTokens) return transcript;
-  const keepChars = Math.max(0, Math.floor(transcript.length * (budgetTokens / tokens)));
-  const headChars = Math.floor(keepChars * 0.25);
-  const tailChars = keepChars - headChars;
-  const omitted = transcript.length - headChars - tailChars;
-  return `${transcript.slice(0, headChars)}\n…[${omitted} chars of history omitted]…\n${transcript.slice(transcript.length - tailChars)}`;
+  const budget = Math.max(0, Math.floor(budgetTokens));
+  if (estimateTextTokens(transcript) <= budget) return transcript;
+  const render = (keepChars: number): string => {
+    const headChars = Math.floor(keepChars * 0.25);
+    const tailChars = keepChars - headChars;
+    const omitted = transcript.length - keepChars;
+    return `${transcript.slice(0, headChars)}\n…[${omitted} chars of history omitted]…\n${transcript.slice(transcript.length - tailChars)}`;
+  };
+
+  // Measure the actual head/tail, whose density can differ from the middle.
+  // Growing retained text cannot reduce this estimate: each added character
+  // costs at least as much as a digit removed from the omission count.
+  let low = 0;
+  let high = transcript.length - 1;
+  let fitted = '';
+  while (low <= high) {
+    const keepChars = Math.floor((low + high) / 2);
+    const candidate = render(keepChars);
+    if (estimateTextTokens(candidate) <= budget) {
+      fitted = candidate;
+      low = keepChars + 1;
+    } else {
+      high = keepChars - 1;
+    }
+  }
+  // An empty string is the only option when even the marker cannot fit.
+  return fitted;
 }
