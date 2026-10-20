@@ -40,6 +40,11 @@ description: 使用本地脚本发布 Pulse Canvas 的 macOS arm64 版本，并�
 - 稳定发布默认走 PR：发布产物完成后提交 `release(canvas): <version>`，推送当前分支，创建 PR；PR 合并后再从目标分支创建并推送 `pulse-canvas-v<version>` tag
 - 只有在明确不需要 PR 的情况下，才使用 `--push-git` 让脚本直接提交、打 tag、推送分支和 tag
 
+### GitHub Actions 发布
+- `.github/workflows/canvas-release.yml` 在 `macos-14`（Apple Silicon）上手动触发，输入版本号和中英文发布说明，运行同一个脚本，再推送 `release/canvas-<version>` 分支并创建 PR。
+- 需要的仓库 Secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 和下表 4 个 `PULSE_CANVAS_*` 变量。
+- 该 PR 由 `GITHUB_TOKEN` 创建，不会触发其他 workflow。PR 合并后仍按下文手动打 tag。
+
 ### 本地部署配置
 仓库不提供真实部署目标。通过环境变量或同名用途的参数配置；参数优先。
 
