@@ -705,6 +705,21 @@ inside `RightDock/index.test.tsx`.
 one authoritative run and one session pointer per chat scope even when the
 renderer fires concurrent, overlapping requests at it.
 
+### Compaction checkpoints
+
+Each turn rebuilds the model history from the stored transcript
+(`sessions/run-session-context.ts`). A context compaction must therefore be
+kept, or every later turn on a long session pays for another summarizer call.
+`sessions/compaction-checkpoint.ts` keeps, per session and in memory, the
+summary messages and how many stored messages they replace; the next turn
+sends the summary plus the later stored messages. A checkpoint never covers a
+stored message the compaction kept (including the turn's own ask), so a later
+turn may repeat a little context but never loses any. It is dropped when the
+covered messages change (edit, regenerate, truncation). After a restart the
+first long turn compacts once and records a new one. Apply compactions through
+`replaceRunMessages`, never by splicing the run history directly. Guard:
+`sessions/compaction-checkpoint.test.ts`.
+
 ### Chat latency trace
 
 The existing `canvas-agent-debug-trace` experimental feature records a bounded

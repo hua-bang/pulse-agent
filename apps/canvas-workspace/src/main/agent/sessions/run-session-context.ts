@@ -1,6 +1,7 @@
 import type { ModelMessage } from 'ai';
 import type { CanvasAgentMessage, CanvasAgentSession } from '../types';
 import { sessionMessageToModelMessage } from '../roles/role-turn';
+import { buildCheckpointedHistory, recordCompactionCheckpoint } from './compaction-checkpoint';
 
 /** Read/append surface a run needs from the session store. */
 export interface RunSessionStore {
@@ -16,6 +17,8 @@ export type RunSessionContext =
       runMessages: ModelMessage[];
       runStoreMessages: CanvasAgentMessage[];
       appendRunMessages: (messages: CanvasAgentMessage[]) => void;
+      /** Apply a context compaction in place and keep it for later turns. */
+      replaceRunMessages: (messages: ModelMessage[]) => void;
     }
   | {
       ok: false;
@@ -51,12 +54,30 @@ export async function prepareRunSession(
       activeSessionId: store.getCurrentSession()?.sessionId ?? null,
     };
   }
-  const runMessages: ModelMessage[] = targetSession.messages.map(sessionMessageToModelMessage);
+  const { messages: runMessages, storeIndex, coveredStart } = buildCheckpointedHistory(
+    targetSession.sessionId,
+    targetSession.messages,
+    sessionMessageToModelMessage,
+  );
   // Mirrors what has been persisted to the anchored session during this turn.
   const runStoreMessages: CanvasAgentMessage[] = [...targetSession.messages];
   const appendRunMessages = (storeMessages: CanvasAgentMessage[]) => {
+    // The turn's user message is pushed to the model history just before it
+    // is saved; map it so a compaction that keeps it never covers it.
+    const lastModel = runMessages.at(-1);
+    if (storeMessages.length === 1 && storeMessages[0].role === 'user'
+      && lastModel?.role === 'user' && !storeIndex.has(lastModel)) {
+      storeIndex.set(lastModel, runStoreMessages.length);
+    }
     runStoreMessages.push(...storeMessages);
     persist(targetSession.sessionId, storeMessages);
+  };
+  const replaceRunMessages = (messages: ModelMessage[]) => {
+    recordCompactionCheckpoint(
+      targetSession.sessionId, runStoreMessages, runMessages, messages, storeIndex, coveredStart,
+    );
+    // In place: the engine loop and later appends share this array.
+    runMessages.splice(0, runMessages.length, ...messages);
   };
   return {
     ok: true,
@@ -64,5 +85,6 @@ export async function prepareRunSession(
     runMessages,
     runStoreMessages,
     appendRunMessages,
+    replaceRunMessages,
   };
 }
