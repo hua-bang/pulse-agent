@@ -238,7 +238,7 @@ export class DockStore {
     );
     if (!next) return;
     if (next.retainedLinkTabs) this.commit({ retainedLinkTabs: next.retainedLinkTabs });
-    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '');
+    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '', undefined, false);
   }
 
   /** Create an empty browser tab. */
@@ -352,7 +352,7 @@ export class DockStore {
     if (!next) return;
     this.commit({ retainedLinkTabs: next.retainedLinkTabs });
     // Write through, or a restart would restore the pre-switch URL.
-    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '');
+    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '', undefined, false);
   }
 
   private applyTerminalCommit(commit: TerminalCommit | null, workspaceId: string): void {

@@ -1096,7 +1096,7 @@ describe('DockStore', () => {
     expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true });
   });
 
-  it('stamps only the active web tab and closes week-old tabs when the workspace is entered', () => {
+  it('stamps on-screen web tabs and closes week-old tabs when the workspace is entered', () => {
     vi.useFakeTimers();
     try {
       const day = 24 * 60 * 60_000;
@@ -1106,13 +1106,14 @@ describe('DockStore', () => {
       dock.setActiveWorkspace('ws-a');
       dock.openLink('https://old.example');
       const oldId = dock.getSnapshot().activeTabId;
-      vi.setSystemTime(6 * day);
+      vi.setSystemTime(1 * day);
       dock.openLink('https://kept.example');
       const keptId = dock.getSnapshot().activeTabId;
-      vi.setSystemTime(8 * day);
+      vi.setSystemTime(9 * day);
       dock.openLink('https://active.example');
       const activeId = dock.getSnapshot().activeTabId;
-      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [oldId]: 0, [keptId]: 6 * day, [activeId]: 8 * day });
+      // The tab that just left the screen is stamped too.
+      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [oldId]: 1 * day, [keptId]: 9 * day, [activeId]: 9 * day });
       expect(dock.getLinkTabActivity()).toEqual(saved.read()['ws-a']?.lastActiveAt);
 
       vi.setSystemTime(10 * day);
@@ -1124,6 +1125,26 @@ describe('DockStore', () => {
       expect(restored.getClosedTabs().map((tab) => tab.id)).toEqual([oldId]);
       restored.reopenClosedTab();
       expect(restored.getSnapshot().tabs.map((tab) => tab.id)).toContain(oldId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps last-use times when a hidden workspace guest updates its tab', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const saved = createSessionPersistence();
+      const dock = new DockStore(saved.persistence);
+      dock.setActiveWorkspace('ws-a');
+      dock.openLink('https://a.example');
+      const id = dock.getSnapshot().activeTabId;
+      dock.setActiveWorkspace('ws-b');
+      vi.setSystemTime(3 * 24 * 60 * 60_000);
+      dock.updateRetainedLinkTab('ws-a', id, { title: 'Background title' });
+
+      expect(saved.read()['ws-a']?.tabs[0]?.title).toBe('Background title');
+      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [id]: 0 });
     } finally {
       vi.useRealTimers();
     }

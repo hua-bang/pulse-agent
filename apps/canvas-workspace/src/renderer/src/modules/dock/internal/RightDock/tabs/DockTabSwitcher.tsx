@@ -20,11 +20,12 @@ interface Props {
   onReopen?: (offset: number) => void;
   /** Persisted last-use times, so the order survives a restart. */
   lastActiveAt?: Readonly<Record<string, number>>;
-  inactiveCount?: number;
+  /** Read when the menu renders, so tabs that went stale while idle count. */
+  getInactiveCount?: () => number;
   onCloseInactive?: () => void;
 }
 
-export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, onClose, closedTabs = [], onReopen, lastActiveAt = {}, inactiveCount = 0, onCloseInactive }: Props) => {
+export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, onClose, closedTabs = [], onReopen, lastActiveAt = {}, getInactiveCount, onCloseInactive }: Props) => {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,7 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
     else onActivate(row.item.id);
   };
   const comparing = mode === 'compare';
+  const inactiveCount = open && !comparing ? getInactiveCount?.() ?? 0 : 0;
   const title = t(comparing ? 'rightDock.chooseComparison' : 'rightDock.allTabs');
   return (
     <>

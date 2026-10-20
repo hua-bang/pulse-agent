@@ -69,7 +69,8 @@ export const DockTabStrip = ({
 }: Props) => {
   const { t } = useI18n();
   const comparisonActive = Boolean(splitTabIds);
-  const inactiveTabIds = inactiveLinkTabIds(store.getLinkTabActivity(), state, Date.now());
+  // Read at use: tabs can go stale while nothing re-renders the strip.
+  const inactiveTabIds = () => inactiveLinkTabIds(store.getLinkTabActivity(), store.getSnapshot(), Date.now());
   // The observer owner mounts with its DOM, including on the first lazy open.
   const tabIndicator = useDockTabIndicator({ scopeId: state.activeTerminalWorkspaceId,
     activeTabId: activePaneId, visible: tabStripVisible,
@@ -177,8 +178,8 @@ export const DockTabStrip = ({
           <DockTabSwitcher key={activeWorkspaceId} items={allTabItems} activeTabId={activePaneId} splitTabIds={splitTabIds}
             closedTabs={store.getClosedTabs()} onReopen={offset => { store.reopenClosedTab(offset); focusActiveDockTarget(store); }}
             onActivate={activateFromUser} onClose={id => store.close(id)}
-            lastActiveAt={store.getLinkTabActivity()} inactiveCount={inactiveTabIds.length}
-            onCloseInactive={() => { for (const id of inactiveTabIds) store.close(id); }} />
+            lastActiveAt={store.getLinkTabActivity()} getInactiveCount={() => inactiveTabIds().length}
+            onCloseInactive={() => { for (const id of inactiveTabIds()) store.close(id); }} />
         </Suspense>
       )}
       {visible && (

@@ -22,7 +22,7 @@ const setup = async (splitTabIds: string[] = ['a', 'b']) => {
       { id: 'b', kind: 'link', title: 'Research', url: 'https://research.example' },
     ]}
     closedTabs={[{ id: 'closed', kind: 'link', title: 'Closed article', url: 'https://closed.example' }]}
-    lastActiveAt={{ a: 1, b: 2 }} inactiveCount={1} onCloseInactive={onCloseInactive}
+    lastActiveAt={{ a: 1, b: 2 }} getInactiveCount={() => 1} onCloseInactive={onCloseInactive}
     onClose={onClose} onActivate={onActivate} onReopen={onReopen} /></I18nProvider>));
   const trigger = mount.querySelector<HTMLButtonElement>('[aria-label="All tabs"]')!;
   act(() => trigger.click());
