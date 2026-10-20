@@ -1,6 +1,13 @@
 version: 1
 
 pathRules:
+  - name: release-skill
+    paths:
+      - harness/skills/pulse-canvas-release/**
+    required:
+      - node apps/canvas-workspace/harness/skills/pulse-canvas-release/scripts/release-pulse-canvas.mjs --self-test-history
+      - pnpm --filter canvas-workspace exec vitest run harness/skills/pulse-canvas-release/scripts/release-pulse-canvas.test.mjs
+
   - name: default
     paths:
       - src/**
