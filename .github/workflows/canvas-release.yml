@@ -1,0 +1,98 @@
+name: Canvas Release
+
+# Manual Pulse Canvas release on an Apple Silicon runner. It runs the same
+# script as a local release (apps/canvas-workspace/harness/skills/
+# pulse-canvas-release): bump the app version, package the macOS arm64 DMG,
+# upload to R2, update latest.json, deploy the download page. It then pushes
+# the version bump and opens a `release(canvas): <version>` PR. Tag the merged
+# commit after the PR lands, as the skill describes.
+#
+# Required repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+# PULSE_CANVAS_R2_BUCKET, PULSE_CANVAS_RELEASE_BASE_URL,
+# PULSE_CANVAS_DOWNLOAD_URL, PULSE_CANVAS_PAGES_PROJECT.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, for example 0.1.80'
+        required: true
+      notes_zh:
+        description: 'Chinese release notes'
+        required: true
+      notes_en:
+        description: 'English release notes'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: canvas-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check version
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must be X.Y.Z, got: $VERSION" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A global CLI for the runner, not a workspace dependency; npm's global
+      # bin is already on PATH after setup-node.
+      - name: Install Wrangler
+        run: npm install -g wrangler@4
+
+      # Notes come in through env, never shell interpolation of inputs.
+      - name: Package, upload and deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PULSE_CANVAS_R2_BUCKET: ${{ secrets.PULSE_CANVAS_R2_BUCKET }}
+          PULSE_CANVAS_RELEASE_BASE_URL: ${{ secrets.PULSE_CANVAS_RELEASE_BASE_URL }}
+          PULSE_CANVAS_DOWNLOAD_URL: ${{ secrets.PULSE_CANVAS_DOWNLOAD_URL }}
+          PULSE_CANVAS_PAGES_PROJECT: ${{ secrets.PULSE_CANVAS_PAGES_PROJECT }}
+          PULSE_CANVAS_RELEASE_NOTES_ZH: ${{ inputs.notes_zh }}
+          PULSE_CANVAS_RELEASE_NOTES_EN: ${{ inputs.notes_en }}
+        run: |
+          node apps/canvas-workspace/harness/skills/pulse-canvas-release/scripts/release-pulse-canvas.mjs \
+            --version "$VERSION"
+
+      - name: Open release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="release/canvas-$VERSION"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          git add apps/canvas-workspace/package.json
+          git commit -m "release(canvas): $VERSION"
+          git push -u origin "$branch"
+          gh pr create --base master --head "$branch" \
+            --title "release(canvas): $VERSION" \
+            --body "Pulse Canvas $VERSION is packaged, uploaded and deployed by the Canvas Release workflow. After merge, tag the merged commit as pulse-canvas-v$VERSION."
