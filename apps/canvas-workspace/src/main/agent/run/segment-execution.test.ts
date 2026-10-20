@@ -10,6 +10,7 @@ const runExternalRoleSegment = vi.hoisted(() => vi.fn());
 vi.mock('../external/segment', () => ({ runExternalRoleSegment }));
 
 import { executeCanvasAgentSegment } from './segment-execution';
+import { onCompactionPhase } from './compaction-status';
 
 describe('executeCanvasAgentSegment', () => {
   beforeEach(() => {
@@ -156,6 +157,45 @@ describe('executeCanvasAgentSegment', () => {
     expect(result.resultText).toBe('done');
     expect(result.responseMessages).toEqual([{ role: 'assistant', content: 'done' }]);
     expect(appended).toEqual([{ role: 'assistant', content: 'done' }]);
+  });
+
+  it('publishes engine compaction phases for the segment session', async () => {
+    const phases: string[] = [];
+    const stop = onCompactionPhase('session-compact', phase => phases.push(phase));
+    const replaceMessages = vi.fn();
+    const engine = {
+      run: vi.fn(async (_context: unknown, loopOptions: any) => {
+        loopOptions.onCompactionStart?.({ beforeMessageCount: 9, beforeEstimatedTokens: 900 });
+        loopOptions.onCompacted?.([{ role: 'user', content: 'summary' }]);
+        return 'done';
+      }),
+    } as unknown as Engine;
+
+    await executeCanvasAgentSegment({
+      engine,
+      context: { messages: [] },
+      role: null,
+      chatSessionId: 'session-compact',
+      history: [],
+      currentAsk: 'go',
+      handoffNames: [],
+      abortSignal: new AbortController().signal,
+      executionMode: 'auto',
+      modelConfig: {
+        providerType: 'openai',
+        provider: vi.fn(),
+        model: 'test-model',
+        modelLabel: 'Test model',
+        contextWindowTokens: 128_000,
+      },
+      systemPrompt: 'system',
+      appendMessages: vi.fn(),
+      replaceMessages,
+    });
+    stop();
+
+    expect(phases).toEqual(['start', 'end']);
+    expect(replaceMessages).toHaveBeenCalledWith([{ role: 'user', content: 'summary' }]);
   });
 
   it('propagates provider failures so Canvas can persist a failed turn instead of assistant prose', async () => {

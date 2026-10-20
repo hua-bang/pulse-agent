@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useI18n, type I18nKey } from '../../../../i18n';
 import { SpinnerIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
@@ -55,6 +55,9 @@ export const describeChatActivity = (
   };
 };
 
+/** Start time of the shown conversation's running compaction, or null. */
+export const ChatCompactionContext = createContext<number | null>(null);
+
 interface Props {
   tools: ToolCallStatus[];
   startedAt?: number;
@@ -64,6 +67,7 @@ interface Props {
 
 export const ChatActivityStatus = ({ tools, startedAt, detailsExpanded = false, onToggleDetails }: Props) => {
   const { language, t } = useI18n();
+  const compacting = useContext(ChatCompactionContext) !== null;
   const activity = useMemo(() => describeChatActivity(tools, t), [t, tools]);
   const [now, setNow] = useState(() => Date.now());
   const effectiveStartedAt = startedAt ?? activity.startedAt;
@@ -76,11 +80,13 @@ export const ChatActivityStatus = ({ tools, startedAt, detailsExpanded = false, 
   }, [effectiveStartedAt]);
 
   const elapsedMs = effectiveStartedAt === undefined ? null : Math.max(0, now - effectiveStartedAt);
-  const label = detailsExpanded || tools.length === 0 ? t('chat.activity.working') : activity.label;
+  const label = compacting
+    ? t('chat.activity.compacting')
+    : detailsExpanded || tools.length === 0 ? t('chat.activity.working') : activity.label;
   const elapsedLabel = elapsedMs === null ? null : formatElapsed(elapsedMs, language);
 
   return (
-    <div className="chat-activity-status" role="status" aria-label={elapsedLabel ? `${label}, ${elapsedLabel}` : label}>
+    <div className={`chat-activity-status${compacting ? ' chat-activity-status--compacting' : ''}`} role="status" aria-label={elapsedLabel ? `${label}, ${elapsedLabel}` : label}>
       <div className="chat-activity-status__tool-row">
         <SpinnerIcon size={12} className="chat-activity-status__spinner" />
         <span className="chat-activity-status__label" title={label}>{label}</span>

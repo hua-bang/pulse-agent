@@ -82,7 +82,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     const noop = () => () => undefined;
     const agent = {
       onTextDelta: noop, onToolCall: noop, onToolResult: noop, onToolInputStart: noop,
-      onToolInputDelta: noop, onToolInputEnd: noop, onClarifyRequest: noop,
+      onToolInputDelta: noop, onToolInputEnd: noop, onCompaction: noop, onClarifyRequest: noop,
       onRoleTurnStart: noop, onRoleTurnEnd: noop,
       onChatComplete: (_sessionId: string, callback: (payload: unknown) => void) => {
         complete = callback;
@@ -163,6 +163,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
       onToolInputStart: listen('tool-input-start'),
       onToolInputDelta: listen('tool-input-delta'),
       onToolInputEnd: listen('tool-input-end'),
+      onCompaction: listen('compaction'),
       onClarifyRequest: listen('clarify'),
       onChatComplete: listen('complete'),
       onRoleTurnStart: listen('role-start'),
@@ -179,7 +180,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
       expect(await latest?.sendMessage('hello')).toBe(true);
     });
 
-    expect(unsubs).toHaveLength(10);
+    expect(unsubs).toHaveLength(11);
     expect(unsubs.every(unsubscribe => unsubscribe.mock.calls.length === 1)).toBe(true);
     expect(readConversationSnapshot(keyA).messages.at(-1)?.content)
       .toBe('done without a delta');
@@ -200,6 +201,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
         onToolInputStart: listen('tool-input-start'),
         onToolInputDelta: listen('tool-input-delta'),
         onToolInputEnd: listen('tool-input-end'),
+        onCompaction: listen('compaction'),
         onClarifyRequest: listen('clarify'),
         onChatComplete: listen('complete'),
         onRoleTurnStart: listen('role-start'),
@@ -238,6 +240,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
         onToolInputStart: listen('tool-input-start'),
         onToolInputDelta: listen('tool-input-delta'),
         onToolInputEnd: listen('tool-input-end'),
+        onCompaction: listen('compaction'),
         onClarifyRequest: listen('clarify'),
         onChatComplete: listen('complete'),
         onRoleTurnStart: listen('role-start'),
@@ -275,6 +278,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
       onToolInputStart: listen('tool-input-start'),
       onToolInputDelta: listen('tool-input-delta'),
       onToolInputEnd: listen('tool-input-end'),
+      onCompaction: listen('compaction'),
       onClarifyRequest: listen('clarify'),
       onChatComplete: listen('complete'),
       onRoleTurnStart: listen('role-start'),
@@ -321,6 +325,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
       onToolInputStart: listen('start'),
       onToolInputDelta: listen('delta'),
       onToolInputEnd: listen('end'),
+      onCompaction: listen('compaction'),
       onClarifyRequest: listen('clarify'),
       onChatComplete: listen('complete'),
       onRoleTurnStart: listen('role-start'),
@@ -385,6 +390,7 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
         onToolInputStart: listen,
         onToolInputDelta: listen,
         onToolInputEnd: listen,
+        onCompaction: listen,
         onClarifyRequest: listen,
         onChatComplete: listen,
         onRoleTurnStart: listen,

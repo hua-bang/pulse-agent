@@ -15,6 +15,9 @@ import type {
   SessionSearchHit,
 } from '../agent-chat';
 import type { CanvasNode } from './canvas';
+
+/** Context compaction progress inside a running turn. */
+export type AgentCompactionPhase = 'start' | 'end';
 import type {
   RoleTurnEndEvent,
   RoleTurnRoleRef,
@@ -297,6 +300,11 @@ export interface AgentApi {
   onToolInputEnd: (
     sessionId: string,
     callback: (data: { id: string }) => void,
+  ) => () => void;
+  /** Context compaction started or ended inside the session's running turn. */
+  onCompaction: (
+    sessionId: string,
+    callback: (data: { phase: AgentCompactionPhase }) => void,
   ) => () => void;
   /**
    * Subscribe to side-channel visual stream chunks emitted by the

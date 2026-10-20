@@ -328,6 +328,7 @@ describe('useChatComposerController', () => {
       onToolInputStart: listen('tool-input-start'),
       onToolInputDelta: listen('tool-input-delta'),
       onToolInputEnd: listen('tool-input-end'),
+      onCompaction: listen('compaction'),
       onClarifyRequest: listen('clarify'),
       onChatComplete: listen('complete'),
       onRoleTurnStart: listen('role-start'),

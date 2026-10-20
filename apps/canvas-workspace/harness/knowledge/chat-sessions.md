@@ -341,6 +341,16 @@ controls from focus navigation; reduced-motion disables both transitions.
 Guards: `__tests__/ChatToolCalls.test.tsx` and
 `__tests__/ChatMessages.accessibility.test.tsx`.
 
+While context compaction runs, Activity reads `Compacting context…` with a
+text shimmer (reduced motion shows plain text). Backends report the phases
+through `run/compaction-status.ts`; conversation-ipc forwards them on
+`canvas-agent:compaction:{sessionId}`. The renderer keeps the state in
+`runtime/conversationCompaction.ts` and clears it on the end phase, the next
+text or tool event, or turn completion. A compaction after answer text brings
+the status row back for its duration. Guards: `segment-execution.test.ts`,
+`conversation-ipc.test.ts`, `conversationTurnObserver.test.tsx`,
+`ChatMessages.pending.test.tsx`.
+
 Activity exists only while the overall turn is still running, so its summary
 icon is always a spinner, even when the latest visible tool has settled. Check
 marks belong only to completed rows inside expanded tool details; showing one

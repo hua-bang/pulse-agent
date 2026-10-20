@@ -11,6 +11,7 @@ import type { CanvasAgentService } from '../service';
 import { ConversationRuntimeService } from './conversation-service';
 import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/agent-chat';
 import { isPerfChatReplayRequest, replayPerfChatStream } from '../run/perf-chat-replay';
+import { onCompactionPhase } from '../run/compaction-status';
 import { tracedAssertWorkspaceAvailable } from '../workspace/traced-workspace-availability';
 
 let service: ConversationRuntimeService | null = null;
@@ -95,6 +96,7 @@ export async function chatToSubscribers(
   input?: Omit<ConversationSendInput, 'message'>,
 ): Promise<ChatResponse> {
   const subscribers = subscribersFor(scope, sessionId);
+  const stopCompaction = onCompactionPhase(sessionId, phase => send(subscribers, 'compaction', sessionId, { phase }));
   let result: ChatResponse;
   try {
     result = await runtime.chat(scope, sessionId, message, {
@@ -110,6 +112,8 @@ export async function chatToSubscribers(
     }, input);
   } catch (error) {
     result = { ok: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    stopCompaction();
   }
   send(subscribers, 'chat-complete', sessionId, result);
   return result;

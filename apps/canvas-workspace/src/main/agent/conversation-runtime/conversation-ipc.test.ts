@@ -33,6 +33,7 @@ vi.mock('../run/perf-chat-replay', () => ({
 }));
 
 import { chatToSubscribers, getConversationRuntimeService, setupConversationRuntimeIpc } from './conversation-ipc';
+import { publishCompactionPhase } from '../run/compaction-status';
 
 describe('conversation runtime IPC', () => {
   const releaseRun = vi.fn();
@@ -134,6 +135,31 @@ describe('conversation runtime IPC', () => {
     await expect(run).resolves.toEqual({ ok: true, response: 'Hi' });
     expect(chatWindow.send).toHaveBeenCalledWith('canvas-agent:text-delta:run-1', 'Hi');
     expect(chatWindow.send).toHaveBeenCalledWith('canvas-agent:chat-complete:run-1', { ok: true, response: 'Hi' });
+  });
+
+  it('forwards compaction phases only while the turn runs', async () => {
+    let finish!: (result: { ok: boolean; response: string }) => void;
+    mocks.chat.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    mocks.liveSnapshot.mockReturnValue({ status: 'running', messages: [], draft: null });
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    const chatWindow = { isDestroyed: () => false, send: vi.fn() };
+    const payload = { scope: { kind: 'global' }, sessionId: 'session-c' };
+
+    const run = chatToSubscribers(
+      getConversationRuntimeService(() => ({}) as never),
+      payload.scope as never,
+      payload.sessionId,
+      'hello',
+    );
+    mocks.handlers.get('canvas-agent:conversation-attach')?.({ sender: chatWindow }, payload);
+    publishCompactionPhase('session-c', 'start');
+    publishCompactionPhase('session-other', 'start');
+    finish({ ok: true, response: 'done' });
+    await run;
+    publishCompactionPhase('session-c', 'end');
+
+    const compactionSends = chatWindow.send.mock.calls.filter(([channel]) => String(channel).startsWith('canvas-agent:compaction:'));
+    expect(compactionSends).toEqual([['canvas-agent:compaction:session-c', { phase: 'start' }]]);
   });
 
   it('reports an idle conversation without subscribing the window', () => {
