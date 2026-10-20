@@ -18,7 +18,7 @@
 
 运行时维护三个关键计数器：
 - `errorCount`：错误累计，达到 `MAX_ERROR_COUNT` 终止
-- `totalSteps`：累计 step 数，达到 `MAX_STEPS` 终止
+- `totalSteps`：每次完成的 LLM 调用累加 `Math.max(steps.length, 1)`，空响应也至少计一个 step。步数限制为 `LoopOptions.maxSteps ?? MAX_STEPS`（默认 500）。锁定的 SDK 每次完成的外层 LLM 调用计一个 step。工具调用、空响应和输出上限续写分支检查此限制；真正的上下文溢出重试分支不检查。退出条件和返回值以 [Loop Lifecycle](../../packages/engine/harness/knowledge/loop-lifecycle.md) 为准。
 - `compactionAttempts`：压缩次数，达到 `MAX_COMPACTION_ATTEMPTS` 停止压缩
 
 ## 3. 执行流程图
@@ -38,14 +38,18 @@ flowchart TD
     H --> I[afterLLMCall hooks]
 
     I --> J{finishReason}
-    J -- stop --> Z[return text]
-    J -- tool-calls --> K{totalSteps >= MAX_STEPS}
+    J -- stop/other --> N{has text?}
+    N -- yes --> Z[return text]
+    N -- no --> O{step cap reached?}
+    O -- no --> A
+    O -- yes --> Z4[return empty-response message]
+    J -- tool-calls --> K{step cap reached?}
     K -- no --> A
-    K -- yes --> Z1[return max-steps message]
+    K -- yes --> Z1[return text or max-steps message]
     J -- length --> L{can compact}
     L -- yes --> M[force compact then continue]
     L -- no --> Z2[return context-limit message]
-    J -- content-filter/error/other --> Z3[return fallback text]
+    J -- content-filter/error --> Z3[return fallback text]
 ```
 
 ## 4. Hook 注入点与顺序

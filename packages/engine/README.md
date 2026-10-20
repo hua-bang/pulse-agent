@@ -141,7 +141,7 @@ The OpenAI/Anthropic provider credential vars accept a `PULSE_`-prefixed global 
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` | `novita/deepseek/deepseek_v3` | Default model (precedence: `ANTHROPIC_MODEL` → `OPENAI_MODEL` → `PULSE_ANTHROPIC_MODEL` → `PULSE_OPENAI_MODEL`) |
 | `LLM_FIRST_CHUNK_TIMEOUT_MS` | 180000 | Abort if no first chunk arrives within this (ms) |
 | `LLM_CALL_TIMEOUT_MS` | 600000 | Overall LLM call timeout (ms) |
-| `MAX_STEPS` | 500 | Max tool-execution steps per run |
+| `MAX_STEPS` (constant, not an env var) | 500 | Step limit for tool-call, empty-response and output-cap continuations; override with `LoopOptions.maxSteps`. The locked SDK counts one step per completed LLM call, including empty responses. True context-overflow retries bypass this limit. See [Loop Lifecycle](harness/knowledge/loop-lifecycle.md). |
 | `MAX_TOOL_OUTPUT_LENGTH` | 30000 | Truncate tool output beyond this (chars) |
 | `MODEL_CONTEXT_BUDGET` | 0 (unset) | Global input-token cap override used to disambiguate `finishReason='length'`; when unset/0, falls back to per-family budgets in `resolveModelContextBudget` (`src/core/loop.ts`). Separate from `CONTEXT_WINDOW_TOKENS` (compaction). |
 | `OPENAI_REASONING_EFFORT` | (unset) | OpenAI reasoning effort (e.g. low / medium / high) |
