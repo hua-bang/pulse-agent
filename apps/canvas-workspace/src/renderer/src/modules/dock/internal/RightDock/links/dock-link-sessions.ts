@@ -9,6 +9,28 @@ export interface DockLinkSession {
   tabs: DockLinkTab[];
   activeTabId?: string;
   expanded?: boolean;
+  /** Epoch ms each web tab was last the active tab, keyed by tab id. */
+  lastActiveAt?: Record<string, number>;
+}
+
+/** Web tabs unused this long are closed when their workspace is entered. */
+export const INACTIVE_LINK_TAB_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * Web tabs not used within `INACTIVE_LINK_TAB_MS`. Tabs on screen (the active
+ * tab or a split pane) are never stale, and a tab without a recorded time is
+ * treated as fresh so sessions saved before tracking existed are kept.
+ */
+export function inactiveLinkTabIds(
+  lastActiveAt: Record<string, number>,
+  state: Pick<DockState, 'tabs' | 'activeTabId' | 'splitTabIds'>,
+  now: number,
+): string[] {
+  return state.tabs.flatMap((tab) => {
+    if (tab.kind !== 'link' || tab.id === state.activeTabId || state.splitTabIds?.includes(tab.id)) return [];
+    const usedAt = lastActiveAt[tab.id];
+    return usedAt !== undefined && now - usedAt >= INACTIVE_LINK_TAB_MS ? [tab.id] : [];
+  });
 }
 
 export type DockLinkSessions = Record<string, DockLinkSession>;
@@ -95,12 +117,19 @@ export class DockLinkSessionStore {
       : previous?.activeTabId && linkTabs.some((tab) => tab.id === previous.activeTabId)
         ? previous.activeTabId
         : undefined;
+    // Only the tab really on screen is stamped; a new tab counts as used now.
+    const now = Date.now();
+    const lastActiveAt = Object.fromEntries(linkTabs.map((tab) => [
+      tab.id,
+      tab.id === activeTabId ? now : previous?.lastActiveAt?.[tab.id] ?? now,
+    ]));
     this.sessions = {
       ...this.sessions,
       [workspaceId]: {
         tabs: linkTabs,
         activeTabId: activeLinkId,
         expanded: expanded ?? previous?.expanded,
+        ...(linkTabs.length > 0 ? { lastActiveAt } : {}),
       },
     };
     try {

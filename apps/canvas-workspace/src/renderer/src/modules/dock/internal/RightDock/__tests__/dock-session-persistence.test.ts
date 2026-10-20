@@ -57,6 +57,20 @@ describe('dock session persistence', () => {
     });
   });
 
+  it('keeps finite last-use times only for restored tabs', () => {
+    const storage = createStorage(JSON.stringify({
+      version: 1,
+      sessions: {
+        'ws-a': {
+          tabs: [{ id: 'link:ok', kind: 'link', title: 'Safe', url: 'https://example.com' }],
+          lastActiveAt: { 'link:ok': 42, 'link:gone': 7, 'link:bad': 'soon' },
+        },
+      },
+    }));
+
+    expect(createDockSessionPersistence(storage).load()['ws-a']?.lastActiveAt).toEqual({ 'link:ok': 42 });
+  });
+
   it('treats unreadable storage as an empty session', () => {
     const storage = createStorage('{not json');
     expect(createDockSessionPersistence(storage).load()).toEqual({});

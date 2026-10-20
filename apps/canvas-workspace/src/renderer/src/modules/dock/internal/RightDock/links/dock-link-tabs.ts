@@ -11,8 +11,9 @@ import type { DockLinkTab } from './dock-link-sessions';
 import type { DockPreviewTab, RetainedLinkWorkspace } from '../state/dock-types';
 
 /** How many closed web tabs stay reopenable. Chrome keeps a long list; the
- *  dock is a side panel, so a short, predictable stack is enough. */
-export const CLOSED_TAB_STACK_LIMIT = 10;
+ *  dock is a side panel, so a bounded stack is enough. It must still hold one
+ *  cleanup of inactive tabs, so those closes stay reversible. */
+export const CLOSED_TAB_STACK_LIMIT = 30;
 
 /**
  * How many RECENTLY-LEFT workspaces keep their web tabs mounted.
