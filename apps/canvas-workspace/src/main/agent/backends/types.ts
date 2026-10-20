@@ -3,6 +3,7 @@ import type { Engine } from 'pulse-coder-engine';
 
 import type { AgentRoleDefinition } from '../../../shared/agent-roles';
 import type { AgentClarificationRequest } from '../../../shared/agent-chat';
+import type { AgentCompactionPhase } from '../../../shared/api/agent-chat';
 import type { ResolvedCanvasModel } from '../../models/config';
 import type {
   CanvasAgentDebugTrace,
@@ -47,6 +48,8 @@ export interface TurnSegmentRequest {
   onToolInputStart?: (data: { id: string; toolName: string }) => void;
   onToolInputDelta?: (data: { id: string; delta: string }) => void;
   onToolInputEnd?: (data: { id: string }) => void;
+  /** Context compaction started or ended; the executor routes it by session. */
+  onCompaction?: (phase: AgentCompactionPhase) => void;
   modelConfig: ResolvedCanvasModel;
   configuredModel?: string;
   systemPrompt: string;

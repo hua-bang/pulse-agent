@@ -243,11 +243,18 @@ export function createPiAgentHarnessTurnBackend(
       const mcpApps = request.engine.getService?.<MCPAppsManager>('mcp:__apps__');
       // Canvas remains the cross-runtime session SSOT. Reuse its established
       // compaction policy before hydrating pi, then persist the replacement.
+      let compactionStarted = false;
       const compacted = await request.engine.compactContext(request.context, {
         provider: request.modelConfig.provider,
         model: request.configuredModel ?? request.modelConfig.model,
         contextWindowTokens: request.modelConfig.contextWindowTokens,
         abortSignal: request.abortSignal,
+        onStart: () => {
+          compactionStarted = true;
+          request.onCompaction?.('start');
+        },
+      }).finally(() => {
+        if (compactionStarted) request.onCompaction?.('end');
       });
       if (request.abortSignal.aborted) throw new Error('Pi AgentHarness run aborted');
       if (compacted.didCompact && compacted.newMessages) {

@@ -44,10 +44,14 @@ const parseSession = (value: unknown): DockLinkSession | null => {
   const activeTabId = requestedActiveId && tabs.some((tab) => tab.id === requestedActiveId)
     ? requestedActiveId
     : undefined;
+  // Times of tabs no longer saved are harmless: the next capture drops them.
+  const lastActiveAt = Object.fromEntries(Object.entries(isRecord(value.lastActiveAt) ? value.lastActiveAt : {})
+    .filter((entry): entry is [string, number] => Number.isFinite(entry[1])));
   return {
     tabs,
     activeTabId,
     ...(typeof value.expanded === 'boolean' ? { expanded: value.expanded } : {}),
+    lastActiveAt,
   };
 };
 

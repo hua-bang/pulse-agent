@@ -18,9 +18,14 @@ interface Props {
   onClose?: (id: string) => void;
   closedTabs?: readonly DockTabSwitcherItem[];
   onReopen?: (offset: number) => void;
+  /** Persisted last-use times, so the order survives a restart. */
+  lastActiveAt?: Readonly<Record<string, number>>;
+  /** Read when the menu renders, so tabs that went stale while idle count. */
+  getInactiveCount?: () => number;
+  onCloseInactive?: () => void;
 }
 
-export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, onClose, closedTabs = [], onReopen }: Props) => {
+export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabIds, onActivate, onClose, closedTabs = [], onReopen, lastActiveAt = {}, getInactiveCount, onCloseInactive }: Props) => {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -41,7 +46,7 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
   }, [open]);
   const ordered = [...items].sort((a, b) => {
     const rank = (id: string) => recent.includes(id) ? recent.indexOf(id) : recent.length;
-    return rank(a.id) - rank(b.id);
+    return rank(a.id) - rank(b.id) || (lastActiveAt[b.id] ?? 0) - (lastActiveAt[a.id] ?? 0);
   });
   const rows = [
     ...filterDockTabs(ordered, query).map(item => ({ item, closedIndex: -1 })),
@@ -63,6 +68,7 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
     else onActivate(row.item.id);
   };
   const comparing = mode === 'compare';
+  const inactiveCount = open && !comparing ? getInactiveCount?.() ?? 0 : 0;
   const title = t(comparing ? 'rightDock.chooseComparison' : 'rightDock.allTabs');
   return (
     <>
@@ -123,6 +129,12 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
               </div>
             ))}
           </div>
+          {!comparing && !query && inactiveCount > 0 && onCloseInactive && (
+            <Button size="sm" className="right-dock__tab-search-cleanup"
+              onClick={() => { onCloseInactive(); searchRef.current?.querySelector('input')?.focus(); }}>
+              {t('rightDock.closeIdleTabs', { count: inactiveCount })}
+            </Button>
+          )}
           {!rows.length && <p role="status" className="right-dock__tab-search-empty">{t(comparing && !items.length ? 'rightDock.openTabToCompare' : 'rightDock.noMatchingTabs')}</p>}
         </Popover>
       )}

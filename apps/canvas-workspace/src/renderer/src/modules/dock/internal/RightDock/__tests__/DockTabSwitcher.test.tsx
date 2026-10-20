@@ -14,6 +14,7 @@ const setup = async (splitTabIds: string[] = ['a', 'b']) => {
   const onActivate = vi.fn();
   const onReopen = vi.fn();
   const onClose = vi.fn();
+  const onCloseInactive = vi.fn();
   mount = document.createElement('div'); document.body.appendChild(mount); root = createRoot(mount);
   act(() => root?.render(<I18nProvider><DockTabSwitcher activeTabId="b" splitTabIds={splitTabIds}
     items={[
@@ -21,6 +22,7 @@ const setup = async (splitTabIds: string[] = ['a', 'b']) => {
       { id: 'b', kind: 'link', title: 'Research', url: 'https://research.example' },
     ]}
     closedTabs={[{ id: 'closed', kind: 'link', title: 'Closed article', url: 'https://closed.example' }]}
+    lastActiveAt={{ a: 1, b: 2 }} getInactiveCount={() => 1} onCloseInactive={onCloseInactive}
     onClose={onClose} onActivate={onActivate} onReopen={onReopen} /></I18nProvider>));
   const trigger = mount.querySelector<HTMLButtonElement>('[aria-label="All tabs"]')!;
   act(() => trigger.click());
@@ -30,10 +32,22 @@ const setup = async (splitTabIds: string[] = ['a', 'b']) => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  return { onActivate, onReopen, onClose, trigger, input, type };
+  return { onActivate, onReopen, onClose, onCloseInactive, trigger, input, type };
 };
 
 describe('DockTabSwitcher search', () => {
+  it('offers one cleanup action for inactive tabs while not searching', async () => {
+    const { type, input, onCloseInactive, onActivate } = await setup();
+    const cleanup = () => document.querySelector<HTMLButtonElement>('.right-dock__tab-search-cleanup');
+    expect(cleanup()?.textContent).toBe('Close tabs unused for 7 days (1)');
+    act(() => cleanup()!.click());
+    expect(onCloseInactive).toHaveBeenCalledTimes(1);
+    expect(onActivate).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+    type('docs');
+    expect(cleanup()).toBeNull();
+  });
+
   it('closes a matching open webpage without activating it or dismissing search', async () => {
     const { type, input, onActivate, onClose, onReopen } = await setup();
     expect(document.querySelectorAll('.right-dock__tab-search-close')).toHaveLength(2);

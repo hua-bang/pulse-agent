@@ -123,6 +123,9 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   onToolInputEnd: (sessionId, callback) =>
     subscribe(ipcRenderer, `canvas-agent:tool-input-end:${sessionId}`, callback),
 
+  onCompaction: (sessionId, callback) =>
+    subscribe(ipcRenderer, `canvas-agent:compaction:${sessionId}`, callback),
+
   onVisualStream: (callback) =>
     subscribe(ipcRenderer, "canvas-agent:visual-stream", callback),
 

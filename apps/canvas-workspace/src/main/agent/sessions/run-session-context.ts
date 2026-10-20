@@ -16,6 +16,8 @@ export type RunSessionContext =
       runMessages: ModelMessage[];
       runStoreMessages: CanvasAgentMessage[];
       appendRunMessages: (messages: CanvasAgentMessage[]) => void;
+      /** Apply a context compaction in place and keep it for later turns. */
+      replaceRunMessages: (messages: ModelMessage[]) => void;
     }
   | {
       ok: false;
@@ -51,18 +53,18 @@ export async function prepareRunSession(
       activeSessionId: store.getCurrentSession()?.sessionId ?? null,
     };
   }
-  const runMessages: ModelMessage[] = targetSession.messages.map(sessionMessageToModelMessage);
-  // Mirrors what has been persisted to the anchored session during this turn.
-  const runStoreMessages: CanvasAgentMessage[] = [...targetSession.messages];
-  const appendRunMessages = (storeMessages: CanvasAgentMessage[]) => {
-    runStoreMessages.push(...storeMessages);
-    persist(targetSession.sessionId, storeMessages);
-  };
+  // Loaded on first use to keep it out of the main entry chunk.
+  const { startCheckpointedRun } = await import('./compaction-checkpoint');
+  const run = startCheckpointedRun(targetSession.sessionId, targetSession.messages, sessionMessageToModelMessage);
   return {
     ok: true,
     targetSession,
-    runMessages,
-    runStoreMessages,
-    appendRunMessages,
+    runMessages: run.messages,
+    runStoreMessages: run.stored,
+    appendRunMessages: storeMessages => {
+      run.save(storeMessages);
+      persist(targetSession.sessionId, storeMessages);
+    },
+    replaceRunMessages: run.replace,
   };
 }

@@ -41,6 +41,9 @@
  *     (successful segments only — a failed segment surfaces through
  *     chat-complete's error instead).
  *   Completion arrives on         `canvas-agent:chat-complete:{sessionId}`.
+ *   Compaction phases arrive on   `canvas-agent:compaction:{sessionId}`
+ *     (`{ phase: 'start' | 'end' }`; conversation-runtime turns only, sent by
+ *     conversation-ipc.ts).
  */
 
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';

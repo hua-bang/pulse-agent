@@ -12,6 +12,7 @@ import type {
 import type { CanvasToolResultEvent } from './engine-stream-callbacks';
 import { resolveAgentRuntime } from '../backends';
 import { ENGINE_ABORT_SENTINEL } from './chat-stop';
+import { publishCompactionPhase } from './compaction-status';
 import { attachTraceRuntime, recordTraceStreamEvent } from '../observability/debug-trace';
 import { publishAgentTraceEvent } from '../../../plugins/main';
 
@@ -114,6 +115,7 @@ export async function executeCanvasAgentSegment(
       onToolCall: data => { markActivity(); options.onToolCall?.(data); },
       onToolResult: data => { markActivity(); options.onToolResult?.(data); },
       onToolInputStart: data => { markActivity(); options.onToolInputStart?.(data); },
+      onCompaction: phase => publishCompactionPhase(options.chatSessionId, phase),
       recordResponseMessages,
     });
     externalToolCalls = result.toolCalls;

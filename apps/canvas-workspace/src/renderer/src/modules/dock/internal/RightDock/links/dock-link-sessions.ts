@@ -9,6 +9,29 @@ export interface DockLinkSession {
   tabs: DockLinkTab[];
   activeTabId?: string;
   expanded?: boolean;
+  /** Epoch ms each web tab was last the active tab, keyed by tab id. */
+  lastActiveAt?: Record<string, number>;
+}
+
+/** Web tabs unused this long are closed when their workspace is entered. */
+export const INACTIVE_LINK_TAB_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * Web tabs not used within `INACTIVE_LINK_TAB_MS`. Tabs on screen (the active
+ * tab or a split pane) are never stale, and a tab without a recorded time is
+ * treated as fresh so sessions saved before tracking existed are kept.
+ */
+export function inactiveLinkTabIds(
+  lastActiveAt: Record<string, number>,
+  state: Pick<DockState, 'tabs' | 'activeTabId' | 'splitTabIds'>,
+  now: number,
+): string[] {
+  return state.tabs
+    .filter((tab) => tab.kind === 'link'
+      && tab.id !== state.activeTabId
+      && !state.splitTabIds?.includes(tab.id)
+      && now - (lastActiveAt[tab.id] ?? now) >= INACTIVE_LINK_TAB_MS)
+    .map((tab) => tab.id);
 }
 
 export type DockLinkSessions = Record<string, DockLinkSession>;
@@ -20,6 +43,8 @@ export interface DockSessionPersistence {
 
 export class DockLinkSessionStore {
   private sessions: DockLinkSessions;
+  /** Last active tab per workspace, as captured while that workspace was on screen. */
+  private onScreenTabIds = new Map<string, string>();
   // Full in-memory views are scope-owned; only reconstructible web tabs are
   // written to storage. Keep mixed tab order and the actual focused pane.
   private views = new Map<string, Pick<DockState,
@@ -33,6 +58,8 @@ export class DockLinkSessionStore {
   switchWorkspace(state: DockState, workspaceId: string): Partial<DockState> {
     const leavingId = state.activeTerminalWorkspaceId;
     this.capture(leavingId, state.tabs, state.activeTabId, state.expanded);
+    // Its tabs leave the screen now; nothing there is visible until re-entry.
+    this.onScreenTabIds.delete(leavingId);
     this.views.set(leavingId, {
       tabs: state.tabs, activeTabId: state.activeTabId, splitTabIds: state.splitTabIds,
       chatUnread: state.chatUnread, scheduledChatTaskId: state.scheduledChatTaskId,
@@ -86,7 +113,12 @@ export class DockLinkSessionStore {
     return this.sessions[workspaceId];
   }
 
-  capture(workspaceId: string, tabs: DockPreviewTab[], activeTabId: string, expanded?: boolean): void {
+  /**
+   * Record a workspace's web tabs. `onScreen` is false for writes from a
+   * hidden workspace's guest (title, icon, background open): they keep the
+   * saved times, so a background page cannot postpone its own cleanup.
+   */
+  capture(workspaceId: string, tabs: DockPreviewTab[], activeTabId: string, expanded?: boolean, onScreen = true): void {
     if (!workspaceId || workspaceId === '__default__') return;
     const linkTabs = tabs.filter((tab): tab is DockLinkTab => tab.kind === 'link');
     const previous = this.sessions[workspaceId];
@@ -95,12 +127,22 @@ export class DockLinkSessionStore {
       : previous?.activeTabId && linkTabs.some((tab) => tab.id === previous.activeTabId)
         ? previous.activeTabId
         : undefined;
+    // Stamp the tab on screen, and the one it replaced: that tab was visible
+    // until now. A new tab counts as used when it opens.
+    const now = Date.now();
+    const shownTabId = this.onScreenTabIds.get(workspaceId);
+    if (onScreen) this.onScreenTabIds.set(workspaceId, activeTabId);
+    const lastActiveAt = Object.fromEntries(linkTabs.map((tab) => [
+      tab.id,
+      onScreen && [activeTabId, shownTabId].includes(tab.id) ? now : previous?.lastActiveAt?.[tab.id] ?? now,
+    ]));
     this.sessions = {
       ...this.sessions,
       [workspaceId]: {
         tabs: linkTabs,
         activeTabId: activeLinkId,
         expanded: expanded ?? previous?.expanded,
+        lastActiveAt,
       },
     };
     try {

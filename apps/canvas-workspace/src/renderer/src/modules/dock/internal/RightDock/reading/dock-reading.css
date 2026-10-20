@@ -11,6 +11,14 @@
 .right-dock__tab-search-input { flex-shrink: 0; padding: 2px 2px 8px; }
 .right-dock__tab-search-input .ui-textfield { width: 100%; }
 .right-dock__tab-search-results { min-height: 0; overflow-y: auto; }
+.right-dock__tab-search-cleanup.ui-btn {
+  width: 100%;
+  margin-top: 4px;
+  justify-content: center;
+  border-top: 1px solid var(--border-subtle, var(--border));
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .right-dock__tab-search-heading,
 .right-dock__tab-search-empty { padding: 8px; color: var(--text-secondary); font-size: 12px; }
 .right-dock__tab-search-row.ui-btn {

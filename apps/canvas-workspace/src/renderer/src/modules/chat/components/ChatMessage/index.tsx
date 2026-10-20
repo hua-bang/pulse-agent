@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useContext } from 'react';
 import { useChatRenderTiming } from '../../runtime/useChatRenderTiming';
 import './index.css';
 import { OrderedChatContent } from './OrderedChatContent';
@@ -6,7 +6,7 @@ import type { AgentChatMessage, CanvasNode, ToolCallStatus } from '../../../../t
 import { toFileUrl } from '../../../../utils/fileUrl';
 import { BotAvatarIcon } from '../../../../components/icons';
 import { roleColorSoft } from '../../../../utils/roleColors';
-import { ChatActivityStatus } from '../ChatMessages/ChatActivityStatus';
+import { ChatActivityStatus, ChatCompactionContext } from '../ChatMessages/ChatActivityStatus';
 import { ChatImageLightbox } from '../ChatImageLightbox';
 import { PluginChatCardForMessage } from '../../../../../../plugins/renderer';
 import { ChatTurnOutcome } from './ChatTurnMeta';
@@ -123,6 +123,9 @@ const ChatMessageView = ({
     getLaterMessageCount,
   });
   const showActivity = message.role === 'assistant' && isStreaming && !message.content;
+  // A compaction can start after answer text, so it brings the status row back.
+  const compacting = useContext(ChatCompactionContext) !== null;
+  const showActivityStatus = showActivity || (message.role === 'assistant' && isStreaming && compacting);
   const toggleSection = useCallback(() => onToggleSection(index), [index, onToggleSection]);
   const renderTools = (groupTools: ToolCallStatus[], groupCollapsed: boolean, toggleGroup: () => void) => (
     <ChatMessageToolResults
@@ -197,7 +200,7 @@ const ChatMessageView = ({
           ))}
         </div>
       )}
-      {showActivity && (
+      {showActivityStatus && (
         <ChatActivityStatus
           tools={tools ?? []}
           startedAt={turnStartedAt}

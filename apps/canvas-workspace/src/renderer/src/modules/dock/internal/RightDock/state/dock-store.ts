@@ -14,7 +14,7 @@ import {
   terminalWorkspaceFor,
   type TerminalCommit,
 } from './dock-terminal-tabs';
-import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
+import { DockLinkSessionStore, inactiveLinkTabIds, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
 import { ClosedLinkTabStack, allocateTabId } from '../links/dock-link-tabs';
 import {
   getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch,
@@ -238,7 +238,7 @@ export class DockStore {
     );
     if (!next) return;
     if (next.retainedLinkTabs) this.commit({ retainedLinkTabs: next.retainedLinkTabs });
-    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '');
+    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '', undefined, false);
   }
 
   /** Create an empty browser tab. */
@@ -324,7 +324,11 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.commit(this.linkSessions.switchWorkspace(this.state, workspaceId));
+    for (const id of inactiveLinkTabIds(this.getLinkTabActivity(), this.state, Date.now())) this.close(id);
   }
+
+  /** When each web tab of this workspace was last active (epoch ms by tab id). */
+  getLinkTabActivity(): Record<string, number> { return this.linkSessions.get(this.state.activeTerminalWorkspaceId)?.lastActiveAt ?? {}; }
 
   /**
    * A hidden (retained) tab's guest reported a navigation, title or icon.
@@ -348,7 +352,7 @@ export class DockStore {
     if (!next) return;
     this.commit({ retainedLinkTabs: next.retainedLinkTabs });
     // Write through, or a restart would restore the pre-switch URL.
-    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '');
+    this.linkSessions.capture(workspaceId, next.session.tabs, next.session.activeTabId ?? '', undefined, false);
   }
 
   private applyTerminalCommit(commit: TerminalCommit | null, workspaceId: string): void {

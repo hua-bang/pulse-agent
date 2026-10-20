@@ -485,8 +485,24 @@
 .chat-activity-status__chevron { transition: transform 0.15s; }
 .chat-activity-status__chevron--open { transform: rotate(180deg); }
 
+/* Compaction reuses the skeleton sweep as a text shimmer, so a long
+   summarizer call reads as active work, not a stalled turn. */
+.chat-activity-status--compacting .chat-activity-status__label {
+  background: linear-gradient(90deg, var(--text-muted) 0%, var(--text-primary) 50%, var(--text-muted) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: chat-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-activity-status__spinner { animation: none; }
+  .chat-activity-status--compacting .chat-activity-status__label {
+    animation: none;
+    background: none;
+    color: var(--text-secondary);
+  }
   .chat-activity-status__chevron { transition: none; }
 }
 

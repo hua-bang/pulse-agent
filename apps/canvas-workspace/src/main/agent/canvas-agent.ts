@@ -522,7 +522,7 @@ export class CanvasAgent {
         },
       };
     }
-    const { targetSession, runMessages, runStoreMessages, appendRunMessages } = runContext;
+    const { targetSession, runMessages, runStoreMessages, appendRunMessages, replaceRunMessages } = runContext;
 
     // For any other canvases the user @-mentioned, we only inject the
     // `{ id, name }` pair into the system prompt — the agent is expected to
@@ -714,9 +714,7 @@ export class CanvasAgent {
           observabilityRunId: performanceTiming?.runId, observeFirstActivity: index === 0,
           debugTrace,
           appendMessages: messages => runMessages.push(...messages),
-          replaceMessages: messages => {
-            runMessages.splice(0, runMessages.length, ...messages);
-          },
+          replaceMessages: replaceRunMessages,
         });
         observabilityCursor = markCanvasRuntimeCompleted(performanceTiming, runtimeStartedAt, runtimeOwner);
         markTraceRuntimeCompleted(debugTrace);

@@ -25,6 +25,7 @@ import { count } from '../../../perf/counters';
 import { createConversationTextBatcher } from './conversationTextBatcher';
 import { friendlyChatFailure, settleStreamTools } from './chatTurnOutcome';
 import { recordConversationCompletion } from './conversationCompletionStore';
+import { setConversationCompacting } from './conversationCompaction';
 
 /** Surface state a turn observer updates besides the shared conversation store. */
 export interface TurnObserverHooks {
@@ -85,7 +86,10 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
     unsubs = [];
     active.forEach(unsubscribe => unsubscribe());
     observed.delete(id);
+    setConversationCompacting(sessionId, false);
   };
+  // A compaction that ends without its own event ends at the next activity.
+  const endCompaction = () => setConversationCompacting(sessionId, false);
 
   const ensureAssistant = () => {
     if (assistantIndex >= 0) return;
@@ -199,12 +203,14 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
 
   unsubs = [
     agent.onTextDelta(sessionId, live(delta => {
+      endCompaction();
       ensureAssistant();
       count('chat-stream-delta');
       assistantText += delta;
       textBatcher.push(delta);
     })),
     agent.onToolCall(sessionId, live(data => {
+      endCompaction();
       textBatcher.flush();
       ensureAssistant();
       const existing = data.toolCallId
@@ -237,6 +243,7 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
       publishTools();
     })),
     agent.onToolInputStart(sessionId, live(data => {
+      endCompaction();
       textBatcher.flush();
       ensureAssistant();
       const existing = data.id
@@ -270,6 +277,9 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
         : undefined;
       if (tool) tool.inputStreaming = false;
       publishTools();
+    })),
+    agent.onCompaction(sessionId, live(data => {
+      setConversationCompacting(sessionId, data.phase === 'start');
     })),
     agent.onClarifyRequest(sessionId, live(request => {
       ensureAssistant();

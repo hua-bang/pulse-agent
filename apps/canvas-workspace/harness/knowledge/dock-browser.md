@@ -216,6 +216,15 @@ Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
 allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.
 
+The persisted dock session records when each web tab was last the active tab
+(`lastActiveAt`). Only the tab on screen is stamped; a new tab counts as used
+when it opens, and a tab without a time is fresh, so sessions saved before
+tracking are kept. Entering a workspace closes web tabs unused for seven days
+(`inactiveLinkTabIds` in `links/dock-link-sessions.ts`), and All Tabs offers the
+same close as one action. The active tab and split panes are never closed.
+These closes go through `store.close`, so they land on the reopen stack; the
+stack limit must hold one cleanup.
+
 Dock expansion is workspace-scoped as well. Switching workspaces saves the
 current workspace's expanded state and restores the target workspace's last
 state from the same persisted dock session; a workspace without saved state

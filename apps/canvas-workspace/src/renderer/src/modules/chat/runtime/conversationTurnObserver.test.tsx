@@ -11,6 +11,7 @@ import {
   setConversationMessages,
 } from './conversationStore';
 import { resetConversationCompletionStoreForTests } from './conversationCompletionStore';
+import { readConversationCompactingSince } from './conversationCompaction';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -43,6 +44,7 @@ function makeAgent(attach: (emit: (name: string, payload: unknown) => void) => P
       onToolInputStart: listen('tool-input-start'),
       onToolInputDelta: listen('tool-input-delta'),
       onToolInputEnd: listen('tool-input-end'),
+      onCompaction: listen('compaction'),
       onClarifyRequest: listen('clarify'),
       onChatComplete: listen('complete'),
       onRoleTurnStart: listen('role-start'),
@@ -115,6 +117,34 @@ describe('conversation turn reattach', () => {
 
     expect(latest?.loading).toBe(false);
     expect(readConversationSnapshot(key).messages.map(message => message.content)).toEqual(['hello', 'Partial']);
+  });
+
+  it('shows compaction until it ends or the reply streams again', async () => {
+    const persisted = [{ role: 'user' as const, content: 'hello', timestamp: 1 }];
+    setConversationMessages(key, persisted);
+    const { agent, emit } = makeAgent(async () => ({
+      ok: true,
+      running: true,
+      snapshot: {
+        key, status: 'running', messages: persisted, draft: null, streamingTools: [],
+        clarification: null, error: null, runId: null, sequence: 1,
+      },
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent };
+    await mount();
+
+    act(() => emit('compaction', { phase: 'start' }));
+    expect(readConversationCompactingSince('session-a')).toEqual(expect.any(Number));
+    act(() => emit('compaction', { phase: 'end' }));
+    expect(readConversationCompactingSince('session-a')).toBeNull();
+
+    act(() => emit('compaction', { phase: 'start' }));
+    act(() => emit('text', 'Hi'));
+    expect(readConversationCompactingSince('session-a')).toBeNull();
+
+    act(() => emit('compaction', { phase: 'start' }));
+    await act(async () => { emit('complete', { ok: true, response: 'Hi' }); });
+    expect(readConversationCompactingSince('session-a')).toBeNull();
   });
 
   it('releases its listeners when main has no running turn', async () => {

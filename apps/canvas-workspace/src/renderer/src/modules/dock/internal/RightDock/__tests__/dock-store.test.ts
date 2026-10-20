@@ -1089,10 +1089,86 @@ describe('DockStore', () => {
       }],
       activeTabId: id,
       expanded: true,
+      lastActiveAt: { [id]: expect.any(Number) },
     });
 
     dock.close(id);
-    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true });
+    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true, lastActiveAt: {} });
+  });
+
+  it('stamps on-screen web tabs and closes week-old tabs when the workspace is entered', () => {
+    vi.useFakeTimers();
+    try {
+      const day = 24 * 60 * 60_000;
+      vi.setSystemTime(0);
+      const saved = createSessionPersistence();
+      const dock = new DockStore(saved.persistence);
+      dock.setActiveWorkspace('ws-a');
+      dock.openLink('https://old.example');
+      const oldId = dock.getSnapshot().activeTabId;
+      vi.setSystemTime(1 * day);
+      dock.openLink('https://kept.example');
+      const keptId = dock.getSnapshot().activeTabId;
+      vi.setSystemTime(9 * day);
+      dock.openLink('https://active.example');
+      const activeId = dock.getSnapshot().activeTabId;
+      // The tab that just left the screen is stamped too.
+      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [oldId]: 1 * day, [keptId]: 9 * day, [activeId]: 9 * day });
+      expect(dock.getLinkTabActivity()).toEqual(saved.read()['ws-a']?.lastActiveAt);
+
+      vi.setSystemTime(10 * day);
+      const restored = new DockStore(saved.persistence);
+      restored.setActiveWorkspace('ws-a');
+
+      expect(restored.getSnapshot().tabs.map((tab) => tab.id)).toEqual([keptId, activeId]);
+      expect(restored.getSnapshot().activeTabId).toBe(activeId);
+      expect(restored.getClosedTabs().map((tab) => tab.id)).toEqual([oldId]);
+      restored.reopenClosedTab();
+      expect(restored.getSnapshot().tabs.map((tab) => tab.id)).toContain(oldId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps last-use times when a hidden workspace guest updates its tab', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const saved = createSessionPersistence();
+      const dock = new DockStore(saved.persistence);
+      dock.setActiveWorkspace('ws-a');
+      dock.openLink('https://a.example');
+      const id = dock.getSnapshot().activeTabId;
+      dock.setActiveWorkspace('ws-b');
+      vi.setSystemTime(3 * 24 * 60 * 60_000);
+      dock.updateRetainedLinkTab('ws-a', id, { title: 'Background title' });
+
+      expect(saved.read()['ws-a']?.tabs[0]?.title).toBe('Background title');
+      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [id]: 0 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps web tabs saved before activity tracking existed', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(30 * 24 * 60 * 60_000);
+      const saved = createSessionPersistence({
+        'ws-a': {
+          tabs: [
+            { id: 'link:a', kind: 'link', title: 'A', url: 'https://a.example' },
+            { id: 'link:b', kind: 'link', title: 'B', url: 'https://b.example' },
+          ],
+          activeTabId: 'link:a',
+        },
+      });
+      const dock = new DockStore(saved.persistence);
+      dock.setActiveWorkspace('ws-a');
+      expect(dock.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['link:a', 'link:b']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('persists dock expansion without persisting transient non-web previews', () => {
@@ -1104,7 +1180,7 @@ describe('DockStore', () => {
     dock.openCanvasPreview('ws-b', 'Other workspace');
 
     expect(saved.read()).toEqual({
-      'ws-a': { tabs: [], activeTabId: undefined, expanded: true },
+      'ws-a': { tabs: [], activeTabId: undefined, expanded: true, lastActiveAt: {} },
     });
   });
 

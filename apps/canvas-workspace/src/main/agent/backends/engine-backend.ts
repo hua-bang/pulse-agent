@@ -45,6 +45,7 @@ export const engineTurnBackend: AgentRuntime = {
         request.debugTrace,
         (name, toolCallId) => resolveMcpApp(mcpApps, name, toolCallId),
       ),
+      onCompactionStart: () => request.onCompaction?.('start'),
       onResponse: (messages: ModelMessage[]) => {
         request.recordResponseMessages(messages);
       },
@@ -53,6 +54,7 @@ export const engineTurnBackend: AgentRuntime = {
         // reassign context.messages: later step appends go to that array, and
         // a detached copy hides new tool results from the loop.
         request.replaceMessages(messages);
+        request.onCompaction?.('end');
       },
     });
     return { resultText };
