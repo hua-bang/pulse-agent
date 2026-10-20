@@ -40,6 +40,7 @@ A matching trigger requires reading its owner before changing code. Keep detaile
 | Agent teams / channel plugin | `src/main/agent-teams/`, `src/renderer/src/modules/agent-team/`; `src/plugins/main/channel/README.md` |
 | Drive the app / choose validation | `harness/skills/canvas-harness/SKILL.md`, `harness/skills/canvas-onboard-harness/SKILL.md`, `harness/skills/validate-canvas-change/SKILL.md` |
 | Known defects / current check bindings | `harness/knowledge/known-defects.md`, `harness/validate/validation.yaml` |
+| Package or publish Pulse Canvas, repair release notes | `harness/skills/pulse-canvas-release/SKILL.md` |
 
 ## Hard boundaries
 
