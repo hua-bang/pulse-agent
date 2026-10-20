@@ -21,6 +21,7 @@ describe('dock session persistence', () => {
         tabs: [{ id: 'link:1', kind: 'link', title: 'Example', url: 'https://example.com' }],
         activeTabId: 'link:1',
         expanded: true,
+        lastActiveAt: {},
       },
     });
 
@@ -30,6 +31,7 @@ describe('dock session persistence', () => {
         tabs: [{ id: 'link:1', kind: 'link', title: 'Example', url: 'https://example.com' }],
         activeTabId: 'link:1',
         expanded: true,
+        lastActiveAt: {},
       },
     });
   });
@@ -53,11 +55,12 @@ describe('dock session persistence', () => {
       'ws-a': {
         tabs: [{ id: 'link:ok', kind: 'link', title: 'Safe', url: 'https://example.com' }],
         activeTabId: undefined,
+        lastActiveAt: {},
       },
     });
   });
 
-  it('keeps finite last-use times only for restored tabs', () => {
+  it('keeps finite last-use times only', () => {
     const storage = createStorage(JSON.stringify({
       version: 1,
       sessions: {
@@ -68,7 +71,7 @@ describe('dock session persistence', () => {
       },
     }));
 
-    expect(createDockSessionPersistence(storage).load()['ws-a']?.lastActiveAt).toEqual({ 'link:ok': 42 });
+    expect(createDockSessionPersistence(storage).load()['ws-a']?.lastActiveAt).toEqual({ 'link:ok': 42, 'link:gone': 7 });
   });
 
   it('treats unreadable storage as an empty session', () => {

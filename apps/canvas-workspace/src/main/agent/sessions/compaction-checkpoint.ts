@@ -35,12 +35,51 @@ const coveredSignature = (messages: readonly CanvasAgentMessage[], count: number
     .join('|')
 );
 
+/** A turn's model history and stored mirror, tracked to reuse its compaction. */
+export interface CheckpointedRun {
+  messages: ModelMessage[];
+  /** Mirrors what has been persisted to the session during this turn. */
+  stored: CanvasAgentMessage[];
+  /** Mirror messages saved to the session store. */
+  save(saved: CanvasAgentMessage[]): void;
+  /** Record a compaction of `messages`, then apply it in place. */
+  replace(compacted: ModelMessage[]): void;
+}
+
+export function startCheckpointedRun(
+  sessionId: string,
+  initial: readonly CanvasAgentMessage[],
+  toModel: (message: CanvasAgentMessage) => ModelMessage,
+): CheckpointedRun {
+  const { messages, storeIndex, coveredStart } = buildCheckpointedHistory(sessionId, initial, toModel);
+  const stored = [...initial];
+  return {
+    messages,
+    stored,
+    save(saved) {
+      // The turn's user message is pushed to the model history just before
+      // it is saved; map it so a compaction that keeps it never covers it.
+      const lastModel = messages.at(-1);
+      if (saved.length === 1 && saved[0].role === 'user'
+        && lastModel?.role === 'user' && !storeIndex.has(lastModel)) {
+        storeIndex.set(lastModel, stored.length);
+      }
+      stored.push(...saved);
+    },
+    replace(compacted) {
+      recordCompactionCheckpoint(sessionId, stored, messages, compacted, storeIndex, coveredStart);
+      // In place: the engine loop and later appends share this array.
+      messages.splice(0, messages.length, ...compacted);
+    },
+  };
+}
+
 /**
  * Build the turn's model history. Returns the history, a map from each model
  * message built from a stored message to that stored message's index, and how
  * many stored messages the reused checkpoint covers.
  */
-export function buildCheckpointedHistory(
+function buildCheckpointedHistory(
   sessionId: string,
   stored: readonly CanvasAgentMessage[],
   toModel: (message: CanvasAgentMessage) => ModelMessage,
@@ -70,7 +109,7 @@ export function buildCheckpointedHistory(
  * relay segment) are never covered, so the next turn may repeat a little
  * context but never loses any.
  */
-export function recordCompactionCheckpoint(
+function recordCompactionCheckpoint(
   sessionId: string,
   stored: readonly CanvasAgentMessage[],
   previous: readonly ModelMessage[],

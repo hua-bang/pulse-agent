@@ -26,11 +26,12 @@ export function inactiveLinkTabIds(
   state: Pick<DockState, 'tabs' | 'activeTabId' | 'splitTabIds'>,
   now: number,
 ): string[] {
-  return state.tabs.flatMap((tab) => {
-    if (tab.kind !== 'link' || tab.id === state.activeTabId || state.splitTabIds?.includes(tab.id)) return [];
-    const usedAt = lastActiveAt[tab.id];
-    return usedAt !== undefined && now - usedAt >= INACTIVE_LINK_TAB_MS ? [tab.id] : [];
-  });
+  return state.tabs
+    .filter((tab) => tab.kind === 'link'
+      && tab.id !== state.activeTabId
+      && !state.splitTabIds?.includes(tab.id)
+      && now - (lastActiveAt[tab.id] ?? now) >= INACTIVE_LINK_TAB_MS)
+    .map((tab) => tab.id);
 }
 
 export type DockLinkSessions = Record<string, DockLinkSession>;
@@ -129,11 +130,11 @@ export class DockLinkSessionStore {
     // Stamp the tab on screen, and the one it replaced: that tab was visible
     // until now. A new tab counts as used when it opens.
     const now = Date.now();
-    const stamped = new Set(onScreen ? [activeTabId, this.onScreenTabIds.get(workspaceId)] : []);
+    const shownTabId = this.onScreenTabIds.get(workspaceId);
     if (onScreen) this.onScreenTabIds.set(workspaceId, activeTabId);
     const lastActiveAt = Object.fromEntries(linkTabs.map((tab) => [
       tab.id,
-      stamped.has(tab.id) ? now : previous?.lastActiveAt?.[tab.id] ?? now,
+      onScreen && [activeTabId, shownTabId].includes(tab.id) ? now : previous?.lastActiveAt?.[tab.id] ?? now,
     ]));
     this.sessions = {
       ...this.sessions,
@@ -141,7 +142,7 @@ export class DockLinkSessionStore {
         tabs: linkTabs,
         activeTabId: activeLinkId,
         expanded: expanded ?? previous?.expanded,
-        ...(linkTabs.length > 0 ? { lastActiveAt } : {}),
+        lastActiveAt,
       },
     };
     try {

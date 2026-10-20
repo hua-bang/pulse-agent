@@ -87,7 +87,7 @@ describe('ChatMessages scheduled pending state', () => {
 
     await act(async () => { setConversationCompacting('session-compacting', true); });
     expect(host.querySelector('.chat-activity-status--compacting .chat-activity-status__label')?.textContent)
-      .toBe('Compacting context…');
+      .toBe('Compacting context');
 
     await act(async () => { setConversationCompacting('session-compacting', false); });
     expect(host.querySelector('.chat-activity-status--compacting')).toBeNull();

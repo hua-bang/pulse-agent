@@ -341,9 +341,10 @@ controls from focus navigation; reduced-motion disables both transitions.
 Guards: `__tests__/ChatToolCalls.test.tsx` and
 `__tests__/ChatMessages.accessibility.test.tsx`.
 
-While context compaction runs, Activity reads `Compacting context…` with a
+While context compaction runs, Activity reads `Compacting context` with a
 text shimmer (reduced motion shows plain text). Backends report the phases
-through `run/compaction-status.ts`; conversation-ipc forwards them on
+through `run/compaction-status.ts` (one listener per session, since a
+conversation runs one turn at a time); conversation-ipc forwards them on
 `canvas-agent:compaction:{sessionId}`. The renderer keeps the state in
 `runtime/conversationCompaction.ts` and clears it on the end phase, the next
 text or tool event, or turn completion. A compaction after answer text brings
@@ -717,7 +718,9 @@ stored message the compaction kept (including the turn's own ask), so a later
 turn may repeat a little context but never loses any. It is dropped when the
 covered messages change (edit, regenerate, truncation). After a restart the
 first long turn compacts once and records a new one. Apply compactions through
-`replaceRunMessages`, never by splicing the run history directly. Guard:
+`replaceRunMessages`, never by splicing the run history directly.
+`run-session-context.ts` imports the module on first use, which keeps it out of
+the main entry chunk and inside the main bundle ratchet. Guard:
 `sessions/compaction-checkpoint.test.ts`.
 
 ### Chat latency trace

@@ -714,9 +714,7 @@ export class CanvasAgent {
           observabilityRunId: performanceTiming?.runId, observeFirstActivity: index === 0,
           debugTrace,
           appendMessages: messages => runMessages.push(...messages),
-          replaceMessages: messages => {
-            replaceRunMessages(messages);
-          },
+          replaceMessages: replaceRunMessages,
         });
         observabilityCursor = markCanvasRuntimeCompleted(performanceTiming, runtimeStartedAt, runtimeOwner);
         markTraceRuntimeCompleted(debugTrace);

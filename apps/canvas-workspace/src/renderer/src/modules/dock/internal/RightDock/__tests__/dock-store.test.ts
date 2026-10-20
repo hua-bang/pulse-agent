@@ -1093,7 +1093,7 @@ describe('DockStore', () => {
     });
 
     dock.close(id);
-    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true });
+    expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true, lastActiveAt: {} });
   });
 
   it('stamps on-screen web tabs and closes week-old tabs when the workspace is entered', () => {
@@ -1180,7 +1180,7 @@ describe('DockStore', () => {
     dock.openCanvasPreview('ws-b', 'Other workspace');
 
     expect(saved.read()).toEqual({
-      'ws-a': { tabs: [], activeTabId: undefined, expanded: true },
+      'ws-a': { tabs: [], activeTabId: undefined, expanded: true, lastActiveAt: {} },
     });
   });
 

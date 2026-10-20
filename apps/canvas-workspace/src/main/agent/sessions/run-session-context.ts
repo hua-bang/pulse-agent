@@ -1,7 +1,6 @@
 import type { ModelMessage } from 'ai';
 import type { CanvasAgentMessage, CanvasAgentSession } from '../types';
 import { sessionMessageToModelMessage } from '../roles/role-turn';
-import { buildCheckpointedHistory, recordCompactionCheckpoint } from './compaction-checkpoint';
 
 /** Read/append surface a run needs from the session store. */
 export interface RunSessionStore {
@@ -54,37 +53,18 @@ export async function prepareRunSession(
       activeSessionId: store.getCurrentSession()?.sessionId ?? null,
     };
   }
-  const { messages: runMessages, storeIndex, coveredStart } = buildCheckpointedHistory(
-    targetSession.sessionId,
-    targetSession.messages,
-    sessionMessageToModelMessage,
-  );
-  // Mirrors what has been persisted to the anchored session during this turn.
-  const runStoreMessages: CanvasAgentMessage[] = [...targetSession.messages];
-  const appendRunMessages = (storeMessages: CanvasAgentMessage[]) => {
-    // The turn's user message is pushed to the model history just before it
-    // is saved; map it so a compaction that keeps it never covers it.
-    const lastModel = runMessages.at(-1);
-    if (storeMessages.length === 1 && storeMessages[0].role === 'user'
-      && lastModel?.role === 'user' && !storeIndex.has(lastModel)) {
-      storeIndex.set(lastModel, runStoreMessages.length);
-    }
-    runStoreMessages.push(...storeMessages);
-    persist(targetSession.sessionId, storeMessages);
-  };
-  const replaceRunMessages = (messages: ModelMessage[]) => {
-    recordCompactionCheckpoint(
-      targetSession.sessionId, runStoreMessages, runMessages, messages, storeIndex, coveredStart,
-    );
-    // In place: the engine loop and later appends share this array.
-    runMessages.splice(0, runMessages.length, ...messages);
-  };
+  // Loaded on first use to keep it out of the main entry chunk.
+  const { startCheckpointedRun } = await import('./compaction-checkpoint');
+  const run = startCheckpointedRun(targetSession.sessionId, targetSession.messages, sessionMessageToModelMessage);
   return {
     ok: true,
     targetSession,
-    runMessages,
-    runStoreMessages,
-    appendRunMessages,
-    replaceRunMessages,
+    runMessages: run.messages,
+    runStoreMessages: run.stored,
+    appendRunMessages: storeMessages => {
+      run.save(storeMessages);
+      persist(targetSession.sessionId, storeMessages);
+    },
+    replaceRunMessages: run.replace,
   };
 }

@@ -132,7 +132,7 @@ export const DockTabSwitcher = ({ mode = 'switch', items, activeTabId, splitTabI
           {!comparing && !query && inactiveCount > 0 && onCloseInactive && (
             <Button size="sm" className="right-dock__tab-search-cleanup"
               onClick={() => { onCloseInactive(); searchRef.current?.querySelector('input')?.focus(); }}>
-              {t('rightDock.closeInactiveTabs', { count: inactiveCount })}
+              {t('rightDock.closeIdleTabs', { count: inactiveCount })}
             </Button>
           )}
           {!rows.length && <p role="status" className="right-dock__tab-search-empty">{t(comparing && !items.length ? 'rightDock.openTabToCompare' : 'rightDock.noMatchingTabs')}</p>}
