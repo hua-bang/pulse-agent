@@ -97,7 +97,9 @@ export const useCanvasController = ({
     screenToCanvas, resetTransform, zoomByStep, getLiveTransform,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
-  const { animating, handleFocusNode, fitAllNodes, revealNode } = useCanvasFit(containerRef, setTransform);
+  const {
+    animating, handleFocusNode, animateTransform, fitAllNodes, revealNode,
+  } = useCanvasFit(containerRef, setTransform);
 
   const {
     nodes, edges, loaded, externallyEditedIds,
@@ -170,6 +172,7 @@ export const useCanvasController = ({
 
   const focus = useCanvasFocusMode({
     nodes: visibleNodes, nodesById: visibleNodesById, nodesRef, selectedNodeIds, handleFocusNode,
+    getLiveTransform, animateTransform,
   });
 
   const ctxMenu = useCanvasContextMenu({

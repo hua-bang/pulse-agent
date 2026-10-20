@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
-import type { CanvasNode } from '../../../../../../types';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import type { CanvasNode, CanvasTransform } from '../../../../../../types';
 import { isContainerNode, isInsideContainer } from '../../../../../../utils/frameHierarchy';
 
 // Focus-mode reframe sizing. Padding leaves breathing room around the
@@ -25,6 +25,8 @@ interface Options {
     node: CanvasNode,
     opts?: { padding?: number; maxScale?: number },
   ) => void;
+  getLiveTransform: () => CanvasTransform;
+  animateTransform: (next: CanvasTransform) => void;
 }
 
 /**
@@ -38,14 +40,20 @@ export const useCanvasFocusMode = ({
   nodesRef,
   selectedNodeIds,
   handleFocusNode,
+  getLiveTransform,
+  animateTransform,
 }: Options) => {
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
-  // ID of the node currently rendered fullscreen. The node stays in
-  // `.canvas-transform` (so its iframe / editor / terminal DOM never
-  // moves and the embedded page doesn't reload). CSS overrides on
-  // `.canvas-transform` and the node itself fill the viewport when
-  // this is set — see Canvas/index.css and CanvasNodeView/index.css.
+  // ID of the node currently rendered fullscreen. Fullscreen is an
+  // in-place focus: the node stays in `.canvas-transform` (so its iframe /
+  // editor / terminal DOM never moves and the embedded page doesn't
+  // reload), the camera glides to it at 100%, and CSS stretches its box to
+  // the viewport while the rest of the canvas dims behind it. The stretch is
+  // display-only; the stored size never changes. See Canvas/index.css and
+  // CanvasNodeView/index.css.
   const [fullscreenNodeId, setFullscreenNodeId] = useState<string | null>(null);
+  // Viewport to return to when fullscreen ends, captured on entry.
+  const fullscreenReturnRef = useRef<CanvasTransform | null>(null);
 
   const focusModeAvailable = selectedNodeIds.length === 1;
 
@@ -121,6 +129,25 @@ export const useCanvasFocusMode = ({
     if (!fullscreenNodeId) return;
     if (!nodesById.has(fullscreenNodeId)) setFullscreenNodeId(null);
   }, [fullscreenNodeId, nodesById]);
+
+  // Fullscreen camera: put the node's top-left at the viewport origin at
+  // 100% zoom. The CSS stretch is anchored to that corner, so the node
+  // keeps filling the viewport when the window or dock resizes without
+  // any re-measure. Every exit path (chip, Esc, backdrop, node removal)
+  // clears the id, so the return glide lives here too.
+  useEffect(() => {
+    if (fullscreenNodeId) {
+      const node = nodesRef.current.find((n) => n.id === fullscreenNodeId);
+      if (!node) return;
+      fullscreenReturnRef.current ??= getLiveTransform();
+      animateTransform({ x: -node.x, y: -node.y, scale: 1 });
+      return;
+    }
+    const previous = fullscreenReturnRef.current;
+    if (!previous) return;
+    fullscreenReturnRef.current = null;
+    animateTransform(previous);
+  }, [fullscreenNodeId, nodesRef, getLiveTransform, animateTransform]);
 
   // Focus mode is single-selection only — extending the selection
   // (shift-click, marquee-add, Cmd+A, etc.) exits focus mode rather

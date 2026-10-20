@@ -286,38 +286,36 @@
   }
 }
 
-/* When a node is fullscreened we kill the canvas pan/zoom transform
- * entirely so the fullscreen node can use `inset: 0` against the
- * `.canvas-container` viewport without fighting an inverse-transform
- * calculation. Other nodes "jump" to their raw canvas coords for the
- * duration, but they're hidden behind the fullscreen backdrop so the
- * jump isn't visible. The transform layer also gets explicit
- * dimensions so the absolutely-positioned fullscreen node has a real
- * containing block to fill, and its z-index is raised above the
- * canvas chrome layer (floating toolbar, zoom indicator). */
+/* Fullscreen is an in-place focus: the canvas transform stays live (the
+ * camera glides to the node at 100%, see useCanvasFocusMode), so nothing
+ * jumps and the user can still pan/zoom around. The transform layer gets
+ * the viewport's dimensions so the fullscreen node can size itself with
+ * percentages against it, and its z-index is raised above the canvas
+ * chrome layer (floating toolbar, zoom indicator). */
 .canvas-container[data-fullscreen="on"] .canvas-transform {
-  transform: none !important;
-  transition: none !important;
   width: 100%;
   height: 100%;
   z-index: var(--layer-fullscreen-node);
-  --canvas-fullscreen-inset: 12px;
+  --canvas-fullscreen-inset: 32px;
 }
 
 .canvas-container[data-fullscreen="on"] .canvas-grid {
   opacity: 0;
 }
 
-/* Fullscreen backdrop. With the parent transform killed, it sits at
- * canvas-container coords directly — a simple `inset: 0` covers the
- * viewport. Click anywhere to dismiss. */
+/* Fullscreen backdrop. Like the focus-mode backdrop it lives inside the
+ * transform, so it is sized to cover any pan/zoom. It dims (no blur) so the
+ * surrounding canvas stays readable as context. Click anywhere to dismiss. */
 .canvas-fullscreen-backdrop {
   position: absolute;
-  inset: 0;
+  left: -100000px;
+  top: -100000px;
+  width: 200000px;
+  height: 200000px;
   background: var(--canvas-focus-dim);
   pointer-events: auto;
-  backdrop-filter: blur(10px);
   z-index: 50;
+  animation: canvas-focus-backdrop-in 0.22s ease forwards;
 }
 
 /* Single control surface for fullscreen mode. It overlays the fullscreen
@@ -325,8 +323,9 @@
  * separate top chrome lane. */
 .canvas-fullscreen-chip {
   position: absolute;
-  top: 8px;
-  right: 18px;
+  /* Sits on the fullscreen node's header: inset (32px) plus a small gap. */
+  top: 38px;
+  right: 44px;
   display: flex;
   align-items: center;
   gap: 2px;

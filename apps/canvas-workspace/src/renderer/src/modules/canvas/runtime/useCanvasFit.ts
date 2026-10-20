@@ -37,6 +37,14 @@ export const useCanvasFit = (
     [containerRef, setTransform, triggerAnimation]
   );
 
+  const animateTransform = useCallback(
+    (next: CanvasTransform) => {
+      setTransform(next);
+      triggerAnimation();
+    },
+    [setTransform, triggerAnimation]
+  );
+
   const fitAllNodes = useCallback(
     (nodeList: CanvasNode[]) => {
       if (!containerRef.current || nodeList.length === 0) return;
@@ -87,5 +95,5 @@ export const useCanvasFit = (
     }
   }, [containerRef, setTransform]);
 
-  return { animating, handleFocusNode, fitAllNodes, revealNode };
+  return { animating, handleFocusNode, animateTransform, fitAllNodes, revealNode };
 };

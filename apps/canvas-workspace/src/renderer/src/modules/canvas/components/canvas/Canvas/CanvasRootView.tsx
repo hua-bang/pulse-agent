@@ -116,10 +116,7 @@ export const CanvasRootView = ({
     <div
       ref={containerRef}
       className={`canvas-container${mouse.cursorClass}${mouse.iframeShieldClass}`}
-      onWheel={(e) => {
-        if (focus.fullscreenNodeId) return;
-        handleWheel(e);
-      }}
+      onWheel={handleWheel}
       onMouseDown={mouse.handleRootMouseDown}
       onMouseMove={mouse.handleMouseMove}
       onMouseUp={mouse.handleMouseUp}
