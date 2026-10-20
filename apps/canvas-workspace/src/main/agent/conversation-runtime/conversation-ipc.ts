@@ -148,6 +148,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
         return { ok: true, sessionId };
       }
       subscribersFor(scope, sessionId).add(event.sender);
+      const releaseRun = getService().sessionMutations.reserveRun(scope, sessionId);
       void chatToSubscribers(runtime, scope, sessionId, message, {
         mentionedWorkspaceIds,
         requestContext,
@@ -159,7 +160,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
           && Number.isFinite(payload.trace.submittedAt)
           && payload.trace.submittedAt <= Date.now()
           ? payload.trace : undefined,
-      });
+      }).finally(releaseRun);
       return { ok: true, sessionId };
     },
   );

@@ -35,6 +35,8 @@ vi.mock('../run/perf-chat-replay', () => ({
 import { chatToSubscribers, getConversationRuntimeService, setupConversationRuntimeIpc } from './conversation-ipc';
 
 describe('conversation runtime IPC', () => {
+  const releaseRun = vi.fn();
+  const sessionMutations = { reserveRun: vi.fn(() => releaseRun) };
   beforeEach(() => {
     mocks.handlers.clear();
     mocks.chat.mockReset();
@@ -45,7 +47,7 @@ describe('conversation runtime IPC', () => {
   it('acknowledges an accepted turn before its completion event', async () => {
     let finish!: (result: { ok: boolean; response: string }) => void;
     mocks.chat.mockReturnValue(new Promise(resolve => { finish = resolve; }));
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const handler = mocks.handlers.get('canvas-agent:conversation-chat');
     const send = vi.fn();
     const invocation = handler?.({
@@ -60,6 +62,9 @@ describe('conversation runtime IPC', () => {
 
     await Promise.resolve();
     expect(settled).toEqual([{ ok: true, sessionId: 'session-a' }]);
+    // The turn counts as running before activation, so New chat cannot reuse its session.
+    expect(sessionMutations.reserveRun).toHaveBeenCalledWith({ kind: 'global' }, 'session-a');
+    expect(releaseRun).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalledWith(
       'canvas-agent:chat-complete:session-a',
       expect.anything(),
@@ -72,6 +77,7 @@ describe('conversation runtime IPC', () => {
         { ok: true, response: 'done' },
       );
     });
+    expect(releaseRun).toHaveBeenCalledTimes(1);
   });
 
   it('streams the rest of a running turn to a window that attaches later', async () => {
@@ -83,7 +89,7 @@ describe('conversation runtime IPC', () => {
     });
     const snapshot = { status: 'running', messages: [], draft: { role: 'assistant', content: 'Par' } };
     mocks.liveSnapshot.mockReturnValue(snapshot);
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const original = { isDestroyed: () => false, send: vi.fn() };
     const reloaded = { isDestroyed: () => false, send: vi.fn() };
     const payload = { scope: { kind: 'workspace', workspaceId: 'ws-a' }, sessionId: 'session-a' };
@@ -111,7 +117,7 @@ describe('conversation runtime IPC', () => {
       return new Promise(resolve => { finish = resolve; });
     });
     mocks.liveSnapshot.mockReturnValue({ status: 'running', messages: [], draft: null });
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const chatWindow = { isDestroyed: () => false, send: vi.fn() };
     const payload = { scope: { kind: 'scheduled', taskId: 'brief' }, sessionId: 'run-1' };
 
@@ -132,7 +138,7 @@ describe('conversation runtime IPC', () => {
 
   it('reports an idle conversation without subscribing the window', () => {
     mocks.liveSnapshot.mockReturnValue(null);
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
 
     expect(mocks.handlers.get('canvas-agent:conversation-attach')?.(
       { sender: { isDestroyed: () => false, send: vi.fn() } },
@@ -142,7 +148,7 @@ describe('conversation runtime IPC', () => {
 
   it('reports running sessions from the conversation runtime registry', () => {
     mocks.runningSessionIds.mockReturnValue(['session-a', 'session-b']);
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const handler = mocks.handlers.get('canvas-agent:conversation-running-sessions');
 
     expect(handler?.({}, { scope: { kind: 'global' } })).toEqual({
@@ -153,7 +159,7 @@ describe('conversation runtime IPC', () => {
 
   it('uses the deterministic perf replay on the conversation IPC path', async () => {
     vi.stubEnv('PULSE_CANVAS_PERF', '1');
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn() }) as never);
+    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const handler = mocks.handlers.get('canvas-agent:conversation-chat');
     const sender = { isDestroyed: () => false, send: vi.fn() };
 

@@ -108,7 +108,7 @@ export const Launcher = ({
           onCreateWorkspace={() => setCreating(true)}
           onOpenAll={onOpenAllWorkspaces}
         />
-        <RecentChats chats={recentChats} onOpenChat={openChat} onOpenAll={onOpenAllChats} />
+        <RecentChats chats={recentChats} active={active} onOpenChat={openChat} onOpenAll={onOpenAllChats} />
       </div>
       <NewWorkspaceDialog
         open={creating}

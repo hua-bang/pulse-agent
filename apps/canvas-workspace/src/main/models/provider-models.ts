@@ -9,7 +9,7 @@ export function normalizeStr(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function normalizeContextWindow(value: unknown): number | undefined {
+export function normalizeContextWindow(value: unknown): number | undefined {
   const tokens = typeof value === 'string' ? Number(value) : value;
   return typeof tokens === 'number' && Number.isFinite(tokens) && tokens >= 1000
     ? Math.floor(tokens)

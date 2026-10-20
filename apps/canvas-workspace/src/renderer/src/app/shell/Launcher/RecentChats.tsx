@@ -10,6 +10,8 @@ import type { RecentChat } from './useLauncherData';
 
 interface Props {
   chats: RecentChat[] | null;
+  /** False while the kept-alive launcher is hidden: stops the running poll. */
+  active: boolean;
   onOpenChat: (chat: RecentChat) => void;
   onOpenAll: () => void;
 }
@@ -18,9 +20,12 @@ interface Props {
  * The latest conversations across every scope; a row reopens its session.
  * "View all" opens the chat page, whose session list has the rest.
  */
-export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
+export const RecentChats = ({ chats, active, onOpenChat, onOpenAll }: Props) => {
   const { t, language } = useI18n();
-  const storeIds = useMemo(() => (chats ?? []).map((chat) => chat.storeId), [chats]);
+  const storeIds = useMemo(
+    () => (active ? (chats ?? []).map((chat) => chat.storeId) : []),
+    [active, chats],
+  );
   const running = useRunningConversationKeys(storeIds);
   if (chats === null) return null;
 

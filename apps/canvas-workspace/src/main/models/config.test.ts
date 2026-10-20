@@ -124,6 +124,28 @@ describe('canvas model context windows', () => {
     expect((await resolveCanvasModel()).contextWindowTokens).toBe(400_000);
   });
 
+  it('moves a provider window saved by an older release onto models without one', async () => {
+    await fs.writeFile(configPath, JSON.stringify({
+      current_provider: 'gw',
+      current_model: 'm1',
+      providers: [{
+        id: 'gw',
+        name: 'Gateway',
+        api_key_env: 'OPENAI_API_KEY',
+        context_window: 64_000,
+        models: [{ id: 'm1' }, { id: 'm2', context_window: 200_000 }],
+      }],
+    }));
+    const { resolveCanvasModel, getCanvasModelStatus } = await import('./config');
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(64_000);
+    const provider = (await getCanvasModelStatus()).providers[0];
+    expect(provider.models).toEqual([
+      { id: 'm1', custom_context_window: 64_000 },
+      { id: 'm2', context_window: 200_000 },
+    ]);
+    expect(provider).not.toHaveProperty('context_window');
+  });
+
   it('reads the window a gateway reports in /models', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

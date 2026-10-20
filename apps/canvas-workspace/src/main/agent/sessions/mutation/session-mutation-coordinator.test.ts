@@ -32,6 +32,19 @@ describe('SessionMutationCoordinator shutdown', () => {
     await coordinator.stopAndDrain();
   });
 
+  it('keeps a turn IPC accepted before a cold scope activates out of New chat reuse', async () => {
+    const coordinator = new SessionMutationCoordinator(async () => undefined, () => undefined);
+    const release = coordinator.reserveRun(scope, 'session');
+    const startInStore = vi.fn(async (isRunning: (id: string | null) => boolean) => (
+      isRunning('session') ? 'fresh' : 'session'
+    ));
+    expect(await coordinator.newStoredSession(scope, startInStore)).toMatchObject({ ok: true, activeSessionId: 'fresh' });
+    release();
+    release();
+    expect(await coordinator.newStoredSession(scope, startInStore)).toMatchObject({ ok: true, activeSessionId: 'session' });
+    await coordinator.stopAndDrain();
+  });
+
   it('aborts active runs and waits for their final queued persistence before completing', async () => {
     const abort = vi.fn();
     const coordinator = new SessionMutationCoordinator(async () => undefined, () => ({ abort }) as never);

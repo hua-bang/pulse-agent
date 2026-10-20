@@ -12,6 +12,7 @@ import type {
 } from '../../shared/model-config';
 import {
   buildModelsUrl,
+  normalizeContextWindow,
   normalizeProviderModels,
   normalizeStr,
   parseModelsPayload,
@@ -170,6 +171,16 @@ function normalizeProviderConfig(
   const existingAvailable = normalizeProviderModels(existing?.available_models);
   const catalog = available.length > 0 ? available : existingAvailable;
   if (catalog.length > 0) normalized.available_models = catalog;
+  // Configs saved before per-model windows hold one window on the provider. It
+  // ranked below a reported window, so it moves to models that have neither.
+  const legacyWindow = normalizeContextWindow((provider as { context_window?: unknown }).context_window);
+  if (legacyWindow) {
+    const carry = (list: CanvasProviderModel[]) => list.map((model) => (
+      model.context_window || model.custom_context_window ? model : { ...model, custom_context_window: legacyWindow }
+    ));
+    normalized.models = carry(normalized.models);
+    if (normalized.available_models) normalized.available_models = carry(normalized.available_models);
+  }
   return normalized;
 }
 

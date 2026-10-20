@@ -29,6 +29,8 @@ export type { BranchSessionResult, DeleteSessionResult, LoadSessionResult, NewSe
 export class SessionMutationCoordinator {
   private tails = new Map<string, Promise<void>>();
   private activeRuns = new Set<string>();
+  /** Turns accepted by IPC that have not reached runChat yet (cold-scope activation). */
+  private reservedRuns = new Map<string, number>();
   private pendingRuns = new Map<string, PendingSessionRun>();
   private stopping = false;
   private detachWorkspaceDrain = registerWorkspaceSessionDrain(scope => this.waitForIdle(scope));
@@ -46,29 +48,50 @@ export class SessionMutationCoordinator {
   /** True when a run anchors to `sessionId` (or a legacy exclusive run owns the scope). */
   private isSessionActive(scope: AgentScope, sessionId: string | null | undefined): boolean {
     if (!sessionId) return this.activeRuns.has(this.runKey(scope, null));
-    return this.activeRuns.has(this.runKey(scope, sessionId))
+    const key = this.runKey(scope, sessionId);
+    return this.activeRuns.has(key)
+      || this.reservedRuns.has(key)
       || this.activeRuns.has(this.runKey(scope, null));
+  }
+
+  /**
+   * Marks a turn as running from the moment IPC accepts it, so New chat cannot
+   * reuse its still-empty session while a cold scope activates. Call the
+   * returned release when the turn settles.
+   */
+  reserveRun(scope: AgentScope, sessionId: string): () => void {
+    const key = this.runKey(scope, sessionId);
+    this.reservedRuns.set(key, (this.reservedRuns.get(key) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const count = (this.reservedRuns.get(key) ?? 1) - 1;
+      if (count > 0) this.reservedRuns.set(key, count);
+      else this.reservedRuns.delete(key);
+    };
   }
 
   /** Create a durable draft without activating a cold Agent. */
   newStoredSession(
     scope: AgentScope,
-    startInStore: () => Promise<string | null>,
+    startInStore: (isRunning: (sessionId: string | null) => boolean) => Promise<string | null>,
   ): Promise<NewSessionResult> {
+    // A running first turn has not stored its messages yet; keep its session
+    // instead of reusing it as the new empty draft.
+    const isRunning = (sessionId: string | null) => this.isSessionActive(scope, sessionId);
     return this.run(scope, async () => {
       try {
         const agent = this.getAgent(scope);
         if (agent) {
-          // A running first turn has not stored its messages yet; keep its
-          // session instead of reusing it as the new empty draft.
-          await agent.newSession({ keepCurrent: this.isSessionActive(scope, agent.getCurrentSessionId()) });
+          await agent.newSession({ keepCurrent: isRunning(agent.getCurrentSessionId()) });
           const activeSessionId = agent.getCurrentSessionId();
           return activeSessionId
             ? { ok: true, activeSessionId }
             : this.failure(scope, 'New session did not become active');
         }
 
-        const activeSessionId = await startInStore();
+        const activeSessionId = await startInStore(isRunning);
         if (!activeSessionId) {
           return this.failure(scope, 'New session did not become active');
         }
