@@ -15,6 +15,11 @@ interface ChatHeaderProps {
   sessionsLoading?: boolean;
   /** Prevents session navigation/mutation while the active thread is opening. */
   disabled?: boolean;
+  /**
+   * New chat stays available while a reply streams: the run is anchored to
+   * its own session and keeps going (chat-sessions.md). Defaults to `disabled`.
+   */
+  newSessionDisabled?: boolean;
   sessions: Array<{
     sessionId: string;
     date: string;
@@ -55,6 +60,7 @@ export const ChatHeader = ({
   sessionMenuRef,
   sessionsLoading = false,
   disabled = false,
+  newSessionDisabled = disabled,
   sessions,
   otherSessions,
   scopeLabel,
@@ -150,7 +156,7 @@ export const ChatHeader = ({
               className="chat-session-menu-new"
               role="menuitem"
               onClick={() => void onNewSession()}
-              disabled={disabled}
+              disabled={newSessionDisabled}
             >
               <PlusIcon size={14} strokeWidth={1.3} />
               <span>{t('chat.newAiChat')}</span>
@@ -260,7 +266,7 @@ export const ChatHeader = ({
         <button
           className="chat-panel-action-btn"
           onClick={() => void onNewSession()}
-          disabled={disabled}
+          disabled={newSessionDisabled}
           title={t('chat.newAiChat')}
           aria-label={t('chat.newAiChat')}
         >

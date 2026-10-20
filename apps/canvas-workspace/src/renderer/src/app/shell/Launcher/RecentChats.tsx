@@ -1,12 +1,17 @@
-import { BotAvatarIcon } from '../../../components/icons';
+import { useMemo } from 'react';
+import { conversationKeyId } from '../../../../../shared/conversation-runtime';
+import { BotAvatarIcon, SpinnerIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { sessionTitleText } from '../../../modules/chat/components/utils/sessionTitle';
+import { useRunningConversationKeys } from '../../../modules/chat/sessions/useScopeRunningSessions';
 import { formatRelativeTime } from './relativeTime';
 import type { RecentChat } from './useLauncherData';
 
 interface Props {
   chats: RecentChat[] | null;
+  /** False while the kept-alive launcher is hidden: stops the running poll. */
+  active: boolean;
   onOpenChat: (chat: RecentChat) => void;
   onOpenAll: () => void;
 }
@@ -15,8 +20,13 @@ interface Props {
  * The latest conversations across every scope; a row reopens its session.
  * "View all" opens the chat page, whose session list has the rest.
  */
-export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
+export const RecentChats = ({ chats, active, onOpenChat, onOpenAll }: Props) => {
   const { t, language } = useI18n();
+  const storeIds = useMemo(
+    () => (active ? (chats ?? []).map((chat) => chat.storeId) : []),
+    [active, chats],
+  );
+  const running = useRunningConversationKeys(storeIds);
   if (chats === null) return null;
 
   return (
@@ -32,6 +42,7 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
         {chats.map((chat) => {
           const { session } = chat;
           const title = sessionTitleText(session.title || session.preview || '') || t('launcher.untitledChat');
+          const isRunning = running.has(conversationKeyId({ storeId: chat.storeId, sessionId: session.sessionId }));
           return (
             <Button
               key={`${chat.storeId}:${session.sessionId}`}
@@ -42,6 +53,12 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
             >
               <BotAvatarIcon size={14} />
               <span className="launcher__chat-title">{title}</span>
+              {isRunning && (
+                <span className="launcher__chat-running" role="status">
+                  <SpinnerIcon size={11} className="launcher__chat-running-spinner" />
+                  {t('chat.sessionRunning')}
+                </span>
+              )}
               <span className="launcher__chat-meta">
                 {chat.scopeName}
                 {session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, language)}` : ''}

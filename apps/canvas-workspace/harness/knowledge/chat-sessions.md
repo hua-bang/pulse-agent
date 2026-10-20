@@ -817,7 +817,12 @@ Explicit boundaries a user will hit:
   another surface owns the current session (`busyElsewhere`), not while this
   surface merely has a stream in flight. Other pointer mutations
   (rewind/delete/branch) still reject a RUNNING session because they would
-  destroy or fork the run's own thread.
+  destroy or fork the run's own thread. A first turn stores nothing until it
+  ends, so the store would reuse its "empty" session as the new draft; the
+  coordinator passes `keepCurrent` for a running session so New chat gets a
+  fresh draft and the run keeps its own (`service-session-mutation.test.ts`,
+  `sessions/sqlite/store.test.ts`). The dock panel and the page both gate
+  New chat on `sessionLoading || busyElsewhere` only.
 - **One surface shows one stream.** After switching to B, A's output does not
   scroll on screen (it continues main-side and persists); switching back to A
   replays output emitted while it was hidden and resumes the live stream. The
@@ -829,7 +834,9 @@ Explicit boundaries a user will hit:
 Verify with the mock stream: `PULSE_CANVAS_PERF=1
 PULSE_CANVAS_PERF_INTERVAL_MS=250` keeps a `__pulse_perf_chat_stream__` turn
 streaming ~2.5min, long enough to exercise the switch (see
-`perf-chat-replay.ts` for the env overrides).
+`perf-chat-replay.ts` for the env overrides). The replay bypasses the run
+coordinator and session storage, so it cannot verify New chat or the Running
+marker; use a real (or slowed mock) model turn for those.
 
 ### Explicit conversation branching and naming
 

@@ -285,7 +285,7 @@ export class CanvasAgentService {
   }
 
   async newSessionForScope(scope: AgentScope): Promise<NewSessionResult> {
-    return this.sessionMutations.newStoredSession(scope, () => startCanvasAgentSessionInStore(scope));
+    return this.sessionMutations.newStoredSession(scope, (isRunning) => startCanvasAgentSessionInStore(scope, isRunning));
   }
 
   async branchSessionForScope(scope: AgentScope, fromIndex: number, sourceSessionId?: string): Promise<BranchSessionResult> { return this.sessionMutations.branchSession(scope, fromIndex, sourceSessionId); }

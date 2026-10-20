@@ -53,8 +53,30 @@
   border-top: 1px solid var(--border);
 }
 
+.chat-model-model-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-model-model-item:last-child {
+  border-bottom: none;
+}
+
+.chat-model-model-item:hover {
+  background: var(--surface-subtle);
+}
+
+.chat-model-model-item--selected,
+.chat-model-model-item--selected:hover {
+  background: var(--accent-soft);
+}
+
 .chat-model-model-row.ui-btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: auto;
   min-height: 42px;
   padding: 7px 12px;
@@ -62,22 +84,13 @@
   gap: 10px;
   border: 0;
   border-radius: var(--radius-xs);
-  border-bottom: 1px solid var(--border);
   background: transparent;
   white-space: normal;
   cursor: pointer;
 }
 
-.chat-model-model-row:last-child {
-  border-bottom: none;
-}
-
 .chat-model-model-row.ui-btn:hover {
-  background: var(--surface-subtle);
-}
-
-.chat-model-model-row--selected.ui-btn {
-  background: var(--accent-soft);
+  background: transparent;
 }
 
 .chat-model-model-checkbox {
@@ -121,10 +134,23 @@
 }
 
 .chat-model-model-window {
-  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.chat-model-model-window .ui-textfield {
+  width: 64px;
+}
+
+.chat-model-model-window-input.ui-textfield__control {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+  text-align: right;
 }
 
 .chat-model-catalog-empty {

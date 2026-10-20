@@ -386,6 +386,7 @@ export const useChatPanelController = ({
     sessionTitle,
     messages,
     busy: loading || sessionLoading || busyElsewhere,
+    newSessionBlocked: sessionLoading || busyElsewhere,
     focusInput,
     closeSessionMenu,
     handleNewSession,
@@ -413,6 +414,7 @@ export const useChatPanelController = ({
           sessions={sessions}
           sessionsLoading={sessionsLoading}
           disabled={loading || sessionLoading || busyElsewhere}
+          newSessionDisabled={sessionLoading || busyElsewhere}
           otherSessions={otherSessions}
           scopeLabel={scopeLabel}
           scopeBadge={scopeLabel}

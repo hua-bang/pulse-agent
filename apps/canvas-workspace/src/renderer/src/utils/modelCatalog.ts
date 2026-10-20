@@ -10,8 +10,11 @@ export const mergeModels = (...groups: ModelGroup[]): CanvasProviderModel[] => {
     const merged: CanvasProviderModel = { ...previous, ...model };
     const name = model.name ?? previous?.name;
     const contextWindow = model.context_window ?? previous?.context_window;
+    const customContextWindow = model.custom_context_window ?? previous?.custom_context_window;
     if (name) merged.name = name; else delete merged.name;
     if (contextWindow) merged.context_window = contextWindow; else delete merged.context_window;
+    if (customContextWindow) merged.custom_context_window = customContextWindow;
+    else delete merged.custom_context_window;
     models.set(model.id, merged);
   }));
   return Array.from(models.values());

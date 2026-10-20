@@ -98,7 +98,6 @@ const providerToDraft = (provider?: CanvasModelProviderStatus): CanvasModelProvi
     api_key_env: provider.api_key_env,
     headers: provider.headers,
     models: provider.models,
-    context_window: provider.context_window,
   };
 };
 
@@ -128,6 +127,7 @@ export const ModelsSection = ({
     availableModels,
     mergeModelCatalog,
     resetModelCatalog,
+    setModelContextWindow,
     setModelsSelected,
     toggleModel,
   } = useProviderModelSelection(setDraft);
@@ -153,6 +153,7 @@ export const ModelsSection = ({
   );
   const { fetching, fetchModels, localError, save, saving, setLocalError } = useProviderModelActions({
     activeProviderStatus,
+    availableModels,
     draft,
     mergeModelCatalog,
     onFetchModels,
@@ -294,6 +295,7 @@ export const ModelsSection = ({
             manualModel={manualModel}
             setDraftField={setDraftField}
             setManualModel={setManualModel}
+            setModelContextWindow={setModelContextWindow}
             setModelsSelected={setModelsSelected}
             toggleModel={toggleModel}
           />

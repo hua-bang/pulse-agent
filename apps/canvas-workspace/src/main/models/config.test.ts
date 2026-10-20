@@ -101,7 +101,7 @@ describe('canvas model context windows', () => {
     expect((await resolveCanvasModel()).contextWindowTokens).toBe(1_050_000);
   });
 
-  it('falls back to the provider window, then the default', async () => {
+  it('prefers the window the user set for the model, then the reported one, then the default', async () => {
     const { resolveCanvasModel, upsertCanvasModelProvider, DEFAULT_CONTEXT_WINDOW_TOKENS } = await import('./config');
     await upsertCanvasModelProvider({
       id: 'gw',
@@ -112,12 +112,38 @@ describe('canvas model context windows', () => {
     });
     expect((await resolveCanvasModel()).contextWindowTokens).toBe(DEFAULT_CONTEXT_WINDOW_TOKENS);
 
-    await upsertCanvasModelProvider({ id: 'gw', name: 'Gateway', models: [{ id: 'm1' }], context_window: 256_000 });
-    expect((await resolveCanvasModel()).contextWindowTokens).toBe(256_000);
+    await upsertCanvasModelProvider({ id: 'gw', name: 'Gateway', models: [{ id: 'm1', context_window: 200_000 }] });
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(200_000);
 
-    // Clearing the field in the form removes the saved value.
-    await upsertCanvasModelProvider({ id: 'gw', name: 'Gateway', models: [{ id: 'm1' }], context_window: undefined });
-    expect((await resolveCanvasModel()).contextWindowTokens).toBe(DEFAULT_CONTEXT_WINDOW_TOKENS);
+    // A window the user set for the model wins over the reported one.
+    await upsertCanvasModelProvider({
+      id: 'gw',
+      name: 'Gateway',
+      models: [{ id: 'm1', context_window: 200_000, custom_context_window: 400_000 }],
+    });
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(400_000);
+  });
+
+  it('moves a provider window saved by an older release onto models without one', async () => {
+    await fs.writeFile(configPath, JSON.stringify({
+      current_provider: 'gw',
+      current_model: 'm1',
+      providers: [{
+        id: 'gw',
+        name: 'Gateway',
+        api_key_env: 'OPENAI_API_KEY',
+        context_window: 64_000,
+        models: [{ id: 'm1' }, { id: 'm2', context_window: 200_000 }],
+      }],
+    }));
+    const { resolveCanvasModel, getCanvasModelStatus } = await import('./config');
+    expect((await resolveCanvasModel()).contextWindowTokens).toBe(64_000);
+    const provider = (await getCanvasModelStatus()).providers[0];
+    expect(provider.models).toEqual([
+      { id: 'm1', custom_context_window: 64_000 },
+      { id: 'm2', context_window: 200_000 },
+    ]);
+    expect(provider).not.toHaveProperty('context_window');
   });
 
   it('reads the window a gateway reports in /models', async () => {

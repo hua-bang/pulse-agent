@@ -67,6 +67,7 @@ describe('ModelProviderFields model picker', () => {
         manualModel=""
         setDraftField={vi.fn()}
         setManualModel={vi.fn()}
+        setModelContextWindow={vi.fn()}
         setModelsSelected={setModelsSelected}
         toggleModel={toggleModel}
       />,
@@ -186,7 +187,41 @@ describe('ModelProviderFields model picker', () => {
 
     expect(host.textContent).toContain('1 selected / 4');
     expect(host.querySelectorAll('.chat-model-model-row')).toHaveLength(4);
-    expect(host.textContent).toContain('1.05M');
+    const gpt6Window = host.querySelector<HTMLInputElement>('input[aria-label="Context window for gpt-6, in K tokens"]');
+    expect(gpt6Window?.placeholder).toBe('1050');
+  });
+
+  it('saves a window set on one model and keeps it over the reported one after a refetch', async () => {
+    const onSaveProvider = vi.fn().mockResolvedValue(status);
+    const reported = availableModels.map((model) => ({ ...model, context_window: 272_000 }));
+    mount(
+      <ModelsSection
+        status={{ ...status, providers: [{ ...status.providers[0], available_models: reported }] }}
+        onClose={vi.fn()}
+        onSaveProvider={onSaveProvider}
+        onRemoveProvider={vi.fn()}
+        onFetchModels={vi.fn().mockResolvedValue(reported)}
+      />,
+    );
+
+    const input = host.querySelector<HTMLInputElement>('input[aria-label="Context window for GPT-4o, in K tokens"]');
+    expect(input?.placeholder).toBe('272');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '400');
+      input?.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+
+    const saveButton = Array.from(host.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'Test & Save');
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+
+    const saved = onSaveProvider.mock.calls[0]?.[0];
+    expect(saved.models).toEqual([{ id: 'gpt-4o', name: 'GPT-4o', context_window: 272_000, custom_context_window: 400_000 }]);
+    expect(saved.available_models[0].custom_context_window).toBe(400_000);
+    expect(saved).not.toHaveProperty('context_window');
   });
 
   it('drops unselected models the provider no longer returns when saving', async () => {

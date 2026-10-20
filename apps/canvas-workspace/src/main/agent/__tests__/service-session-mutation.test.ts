@@ -12,6 +12,7 @@ const agentState = vi.hoisted(() => ({
   loadGates: new Map<string, Promise<void>>(),
   chatGate: null as Promise<void> | null,
   chatCalls: 0,
+  newSessionOptions: [] as Array<{ keepCurrent?: boolean } | undefined>,
   sessions: new Map<string, CanvasAgentSession>(),
   pinned: new Map<string, boolean>(),
   titles: new Map<string, string>(),
@@ -44,7 +45,8 @@ vi.mock('../canvas-agent', () => ({
       return { response: 'done' };
     },
     getCurrentSessionId: () => agentState.currentSessionId,
-    newSession: async () => {
+    newSession: async (options?: { keepCurrent?: boolean }) => {
+      agentState.newSessionOptions.push(options);
       agentState.currentSessionId = agentState.nextSessionId;
       agentState.sessions.set(agentState.nextSessionId, makeSession(agentState.nextSessionId, ''));
       return agentState.nextSessionId;
@@ -135,6 +137,7 @@ describe('CanvasAgentService session mutations', () => {
     agentState.loadGates.clear();
     agentState.chatGate = null;
     agentState.chatCalls = 0;
+    agentState.newSessionOptions.length = 0;
     agentState.sessions.clear();
     agentState.pinned.clear();
     agentState.titles.clear();
@@ -287,6 +290,8 @@ describe('CanvasAgentService session mutations', () => {
     const deleted = await service.deleteSessionForScope(scope, 'session-a');
 
     expect(fresh).toMatchObject({ ok: true, activeSessionId: 'session-new' });
+    // The running session has no stored turn yet; it must not be reused as the draft.
+    expect(agentState.newSessionOptions).toEqual([{ keepCurrent: true }]);
     expect(deleted.ok).toBe(true);
     releaseChat?.();
     await chat;

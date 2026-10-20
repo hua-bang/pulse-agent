@@ -113,6 +113,10 @@ beforeEach(() => {
     model: { status: vi.fn(async () => ({ ok: true, status: { apiKeyPresent: true } })) },
     agent: {
       newSession: vi.fn(async () => ({ ok: true, activeSessionId: 'fresh' })),
+      getScopeRunningSessions: vi.fn(async ({ scope }: { scope: { kind: string; workspaceId?: string } }) => ({
+        ok: true,
+        conversationSessionIds: scope.workspaceId === 'b' ? ['s2'] : [],
+      })),
       listAllSessions: vi.fn(async () => ({
         ok: true,
         groups: [
@@ -184,6 +188,15 @@ describe('Launcher', () => {
     await render(true);
     expect(listAllSessions).toHaveBeenCalledTimes(2);
     expect(host.querySelector('.launcher__chat-title')?.textContent).toBe('Fresh chat');
+  });
+
+  it('marks recent chats whose reply is still running', async () => {
+    await render();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    const rows = [...host.querySelectorAll<HTMLButtonElement>('.launcher__chat')];
+    const running = rows.filter((row) => row.querySelector('.launcher__chat-running'));
+    expect(running.map((row) => row.querySelector('.launcher__chat-title')?.textContent)).toEqual(['Newest chat']);
+    expect(running[0].querySelector('.launcher__chat-running')?.textContent).toBe('Running');
   });
 
   it('names a new workspace and picks its folder in a dialog', async () => {

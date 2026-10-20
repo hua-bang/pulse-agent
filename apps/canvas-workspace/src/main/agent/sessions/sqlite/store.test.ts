@@ -206,6 +206,20 @@ describe('SessionStore with the SQLite strategy', () => {
     await expect(stat(join(root, 'ws', 'agent-sessions', 'current.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('keeps an empty current session that a running first turn still owns', async () => {
+    const store = new SessionStore('ws');
+    await store.startSession();
+    const running = store.getCurrentSession()!.sessionId;
+    await store.startSession({ keepCurrent: true });
+    const fresh = store.getCurrentSession()!.sessionId;
+    expect(fresh).not.toBe(running);
+
+    // The run finishes into its own session after the pointer moved on.
+    await store.replaceMessagesInSession(running, [message('first turn')]);
+    expect((await store.readSession(running))?.messages).toHaveLength(1);
+    expect(store.getCurrentSession()!.sessionId).toBe(fresh);
+  });
+
   it('preserves source history when branching, editing, and appending to archived sessions', async () => {
     const store = new SessionStore('ws');
     await store.startSession();

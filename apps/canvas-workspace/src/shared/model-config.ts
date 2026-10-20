@@ -12,8 +12,10 @@ export interface CanvasModelOption {
 export interface CanvasProviderModel {
   id: string;
   name?: string;
-  /** Context window in tokens; drives when the agent compacts history. */
+  /** Context window in tokens that the provider's /models reported. */
   context_window?: number;
+  /** Context window the user set for this model; wins over the reported one. */
+  custom_context_window?: number;
 }
 
 export interface CanvasModelProviderConfig {
@@ -28,8 +30,6 @@ export interface CanvasModelProviderConfig {
   models?: CanvasProviderModel[];
   /** Every model the provider listed, so the picker survives a save. */
   available_models?: CanvasProviderModel[];
-  /** Context window for models that do not report their own. */
-  context_window?: number;
 }
 
 export interface CanvasModelConfig {
@@ -62,7 +62,6 @@ export interface CanvasModelProviderStatus {
   headers?: Record<string, string>;
   models: CanvasProviderModel[];
   available_models?: CanvasProviderModel[];
-  context_window?: number;
 }
 
 export interface CanvasModelStatus {

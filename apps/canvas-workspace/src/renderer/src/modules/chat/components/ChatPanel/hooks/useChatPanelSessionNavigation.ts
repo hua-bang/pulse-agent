@@ -28,6 +28,8 @@ interface Options {
   sessionTitle: string;
   messages: AgentChatMessage[];
   busy: boolean;
+  /** Blocks New chat; narrower than `busy` because a streaming reply does not. */
+  newSessionBlocked: boolean;
   focusInput: () => void;
   closeSessionMenu: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
@@ -45,6 +47,7 @@ export const useChatPanelSessionNavigation = ({
   sessionTitle,
   messages,
   busy,
+  newSessionBlocked,
   focusInput,
   closeSessionMenu,
   handleNewSession,
@@ -106,12 +109,12 @@ export const useChatPanelSessionNavigation = ({
     await jumpToSession(entry.sessionId, entry.workspaceId);
   }, [backStack, jumpToSession]);
   const onNewSession = useCallback(async () => {
-    if (busy) return;
+    if (newSessionBlocked) return;
     const trigger = document.activeElement;
     setBackStack([]);
     const result = await handleNewSession();
     if (result.ok) restoreComposerFocusAfterRender(focusInput, trigger);
-  }, [busy, focusInput, handleNewSession]);
+  }, [focusInput, handleNewSession, newSessionBlocked]);
   const onLoadSession = useCallback(async (sessionId: string) => {
     if (busy) return;
     setBackStack([]);

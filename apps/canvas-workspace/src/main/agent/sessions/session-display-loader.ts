@@ -16,11 +16,15 @@ export async function loadCanvasAgentSessionFromStore(scope: AgentScope, session
 }
 
 /** Create the next durable conversation without starting the tool-capable Agent. */
-export async function startCanvasAgentSessionInStore(scope: AgentScope): Promise<string | null> {
+export async function startCanvasAgentSessionInStore(
+  scope: AgentScope,
+  isRunning: (sessionId: string | null) => boolean = () => false,
+): Promise<string | null> {
   const store = new SessionStore(scopeSessionStoreId(scope), scope);
-  // Preserve an already-empty draft, matching the live Agent's store behavior.
-  await store.restoreCurrentSession();
-  await store.startSession();
+  // Preserve an already-empty draft, matching the live Agent's store behavior,
+  // unless a turn accepted for it is still running.
+  const current = await store.restoreCurrentSession();
+  await store.startSession({ keepCurrent: isRunning(current?.sessionId ?? null) });
   return store.getCurrentSession()?.sessionId ?? null;
 }
 
