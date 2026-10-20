@@ -39,12 +39,12 @@ interface DynamicAppInspectorProps {
   onUrlChanged(url: string): void;
 }
 
-export function DynamicAppInspector({
+export const DynamicAppInspector = ({
   workspaceId,
   dynamicAppId,
   apiUrl,
   onUrlChanged,
-}: DynamicAppInspectorProps) {
+}: DynamicAppInspectorProps) => {
   const [tab, setTab] = useState<Tab>("spec");
   const [spec, setSpec] = useState<GetSpecOk | null>(null);
   const [specError, setSpecError] = useState<string | null>(null);
@@ -115,7 +115,7 @@ export function DynamicAppInspector({
       </div>
     </div>
   );
-}
+};
 
 // ─── Payload tab ──────────────────────────────────────────────────
 
