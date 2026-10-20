@@ -3,7 +3,7 @@ import type { AgentScope, CanvasAgentMessage, CanvasAgentSession } from '../../t
 export interface SessionMutationAgent {
   abort?(sessionId?: string): void;
   getCurrentSessionId(): string | null;
-  newSession(): Promise<void>;
+  newSession(options?: { keepCurrent?: boolean }): Promise<void>;
   branchSession(
     fromIndex: number,
   ): Promise<{ sourceSessionId: string; session: CanvasAgentSession } | null>;

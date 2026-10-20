@@ -905,8 +905,8 @@ export class CanvasAgent {
   /**
    * Start a new session (archives current if any).
    */
-  async newSession(): Promise<void> {
-    await this.sessionStore.startSession();
+  async newSession(options?: { keepCurrent?: boolean }): Promise<void> {
+    await this.sessionStore.startSession(options);
     this.messages = [];
   }
 

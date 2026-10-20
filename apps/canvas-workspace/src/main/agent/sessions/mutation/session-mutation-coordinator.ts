@@ -59,7 +59,9 @@ export class SessionMutationCoordinator {
       try {
         const agent = this.getAgent(scope);
         if (agent) {
-          await agent.newSession();
+          // A running first turn has not stored its messages yet; keep its
+          // session instead of reusing it as the new empty draft.
+          await agent.newSession({ keepCurrent: this.isSessionActive(scope, agent.getCurrentSessionId()) });
           const activeSessionId = agent.getCurrentSessionId();
           return activeSessionId
             ? { ok: true, activeSessionId }

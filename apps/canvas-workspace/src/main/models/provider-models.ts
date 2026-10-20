@@ -9,7 +9,7 @@ export function normalizeStr(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-export function normalizeContextWindow(value: unknown): number | undefined {
+function normalizeContextWindow(value: unknown): number | undefined {
   const tokens = typeof value === 'string' ? Number(value) : value;
   return typeof tokens === 'number' && Number.isFinite(tokens) && tokens >= 1000
     ? Math.floor(tokens)
@@ -31,9 +31,11 @@ export function normalizeProviderModels(models: unknown): CanvasProviderModel[] 
     const entry = item && typeof item === 'object' ? item as CanvasProviderModel : undefined;
     const name = normalizeStr(entry?.name);
     const contextWindow = normalizeContextWindow(entry?.context_window);
+    const customContextWindow = normalizeContextWindow(entry?.custom_context_window);
     const model: CanvasProviderModel = { id };
     if (name && name !== id) model.name = name;
     if (contextWindow) model.context_window = contextWindow;
+    if (customContextWindow) model.custom_context_window = customContextWindow;
     result.push(model);
   }
   return result;

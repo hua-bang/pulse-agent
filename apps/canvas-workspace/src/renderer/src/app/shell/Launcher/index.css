@@ -332,6 +332,25 @@
   font-size: 12px;
 }
 
+.launcher__chat-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.launcher__chat-running-spinner {
+  animation: spin 1.05s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher__chat-running-spinner {
+    animation: none;
+  }
+}
+
 .launcher__chats-empty {
   margin: 0;
   padding: 8px 10px;

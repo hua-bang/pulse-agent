@@ -10,6 +10,7 @@ import { mergeModels } from '../../../../../utils/modelCatalog';
 
 interface Props {
   activeProviderStatus?: CanvasModelProviderStatus;
+  availableModels: CanvasProviderModel[];
   draft: CanvasModelProviderConfig;
   mergeModelCatalog: (...groups: Array<ReadonlyArray<CanvasProviderModel> | undefined>) => void;
   onFetchModels: (provider: CanvasModelProviderConfig) => Promise<CanvasProviderModel[]>;
@@ -20,6 +21,7 @@ interface Props {
 
 export const useProviderModelActions = ({
   activeProviderStatus,
+  availableModels,
   draft,
   mergeModelCatalog,
   onFetchModels,
@@ -74,7 +76,11 @@ export const useProviderModelActions = ({
       // provider still lists every fetched model. It is rebuilt from this
       // fetch plus the selection, so models the provider dropped disappear
       // unless selected. Selected models pick up the reported window.
-      const catalog = mergeModels(draft.models, fetchedModels);
+      // Windows the user set on unselected models ride along too.
+      const catalog = mergeModels(draft.models, fetchedModels).map((model) => {
+        const custom = availableModels.find((item) => item.id === model.id)?.custom_context_window;
+        return custom ? { ...model, custom_context_window: custom } : model;
+      });
       const byId = new Map(catalog.map((model) => [model.id, model]));
       const models = (draft.models ?? []).map((model) => byId.get(model.id) ?? model);
       const saved = await onSaveProvider({ ...draft, models, available_models: catalog });
@@ -85,7 +91,7 @@ export const useProviderModelActions = ({
     } finally {
       setSaving(false);
     }
-  }, [activeProviderStatus, draft, mergeModelCatalog, onFetchModels, onSaveProvider, setActiveProviderId, setDraft, t]);
+  }, [activeProviderStatus, availableModels, draft, mergeModelCatalog, onFetchModels, onSaveProvider, setActiveProviderId, setDraft, t]);
 
   return { fetching, fetchModels, localError, save, saving, setLocalError };
 };

@@ -110,11 +110,17 @@ export class SqliteSessionStore {
     throw failure;
   }
 
-  async startSession(): Promise<void> {
+  /**
+   * `keepCurrent` is for a current session whose first turn is still running:
+   * it has no stored messages yet, but the run will write into it, so it is
+   * neither reused as the new draft nor removed.
+   */
+  async startSession(options?: { keepCurrent?: boolean }): Promise<void> {
     await this.flush();
     const pointer = await this.storage.conversationScopes.read(this.workspaceId);
     const current = pointer?.currentSessionId ? await this.record(pointer.currentSessionId) : null;
-    if (this.session?.messages.length === 0 && current?.messages.length === 0) {
+    const removableEmpty = !options?.keepCurrent && current?.messages.length === 0;
+    if (removableEmpty && this.session?.messages.length === 0) {
       await this.adopt(current.sessionId);
       return;
     }
@@ -123,7 +129,7 @@ export class SqliteSessionStore {
       scopeId: this.workspaceId, expectedRevision: pointer?.revision ?? null, expectedGeneration: this.storage.generation,
       currentSessionId: next.sessionId,
       conversations: [{ sessionId: next.sessionId, expectedRevision: null, metadata: encodeSessionMetadata(next), appendMessages: [] }],
-      ...(current?.messages.length === 0 ? { removeConversations: [{ sessionId: current.sessionId, expectedRevision: current.revision }] } : {}),
+      ...(removableEmpty ? { removeConversations: [{ sessionId: current.sessionId, expectedRevision: current.revision }] } : {}),
     });
     recordSessionPersist(encodeSessionMetadata(next), []);
     await this.adopt(next.sessionId);

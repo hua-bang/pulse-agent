@@ -1,10 +1,8 @@
 import type { CanvasModelProviderConfig, CanvasModelProviderStatus } from '../../../../types';
 import { RefreshIcon } from '../../../../components/icons';
-import { TextField } from '../../../../components/ui';
 import { ApiKeyStatusHint } from './ApiKeyStatusHint';
 import { ModelCatalog } from './ModelCatalog';
 import { useI18n } from '../../../../i18n';
-import { modelSettingsCopy } from './copy';
 
 interface Props {
   activeProviderId: string;
@@ -17,6 +15,7 @@ interface Props {
   manualModel: string;
   setDraftField: <K extends keyof CanvasModelProviderConfig>(key: K, value: CanvasModelProviderConfig[K]) => void;
   setManualModel: (value: string) => void;
+  setModelContextWindow: (modelId: string, tokens: number | undefined) => void;
   setModelsSelected: (models: NonNullable<CanvasModelProviderConfig['models']>, selected: boolean) => void;
   toggleModel: (model: NonNullable<CanvasModelProviderConfig['models']>[number], selected: boolean) => void;
 }
@@ -32,11 +31,11 @@ export const ModelProviderFields = ({
   manualModel,
   setDraftField,
   setManualModel,
+  setModelContextWindow,
   setModelsSelected,
   toggleModel,
 }: Props) => {
-  const { language, t } = useI18n();
-  const copy = modelSettingsCopy(language);
+  const { t } = useI18n();
 
   return (
     <>
@@ -88,20 +87,6 @@ export const ModelProviderFields = ({
         )}
       </label>
 
-      <TextField
-        label={copy.contextWindow}
-        hint={copy.contextWindowHint}
-        type="number"
-        min={1}
-        step="any"
-        value={draft.context_window ? String(draft.context_window / 1000) : ''}
-        placeholder={copy.contextWindowPlaceholder}
-        onChange={(event) => {
-          const thousands = Number(event.target.value);
-          setDraftField('context_window', thousands > 0 ? Math.round(thousands * 1000) : undefined);
-        }}
-      />
-
       <div className="chat-model-field-row">
         <label className="chat-model-field chat-model-field--grow">
           <span>{t('models.manualModel')}</span>
@@ -130,6 +115,7 @@ export const ModelProviderFields = ({
         selectedModels={draft.models ?? []}
         onToggleModel={toggleModel}
         onSetModelsSelected={setModelsSelected}
+        onSetModelContextWindow={setModelContextWindow}
       />
     </>
   );

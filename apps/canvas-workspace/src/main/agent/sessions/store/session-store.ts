@@ -73,13 +73,13 @@ export class SessionStore {
     finally { if (this.sqliteOpening === opening) this.sqliteOpening = undefined; }
   }
 
-  /** Start a new session, archiving a useful current session first. */
-  async startSession(): Promise<void> {
+  /** Start a new session; an empty current one is reused unless a run still owns it (`keepCurrent`). */
+  async startSession(options?: { keepCurrent?: boolean }): Promise<void> {
     const sql = await this.sql();
-    if (sql) return sql.startSession();
+    if (sql) return sql.startSession(options);
     await fs.mkdir(this.sessionsDir, { recursive: true });
     await fs.mkdir(this.archiveDir, { recursive: true });
-    if (this.session?.messages.length === 0 && (await this.restoreCurrentSession())?.messages.length === 0) return;
+    if (!options?.keepCurrent && this.session?.messages.length === 0 && (await this.restoreCurrentSession())?.messages.length === 0) return;
 
     // Archive any existing current session
     await this.archiveCurrentIfExists();

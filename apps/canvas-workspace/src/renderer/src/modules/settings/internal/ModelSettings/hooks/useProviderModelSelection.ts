@@ -39,8 +39,21 @@ export const useProviderModelSelection = (
     }));
   }, [setDraft]);
 
+  /** Set or clear (`undefined`) the window the user chose for one model. */
+  const setModelContextWindow = useCallback((modelId: string, tokens: number | undefined) => {
+    const apply = (models: CanvasProviderModel[]) => models.map((model) => {
+      if (model.id !== modelId) return model;
+      const next = { ...model, custom_context_window: tokens };
+      if (!tokens) delete next.custom_context_window;
+      return next;
+    });
+    setAvailableModels(apply);
+    setDraft((current) => ({ ...current, models: apply(current.models ?? []) }));
+  }, [setDraft]);
+
   return {
     availableModels,
+    setModelContextWindow,
     setModelsSelected,
     mergeModelCatalog,
     resetModelCatalog,

@@ -12,7 +12,6 @@ import type {
 } from '../../shared/model-config';
 import {
   buildModelsUrl,
-  normalizeContextWindow,
   normalizeProviderModels,
   normalizeStr,
   parseModelsPayload,
@@ -38,7 +37,6 @@ export interface CanvasModelProviderConfig {
   headers?: Record<string, string>;
   models?: CanvasProviderModel[];
   available_models?: CanvasProviderModel[];
-  context_window?: number;
 }
 
 export interface ResolvedCanvasModel {
@@ -172,12 +170,6 @@ function normalizeProviderConfig(
   const existingAvailable = normalizeProviderModels(existing?.available_models);
   const catalog = available.length > 0 ? available : existingAvailable;
   if (catalog.length > 0) normalized.available_models = catalog;
-  // A key present in the draft (even as undefined) means the user edited the
-  // field; clearing it must not fall back to the saved value.
-  const contextWindow = 'context_window' in provider
-    ? normalizeContextWindow(provider.context_window)
-    : normalizeContextWindow(existing?.context_window);
-  if (contextWindow) normalized.context_window = contextWindow;
   return normalized;
 }
 
@@ -313,7 +305,6 @@ function toProviderStatus(provider: CanvasModelProviderConfig): CanvasModelProvi
     headers: provider.headers,
     models: normalizeProviderModels(provider.models),
     available_models: normalizeProviderModels(provider.available_models),
-    context_window: normalizeContextWindow(provider.context_window),
   };
 }
 
@@ -512,8 +503,8 @@ export async function resolveCanvasModel(): Promise<ResolvedCanvasModel> {
     provider,
     model: resolved.model,
     modelLabel: entry?.name ?? resolved.model,
-    contextWindowTokens: entry?.context_window
-      ?? normalizeContextWindow(resolved.provider?.context_window)
+    contextWindowTokens: entry?.custom_context_window
+      ?? entry?.context_window
       ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
     modelType: resolved.providerType === 'claude' ? 'claude' : 'openai',
     connection: { baseURL: resolved.baseURL, apiKey: resolved.apiKey, headers: resolved.headers },

@@ -51,6 +51,7 @@ describe('renderer typography system', () => {
   it('reserves 600 weight for page titles, the product brand and document emphasis', () => {
     const allowed = new Set([
       'app/shell/Launcher/index.css',
+      'modules/chat/components/ChatPageBody/index.css',
       'modules/plugin-market/internal/index.css',
       'modules/scheduled/internal/index.css',
       'modules/skills/internal/index.css',
@@ -74,6 +75,7 @@ describe('renderer typography system', () => {
 
   it.each([
     'app/shell/Launcher/index.css',
+    'modules/chat/components/ChatPageBody/index.css',
     'modules/skills/internal/index.css',
     'modules/scheduled/internal/index.css',
     'modules/plugin-market/internal/index.css',

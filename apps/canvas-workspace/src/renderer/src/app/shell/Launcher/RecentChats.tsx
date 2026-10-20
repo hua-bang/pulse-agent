@@ -1,7 +1,10 @@
-import { BotAvatarIcon } from '../../../components/icons';
+import { useMemo } from 'react';
+import { conversationKeyId } from '../../../../../shared/conversation-runtime';
+import { BotAvatarIcon, SpinnerIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { sessionTitleText } from '../../../modules/chat/components/utils/sessionTitle';
+import { useRunningConversationKeys } from '../../../modules/chat/sessions/useScopeRunningSessions';
 import { formatRelativeTime } from './relativeTime';
 import type { RecentChat } from './useLauncherData';
 
@@ -17,6 +20,8 @@ interface Props {
  */
 export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
   const { t, language } = useI18n();
+  const storeIds = useMemo(() => (chats ?? []).map((chat) => chat.storeId), [chats]);
+  const running = useRunningConversationKeys(storeIds);
   if (chats === null) return null;
 
   return (
@@ -32,6 +37,7 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
         {chats.map((chat) => {
           const { session } = chat;
           const title = sessionTitleText(session.title || session.preview || '') || t('launcher.untitledChat');
+          const isRunning = running.has(conversationKeyId({ storeId: chat.storeId, sessionId: session.sessionId }));
           return (
             <Button
               key={`${chat.storeId}:${session.sessionId}`}
@@ -42,6 +48,12 @@ export const RecentChats = ({ chats, onOpenChat, onOpenAll }: Props) => {
             >
               <BotAvatarIcon size={14} />
               <span className="launcher__chat-title">{title}</span>
+              {isRunning && (
+                <span className="launcher__chat-running" role="status">
+                  <SpinnerIcon size={11} className="launcher__chat-running-spinner" />
+                  {t('chat.sessionRunning')}
+                </span>
+              )}
               <span className="launcher__chat-meta">
                 {chat.scopeName}
                 {session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, language)}` : ''}
