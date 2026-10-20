@@ -201,9 +201,9 @@ export const CanvasSurface = ({
           per-node dim opacity competes with a bright white canvas
           background and the focused node fails to pop. */}
       {focusModeEnabled && <div className="canvas-focus-backdrop" />}
-      {/* Fullscreen backdrop. Sits between the other (now offset-jumped)
-          nodes and the fullscreen node, dimming everything behind. Click
-          anywhere on the backdrop to exit. */}
+      {/* Fullscreen backdrop. Sits between the other nodes and the
+          fullscreen node, dimming everything behind. Click anywhere on the
+          backdrop to exit. */}
       {fullscreenNodeId && (
         <div
           className="canvas-fullscreen-backdrop"

@@ -122,8 +122,8 @@
  * shadow cascade and is exempt from the zoom-out shadow-kill fast path in
  * Canvas/index.css. Chromeless bodies (image/shape/mindmap/text/group/
  * reference) and frames (their tinted wash carries the edge) opt out by not
- * being listed; fullscreen nodes are excluded because the transform is dead
- * there while --canvas-scale still holds the old value. */
+ * being listed; fullscreen nodes are excluded because they always sit at
+ * 100% where the regular border already reads. */
 .canvas-transform--small .canvas-node--file:not(.canvas-node--fullscreen),
 .canvas-transform--small .canvas-node--terminal:not(.canvas-node--fullscreen),
 .canvas-transform--small .canvas-node--agent:not(.canvas-node--fullscreen),
@@ -274,26 +274,19 @@
   right: 30px;
 }
 
-/* Fullscreen node. The parent `.canvas-transform` has its transform
- * killed by `.canvas-container[data-fullscreen="on"]` (see
- * Canvas/index.css), so a plain `inset` here just resolves against
- * the canvas-container viewport. We leave a small inset so the
- * fullscreen node reads as a focused card floating on the dim
- * backdrop, while fullscreen controls float above the content instead
- * of reserving their own top lane. The inline
- * `transform: translate(x,y)` + width/height set by CanvasNodeView
- * for the node's normal slot are overridden with `!important` — the
- * node DOM never moves, only its CSS box flips between "slot" and
- * "fullscreen". That keeps the iframe / editor / terminal mounted
- * across the toggle, no reload. */
+/* Fullscreen node. The camera puts the node's top-left at the viewport
+ * origin at 100% (see useCanvasFocusMode), and `.canvas-transform` takes
+ * the viewport's size (see Canvas/index.css). So the node keeps its slot
+ * position and only stretches: a percentage size fills the viewport minus
+ * the inset, and `translate` (which composes with the inline transform)
+ * shifts it in by the inset. The stretch is display-only, so the stored
+ * size never changes, and the node DOM never moves, which keeps the
+ * iframe / editor / terminal mounted across the toggle with no reload. */
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
-  position: absolute !important;
-  inset:
-    var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) var(--canvas-fullscreen-inset, 12px) !important;
-  width: auto !important;
-  height: auto !important;
-  transform: none !important;
+  width: calc(100% - 2 * var(--canvas-fullscreen-inset, 32px)) !important;
+  height: calc(100% - 2 * var(--canvas-fullscreen-inset, 32px)) !important;
+  translate: var(--canvas-fullscreen-inset, 32px) var(--canvas-fullscreen-inset, 32px);
   /* Above the backdrop (z-index 50) so dimming covers other nodes
    * while this one stays crisp. */
   z-index: 60;
