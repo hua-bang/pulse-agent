@@ -14,6 +14,7 @@ import { loadRoleMentionItems } from '../../mentions/roleMentionItems';
 import { buildStaticMentionItems } from '../../mentions/staticMentionItems';
 import { loadAppMentionItems } from '../../mentions/appMentionItems';
 import { loadInstalledPluginMentionItems } from '../../mentions/pluginMentionItems';
+import { loadCanvasNodeMentionItems } from '../../mentions/canvasNodeMentionItems';
 
 const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
   switch (kind) {
@@ -93,10 +94,15 @@ export const useMentionItems = ({
     }
 
     // Independent IPC reads: load them concurrently, not back to back.
-    const [roleItems, pluginItems, appItems] = await Promise.all([
+    const [roleItems, pluginItems, appItems, otherCanvasNodeItems] = await Promise.all([
       loadRoleMentionItems(),
       loadInstalledPluginMentionItems(),
       loadAppMentionItems(),
+      // A canvas-bound chat also offers other canvases' nodes; the global
+      // chat already receives them as `knowledgeNodes`.
+      workspaceId && !knowledgeNodes && allWorkspaces
+        ? loadCanvasNodeMentionItems(allWorkspaces, workspaceId)
+        : [],
     ]);
     const items: MentionItem[] = [...roleItems, ...appItems, ...pluginItems];
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs, describeTab));
@@ -107,6 +113,8 @@ export const useMentionItems = ({
       knowledgeNodes,
       knowledgeTags,
     }));
+    // After the current canvas's nodes, so they keep the per-group slots first.
+    items.push(...otherCanvasNodeItems);
 
     if (workspaceId && rootFolder) {
       const cacheKey = `${scopeId}:${rootFolder}`;
