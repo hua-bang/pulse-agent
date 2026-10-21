@@ -13,6 +13,7 @@ import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/a
 import { isPerfChatReplayRequest, replayPerfChatStream } from '../run/perf-chat-replay';
 import { onCompactionPhase } from '../run/compaction-status';
 import { tracedAssertWorkspaceAvailable } from '../workspace/traced-workspace-availability';
+import { trackTelemetry } from '../../telemetry/ipc';
 
 let service: ConversationRuntimeService | null = null;
 
@@ -153,6 +154,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
       }
       subscribersFor(scope, sessionId).add(event.sender);
       const releaseRun = getService().sessionMutations.reserveRun(scope, sessionId);
+      trackTelemetry('agent_turn_started', { scope: scope.kind });
       void chatToSubscribers(runtime, scope, sessionId, message, {
         mentionedWorkspaceIds,
         requestContext,

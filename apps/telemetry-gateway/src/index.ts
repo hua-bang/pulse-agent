@@ -74,13 +74,17 @@ export default {
     const url = new URL(request.url);
     if (url.pathname !== '/v1/events') return status(404);
     if (request.method !== 'POST') return status(405, { allow: 'POST' });
+    // A JSON content type forces a CORS preflight, so web pages cannot post here.
+    const contentType = request.headers.get('content-type') ?? '';
+    if (!/^application\/json\s*(;|$)/i.test(contentType)) return status(415);
     if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return status(413);
 
-    const body = await request.text();
-    if (body.length > MAX_BODY_BYTES) return status(413);
+    // Measure wire bytes: a chunked request has no content-length.
+    const bytes = await request.arrayBuffer();
+    if (bytes.byteLength > MAX_BODY_BYTES) return status(413);
     let parsed: unknown;
     try {
-      parsed = JSON.parse(body);
+      parsed = JSON.parse(new TextDecoder().decode(bytes));
     } catch {
       return status(400);
     }

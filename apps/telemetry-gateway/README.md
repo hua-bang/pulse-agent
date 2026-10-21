@@ -11,7 +11,7 @@ The client sends only to this Worker. To change the analytics backend, change `s
 
 ## Deploy
 
-1. Install Wrangler globally and sign in: `npm install -g wrangler@4`, then `wrangler login`.
+1. Install Wrangler globally and sign in: `pnpm add --global wrangler@4`, then `wrangler login`.
 2. Optional: in `wrangler.toml`, uncomment `routes` and set your own hostname. `*.workers.dev` is often unreachable from mainland China.
 3. Set the PostHog project key: `wrangler secret put POSTHOG_API_KEY`. For an EU project, set `POSTHOG_HOST` to `https://eu.i.posthog.com`.
 4. Deploy from this directory: `wrangler deploy`.
@@ -28,10 +28,10 @@ To test against a development launch, start Canvas with `PULSE_CANVAS_TELEMETRY_
 | `EVENTS` | Analytics Engine dataset | No raw copy |
 | `RATE_LIMITER` | rate limit binding | No per-device limit |
 
-Analytics Engine keeps data for about three months. One data point per event: `index1` is the device id; `blob1`..`blob6` are event, app version, platform, arch, session id, and props JSON; `double1` is the event time in ms and `double2` is 1 for packaged builds. Example query:
+Analytics Engine keeps data for about three months and samples at high volume, so count events with `sum(_sample_interval)`, not `count()`. One data point per event: `index1` is the device id; `blob1`..`blob6` are event, app version, platform, arch, session id, and props JSON; `double1` is the event time in ms and `double2` is 1 for packaged builds. Example query:
 
 ```sql
-SELECT blob1 AS event, count() AS events, count(DISTINCT index1) AS devices
+SELECT blob1 AS event, sum(_sample_interval) AS events, count(DISTINCT index1) AS sampled_devices
 FROM pulse_canvas_events
 WHERE timestamp > NOW() - INTERVAL '7' DAY
 GROUP BY event
@@ -50,4 +50,4 @@ GROUP BY event
 }
 ```
 
-Responses: `204` accepted, `400` invalid batch, `404` other path, `405` other method, `413` too large, `429` rate limited. Delivery to the sinks runs after the response, so `204` does not prove that a sink accepted the events; read `wrangler tail` for sink errors.
+Requests must use `content-type: application/json`. Responses: `204` accepted, `400` invalid batch, `404` other path, `405` other method, `413` too large, `415` other content type, `429` rate limited. Delivery to the sinks runs after the response, so `204` does not prove that a sink accepted the events; read `wrangler tail` for sink errors.

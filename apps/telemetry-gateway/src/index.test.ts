@@ -54,6 +54,7 @@ describe('telemetry gateway', () => {
         timestamp: new Date(NOW).toISOString(),
         properties: {
           type: 'text',
+          $process_person_profile: false,
           $session_id: 'session-1',
           $lib: 'pulse-telemetry-gateway',
           $os: 'Mac OS X',
@@ -92,6 +93,19 @@ describe('telemetry gateway', () => {
     expect((await run(post('not json'))).status).toBe(400);
     expect((await run(post({ ...validBatch(), deviceId: 'bad id!' }))).status).toBe(400);
     expect((await run(post('x'.repeat(70 * 1024)))).status).toBe(413);
+    expect((await run(post(validBatch(), { 'content-type': 'text/plain' }))).status).toBe(415);
+  });
+
+  it('measures the body limit in UTF-8 bytes', async () => {
+    // 30k CJK characters: under 64 KB in UTF-16 units, about 90 KB on the wire.
+    const body = JSON.stringify({ ...validBatch(), pad: '字'.repeat(30_000) });
+    const request = new Request('https://t.example.com/v1/events', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: new Blob([body]).stream(),
+      duplex: 'half',
+    } as RequestInit);
+    expect((await run(request)).status).toBe(413);
   });
 
   it('returns 429 when the device is over its rate limit', async () => {

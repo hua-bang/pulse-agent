@@ -43,7 +43,10 @@ export const TelemetrySection = () => {
           ]}
           value={status.enabled ? 'on' : 'off'}
           onChange={(id) => {
-            void window.canvasWorkspace.telemetry.setEnabled(id === 'on').then(setStatus);
+            // A failed save rejects; the switch then keeps the stored value.
+            void window.canvasWorkspace.telemetry.setEnabled(id === 'on')
+              .then(setStatus)
+              .catch(() => undefined);
           }}
           ariaLabel={t('settings.telemetry.title')}
         />

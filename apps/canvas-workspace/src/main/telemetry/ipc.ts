@@ -54,7 +54,7 @@ function getTelemetryClient(): TelemetryClient {
 }
 
 /** Fire and forget. Telemetry never fails the caller. */
-export function trackTelemetry(event: TelemetryEventName, props?: TelemetryProps): void {
+export function trackTelemetry<E extends TelemetryEventName>(event: E, props?: TelemetryProps<E>): void {
   try {
     void getTelemetryClient().track(event, props).catch(() => undefined);
   } catch {

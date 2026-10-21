@@ -105,6 +105,8 @@ export function toPostHogBatch(batch: TelemetryBatch, apiKey: string, ip?: strin
       timestamp: new Date(event.ts).toISOString(),
       properties: {
         ...event.props,
+        // Anonymous events: no PostHog person profile per installation.
+        $process_person_profile: false,
         $session_id: batch.sessionId,
         $lib: 'pulse-telemetry-gateway',
         $os: POSTHOG_OS[batch.app.platform] ?? batch.app.platform,

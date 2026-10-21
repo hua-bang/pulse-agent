@@ -15,7 +15,7 @@ import { promises as fs } from 'fs';
 import { dirname } from 'path';
 import {
   TELEMETRY_EVENTS,
-  type TelemetryProps,
+  type TelemetryPropValue,
   type TelemetryStatus,
 } from '../../shared/api/telemetry';
 
@@ -26,10 +26,12 @@ export interface TelemetryAppInfo {
   packaged: boolean;
 }
 
+type Props = Record<string, TelemetryPropValue>;
+
 interface TelemetryEventRecord {
   event: string;
   ts: number;
-  props: TelemetryProps;
+  props: Props;
 }
 
 interface TelemetrySettings {
@@ -51,18 +53,18 @@ export interface TelemetryClientOptions {
 }
 
 const MAX_QUEUE = 200;
-const MAX_PROPS = 16;
+/** The gateway accepts at most this many events per request. */
+const MAX_BATCH = 100;
 const MAX_STRING = 200;
-const PROP_KEY = /^[a-z][a-z0-9_]{0,39}$/;
-const KNOWN_EVENTS = new Set<string>(TELEMETRY_EVENTS);
+const ALLOWED_PROPS: Record<string, readonly string[]> = TELEMETRY_EVENTS;
 
-/** Keep only short primitive props with plain keys. */
-export function sanitizeTelemetryProps(props: unknown): TelemetryProps {
+/** Keep only the event's listed prop keys with short primitive values. */
+export function sanitizeTelemetryProps(event: string, props: unknown): Props {
+  const allowed = Object.prototype.hasOwnProperty.call(ALLOWED_PROPS, event) ? ALLOWED_PROPS[event] : [];
   if (!props || typeof props !== 'object' || Array.isArray(props)) return {};
-  const out: TelemetryProps = {};
+  const out: Props = {};
   for (const [key, value] of Object.entries(props as Record<string, unknown>)) {
-    if (Object.keys(out).length >= MAX_PROPS) break;
-    if (!PROP_KEY.test(key)) continue;
+    if (!allowed.includes(key)) continue;
     if (typeof value === 'string') out[key] = value.slice(0, MAX_STRING);
     else if (typeof value === 'boolean') out[key] = value;
     else if (typeof value === 'number' && Number.isFinite(value)) out[key] = value;
@@ -99,23 +101,24 @@ export class TelemetryClient {
     return { configured: this.configured, enabled: settings.enabled };
   }
 
+  /** Persists first; a failed write rejects and leaves the setting unchanged. */
   async setEnabled(enabled: boolean): Promise<TelemetryStatus> {
     const settings = await this.loadSettings();
+    await this.writeSettings({ ...settings, enabled });
     settings.enabled = enabled;
     if (!enabled) this.queue = [];
-    await this.saveSettings(settings);
     return this.status();
   }
 
   /** Queue one event. Unknown names and an unconfigured build are no-ops. */
   async track(event: string, props?: unknown): Promise<void> {
-    if (!this.configured || !KNOWN_EVENTS.has(event)) return;
+    if (!this.configured || !Object.prototype.hasOwnProperty.call(ALLOWED_PROPS, event)) return;
     const settings = await this.loadSettings();
     if (!settings.enabled) return;
     this.queue.push({
       event,
       ts: this.options.now(),
-      props: sanitizeTelemetryProps(props),
+      props: sanitizeTelemetryProps(event, props),
     });
     if (this.queue.length > MAX_QUEUE) this.queue.splice(0, this.queue.length - MAX_QUEUE);
     if (this.queue.length >= this.options.batchSize) {
@@ -143,9 +146,12 @@ export class TelemetryClient {
   }
 
   private async sendQueued(): Promise<void> {
-    if (this.queue.length === 0) return;
-    const events = this.queue;
-    this.queue = [];
+    while (this.queue.length > 0) {
+      await this.sendBatch(this.queue.splice(0, MAX_BATCH));
+    }
+  }
+
+  private async sendBatch(events: TelemetryEventRecord[]): Promise<void> {
     try {
       const settings = await this.loadSettings();
       if (!settings.enabled) return;
@@ -203,10 +209,14 @@ export class TelemetryClient {
 
   private async saveSettings(settings: TelemetrySettings): Promise<void> {
     try {
-      await fs.mkdir(dirname(this.options.settingsPath), { recursive: true });
-      await fs.writeFile(this.options.settingsPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+      await this.writeSettings(settings);
     } catch {
-      // A read-only home keeps the in-memory value for this run.
+      // A read-only home keeps the generated device id for this run only.
     }
+  }
+
+  private async writeSettings(settings: TelemetrySettings): Promise<void> {
+    await fs.mkdir(dirname(this.options.settingsPath), { recursive: true });
+    await fs.writeFile(this.options.settingsPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
   }
 }

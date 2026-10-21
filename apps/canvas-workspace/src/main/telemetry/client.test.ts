@@ -101,6 +101,26 @@ describe('TelemetryClient', () => {
     expect(sentBody(fetchMock).events).toHaveLength(2);
   });
 
+  it('splits a long queue into gateway-sized requests', async () => {
+    const { client, fetchMock } = createClient({ batchSize: 1_000 });
+    for (let index = 0; index < 150; index += 1) await client.track('app_started');
+    await client.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentBody(fetchMock, 0).events).toHaveLength(100);
+    expect(sentBody(fetchMock, 1).events).toHaveLength(50);
+  });
+
+  it('rejects an opt-out that cannot be saved and keeps sending', async () => {
+    // A regular file where the settings directory should be makes the write fail.
+    await writeFile(join(dir, 'blocker'), '');
+    const { client, fetchMock } = createClient({ settingsPath: join(dir, 'blocker', 'telemetry.json') });
+    await expect(client.setEnabled(false)).rejects.toThrow();
+    expect(await client.status()).toEqual({ configured: true, enabled: true });
+    await client.track('app_started');
+    await client.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('drops a batch when the send fails', async () => {
     const { client, fetchMock } = createClient();
     fetchMock.mockRejectedValueOnce(new Error('offline'));
@@ -112,19 +132,18 @@ describe('TelemetryClient', () => {
 });
 
 describe('sanitizeTelemetryProps', () => {
-  it('keeps short primitive props with plain keys', () => {
-    expect(sanitizeTelemetryProps({
+  it('keeps only the keys listed for the event', () => {
+    expect(sanitizeTelemetryProps('node_created', {
       type: 'x'.repeat(300),
+      text: 'conversation text',
       count: 3,
-      ok: true,
-      nested: { a: 1 },
-      'Bad Key': 'v',
-      nan: Number.NaN,
-    })).toEqual({ type: 'x'.repeat(200), count: 3, ok: true });
+    })).toEqual({ type: 'x'.repeat(200) });
+    expect(sanitizeTelemetryProps('app_started', { type: 'text' })).toEqual({});
   });
 
-  it('ignores non-object input', () => {
-    expect(sanitizeTelemetryProps('text')).toEqual({});
-    expect(sanitizeTelemetryProps([1])).toEqual({});
+  it('drops non-primitive values and non-object input', () => {
+    expect(sanitizeTelemetryProps('node_created', { type: { a: 1 } })).toEqual({});
+    expect(sanitizeTelemetryProps('node_created', 'text')).toEqual({});
+    expect(sanitizeTelemetryProps('toString', { type: 'x' })).toEqual({});
   });
 });
