@@ -26,7 +26,7 @@ const describeGate = (gate) => {
 
 const isLooser = (before, after) => {
   if (!after) return true;
-  if (before.kind !== after.kind) return true;
+  if (before.kind !== after.kind || before.scope !== after.scope) return true;
   const beforeLimit = evaluatePolicyGate(before, null)?.limit;
   const afterLimit = evaluatePolicyGate(after, null)?.limit;
   if (before.kind === 'ratchet' || before.kind === 'max') return afterLimit > beforeLimit;
@@ -34,13 +34,24 @@ const isLooser = (before, after) => {
   return afterLimit !== beforeLimit;
 };
 
+// A Gate only runs where its profile applies, so moving it to another
+// profile, or narrowing that profile, can switch it off in CI.
+const appliesTo = (baselines, profile) => JSON.stringify(baselines?.profiles?.[profile]?.appliesTo ?? null);
+
+const profileChanged = (base, head, id) => {
+  const before = base.policies[id].profile;
+  const after = head?.policies?.[id]?.profile;
+  return before !== after || appliesTo(base, before) !== appliesTo(head, after);
+};
+
 export const findLoosenedGates = (base, head) => Object.entries(base?.policies ?? {})
   .filter(([, policy]) => policy?.gate)
-  .filter(([id, policy]) => isLooser(policy.gate, head?.policies?.[id]?.gate))
+  .filter(([id, policy]) => isLooser(policy.gate, head?.policies?.[id]?.gate)
+    || profileChanged(base, head, id))
   .map(([id, policy]) => ({
     id,
-    before: describeGate(policy.gate),
-    after: describeGate(head?.policies?.[id]?.gate),
+    before: `${describeGate(policy.gate)} @ ${policy.profile}`,
+    after: `${describeGate(head?.policies?.[id]?.gate)} @ ${head?.policies?.[id]?.profile}`,
   }));
 
 const main = () => {
