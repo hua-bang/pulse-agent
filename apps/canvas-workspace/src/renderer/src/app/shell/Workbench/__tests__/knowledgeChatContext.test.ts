@@ -141,20 +141,6 @@ describe('buildKnowledgeChatContext', () => {
       [{ id: 'tag-product', name: 'Product' }],
       { workspaceId: 'workspace-b', nodeId: 'node-2' },
     )).toEqual({
-      knowledgeNodes: [
-        {
-          id: 'node-1',
-          title: 'Search needs explicit intent',
-          type: 'text',
-          workspaceId: 'workspace-a',
-        },
-        {
-          id: 'node-2',
-          title: 'Gemini',
-          type: 'iframe',
-          workspaceId: 'workspace-b',
-        },
-      ],
       knowledgeTags: [
         {
           id: 'tag-product',

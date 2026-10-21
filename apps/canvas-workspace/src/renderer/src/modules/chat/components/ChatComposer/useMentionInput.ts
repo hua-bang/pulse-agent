@@ -12,8 +12,6 @@ interface Options {
   allWorkspaces?: WorkspaceOption[];
   /** The scoped workspace's nodes, offered as `@` node mentions. */
   nodes?: CanvasNode[];
-  /** Nodes from every workspace, offered with their workspace name. */
-  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   /** Enter without Shift, outside the popup. */
   onSubmit: () => void;
 }
@@ -23,14 +21,13 @@ interface Options {
  * mentions, for surfaces outside a chat such as the launcher. It keeps its
  * own text: no shared draft, attachments, or run queue.
  */
-export const useMentionInput = ({ agentScope, allWorkspaces, nodes, knowledgeNodes, onSubmit }: Options) => {
+export const useMentionInput = ({ agentScope, allWorkspaces, nodes, onSubmit }: Options) => {
   const editableRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
   const scopeId = scopeSessionStoreId(agentScope);
   const { buildMentionItems, searchSessionMentionItems } = useMentionItems({
     agentScope,
     allWorkspaces,
-    knowledgeNodes,
     nodes,
     scopeId,
     workspaceId: agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined,

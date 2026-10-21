@@ -57,7 +57,6 @@ interface KnowledgeTagMentionCandidate {
 }
 
 export interface KnowledgeChatContext {
-  knowledgeNodes: KnowledgeNodeMentionCandidate[];
   knowledgeTags: KnowledgeTagMentionCandidate[];
   contextNodes: AgentContextNodeRef[];
 }
@@ -141,7 +140,6 @@ export function buildKnowledgeChatContext(
     : undefined;
 
   return {
-    knowledgeNodes,
     knowledgeTags,
     contextNodes: selected ? [selected] : [],
   };

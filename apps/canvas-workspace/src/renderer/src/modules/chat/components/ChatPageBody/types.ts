@@ -28,7 +28,6 @@ export interface ChatPageBodyProps {
   onWorkspaceContextRequest?: (workspaceId: string) => void;
   allWorkspaces: WorkspaceOption[];
   nodes?: CanvasNode[];
-  knowledgeNodes?: UseChatComposerInputOptions['knowledgeNodes'];
   knowledgeTags?: UseChatComposerInputOptions['knowledgeTags'];
   rootFolder?: string;
   onExit: () => void;

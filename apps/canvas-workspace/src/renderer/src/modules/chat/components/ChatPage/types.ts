@@ -11,7 +11,6 @@ export interface ChatPageProps {
   initialTarget?: ChatTarget | null;
   getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
   /** Cross-workspace @ candidates, offered while the page is on the global scope. */
-  knowledgeNodes?: UseChatComposerInputOptions['knowledgeNodes'];
   knowledgeTags?: UseChatComposerInputOptions['knowledgeTags'];
   getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
   onWorkspaceContextRequest?: (workspaceId: string) => void;

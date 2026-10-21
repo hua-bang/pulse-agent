@@ -14,6 +14,7 @@ import { loadRoleMentionItems } from '../../mentions/roleMentionItems';
 import { buildStaticMentionItems } from '../../mentions/staticMentionItems';
 import { loadAppMentionItems } from '../../mentions/appMentionItems';
 import { loadInstalledPluginMentionItems } from '../../mentions/pluginMentionItems';
+import { loadCanvasNodeMentionItems } from '../../mentions/canvasNodeMentionItems';
 
 const tabKindLabelKey = (kind: AgentContextTabRef['kind']): I18nKey => {
   switch (kind) {
@@ -29,7 +30,6 @@ interface Options {
   agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
   dockTabs?: AgentContextTabRef[];
-  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   nodes?: CanvasNode[];
   rootFolder?: string;
@@ -41,7 +41,6 @@ export const useMentionItems = ({
   agentScope,
   allWorkspaces,
   dockTabs,
-  knowledgeNodes,
   knowledgeTags,
   nodes,
   rootFolder,
@@ -93,10 +92,11 @@ export const useMentionItems = ({
     }
 
     // Independent IPC reads: load them concurrently, not back to back.
-    const [roleItems, pluginItems, appItems] = await Promise.all([
+    const [roleItems, pluginItems, appItems, otherCanvasNodeItems] = await Promise.all([
       loadRoleMentionItems(),
       loadInstalledPluginMentionItems(),
       loadAppMentionItems(),
+      allWorkspaces ? loadCanvasNodeMentionItems(allWorkspaces, workspaceId) : [],
     ]);
     const items: MentionItem[] = [...roleItems, ...appItems, ...pluginItems];
     if (dockTabs) items.push(...buildTabMentionItems(dockTabs, describeTab));
@@ -104,9 +104,10 @@ export const useMentionItems = ({
       allWorkspaces,
       workspaceId,
       nodes,
-      knowledgeNodes,
       knowledgeTags,
     }));
+    // After the current canvas's nodes, so they keep the per-group slots first.
+    items.push(...otherCanvasNodeItems);
 
     if (workspaceId && rootFolder) {
       const cacheKey = `${scopeId}:${rootFolder}`;
@@ -129,7 +130,7 @@ export const useMentionItems = ({
         || item.description?.toLowerCase().includes(normalizedQuery))
       : items;
     return sortAndCapMentionItems(filtered);
-  }, [allWorkspaces, describeTab, dockTabs, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
+  }, [allWorkspaces, describeTab, dockTabs, knowledgeTags, loadSkillItems, nodes, rootFolder, scopeId, workspaceId]);
 
   /**
    * Session hits for an `@` query. Kept separate from `buildMentionItems` so
