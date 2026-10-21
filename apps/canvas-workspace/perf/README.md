@@ -210,8 +210,11 @@ when driving a manually-started session (see below).
   as “不适用”, not PASS or FAIL. Deterministic counters and build artifacts use
   the global profile.
 - Counter Gates use `max`/`min`/`true`; bundle Gates use
-  `baseline × (1 + tolerancePct/100)` ratchets. Lower the relevant target or
-  Gate in the same PR when a fix creates durable headroom.
+  `baseline × (1 + tolerancePct/100)` ratchets. A ratchet `baseline` is the
+  value measured on the default branch when it was last reset, and
+  `tolerancePct` is the cumulative growth budget across PRs (1% for JS/CSS
+  bytes). Lower the relevant target or Gate in the same PR when a fix creates
+  durable headroom.
 - Gates read `baselines.json` from the PR itself, so a raise would pass its
   own check. On PRs, `baseline-guard` (`scripts/perf/baseline-guard.mjs`)
   compares every Gate with the base branch and fails when one is loosened
