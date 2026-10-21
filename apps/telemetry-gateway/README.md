@@ -12,10 +12,10 @@ The client sends only to this Worker. To change the analytics backend, change `s
 ## Deploy
 
 1. Install Wrangler globally and sign in: `pnpm add --global wrangler@4`, then `wrangler login`.
-2. Optional: in `wrangler.toml`, uncomment `routes` and set your own hostname. `*.workers.dev` is often unreachable from mainland China.
+2. `wrangler.toml` serves the Worker on `t.jasperhu.art`. `*.workers.dev` is often unreachable from mainland China, so keep a custom domain.
 3. Set the PostHog project key: `wrangler secret put POSTHOG_API_KEY`. For an EU project, set `POSTHOG_HOST` to `https://eu.i.posthog.com`.
 4. Deploy from this directory: `wrangler deploy`.
-5. Put the URL with its path (for example `https://t.example.com/v1/events`) into `DEFAULT_TELEMETRY_URL` in `apps/canvas-workspace/src/main/telemetry/ipc.ts`. Packaged builds then send to it.
+5. The deployed URL is `https://t.jasperhu.art/v1/events`, set as `DEFAULT_TELEMETRY_URL` in `apps/canvas-workspace/src/main/telemetry/ipc.ts`. Packaged builds send to it.
 
 To test against a development launch, start Canvas with `PULSE_CANVAS_TELEMETRY_URL=<url>`. Development launches send nothing without it.
 

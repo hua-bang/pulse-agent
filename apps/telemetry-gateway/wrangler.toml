@@ -4,9 +4,9 @@ name = "pulse-telemetry-gateway"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
 
-# Serve from your own domain; workers.dev is often unreachable from mainland
-# China. Uncomment and set a hostname on a zone in this Cloudflare account.
-# routes = [{ pattern = "t.example.com", custom_domain = true }]
+# Serve from our own domain; workers.dev is often unreachable from mainland
+# China. The hostname must be on a zone in this Cloudflare account.
+routes = [{ pattern = "t.jasperhu.art", custom_domain = true }]
 
 [vars]
 POSTHOG_HOST = "https://us.i.posthog.com"

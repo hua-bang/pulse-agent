@@ -41,6 +41,8 @@ export interface Env {
 const MAX_BODY_BYTES = 64 * 1024;
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
 
+let warnedMissingKey = false;
+
 const status = (code: number, headers?: Record<string, string>) => (
   new Response(null, { status: code, headers })
 );
@@ -55,7 +57,12 @@ async function deliver(batch: TelemetryBatch, env: Env, ip: string | undefined):
   }
 
   const apiKey = env.POSTHOG_API_KEY?.trim();
-  if (!apiKey) return;
+  if (!apiKey) {
+    // Once per isolate: a missing secret is otherwise invisible behind the 204.
+    if (!warnedMissingKey) console.warn('POSTHOG_API_KEY is not set; PostHog forwarding is off');
+    warnedMissingKey = true;
+    return;
+  }
   const host = (env.POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST).replace(/\/+$/, '');
   try {
     const response = await fetch(`${host}/batch/`, {

@@ -18,8 +18,8 @@ import { join } from 'path';
 import type { TelemetryEventName, TelemetryProps } from '../../shared/api/telemetry';
 import { TelemetryClient } from './client';
 
-// The deployed apps/telemetry-gateway URL. Empty until the gateway is live.
-const DEFAULT_TELEMETRY_URL = '';
+// The deployed apps/telemetry-gateway URL.
+const DEFAULT_TELEMETRY_URL = 'https://t.jasperhu.art/v1/events';
 
 let client: TelemetryClient | undefined;
 
