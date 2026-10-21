@@ -39,7 +39,7 @@ const button = (label: string) => Array.from(document.querySelectorAll('button')
 describe('TelemetryNoticeBridge', () => {
   it('keeps telemetry on when the user accepts the notice', async () => {
     const setEnabled = await mount({ configured: true, enabled: true, noticeSeen: false });
-    expect(document.body.textContent).toContain('Help improve Pulse Canvas');
+    expect(document.body.textContent).toContain('Nothing is sent until you choose.');
     await act(async () => button('Send usage data')?.click());
     expect(setEnabled).toHaveBeenCalledWith(true);
   });
@@ -52,11 +52,11 @@ describe('TelemetryNoticeBridge', () => {
 
   it('shows nothing once seen or in a build without a gateway', async () => {
     await mount({ configured: true, enabled: false, noticeSeen: true });
-    expect(document.body.textContent).not.toContain('Help improve Pulse Canvas');
+    expect(document.body.textContent).not.toContain('Nothing is sent until you choose.');
     act(() => root?.unmount());
     host?.remove();
     root = null;
     await mount({ configured: false, enabled: true, noticeSeen: false });
-    expect(document.body.textContent).not.toContain('Help improve Pulse Canvas');
+    expect(document.body.textContent).not.toContain('Nothing is sent until you choose.');
   });
 });

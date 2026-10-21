@@ -20,8 +20,8 @@ export const TelemetryNoticeBridge = () => {
       .then(async (status) => {
         if (!active || !status.configured || status.noticeSeen) return;
         const accepted = await confirm({
-          title: t('telemetry.notice.title'),
-          description: t('telemetry.notice.description'),
+          title: t('settings.telemetry.title'),
+          description: `${t('settings.telemetry.description')} ${t('telemetry.notice.hint')}`,
           confirmLabel: t('telemetry.notice.accept'),
           cancelLabel: t('telemetry.notice.decline'),
         });
