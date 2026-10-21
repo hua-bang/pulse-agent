@@ -9,6 +9,7 @@ import {
   applyResizePreviewToNodes,
 } from '../../../runtime/useNodeResize';
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
+import { CanvasConnectHandles } from '../CanvasConnectHandles';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import { CanvasNodeView } from '../CanvasNodeView';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
@@ -87,6 +88,8 @@ export const CanvasSurface = ({
   externallyEditedIds,
   edgeInteractionState,
   edgePreview,
+  connectHandleNodeId = null,
+  onConnectHandleMouseDown,
   shapeDraft,
   marqueeRect,
   snapLines,
@@ -130,6 +133,9 @@ export const CanvasSurface = ({
     () => applyResizePreviewToNodes(nodes, resizePreview),
     [nodes, resizePreview],
   );
+  const connectHandleNode = !readOnly && !fullscreenNodeId && connectHandleNodeId && onConnectHandleMouseDown
+    ? edgeNodes.find((node) => node.id === connectHandleNodeId) ?? null
+    : null;
   const nestedFrameDepths = useMemo(() => collectNestedFrameDepths(edgeNodes), [edgeNodes]);
   const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => {
     const nodeIsDragging = draggingIds.has(node.id) || draggingId === node.id;
@@ -238,6 +244,9 @@ export const CanvasSurface = ({
       {!fullscreenNodeId && renderGroups.containers
         .filter((node) => node.type === 'frame')
         .map((node) => renderNode(node, 'frame-title'))}
+      {connectHandleNode && onConnectHandleMouseDown && (
+        <CanvasConnectHandles node={connectHandleNode} onHandleMouseDown={onConnectHandleMouseDown} />
+      )}
       {shapeDraft && <ShapeDraftPreview draft={shapeDraft} scale={transform.scale} />}
       {marqueeRect && <MarqueePreview rect={marqueeRect} scale={transform.scale} />}
       {snapLines && snapLines.length > 0 && (

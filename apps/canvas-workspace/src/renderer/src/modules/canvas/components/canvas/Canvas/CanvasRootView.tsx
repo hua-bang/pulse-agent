@@ -118,9 +118,13 @@ export const CanvasRootView = ({
       className={`canvas-container${mouse.cursorClass}${mouse.iframeShieldClass}`}
       onWheel={handleWheel}
       onMouseDown={mouse.handleRootMouseDown}
-      onMouseMove={mouse.handleMouseMove}
+      onMouseMove={(e) => {
+        mouse.handleMouseMove(e);
+        drawingGestures.connectHandles.handleMouseMove(e);
+      }}
       onMouseUp={mouse.handleMouseUp}
       onMouseLeave={() => {
+        drawingGestures.connectHandles.handleMouseLeave();
         if (!mouse.isDraggingRef.current && !mouse.isEdgeDragging()) mouse.handleMouseUp();
       }}
       onDragStart={(e) => e.preventDefault()}
@@ -159,6 +163,8 @@ export const CanvasRootView = ({
         externallyEditedIds={externallyEditedIds}
         edgeInteractionState={drawingGestures.edgeInteractionState}
         edgePreview={drawingGestures.edgePreview}
+        connectHandleNodeId={drawingGestures.connectHandles.hoverNodeId}
+        onConnectHandleMouseDown={drawingGestures.connectHandles.beginFromHandle}
         shapeDraft={drawingGestures.shapeDraft}
         marqueeRect={drawingGestures.marquee.rect}
         snapLines={nodeGestures.snapLines}

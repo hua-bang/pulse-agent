@@ -348,18 +348,22 @@ export const useEdgeInteraction = ({
   useEffect(() => () => cancelPendingMove(), [cancelPendingMove]);
 
   /**
-   * Begin drawing a new edge. Called by the connect-mode overlay.
-   * `clientX/Y` are the screen coords of the mousedown event.
+   * Begin drawing a new edge from the connect-mode overlay or a node's
+   * connect handle. `clientX/Y` are the screen coords of the mousedown
+   * event. `source` binds the start explicitly (handles sit outside the
+   * node); otherwise the node under the cursor, or a free point, is used.
    */
-  const beginConnect = useCallback((clientX: number, clientY: number) => {
+  const beginConnect = useCallback((clientX: number, clientY: number, source?: EdgeEndpoint) => {
     const pt = toCanvas(clientX, clientY);
     if (!pt) return;
-    const { endpoint: source, hoverNodeId } = cursorToEndpoint(pt, sortedNodesRef.current);
+    const resolved = source
+      ? { endpoint: source, hoverNodeId: null }
+      : cursorToEndpoint(pt, sortedNodesRef.current);
     setInteractionState({
       kind: 'connect',
-      source,
+      source: resolved.endpoint,
       cursor: pt,
-      hoverNodeId,
+      hoverNodeId: resolved.hoverNodeId,
       distance: 0,
     });
   }, [setInteractionState, toCanvas]);

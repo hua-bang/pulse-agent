@@ -1,6 +1,7 @@
 import { useCallback, type RefObject } from 'react';
 import type { CanvasEdge, CanvasNode } from '../../../../../../types';
 import type { useCanvasDocumentHost } from '../../../../document/useCanvasDocumentHost';
+import { useConnectHandles } from '../../../../runtime/useConnectHandles';
 import { useEdgeInteraction, type Point } from '../../../../runtime/useEdgeInteraction';
 import { useMarqueeSelect } from '../../../../runtime/useMarqueeSelect';
 import { useShapeDraw } from '../../../../runtime/useShapeDraw';
@@ -84,6 +85,13 @@ export function useCanvasDrawingGestures({
       selection.setSelectedEdgeId(null);
     },
   });
+  const connectHandles = useConnectHandles({
+    enabled: activeTool === 'select' && !edgeInteraction.state && !shape.isActive,
+    sortedNodes,
+    screenToCanvas,
+    getContainer,
+    beginConnect: edgeInteraction.beginConnect,
+  });
   const marquee = useMarqueeSelect({
     enabled: activeTool === 'select' && !shape.isActive,
     screenToCanvas,
@@ -96,6 +104,7 @@ export function useCanvasDrawingGestures({
     edgeInteractionState: edgeInteraction.state,
     edgePreview: edgeInteraction.previewEdge,
     edgeHandlers,
+    connectHandles,
     shapeDraft: shape.draft,
     handleShapeOverlayMouseDown: shape.handleOverlayMouseDown,
     shapeToolActive: shape.isActive,

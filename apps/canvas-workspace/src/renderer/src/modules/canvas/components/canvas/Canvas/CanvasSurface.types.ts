@@ -70,6 +70,9 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
   /** Preview endpoints resolved by the interaction hook. Null when no
    *  connect/move-end drag is in flight. */
   edgePreview: CanvasEdge | null;
+  /** Node whose connect handles are visible, if any. */
+  connectHandleNodeId?: string | null;
+  onConnectHandleMouseDown?: (nodeId: string, event: React.MouseEvent) => void;
   /** Live shape-draw draft. Null unless the user is currently dragging
    *  out a new shape. */
   shapeDraft?: ShapeDraft | null;
