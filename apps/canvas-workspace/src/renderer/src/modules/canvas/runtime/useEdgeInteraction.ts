@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasEdge, CanvasNode, EdgeEndpoint } from '../../../types';
 import {
   bendFromCursor,
   createDefaultEdge,
   findNodeAtCanvasPoint,
-  resolveEndpointToward,
 } from '../model/edgeFactory';
 
 /** Discard connect clicks that never become a deliberate drag. */
 const CONNECT_DRAG_MIN_DISTANCE = 6;
+const CONNECT_PREVIEW_EDGE_ID = 'connect-preview';
 export type Point = { x: number; y: number };
 export type EdgeInteractionPreviewPatch = Partial<
   Pick<CanvasEdge, 'source' | 'target' | 'bend' | 'curveMode'>
@@ -67,8 +67,6 @@ export type EdgeInteractionState =
     };
 
 interface UseEdgeInteractionArgs {
-  /** Used for hit-testing and resolving node-bound endpoints. */
-  nodes: CanvasNode[];
   /** Render-ordered list; reverse hit-testing picks the visual topmost. */
   sortedNodes: CanvasNode[];
   screenToCanvas: (screenX: number, screenY: number, container: HTMLElement) => Point;
@@ -185,7 +183,6 @@ const hasPreviewPatch = (patch: EdgeInteractionPreviewPatch): boolean =>
  * half-dozen event handlers.
  */
 export const useEdgeInteraction = ({
-  nodes,
   sortedNodes,
   screenToCanvas,
   getContainer,
@@ -215,9 +212,6 @@ export const useEdgeInteraction = ({
 
   const screenToCanvasRef = useRef(screenToCanvas);
   screenToCanvasRef.current = screenToCanvas;
-
-  const nodesById = useRef(new Map<string, CanvasNode>());
-  nodesById.current = new Map(nodes.map((n) => [n.id, n]));
 
   /** Compute the mouse position in canvas coordinates when mounted. */
   const toCanvas = useCallback((clientX: number, clientY: number): Point | null => {
@@ -354,18 +348,22 @@ export const useEdgeInteraction = ({
   useEffect(() => () => cancelPendingMove(), [cancelPendingMove]);
 
   /**
-   * Begin drawing a new edge. Called by the connect-mode overlay.
-   * `clientX/Y` are the screen coords of the mousedown event.
+   * Begin drawing a new edge from the connect-mode overlay or a node's
+   * connect handle. `clientX/Y` are the screen coords of the mousedown
+   * event. `source` binds the start explicitly (handles sit outside the
+   * node); otherwise the node under the cursor, or a free point, is used.
    */
-  const beginConnect = useCallback((clientX: number, clientY: number) => {
+  const beginConnect = useCallback((clientX: number, clientY: number, source?: EdgeEndpoint) => {
     const pt = toCanvas(clientX, clientY);
     if (!pt) return;
-    const { endpoint: source, hoverNodeId } = cursorToEndpoint(pt, sortedNodesRef.current);
+    const resolved = source
+      ? { endpoint: source, hoverNodeId: null }
+      : cursorToEndpoint(pt, sortedNodesRef.current);
     setInteractionState({
       kind: 'connect',
-      source,
+      source: resolved.endpoint,
       cursor: pt,
-      hoverNodeId,
+      hoverNodeId: resolved.hoverNodeId,
       distance: 0,
     });
   }, [setInteractionState, toCanvas]);
@@ -420,12 +418,13 @@ export const useEdgeInteraction = ({
     // curve (not just the midpoint handle) feels continuous.
     const originOffset = bendFromCursor(s, t, pt);
     const persistedBend = edge?.bend ?? 0;
-    const isNodeBound =
-      edge?.source.kind === 'node' &&
-      edge.target.kind === 'node';
+    // Any node-bound end renders as a cubic; keep that family while bending.
+    const hasNodeEnd =
+      edge?.source.kind === 'node' ||
+      edge?.target.kind === 'node';
     const smoothBend =
       edge?.curveMode === 'smooth' ||
-      (persistedBend === 0 && isNodeBound);
+      (persistedBend === 0 && hasNodeEnd);
     const originBend = persistedBend;
     setInteractionState({
       kind: 'move-bend',
@@ -467,26 +466,17 @@ export const useEdgeInteraction = ({
   }, [edges, setInteractionState, toCanvas]);
 
   /**
-   * Resolve the current preview edge's endpoints (for rendering the
-   * dashed draft line). Returns null when no connect/move-end drag is
-   * active. Handles both free-point endpoints and node-bound auto
-   * anchors (computed toward the opposite endpoint).
+   * Draft edge for the connect gesture, built with the same defaults and
+   * endpoint resolution as the committed edge so the preview shares its
+   * anchors and curve. Hidden while the cursor is still on the source
+   * node. Endpoint drags preview the real edge instead, so they need none.
    */
-  const getPreviewEndpoints = useCallback((): { s: Point; t: Point } | null => {
-    if (!state) return null;
-    if (state.kind === 'connect') {
-      const targetPoint: Point = { x: state.cursor.x, y: state.cursor.y };
-      const s = resolveEndpointToward(state.source, nodesById.current, targetPoint);
-      return { s, t: targetPoint };
-    }
-    if (state.kind === 'move-end') {
-      const frozenPoint = resolveEndpointToward(state.frozen, nodesById.current, state.cursor);
-      if (state.end === 'source') {
-        return { s: state.cursor, t: frozenPoint };
-      }
-      return { s: frozenPoint, t: state.cursor };
-    }
-    return null;
+  const previewEdge = useMemo((): CanvasEdge | null => {
+    if (state?.kind !== 'connect') return null;
+    const { endpoint: target } = cursorToEndpoint(state.cursor, sortedNodesRef.current);
+    if (target.kind === 'node' && state.source.kind === 'node'
+      && target.nodeId === state.source.nodeId) return null;
+    return { ...createDefaultEdge(state.source, target), id: CONNECT_PREVIEW_EDGE_ID };
   }, [state]);
 
   return {
@@ -495,6 +485,6 @@ export const useEdgeInteraction = ({
     beginMoveEnd,
     beginMoveBend,
     beginMoveEdge,
-    getPreviewEndpoints,
+    previewEdge,
   };
 };

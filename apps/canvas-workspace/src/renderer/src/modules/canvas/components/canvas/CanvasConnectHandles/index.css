@@ -1,0 +1,49 @@
+/* Sizes divide by --canvas-scale so the handles keep one screen size at
+ * every zoom level. The offset clears the node's resize handles. */
+.canvas-connect-handles {
+  --connect-handle-size: calc(10px / var(--canvas-scale, 1));
+  --connect-handle-offset: calc(14px / var(--canvas-scale, 1));
+  position: absolute;
+  /* Painted after nodes, so a low layer clears resting cards. */
+  z-index: 9;
+  pointer-events: none;
+}
+
+.canvas-connect-handle {
+  position: absolute;
+  width: var(--connect-handle-size);
+  height: var(--connect-handle-size);
+  box-sizing: border-box;
+  border: calc(1.5px / var(--canvas-scale, 1)) solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  cursor: crosshair;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+.canvas-connect-handle:hover {
+  background: var(--accent);
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+.canvas-connect-handle--top {
+  left: 50%;
+  top: calc(0px - var(--connect-handle-offset));
+}
+
+.canvas-connect-handle--right {
+  left: calc(100% + var(--connect-handle-offset));
+  top: 50%;
+}
+
+.canvas-connect-handle--bottom {
+  left: 50%;
+  top: calc(100% + var(--connect-handle-offset));
+}
+
+.canvas-connect-handle--left {
+  left: calc(0px - var(--connect-handle-offset));
+  top: 50%;
+}

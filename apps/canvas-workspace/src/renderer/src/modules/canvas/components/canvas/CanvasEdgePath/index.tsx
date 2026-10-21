@@ -117,10 +117,10 @@ export const CanvasEdgePath = ({
         strokeDasharray={strokeDasharray(stroke.style)}
         strokeLinecap={head !== 'none' || tail !== 'none' ? 'butt' : 'round'}
         markerEnd={head !== 'none'
-          ? `url(#${capId('edge-head', head, stroke.color)})`
+          ? `url(#${capId('edge-head', head, stroke.color, stroke.width)})`
           : undefined}
         markerStart={tail !== 'none'
-          ? `url(#${capId('edge-tail', tail, stroke.color)})`
+          ? `url(#${capId('edge-tail', tail, stroke.color, stroke.width)})`
           : undefined}
       />
     </g>
