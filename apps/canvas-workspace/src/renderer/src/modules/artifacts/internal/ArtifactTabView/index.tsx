@@ -15,6 +15,7 @@ import {
 import { useAppShell } from '../../../../shared/appShell';
 import { Select } from '../../../../components/ui';
 import { renderMermaidSource, type MermaidRenderResult } from '../../../../utils/mermaid';
+import { useResolvedTheme } from '../../../../shared/theme';
 import { buildCapabilityBridgeScript } from '../capabilityBridge';
 import './index.css';
 
@@ -234,6 +235,8 @@ export const ArtifactTabView = ({ workspaceId, artifactId, onTitleChange }: Arti
 
 const ArtifactMermaid = ({ source }: { source: string }) => {
   const [result, setResult] = useState<MermaidRenderResult | null>(null);
+  // Re-render on theme change: the SVG bakes in the mermaid theme.
+  const theme = useResolvedTheme();
   useEffect(() => {
     let cancelled = false;
     setResult(null);
@@ -241,7 +244,7 @@ const ArtifactMermaid = ({ source }: { source: string }) => {
       if (!cancelled) setResult(r);
     });
     return () => { cancelled = true; };
-  }, [source]);
+  }, [source, theme]);
 
   if (!result) {
     return <div className="artifact-drawer__mermaid-host artifact-drawer__mermaid-host--loading">Rendering diagram…</div>;

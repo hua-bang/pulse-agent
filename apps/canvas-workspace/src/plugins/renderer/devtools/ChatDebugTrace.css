@@ -47,7 +47,7 @@
   border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: 999px;
   padding: 2px 7px;
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(var(--surface-rgb), 0.65);
   white-space: nowrap;
 }
 
@@ -67,7 +67,7 @@
 .chat-debug-section {
   border: 1px solid rgba(var(--ink-rgb), 0.07);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(var(--surface-rgb), 0.68);
   padding: 10px;
 }
 

@@ -7,13 +7,14 @@
  * theme changes.
  */
 
-import { getResolvedTheme, type ResolvedTheme } from '../shared/theme';
+import { getResolvedTheme, onThemeChange, type ResolvedTheme } from '../shared/theme';
 
 type MermaidApi = typeof import('mermaid').default;
 
 let mermaidPromise: Promise<MermaidApi> | null = null;
 let mermaidTheme: ResolvedTheme | null = null;
 let diagramIdCounter = 0;
+let rerenderOnThemeChange: (() => void) | null = null;
 
 const MERMAID_CONFIG = {
   startOnLoad: false,
@@ -97,6 +98,14 @@ const escapeHtml = (value: string): string => value
  */
 export const renderMermaidIn = (root: HTMLElement | null): void => {
   if (!root) return;
+  // Chat hosts keep their SVG once rendered, so redraw them all when the
+  // theme flips. React callers re-run renderMermaidSource on theme instead.
+  rerenderOnThemeChange ??= onThemeChange(() => {
+    document.querySelectorAll<HTMLElement>('.chat-mermaid[data-rendered="true"]').forEach(host => {
+      host.dataset.rendered = 'pending';
+      void renderInto(host);
+    });
+  });
   const hosts = root.querySelectorAll<HTMLElement>('.chat-mermaid[data-rendered="false"]');
   if (hosts.length === 0) return;
   hosts.forEach(host => {

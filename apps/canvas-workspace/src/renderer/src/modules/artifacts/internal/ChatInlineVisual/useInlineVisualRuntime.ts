@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderMermaidSource, type MermaidRenderResult } from '../../../../utils/mermaid';
+import { useResolvedTheme } from '../../../../shared/theme';
 import { extractPartialStringField } from '../partialJson';
 import type { ChatInlineVisualProps, InlineVisualPayload } from './types';
 
@@ -94,6 +95,8 @@ export const useInlineVisualRuntime = ({
 
   const mermaidSource = payload?.type === 'mermaid' ? payload.content : null;
   const [mermaidResult, setMermaidResult] = useState<MermaidRenderResult | null>(null);
+  // Re-render on theme change: the SVG bakes in the mermaid theme.
+  const theme = useResolvedTheme();
   useEffect(() => {
     if (!mermaidSource) {
       setMermaidResult(null);
@@ -107,7 +110,7 @@ export const useInlineVisualRuntime = ({
     return () => {
       cancelled = true;
     };
-  }, [mermaidSource]);
+  }, [mermaidSource, theme]);
 
   return {
     height,
