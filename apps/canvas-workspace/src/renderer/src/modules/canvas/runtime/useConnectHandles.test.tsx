@@ -84,4 +84,44 @@ describe('useConnectHandles', () => {
     expect(beginConnect).toHaveBeenCalledWith(114, 30, { kind: 'node', nodeId: 'a', anchor: 'auto' });
     act(() => window.dispatchEvent(new MouseEvent('mouseup')));
   });
+
+  const startHandleDrag = () => {
+    const event = {
+      button: 0,
+      clientX: 114,
+      clientY: 30,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as React.MouseEvent;
+    act(() => hook.beginFromHandle('a', event));
+  };
+
+  const clickReaches = (): boolean => {
+    const onClick = vi.fn();
+    host.addEventListener('click', onClick);
+    host.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    host.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    host.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    host.removeEventListener('click', onClick);
+    return onClick.mock.calls.length > 0;
+  };
+
+  it('swallows only the click that ends the handle drag', () => {
+    startHandleDrag();
+    const onClick = vi.fn();
+    host.addEventListener('click', onClick);
+    host.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    host.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    host.removeEventListener('click', onClick);
+
+    expect(onClick).not.toHaveBeenCalled();
+    expect(clickReaches()).toBe(true);
+  });
+
+  it('keeps the next click when the drag ends without a mouseup', () => {
+    // Window blur or a release outside the window: no mouseup arrives.
+    startHandleDrag();
+
+    expect(clickReaches()).toBe(true);
+  });
 });

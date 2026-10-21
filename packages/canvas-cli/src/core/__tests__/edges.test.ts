@@ -113,6 +113,19 @@ describe('edges', () => {
       expect(edge?.bend).toBe(50);
     });
 
+    it('fills missing stroke fields with the defaults', async () => {
+      const result = await createEdge(workspaceId, {
+        sourceNodeId: nodeAId,
+        targetNodeId: nodeBId,
+        stroke: { color: '#ff0000' },
+      }, testDir);
+
+      expect(result.ok).toBe(true);
+
+      const canvas = await loadCanvas(workspaceId, testDir);
+      expect(canvas?.edges?.[0].stroke).toEqual({ color: '#ff0000', width: 2.4, style: 'solid' });
+    });
+
     it('applies custom anchors', async () => {
       const result = await createEdge(workspaceId, {
         sourceNodeId: nodeAId,
