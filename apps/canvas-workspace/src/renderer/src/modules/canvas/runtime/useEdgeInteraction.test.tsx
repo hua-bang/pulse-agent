@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CanvasEdge } from '../../../types';
+import type { CanvasEdge, CanvasNode } from '../../../types';
 import { useEdgeInteraction } from './useEdgeInteraction';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -14,11 +14,11 @@ describe('useEdgeInteraction move gestures', () => {
   let updateEdge: ReturnType<typeof vi.fn>;
   let commitHistory: ReturnType<typeof vi.fn>;
   let edges: CanvasEdge[];
+  let sortedNodes: CanvasNode[];
 
   const Probe = () => {
     hook = useEdgeInteraction({
-      nodes: [],
-      sortedNodes: [],
+      sortedNodes,
       screenToCanvas: (x, y) => ({ x, y }),
       getContainer: () => host,
       addEdge: (edge) => edge,
@@ -33,6 +33,7 @@ describe('useEdgeInteraction move gestures', () => {
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     updateEdge = vi.fn();
     commitHistory = vi.fn();
+    sortedNodes = [];
     edges = [{
       id: 'edge-1',
       source: { kind: 'point', x: 0, y: 0 },
@@ -63,6 +64,29 @@ describe('useEdgeInteraction move gestures', () => {
   const mouseUp = () => {
     act(() => window.dispatchEvent(new MouseEvent('mouseup')));
   };
+
+  it('previews a connect drag with the committed edge endpoints', () => {
+    sortedNodes = [
+      { id: 'a', x: 0, y: 0, width: 100, height: 60 } as CanvasNode,
+      { id: 'b', x: 300, y: 0, width: 100, height: 60 } as CanvasNode,
+    ];
+    act(() => root.render(<Probe />));
+    act(() => hook.beginConnect(50, 30));
+
+    move([80, 30]);
+    // Still inside the source node: no draft line yet.
+    expect(hook.previewEdge).toBeNull();
+
+    move([200, 40]);
+    expect(hook.previewEdge).toMatchObject({
+      source: { kind: 'node', nodeId: 'a', anchor: 'auto' },
+      target: { kind: 'point', x: 200, y: 40 },
+      arrowHead: 'triangle',
+    });
+
+    move([350, 30]);
+    expect(hook.previewEdge?.target).toEqual({ kind: 'node', nodeId: 'b', anchor: 'auto' });
+  });
 
   it('keeps repeated whole-edge moves ephemeral and writes the final endpoints once on mouseup', () => {
     act(() => hook.beginMoveEdge('edge-1', 10, 10));

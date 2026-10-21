@@ -16,7 +16,8 @@ export interface CanvasEdgesLayerProps {
   selectedEdgeId: string | null;
   onSelectEdge?: (id: string | null) => void;
   interactionState?: EdgeInteractionState | null;
-  previewEndpoints?: { s: Point; t: Point } | null;
+  /** Draft edge for the connect gesture; rendered with committed geometry. */
+  previewEdge?: CanvasEdge | null;
   focusedNodeIds?: Set<string>;
   focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
@@ -53,19 +54,19 @@ export const applyEdgeInteractionPreview = (
 const useMarkerDefs = (edges: CanvasEdge[]) => useMemo(() => {
   const markers = new Map<
     string,
-    { id: string; cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }
+    { id: string; cap: EdgeArrowCap; color: string; width: number; side: 'head' | 'tail' }
   >();
   for (const edge of edges) {
-    const color = resolveEdgeStroke(edge.stroke).color;
+    const { color, width } = resolveEdgeStroke(edge.stroke);
     const head = edge.arrowHead ?? 'triangle';
     const tail = edge.arrowTail ?? 'none';
     if (head !== 'none') {
-      const id = capId('edge-head', head, color);
-      if (!markers.has(id)) markers.set(id, { id, cap: head, color, side: 'head' });
+      const id = capId('edge-head', head, color, width);
+      if (!markers.has(id)) markers.set(id, { id, cap: head, color, width, side: 'head' });
     }
     if (tail !== 'none') {
-      const id = capId('edge-tail', tail, color);
-      if (!markers.has(id)) markers.set(id, { id, cap: tail, color, side: 'tail' });
+      const id = capId('edge-tail', tail, color, width);
+      if (!markers.has(id)) markers.set(id, { id, cap: tail, color, width, side: 'tail' });
     }
   }
   return Array.from(markers.values());
@@ -77,7 +78,7 @@ const CanvasEdgesLayerComponent = ({
   selectedEdgeId,
   onSelectEdge,
   interactionState,
-  previewEndpoints,
+  previewEdge,
   focusedNodeIds,
   focusContextNodeIds,
   focusModeEnabled = false,
@@ -98,8 +99,19 @@ const CanvasEdgesLayerComponent = ({
       geometry: resolveEdgePathGeometry(renderedEdge, nodesById),
     };
   }), [edges, interactionState, nodesById]);
+  const previewGeometry = useMemo(
+    () => (previewEdge ? resolveEdgePathGeometry(previewEdge, nodesById) : null),
+    [previewEdge, nodesById],
+  );
+  const hoverNode = interactionState?.kind === 'connect' || interactionState?.kind === 'move-end'
+    ? nodesById.get(interactionState.hoverNodeId ?? '') ?? null
+    : null;
+  const sourceNodeId = interactionState?.kind === 'connect' && interactionState.source.kind === 'node'
+    ? interactionState.source.nodeId
+    : null;
+  const highlightNode = hoverNode && hoverNode.id !== sourceNodeId ? hoverNode : null;
 
-  if (edges.length === 0 && !previewEndpoints) return null;
+  if (edges.length === 0 && !previewGeometry && !highlightNode) return null;
 
   return (
     <svg
@@ -132,14 +144,11 @@ const CanvasEdgesLayerComponent = ({
           stroke={resolveEdgeStroke(edge.stroke)}
         />
       ))}
-      {previewEndpoints && (
+      {(previewGeometry || highlightNode) && (
         <PreviewEdge
-          s={previewEndpoints.s}
-          t={previewEndpoints.t}
-          highlightNodeId={interactionState?.kind === 'connect' || interactionState?.kind === 'move-end'
-            ? interactionState.hoverNodeId
-            : null}
-          nodesById={nodesById}
+          d={previewGeometry?.d ?? null}
+          width={resolveEdgeStroke(previewEdge?.stroke).width}
+          highlightNode={highlightNode}
         />
       )}
     </svg>
@@ -157,7 +166,7 @@ export const canvasEdgesLayerPropsAreEqual = (
   && previous.nodes === next.nodes
   && previous.selectedEdgeId === next.selectedEdgeId
   && previous.interactionState === next.interactionState
-  && previous.previewEndpoints === next.previewEndpoints
+  && previous.previewEdge === next.previewEdge
   && previous.focusedNodeIds === next.focusedNodeIds
   && previous.focusContextNodeIds === next.focusContextNodeIds
   && previous.focusModeEnabled === next.focusModeEnabled

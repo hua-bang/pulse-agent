@@ -46,7 +46,8 @@ describe('EdgeLabel', () => {
       />,
     );
 
-    expect(html).toContain('left:159.85px;top:49.95px');
+    // The arrow gap is reserved along the top anchor's normal.
+    expect(html).toContain('left:166px;top:51.25px');
   });
 
   it('renders imported label foreground and background colors', () => {
