@@ -8,7 +8,7 @@ name: Performance
 # same bundle gate first, so a skipped `bundle` next to a green `perf` is
 # expected. Every Gate reads baselines.json from the PR head, so
 # `baseline-guard` fails a PR that loosens a Gate until a maintainer adds the
-# `perf-baseline` label.
+# `perf-baseline` label on its current head.
 
 on:
   workflow_dispatch:
@@ -92,9 +92,11 @@ jobs:
         with:
           node-version: 22
 
+      # Only the label event itself approves, so the approval covers the head
+      # it was given on. A later push needs the label removed and added again.
       - name: Check that no performance Gate was loosened
         env:
-          PERF_BASELINE_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-baseline') }}
+          PERF_BASELINE_APPROVED: ${{ github.event.action == 'labeled' && github.event.label.name == 'perf-baseline' }}
         # The PR merge commit's first parent is the current base tip, so raises
         # that already landed on the base branch are not counted again.
         run: node apps/canvas-workspace/scripts/perf/baseline-guard.mjs "$(git rev-parse HEAD^1)"
