@@ -32,6 +32,7 @@ interface ChatInputProps {
   onOpenModelSettings?: () => void;
   editableRef: RefObject<HTMLDivElement>;
   mentionPopup?: ReactNode;
+  mentionAnchorRef?: RefObject<HTMLDivElement>;
   mentionOpen?: boolean;
   mentionIndex?: number;
   onInput: () => void;
@@ -88,6 +89,7 @@ export const ChatInput = ({
   onOpenModelSettings,
   editableRef,
   mentionPopup,
+  mentionAnchorRef,
   mentionOpen = false,
   mentionIndex = 0,
   onInput,
@@ -121,7 +123,7 @@ export const ChatInput = ({
   const hasSendableContent = Boolean(input.trim() || readyAttachments.length > 0);
   const canSend = hasSendableContent && !sendDisabled && !attachmentSendBlocked;
   return (
-    <div className="chat-input-container">
+    <div className="chat-input-container" ref={mentionAnchorRef}>
       {mentionPopup}
       {contextComposer && loading && (
         <div className="chat-generating-status">{t('chat.generatingCanContinue')}</div>
