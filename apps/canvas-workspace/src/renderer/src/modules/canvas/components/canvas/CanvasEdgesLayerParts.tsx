@@ -123,59 +123,54 @@ export const EdgeHandles = ({
 };
 
 export const PreviewEdge = ({
-  s,
-  t,
-  highlightNodeId,
-  nodesById,
+  d,
+  highlightNode,
 }: {
-  s: Point;
-  t: Point;
-  highlightNodeId: string | null;
-  nodesById: Map<string, CanvasNode>;
-}) => {
-  const d = `M ${s.x} ${s.y} L ${t.x} ${t.y}`;
-  const node = highlightNodeId ? nodesById.get(highlightNodeId) : null;
-  return (
-    <>
+  /** Same path the committed edge will use; null hides the draft line. */
+  d: string | null;
+  highlightNode: CanvasNode | null;
+}) => (
+  <>
+    {d && (
       <path
         d={d}
         fill="none"
         stroke={SELECTION_COLOR}
-        strokeWidth={1.5}
-        strokeDasharray="5 3"
+        strokeWidth={2}
+        strokeDasharray="6 4"
         strokeLinecap="butt"
         markerEnd={`url(#${capId('edge-head', 'triangle', SELECTION_COLOR)})`}
         style={{ pointerEvents: 'none' }}
       />
-      <defs>
-        <marker
-          id={capId('edge-head', 'triangle', SELECTION_COLOR)}
-          markerWidth={4}
-          markerHeight={4}
-          viewBox="0 0 10 10"
-          orient="auto"
-          refX={10}
-          refY={5}
-          markerUnits="strokeWidth"
-        >
-          <path d="M0,1.5 L10,5 L0,8.5 z" fill={SELECTION_COLOR} />
-        </marker>
-      </defs>
-      {node && (
-        <rect
-          x={node.x - 2}
-          y={node.y - 2}
-          width={node.width + 4}
-          height={node.height + 4}
-          fill="none"
-          stroke={SELECTION_COLOR}
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-          vectorEffect="non-scaling-stroke"
-          style={{ pointerEvents: 'none' }}
-          rx={6}
-        />
-      )}
-    </>
-  );
-};
+    )}
+    <defs>
+      <marker
+        id={capId('edge-head', 'triangle', SELECTION_COLOR)}
+        markerWidth={4}
+        markerHeight={4}
+        viewBox="0 0 10 10"
+        orient="auto"
+        refX={10}
+        refY={5}
+        markerUnits="strokeWidth"
+      >
+        <path d="M0,1.5 L10,5 L0,8.5 z" fill={SELECTION_COLOR} />
+      </marker>
+    </defs>
+    {highlightNode && (
+      <rect
+        x={highlightNode.x - 2}
+        y={highlightNode.y - 2}
+        width={highlightNode.width + 4}
+        height={highlightNode.height + 4}
+        fill="none"
+        stroke={SELECTION_COLOR}
+        strokeWidth={1.5}
+        strokeDasharray="4 3"
+        vectorEffect="non-scaling-stroke"
+        style={{ pointerEvents: 'none' }}
+        rx={6}
+      />
+    )}
+  </>
+);

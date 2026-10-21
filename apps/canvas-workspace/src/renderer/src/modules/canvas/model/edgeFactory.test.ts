@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasEdge, CanvasNode } from '../../../types';
-import { createDefaultEdge, edgePathGeometry } from './edgeFactory';
+import {
+  createDefaultEdge,
+  edgePathGeometry,
+  resolveEdgePathGeometry,
+  resolveEndpointToward,
+} from './edgeFactory';
 
 describe('createDefaultEdge', () => {
   it('stores the canonical high-contrast edge stroke', () => {
@@ -64,5 +69,48 @@ describe('createDefaultEdge', () => {
       moved.midpoint.x - automatic.midpoint.x,
       moved.midpoint.y - automatic.midpoint.y,
     )).toBeCloseTo(1);
+  });
+});
+
+describe('automatic edge geometry', () => {
+  const nodes: CanvasNode[] = [
+    { id: 'a', x: 0, y: 0, width: 100, height: 60 } as CanvasNode,
+    { id: 'b', x: 400, y: 200, width: 100, height: 60 } as CanvasNode,
+  ];
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+
+  it('attaches auto anchors to the midpoint of the facing side', () => {
+    const auto = { kind: 'node' as const, nodeId: 'a', anchor: 'auto' as const };
+
+    expect(resolveEndpointToward(auto, nodesById, { x: 450, y: 230 })).toEqual({ x: 100, y: 30 });
+    expect(resolveEndpointToward(auto, nodesById, { x: 60, y: 400 })).toEqual({ x: 50, y: 60 });
+    expect(resolveEndpointToward(auto, nodesById, { x: -200, y: 40 })).toEqual({ x: 0, y: 30 });
+  });
+
+  it('leaves and enters bound nodes along the side normals', () => {
+    const edge = createDefaultEdge(
+      { kind: 'node', nodeId: 'a', anchor: 'auto' },
+      { kind: 'node', nodeId: 'b', anchor: 'auto' },
+    );
+    const geometry = resolveEdgePathGeometry(edge, nodesById);
+
+    expect(geometry.sourcePoint).toEqual({ x: 100, y: 30 });
+    // The arrow gap is reserved along the target's outward normal.
+    expect(geometry.targetPoint).toEqual({ x: 394, y: 230 });
+    expect(geometry.d.startsWith('M 100 30 C ')).toBe(true);
+    const [c1y, , c2y] = geometry.d.split(' C ')[1].split(' ').map(Number).filter((_, i) => i % 2 === 1);
+    expect(c1y).toBe(30);
+    expect(c2y).toBe(230);
+  });
+
+  it('curves out of a bound node toward a free end', () => {
+    const edge = createDefaultEdge(
+      { kind: 'node', nodeId: 'a', anchor: 'auto' },
+      { kind: 'point', x: 300, y: 300 },
+    );
+    const geometry = resolveEdgePathGeometry(edge, nodesById);
+
+    expect(geometry.d).toContain(' C ');
+    expect(geometry.d.endsWith(' 300 300 300 300')).toBe(true);
   });
 });

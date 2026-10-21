@@ -49,7 +49,6 @@ export function useCanvasDrawingGestures({
 }: Options) {
   const getContainer = useCallback(() => containerRef.current, [containerRef]);
   const edgeInteraction = useEdgeInteraction({
-    nodes,
     sortedNodes,
     screenToCanvas,
     getContainer,
@@ -95,7 +94,7 @@ export function useCanvasDrawingGestures({
 
   return {
     edgeInteractionState: edgeInteraction.state,
-    getPreviewEndpoints: edgeInteraction.getPreviewEndpoints,
+    edgePreview: edgeInteraction.previewEdge,
     edgeHandlers,
     shapeDraft: shape.draft,
     handleShapeOverlayMouseDown: shape.handleOverlayMouseDown,

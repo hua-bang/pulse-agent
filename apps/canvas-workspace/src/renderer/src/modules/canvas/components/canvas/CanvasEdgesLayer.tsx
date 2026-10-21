@@ -16,7 +16,8 @@ export interface CanvasEdgesLayerProps {
   selectedEdgeId: string | null;
   onSelectEdge?: (id: string | null) => void;
   interactionState?: EdgeInteractionState | null;
-  previewEndpoints?: { s: Point; t: Point } | null;
+  /** Draft edge for the connect gesture; rendered with committed geometry. */
+  previewEdge?: CanvasEdge | null;
   focusedNodeIds?: Set<string>;
   focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
@@ -77,7 +78,7 @@ const CanvasEdgesLayerComponent = ({
   selectedEdgeId,
   onSelectEdge,
   interactionState,
-  previewEndpoints,
+  previewEdge,
   focusedNodeIds,
   focusContextNodeIds,
   focusModeEnabled = false,
@@ -98,8 +99,19 @@ const CanvasEdgesLayerComponent = ({
       geometry: resolveEdgePathGeometry(renderedEdge, nodesById),
     };
   }), [edges, interactionState, nodesById]);
+  const previewGeometry = useMemo(
+    () => (previewEdge ? resolveEdgePathGeometry(previewEdge, nodesById) : null),
+    [previewEdge, nodesById],
+  );
+  const hoverNode = interactionState?.kind === 'connect' || interactionState?.kind === 'move-end'
+    ? nodesById.get(interactionState.hoverNodeId ?? '') ?? null
+    : null;
+  const sourceNodeId = interactionState?.kind === 'connect' && interactionState.source.kind === 'node'
+    ? interactionState.source.nodeId
+    : null;
+  const highlightNode = hoverNode && hoverNode.id !== sourceNodeId ? hoverNode : null;
 
-  if (edges.length === 0 && !previewEndpoints) return null;
+  if (edges.length === 0 && !previewGeometry && !highlightNode) return null;
 
   return (
     <svg
@@ -132,15 +144,8 @@ const CanvasEdgesLayerComponent = ({
           stroke={resolveEdgeStroke(edge.stroke)}
         />
       ))}
-      {previewEndpoints && (
-        <PreviewEdge
-          s={previewEndpoints.s}
-          t={previewEndpoints.t}
-          highlightNodeId={interactionState?.kind === 'connect' || interactionState?.kind === 'move-end'
-            ? interactionState.hoverNodeId
-            : null}
-          nodesById={nodesById}
-        />
+      {(previewGeometry || highlightNode) && (
+        <PreviewEdge d={previewGeometry?.d ?? null} highlightNode={highlightNode} />
       )}
     </svg>
   );
@@ -157,7 +162,7 @@ export const canvasEdgesLayerPropsAreEqual = (
   && previous.nodes === next.nodes
   && previous.selectedEdgeId === next.selectedEdgeId
   && previous.interactionState === next.interactionState
-  && previous.previewEndpoints === next.previewEndpoints
+  && previous.previewEdge === next.previewEdge
   && previous.focusedNodeIds === next.focusedNodeIds
   && previous.focusContextNodeIds === next.focusContextNodeIds
   && previous.focusModeEnabled === next.focusModeEnabled

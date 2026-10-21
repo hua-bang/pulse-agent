@@ -86,7 +86,7 @@ export const CanvasSurface = ({
   renameSignal,
   externallyEditedIds,
   edgeInteractionState,
-  edgePreviewEndpoints,
+  edgePreview,
   shapeDraft,
   marqueeRect,
   snapLines,
@@ -225,7 +225,7 @@ export const CanvasSurface = ({
         selectedEdgeId={selectedEdgeId}
         onSelectEdge={onSelectEdge}
         interactionState={edgeInteractionState}
-        previewEndpoints={edgePreviewEndpoints}
+        previewEdge={edgePreview}
         focusedNodeIds={focusedNodeIds}
         focusContextNodeIds={focusContextNodeIds}
         focusModeEnabled={focusModeEnabled}
