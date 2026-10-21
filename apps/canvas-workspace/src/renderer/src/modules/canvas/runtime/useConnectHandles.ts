@@ -66,12 +66,23 @@ export const useConnectHandles = ({
     event.stopPropagation();
     // The click that ends this drag targets the common ancestor of the
     // handle and the drop point, which would read as a blank-canvas click
-    // and clear the new edge selection. Swallow that one click.
-    const swallowClick = (clickEvent: MouseEvent) => clickEvent.stopPropagation();
-    window.addEventListener('click', swallowClick, { capture: true, once: true });
-    window.addEventListener('mouseup', () => {
-      setTimeout(() => window.removeEventListener('click', swallowClick, { capture: true }), 0);
-    }, { once: true });
+    // and clear the new edge selection. Swallow that one click. Disarm
+    // after this press's mouseup, or on the next press when that mouseup
+    // never arrives (window blur, release outside the window), so a later
+    // click is never lost.
+    const swallowClick = (clickEvent: MouseEvent) => {
+      clickEvent.stopPropagation();
+      disarm();
+    };
+    const disarmAfterClick = () => setTimeout(disarm, 0);
+    const disarm = () => {
+      window.removeEventListener('click', swallowClick, true);
+      window.removeEventListener('mouseup', disarmAfterClick, true);
+      window.removeEventListener('mousedown', disarm, true);
+    };
+    window.addEventListener('click', swallowClick, true);
+    window.addEventListener('mouseup', disarmAfterClick, true);
+    window.addEventListener('mousedown', disarm, true);
     setHoverNodeId(null);
     beginConnect(event.clientX, event.clientY, { kind: 'node', nodeId, anchor: 'auto' });
   }, [beginConnect]);

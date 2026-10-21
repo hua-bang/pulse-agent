@@ -131,6 +131,38 @@ describe('performance change classification', () => {
     }
   });
 
+  it.each([
+    ['opened', undefined, true, 'checks'],
+    ['synchronize', undefined, true, 'checks'],
+    ['labeled', 'perf-baseline', true, 'baseline-label'],
+    ['labeled', 'performance', false, 'checks'],
+    ['labeled', 'documentation', false, 'ignored-label'],
+  ])('runs the baseline guard for action=%s label=%s', (action, label, expected, expectedGroup) => {
+    const config = workflow();
+    const shouldRun = new Function('github', `return (${config.jobs['baseline-guard'].if});`);
+    const github = { event_name: 'pull_request', event: { action, label: { name: label } } };
+    expect(shouldRun(github)).toBe(expected);
+    const groupExpression = config.concurrency.group.match(/\$\{\{ (github.event.*?) \}\}/)[1];
+    expect(new Function('github', `return (${groupExpression});`)(github)).toBe(expectedGroup);
+    if (label === 'perf-baseline') {
+      expect(new Function('github', `return (${config.jobs.changes.if});`)(github)).toBe(false);
+    }
+  });
+
+  it.each([
+    ['labeled', 'perf-baseline', true],
+    ['labeled', 'documentation', false],
+    // A push after approval must not reuse the label already on the PR.
+    ['synchronize', undefined, false],
+  ])('approves loosened Gates only on the label event: action=%s label=%s', (action, label, expected) => {
+    const step = workflow().jobs['baseline-guard'].steps.find((s) => s.env?.PERF_BASELINE_APPROVED);
+    const expression = step.env.PERF_BASELINE_APPROVED.match(/\$\{\{ (.*) \}\}/)[1];
+    const github = {
+      event: { action, label: { name: label }, pull_request: { labels: [{ name: 'perf-baseline' }] } },
+    };
+    expect(new Function('github', `return (${expression});`)(github)).toBe(expected);
+  });
+
   it.each([canvas, workbench, iframe])('recognizes the current hot path %s', (file) => {
     expect(fs.existsSync(path.join(repoRoot, file)), file).toBe(true);
     expect(classifyPerformanceChanges({ paths: [file] })).toEqual({ runtime: true, packaging: false });
