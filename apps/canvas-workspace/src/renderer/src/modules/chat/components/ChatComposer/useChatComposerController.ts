@@ -21,7 +21,6 @@ interface UseChatComposerControllerOptions {
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
   rootFolder?: string;
-  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   dockTabs?: AgentContextTabRef[];
   collectStructuredContext?: boolean;
@@ -47,7 +46,6 @@ export function useChatComposerController({
   allWorkspaces,
   nodes,
   rootFolder,
-  knowledgeNodes,
   knowledgeTags,
   dockTabs,
   collectStructuredContext,
@@ -190,7 +188,6 @@ export function useChatComposerController({
     agentScope,
     nodes,
     rootFolder,
-    knowledgeNodes,
     knowledgeTags,
     dockTabs,
     collectStructuredContext,

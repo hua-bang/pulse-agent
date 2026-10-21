@@ -1,13 +1,13 @@
-import type { MentionItem, WorkspaceOption } from '../../../types';
-import { isKnowledgeNodeType } from '../../../shared/knowledgeNodes';
+import type { CanvasNode, MentionItem, WorkspaceOption } from '../../../types';
 
 const CACHE_TTL_MS = 5_000;
 let cached: { key: string; expiresAt: number; items: MentionItem[] } | null = null;
 let pending: { key: string; promise: Promise<MentionItem[]> } | null = null;
 
-async function readCanvasNodeMentionItems(workspaces: WorkspaceOption[]): Promise<MentionItem[]> {
-  const api = window.canvasWorkspace?.workspaceNodes;
-  if (!api) return [];
+async function readCanvasNodeMentionItems(
+  api: Window['canvasWorkspace']['workspaceNodes'],
+  workspaces: WorkspaceOption[],
+): Promise<MentionItem[]> {
   const results = await Promise.all(workspaces.map(async (workspace) => {
     try {
       const result = await api.list(workspace.id);
@@ -17,39 +17,35 @@ async function readCanvasNodeMentionItems(workspaces: WorkspaceOption[]): Promis
       return { workspace, nodes: [] };
     }
   }));
-  const items: MentionItem[] = [];
-  for (const { workspace, nodes } of results) {
-    for (const node of nodes) {
-      if (!isKnowledgeNodeType(node.type)) continue;
-      items.push({
-        type: 'node',
-        nodeId: node.id,
-        label: node.displayTitle?.trim() || node.title?.trim() || node.id,
-        nodeType: node.type,
-        workspaceId: workspace.id,
-        description: workspace.name,
-      });
-    }
-  }
-  return items;
+  const nodes = results.flatMap(({ workspace, nodes }) => nodes.map(node => ({ workspace, node })));
+  // Recent first: each popup group shows only its first few entries.
+  nodes.sort((a, b) => (b.node.updatedAt ?? 0) - (a.node.updatedAt ?? 0));
+  return nodes.map(({ workspace, node }) => ({
+    type: 'node' as const,
+    nodeId: node.id,
+    label: node.displayTitle?.trim() || node.title?.trim() || node.id,
+    nodeType: node.type as CanvasNode['type'],
+    workspaceId: workspace.id,
+    description: workspace.name,
+  }));
 }
 
 /**
- * Knowledge nodes of every canvas except `currentWorkspaceId`, for a chat
- * bound to that canvas. Its own nodes come live from props; the global chat
- * gets all canvases' nodes from the app shell instead. Read only when `@`
- * opens, never on mount, so a canvas route does not list every workspace.
+ * Nodes of every canvas except `currentWorkspaceId`, whose nodes a
+ * canvas-bound chat already gets live from props. Read only when `@` opens,
+ * never on mount, so no route lists every workspace up front.
  */
 export function loadCanvasNodeMentionItems(
   workspaces: WorkspaceOption[],
-  currentWorkspaceId: string,
+  currentWorkspaceId?: string,
 ): Promise<MentionItem[]> {
+  const api = window.canvasWorkspace?.workspaceNodes;
   const others = workspaces.filter(workspace => workspace.id !== currentWorkspaceId);
-  if (others.length === 0) return Promise.resolve([]);
+  if (!api || others.length === 0) return Promise.resolve([]);
   const key = others.map(workspace => `${workspace.id}:${workspace.name}`).join('\n');
   if (cached?.key === key && cached.expiresAt > Date.now()) return Promise.resolve(cached.items);
   if (pending?.key !== key) {
-    const promise = readCanvasNodeMentionItems(others).then((items) => {
+    const promise = readCanvasNodeMentionItems(api, others).then((items) => {
       cached = { key, expiresAt: Date.now() + CACHE_TTL_MS, items };
       return items;
     }).finally(() => {

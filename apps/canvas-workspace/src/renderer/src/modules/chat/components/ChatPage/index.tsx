@@ -43,7 +43,6 @@ export const ChatPage = ({
   sessionListRequest = 0,
   initialTarget,
   getWorkspaceNodes,
-  knowledgeNodes,
   knowledgeTags,
   getWorkspaceRootFolder,
   onWorkspaceContextRequest,
@@ -304,7 +303,6 @@ export const ChatPage = ({
       onWorkspaceContextRequest={onWorkspaceContextRequest}
       allWorkspaces={allWorkspaces}
       nodes={nodes}
-      knowledgeNodes={global ? knowledgeNodes : undefined}
       knowledgeTags={global ? knowledgeTags : undefined}
       rootFolder={rootFolder}
       onExit={onExit}

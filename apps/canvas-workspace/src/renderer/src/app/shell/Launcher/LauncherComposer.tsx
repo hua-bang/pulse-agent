@@ -9,8 +9,6 @@ import {
   chatMentionOptionId,
   useMentionInput,
 } from '../../../modules/chat/mentionInput';
-import { useAllWorkspaceNodeList } from '../../../modules/workspace-nodes';
-import { buildKnowledgeChatContext } from '../Workbench/knowledgeChatContext';
 
 const GLOBAL_SCOPE = '__global__';
 const STARTERS: I18nKey[] = [
@@ -50,14 +48,6 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
     ? { kind: 'workspace', workspaceId: workspace.id }
     : { kind: 'global' }), [workspace?.id]);
   const nodes = workspace ? loadedNodes[workspace.id] ?? NO_NODES : NO_NODES;
-  // Cards from other workspaces are offered too, as the Knowledge chat does.
-  // The scoped workspace's own cards already come from its live canvas.
-  const { nodes: allNodes, tags: allTags } = useAllWorkspaceNodeList(workspaces);
-  const knowledgeNodes = useMemo(
-    () => buildKnowledgeChatContext(allNodes, allTags, null).knowledgeNodes
-      .filter((node) => node.workspaceId !== workspace?.id),
-    [allNodes, allTags, workspace?.id],
-  );
   const options = [
     { value: GLOBAL_SCOPE, label: t('launcher.scopeGlobal') },
     ...workspaces.map((item) => ({ value: item.id, label: item.name })),
@@ -75,7 +65,6 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
     agentScope: scope,
     allWorkspaces: workspaces,
     nodes,
-    knowledgeNodes,
     onSubmit: handleEnter,
   });
 

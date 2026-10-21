@@ -30,7 +30,6 @@ export interface ChatPanelProps {
   pendingLabel?: string;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
-  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   dockTabs?: AgentContextTabRef[];
   contextNodes?: AgentContextNodeRef[];

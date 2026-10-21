@@ -5,12 +5,6 @@ interface StaticMentionItemsOptions {
   allWorkspaces?: WorkspaceOption[];
   workspaceId?: string;
   nodes?: CanvasNode[];
-  knowledgeNodes?: Array<{
-    id: string;
-    title: string;
-    type: CanvasNode['type'];
-    workspaceId?: string;
-  }>;
   knowledgeTags?: Array<{
     id: string;
     name: string;
@@ -18,12 +12,11 @@ interface StaticMentionItemsOptions {
   }>;
 }
 
-/** Synchronous scope-owned candidates; async roles/files/sessions stay in the hook. */
+/** Synchronous scope-owned candidates; async roles/files/sessions and other canvases' nodes stay in the hook. */
 export const buildStaticMentionItems = ({
   allWorkspaces,
   workspaceId,
   nodes,
-  knowledgeNodes,
   knowledgeTags,
 }: StaticMentionItemsOptions): MentionItem[] => {
   const items: MentionItem[] = [];
@@ -42,16 +35,6 @@ export const buildStaticMentionItems = ({
         path: (node.data as { filePath?: string })?.filePath,
       });
     }
-  }
-  for (const node of knowledgeNodes ?? []) {
-    items.push({
-      type: 'node',
-      nodeId: node.id,
-      label: node.title,
-      nodeType: node.type,
-      workspaceId: node.workspaceId,
-      description: allWorkspaces?.find(workspace => workspace.id === node.workspaceId)?.name,
-    });
   }
   for (const tag of knowledgeTags ?? []) {
     items.push({

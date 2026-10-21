@@ -22,7 +22,6 @@ export interface UseChatComposerInputOptions {
   agentScope: AgentScope;
   nodes?: CanvasNode[];
   rootFolder?: string;
-  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   dockTabs?: AgentContextTabRef[];
   collectStructuredContext?: boolean;

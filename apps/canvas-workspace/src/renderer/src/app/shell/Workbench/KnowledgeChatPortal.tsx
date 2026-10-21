@@ -90,7 +90,6 @@ export const KnowledgeChatPortal = ({
         agentScope={GLOBAL_AGENT_SCOPE}
         knowledgeMode={knowledgeMode}
         allWorkspaces={workspaces}
-        knowledgeNodes={chatContext.knowledgeNodes}
         knowledgeTags={chatContext.knowledgeTags}
         contextNodes={resolvedContextNodes}
         contextTags={contextTags}
