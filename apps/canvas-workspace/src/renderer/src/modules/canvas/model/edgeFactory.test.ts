@@ -8,15 +8,15 @@ import {
 } from './edgeFactory';
 
 describe('createDefaultEdge', () => {
-  it('stores the canonical high-contrast edge stroke', () => {
+  it('stores the canonical soft gray edge stroke', () => {
     const edge = createDefaultEdge(
       { kind: 'point', x: 0, y: 0 },
       { kind: 'point', x: 100, y: 0 },
     );
 
     expect(edge.stroke).toEqual({
-      color: '#2e2e2e',
-      width: 4,
+      color: '#6b6b67',
+      width: 2.4,
       style: 'solid',
     });
   });
@@ -96,7 +96,7 @@ describe('automatic edge geometry', () => {
 
     expect(geometry.sourcePoint).toEqual({ x: 100, y: 30 });
     // The arrow gap is reserved along the target's outward normal.
-    expect(geometry.targetPoint).toEqual({ x: 394, y: 230 });
+    expect(geometry.targetPoint).toEqual({ x: 396, y: 230 });
     expect(geometry.d.startsWith('M 100 30 C ')).toBe(true);
     const [c1y, , c2y] = geometry.d.split(' C ')[1].split(' ').map(Number).filter((_, i) => i % 2 === 1);
     expect(c1y).toBe(30);
@@ -112,5 +112,21 @@ describe('automatic edge geometry', () => {
 
     expect(geometry.d).toContain(' C ');
     expect(geometry.d.endsWith(' 300 300 300 300')).toBe(true);
+  });
+
+  it('sizes handles from the travel along each normal', () => {
+    const explicit = (anchorA: 'right' | 'left', anchorB: 'left' | 'right'): CanvasEdge => ({
+      id: 'e',
+      source: { kind: 'node', nodeId: 'a', anchor: anchorA },
+      target: { kind: 'node', nodeId: 'b', anchor: anchorB },
+    });
+    // Target ahead of the source: half of the 300px horizontal travel.
+    const ahead = edgePathGeometry(explicit('right', 'left'), { x: 100, y: 30 }, { x: 400, y: 230 }, nodesById);
+    expect(ahead.d).toBe('M 100 30 C 250 30 250 230 400 230');
+
+    // Target behind the source normal: a gentle square-root loop.
+    const behind = edgePathGeometry(explicit('left', 'right'), { x: 0, y: 30 }, { x: 500, y: 230 }, nodesById);
+    const loop = 6.25 * Math.sqrt(500);
+    expect(behind.d).toBe(`M 0 30 C ${-loop} 30 ${500 + loop} 230 500 230`);
   });
 });

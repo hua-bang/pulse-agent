@@ -54,19 +54,19 @@ export const applyEdgeInteractionPreview = (
 const useMarkerDefs = (edges: CanvasEdge[]) => useMemo(() => {
   const markers = new Map<
     string,
-    { id: string; cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }
+    { id: string; cap: EdgeArrowCap; color: string; width: number; side: 'head' | 'tail' }
   >();
   for (const edge of edges) {
-    const color = resolveEdgeStroke(edge.stroke).color;
+    const { color, width } = resolveEdgeStroke(edge.stroke);
     const head = edge.arrowHead ?? 'triangle';
     const tail = edge.arrowTail ?? 'none';
     if (head !== 'none') {
-      const id = capId('edge-head', head, color);
-      if (!markers.has(id)) markers.set(id, { id, cap: head, color, side: 'head' });
+      const id = capId('edge-head', head, color, width);
+      if (!markers.has(id)) markers.set(id, { id, cap: head, color, width, side: 'head' });
     }
     if (tail !== 'none') {
-      const id = capId('edge-tail', tail, color);
-      if (!markers.has(id)) markers.set(id, { id, cap: tail, color, side: 'tail' });
+      const id = capId('edge-tail', tail, color, width);
+      if (!markers.has(id)) markers.set(id, { id, cap: tail, color, width, side: 'tail' });
     }
   }
   return Array.from(markers.values());
@@ -145,7 +145,11 @@ const CanvasEdgesLayerComponent = ({
         />
       ))}
       {(previewGeometry || highlightNode) && (
-        <PreviewEdge d={previewGeometry?.d ?? null} highlightNode={highlightNode} />
+        <PreviewEdge
+          d={previewGeometry?.d ?? null}
+          width={resolveEdgeStroke(previewEdge?.stroke).width}
+          highlightNode={highlightNode}
+        />
       )}
     </svg>
   );

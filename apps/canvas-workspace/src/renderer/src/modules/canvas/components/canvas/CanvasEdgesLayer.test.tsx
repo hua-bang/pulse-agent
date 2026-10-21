@@ -200,7 +200,7 @@ describe('default edge presentation', () => {
       <CanvasEdgesLayer edges={[edge]} nodes={curvedNodes} selectedEdgeId={null} />,
     );
 
-    expect(html).toContain('d="M 100 30 C 140 30 196 62 196 102"');
+    expect(html).toContain('d="M 100 30 C 148 30 196 66 196 102"');
   });
 
   it('uses Heptabase-like world-space ink with a forgiving screen-space hit target', () => {
@@ -217,6 +217,6 @@ describe('default edge presentation', () => {
     );
 
     expect(html).toContain('stroke="transparent" stroke-width="16" vector-effect="non-scaling-stroke"');
-    expect(html).toContain('stroke="#2e2e2e" stroke-width="4"');
+    expect(html).toContain('stroke="#6b6b67" stroke-width="2.4"');
   });
 });

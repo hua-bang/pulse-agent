@@ -5,8 +5,8 @@ import type { CreatableNodeType, EdgeStroke, KnownNodeType, NodeCapability } fro
 export const DEFAULT_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
-  color: '#2e2e2e',
-  width: 4,
+  color: '#6b6b67',
+  width: 2.4,
   style: 'solid',
 };
 

@@ -394,8 +394,8 @@ export interface EdgeLabelStyle {
 }
 
 export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
-  color: '#2e2e2e',
-  width: 4,
+  color: '#6b6b67',
+  width: 2.4,
   style: 'solid',
 };
 

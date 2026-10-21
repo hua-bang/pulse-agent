@@ -54,8 +54,8 @@ describe('edges', () => {
       expect(canvas?.edges?.[0].label).toBe('depends on');
       expect(canvas?.edges?.[0].kind).toBe('dependency');
       expect(canvas?.edges?.[0].stroke).toEqual({
-        color: '#2e2e2e',
-        width: 4,
+        color: '#6b6b67',
+        width: 2.4,
         style: 'solid',
       });
     });

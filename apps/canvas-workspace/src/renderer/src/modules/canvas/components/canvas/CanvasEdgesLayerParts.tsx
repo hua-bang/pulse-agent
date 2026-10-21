@@ -4,10 +4,22 @@ import type { Point } from '../../runtime/useEdgeInteraction';
 export const SELECTION_COLOR = '#2a7fff';
 export const HANDLE_RADIUS = 5;
 
-export const capId = (prefix: string, cap: EdgeArrowCap, color: string): string => {
+export const capId = (
+  prefix: string,
+  cap: EdgeArrowCap,
+  color: string,
+  width?: number,
+): string => {
   const hex = color.replace(/[^a-zA-Z0-9]/g, '_');
-  return `${prefix}-${cap}-${hex}`;
+  const size = width === undefined ? '' : `-${String(width).replace('.', '_')}`;
+  return `${prefix}-${cap}-${hex}${size}`;
 };
+
+/**
+ * Edge cap size in canvas px. Caps grow slower than the stroke, so thin
+ * edges keep a readable arrow and thick edges do not get oversized ones.
+ */
+export const capSize = (strokeWidth: number): number => 6 + strokeWidth * 2.5;
 
 const MarkerShape = ({ cap, color }: { cap: EdgeArrowCap; color: string }) => {
   switch (cap) {
@@ -37,20 +49,26 @@ const MarkerShape = ({ cap, color }: { cap: EdgeArrowCap; color: string }) => {
 export const Markers = ({
   markers,
 }: {
-  markers: Array<{ id: string; cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }>;
+  markers: Array<{
+    id: string;
+    cap: EdgeArrowCap;
+    color: string;
+    width: number;
+    side: 'head' | 'tail';
+  }>;
 }) => (
   <defs>
-    {markers.map(({ id, cap, color, side }) => (
+    {markers.map(({ id, cap, color, width, side }) => (
       <marker
         key={id}
         id={id}
-        markerWidth={4}
-        markerHeight={4}
+        markerWidth={capSize(width)}
+        markerHeight={capSize(width)}
         viewBox="0 0 10 10"
         orient={side === 'head' ? 'auto' : 'auto-start-reverse'}
         refX={cap === 'triangle' || cap === 'arrow' ? 10 : 5}
         refY={5}
-        markerUnits="strokeWidth"
+        markerUnits="userSpaceOnUse"
       >
         <MarkerShape cap={cap} color={color} />
       </marker>
@@ -124,10 +142,13 @@ export const EdgeHandles = ({
 
 export const PreviewEdge = ({
   d,
+  width,
   highlightNode,
 }: {
   /** Same path the committed edge will use; null hides the draft line. */
   d: string | null;
+  /** Committed stroke width, so the draft line and cap match the result. */
+  width: number;
   highlightNode: CanvasNode | null;
 }) => (
   <>
@@ -136,7 +157,7 @@ export const PreviewEdge = ({
         d={d}
         fill="none"
         stroke={SELECTION_COLOR}
-        strokeWidth={2}
+        strokeWidth={width}
         strokeDasharray="6 4"
         strokeLinecap="butt"
         markerEnd={`url(#${capId('edge-head', 'triangle', SELECTION_COLOR)})`}
@@ -146,13 +167,13 @@ export const PreviewEdge = ({
     <defs>
       <marker
         id={capId('edge-head', 'triangle', SELECTION_COLOR)}
-        markerWidth={4}
-        markerHeight={4}
+        markerWidth={capSize(width)}
+        markerHeight={capSize(width)}
         viewBox="0 0 10 10"
         orient="auto"
         refX={10}
         refY={5}
-        markerUnits="strokeWidth"
+        markerUnits="userSpaceOnUse"
       >
         <path d="M0,1.5 L10,5 L0,8.5 z" fill={SELECTION_COLOR} />
       </marker>
