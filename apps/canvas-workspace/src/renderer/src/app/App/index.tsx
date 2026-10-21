@@ -29,7 +29,7 @@ import {
 } from '../../modules/chat';
 import { useChatNavigation } from '../shell/router/useChatNavigation';
 import type { AgentScope } from '../../types';
-import { APP_ROUTES, MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, type AppActiveView as ActiveView } from './routeModel';
+import { APP_ROUTES, MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, telemetryPageName, type AppActiveView as ActiveView } from './routeModel';
 import { globalMcpAppKey, globalMcpAppsStore, useGlobalMcpApps } from '../../modules/mcp-apps/global-apps';
 import type { McpAppEntrypointListing } from '../../../../shared/mcp-apps';
 import { useWorkspaceActions } from './useWorkspaceActions';
@@ -109,6 +109,9 @@ const AppContent = () => {
   useEffect(() => {
     closeScheduledChatRef.current();
     setScheduledChatTasks(undefined);
+  }, [activeView]);
+  useEffect(() => {
+    void window.canvasWorkspace?.telemetry?.track('page_viewed', { page: telemetryPageName(activeView) });
   }, [activeView]);
   const handleAskAiAboutTask = useCallback((task: ScheduledTask) => {
     setScheduledChatTasks([{ id: task.id, title: task.title }]);

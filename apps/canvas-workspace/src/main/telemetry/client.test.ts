@@ -56,6 +56,11 @@ describe('TelemetryClient', () => {
     expect(stored).toEqual({ enabled: true, deviceId: body.deviceId });
   });
 
+  it('marks only the launch that created the device id as first', async () => {
+    expect(await createClient().client.isFirstLaunch()).toBe(true);
+    expect(await createClient().client.isFirstLaunch()).toBe(false);
+  });
+
   it('reuses the stored device id', async () => {
     await writeFile(settingsPath, JSON.stringify({ enabled: true, deviceId: 'device-1' }));
     const { client, fetchMock } = createClient();

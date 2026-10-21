@@ -81,6 +81,7 @@ export class TelemetryClient {
   private settings: Promise<TelemetrySettings> | undefined;
   private timer: NodeJS.Timeout | undefined;
   private inFlight: Promise<void> = Promise.resolve();
+  private newDevice = false;
 
   constructor(options: TelemetryClientOptions) {
     this.options = {
@@ -99,6 +100,12 @@ export class TelemetryClient {
   async status(): Promise<TelemetryStatus> {
     const settings = await this.loadSettings();
     return { configured: this.configured, enabled: settings.enabled };
+  }
+
+  /** True when this run generated the device id: the first launch here. */
+  async isFirstLaunch(): Promise<boolean> {
+    await this.loadSettings();
+    return this.newDevice;
   }
 
   /** Persists first; a failed write rejects and leaves the setting unchanged. */
@@ -202,8 +209,9 @@ export class TelemetryClient {
       enabled: typeof stored.enabled === 'boolean' ? stored.enabled : true,
       deviceId: typeof stored.deviceId === 'string' && stored.deviceId ? stored.deviceId : randomUUID(),
     };
+    this.newDevice = settings.deviceId !== stored.deviceId;
     // An unconfigured build writes nothing to disk.
-    if (this.configured && settings.deviceId !== stored.deviceId) await this.saveSettings(settings);
+    if (this.configured && this.newDevice) await this.saveSettings(settings);
     return settings;
   }
 

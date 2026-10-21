@@ -348,7 +348,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         });
     });
     startupMark("pluginsActivated");
-    telemetry.trackTelemetry('app_started');
+    telemetry.trackAppStarted();
     void ensureRuntimeControlServer(writeLog).then((ok) => {
       if (!ok) {
         void writeLog(

@@ -13,12 +13,29 @@
  * never conversation text, file paths, URLs, or titles.
  *
  * `node_created` counts nodes a user adds (toolbar, menu, drop), not
- * duplicates, pastes, or group frames.
+ * duplicates, pastes, or group frames. Agent-created nodes are counted in
+ * `agent_turn_finished.nodes_created`.
+ *
+ * One agent turn is one sent message until its reply ends. Every
+ * `agent_turn_started` has one `agent_turn_finished`; `trigger` tells a
+ * user message from a scheduled run.
  */
 
 export const TELEMETRY_EVENTS = {
-  app_started: [],
-  agent_turn_started: ['scope'],
+  app_started: ['first_launch'],
+  page_viewed: ['page'],
+  model_configured: ['action', 'provider_type', 'api_key_present'],
+  workspace_created: ['source'],
+  agent_turn_started: ['scope', 'trigger', 'execution_mode', 'has_attachments', 'context_count'],
+  agent_turn_finished: [
+    'scope',
+    'trigger',
+    'outcome',
+    'error_kind',
+    'duration_ms',
+    'tool_calls',
+    'nodes_created',
+  ],
   node_created: ['type'],
 } as const satisfies Record<string, readonly string[]>;
 

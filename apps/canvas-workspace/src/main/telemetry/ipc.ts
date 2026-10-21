@@ -62,6 +62,18 @@ export function trackTelemetry<E extends TelemetryEventName>(event: E, props?: T
   }
 }
 
+/** `app_started`, marking the first launch on this device. */
+export function trackAppStarted(): void {
+  try {
+    const telemetry = getTelemetryClient();
+    void telemetry.isFirstLaunch()
+      .then(firstLaunch => telemetry.track('app_started', { first_launch: firstLaunch }))
+      .catch(() => undefined);
+  } catch {
+    // Same as trackTelemetry: no Electron app means no event.
+  }
+}
+
 export function shutdownTelemetry(): Promise<void> {
   return client ? client.shutdown() : Promise.resolve();
 }

@@ -96,8 +96,6 @@ export async function prepareChatTurn(opts: {
       error: 'Another reply is already running for this chat scope.',
     };
   }
-  void import('../../telemetry/ipc')
-    .then(telemetry => telemetry.trackTelemetry('agent_turn_started', { scope: opts.scope.kind }));
   return { ok: true as const, sessionId: turn.sessionId };
 }
 
