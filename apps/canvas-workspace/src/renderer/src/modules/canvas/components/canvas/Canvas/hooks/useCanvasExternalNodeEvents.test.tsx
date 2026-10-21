@@ -15,15 +15,18 @@ const dropEvent = (type: string, payload: string) => {
   return event;
 };
 
-it('places a dropped dock web tab as a web node at the transformed drop point', () => {
+it('places a dropped dock web tab as a web node once the canvas has loaded', () => {
   const host = document.createElement('div'); document.body.append(host);
   const container = document.createElement('div'); document.body.append(container);
   const createUrlNode = vi.fn(() => null);
-  const Probe = () => {
+  // Like CanvasRootView, the ref is attached only once the canvas has loaded.
+  const containerRef: { current: HTMLDivElement | null } = { current: null };
+  const Probe = ({ loaded }: { loaded: boolean }) => {
     useCanvasExternalNodeEvents({
       addNode: vi.fn(),
       canvasId: 'current',
-      containerRef: { current: container },
+      containerRef,
+      loaded,
       createUrlNode,
       screenToCanvas: (x, y) => ({ x: x / 2, y: y / 2 }),
       setSelectedNodeIds: vi.fn(),
@@ -33,7 +36,9 @@ it('places a dropped dock web tab as a web node at the transformed drop point', 
   };
   const root = createRoot(host);
   try {
-    act(() => root.render(<Probe />));
+    act(() => root.render(<Probe loaded={false} />));
+    containerRef.current = container;
+    act(() => root.render(<Probe loaded />));
 
     const tabDrop = dropEvent(DOCK_LINK_DRAG_TYPE, JSON.stringify({ url: 'https://example.com/a', title: 'Example' }));
     act(() => container.dispatchEvent(tabDrop));

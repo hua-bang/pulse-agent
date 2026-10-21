@@ -330,6 +330,7 @@ export const useCanvasController = ({
     addNode,
     canvasId,
     containerRef,
+    loaded,
     createUrlNode: creation.createUrlNode,
     screenToCanvas,
     setSelectedNodeIds,

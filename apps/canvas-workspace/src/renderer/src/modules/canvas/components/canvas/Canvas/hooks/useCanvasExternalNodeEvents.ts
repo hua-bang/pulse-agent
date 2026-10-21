@@ -7,6 +7,8 @@ interface UseCanvasExternalNodeEventsParams {
   addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
+  /** The container ref is only attached once the canvas has loaded. */
+  loaded: boolean;
   createUrlNode: (
     value: string,
     options?: { at?: { x: number; y: number }; title?: string },
@@ -44,6 +46,7 @@ export const useCanvasExternalNodeEvents = ({
   addNode,
   canvasId,
   containerRef,
+  loaded,
   createUrlNode,
   screenToCanvas,
   setSelectedNodeIds,
@@ -77,7 +80,7 @@ export const useCanvasExternalNodeEvents = ({
       container.removeEventListener('dragover', over);
       container.removeEventListener('drop', drop);
     };
-  }, [containerRef, createUrlNode, screenToCanvas]);
+  }, [containerRef, createUrlNode, loaded, screenToCanvas]);
 
   useEffect(() => {
     const handler = (event: Event) => {

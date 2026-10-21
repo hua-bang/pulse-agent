@@ -3,6 +3,7 @@ import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
+import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
 
 // Loaded on the first single selection, so it stays out of the startup bundle.
@@ -102,10 +103,24 @@ export const CanvasRootView = ({
     ? nodesById.get(selectedNodeIds[0])
     : undefined;
 
-  // In fullscreen the chip's chat button brings the node along as context.
+  // In fullscreen the chip's chat button brings the node along as context,
+  // reporting delivery the same way the node header's chat button does.
+  const notifyChatDelivery = useChatDeliveryNotifier();
   const fullscreenNodeId = focus.fullscreenNodeId;
   const addFullscreenNodeToChat = onAddToChat && fullscreenNodeId
-    ? () => { void onAddToChat(fullscreenNodeId); }
+    ? async () => {
+      const title = nodesById.get(fullscreenNodeId)?.title;
+      try {
+        const receipt = await onAddToChat(fullscreenNodeId);
+        if (receipt) notifyChatDelivery(receipt, title);
+      } catch (error) {
+        notifyChatDelivery({
+          status: 'failed',
+          target: null,
+          error: error instanceof Error ? error.message : String(error),
+        }, title);
+      }
+    }
     : undefined;
 
   if (!loaded) {
