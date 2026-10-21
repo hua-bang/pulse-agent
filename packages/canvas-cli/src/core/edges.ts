@@ -48,7 +48,13 @@ export async function createEdge(
     bend: opts.bend ?? 0,
     arrowHead: opts.arrowHead ?? 'triangle',
     arrowTail: opts.arrowTail ?? 'none',
-    stroke: opts.stroke ?? { ...DEFAULT_EDGE_STROKE },
+    // Store a complete stroke. Missing fields would otherwise follow the
+    // renderer default, so a later default change would restyle this edge.
+    stroke: {
+      color: opts.stroke?.color ?? DEFAULT_EDGE_STROKE.color,
+      width: opts.stroke?.width ?? DEFAULT_EDGE_STROKE.width,
+      style: opts.stroke?.style ?? DEFAULT_EDGE_STROKE.style,
+    },
     label: opts.label,
     labelStyle: opts.labelStyle,
     kind: opts.kind,
