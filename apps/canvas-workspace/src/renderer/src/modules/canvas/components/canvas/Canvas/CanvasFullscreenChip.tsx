@@ -9,8 +9,6 @@ interface Props {
   onReferenceToggle?: () => void;
   chatPanelOpen?: boolean;
   onChatOpen?: () => void;
-  /** Opens chat with the fullscreen node as context; wins over `onChatOpen`. */
-  onAddNodeToChat?: () => void;
   onExitFullscreen: () => void;
 }
 
@@ -27,12 +25,9 @@ export const CanvasFullscreenChip = ({
   onReferenceToggle,
   chatPanelOpen,
   onChatOpen,
-  onAddNodeToChat,
   onExitFullscreen,
 }: Props) => {
   const { t } = useI18n();
-  const chatAction = onAddNodeToChat ?? onChatOpen;
-  const chatLabel = onAddNodeToChat ? t('canvas.fullscreen.addToChat') : t('canvas.empty.openAiChat');
 
   return (
     <div
@@ -54,13 +49,13 @@ export const CanvasFullscreenChip = ({
           </svg>
         </button>
       )}
-      {chatAction && (
+      {onChatOpen && (
         <button
           className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
           type="button"
-          onClick={chatAction}
-          title={chatLabel}
-          aria-label={chatLabel}
+          onClick={onChatOpen}
+          title={t('canvas.empty.openAiChat')}
+          aria-label={t('canvas.empty.openAiChat')}
         >
           <AppLogoIcon size={16} />
         </button>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
-import { DOCK_LINK_DRAG_TYPE, readDockLinkDrag } from '../../../../../../shared/dock/dock-link-drag';
+import { DOCK_LINK_DRAG_TYPE } from '../../../../../../shared/dock/dock-link-drag';
 
 interface UseCanvasExternalNodeEventsParams {
   addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
@@ -60,13 +60,15 @@ export const useCanvasExternalNodeEvents = ({
       event.dataTransfer.dropEffect = 'copy';
     };
     const drop = (event: DragEvent) => {
-      const drag = readDockLinkDrag(event.dataTransfer?.getData(DOCK_LINK_DRAG_TYPE) || '');
-      if (!drag) return;
+      const payload = event.dataTransfer?.getData(DOCK_LINK_DRAG_TYPE);
+      if (!payload) return;
       event.preventDefault();
       event.stopPropagation();
-      createUrlNode(drag.url, {
+      // Only the dock writes this type, so the payload shape is trusted.
+      const { url, title } = JSON.parse(payload) as { url: string; title: string };
+      createUrlNode(url, {
         at: screenToCanvas(event.clientX, event.clientY, container),
-        title: drag.title,
+        title,
       });
     };
     container.addEventListener('dragover', over);

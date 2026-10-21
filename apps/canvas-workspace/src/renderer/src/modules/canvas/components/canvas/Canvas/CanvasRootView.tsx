@@ -230,8 +230,7 @@ export const CanvasRootView = ({
           referenceDrawerOpen={referenceDrawerOpen}
           onReferenceToggle={onReferenceToggle}
           chatPanelOpen={chatPanelOpen}
-          onChatOpen={onChatOpen}
-          onAddNodeToChat={addFullscreenNodeToChat}
+          onChatOpen={addFullscreenNodeToChat ?? onChatOpen}
           onExitFullscreen={focus.exitFullscreen}
         />
       )}

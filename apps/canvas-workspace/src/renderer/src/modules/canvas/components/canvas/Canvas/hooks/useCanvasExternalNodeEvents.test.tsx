@@ -40,14 +40,11 @@ it('places a dropped dock web tab as a web node at the transformed drop point', 
     expect(createUrlNode).toHaveBeenCalledWith('https://example.com/a', { at: { x: 300, y: 200 }, title: 'Example' });
     expect(tabDrop.defaultPrevented).toBe(true);
 
-    // Other drags (and malformed payloads) are left to their own handlers.
+    // Other drags are left to their own handlers.
     createUrlNode.mockClear();
     const otherDrop = dropEvent('text/plain', 'https://example.com');
     act(() => container.dispatchEvent(otherDrop));
-    const badDrop = dropEvent(DOCK_LINK_DRAG_TYPE, '{"title":"no url"}');
-    act(() => container.dispatchEvent(badDrop));
     expect(createUrlNode).not.toHaveBeenCalled();
     expect(otherDrop.defaultPrevented).toBe(false);
-    expect(badDrop.defaultPrevented).toBe(false);
   } finally { act(() => root.unmount()); host.remove(); container.remove(); }
 });

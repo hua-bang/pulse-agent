@@ -1108,7 +1108,6 @@ const en = {
   'canvas.zoom.resetTitle': 'Reset to 100%',
 
   'canvas.fullscreen.exit': 'Exit fullscreen (Esc)',
-  'canvas.fullscreen.addToChat': 'Add this node to AI Chat',
   'canvas.gesture.movingOne': 'Moving',
   'canvas.gesture.movingMany': 'Moving {count}',
   'canvas.gesture.resizing': 'Resizing',
@@ -3127,7 +3126,6 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.zoom.resetTitle': '重置为 100%',
 
   'canvas.fullscreen.exit': '退出全屏（Esc）',
-  'canvas.fullscreen.addToChat': '将此节点添加到 AI Chat',
   'canvas.gesture.movingOne': '移动中',
   'canvas.gesture.movingMany': '移动 {count} 个',
   'canvas.gesture.resizing': '调整尺寸',
