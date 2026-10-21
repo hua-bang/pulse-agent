@@ -62,6 +62,7 @@ src/main/
   default-browser/    # default-browser registration + deep links
   dock/               # right-dock tab mirror, tab actions, browsing history
   references/         # per-workspace pinned Library references + IPC
+  telemetry/          # anonymous usage events: batching client, opt-out setting + IPC
 ```
 
 `src/main/index.ts` stays a narrow entrypoint. It imports a small bootstrap

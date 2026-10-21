@@ -10,6 +10,7 @@ import {
   type PreparedChatPayload,
 } from './prepared-chat';
 import { resolveCanvasModel } from '../../models/config';
+import { trackTelemetry } from '../../telemetry/ipc';
 
 const MAX_ATTACHMENT_COUNT = 6;
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
@@ -96,6 +97,7 @@ export async function prepareChatTurn(opts: {
       error: 'Another reply is already running for this chat scope.',
     };
   }
+  trackTelemetry('agent_turn_started', { scope: opts.scope.kind });
   return { ok: true as const, sessionId: turn.sessionId };
 }
 

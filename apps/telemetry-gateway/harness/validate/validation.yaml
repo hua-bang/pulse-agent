@@ -1,0 +1,12 @@
+version: 1
+
+pathRules:
+  - name: default
+    paths:
+      - src/**
+      - package.json
+      - tsconfig.json
+      - wrangler.toml
+    required:
+      - pnpm --filter @pulse-coder/telemetry-gateway test
+      - pnpm --filter @pulse-coder/telemetry-gateway typecheck

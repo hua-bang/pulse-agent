@@ -119,6 +119,7 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
       });
     }
     applyNodes([...nodesRef.current, node]);
+    void window.canvasWorkspace?.telemetry?.track('node_created', { type: node.type });
     return node;
   }, [applyNodes, canvasId, nodesRef]);
 

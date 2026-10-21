@@ -45,6 +45,7 @@ import { setupWebpageReaderIpc } from "../webview/reader";
 import { setupArtifactIpc } from "../artifacts/ipc";
 import { setupReferenceIpc } from "../references/ipc";
 import { setupShellIpc } from "./shell-ipc";
+import { setupTelemetryIpc, shutdownTelemetry, trackTelemetry } from "../telemetry/ipc";
 import {
   BUILT_IN_MAIN_PLUGINS,
   reloadConfiguredExternalMainPlugins,
@@ -291,6 +292,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     const { setupMemoryReportIpc } = await import('../agent/memory/memory-report-ipc');
     setupMemoryReportIpc();
     setupShellIpc();
+    setupTelemetryIpc();
     setupDefaultBrowserIpc();
     setupUpdateIpc();
     setupWebpageReaderIpc();
@@ -337,6 +339,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
           await stopRuntimeControlServer();
         }, writeLog))
         .catch(error => writeLog('main', 'storage shutdown failed', String(error)))
+        .then(() => shutdownTelemetry())
         .then(() => flushLogs())
         .finally(() => {
           pluginTeardownComplete = true;
@@ -344,6 +347,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         });
     });
     startupMark("pluginsActivated");
+    trackTelemetry('app_started');
     void ensureRuntimeControlServer(writeLog).then((ok) => {
       if (!ok) {
         void writeLog(

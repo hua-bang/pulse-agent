@@ -36,6 +36,7 @@ A matching trigger requires reading its owner before changing code. Keep detaile
 | Add agent tool / built-in main plugin | `harness/skills/add-agent-tool/SKILL.md`, `harness/skills/add-builtin-main-plugin/SKILL.md` |
 | Capability shared by Tool + CLI | `../../harness/skills/add-canvas-capability/SKILL.md` |
 | Latency and tracing | `harness/skills/diagnose-agent-latency/SKILL.md`, `harness/knowledge/langfuse-observability.md` |
+| Anonymous usage telemetry events, opt-out setting | `src/shared/api/telemetry.ts`, `../telemetry-gateway/AGENTS.md` |
 | Add/reuse a UI primitive or verify visual baseline | `harness/skills/extend-blessed-ui/SKILL.md`, `harness/tools/ui-showcase/README.md` |
 | Agent teams / channel plugin | `src/main/agent-teams/`, `src/renderer/src/modules/agent-team/`; `src/plugins/main/channel/README.md` |
 | Drive the app / choose validation | `harness/skills/canvas-harness/SKILL.md`, `harness/skills/canvas-onboard-harness/SKILL.md`, `harness/skills/validate-canvas-change/SKILL.md` |

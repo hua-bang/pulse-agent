@@ -34,6 +34,7 @@ import type { IframeApi } from './iframe';
 import type { LinkApi } from './link';
 import type { LlmApi } from './llm';
 import type { ShellApi } from './shell';
+import type { TelemetryApi } from './telemetry';
 import type { WebApi } from './web';
 
 export interface PluginBridge {
@@ -239,4 +240,5 @@ export interface CanvasWorkspaceApi {
   history: BrowsingHistoryApi;
   plugin: PluginBridge;
   pluginMarket: PluginMarketApi;
+  telemetry: TelemetryApi;
 }

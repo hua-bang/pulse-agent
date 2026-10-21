@@ -1,0 +1,23 @@
+# Deploy: `wrangler deploy` from this directory (Wrangler is a global CLI,
+# not a workspace dependency). Secrets: `wrangler secret put POSTHOG_API_KEY`.
+name = "pulse-telemetry-gateway"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Serve from your own domain; workers.dev is often unreachable from mainland
+# China. Uncomment and set a hostname on a zone in this Cloudflare account.
+# routes = [{ pattern = "t.example.com", custom_domain = true }]
+
+[vars]
+POSTHOG_HOST = "https://us.i.posthog.com"
+
+# Raw copy of every event, queryable with the Analytics Engine SQL API.
+[[analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "pulse_canvas_events"
+
+# 60 requests per device id per minute. A client sends about one per 30 s.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }

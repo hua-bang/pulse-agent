@@ -10,6 +10,7 @@ import type { CanvasModelApi, PromptProfileApi } from "../../shared/api/models";
 import type { ChannelConfigApi } from "../../shared/api/channel-config";
 import type { DialogApi } from "../../shared/api/files";
 import type { ExperimentalApi } from "../../shared/api/experimental";
+import type { TelemetryApi } from "../../shared/api/telemetry";
 import type { ToolingInstallStatus } from "../../shared/experimental-features";
 
 export const createDialogApi = (ipcRenderer: IpcRenderer): DialogApi => ({
@@ -164,4 +165,10 @@ export const createModelApi = (ipcRenderer: IpcRenderer): CanvasModelApi => ({
     ipcRenderer.invoke("canvas-model:remove-option", { name }),
 
   reset: () => ipcRenderer.invoke("canvas-model:reset")
+});
+
+export const createTelemetryApi = (ipcRenderer: IpcRenderer): TelemetryApi => ({
+  track: (event, props) => ipcRenderer.invoke("telemetry:track", { event, props }),
+  status: () => ipcRenderer.invoke("telemetry:status"),
+  setEnabled: (enabled) => ipcRenderer.invoke("telemetry:set-enabled", { enabled })
 });

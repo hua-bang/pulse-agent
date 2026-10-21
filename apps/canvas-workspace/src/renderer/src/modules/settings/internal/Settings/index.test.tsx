@@ -56,6 +56,7 @@ vi.mock('./BuiltInToolsSection', () => ({ BuiltInToolsSection: () => <div>Tools 
 vi.mock('./ExperimentalSection', () => ({ ExperimentalSection: () => <div>Experimental content</div> }));
 vi.mock('./LanguageSection', () => ({ LanguageSection: () => <div>Language content</div> }));
 vi.mock('./UpdateSection', () => ({ UpdateSection: () => <div>Updates content</div> }));
+vi.mock('./TelemetrySection', () => ({ TelemetrySection: () => <div>Telemetry content</div> }));
 vi.mock('../settings-config/McpManager', () => ({ McpManager: () => <div>MCP content</div> }));
 vi.mock('../settings-config/PluginsManager', () => ({ PluginsManager: () => <div>Plugins content</div> }));
 
@@ -149,5 +150,6 @@ describe('Settings navigation', () => {
     expect(host?.textContent).toContain('Browser content');
     expect(host?.textContent).toContain('Language content');
     expect(host?.textContent).toContain('Updates content');
+    expect(host?.textContent).toContain('Telemetry content');
   });
 });

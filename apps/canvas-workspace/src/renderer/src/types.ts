@@ -21,6 +21,7 @@ export type * from '../../shared/api/llm';
 export type * from '../../shared/api/models';
 export type * from '../../shared/api/settings-config';
 export type * from '../../shared/api/shell';
+export type * from '../../shared/api/telemetry';
 export type * from '../../shared/api/web';
 export type * from '../../shared/api/workspace-api';
 

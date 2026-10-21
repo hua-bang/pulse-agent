@@ -29,7 +29,8 @@ import {
   createExperimentalApi,
   createModelApi,
   createPromptProfileApi,
-  createSkillsApi
+  createSkillsApi,
+  createTelemetryApi
 } from "./bridge/settings";
 import { createStoreApi } from "./bridge/store";
 import {
@@ -96,7 +97,8 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   pluginMarket: createPluginMarketApi(ipcRenderer),
   dock: createDockApi(ipcRenderer),
   history: createHistoryApi(ipcRenderer),
-  web: createWebApi(ipcRenderer)
+  web: createWebApi(ipcRenderer),
+  telemetry: createTelemetryApi(ipcRenderer)
 };
 
 contextBridge.exposeInMainWorld("canvasWorkspace", canvasWorkspace);
