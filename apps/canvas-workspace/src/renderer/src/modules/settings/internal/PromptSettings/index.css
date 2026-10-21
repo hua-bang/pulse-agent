@@ -25,7 +25,7 @@
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.5;
-  color: rgba(55, 53, 47, 0.62);
+  color: rgba(var(--ink-rgb), 0.62);
   letter-spacing: 0;
   text-transform: none;
   font-weight: 500;
@@ -37,10 +37,10 @@
 
 .chat-prompt-custom-textarea {
   min-height: 132px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: var(--radius-md);
-  background: #fff;
-  color: #37352f;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   font-size: 13px;
   line-height: 1.55;

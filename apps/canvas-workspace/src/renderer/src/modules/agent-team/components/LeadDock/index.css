@@ -3,7 +3,7 @@
   min-height: 0;
   border: 1px solid rgba(92, 128, 183, 0.16);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(var(--surface-rgb), 0.86);
   box-shadow: 0 12px 26px rgba(31, 54, 88, 0.045);
 }
 
@@ -14,8 +14,8 @@
   border-radius: var(--radius-xl);
   border-color: rgba(92, 128, 183, 0.18);
   background:
-    linear-gradient(180deg, rgba(244, 249, 255, 0.95), rgba(255, 255, 255, 0.92)),
-    rgba(255, 255, 255, 0.88);
+    linear-gradient(180deg, var(--bg), rgba(var(--surface-rgb), 0.92)),
+    rgba(var(--surface-rgb), 0.88);
   box-shadow: 0 14px 30px rgba(31, 54, 88, 0.06);
 }
 
@@ -58,7 +58,7 @@
   overflow: hidden;
   border: 1px solid rgba(35, 131, 226, 0.12);
   border-radius: var(--radius-xl);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(var(--surface-rgb), 0.92);
   box-shadow: 0 6px 16px rgba(31, 54, 88, 0.045);
 }
 
@@ -95,7 +95,7 @@
   padding: 12px;
   border: 1px solid rgba(35, 131, 226, 0.12);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(var(--surface-rgb), 0.72);
 }
 
 .agent-team-lead-dock__current strong {

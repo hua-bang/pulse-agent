@@ -13,9 +13,9 @@
 }
 
 .updates-section-card {
-  border: 1px solid rgba(55, 53, 47, 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -37,7 +37,7 @@
 }
 
 .updates-section-status-desc {
-  color: rgba(55, 53, 47, 0.62);
+  color: rgba(var(--ink-rgb), 0.62);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -46,9 +46,9 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border: 1px solid rgba(55, 53, 47, 0.09);
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
   border-radius: var(--radius-md);
-  background: rgba(248, 248, 247, 0.72);
+  background: var(--bg);
   padding: 14px;
 }
 
@@ -71,12 +71,12 @@
   flex: 0 0 auto;
   border-radius: var(--radius-md);
   background: rgba(35, 131, 226, 0.09);
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .updates-section-status--error .updates-section-status-icon {
   background: rgba(226, 70, 70, 0.08);
-  color: #b3261e;
+  color: var(--error);
 }
 
 .updates-section-status-icon--loading svg {
@@ -92,7 +92,7 @@
 }
 
 .updates-section-status-title {
-  color: #37352f;
+  color: var(--ink);
   font-size: 13.5px;
   font-weight: 500;
   line-height: 1.35;
@@ -102,15 +102,15 @@
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  color: rgba(55, 53, 47, 0.56);
+  color: rgba(var(--ink-rgb), 0.56);
   font-size: 11.5px;
   line-height: 1.45;
 }
 
 .updates-section-version-grid span {
-  border: 1px solid rgba(55, 53, 47, 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(var(--surface-rgb), 0.7);
   padding: 2px 8px;
 }
 

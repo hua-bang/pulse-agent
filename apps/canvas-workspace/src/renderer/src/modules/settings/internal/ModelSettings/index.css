@@ -12,10 +12,10 @@
 }
 
 .chat-model-provider-rail {
-  border-right: 1px solid rgba(55, 53, 47, 0.07);
+  border-right: 1px solid rgba(var(--ink-rgb), 0.07);
   padding: 14px 12px;
   overflow-y: auto;
-  background: rgba(55, 53, 47, 0.022);
+  background: rgba(var(--ink-rgb), 0.022);
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -31,14 +31,14 @@
   align-items: center;
   gap: 9px;
   text-align: left;
-  color: #5f5e59;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .chat-model-provider-tab:hover,
 .chat-model-provider-tab--active {
   background: rgba(35, 131, 226, 0.08);
-  color: #37352f;
+  color: var(--ink);
 }
 
 .chat-model-provider-status {
@@ -75,7 +75,7 @@
 
 .chat-model-provider-tab-text small {
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.45);
+  color: rgba(var(--ink-rgb), 0.45);
 }
 
 .chat-model-settings-form {
@@ -88,9 +88,9 @@
 }
 
 .chat-model-settings-card {
-  border: 1px solid rgba(55, 53, 47, 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: var(--radius-xl);
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 8px 24px rgba(55, 53, 47, 0.04);
 }
 
@@ -103,20 +103,20 @@
 
 .chat-model-settings-card strong {
   font-size: 13px;
-  color: #37352f;
+  color: var(--ink);
 }
 
 .chat-model-settings-card p {
   margin: 4px 0 0;
   font-size: 12px;
   line-height: 1.45;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
 }
 
 .chat-model-settings-error {
   border: 1px solid rgba(218, 54, 51, 0.18);
   background: rgba(218, 54, 51, 0.06);
-  color: #8b2f2a;
+  color: var(--error);
   border-radius: 9px;
   padding: 8px 10px;
   font-size: 12px;
@@ -136,10 +136,10 @@
   gap: 4px;
   min-height: 66px;
   padding: 10px 11px;
-  border: 1px solid rgba(55, 53, 47, 0.1);
+  border: 1px solid rgba(var(--ink-rgb), 0.1);
   border-radius: var(--radius-lg);
-  background: #fff;
-  color: #37352f;
+  background: var(--surface);
+  color: var(--ink);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
@@ -151,7 +151,7 @@
 }
 
 .chat-model-preset--active {
-  border-color: #2383e2;
+  border-color: var(--accent);
   background: rgba(35, 131, 226, 0.08);
   box-shadow: var(--shadow-focus);
 }
@@ -162,7 +162,7 @@
 }
 
 .chat-model-preset__description {
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
   font-size: 11px;
   line-height: 1.35;
 }
@@ -176,16 +176,16 @@
 .chat-model-field span {
   font-size: 11px;
   font-weight: 500;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
 }
 
 .chat-model-field input,
 .chat-model-field select {
   height: 34px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: var(--radius-md);
-  background: #fff;
-  color: #37352f;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   font-size: 13px;
   padding: 0 10px;
@@ -205,19 +205,19 @@
   letter-spacing: 0;
   text-transform: none;
   font-weight: 500;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
 }
 
 .chat-model-field .chat-model-field-hint--ok {
-  color: #2f8a3d;
+  color: var(--success);
 }
 
 .chat-model-field .chat-model-field-hint--warn {
-  color: #c2410c;
+  color: var(--error);
 }
 
 .chat-model-field .chat-model-field-hint--info {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .chat-model-protocol-toggle {
@@ -232,9 +232,9 @@
   align-items: flex-start;
   gap: 3px;
   padding: 9px 11px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--surface);
   text-align: left;
   cursor: pointer;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
@@ -246,7 +246,7 @@
 }
 
 .chat-model-protocol-option--active {
-  border-color: #2383e2;
+  border-color: var(--accent);
   background: rgba(35, 131, 226, 0.08);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
 }
@@ -258,7 +258,7 @@
 .chat-model-field .chat-model-protocol-title {
   font-size: 13px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -266,14 +266,14 @@
 .chat-model-field .chat-model-protocol-sub {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
 }
 
 .chat-model-field .chat-model-protocol-option--active .chat-model-protocol-title {
-  color: #1a64b8;
+  color: var(--text-info);
 }
 
 .chat-model-field .chat-model-protocol-option--active .chat-model-protocol-sub {
@@ -295,9 +295,9 @@
 .chat-model-danger-btn {
   height: 34px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  background: var(--surface);
+  color: var(--ink);
   padding: 0 11px;
   font-size: 12px;
   font-weight: 500;
@@ -310,12 +310,12 @@
 }
 
 .chat-model-secondary-btn:hover {
-  background: rgba(55, 53, 47, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
 }
 
 .chat-model-primary-btn {
-  border-color: #2383e2;
-  background: #2383e2;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -332,7 +332,7 @@
 .chat-model-danger-btn {
   width: 34px;
   padding: 0;
-  color: #b42318;
+  color: var(--error);
   border-color: rgba(180, 35, 24, 0.12);
   background: rgba(180, 35, 24, 0.04);
   flex-shrink: 0;
@@ -358,17 +358,17 @@
 
 .chat-model-settings-empty {
   width: 100%;
-  border: 1px dashed rgba(55, 53, 47, 0.14);
+  border: 1px dashed rgba(var(--ink-rgb), 0.14);
   border-radius: var(--radius-lg);
   padding: 12px;
-  color: rgba(55, 53, 47, 0.48);
+  color: rgba(var(--ink-rgb), 0.48);
   font-size: 12px;
   line-height: 1.45;
 }
 
 .chat-model-settings-footer {
   min-height: 56px;
-  border-top: 1px solid rgba(55, 53, 47, 0.07);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.07);
   padding: 10px 14px;
   display: flex;
   align-items: center;
@@ -381,6 +381,6 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: rgba(55, 53, 47, 0.38);
+  color: rgba(var(--ink-rgb), 0.38);
   font-size: 11px;
 }

@@ -86,7 +86,7 @@
 
 .agent-team-managed--done .agent-team-managed__status {
   background: var(--agent-success-soft);
-  color: #1f6f45;
+  color: var(--success);
 }
 
 .agent-team-managed--done .agent-team-managed__status::before {
@@ -114,7 +114,7 @@
   padding: 11px 12px;
   border: 1px solid rgba(35, 131, 226, 0.12);
   border-radius: 11px;
-  background: rgba(247, 250, 255, 0.86);
+  background: var(--bg);
 }
 
 .agent-team-managed__fact {

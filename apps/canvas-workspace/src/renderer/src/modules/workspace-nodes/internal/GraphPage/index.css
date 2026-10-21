@@ -1,14 +1,14 @@
 .workspace-graph-page {
   background:
-    radial-gradient(900px circle at 46% 38%, rgba(35, 131, 226, 0.08) 0%, rgba(255, 255, 255, 0.9) 52%, rgba(248, 248, 247, 1) 82%),
+    radial-gradient(900px circle at 46% 38%, rgba(35, 131, 226, 0.08) 0%, rgba(var(--surface-rgb), 0.9) 52%, var(--bg) 82%),
     radial-gradient(680px circle at 72% 66%, rgba(217, 115, 13, 0.05) 0%, rgba(255, 255, 255, 0) 70%),
-    linear-gradient(180deg, #ffffff 0%, #fbfbfa 58%, #f8f8f7 100%);
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 58%, var(--bg) 100%);
 }
 
 .workspace-graph-force-layer {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle at 1px 1px, rgba(55, 53, 47, 0.09) 1px, rgba(0, 0, 0, 0) 0);
+  background-image: radial-gradient(circle at 1px 1px, rgba(var(--ink-rgb), 0.09) 1px, rgba(var(--shade-rgb), 0) 0);
   background-size: 26px 26px;
   z-index: 1;
 }
@@ -24,7 +24,7 @@
   height: 30px;
   border: 1px solid var(--nodes-border);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(var(--surface-rgb), 0.92);
   padding: 0 11px;
   color: var(--nodes-muted);
   font-size: 12px;

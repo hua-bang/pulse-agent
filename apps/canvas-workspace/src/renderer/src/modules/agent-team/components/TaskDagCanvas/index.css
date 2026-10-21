@@ -42,7 +42,7 @@
   height: 30px;
   border: 1px solid rgba(122, 167, 232, 0.24);
   border-radius: var(--radius-pill);
-  background: rgba(245, 249, 255, 0.94);
+  background: var(--bg);
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 500;
@@ -57,8 +57,8 @@
   width: 21px;
   height: 21px;
   border-radius: var(--radius-pill);
-  background: #dcecff;
-  color: #285b95;
+  background: var(--tint-info);
+  color: var(--text-info);
   font-size: 11px;
   line-height: 1;
 }
@@ -79,8 +79,8 @@
   padding: 0 11px;
   border: 1px solid rgba(122, 167, 232, 0.28);
   border-radius: var(--radius-pill);
-  background: rgba(238, 245, 255, 0.96);
-  color: #285b95;
+  background: var(--tint-info);
+  color: var(--text-info);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -100,8 +100,8 @@
   border-color: rgba(139, 154, 177, 0.26);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(249, 251, 254, 0.95)),
-    rgba(255, 255, 255, 0.94);
+    linear-gradient(180deg, rgba(var(--surface-rgb), 0.97), var(--bg)),
+    rgba(var(--surface-rgb), 0.94);
   color: var(--text);
   text-align: left;
   box-shadow: 0 8px 20px rgba(31, 54, 88, 0.05);
@@ -109,30 +109,30 @@
 
 .agent-team-frame .agent-team-dag-node:hover:not(:disabled),
 .agent-team-frame .agent-team-dag-node--selected {
-  border-color: #86b7f1;
-  background: #f5f9ff;
+  border-color: var(--tint-info-border);
+  background: var(--bg);
   box-shadow: 0 10px 24px rgba(35, 131, 226, 0.11);
 }
 
 .agent-team-frame .agent-team-dag-node--owner-highlight:not(.agent-team-dag-node--selected) {
-  border-color: #b3bdec;
+  border-color: var(--tint-info-border);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.26), 0 8px 20px rgba(31, 54, 88, 0.05);
 }
 
 .agent-team-frame .agent-team-dag-node--warning {
-  border-color: #ead18b;
-  background: #fffaf0;
+  border-color: var(--tint-warning-border);
+  background: var(--bg);
 }
 
 .agent-team-frame .agent-team-dag-node--done {
   border-color: rgba(103, 180, 133, 0.38);
-  background: #f5fbf7;
+  background: var(--bg);
 }
 
 .agent-team-frame .agent-team-dag-node--needs_input,
 .agent-team-frame .agent-team-dag-node--blocked {
   border-color: rgba(213, 150, 43, 0.42);
-  background: #fffaf0;
+  background: var(--bg);
 }
 
 .agent-team-dag-node__copy {

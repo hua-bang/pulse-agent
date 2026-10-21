@@ -11,7 +11,7 @@
   overflow: hidden;
   border: 1px solid rgba(31, 35, 40, 0.1);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .chat-message-image-card img,
@@ -20,7 +20,7 @@
   max-width: min(100%, 420px);
   max-height: 320px;
   object-fit: contain;
-  background: #f8fafc;
+  background: var(--bg);
 }
 
 .chat-message-image-card figcaption,
@@ -31,7 +31,7 @@
   gap: 10px;
   padding: 8px 10px;
   font-size: 12px;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .chat-message-image-card figcaption>span:first-child,
@@ -52,8 +52,8 @@
 .chat-generated-image-card__action {
   border: 1px solid rgba(31, 35, 40, 0.12);
   border-radius: var(--radius-pill);
-  background: #fff;
-  color: #374151;
+  background: var(--surface);
+  color: var(--text-info);
   cursor: pointer;
   font-size: 12px;
   padding: 4px 10px;
@@ -67,7 +67,7 @@
 .chat-generated-image-card__action--primary {
   border-color: rgba(37, 99, 235, 0.22);
   background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
+  color: var(--text-info);
 }
 
 .chat-generated-image-card__action--primary:hover {
@@ -106,7 +106,7 @@
 }
 
 .chat-message-user .chat-message-image-card figcaption {
-  background: rgba(248, 250, 252, 0.95);
+  background: var(--bg);
 }
 /* ─── AI chat accessibility / responsive overrides ────────── */
 /* Small supporting copy still carries meaning, so keep it at normal-text
@@ -207,7 +207,7 @@
 .chat-mention-chip[data-node-type="dom"] {
   background: rgba(20, 184, 166, 0.09);
   border-color: rgba(20, 184, 166, 0.22);
-  color: #0f766e;
+  color: var(--text-info);
 }
 
 .chat-mention-chip--dom .chat-mention-chip-icon,
@@ -227,7 +227,7 @@
 
 .chat-panel-resize:hover,
 .chat-panel-resize--active {
-  background: rgba(55, 53, 47, 0.12);
+  background: rgba(var(--ink-rgb), 0.12);
 }
 
 .chat-mention-chip--file { gap: 6px; padding: 3px 8px 3px 6px; background: var(--surface-subtle); border-color: var(--border-light); }

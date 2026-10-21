@@ -50,7 +50,7 @@
   padding: 0 8px;
   font-size: 14px;
   line-height: 1.3;
-  color: #1f2328;
+  color: var(--text);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -70,7 +70,7 @@
   font-size: 20px;
   font-weight: 500;
   padding: 0 10px;
-  color: #1f2328;
+  color: var(--text);
 }
 
 /* Force the root topic onto a single line even though .mindmap-topic-text

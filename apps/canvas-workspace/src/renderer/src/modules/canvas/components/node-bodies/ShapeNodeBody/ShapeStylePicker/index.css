@@ -9,9 +9,9 @@
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(var(--shade-rgb), 0.12);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(var(--surface-rgb), 0.95);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   cursor: pointer;
   display: flex;
@@ -20,7 +20,7 @@
 }
 
 .shape-style-preview:hover {
-  border-color: rgba(0, 0, 0, 0.2);
+  border-color: rgba(var(--shade-rgb), 0.2);
 }
 
 .shape-style-preview-svg {
@@ -44,7 +44,7 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted, #6e7681);
+  color: var(--text-muted, var(--text-secondary));
 }
 
 .shape-style-widths {
@@ -56,9 +56,9 @@
   width: 32px;
   height: 24px;
   padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(var(--shade-rgb), 0.12);
   border-radius: var(--radius-xs);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -66,11 +66,11 @@
 }
 
 .shape-style-width-btn:hover {
-  border-color: rgba(0, 0, 0, 0.25);
+  border-color: rgba(var(--shade-rgb), 0.25);
 }
 
 .shape-style-width-btn--active {
-  outline: 2px solid var(--accent, #2383e2);
+  outline: 2px solid var(--accent, var(--accent));
   outline-offset: 1px;
 }
 

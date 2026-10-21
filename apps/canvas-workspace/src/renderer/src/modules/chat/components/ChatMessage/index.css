@@ -52,7 +52,7 @@
 
 .chat-message-timestamp {
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.42);
+  color: rgba(var(--ink-rgb), 0.42);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: default;
@@ -63,9 +63,9 @@
    chrome `.ui-btn--icon` strips so it matches its copy / regenerate siblings. */
 .chat-message-toolbar-btn,
 .chat-message-toolbar-btn.ui-btn--icon {
-  border: 1px solid rgba(55, 53, 47, 0.1);
-  background: #fff;
-  color: rgba(55, 53, 47, 0.55);
+  border: 1px solid rgba(var(--ink-rgb), 0.1);
+  background: var(--surface);
+  color: rgba(var(--ink-rgb), 0.55);
   font-size: 11px;
   font-weight: 500;
   padding: 3px 9px;
@@ -79,20 +79,20 @@
 
 .chat-message-toolbar-btn:hover,
 .chat-message-toolbar .chat-message-toolbar-btn.ui-btn--icon:hover {
-  background: rgba(55, 53, 47, 0.05);
-  color: #37352f;
-  border-color: rgba(55, 53, 47, 0.18);
+  background: rgba(var(--ink-rgb), 0.05);
+  color: var(--ink);
+  border-color: rgba(var(--ink-rgb), 0.18);
 }
 
 .chat-message-toolbar-btn--copied {
   background: rgba(46, 160, 67, 0.12);
-  color: #2f8a3d;
+  color: var(--success);
   border-color: rgba(46, 160, 67, 0.2);
 }
 
 .chat-message-toolbar-btn--copied:hover {
   background: rgba(46, 160, 67, 0.16);
-  color: #2f8a3d;
+  color: var(--success);
   border-color: rgba(46, 160, 67, 0.28);
 }
 
@@ -107,8 +107,8 @@
 }
 
 .chat-message-toolbar-btn--primary {
-  background: #2383e2;
-  border-color: #2383e2;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -119,8 +119,8 @@
 }
 
 .chat-message-toolbar-btn--primary:disabled {
-  background: rgba(55, 53, 47, 0.18);
-  border-color: rgba(55, 53, 47, 0.18);
+  background: rgba(var(--ink-rgb), 0.18);
+  border-color: rgba(var(--ink-rgb), 0.18);
   color: #fff;
   cursor: not-allowed;
 }
@@ -130,7 +130,7 @@
 .chat-message-edit {
   width: 100%;
   max-width: min(92%, 560px);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid rgba(35, 131, 226, 0.4);
   border-radius: var(--radius-xl);
   border-bottom-right-radius: 4px;
@@ -151,7 +151,7 @@
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
-  color: #37352f;
+  color: var(--ink);
   padding: 0;
 }
 
@@ -174,7 +174,7 @@
   flex: 1;
   min-width: 0;
   font-size: 10.5px;
-  color: rgba(55, 53, 47, 0.42);
+  color: rgba(var(--ink-rgb), 0.42);
 }
 /* ─── Broken image placeholder ─────────────────────────────── */
 
@@ -188,8 +188,8 @@
   align-items: center;
   justify-content: center;
   height: 120px;
-  background: rgba(55, 53, 47, 0.04);
-  color: rgba(55, 53, 47, 0.45);
+  background: rgba(var(--ink-rgb), 0.04);
+  color: rgba(var(--ink-rgb), 0.45);
   font-size: 12px;
   font-style: italic;
 }
@@ -207,12 +207,12 @@
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  border: 1px solid rgba(55, 53, 47, 0.09);
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
   border-radius: var(--radius-sm);
-  background: rgba(55, 53, 47, 0.028);
+  background: rgba(var(--ink-rgb), 0.028);
   font-family: inherit;
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.7);
+  color: rgba(var(--ink-rgb), 0.7);
   cursor: pointer;
   text-align: left;
   transition: background 0.12s, border-color 0.12s;
@@ -220,35 +220,35 @@
 }
 
 .chat-session-ref-chip:hover {
-  background: rgba(55, 53, 47, 0.06);
-  border-color: rgba(55, 53, 47, 0.16);
+  background: rgba(var(--ink-rgb), 0.06);
+  border-color: rgba(var(--ink-rgb), 0.16);
 }
 
 .chat-session-ref-icon {
   flex-shrink: 0;
-  color: rgba(55, 53, 47, 0.4);
+  color: rgba(var(--ink-rgb), 0.4);
 }
 
 .chat-session-ref-name {
   font-weight: 500;
-  color: rgba(55, 53, 47, 0.85);
+  color: rgba(var(--ink-rgb), 0.85);
   white-space: nowrap;
 }
 
 .chat-session-ref-date {
-  color: rgba(55, 53, 47, 0.4);
+  color: rgba(var(--ink-rgb), 0.4);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .chat-session-ref-count {
-  color: rgba(55, 53, 47, 0.35);
+  color: rgba(var(--ink-rgb), 0.35);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .chat-session-ref-preview {
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;

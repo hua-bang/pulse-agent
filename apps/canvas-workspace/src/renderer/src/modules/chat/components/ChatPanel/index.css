@@ -7,8 +7,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fdfcfb;
-  border-left: 1px solid rgba(55, 53, 47, 0.08);
+  background: var(--bg);
+  border-left: 1px solid rgba(var(--ink-rgb), 0.08);
   font-family: var(--font);
   position: relative;
 }
@@ -22,8 +22,8 @@
   min-height: 58px;
   padding: 10px 14px 10px 18px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.06);
-  background: #ffffff;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+  background: var(--surface);
 }
 
 .chat-panel-title-wrapper {
@@ -56,7 +56,7 @@
   max-width: 280px;
   font-size: 14px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
@@ -66,7 +66,7 @@
 }
 
 .chat-panel-title-btn:hover {
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
 }
 
 .chat-panel-title-btn svg {
@@ -81,7 +81,7 @@
 }
 
 .chat-panel-title-chevron {
-  color: #b4b4b0 !important;
+  color: var(--text-muted) !important;
   margin-left: -2px;
 }
 
@@ -100,8 +100,8 @@
   z-index: 100;
   min-width: 260px;
   max-width: 360px;
-  background: #fff;
-  border: 1px solid rgba(55, 53, 47, 0.09);
+  background: var(--surface);
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
   border-radius: var(--radius-md);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
   padding: 4px;
@@ -133,26 +133,26 @@
   border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
-  color: #37352f;
+  color: var(--ink);
   transition: background 0.1s;
 }
 
 .chat-session-menu-new:hover,
 .chat-session-menu-new:focus-visible {
   outline: none;
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
 }
 
 .chat-session-menu-divider {
   height: 1px;
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
   margin: 4px 0;
 }
 
 .chat-session-menu-label {
   font-size: 11px;
   font-weight: 500;
-  color: #9b9a97;
+  color: var(--text-muted);
   padding: 4px 10px 2px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -173,7 +173,7 @@
   gap: 8px;
   padding: 8px 10px;
   font-size: 13px;
-  color: #9b9a97;
+  color: var(--text-muted);
 }
 
 .chat-spin {
@@ -191,7 +191,7 @@
   border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
-  color: #37352f;
+  color: var(--ink);
   transition: background 0.1s;
   text-align: left;
 }
@@ -199,16 +199,16 @@
 .chat-session-menu-item:hover,
 .chat-session-menu-item:focus-visible {
   outline: none;
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
 }
 
 .chat-session-menu-item--active,
 .chat-session-menu-item--active:focus-visible {
-  background: rgba(55, 53, 47, 0.04);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 
 .chat-session-menu-item svg {
-  color: #9b9a97;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -221,7 +221,7 @@
 
 .chat-session-menu-item-count {
   font-size: 11px;
-  color: #b4b4b0;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -231,8 +231,8 @@
 
 .chat-session-menu-item-ws {
   font-size: 10px;
-  color: #9b9a97;
-  background: rgba(55, 53, 47, 0.06);
+  color: var(--text-muted);
+  background: rgba(var(--ink-rgb), 0.06);
   border-radius: 3px;
   padding: 1px 5px;
   flex-shrink: 0;
@@ -285,7 +285,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9b9a97;
+  color: var(--text-muted);
   transition: background 0.1s, color 0.1s;
 }
 
@@ -293,8 +293,8 @@
  * full-page chat's Tab-panel switch), sharing the hover treatment. */
 .chat-panel-action-btn:hover,
 .chat-panel-action-btn[data-active='true'] {
-  background: rgba(55, 53, 47, 0.08);
-  color: #37352f;
+  background: rgba(var(--ink-rgb), 0.08);
+  color: var(--ink);
 }
 
 /* Stays in place (not hidden) when there's nothing to toggle yet — e.g. the

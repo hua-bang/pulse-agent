@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import { TERMINAL_OPTIONS } from '../../../../../../config/terminalTheme';
+import { TERMINAL_OPTIONS, TerminalThemeAddon } from '../../../../../../config/terminalTheme';
 import { handleTerminalShortcut } from '../../../../../../shortcuts/terminalShortcuts';
 import type { CanvasNode, TerminalNodeData } from '../../../../../../types';
 import {
@@ -138,6 +138,7 @@ export function useTerminalNodeRuntime({
     const term = new Terminal(TERMINAL_OPTIONS);
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    term.loadAddon(new TerminalThemeAddon());
     term.open(container);
     termRef.current = term;
     fitRef.current = fitAddon;

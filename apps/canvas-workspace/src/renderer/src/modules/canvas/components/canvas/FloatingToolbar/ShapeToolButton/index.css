@@ -26,7 +26,7 @@
   bottom: 6px;
   left: 0;
   width: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(var(--shade-rgb), 0.08);
 }
 
 .shape-tool-popover {
@@ -56,7 +56,7 @@
 .shape-tool-option:hover,
 .shape-tool-option:focus-visible {
   outline: none;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
   color: var(--text);
 }
 

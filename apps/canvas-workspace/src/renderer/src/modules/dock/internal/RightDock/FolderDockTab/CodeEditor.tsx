@@ -4,10 +4,7 @@ import {
   EditorView, drawSelection, dropCursor, highlightActiveLine,
   highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers,
 } from '@codemirror/view';
-import {
-  bracketMatching, defaultHighlightStyle, foldGutter, StreamLanguage,
-  syntaxHighlighting,
-} from '@codemirror/language';
+import { bracketMatching, foldGutter, StreamLanguage } from '@codemirror/language';
 import {
   defaultKeymap, history, historyKeymap, indentWithTab,
   redo, redoDepth, undo, undoDepth,
@@ -17,8 +14,10 @@ import { ArrowCounterClockwise, ArrowClockwise } from '@phosphor-icons/react';
 import { Button, Portal } from '../../../../../components/ui';
 import { EditorSearchPanel } from './EditorSearchPanel';
 import { useEditorSearchPanel } from './useEditorSearchPanel';
+import { editorHighlighting } from './editorHighlight';
 import './search-panel.css';
 import { useI18n } from '../../../../../i18n';
+import { getResolvedTheme, useResolvedTheme } from '../../../../../shared/theme';
 
 interface Props { path: string; content: string; original: string; saving: boolean; onChange: (content: string) => void }
 
@@ -80,13 +79,15 @@ export const CodeEditor = ({ path, content, original, saving, onChange }: Props)
   onChangeRef.current = onChange;
   const editable = useRef(new Compartment());
   const language = useRef(new Compartment());
+  const highlighting = useRef(new Compartment());
+  const theme = useResolvedTheme();
   const searchPanel = useEditorSearchPanel();
   const [historyState, setHistoryState] = useState({ undo: false, redo: false });
   const separator = original.includes('\r\n') ? '\r\n' : '\n';
   const baseExtensions = useMemo(() => [
     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
     history(), foldGutter(), drawSelection(), dropCursor(), bracketMatching(),
-    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    highlighting.current.of(editorHighlighting(getResolvedTheme())),
     keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
     searchPanel.extension,
     EditorState.lineSeparator.of(separator),
@@ -125,6 +126,10 @@ export const CodeEditor = ({ path, content, original, saving, onChange }: Props)
     const view = viewRef.current;
     if (view) syncEditorContent(view, content);
   }, [content]);
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: highlighting.current.reconfigure(editorHighlighting(theme)) });
+  }, [theme]);
 
   useEffect(() => {
     let current = true;

@@ -105,7 +105,7 @@
 }
 
 .iframe-empty-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .iframe-empty-btn--primary {
@@ -134,7 +134,7 @@
 .iframe-mode-tabs {
   display: flex;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
   border-radius: var(--radius-sm);
   padding: 2px;
 }
@@ -236,7 +236,7 @@
   width: 10px;
   height: 10px;
   border-width: 1.5px;
-  border-color: rgba(0, 0, 0, 0.15);
+  border-color: rgba(var(--shade-rgb), 0.15);
   border-top-color: var(--text-muted);
 }
 
@@ -251,7 +251,7 @@
 
 .iframe-review-selection {
   position: absolute;
-  border: 2px solid #2383e2;
+  border: 2px solid var(--accent);
   background: rgba(35, 131, 226, 0.08);
   border-radius: var(--radius-xs);
   box-shadow: 0 0 0 99999px rgba(15, 23, 42, 0.04);
@@ -264,7 +264,7 @@
   height: 22px;
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: var(--radius-pill);
-  background: #2383e2;
+  background: var(--accent);
   color: #fff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
   font-size: 11px;
@@ -286,7 +286,7 @@
   padding: 9px;
   border: 1px solid rgba(17, 24, 39, 0.14);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.98);
+  background: rgba(var(--surface-rgb), 0.98);
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.2);
   pointer-events: auto;
 }
@@ -298,7 +298,7 @@
 .iframe-review-popover__label {
   margin-bottom: 6px;
   overflow: hidden;
-  color: #111827;
+  color: var(--text);
   font-size: 11px;
   font-weight: 500;
   text-overflow: ellipsis;
@@ -312,14 +312,14 @@
   border: 1px solid rgba(17, 24, 39, 0.16);
   border-radius: var(--radius-sm);
   padding: 7px;
-  color: #111827;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   font: 12px/1.4 inherit;
   outline: none;
 }
 
 .iframe-review-textarea:focus {
-  border-color: #2383e2;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.14);
 }
 
@@ -348,9 +348,9 @@
   padding: 5px 6px 5px 10px;
   border: 1px solid rgba(17, 24, 39, 0.14);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--surface-rgb), 0.96);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-  color: #111827;
+  color: var(--text);
   font-size: 12px;
   font-weight: 500;
   pointer-events: auto;

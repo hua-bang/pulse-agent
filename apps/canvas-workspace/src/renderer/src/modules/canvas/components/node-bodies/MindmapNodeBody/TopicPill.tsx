@@ -188,7 +188,7 @@ export const TopicPill = ({
     transform: `translate(${topic.x}px, ${topic.y}px)`,
     width: topic.width,
     minHeight: topic.height,
-    color: '#1f2328',
+    color: 'var(--text)',
     ['--mindmap-topic-accent' as string]: topic.color,
   };
   const isEmpty = !topic.text;

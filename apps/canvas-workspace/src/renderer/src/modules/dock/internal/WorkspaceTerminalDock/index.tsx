@@ -6,6 +6,7 @@ import {
   BASE_TERMINAL_FONT_SIZE,
   TERMINAL_FONT_SIZE_STEP,
   TERMINAL_OPTIONS,
+  TerminalThemeAddon,
   clampTerminalFontSize,
   readStoredTerminalFontSize,
   storeTerminalFontSize,
@@ -241,6 +242,8 @@ export const WorkspaceTerminalDock = ({
     const term = new Terminal({ ...TERMINAL_OPTIONS, fontSize: fontSizeRef.current });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+
+    term.loadAddon(new TerminalThemeAddon());
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;

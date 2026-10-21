@@ -3,35 +3,44 @@
  *
  * The mermaid bundle weighs roughly 1MB so we only import it the first
  * time a chat message actually contains a `mermaid` fenced block. The
- * initialize call is idempotent — we kick it off once and reuse the
- * resulting promise for every subsequent render.
+ * module promise is reused, and initialize runs again only when the app
+ * theme changes.
  */
+
+import { getResolvedTheme, type ResolvedTheme } from '../shared/theme';
 
 type MermaidApi = typeof import('mermaid').default;
 
 let mermaidPromise: Promise<MermaidApi> | null = null;
+let mermaidTheme: ResolvedTheme | null = null;
 let diagramIdCounter = 0;
+
+const MERMAID_CONFIG = {
+  startOnLoad: false,
+  securityLevel: 'strict',
+  fontFamily: 'inherit',
+  // Without this, mermaid swallows parse errors internally and
+  // resolves render() with its own "bomb icon" error SVG instead of
+  // rejecting — bypassing the chat-mermaid-error / inline-visual
+  // error UI below entirely. Suppressing it makes render() reject on
+  // invalid syntax so our own catch blocks handle it.
+  suppressErrorRendering: true,
+} as const;
 
 const loadMermaid = (): Promise<MermaidApi> => {
   if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then(mod => {
-      const m = mod.default;
-      m.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: 'neutral',
-        fontFamily: 'inherit',
-        // Without this, mermaid swallows parse errors internally and
-        // resolves render() with its own "bomb icon" error SVG instead of
-        // rejecting — bypassing the chat-mermaid-error / inline-visual
-        // error UI below entirely. Suppressing it makes render() reject on
-        // invalid syntax so our own catch blocks handle it.
-        suppressErrorRendering: true,
-      });
-      return m;
-    });
+    mermaidPromise = import('mermaid').then(mod => mod.default);
   }
-  return mermaidPromise;
+  return mermaidPromise.then(m => {
+    // Re-initialize only when the app theme changed since the last render.
+    // Diagrams already in the DOM keep the theme they were drawn with.
+    const theme = getResolvedTheme();
+    if (theme !== mermaidTheme) {
+      m.initialize({ ...MERMAID_CONFIG, theme: theme === 'dark' ? 'dark' : 'neutral' });
+      mermaidTheme = theme;
+    }
+    return m;
+  });
 };
 
 export type MermaidRenderResult =

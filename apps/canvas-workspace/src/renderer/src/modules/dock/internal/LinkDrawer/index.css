@@ -9,9 +9,9 @@
   align-items: center;
   gap: 4px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.09);
   flex-shrink: 0;
-  background: #fff;
+  background: var(--surface);
 }
 
 .link-drawer__address-form {
@@ -113,7 +113,7 @@
   border: 1px solid transparent;
   outline: none;
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.65);
+  color: rgba(var(--ink-rgb), 0.65);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -218,7 +218,7 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  background: #fff;
+  background: var(--surface);
 }
 
 .link-drawer__queued {
@@ -345,6 +345,7 @@
   flex: 1;
   width: 100%;
   border: none;
+  /* Web pages assume a white canvas; keep it in the dark theme. */
   background: #fff;
   display: flex;
   min-height: 0;

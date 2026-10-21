@@ -449,7 +449,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1664→1641 (dead-code cleanup): knip found unused pickers, settings
   // panels and icons, which were deleted.
   // 1641→1639: the sidebar footer and expanded apps list CSS were removed.
-  hardcodedColorLiterals: 1639,
+  // 1639→1059 (dark theme): component styles moved onto palette tokens that
+  // :root.dark redefines (ink/shade/surface channel triplets, status tints,
+  // nearest ink tiers for Notion-era greys). The count keeps the literals
+  // that must not follow the theme (web-page and switch-thumb white).
+  hardcodedColorLiterals: 1060,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

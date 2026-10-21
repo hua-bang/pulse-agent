@@ -214,6 +214,18 @@ work goes through the typed bridge `window.canvasWorkspace` (typed by
   `interaction-polish.css`) and imported from the component file.
 - Follow the existing design-token usage (oklch palette, frame styles) seen in
   `design/` and existing component CSS rather than hardcoding ad-hoc colors.
+- The app has a light and a dark theme. `shared/theme.ts` resolves the user
+  preference (system, light, or dark; stored in localStorage) and toggles the
+  `dark` class on the root element. `:root.dark` in `styles.css` redefines
+  palette tokens only. A literal color in component CSS stays light in the
+  dark theme, so use a token: `--surface`/`--bg`/`--text*` for paper and ink,
+  `rgba(var(--ink-rgb|--shade-rgb|--surface-rgb), a)` for translucent tints,
+  and `--tint-*` for pale status fills. Keep literals only where the color
+  must not follow the theme: brand marks, scrims, and web-page backgrounds.
+- Canvas paint and third-party widgets cannot read CSS tokens. Read
+  `getResolvedTheme()` or `useResolvedTheme()`, and subscribe with
+  `onThemeChange` for long-lived instances (`TerminalThemeAddon` for xterm,
+  the highlight compartment in the folder `CodeEditor`).
 
 ## UI reuse (governed — ratchet-enforced)
 

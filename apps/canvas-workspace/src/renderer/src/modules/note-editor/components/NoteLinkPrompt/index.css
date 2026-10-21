@@ -21,7 +21,7 @@
   min-width: 0;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  background: var(--surface-alt, rgba(0, 0, 0, 0.02));
+  background: var(--surface-alt, rgba(var(--shade-rgb), 0.02));
   padding: 4px 8px;
   font-size: 12px;
   outline: none;

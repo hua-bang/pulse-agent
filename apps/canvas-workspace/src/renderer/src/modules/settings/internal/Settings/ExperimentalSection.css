@@ -17,13 +17,13 @@
 .experimental-section-intro-title {
   font-size: 14px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   margin-bottom: 4px;
 }
 
 .experimental-section-intro-desc {
   font-size: 12.5px;
-  color: rgba(55, 53, 47, 0.65);
+  color: rgba(var(--ink-rgb), 0.65);
   line-height: 1.55;
   max-width: 620px;
 }
@@ -31,13 +31,13 @@
 .experimental-section-path {
   margin-top: 8px;
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
 }
 
 .experimental-section-path code,
 .experimental-section-intro-desc code,
 .experimental-section-empty code {
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   font-size: 11.5px;
@@ -57,21 +57,21 @@
 
 .experimental-section-reload-text {
   font-size: 12.5px;
-  color: #92400e;
+  color: var(--text-warning);
   font-weight: 500;
 }
 
 .experimental-section-error {
   background: rgba(226, 70, 70, 0.08);
-  color: #b3261e;
+  color: var(--error);
   font-size: 12px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
 }
 
 .experimental-section-empty {
-  border: 1px dashed rgba(55, 53, 47, 0.18);
-  color: rgba(55, 53, 47, 0.6);
+  border: 1px dashed rgba(var(--ink-rgb), 0.18);
+  color: rgba(var(--ink-rgb), 0.6);
   font-size: 12.5px;
   border-radius: var(--radius-md);
   padding: 18px;
@@ -89,10 +89,10 @@
 }
 
 .experimental-section-item {
-  border: 1px solid rgba(55, 53, 47, 0.09);
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
   border-radius: var(--radius-lg);
   padding: 14px 16px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -107,13 +107,13 @@
 .experimental-section-item-label {
   font-size: 13.5px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   margin-bottom: 3px;
 }
 
 .experimental-section-item-desc {
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.65);
+  color: rgba(var(--ink-rgb), 0.65);
   line-height: 1.5;
   margin-bottom: 6px;
 }
@@ -122,16 +122,16 @@
   display: flex;
   gap: 8px;
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   align-items: center;
 }
 
 .experimental-section-item-meta code {
-  background: rgba(55, 53, 47, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   font-size: 10.5px;
-  color: rgba(55, 53, 47, 0.7);
+  color: rgba(var(--ink-rgb), 0.7);
 }
 
 .experimental-section-switch {
@@ -155,7 +155,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  background: rgba(55, 53, 47, 0.18);
+  background: rgba(var(--ink-rgb), 0.18);
   border-radius: var(--radius-pill);
   transition: background 120ms ease;
   position: relative;
@@ -167,6 +167,7 @@
   left: 2px;
   width: 16px;
   height: 16px;
+  /* Switch thumbs stay white on both themes. */
   background: #fff;
   border-radius: 50%;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
@@ -174,7 +175,7 @@
 }
 
 .experimental-section-switch--on .experimental-section-switch-track {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .experimental-section-switch--on .experimental-section-switch-thumb {
@@ -191,7 +192,7 @@
 }
 
 .experimental-section-footer {
-  border-top: 1px solid rgba(55, 53, 47, 0.07);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.07);
   padding: 12px 24px;
   display: flex;
   justify-content: flex-end;

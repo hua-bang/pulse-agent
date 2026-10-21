@@ -1,13 +1,13 @@
 .chat-artifact-card {
   margin-top: 10px;
-  border: 1px solid rgba(55, 53, 47, 0.14);
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
 .chat-artifact-card:hover {
-  border-color: rgba(55, 53, 47, 0.28);
+  border-color: rgba(var(--ink-rgb), 0.28);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
@@ -44,7 +44,7 @@
   width: 28px;
   height: 28px;
   border-radius: var(--radius-sm);
-  background: #f1efe8;
+  background: var(--bg-canvas);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -61,7 +61,7 @@
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -70,7 +70,7 @@
 .chat-artifact-card__sub {
   display: block;
   font-size: 11px;
-  color: #8a8a87;
+  color: var(--text-secondary);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -88,9 +88,9 @@
   box-sizing: border-box;
   font-size: 11px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   background: transparent;
-  border: 1px solid rgba(55, 53, 47, 0.16);
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 5px;
   padding: 4px 8px;
   cursor: pointer;
@@ -99,8 +99,8 @@
 }
 
 .chat-artifact-card__action:hover:not(:disabled) {
-  background: #f1f1ef;
-  border-color: rgba(55, 53, 47, 0.28);
+  background: var(--bg-canvas);
+  border-color: rgba(var(--ink-rgb), 0.28);
 }
 
 .chat-artifact-card__action:focus-visible {
@@ -109,7 +109,7 @@
 }
 
 .chat-artifact-card__action:disabled {
-  color: #8a8a87;
+  color: var(--text-secondary);
   cursor: default;
 }
 

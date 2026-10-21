@@ -69,8 +69,8 @@
 
 .agent-tab:disabled,
 .agent-tab--disabled {
-  border-color: rgba(0, 0, 0, 0.08);
-  background: rgba(245, 245, 244, 0.72);
+  border-color: rgba(var(--shade-rgb), 0.08);
+  background: var(--bg);
   color: var(--agent-faint);
   cursor: not-allowed;
   opacity: 0.62;
@@ -85,13 +85,13 @@
   border: 1px solid var(--agent-warning-border);
   border-radius: var(--radius-lg);
   background: var(--agent-warning-soft);
-  color: #7c4a03;
+  color: var(--text-warning);
   font-size: 12px;
   line-height: 1.45;
 }
 
 .agent-cli-warning strong {
-  color: #6f3d00;
+  color: var(--text-warning);
   font-size: 12px;
   font-weight: 500;
 }
@@ -107,7 +107,7 @@
   padding: 11px;
   border: 1px solid rgba(35, 131, 226, 0.14);
   border-radius: var(--radius-lg);
-  background: rgba(247, 250, 255, 0.86);
+  background: var(--bg);
 }
 
 .agent-install-guide__header {
@@ -160,7 +160,7 @@
   padding: 5px 7px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(var(--surface-rgb), 0.86);
   color: var(--agent-text);
   font-family: var(--font-mono);
   font-size: 10.5px;

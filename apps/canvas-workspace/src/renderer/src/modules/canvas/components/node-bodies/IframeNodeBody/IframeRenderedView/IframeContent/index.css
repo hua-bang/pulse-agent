@@ -80,6 +80,7 @@
   flex: 1;
   width: 100%;
   border: none;
+  /* Web pages assume a white canvas; keep it in the dark theme. */
   background: #fff;
   display: flex;
   min-height: 0;
@@ -144,7 +145,7 @@
   align-items: center;
   justify-content: center;
   padding: 18px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .iframe-load-error-card {

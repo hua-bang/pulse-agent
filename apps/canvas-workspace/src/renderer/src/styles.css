@@ -30,6 +30,16 @@
   --text: #1f1f1d;
   --text-secondary: #6b6b67;
   --text-muted: #a3a39e;
+  /* Legacy Notion ink. Component styles used it as a literal text color and,
+     through --ink-rgb, as the base of translucent hover/border tints. The
+     dark theme flips both so those tints lighten instead of darken. */
+  --ink: #37352f;
+  --ink-rgb: 55, 53, 47;
+  --ink-contrast: #ffffff;
+  /* Channel triplets for translucent tints: --shade-rgb darkens on light and
+     lightens on dark; --surface-rgb is --surface for glass backgrounds. */
+  --shade-rgb: 0, 0, 0;
+  --surface-rgb: 255, 255, 255;
   /* Converged 2026-07-07 from phantom-token demand: these names were already
      referenced across the renderer (with fallbacks or, for --text-*, nothing).
      Single-fallback tokens keep their exact fallback value (zero visual
@@ -81,6 +91,18 @@
   --success: #1f7a4d;
   --error: #c0392b;
   --text-warning: #b45309;
+  --text-info: #285b95;
+  /* Status tints: pale fills and hairlines behind info/danger/success/
+     warning content. Component styles map their pale literals here so the
+     dark theme can swap them for translucent washes. */
+  --tint-info: #e9f2ff;
+  --tint-info-border: #b8d4f3;
+  --tint-danger: #fdebea;
+  --tint-danger-border: #edb8b2;
+  --tint-success: #e8f5ee;
+  --tint-success-border: #b7dfc8;
+  --tint-warning: #fff5d8;
+  --tint-warning-border: #ead18b;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
   /* Canvas dim for focus mode and node fullscreen. One token because both
      do the same job — push the rest of the canvas back so the focused node
@@ -192,6 +214,90 @@
   /* app-shell confirm dialogs */
   --layer-toast: 2100;
   /* app-shell toasts */
+}
+
+/* Dark theme: shared/theme.ts toggles the class from the user preference or
+ * the OS setting. Redefine palette tokens only; sizes, fonts, and layers stay
+ * on :root. Component styles that still spell literal colors keep their
+ * light values until they move onto these tokens. */
+:root.dark {
+  color-scheme: dark;
+  --bg: #1b1b1a;
+  --bg-canvas: #151514;
+  --frame-label: #b4b4ae;
+  --surface: #242423;
+  --surface-hover: #2c2c2a;
+  --border: #363634;
+  --border-light: #2d2d2b;
+  --text: #e9e9e6;
+  --text-secondary: #a8a8a2;
+  --text-muted: #72726d;
+  --ink: #dcdcd8;
+  --ink-rgb: 255, 255, 255;
+  --ink-contrast: #1b1b1a;
+  --shade-rgb: 255, 255, 255;
+  --surface-rgb: 36, 36, 35;
+  --accent-muted: rgba(110, 150, 240, 0.22);
+  --accent-soft: rgba(59, 130, 246, 0.18);
+  --accent-soft-strong: rgba(59, 130, 246, 0.32);
+  --note-paper: #242423;
+  --note-border: rgba(255, 255, 255, 0.08);
+  --note-border-hover: rgba(255, 255, 255, 0.14);
+  --note-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --note-shadow-hover: 0 1px 3px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.4);
+  --note-callout-bg: #2c2a26;
+  --note-callout-border: #3b3831;
+  --note-inline-code-bg: rgba(255, 255, 255, 0.09);
+  --note-code-block-bg: rgba(255, 255, 255, 0.05);
+  --note-highlight-bg: rgba(250, 204, 21, 0.32);
+  --note-search-active-bg: rgba(255, 149, 0, 0.5);
+  --note-scroll-thumb: rgba(255, 255, 255, 0.14);
+  --note-scroll-thumb-hover: rgba(255, 255, 255, 0.24);
+  --surface-1: rgba(0, 0, 0, 0.3);
+  --surface-alt: rgba(255, 255, 255, 0.06);
+  --surface-subtle: rgba(255, 255, 255, 0.03);
+  --link-text: #7fabe3;
+  --link-text-hover: #a3c4ef;
+  --accent: #3a92ea;
+  --accent-light: rgba(58, 146, 234, 0.16);
+  --accent-border: rgba(58, 146, 234, 0.55);
+  --accent-file: #e48a3c;
+  --accent-term: #33b5a0;
+  --accent-frame: #b3a5ec;
+  --accent-text: #90a4ae;
+  --accent-image: #6cc070;
+  --accent-mindmap: #e2913f;
+  --role-accent: #a996ea;
+  --role-accent-icon: #b9a9f0;
+  --role-accent-soft: rgba(165, 148, 224, 0.22);
+  --success: #4fbf86;
+  --error: #ec6a5c;
+  --text-warning: #e7a456;
+  --text-info: #8dbcf0;
+  --tint-info: rgba(58, 146, 234, 0.16);
+  --tint-info-border: rgba(58, 146, 234, 0.4);
+  --tint-danger: rgba(236, 106, 92, 0.16);
+  --tint-danger-border: rgba(236, 106, 92, 0.4);
+  --tint-success: rgba(79, 191, 134, 0.15);
+  --tint-success-border: rgba(79, 191, 134, 0.4);
+  --tint-warning: rgba(231, 164, 86, 0.16);
+  --tint-warning-border: rgba(231, 164, 86, 0.4);
+  --overlay-backdrop: rgba(0, 0, 0, 0.5);
+  --canvas-focus-dim: rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.4);
+  --shadow-drag: 0 12px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-focus: 0 0 0 3px rgba(58, 146, 234, 0.3);
+  --canvas-node-border: rgba(255, 255, 255, 0.08);
+  --canvas-node-border-hover: rgba(255, 255, 255, 0.15);
+  --frame-nested-outline: rgba(255, 255, 255, 0.12);
+  --frame-nested-outline-hover: rgba(255, 255, 255, 0.22);
+  --chrome-glass: rgba(36, 36, 35, 0.88);
+  --chrome-border: rgba(255, 255, 255, 0.08);
+  --agent-brand-codex: #e9e9e6;
+  --agent-brand-pi: #f4f4f5;
 }
 
 * {

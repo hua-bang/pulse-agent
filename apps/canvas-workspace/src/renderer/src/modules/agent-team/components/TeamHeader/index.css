@@ -41,8 +41,8 @@
   max-width: 340px;
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background: rgba(238, 242, 247, 0.92);
-  color: #3d5071;
+  background: var(--bg-canvas);
+  color: var(--text-info);
   font-family: inherit;
   font-weight: 500;
   padding: 2px 7px;
@@ -52,8 +52,8 @@
 
 .agent-team-frame__mission code {
   max-width: 280px;
-  color: #1f6f45;
-  background: #e8f5ee;
+  color: var(--success);
+  background: var(--bg-canvas);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -79,9 +79,9 @@
 }
 
 .agent-team-frame__status {
-  border: 1px solid #b7dfc8;
-  background: #e8f5ee;
-  color: #1f6f45;
+  border: 1px solid var(--tint-success-border);
+  background: var(--bg-canvas);
+  color: var(--success);
   padding: 4px 9px;
   font-size: 11px;
   font-weight: 500;
@@ -90,21 +90,21 @@
 
 .agent-team-frame__status--paused,
 .agent-team-frame__status--waiting_approval {
-  color: #8a5a00;
-  background: #fff5d8;
-  border-color: #ead18b;
+  color: var(--text-warning);
+  background: var(--tint-warning);
+  border-color: var(--tint-warning-border);
 }
 
 .agent-team-frame__status--failed {
-  color: #a2372a;
-  background: #fdebea;
-  border-color: #edb8b2;
+  color: var(--error);
+  background: var(--tint-danger);
+  border-color: var(--tint-danger-border);
 }
 
 .agent-team-frame__status--completed {
-  color: #285b95;
-  background: #e9f2ff;
-  border-color: #b8d4f3;
+  color: var(--text-info);
+  background: var(--tint-info);
+  border-color: var(--tint-info-border);
 }
 
 .agent-team-frame__primary-action {
@@ -122,21 +122,21 @@
 }
 
 .agent-team-frame .agent-team-frame__danger-action {
-  border-color: #edb8b2;
-  color: #a2372a;
-  background: #fff5f4;
+  border-color: var(--tint-danger-border);
+  color: var(--error);
+  background: var(--bg);
 }
 
 .agent-team-frame .agent-team-frame__danger-action:hover:not(:disabled) {
-  background: #fdebea;
+  background: var(--tint-danger);
 }
 
 .agent-team-frame__error {
   padding: 5px 8px;
-  border: 1px solid #edb8b2;
+  border: 1px solid var(--tint-danger-border);
   border-radius: var(--radius-sm);
-  color: #a2372a;
-  background: #fdebea;
+  color: var(--error);
+  background: var(--tint-danger);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -149,8 +149,8 @@
   padding: 10px 14px;
   border: 1px solid #e3c577;
   border-radius: var(--radius-md);
-  background: #fef9ec;
-  color: #6b5318;
+  background: var(--tint-warning);
+  color: var(--text-warning);
 }
 
 .agent-team-checkpoint-banner__copy {
@@ -164,12 +164,12 @@
 .agent-team-checkpoint-banner__copy strong {
   font-size: 13px;
   font-weight: 500;
-  color: #5a440f;
+  color: var(--text-warning);
 }
 
 .agent-team-checkpoint-banner__copy span {
   font-size: 11.5px;
-  color: #7c6423;
+  color: var(--text-warning);
   line-height: 1.4;
 }
 

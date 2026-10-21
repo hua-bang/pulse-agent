@@ -3,8 +3,8 @@
   flex: 0 0 auto;
   min-height: 0;
   overflow: hidden;
-  border-top: 0 solid rgba(55, 53, 47, 0.1);
-  background: #f7f7f5;
+  border-top: 0 solid rgba(var(--ink-rgb), 0.1);
+  background: var(--surface-hover);
   box-shadow: 0 -10px 28px rgba(15, 15, 15, 0.07);
   opacity: 0;
   pointer-events: none;
@@ -29,7 +29,7 @@
   height: auto;
   border-top-width: 0;
   box-shadow: none;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock--pane[data-open="true"] {
@@ -53,7 +53,7 @@
 
 .workspace-terminal-dock__resize:hover,
 .workspace-terminal-dock__resize:active {
-  background: rgba(55, 53, 47, 0.08);
+  background: rgba(var(--ink-rgb), 0.08);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__resize {
@@ -67,10 +67,10 @@
   align-items: center;
   gap: 12px;
   padding: 0 10px 0 14px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 250, 249, 0.94)),
-    #fff;
+    linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), var(--bg)),
+    var(--surface);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__header {
@@ -78,11 +78,11 @@
   grid-template-columns: minmax(0, 1fr) minmax(96px, auto) 28px;
   gap: 8px;
   padding: 0 8px 0 12px;
-  border-bottom-color: rgba(55, 53, 47, 0.1);
+  border-bottom-color: rgba(var(--ink-rgb), 0.1);
   flex: 0 0 auto;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 246, 0.96)),
-    #fff;
+    linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), var(--bg)),
+    var(--surface);
 }
 
 .workspace-terminal-dock__title {
@@ -90,7 +90,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #37352f;
+  color: var(--ink);
   font-size: 12px;
   line-height: 1;
 }
@@ -131,9 +131,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   justify-self: stretch;
-  color: #73716c;
-  background: rgba(55, 53, 47, 0.05);
-  border: 1px solid rgba(55, 53, 47, 0.07);
+  color: var(--text-secondary);
+  background: rgba(var(--ink-rgb), 0.05);
+  border: 1px solid rgba(var(--ink-rgb), 0.07);
   border-radius: var(--radius-sm);
   padding: 5px 8px;
   font-size: 11px;
@@ -142,8 +142,8 @@
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__cwd {
   justify-self: end;
-  color: #5f5d58;
-  background: rgba(55, 53, 47, 0.045);
+  color: var(--text-secondary);
+  background: rgba(var(--ink-rgb), 0.045);
 }
 
 .workspace-terminal-dock__close {
@@ -151,7 +151,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #73716c;
+  color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
@@ -170,8 +170,8 @@
 
 .workspace-terminal-dock__close:hover,
 .workspace-terminal-dock__close:focus-visible {
-  background: rgba(55, 53, 47, 0.07);
-  color: #37352f;
+  background: rgba(var(--ink-rgb), 0.07);
+  color: var(--ink);
   outline: none;
 }
 
@@ -182,7 +182,7 @@
   top: 38px;
   bottom: 0;
   min-height: 0;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__body {
@@ -192,7 +192,7 @@
   left: auto;
   right: auto;
   flex: 1 1 auto;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock__xterm {
@@ -200,7 +200,7 @@
   inset: 0;
   padding: 10px 10px 8px;
   overflow: hidden;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .workspace-terminal-dock--pane .workspace-terminal-dock__xterm {
@@ -233,12 +233,12 @@
   border: 1px solid rgba(15, 118, 110, 0.14);
   border-radius: var(--radius-md);
   background:
-    linear-gradient(180deg, rgba(250, 253, 251, 0.96), rgba(244, 248, 246, 0.94)),
-    #f8fbf9;
+    linear-gradient(180deg, var(--bg), var(--bg)),
+    var(--bg);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.74),
     0 10px 28px rgba(31, 41, 35, 0.08);
-  color: #4c5a55;
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.2;
   pointer-events: auto;
@@ -251,8 +251,8 @@
   border: 1px solid rgba(15, 118, 110, 0.22);
   border-bottom-color: rgba(15, 118, 110, 0.3);
   border-radius: var(--radius-xs);
-  background: rgba(236, 253, 245, 0.76);
-  color: #0f766e;
+  background: var(--tint-success);
+  color: var(--text-info);
   font: inherit;
   font-weight: 500;
 }
@@ -272,7 +272,7 @@
 
 .workspace-terminal-dock__mention-hint-close:hover {
   background: rgba(15, 118, 110, 0.09);
-  color: #0f766e;
+  color: var(--text-info);
 }
 
 /* No horizontal padding on .xterm-rows. FitAddon derives the column count
@@ -292,7 +292,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: #fafaf9;
+  background: var(--bg);
   color: #8a8780;
   font-size: 12px;
   pointer-events: none;
@@ -303,7 +303,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid rgba(55, 53, 47, 0.16);
+  border: 2px solid rgba(var(--ink-rgb), 0.16);
   border-top-color: #5f5d58;
   animation: spin 0.7s linear infinite;
 }

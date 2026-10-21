@@ -27,13 +27,13 @@
   width: 54px;
   height: 54px;
   border-radius: 16px;
-  background: #fff;
-  border: 1px solid rgba(55, 53, 47, 0.1);
+  background: var(--surface);
+  border: 1px solid rgba(var(--ink-rgb), 0.1);
   box-shadow: 0 8px 24px rgba(55, 53, 47, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2f2e2a;
+  color: var(--text);
   margin-bottom: 18px;
 }
 
@@ -41,7 +41,7 @@
   font-size: 20px;
   line-height: 1.25;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   margin-bottom: 22px;
   letter-spacing: 0;
 }
@@ -65,13 +65,13 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   text-align: left;
   transition: background 0.1s;
 }
 
 .chat-quick-action:hover {
-  background: rgba(55, 53, 47, 0.04);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 
 .chat-quick-action-icon {
@@ -80,7 +80,7 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  color: #73726e;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 

@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from "electron";
+import { BrowserWindow, nativeTheme, shell } from "electron";
 import { APP_NAME } from "./identity";
 import { isSafeExternalUrl } from "./shell-ipc";
 import type { WriteLog } from "./logging";
@@ -25,7 +25,9 @@ export function createWindow({
     title: APP_NAME,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: "#f8f8f7",
+    // Paint before the renderer applies its theme. Follows the OS; a manual
+    // renderer theme override takes over once the page loads.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1b1a" : "#f8f8f7",
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: preloadPath,

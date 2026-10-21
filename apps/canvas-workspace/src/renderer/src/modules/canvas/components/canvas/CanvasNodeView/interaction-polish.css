@@ -36,7 +36,7 @@
   height: 26px;
   border: 1px solid rgba(35, 131, 226, 0.18);
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(var(--surface-rgb), 0.88);
   box-shadow: 0 4px 12px rgba(22, 18, 36, 0.12);
   color: var(--accent);
   cursor: grab;
@@ -67,6 +67,6 @@
 }
 
 .reference-drag-handle:hover {
-  background: #fff;
+  background: var(--surface);
   border-color: rgba(35, 131, 226, 0.32);
 }

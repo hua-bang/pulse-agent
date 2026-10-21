@@ -48,7 +48,7 @@
   padding: 7px 10px;
   border-radius: 7px;
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
-  background: var(--surface-1, rgba(0, 0, 0, 0.2));
+  background: var(--surface-1, rgba(var(--shade-rgb), 0.2));
   color: inherit;
   font-size: 13px;
   font-family: inherit;
@@ -56,7 +56,7 @@
 
 .channel-config-field input:focus {
   outline: none;
-  border-color: var(--accent, #6aa3ff);
+  border-color: var(--accent, var(--tint-info-border));
 }
 
 .channel-config-env {
@@ -90,7 +90,7 @@
 }
 
 .channel-config-btn--primary {
-  border-color: var(--accent, #6aa3ff);
+  border-color: var(--accent, var(--tint-info-border));
   background: var(--accent, #6aa3ff);
   color: #fff;
 }

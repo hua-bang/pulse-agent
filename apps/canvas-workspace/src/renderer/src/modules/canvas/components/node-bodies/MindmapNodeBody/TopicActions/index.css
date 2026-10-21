@@ -49,8 +49,8 @@
   min-width: 22px;
   border: 1px solid rgba(31, 35, 40, 0.12);
   border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.92);
-  color: #1f2328;
+  background: rgba(var(--surface-rgb), 0.92);
+  color: var(--text);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
   cursor: pointer;
   font-size: 12px;
@@ -62,7 +62,7 @@
 
 .mindmap-topic-action:hover,
 .mindmap-topic-action:focus-visible {
-  background: #ffffff;
+  background: var(--surface);
   border-color: color-mix(in srgb, var(--mindmap-topic-accent, #5b7cbf) 46%, transparent);
   color: var(--mindmap-topic-accent, #5b7cbf);
   outline: none;
@@ -80,10 +80,10 @@
 }
 
 .mindmap-topic-action--fold {
-  color: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 72%, #1f2328);
+  color: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 72%, var(--text));
 }
 
 .mindmap-topic-action--unfold {
   border-color: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 44%, transparent);
-  background: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 10%, #ffffff);
+  background: color-mix(in srgb, var(--mindmap-topic-toggle-color, currentColor) 10%, var(--surface));
 }

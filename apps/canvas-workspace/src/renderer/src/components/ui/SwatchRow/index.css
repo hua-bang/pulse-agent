@@ -44,7 +44,7 @@
  * rules used (both still deleted/kept per-site; this is the one shared
  * definition new call sites reach for). */
 .ui-swatchrow__swatch--none {
-  background-color: #ffffff;
+  background-color: var(--surface);
   background-image: linear-gradient(
     to top right,
     transparent calc(50% - 1px),

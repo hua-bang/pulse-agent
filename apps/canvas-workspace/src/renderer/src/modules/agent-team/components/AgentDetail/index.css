@@ -64,8 +64,8 @@
   max-width: 100%;
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background: #eef2f7;
-  color: #3d5071;
+  background: var(--bg-canvas);
+  color: var(--text-info);
   font-family: inherit;
   font-weight: 500;
   padding: 2px 6px;
@@ -85,7 +85,7 @@
   display: grid;
   gap: 2px;
   border-radius: 7px;
-  background: #f4f6f9;
+  background: var(--bg);
   color: var(--text-secondary);
   font-size: 10px;
   font-weight: 500;
@@ -116,7 +116,7 @@
   height: auto;
   min-height: 34px;
   border-color: rgba(92, 128, 183, 0.14);
-  background: rgba(250, 251, 253, 0.86);
+  background: var(--bg);
   text-align: left;
 }
 .agent-team-agent-detail__task strong {

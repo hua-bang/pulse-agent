@@ -15,7 +15,7 @@
   background: transparent;
   font-family: inherit;
   font-size: 11.5px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
   text-align: left;

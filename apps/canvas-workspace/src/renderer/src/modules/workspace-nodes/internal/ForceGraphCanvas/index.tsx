@@ -17,6 +17,7 @@ import {
   type WorkspaceGraphLink,
   type WorkspaceGraphNode,
 } from '../../model/graphModel';
+import { useResolvedTheme } from '../../../../shared/theme';
 
 export type GraphLayoutPreset = 'compact' | 'normal' | 'loose';
 
@@ -67,6 +68,18 @@ export const GRAPH_COLORS = {
   labelBg: 'rgba(255, 255, 255, 0.92)',
 };
 
+// Canvas paint cannot read CSS tokens; the dark theme swaps the ink colors.
+const DARK_GRAPH_COLORS: typeof GRAPH_COLORS = {
+  ...GRAPH_COLORS,
+  nodeText: '#8dbcf0',
+  tagText: '#f0b56b',
+  missingText: 'rgba(255, 255, 255, 0.55)',
+  workspaceText: '#c4b5fd',
+  link: 'rgba(255, 255, 255, 0.2)',
+  linkHighlight: 'rgba(255, 255, 255, 0.62)',
+  labelBg: 'rgba(36, 36, 35, 0.92)',
+};
+
 const GRAPH_MAX_ZOOM = 2.5;
 // Labels outside the hovered/selected neighbourhood stay readable but recede.
 const DIMMED_NODE_ALPHA = 0.18;
@@ -81,6 +94,7 @@ const linkKey = (link: LinkObject<WorkspaceGraphNode, WorkspaceGraphLink>): stri
 
 export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ view, actions }, ref) => {
   const graphRef = useRef<ForceGraphMethods<WorkspaceGraphNode, WorkspaceGraphLink>>();
+  const colors = useResolvedTheme() === 'dark' ? DARK_GRAPH_COLORS : GRAPH_COLORS;
   const sizeRef = useRef({ width: view.width, height: view.height });
   sizeRef.current = { width: view.width, height: view.height };
 
@@ -136,7 +150,7 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
     const highlighted = view.highlightedNodeIds.size === 0 || view.highlightedNodeIds.has(nodeId);
     const selected = view.activeNodeId === nodeId;
     const hovered = view.hoverNodeId === nodeId;
-    const fill = isWorkspace ? GRAPH_COLORS.workspace : isTag ? GRAPH_COLORS.tag : isMissing ? GRAPH_COLORS.missing : GRAPH_COLORS.node;
+    const fill = isWorkspace ? colors.workspace : isTag ? colors.tag : isMissing ? colors.missing : colors.node;
 
     ctx.save();
     ctx.globalAlpha = highlighted ? 1 : DIMMED_NODE_ALPHA;
@@ -160,23 +174,23 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
       const textWidth = ctx.measureText(label).width;
       const textX = (node.x ?? 0) + radius + 6;
       const textY = (node.y ?? 0) + 1;
-      ctx.fillStyle = GRAPH_COLORS.labelBg;
+      ctx.fillStyle = colors.labelBg;
       ctx.beginPath();
       const rect = [textX - 4, textY - fontSize / 2 - 2.5, textWidth + 8, fontSize + 5] as const;
       if (typeof ctx.roundRect === 'function') ctx.roundRect(...rect, 5);
       else ctx.rect(...rect);
       ctx.fill();
       ctx.fillStyle = isWorkspace
-        ? GRAPH_COLORS.workspaceText
+        ? colors.workspaceText
         : isTag
-          ? GRAPH_COLORS.tagText
+          ? colors.tagText
           : isMissing
-            ? GRAPH_COLORS.missingText
-            : GRAPH_COLORS.nodeText;
+            ? colors.missingText
+            : colors.nodeText;
       ctx.fillText(label, textX, textY + fontSize / 2 - 2);
     }
     ctx.restore();
-  }, [view.activeNodeId, view.highlightedNodeIds, view.hoverNodeId, view.showLabels]);
+  }, [colors, view.activeNodeId, view.highlightedNodeIds, view.hoverNodeId, view.showLabels]);
 
   return (
     <ForceGraph2D
@@ -193,10 +207,10 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
       onBackgroundClick={actions.clearSelection}
       linkWidth={(link) => view.highlightedLinkIds.size === 0 || view.highlightedLinkIds.has(linkKey(link)) ? 1.15 : 0.35}
       linkColor={(link) => {
-        if (link.kind === 'workspace') return GRAPH_COLORS.workspaceLink;
+        if (link.kind === 'workspace') return colors.workspaceLink;
         return view.highlightedLinkIds.size === 0 || view.highlightedLinkIds.has(linkKey(link))
-          ? GRAPH_COLORS.linkHighlight
-          : GRAPH_COLORS.link;
+          ? colors.linkHighlight
+          : colors.link;
       }}
       linkDirectionalParticles={(link) => link.kind !== 'workspace' && view.highlightedLinkIds.has(linkKey(link)) ? 2 : 0}
       linkDirectionalParticleWidth={1.2}

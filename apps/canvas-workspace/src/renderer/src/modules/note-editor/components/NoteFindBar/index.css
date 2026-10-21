@@ -43,7 +43,7 @@
   min-width: 0;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  background: var(--surface-alt, rgba(0, 0, 0, 0.02));
+  background: var(--surface-alt, rgba(var(--shade-rgb), 0.02));
   padding: 3px 6px;
   font-size: 12px;
   outline: none;
@@ -85,7 +85,7 @@
 }
 
 .note-find-opt:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(var(--shade-rgb), 0.05);
   color: var(--text);
 }
 
@@ -121,7 +121,7 @@
 
 .note-find-nav:hover:not(:disabled),
 .note-find-close:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(var(--shade-rgb), 0.05);
   color: var(--text);
 }
 
@@ -143,7 +143,7 @@
 }
 
 .note-find-action:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
   color: var(--text);
 }
 
