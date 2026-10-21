@@ -4,6 +4,11 @@ name: Performance
 # report is reserved for performance-sensitive paths, an explicit
 # `performance` PR label, manual dispatch, and pushes to the default branch.
 # Timing metrics remain informational because CI runners differ from dev hosts.
+# The `bundle` job only covers PRs without a runtime report: `perf` runs the
+# same bundle gate first, so a skipped `bundle` next to a green `perf` is
+# expected. Every Gate reads baselines.json from the PR head, so
+# `baseline-guard` fails a PR that loosens a Gate until a maintainer adds the
+# `perf-baseline` label.
 
 on:
   workflow_dispatch:
@@ -19,8 +24,9 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # Ignored label events must not cancel an in-flight performance check.
-  group: perf-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'performance' && 'ignored-label' || 'checks' }}
+  # Label events other than `performance` must not cancel an in-flight
+  # performance check; the approval label gets its own group.
+  group: perf-${{ github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name == 'perf-baseline' && 'baseline-label' || github.event.action == 'labeled' && github.event.label.name != 'performance' && 'ignored-label' || 'checks' }}
   cancel-in-progress: true
 
 jobs:
@@ -71,6 +77,27 @@ jobs:
           });
           fs.appendFileSync(process.env.GITHUB_OUTPUT, 'runtime=' + result.runtime + '\npackaging=' + result.packaging + '\n');
           NODE
+
+  baseline-guard:
+    # Runs on code events and when the approval label is added.
+    if: github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'perf-baseline')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check that no performance Gate was loosened
+        env:
+          PERF_BASELINE_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-baseline') }}
+        # The PR merge commit's first parent is the current base tip, so raises
+        # that already landed on the base branch are not counted again.
+        run: node apps/canvas-workspace/scripts/perf/baseline-guard.mjs "$(git rev-parse HEAD^1)"
 
   bundle:
     if: github.event_name == 'pull_request' && needs.changes.outputs.runtime != 'true' && !contains(github.event.pull_request.labels.*.name, 'performance')

@@ -212,6 +212,12 @@ when driving a manually-started session (see below).
 - Counter Gates use `max`/`min`/`true`; bundle Gates use
   `baseline × (1 + tolerancePct/100)` ratchets. Lower the relevant target or
   Gate in the same PR when a fix creates durable headroom.
+- Gates read `baselines.json` from the PR itself, so a raise would pass its
+  own check. On PRs, `baseline-guard` (`scripts/perf/baseline-guard.mjs`)
+  compares every Gate with the base branch and fails when one is loosened
+  (higher ratchet limit or `max`, lower `min`, removed Gate, changed kind).
+  A maintainer approves a raise with the `perf-baseline` label; lowering a
+  Gate needs no approval.
 - Renderer trace targets remain diagnostic and do not gate CI. Promote one to
   a Gate only after at least five stable runs with the same Electron/Chromium,
   viewport, DPR, headless/GPU mode, machine, and measurement profile.
