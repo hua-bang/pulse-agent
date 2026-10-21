@@ -165,8 +165,8 @@
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 550, "warning": 690,
-      "confidence": "high", "basis": "2026-08-29 内联 MCP Apps 增加独立 origin sandbox protocol、受控 IPC 与 Engine registered-tool execution/capture 边界，main 实测 699KB。保留 550 target 与 690 warning，ratchet 仅落锚必要的宿主安全/执行载荷；后续继续拆分 MCP Apps IPC 与协议服务。", "asOf": "2026-08-29",
-      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-21 匿名使用数据上报（telemetry）以懒加载方式接入：客户端与 IPC 都在独立分块，main 只多出动态 import 的引用。master 实测 737771B（720.5KB，已贴着 720 上限），接入后 738023B（720.7KB），基线由 699 调到 700（上限 721）。此前 2026-08-29 内联 MCP Apps 增加独立 origin sandbox protocol、受控 IPC 与 Engine registered-tool execution/capture 边界，main 实测 699KB。保留 550 target 与 690 warning，ratchet 仅落锚必要的宿主安全/执行载荷；后续继续拆分 MCP Apps IPC 与协议服务。", "asOf": "2026-10-21",
+      "gate": { "kind": "ratchet", "baseline": 700, "tolerancePct": 3, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

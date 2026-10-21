@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute } from './routeModel';
+import { MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, telemetryPageName } from './routeModel';
 
 describe('app route model', () => {
   it('redirects stale disabled node deep links to the canvas', () => {
@@ -56,5 +56,11 @@ describe('app route model', () => {
       graphEnabled: false,
       pluginPaths: [],
     })).toMatchObject({ activeView: 'canvas', mcpApp: null });
+  });
+
+  it('names pages for telemetry without plugin route paths', () => {
+    expect(telemetryPageName('canvas')).toBe('canvas');
+    expect(telemetryPageName(MCP_APP_VIEW)).toBe(MCP_APP_VIEW);
+    expect(telemetryPageName('/my-plugin/secret-path')).toBe('plugin');
   });
 });

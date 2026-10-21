@@ -13,6 +13,8 @@ import type { AgentRequestContext, ChatImageAttachment } from '../../../shared/a
 import { isPerfChatReplayRequest, replayPerfChatStream } from '../run/perf-chat-replay';
 import { onCompactionPhase } from '../run/compaction-status';
 import { tracedAssertWorkspaceAvailable } from '../workspace/traced-workspace-availability';
+import { trackTelemetry } from '../../telemetry/ipc';
+import { startAgentTurnTelemetry, type AgentTurnTrigger } from '../../telemetry/agent-turn';
 
 let service: ConversationRuntimeService | null = null;
 
@@ -87,6 +89,7 @@ const send = (subscribers: Set<WebContents>, channel: string, sessionId: string,
  * conversation, ending with `chat-complete`. Renderer sends and main-started
  * turns (scheduled runs) share it, so a window that attaches mid-turn gets
  * the live reply either way. Resolves after `chat-complete` is sent.
+ * `trigger` only labels the turn's telemetry.
  */
 export async function chatToSubscribers(
   runtime: ConversationRuntimeService,
@@ -94,14 +97,25 @@ export async function chatToSubscribers(
   sessionId: string,
   message: string,
   input?: Omit<ConversationSendInput, 'message'>,
+  trigger: AgentTurnTrigger = 'schedule',
 ): Promise<ChatResponse> {
   const subscribers = subscribersFor(scope, sessionId);
   const stopCompaction = onCompactionPhase(sessionId, phase => send(subscribers, 'compaction', sessionId, { phase }));
+  const turnTelemetry = startAgentTurnTelemetry({
+    scope: scope.kind,
+    trigger,
+    requestContext: input?.requestContext,
+    attachmentCount: input?.attachments?.length,
+    mentionedWorkspaceCount: input?.mentionedWorkspaceIds?.length,
+  }, trackTelemetry);
   let result: ChatResponse;
   try {
     result = await runtime.chat(scope, sessionId, message, {
       onText: (delta) => send(subscribers, 'text-delta', sessionId, delta),
-      onToolCall: (data) => send(subscribers, 'tool-call', sessionId, data),
+      onToolCall: (data) => {
+        turnTelemetry.toolCall(data.name);
+        send(subscribers, 'tool-call', sessionId, data);
+      },
       onToolResult: (data) => send(subscribers, 'tool-result', sessionId, data),
       onToolInputStart: (data) => send(subscribers, 'tool-input-start', sessionId, data),
       onToolInputDelta: (data) => send(subscribers, 'tool-input-delta', sessionId, data),
@@ -115,6 +129,7 @@ export async function chatToSubscribers(
   } finally {
     stopCompaction();
   }
+  turnTelemetry.finish(result);
   send(subscribers, 'chat-complete', sessionId, result);
   return result;
 }
@@ -164,7 +179,7 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
           && Number.isFinite(payload.trace.submittedAt)
           && payload.trace.submittedAt <= Date.now()
           ? payload.trace : undefined,
-      }).finally(releaseRun);
+      }, 'user').finally(releaseRun);
       return { ok: true, sessionId };
     },
   );

@@ -291,6 +291,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     const { setupMemoryReportIpc } = await import('../agent/memory/memory-report-ipc');
     setupMemoryReportIpc();
     setupShellIpc();
+    // Lazy: telemetry stays out of the startup main chunk.
+    const telemetry = await import('../telemetry/ipc');
+    telemetry.setupTelemetryIpc();
     setupDefaultBrowserIpc();
     setupUpdateIpc();
     setupWebpageReaderIpc();
@@ -337,6 +340,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
           await stopRuntimeControlServer();
         }, writeLog))
         .catch(error => writeLog('main', 'storage shutdown failed', String(error)))
+        .then(() => telemetry.shutdownTelemetry())
         .then(() => flushLogs())
         .finally(() => {
           pluginTeardownComplete = true;
@@ -344,6 +348,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         });
     });
     startupMark("pluginsActivated");
+    telemetry.trackAppStarted();
     void ensureRuntimeControlServer(writeLog).then((ok) => {
       if (!ok) {
         void writeLog(

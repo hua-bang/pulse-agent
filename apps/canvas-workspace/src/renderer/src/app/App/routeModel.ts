@@ -105,3 +105,13 @@ export const resolveAppRoute = (
       || (!options.graphEnabled && path === APP_ROUTES.graph),
   };
 };
+
+const TELEMETRY_PAGES = new Set([
+  'canvas', 'chat', 'home', 'settings', 'plugins', 'skills', 'scheduled',
+  'scheduled-task', 'nodes', 'node-detail', 'graph', MCP_APP_VIEW,
+]);
+
+/** Page name for `page_viewed`. Plugin route paths collapse to `plugin`. */
+export const telemetryPageName = (view: AppActiveView): string => (
+  TELEMETRY_PAGES.has(view) ? view : 'plugin'
+);

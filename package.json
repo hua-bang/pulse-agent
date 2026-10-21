@@ -8,7 +8,8 @@
   "workspaces": [
     "packages/*",
     "apps/remote-server",
-    "apps/canvas-workspace"
+    "apps/canvas-workspace",
+    "apps/telemetry-gateway"
   ],
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -296,6 +296,15 @@ importers:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@20.19.33)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
 
+  apps/telemetry-gateway:
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.0.0
+        version: 1.6.1(@types/node@25.0.10)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
+
   packages/acp:
     dependencies:
       pulse-coder-engine:

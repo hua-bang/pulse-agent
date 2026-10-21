@@ -66,6 +66,7 @@ export async function importWorkspace(context: Feedback & {
     });
     return;
   }
+  void window.canvasWorkspace?.telemetry?.track('workspace_created', { source: 'import' });
   updateToast(toastId, {
     tone: 'success',
     title: t('app.workspaceImported'),

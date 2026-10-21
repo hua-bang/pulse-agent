@@ -13,6 +13,21 @@ import {
   type CanvasModelOption,
   type CanvasModelProviderConfig,
 } from './config';
+import type { CanvasModelStatus } from '../../shared/model-config';
+
+/** Reports the model now in use after a change; never names or URLs.
+ * Telemetry loads lazily to keep it out of the startup main chunk. */
+const trackModelConfigured = (
+  action: 'provider_saved' | 'model_selected',
+  status: CanvasModelStatus,
+): CanvasModelStatus => {
+  void import('../telemetry/ipc').then(telemetry => telemetry.trackTelemetry('model_configured', {
+    action,
+    provider_type: status.providerType,
+    api_key_present: status.apiKeyPresent,
+  }));
+  return status;
+};
 
 export function setupCanvasModelIpc(): void {
   ipcMain.handle('canvas-model:status', async () => {
@@ -42,7 +57,8 @@ export function setupCanvasModelIpc(): void {
 
   ipcMain.handle('canvas-model:upsert-provider', async (_event, payload: { provider: CanvasModelProviderConfig }) => {
     try {
-      return { ok: true, status: await upsertCanvasModelProvider(payload.provider) };
+      const status = await upsertCanvasModelProvider(payload.provider);
+      return { ok: true, status: trackModelConfigured('provider_saved', status) };
     } catch (err) {
       return { ok: false, error: String(err) };
     }
@@ -66,7 +82,8 @@ export function setupCanvasModelIpc(): void {
 
   ipcMain.handle('canvas-model:upsert-option', async (_event, payload: { option: CanvasModelOption; setCurrent?: boolean }) => {
     try {
-      return { ok: true, status: await upsertCanvasModelOption(payload.option, payload.setCurrent === true) };
+      const status = await upsertCanvasModelOption(payload.option, payload.setCurrent === true);
+      return { ok: true, status: payload.setCurrent === true ? trackModelConfigured('model_selected', status) : status };
     } catch (err) {
       return { ok: false, error: String(err) };
     }
@@ -74,7 +91,8 @@ export function setupCanvasModelIpc(): void {
 
   ipcMain.handle('canvas-model:set-current', async (_event, payload: { name?: string; providerId?: string }) => {
     try {
-      return { ok: true, status: await setCanvasCurrentModel(payload.name, payload.providerId) };
+      const status = await setCanvasCurrentModel(payload.name, payload.providerId);
+      return { ok: true, status: trackModelConfigured('model_selected', status) };
     } catch (err) {
       return { ok: false, error: String(err) };
     }

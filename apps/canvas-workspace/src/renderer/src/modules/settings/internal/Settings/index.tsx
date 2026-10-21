@@ -23,6 +23,7 @@ import { BrowserSection } from './BrowserSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
+import { TelemetrySection } from './TelemetrySection';
 import { UpdateSection } from './UpdateSection';
 import { McpManager } from '../settings-config/McpManager';
 import { PluginsManager } from '../settings-config/PluginsManager';
@@ -262,6 +263,7 @@ export const Settings = ({ initialSection, onClose }: SettingsProps) => {
               <BrowserSection />
               <LanguageSection />
               <UpdateSection />
+              <TelemetrySection />
             </div>
           )}
           {activePage === 'experimental' && <ExperimentalSection onClose={onClose} />}
