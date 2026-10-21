@@ -3,6 +3,7 @@ import { useLocation, useSearch } from 'wouter';
 import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
 import { ConversationCompletionToastBridge } from '../shell/ConversationCompletionToastBridge';
+import { TelemetryNoticeBridge } from '../shell/TelemetryNoticeBridge';
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
 import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
@@ -470,6 +471,7 @@ const AppContent = () => {
         onActivateWorkspace={activateDockWorkspace}
       />
       <ConversationCompletionToastBridge onOpenSessionInScope={openSessionInOwningScope} />
+      <TelemetryNoticeBridge />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         workspaceLoaded={workspaceSettingsLoaded}

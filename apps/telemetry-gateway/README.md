@@ -27,6 +27,14 @@ To test against a development launch, start Canvas with `PULSE_CANVAS_TELEMETRY_
 | `POSTHOG_HOST` | var | Uses `https://us.i.posthog.com` |
 | `EVENTS` | Analytics Engine dataset | No raw copy |
 | `RATE_LIMITER` | rate limit binding | No per-device limit |
+| `IP_RATE_LIMITER` | rate limit binding | No per-IP limit |
+
+## Privacy
+
+- The gateway accepts only the events and prop keys in `TELEMETRY_EVENTS` (`apps/canvas-workspace/src/shared/api/telemetry.ts`) and drops the rest. Deploy the gateway before releasing a Canvas build that adds an event or key.
+- No sink gets the client IP. The Worker uses it only as the `IP_RATE_LIMITER` key. PostHog events carry `$geoip_disable: true`.
+- In the PostHog project settings, also turn on "Discard client IP data". Then PostHog does not store the IP of the request, which is the Worker's address.
+- The Canvas client sends nothing until the user has answered the first-launch notice.
 
 Analytics Engine keeps data for about three months and samples at high volume, so count events with `sum(_sample_interval)`, not `count()`. One data point per event: `index1` is the device id; `blob1`..`blob6` are event, app version, platform, arch, session id, and props JSON; `double1` is the event time in ms and `double2` is 1 for packaged builds. Example query:
 

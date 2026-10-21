@@ -5,9 +5,14 @@
  *   { deviceId, sessionId, app: { version, platform, arch, packaged },
  *     events: [{ event, ts, props }] }
  *
- * Invalid events are dropped one by one. A batch without a valid id, app
- * block, or event is rejected as a whole.
+ * Invalid events are dropped one by one, and so are events or prop keys
+ * that TELEMETRY_EVENTS (the Canvas client's list) does not name. A batch
+ * without a valid id, app block, or event is rejected as a whole.
+ *
+ * No sink gets the client IP: it is used only as a rate limit key.
  */
+
+import { TELEMETRY_EVENTS } from '../../canvas-workspace/src/shared/api/telemetry';
 
 export type PropValue = string | number | boolean;
 
@@ -33,20 +38,19 @@ export const MAX_EVENTS = 100;
 const MAX_PROPS = 16;
 const MAX_STRING = 200;
 const ID = /^[A-Za-z0-9-]{1,64}$/;
-const EVENT_NAME = /^[a-z][a-z0-9_.]{0,63}$/;
-const PROP_KEY = /^[a-z][a-z0-9_]{0,39}$/;
+const ALLOWED_PROPS: Record<string, readonly string[]> = TELEMETRY_EVENTS;
 const APP_FIELD = /^[A-Za-z0-9._-]{1,32}$/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 );
 
-function parseProps(value: unknown): Record<string, PropValue> {
+function parseProps(value: unknown, allowed: readonly string[]): Record<string, PropValue> {
   if (!isRecord(value)) return {};
   const out: Record<string, PropValue> = {};
   for (const [key, prop] of Object.entries(value)) {
     if (Object.keys(out).length >= MAX_PROPS) break;
-    if (!PROP_KEY.test(key)) continue;
+    if (!allowed.includes(key)) continue;
     if (typeof prop === 'string') out[key] = prop.slice(0, MAX_STRING);
     else if (typeof prop === 'boolean') out[key] = prop;
     else if (typeof prop === 'number' && Number.isFinite(prop)) out[key] = prop;
@@ -56,12 +60,13 @@ function parseProps(value: unknown): Record<string, PropValue> {
 
 function parseEvent(value: unknown, now: number): TelemetryEvent | null {
   if (!isRecord(value)) return null;
-  if (typeof value.event !== 'string' || !EVENT_NAME.test(value.event)) return null;
+  if (typeof value.event !== 'string') return null;
+  if (!Object.prototype.hasOwnProperty.call(ALLOWED_PROPS, value.event)) return null;
   // A client clock far off is not trusted; the receive time replaces it.
   const ts = typeof value.ts === 'number' && Math.abs(value.ts - now) < 7 * 24 * 3600_000
     ? value.ts
     : now;
-  return { event: value.event, ts, props: parseProps(value.props) };
+  return { event: value.event, ts, props: parseProps(value.props, ALLOWED_PROPS[value.event]) };
 }
 
 export function parseBatch(value: unknown, now: number): TelemetryBatch | null {
@@ -95,8 +100,11 @@ const POSTHOG_OS: Record<string, string> = {
   linux: 'Linux',
 };
 
-/** PostHog `/batch/` body. `ip` feeds PostHog GeoIP. */
-export function toPostHogBatch(batch: TelemetryBatch, apiKey: string, ip?: string) {
+/**
+ * PostHog `/batch/` body. It carries no client IP, and `$geoip_disable` stops
+ * PostHog from geolocating the request (this Worker's own address).
+ */
+export function toPostHogBatch(batch: TelemetryBatch, apiKey: string) {
   return {
     api_key: apiKey,
     batch: batch.events.map(event => ({
@@ -110,7 +118,7 @@ export function toPostHogBatch(batch: TelemetryBatch, apiKey: string, ip?: strin
         $session_id: batch.sessionId,
         $lib: 'pulse-telemetry-gateway',
         $os: POSTHOG_OS[batch.app.platform] ?? batch.app.platform,
-        ...(ip ? { $ip: ip } : {}),
+        $geoip_disable: true,
         app_version: batch.app.version,
         arch: batch.app.arch,
         packaged: batch.app.packaged,

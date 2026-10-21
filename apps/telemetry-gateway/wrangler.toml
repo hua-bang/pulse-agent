@@ -21,3 +21,10 @@ dataset = "pulse_canvas_events"
 name = "RATE_LIMITER"
 namespace_id = "1001"
 simple = { limit = 60, period = 60 }
+
+# 120 requests per client IP per minute: a device id is client-chosen, so this
+# is the limit a script cannot reset. Room for a few devices behind one NAT.
+[[ratelimits]]
+name = "IP_RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 120, period = 60 }
