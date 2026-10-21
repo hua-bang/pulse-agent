@@ -102,6 +102,12 @@ export const CanvasRootView = ({
     ? nodesById.get(selectedNodeIds[0])
     : undefined;
 
+  // In fullscreen the chip's chat button brings the node along as context.
+  const fullscreenNodeId = focus.fullscreenNodeId;
+  const addFullscreenNodeToChat = onAddToChat && fullscreenNodeId
+    ? () => { void onAddToChat(fullscreenNodeId); }
+    : undefined;
+
   if (!loaded) {
     return (
       <div className="canvas-container">
@@ -225,6 +231,7 @@ export const CanvasRootView = ({
           onReferenceToggle={onReferenceToggle}
           chatPanelOpen={chatPanelOpen}
           onChatOpen={onChatOpen}
+          onAddNodeToChat={addFullscreenNodeToChat}
           onExitFullscreen={focus.exitFullscreen}
         />
       )}

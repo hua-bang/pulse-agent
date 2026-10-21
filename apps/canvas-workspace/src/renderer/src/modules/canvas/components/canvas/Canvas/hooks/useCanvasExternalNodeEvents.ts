@@ -1,11 +1,16 @@
 import { useEffect } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
+import { DOCK_LINK_DRAG_TYPE, readDockLinkDrag } from '../../../../../../shared/dock/dock-link-drag';
 
 interface UseCanvasExternalNodeEventsParams {
   addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
+  createUrlNode: (
+    value: string,
+    options?: { at?: { x: number; y: number }; title?: string },
+  ) => CanvasNode | null;
   screenToCanvas: (
     x: number,
     y: number,
@@ -39,10 +44,39 @@ export const useCanvasExternalNodeEvents = ({
   addNode,
   canvasId,
   containerRef,
+  createUrlNode,
   screenToCanvas,
   setSelectedNodeIds,
   updateNode,
 }: UseCanvasExternalNodeEventsParams) => {
+  // A web tab dragged out of the dock lands as a web node under the pointer.
+  // The source tab stays open; the shared default session keeps its login.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes(DOCK_LINK_DRAG_TYPE)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    };
+    const drop = (event: DragEvent) => {
+      const drag = readDockLinkDrag(event.dataTransfer?.getData(DOCK_LINK_DRAG_TYPE) || '');
+      if (!drag) return;
+      event.preventDefault();
+      event.stopPropagation();
+      createUrlNode(drag.url, {
+        at: screenToCanvas(event.clientX, event.clientY, container),
+        title: drag.title,
+      });
+    };
+    container.addEventListener('dragover', over);
+    container.addEventListener('drop', drop);
+    return () => {
+      container.removeEventListener('dragover', over);
+      container.removeEventListener('drop', drop);
+    };
+  }, [containerRef, createUrlNode, screenToCanvas]);
+
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent).detail as

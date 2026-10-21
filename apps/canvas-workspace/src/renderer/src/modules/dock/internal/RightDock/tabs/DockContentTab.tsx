@@ -9,6 +9,7 @@ import type { DragEvent, MouseEvent } from 'react';
 import { useI18n } from '../../../../../i18n';
 import { DockTabIcon } from './DockTabIcon';
 import { dockPaneElementId, dockTabElementId } from '../../../../../shared/dock/dock-tab-ids';
+import { writeDockLinkDrag } from '../../../../../shared/dock/dock-link-drag';
 import type { DockPreviewTab } from '../state/dock-types';
 import type { DockTabVisualState } from './dock-tab-visual-state';
 
@@ -84,7 +85,13 @@ export const DockContentTab = ({
         title={`${visual.splitPart ? `${t(visual.splitPart === 'right' ? 'rightDock.rightPane' : 'rightDock.leftPane')} · ` : ''}${tab.title}${tab.kind === 'link' && tab.url ? `\n${tab.url}` : ''}`}
         draggable
         tabIndex={tabIndex}
-        onDragStart={(event) => onDragStart(event, tab.id)}
+        onDragStart={(event) => {
+          // A web tab can also be dropped onto the canvas as a web node.
+          if (tab.kind === 'link' && tab.url) {
+            writeDockLinkDrag(event.dataTransfer, { url: tab.url, title: tab.title });
+          }
+          onDragStart(event, tab.id);
+        }}
         onDragEnd={onDragEnd}
         onMouseDown={onMouseDown}
         onAuxClick={(event) => {
