@@ -73,14 +73,18 @@ export const useCanvasCreationActions = ({ surface, document, selection, feedbac
     setSelectedNodeIds((current) => current.filter((id) => !removed.has(id)));
   }, [setSelectedNodeIds, syncDeletedNodes]);
 
-  const createUrlNode = useCallback((value: string): CanvasNode | null => {
+  /** Adds a web node centered on `options.at` (canvas space), else the viewport center. */
+  const createUrlNode = useCallback((
+    value: string,
+    options?: { at?: { x: number; y: number }; title?: string },
+  ): CanvasNode | null => {
     const url = normalizeReferenceUrl(value);
-    const center = getViewportCenter();
+    const center = options?.at ?? getViewportCenter();
     if (!url || !center) return null;
     const size = getNodeDefaultSize('iframe');
     const node = addNode('iframe', center.x - size.width / 2, center.y - size.height / 2);
     const patch = {
-      title: getUrlHostname(url) || url,
+      title: options?.title?.trim() || getUrlHostname(url) || url,
       data: { url, html: '', mode: 'url', prompt: '' } satisfies IframeNodeData,
     };
     updateNode(node.id, patch);

@@ -212,6 +212,12 @@ titles read as double-printed. Those chat-tab rules also have to restate the
 whole `background` shorthand, because the generic `.right-dock__tab` rules
 they override are more specific and a shorthand resets `background-color`.
 
+A web tab dragged from the strip onto the canvas becomes a web node under the
+pointer. The tab writes `DOCK_LINK_DRAG_TYPE` (`shared/dock/dock-link-drag.ts`)
+next to its reorder drag, and `useCanvasExternalNodeEvents` reads it. Only the
+URL and title travel; the tab stays open. Dock and canvas webviews share the
+default session, so the node keeps the login but reloads the page state.
+
 Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
 allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.

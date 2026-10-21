@@ -1,11 +1,18 @@
 import { useEffect } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
+import { DOCK_LINK_DRAG_TYPE } from '../../../../../../shared/dock/dock-link-drag';
 
 interface UseCanvasExternalNodeEventsParams {
   addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
+  /** The container ref is only attached once the canvas has loaded. */
+  loaded: boolean;
+  createUrlNode: (
+    value: string,
+    options?: { at?: { x: number; y: number }; title?: string },
+  ) => CanvasNode | null;
   screenToCanvas: (
     x: number,
     y: number,
@@ -39,10 +46,42 @@ export const useCanvasExternalNodeEvents = ({
   addNode,
   canvasId,
   containerRef,
+  loaded,
+  createUrlNode,
   screenToCanvas,
   setSelectedNodeIds,
   updateNode,
 }: UseCanvasExternalNodeEventsParams) => {
+  // A web tab dragged out of the dock lands as a web node under the pointer.
+  // The source tab stays open; the shared default session keeps its login.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes(DOCK_LINK_DRAG_TYPE)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    };
+    const drop = (event: DragEvent) => {
+      const payload = event.dataTransfer?.getData(DOCK_LINK_DRAG_TYPE);
+      if (!payload) return;
+      event.preventDefault();
+      event.stopPropagation();
+      // Only the dock writes this type, so the payload shape is trusted.
+      const { url, title } = JSON.parse(payload) as { url: string; title: string };
+      createUrlNode(url, {
+        at: screenToCanvas(event.clientX, event.clientY, container),
+        title,
+      });
+    };
+    container.addEventListener('dragover', over);
+    container.addEventListener('drop', drop);
+    return () => {
+      container.removeEventListener('dragover', over);
+      container.removeEventListener('drop', drop);
+    };
+  }, [containerRef, createUrlNode, loaded, screenToCanvas]);
+
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent).detail as
