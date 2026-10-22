@@ -17,8 +17,8 @@ const MINDMAP_LABEL_MAX_CHARS = 16;
  */
 export function getNodeDisplayLabel(node: CanvasNode): string {
   if (node.type === "text") {
-    const explicitTitle = node.title.trim();
-    if (explicitTitle && explicitTitle !== 'Text') return explicitTitle;
+    const explicitTitle = getNodeSearchTitle(node);
+    if (explicitTitle) return explicitTitle;
 
     const preview = textContentPreview((node.data as TextNodeData).content);
     if (preview) return preview;
@@ -47,6 +47,16 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
 }
 
 /**
+ * The title a search should match against. Text nodes carry the placeholder
+ * title "Text", so matching it would make every text node hit a query like
+ * "te"; treat that placeholder as no title and let content matching decide.
+ */
+export function getNodeSearchTitle(node: CanvasNode): string {
+  const title = node.title.trim();
+  return node.type === "text" && title === "Text" ? "" : title;
+}
+
+/**
  * Tiptap persists text-node content as HTML (`editor.getHTML()`), so the raw
  * value looks like `<p>如何理解 Harness</p>`. A sidebar/mention label wants the
  * prose, not the markup: turn block boundaries and `<br>` into line breaks (so
@@ -54,7 +64,7 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
  * remaining tags, then decode the handful of entities Tiptap emits. Legacy
  * plain-markdown content has no tags, so it passes through unchanged.
  */
-function htmlToPlainText(html: string): string {
+export function htmlToPlainText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(?:p|div|li|h[1-6]|blockquote|pre|tr)>/gi, "\n")
