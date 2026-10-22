@@ -105,36 +105,36 @@ export const useCanvasSearch = ({ nodes }: Args) => {
       return prefix + text.slice(start, end).replace(/\s+/g, ' ') + suffix;
     };
 
-    for (const node of ordered) {
-      // 1) Title — every node has one.
-      if (norm(node.title).includes(q)) {
-        out.push({ nodeId: node.id, field: 'title', snippet: node.title });
-      }
-
-      // 2) Type-specific fields.
+    // One row per node, so the count and next/prev step through nodes, not
+    // through the fields of one node. A content hit wins (its snippet shows
+    // the context, and it drives in-note highlighting), then the title,
+    // then the file path.
+    const contentMatch = (node: CanvasNode): SearchMatch | null => {
+      let text = '';
+      let hay = '';
       if (node.type === 'file') {
         const data = node.data as FileNodeData;
-        const fp = data.filePath ?? '';
-        if (fp && norm(fp).includes(q)) {
-          out.push({ nodeId: node.id, field: 'filePath', snippet: fp });
-        }
-        if (data.content) {
-          const { text, lower } = fileSearchText(data);
-          const hay = caseSensitive ? text : lower;
-          const idx = hay.indexOf(q);
-          if (idx !== -1) {
-            out.push({ nodeId: node.id, field: 'content', snippet: snippetAround(text, idx) });
-          }
-        }
+        if (!data.content) return null;
+        const searchText = fileSearchText(data);
+        text = searchText.text;
+        hay = caseSensitive ? text : searchText.lower;
       } else if (node.type === 'text') {
-        const content = (node.data as TextNodeData).content ?? '';
-        if (content) {
-          const hay = norm(content);
-          const idx = hay.indexOf(q);
-          if (idx !== -1) {
-            out.push({ nodeId: node.id, field: 'content', snippet: snippetAround(content, idx) });
-          }
-        }
+        text = (node.data as TextNodeData).content ?? '';
+        hay = norm(text);
+      }
+      const idx = text ? hay.indexOf(q) : -1;
+      return idx === -1 ? null : { nodeId: node.id, field: 'content', snippet: snippetAround(text, idx) };
+    };
+
+    for (const node of ordered) {
+      const content = contentMatch(node);
+      if (content) {
+        out.push(content);
+      } else if (norm(node.title).includes(q)) {
+        out.push({ nodeId: node.id, field: 'title', snippet: node.title });
+      } else if (node.type === 'file') {
+        const fp = (node.data as FileNodeData).filePath ?? '';
+        if (fp && norm(fp).includes(q)) out.push({ nodeId: node.id, field: 'filePath', snippet: fp });
       }
     }
 

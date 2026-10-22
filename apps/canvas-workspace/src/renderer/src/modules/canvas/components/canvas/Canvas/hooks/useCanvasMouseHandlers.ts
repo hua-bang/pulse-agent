@@ -6,6 +6,7 @@ import { acquireInteractionShield } from '../../../../../../utils/interactionShi
 
 interface MarqueeApi {
   active: boolean;
+  dragging: boolean;
   begin: (e: React.MouseEvent) => void;
 }
 
@@ -367,7 +368,7 @@ export const useCanvasMouseHandlers = ({
   const edgeDragging = isEdgeDragging(edgeInteractionState);
   const directInteractionActive =
     panning ||
-    marquee.active ||
+    marquee.dragging ||
     shapeDraft !== null ||
     nodeGestureActive ||
     resizingId !== null ||

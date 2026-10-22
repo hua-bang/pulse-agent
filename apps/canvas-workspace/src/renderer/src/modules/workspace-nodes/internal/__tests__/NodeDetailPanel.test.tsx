@@ -121,7 +121,7 @@ describe('NodeDetailPanel', () => {
 
     expect(metadata).not.toBeNull();
     expect(type?.querySelector('svg')).not.toBeNull();
-    expect(type?.textContent).toContain('File');
+    expect(type?.textContent).toContain('Note');
     expect(tags).not.toBeNull();
   });
 

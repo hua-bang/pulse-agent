@@ -76,7 +76,7 @@ export const TextNodeBody = ({
   onUpdateRef.current = onUpdate;
 
   const editor = useEditor({
-    extensions: createTextNodeExtensions(t('canvas.textPlaceholder')),
+    extensions: createTextNodeExtensions(t('canvas.textPlaceholder'), t('canvas.textEditingPlaceholder')),
     content: data.content || "",
     editable: false,
     onUpdate: ({ editor }) => {

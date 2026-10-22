@@ -39,7 +39,19 @@ interface Input {
 export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
   const { language, t } = useI18n();
   const dockState = useRightDockState();
-  const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
+  const {
+    nodes: allNodes,
+    tags: tagDefinitions,
+    loading,
+    error,
+    reload,
+  } = useAllWorkspaceNodeList(workspaces);
+  // Records removed from every canvas stay in storage. Hide them here as the
+  // Graph page does, so a deleted node does not linger in the list.
+  const nodes = useMemo(
+    () => allNodes.filter((node) => node.onCanvas !== false),
+    [allNodes],
+  );
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);

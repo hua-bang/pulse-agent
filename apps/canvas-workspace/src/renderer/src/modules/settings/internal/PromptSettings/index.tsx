@@ -115,8 +115,7 @@ export const ReplyStyleSection = ({
   const [localError, setLocalError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
 
-  // Initialize the draft from the loaded profile once. Section unmounts
-  // on switch-away, so cancel = back to saved is preserved automatically.
+  // Initialize the draft from the loaded profile once.
   const initializedRef = useRef(false);
   useEffect(() => {
     if (initializedRef.current || !profile) return;
@@ -127,6 +126,17 @@ export const ReplyStyleSection = ({
 
   const dirty =
     profile != null && (preset !== profile.preset || customPrompt.trim() !== profile.customPrompt.trim());
+
+  // Leaving the section (rail switch or page close) unmounts it. Save an
+  // unsaved draft then, so a switch never drops the user's edits silently.
+  const pendingDraftRef = useRef<Partial<PromptProfile> | null>(null);
+  pendingDraftRef.current = dirty ? { preset, customPrompt } : null;
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  useEffect(() => () => {
+    const draft = pendingDraftRef.current;
+    if (draft) void onSaveRef.current(draft);
+  }, []);
 
   const save = useCallback(async () => {
     setSaving(true);

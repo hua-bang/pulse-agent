@@ -18,6 +18,7 @@ import {
   type ReadJsonResult,
 } from "./storage";
 import { getWorkspaceDir } from './persistence/paths';
+import { scheduleWorkspaceNodesChanged } from './nodes/broadcast';
 import { stopWorkspaceMarkdown } from './sync/markdown-index';
 import { preserveMainOwnedQueueFields } from './sync/queue-merge';
 import { diffSnapshots, itemsToMap } from './sync/snapshots';
@@ -620,7 +621,10 @@ export const setupCanvasStoreIpc = () => {
     async (_event, payload: { id: string; data: unknown }) => {
       try {
         const sqlite = await saveSqliteCanvas(payload.id, payload.data);
-        if (sqlite) return sqlite;
+        if (sqlite) {
+          if (sqlite.ok && payload.id !== MANIFEST_ID) scheduleWorkspaceNodesChanged([payload.id]);
+          return sqlite;
+        }
         await fs.mkdir(STORE_DIR, { recursive: true });
         if (payload.id === MANIFEST_ID) {
           const { saveWorkspaceManifest } = await import('./persistence/workspace-trash');
@@ -748,6 +752,9 @@ export const setupCanvasStoreIpc = () => {
               broadcastExternalUpdate(payload.id, pickedUp, pickedUpEdges);
             }
           });
+          // Knowledge views list nodes from storage; tell them the canvas
+          // changed so adds, deletes, and undo show up without Refresh.
+          scheduleWorkspaceNodesChanged([payload.id]);
         }
         return { ok: true };
       } catch (err) {

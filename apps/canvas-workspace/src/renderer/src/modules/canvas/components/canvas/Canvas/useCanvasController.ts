@@ -175,9 +175,14 @@ export const useCanvasController = ({
     getLiveTransform, animateTransform,
   });
 
+  const revealAddedNode = useCallback(
+    (node: CanvasNode) => { void revealNode(node, getLiveTransform); },
+    [getLiveTransform, revealNode],
+  );
+
   const ctxMenu = useCanvasContextMenu({
     containerRef, screenToCanvas, addNode, nodesRef, setSelectedNodeIds,
-    setHighlightedId, notify,
+    setHighlightedId, revealNode: revealAddedNode,
   });
 
   const actions = useCanvasNodeActions({
@@ -392,6 +397,7 @@ export const useCanvasController = ({
     handleExternalDelete: actions.handleExternalDelete,
     onNodesChange, onEdgesChange, onSelectionChange,
     focusNodeId, onFocusComplete,
+    onFocusMissing: () => notify({ tone: 'info', title: t('canvas.focusNodeMissing'), autoCloseMs: 2500 }),
     deleteNodeId, onDeleteComplete,
     renameRequest, onRenameComplete,
     nodePatchRequest, onNodePatchComplete,

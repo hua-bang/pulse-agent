@@ -58,7 +58,11 @@ export const useNoteKeyboard = ({
         onOpenFind();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    // Capture phase: the focused note owns these chords, so it must claim
+    // them (preventDefault) before the app-level bubbling listener sees
+    // them. Otherwise Mod+Shift+D both duplicated the block and toggled
+    // the theme.
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [editor, readOnly, dataRef, persistToFile, getMarkdown, onOpenFind]);
 };

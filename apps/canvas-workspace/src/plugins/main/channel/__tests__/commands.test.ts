@@ -376,7 +376,7 @@ describe('handleCommand explicit conversation sessions', () => {
     ]);
     const out = await handleCommand(msg('/sessions'), makeDeps(fakeService({ listSessionsForScope })));
     expect(listSessionsForScope).toHaveBeenCalledWith({ kind: 'global' });
-    expect(text(out)).toMatch(/No workspace/i);
+    expect(text(out)).toMatch(/All workspaces/i);
     expect(text(out)).toContain('2026-06-01');
   });
 

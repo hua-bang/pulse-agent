@@ -74,6 +74,20 @@
   background: rgba(var(--ink-rgb), 0.04);
 }
 
+/* Send cue: a click sends the request at once. */
+.chat-quick-action-send {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.chat-quick-action:hover .chat-quick-action-send,
+.chat-quick-action:focus-visible .chat-quick-action-send {
+  opacity: 1;
+}
+
 .chat-quick-action-icon {
   display: flex;
   align-items: center;

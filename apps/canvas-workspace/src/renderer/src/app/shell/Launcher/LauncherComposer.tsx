@@ -68,6 +68,28 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
     onSubmit: handleEnter,
   });
 
+  // A starter fills an empty box. With a draft, it goes after the draft
+  // through the editing command, so mention chips stay and Undo restores
+  // the draft. Either way the caret lands at the end, ready to type.
+  const applyStarter = (text: string) => {
+    const element = field.editableRef.current;
+    if (!field.input.trim() || !element) {
+      field.replaceInput(text);
+      element?.focus();
+      return;
+    }
+    element.focus();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    if (!document.execCommand('insertText', false, ` ${text}`)) {
+      field.replaceInput(`${field.input.trimEnd()} ${text}`);
+    }
+  };
+
   const submit = async () => {
     const question = field.input.trim();
     if (!question || sendingRef.current) return;
@@ -150,7 +172,7 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
             size="xs"
             className="launcher__starter"
             disabled={sending}
-            onClick={() => field.replaceInput(t(key))}
+            onClick={() => applyStarter(t(key))}
           >
             {t(key)}
           </Button>

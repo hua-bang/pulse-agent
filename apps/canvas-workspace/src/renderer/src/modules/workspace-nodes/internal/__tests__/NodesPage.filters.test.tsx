@@ -92,11 +92,11 @@ describe('NodesPage inline filters', () => {
   it('applies a filter with one click and a second click on the same chip clears it', () => {
     const page = renderPage();
 
-    act(() => chip(page, 'Types', 'File').click());
+    act(() => chip(page, 'Types', 'Note').click());
     expect(subtitle(page)).toBe('1 / 3 nodes');
-    expect(chip(page, 'Types', 'File').getAttribute('aria-pressed')).toBe('true');
+    expect(chip(page, 'Types', 'Note').getAttribute('aria-pressed')).toBe('true');
 
-    act(() => chip(page, 'Types', 'File').click());
+    act(() => chip(page, 'Types', 'Note').click());
     expect(subtitle(page)).toBe('3 nodes');
     expect(chip(page, 'Types', 'All').getAttribute('aria-pressed')).toBe('true');
   });

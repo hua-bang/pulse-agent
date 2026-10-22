@@ -31,13 +31,17 @@
 
 .node-detail-panel__title-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
 
+/* Keep a readable minimum width for the title. When the page is narrow
+ * (for example with the Dock open), the actions wrap below the title
+ * instead of squeezing it to one letter per line. */
 .node-detail-panel__title-field {
-  min-width: 0;
-  flex: 1;
+  min-width: min(16rem, 100%);
+  flex: 1 1 16rem;
 }
 
 .node-detail-panel__title-actions {
@@ -65,7 +69,7 @@
   font-weight: 500;
   line-height: 1.16;
   letter-spacing: -0.035em;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .node-detail-panel__document-title[lang='zh'] {

@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ scan: vi.fn(), names: vi.fn() }));
 vi.mock('./store/session-store-scan', () => ({ scanAllWorkspaceSessions: mocks.scan }));
 vi.mock('./store/session-store-lookups', () => ({
   GLOBAL_CHAT_SESSION_STORE_ID: '__global_chat__',
-  GLOBAL_CHAT_WORKSPACE_NAME: 'No workspace',
+  GLOBAL_CHAT_WORKSPACE_NAME: 'All workspaces',
   workspaceNames: mocks.names,
 }));
 vi.mock('./sqlite/backend', () => ({ sessionStorageRoot: () => '/sessions' }));
@@ -45,8 +45,8 @@ describe('searchSessionTitles', () => {
       expect.objectContaining({ sessionId: 's-new', workspaceId: 'ws-1', workspaceName: 'Product' }),
       expect.objectContaining({ sessionId: 's-old', preview: 'CPA Manager plan', date: '2026-09-12' }),
     ]);
-    expect(await searchSessionTitles('no workspace')).toEqual([
-      expect.objectContaining({ sessionId: 's-global', workspaceName: 'No workspace' }),
+    expect(await searchSessionTitles('all workspaces')).toEqual([
+      expect.objectContaining({ sessionId: 's-global', workspaceName: 'All workspaces' }),
     ]);
     expect(await searchSessionTitles('product', 1)).toHaveLength(1);
     expect(mocks.scan).toHaveBeenCalledWith('/sessions');

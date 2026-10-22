@@ -69,6 +69,10 @@ export const useChatPageBodyController = ({
   const dockTabs = useMemo(() => buildChatPageDockTabRefs(dockState), [dockState]);
   // Always actionable; empty scopes fall back to a fresh browser tab.
   const handleToggleDockTabs = useCallback(() => {
+    // The Tab panel takes the room the session list used. Left open, the
+    // list turned into an overlay over the conversation and the composer,
+    // so opening the panel folds the list away; its toggle brings it back.
+    if (!dockTabsVisible && !railCollapsed) onToggleRail();
     toggleFullPageDockContentTabs(
       dockState,
       workspaceId ? {
@@ -77,7 +81,7 @@ export const useChatPageBodyController = ({
       } : undefined,
       dock,
     );
-  }, [allWorkspaces, dock, dockState, workspaceId]);
+  }, [allWorkspaces, dock, dockState, dockTabsVisible, onToggleRail, railCollapsed, workspaceId]);
   const scopeId = scopeSessionStoreId(agentScope);
   const sessionStoreId = scopeSessionStoreId(agentScope);
   const {

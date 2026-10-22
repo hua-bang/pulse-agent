@@ -80,6 +80,9 @@ export function syncBrowserFavicon(favicons: string[], ctx: BrowserMetaSyncConte
   ctx.onUpdate(ctx.node.id, { data: nextData });
 }
 
+/** One plain sentence for the error card. The card already says the node
+ *  stays on the canvas, so the message does not repeat that, and a raw
+ *  network code only appears when there is no plainer way to say it. */
 export function getFriendlyLoadErrorMessage(
   errorDescription: string | undefined,
   errorCode: number | undefined,
@@ -93,17 +96,19 @@ export function getFriendlyLoadErrorMessage(
     || normalized.includes('FRAME')
     || errorCode === -27
   ) {
-    return 'This site does not allow embedded previews. The node is still saved as a reference; open it in your browser to view the page.';
+    return 'This site does not allow embedded previews. Open it in your browser to view the page.';
   }
   if (
     normalized.includes('ERR_NAME_NOT_RESOLVED')
     || normalized.includes('ERR_INTERNET_DISCONNECTED')
     || normalized.includes('ERR_CONNECTION')
+    || normalized.includes('ERR_TUNNEL')
+    || normalized.includes('ERR_PROXY')
     || normalized.includes('ERR_TIMED_OUT')
   ) {
-    return 'The page could not be reached from this network. The node is still saved as a reference.';
+    return 'The page could not be reached from this network.';
   }
   return description
-    ? `${description}. The node is still saved as a reference.`
-    : 'The embedded page could not be displayed. The node is still saved as a reference.';
+    ? `The embedded page could not be displayed (${description}).`
+    : 'The embedded page could not be displayed.';
 }
