@@ -1,13 +1,13 @@
 .cfg-plugin-config {
   margin-top: 8px;
   padding: 8px 6px 2px;
-  border-top: 1px solid rgba(55, 53, 47, 0.06);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.06);
 }
 
 .cfg-plugin-config-title {
   font-size: 11px;
   font-weight: 500;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
   margin: 0 0 8px;
 }
 
@@ -35,7 +35,7 @@
 
 .cfg-plugin-config-description {
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

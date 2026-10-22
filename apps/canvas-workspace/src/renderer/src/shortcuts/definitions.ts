@@ -234,6 +234,14 @@ export const SHORTCUTS = {
     // input a keyboard black hole.
     editable: 'allow',
   },
+  'app.toggleTheme': {
+    owner: 'app',
+    bindings: [{ key: 'd', mod: true, shift: true }],
+    // Works from a text field, terminal, or embedded page: this chord
+    // has no text-editing meaning, and blocking it made every focused
+    // input a keyboard black hole.
+    editable: 'allow',
+  },
   'app.switchWorkspace': {
     owner: 'app',
     bindings: [

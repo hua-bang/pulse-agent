@@ -16,9 +16,9 @@
 
 .built-in-tools-summary,
 .built-in-tool-card {
-  border: 1px solid rgba(55, 53, 47, 0.09);
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
 }
 
 .built-in-tools-summary {
@@ -32,14 +32,14 @@
 .built-in-tools-title {
   font-size: 14px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   margin-bottom: 4px;
 }
 
 .built-in-tools-description {
   font-size: 12px;
   line-height: 1.5;
-  color: rgba(55, 53, 47, 0.65);
+  color: rgba(var(--ink-rgb), 0.65);
   max-width: 620px;
 }
 
@@ -47,7 +47,7 @@
   flex-shrink: 0;
   border-radius: var(--radius-pill);
   background: rgba(35, 131, 226, 0.08);
-  color: #1f76cc;
+  color: var(--text-info);
   font-size: 12px;
   font-weight: 500;
   padding: 5px 10px;
@@ -55,7 +55,7 @@
 
 .built-in-tools-error {
   background: rgba(226, 70, 70, 0.08);
-  color: #b3261e;
+  color: var(--error);
   font-size: 12px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
@@ -63,7 +63,7 @@
 
 .built-in-tools-loading {
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.62);
+  color: rgba(var(--ink-rgb), 0.62);
   padding: 8px 0;
 }
 
@@ -99,7 +99,7 @@
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: rgba(55, 53, 47, 0.28);
+  background: rgba(var(--ink-rgb), 0.28);
 }
 
 .built-in-tool-status-dot--stored,
@@ -114,14 +114,14 @@
 .built-in-tool-name {
   font-size: 13.5px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
 }
 
 .built-in-tool-description {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.45;
-  color: rgba(55, 53, 47, 0.66);
+  color: rgba(var(--ink-rgb), 0.66);
 }
 
 .built-in-tool-badge {
@@ -136,12 +136,12 @@
 .built-in-tool-badge--stored,
 .built-in-tool-badge--env {
   background: rgba(10, 135, 84, 0.09);
-  color: #087448;
+  color: var(--success);
 }
 
 .built-in-tool-badge--missing {
   background: rgba(217, 119, 6, 0.1);
-  color: #92400e;
+  color: var(--text-warning);
 }
 
 .built-in-tool-meta {
@@ -149,7 +149,7 @@
   grid-template-columns: 170px 1fr;
   gap: 8px 12px;
   font-size: 11.5px;
-  color: rgba(55, 53, 47, 0.68);
+  color: rgba(var(--ink-rgb), 0.68);
 }
 
 .built-in-tool-meta > div {
@@ -157,20 +157,20 @@
 }
 
 .built-in-tool-meta span:first-child {
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
 }
 
 .built-in-tool-meta code {
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   font-size: 11px;
-  color: #37352f;
+  color: var(--ink);
 }
 
 .built-in-tool-meta-note {
   margin-left: 6px;
-  color: rgba(55, 53, 47, 0.48);
+  color: rgba(var(--ink-rgb), 0.48);
 }
 
 .built-in-tool-form {
@@ -179,15 +179,15 @@
   align-items: start;
   gap: 9px 10px;
   padding: 10px;
-  border: 1px solid rgba(55, 53, 47, 0.07);
+  border: 1px solid rgba(var(--ink-rgb), 0.07);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(55, 53, 47, 0.025), rgba(55, 53, 47, 0.014));
+  background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.025), rgba(var(--ink-rgb), 0.014));
   transition: border-color 0.12s, background 0.12s;
 }
 
 .built-in-tool-form:focus-within {
   border-color: rgba(35, 131, 226, 0.22);
-  background: #fff;
+  background: var(--surface);
 }
 
 .built-in-tool-actions {
@@ -198,7 +198,7 @@
   gap: 8px;
   margin-top: 2px;
   padding-top: 8px;
-  border-top: 1px solid rgba(55, 53, 47, 0.06);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.06);
 }
 
 /* Only surviving consumer: the "Clear stored" ghost action inside
@@ -214,21 +214,21 @@
   white-space: nowrap;
   border-color: transparent;
   background: transparent;
-  color: rgba(55, 53, 47, 0.62);
+  color: rgba(var(--ink-rgb), 0.62);
 }
 
 .built-in-tool-secondary-btn:hover {
-  background: rgba(55, 53, 47, 0.055);
-  color: #37352f;
+  background: rgba(var(--ink-rgb), 0.055);
+  color: var(--ink);
 }
 
 .built-in-tool-secondary-btn:disabled {
-  color: rgba(55, 53, 47, 0.42);
+  color: rgba(var(--ink-rgb), 0.42);
   cursor: not-allowed;
 }
 
 .built-in-tools-footer {
-  border-top: 1px solid rgba(55, 53, 47, 0.07);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.07);
   padding: 12px 24px;
   display: flex;
   justify-content: flex-end;

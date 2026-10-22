@@ -6,7 +6,7 @@
   overflow: hidden;
   border: 1px solid rgba(92, 128, 183, 0.16);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(var(--surface-rgb), 0.86);
   box-shadow: 0 12px 26px rgba(31, 54, 88, 0.045);
 }
 
@@ -16,7 +16,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(var(--shade-rgb), 0.06);
 }
 
 .agent-team-graph-panel__head > div:first-child {
@@ -65,7 +65,7 @@
   background:
     linear-gradient(90deg, rgba(35, 131, 226, 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgba(35, 131, 226, 0.03) 1px, transparent 1px),
-    rgba(250, 252, 255, 0.9);
+    var(--bg);
   background-size: 34px 34px;
   padding: 0;
   scroll-padding: 24px;
@@ -78,10 +78,10 @@
   gap: 4px;
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid #d8e4f2;
+  border: 1px solid var(--tint-info-border);
   border-radius: var(--radius-pill);
-  background: #eef5ff;
-  color: #285b95;
+  background: var(--tint-info);
+  color: var(--text-info);
   font-size: 10px;
   font-weight: 500;
   line-height: 1.2;
@@ -100,14 +100,14 @@
 /* Selecting an agent already highlights its task nodes via the owner-highlight
    ring; the owner chip keeps its identity color instead of switching to green. */
 .agent-team-owner-chip--active {
-  border-color: #d8e4f2;
-  background: #eef5ff;
-  color: #285b95;
+  border-color: var(--tint-info-border);
+  background: var(--tint-info);
+  color: var(--text-info);
 }
 
 .agent-team-detail__facts .agent-team-owner-chip--active {
-  color: #285b95;
-  background: #eef5ff;
+  color: var(--text-info);
+  background: var(--tint-info);
 }
 
 .agent-team-graph-detail {
@@ -120,7 +120,7 @@
   overscroll-behavior: contain;
   border: 1px solid rgba(92, 128, 183, 0.12);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.76);
+  background: rgba(var(--surface-rgb), 0.76);
   padding: 10px;
 }
 
@@ -130,7 +130,7 @@
   padding: 2px;
   border: 1px solid rgba(92, 128, 183, 0.18);
   border-radius: var(--radius-md);
-  background: rgba(238, 243, 250, 0.7);
+  background: var(--bg);
 }
 
 .agent-team-detail__empty {

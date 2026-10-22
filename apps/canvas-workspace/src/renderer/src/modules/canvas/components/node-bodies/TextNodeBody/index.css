@@ -48,7 +48,7 @@
 }
 
 .canvas-node--text:hover {
-  border-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(var(--shade-rgb), 0.08);
 }
 
 .canvas-node--text.canvas-node--selected {
@@ -71,8 +71,8 @@
   min-height: 28px;
   height: 28px;
   padding: 4px 6px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
+  background: var(--surface, var(--surface));
+  border: 1px solid var(--border-light, rgba(var(--shade-rgb), 0.08));
   border-radius: var(--radius-sm);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   /* Keep toolbar size constant regardless of canvas zoom. */
@@ -274,14 +274,14 @@
   font-size: 0.9em;
   padding: 0.08em 0.35em;
   border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(var(--shade-rgb), 0.06);
 }
 
 .text-node-body pre {
   margin: 0.35em 0 0;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(var(--shade-rgb), 0.05);
   font-family: var(--font-mono);
   font-size: 0.9em;
   overflow-x: auto;
@@ -296,13 +296,13 @@
 .text-node-body blockquote {
   margin: 0.2em 0;
   padding: 0.15em 0 0.15em 0.8em;
-  border-left: 3px solid rgba(0, 0, 0, 0.15);
+  border-left: 3px solid rgba(var(--shade-rgb), 0.15);
   opacity: 0.88;
 }
 
 .text-node-body hr {
   border: none;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  border-top: 1px solid rgba(var(--shade-rgb), 0.12);
   margin: 0.5em 0;
 }
 
@@ -327,8 +327,8 @@
   max-width: min(720px, calc(100vw - 16px));
   gap: 4px;
   padding: 4px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  background: var(--surface, var(--surface));
+  border: 1px solid var(--border, rgba(var(--shade-rgb), 0.12));
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-float, 0 8px 24px rgba(0, 0, 0, 0.16));
   pointer-events: auto;
@@ -344,7 +344,7 @@
 .text-selection-bubble__divider {
   width: 1px;
   height: 18px;
-  background: var(--border, rgba(0, 0, 0, 0.12));
+  background: var(--border, rgba(var(--shade-rgb), 0.12));
   margin: 0 1px;
   flex: 0 0 auto;
 }
@@ -366,7 +366,7 @@
   height: 26px;
   border-radius: var(--radius-sm);
   padding: 0;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-secondary));
   font-size: 12px;
   line-height: 1;
 }
@@ -374,12 +374,12 @@
 .text-selection-bubble__button:hover,
 .text-selection-bubble__button--active {
   background: var(--accent-light, rgba(35, 131, 226, 0.12));
-  color: var(--accent, #2383e2);
+  color: var(--accent, var(--accent));
 }
 
 .text-selection-bubble__button:focus-visible,
 .text-selection-bubble__swatch:focus-visible {
-  outline: 2px solid var(--accent, #2383e2);
+  outline: 2px solid var(--accent, var(--accent));
   outline-offset: 2px;
 }
 
@@ -407,24 +407,24 @@
 
 .text-selection-bubble__swatch:hover {
   transform: translateY(-1px);
-  border-color: rgba(0, 0, 0, 0.22);
+  border-color: rgba(var(--shade-rgb), 0.22);
 }
 
 .text-selection-bubble__swatch--text {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .text-selection-bubble__swatch--highlight {
-  border-color: rgba(0, 0, 0, 0.1);
+  border-color: rgba(var(--shade-rgb), 0.1);
 }
 
 .text-selection-bubble__swatch--active {
-  border-color: var(--accent, #2383e2);
-  box-shadow: 0 0 0 1px var(--accent, #2383e2);
+  border-color: var(--accent, var(--accent));
+  box-shadow: 0 0 0 1px var(--accent, var(--accent));
 }
 
 .text-selection-bubble__swatch--clear {
-  border-color: rgba(0, 0, 0, 0.12);
+  border-color: rgba(var(--shade-rgb), 0.12);
   background:
     linear-gradient(
       to top right,
@@ -433,7 +433,7 @@
       #e03131 calc(50% + 0.5px),
       transparent calc(50% + 1px)
     ),
-    #fff;
+    var(--surface);
 }
 
 /* --- Resize handles: visible on hover/selected -------------------------- *
@@ -474,7 +474,7 @@
   height: 14px;
   padding: 0;
   border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.18);
+  border: 1.5px solid rgba(var(--shade-rgb), 0.18);
   background: transparent;
   cursor: pointer;
   transition: transform 0.1s ease, border-color 0.15s ease;
@@ -485,7 +485,7 @@
 }
 
 .text-color-dot:focus-visible {
-  outline: 2px solid var(--accent, #2383e2);
+  outline: 2px solid var(--accent, var(--accent));
   outline-offset: 2px;
 }
 
@@ -493,14 +493,14 @@
   font-size: 9px;
   font-weight: 500;
   line-height: 1;
-  color: rgba(0, 0, 0, 0.55);
+  color: rgba(var(--shade-rgb), 0.55);
   font-family: var(--font);
   pointer-events: none;
 }
 
 .text-color-trigger:hover .text-color-dot {
   transform: scale(1.12);
-  border-color: rgba(0, 0, 0, 0.35);
+  border-color: rgba(var(--shade-rgb), 0.35);
 }
 
 /* "None" dot — diagonal slash reads as "no color". The swatch row's own
@@ -509,7 +509,7 @@
  * (the picker's always-visible current-value preview, not a row item), so
  * it keeps its own copy of the same idiom. */
 .text-color-dot--transparent {
-  background-color: #ffffff;
+  background-color: var(--surface);
   background-image: linear-gradient(
     to top right,
     transparent calc(50% - 1px),

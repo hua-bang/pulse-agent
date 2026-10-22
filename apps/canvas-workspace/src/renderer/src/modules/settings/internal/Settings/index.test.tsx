@@ -51,6 +51,7 @@ vi.mock('../PromptSettings', () => ({
 }));
 
 vi.mock('./AgentSection', () => ({ AgentSection: () => <div>Agent content</div> }));
+vi.mock('./AppearanceSection', () => ({ AppearanceSection: () => <div>Appearance content</div> }));
 vi.mock('./BrowserSection', () => ({ BrowserSection: () => <div>Browser content</div> }));
 vi.mock('./BuiltInToolsSection', () => ({ BuiltInToolsSection: () => <div>Tools content</div> }));
 vi.mock('./ExperimentalSection', () => ({ ExperimentalSection: () => <div>Experimental content</div> }));
@@ -147,6 +148,7 @@ describe('Settings navigation', () => {
     });
 
     expect(host?.querySelector('.settings-rail-item[aria-current="page"]')?.textContent?.trim()).toBe('General');
+    expect(host?.textContent).toContain('Appearance content');
     expect(host?.textContent).toContain('Browser content');
     expect(host?.textContent).toContain('Language content');
     expect(host?.textContent).toContain('Updates content');

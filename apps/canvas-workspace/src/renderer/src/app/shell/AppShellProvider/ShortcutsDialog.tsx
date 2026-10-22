@@ -53,6 +53,7 @@ export const SHORTCUT_HELP = {
   'app.toggleChatPage': { section: 'panels', descriptionKey: 'shortcuts.panels.chatPage' },
   'app.toggleSidebar': { section: 'panels', descriptionKey: 'shortcuts.panels.sidebar' },
   'app.togglePanels': { section: 'panels', descriptionKey: 'shortcuts.panels.focus' },
+  'app.toggleTheme': { section: 'panels', descriptionKey: 'shortcuts.panels.toggleTheme' },
   'app.switchWorkspace': { section: 'panels', descriptionKey: 'shortcuts.panels.switchWorkspace' },
   'app.shortcutsHelp': { section: 'panels', descriptionKey: 'shortcuts.panels.shortcuts' },
   'terminal.mentionPicker': { section: 'panels', descriptionKey: 'shortcuts.panels.terminalMentionPicker' },

@@ -29,7 +29,7 @@
 .plugin-tool-option:hover,
 .plugin-tool-option:focus-visible {
   outline: none;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .plugin-tool-option__icon {

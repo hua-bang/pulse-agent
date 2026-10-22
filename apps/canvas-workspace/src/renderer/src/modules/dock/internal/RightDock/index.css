@@ -18,8 +18,8 @@
   right: 0;
   height: 100vh;
   z-index: var(--layer-dock);
-  background: #fff;
-  border-left: 1px solid rgba(55, 53, 47, 0.09);
+  background: var(--surface);
+  border-left: 1px solid rgba(var(--ink-rgb), 0.09);
   box-shadow: -8px 0 24px rgba(15, 15, 15, 0.08);
   display: flex;
   flex-direction: column;
@@ -72,7 +72,7 @@
 .right-dock__resize-handle:hover,
 .right-dock__resize-handle:active,
 .right-dock__resize-handle:focus-visible {
-  background: rgba(55, 53, 47, 0.12);
+  background: rgba(var(--ink-rgb), 0.12);
 }
 
 .right-dock__resize-handle:focus-visible {
@@ -91,19 +91,19 @@
   --tab-ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* Shared by the generic tab hover and the sticky chat tab's opaque
      restatement of it — one value, two rules. */
-  --dock-tab-hover-wash: rgba(55, 53, 47, 0.06);
+  --dock-tab-hover-wash: rgba(var(--ink-rgb), 0.06);
   display: flex;
   align-items: center;
   gap: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 246, 0.94)),
-    rgba(250, 250, 249, 0.96);
+    linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), var(--bg)),
+    var(--bg);
   backdrop-filter: blur(18px);
   flex-shrink: 0;
   position: relative;
   max-height: 0;
   padding: 0 8px 0 10px;
-  border-bottom: 0 solid rgba(55, 53, 47, 0.07);
+  border-bottom: 0 solid rgba(var(--ink-rgb), 0.07);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   opacity: 0;
   transform: translateY(-6px);
@@ -127,7 +127,7 @@
   visibility: visible;
   overflow: visible;
   z-index: var(--layer-canvas-chrome);
-  background: white;
+  background: var(--surface);
   transition:
     max-height 0.24s var(--tab-ease),
     padding 0.24s var(--tab-ease),
@@ -161,11 +161,11 @@
   left: 0;
   z-index: 0;
   height: 30px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: var(--radius-md);
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.98), transparent 58%),
-    linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.92));
+    radial-gradient(circle at 50% 0%, rgba(var(--surface-rgb), 0.98), transparent 58%),
+    linear-gradient(180deg, var(--surface), rgba(var(--surface-rgb), 0.92));
   box-shadow:
     0 1px 2px rgba(15, 15, 15, 0.06),
     0 10px 22px rgba(15, 15, 15, 0.06);
@@ -242,7 +242,7 @@
   padding: 0 7px 0 10px;
   height: 30px;
   font-size: 12px;
-  color: #73716c;
+  color: var(--text-secondary);
   cursor: pointer;
   position: relative;
   z-index: 1;
@@ -269,8 +269,8 @@
   z-index: 0;
   border-radius: inherit;
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.92), transparent 58%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0));
+    radial-gradient(circle at 50% 0%, rgba(var(--surface-rgb), 0.92), transparent 58%),
+    linear-gradient(180deg, rgba(var(--surface-rgb), 0.9), rgba(255, 255, 255, 0));
   opacity: 0;
   transition: opacity 0.18s ease;
 }
@@ -282,7 +282,7 @@
 
 .right-dock__tab:not(.right-dock__tab--active):hover {
   background: var(--dock-tab-hover-wash);
-  color: #37352f;
+  color: var(--ink);
   transform: translateY(-1px);
 }
 
@@ -295,7 +295,7 @@
 .right-dock__tab--active {
   background: transparent;
   border-color: transparent;
-  color: #37352f;
+  color: var(--ink);
   font-weight: 500;
   transform: translateY(-1px);
   animation: right-dock-tab-rise 0.22s var(--tab-ease);
@@ -414,7 +414,7 @@
 }
 
 .right-dock__tab-dot--link {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-dot {
@@ -431,7 +431,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #73716c;
+  color: var(--text-secondary);
   transition:
     color 0.18s ease,
     transform 0.2s var(--tab-ease);
@@ -454,11 +454,11 @@
 }
 
 .right-dock__tab-icon--terminal {
-  color: #0f766e;
+  color: var(--text-info);
 }
 
 .right-dock__tab-icon--agent {
-  color: #202123;
+  color: var(--text);
 }
 
 .right-dock__tab-icon--agent svg {
@@ -483,16 +483,16 @@
 }
 
 .right-dock__tab-icon--link {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-icon {
-  color: #0f766e;
+  color: var(--text-info);
   transform: scale(1.06);
 }
 
 .right-dock__tab--active .right-dock__tab-icon--link {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-claude-code {
@@ -551,8 +551,8 @@
 }
 
 .right-dock__tab-close:hover {
-  background: rgba(55, 53, 47, 0.1);
-  color: #37352f;
+  background: rgba(var(--ink-rgb), 0.1);
+  color: var(--ink);
 }
 
 /* Unread dot: a chat turn finished while chat wasn't the visible tab. */
@@ -565,7 +565,7 @@
   height: 7px;
   border-radius: 50%;
   background: #e0533d;
-  border: 1.5px solid #fbfbfa;
+  border: 1.5px solid var(--border);
   box-shadow: 0 0 0 0 rgba(224, 83, 61, 0.24);
 }
 
@@ -677,7 +677,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  color: #6b6b68;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
@@ -698,9 +698,9 @@
 
 .right-dock__new-link:hover,
 .right-dock__collapse:hover {
-  background: rgba(55, 53, 47, 0.08);
+  background: rgba(var(--ink-rgb), 0.08);
   box-shadow: 0 0 0 1px rgba(55, 53, 47, 0.05);
-  color: #37352f;
+  color: var(--ink);
   transform: translateX(1px);
 }
 
@@ -787,7 +787,7 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   visibility: hidden;
   pointer-events: none;
 }

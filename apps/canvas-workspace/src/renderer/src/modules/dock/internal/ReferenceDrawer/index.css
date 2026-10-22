@@ -5,7 +5,7 @@
   max-width: 1000px;
   height: 100%;
   border-right: 1px solid var(--border-light);
-  background: #ffffff;
+  background: var(--surface);
   overflow: hidden;
   position: relative;
   z-index: 10;
@@ -135,7 +135,7 @@
 
 .reference-drawer-icon-button:hover {
   color: var(--text);
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .reference-drawer-content {

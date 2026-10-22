@@ -1,6 +1,6 @@
 .right-dock__pane--terminal {
   padding: 0;
-  background: #fafaf9;
+  background: var(--bg);
 }
 
 .right-dock__terminal-host,
@@ -32,8 +32,8 @@
   min-width: 54px;
   border: 1px solid rgba(35, 131, 226, 0.45);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #37352f;
+  background: rgba(var(--surface-rgb), 0.96);
+  color: var(--ink);
   font: inherit;
   font-size: 12px;
   font-weight: 500;

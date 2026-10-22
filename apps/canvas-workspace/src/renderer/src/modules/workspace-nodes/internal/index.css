@@ -6,16 +6,16 @@
 .workspace-graph-page,
 .node-detail-panel__inspector,
 .node-detail-panel {
-  --nodes-bg: #fbfbfa;
-  --nodes-surface: #ffffff;
-  --nodes-surface-soft: rgba(55, 53, 47, 0.04);
-  --nodes-surface-hover: rgba(55, 53, 47, 0.06);
+  --nodes-bg: var(--bg);
+  --nodes-surface: var(--surface);
+  --nodes-surface-soft: rgba(var(--ink-rgb), 0.04);
+  --nodes-surface-hover: rgba(var(--ink-rgb), 0.06);
   --nodes-surface-active: var(--accent-light);
-  --nodes-border: rgba(55, 53, 47, 0.12);
-  --nodes-border-strong: rgba(55, 53, 47, 0.2);
-  --nodes-text: #37352f;
-  --nodes-muted: rgba(55, 53, 47, 0.62);
-  --nodes-faint: rgba(55, 53, 47, 0.42);
+  --nodes-border: rgba(var(--ink-rgb), 0.12);
+  --nodes-border-strong: rgba(var(--ink-rgb), 0.2);
+  --nodes-text: var(--ink);
+  --nodes-muted: rgba(var(--ink-rgb), 0.62);
+  --nodes-faint: rgba(var(--ink-rgb), 0.42);
   --nodes-dot: var(--accent);
   --nodes-tag-dot: #9b9992;
   --nodes-link-dot: #7f8588;
@@ -188,7 +188,7 @@
 .workspace-node-tag__remove:hover,
 .workspace-node-tag__remove:focus-visible {
   outline: none;
-  background: rgba(55, 53, 47, 0.08);
+  background: rgba(var(--ink-rgb), 0.08);
   color: var(--nodes-text);
 }
 .node-detail-panel {

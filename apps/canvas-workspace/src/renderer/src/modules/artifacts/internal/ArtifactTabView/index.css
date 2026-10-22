@@ -3,8 +3,8 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #6b6b68;
-  background: #f1efe8;
+  color: var(--text-secondary);
+  background: var(--bg-canvas);
   padding: 2px 6px;
   border-radius: var(--radius-xs);
   flex-shrink: 0;
@@ -15,8 +15,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
-  background: #fafaf9;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+  background: var(--bg);
   flex-shrink: 0;
 }
 
@@ -36,9 +36,9 @@
   box-sizing: border-box;
   font-size: 12px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   background: transparent;
-  border: 1px solid rgba(55, 53, 47, 0.16);
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
   border-radius: 5px;
   padding: 5px 10px;
   cursor: pointer;
@@ -47,8 +47,8 @@
 }
 
 .artifact-drawer__action:hover:not(:disabled) {
-  background: #f1f1ef;
-  border-color: rgba(55, 53, 47, 0.28);
+  background: var(--bg-canvas);
+  border-color: rgba(var(--ink-rgb), 0.28);
 }
 
 .artifact-drawer__action:focus-visible {
@@ -57,19 +57,19 @@
 }
 
 .artifact-drawer__action--primary {
-  background: #37352f;
-  color: #fff;
-  border-color: #37352f;
+  background: var(--ink);
+  color: var(--ink-contrast);
+  border-color: var(--ink);
 }
 
 .artifact-drawer__action--primary:hover:not(:disabled) {
   background: #2f2e2a;
-  border-color: #2f2e2a;
+  border-color: var(--text);
 }
 
 .artifact-drawer__action:disabled {
-  color: #8a8a87;
-  border-color: rgba(55, 53, 47, 0.08);
+  color: var(--text-secondary);
+  border-color: rgba(var(--ink-rgb), 0.08);
   cursor: default;
 }
 
@@ -78,28 +78,28 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
 }
 
 .artifact-drawer__frame {
   flex: 1;
   width: 100%;
   border: 0;
-  background: #fff;
+  background: var(--surface);
 }
 
 .artifact-drawer__svg-host {
   flex: 1;
   overflow: auto;
   padding: 16px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .artifact-drawer__mermaid-host {
   flex: 1;
   overflow: auto;
   padding: 16px;
-  background: #fff;
+  background: var(--surface);
   text-align: center;
 }
 
@@ -112,7 +112,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8a8a87;
+  color: var(--text-secondary);
   font-size: 13px;
   font-style: italic;
 }
@@ -125,7 +125,7 @@
 .artifact-drawer__mermaid-error-title {
   font-size: 13px;
   font-weight: 500;
-  color: #8b2f2a;
+  color: var(--error);
   margin-bottom: 6px;
 }
 
@@ -143,13 +143,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8a8a87;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .artifact-drawer__pinned-badge {
   font-size: 11px;
-  color: #6b6b68;
+  color: var(--text-secondary);
   margin-left: 4px;
 }
 

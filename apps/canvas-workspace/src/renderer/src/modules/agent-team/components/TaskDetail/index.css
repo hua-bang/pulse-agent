@@ -20,9 +20,9 @@
 
 .agent-team-detail__description,
 .agent-team-detail__result {
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(var(--shade-rgb), 0.06);
   border-radius: 7px;
-  background: rgba(250, 251, 253, 0.82);
+  background: var(--bg);
   padding: 8px;
   line-height: 1.42;
 }
@@ -56,6 +56,6 @@
 }
 
 .agent-team-detail__result--blocked {
-  border-color: #ead18b;
-  background: #fff8df;
+  border-color: var(--tint-warning-border);
+  background: var(--tint-warning);
 }

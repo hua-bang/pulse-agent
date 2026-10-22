@@ -115,7 +115,7 @@
 
 .node-title[contenteditable="true"] {
   cursor: text;
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(var(--shade-rgb), 0.03);
   box-shadow: 0 0 0 1.5px var(--accent-border);
 }
 
@@ -138,11 +138,11 @@
 
 .node-status-label--running {
   background: var(--agent-success-soft);
-  color: #059669;
+  color: var(--success);
 }
 
 .node-status-label--done {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(var(--shade-rgb), 0.05);
   color: var(--text-muted);
 }
 
@@ -242,7 +242,7 @@
 }
 
 .node-close:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(var(--shade-rgb), 0.05);
   color: #e03e3e;
 }
 
@@ -269,15 +269,15 @@
 }
 
 .node-agent-team-role--lead {
-  color: #285b95;
-  background: #e9f2ff;
-  border: 1px solid #b8d4f3;
+  color: var(--text-info);
+  background: var(--tint-info);
+  border: 1px solid var(--tint-info-border);
 }
 
 .node-agent-team-role--teammate {
-  color: #6a4b00;
-  background: #fff3ca;
-  border: 1px solid #ead18b;
+  color: var(--text-warning);
+  background: var(--tint-warning);
+  border: 1px solid var(--tint-warning-border);
 }
 
 .canvas-transform--small .canvas-node .node-header__actions {
@@ -288,10 +288,10 @@
   transform: scale(calc(clamp(0.55, var(--canvas-scale, 1), 1) / var(--canvas-scale, 1)));
   padding: 4px 6px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(var(--surface-rgb), 0.92);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(var(--shade-rgb), 0.06);
   box-shadow: 0 4px 12px rgba(22, 18, 36, 0.1);
   opacity: 0;
   pointer-events: none;

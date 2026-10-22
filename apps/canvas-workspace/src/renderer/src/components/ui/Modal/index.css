@@ -23,7 +23,7 @@
   max-width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--surface-rgb), 0.96);
   box-shadow: 0 24px 72px rgba(28, 29, 32, 0.18);
   animation: uiModalAppear 0.18s ease;
 }

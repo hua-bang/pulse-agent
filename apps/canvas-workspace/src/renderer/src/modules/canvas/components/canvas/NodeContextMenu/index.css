@@ -75,7 +75,7 @@
   font-size: 13px;
   flex-shrink: 0;
   background: rgba(96, 125, 139, 0.1);
-  color: #607d8b;
+  color: var(--text-info);
 }
 
 .context-menu-icon svg {

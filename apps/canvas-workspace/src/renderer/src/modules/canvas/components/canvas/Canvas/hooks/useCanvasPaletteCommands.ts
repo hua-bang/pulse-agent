@@ -6,6 +6,7 @@ import type { AddNodeOptions } from '../../../..';
 import { useI18n } from '../../../../../../i18n';
 import { useRightDock } from '../../../../../../shared/dockPort';
 import { formatShortcutId } from '../../../../../../shortcuts/registry';
+import { toggleTheme } from '../../../../../../shared/theme';
 
 interface Options {
   selectedNodeIds: string[];
@@ -266,6 +267,14 @@ export const useCanvasPaletteCommands = ({
         aliases: ['ai', 'sidebar', 'assistant'],
         enabled: !!onChatToggle,
         run: () => onChatToggle?.(),
+      },
+      {
+        id: 'toggle-theme',
+        group: 'view',
+        title: t('canvas.palette.command.toggleTheme'),
+        shortcut: formatShortcutId('app.toggleTheme'),
+        aliases: ['dark', 'light', 'theme', 'appearance', 'night'],
+        run: () => toggleTheme(),
       },
       {
         id: 'shortcuts',

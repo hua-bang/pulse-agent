@@ -3,7 +3,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   border-radius: 0 0 8px 8px;
 }
@@ -13,11 +13,11 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: #fafbfc;
-  border-bottom: 1px solid #eaeef2;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
   font-size: 12px;
-  color: #57606a;
+  color: var(--text-secondary);
 }
 
 .dynamic-app-kind {
@@ -33,12 +33,12 @@
 }
 
 .dynamic-app-kind.polling {
-  background: #ddf4ff;
-  color: #0969da;
+  background: var(--tint-info);
+  color: var(--text-info);
 }
 
 .dynamic-app-kind.stateful {
-  background: #fbefff;
+  background: var(--role-accent-soft);
   color: #8250df;
 }
 
@@ -53,7 +53,7 @@
   border-radius: var(--radius-sm);
   padding: 4px 8px;
   font-size: 12px;
-  color: #57606a;
+  color: var(--text-secondary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -62,14 +62,14 @@
 }
 
 .dynamic-app-tool-btn:hover {
-  background: #eef1f4;
-  color: #1f2328;
+  background: var(--bg-canvas);
+  color: var(--text);
 }
 
 .dynamic-app-tool-btn.active {
-  background: #ddf4ff;
-  color: #0969da;
-  border-color: #80ccff;
+  background: var(--tint-info);
+  color: var(--text-info);
+  border-color: var(--tint-info-border);
 }
 
 .dynamic-app-content {
@@ -83,6 +83,7 @@
   width: 100%;
   height: 100%;
   border: 0;
+  /* Web pages assume a white canvas; keep it in the dark theme. */
   background: #fff;
 }
 
@@ -90,8 +91,8 @@
   width: 320px;
   min-width: 220px;
   max-width: 50%;
-  border-left: 1px solid #eaeef2;
-  background: #fafbfc;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -99,7 +100,7 @@
 
 .dynamic-app-inspector-tabs {
   display: flex;
-  border-bottom: 1px solid #eaeef2;
+  border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
 }
 
@@ -110,13 +111,13 @@
   border-bottom: 2px solid transparent;
   padding: 8px 12px;
   font-size: 12px;
-  color: #57606a;
+  color: var(--text-secondary);
   cursor: pointer;
   font-weight: 500;
 }
 
 .dynamic-app-inspector-tab.active {
-  color: #1f2328;
+  color: var(--text);
   border-bottom-color: #0969da;
 }
 
@@ -132,11 +133,11 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #1f2328;
+  color: var(--text);
 }
 
 .dynamic-app-inspector-empty {
-  color: #6e7781;
+  color: var(--text-secondary);
   font-family: var(--font-ui);
   font-size: 12px;
   font-style: italic;
@@ -150,20 +151,20 @@
 
 .dynamic-app-inspector-action {
   appearance: none;
-  background: #fff;
-  border: 1px solid #d0d7de;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 12px;
-  color: #1f2328;
+  color: var(--text);
   cursor: pointer;
   text-align: left;
   font-family: var(--font-ui);
 }
 
 .dynamic-app-inspector-action:hover:not(:disabled) {
-  background: #f3f4f6;
-  border-color: #b1bac4;
+  background: var(--bg);
+  border-color: var(--border);
 }
 
 .dynamic-app-inspector-action:disabled {
@@ -173,17 +174,17 @@
 
 .dynamic-app-inspector-action.danger {
   border-color: #cf222e;
-  color: #cf222e;
+  color: var(--error);
 }
 
 .dynamic-app-inspector-action.danger:hover:not(:disabled) {
-  background: #ffebe9;
+  background: var(--tint-danger);
 }
 
 .dynamic-app-inspector-action-hint {
   margin: 4px 0 0;
   font-size: 11px;
-  color: #6e7781;
+  color: var(--text-secondary);
 }
 
 .dynamic-app-inspector-toast {
@@ -191,15 +192,15 @@
   padding: 6px 8px;
   border-radius: var(--radius-xs);
   font-size: 11px;
-  background: #ddf4ff;
-  color: #0550ae;
-  border: 1px solid #b6e3ff;
+  background: var(--tint-info);
+  color: var(--text-info);
+  border: 1px solid var(--tint-info-border);
 }
 
 .dynamic-app-inspector-toast.error {
-  background: #ffebe9;
-  color: #82071e;
-  border-color: #ff8182;
+  background: var(--tint-danger);
+  color: var(--error);
+  border-color: var(--tint-danger-border);
 }
 
 .dynamic-app-empty {
@@ -207,7 +208,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6e7781;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 

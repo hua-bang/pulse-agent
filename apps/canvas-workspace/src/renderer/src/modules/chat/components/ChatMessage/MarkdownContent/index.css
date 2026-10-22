@@ -50,14 +50,14 @@
 .chat-md code {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  background: rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.06);
   padding: 1px 4px;
   border-radius: 3px;
 }
 
 .chat-md pre {
   margin: 8px 0;
-  background: rgba(55, 53, 47, 0.04);
+  background: rgba(var(--ink-rgb), 0.04);
   border-radius: var(--radius-sm);
   overflow-x: auto;
   padding: 10px 12px;
@@ -73,13 +73,13 @@
 .chat-md blockquote {
   margin: 8px 0;
   padding: 2px 12px;
-  border-left: 3px solid rgba(55, 53, 47, 0.16);
-  color: #787774;
+  border-left: 3px solid rgba(var(--ink-rgb), 0.16);
+  color: var(--text-secondary);
 }
 
 .chat-md hr {
   border: none;
-  border-top: 1px solid rgba(55, 53, 47, 0.08);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
   margin: 12px 0;
 }
 
@@ -110,13 +110,13 @@
 
 .chat-md th,
 .chat-md td {
-  border: 1px solid rgba(55, 53, 47, 0.12);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   padding: 4px 8px;
   text-align: left;
 }
 
 .chat-md th {
-  background: rgba(55, 53, 47, 0.04);
+  background: rgba(var(--ink-rgb), 0.04);
   font-weight: 500;
 }
 
@@ -136,9 +136,9 @@
 
 .chat-code-block {
   margin: 8px 0;
-  border: 1px solid rgba(55, 53, 47, 0.09);
+  border: 1px solid rgba(var(--ink-rgb), 0.09);
   border-radius: var(--radius-md);
-  background: #fafaf8;
+  background: var(--bg);
   overflow: hidden;
   font-family: var(--font-mono);
 }
@@ -148,10 +148,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 4px 6px 4px 12px;
-  background: rgba(55, 53, 47, 0.04);
-  border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+  background: rgba(var(--ink-rgb), 0.04);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
   font-family: var(--font);
 }
 
@@ -164,7 +164,7 @@
 .chat-code-block-copy {
   border: none;
   background: transparent;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   font-size: 11px;
   font-weight: 500;
   padding: 2px 8px;
@@ -174,13 +174,13 @@
 }
 
 .chat-code-block-copy:hover {
-  background: rgba(55, 53, 47, 0.08);
-  color: #37352f;
+  background: rgba(var(--ink-rgb), 0.08);
+  color: var(--ink);
 }
 
 .chat-code-block-copy[data-state="copied"] {
   background: rgba(46, 160, 67, 0.12);
-  color: #2f8a3d;
+  color: var(--success);
 }
 
 /* Beats `.chat-md pre` (specificity 0,2,0 > 0,1,1). */
@@ -207,56 +207,56 @@
 
 /* Minimal highlight.js theme, tuned for the Notion-ish neutral palette. */
 .hljs {
-  color: #37352f;
+  color: var(--ink);
 }
 
 .hljs-keyword,
 .hljs-built_in,
 .hljs-literal,
 .hljs-meta {
-  color: #a23ba1;
+  color: var(--role-accent);
 }
 
 .hljs-string,
 .hljs-attr,
 .hljs-symbol,
 .hljs-regexp {
-  color: #2f8a3d;
+  color: var(--success);
 }
 
 .hljs-number {
-  color: #1d4ed8;
+  color: var(--text-info);
 }
 
 .hljs-comment,
 .hljs-quote {
-  color: #9b9a97;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .hljs-title,
 .hljs-title.function_,
 .hljs-title.class_ {
-  color: #1d4ed8;
+  color: var(--text-info);
 }
 
 .hljs-variable,
 .hljs-name {
-  color: #37352f;
+  color: var(--ink);
 }
 
 .hljs-tag {
-  color: #a23ba1;
+  color: var(--role-accent);
 }
 
 .hljs-type,
 .hljs-class .hljs-title {
-  color: #c2410c;
+  color: var(--error);
 }
 
 .hljs-doctag,
 .hljs-section {
-  color: #5b21b6;
+  color: var(--role-accent);
 }
 
 .hljs-link {
@@ -276,9 +276,9 @@
 .chat-mermaid {
   margin: 10px 0;
   padding: 12px;
-  border: 1px solid rgba(55, 53, 47, 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   overflow-x: auto;
   text-align: center;
 }
@@ -290,7 +290,7 @@
 
 .chat-mermaid-loading {
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.45);
+  color: rgba(var(--ink-rgb), 0.45);
   font-style: italic;
   padding: 18px 0;
 }
@@ -304,7 +304,7 @@
 .chat-mermaid-error-title {
   font-size: 12px;
   font-weight: 500;
-  color: #8b2f2a;
+  color: var(--error);
   margin-bottom: 4px;
 }
 
@@ -332,7 +332,7 @@
   flex-shrink: 0;
   width: 13px;
   height: 13px;
-  accent-color: #2383e2;
+  accent-color: var(--accent);
   cursor: default;
 }
 

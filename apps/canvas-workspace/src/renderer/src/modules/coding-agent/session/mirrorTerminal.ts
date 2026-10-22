@@ -1,6 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import { TERMINAL_OPTIONS } from '../../../config/terminalTheme';
+import { TERMINAL_OPTIONS, TerminalThemeAddon } from '../../../config/terminalTheme';
 import { scheduleTerminalFit } from '../components/AgentNodeBody/utils/terminal';
 
 interface MirrorPtyApi {
@@ -112,6 +112,8 @@ export const mountMirrorTerminal = ({
   const term = new Terminal(TERMINAL_OPTIONS);
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
+
+  term.loadAddon(new TerminalThemeAddon());
   container.replaceChildren();
   term.open(container);
   term.attachCustomKeyEventHandler(onKeyEvent);

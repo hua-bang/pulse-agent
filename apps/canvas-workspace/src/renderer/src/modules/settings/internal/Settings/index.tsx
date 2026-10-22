@@ -19,6 +19,7 @@ import { ModelsSection } from '../ModelSettings';
 import { useCanvasModels } from '../../../models';
 import { ReplyStyleSection, usePromptProfile } from '../PromptSettings';
 import { AgentSection } from './AgentSection';
+import { AppearanceSection } from './AppearanceSection';
 import { BrowserSection } from './BrowserSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
@@ -260,6 +261,7 @@ export const Settings = ({ initialSection, onClose }: SettingsProps) => {
           )}
           {activePage === 'general' && (
             <div className="settings-general-page">
+              <AppearanceSection />
               <BrowserSection />
               <LanguageSection />
               <UpdateSection />

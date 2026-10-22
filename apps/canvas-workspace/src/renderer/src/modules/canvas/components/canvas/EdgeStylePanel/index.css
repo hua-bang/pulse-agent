@@ -77,7 +77,7 @@
 
 .edge-chip:hover,
 .edge-chip:focus-visible {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
   color: var(--text);
 }
 

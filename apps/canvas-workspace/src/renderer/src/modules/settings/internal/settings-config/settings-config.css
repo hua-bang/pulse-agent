@@ -40,7 +40,7 @@
 .cfg-toolbar-hint {
   flex: 1;
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   line-height: 1.4;
 }
 
@@ -51,7 +51,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px 0 4px;
-  border-top: 1px solid rgba(55, 53, 47, 0.06);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.06);
 }
 
 .cfg-field {
@@ -63,7 +63,7 @@
 .cfg-field > span {
   font-size: 11px;
   font-weight: 500;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
   letter-spacing: 0.01em;
 }
 
@@ -87,13 +87,13 @@
   align-items: center;
   gap: 8px;
   font-size: 12.5px;
-  color: #37352f;
+  color: var(--ink);
   cursor: pointer;
   user-select: none;
 }
 
 .cfg-checkbox input {
-  accent-color: #2383e2;
+  accent-color: var(--accent);
 }
 
 .cfg-form-actions {
@@ -106,12 +106,12 @@
 /* ─── Empty state ─────────────────────────────────────────────── */
 
 .cfg-empty {
-  border: 1px dashed rgba(55, 53, 47, 0.14);
+  border: 1px dashed rgba(var(--ink-rgb), 0.14);
   border-radius: var(--radius-lg);
   padding: 18px;
   text-align: center;
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   line-height: 1.5;
 }
 
@@ -146,7 +146,7 @@
 }
 
 .cfg-list-item:hover {
-  background: rgba(55, 53, 47, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
 }
 
 .cfg-list-main {
@@ -157,7 +157,7 @@
 .cfg-list-title {
   font-size: 13px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--ink);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -168,8 +168,8 @@
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
-  color: rgba(55, 53, 47, 0.55);
-  background: rgba(55, 53, 47, 0.06);
+  color: rgba(var(--ink-rgb), 0.55);
+  background: rgba(var(--ink-rgb), 0.06);
   border-radius: var(--radius-xs);
   padding: 1px 6px;
   text-transform: lowercase;
@@ -203,13 +203,13 @@
 }
 
 .cfg-health--unknown {
-  color: rgba(55, 53, 47, 0.45);
-  background: rgba(55, 53, 47, 0.04);
+  color: rgba(var(--ink-rgb), 0.45);
+  background: rgba(var(--ink-rgb), 0.04);
 }
 
 .cfg-list-desc {
   font-size: 12px;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -266,7 +266,7 @@
 }
 
 .cfg-tool:hover {
-  background: rgba(55, 53, 47, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 
 .cfg-tool-toggle {
@@ -279,7 +279,7 @@
 }
 
 .cfg-tool-toggle input {
-  accent-color: #2383e2;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -290,11 +290,11 @@
 .cfg-tool-name {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: #37352f;
+  color: var(--ink);
 }
 
 .cfg-tool--off .cfg-tool-name {
-  color: rgba(55, 53, 47, 0.4);
+  color: rgba(var(--ink-rgb), 0.4);
   text-decoration: line-through;
 }
 
@@ -302,7 +302,7 @@
   flex: 1;
   min-width: 0;
   font-size: 11.5px;
-  color: rgba(55, 53, 47, 0.5);
+  color: rgba(var(--ink-rgb), 0.5);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -311,7 +311,7 @@
 
 .cfg-tools-empty {
   font-size: 11.5px;
-  color: rgba(55, 53, 47, 0.45);
+  color: rgba(var(--ink-rgb), 0.45);
   padding: 2px 6px 6px;
 }
 
@@ -370,7 +370,7 @@
 .cfg-inherited {
   margin-top: 8px;
   padding-top: 12px;
-  border-top: 1px solid rgba(55, 53, 47, 0.06);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.06);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -387,12 +387,12 @@
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  color: rgba(55, 53, 47, 0.55);
+  color: rgba(var(--ink-rgb), 0.55);
 }
 
 .cfg-inherited-manage {
   font-size: 10.5px;
-  color: rgba(55, 53, 47, 0.4);
+  color: rgba(var(--ink-rgb), 0.4);
 }
 
 /* Read-only rows inside the inherited section — no hover-reveal actions,
@@ -402,7 +402,7 @@
 }
 
 .cfg-list-item--readonly .cfg-list-title {
-  color: rgba(55, 53, 47, 0.8);
+  color: rgba(var(--ink-rgb), 0.8);
 }
 
 .cfg-list-item--shadowed .cfg-list-title,
@@ -428,9 +428,9 @@
 .cfg-dir-hint {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid rgba(55, 53, 47, 0.05);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.05);
   font-size: 10.5px;
-  color: rgba(55, 53, 47, 0.4);
+  color: rgba(var(--ink-rgb), 0.4);
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;

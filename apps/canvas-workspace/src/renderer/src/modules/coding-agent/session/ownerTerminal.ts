@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { getAgentCommand } from '../../../config/agentRegistry';
-import { TERMINAL_OPTIONS } from '../../../config/terminalTheme';
+import { TERMINAL_OPTIONS, TerminalThemeAddon } from '../../../config/terminalTheme';
 import type { AgentNodeData, CanvasWorkspaceApi, CodexSessionsApi } from '../../../types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
@@ -93,6 +93,7 @@ export const mountReadonlyTerminal = ({
   const term = new Terminal(TERMINAL_OPTIONS);
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
+  term.loadAddon(new TerminalThemeAddon());
   container.replaceChildren();
   term.open(container);
   let disposed = false;
@@ -131,6 +132,7 @@ export const mountOwnerTerminal = ({
   const term = new Terminal(TERMINAL_OPTIONS);
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
+  term.loadAddon(new TerminalThemeAddon());
   container.replaceChildren();
   term.open(container);
   term.attachCustomKeyEventHandler(events.onKeyEvent);

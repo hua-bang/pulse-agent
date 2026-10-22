@@ -28,7 +28,7 @@
   bottom: 6px;
   left: 0;
   width: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(var(--shade-rgb), 0.08);
 }
 
 .terminal-tool-split--active .terminal-tool-add,

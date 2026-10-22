@@ -5,9 +5,9 @@
   align-items: center;
   min-width: 0;
   padding: 9px 10px;
-  border: 1px solid #ead18b;
+  border: 1px solid var(--tint-warning-border);
   border-radius: 7px;
-  background: #fff8df;
+  background: var(--tint-warning);
 }
 
 .agent-team-human-gate--compact {
@@ -16,8 +16,8 @@
 }
 
 .agent-team-human-gate--missing-prompt {
-  border-color: #edb8b2;
-  background: #fff5ec;
+  border-color: var(--tint-danger-border);
+  background: var(--tint-warning);
 }
 
 .agent-team-human-gate__copy {
@@ -51,7 +51,7 @@
 }
 
 .agent-team-human-gate__hint {
-  color: #9a5b18;
+  color: var(--text-warning);
   white-space: normal;
 }
 

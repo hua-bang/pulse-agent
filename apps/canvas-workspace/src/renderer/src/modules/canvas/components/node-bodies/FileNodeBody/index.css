@@ -379,7 +379,7 @@
 }
 
 .note-tiptap-editor .ProseMirror th {
-  background: rgba(55, 53, 47, 0.035);
+  background: rgba(var(--ink-rgb), 0.035);
   font-weight: 500;
   text-align: left;
 }
@@ -433,7 +433,7 @@
 .note-tiptap-editor .ProseMirror .hljs-type,
 .note-tiptap-editor .ProseMirror .hljs-name,
 .note-tiptap-editor .ProseMirror .hljs-strong {
-  color: #a626a4;
+  color: var(--role-accent);
   font-weight: 500;
 }
 
@@ -443,7 +443,7 @@
 .note-tiptap-editor .ProseMirror .hljs-attribute,
 .note-tiptap-editor .ProseMirror .hljs-symbol,
 .note-tiptap-editor .ProseMirror .hljs-bullet {
-  color: #50a14f;
+  color: var(--success);
 }
 
 .note-tiptap-editor .ProseMirror .hljs-number,
@@ -451,7 +451,7 @@
 .note-tiptap-editor .ProseMirror .hljs-link,
 .note-tiptap-editor .ProseMirror .hljs-built_in,
 .note-tiptap-editor .ProseMirror .hljs-builtin-name {
-  color: #986801;
+  color: var(--text-warning);
 }
 
 .note-tiptap-editor .ProseMirror .hljs-variable,

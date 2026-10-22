@@ -13,9 +13,9 @@
 }
 
 .language-section-card {
-  border: 1px solid rgba(55, 53, 47, 0.08);
+  border: 1px solid rgba(var(--ink-rgb), 0.08);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -31,7 +31,7 @@
 .language-section-hint {
   font-size: 12px;
   line-height: 1.5;
-  color: rgba(55, 53, 47, 0.62);
+  color: rgba(var(--ink-rgb), 0.62);
 }
 
 .language-section-options {
@@ -41,10 +41,10 @@
 }
 
 .language-section-option {
-  border: 1px solid rgba(55, 53, 47, 0.12);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.86);
-  color: #37352f;
+  background: rgba(var(--surface-rgb), 0.86);
+  color: var(--ink);
   padding: 12px;
   text-align: left;
   cursor: pointer;
@@ -70,5 +70,5 @@
 
 .language-section-option-sub {
   font-size: 11px;
-  color: rgba(55, 53, 47, 0.56);
+  color: rgba(var(--ink-rgb), 0.56);
 }

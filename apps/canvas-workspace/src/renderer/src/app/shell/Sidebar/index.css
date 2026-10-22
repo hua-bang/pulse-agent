@@ -67,11 +67,11 @@
 }
 
 .sidebar-folder-toggle:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-toggle:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-section-title {
@@ -106,7 +106,7 @@
 }
 
 .sidebar-item:hover, .sidebar-item-row:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-item--active {
@@ -184,7 +184,7 @@
 .sidebar-item-menu-item.ui-btn:hover,
 .sidebar-item-menu-item.ui-btn:focus-visible {
   outline: none;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-item-menu-item--danger.ui-btn,
@@ -302,7 +302,7 @@
 }
 
 .sidebar-section-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(var(--shade-rgb), 0.06);
   color: var(--text-secondary);
 }
 
@@ -339,7 +339,7 @@
 }
 .sidebar-add-menu-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-add-menu-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-add-menu-item svg {
@@ -414,7 +414,7 @@
 }
 
 .sidebar-folder-toggle:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-folder-chevron {
@@ -509,7 +509,7 @@
 
 .sidebar-layer-search-input:focus {
   border-color: var(--accent-border);
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 0 0 2px var(--accent-light);
 }
 
@@ -533,7 +533,7 @@
 
 .sidebar-layer-search-clear:hover,
 .sidebar-layer-search-clear:focus-visible {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(var(--shade-rgb), 0.06);
   color: var(--text-secondary);
   outline: none;
 }
@@ -579,7 +579,7 @@
 }
 
 .sidebar-layer-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
 }
 
 .sidebar-layer-item--selected {
@@ -654,7 +654,7 @@
 }
 
 .sidebar-layer-chevron:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(var(--shade-rgb), 0.06);
 }
 
 .sidebar-layer-chevron--open {
@@ -736,7 +736,7 @@
 }
 
 .sidebar-folder-action:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(var(--shade-rgb), 0.06);
   color: var(--text-secondary);
 }
 
@@ -795,7 +795,7 @@
   left: 4px;
   right: 4px;
   height: 2px;
-  background: var(--accent, #2383e2);
+  background: var(--accent, var(--accent));
   border-radius: 1px;
   pointer-events: none;
   z-index: 1;
@@ -850,16 +850,16 @@
 }
 
 .sidebar-layer-context-menu-item:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(var(--shade-rgb), 0.06);
 }
 
 .sidebar-layer-context-menu-item--danger {
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-item--danger:hover {
   background: rgba(192, 57, 43, 0.08);
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-separator {

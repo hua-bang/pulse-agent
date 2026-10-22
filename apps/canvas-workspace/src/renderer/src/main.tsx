@@ -12,7 +12,9 @@ import { installPerfMonitor, markOnce } from "./perf/monitor";
 import { installJankMonitor } from "./perf/jank-monitor";
 import { installBeforeQuitFlush } from "./modules/canvas/document/beforeQuit";
 import { runViewTransition } from "./shared/viewTransition";
+import { installTheme } from "./shared/theme";
 
+installTheme();
 installPerfMonitor();
 installJankMonitor();
 installBeforeQuitFlush();

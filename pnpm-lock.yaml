@@ -29,6 +29,9 @@ importers:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.59.0
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@pulse-coder/storage':
         specifier: workspace:*
         version: link:../../packages/storage

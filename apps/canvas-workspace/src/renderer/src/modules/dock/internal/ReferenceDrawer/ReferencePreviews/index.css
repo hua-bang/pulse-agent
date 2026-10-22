@@ -36,7 +36,7 @@
 }
 
 .reference-drawer-secondary:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--shade-rgb), 0.04);
   color: var(--text);
 }
 
@@ -203,7 +203,7 @@
   margin-top: auto;
   padding: 5px 6px;
   border-top: 1px solid var(--border-light);
-  background: #fbfbfa;
+  background: var(--bg);
   flex-wrap: nowrap;
 }
 

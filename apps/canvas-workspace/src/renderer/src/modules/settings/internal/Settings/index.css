@@ -56,10 +56,10 @@
 }
 
 .settings-rail {
-  border-right: 1px solid rgba(55, 53, 47, 0.07);
+  border-right: 1px solid rgba(var(--ink-rgb), 0.07);
   padding: 16px 10px;
   overflow-y: auto;
-  background: rgba(55, 53, 47, 0.022);
+  background: rgba(var(--ink-rgb), 0.022);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -73,7 +73,7 @@
 
 .settings-rail-group-title {
   padding: 0 10px 4px;
-  color: rgba(55, 53, 47, 0.58);
+  color: rgba(var(--ink-rgb), 0.58);
   font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
@@ -98,11 +98,11 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  color: #37352f;
+  color: var(--ink);
 }
 
 .settings-rail-item:hover {
-  background: rgba(55, 53, 47, 0.045);
+  background: rgba(var(--ink-rgb), 0.045);
 }
 
 .settings-rail-item--active {
@@ -120,7 +120,7 @@
 }
 
 .settings-rail-item--active .settings-rail-label {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .settings-content {
@@ -188,7 +188,7 @@
 
   .settings-rail {
     border-right: none;
-    border-bottom: 1px solid rgba(55, 53, 47, 0.07);
+    border-bottom: 1px solid rgba(var(--ink-rgb), 0.07);
     padding: 8px 10px;
     overflow-x: auto;
     overflow-y: hidden;
