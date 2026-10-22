@@ -190,6 +190,10 @@ const AppContent = () => {
     if (redirectToCanvas) setLocation(ROUTE_CANVAS);
   }, [redirectToCanvas, setLocation]);
 
+  const hasWorkspace = useCallback(
+    (workspaceId: string) => workspaces.some((workspace) => workspace.id === workspaceId),
+    [workspaces],
+  );
   const {
     enterChatTarget,
     enterChatView,
@@ -205,6 +209,7 @@ const AppContent = () => {
     openDockChat: dock.openChat,
     isOverlayOpen,
     openShortcuts,
+    hasWorkspace,
   });
   const workspaceActions = useWorkspaceActions({
     store: workspaceStore,

@@ -15,6 +15,8 @@ interface UseChatNavigationOptions {
   openDockChat: () => void;
   isOverlayOpen: boolean;
   openShortcuts: () => void;
+  /** Whether a workspace still exists, so a deleted one is not resumed. */
+  hasWorkspace?: (workspaceId: string) => boolean;
 }
 
 interface ChatReturnPoint {
@@ -40,6 +42,7 @@ export const useChatNavigation = ({
   openDockChat,
   isOverlayOpen,
   openShortcuts,
+  hasWorkspace,
 }: UseChatNavigationOptions) => {
   const [initialTarget, setInitialTarget] = useState<ChatTarget | null>(null);
   const returnPointRef = useRef<ChatReturnPoint | null>(null);
@@ -77,12 +80,15 @@ export const useChatNavigation = ({
   // remains one click away.
   const enterPulseAgent = useCallback(() => {
     const resumeTarget = resumeTargetRef.current;
-    if (resumeTarget && activeView !== 'home' && !isChatView) {
+    const scope = resumeTarget?.scope;
+    if (scope?.kind === 'workspace' && hasWorkspace && !hasWorkspace(scope.workspaceId)) {
+      resumeTargetRef.current = null;
+    } else if (resumeTarget && activeView !== 'home' && !isChatView) {
       enterChatTarget(resumeTarget);
       return;
     }
     setLocation('/home');
-  }, [activeView, enterChatTarget, isChatView, setLocation]);
+  }, [activeView, enterChatTarget, hasWorkspace, isChatView, setLocation]);
 
   const exitChatView = useCallback(() => {
     const returnPoint = returnPointRef.current;

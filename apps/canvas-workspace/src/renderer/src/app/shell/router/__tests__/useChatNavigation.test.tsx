@@ -306,6 +306,7 @@ describe('useChatNavigation', () => {
   it('resumes the last page conversation from Pulse Agent outside the agent views', async () => {
     let latest: ReturnType<typeof useChatNavigation> | undefined;
     let setActive: ((view: string, active: ChatTarget | null) => void) | undefined;
+    let workspaceExists = true;
     const setLocation = vi.fn();
     const pageTarget: ChatTarget = {
       ...target,
@@ -334,6 +335,7 @@ describe('useChatNavigation', () => {
         openDockChat: vi.fn(),
         isOverlayOpen: false,
         openShortcuts: vi.fn(),
+        hasWorkspace: () => workspaceExists,
       });
       return null;
     };
@@ -360,6 +362,14 @@ describe('useChatNavigation', () => {
     await act(async () => setActive?.('canvas', target));
     act(() => latest?.enterPulseAgent());
     expect(setLocation).toHaveBeenLastCalledWith('/chat');
+
+    // A conversation whose workspace was deleted is not resumed.
+    workspaceExists = false;
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/home');
+    workspaceExists = true;
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/home');
 
     // A fresh chat with no session yet has nothing to resume.
     await act(async () => setActive?.('chat', { ...pageTarget, sessionId: null }));
