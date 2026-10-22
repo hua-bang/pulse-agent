@@ -9,7 +9,8 @@ export const openSkillTab = (
 ): { tabs: DockPreviewTab[]; activeTabId: string } => {
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
   const id = skillTabId(scopeKey, skill.name);
-  const tab: DockPreviewTab = { id, kind: 'skill', title: skill.name, scope, skill };
+  const pinned = tabs.find((item) => item.id === id)?.pinned;
+  const tab: DockPreviewTab = { id, kind: 'skill', title: skill.name, scope, skill, ...(pinned ? { pinned } : {}) };
   return {
     tabs: tabs.some((item) => item.id === id)
       ? tabs.map((item) => (item.id === id ? tab : item))

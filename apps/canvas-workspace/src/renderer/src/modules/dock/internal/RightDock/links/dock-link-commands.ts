@@ -53,9 +53,16 @@ export function getOpenLinkPatch(
   const existing = state.tabs.find(
     (tab): tab is DockLinkTab => tab.kind === 'link' && Boolean(tab.url) && dedupeUrlKey(tab.url) === key,
   );
-  // Same page: keep the loaded webview (and its resolved title).
+  // Same page: keep the loaded webview (and its resolved title). A new
+  // anchor still navigates the tab, so the requested section is shown.
   if (existing) {
-    return { expanded: true, ...(background ? {} : { activeTabId: existing.id }) };
+    return {
+      expanded: true,
+      ...(existing.url === trimmed ? {} : {
+        tabs: state.tabs.map((tab) => (tab.id === existing.id ? { ...tab, url: trimmed } : tab)),
+      }),
+      ...(background ? {} : { activeTabId: existing.id }),
+    };
   }
   const id = urlLinkTabId(state.tabs, trimmed);
   const tab: DockPreviewTab = {

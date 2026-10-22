@@ -96,6 +96,21 @@ describe('DockStore tab cleanup', () => {
     dock.setActiveWorkspace('ws-a');
     dock.openLink('https://a.example/doc');
     dock.openLink('https://a.example/doc#section');
-    expect(dock.getSnapshot().tabs).toHaveLength(1);
+    expect(dock.getSnapshot().tabs.map((tab) => tab.kind === 'link' && tab.url)).toEqual(['https://a.example/doc#section']);
+  });
+
+  it('keeps a pin when a skill tab is refreshed or a node preview is replaced', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    const skill = { name: 'review' } as Parameters<DockStore['openSkill']>[1];
+    dock.openSkill({ level: 'global' } as Parameters<DockStore['openSkill']>[0], skill);
+    dock.togglePin(dock.getSnapshot().activeTabId);
+    dock.openSkill({ level: 'global' } as Parameters<DockStore['openSkill']>[0], skill);
+    expect(dock.getSnapshot().tabs[0]?.pinned).toBe(true);
+
+    dock.openNodeDetail('ws-a', 'node-1', 'One', true);
+    dock.togglePin(dock.getSnapshot().activeTabId);
+    dock.openNodeDetail('ws-a', 'node-2', 'Two', true);
+    expect(dock.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['review', 'One', 'Two']);
   });
 });

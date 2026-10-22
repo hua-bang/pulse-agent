@@ -44,7 +44,8 @@ export function getOpenNodeDetailPatch(
     ...(preview ? { preview: true } : {}),
   };
   const previewIndex = preview
-    ? state.tabs.findIndex((item) => item.kind === 'node-detail' && item.preview)
+    // A pinned preview is kept, so browsing opens beside it.
+    ? state.tabs.findIndex((item) => item.kind === 'node-detail' && item.preview && !item.pinned)
     : -1;
   if (previewIndex < 0) return { tabs: [...state.tabs, tab], ...opened };
   const tabs = [...state.tabs];
