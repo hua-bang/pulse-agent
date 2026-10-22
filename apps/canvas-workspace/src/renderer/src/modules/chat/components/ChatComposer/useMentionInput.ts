@@ -4,6 +4,7 @@ import { scopeSessionStoreId } from '../../../../../../shared/agent-chat';
 import { isImeComposing } from '../../../../utils/ime';
 import { serializeEditable } from '../../mentions/mentions';
 import { collectEditableContext } from '../../mentions/editableContext';
+import { insertPlainText } from '../../mentions/insertPlainText';
 import { useMentionItems } from './useMentionItems';
 import { useMentionPopup } from './useMentionPopup';
 
@@ -60,7 +61,7 @@ export const useMentionInput = ({ agentScope, allWorkspaces, nodes, onSubmit }: 
   // Paste plain text, so pasted markup never lands in the field.
   const handlePaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault();
-    document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
+    insertPlainText(event.clipboardData.getData('text/plain'));
   }, []);
 
   /** Puts `text` in the field with the caret at its end. */

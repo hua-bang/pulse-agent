@@ -288,6 +288,13 @@ from renderer to main; failures stay out of the composer until a real send,
 and `ScopeActivationGate` coalesces warmup with the send-time activation. This
 keeps New Chat instant without moving the entire cold-start wait to first send.
 
+Composer text paste goes through `insertPlainText`
+(`src/renderer/src/modules/chat/mentions/insertPlainText.ts`). Do not paste
+multi-line text with `execCommand('insertText')`: Chromium fires two `input`
+events per line, and each one re-serializes the whole field and writes the
+draft store. A 400-line SQL paste froze the window for about 2.2s. Guard:
+`insertPlainText.test.ts`.
+
 **Session listings are metadata-indexed.** Each store's existing
 `agent-sessions/metadata.json` is upgraded lazily to a versioned document that
 keeps title/pin metadata plus a per-file summary (session id, recency, message
