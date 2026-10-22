@@ -4,6 +4,7 @@
  * for a no-op. `DockStore` keeps only the commit + persistence wiring.
  */
 import {
+  allocateTabId,
   blankLinkTabId,
   insertLinkTab,
   isSameOrigin,
@@ -20,6 +21,22 @@ export interface DockOpenLinkOptions {
 }
 
 /**
+ * Key under which two URLs show the same page. A plain `#section` anchor and a
+ * trailing path slash do not change the page; `#/route` hash routing and the
+ * query do, so those stay distinct.
+ */
+export function dedupeUrlKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!/^#[/!]/.test(parsed.hash)) parsed.hash = '';
+    if (parsed.pathname.length > 1) parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.href;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Open a URL as a web tab. `background` keeps the user where they are —
  * ⌘/Ctrl+click and middle-click are explicit "queue this for later" gestures,
  * and foregrounding them steals the page being read. `openerTabId` places the
@@ -32,12 +49,20 @@ export function getOpenLinkPatch(
 ): Partial<DockState> | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
+  const key = dedupeUrlKey(trimmed);
   const existing = state.tabs.find(
-    (tab): tab is DockLinkTab => tab.kind === 'link' && tab.url === trimmed,
+    (tab): tab is DockLinkTab => tab.kind === 'link' && Boolean(tab.url) && dedupeUrlKey(tab.url) === key,
   );
-  // Same page: keep the loaded webview (and its resolved title).
+  // Same page: keep the loaded webview (and its resolved title). A new
+  // anchor still navigates the tab, so the requested section is shown.
   if (existing) {
-    return { expanded: true, ...(background ? {} : { activeTabId: existing.id }) };
+    return {
+      expanded: true,
+      ...(existing.url === trimmed ? {} : {
+        tabs: state.tabs.map((tab) => (tab.id === existing.id ? { ...tab, url: trimmed } : tab)),
+      }),
+      ...(background ? {} : { activeTabId: existing.id }),
+    };
   }
   const id = urlLinkTabId(state.tabs, trimmed);
   const tab: DockPreviewTab = {
@@ -52,6 +77,17 @@ export function getOpenLinkPatch(
     ...(background ? {} : { activeTabId: id }),
     expanded: true,
   };
+}
+
+/** Put a closed web tab back at its old position, under a free id. */
+export function getReopenTabPatch(
+  tabs: readonly DockPreviewTab[],
+  entry: { tab: DockLinkTab; index: number },
+): Partial<DockState> {
+  const next = [...tabs];
+  const id = allocateTabId(next, entry.tab.id);
+  next.splice(Math.min(entry.index, next.length), 0, id === entry.tab.id ? entry.tab : { ...entry.tab, id });
+  return { tabs: next, activeTabId: id, expanded: true };
 }
 
 /** Blank tab. Unlike an opened URL, blank tabs are never deduped. */

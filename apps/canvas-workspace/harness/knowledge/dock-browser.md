@@ -223,13 +223,20 @@ allocate a fresh id if the original id already exists; duplicate React keys or
 guest identities are never permitted.
 
 The persisted dock session records when each web tab was last the active tab
-(`lastActiveAt`). Only the tab on screen is stamped; a new tab counts as used
-when it opens, and a tab without a time is fresh, so sessions saved before
-tracking are kept. Entering a workspace closes web tabs unused for seven days
-(`inactiveLinkTabIds` in `links/dock-link-sessions.ts`), and All Tabs offers the
-same close as one action. The active tab and split panes are never closed.
-These closes go through `store.close`, so they land on the reopen stack; the
-stack limit must hold one cleanup.
+(`lastActiveAt`); non-web tabs get the same times in memory only. Only the tab
+on screen is stamped; a new tab counts as used when it opens, and a tab without
+a time is fresh, so sessions saved before tracking are kept.
+
+Automatic cleanup lives in `tabs/dock-tab-cleanup.ts`. It closes tabs unused
+for three days, then the least recently used tabs past 20 content tabs. It runs
+when a workspace is entered, when the tab list grows, and when the window gets
+focus. All Tabs offers the idle close as one action. The active tab, split
+panes, pinned tabs, folder tabs (unsaved drafts), and MCP App tabs (live app
+state) are never closed automatically. These closes go through `store.close`,
+so closed web tabs land on the reopen stack; the stack limit must hold one
+cleanup. Opening a URL reuses a tab showing the same page: a plain `#anchor`
+or a trailing path slash does not make a new page, but a `#/route` or a query
+does (`dedupeUrlKey`).
 
 Dock expansion is workspace-scoped as well. Switching workspaces saves the
 current workspace's expanded state and restores the target workspace's last

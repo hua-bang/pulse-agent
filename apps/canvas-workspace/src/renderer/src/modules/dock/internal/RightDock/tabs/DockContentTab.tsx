@@ -6,6 +6,7 @@
  * still owns activation, drag state and the tab menu.
  */
 import type { DragEvent, MouseEvent } from 'react';
+import { PushPin } from '@phosphor-icons/react';
 import { useI18n } from '../../../../../i18n';
 import { DockTabIcon } from './DockTabIcon';
 import { dockPaneElementId, dockTabElementId } from '../../../../../shared/dock/dock-tab-ids';
@@ -110,6 +111,7 @@ export const DockContentTab = ({
           faviconUrl={tab.kind === 'link' ? tab.faviconUrl : undefined}
         />
         <span className="right-dock__tab-title">{tab.title}</span>
+        {tab.pinned && <PushPin size={12} weight="fill" className="right-dock__tab-pin" aria-label={t('rightDock.pinned')} />}
       </button>
       <button
         type="button"
