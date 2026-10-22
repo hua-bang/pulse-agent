@@ -39,25 +39,25 @@ export const IframeOverviewBadge = ({
 
   return (
     <div className="iframe-overview-badge" aria-hidden="true">
-      <span className="iframe-overview-badge-source">
-        <span className="iframe-overview-badge-tile">
-          {mode === 'url' && faviconUrl && !faviconFailed ? (
-            <img
-              className="iframe-overview-badge-favicon"
-              src={faviconUrl}
-              loading="lazy"
-              onError={() => setFaviconFailed(true)}
-              alt=""
-            />
-          ) : mode === 'url' ? (
-            <NodeTypeIcon type="iframe" size={16} colorize />
-          ) : (
-            <NodeTypeIcon type="agent" size={16} colorize />
-          )}
-        </span>
+      <span className="iframe-overview-badge-tile">
+        {mode === 'url' && faviconUrl && !faviconFailed ? (
+          <img
+            className="iframe-overview-badge-favicon"
+            src={faviconUrl}
+            loading="lazy"
+            onError={() => setFaviconFailed(true)}
+            alt=""
+          />
+        ) : mode === 'url' ? (
+          <NodeTypeIcon type="iframe" size={16} colorize />
+        ) : (
+          <NodeTypeIcon type="agent" size={16} colorize />
+        )}
+      </span>
+      <span className="iframe-overview-badge-text">
+        <span className="iframe-overview-badge-title">{primary}</span>
         {secondary ? <span className="iframe-overview-badge-host">{secondary}</span> : null}
       </span>
-      <span className="iframe-overview-badge-title">{primary}</span>
     </div>
   );
 };
