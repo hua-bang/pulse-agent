@@ -302,4 +302,72 @@ describe('useChatNavigation', () => {
     act(() => root.unmount());
     host.remove();
   });
+
+  it('resumes the last page conversation from Pulse Agent outside the agent views', async () => {
+    let latest: ReturnType<typeof useChatNavigation> | undefined;
+    let setActive: ((view: string, active: ChatTarget | null) => void) | undefined;
+    const setLocation = vi.fn();
+    const pageTarget: ChatTarget = {
+      ...target,
+      surface: 'page',
+      composerId: 'page:workspace-a',
+    };
+    const broker = {
+      deliver: vi.fn(),
+      getActiveTarget: () => null,
+      register: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies ChatTargetBroker;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    const Harness = () => {
+      const [state, setState] = useState<{ view: string; active: ChatTarget | null }>({ view: 'canvas', active: null });
+      setActive = (view, active) => setState({ view, active });
+      latest = useChatNavigation({
+        activeView: state.view,
+        location: '/',
+        setLocation,
+        activeTarget: state.active,
+        broker,
+        openDockChat: vi.fn(),
+        isOverlayOpen: false,
+        openShortcuts: vi.fn(),
+      });
+      return null;
+    };
+    await act(async () => root.render(<Harness />));
+
+    // Nothing to resume yet: open the launcher.
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/home');
+
+    // A conversation on the chat page, then another destination.
+    await act(async () => setActive?.('chat', pageTarget));
+    // On the chat page itself, the entry still opens the launcher.
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/home');
+    await act(async () => setActive?.('canvas', target));
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/chat');
+    expect(latest?.initialTarget).toBe(pageTarget);
+
+    // Visiting the launcher in between keeps the conversation to resume.
+    await act(async () => setActive?.('home', null));
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/home');
+    await act(async () => setActive?.('canvas', target));
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/chat');
+
+    // A fresh chat with no session yet has nothing to resume.
+    await act(async () => setActive?.('chat', { ...pageTarget, sessionId: null }));
+    await act(async () => setActive?.('canvas', target));
+    act(() => latest?.enterPulseAgent());
+    expect(setLocation).toHaveBeenLastCalledWith('/home');
+
+    act(() => root.unmount());
+    host.remove();
+  });
 });

@@ -193,6 +193,7 @@ const AppContent = () => {
   const {
     enterChatTarget,
     enterChatView,
+    enterPulseAgent,
     exitChatView,
     initialTarget: chatEntryTarget,
   } = useChatNavigation({
@@ -339,7 +340,7 @@ const AppContent = () => {
           onNodeDelete={requestActiveNodeDelete}
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
-          onEnterHome={() => setLocation(ROUTE_HOME)}
+          onEnterHome={enterPulseAgent}
           onEnterCanvas={() => setLocation(ROUTE_CANVAS)}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}

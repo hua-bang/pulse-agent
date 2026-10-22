@@ -30,8 +30,11 @@ The workbench has exactly two side regions plus a modal tier:
   lists workspaces, under the nav items and the global MCP Apps, with the
   same 13px text as the labels; the narrow rail relies on the workspace tabs, their picker, and
   the launcher. Folders start collapsed on launch, except the one holding
-  the active workspace. Pulse Agent opens the launcher and stays current on the
-  launcher and chat routes; there is no separate Home button. The panel next
+  the active workspace. Pulse Agent stays current on the launcher and chat routes;
+  there is no separate Home button. On those two routes it opens the
+  launcher. Elsewhere it resumes the last conversation shown on the chat page
+  in this run, or opens the launcher when there is none
+  (`useChatNavigation` `enterPulseAgent`). The panel next
   to the rail holds only canvas Layers, with no brand row: it hides off the
   canvas route or when the canvas has no nodes, without changing the saved
   collapse preference. The Layers header carries the collapse button.

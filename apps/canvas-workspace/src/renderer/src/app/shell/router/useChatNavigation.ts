@@ -43,7 +43,17 @@ export const useChatNavigation = ({
 }: UseChatNavigationOptions) => {
   const [initialTarget, setInitialTarget] = useState<ChatTarget | null>(null);
   const returnPointRef = useRef<ChatReturnPoint | null>(null);
+  // The Pulse Agent rail entry resumes the last conversation shown on the
+  // chat page. Before the first one in this run, or when the page was left
+  // on a chat with no session yet, it opens the launcher instead.
+  const resumeTargetRef = useRef<ChatTarget | null>(null);
   const isChatView = activeView === 'chat';
+
+  useEffect(() => {
+    if (isChatView && activeTarget?.surface === 'page') {
+      resumeTargetRef.current = activeTarget.sessionId ? activeTarget : null;
+    }
+  }, [activeTarget, isChatView]);
 
   const enterChatTarget = useCallback((target: ChatTarget | null) => {
     // Completion toasts may target another durable conversation while the
@@ -62,6 +72,17 @@ export const useChatNavigation = ({
   const enterChatView = useCallback(() => {
     enterChatTarget(activeTarget);
   }, [activeTarget, enterChatTarget]);
+
+  // On the launcher or chat page, the entry opens the launcher, so it always
+  // remains one click away.
+  const enterPulseAgent = useCallback(() => {
+    const resumeTarget = resumeTargetRef.current;
+    if (resumeTarget && activeView !== 'home' && !isChatView) {
+      enterChatTarget(resumeTarget);
+      return;
+    }
+    setLocation('/home');
+  }, [activeView, enterChatTarget, isChatView, setLocation]);
 
   const exitChatView = useCallback(() => {
     const returnPoint = returnPointRef.current;
@@ -133,6 +154,7 @@ export const useChatNavigation = ({
   return {
     enterChatTarget,
     enterChatView,
+    enterPulseAgent,
     exitChatView,
     initialTarget,
     isChatView,
