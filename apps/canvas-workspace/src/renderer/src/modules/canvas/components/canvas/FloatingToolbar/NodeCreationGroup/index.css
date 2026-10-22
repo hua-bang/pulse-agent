@@ -1,0 +1,34 @@
+.toolbar-create-compact {
+  display: none;
+}
+
+.toolbar-create-menu {
+  min-width: 156px;
+  margin-bottom: 6px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.toolbar-create-menu .toolbar-create-menu__item {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px 0 8px;
+  color: var(--text);
+}
+
+/* Below this width the six inline actions push the zoom chrome and the
+   Agent button onto a second row. Fold them into the "+" menu instead.
+   The bottom-chrome lane split in Canvas/index.css starts below this. */
+@container (max-width: 660px) {
+  .toolbar-create-inline {
+    display: none;
+  }
+
+  .toolbar-create-compact {
+    display: inline-flex;
+    align-items: center;
+  }
+}

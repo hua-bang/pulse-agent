@@ -32,8 +32,7 @@ export const TerminalToolSplitButton = ({
         className={`toolbar-btn toolbar-btn--create terminal-tool-main${open ? ' toolbar-btn--active' : ''}`}
         onClick={onToggle}
         aria-label={toggleLabel}
-        title={toggleLabel}
-        data-tooltip={t('canvas.toolbar.terminal')}
+        data-tooltip={toggleLabel}
         aria-pressed={open}
       >
         <NodeTypeIcon type="terminal" size={18} />
