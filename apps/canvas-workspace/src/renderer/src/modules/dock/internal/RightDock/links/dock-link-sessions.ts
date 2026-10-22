@@ -13,27 +13,6 @@ export interface DockLinkSession {
   lastActiveAt?: Record<string, number>;
 }
 
-/** Web tabs unused this long are closed when their workspace is entered. */
-export const INACTIVE_LINK_TAB_MS = 7 * 24 * 60 * 60_000;
-
-/**
- * Web tabs not used within `INACTIVE_LINK_TAB_MS`. Tabs on screen (the active
- * tab or a split pane) are never stale, and a tab without a recorded time is
- * treated as fresh so sessions saved before tracking existed are kept.
- */
-export function inactiveLinkTabIds(
-  lastActiveAt: Record<string, number>,
-  state: Pick<DockState, 'tabs' | 'activeTabId' | 'splitTabIds'>,
-  now: number,
-): string[] {
-  return state.tabs
-    .filter((tab) => tab.kind === 'link'
-      && tab.id !== state.activeTabId
-      && !state.splitTabIds?.includes(tab.id)
-      && now - (lastActiveAt[tab.id] ?? now) >= INACTIVE_LINK_TAB_MS)
-    .map((tab) => tab.id);
-}
-
 export type DockLinkSessions = Record<string, DockLinkSession>;
 
 export interface DockSessionPersistence {
@@ -45,6 +24,8 @@ export class DockLinkSessionStore {
   private sessions: DockLinkSessions;
   /** Last active tab per workspace, as captured while that workspace was on screen. */
   private onScreenTabIds = new Map<string, string>();
+  /** Last-use times of non-web tabs. They are not saved, so neither are their times. */
+  private previewTimes = new Map<string, Record<string, number>>();
   // Full in-memory views are scope-owned; only reconstructible web tabs are
   // written to storage. Keep mixed tab order and the actual focused pane.
   private views = new Map<string, Pick<DockState,
@@ -113,6 +94,11 @@ export class DockLinkSessionStore {
     return this.sessions[workspaceId];
   }
 
+  /** When each tab of a workspace was last active (epoch ms by tab id). */
+  getTabActivity(workspaceId: string): Record<string, number> {
+    return { ...this.previewTimes.get(workspaceId), ...this.sessions[workspaceId]?.lastActiveAt };
+  }
+
   /**
    * Record a workspace's web tabs. `onScreen` is false for writes from a
    * hidden workspace's guest (title, icon, background open): they keep the
@@ -132,10 +118,17 @@ export class DockLinkSessionStore {
     const now = Date.now();
     const shownTabId = this.onScreenTabIds.get(workspaceId);
     if (onScreen) this.onScreenTabIds.set(workspaceId, activeTabId);
-    const lastActiveAt = Object.fromEntries(linkTabs.map((tab) => [
-      tab.id,
-      onScreen && [activeTabId, shownTabId].includes(tab.id) ? now : previous?.lastActiveAt?.[tab.id] ?? now,
-    ]));
+    const stamp = (id: string, previousAt: number | undefined): number => (
+      onScreen && [activeTabId, shownTabId].includes(id) ? now : previousAt ?? now
+    );
+    const lastActiveAt = Object.fromEntries(linkTabs.map((tab) => [tab.id, stamp(tab.id, previous?.lastActiveAt?.[tab.id])]));
+    // Hidden-workspace writes carry only web tabs; keep the other times as they are.
+    if (onScreen) {
+      const previousTimes = this.previewTimes.get(workspaceId);
+      this.previewTimes.set(workspaceId, Object.fromEntries(tabs
+        .filter((tab) => tab.kind !== 'link')
+        .map((tab) => [tab.id, stamp(tab.id, previousTimes?.[tab.id])])));
+    }
     this.sessions = {
       ...this.sessions,
       [workspaceId]: {

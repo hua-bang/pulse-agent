@@ -14,14 +14,15 @@ import {
   terminalWorkspaceFor,
   type TerminalCommit,
 } from './dock-terminal-tabs';
-import { DockLinkSessionStore, inactiveLinkTabIds, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
-import { ClosedLinkTabStack, allocateTabId } from '../links/dock-link-tabs';
+import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
+import { ClosedLinkTabStack } from '../links/dock-link-tabs';
+import { staleTabIds } from '../tabs/dock-tab-cleanup';
 import {
-  getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch,
+  getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch, getReopenTabPatch,
   getSetFaviconPatch, getSetTitlePatch, getSyncLinkUrlPatch,
   type DockOpenLinkOptions,
 } from '../links/dock-link-commands';
-import { reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from '../tabs/dock-tab-operations';
+import { getTogglePinPatch, reorderTabs, updateTerminalAgentType, type DockTabDropPosition } from '../tabs/dock-tab-operations';
 import { applyDockSplitState, getComparisonSurvivorId, getSplitViewToggle, getDockPaneSelection } from '../../../../../shared/dock/dock-split-state';
 import { isDockChatVisible } from './dock-visibility';
 import { openSkillTab } from './dock-skill-tabs';
@@ -80,6 +81,7 @@ export class DockStore {
       || previous.expanded !== this.state.expanded
     ) this.persistActiveLinkSession();
     for (const listener of [...this.listeners]) listener();
+    if (this.state.tabs.length > previous.tabs.length) this.closeStaleTabs();
   }
 
   private persistActiveLinkSession(): void {
@@ -324,11 +326,16 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.commit(this.linkSessions.switchWorkspace(this.state, workspaceId));
-    for (const id of inactiveLinkTabIds(this.getLinkTabActivity(), this.state, Date.now())) this.close(id);
+    this.closeStaleTabs();
   }
 
-  /** When each web tab of this workspace was last active (epoch ms by tab id). */
-  getLinkTabActivity(): Record<string, number> { return this.linkSessions.get(this.state.activeTerminalWorkspaceId)?.lastActiveAt ?? {}; }
+  /** When each tab of this workspace was last active (epoch ms by tab id). */
+  getTabActivity(): Record<string, number> { return this.linkSessions.getTabActivity(this.state.activeTerminalWorkspaceId); }
+
+  /** Close idle tabs and, past `DOCK_TAB_LIMIT`, the least recently used (`tabs/dock-tab-cleanup.ts`). */
+  closeStaleTabs(): void { for (const id of staleTabIds(this.getTabActivity(), this.state, Date.now())) this.close(id); }
+
+  togglePin(id: string): void { const next = getTogglePinPatch(this.state.tabs, id); if (next) this.commit(next); }
 
   /**
    * A hidden (retained) tab's guest reported a navigation, title or icon.
@@ -480,14 +487,7 @@ export class DockStore {
 
   reopenClosedTab(offset = 0): void {
     const entry = this.closedLinkTabs.pop(this.state.activeTerminalWorkspaceId, offset);
-    if (!entry) return;
-    const tabs = [...this.state.tabs];
-    const restoredId = allocateTabId(tabs, entry.tab.id);
-    const restoredTab = restoredId === entry.tab.id
-      ? entry.tab
-      : { ...entry.tab, id: restoredId };
-    tabs.splice(Math.min(entry.index, tabs.length), 0, restoredTab);
-    this.commit({ tabs, activeTabId: restoredId, expanded: true });
+    if (entry) this.commit(getReopenTabPatch(this.state.tabs, entry));
   }
 
   /** A chat turn finished while chat wasn't the visible tab → unread dot. */

@@ -1,6 +1,6 @@
 import type { CanvasConfigScope, CanvasSkillEntry } from '../types';
 
-export type DockPreviewTab =
+export type DockPreviewTab = (
   | { id: string; kind: 'folder'; title: string; folderPath: string; selectedPath?: string }
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
   | {
@@ -24,7 +24,11 @@ export type DockPreviewTab =
   }
   | { id: string; kind: 'canvas'; title: string; workspaceId: string }
   | { id: string; kind: 'mcp-app'; title: string; instanceId: string }
-  | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry };
+  | { id: string; kind: 'skill'; title: string; scope: CanvasConfigScope; skill: CanvasSkillEntry }
+) & {
+  /** Pinned by the user: automatic cleanup never closes it. */
+  pinned?: boolean;
+};
 
 /** A workspace whose web tabs stay mounted (hidden) after switching away.
  *  Declared here rather than beside the link helpers so the state shape has

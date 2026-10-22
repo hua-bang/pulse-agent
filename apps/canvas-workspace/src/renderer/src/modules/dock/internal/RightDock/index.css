@@ -515,6 +515,11 @@
   line-height: 1;
 }
 
+.right-dock__tab-pin {
+  flex: none;
+  color: var(--text-muted);
+}
+
 .right-dock__tab-close {
   appearance: none;
   border: 0;

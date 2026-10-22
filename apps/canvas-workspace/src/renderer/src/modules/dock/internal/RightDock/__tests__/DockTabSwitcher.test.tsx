@@ -39,7 +39,7 @@ describe('DockTabSwitcher search', () => {
   it('offers one cleanup action for inactive tabs while not searching', async () => {
     const { type, input, onCloseInactive, onActivate } = await setup();
     const cleanup = () => document.querySelector<HTMLButtonElement>('.right-dock__tab-search-cleanup');
-    expect(cleanup()?.textContent).toBe('Close tabs unused for 7 days (1)');
+    expect(cleanup()?.textContent).toBe('Close tabs unused for 3 days (1)');
     act(() => cleanup()!.click());
     expect(onCloseInactive).toHaveBeenCalledTimes(1);
     expect(onActivate).not.toHaveBeenCalled();

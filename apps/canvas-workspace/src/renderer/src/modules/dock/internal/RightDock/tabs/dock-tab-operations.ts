@@ -1,4 +1,4 @@
-import type { DockTerminalWorkspaceState } from '../state/dock-types';
+import type { DockPreviewTab, DockState, DockTerminalWorkspaceState } from '../state/dock-types';
 
 export type DockTabDropPosition = 'before' | 'after';
 
@@ -38,3 +38,10 @@ export const updateTerminalAgentType = (
     }),
   };
 };
+
+/** Pin or unpin a content tab; a pinned tab is exempt from automatic cleanup. */
+export const getTogglePinPatch = (tabs: readonly DockPreviewTab[], id: string): Pick<DockState, 'tabs'> | null => (
+  tabs.some((tab) => tab.id === id)
+    ? { tabs: tabs.map((tab) => (tab.id === id ? { ...tab, pinned: !tab.pinned } : tab)) }
+    : null
+);

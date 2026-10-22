@@ -84,6 +84,7 @@ export const TabContextMenu = ({
           ))}
         </>
       )}
+      {item(tab.pinned ? 'rightDock.tabMenu.unpin' : 'rightDock.tabMenu.pin', run(() => store.togglePin(tab.id)))}
       {item('rightDock.tabMenu.close', run(() => store.close(tab.id)))}
       {item('rightDock.tabMenu.closeOthers', run(closeAll(others)), others.length === 0)}
       {item('rightDock.tabMenu.closeToTheRight', run(closeAll(toTheRight)), toTheRight.length === 0)}

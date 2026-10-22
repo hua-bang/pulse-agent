@@ -1096,7 +1096,7 @@ describe('DockStore', () => {
     expect(saved.read()['ws-a']).toEqual({ tabs: [], activeTabId: undefined, expanded: true, lastActiveAt: {} });
   });
 
-  it('stamps on-screen web tabs and closes week-old tabs when the workspace is entered', () => {
+  it('stamps on-screen web tabs and closes tabs idle for three days when the workspace is entered', () => {
     vi.useFakeTimers();
     try {
       const day = 24 * 60 * 60_000;
@@ -1109,14 +1109,14 @@ describe('DockStore', () => {
       vi.setSystemTime(1 * day);
       dock.openLink('https://kept.example');
       const keptId = dock.getSnapshot().activeTabId;
-      vi.setSystemTime(9 * day);
+      vi.setSystemTime(2 * day);
       dock.openLink('https://active.example');
       const activeId = dock.getSnapshot().activeTabId;
       // The tab that just left the screen is stamped too.
-      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [oldId]: 1 * day, [keptId]: 9 * day, [activeId]: 9 * day });
-      expect(dock.getLinkTabActivity()).toEqual(saved.read()['ws-a']?.lastActiveAt);
+      expect(saved.read()['ws-a']?.lastActiveAt).toEqual({ [oldId]: 1 * day, [keptId]: 2 * day, [activeId]: 2 * day });
+      expect(dock.getTabActivity()).toEqual(saved.read()['ws-a']?.lastActiveAt);
 
-      vi.setSystemTime(10 * day);
+      vi.setSystemTime(4.5 * day);
       const restored = new DockStore(saved.persistence);
       restored.setActiveWorkspace('ws-a');
 

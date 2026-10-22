@@ -6,7 +6,7 @@ import { handleDockTabListKeyDown } from './dock-accessibility';
 import { getDockTabVisualState, type DockTabVisualState } from './dock-tab-visual-state';
 import { CHAT_TAB_ID, dockPaneElementId, dockTabElementId } from '../../../../../shared/dock/dock-tab-ids';
 import type { DockStore } from '../state/dock-store';
-import { inactiveLinkTabIds } from '../links/dock-link-sessions';
+import { idleTabIds } from './dock-tab-cleanup';
 import { DockContentTab } from './DockContentTab';
 import { DockTabIcon } from './DockTabIcon';
 import type { DockComparisonPair, DockState } from '../state/dock-types';
@@ -70,7 +70,7 @@ export const DockTabStrip = ({
   const { t } = useI18n();
   const comparisonActive = Boolean(splitTabIds);
   // Read at use: tabs can go stale while nothing re-renders the strip.
-  const inactiveTabIds = () => inactiveLinkTabIds(store.getLinkTabActivity(), store.getSnapshot(), Date.now());
+  const inactiveTabIds = () => idleTabIds(store.getTabActivity(), store.getSnapshot(), Date.now());
   // The observer owner mounts with its DOM, including on the first lazy open.
   const tabIndicator = useDockTabIndicator({ scopeId: state.activeTerminalWorkspaceId,
     activeTabId: activePaneId, visible: tabStripVisible,
@@ -178,7 +178,7 @@ export const DockTabStrip = ({
           <DockTabSwitcher key={activeWorkspaceId} items={allTabItems} activeTabId={activePaneId} splitTabIds={splitTabIds}
             closedTabs={store.getClosedTabs()} onReopen={offset => { store.reopenClosedTab(offset); focusActiveDockTarget(store); }}
             onActivate={activateFromUser} onClose={id => store.close(id)}
-            lastActiveAt={store.getLinkTabActivity()} getInactiveCount={() => inactiveTabIds().length}
+            lastActiveAt={store.getTabActivity()} getInactiveCount={() => inactiveTabIds().length}
             onCloseInactive={() => { for (const id of inactiveTabIds()) store.close(id); }} />
         </Suspense>
       )}
