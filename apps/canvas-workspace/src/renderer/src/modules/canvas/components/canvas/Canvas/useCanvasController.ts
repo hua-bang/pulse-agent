@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useCanvas } from '../../../runtime/useCanvas';
+import { OVERVIEW_SCALE_THRESHOLD, useCanvas } from '../../../runtime/useCanvas';
 import { useCanvasDocumentHost } from '../../../document/useCanvasDocumentHost';
 import { useCanvasContext } from '../../../runtime/useCanvasContext';
 import { useCanvasFit } from '../../../runtime/useCanvasFit';
@@ -201,7 +201,10 @@ export const useCanvasController = ({
     // In focus mode the dedicated reframe effect handles the zoom with
     // tighter padding/maxScale — calling handleFocusNode here too would
     // produce a double reframe at different scales (visible jitter).
-    if (!focus.focusModeActive) handleFocusNode(node);
+    // A web node below the overview threshold still shows only its identity
+    // card, so focusing one must land where the page itself renders.
+    const options = node.type === 'iframe' ? { minScale: OVERVIEW_SCALE_THRESHOLD + 0.05 } : undefined;
+    if (!focus.focusModeActive) handleFocusNode(node, options);
   }, [handleFocusNode, focus.focusModeActive, setHighlightedId, setSelectedEdgeId, setSelectedNodeIds]);
 
   const { pasteReferenceNodes, placeCanvasReference } = useCanvasReferenceActions({

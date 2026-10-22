@@ -392,9 +392,19 @@
   background: var(--surface);
 }
 
-.iframe-overview-badge,
 .iframe-overview-control.ui-btn {
   display: none;
+}
+
+/* The card fades in when a settled zoom enters overview and fades out on the
+ * way back, so the swap with the live page reads as one surface changing
+ * instead of a pop. allow-discrete keeps display in step with opacity. */
+.iframe-overview-badge {
+  display: none;
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    display 180ms allow-discrete;
 }
 
 /* Overview card: favicon at the top, title and host at the bottom. Type size
@@ -422,6 +432,13 @@
   overflow: hidden;
   pointer-events: none;
   background: var(--surface);
+  opacity: 1;
+}
+
+@starting-style {
+  .canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-overview-badge {
+    opacity: 0;
+  }
 }
 
 .iframe-overview-badge-tile {
@@ -437,6 +454,7 @@
   border: calc(1 * var(--iframe-overview-unit)) solid var(--border);
   box-sizing: border-box;
   color: var(--text-muted);
+  transition: transform 160ms ease;
 }
 
 .iframe-overview-badge-tile > svg,
@@ -476,6 +494,27 @@
   line-height: 1.4;
 }
 
+/* Hover says "this opens": zoom-in cursor (double click flies in), a
+ * stronger edge, and a small lift of the favicon tile. */
+.canvas-transform--overview .canvas-node--iframe:hover .iframe-body-host:not([data-overview-content="true"]) .iframe-frame-wrapper {
+  cursor: zoom-in;
+}
+
+.canvas-transform--overview .canvas-node--iframe:not(.canvas-node--selected):hover {
+  outline-color: var(--text-muted);
+}
+
+.canvas-transform--overview .canvas-node--iframe:hover .iframe-overview-badge-tile {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iframe-overview-badge,
+  .iframe-overview-badge-tile {
+    transition: none;
+  }
+}
+
 /* The badge already carries favicon + title; the header strip above it is a
  * few screen pixels tall at overview and only reads as specks. Hide its
  * labels but keep the box, so it still works as the drag handle. */
@@ -484,15 +523,17 @@
 }
 
 /* Screen-sized hit area, not a canvas-sized button that shrinks to a speck.
- * Hidden at working zoom; hover/focus reveals it in BOTH low-zoom modes. */
+ * Hidden at working zoom; hover/focus reveals it in BOTH low-zoom modes.
+ * Bottom-right, because the floating header actions own the top-right
+ * corner at this zoom and would cover it. */
 .canvas-transform--overview .iframe-overview-control.ui-btn {
   display: inline-flex;
   position: absolute;
-  top: calc(6px / var(--canvas-scale, 1));
-  right: calc(6px / var(--canvas-scale, 1));
+  bottom: calc(8px / var(--canvas-scale, 1));
+  right: calc(8px / var(--canvas-scale, 1));
   z-index: 3;
   transform: scale(calc(1 / var(--canvas-scale, 1)));
-  transform-origin: top right;
+  transform-origin: bottom right;
   opacity: 0;
   pointer-events: none;
   background: var(--surface);
