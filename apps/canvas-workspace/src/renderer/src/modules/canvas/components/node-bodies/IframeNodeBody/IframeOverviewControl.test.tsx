@@ -74,11 +74,15 @@ describe('overview preview control', () => {
 });
 
 describe('title-first overview identity', () => {
-  it('keeps the complete title, with the icon above and the host below it', () => {
+  it('keeps the complete title, with the cover and icon above and the host below it', () => {
     render(<IframeOverviewBadge mode="url" url="https://www.example.com/page" title="很长的文档标题：产品设计与交互方案" />);
     expect(host.querySelector('.iframe-overview-badge-title')!.textContent).toBe('很长的文档标题：产品设计与交互方案');
     expect(host.querySelector('.iframe-overview-badge-host')!.textContent).toBe('example.com');
-    expect(host.querySelector('.iframe-overview-badge')!.firstElementChild!.className).toBe('iframe-overview-badge-tile');
+    expect([...host.querySelector('.iframe-overview-badge')!.children].map((el) => el.className)).toEqual([
+      'iframe-overview-badge-cover',
+      'iframe-overview-badge-body',
+    ]);
+    expect(host.querySelector('.iframe-overview-badge-body')!.firstElementChild!.className).toBe('iframe-overview-badge-tile');
     const text = host.querySelector('.iframe-overview-badge-text')!;
     expect([...text.children].map((el) => el.className)).toEqual([
       'iframe-overview-badge-title',
