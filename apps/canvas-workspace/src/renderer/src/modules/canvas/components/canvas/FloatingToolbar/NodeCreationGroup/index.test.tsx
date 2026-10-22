@@ -60,4 +60,43 @@ describe('NodeCreationGroup', () => {
       'agent',
     ]);
   });
+
+  it('offers the same creation actions from the compact add menu', () => {
+    const onAddNode = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    act(() => {
+      root?.render(
+        <I18nProvider>
+          <NodeCreationGroup
+            terminalDockOpen={false}
+            showTerminalAdd={false}
+            onAddNode={onAddNode}
+            onTerminalToggle={vi.fn()}
+            onNewTerminal={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    const trigger = host.querySelector<HTMLButtonElement>('.toolbar-create-compact button[aria-label="Add node"]');
+    expect(trigger).not.toBeNull();
+    act(() => trigger?.click());
+
+    const items = [...host.querySelectorAll<HTMLButtonElement>('.toolbar-create-menu [role="menuitem"]')];
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual([
+      'Add Text',
+      'Add Note Card',
+      'Add Mindmap',
+      'Add Frame',
+      'Add Web Page',
+      'Add Coding Agent',
+    ]);
+
+    act(() => items[2]?.click());
+    expect(onAddNode).toHaveBeenCalledWith('mindmap');
+    expect(host.querySelector('.toolbar-create-menu')).toBeNull();
+  });
 });

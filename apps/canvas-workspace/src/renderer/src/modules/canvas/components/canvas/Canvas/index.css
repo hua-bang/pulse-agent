@@ -127,7 +127,7 @@
 /* Dock/sidebar widths reduce the canvas independently of the window. Once
  * the compact toolbar and both side controls cannot share a row, give the
  * toolbar its own lane. Keep toolbar-free previews on their existing row. */
-@container (max-width: 620px) {
+@container (max-width: 480px) {
   .canvas-bottom-chrome > .floating-toolbar {
     grid-column: 1 / -1;
     min-width: 0;
