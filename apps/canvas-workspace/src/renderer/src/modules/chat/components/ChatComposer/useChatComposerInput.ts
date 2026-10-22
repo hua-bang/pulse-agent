@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { isImeComposing } from '../../../../utils/ime';
 import { serializeEditable } from '../../mentions/mentions';
+import { insertPlainText } from '../../mentions/insertPlainText';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
 import { useContextMentionInsertions } from './useContextMentionInsertions';
@@ -129,8 +130,7 @@ export function useChatComposerInput({
       return;
     }
     event.preventDefault();
-    const text = event.clipboardData.getData('text/plain');
-    document.execCommand('insertText', false, text);
+    insertPlainText(event.clipboardData.getData('text/plain'));
   }, [handleAttachFiles]);
 
   return {
