@@ -23,4 +23,20 @@ describe('CommandPalette model', () => {
     expect(sections[1].items.map((item) => item.kind === 'command' ? item.command.id : item.node.id))
       .toEqual(['fit']);
   });
+
+  it('ignores the placeholder title of text nodes and matches their prose, not HTML', () => {
+    const textNode = (id: string, content: string): CanvasNode => ({
+      id, title: 'Text', data: { content, textColor: '', backgroundColor: '' }, type: 'text', x: 0, y: 0, width: 200, height: 120,
+    });
+    const nodes = [
+      textNode('empty', ''),
+      textNode('tagged', '<p>Plain words</p>'),
+      textNode('prose', '<p>Search test notes</p>'),
+    ];
+    const items = buildPaletteSections(nodes, [], 'te')[0].items;
+    expect(items.map((item) => item.kind === 'node' ? [item.node.id, item.matchType, item.matchText] : []))
+      .toEqual([['prose', 'content', 'Search test notes']]);
+    expect(buildPaletteSections(nodes, [], 'p')[0].items.map((item) => item.kind === 'node' ? item.node.id : ''))
+      .toEqual(['tagged']);
+  });
 });

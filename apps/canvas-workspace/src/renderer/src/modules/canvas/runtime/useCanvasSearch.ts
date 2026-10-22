@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, FileNodeData, TextNodeData } from '../../../types';
 import { useFileNodeEditorRegistry } from '../../../shared/fileNodeEditorRegistry';
+import { getNodeSearchTitle, htmlToPlainText } from '../../../utils/nodeLabel';
 
 // noteSearchExtension pulls @tiptap/react + @tiptap/pm; a static import here
 // would drag prosemirror into the entry chunk via Canvas → useCanvasSearch
@@ -106,9 +107,10 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     };
 
     for (const node of ordered) {
-      // 1) Title — every node has one.
-      if (norm(node.title).includes(q)) {
-        out.push({ nodeId: node.id, field: 'title', snippet: node.title });
+      // 1) Title — text nodes' "Text" placeholder does not count.
+      const title = getNodeSearchTitle(node);
+      if (title && norm(title).includes(q)) {
+        out.push({ nodeId: node.id, field: 'title', snippet: title });
       }
 
       // 2) Type-specific fields.
@@ -127,7 +129,7 @@ export const useCanvasSearch = ({ nodes }: Args) => {
           }
         }
       } else if (node.type === 'text') {
-        const content = (node.data as TextNodeData).content ?? '';
+        const content = htmlToPlainText((node.data as TextNodeData).content ?? '');
         if (content) {
           const hay = norm(content);
           const idx = hay.indexOf(q);

@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 import './index.css';
 import { useI18n, type I18nKey } from '../../../../../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../../utils/nodeTypeI18n';
+import { getNodeDisplayLabel } from '../../../../../../utils/nodeLabel';
 import type { PaletteCommand, PaletteItem } from '../model';
 
 const GROUP_LABEL_KEY: Record<PaletteCommand['group'], I18nKey> = {
@@ -37,7 +38,7 @@ export const PaletteRow = ({ item, index, selected, onActivate, onHover, onFocus
   } as const;
   if (item.kind === 'node') {
     const showSnippet = !['title-prefix', 'title-contains', 'recent'].includes(item.matchType);
-    const title = item.node.title || t('canvas.palette.untitled');
+    const title = getNodeDisplayLabel(item.node) || t('canvas.palette.untitled');
     const typeLabel = t(CANVAS_NODE_TYPE_LABEL_KEY[item.node.type]);
     return (
       <button type="button" {...common} aria-label={t('canvas.palette.nodeOption', { type: typeLabel, title })}>

@@ -1,4 +1,5 @@
 import type { CanvasNode, FileNodeData, TextNodeData } from '../../../../../types';
+import { getNodeDisplayLabel, getNodeSearchTitle, htmlToPlainText } from '../../../../../utils/nodeLabel';
 
 export interface PaletteCommand {
   id: string;
@@ -35,9 +36,10 @@ const MAX_NODE_RESULTS = 20;
 
 const contentMatch = (node: CanvasNode, query: string): NodePaletteItem | null => {
   if (node.type !== 'file' && node.type !== 'text') return null;
-  const content = node.type === 'file'
+  // Tiptap stores HTML; match the prose so a query never hits tag names.
+  const content = htmlToPlainText(node.type === 'file'
     ? (node.data as FileNodeData).content || ''
-    : (node.data as TextNodeData).content || '';
+    : (node.data as TextNodeData).content || '').replace(/\s+/g, ' ').trim();
   const index = content.toLowerCase().indexOf(query);
   if (index < 0) return null;
   const start = Math.max(0, index - 20);
@@ -51,9 +53,10 @@ const contentMatch = (node: CanvasNode, query: string): NodePaletteItem | null =
 };
 
 const matchNode = (node: CanvasNode, query: string): NodePaletteItem | null => {
-  const title = node.title.toLowerCase();
-  if (title.startsWith(query)) return { kind: 'node', node, matchType: 'title-prefix', matchText: node.title };
-  if (title.includes(query)) return { kind: 'node', node, matchType: 'title-contains', matchText: node.title };
+  const searchTitle = getNodeSearchTitle(node);
+  const title = searchTitle.toLowerCase();
+  if (title.startsWith(query)) return { kind: 'node', node, matchType: 'title-prefix', matchText: searchTitle };
+  if (title.includes(query)) return { kind: 'node', node, matchType: 'title-contains', matchText: searchTitle };
   if (node.type === 'file') {
     const path = (node.data as FileNodeData).filePath || '';
     const name = path.split('/').pop() || '';
@@ -85,7 +88,7 @@ export const buildPaletteSections = (
         kind: 'node',
         node,
         matchType: 'recent',
-        matchText: node.title,
+        matchText: getNodeDisplayLabel(node),
       }));
     if (recent.length > 0) sections.push({ id: 'recent', items: recent });
     return sections;
@@ -102,7 +105,7 @@ export const buildPaletteSections = (
     .map((node) => matchNode(node, normalized))
     .filter((item): item is NodePaletteItem => !!item)
     .sort((left, right) => priority[left.matchType] - priority[right.matchType]
-      || left.node.title.localeCompare(right.node.title))
+      || getNodeDisplayLabel(left.node).localeCompare(getNodeDisplayLabel(right.node)))
     .slice(0, MAX_NODE_RESULTS);
   const commandItems = enabledCommands
     .filter((command) => command.title.toLowerCase().includes(normalized)
