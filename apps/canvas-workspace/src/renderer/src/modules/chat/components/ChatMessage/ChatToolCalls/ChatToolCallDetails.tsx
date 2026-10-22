@@ -32,6 +32,22 @@ const formatArgs = (args: unknown): string => {
   }
 };
 
+const RESULT_PREVIEW_LIMIT = 2000;
+
+/** Pretty-print JSON object/array results so they read as structured data. */
+const formatResult = (result: string): string => {
+  const trimmed = result.trim();
+  if (!/^[[{]/.test(trimmed)) return result;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return parsed !== null && typeof parsed === 'object'
+      ? JSON.stringify(parsed, null, 2)
+      : result;
+  } catch {
+    return result;
+  }
+};
+
 const parseSessionRefs = (tool: ToolCallStatus): SessionRef[] | null => {
   if (
     tool.status !== 'succeeded'
@@ -87,6 +103,7 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
   }, [expanded, shouldRenderDetails]);
 
   const renderDetails = hasDetails && (expanded || shouldRenderDetails);
+  const formattedResult = renderDetails && tool.result ? formatResult(tool.result) : '';
 
   return (
     <>
@@ -142,9 +159,9 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
                 <div className="chat-tool-call-section">
                   <div className="chat-tool-call-section-label">{t('chat.toolCalls.output')}</div>
                   <pre>
-                    {tool.result.length > 2000
-                      ? `${tool.result.slice(0, 2000)}\n${t('chat.toolCalls.truncated')}`
-                      : tool.result}
+                    {formattedResult.length > RESULT_PREVIEW_LIMIT
+                      ? `${formattedResult.slice(0, RESULT_PREVIEW_LIMIT)}\n${t('chat.toolCalls.truncated')}`
+                      : formattedResult}
                   </pre>
                 </div>
               )}

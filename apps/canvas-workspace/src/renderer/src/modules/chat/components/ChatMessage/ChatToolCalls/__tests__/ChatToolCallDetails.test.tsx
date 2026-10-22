@@ -73,4 +73,30 @@ describe('ChatToolCallDetails', () => {
 
     expect(host!.querySelector('.chat-session-ref-count')?.textContent).toBe('3 条消息');
   });
+
+  it('pretty-prints JSON object results and leaves plain text untouched', () => {
+    const result = JSON.stringify({
+      type: 'tool_search_tool_search_result',
+      tool_references: [{ type: 'tool_reference', tool_name: 'image_generate' }],
+    });
+    renderDetails(
+      <>
+        <ChatToolCallDetails
+          expanded
+          tool={{ id: 3, name: 'tool_search_tool_regex', status: 'succeeded', result }}
+        />
+        <ChatToolCallDetails
+          expanded
+          tool={{ id: 4, name: 'bash', status: 'succeeded', result: '{not json' }}
+        />
+      </>,
+    );
+
+    const outputs = Array.from(host!.querySelectorAll('.chat-tool-call-section pre'))
+      .map(element => element.textContent);
+    expect(outputs).toEqual([
+      JSON.stringify(JSON.parse(result), null, 2),
+      '{not json',
+    ]);
+  });
 });
