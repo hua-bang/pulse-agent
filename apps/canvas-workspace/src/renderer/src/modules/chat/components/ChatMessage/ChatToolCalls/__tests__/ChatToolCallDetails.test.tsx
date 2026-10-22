@@ -74,7 +74,7 @@ describe('ChatToolCallDetails', () => {
     expect(host!.querySelector('.chat-session-ref-count')?.textContent).toBe('3 条消息');
   });
 
-  it('pretty-prints JSON object results and leaves plain text untouched', () => {
+  it('pretty-prints JSON object results and keeps plain text or unsafe integers raw', () => {
     const result = JSON.stringify({
       type: 'tool_search_tool_search_result',
       tool_references: [{ type: 'tool_reference', tool_name: 'image_generate' }],
@@ -89,6 +89,10 @@ describe('ChatToolCallDetails', () => {
           expanded
           tool={{ id: 4, name: 'bash', status: 'succeeded', result: '{not json' }}
         />
+        <ChatToolCallDetails
+          expanded
+          tool={{ id: 5, name: 'lookup', status: 'succeeded', result: '{"id":9223372036854775807}' }}
+        />
       </>,
     );
 
@@ -97,6 +101,7 @@ describe('ChatToolCallDetails', () => {
     expect(outputs).toEqual([
       JSON.stringify(JSON.parse(result), null, 2),
       '{not json',
+      '{"id":9223372036854775807}',
     ]);
   });
 });

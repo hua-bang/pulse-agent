@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../i18n';
 import type { ToolCallStatus } from '../../../../../types';
 import { parseCodemodeResult } from './codemodeResult';
@@ -33,9 +33,14 @@ const formatArgs = (args: unknown): string => {
 };
 
 const RESULT_PREVIEW_LIMIT = 2000;
+// Large payloads keep the raw slice path so expanding a chip stays cheap.
+const RESULT_FORMAT_LIMIT = 100_000;
+// JSON.parse rounds integers beyond 2^53; keep raw text so ids stay exact.
+const UNSAFE_INTEGER_PATTERN = /\d{16,}/;
 
 /** Pretty-print JSON object/array results so they read as structured data. */
 const formatResult = (result: string): string => {
+  if (result.length > RESULT_FORMAT_LIMIT || UNSAFE_INTEGER_PATTERN.test(result)) return result;
   const trimmed = result.trim();
   if (!/^[[{]/.test(trimmed)) return result;
   try {
@@ -103,7 +108,10 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
   }, [expanded, shouldRenderDetails]);
 
   const renderDetails = hasDetails && (expanded || shouldRenderDetails);
-  const formattedResult = renderDetails && tool.result ? formatResult(tool.result) : '';
+  const formattedResult = useMemo(
+    () => (renderDetails && tool.result ? formatResult(tool.result) : ''),
+    [renderDetails, tool.result],
+  );
 
   return (
     <>
