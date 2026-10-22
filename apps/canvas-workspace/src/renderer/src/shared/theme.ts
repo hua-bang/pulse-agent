@@ -80,6 +80,12 @@ export const setThemePreference = (next: ThemePreference): void => {
   notify();
 };
 
+/** Flip between light and dark. The result is an explicit preference, so it
+ *  stops following the OS until the user picks System again. */
+export const toggleTheme = (): void => {
+  setThemePreference(resolved === 'dark' ? 'light' : 'dark');
+};
+
 export const useThemePreference = (): [ThemePreference, (next: ThemePreference) => void] => {
   const current = useSyncExternalStore(onThemeChange, () => preference);
   const update = useCallback((next: ThemePreference) => setThemePreference(next), []);

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { isImeComposing } from '../../utils/ime';
 import { matchShortcut, type AppShortcutId } from '../../shortcuts/registry';
 import { useWebviewShortcutBridge } from '../../platform/browser/useWebviewShortcutBridge';
+import { toggleTheme } from '../../shared/theme';
 
 interface Options {
   /** True while a modal/overlay owns the keyboard. */
@@ -62,6 +63,10 @@ export const useAppShortcuts = ({
     'app.togglePanels': (event) => {
       event.preventDefault();
       togglePanels();
+    },
+    'app.toggleTheme': (event) => {
+      event.preventDefault();
+      toggleTheme();
     },
     'app.switchWorkspace': (event) => {
       const index = Number.parseInt(event.key, 10);

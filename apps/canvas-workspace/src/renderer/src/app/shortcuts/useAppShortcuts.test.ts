@@ -67,6 +67,19 @@ describe('useAppShortcuts', () => {
     input.remove();
   });
 
+  it('toggles the theme with Mod+Shift+D, even from a text field', () => {
+    mount();
+    const input = document.createElement('input');
+    document.body.append(input);
+    const wasDark = document.documentElement.classList.contains('dark');
+
+    const event = press({ key: 'D', metaKey: true, shiftKey: true }, input);
+
+    expect(document.documentElement.classList.contains('dark')).toBe(!wasDark);
+    expect(event.defaultPrevented).toBe(true);
+    input.remove();
+  });
+
   it('jumps to the nth workspace', () => {
     const options = mount();
 

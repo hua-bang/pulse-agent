@@ -6,6 +6,7 @@
 import { useI18n } from '../../../../i18n';
 import { SectionHeader, SegmentedControl } from '../../../../components/ui';
 import { useThemePreference, type ThemePreference } from '../../../../shared/theme';
+import { formatShortcutId } from '../../../../shortcuts/registry';
 import './AppearanceSection.css';
 
 export const AppearanceSection = () => {
@@ -17,7 +18,7 @@ export const AppearanceSection = () => {
       <div className="appearance-settings">
         <SectionHeader
           title={t('settings.appearance.title')}
-          description={t('settings.appearance.description')}
+          description={t('settings.appearance.description', { shortcut: formatShortcutId('app.toggleTheme') })}
         />
         <SegmentedControl
           options={[

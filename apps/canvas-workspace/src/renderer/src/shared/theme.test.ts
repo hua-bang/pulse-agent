@@ -60,6 +60,19 @@ describe('theme', () => {
     expect(window.localStorage.getItem('pulse-canvas.theme')).toBe('dark');
   });
 
+  it('toggles to the opposite of the resolved theme', async () => {
+    installMatchMedia(true);
+    const theme = await loadTheme();
+    theme.installTheme();
+
+    theme.toggleTheme();
+    expect(theme.getResolvedTheme()).toBe('light');
+    expect(window.localStorage.getItem('pulse-canvas.theme')).toBe('light');
+
+    theme.toggleTheme();
+    expect(theme.getResolvedTheme()).toBe('dark');
+  });
+
   it('applies the stored preference on install', async () => {
     installMatchMedia(true);
     window.localStorage.setItem('pulse-canvas.theme', 'light');
