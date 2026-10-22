@@ -14,6 +14,7 @@ interface Props {
 const CREATION_ACTIONS = [
   { type: 'text', labelKey: 'canvas.toolbar.addText', tooltipKey: 'canvas.toolbar.text' },
   { type: 'file', labelKey: 'canvas.toolbar.addNote', tooltipKey: 'canvas.toolbar.note' },
+  { type: 'mindmap', labelKey: 'canvas.toolbar.addMindmap', tooltipKey: 'canvas.toolbar.mindmap' },
   { type: 'frame', labelKey: 'canvas.toolbar.addFrame', tooltipKey: 'canvas.toolbar.frame' },
   { type: 'iframe', labelKey: 'canvas.toolbar.addWeb', tooltipKey: 'canvas.toolbar.web' },
   { type: 'agent', labelKey: 'canvas.toolbar.addCodingAgent', tooltipKey: 'canvas.toolbar.coding' },
@@ -46,21 +47,13 @@ export const NodeCreationGroup = ({
           <span className="toolbar-btn-label">{t(action.tooltipKey)}</span>
         </button>
       ))}
+      <div className="toolbar-divider" />
       <TerminalToolSplitButton
         open={terminalDockOpen}
         showAdd={showTerminalAdd}
         onToggle={onTerminalToggle}
         onNewTerminal={onNewTerminal}
       />
-      <button
-        className="toolbar-btn toolbar-btn--create"
-        onClick={() => onAddNode('mindmap')}
-        aria-label={t('canvas.toolbar.addMindmap')}
-        data-tooltip={t('canvas.toolbar.mindmap')}
-      >
-        <NodeTypeIcon type="mindmap" size={18} />
-        <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
-      </button>
     </div>
   );
 };

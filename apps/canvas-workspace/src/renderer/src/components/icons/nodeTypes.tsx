@@ -126,11 +126,12 @@ export const NodeTypeIcon = ({ type, size = 14, className, colorize = false }: N
     case 'mindmap':
       return (
         <svg {...props18}>
-          <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
-          <circle cx="14" cy="4.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-          <circle cx="14" cy="9" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-          <circle cx="14" cy="13.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-          <path d="M6.5 8.2L12.5 5M6.5 9h6M6.5 9.8L12.5 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          {/* Root card with elbow branches to topic bars: reads as a tree, not a share glyph. */}
+          <rect x="1.5" y="6.25" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M7 9h5M9.25 9V5.5a1.5 1.5 0 011.5-1.5H12M9.25 9v3.5a1.5 1.5 0 001.5 1.5H12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="12" y="2.75" width="4.5" height="2.5" rx="1.25" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="12" y="7.75" width="4.5" height="2.5" rx="1.25" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="12" y="12.75" width="4.5" height="2.5" rx="1.25" stroke="currentColor" strokeWidth="1.2" />
         </svg>
       );
     case 'reference':

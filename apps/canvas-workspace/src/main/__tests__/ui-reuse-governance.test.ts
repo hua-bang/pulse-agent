@@ -134,7 +134,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 262→255: the app rail replaced the sidebar footer, nav list and the
   // expanded apps list; workspace tabs and the launcher use ui/Button.
   // 255→251: workspace row actions moved into a ui/Button "more" menu.
-  rawButtonTags: 250,
+  rawButtonTags: 249,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).

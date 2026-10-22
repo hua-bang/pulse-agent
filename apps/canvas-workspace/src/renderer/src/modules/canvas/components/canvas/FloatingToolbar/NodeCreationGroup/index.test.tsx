@@ -41,10 +41,10 @@ describe('NodeCreationGroup', () => {
     for (const label of [
       'Add Text',
       'Add Note Card',
+      'Add Mindmap',
       'Add Frame',
       'Add Web Page',
       'Add Coding Agent',
-      'Add Mindmap',
     ]) {
       const button = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
       expect(button, label).not.toBeNull();
@@ -54,10 +54,10 @@ describe('NodeCreationGroup', () => {
     expect(onAddNode.mock.calls.map(([type]) => type)).toEqual([
       'text',
       'file',
+      'mindmap',
       'frame',
       'iframe',
       'agent',
-      'mindmap',
     ]);
   });
 });
