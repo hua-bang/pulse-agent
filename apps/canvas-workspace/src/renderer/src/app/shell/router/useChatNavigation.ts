@@ -15,6 +15,8 @@ interface UseChatNavigationOptions {
   openDockChat: () => void;
   isOverlayOpen: boolean;
   openShortcuts: () => void;
+  /** Whether a workspace still exists, so a deleted one is not resumed. */
+  hasWorkspace?: (workspaceId: string) => boolean;
 }
 
 interface ChatReturnPoint {
@@ -40,10 +42,21 @@ export const useChatNavigation = ({
   openDockChat,
   isOverlayOpen,
   openShortcuts,
+  hasWorkspace,
 }: UseChatNavigationOptions) => {
   const [initialTarget, setInitialTarget] = useState<ChatTarget | null>(null);
   const returnPointRef = useRef<ChatReturnPoint | null>(null);
+  // The Pulse Agent rail entry resumes the last conversation shown on the
+  // chat page. Before the first one in this run, or when the page was left
+  // on a chat with no session yet, it opens the launcher instead.
+  const resumeTargetRef = useRef<ChatTarget | null>(null);
   const isChatView = activeView === 'chat';
+
+  useEffect(() => {
+    if (isChatView && activeTarget?.surface === 'page') {
+      resumeTargetRef.current = activeTarget.sessionId ? activeTarget : null;
+    }
+  }, [activeTarget, isChatView]);
 
   const enterChatTarget = useCallback((target: ChatTarget | null) => {
     // Completion toasts may target another durable conversation while the
@@ -62,6 +75,20 @@ export const useChatNavigation = ({
   const enterChatView = useCallback(() => {
     enterChatTarget(activeTarget);
   }, [activeTarget, enterChatTarget]);
+
+  // On the launcher or chat page, the entry opens the launcher, so it always
+  // remains one click away.
+  const enterPulseAgent = useCallback(() => {
+    const resumeTarget = resumeTargetRef.current;
+    const scope = resumeTarget?.scope;
+    if (scope?.kind === 'workspace' && hasWorkspace && !hasWorkspace(scope.workspaceId)) {
+      resumeTargetRef.current = null;
+    } else if (resumeTarget && activeView !== 'home' && !isChatView) {
+      enterChatTarget(resumeTarget);
+      return;
+    }
+    setLocation('/home');
+  }, [activeView, enterChatTarget, hasWorkspace, isChatView, setLocation]);
 
   const exitChatView = useCallback(() => {
     const returnPoint = returnPointRef.current;
@@ -133,6 +160,7 @@ export const useChatNavigation = ({
   return {
     enterChatTarget,
     enterChatView,
+    enterPulseAgent,
     exitChatView,
     initialTarget,
     isChatView,

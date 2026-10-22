@@ -190,9 +190,14 @@ const AppContent = () => {
     if (redirectToCanvas) setLocation(ROUTE_CANVAS);
   }, [redirectToCanvas, setLocation]);
 
+  const hasWorkspace = useCallback(
+    (workspaceId: string) => workspaces.some((workspace) => workspace.id === workspaceId),
+    [workspaces],
+  );
   const {
     enterChatTarget,
     enterChatView,
+    enterPulseAgent,
     exitChatView,
     initialTarget: chatEntryTarget,
   } = useChatNavigation({
@@ -204,6 +209,7 @@ const AppContent = () => {
     openDockChat: dock.openChat,
     isOverlayOpen,
     openShortcuts,
+    hasWorkspace,
   });
   const workspaceActions = useWorkspaceActions({
     store: workspaceStore,
@@ -339,7 +345,7 @@ const AppContent = () => {
           onNodeDelete={requestActiveNodeDelete}
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
-          onEnterHome={() => setLocation(ROUTE_HOME)}
+          onEnterHome={enterPulseAgent}
           onEnterCanvas={() => setLocation(ROUTE_CANVAS)}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
