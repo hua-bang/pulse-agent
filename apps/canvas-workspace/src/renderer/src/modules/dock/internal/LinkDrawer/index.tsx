@@ -40,7 +40,7 @@ import { EXPERIMENTAL_FLAG_DEFAULT_BROWSER } from "../../../../../../shared/expe
 import { useActiveChatTarget, type ChatDeliveryReceipt } from '../../../chat';
 import { useChatDeliveryNotifier } from '../../../chat/delivery';
 import { TabChatAction } from '../RightDock/tabs/TabChatAction';
-import "./index.css";
+import './index.css';
 /** Google blocks account sign-in inside embedded browsers (WebView policy);
  *  detect its sign-in host so we can steer the user to the system browser. */
 function isGoogleAuthUrl(raw: string | null | undefined): boolean {
