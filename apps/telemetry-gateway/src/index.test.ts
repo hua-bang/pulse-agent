@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe('telemetry gateway', () => {
-  it('forwards a valid batch to PostHog with the client IP', async () => {
+  it('forwards a valid batch to PostHog without the client IP', async () => {
     vi.useFakeTimers({ now: NOW });
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => new Response('{}'));
     vi.stubGlobal('fetch', fetchMock);
@@ -58,13 +58,14 @@ describe('telemetry gateway', () => {
           $session_id: 'session-1',
           $lib: 'pulse-telemetry-gateway',
           $os: 'Mac OS X',
-          $ip: '203.0.113.7',
+          $geoip_disable: true,
           app_version: '0.1.80',
           arch: 'arm64',
           packaged: true,
         },
       }],
     });
+    expect(String(init.body)).not.toContain('203.0.113.7');
   });
 
   it('writes Analytics Engine data points when the binding exists', async () => {
@@ -113,20 +114,38 @@ describe('telemetry gateway', () => {
     expect((await run(post(validBatch()), { RATE_LIMITER: { limit } })).status).toBe(429);
     expect(limit).toHaveBeenCalledWith({ key: 'device-1' });
   });
+
+  it('limits by client IP before reading the body', async () => {
+    const ipLimit = vi.fn(async () => ({ success: false }));
+    const deviceLimit = vi.fn(async () => ({ success: true }));
+    const response = await run(post('not json', { 'cf-connecting-ip': '203.0.113.7' }), {
+      IP_RATE_LIMITER: { limit: ipLimit },
+      RATE_LIMITER: { limit: deviceLimit },
+    });
+    expect(response.status).toBe(429);
+    expect(ipLimit).toHaveBeenCalledWith({ key: '203.0.113.7' });
+    expect(deviceLimit).not.toHaveBeenCalled();
+  });
 });
 
 describe('parseBatch', () => {
-  it('drops invalid events and sanitizes props', () => {
+  it('drops unlisted events and keeps only listed props', () => {
     const batch = parseBatch({
       ...validBatch(),
       events: [
         { event: 'Bad Name', ts: NOW },
-        { event: 'app_started', ts: 0, props: { 'Bad Key': 1, nested: {}, long: 'x'.repeat(300), n: 2 } },
+        { event: 'conversation_text', ts: NOW, props: { text: 'secret' } },
+        { event: 'toString', ts: NOW },
+        {
+          event: 'agent_turn_finished',
+          ts: 0,
+          props: { 'Bad Key': 1, nested: {}, text: 'secret', outcome: 'x'.repeat(300), tool_calls: 2 },
+        },
       ],
     }, NOW);
 
     expect(batch?.events).toEqual([
-      { event: 'app_started', ts: NOW, props: { long: 'x'.repeat(200), n: 2 } },
+      { event: 'agent_turn_finished', ts: NOW, props: { outcome: 'x'.repeat(200), tool_calls: 2 } },
     ]);
   });
 

@@ -8,9 +8,14 @@
  * vendor can change without a client release.
  *
  * TELEMETRY_EVENTS is the complete list of events the app can send, with
- * the prop keys each one may carry. Add an event or key here first; main
- * drops any other name or key. Props carry only counts, kinds, and flags:
- * never conversation text, file paths, URLs, or titles.
+ * the prop keys each one may carry. Add an event or key here first; main and
+ * the gateway (which imports this list) drop any other name or key, so
+ * deploy the gateway before releasing a build that adds one. Props carry
+ * only counts, kinds, and flags: never conversation text, file paths, URLs,
+ * or titles.
+ *
+ * Main sends nothing until the user has seen the first-launch notice
+ * (`TelemetryStatus.noticeSeen`); events queue until then.
  *
  * `node_created` counts nodes a user adds (toolbar, menu, drop), not
  * duplicates, pastes, or group frames. Agent-created nodes are counted in
@@ -53,10 +58,16 @@ export interface TelemetryStatus {
   configured: boolean;
   /** The user setting. Defaults to true until the user turns it off. */
   enabled: boolean;
+  /**
+   * The user saw the first-launch notice and chose. Until then main sends
+   * nothing; the renderer shows the notice when `configured` and false.
+   */
+  noticeSeen: boolean;
 }
 
 export interface TelemetryApi {
   track: <E extends TelemetryEventName>(event: E, props?: TelemetryProps<E>) => Promise<void>;
   status: () => Promise<TelemetryStatus>;
+  /** Records the user's choice and marks the notice as seen. */
   setEnabled: (enabled: boolean) => Promise<TelemetryStatus>;
 }

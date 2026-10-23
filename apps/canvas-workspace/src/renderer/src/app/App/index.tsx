@@ -44,6 +44,7 @@ const WorkspaceTabs = lazy(() => import('../shell/WorkspaceTabs').then((module) 
 // Its knowledge @ list loads every workspace's nodes, so it stays off the startup chunk.
 const ChatRoute = lazy(() => import('./ChatRoute').then((module) => ({ default: module.ChatRoute })));
 const MigrationSpinner = lazy(() => import('../shell/MigrationSpinner').then((module) => ({ default: module.MigrationSpinner })));
+const TelemetryNoticeBridge = lazy(() => import('../shell/TelemetryNoticeBridge').then((module) => ({ default: module.TelemetryNoticeBridge })));
 const {
   canvas: ROUTE_CANVAS,
   chat: ROUTE_CHAT,
@@ -476,6 +477,7 @@ const AppContent = () => {
         onActivateWorkspace={activateDockWorkspace}
       />
       <ConversationCompletionToastBridge onOpenSessionInScope={openSessionInOwningScope} />
+      <Suspense fallback={null}><TelemetryNoticeBridge /></Suspense>
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         workspaceLoaded={workspaceSettingsLoaded}
