@@ -3,9 +3,10 @@ name: Canvas Release
 # Manual Pulse Canvas release on an Apple Silicon runner. It runs the same
 # script as a local release (apps/canvas-workspace/harness/skills/
 # pulse-canvas-release): bump the app version, package the macOS arm64 DMG,
-# upload to R2, update latest.json, deploy the download page. It then pushes
-# the version bump and opens a `release(canvas): <version>` PR. Tag the merged
-# commit after the PR lands, as the skill describes.
+# upload to R2, update latest.json, deploy the download page. It then commits
+# the version bump on the runner and pushes only the pulse-canvas-v<version>
+# tag. No branch and no PR: the tag keeps the release commit reachable, and
+# master keeps its old package.json version.
 #
 # Required repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
 # PULSE_CANVAS_R2_BUCKET, PULSE_CANVAS_RELEASE_BASE_URL,
@@ -26,7 +27,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: canvas-release
@@ -50,6 +50,14 @@ jobs:
         with:
           ref: master
 
+      # Fail before any upload if the tag exists: pushing it comes last.
+      - name: Check tag is free
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/pulse-canvas-v$VERSION" >/dev/null; then
+            echo "Tag pulse-canvas-v$VERSION already exists." >&2
+            exit 1
+          fi
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.28.0
@@ -67,8 +75,14 @@ jobs:
       - name: Install Wrangler
         run: npm install -g wrangler@4
 
+      - name: Set git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
       # Notes come in through env, never shell interpolation of inputs.
-      - name: Package, upload and deploy
+      # --commit-tag commits the version bump and tags it on the runner only.
+      - name: Package, upload, deploy and tag
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -80,19 +94,7 @@ jobs:
           PULSE_CANVAS_RELEASE_NOTES_EN: ${{ inputs.notes_en }}
         run: |
           node apps/canvas-workspace/harness/skills/pulse-canvas-release/scripts/release-pulse-canvas.mjs \
-            --version "$VERSION"
+            --version "$VERSION" --commit-tag
 
-      - name: Open release PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          branch="release/canvas-$VERSION"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -b "$branch"
-          git add apps/canvas-workspace/package.json
-          git commit -m "release(canvas): $VERSION"
-          git push -u origin "$branch"
-          gh pr create --base master --head "$branch" \
-            --title "release(canvas): $VERSION" \
-            --body "Pulse Canvas $VERSION is packaged, uploaded and deployed by the Canvas Release workflow. After merge, tag the merged commit as pulse-canvas-v$VERSION."
+      - name: Push release tag
+        run: git push origin "pulse-canvas-v$VERSION"
