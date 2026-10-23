@@ -94,11 +94,8 @@
 }
 
 .canvas-loading__spinner {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-pill);
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
+  display: inline-flex;
+  color: var(--accent);
   animation: spin 800ms linear infinite;
 }
 
@@ -114,7 +111,7 @@
   }
 
   .canvas-loading__spinner {
-    animation-duration: 2400ms;
+    animation: none;
   }
 }
 
