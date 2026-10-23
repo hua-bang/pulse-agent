@@ -45,7 +45,6 @@ const commitTag = hasFlag('--commit-tag') || hasFlag('--push-git');
 const pushGit = hasFlag('--push-git');
 const allowDirtyGit = hasFlag('--allow-dirty-git');
 const tagPrefix = readArg('--tag-prefix') || 'pulse-canvas-v';
-const gitBaseBranch = readArg('--git-base') || process.env.PULSE_CANVAS_GIT_BASE || 'master';
 const notesPending = hasFlag('--notes-pending');
 const uploadProgressEnabled = !hasFlag('--no-upload-progress');
 const uploadProgressIntervalSeconds = Number(readArg('--upload-progress-interval') || process.env.PULSE_CANVAS_UPLOAD_PROGRESS_INTERVAL || '15');
@@ -638,12 +637,7 @@ if (downloadUrl) {
 console.log(`release file dir: ${appDir}/release`);
 if (!commitTag) {
   console.log('');
-  console.log('Post-merge tag checklist:');
-  console.log(`1. Wait for the release PR to merge into ${gitBaseBranch}.`);
-  console.log(`2. git fetch origin ${gitBaseBranch} --tags`);
-  console.log(`3. git tag -a ${gitTagName} origin/${gitBaseBranch} -m "Pulse Canvas ${targetVersionFinal}"`);
-  console.log(`4. git push origin ${gitTagName}`);
-  console.log(`5. git ls-remote --tags origin "${gitTagName}*"`);
+  console.log(`No release tag yet. Rerun with --commit-tag, or tag the release by hand: git tag -a ${gitTagName} -m "Pulse Canvas ${targetVersionFinal}"`);
 }
 
 finalizeGitRelease();
