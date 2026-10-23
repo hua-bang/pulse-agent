@@ -5,6 +5,7 @@ import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
 import { findNodeAtPoint, NodeActionsMenu } from '../NodeActionsMenu';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
+import { useI18n } from '../../../../../i18n';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
 
 // Loaded on the first single selection, so it stays out of the startup bundle.
@@ -80,6 +81,8 @@ export const CanvasRootView = ({
   onMergeMindmapTopic,
   onSplitMindmapTopic,
 }: CanvasRootViewProps) => {
+  const { t } = useI18n();
+
   // Right-click menu on a connection. Selecting the edge first keeps the
   // style panel / Delete-key behavior consistent with the menu actions.
   const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null);
@@ -155,8 +158,10 @@ export const CanvasRootView = ({
   if (!loaded) {
     return (
       <div className="canvas-container">
-        <div className="canvas-empty-hint">
-          <div className="hint-text">Loading workspace...</div>
+        <div className="canvas-grid" />
+        <div className="canvas-loading" role="status" aria-live="polite">
+          <span className="canvas-loading__spinner" aria-hidden="true" />
+          <span className="canvas-loading__label">{t('canvas.loading')}</span>
         </div>
       </div>
     );

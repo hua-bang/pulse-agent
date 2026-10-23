@@ -76,6 +76,48 @@
   background-color: var(--bg-canvas);
 }
 
+/* Shown while the workspace loads. It lives here, not in the lazy empty-hint
+ * chunk, so it is styled on first paint. The delayed fade-in keeps fast
+ * loads from flashing it. */
+.canvas-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  animation: fadeIn 240ms ease-out 150ms forwards;
+}
+
+.canvas-loading__spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 800ms linear infinite;
+}
+
+.canvas-loading__label {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-loading {
+    opacity: 1;
+    animation: none;
+  }
+
+  .canvas-loading__spinner {
+    animation-duration: 2400ms;
+  }
+}
+
 .canvas-bottom-chrome {
   position: absolute;
   left: 16px;
