@@ -16,6 +16,9 @@ interface Props {
 
 /** Cards shorter than this share of the drawn height cannot fit a title line. */
 const MIN_TITLED_BOX_SHARE = 0.1;
+/** Cards shorter than this share keep their title to one line, so a wrapped
+ * second line is never clipped by the card edge. */
+const TWO_LINE_BOX_SHARE = 0.2;
 /** Text nodes draw as their first line, like the text on the canvas itself. */
 const TEXT_LINE_MAX_CHARS = 80;
 
@@ -26,7 +29,8 @@ interface Layout {
 
 const toLayout = (nodes: CanvasNode[]): Layout => ({
   nodeCount: nodes.length,
-  boxes: nodes
+  // Frames come first so they draw behind the cards, as in the stored layout.
+  boxes: [...nodes.filter((node) => node.type === 'frame'), ...nodes.filter((node) => node.type !== 'frame')]
     .filter((node) => node.width > 0 && node.height > 0)
     .map(({ type, title, x, y, width, height, data }) => ({
       type,
@@ -50,8 +54,13 @@ const boxLabel = (box: CanvasSummaryBox, drawnHeight: number) => {
       ? <span className="workspace-reference__title">{box.title}</span>
       : <span className="workspace-reference__line" />;
   }
-  if (box.type === 'frame' || !box.title || box.height / drawnHeight < MIN_TITLED_BOX_SHARE) return null;
-  return <span className="workspace-reference__title">{box.title}</span>;
+  const share = box.height / drawnHeight;
+  if (box.type === 'frame' || !box.title || share < MIN_TITLED_BOX_SHARE) return null;
+  return (
+    <span className="workspace-reference__title" data-lines={share < TWO_LINE_BOX_SHARE ? 1 : 2}>
+      {box.title}
+    </span>
+  );
 };
 
 /** Stored layout for a canvas this window has not loaded. `store.summaries`

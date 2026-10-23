@@ -21,7 +21,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px 20px;
+  padding: 44px 16px 12px;
   background-color: var(--bg-canvas);
   background-image: radial-gradient(color-mix(in srgb, var(--text-muted) 40%, transparent) 1px, transparent 1.2px);
   background-size: 14px 14px;
@@ -83,6 +83,10 @@
   overflow-wrap: anywhere;
 }
 
+.workspace-reference__title[data-lines='1'] {
+  -webkit-line-clamp: 1;
+}
+
 /* Frames draw as soft washes lifted off the ground; nested frames stack
    their washes, so depth shows without dashed outlines. */
 .workspace-reference__box[data-type='frame'] {
@@ -122,6 +126,7 @@
 
 .workspace-reference__box[data-type='text'] .workspace-reference__title {
   display: block;
+  font-weight: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
