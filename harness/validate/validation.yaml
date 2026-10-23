@@ -25,6 +25,7 @@ pathRules:
       - scripts/harness/**
       - .gitignore
       - .github/workflows/harness.yml
+      - .github/workflows/quality.yml
     required:
       - pnpm exec vitest run scripts/harness
 
