@@ -98,6 +98,12 @@
   overflow: visible;
 }
 
+/* A colored frame keeps its hue, mixed thin so it works in both themes. */
+.workspace-reference__box[data-type='frame'][data-tinted] {
+  background: color-mix(in srgb, var(--frame-tint) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--frame-tint) 35%, transparent);
+}
+
 /* The frame name sits above its wash, as on the canvas. */
 .workspace-reference__frame-title {
   position: absolute;

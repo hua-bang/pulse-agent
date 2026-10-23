@@ -445,6 +445,8 @@ export interface CanvasSummaryBox {
   type: string;
   /** The card's title, shortened; omitted when it has none. */
   title?: string;
+  /** A frame's stored color, so previews can tint it; omitted otherwise. */
+  color?: string;
   x: number;
   y: number;
   width: number;

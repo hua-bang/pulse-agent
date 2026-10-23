@@ -1,8 +1,9 @@
 import './WorkspaceReferencePreview.css';
 import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
-import type { CanvasNode, CanvasSummaryBox, TextNodeData } from '../../../../../../../../shared/canvas';
+import type { CanvasNode, CanvasSummaryBox, FrameNodeData, TextNodeData } from '../../../../../../../../shared/canvas';
 import { useI18n } from '../../../../../../i18n';
 import { textContentPreview } from '../../../../../../utils/nodeLabel';
+import { resolveFrameAccent } from '../../../node-bodies/FrameNodeBody/colorPresets';
 
 interface Props {
   workspaceId: string;
@@ -38,6 +39,7 @@ const toLayout = (nodes: CanvasNode[]): Layout => ({
       title: type === 'text'
         ? textContentPreview((data as TextNodeData).content, TEXT_LINE_MAX_CHARS) || (title === 'Text' ? '' : title)
         : title,
+      color: type === 'frame' ? (data as FrameNodeData).color || undefined : undefined,
       x,
       y,
       width,
@@ -133,12 +135,14 @@ export const WorkspaceReferencePreview = ({
                 key={index}
                 className="workspace-reference__box"
                 data-type={box.type}
+                data-tinted={box.color ? true : undefined}
                 style={{
+                  '--frame-tint': box.color ? resolveFrameAccent(box.color) : undefined,
                   left: percent(box.x - minX, width),
                   top: percent(box.y - minY, height),
                   width: percent(box.width, width),
                   height: box.type === 'text' ? undefined : percent(box.height, height),
-                }}
+                } as CSSProperties}
               >
                 {box.type === 'frame' && box.title ? (
                   <span className="workspace-reference__frame-title">{box.title}</span>

@@ -18,7 +18,10 @@ import { readJsonWithRecovery } from './persistence/atomic-json';
 import { MANIFEST_ID, STORE_DIR, getCanvasJsonPath } from './persistence/paths';
 import { isSafeNodeId } from './nodes/store';
 
-const SUMMARY_BOX_LIMIT = 6;
+// Canvas reference cards draw the whole layout; the launcher keeps only its
+// first few cards. A box is under 100 bytes, so this stays small.
+const SUMMARY_BOX_LIMIT = 24;
+const SUMMARY_FRAME_LIMIT = 12;
 const SUMMARY_ID_LIMIT = 20;
 const SUMMARY_TITLE_LIMIT = 60;
 const EMPTY_SUMMARY: CanvasSummary = { nodeCount: 0, boxes: [] };
@@ -56,7 +59,10 @@ const toBox = (node: unknown): CanvasSummaryBox | null => {
   if (width <= 0 || height <= 0) return null;
   const label = type === 'text' ? textFirstLine(data) || (title === 'Text' ? '' : title) : title;
   const shortTitle = typeof label === 'string' ? label.trim().slice(0, SUMMARY_TITLE_LIMIT) : '';
-  return shortTitle ? { type, title: shortTitle, x, y, width, height } : { type, x, y, width, height };
+  const box: CanvasSummaryBox = shortTitle ? { type, title: shortTitle, x, y, width, height } : { type, x, y, width, height };
+  const color = (data as { color?: unknown } | undefined)?.color;
+  if (type === 'frame' && typeof color === 'string' && color) box.color = color;
+  return box;
 };
 
 /** Reduces stored canvas data to a preview. Works on v1, v2 layout, and SQLite shapes. */
@@ -67,11 +73,14 @@ export const summarizeCanvasData = (data: unknown): CanvasSummary | null => {
   const boxes: CanvasSummaryBox[] = [];
   const frames: CanvasSummaryBox[] = [];
   for (const node of list) {
-    if (boxes.length >= SUMMARY_BOX_LIMIT && frames.length >= SUMMARY_BOX_LIMIT) break;
+    if (boxes.length >= SUMMARY_BOX_LIMIT && frames.length >= SUMMARY_FRAME_LIMIT) break;
     const box = toBox(node);
     if (!box) continue;
-    const bucket = box.type === 'frame' ? frames : boxes;
-    if (bucket.length < SUMMARY_BOX_LIMIT) bucket.push(box);
+    if (box.type === 'frame') {
+      if (frames.length < SUMMARY_FRAME_LIMIT) frames.push(box);
+    } else if (boxes.length < SUMMARY_BOX_LIMIT) {
+      boxes.push(box);
+    }
   }
   return frames.length > 0 ? { nodeCount: list.length, boxes, frames } : { nodeCount: list.length, boxes };
 };
