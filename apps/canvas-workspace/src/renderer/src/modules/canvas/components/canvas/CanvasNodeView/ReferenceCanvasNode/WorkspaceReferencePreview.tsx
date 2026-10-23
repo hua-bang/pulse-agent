@@ -42,11 +42,16 @@ const toLayout = (nodes: CanvasNode[]): Layout => ({
 });
 
 /** What a box shows: frames carry their name above the outline (CSS),
- * text shows its line, and cards show a title only when it fits. */
+ * text shows its line, and cards show a title only when it fits. Card
+ * bodies draw placeholder lines (CSS), so tall cards do not read as empty. */
 const boxLabel = (box: CanvasSummaryBox, drawnHeight: number) => {
-  if (box.type === 'text') return box.title || <span className="workspace-reference__line" />;
-  if (box.type === 'frame' || box.height / drawnHeight < MIN_TITLED_BOX_SHARE) return null;
-  return box.title;
+  if (box.type === 'text') {
+    return box.title
+      ? <span className="workspace-reference__title">{box.title}</span>
+      : <span className="workspace-reference__line" />;
+  }
+  if (box.type === 'frame' || !box.title || box.height / drawnHeight < MIN_TITLED_BOX_SHARE) return null;
+  return <span className="workspace-reference__title">{box.title}</span>;
 };
 
 /** Stored layout for a canvas this window has not loaded. `store.summaries`
