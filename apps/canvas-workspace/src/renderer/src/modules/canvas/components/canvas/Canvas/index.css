@@ -86,11 +86,22 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
   pointer-events: none;
   user-select: none;
   opacity: 0;
   animation: fadeIn 240ms ease-out 150ms forwards;
+}
+
+.canvas-loading__logo {
+  display: inline-flex;
+  animation: canvas-loading-breathe 1600ms ease-in-out infinite;
+}
+
+.canvas-loading__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .canvas-loading__spinner {
@@ -110,8 +121,22 @@
     animation: none;
   }
 
+  .canvas-loading__logo,
   .canvas-loading__spinner {
     animation: none;
+  }
+}
+
+@keyframes canvas-loading-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

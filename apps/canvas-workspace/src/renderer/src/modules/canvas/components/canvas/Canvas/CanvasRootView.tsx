@@ -5,7 +5,7 @@ import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
 import { findNodeAtPoint, NodeActionsMenu } from '../NodeActionsMenu';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
-import { SpinnerIcon } from '../../../../../components/icons';
+import { AppLogoIcon, SpinnerIcon } from '../../../../../components/icons';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
 
@@ -161,10 +161,15 @@ export const CanvasRootView = ({
       <div className="canvas-container">
         <div className="canvas-grid" />
         <div className="canvas-loading" role="status" aria-live="polite">
-          <span className="canvas-loading__spinner" aria-hidden="true">
-            <SpinnerIcon size={20} strokeWidth={1.75} />
+          <span className="canvas-loading__logo">
+            <AppLogoIcon size={56} />
           </span>
-          <span className="canvas-loading__label">{t('canvas.loading')}</span>
+          <span className="canvas-loading__status">
+            <span className="canvas-loading__spinner" aria-hidden="true">
+              <SpinnerIcon size={12} strokeWidth={1.75} />
+            </span>
+            <span className="canvas-loading__label">{t('canvas.loading')}</span>
+          </span>
         </div>
       </div>
     );
