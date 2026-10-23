@@ -20,6 +20,9 @@ import { getWebNodeUrl } from '../../../../../utils/webNode';
 import { isKnowledgeNodeType } from '../../../../../shared/knowledgeNodes';
 import type { ChatDeliveryReceipt } from '../../../../chat';
 
+const OVERVIEW_WEB_CARD_SELECTOR =
+  '.canvas-transform--overview .iframe-body-host:not([data-overview-content="true"])';
+
 interface DefaultCanvasNodeProps {
   classes: string;
   fullscreenButton: ReactNode;
@@ -200,6 +203,16 @@ export const DefaultCanvasNode = ({
     openNodeDetail(workspaceId, node.id, node.title.trim() || 'Untitled');
   }, [node.id, node.title, node.type, node.data, openLink, openNodeDetail, workspaceId]);
 
+  // At overview zoom a web node shows only its identity card, so a double
+  // click on it flies the viewport in until the page renders. CSS owns the
+  // overview state, so read it from the DOM at event time.
+  const handleNodeBodyDoubleClick = useCallback((event: MouseEvent) => {
+    if (node.type !== 'iframe') return;
+    const target = event.target as Element;
+    if (!target.closest(OVERVIEW_WEB_CARD_SELECTOR)) return;
+    handleFocus(event);
+  }, [handleFocus, node.type]);
+
   const frameTitleOnly = node.type === 'frame' && renderMode === 'frame-title';
   const frameBodyOnly = node.type === 'frame' && renderMode === 'frame-body';
   const nodeClasses = [
@@ -252,7 +265,11 @@ export const DefaultCanvasNode = ({
   return (
     <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
       {!frameBodyOnly && !hideHeader && header}
-      <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
+      <div
+        className="node-body"
+        onMouseDown={handleNodeBodyMouseDown}
+        onDoubleClick={handleNodeBodyDoubleClick}
+      >
         <CanvasNodeBody
           node={node}
           getAllNodes={getAllNodes}

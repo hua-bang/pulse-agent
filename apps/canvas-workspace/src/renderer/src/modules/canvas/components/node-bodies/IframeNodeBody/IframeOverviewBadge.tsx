@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useI18n } from '../../../../../i18n';
 import { NodeTypeIcon } from '../../../../../components/icons';
+import { useFaviconTint } from './useFaviconTint';
 
 /** Title-first overview identity. CSS swaps it once per settled zoom gesture. */
 export const IframeOverviewBadge = ({
@@ -37,11 +38,16 @@ export const IframeOverviewBadge = ({
       : host ?? (mode === 'url' ? t('node.type.webPage') : 'HTML');
   const secondary = primary === host ? null : host;
 
+  const showFavicon = mode === 'url' && Boolean(faviconUrl) && !faviconFailed;
+  const tint = useFaviconTint(showFavicon ? faviconUrl : undefined);
+  const style = tint ? ({ '--iframe-overview-tint': tint } as CSSProperties) : undefined;
+
   return (
-    <div className="iframe-overview-badge" aria-hidden="true">
-      <span className="iframe-overview-badge-source">
+    <div className="iframe-overview-badge" style={style} aria-hidden="true">
+      <span className="iframe-overview-badge-cover" />
+      <span className="iframe-overview-badge-body">
         <span className="iframe-overview-badge-tile">
-          {mode === 'url' && faviconUrl && !faviconFailed ? (
+          {showFavicon ? (
             <img
               className="iframe-overview-badge-favicon"
               src={faviconUrl}
@@ -55,9 +61,11 @@ export const IframeOverviewBadge = ({
             <NodeTypeIcon type="agent" size={16} colorize />
           )}
         </span>
-        {secondary ? <span className="iframe-overview-badge-host">{secondary}</span> : null}
+        <span className="iframe-overview-badge-text">
+          <span className="iframe-overview-badge-title">{primary}</span>
+          {secondary ? <span className="iframe-overview-badge-host">{secondary}</span> : null}
+        </span>
       </span>
-      <span className="iframe-overview-badge-title">{primary}</span>
     </div>
   );
 };

@@ -388,45 +388,99 @@
   visibility: hidden;
 }
 
+/* Static at overview, so the badge anchors to .iframe-body and also covers
+ * the hidden toolbar's strip. The webview host is in flow, so its size (and
+ * the guest's layout) does not change. */
 .canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-frame-wrapper {
+  position: static;
   background: var(--surface);
 }
 
-.iframe-overview-badge,
 .iframe-overview-control.ui-btn {
   display: none;
 }
 
+/* The card fades in when a settled zoom enters overview and fades out on the
+ * way back, so the swap with the live page reads as one surface changing
+ * instead of a pop. allow-discrete keeps display in step with opacity. */
+.iframe-overview-badge {
+  display: none;
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    display 180ms allow-discrete;
+}
+
+/* Overview card: an inset cover band tinted with the favicon's main color
+ * (neutral when it can't be read), the favicon tile
+ * sitting on its edge, then title and host at the bottom. Type size
+ * follows the card (container units) between a screen-size floor and
+ * ceiling, so big cards no longer show one small line of text in a mostly
+ * empty box. --iframe-overview-scale keeps the floor/ceiling in screen pixels
+ * down to 0.14, then lets text shrink with the card. */
 .canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-overview-badge {
   --iframe-overview-scale: clamp(0.14, var(--canvas-scale, 1), 0.35);
+  --iframe-overview-unit: calc(1px / var(--iframe-overview-scale));
+  --iframe-overview-type: clamp(
+    calc(13 * var(--iframe-overview-unit)),
+    min(8cqi, 10cqb),
+    calc(20 * var(--iframe-overview-unit))
+  );
+  container-type: size;
   position: absolute;
   inset: 0;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: calc(8px / var(--iframe-overview-scale));
-  padding: calc(24px / var(--iframe-overview-scale)) calc(16px / var(--iframe-overview-scale)) calc(8px / var(--iframe-overview-scale));
   overflow: hidden;
   pointer-events: none;
   background: var(--surface);
+  opacity: 1;
 }
 
-.iframe-overview-badge-source {
+@starting-style {
+  .canvas-transform--overview .iframe-body-host:not([data-overview-content="true"]) .iframe-overview-badge {
+    opacity: 0;
+  }
+}
+
+.iframe-overview-badge-cover {
+  flex: 0 0 30%;
+  margin: calc(6 * var(--iframe-overview-unit)) calc(6 * var(--iframe-overview-unit)) 0;
+  border-radius: calc(8 * var(--iframe-overview-unit));
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--iframe-overview-tint, var(--surface-hover)) 30%, var(--surface-hover)),
+    color-mix(in oklab, var(--iframe-overview-tint, var(--surface-hover)) 12%, var(--surface-hover))
+  );
+}
+
+.iframe-overview-badge-body {
   display: flex;
-  align-items: center;
-  gap: calc(6px / var(--iframe-overview-scale));
-  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: calc(var(--iframe-overview-type) * 0.6);
+  min-height: 0;
+  padding: 0 calc(var(--iframe-overview-type) * 1.1) calc(var(--iframe-overview-type) * 1);
 }
 
 .iframe-overview-badge-tile {
+  position: relative;
+  margin-top: calc(var(--iframe-overview-type) * -1.15);
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: calc(14px / var(--iframe-overview-scale));
-  height: calc(14px / var(--iframe-overview-scale));
+  width: calc(var(--iframe-overview-type) * 2.3);
+  height: calc(var(--iframe-overview-type) * 2.3);
+  padding: calc(var(--iframe-overview-type) * 0.45);
+  border-radius: calc(var(--iframe-overview-type) * 0.55);
+  background: var(--surface);
+  border: calc(1 * var(--iframe-overview-unit)) solid var(--border);
+  box-sizing: border-box;
   color: var(--text-muted);
+  transition: transform 160ms ease;
 }
 
 .iframe-overview-badge-tile > svg,
@@ -436,16 +490,22 @@
   object-fit: contain;
 }
 
+.iframe-overview-badge-text {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--iframe-overview-type) * 0.3);
+  min-height: 0;
+}
+
 .iframe-overview-badge-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
-  text-wrap: balance;
   color: var(--text);
-  font-size: calc(13px / var(--iframe-overview-scale));
-  line-height: 1.45;
+  font-size: var(--iframe-overview-type);
+  line-height: 1.3;
   font-weight: 500;
   text-align: left;
 }
@@ -454,21 +514,53 @@
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--text-muted);
-  font-size: calc(10px / var(--iframe-overview-scale));
+  font-size: calc(var(--iframe-overview-type) * 0.72);
   line-height: 1.4;
 }
 
+/* Hover says "this opens": zoom-in cursor (double click flies in), a
+ * stronger edge, and a small lift of the favicon tile. */
+.canvas-transform--overview .canvas-node--iframe:hover .iframe-body-host:not([data-overview-content="true"]) .iframe-frame-wrapper {
+  cursor: zoom-in;
+}
+
+.canvas-transform--overview .canvas-node--iframe:not(.canvas-node--selected):hover {
+  outline-color: var(--text-muted);
+}
+
+.canvas-transform--overview .canvas-node--iframe:hover .iframe-overview-badge-tile {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iframe-overview-badge,
+  .iframe-overview-badge-tile {
+    transition: none;
+  }
+}
+
+/* The badge already carries favicon + title; the header strip above it is a
+ * few screen pixels tall at overview and only reads as specks. Hide its
+ * labels but keep the box in flow: it is the drag handle, and taking it out
+ * of flow would resize every guest page at each overview switch. */
+.canvas-transform--overview .canvas-node--iframe .node-header > :not(.node-header__actions) {
+  visibility: hidden;
+}
+
 /* Screen-sized hit area, not a canvas-sized button that shrinks to a speck.
- * Hidden at working zoom; hover/focus reveals it in BOTH low-zoom modes. */
+ * Hidden at working zoom; hover/focus reveals it in BOTH low-zoom modes.
+ * Bottom-right, because the floating header actions own the top-right
+ * corner at this zoom and would cover it. */
 .canvas-transform--overview .iframe-overview-control.ui-btn {
   display: inline-flex;
   position: absolute;
-  top: calc(6px / var(--canvas-scale, 1));
-  right: calc(6px / var(--canvas-scale, 1));
+  bottom: calc(8px / var(--canvas-scale, 1));
+  right: calc(8px / var(--canvas-scale, 1));
   z-index: 3;
   transform: scale(calc(1 / var(--canvas-scale, 1)));
-  transform-origin: top right;
+  transform-origin: bottom right;
   opacity: 0;
   pointer-events: none;
   background: var(--surface);
