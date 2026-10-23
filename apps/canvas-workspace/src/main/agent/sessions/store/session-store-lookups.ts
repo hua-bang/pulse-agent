@@ -7,7 +7,8 @@ import { decodeSession } from '../sqlite/codec';
 import { getSqliteSessionStorage, listSqliteConversations, listSqliteSessionScopes } from '../sqlite/backend';
 
 export const GLOBAL_CHAT_SESSION_STORE_ID = GLOBAL_CHAT_STORE_ID;
-export const GLOBAL_CHAT_WORKSPACE_NAME = 'No workspace';
+// Matches the renderer's `chat.scope.global` label, so the same scope has one name everywhere.
+export const GLOBAL_CHAT_WORKSPACE_NAME = 'All workspaces';
 
 export interface SessionWithMeta {
   session: CanvasAgentSession;

@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import { getNodeDefaultSize, type CreatableCanvasNodeType } from '../../../../../../utils/nodeFactory';
-import type { ToastInput } from '../../../../../../types/ui-interaction';
 import type { AddNodeOptions } from '../../../..';
 import { useFileNodeEditorRegistry } from '../../../../../../shared/fileNodeEditorRegistry';
-import { useI18n, type I18nKey } from '../../../../../../i18n';
+import { findFreeSlot, resolveNonStackingSlot } from './nodePlacement';
 
 interface ContextMenuState {
   screenX: number;
@@ -12,21 +11,6 @@ interface ContextMenuState {
   canvasX: number;
   canvasY: number;
 }
-
-/** Diagonal step applied when a proposed slot is already occupied.
- *  Matches the +24/+24 cascade used by `duplicateNode`/`pasteNodes`
- *  so consecutive adds and duplicates feel the same. */
-const CASCADE_STEP = 24;
-/** Two nodes whose top-lefts differ by less than this are treated as
- *  "the same slot". 12 is small enough that intentional partial
- *  overlap (e.g. dropping a text label onto a frame) is preserved,
- *  but large enough to catch the "user clicked the same toolbar
- *  button twice" case where the math would otherwise pixel-stack. */
-const STACK_TOLERANCE = 12;
-/** Upper bound on the cascade walk so we don't loop forever on a
- *  densely-filled diagonal. After this many tries we give up and let
- *  the cascaded position stand — still better than perfect overlap. */
-const MAX_CASCADE_STEPS = 16;
 
 interface Options {
   containerRef: RefObject<HTMLDivElement>;
@@ -44,50 +28,16 @@ interface Options {
    *  context-menu/toolbar/palette add. Reuses the existing 1.5s
    *  `nodeHighlight` animation. */
   setHighlightedId: (id: string | null) => void;
-  /** Toast surface for the post-add confirmation. */
-  notify: (toast: ToastInput) => string;
+  /** Pan just enough to keep the new node in view, including through a
+   *  layout change (Layers panel or Dock) that follows the add. */
+  revealNode: (node: CanvasNode) => void;
 }
 
 interface AddNodeUiOptions extends AddNodeOptions {
+  /** A new note opens ready for typing unless this is `false`, so every
+   *  entry point (toolbar, palette, menu) behaves like Text and Mindmap. */
   focusEditor?: boolean;
-  label?: string;
 }
-
-const CREATABLE_TYPE_LABEL_KEY: Record<CreatableCanvasNodeType, I18nKey> = {
-  file: 'node.type.file',
-  terminal: 'node.type.terminal',
-  frame: 'node.type.frame',
-  group: 'node.type.group',
-  agent: 'node.type.codingAgent',
-  text: 'node.type.text',
-  iframe: 'node.type.webPage',
-  mindmap: 'node.type.mindmap',
-  plugin: 'node.type.plugin',
-};
-
-/** Walk diagonally from the desired top-left until we find a slot
- *  whose top-left doesn't sit on top of any existing node within
- *  `STACK_TOLERANCE` pixels. Returns whether a cascade actually
- *  happened so callers can adjust their feedback copy. */
-const resolveNonStackingSlot = (
-  existing: readonly CanvasNode[],
-  desiredX: number,
-  desiredY: number,
-): { x: number; y: number; cascaded: boolean } => {
-  let x = desiredX;
-  let y = desiredY;
-  for (let step = 0; step < MAX_CASCADE_STEPS; step += 1) {
-    const collides = existing.some(
-      (n) =>
-        Math.abs(n.x - x) < STACK_TOLERANCE &&
-        Math.abs(n.y - y) < STACK_TOLERANCE,
-    );
-    if (!collides) return { x, y, cascaded: step > 0 };
-    x += CASCADE_STEP;
-    y += CASCADE_STEP;
-  }
-  return { x, y, cascaded: true };
-};
 
 /**
  * Owns the right-click / double-click context menu state plus the
@@ -102,9 +52,8 @@ export const useCanvasContextMenu = ({
   nodesRef,
   setSelectedNodeIds,
   setHighlightedId,
-  notify,
+  revealNode,
 }: Options) => {
-  const { t } = useI18n();
   const registry = useFileNodeEditorRegistry();
   const pendingFocus = useRef<string | null>(null);
   useEffect(() => {
@@ -128,23 +77,17 @@ export const useCanvasContextMenu = ({
   }, [registry]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  /** Shared post-add side effects: select, flash, and toast the new node
+  /** Shared post-add side effects: select, flash, and reveal the new node
    *  so every entry point (right-click, toolbar, palette, empty-canvas
-   *  hint) gives the same visible confirmation. The placement hint
-   *  varies per entry point — right-click drops at cursor, toolbar
-   *  centers on viewport — so callers pass it in. */
+   *  hint) gives the same visible confirmation. The node appearing,
+   *  selected, is the feedback; a success toast would only repeat it. */
   const finalizeAddedNode = useCallback(
-    (node: CanvasNode, type: CreatableCanvasNodeType, placementHint: string, label?: string) => {
-      const nodeLabel = label ?? t(CREATABLE_TYPE_LABEL_KEY[type]);
+    (node: CanvasNode) => {
       setSelectedNodeIds([node.id]);
       setHighlightedId(node.id);
-      notify({
-        tone: 'success',
-        title: t('canvas.nodeAdded', { label: nodeLabel }),
-        description: placementHint,
-      });
+      revealNode(node);
     },
-    [notify, setHighlightedId, setSelectedNodeIds, t],
+    [revealNode, setHighlightedId, setSelectedNodeIds],
   );
 
   const isBlankCanvasTarget = useCallback((target: EventTarget | null) => {
@@ -187,16 +130,11 @@ export const useCanvasContextMenu = ({
         contextMenu.canvasY,
       );
       const node = addNode(type, slot.x, slot.y, options);
-      if (options?.focusEditor && type === 'file') pendingFocus.current = node.id;
-      finalizeAddedNode(
-        node,
-        type,
-        slot.cascaded ? t('canvas.nodeAddedOffset') : t('canvas.nodeAddedAtCursor'),
-        options?.label,
-      );
+      if (type === 'file' && options?.focusEditor !== false) pendingFocus.current = node.id;
+      finalizeAddedNode(node);
       setContextMenu(null);
     },
-    [addNode, contextMenu, finalizeAddedNode, nodesRef, t],
+    [addNode, contextMenu, finalizeAddedNode, nodesRef],
   );
 
   const handleToolbarAddNode = useCallback(
@@ -208,8 +146,9 @@ export const useCanvasContextMenu = ({
       // top-left corner — lands at that midpoint. Half-dimensions come
       // from `getNodeDefaultSize` (the same numbers `createDefaultNode`
       // will write to `node.width`/`node.height`), keeping the centering
-      // honest as defaults evolve. The cascade walk after centering
-      // prevents repeat clicks from pixel-stacking new nodes.
+      // honest as defaults evolve. The free-slot search then moves it
+      // into clear space, so it neither covers existing nodes nor joins
+      // (or, for a frame, adopts) them through spatial containment.
       const rect = containerRef.current.getBoundingClientRect();
       const center = screenToCanvas(
         rect.left + rect.width / 2,
@@ -223,23 +162,18 @@ export const useCanvasContextMenu = ({
       const height = typeof options?.nodePatch?.height === 'number'
         ? options.nodePatch.height
         : defaultSize.height;
-      const slot = resolveNonStackingSlot(
+      const slot = findFreeSlot(
         nodesRef.current ?? [],
         center.x - width / 2,
         center.y - height / 2,
+        width,
+        height,
       );
       const node = addNode(type, slot.x, slot.y, options);
-      if (options?.focusEditor && type === 'file') pendingFocus.current = node.id;
-      finalizeAddedNode(
-        node,
-        type,
-        slot.cascaded
-          ? t('canvas.nodeAddedOffset')
-          : t('canvas.nodeAddedCentered'),
-        options?.label,
-      );
+      if (type === 'file' && options?.focusEditor !== false) pendingFocus.current = node.id;
+      finalizeAddedNode(node);
     },
-    [addNode, screenToCanvas, finalizeAddedNode, containerRef, nodesRef, t],
+    [addNode, screenToCanvas, finalizeAddedNode, containerRef, nodesRef],
   );
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);

@@ -99,13 +99,11 @@ export const useCanvasSelection = ({ nodesRef }: Options) => {
         return;
       }
 
-      // Plain marquee replaces the selection. An empty hit set on a
-      // tiny drag falls through to the click handler that clears
-      // selection — we don't double-clear here.
-      if (ids.length > 0) {
-        setSelectedNodeIds(ids);
-        setSelectedEdgeId(null);
-      }
+      // Plain marquee replaces the selection, and an empty one clears it.
+      // A real drag ends on the interaction shield, so no click event
+      // follows to clear the selection for us.
+      setSelectedNodeIds(ids);
+      setSelectedEdgeId(null);
     },
     [],
   );

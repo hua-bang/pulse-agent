@@ -334,6 +334,14 @@ textarea {
   font-family: inherit;
 }
 
+/* Placeholder text must not look like an entered value. Matches the
+   muted placeholder the palette, search bar, and ask bar already use. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

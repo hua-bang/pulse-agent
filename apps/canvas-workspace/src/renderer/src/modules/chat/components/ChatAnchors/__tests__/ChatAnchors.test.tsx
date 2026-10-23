@@ -109,6 +109,24 @@ describe('ChatAnchors', () => {
     vi.useRealTimers();
   });
 
+  it('keeps the menu open when a click follows the hover that opened it', () => {
+    render(
+      <I18nProvider>
+        <ChatAnchors anchors={ANCHORS} onJump={vi.fn()} />
+      </I18nProvider>,
+    );
+    const wrapper = host!.querySelector('.chat-anchors') as HTMLElement;
+    act(() => {
+      wrapper.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, relatedTarget: null }));
+    });
+    act(() => {
+      host!.querySelector('.chat-panel-action-btn')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(host?.querySelector('.chat-anchors-menu')).not.toBeNull();
+  });
+
   it('clicking an item closes the menu and reports the jump', () => {
     const onJump = vi.fn();
     render(

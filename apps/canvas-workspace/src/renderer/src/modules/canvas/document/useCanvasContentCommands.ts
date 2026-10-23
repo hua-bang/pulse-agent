@@ -77,7 +77,9 @@ const materializeFileNode = async ({
   const updated = nodesRef.current.map(node => node.id === nodeId
     ? {
         ...node,
-        title: result.fileName?.replace(/\.md$/, '') || node.title,
+        // Only a requested name becomes the title. The generated fallback
+        // (`note-<timestamp>`) is a storage detail, so keep "Untitled".
+        title: fileName ? result.fileName?.replace(/\.md$/, '') || node.title : node.title,
         data: {
           ...node.data,
           filePath: result.filePath ?? '',

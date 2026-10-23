@@ -186,4 +186,13 @@ describe('Canvas search with passive file editors', () => {
     await act(async () => root.render(<FileNodeEditorRegistryProvider>{null}</FileNodeEditorRegistryProvider>));
     expect(replacement.view.state.query).toBe('');
   });
+
+  it('lists a node once even when its title, path, and content all match', async () => {
+    nodes = [{ ...fileNode('note', 'a note body'), title: 'note heading' }];
+    await act(async () => render());
+    await find('note');
+    expect(search.matches).toEqual([
+      { nodeId: 'note', field: 'content', snippet: 'a note body' },
+    ]);
+  });
 });

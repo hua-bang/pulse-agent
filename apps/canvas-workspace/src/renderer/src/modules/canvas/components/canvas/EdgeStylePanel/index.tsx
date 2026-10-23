@@ -103,20 +103,24 @@ export const EdgeStylePanel = ({
   // Resolve the edge's midpoint in canvas coords (accounts for bend),
   // then convert to screen coords via the current transform. The panel
   // sits inside `.canvas-container`, so transform.x/y (pan offset) map
-  // directly to container-relative coordinates.
+  // directly to container-relative coordinates. `top`/`bottom` bound the
+  // whole path, so the panel clears the edge instead of covering the part
+  // of it that rises above the midpoint.
   const screenPos = useMemo(() => {
     const nodesById = new Map(nodes.map((n) => [n.id, n]));
-    const mid = resolveEdgePathGeometry(edge, nodesById).midpoint;
+    const { midpoint, sourcePoint, targetPoint } = resolveEdgePathGeometry(edge, nodesById);
+    const ys = [midpoint.y, sourcePoint.y, targetPoint.y];
     return {
-      x: mid.x * transform.scale + transform.x,
-      y: mid.y * transform.scale + transform.y,
+      x: midpoint.x * transform.scale + transform.x,
+      top: Math.min(...ys) * transform.scale + transform.y,
+      bottom: Math.max(...ys) * transform.scale + transform.y,
     };
   }, [edge, nodes, transform]);
 
   // Keep the panel inside the canvas container: the CSS default hangs it
-  // centered above the anchor, which cuts it off when the edge sits near the
+  // centered above the edge, which cuts it off when the edge sits near the
   // top or side edges of the viewport. Measure after layout, clamp
-  // horizontally, and flip below the anchor when there's no room above.
+  // horizontally, and flip below the edge when there's no room above.
   const panelRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<{ left: number; top: number; flipped: boolean } | null>(null);
   useLayoutEffect(() => {
@@ -130,9 +134,9 @@ export const EdgeStylePanel = ({
     const h = el.offsetHeight;
     const halfW = w / 2;
     const left = Math.max(margin + halfW, Math.min(screenPos.x, hostW - margin - halfW));
-    const flipped = screenPos.y - h - gap < margin;
-    setPlacement({ left, top: screenPos.y, flipped });
-  }, [screenPos.x, screenPos.y, openSection]);
+    const flipped = screenPos.top - h - gap < margin;
+    setPlacement({ left, top: flipped ? screenPos.bottom : screenPos.top, flipped });
+  }, [screenPos.x, screenPos.top, screenPos.bottom, openSection]);
 
   const setStroke = (patch: Partial<EdgeStroke>) => {
     onUpdate(edge.id, { stroke: { ...resolvedStroke, ...patch } });
@@ -179,7 +183,7 @@ export const EdgeStylePanel = ({
       className="edge-style-panel"
       style={{
         left: placement?.left ?? screenPos.x,
-        top: placement?.top ?? screenPos.y,
+        top: placement?.top ?? screenPos.top,
         // Above the anchor by default; below it when clamped at the top.
         transform: placement?.flipped
           ? 'translate(-50%, 12px)'

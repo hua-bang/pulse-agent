@@ -1,0 +1,9 @@
+.node-actions-menu__shortcut {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 16px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+

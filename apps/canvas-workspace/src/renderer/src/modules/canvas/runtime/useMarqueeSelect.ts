@@ -28,6 +28,11 @@ interface UseMarqueeSelectOptions {
  *  accidental click and discarded. Same threshold as useShapeDraw. */
 const DRAG_MIN_DISTANCE = 4;
 
+/** Screen-pixel travel after which the gesture counts as a real drag. Until
+ *  then it is still a click, so no interaction shield is mounted and the
+ *  browser can deliver click / dblclick to the canvas. */
+const DRAG_START_SCREEN_DISTANCE = 3;
+
 /**
  * Drag-on-blank-canvas multi-select. Mousedown on empty canvas starts a
  * draft rectangle; the rectangle follows the cursor until mouseup, at
@@ -50,6 +55,8 @@ export const useMarqueeSelect = ({
     start: Point;
     current: Point;
     mods: { shift: boolean; meta: boolean };
+    startClient: Point;
+    dragging: boolean;
   } | null>(null);
   const marqueeRef = useRef<typeof marquee>(null);
   marqueeRef.current = marquee;
@@ -64,7 +71,14 @@ export const useMarqueeSelect = ({
       const el = getContainer();
       if (!el) return;
       const cur = screenToCanvas(e.clientX, e.clientY, el);
-      setMarquee((prev) => (prev ? { ...prev, current: cur } : prev));
+      setMarquee((prev) => {
+        if (!prev) return prev;
+        const dragging = prev.dragging || Math.hypot(
+          e.clientX - prev.startClient.x,
+          e.clientY - prev.startClient.y,
+        ) >= DRAG_START_SCREEN_DISTANCE;
+        return { ...prev, current: cur, dragging };
+      });
     };
     const handleUp = () => {
       const m = marqueeRef.current;
@@ -136,6 +150,8 @@ export const useMarqueeSelect = ({
         start,
         current: start,
         mods: { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey },
+        startClient: { x: e.clientX, y: e.clientY },
+        dragging: false,
       });
     },
     [enabled, getContainer, screenToCanvas, nodes]
@@ -161,5 +177,9 @@ export const useMarqueeSelect = ({
     /** True while a marquee drag is in progress. Useful for suppressing
      *  click handlers that would otherwise clear selection on mouseup. */
     active: marquee !== null,
+    /** True once the pointer has travelled far enough to be a drag. The
+     *  interaction shield waits for this so a plain click or double-click
+     *  on blank canvas still reaches the canvas click handlers. */
+    dragging: marquee?.dragging ?? false,
   };
 };

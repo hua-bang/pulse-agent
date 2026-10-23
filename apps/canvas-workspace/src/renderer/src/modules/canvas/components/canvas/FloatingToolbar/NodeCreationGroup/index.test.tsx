@@ -40,7 +40,7 @@ describe('NodeCreationGroup', () => {
 
     for (const label of [
       'Add Text',
-      'Add Note Card',
+      'Add Note',
       'Add Frame',
       'Add Web Page',
       'Add Coding Agent',

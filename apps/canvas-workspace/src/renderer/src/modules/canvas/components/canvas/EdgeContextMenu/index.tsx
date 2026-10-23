@@ -1,5 +1,4 @@
 import '../NodeContextMenu/index.css';
-import './index.css';
 import { Popover } from '../../../../../components/ui/Popover';
 import { PencilIcon, SettingsIcon, TrashIcon } from '../../../../../components/icons';
 import { useI18n } from '../../../../../i18n';

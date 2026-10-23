@@ -38,6 +38,8 @@ interface Options {
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
   onFocusComplete?: () => void;
+  /** The requested node is not on this canvas (removed or undone). */
+  onFocusMissing?: () => void;
   deleteNodeId?: string;
   onDeleteComplete?: () => void;
   renameRequest?: CanvasNodeRenameRequest;
@@ -84,6 +86,7 @@ export const useCanvasSyncEffects = ({
   onSelectionChange,
   focusNodeId,
   onFocusComplete,
+  onFocusMissing,
   deleteNodeId,
   onDeleteComplete,
   renameRequest,
@@ -148,6 +151,7 @@ export const useCanvasSyncEffects = ({
     if (!focusNodeId) return;
     const node = nodesRef.current.find((n) => n.id === focusNodeId);
     if (node) handleNodeViewportFocus(node);
+    else onFocusMissing?.();
     onFocusComplete?.();
   }, [focusNodeId, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 

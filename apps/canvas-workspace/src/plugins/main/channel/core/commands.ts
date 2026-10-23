@@ -52,7 +52,7 @@ function sameScope(a: AgentScope, b: AgentScope): boolean {
 }
 
 async function scopeLabel(scope: AgentScope): Promise<string> {
-  return scope.kind === 'global' ? 'No workspace' : workspaceLabelById(scope.workspaceId);
+  return scope.kind === 'global' ? 'All workspaces' : workspaceLabelById(scope.workspaceId);
 }
 
 async function migrateConversationSession(

@@ -171,6 +171,16 @@ export const useFileNodeEditor = ({
         'aria-label': t('noteEditor.label'),
         'aria-multiline': 'true',
       },
+      // ProseMirror swallows Escape (preventDefault), so the canvas never
+      // saw it and the user could not leave the note from the keyboard.
+      // The first Escape leaves the editor with the node still selected;
+      // the next one reaches the canvas and clears the selection. Menus
+      // that consume Escape earlier mark it handled, so they win.
+      handleKeyDown: (view, event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented || isImeComposing(event)) return false;
+        view.dom.blur();
+        return true;
+      },
       handlePaste: (view, event) => {
         if (readOnly) return false;
         const items = Array.from(event.clipboardData?.items ?? []);

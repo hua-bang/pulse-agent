@@ -85,7 +85,10 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
               aria-expanded={open}
               aria-controls={open ? menuId : undefined}
               onFocus={openNow}
-              onClick={toggle}
+              // Hover and focus open the menu before the click lands, so a
+              // toggle here would close it again. Click only opens; leave,
+              // Escape, or an outside press closes.
+              onClick={openNow}
               onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
                 if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
                 // Once open, the shell's own useMenuKeyboardNav (global

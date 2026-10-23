@@ -3,6 +3,7 @@ import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
+import { findNodeAtPoint, NodeActionsMenu } from '../NodeActionsMenu';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
 
@@ -88,6 +89,33 @@ export const CanvasRootView = ({
     setEdgeMenu({ edgeId, x: e.clientX, y: e.clientY });
   }, [setSelectedEdgeId, setSelectedNodeIds]);
 
+  // Right-click menu on a node. A node outside the selection becomes the
+  // selection first, so the menu acts on what the user pointed at. A
+  // focused editor keeps its own right-click (text selection, spelling).
+  const [nodeMenu, setNodeMenu] = useState<{ x: number; y: number } | null>(null);
+  const handleRootContextMenu = (e: React.MouseEvent) => {
+    const target = e.target;
+    const container = containerRef.current;
+    const editing = target instanceof HTMLElement
+      && document.activeElement instanceof HTMLElement
+      && document.activeElement.isContentEditable
+      && document.activeElement.contains(target);
+    if (!(target instanceof HTMLElement) || !target.closest('.canvas-node') || editing || !container) {
+      ctxMenu.handleContextMenu(e);
+      return;
+    }
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const node = findNodeAtPoint(nodes, {
+      x: (e.clientX - rect.left - transform.x) / transform.scale,
+      y: (e.clientY - rect.top - transform.y) / transform.scale,
+    });
+    if (!node) return;
+    if (!selectedNodeIds.includes(node.id)) setSelectedNodeIds([node.id]);
+    setSelectedEdgeId(null);
+    setNodeMenu({ x: e.clientX, y: e.clientY });
+  };
+
   // The ask bar only follows one settled selection in select mode, so it
   // never fights a gesture, a menu, or a fullscreen node.
   const gestureActive = Boolean(nodeGestures.draggingId)
@@ -100,6 +128,7 @@ export const CanvasRootView = ({
     && !gestureActive
     && !focus.fullscreenNodeId
     && !ctxMenu.contextMenu
+    && !nodeMenu
     ? nodesById.get(selectedNodeIds[0])
     : undefined;
 
@@ -150,7 +179,7 @@ export const CanvasRootView = ({
       }}
       onDragStart={(e) => e.preventDefault()}
       onDoubleClick={ctxMenu.handleDoubleClick}
-      onContextMenu={ctxMenu.handleContextMenu}
+      onContextMenu={handleRootContextMenu}
       onClick={mouse.handleCanvasClick}
       data-canvas-id={canvasId}
       data-focus-mode={focus.focusModeActive ? 'on' : undefined}
@@ -237,6 +266,15 @@ export const CanvasRootView = ({
           }}
           onDelete={(id) => { void actions.requestRemoveEdge(id); }}
           onClose={() => setEdgeMenu(null)}
+        />
+      )}
+
+      {nodeMenu && (
+        <NodeActionsMenu
+          x={nodeMenu.x}
+          y={nodeMenu.y}
+          commands={paletteCommands}
+          onClose={() => setNodeMenu(null)}
         />
       )}
 

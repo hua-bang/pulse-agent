@@ -198,6 +198,17 @@ Drawer browser/find surfaces, because those areas own their own find flow and
 must not have canvas-level search steal focus from note editing, embedded page
 controls, or browser find-in-page.
 
+An `'allow'` chord still reaches a focused editor first only if the editor
+claims it. Both dispatchers skip events with `defaultPrevented`, so an editor
+that owns a chord must `preventDefault` it in the capture phase. The note
+editor does this for Mod+Shift+D (duplicate block); a bubbling listener let
+the same press also run `app.toggleTheme`. ProseMirror itself calls
+`preventDefault` on every Escape, so `canvas.escape` never sees an Escape
+from a focused note. The note editor's `handleKeyDown` blurs the editor on
+Escape instead; the next Escape reaches the canvas and clears the selection.
+Guard for the Mod+Shift+D claim: `useNoteKeyboard.test.tsx`. The Escape blur
+was verified in the real-app harness only.
+
 ## Menu-accelerator precedence
 
 Menu accelerators in `src/main/app/menu.ts` outrank ALL of the

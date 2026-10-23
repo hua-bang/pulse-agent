@@ -151,3 +151,11 @@
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+.context-menu-item--danger .context-menu-label strong {
+  color: #d3382c;
+}
+
+.context-menu-item--danger:hover {
+  background: rgba(211, 56, 44, 0.08);
+}

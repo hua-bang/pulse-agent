@@ -214,6 +214,14 @@ export const useDeferredEditorInput = ({ identity, label }: Args) => {
         const element = event.currentTarget;
         const empty = !element.textContent && (element.childNodes.length === 0
           || (element.childNodes.length === 1 && element.firstElementChild?.tagName === 'BR'));
+        // Escape before the editor loads leaves editing, as it does in the
+        // loaded editor. Typed text stays until the editor takes it over.
+        if (event.key === 'Escape' && empty) {
+          event.preventDefault();
+          cancel();
+          element.blur();
+          return;
+        }
         if (empty
           && !event.metaKey && !event.ctrlKey && !event.altKey
           && (event.key === 'Backspace' || event.key === 'Delete')) {

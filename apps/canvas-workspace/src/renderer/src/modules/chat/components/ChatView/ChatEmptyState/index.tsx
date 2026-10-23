@@ -1,4 +1,5 @@
 import './index.css';
+import { ArrowUp } from '@phosphor-icons/react';
 import {
   GLOBAL_QUICK_ACTIONS,
   KNOWLEDGE_QUICK_ACTIONS,
@@ -98,12 +99,16 @@ export const ChatEmptyState = ({
           <button
             key={action.key}
             className="chat-quick-action"
+            // These are complete requests, so a click sends at once (unlike
+            // the home starters, which only fill the box). Say so up front.
+            title={t('chat.quick.sendsNow', { prompt: t(action.promptKey) })}
             onClick={() => onQuickAction(t(action.promptKey), action.key)}
           >
             <span className="chat-quick-action-icon">
               <QuickActionIcon action={action} />
             </span>
             <span>{t(action.labelKey)}</span>
+            <ArrowUp className="chat-quick-action-send" size={14} aria-hidden />
           </button>
         ))}
       </div>
