@@ -33,7 +33,7 @@ import { APP_ROUTES, MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, telemetryPa
 import { globalMcpAppKey, globalMcpAppsStore, useGlobalMcpApps } from '../../modules/mcp-apps/global-apps';
 import type { McpAppEntrypointListing } from '../../../../shared/mcp-apps';
 import { useWorkspaceActions } from './useWorkspaceActions';
-import { useDockSqueezesPanel } from './useDockSqueezesPanel';
+import { useSidebarLayout } from './useSidebarLayout';
 import { setApprovalNodePreviewLoader } from '../../shared/approvalNodePreview';
 // The app host pulls in McpAppFrame; keep it out of the startup chunk.
 setApprovalNodePreviewLoader(() => import('../../modules/canvas/preview').then((module) => ({
@@ -55,8 +55,6 @@ const {
   scheduled: ROUTE_SCHEDULED,
   home: ROUTE_HOME,
 } = APP_ROUTES;
-/** Match `--sidebar-collapsed` (rail) and `--sidebar-width` (rail + panel) in styles.css and `.sidebar--rail-expanded`. */
-const SIDEBAR_PANEL_WIDTH = 224, SIDEBAR_RAIL_WIDTH = 48, SIDEBAR_RAIL_EXPANDED_WIDTH = 240;
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
@@ -191,9 +189,14 @@ const AppContent = () => {
     if (redirectToCanvas) setLocation(ROUTE_CANVAS);
   }, [redirectToCanvas, setLocation]);
 
+  const hasWorkspace = useCallback(
+    (workspaceId: string) => workspaces.some((workspace) => workspace.id === workspaceId),
+    [workspaces],
+  );
   const {
     enterChatTarget,
     enterChatView,
+    enterPulseAgent,
     exitChatView,
     initialTarget: chatEntryTarget,
   } = useChatNavigation({
@@ -205,6 +208,7 @@ const AppContent = () => {
     openDockChat: dock.openChat,
     isOverlayOpen,
     openShortcuts,
+    hasWorkspace,
   });
   const workspaceActions = useWorkspaceActions({
     store: workspaceStore,
@@ -298,13 +302,10 @@ const AppContent = () => {
   // routes show only the rail. The launcher and settings own the full
   // width, so the dock hides there too (it stays mounted). The workspace
   // tree lives in the wide rail, so the panel only shows canvas Layers.
-  const railWidth = railExpanded ? SIDEBAR_RAIL_EXPANDED_WIDTH : SIDEBAR_RAIL_WIDTH;
-  const dockSqueezesPanel = useDockSqueezesPanel(railWidth, SIDEBAR_PANEL_WIDTH);
-  const sidebarPanelHidden = sidebarCollapsed
-    || dockSqueezesPanel
-    || activeView !== 'canvas'
-    || activeNodes.length === 0;
-  const sidebarWidth = railWidth + (sidebarPanelHidden ? 0 : SIDEBAR_PANEL_WIDTH);
+  const { panelHidden: sidebarPanelHidden, width: sidebarWidth } = useSidebarLayout({
+    railExpanded,
+    panelRequested: !sidebarCollapsed && activeView === 'canvas' && activeNodes.length > 0,
+  });
   const [sessionListRequest, setSessionListRequest] = useState(0);
   const openAllChats = useCallback(() => {
     enterChatView();
@@ -342,7 +343,7 @@ const AppContent = () => {
           onNodeDelete={requestActiveNodeDelete}
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
-          onEnterHome={() => setLocation(ROUTE_HOME)}
+          onEnterHome={enterPulseAgent}
           onEnterCanvas={() => setLocation(ROUTE_CANVAS)}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
