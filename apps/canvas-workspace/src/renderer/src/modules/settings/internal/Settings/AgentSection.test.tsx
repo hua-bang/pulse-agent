@@ -6,7 +6,7 @@ import { I18nProvider } from '../../../../i18n';
 import { AgentSection } from './AgentSection';
 
 vi.mock('../../../../shared/appShell', () => ({ useAppShell: () => ({ notify: vi.fn() }) }));
-vi.mock('./AgentShellPathCard', () => ({ default: () => null }));
+vi.mock('./AgentShellPathCard', () => ({ AgentShellPathCard: () => null }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
