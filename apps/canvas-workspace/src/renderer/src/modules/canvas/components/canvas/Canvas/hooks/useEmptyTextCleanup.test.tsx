@@ -32,6 +32,7 @@ describe('useEmptyTextCleanup', () => {
       text('blank', '<p></p>'),
       text('spaces', '<p>&nbsp; </p>'),
       text('filled', '<p>hi</p>'),
+      text('autolink', '<https://example.com>'),
       { ...text('note', ''), type: 'file' } as CanvasNode,
     ];
   });
@@ -46,7 +47,7 @@ describe('useEmptyTextCleanup', () => {
   });
 
   it('treats whitespace-only content as empty and keeps written text and other node types', () => {
-    select(['spaces', 'filled', 'note']);
+    select(['spaces', 'filled', 'autolink', 'note']);
     select([]);
     expect(removeNodes).toHaveBeenCalledWith(['spaces']);
   });

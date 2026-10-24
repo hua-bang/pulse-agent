@@ -1,10 +1,14 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import type { CanvasNode, TextNodeData } from '../../../../../../types';
 
+// Only the wrapper markup an empty editor writes counts as blank. Stripping
+// every `<...>` would also erase Markdown autolinks such as `<https://a.b>`.
+const EMPTY_EDITOR_MARKUP = /<\/?(?:p|br|div|span)(?:\s[^>]*)?\/?>/gi;
+
 const isBlankText = (node: CanvasNode): boolean => {
   if (node.type !== 'text') return false;
   const content = (node.data as TextNodeData).content ?? '';
-  return content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+  return content.replace(EMPTY_EDITOR_MARKUP, '').replace(/&nbsp;/g, ' ').trim() === '';
 };
 
 /**
