@@ -63,4 +63,39 @@ describe('ForceGraphCanvas', () => {
     expect(graphHarness.props.warmupTicks).toBe(80);
     act(() => root.unmount());
   });
+
+  it('fits again when the layout settles, unless the view moved since', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const ref = createRef<ForceGraphCanvasHandle>();
+    const render = (nodes: number) => act(() => {
+      root.render(
+        <ForceGraphCanvas
+          ref={ref}
+          view={{ graph: { nodes: Array.from({ length: nodes }, (_, index) => ({ id: `n${index}`, kind: 'node' as const, label: `N${index}` })), links: [] }, width: 800, height: 600, activeNodeId: null, hoverNodeId: null, highlightedNodeIds: new Set(), highlightedLinkIds: new Set(), showLabels: true, layoutPreset: 'normal' }}
+          actions={{ hoverNode: vi.fn(), clickNode: vi.fn(), clearSelection: vi.fn() }}
+        />,
+      );
+    });
+    const settle = () => act(() => (graphHarness.props.onEngineStop as () => void)());
+
+    render(1);
+    graphHarness.zoomToFit.mockClear();
+    settle();
+    expect(graphHarness.zoomToFit).toHaveBeenCalledWith(450, 140);
+
+    graphHarness.zoomToFit.mockClear();
+    act(() => {
+      host.querySelector('.force-graph-canvas')!.dispatchEvent(new Event('wheel', { bubbles: true }));
+    });
+    settle();
+    expect(graphHarness.zoomToFit).not.toHaveBeenCalled();
+
+    // A new graph starts over: its first settle fits again.
+    render(2);
+    graphHarness.zoomToFit.mockClear();
+    settle();
+    expect(graphHarness.zoomToFit).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
 });
