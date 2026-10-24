@@ -51,11 +51,9 @@ describe('renderer typography system', () => {
   it('reserves 600 weight for page titles, the product brand and document emphasis', () => {
     const allowed = new Set([
       'app/shell/Launcher/index.css',
+      'components/ui/PageHeader/index.css',
       'modules/chat/components/ChatPageBody/index.css',
-      'modules/plugin-market/internal/index.css',
-      'modules/scheduled/internal/index.css',
-      'modules/skills/internal/index.css',
-      'modules/workspace-nodes/internal/NodesPage/index.css',
+      'modules/workspace-nodes/internal/GraphPage/index.css',
       'modules/canvas/components/node-bodies/FileNodeBody/index.css',
     ]);
     const declarations = collectCssFiles(rendererRoot).flatMap((path) => {
@@ -75,11 +73,9 @@ describe('renderer typography system', () => {
 
   it.each([
     'app/shell/Launcher/index.css',
+    'components/ui/PageHeader/index.css',
     'modules/chat/components/ChatPageBody/index.css',
-    'modules/skills/internal/index.css',
-    'modules/scheduled/internal/index.css',
-    'modules/plugin-market/internal/index.css',
-    'modules/workspace-nodes/internal/NodesPage/index.css',
+    'modules/workspace-nodes/internal/GraphPage/index.css',
   ])('uses the page-title scale in %s', (relativePath) => {
     const css = readFileSync(join(rendererRoot, relativePath), 'utf8');
     expect(css).toContain('font-size: 24px');

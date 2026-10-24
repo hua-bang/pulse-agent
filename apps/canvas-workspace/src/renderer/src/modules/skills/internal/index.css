@@ -23,42 +23,17 @@
 }
 
 .skills-library__header {
-  display: flex;
   width: 100%;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 28px;
   max-width: 1440px;
   margin: 0 auto;
 }
 
-.skills-library__header > div:first-child > span,
 .skills-library__modal-header span {
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.skills-library__header h1 {
-  margin: 7px 0 0;
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.skills-library__header p {
-  margin: 9px 0 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.skills-library__header-actions {
-  display: flex;
-  gap: 8px;
 }
 
 .skills-library__scope-bar {
@@ -333,7 +308,6 @@
 }
 
 @media (max-width: 760px) {
-  .skills-library__header,
   .skills-library__scope-bar {
     align-items: stretch;
     flex-direction: column;

@@ -59,36 +59,7 @@
 }
 
 .workspace-nodes-page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   margin-bottom: 22px;
-}
-
-.workspace-nodes-page__header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: 0;
-}
-
-.workspace-nodes-page__title-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.workspace-nodes-page__header p {
-  margin: 6px 0 0;
-  color: var(--nodes-muted);
-  font-size: 12px;
-}
-
-.workspace-nodes-page__header-actions {
-  display: flex;
-  gap: 8px;
 }
 
 /* Centered like the detail page, so wide windows do not strand the cards
@@ -173,10 +144,6 @@
   .workspace-nodes-page__scroll {
     padding-right: 14px;
     padding-left: 14px;
-  }
-
-  .workspace-nodes-page__header {
-    align-items: flex-start;
   }
 
   .knowledge-node-card__button {

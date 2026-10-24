@@ -85,7 +85,7 @@ const chip = (page: HTMLElement, row: string, label: string) => {
 };
 
 const subtitle = (page: HTMLElement) => (
-  page.querySelector('.workspace-nodes-page__header p')?.textContent
+  page.querySelector('.workspace-nodes-page__header .ui-page-header__description')?.textContent
 );
 
 describe('NodesPage inline filters', () => {

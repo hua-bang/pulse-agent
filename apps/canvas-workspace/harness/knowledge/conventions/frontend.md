@@ -252,7 +252,9 @@ counter may shrink but never grow):
   its trigger instead of portaling to an x/y point), `Select` (the one
   dropdown; scope a density override rather than forking it), `TextField`
   (labelled input/textarea), `SectionHeader` (title+description pair for a
-  settings-style section intro), `FieldRow` (generic label/control/hint
+  settings-style section intro), `PageHeader` (the header of a full page:
+  kicker, title, view switch, description, actions — Scheduled, Skills,
+  Plugins, and Knowledge share it), `FieldRow` (generic label/control/hint
   wrapper for any non-text control — Select, checkboxes, custom widgets;
   TextField remains the blessed piece for TEXT controls), `SegmentedControl`
   (the one "pick one of N" control — `ariaPattern="radio"` or `"tab"`),

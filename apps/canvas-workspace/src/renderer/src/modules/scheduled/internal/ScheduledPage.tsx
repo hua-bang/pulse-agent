@@ -4,7 +4,7 @@ import type { ScheduledTask, ScheduledTaskInput } from '../../../../../shared/sc
 import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
 import { useRightDock } from '../../../shared/dockPort';
-import { Button, EmptyState } from '../../../components/ui';
+import { Button, EmptyState, PageHeader } from '../../../components/ui';
 import { localizeBuiltInTasks } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import { TaskRow } from './TaskRow';
@@ -117,17 +117,18 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
 
   return (
     <main className="scheduled-page">
-      <header className="scheduled-page__header">
-        <div>
-          <span>{t('scheduled.kicker')}</span>
-          <h1>{t('scheduled.title')}</h1>
-          <p>{t('scheduled.description')}</p>
-        </div>
-        <Button variant="primary" onClick={openCreate}>
-          <Plus size={16} />
-          {t('scheduled.createTask')}
-        </Button>
-      </header>
+      <PageHeader
+        className="scheduled-page__header"
+        kicker={t('scheduled.kicker')}
+        title={t('scheduled.title')}
+        description={t('scheduled.description')}
+        actions={(
+          <Button variant="primary" onClick={openCreate}>
+            <Plus size={16} />
+            {t('scheduled.createTask')}
+          </Button>
+        )}
+      />
 
       {!loading && tasks.length === 0 ? (
         <EmptyState

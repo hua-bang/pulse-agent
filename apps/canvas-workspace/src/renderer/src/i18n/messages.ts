@@ -1457,6 +1457,7 @@ const en = {
   'workspaceSettings.saved': 'Saved',
   'workspaceSettings.saveDoc': 'Save pulse-workspace.md',
 
+  'workspaceNodes.nodes.kicker': 'Library',
   'workspaceNodes.nodes.title': 'Knowledge',
   'workspaceNodes.nodes.subtitle': '{count} nodes',
   'workspaceNodes.nodes.subtitleOne': '1 node',
@@ -3526,6 +3527,7 @@ const zh: Record<keyof typeof en, string> = {
   'workspaceSettings.saved': '已保存',
   'workspaceSettings.saveDoc': '保存 pulse-workspace.md',
 
+  'workspaceNodes.nodes.kicker': '资料库',
   'workspaceNodes.nodes.title': '知识',
   'workspaceNodes.nodes.subtitle': '{count} 个节点',
   'workspaceNodes.nodes.subtitleOne': '1 个节点',
