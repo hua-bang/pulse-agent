@@ -29,6 +29,7 @@ export const useWorkspaceActions = ({
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
+    restoreDeletedWorkspace,
     setRootFolder,
     importWorkspace,
     createFolder,
@@ -91,14 +92,24 @@ export const useWorkspaceActions = ({
       });
       return;
     }
+    const undo = async () => {
+      const restored = await restoreDeletedWorkspace(id);
+      if (!restored.ok) {
+        notify({ tone: 'error', title: t('app.workspaceRestoreFailed'), description: restored.error });
+        return;
+      }
+      if (result.switchedActive) select(id);
+      notify({ tone: 'success', title: t('app.workspaceRestored'), description: workspace.name });
+    };
     updateToast(toastId, {
       tone: 'success',
       title: t('app.workspaceDeleted'),
       description: workspace.name,
-      autoCloseMs: 2400,
+      autoCloseMs: 8000,
+      action: { label: t('app.undoDelete'), onClick: () => { void undo(); } },
     });
     if (result.switchedToEmpty) enterChatView();
-  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, enterChatView, t]);
+  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, restoreDeletedWorkspace, select, enterChatView, t]);
 
   const exportWorkspace = useCallback(async (id: string) => {
     const actions = await import('./workspaceArchiveActions');

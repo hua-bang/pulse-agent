@@ -924,6 +924,19 @@ export const setupCanvasStoreIpc = () => {
     }
   );
 
+  ipcMain.handle(
+    'canvas:restoreDeleted',
+    async (_event, payload: { id: string }) => {
+      try {
+        const { restoreTrashedWorkspace } = await import('./persistence/workspace-trash');
+        const entry = await restoreTrashedWorkspace(STORE_DIR, payload.id);
+        return { ok: true, workspace: { ...entry, id: payload.id, name: String(entry.name) } };
+      } catch (err: unknown) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+  );
+
   /** Returns the absolute directory path for a workspace. */
   ipcMain.handle(
     'canvas:getDir',

@@ -279,8 +279,8 @@ describe('useCanvasKeyboard', () => {
     const setClipboard = vi.fn();
     mountKeyboard({
       nodes: [
-        { ...node('a'), title: 'Text', data: { content: '<p>First &amp; one</p><p>line two</p>' } },
-        { ...node('b'), title: 'Text', data: { content: '<p>Second</p>' } },
+        { ...node('a'), title: 'Text', data: { content: '<p>First &amp; one</p><p>line two</p>' } as CanvasNode['data'] },
+        { ...node('b'), title: 'Text', data: { content: '<p>Second</p>' } as CanvasNode['data'] },
       ],
       selectedNodeIds: ['a', 'b'],
       setClipboard,

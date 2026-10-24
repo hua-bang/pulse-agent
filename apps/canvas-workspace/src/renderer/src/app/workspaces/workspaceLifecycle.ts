@@ -67,6 +67,24 @@ export async function deleteWorkspace(id: string, state: WorkspaceLifecycleState
   return { ok: true, switchedActive, newActiveId, switchedToEmpty };
 }
 
+/** Undo for deleteWorkspace: the entry comes back where the sidebar lists it. */
+export async function restoreDeletedWorkspace(
+  id: string,
+  state: Pick<WorkspaceLifecycleState, 'workspacesRef' | 'setWorkspaces' | 'saveManifest'>,
+): Promise<{ ok: boolean; error?: string }> {
+  const api = window.canvasWorkspace?.store;
+  if (!api) return { ok: false, error: 'Canvas store API is unavailable.' };
+  const result = await api.restoreDeleted(id);
+  if (!result.ok || !result.workspace) return { ok: false, error: result.error };
+  const entry: WorkspaceEntry = result.workspace;
+  const latest = state.workspacesRef.current;
+  const next = latest.some(workspace => workspace.id === id) ? latest : [...latest, entry];
+  state.workspacesRef.current = next;
+  state.setWorkspaces(next);
+  state.saveManifest(next);
+  return { ok: true };
+}
+
 export async function importWorkspace(state: WorkspaceLifecycleState): Promise<WorkspaceImportResult> {
   const { workspacesRef, activeIdRef, activeIntentRef, setWorkspaces, setActiveId, saveManifest } = state;
   const api = window.canvasWorkspace?.store;
