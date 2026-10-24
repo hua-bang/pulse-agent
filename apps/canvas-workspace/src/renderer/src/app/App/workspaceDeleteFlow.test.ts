@@ -25,18 +25,18 @@ const setup = (switchedActive: boolean) => {
 describe('confirmAndDeleteWorkspace', () => {
   it('offers Undo that restores the workspace and switches back to it', async () => {
     const { deps, undo } = setup(true);
-    await confirmAndDeleteWorkspace({ id: 'a', name: 'Alpha' }, deps);
+    await confirmAndDeleteWorkspace({ id: 'a', name: 'Alpha' }, 2, deps);
     expect(deps.deleteWorkspace).toHaveBeenCalledWith('a');
 
     await undo();
 
-    expect(deps.restoreDeletedWorkspace).toHaveBeenCalledWith('a');
+    expect(deps.restoreDeletedWorkspace).toHaveBeenCalledWith('a', 2);
     await vi.waitFor(() => expect(deps.select).toHaveBeenCalledWith('a'));
   });
 
   it('keeps the current workspace when the deleted one was not active', async () => {
     const { deps, undo } = setup(false);
-    await confirmAndDeleteWorkspace({ id: 'a', name: 'Alpha' }, deps);
+    await confirmAndDeleteWorkspace({ id: 'a', name: 'Alpha' }, 0, deps);
     await undo();
     await vi.waitFor(() => expect(deps.notify).toHaveBeenCalledTimes(2));
     expect(deps.select).not.toHaveBeenCalled();

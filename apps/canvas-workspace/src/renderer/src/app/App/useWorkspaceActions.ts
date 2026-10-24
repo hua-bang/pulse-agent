@@ -70,10 +70,11 @@ export const useWorkspaceActions = ({
   // The confirm, toast, and undo flow loads on first use, outside the
   // startup bundle.
   const remove = useCallback(async (id: string) => {
-    const workspace = workspaces.find((item) => item.id === id);
+    const index = workspaces.findIndex((item) => item.id === id);
+    const workspace = workspaces[index];
     if (!workspace) return;
     const { confirmAndDeleteWorkspace } = await import('./workspaceDeleteFlow');
-    await confirmAndDeleteWorkspace(workspace, {
+    await confirmAndDeleteWorkspace(workspace, index, {
       confirm, notify, updateToast, t, deleteWorkspace, restoreDeletedWorkspace, select, enterChatView,
     });
   }, [workspaces, confirm, notify, updateToast, deleteWorkspace, restoreDeletedWorkspace, select, enterChatView, t]);

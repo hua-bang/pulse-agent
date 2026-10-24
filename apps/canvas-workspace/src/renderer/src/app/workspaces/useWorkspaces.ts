@@ -149,9 +149,9 @@ export const useWorkspaces = () => {
     return actions.deleteWorkspace(id, { workspacesRef, activeIdRef, activeIntentRef, setWorkspaces, setActiveId, saveManifest });
   }, [saveManifest]);
 
-  const restoreDeletedWorkspace = useCallback(async (id: string) => {
+  const restoreDeletedWorkspace = useCallback(async (id: string, index: number) => {
     const actions = await import('./workspaceLifecycle');
-    return actions.restoreDeletedWorkspace(id, { workspacesRef, setWorkspaces, saveManifest });
+    return actions.restoreDeletedWorkspace(id, index, { workspacesRef, setWorkspaces, saveManifest });
   }, [saveManifest]);
 
   const setRootFolder = useCallback(

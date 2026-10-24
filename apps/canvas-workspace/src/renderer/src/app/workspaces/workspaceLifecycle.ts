@@ -67,9 +67,10 @@ export async function deleteWorkspace(id: string, state: WorkspaceLifecycleState
   return { ok: true, switchedActive, newActiveId, switchedToEmpty };
 }
 
-/** Undo for deleteWorkspace: the entry comes back where the sidebar lists it. */
+/** Undo for deleteWorkspace: the entry returns to `index`, its old place. */
 export async function restoreDeletedWorkspace(
   id: string,
+  index: number,
   state: Pick<WorkspaceLifecycleState, 'workspacesRef' | 'setWorkspaces' | 'saveManifest'>,
 ): Promise<{ ok: boolean; error?: string }> {
   const api = window.canvasWorkspace?.store;
@@ -78,7 +79,10 @@ export async function restoreDeletedWorkspace(
   if (!result.ok || !result.workspace) return { ok: false, error: result.error };
   const entry: WorkspaceEntry = result.workspace;
   const latest = state.workspacesRef.current;
-  const next = latest.some(workspace => workspace.id === id) ? latest : [...latest, entry];
+  const at = Math.max(0, Math.min(index, latest.length));
+  const next = latest.some(workspace => workspace.id === id)
+    ? latest
+    : [...latest.slice(0, at), entry, ...latest.slice(at)];
   state.workspacesRef.current = next;
   state.setWorkspaces(next);
   state.saveManifest(next);

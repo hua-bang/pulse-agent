@@ -5,7 +5,7 @@ import type { WorkspaceDeleteResult, WorkspaceEntry } from '../../shared/workspa
 interface DeleteFlowDeps extends Pick<AppShellPort, 'confirm' | 'notify' | 'updateToast'> {
   t: ReturnType<typeof useI18n>['t'];
   deleteWorkspace: (id: string) => Promise<WorkspaceDeleteResult>;
-  restoreDeletedWorkspace: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  restoreDeletedWorkspace: (id: string, index: number) => Promise<{ ok: boolean; error?: string }>;
   select: (id: string) => void;
   enterChatView: () => void;
 }
@@ -15,7 +15,11 @@ interface DeleteFlowDeps extends Pick<AppShellPort, 'confirm' | 'notify' | 'upda
  * the workspace to trash, so Undo restores it and, when the delete had
  * switched away from it, switches back.
  */
-export async function confirmAndDeleteWorkspace(workspace: WorkspaceEntry, deps: DeleteFlowDeps): Promise<void> {
+export async function confirmAndDeleteWorkspace(
+  workspace: WorkspaceEntry,
+  index: number,
+  deps: DeleteFlowDeps,
+): Promise<void> {
   const {
     confirm, notify, updateToast, t, deleteWorkspace, restoreDeletedWorkspace, select, enterChatView,
   } = deps;
@@ -42,7 +46,7 @@ export async function confirmAndDeleteWorkspace(workspace: WorkspaceEntry, deps:
     return;
   }
   const undo = async () => {
-    const restored = await restoreDeletedWorkspace(workspace.id);
+    const restored = await restoreDeletedWorkspace(workspace.id, index);
     if (!restored.ok) {
       notify({ tone: 'error', title: t('app.workspaceRestoreFailed'), description: restored.error });
       return;

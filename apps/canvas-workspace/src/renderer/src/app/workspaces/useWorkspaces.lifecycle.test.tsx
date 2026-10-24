@@ -220,19 +220,19 @@ describe('workspace lifecycle synchronization', () => {
     expect(result).toMatchObject({ switchedActive: false, newActiveId: 'a', switchedToEmpty: false });
   });
 
-  it('undoes a delete by putting the restored entry back into the list', async () => {
+  it('undoes a delete by putting the restored entry back in its old place', async () => {
     await mount();
-    await act(async () => { await state.deleteWorkspace('c'); });
-    expect(state.workspaces.map(workspace => workspace.id)).toEqual(['a', 'b']);
-    restoreDeleted.mockResolvedValueOnce({ ok: true, workspace: { ...ws('c'), folderId: 'f' } });
+    await act(async () => { await state.deleteWorkspace('a'); });
+    expect(state.workspaces.map(workspace => workspace.id)).toEqual(['b', 'c']);
+    restoreDeleted.mockResolvedValueOnce({ ok: true, workspace: { ...ws('a'), folderId: 'f' } });
 
     let result: { ok: boolean } | undefined;
-    await act(async () => { result = await state.restoreDeletedWorkspace('c'); });
+    await act(async () => { result = await state.restoreDeletedWorkspace('a', 0); });
 
-    expect(restoreDeleted).toHaveBeenCalledWith('c');
+    expect(restoreDeleted).toHaveBeenCalledWith('a');
     expect(result).toEqual({ ok: true });
     expect(state.workspaces.map(workspace => workspace.id)).toEqual(['a', 'b', 'c']);
-    expect(state.workspaces[2]).toMatchObject({ folderId: 'f' });
+    expect(state.workspaces[0]).toMatchObject({ folderId: 'f' });
   });
 
   it('does not duplicate an import that an observer refresh already loaded from the manifest', async () => {
