@@ -1,8 +1,9 @@
 import './WorkspaceReferencePreview.css';
 import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
-import type { CanvasNode, CanvasSummaryBox, TextNodeData } from '../../../../../../../../shared/canvas';
+import type { CanvasNode, CanvasSummaryBox, FrameNodeData, TextNodeData } from '../../../../../../../../shared/canvas';
 import { useI18n } from '../../../../../../i18n';
 import { textContentPreview } from '../../../../../../utils/nodeLabel';
+import { resolveFrameAccent } from '../../../node-bodies/FrameNodeBody/colorPresets';
 
 interface Props {
   workspaceId: string;
@@ -16,6 +17,9 @@ interface Props {
 
 /** Cards shorter than this share of the drawn height cannot fit a title line. */
 const MIN_TITLED_BOX_SHARE = 0.1;
+/** Cards shorter than this share keep their title to one line, so a wrapped
+ * second line is never clipped by the card edge. */
+const TWO_LINE_BOX_SHARE = 0.2;
 /** Text nodes draw as their first line, like the text on the canvas itself. */
 const TEXT_LINE_MAX_CHARS = 80;
 
@@ -26,7 +30,8 @@ interface Layout {
 
 const toLayout = (nodes: CanvasNode[]): Layout => ({
   nodeCount: nodes.length,
-  boxes: nodes
+  // Frames come first so they draw behind the cards, as in the stored layout.
+  boxes: [...nodes.filter((node) => node.type === 'frame'), ...nodes.filter((node) => node.type !== 'frame')]
     .filter((node) => node.width > 0 && node.height > 0)
     .map(({ type, title, x, y, width, height, data }) => ({
       type,
@@ -34,6 +39,7 @@ const toLayout = (nodes: CanvasNode[]): Layout => ({
       title: type === 'text'
         ? textContentPreview((data as TextNodeData).content, TEXT_LINE_MAX_CHARS) || (title === 'Text' ? '' : title)
         : title,
+      color: type === 'frame' ? (data as FrameNodeData).color || undefined : undefined,
       x,
       y,
       width,
@@ -42,11 +48,21 @@ const toLayout = (nodes: CanvasNode[]): Layout => ({
 });
 
 /** What a box shows: frames carry their name above the outline (CSS),
- * text shows its line, and cards show a title only when it fits. */
+ * text shows its line, and cards show a title only when it fits. Card
+ * bodies draw placeholder lines (CSS), so tall cards do not read as empty. */
 const boxLabel = (box: CanvasSummaryBox, drawnHeight: number) => {
-  if (box.type === 'text') return box.title || <span className="workspace-reference__line" />;
-  if (box.type === 'frame' || box.height / drawnHeight < MIN_TITLED_BOX_SHARE) return null;
-  return box.title;
+  if (box.type === 'text') {
+    return box.title
+      ? <span className="workspace-reference__title">{box.title}</span>
+      : <span className="workspace-reference__line" />;
+  }
+  const share = box.height / drawnHeight;
+  if (box.type === 'frame' || !box.title || share < MIN_TITLED_BOX_SHARE) return null;
+  return (
+    <span className="workspace-reference__title" data-lines={share < TWO_LINE_BOX_SHARE ? 1 : 2}>
+      {box.title}
+    </span>
+  );
 };
 
 /** Stored layout for a canvas this window has not loaded. `store.summaries`
@@ -119,12 +135,14 @@ export const WorkspaceReferencePreview = ({
                 key={index}
                 className="workspace-reference__box"
                 data-type={box.type}
+                data-tinted={box.color ? true : undefined}
                 style={{
+                  '--frame-tint': box.color ? resolveFrameAccent(box.color) : undefined,
                   left: percent(box.x - minX, width),
                   top: percent(box.y - minY, height),
                   width: percent(box.width, width),
                   height: box.type === 'text' ? undefined : percent(box.height, height),
-                }}
+                } as CSSProperties}
               >
                 {box.type === 'frame' && box.title ? (
                   <span className="workspace-reference__frame-title">{box.title}</span>

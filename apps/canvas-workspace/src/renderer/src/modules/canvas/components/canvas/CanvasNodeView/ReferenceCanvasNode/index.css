@@ -32,7 +32,9 @@
   gap: 5px;
   border: 0;
   border-radius: var(--radius-pill);
-  background: var(--accent-light);
+  /* The accent tint is translucent; the surface under it keeps the pill
+     solid over busy previews such as a canvas map's dot grid. */
+  background: linear-gradient(var(--accent-light), var(--accent-light)), var(--surface);
   color: var(--accent);
   box-shadow: 0 1px 3px rgba(55, 53, 47, 0.08);
   cursor: default;

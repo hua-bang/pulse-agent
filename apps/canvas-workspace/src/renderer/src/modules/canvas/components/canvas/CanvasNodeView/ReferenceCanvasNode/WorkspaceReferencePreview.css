@@ -13,6 +13,8 @@
   cursor: default;
 }
 
+/* The map reads as a small canvas: the canvas ground with its dot grid, so
+   the space around the layout looks like canvas, not like a blank card. */
 .workspace-reference__map {
   flex: 1;
   min-height: 0;
@@ -20,11 +22,14 @@
   align-items: center;
   justify-content: center;
   padding: 44px 16px 12px;
-  background: var(--bg);
+  background-color: var(--bg-canvas);
+  background-image: radial-gradient(color-mix(in srgb, var(--text-muted) 40%, transparent) 1px, transparent 1.2px);
+  background-size: 14px 14px;
 }
 
 /* Fit the layout inside the map at its own aspect ratio (--ratio is
-   width / height): as wide as the map allows, unless that makes it too tall. */
+   width / height): as wide as the map allows, unless that makes it too tall.
+   Labels scale with the map, within readable bounds. */
 .workspace-reference__map {
   container-type: size;
 }
@@ -33,50 +38,103 @@
   position: relative;
   width: min(100cqw, calc(100cqh * var(--ratio)));
   aspect-ratio: var(--ratio);
+  font-size: clamp(9px, 1.1cqw, 12px);
 }
 
 .workspace-reference__box {
   --box-accent: var(--accent-frame);
   position: absolute;
   box-sizing: border-box;
-  padding: 3px 5px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.55em 0.75em;
+  background: var(--note-paper);
+  border: 1px solid var(--note-border);
   border-top: 2px solid var(--box-accent);
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 9px;
-  line-height: 1.3;
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  line-height: 1.35;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
+/* Placeholder lines stand in for the card body and fade out downwards. */
+.workspace-reference__box:not([data-type='frame']):not([data-type='text'])::after {
+  content: '';
+  flex: 1;
+  max-height: 7.5em;
+  margin: 0.6em 18% 0 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--surface-alt) 0 0.45em,
+    transparent 0.45em 1.25em
+  );
+  -webkit-mask-image: linear-gradient(to bottom, black 30%, transparent);
+  mask-image: linear-gradient(to bottom, black 30%, transparent);
+}
+
+.workspace-reference__title {
+  display: -webkit-box;
+  flex-shrink: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.workspace-reference__title[data-lines='1'] {
+  -webkit-line-clamp: 1;
+}
+
+/* Frames draw as soft washes lifted off the ground; nested frames stack
+   their washes, so depth shows without dashed outlines. */
 .workspace-reference__box[data-type='frame'] {
-  background: transparent;
-  border: 1px dashed var(--border);
+  padding: 0;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
   overflow: visible;
 }
 
-/* The frame name sits above its outline, as on the canvas. */
-.workspace-reference__frame-title {
-  position: absolute;
-  left: 0;
-  bottom: 100%;
-  max-width: 100%;
-  padding-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-muted);
+/* A colored frame keeps its hue, mixed thin so it works in both themes. */
+.workspace-reference__box[data-type='frame'][data-tinted] {
+  background: color-mix(in srgb, var(--frame-tint) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--frame-tint) 35%, transparent);
 }
 
-/* Text has no card on the canvas, so it draws as a bare line. Its height
-   follows the line, so a short text box still shows it. */
+/* The frame name sits above its wash, as on the canvas. */
+.workspace-reference__frame-title {
+  position: absolute;
+  left: 0.2em;
+  bottom: 100%;
+  max-width: 100%;
+  padding-bottom: 0.25em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--frame-label);
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+/* Text has no card on the canvas, so it draws as one bare line. Its height
+   follows the line, so a short text box still shows it, and the line never
+   wraps over the cards below it. */
 .workspace-reference__box[data-type='text'] {
   padding: 0;
   background: transparent;
   border: 0;
+  box-shadow: none;
   color: var(--text);
+}
+
+.workspace-reference__box[data-type='text'] .workspace-reference__title {
+  display: block;
+  font-weight: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-reference__line {
@@ -100,7 +158,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-top: 1px solid var(--border);
   font-size: 12px;
 }

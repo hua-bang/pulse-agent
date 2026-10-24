@@ -23,20 +23,35 @@ afterEach(async () => {
 });
 
 describe('summarizeCanvasData', () => {
-  it('counts every node and keeps the first six sized non-frame boxes', () => {
+  it('counts every node and keeps the first 24 sized non-frame boxes', () => {
     const nodes = [
       { id: 'f', type: 'frame', x: 0, y: 0, width: 900, height: 600 },
       { id: 'z', type: 'text', x: 0, y: 0, width: 0, height: 10 },
-      ...Array.from({ length: 8 }, (_, index) => ({
+      ...Array.from({ length: 30 }, (_, index) => ({
         id: `n${index}`, type: 'text', x: index * 10, y: 5, width: 100, height: 50, data: { content: 'x' },
       })),
     ];
     const summary = summarizeCanvasData({ nodes });
-    expect(summary?.nodeCount).toBe(10);
-    expect(summary?.boxes).toHaveLength(6);
+    expect(summary?.nodeCount).toBe(32);
+    expect(summary?.boxes).toHaveLength(24);
     expect(summary?.boxes[0]).toEqual({ type: 'text', title: 'x', x: 0, y: 5, width: 100, height: 50 });
     // Frames travel separately so the launcher keeps only card boxes.
     expect(summary?.frames).toEqual([{ type: 'frame', x: 0, y: 0, width: 900, height: 600 }]);
+  });
+
+  it('keeps a frame color so previews can tint the frame', () => {
+    const summary = summarizeCanvasData({
+      nodes: [
+        { id: 'f', type: 'frame', title: 'Plan', x: 0, y: 0, width: 90, height: 60, data: { color: 'oklch(0.68 0.108 241)' } },
+        { id: 'g', type: 'frame', x: 0, y: 0, width: 90, height: 60, data: { color: '' } },
+        { id: 'n', type: 'file', title: 'Note', x: 0, y: 0, width: 10, height: 10, data: { color: 'red' } },
+      ],
+    });
+    expect(summary?.frames).toEqual([
+      { type: 'frame', title: 'Plan', color: 'oklch(0.68 0.108 241)', x: 0, y: 0, width: 90, height: 60 },
+      { type: 'frame', x: 0, y: 0, width: 90, height: 60 },
+    ]);
+    expect(summary?.boxes[0].color).toBeUndefined();
   });
 
   it('decodes HTML entities in the text line', () => {
