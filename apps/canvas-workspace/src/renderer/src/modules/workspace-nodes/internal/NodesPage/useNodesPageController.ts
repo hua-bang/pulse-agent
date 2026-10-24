@@ -18,6 +18,7 @@ import {
   getNodeTags,
   getNodeTypeLabel,
   getNodeWorkspaceId,
+  isBlankKnowledgeNode,
   tagName,
 } from '../utils';
 import {
@@ -47,9 +48,10 @@ export const useNodesPageController = ({ workspaces, aiEnabled }: Input) => {
     reload,
   } = useAllWorkspaceNodeList(workspaces);
   // Records removed from every canvas stay in storage. Hide them here as the
-  // Graph page does, so a deleted node does not linger in the list.
+  // Graph page does, so a deleted node does not linger in the list. Blank
+  // text and note nodes carry nothing to read, so they stay out too.
   const nodes = useMemo(
-    () => allNodes.filter((node) => node.onCanvas !== false),
+    () => allNodes.filter((node) => node.onCanvas !== false && !isBlankKnowledgeNode(node)),
     [allNodes],
   );
   const [query, setQuery] = useState('');
