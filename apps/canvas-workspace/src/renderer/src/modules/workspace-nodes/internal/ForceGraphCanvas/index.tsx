@@ -84,6 +84,7 @@ const GRAPH_MAX_ZOOM = 2.5;
 // Labels outside the hovered/selected neighbourhood stay readable but recede.
 const DIMMED_NODE_ALPHA = 0.18;
 const DIMMED_LABEL_ALPHA = 0.4;
+const GRAPH_LABEL_MAX_CHARS = 24;
 // A node this close to the viewport edge counts as hidden.
 const REVEAL_MARGIN_PX = 48;
 // Labels keep one on-screen size at every zoom level.
@@ -168,7 +169,12 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
     const showLabel = view.showLabels || selected || hovered || isWorkspace || globalScale > 2.3;
     if (showLabel) {
       ctx.globalAlpha = highlighted ? 1 : DIMMED_LABEL_ALPHA;
-      const label = node.label || nodeId;
+      // Long titles overlapped their neighbours; the full text shows on
+      // hover and selection.
+      const fullLabel = node.label || nodeId;
+      const label = selected || hovered || fullLabel.length <= GRAPH_LABEL_MAX_CHARS
+        ? fullLabel
+        : `${fullLabel.slice(0, GRAPH_LABEL_MAX_CHARS - 1)}…`;
       const fontSize = LABEL_SCREEN_PX / globalScale;
       ctx.font = `${fontSize}px "Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const textWidth = ctx.measureText(label).width;

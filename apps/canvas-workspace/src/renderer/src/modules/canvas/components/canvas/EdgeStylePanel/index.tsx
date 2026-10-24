@@ -16,6 +16,10 @@ import { resolveEdgeStroke } from '../../../../../../../shared/canvas';
 import { EdgeStyleOptions, type EdgeStyleSection as Section } from './EdgeStyleOptions';
 import { CapPreview, StylePreview, WidthPreview } from './previews';
 
+/** Half the panel's width on screen, used to find cards it would cover. */
+const PANEL_HALF_SPAN_PX = 170;
+const MAX_BOUNDED_NODE_PX = 320;
+
 /**
  * A compact floating panel, shown when an edge is selected, that lets
  * the user tweak its stroke color, width, dash style, arrow head / tail,
@@ -110,6 +114,16 @@ export const EdgeStylePanel = ({
     const nodesById = new Map(nodes.map((n) => [n.id, n]));
     const { midpoint, sourcePoint, targetPoint } = resolveEdgePathGeometry(edge, nodesById);
     const ys = [midpoint.y, sourcePoint.y, targetPoint.y];
+    // The panel is centred on the midpoint, so an endpoint card under that
+    // span would be covered: bound the placement by its box too. Very tall
+    // cards (frames) are skipped, or the panel would float far off the edge.
+    const halfSpan = PANEL_HALF_SPAN_PX / transform.scale;
+    for (const endpoint of [edge.source, edge.target]) {
+      const node = endpoint.kind === 'node' ? nodesById.get(endpoint.nodeId) : undefined;
+      if (!node || node.height * transform.scale > MAX_BOUNDED_NODE_PX) continue;
+      if (node.x > midpoint.x + halfSpan || node.x + node.width < midpoint.x - halfSpan) continue;
+      ys.push(node.y, node.y + node.height);
+    }
     return {
       x: midpoint.x * transform.scale + transform.x,
       top: Math.min(...ys) * transform.scale + transform.y,
