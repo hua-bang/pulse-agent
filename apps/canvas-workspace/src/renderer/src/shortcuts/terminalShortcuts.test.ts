@@ -30,6 +30,7 @@ const mountAppShortcuts = () => {
     toggleSidebar: vi.fn(),
     togglePanels: vi.fn(),
     selectWorkspaceByIndex: vi.fn(),
+    closeActiveTab: vi.fn(() => true),
   };
   const Harness = () => {
     useAppShortcuts(options);

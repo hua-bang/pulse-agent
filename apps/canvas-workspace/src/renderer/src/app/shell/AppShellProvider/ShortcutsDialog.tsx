@@ -55,6 +55,7 @@ export const SHORTCUT_HELP = {
   'app.togglePanels': { section: 'panels', descriptionKey: 'shortcuts.panels.focus' },
   'app.toggleTheme': { section: 'panels', descriptionKey: 'shortcuts.panels.toggleTheme' },
   'app.switchWorkspace': { section: 'panels', descriptionKey: 'shortcuts.panels.switchWorkspace' },
+  'app.closeTab': { section: 'panels', descriptionKey: 'shortcuts.panels.closeTab' },
   'app.shortcutsHelp': { section: 'panels', descriptionKey: 'shortcuts.panels.shortcuts' },
   'terminal.mentionPicker': { section: 'panels', descriptionKey: 'shortcuts.panels.terminalMentionPicker' },
 } satisfies Record<ShortcutId, { section: ShortcutSectionId; descriptionKey: I18nKey }>;

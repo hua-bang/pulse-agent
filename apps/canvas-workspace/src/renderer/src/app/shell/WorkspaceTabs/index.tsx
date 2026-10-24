@@ -4,6 +4,7 @@ import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
+import { CLOSE_ACTIVE_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
 import { useOpenWorkspaceTabs } from './useOpenWorkspaceTabs';
 import { WorkspacePicker } from './WorkspacePicker';
 import './index.css';
@@ -70,6 +71,18 @@ export const WorkspaceTabs = ({
     if (next) onSelect(next);
     else onOpenLauncher();
   };
+
+  // Mod+W from the app shortcut layer. The ref keeps one listener while
+  // onClose changes every render.
+  const closeActiveRef = useRef(() => {});
+  closeActiveRef.current = () => {
+    if (activeId) onClose(activeId);
+  };
+  useEffect(() => {
+    const handler = () => closeActiveRef.current();
+    window.addEventListener(CLOSE_ACTIVE_TAB_EVENT, handler);
+    return () => window.removeEventListener(CLOSE_ACTIVE_TAB_EVENT, handler);
+  }, []);
 
   const closeFromPointer = (event: MouseEvent<HTMLElement>, id: string) => {
     const tab = event.currentTarget.closest('.workspace-tabs__tab');

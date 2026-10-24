@@ -14,7 +14,15 @@ interface Options {
   togglePanels: () => void;
   /** Jump to the nth (1-based) workspace, if it exists. */
   selectWorkspaceByIndex: (index: number) => void;
+  /** Close the active workspace tab; false when no tab bar is showing. */
+  closeActiveTab: () => boolean;
 }
+
+/**
+ * The tab bar owns its open-tab state and loads lazily, so the shortcut
+ * layer asks it to close the active tab with this window event.
+ */
+export const CLOSE_ACTIVE_TAB_EVENT = 'pulse:close-active-workspace-tab';
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
   const element = target as HTMLElement | null;
@@ -42,6 +50,7 @@ export const useAppShortcuts = ({
   toggleSidebar,
   togglePanels,
   selectWorkspaceByIndex,
+  closeActiveTab,
 }: Options) => {
   const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
   const overlayRef = useRef(isOverlayOpen);
@@ -73,6 +82,10 @@ export const useAppShortcuts = ({
       if (!Number.isFinite(index)) return;
       event.preventDefault();
       selectWorkspaceByIndex(index);
+    },
+    'app.closeTab': (event) => {
+      // Off the canvas route there is no tab bar; leave the key alone.
+      if (closeActiveTab()) event.preventDefault();
     },
   };
 
@@ -129,6 +142,11 @@ export const useAppShortcutBindings = ({
     selectWorkspaceByIndex: (index) => {
       const workspace = workspaces[index - 1];
       if (workspace) selectWorkspace(workspace.id);
+    },
+    closeActiveTab: () => {
+      if (activeView !== 'canvas') return false;
+      window.dispatchEvent(new Event(CLOSE_ACTIVE_TAB_EVENT));
+      return true;
     },
   });
 };
