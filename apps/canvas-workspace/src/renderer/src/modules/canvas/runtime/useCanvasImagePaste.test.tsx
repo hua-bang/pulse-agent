@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { CanvasNode } from '../../../types';
 import { useCanvasImagePaste } from './useCanvasImagePaste';
 
@@ -10,10 +10,12 @@ import { useCanvasImagePaste } from './useCanvasImagePaste';
 describe('useCanvasImagePaste text and URL clipboard', () => {
   let host: HTMLDivElement;
   let root: Root;
-  let addNode: ReturnType<typeof vi.fn>;
-  let updateNode: ReturnType<typeof vi.fn>;
-  let onPasteUrl: ReturnType<typeof vi.fn>;
-  let resolveSlot: ReturnType<typeof vi.fn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type AnyMock = Mock<any[], any>;
+  let addNode: AnyMock;
+  let updateNode: AnyMock;
+  let onPasteUrl: AnyMock;
+  let resolveSlot: AnyMock;
 
   const Probe = () => {
     useCanvasImagePaste({
@@ -21,7 +23,7 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
       active: true,
       containerRef: { current: host },
       screenToCanvas: (x, y) => ({ x, y }),
-      addNode: addNode as unknown as (type: CanvasNode['type'], x: number, y: number) => CanvasNode,
+      addNode: addNode as (type: CanvasNode['type'], x: number, y: number) => CanvasNode,
       updateNode,
       onPasteUrl,
       resolveSlot,
