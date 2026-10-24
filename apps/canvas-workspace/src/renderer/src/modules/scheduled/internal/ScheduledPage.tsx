@@ -5,7 +5,7 @@ import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
 import { useRightDock } from '../../../shared/dockPort';
 import { Button, EmptyState, PageHeader } from '../../../components/ui';
-import { localizeBuiltInTasks } from './formatters';
+import { localizeBuiltInTasks, restoreBuiltInTaskInput } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import { TaskRow } from './TaskRow';
 import './index.css';
@@ -46,7 +46,7 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
 
   const saveTask = async (input: ScheduledTaskInput): Promise<boolean> => {
     const response = editingTask
-      ? await window.canvasWorkspace.scheduled.update(editingTask.id, input)
+      ? await window.canvasWorkspace.scheduled.update(editingTask.id, restoreBuiltInTaskInput(editingTask, input, t))
       : await window.canvasWorkspace.scheduled.create(input);
     if (!response.ok || !response.task) {
       notify({ tone: 'error', title: t('scheduled.saveFailed'), description: response.error });

@@ -59,6 +59,8 @@ describe('getNodeDisplayLabel — text nodes', () => {
 
   it('ignores the placeholder "Text" title and previews content instead', () => {
     expect(getNodeDisplayLabel(textNode('<p>Hello</p>', 'Text'))).toBe('Hello');
+    // A text node created in a Chinese UI stores the Chinese placeholder.
+    expect(getNodeDisplayLabel(textNode('<p>Hello</p>', '文本'))).toBe('Hello');
   });
 });
 

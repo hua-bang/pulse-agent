@@ -82,3 +82,21 @@ export const localizeRunTitle = (run: ScheduledRunFinished, t: Translate): strin
   run.taskId === 'memory-report' && run.title === MEMORY_REPORT_TITLE
     ? t('scheduled.memoryReport.title')
     : run.title;
+
+/**
+ * The editor shows the translated built-in text and submits every field. Map
+ * an unchanged translation back to the seeded English, so a cadence-only
+ * edit keeps the stored text, and the other language still shows its own.
+ */
+export const restoreBuiltInTaskInput = <T extends { title?: string; prompt?: string }>(
+  task: ScheduledTask,
+  input: T,
+  t: Translate,
+): T => {
+  if (task.source !== 'memory-report') return input;
+  return {
+    ...input,
+    ...(input.title === t('scheduled.memoryReport.title') ? { title: MEMORY_REPORT_TITLE } : {}),
+    ...(input.prompt === t('scheduled.memoryReport.prompt') ? { prompt: MEMORY_REPORT_PROMPT } : {}),
+  };
+};
