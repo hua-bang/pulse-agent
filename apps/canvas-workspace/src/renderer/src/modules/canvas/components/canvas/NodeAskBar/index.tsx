@@ -34,6 +34,7 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
   const [expanded, setExpanded] = useState(false);
   const label = getNodeDisplayLabel(node);
   const left = node.x * transform.scale + transform.x;
+  const right = (node.x + node.width) * transform.scale + transform.x;
   const belowTop = (node.y + node.height) * transform.scale + transform.y + NODE_GAP;
   const aboveBottom = node.y * transform.scale + transform.y - NODE_GAP;
 
@@ -95,8 +96,10 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
     <form
       ref={barRef}
       className={`node-ask-bar${expanded ? ' node-ask-bar--expanded' : ''}`}
+      // Above the card, align to its right edge: the left side of that row
+      // holds frame titles and their tools.
       style={placeAbove
-        ? { left, top: aboveBottom, transform: 'translateY(-100%)' }
+        ? { left: right, top: aboveBottom, transform: 'translate(-100%, -100%)' }
         : { left, top: belowTop }}
       aria-label={t('canvas.askBar.label', { title: label })}
       onSubmit={(event) => { void handleSubmit(event); }}
