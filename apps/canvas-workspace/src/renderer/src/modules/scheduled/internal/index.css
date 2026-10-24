@@ -8,35 +8,16 @@
 }
 
 .scheduled-page__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 28px;
   max-width: 1120px;
   margin: 0 auto 24px;
 }
 
-.scheduled-page__header > div > span,
 .scheduled-editor__header > span {
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.scheduled-page__header h1 {
-  margin: 7px 0 0;
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.scheduled-page__header p {
-  margin: 9px 0 0;
-  color: var(--text-secondary);
-  font-size: 12px;
 }
 
 .scheduled-page__list {

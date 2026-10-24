@@ -6,6 +6,7 @@ import type {
   ReferenceNodeData,
   TextNodeData,
 } from "../types";
+import { DEFAULT_TEXT_NODE_TITLES } from "../../../shared/canvas-node-defaults";
 
 const TEXT_LABEL_MAX_CHARS = 10;
 const MINDMAP_LABEL_MAX_CHARS = 16;
@@ -60,7 +61,7 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
  */
 export function getNodeSearchTitle(node: CanvasNode): string {
   const title = node.title.trim();
-  return node.type === "text" && title === "Text" ? "" : title;
+  return node.type === "text" && DEFAULT_TEXT_NODE_TITLES.has(title) ? "" : title;
 }
 
 /**

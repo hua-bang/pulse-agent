@@ -1,6 +1,7 @@
 import './WorkspaceReferencePreview.css';
 import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode, CanvasSummaryBox, FrameNodeData, TextNodeData } from '../../../../../../../../shared/canvas';
+import { DEFAULT_TEXT_NODE_TITLES } from '../../../../../../../../shared/canvas-node-defaults';
 import { useI18n } from '../../../../../../i18n';
 import { textContentPreview } from '../../../../../../utils/nodeLabel';
 import { resolveFrameAccent } from '../../../node-bodies/FrameNodeBody/colorPresets';
@@ -37,7 +38,7 @@ const toLayout = (nodes: CanvasNode[]): Layout => ({
       type,
       // The canvas shows a text node's content, not its (usually "Text") title.
       title: type === 'text'
-        ? textContentPreview((data as TextNodeData).content, TEXT_LINE_MAX_CHARS) || (title === 'Text' ? '' : title)
+        ? textContentPreview((data as TextNodeData).content, TEXT_LINE_MAX_CHARS) || (DEFAULT_TEXT_NODE_TITLES.has(title) ? '' : title)
         : title,
       color: type === 'frame' ? (data as FrameNodeData).color || undefined : undefined,
       x,

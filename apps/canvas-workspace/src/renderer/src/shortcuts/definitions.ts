@@ -260,6 +260,15 @@ export const SHORTCUTS = {
     // input a keyboard black hole.
     editable: 'allow',
   },
+  'app.closeTab': {
+    owner: 'app',
+    // menu.ts moves the window-close role to Shift+Mod+W so this chord
+    // reaches the renderer. A focused terminal keeps Ctrl+W: xterm handles
+    // it and prevents default, and the dispatcher skips handled events.
+    bindings: [{ key: 'w', mod: true }],
+    // Works from a text field: Mod+W has no text-editing meaning.
+    editable: 'allow',
+  },
   // ---- Terminal-scoped ---------------------------------------------------
   // Only live while a terminal / coding-agent surface owns focus, so they may
   // deliberately share a chord with a global canvas/app binding — the focused

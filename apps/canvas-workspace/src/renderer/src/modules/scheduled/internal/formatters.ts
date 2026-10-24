@@ -1,4 +1,11 @@
-import type { ScheduledSchedule, ScheduledWeekday } from '../../../../../shared/scheduled';
+import {
+  MEMORY_REPORT_PROMPT,
+  MEMORY_REPORT_TITLE,
+  type ScheduledRunFinished,
+  type ScheduledSchedule,
+  type ScheduledTask,
+  type ScheduledWeekday,
+} from '../../../../../shared/scheduled';
 import type { useI18n } from '../../../i18n';
 
 type Translate = ReturnType<typeof useI18n>['t'];
@@ -53,4 +60,43 @@ export const timeLabel = (value: number | undefined, fallback: string): string =
     hour: '2-digit',
     minute: '2-digit',
   }).format(value);
+};
+
+/**
+ * Main seeds the built-in report in English because it does not know the UI
+ * language. Show the translation until the user edits the text; a saved edit
+ * becomes the stored value and is shown as typed.
+ */
+export const localizeBuiltInTasks = (tasks: ScheduledTask[], t: Translate): ScheduledTask[] =>
+  tasks.map((task) => {
+    if (task.source !== 'memory-report') return task;
+    return {
+      ...task,
+      title: task.title === MEMORY_REPORT_TITLE ? t('scheduled.memoryReport.title') : task.title,
+      prompt: task.prompt === MEMORY_REPORT_PROMPT ? t('scheduled.memoryReport.prompt') : task.prompt,
+    };
+  });
+
+/** Run notices carry the stored title, so they need the same translation. */
+export const localizeRunTitle = (run: ScheduledRunFinished, t: Translate): string =>
+  run.taskId === 'memory-report' && run.title === MEMORY_REPORT_TITLE
+    ? t('scheduled.memoryReport.title')
+    : run.title;
+
+/**
+ * The editor shows the translated built-in text and submits every field. Map
+ * an unchanged translation back to the seeded English, so a cadence-only
+ * edit keeps the stored text, and the other language still shows its own.
+ */
+export const restoreBuiltInTaskInput = <T extends { title?: string; prompt?: string }>(
+  task: ScheduledTask,
+  input: T,
+  t: Translate,
+): T => {
+  if (task.source !== 'memory-report') return input;
+  return {
+    ...input,
+    ...(input.title === t('scheduled.memoryReport.title') ? { title: MEMORY_REPORT_TITLE } : {}),
+    ...(input.prompt === t('scheduled.memoryReport.prompt') ? { prompt: MEMORY_REPORT_PROMPT } : {}),
+  };
 };

@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
+import { CLOSE_ACTIVE_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
 import { WorkspaceTabs } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -104,6 +105,14 @@ describe('WorkspaceTabs', () => {
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Close Alpha"]')!.click());
     expect(onOpenLauncher).toHaveBeenCalledTimes(1);
     expect(tabNames()).toEqual([]);
+  });
+
+  it('closes the active tab when the shortcut layer asks', async () => {
+    window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b']));
+    await render('b');
+    await act(async () => window.dispatchEvent(new Event(CLOSE_ACTIVE_TAB_EVENT)));
+    expect(onSelect).toHaveBeenCalledWith('a');
+    expect(tabNames()).toEqual(['Alpha']);
   });
 
   it('closing a background tab keeps the current workspace', async () => {

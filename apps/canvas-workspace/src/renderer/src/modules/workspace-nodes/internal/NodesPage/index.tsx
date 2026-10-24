@@ -3,6 +3,7 @@ import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import type { WorkspaceNodeListItem } from '../../../../types';
 import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui/Button';
+import { PageHeader } from '../../../../components/ui/PageHeader';
 import { useI18n } from '../../../../i18n';
 import { dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
@@ -92,28 +93,28 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
     <main className="workspace-nodes-page">
       <section className="workspace-nodes-page__main">
         <div className="workspace-nodes-page__top">
-          <header className="workspace-nodes-page__header">
-            <div>
-              <div className="workspace-nodes-page__title-row">
-                <h1>{t('workspaceNodes.nodes.title')}</h1>
-                {onOpenGraph && (
-                  <KnowledgeViewTabs value="list" onChange={(view) => view === 'graph' && onOpenGraph()} />
-                )}
-              </div>
-              <p>
+          <PageHeader
+            className="workspace-nodes-page__header"
+            kicker={t('workspaceNodes.nodes.kicker')}
+            title={t('workspaceNodes.nodes.title')}
+            titleAccessory={onOpenGraph && (
+              <KnowledgeViewTabs value="list" onChange={(view) => view === 'graph' && onOpenGraph()} />
+            )}
+            description={(
+              <>
                 {isFiltering && `${controller.filteredCount} / `}
                 {controller.nodesCount === 1
                   ? t('workspaceNodes.nodes.subtitleOne')
                   : t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}
-              </p>
-            </div>
-            <div className="workspace-nodes-page__header-actions">
+              </>
+            )}
+            actions={(
               <Button size="sm" onClick={() => void controller.reload()}>
                 <RefreshIcon size={14} />
                 {t('workspaceNodes.refresh')}
               </Button>
-            </div>
-          </header>
+            )}
+          />
 
           <NodeFilters
             query={controller.query}

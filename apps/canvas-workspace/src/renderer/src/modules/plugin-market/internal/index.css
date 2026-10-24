@@ -27,38 +27,6 @@
   margin-inline: auto;
 }
 
-.plugin-market__intro {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 28px;
-}
-
-.plugin-market__intro > div:first-child > span {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.plugin-market__intro h1 {
-  margin: 7px 0 0;
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
-  text-wrap: balance;
-}
-
-.plugin-market__intro p {
-  max-width: 65ch;
-  margin: 9px 0 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-
 .plugin-market__search {
   display: block;
   margin-top: 16px;
@@ -158,11 +126,6 @@
 @media (max-width: 720px) {
   .plugin-market {
     padding-inline: 18px;
-  }
-
-  .plugin-market__intro {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .plugin-market__toolbar-actions {

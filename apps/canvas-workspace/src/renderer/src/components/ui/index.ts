@@ -17,6 +17,7 @@ export { Select } from './Select';
 export type { SelectOption } from './Select';
 export { TextField } from './TextField';
 export { SectionHeader } from './SectionHeader';
+export { PageHeader } from './PageHeader';
 export { FieldRow } from './FieldRow';
 export { DropdownShell } from './DropdownShell';
 export { SegmentedControl } from './SegmentedControl';

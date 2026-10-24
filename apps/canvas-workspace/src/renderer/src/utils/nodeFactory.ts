@@ -7,6 +7,8 @@ import {
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 import { CANVAS_NODE_DEFAULTS, genTopicId } from '../../../shared/canvas-node-defaults';
+import { getInitialLanguage } from '../i18n';
+import { messages } from '../i18n/messages';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
@@ -52,19 +54,23 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
       nodeType: MOCK_CARD_NODE_TYPE,
       payload: { ...MOCK_CARD_DEFAULT_PAYLOAD },
     };
-    case 'mindmap':  return {
-      root: {
-        id: genTopicId(),
-        text: 'Central topic',
-        children: [
-          { id: genTopicId(), text: 'Idea 1', children: [] },
-          { id: genTopicId(), text: 'Idea 2', children: [] },
-          { id: genTopicId(), text: 'Idea 3', children: [] },
-        ],
-      },
-      layout: 'right',
-      rev: 0,
-    };
+    case 'mindmap': {
+      // Stored topic text, so it takes the UI language like default titles.
+      const copy = messages[getInitialLanguage()];
+      return {
+        root: {
+          id: genTopicId(),
+          text: copy['canvas.mindmapDefault.root'],
+          children: [1, 2, 3].map((n) => ({
+            id: genTopicId(),
+            text: copy['canvas.mindmapDefault.idea'].replace('{n}', String(n)),
+            children: [],
+          })),
+        },
+        layout: 'right',
+        rev: 0,
+      };
+    }
   }
 };
 
@@ -105,7 +111,9 @@ export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number
   return {
     id: genId(),
     type,
-    title: def.title,
+    // The title is stored, so it takes the UI language at creation time. A
+    // later language switch keeps it, like any title the user typed.
+    title: messages[getInitialLanguage()][`canvas.nodeDefaultTitle.${type}`],
     x,
     y,
     width: def.width,

@@ -197,8 +197,15 @@ export const GraphPage = ({
   return (
     <main className="workspace-graph-page" ref={containerRef}>
       <GraphToolbar
-        leading={onOpenList && (
-          <KnowledgeViewTabs value="graph" onChange={(view) => view === 'list' && onOpenList()} />
+        leading={(
+          // Same title and view switch as the list page, so switching views
+          // keeps the page's name in place.
+          <div className="workspace-graph-page__heading">
+            <h1>{t('workspaceNodes.nodes.title')}</h1>
+            {onOpenList && (
+              <KnowledgeViewTabs value="graph" onChange={(view) => view === 'list' && onOpenList()} />
+            )}
+          </div>
         )}
         search={(
           <GraphSearch

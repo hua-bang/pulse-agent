@@ -41,7 +41,7 @@ export const SkillsLibraryLoading = () => <LoadingBody />;
 
 export const SkillsRouteLoading = () => (
   <main className="skills-library skills-library--loading" aria-busy="true">
-    <header className="skills-library__header skills-library__loading-header" aria-hidden="true">
+    <header className="ui-page-header skills-library__header skills-library__loading-header" aria-hidden="true">
       <div>
         <Skeleton width="62px" height="9px" />
         <Skeleton width="118px" height="25px" />

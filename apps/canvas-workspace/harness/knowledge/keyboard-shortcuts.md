@@ -251,6 +251,15 @@ role remains. The `Edit` submenu keeps only `cut`/`copy`/`paste`
 remains. Any future renderer shortcut must check `menu.ts` for a role that
 already claims its chord before relying on that chord reaching the renderer.
 
+The default `fileMenu` and `windowMenu` roles are gone for the same reason:
+their window-close item claimed `CmdOrCtrl+W`. `menu.ts` builds explicit File
+and Window submenus whose `close` role uses `Shift+CmdOrCtrl+W`, so
+`app.closeTab` can own `Mod+W`. The tab bar keeps its open-tab state and loads
+lazily, so the handler sends `CLOSE_ACTIVE_TAB_EVENT` and `WorkspaceTabs`
+closes its active tab. Off the canvas route the handler does not prevent
+default. `Mod+W` is not in the webview forwarding list: a focused guest keeps
+the key.
+
 ## Webview forwarding whitelist chain
 
 Focus black holes are closed at the edges. Once focus moves into an embedded

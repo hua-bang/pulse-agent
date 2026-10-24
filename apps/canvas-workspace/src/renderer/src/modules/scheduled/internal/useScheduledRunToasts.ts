@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ScheduledRunFinished } from '../../../../../shared/scheduled';
 import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
+import { localizeRunTitle } from './formatters';
 
 /**
  * The completion signal for scheduled runs — in-app only, by design. There is
@@ -24,7 +25,8 @@ export const useScheduledRunToasts = (
   const openRef = useRef(onOpenRun);
   openRef.current = onOpenRun;
 
-  useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((run) => {
+  useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((stored) => {
+    const run = { ...stored, title: localizeRunTitle(stored, t) };
     // Run now already opens the exact task conversation before it starts.
     // A second success toast would point away from the result being watched.
     if (run.trigger === 'manual' && run.ok) return;

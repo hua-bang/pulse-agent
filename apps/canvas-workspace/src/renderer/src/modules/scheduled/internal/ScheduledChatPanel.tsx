@@ -7,6 +7,7 @@ import type { AgentScope } from '../../../types';
 import { ChatPanelLazy as ChatPanel } from '../../../modules/chat/lazy';
 import { useI18n } from '../../../i18n';
 import { Button } from '../../../components/ui';
+import { localizeBuiltInTasks } from './formatters';
 import './index.css';
 
 interface ScheduledChatPanelProps {
@@ -43,7 +44,7 @@ export const ScheduledChatPanel = ({
   useEffect(() => {
     let active = true;
     const updateTask = (tasks: ScheduledTask[]) => {
-      if (active) setTask(tasks.find((candidate) => candidate.id === taskId));
+      if (active) setTask(localizeBuiltInTasks(tasks, t).find((candidate) => candidate.id === taskId));
     };
     void window.canvasWorkspace.scheduled.list().then((response) => {
       if (response.ok && response.tasks) updateTask(response.tasks);
@@ -53,7 +54,7 @@ export const ScheduledChatPanel = ({
       active = false;
       unsubscribe();
     };
-  }, [taskId]);
+  }, [t, taskId]);
 
   const banner = task?.status === 'running' ? (
     <div className="scheduled-chat-status" role="status">

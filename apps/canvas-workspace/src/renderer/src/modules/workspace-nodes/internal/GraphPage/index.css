@@ -5,6 +5,21 @@
     linear-gradient(180deg, var(--surface) 0%, var(--bg) 58%, var(--bg) 100%);
 }
 
+.workspace-graph-page__heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-right: 6px;
+}
+
+.workspace-graph-page__heading h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .workspace-graph-force-layer {
   position: absolute;
   inset: 0;

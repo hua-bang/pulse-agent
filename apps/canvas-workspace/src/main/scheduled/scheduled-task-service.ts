@@ -10,7 +10,12 @@ import type {
   ScheduledTaskInput,
   ScheduledTaskPatch,
 } from '../../shared/scheduled';
-import { computeNextRunAt, normalizeSchedule } from '../../shared/scheduled';
+import {
+  MEMORY_REPORT_PROMPT,
+  MEMORY_REPORT_TITLE,
+  computeNextRunAt,
+  normalizeSchedule,
+} from '../../shared/scheduled';
 
 interface ScheduledTaskState {
   version: 1;
@@ -124,8 +129,8 @@ export class ScheduledTaskService {
     const schedule = MEMORY_REPORT_SCHEDULE;
     const task: ScheduledTask = {
       id: 'memory-report',
-      title: 'Memory report',
-      prompt: 'Review the last 7 days of Canvas activity and prepare a memory report.',
+      title: MEMORY_REPORT_TITLE,
+      prompt: MEMORY_REPORT_PROMPT,
       schedule,
       enabled: false,
       source: 'memory-report',
