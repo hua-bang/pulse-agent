@@ -53,6 +53,10 @@ const buildSchedule = (
   }
 };
 
+const RequiredMark = () => (
+  <span className="scheduled-editor__required" aria-hidden="true">*</span>
+);
+
 interface Props {
   open: boolean;
   task?: ScheduledTask;
@@ -70,6 +74,7 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
   const [weekday, setWeekday] = useState<ScheduledWeekday>(DEFAULT_WEEKDAY);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +86,22 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
       : DEFAULT_TIME_OF_DAY);
     setWeekday(task?.schedule.kind === 'weekly' ? task.schedule.weekday : DEFAULT_WEEKDAY);
     setGenerating(false);
+    setConfirmDiscard(false);
   }, [open, task]);
+
+  const dirty = title.trim() !== (task?.title ?? '').trim()
+    || prompt.trim() !== (task?.prompt ?? '').trim();
+
+  // Esc and a backdrop press are easy to hit by accident, so they never
+  // drop typed text silently: the first one asks, a second one discards.
+  // The Cancel button is an explicit choice and closes at once.
+  const requestClose = () => {
+    if (!dirty || confirmDiscard) {
+      onClose();
+      return;
+    }
+    setConfirmDiscard(true);
+  };
 
   const schedule = useMemo(
     () => buildSchedule(cadence, timeOfDay, weekday),
@@ -154,7 +174,7 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={requestClose}
       width={560}
       labelledBy="scheduled-editor-title"
       className="scheduled-editor"
@@ -167,7 +187,8 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
       </header>
       <div className="scheduled-editor__body">
         <TextField
-          label={t('scheduled.taskName')}
+          label={<>{t('scheduled.taskName')}<RequiredMark /></>}
+          required
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder={t('scheduled.taskNamePlaceholder')}
@@ -175,7 +196,10 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
         />
         <div className="scheduled-editor__prompt-field">
           <div className="scheduled-editor__prompt-heading">
-            <span id="scheduled-editor-prompt-label">{t('scheduled.prompt')}</span>
+            <span id="scheduled-editor-prompt-label">
+              {t('scheduled.prompt')}
+              <RequiredMark />
+            </span>
             <Button
               size="xs"
               disabled={(!title.trim() && !prompt.trim()) || generating}
@@ -189,6 +213,7 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
             multiline
             rows={7}
             aria-labelledby="scheduled-editor-prompt-label"
+            required
             hint={t('scheduled.promptHint')}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -233,7 +258,14 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
         )}
       </div>
       <footer className="scheduled-editor__actions">
-        <Button onClick={onClose}>{t('scheduled.cancel')}</Button>
+        {confirmDiscard && (
+          <span className="scheduled-editor__discard" role="status">
+            {t('scheduled.discardPrompt')}
+          </span>
+        )}
+        <Button onClick={onClose}>
+          {confirmDiscard ? t('scheduled.discard') : t('scheduled.cancel')}
+        </Button>
         <Button
           variant="primary"
           disabled={!title.trim() || !prompt.trim() || !schedule || saving}
