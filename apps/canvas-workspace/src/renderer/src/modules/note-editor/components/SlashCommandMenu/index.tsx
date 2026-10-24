@@ -13,6 +13,7 @@ interface Props {
   panelId: string;
   x: number;
   y: number;
+  caretTop?: number;
   query: string;
   selectedIndex: number;
   items: SlashCmd[];
@@ -24,6 +25,7 @@ export const SlashCommandMenu = ({
   panelId,
   x,
   y,
+  caretTop,
   query,
   selectedIndex,
   items,
@@ -44,6 +46,7 @@ export const SlashCommandMenu = ({
     <Popover
       x={x}
       y={y + 6}
+      flipAboveY={caretTop === undefined ? undefined : caretTop - 6}
       className="slash-menu"
       role="listbox"
       panelId={panelId}

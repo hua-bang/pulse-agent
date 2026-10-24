@@ -14,6 +14,10 @@ const VIEWPORT_MARGIN_PX = 8;
 export const useViewportClampedPosition = <T extends HTMLElement>(
   x: number,
   y: number,
+  /** When set and the popup does not fit below `y`, its bottom edge goes
+   *  here instead (e.g. the caret's top), so it opens above the anchor
+   *  rather than being pulled up over it. */
+  flipAboveY?: number,
 ) => {
   const ref = useRef<T>(null);
   const [pos, setPos] = useState({ left: x, top: y });
@@ -27,9 +31,13 @@ export const useViewportClampedPosition = <T extends HTMLElement>(
     const clamp = () => {
       const maxLeft = window.innerWidth - el.offsetWidth - VIEWPORT_MARGIN_PX;
       const maxTop = window.innerHeight - el.offsetHeight - VIEWPORT_MARGIN_PX;
+      const flipTop = flipAboveY === undefined ? undefined : flipAboveY - el.offsetHeight;
+      const top = y > maxTop && flipTop !== undefined && flipTop >= VIEWPORT_MARGIN_PX
+        ? flipTop
+        : Math.max(VIEWPORT_MARGIN_PX, Math.min(y, maxTop));
       setPos({
         left: Math.max(VIEWPORT_MARGIN_PX, Math.min(x, maxLeft)),
-        top: Math.max(VIEWPORT_MARGIN_PX, Math.min(y, maxTop)),
+        top,
       });
     };
     clamp();
@@ -39,7 +47,7 @@ export const useViewportClampedPosition = <T extends HTMLElement>(
     const observer = new ResizeObserver(clamp);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [x, y]);
+  }, [x, y, flipAboveY]);
 
   return { ref, pos };
 };
