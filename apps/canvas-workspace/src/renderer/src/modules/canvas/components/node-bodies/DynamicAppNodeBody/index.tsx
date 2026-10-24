@@ -16,10 +16,14 @@
  * `window.canvasWorkspace.plugin.invoke('dynamic-app', ...)`.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import "./index.css";
-import { DynamicAppInspector } from "./Inspector";
 import type { CanvasNode, DynamicAppNodeData } from "../../../../../types";
+
+// The inspector only opens on demand, so it stays out of the entry chunk.
+const DynamicAppInspector = lazy(() =>
+  import("./Inspector").then((module) => ({ default: module.DynamicAppInspector })),
+);
 
 interface DynamicAppNodeBodyProps {
   node: CanvasNode;
@@ -151,12 +155,14 @@ export function DynamicAppNodeBody({
           sandbox="allow-scripts allow-same-origin allow-forms"
         />
         {inspectorOpen && (
-          <DynamicAppInspector
-            workspaceId={workspaceId}
-            dynamicAppId={dynamicAppId}
-            apiUrl={apiUrl}
-            onUrlChanged={handleUrlChanged}
-          />
+          <Suspense fallback={null}>
+            <DynamicAppInspector
+              workspaceId={workspaceId}
+              dynamicAppId={dynamicAppId}
+              apiUrl={apiUrl}
+              onUrlChanged={handleUrlChanged}
+            />
+          </Suspense>
         )}
       </div>
     </div>
