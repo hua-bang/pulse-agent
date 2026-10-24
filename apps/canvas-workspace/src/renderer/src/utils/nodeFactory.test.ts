@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PluginNodeData } from '../types';
+import type { MindmapNodeData, PluginNodeData } from '../types';
 import { createDefaultNode, createTodoListPluginNodePatch } from './nodeFactory';
 import {
   MOCK_CARD_DEFAULT_PAYLOAD,
@@ -34,6 +34,9 @@ describe('createDefaultNode titles', () => {
     useLanguage('zh');
     expect(createDefaultNode('text', 0, 0).title).toBe('文本');
     expect(createDefaultNode('file', 0, 0).title).toBe('未命名');
+    const mindmap = createDefaultNode('mindmap', 0, 0).data as MindmapNodeData;
+    expect(mindmap.root.text).toBe('中心主题');
+    expect(mindmap.root.children.map((topic) => topic.text)).toEqual(['想法 1', '想法 2', '想法 3']);
   });
 
   it('lists every default text title that previews skip', () => {

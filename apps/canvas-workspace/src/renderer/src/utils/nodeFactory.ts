@@ -54,19 +54,23 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
       nodeType: MOCK_CARD_NODE_TYPE,
       payload: { ...MOCK_CARD_DEFAULT_PAYLOAD },
     };
-    case 'mindmap':  return {
-      root: {
-        id: genTopicId(),
-        text: 'Central topic',
-        children: [
-          { id: genTopicId(), text: 'Idea 1', children: [] },
-          { id: genTopicId(), text: 'Idea 2', children: [] },
-          { id: genTopicId(), text: 'Idea 3', children: [] },
-        ],
-      },
-      layout: 'right',
-      rev: 0,
-    };
+    case 'mindmap': {
+      // Stored topic text, so it takes the UI language like default titles.
+      const copy = messages[getInitialLanguage()];
+      return {
+        root: {
+          id: genTopicId(),
+          text: copy['canvas.mindmapDefault.root'],
+          children: [1, 2, 3].map((n) => ({
+            id: genTopicId(),
+            text: copy['canvas.mindmapDefault.idea'].replace('{n}', String(n)),
+            children: [],
+          })),
+        },
+        layout: 'right',
+        rev: 0,
+      };
+    }
   }
 };
 
