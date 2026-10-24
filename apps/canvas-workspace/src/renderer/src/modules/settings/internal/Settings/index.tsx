@@ -30,6 +30,7 @@ import { McpManager } from '../settings-config/McpManager';
 import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../../../i18n';
 import { runViewTransition } from '../../../../shared/viewTransition';
+import { isImeComposing } from '../../../../utils/ime';
 import './index.css';
 
 type SettingsPage = 'models' | 'chat' | 'agent' | 'tools-integrations' | 'general' | 'experimental';
@@ -152,6 +153,19 @@ export const Settings = ({ initialSection, onClose }: SettingsProps) => {
     setActivePage(target.page);
     if (target.toolsTab) setToolsTab(target.toolsTab);
   }, [initialSection]);
+
+  // Escape leaves the page like its close button, but not while a field has
+  // focus (Escape there belongs to the field) or a dialog already used it.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || isImeComposing(event)) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.closest('input, textarea, select, [contenteditable="true"]')) return;
+      onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const activeDef = SECTIONS.find((s) => s.id === activePage) ?? SECTIONS[0];
 

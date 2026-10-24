@@ -153,6 +153,17 @@ export const useCanvasController = ({
     return receipt ?? { status: 'unavailable' as const, target: null };
   }, [getLiveTransform, onAddToChat, revealNode]);
 
+  // Opening the chat dock narrows the canvas; keep a lone selected node,
+  // usually the one about to be discussed, from ending up under the dock.
+  const chatWasOpenRef = useRef(chatPanelOpen);
+  useEffect(() => {
+    const opened = chatPanelOpen && !chatWasOpenRef.current;
+    chatWasOpenRef.current = chatPanelOpen;
+    const node = opened && selectedNodeIds.length === 1
+      ? nodesRef.current.find((item) => item.id === selectedNodeIds[0]) : undefined;
+    if (node) void revealNode(node, getLiveTransform);
+  }, [chatPanelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const creation = useCanvasCreationActions({
     surface: { canvasId, canvasName, rootFolder, containerRef, screenToCanvas },
     document: {
@@ -359,7 +370,8 @@ export const useCanvasController = ({
     fitAllNodes, resetTransform, refreshCanvas: reloadCanvas,
     chatPanelOpen, onChatToggle,
     referenceDrawerOpen, onReferenceToggle,
-    onPinReferenceNode, openShortcuts,
+    onPinReferenceNode, openShortcuts, renameNode,
+    onAddNodeToChat: onAddToChat ? (nodeId) => { void addReferenceToChat(nodeId); } : undefined,
     focusModeActive: focus.focusModeActive,
     focusModeAvailable: focus.focusModeAvailable,
     toggleFocusMode: focus.toggleFocusMode,

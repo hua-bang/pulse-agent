@@ -76,6 +76,12 @@
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  /* A button centres its content vertically, so a card with a shorter
+   * description sat lower than its neighbours. Stack from the top. */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 

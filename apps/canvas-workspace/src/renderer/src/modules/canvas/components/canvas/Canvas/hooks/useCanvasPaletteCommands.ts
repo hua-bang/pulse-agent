@@ -33,6 +33,8 @@ interface Options {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onPinReferenceNode?: (nodeId: string) => void;
+  renameNode: (nodeId: string) => void;
+  onAddNodeToChat?: (nodeId: string) => void;
   openShortcuts: () => void;
   focusModeActive: boolean;
   focusModeAvailable: boolean;
@@ -63,6 +65,8 @@ export const useCanvasPaletteCommands = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onPinReferenceNode,
+  renameNode,
+  onAddNodeToChat,
   openShortcuts,
   focusModeActive,
   focusModeAvailable,
@@ -139,6 +143,28 @@ export const useCanvasPaletteCommands = ({
         enabled: selectionCount > 0,
         run: () => {
           wrapSelectedNodesInFrame();
+        },
+      },
+      {
+        id: 'rename-selection',
+        group: 'edit',
+        title: t('canvas.palette.command.renameSelected'),
+        shortcut: formatShortcutId('canvas.renameSelection'),
+        aliases: ['rename', 'title'],
+        enabled: selectionCount === 1,
+        run: () => {
+          const [nodeId] = selectedNodeIds;
+          if (nodeId) renameNode(nodeId);
+        },
+      },
+      {
+        id: 'add-selection-to-chat',
+        group: 'view',
+        title: t('canvas.palette.command.addSelectedToChat'),
+        aliases: ['chat', 'ask', 'context'],
+        enabled: selectionCount > 0 && !!onAddNodeToChat,
+        run: () => {
+          for (const nodeId of selectedNodeIds) onAddNodeToChat?.(nodeId);
         },
       },
       {
@@ -304,6 +330,8 @@ export const useCanvasPaletteCommands = ({
     referenceDrawerOpen,
     onReferenceToggle,
     onPinReferenceNode,
+    renameNode,
+    onAddNodeToChat,
     openShortcuts,
     focusModeActive,
     focusModeAvailable,
