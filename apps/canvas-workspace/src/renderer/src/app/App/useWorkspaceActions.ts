@@ -29,6 +29,7 @@ export const useWorkspaceActions = ({
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
+    restoreDeletedWorkspace,
     setRootFolder,
     importWorkspace,
     createFolder,
@@ -66,39 +67,17 @@ export const useWorkspaceActions = ({
     });
   }, [workspaces, renameWorkspace, notify, t]);
 
+  // The confirm, toast, and undo flow loads on first use, outside the
+  // startup bundle.
   const remove = useCallback(async (id: string) => {
-    const workspace = workspaces.find((item) => item.id === id);
+    const index = workspaces.findIndex((item) => item.id === id);
+    const workspace = workspaces[index];
     if (!workspace) return;
-    const accepted = await confirm({
-      intent: 'danger',
-      title: t('app.deleteWorkspaceTitle', { name: workspace.name }),
-      description: t('app.deleteWorkspaceDescription'),
-      confirmLabel: t('app.deleteWorkspaceConfirm'),
+    const { confirmAndDeleteWorkspace } = await import('./workspaceDeleteFlow');
+    await confirmAndDeleteWorkspace(workspace, index, {
+      confirm, notify, updateToast, t, deleteWorkspace, restoreDeletedWorkspace, select, enterChatView,
     });
-    if (!accepted) return;
-    const toastId = notify({
-      tone: 'loading',
-      title: t('app.deletingWorkspaceTitle', { name: workspace.name }),
-      description: t('app.deletingWorkspaceDescription'),
-    });
-    const result = await deleteWorkspace(id);
-    if (!result.ok) {
-      updateToast(toastId, {
-        tone: 'error',
-        title: t('app.workspaceDeletionFailed'),
-        description: result.error ?? t('app.workspaceDeletionFailedDescription'),
-        autoCloseMs: 4200,
-      });
-      return;
-    }
-    updateToast(toastId, {
-      tone: 'success',
-      title: t('app.workspaceDeleted'),
-      description: workspace.name,
-      autoCloseMs: 2400,
-    });
-    if (result.switchedToEmpty) enterChatView();
-  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, enterChatView, t]);
+  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, restoreDeletedWorkspace, select, enterChatView, t]);
 
   const exportWorkspace = useCallback(async (id: string) => {
     const actions = await import('./workspaceArchiveActions');

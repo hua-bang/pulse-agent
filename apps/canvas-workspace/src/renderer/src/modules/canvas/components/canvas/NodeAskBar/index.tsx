@@ -10,6 +10,7 @@ import './index.css';
 
 /** Screen-space gap between the selected card and the bar. */
 const NODE_GAP = 10;
+const VIEWPORT_GAP = 8;
 
 interface Props {
   node: CanvasNode;
@@ -31,9 +32,11 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [placeAbove, setPlaceAbove] = useState(false);
+  const [aboveLeft, setAboveLeft] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const label = getNodeDisplayLabel(node);
   const left = node.x * transform.scale + transform.x;
+  const right = (node.x + node.width) * transform.scale + transform.x;
   const belowTop = (node.y + node.height) * transform.scale + transform.y + NODE_GAP;
   const aboveBottom = node.y * transform.scale + transform.y - NODE_GAP;
 
@@ -49,7 +52,12 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
     if (!bar || !host) return;
     const height = bar.offsetHeight;
     setPlaceAbove(belowTop + height > host.clientHeight && aboveBottom - height > 0);
-  }, [aboveBottom, belowTop, expanded]);
+    // Above the card, align to its right edge (the left side of that row
+    // holds frame titles and their tools), but stay inside the canvas.
+    const width = bar.offsetWidth;
+    const maxLeft = Math.max(VIEWPORT_GAP, host.clientWidth - width - VIEWPORT_GAP);
+    setAboveLeft(Math.min(Math.max(right - width, VIEWPORT_GAP), maxLeft));
+  }, [aboveBottom, belowTop, expanded, right]);
 
   const handleBlur = (event: FocusEvent<HTMLFormElement>) => {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
@@ -96,7 +104,7 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
       ref={barRef}
       className={`node-ask-bar${expanded ? ' node-ask-bar--expanded' : ''}`}
       style={placeAbove
-        ? { left, top: aboveBottom, transform: 'translateY(-100%)' }
+        ? { left: aboveLeft, top: aboveBottom, transform: 'translateY(-100%)' }
         : { left, top: belowTop }}
       aria-label={t('canvas.askBar.label', { title: label })}
       onSubmit={(event) => { void handleSubmit(event); }}

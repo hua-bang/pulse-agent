@@ -47,6 +47,35 @@ export async function trashWorkspace(root: string, workspaceId: string): Promise
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding }));
 }
 
+/**
+ * Undo for an app-side delete. Like the CLI restore, it publishes the saved
+ * manifest entry first (reads hide it until SQL commits), then restores SQL
+ * visibility, so a failed manifest write leaves the workspace in trash.
+ */
+export async function restoreTrashedWorkspace(root: string, workspaceId: string): Promise<JsonObject> {
+  if (!isSafeNodeId(workspaceId) || workspaceId === MANIFEST_ID) {
+    throw new StorageError('invalid_argument', 'Invalid workspace id');
+  }
+  return withLegacyCanvasWrite(root, async () => {
+    const storage = await getLocalCanvasStorage(root);
+    if (!storage) throw new StorageError('storage_unavailable', 'Workspace storage is unavailable');
+    const record = await storage.workspaces.getTrashed(workspaceId);
+    if (!record) throw new StorageError('not_found', `Deleted workspace not found: ${workspaceId}`);
+    const entry: JsonObject = {
+      ...record.metadata,
+      id: workspaceId,
+      name: typeof record.metadata.name === 'string' ? record.metadata.name : workspaceId,
+    };
+    const manifest = await readRawManifest(root);
+    const others = (Array.isArray(manifest.workspaces) ? manifest.workspaces : [])
+      .filter(item => !(object(item) && item.id === workspaceId));
+    const next = { ...manifest, workspaces: [...others, entry] };
+    await atomicWriteJson(getCanvasJsonPath(MANIFEST_ID, root), JSON.stringify(next, null, 2), { rollingBackup: true });
+    await storage.workspaces.restoreBundle(workspaceId, record.revision, record.generation);
+    return entry;
+  }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
+}
+
 /** Preserve restored/externally-created entries against an older renderer list. */
 export async function saveWorkspaceManifest(root: string, input: unknown): Promise<void> {
   if (!object(input)) throw new StorageError('invalid_argument', 'Workspace manifest must be an object');

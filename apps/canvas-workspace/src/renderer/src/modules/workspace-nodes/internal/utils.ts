@@ -1,6 +1,7 @@
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../../types';
 import type { I18nKey } from '../../../i18n';
 import { isKnowledgeNodeType } from '../../../shared/knowledgeNodes';
+import { textContentPreview } from '../../../utils/nodeLabel';
 
 export { isKnowledgeNodeType } from '../../../shared/knowledgeNodes';
 
@@ -40,7 +41,15 @@ export function getNodeTitle(
     if (display) return display;
   }
   const storedTitle = node.title?.trim();
-  const isMindmapPlaceholder = node.type === 'mindmap' && storedTitle?.toLowerCase() === 'mindmap';
+  // "Text" and "Mindmap" are type placeholders, not titles; the list derives
+  // the same content preview, so the detail header matches the card.
+  const isPlaceholder = storedTitle?.toLowerCase() === node.type;
+  const isMindmapPlaceholder = node.type === 'mindmap' && isPlaceholder;
+  if (storedTitle && !isPlaceholder) return storedTitle;
+  if ('data' in node && node.type === 'text' && typeof node.data?.content === 'string') {
+    const preview = textContentPreview(node.data.content, 48);
+    if (preview) return preview;
+  }
   if (storedTitle && !isMindmapPlaceholder) return storedTitle;
   if ('data' in node && node.type === 'mindmap') {
     const root = node.data?.root;
@@ -86,6 +95,18 @@ export function getNodeSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord
     if (typeof value === 'string' && value.trim()) return value;
   }
   return '';
+}
+
+/**
+ * A text or note node the user never filled in: no content, no tags, no AI
+ * insight, and only a placeholder title. Knowledge hides these; they are
+ * canvas scaffolding, not knowledge.
+ */
+export function isBlankKnowledgeNode(node: WorkspaceNodeListItem): boolean {
+  if (node.type !== 'text' && node.type !== 'file') return false;
+  if (getNodeSummary(node) || getNodeAiSummary(node) || getNodeTags(node).length > 0) return false;
+  const title = node.title?.trim().toLowerCase() ?? '';
+  return !title || title === node.type || title === 'untitled';
 }
 
 export function getNodeAiSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {

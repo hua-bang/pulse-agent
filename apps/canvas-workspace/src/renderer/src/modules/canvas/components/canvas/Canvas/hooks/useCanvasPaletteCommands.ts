@@ -16,7 +16,7 @@ interface Options {
    *  fresh state without forcing the memo to invalidate on every node
    *  edit. */
   nodesRef: MutableRefObject<CanvasNode[]>;
-  duplicateNode: (id: string) => CanvasNode | null;
+  duplicateNodes: (ids: readonly string[]) => CanvasNode[];
   requestRemoveNodes: (ids: string[]) => void | Promise<void>;
   groupSelectedNodes: () => void;
   ungroupSelectedNodes: () => void;
@@ -51,7 +51,7 @@ export const useCanvasPaletteCommands = ({
   selectedNodeIds,
   setSelectedNodeIds,
   nodesRef,
-  duplicateNode,
+  duplicateNodes,
   requestRemoveNodes,
   groupSelectedNodes,
   ungroupSelectedNodes,
@@ -87,12 +87,8 @@ export const useCanvasPaletteCommands = ({
         shortcut: formatShortcutId('canvas.duplicate'),
         enabled: selectionCount > 0,
         run: () => {
-          const created: string[] = [];
-          for (const id of selectedNodeIds) {
-            const copy = duplicateNode(id);
-            if (copy) created.push(copy.id);
-          }
-          if (created.length > 0) setSelectedNodeIds(created);
+          const created = duplicateNodes(selectedNodeIds);
+          if (created.length > 0) setSelectedNodeIds(created.map(node => node.id));
         },
       },
       {
@@ -316,7 +312,7 @@ export const useCanvasPaletteCommands = ({
     selectedNodeIds,
     setSelectedNodeIds,
     nodesRef,
-    duplicateNode,
+    duplicateNodes,
     requestRemoveNodes,
     groupSelectedNodes,
     ungroupSelectedNodes,

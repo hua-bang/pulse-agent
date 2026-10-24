@@ -1,8 +1,12 @@
 import { lazy, Suspense, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode } from '../../../../../types';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
-import { MindmapNodeBody } from '../../node-bodies/MindmapNodeBody';
 import { AddToChatButton, CloseButton, FocusButton, FullscreenButton, OpenDetailButton } from './NodeButtons';
+
+// Loads with the first mind map on a canvas, like the other node bodies.
+const MindmapNodeBody = lazy(() =>
+  import('../../node-bodies/MindmapNodeBody').then((module) => ({ default: module.MindmapNodeBody })),
+);
 
 // Mounts only on right-click; kept out of the entry chunk like the canvas menu.
 const NodeContextMenu = lazy(() =>
@@ -85,17 +89,19 @@ export const MindmapCanvasNode = ({
       }}
     >
       <div className="node-body node-body--mindmap">
-        <MindmapNodeBody
-          node={node}
-          isSelected={isSelected}
-          isOuterDragging={isDragging}
-          onUpdate={onUpdate}
-          onSelectNode={onSelect}
-          onAutoResize={onAutoResize}
-          onMergeTopic={onMergeMindmapTopic}
-          onSplitTopic={onSplitMindmapTopic}
-          readOnly={readOnly}
-        />
+        <Suspense fallback={null}>
+          <MindmapNodeBody
+            node={node}
+            isSelected={isSelected}
+            isOuterDragging={isDragging}
+            onUpdate={onUpdate}
+            onSelectNode={onSelect}
+            onAutoResize={onAutoResize}
+            onMergeTopic={onMergeMindmapTopic}
+            onSplitTopic={onSplitMindmapTopic}
+            readOnly={readOnly}
+          />
+        </Suspense>
       </div>
       <div className="node-header__actions mindmap-node-actions">
         {handleOpenDetail ? <OpenDetailButton onClick={handleOpenDetail} /> : null}

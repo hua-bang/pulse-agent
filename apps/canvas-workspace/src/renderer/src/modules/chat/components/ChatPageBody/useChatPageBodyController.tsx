@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, type KeyboardEventHandler } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } from 'react';
 import { useRightDock, useRightDockState } from '../../../../shared/dockPort';
 import { isDockContentTabVisible, toggleFullPageDockContentTabs } from '../../../../shared/dock/dock-content-tabs';
 import { SessionBackBar } from '../SessionBackBar';
@@ -238,6 +238,21 @@ export const useChatPageBodyController = ({
     conversationSessionId,
     handleNewSession: startPromptSession,
   });
+  // The page mounts on entry (Ctrl+Shift+L, sidebar, a session link), so put
+  // the caret in the composer once it is ready, unless the user already
+  // focused another text field.
+  const autoFocusedRef = useRef(false);
+  useEffect(() => {
+    if (autoFocusedRef.current || sessionLoading) return;
+    const frame = requestAnimationFrame(() => {
+      autoFocusedRef.current = true;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.closest('input, textarea, [contenteditable="true"]')) return;
+      focusInput();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusInput, sessionLoading]);
+
   useRegisterChatTarget(target, {
     insertNode: busyElsewhere || sessionLoading ? undefined : insertNodeMention,
     insertDomSelection: busyElsewhere || sessionLoading ? undefined : insertDomSelectionMention,

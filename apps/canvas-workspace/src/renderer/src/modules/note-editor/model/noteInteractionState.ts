@@ -3,6 +3,8 @@ import { clampIndexMove } from '../../../components/ui/hooks/useIndexNav';
 export interface NoteSlashMenuState {
   x: number;
   y: number;
+  /** Caret top, where the menu flips to when there is no room below. */
+  top?: number;
   query: string;
   index: number;
   slashFrom: number;

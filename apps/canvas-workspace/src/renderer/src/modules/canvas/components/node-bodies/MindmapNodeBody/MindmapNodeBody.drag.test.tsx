@@ -146,7 +146,7 @@ describe('MindmapNodeBody drag gestures', () => {
     });
   });
 
-  it('preserves the first printable character through the full mindmap body', () => {
+  it('starts editing with the first printable character through the full mindmap body', () => {
     renderMaps();
     const sourceRoot = host.querySelector<HTMLElement>(
       '[data-mindmap-node-id="source-map"] [data-topic-id="source-root"]',
@@ -163,7 +163,7 @@ describe('MindmapNodeBody drag gestures', () => {
 
     expect(
       sourceRoot.querySelector<HTMLElement>('.mindmap-topic-text')?.innerText,
-    ).toBe('SourceZ');
+    ).toBe('Z');
   });
 
   it.each([

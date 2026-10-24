@@ -95,6 +95,13 @@ export const WorkspaceItem = ({
           <button
             className={`sidebar-item${activeId === ws.id && activeView === 'canvas' ? ' sidebar-item--active' : ''}`}
             onClick={() => onSelect(ws.id)}
+            // Double-click renames and right-click opens the same menu as
+            // the "more" button, matching other sidebars.
+            onDoubleClick={() => onStartRename(ws)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuOpen(true);
+            }}
             title={ws.name}
           >
             <span className="sidebar-item-icon">

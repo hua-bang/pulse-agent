@@ -133,6 +133,20 @@ describe('Sidebar owner interactions', () => {
     expect(props.onRename).toHaveBeenCalledWith('a', 'Renamed');
   });
 
+  it('renames on double-click and opens the row menu on right-click', async () => {
+    const row = element<HTMLButtonElement>('.sidebar-item[title="Alpha"]');
+    act(() => { row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+    expect(element<HTMLInputElement>('input').value).toBe('Alpha');
+    key('Escape');
+
+    const contextMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    act(() => { element('.sidebar-item[title="Alpha"]').dispatchEvent(contextMenu); });
+    expect(contextMenu.defaultPrevented).toBe(true);
+    await vi.waitFor(() => {
+      if (!document.body.querySelector('.sidebar-item-menu .sidebar-item-rename')) throw new Error('menu closed');
+    });
+  });
+
   it('creates inside the requested folder and clears the target when creation is canceled', () => {
     click('.sidebar-folder-action');
     expect(props.onToggleFolder).toHaveBeenCalledWith('f');

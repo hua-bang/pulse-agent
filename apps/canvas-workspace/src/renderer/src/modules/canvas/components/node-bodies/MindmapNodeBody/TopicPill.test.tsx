@@ -37,7 +37,7 @@ describe('TopicPill editing', () => {
     host.remove();
   });
 
-  it('keeps the first printable character when typing starts from selection', () => {
+  it('replaces the text with the first printable character when typing starts from selection', () => {
     const Harness = () => {
       const [editing, setEditing] = useState(false);
       const [initialInput, setInitialInput] = useState<string>();
@@ -78,8 +78,37 @@ describe('TopicPill editing', () => {
     });
 
     expect(host.querySelector<HTMLElement>('.mindmap-topic-text')?.innerText)
-      .toBe('Central topica');
+      .toBe('a');
     expect(document.activeElement).toBe(host.querySelector('.mindmap-topic-text'));
+  });
+
+  it('gives up keyboard focus when the mind map is deselected', () => {
+    const renderPill = (outerCanvasSelected: boolean) => (
+      <I18nProvider>
+        <TopicPill
+          topic={topic}
+          isSelected
+          isEditing={false}
+          outerCanvasSelected={outerCanvasSelected}
+          isDragSource={false}
+          dropHint={null}
+          onBeginReorder={vi.fn()}
+          onAddChild={vi.fn()}
+          onSelect={vi.fn()}
+          onEnterEdit={vi.fn()}
+          onCommitText={vi.fn()}
+          onToggleCollapsed={vi.fn()}
+          onKeyAction={vi.fn()}
+        />
+      </I18nProvider>
+    );
+    act(() => root.render(renderPill(true)));
+    const pill = host.querySelector<HTMLElement>('.mindmap-topic');
+    expect(document.activeElement).toBe(pill);
+
+    act(() => root.render(renderPill(false)));
+
+    expect(document.activeElement).not.toBe(pill);
   });
 
   it('commits the current text before Escape returns to selection', () => {

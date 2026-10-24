@@ -30,6 +30,13 @@
   -webkit-user-select: text;
 }
 
+.deferred-editor-input:focus,
+.deferred-editor-input:focus-visible {
+  /* The accent border already marks this stand-in as active; a second
+     focus ring around it read as a stray orange box. */
+  outline: none;
+}
+
 .deferred-editor-input[hidden] {
   display: none;
 }

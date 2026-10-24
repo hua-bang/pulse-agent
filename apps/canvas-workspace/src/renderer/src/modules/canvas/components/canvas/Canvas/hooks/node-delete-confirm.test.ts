@@ -59,6 +59,13 @@ describe('getNodeDeleteConfirm', () => {
     });
   });
 
+  it('names a single mind map instead of counting one node', () => {
+    expect(getNodeDeleteConfirm([node('m', 'mindmap')], labelOf)).toMatchObject({
+      titleKey: 'canvas.deleteMindmapTitle',
+      params: { title: labelOf(node('m', 'mindmap')) },
+    });
+  });
+
   it('treats a terminal node as ordinary — only agents get the extra prompt', () => {
     // Terminal nodes own a PTY too, but they are scratch shells the user
     // drove by hand; this change is scoped to coding agents.

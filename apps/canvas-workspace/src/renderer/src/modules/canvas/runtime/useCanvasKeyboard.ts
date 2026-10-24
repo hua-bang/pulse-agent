@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { CanvasNode, FileNodeData } from '../../../types';
 import type { CanvasClipboard } from '../../../types/ui-interaction';
 import { isImeComposing } from '../../../utils/ime';
+import { nodeClipboardText } from '../../../utils/nodeLabel';
 import {
   matchShortcut,
   type CanvasShortcutId,
@@ -65,7 +66,7 @@ interface Options {
   selectedEdgeId: string | null;
   setSelectedEdgeId: (id: string | null) => void;
   removeEdge: (id: string) => void | Promise<void>;
-  duplicateNode: (id: string) => CanvasNode | null;
+  duplicateNodes: (ids: readonly string[]) => CanvasNode[];
   setClipboard: (clipboard: CanvasClipboard | null) => void;
   /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
@@ -134,7 +135,7 @@ export const useCanvasKeyboard = ({
   canvasId,
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNode, setClipboard, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
+  duplicateNodes, setClipboard, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
   searchOpen, setSearchOpen,
   findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
@@ -306,12 +307,8 @@ export const useCanvasKeyboard = ({
       // Duplicate every selected node and keep the new copies as the active
       // selection — matches paste's behavior so the user can chain Cmd+D to
       // spawn a row of copies.
-      const created: string[] = [];
-      for (const id of selectedNodeIds) {
-        const copy = duplicateNode(id);
-        if (copy) created.push(copy.id);
-      }
-      if (created.length > 0) setSelectedNodeIds(created);
+      const created = duplicateNodes(selectedNodeIds);
+      if (created.length > 0) setSelectedNodeIds(created.map((node) => node.id));
     },
     'canvas.copy': () => {
       const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
@@ -331,7 +328,7 @@ export const useCanvasKeyboard = ({
             ? node.data.content
             : `# ${node.title}\n\n${node.data.content}`)
           .join('\n\n---\n\n')
-        : selected.map((node) => node.title).join('\n');
+        : selected.map(nodeClipboardText).join('\n\n');
       setClipboard({ sourceWorkspaceId: canvasId, nodes: selected, systemText });
       if (navigator.clipboard?.writeText) {
         void navigator.clipboard.writeText(systemText).catch(() => {

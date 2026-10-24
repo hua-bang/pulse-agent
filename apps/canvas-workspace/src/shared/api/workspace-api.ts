@@ -96,6 +96,14 @@ export interface CanvasWorkspaceApi {
       ids: string[],
     ) => Promise<{ ok: boolean; summaries?: Record<string, CanvasSummary | null>; error?: string }>;
     delete: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    /** Undo a delete: brings a trashed workspace back with its manifest entry. */
+    restoreDeleted: (
+      id: string,
+    ) => Promise<{
+      ok: boolean;
+      workspace?: { id: string; name: string; rootFolder?: string; folderId?: string };
+      error?: string;
+    }>;
     getDir: (id: string) => Promise<{ ok: boolean; dir?: string; error?: string }>;
     exportWorkspace: (
       id: string,

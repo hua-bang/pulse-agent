@@ -73,6 +73,26 @@ describe('WorkspaceTabs', () => {
     expect(onSelect).toHaveBeenCalledWith('a');
   });
 
+  it('closes other tabs from the tab context menu and selects the kept tab', async () => {
+    window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b', 'c']));
+    await render('a');
+    const betaTab = host.querySelectorAll<HTMLElement>('.workspace-tabs__tab')[1];
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    await act(async () => { betaTab.dispatchEvent(event); });
+    expect(event.defaultPrevented).toBe(true);
+    const closeOthers = await vi.waitFor(() => {
+      const item = [...document.querySelectorAll<HTMLButtonElement>('.workspace-tabs__menu [role="menuitem"]')]
+        .find((button) => button.textContent === 'Close other tabs');
+      if (!item) throw new Error('menu not open');
+      return item;
+    });
+
+    await act(async () => closeOthers.click());
+
+    expect(tabNames()).toEqual(['Beta']);
+    expect(onSelect).toHaveBeenCalledWith('b');
+  });
+
   it('shows the neighbour after closing the active tab, and the launcher after the last', async () => {
     window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b']));
     await render('b');

@@ -246,6 +246,7 @@ export const useFileNodeEditor = ({
         openSlashMenu((prev) => ({
           x: coords.left,
           y: coords.bottom,
+          top: coords.top,
           query: slashQuery.query,
           index: prev?.query === slashQuery.query ? prev.index : 0,
           slashFrom: slashQuery.slashFrom,

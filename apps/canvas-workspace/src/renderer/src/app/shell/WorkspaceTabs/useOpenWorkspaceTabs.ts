@@ -63,5 +63,10 @@ export const useOpenWorkspaceTabs = (workspaces: WorkspaceEntry[], activeId: str
     return remaining[Math.min(index, remaining.length - 1)] ?? null;
   }, [openIds, update]);
 
-  return { openIds, close };
+  /** Keeps only this tab open. */
+  const closeOthers = useCallback((id: string) => {
+    update((ids) => (ids.length === 1 && ids[0] === id ? ids : [id]));
+  }, [update]);
+
+  return { openIds, close, closeOthers };
 };
