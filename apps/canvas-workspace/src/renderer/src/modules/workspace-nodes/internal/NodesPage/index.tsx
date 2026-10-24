@@ -102,7 +102,9 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
               </div>
               <p>
                 {isFiltering && `${controller.filteredCount} / `}
-                {t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}
+                {controller.nodesCount === 1
+                  ? t('workspaceNodes.nodes.subtitleOne')
+                  : t('workspaceNodes.nodes.subtitle', { count: controller.nodesCount })}
               </p>
             </div>
             <div className="workspace-nodes-page__header-actions">
@@ -131,9 +133,11 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
             onTagFilterChange={controller.setTagFilter}
             onClearFilters={controller.clearFilters}
             aiScopeLabel={controller.aiScope
-              ? controller.aiScope.nodes.length > 0
+              ? controller.aiScope.nodes.length > 1
                 ? t('workspaceNodes.scope.askAi', { count: controller.aiScope.nodes.length })
-                : t('workspaceNodes.scope.askAiScope')
+                : controller.aiScope.nodes.length === 1
+                  ? t('workspaceNodes.scope.askAiOne')
+                  : t('workspaceNodes.scope.askAiScope')
               : undefined}
             onAskAiAboutScope={controller.aiScope
               ? () => onAskAi?.(controller.aiScope!, 'chat')
