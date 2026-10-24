@@ -125,32 +125,6 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
     return node;
   }, [applyNodes, canvasId, nodesRef]);
 
-  const duplicateNode = useCallback((id: string) => {
-    const source = nodesRef.current.find(node => node.id === id);
-    if (!source) return null;
-    const duplicated: CanvasNode = {
-      ...source,
-      id: genId(),
-      x: source.x + 24,
-      y: source.y + 24,
-      data: cloneNodeData(source),
-      updatedAt: Date.now(),
-    };
-    if (duplicated.type === 'file') {
-      void materializeFileNode({
-        applyNodes,
-        canvasId,
-        nodesRef,
-        nodeId: duplicated.id,
-        fileName: duplicated.title,
-        content: (source.data as FileNodeData).content,
-        writeContent: true,
-      });
-    }
-    applyNodes(resizeGroupsToChildren([...nodesRef.current, duplicated]));
-    return duplicated;
-  }, [applyNodes, canvasId, nodesRef]);
-
   const pasteNodes = useCallback((sources: CanvasNode[], offsetX = 24, offsetY = 24) => {
     if (sources.length === 0) return [];
     const idMap = new Map(sources.map(source => [source.id, genId()] as const));
@@ -180,5 +154,12 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
     return pasted;
   }, [applyNodes, canvasId, nodesRef]);
 
-  return { addNode, duplicateNode, pasteNodes };
+  // One history entry for the whole selection, so a single undo removes
+  // every copy.
+  const duplicateNodes = useCallback((ids: readonly string[]) => {
+    const idSet = new Set(ids);
+    return pasteNodes(nodesRef.current.filter(node => idSet.has(node.id)));
+  }, [nodesRef, pasteNodes]);
+
+  return { addNode, duplicateNodes, pasteNodes };
 };

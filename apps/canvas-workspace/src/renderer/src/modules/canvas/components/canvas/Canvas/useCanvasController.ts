@@ -110,7 +110,7 @@ export const useCanvasController = ({
     moveNode, moveNodes, resizeNode,
     addEdge, updateEdge, removeEdge,
     setTransformForSave, flushSave, reloadCanvas, commitHistory, hasAutoFittedRef,
-    undo, redo, duplicateNode, pasteNodes,
+    undo, redo, duplicateNodes, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
     mergeMindmapTopic, splitMindmapTopic,
   } = useCanvasDocumentHost({
@@ -299,7 +299,7 @@ export const useCanvasController = ({
     undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
     nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
-    duplicateNode,
+    duplicateNodes,
     setClipboard: onClipboardChange ?? (() => undefined),
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
@@ -362,7 +362,7 @@ export const useCanvasController = ({
 
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef: visibleNodesRef,
-    duplicateNode, requestRemoveNodes: actions.requestRemoveNodes,
+    duplicateNodes, requestRemoveNodes: actions.requestRemoveNodes,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     wrapSelectedNodesInFrame: actions.wrapSelectedNodesInFrame,

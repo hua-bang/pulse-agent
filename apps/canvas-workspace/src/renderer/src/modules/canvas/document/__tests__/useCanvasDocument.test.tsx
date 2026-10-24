@@ -156,6 +156,24 @@ describe('useCanvasDocument text resize commit', () => {
     expect(hook.nodes.map((item) => item.id)).toEqual(['text-1']);
   });
 
+  it('duplicates a multi-node selection as one undo step', () => {
+    act(() => {
+      hook.addNode('text', 400, 400);
+    });
+    const ids = hook.nodes.map((item) => item.id);
+    let copies: CanvasNode[] = [];
+    act(() => {
+      copies = hook.duplicateNodes(ids);
+    });
+    expect(copies).toHaveLength(2);
+    expect(hook.nodes).toHaveLength(4);
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual(ids);
+  });
+
   it('preserves the loaded viewport when an embedded editor saves only node changes', async () => {
     act(() => {
       hook.updateNode('text-1', { title: 'Edited in AI Chat' });

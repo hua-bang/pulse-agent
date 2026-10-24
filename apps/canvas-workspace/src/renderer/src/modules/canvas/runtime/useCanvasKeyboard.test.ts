@@ -87,7 +87,7 @@ describe('useCanvasKeyboard', () => {
       selectedEdgeId: null,
       setSelectedEdgeId: vi.fn(),
       removeEdge: vi.fn(),
-      duplicateNode: vi.fn(),
+      duplicateNodes: vi.fn(() => []),
       setClipboard: vi.fn(),
       groupSelectedNodes: vi.fn(),
       ungroupSelectedNodes: vi.fn(),
@@ -273,6 +273,41 @@ describe('useCanvasKeyboard', () => {
       sourceWorkspaceId: 'canvas-1',
       systemText: 'node-1',
     }));
+  });
+
+  it('copies text-node prose, not placeholder titles, to the system clipboard', () => {
+    const setClipboard = vi.fn();
+    mountKeyboard({
+      nodes: [
+        { ...node('a'), title: 'Text', data: { content: '<p>First &amp; one</p><p>line two</p>' } },
+        { ...node('b'), title: 'Text', data: { content: '<p>Second</p>' } },
+      ],
+      selectedNodeIds: ['a', 'b'],
+      setClipboard,
+    });
+
+    press({ key: 'c', metaKey: true });
+
+    expect(setClipboard).toHaveBeenCalledWith(expect.objectContaining({
+      systemText: 'First & one\nline two\n\nSecond',
+    }));
+  });
+
+  it('duplicates the whole selection in one call and selects the copies', () => {
+    const duplicateNodes = vi.fn(() => [node('copy-a'), node('copy-b')]);
+    const setSelectedNodeIds = vi.fn();
+    mountKeyboard({
+      nodes: [node('a'), node('b')],
+      selectedNodeIds: ['a', 'b'],
+      duplicateNodes,
+      setSelectedNodeIds,
+    });
+
+    press({ key: 'd', metaKey: true });
+
+    expect(duplicateNodes).toHaveBeenCalledTimes(1);
+    expect(duplicateNodes).toHaveBeenCalledWith(['a', 'b']);
+    expect(setSelectedNodeIds).toHaveBeenCalledWith(['copy-a', 'copy-b']);
   });
 
   describe('view shortcuts', () => {
