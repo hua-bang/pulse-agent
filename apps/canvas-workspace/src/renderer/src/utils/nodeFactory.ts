@@ -7,6 +7,8 @@ import {
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 import { CANVAS_NODE_DEFAULTS, genTopicId } from '../../../shared/canvas-node-defaults';
+import { getInitialLanguage } from '../i18n';
+import { messages } from '../i18n/messages';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
@@ -105,7 +107,9 @@ export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number
   return {
     id: genId(),
     type,
-    title: def.title,
+    // The title is stored, so it takes the UI language at creation time. A
+    // later language switch keeps it, like any title the user typed.
+    title: messages[getInitialLanguage()][`canvas.nodeDefaultTitle.${type}`],
     x,
     y,
     width: def.width,

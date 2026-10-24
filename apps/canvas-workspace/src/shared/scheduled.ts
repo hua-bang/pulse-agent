@@ -19,6 +19,11 @@ export type ScheduledSchedule =
   | { kind: 'weekly'; weekday: ScheduledWeekday; timeOfDay: string };
 
 export type ScheduledTaskSource = 'user' | 'memory-report';
+
+/** Seeded copy of the built-in report. The renderer shows a translation
+ *  while the stored text still equals these values. */
+export const MEMORY_REPORT_TITLE = 'Memory report';
+export const MEMORY_REPORT_PROMPT = 'Review the last 7 days of Canvas activity and prepare a memory report.';
 export type ScheduledTaskRunStatus = 'idle' | 'running';
 export type ScheduledRunTrigger = 'manual' | 'schedule';
 

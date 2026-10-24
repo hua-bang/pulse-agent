@@ -5,6 +5,7 @@ import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
 import { useRightDock } from '../../../shared/dockPort';
 import { Button, EmptyState } from '../../../components/ui';
+import { localizeBuiltInTasks } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import { TaskRow } from './TaskRow';
 import './index.css';
@@ -35,13 +36,13 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
       notify({ tone: 'error', title: t('scheduled.loadFailed'), description: response.error });
       return;
     }
-    setTasks(response.tasks);
+    setTasks(localizeBuiltInTasks(response.tasks, t));
   }, [notify, t]);
 
   useEffect(() => {
     void load();
-    return window.canvasWorkspace.scheduled.onChanged(setTasks);
-  }, [load]);
+    return window.canvasWorkspace.scheduled.onChanged((next) => setTasks(localizeBuiltInTasks(next, t)));
+  }, [load, t]);
 
   const saveTask = async (input: ScheduledTaskInput): Promise<boolean> => {
     const response = editingTask

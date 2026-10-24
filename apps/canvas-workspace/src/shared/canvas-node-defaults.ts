@@ -27,6 +27,13 @@ export const CANVAS_NODE_DEFAULTS: Record<CanvasNode['type'], CanvasNodeDefaults
   plugin: { title: 'Plugin Node', width: 360, height: 240 },
 };
 
+/**
+ * A text node's default title in each UI language. The renderer stores the
+ * title in the active language (i18n `canvas.nodeDefaultTitle.text`); previews
+ * skip these values and show the node's content. A test keeps both in sync.
+ */
+export const DEFAULT_TEXT_NODE_TITLES: ReadonlySet<unknown> = new Set(['Text', '文本']);
+
 let edgeIdCounter = 0;
 export function genEdgeId(): string {
   return `edge-${Date.now()}-${++edgeIdCounter}`;
