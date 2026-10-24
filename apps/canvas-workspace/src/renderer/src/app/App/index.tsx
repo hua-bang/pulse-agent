@@ -14,7 +14,7 @@ import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/works
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
-import { useRailExpanded, useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
+import { useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
@@ -88,7 +88,6 @@ const AppContent = () => {
   const chatTargetBroker = useChatTargetBroker();
   const activeChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, handleSidebarToggle] = useSidebarCollapsed();
-  const [railExpanded, toggleRailExpanded] = useRailExpanded();
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
@@ -302,8 +301,9 @@ const AppContent = () => {
   // routes show only the rail. The launcher and settings own the full
   // width, so the dock hides there too (it stays mounted). The workspace
   // tree lives in the wide rail, so the panel only shows canvas Layers.
-  const { panelHidden: sidebarPanelHidden, width: sidebarWidth } = useSidebarLayout({
-    railExpanded,
+  const {
+    railExpanded, toggleRail: toggleRailExpanded, panelHidden: sidebarPanelHidden, width: sidebarWidth,
+  } = useSidebarLayout({
     panelRequested: !sidebarCollapsed && activeView === 'canvas' && activeNodes.length > 0,
   });
   const [sessionListRequest, setSessionListRequest] = useState(0);

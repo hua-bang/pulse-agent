@@ -80,7 +80,8 @@ export function getNodeSummary(node: WorkspaceNodeListItem | WorkspaceNodeRecord
   const summary = node.properties?.summary;
   if (typeof summary === 'string' && summary.trim()) return summary;
   const data = node.data ?? {};
-  for (const key of ['content', 'scrollback', 'url', 'filePath', 'html']) {
+  // The file path is not a summary: empty notes showed it as body text.
+  for (const key of ['content', 'scrollback', 'url', 'html']) {
     const value = data[key];
     if (typeof value === 'string' && value.trim()) return value;
   }

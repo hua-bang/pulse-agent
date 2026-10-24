@@ -28,7 +28,7 @@ interface Props {
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void | Promise<void>;
   onRemoveNodes?: (ids: string[]) => void;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onDragStart: (event: React.MouseEvent, node: CanvasNode) => void;

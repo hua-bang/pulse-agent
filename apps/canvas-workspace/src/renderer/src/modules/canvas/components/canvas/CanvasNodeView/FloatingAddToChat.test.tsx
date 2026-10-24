@@ -9,10 +9,8 @@ import { ImageCanvasNode } from './ImageCanvasNode';
 import { ShapeCanvasNode } from './ShapeCanvasNode';
 
 vi.mock('../../node-bodies/ImageNodeBody', () => ({ ImageNodeBody: () => null }));
-vi.mock('../../node-bodies/ShapeNodeBody', () => ({
-  ShapeNodeBody: () => null,
-  ShapeStylePicker: () => null,
-}));
+vi.mock('../../node-bodies/ShapeNodeBody', () => ({ ShapeNodeBody: () => null }));
+vi.mock('../../node-bodies/ShapeNodeBody/ShapeStylePicker', () => ({ ShapeStylePicker: () => null }));
 
 const appShell = { notify: vi.fn() } as unknown as AppShellPort;
 

@@ -4,8 +4,6 @@ import type { CanvasNode, ShapeNodeData } from '../../../../../types';
 import { ShapePrimitive } from '../../../model/shapeGeometry';
 import { isImeComposing } from '../../../../../utils/ime';
 
-export { ShapeStylePicker } from './ShapeStylePicker';
-
 interface Props {
   node: CanvasNode;
   isSelected: boolean;

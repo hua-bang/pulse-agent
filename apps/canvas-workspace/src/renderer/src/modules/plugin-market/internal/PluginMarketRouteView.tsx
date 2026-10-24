@@ -13,7 +13,7 @@ import {
   PluginMarketFilters,
   PluginMarketToolbar,
 } from './PluginMarketToolbar';
-import { pluginMarketKeys as keys } from './i18nKeys';
+import { pluginCategoryLabel, pluginMarketKeys as keys } from './i18nKeys';
 import { usePluginMarket } from './usePluginMarket';
 import './index.css';
 import './toolbar.css';
@@ -196,7 +196,7 @@ export const PluginMarketRouteView = ({
               {grouped.map(([title, entries]) => (
                 <PluginListingSection
                   key={title}
-                  title={title}
+                  title={pluginCategoryLabel(title, t)}
                   listings={entries}
                   busyKey={market.busyKey}
                   onOpen={openListing}

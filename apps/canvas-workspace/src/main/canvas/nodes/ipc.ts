@@ -132,13 +132,9 @@ function summaryFromRecord(record: WorkspaceNodeRecord): string {
   const scrollback = stringFromUnknown(record.data.scrollback);
   if (scrollback) return scrollback;
 
-  const url = stringFromUnknown(record.data.url);
-  if (url) return url;
-
-  const filePath = stringFromUnknown(record.data.filePath);
-  if (filePath) return filePath;
-
-  return '';
+  // Not the file path: an empty note then showed its absolute path as body
+  // text in Knowledge. Its card falls back to the empty preview instead.
+  return stringFromUnknown(record.data.url);
 }
 
 function aiSummaryFromRecord(record: WorkspaceNodeRecord): string {

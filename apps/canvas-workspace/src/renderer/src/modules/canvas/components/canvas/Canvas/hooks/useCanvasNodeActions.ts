@@ -2,7 +2,6 @@ import { useCallback, type MutableRefObject } from 'react';
 import type { AgentNodeData, CanvasEdge, CanvasNode, FrameNodeData } from '../../../../../../types';
 import { useI18n } from '../../../../../../i18n';
 import { getNodeDisplayLabel } from '../../../../../../utils/nodeLabel';
-import { exportMindmapNodeToPng } from '../../../../mindmap/export';
 import { getNodeDeleteConfirm } from './node-delete-confirm';
 
 interface NotifyArgs {
@@ -238,6 +237,8 @@ export const useCanvasNodeActions = ({
       });
 
       try {
+        // Loaded on demand: the PNG renderer is only needed for this action.
+        const { exportMindmapNodeToPng } = await import('../../../../mindmap/export');
         const image = await exportMindmapNodeToPng(node);
         const result = await api.exportImage(image.fileName, image.data, 'png');
         if (!result.ok) {
