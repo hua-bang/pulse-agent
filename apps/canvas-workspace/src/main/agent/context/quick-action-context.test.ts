@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatQuickActionLines } from './quick-action-context';
+import { formatQuickActionBlock, formatQuickActionLines } from './quick-action-context';
 
 describe('formatQuickActionLines', () => {
   it('adds the hidden instructions for the knowledge summary action', () => {
@@ -10,5 +10,10 @@ describe('formatQuickActionLines', () => {
 
   it('names an unknown action without extra guidance', () => {
     expect(formatQuickActionLines('custom')).toEqual(['- Suggested action the user invoked: custom']);
+  });
+
+  it('gives the global prompt a section only when an action was invoked', () => {
+    expect(formatQuickActionBlock(undefined)).toBe('');
+    expect(formatQuickActionBlock('summarize_knowledge_node')).toContain('knowledge_read_node');
   });
 });

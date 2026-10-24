@@ -53,7 +53,7 @@ import { createFailedTurnToolTracker, failedAssistantMessage } from './run/chat-
 import { completeCanvasHostRun, markCanvasRuntimeCompleted, markCanvasRuntimeStarted } from './observability/host-run';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './context/dom-selection-context';
 import { formatSelectionFocusBlock } from './context/selection-focus-context';
-import { formatQuickActionLines } from './context/quick-action-context';
+import { formatQuickActionBlock, formatQuickActionLines } from './context/quick-action-context';
 import { formatReferencedTabsBlock } from './context/referenced-tabs-context';
 import {
   ROLE_RELAY_MAX_SEGMENTS,
@@ -594,6 +594,7 @@ export class CanvasAgent {
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
         + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
         + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
+        + formatQuickActionBlock(requestContext?.quickAction)
         + formatSelectedAppAndPluginsBlock(requestContext)
         + formatReferencedTabsBlock(requestContext?.tabs ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)

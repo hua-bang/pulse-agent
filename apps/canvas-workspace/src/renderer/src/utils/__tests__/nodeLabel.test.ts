@@ -82,4 +82,13 @@ describe('nodeClipboardText', () => {
     } as CanvasNode;
     expect(nodeClipboardText(mindmap)).toBe('Root\n  - A\n    - B');
   });
+
+  it('tolerates leaf topics without a children array', () => {
+    const mindmap = {
+      ...textNode(''),
+      type: 'mindmap',
+      data: { layout: 'right', root: { id: 'r', text: 'Root', children: [{ id: 'a', text: 'A' }] } },
+    } as unknown as CanvasNode;
+    expect(nodeClipboardText(mindmap)).toBe('Root\n  - A');
+  });
 });

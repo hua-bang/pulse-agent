@@ -15,3 +15,10 @@ export function formatQuickActionLines(quickAction: string): string[] {
     ...(guidance ? [guidance] : []),
   ];
 }
+
+/** The same lines as a prompt section, for the global agent prompt, which
+ * has no request-context block to carry them. */
+export function formatQuickActionBlock(quickAction: string | undefined): string {
+  if (!quickAction) return '';
+  return ['', '## Current Request Context', ...formatQuickActionLines(quickAction), ''].join('\n');
+}

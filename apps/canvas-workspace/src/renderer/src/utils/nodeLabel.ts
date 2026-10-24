@@ -119,7 +119,8 @@ export function textContentPreview(content: string | undefined, maxChars = TEXT_
 
 const mindmapOutline = (topic: MindmapTopic, depth = 0): string[] => [
   `${"  ".repeat(depth)}${depth === 0 ? "" : "- "}${topic.text}`,
-  ...topic.children.flatMap(child => mindmapOutline(child, depth + 1)),
+  // Externally written maps may omit `children` on leaf topics.
+  ...(topic.children ?? []).flatMap(child => mindmapOutline(child, depth + 1)),
 ];
 
 /**
