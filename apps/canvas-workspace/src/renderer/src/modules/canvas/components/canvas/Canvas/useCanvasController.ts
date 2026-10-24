@@ -24,6 +24,7 @@ import { useCanvasFeedbackCommands } from './hooks/useCanvasFeedbackCommands';
 import { useNativeCanvasZoomGuard } from './hooks/useNativeCanvasZoomGuard';
 import { useLocalViewportHandoff } from './hooks/useLocalViewportHandoff';
 import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
+import { findFreeSlot } from './hooks/nodePlacement';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
@@ -331,6 +332,7 @@ export const useCanvasController = ({
     addNode, updateNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
     onPasteUrl: creation.createUrlNode,
+    resolveSlot: (x, y, width, height) => findFreeSlot(nodesRef.current, x, y, width, height),
     pasteCanvasNodes: pasteClipboardNodes,
   });
 

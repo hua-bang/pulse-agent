@@ -4,7 +4,7 @@ import { useWorkspaceActive } from '../../../../../shared/workspaceActivity';
 
 interface TextNodeSizeOptions {
   node: CanvasNode;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void;
   isResizing: boolean;
   readOnly: boolean;
   wrapperRef: RefObject<HTMLDivElement | null>;
@@ -39,6 +39,11 @@ export function useTextNodeSize({ node, onUpdate, isResizing, readOnly, wrapperR
     const patch: Partial<CanvasNode> = {};
     if (autoSize && Math.abs(measuredWidth - node.width) > 1) patch.width = measuredWidth;
     if (Math.abs(measuredHeight - node.height) > 1) patch.height = measuredHeight;
-    if (patch.width !== undefined || patch.height !== undefined) onUpdate(node.id, patch);
+    // Measured geometry follows the content, so it is not an undo step. With
+    // history, undoing a new text node restored its default size, the next
+    // measure pushed a fresh entry, and undo could never get past the node.
+    if (patch.width !== undefined || patch.height !== undefined) {
+      onUpdate(node.id, patch, { history: false });
+    }
   });
 }
