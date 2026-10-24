@@ -13,10 +13,16 @@ interface Options {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** Convert screen coords to canvas coords (honours pan/zoom). */
   screenToCanvas: (x: number, y: number, container: HTMLElement) => { x: number; y: number };
-  /** Create a node on the canvas. */
-  addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
-  /** Update a node after its image has been saved and measured. */
-  updateNode: (id: string, patch: Partial<CanvasNode>) => void;
+  /**
+   * Create a node on the canvas. The pasted content goes in `nodePatch`, so
+   * the paste is one undo step instead of an add plus a fill.
+   */
+  addNode: (
+    type: CanvasNode['type'],
+    x: number,
+    y: number,
+    options?: { nodePatch?: Partial<CanvasNode> },
+  ) => CanvasNode;
   /** Make the new image the current selection. */
   onCreated?: (node: CanvasNode) => void;
   /** Create a web node centred on `at` when the clipboard carries a URL instead of plain notes. */
@@ -144,7 +150,6 @@ export const useCanvasImagePaste = ({
   containerRef,
   screenToCanvas,
   addNode,
-  updateNode,
   onCreated,
   onPasteUrl,
   resolveSlot,
@@ -191,9 +196,8 @@ export const useCanvasImagePaste = ({
         e.preventDefault();
         const patch = createTextPatch(text);
         const slot = place(patch.width, patch.height);
-        const node = addNode('text', slot.x, slot.y);
-        updateNode(node.id, patch);
-        onCreated?.({ ...node, ...patch });
+        const node = addNode('text', slot.x, slot.y, { nodePatch: patch });
+        onCreated?.(node);
         return;
       }
 
@@ -235,12 +239,13 @@ export const useCanvasImagePaste = ({
         const x = centre.x - width / 2;
         const y = centre.y - height / 2;
 
-        const node = addNode('image', x, y);
-        updateNode(node.id, {
-          width,
-          height,
-          title: saved.fileName ?? 'Image',
-          data: { filePath: saved.filePath ?? '' },
+        const node = addNode('image', x, y, {
+          nodePatch: {
+            width,
+            height,
+            title: saved.fileName ?? 'Image',
+            data: { filePath: saved.filePath ?? '' },
+          },
         });
         onCreated?.(node);
       };
@@ -249,5 +254,5 @@ export const useCanvasImagePaste = ({
 
     document.addEventListener('paste', handler);
     return () => document.removeEventListener('paste', handler);
-  }, [active, canvasId, containerRef, screenToCanvas, addNode, updateNode, onCreated, onPasteUrl, resolveSlot, pasteCanvasNodes]);
+  }, [active, canvasId, containerRef, screenToCanvas, addNode, onCreated, onPasteUrl, resolveSlot, pasteCanvasNodes]);
 };

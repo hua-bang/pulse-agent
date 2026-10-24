@@ -342,7 +342,7 @@ export const useCanvasController = ({
 
   useCanvasImagePaste({
     canvasId, active: ownsKeyboard, containerRef, screenToCanvas,
-    addNode, updateNode,
+    addNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
     onPasteUrl: creation.createUrlNode,
     resolveSlot: (x, y, width, height) => findFreeSlot(nodesRef.current, x, y, width, height),

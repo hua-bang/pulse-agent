@@ -13,7 +13,6 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type AnyMock = Mock<any[], any>;
   let addNode: AnyMock;
-  let updateNode: AnyMock;
   let onPasteUrl: AnyMock;
   let resolveSlot: AnyMock;
 
@@ -23,8 +22,7 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
       active: true,
       containerRef: { current: host },
       screenToCanvas: (x, y) => ({ x, y }),
-      addNode: addNode as (type: CanvasNode['type'], x: number, y: number) => CanvasNode,
-      updateNode,
+      addNode: addNode as unknown as Parameters<typeof useCanvasImagePaste>[0]['addNode'],
       onPasteUrl,
       resolveSlot,
     });
@@ -47,8 +45,7 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
   beforeEach(() => {
     host = document.createElement('div');
     document.body.appendChild(host);
-    addNode = vi.fn((type: CanvasNode['type'], x: number, y: number) => ({ id: 'new', type, x, y }));
-    updateNode = vi.fn();
+    addNode = vi.fn((type: CanvasNode['type'], x: number, y: number, options?: { nodePatch?: Partial<CanvasNode> }) => ({ id: 'new', type, x, y, ...options?.nodePatch }));
     onPasteUrl = vi.fn(() => null);
     resolveSlot = vi.fn((x: number, y: number) => ({ x: x + 500, y }));
     root = createRoot(host);
@@ -63,11 +60,13 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
   it('makes plain multi-line notes a text node, not a web node with an escaped address', () => {
     paste('Meeting notes\nbuy milk tomorrow');
     expect(onPasteUrl).not.toHaveBeenCalled();
-    expect(addNode).toHaveBeenCalledWith('text', expect.any(Number), expect.any(Number));
-    expect(updateNode).toHaveBeenCalledWith('new', expect.objectContaining({
-      title: 'Meeting notes',
-      data: expect.objectContaining({ content: 'Meeting notes\nbuy milk tomorrow' }),
-    }));
+    // Content rides on the add itself, so one undo removes the pasted node.
+    expect(addNode).toHaveBeenCalledWith('text', expect.any(Number), expect.any(Number), {
+      nodePatch: expect.objectContaining({
+        title: 'Meeting notes',
+        data: expect.objectContaining({ content: 'Meeting notes\nbuy milk tomorrow' }),
+      }),
+    });
   });
 
   it('keeps a single sentence with spaces as text', () => {
@@ -87,6 +86,6 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
   it('places the pasted node in the slot the canvas resolves', () => {
     paste('note');
     const [desiredX] = resolveSlot.mock.calls[0];
-    expect(addNode).toHaveBeenCalledWith('text', desiredX + 500, expect.any(Number));
+    expect(addNode).toHaveBeenCalledWith('text', desiredX + 500, expect.any(Number), expect.anything());
   });
 });
