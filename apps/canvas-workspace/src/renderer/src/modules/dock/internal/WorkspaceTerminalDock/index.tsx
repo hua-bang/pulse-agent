@@ -339,6 +339,10 @@ export const WorkspaceTerminalDock = ({
     }
     void initTerminal();
     scheduleFit();
+    // A terminal the user just opened takes the keyboard; typing otherwise
+    // reached the canvas and ran its single-key tools. Tabs restored at launch
+    // carry no user activation, so they leave focus alone.
+    if (navigator.userActivation?.isActive) termRef.current?.focus();
   }, [initTerminal, open, scheduleFit]);
 
   useEffect(() => {

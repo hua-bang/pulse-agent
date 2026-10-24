@@ -101,12 +101,19 @@ export const setupFileManagerIpc = () => {
         const notesDir = getNotesDir(wsId);
         await fs.mkdir(notesDir, { recursive: true });
         const timestamp = Date.now();
+        // Keep letters and digits of any script: an ASCII-only filter turned a
+        // localized name such as "项目简报" into an empty string, so the note
+        // fell back to `note-<timestamp>` and showed that as its title.
         const safeName = payload.name
-          ? payload.name.replace(/[^a-zA-Z0-9_\- ]/g, "").trim()
+          ? payload.name.replace(/[^\p{L}\p{N}_\- ]/gu, "").trim()
           : "";
-        const fileName = safeName
+        let fileName = safeName
           ? `${safeName}.md`
           : `note-${timestamp}.md`;
+        // A named note must not overwrite an earlier one of the same name.
+        if (safeName && await fs.access(join(notesDir, fileName)).then(() => true, () => false)) {
+          fileName = `${safeName}-${timestamp}.md`;
+        }
         const filePath = join(notesDir, fileName);
         await workspaceFiles.write(workspaceFiles.uriForPath(filePath), "");
         return { ok: true, filePath, fileName };

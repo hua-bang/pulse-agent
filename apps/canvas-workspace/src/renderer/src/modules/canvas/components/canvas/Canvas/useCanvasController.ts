@@ -25,6 +25,7 @@ import { useNativeCanvasZoomGuard } from './hooks/useNativeCanvasZoomGuard';
 import { useLocalViewportHandoff } from './hooks/useLocalViewportHandoff';
 import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
 import { findFreeSlot } from './hooks/nodePlacement';
+import { useEmptyTextCleanup } from './hooks/useEmptyTextCleanup';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
@@ -141,6 +142,7 @@ export const useCanvasController = ({
     handleMarqueeSelect,
     getAllNodes,
   } = useCanvasSelection({ nodesRef });
+  useEmptyTextCleanup({ selectedNodeIds, nodesRef, removeNodes });
 
   const addReferenceToChat = useCallback(async (nodeId: string) => {
     const receipt = await onAddToChat?.(nodeId);
