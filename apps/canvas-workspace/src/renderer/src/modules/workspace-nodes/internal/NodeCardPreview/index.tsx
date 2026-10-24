@@ -62,8 +62,11 @@ const compactText = (value: string): string => value.replace(/\s+/g, ' ').trim()
 // Heading, list, and quote markers ("## ", "- ", "> ", "1. ") are syntax, not
 // preview text.
 const LINE_MARKER = /^\s*(?:#{1,6}|[-*+>]|\d+[.)])\s+/;
+// List summaries arrive with line breaks collapsed, so "# Brief ## Goals"
+// also needs the heading markers that now sit mid-line removed.
+const INLINE_HEADING = /(^|\s)#{1,6}\s+/g;
 const stripLineMarkers = (value: string): string => (
-  value.split(/\r?\n/).map((line) => line.replace(LINE_MARKER, '')).join('\n')
+  value.split(/\r?\n/).map((line) => line.replace(LINE_MARKER, '').replace(INLINE_HEADING, '$1')).join('\n')
 );
 const URL_PATTERN = /[a-z][a-z0-9+.-]*:\/\/[^\s)\]}]+/gi;
 
@@ -73,7 +76,7 @@ const LOCAL_PATH_PATTERN = /^(?:[a-z]:)?[\\/][^\s]*$/i;
 const previewSegments = (value: string, limit: number): string[] => {
   const segments = value
     .split(/[\n\r]+|[。！？；!?;]+|\.\s+/u)
-    .map((segment) => compactText(segment.replace(LINE_MARKER, '').replace(/`/g, '')))
+    .map((segment) => compactText(stripLineMarkers(segment).replace(/`/g, '')))
     .filter(Boolean);
 
   const unique = Array.from(new Set(segments));

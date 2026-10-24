@@ -33,4 +33,12 @@ describe('knowledge node helpers', () => {
     const model = getNodeCardPreviewModel(item({ summary: '## Goals\n- Ship it' }), 'Goals');
     expect(model).toEqual({ kind: 'text', excerpt: 'Goals Ship it' });
   });
+
+  it('drops heading markers that a collapsed note summary has mid-line', () => {
+    const model = getNodeCardPreviewModel(
+      item({ type: 'file', title: 'note-1', summary: '# Brief ## Goals What to build' }),
+      'note-1',
+    );
+    expect(model).toEqual({ kind: 'file', sections: ['Brief Goals What to build'] });
+  });
 });
