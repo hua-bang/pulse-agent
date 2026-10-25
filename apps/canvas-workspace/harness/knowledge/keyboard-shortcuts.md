@@ -180,6 +180,16 @@ test suite (`registry.test.ts`, "keeps macOS-reserved chords off the mod
 modifier") pins this by asserting no binding for key `h` or `Tab` ever sets
 `mod: true`.
 
+## Auto-repeat
+
+`useCanvasKeyboard` drops OS auto-repeat keydowns, so a held key counts as
+one press. Without this, a held Delete or duplicate chord would act once per
+repeat tick. Two kinds of definition still repeat: `editable: 'allow'` chords,
+and definitions marked `repeats: true`. Only the nudges use `repeats`. A held
+arrow key keeps moving the selection; the nudge moves without history, and the
+arrow keyup (or a window blur) commits the whole hold as one undo step. Until
+2026-10 nudges did not repeat, so a held arrow key moved only 1px.
+
 ## `editable: 'allow'` semantics
 
 `editable: 'allow'` is what keeps a chord alive inside a text field or

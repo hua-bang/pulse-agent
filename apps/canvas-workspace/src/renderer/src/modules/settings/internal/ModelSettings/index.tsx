@@ -225,6 +225,7 @@ export const ModelsSection = ({
         <ModelProviderRail
           activeProviderId={activeProviderId}
           providers={providers}
+          status={status}
           onSelect={selectProvider}
         />
 

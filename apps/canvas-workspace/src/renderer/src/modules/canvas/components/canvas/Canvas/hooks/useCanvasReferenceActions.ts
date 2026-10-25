@@ -6,7 +6,12 @@ import type { CanvasClipboard } from '../../../../../../types/ui-interaction';
 import type { NodeReferenceEntry as NodeReferenceEntryForCanvas } from '../../../../../../shared/reference/types';
 
 interface UseCanvasReferenceActionsParams {
-  addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
+  addNode: (
+    type: CanvasNode['type'],
+    x: number,
+    y: number,
+    options?: { nodePatch?: Partial<CanvasNode> },
+  ) => CanvasNode;
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
   createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
@@ -20,8 +25,17 @@ interface UseCanvasReferenceActionsParams {
     container: HTMLElement,
   ) => { x: number; y: number };
   setSelectedNodeIds: (ids: string[]) => void;
-  updateNode: (id: string, patch: Partial<CanvasNode>) => void;
 }
+
+/** The fields a reference template carries into the node it creates. One
+ * `addNode` with this patch keeps the placement to a single undo step. */
+const referencePatch = (template: CanvasNode): Partial<CanvasNode> => ({
+  title: template.title,
+  ref: template.ref,
+  data: template.data,
+  width: template.width,
+  height: template.height,
+});
 
 export const useCanvasReferenceActions = ({
   addNode,
@@ -34,7 +48,6 @@ export const useCanvasReferenceActions = ({
   referencePlacementRequest,
   screenToCanvas,
   setSelectedNodeIds,
-  updateNode,
 }: UseCanvasReferenceActionsParams) => {
   const pasteReferenceNodes = useCallback(
     (nextClipboard: CanvasClipboard) => {
@@ -79,20 +92,13 @@ export const useCanvasReferenceActions = ({
       }
       const created: CanvasNode[] = [];
       for (const template of templates) {
-        const node = addNode('reference', template.x + offsetX, template.y + offsetY);
-        const patch: Partial<CanvasNode> = {
-          title: template.title,
-          ref: template.ref,
-          data: template.data,
-          width: template.width,
-          height: template.height,
-        };
-        updateNode(node.id, patch);
-        created.push({ ...node, ...patch });
+        created.push(addNode('reference', template.x + offsetX, template.y + offsetY, {
+          nodePatch: referencePatch(template),
+        }));
       }
       return created;
     },
-    [addNode, canvasId, containerRef, onPasteReferences, screenToCanvas, updateNode],
+    [addNode, canvasId, containerRef, onPasteReferences, screenToCanvas],
   );
 
   useEffect(() => {
@@ -109,15 +115,15 @@ export const useCanvasReferenceActions = ({
       const point = screenToCanvas(event.clientX, event.clientY, container);
       const template = createReferenceNode(entry, point.x, point.y);
       if (!template) return;
-      const node = addNode('reference', point.x - template.width / 2, point.y - template.height / 2);
-      updateNode(node.id, { title: template.title, ref: template.ref, data: template.data,
-        width: template.width, height: template.height });
+      const node = addNode('reference', point.x - template.width / 2, point.y - template.height / 2, {
+        nodePatch: referencePatch(template),
+      });
       setSelectedNodeIds([node.id]);
     };
     container.addEventListener('dragover', over);
     container.addEventListener('drop', drop);
     return () => { container.removeEventListener('dragover', over); container.removeEventListener('drop', drop); };
-  }, [containerRef, createReferenceNode, screenToCanvas, addNode, updateNode, setSelectedNodeIds]);
+  }, [containerRef, createReferenceNode, screenToCanvas, addNode, setSelectedNodeIds]);
 
   useEffect(() => {
     if (!referencePlacementRequest || !createReferenceNode) return;
@@ -136,13 +142,8 @@ export const useCanvasReferenceActions = ({
     const nextX = isIframeReference
       ? Math.max(nodeX, screenToCanvas(rect.left + 24, rect.top, container).x)
       : nodeX;
-    const node = addNode('reference', nextX, center.y - next.height / 2);
-    updateNode(node.id, {
-      title: next.title,
-      ref: next.ref,
-      data: next.data,
-      width: next.width,
-      height: next.height,
+    const node = addNode('reference', nextX, center.y - next.height / 2, {
+      nodePatch: referencePatch(next),
     });
     setSelectedNodeIds([node.id]);
     onReferencePlacementComplete?.();
@@ -154,7 +155,6 @@ export const useCanvasReferenceActions = ({
     referencePlacementRequest,
     screenToCanvas,
     setSelectedNodeIds,
-    updateNode,
   ]);
 
   /** Adds a whole-canvas reference card with its top-left at (x, y). */
@@ -162,12 +162,10 @@ export const useCanvasReferenceActions = ({
     if (workspaceId === canvasId) return null;
     const template = createCanvasReferenceNode?.(workspaceId, x, y);
     if (!template) return null;
-    const node = addNode('reference', x, y);
-    updateNode(node.id, { title: template.title, ref: template.ref, data: template.data,
-      width: template.width, height: template.height });
+    const node = addNode('reference', x, y, { nodePatch: referencePatch(template) });
     setSelectedNodeIds([node.id]);
     return node;
-  }, [addNode, canvasId, createCanvasReferenceNode, setSelectedNodeIds, updateNode]);
+  }, [addNode, canvasId, createCanvasReferenceNode, setSelectedNodeIds]);
 
   // A workspace dragged in from the sidebar lands as a canvas reference card.
   useEffect(() => {

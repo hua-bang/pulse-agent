@@ -54,8 +54,9 @@ describe('reference operations', () => {
     expect(ensureWorkspaceNodesLoaded).toHaveBeenCalledWith('source');
     expect(setReferenceDrawerOpen).toHaveBeenCalledWith(false);
     expect(current.referencePlacementRequest).toEqual(entry);
+    // A small source still gets a card big enough to read (280x180 minimum).
     expect(current.createReferenceNodeFromEntry(entry, 30, 40)).toMatchObject({
-      type: 'reference', x: 30, y: 40, width: 250, height: 140,
+      type: 'reference', x: 30, y: 40, width: 280, height: 180,
       ref: { kind: 'workspace-node', workspaceId: 'source', nodeId: 'note' },
       data: { titleSnapshot: 'Live title', workspaceNameSnapshot: 'Source workspace', typeSnapshot: 'text' },
     });
@@ -75,7 +76,7 @@ describe('reference operations', () => {
     const pasted = current.pasteReferencesIntoCanvas('target', clipboard);
     expect(pasted).toHaveLength(1);
     expect(pasted[0]).toMatchObject({
-      type: 'reference', x: 34, y: 44, width: 250, height: 140,
+      type: 'reference', x: 34, y: 44, width: 280, height: 180,
       ref: { kind: 'workspace-node', workspaceId: 'source', nodeId: 'note' },
     });
     expect(pasted[0].id).not.toBe(source.id);

@@ -53,4 +53,35 @@ describe('useMenuKeyboardNav', () => {
     expect(ordinary.defaultPrevented).toBe(true);
     expect(document.activeElement?.textContent).toBe('First');
   });
+
+  // Regression: the auto-focused first item and the hovered item were both
+  // highlighted, so the menu showed two "current" rows.
+  it('moves focus to the hovered item, but never out of a search field', () => {
+    const Harness = () => {
+      const menuRef = useRef<HTMLDivElement>(null);
+      useMenuKeyboardNav(menuRef);
+      return (
+        <div ref={menuRef}>
+          <input aria-label="Filter" />
+          <button type="button">First</button>
+          <button type="button">Second</button>
+        </div>
+      );
+    };
+
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(<Harness />));
+    const [first, second] = Array.from(host.querySelectorAll('button'));
+    expect(document.activeElement).toBe(first);
+
+    act(() => second.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    expect(document.activeElement).toBe(second);
+
+    const filter = host.querySelector('input') as HTMLInputElement;
+    filter.focus();
+    act(() => first.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    expect(document.activeElement).toBe(filter);
+  });
 });

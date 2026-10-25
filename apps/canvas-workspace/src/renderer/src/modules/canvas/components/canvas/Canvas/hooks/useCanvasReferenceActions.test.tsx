@@ -15,10 +15,10 @@ it('places an external reference at the transformed drop point without moving th
     data: {}, ref: { kind: 'workspace-node', workspaceId: 'other', nodeId: 'source' } };
   const createReferenceNode = vi.fn(() => template);
   const addNode = vi.fn(() => ({ ...template, id: 'placed' }));
-  const updateNode = vi.fn(), select = vi.fn();
+  const select = vi.fn();
   const Probe = () => {
     useCanvasReferenceActions({ canvasId: 'current', containerRef: { current: container }, createReferenceNode,
-      addNode, updateNode, setSelectedNodeIds: select, screenToCanvas: (x, y) => ({ x: x / 2, y: y / 2 }) });
+      addNode, setSelectedNodeIds: select, screenToCanvas: (x, y) => ({ x: x / 2, y: y / 2 }) });
     return null;
   };
   const root = createRoot(host);
@@ -29,8 +29,10 @@ it('places an external reference at the transformed drop point without moving th
     Object.defineProperty(event, 'dataTransfer', { value: { getData: (type: string) => type === REFERENCE_DRAG_TYPE ? JSON.stringify(entry) : '' } });
     act(() => container.dispatchEvent(event));
     expect(createReferenceNode).toHaveBeenCalledWith(entry, 300, 200);
-    expect(addNode).toHaveBeenCalledWith('reference', 200, 150);
-    expect(updateNode).toHaveBeenCalledWith('placed', expect.objectContaining({ ref: template.ref }));
+    // The content rides on addNode, so the drop is one undo step.
+    expect(addNode).toHaveBeenCalledWith('reference', 200, 150, {
+      nodePatch: expect.objectContaining({ ref: template.ref }),
+    });
     expect(select).toHaveBeenCalledWith(['placed']);
     expect(event.defaultPrevented).toBe(true);
   } finally { act(() => root.unmount()); host.remove(); container.remove(); }
@@ -43,10 +45,10 @@ it('places a sidebar workspace as a canvas reference card, never the current can
     data: { workspaceNameSnapshot: 'Research' }, ref: { kind: 'workspace', workspaceId: 'other' } };
   const createCanvasReferenceNode = vi.fn(() => template);
   const addNode = vi.fn(() => ({ ...template, id: 'placed' }));
-  const updateNode = vi.fn(), select = vi.fn();
+  const select = vi.fn();
   const Probe = () => {
     useCanvasReferenceActions({ canvasId: 'current', containerRef: { current: container }, createCanvasReferenceNode,
-      addNode, updateNode, setSelectedNodeIds: select, screenToCanvas: (x, y) => ({ x: x / 2, y: y / 2 }) });
+      addNode, setSelectedNodeIds: select, screenToCanvas: (x, y) => ({ x: x / 2, y: y / 2 }) });
     return null;
   };
   const drop = (workspaceId: string) => {
@@ -60,10 +62,38 @@ it('places a sidebar workspace as a canvas reference card, never the current can
     act(() => root.render(<Probe />));
     expect(drop('other').defaultPrevented).toBe(true);
     expect(createCanvasReferenceNode).toHaveBeenCalledWith('other', 300, 200);
-    expect(addNode).toHaveBeenCalledWith('reference', 300, 200);
-    expect(updateNode).toHaveBeenCalledWith('placed', expect.objectContaining({ ref: template.ref, width: 360 }));
+    expect(addNode).toHaveBeenCalledWith('reference', 300, 200, {
+      nodePatch: expect.objectContaining({ ref: template.ref, width: 360 }),
+    });
     expect(select).toHaveBeenCalledWith(['placed']);
     drop('current');
     expect(createCanvasReferenceNode).toHaveBeenCalledTimes(1);
+  } finally { act(() => root.unmount()); host.remove(); container.remove(); }
+});
+
+it('pastes references from another workspace as one node creation each', () => {
+  const host = document.createElement('div'); document.body.append(host);
+  const container = document.createElement('div'); document.body.append(container);
+  const template: CanvasNode = { id: 'template', title: 'Ref: Note', type: 'reference', x: 10, y: 20, width: 280, height: 180,
+    data: { titleSnapshot: 'Note' }, ref: { kind: 'workspace-node', workspaceId: 'other', nodeId: 'source' } };
+  const addNode = vi.fn((type: CanvasNode['type'], x: number, y: number, options?: { nodePatch?: Partial<CanvasNode> }) => (
+    { ...template, ...options?.nodePatch, id: 'pasted', type, x, y }
+  ));
+  let paste: ReturnType<typeof useCanvasReferenceActions>['pasteReferenceNodes'] | undefined;
+  const Probe = () => {
+    paste = useCanvasReferenceActions({ canvasId: 'current', containerRef: { current: null },
+      onPasteReferences: () => [template], addNode, setSelectedNodeIds: vi.fn(),
+      screenToCanvas: (x, y) => ({ x, y }) }).pasteReferenceNodes;
+    return null;
+  };
+  const root = createRoot(host);
+  try {
+    act(() => root.render(<Probe />));
+    const created = paste?.({ sourceWorkspaceId: 'other', nodes: [] }) ?? [];
+    expect(addNode).toHaveBeenCalledTimes(1);
+    expect(addNode).toHaveBeenCalledWith('reference', 10, 20, {
+      nodePatch: expect.objectContaining({ ref: template.ref, width: 280, height: 180 }),
+    });
+    expect(created).toEqual([expect.objectContaining({ id: 'pasted', title: 'Ref: Note' })]);
   } finally { act(() => root.unmount()); host.remove(); container.remove(); }
 });

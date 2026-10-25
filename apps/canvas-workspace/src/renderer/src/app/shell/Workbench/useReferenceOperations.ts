@@ -20,6 +20,16 @@ interface Options {
   selectWorkspace: (workspaceId: string) => void;
 }
 
+/** A reference card needs room for its header and a readable preview, even
+ * when the source is a one-line text node. */
+const REFERENCE_MIN_WIDTH = 280;
+const REFERENCE_MIN_HEIGHT = 180;
+
+const referenceSize = (source: Pick<CanvasNode, 'width' | 'height'>) => ({
+  width: Math.max(source.width, REFERENCE_MIN_WIDTH),
+  height: Math.max(source.height, REFERENCE_MIN_HEIGHT),
+});
+
 /** Owns cross-workspace reference creation, placement, clipboard and source updates. */
 export const useReferenceOperations = ({
   allNodes,
@@ -113,7 +123,7 @@ export const useReferenceOperations = ({
       };
     const node = {
       ...createDefaultNode('reference', x, y),
-      ...(sourceNode ? { width: sourceNode.width, height: sourceNode.height } : {}),
+      ...(sourceNode ? referenceSize(sourceNode) : {}),
       title: snapshot.titleSnapshot ? `Ref: ${snapshot.titleSnapshot}` : 'Reference',
       ref: {
         kind: 'workspace-node' as const,
@@ -132,8 +142,7 @@ export const useReferenceOperations = ({
     const snapshot = createReferenceNodeDataSnapshot(sourceNode, workspaceName);
     return {
       ...createDefaultNode('reference', x, y),
-      width: sourceNode.width,
-      height: sourceNode.height,
+      ...referenceSize(sourceNode),
       title: snapshot.titleSnapshot ? `Ref: ${snapshot.titleSnapshot}` : 'Reference',
       ref: {
         kind: 'workspace-node' as const,
@@ -168,8 +177,7 @@ export const useReferenceOperations = ({
         };
         created.push({
           ...createDefaultNode('reference', pasteX, pasteY),
-          width: source.width,
-          height: source.height,
+          ...referenceSize(source),
           title: snapshot.titleSnapshot ? `Ref: ${snapshot.titleSnapshot}` : source.title,
           ref: {
             kind: 'workspace-node',

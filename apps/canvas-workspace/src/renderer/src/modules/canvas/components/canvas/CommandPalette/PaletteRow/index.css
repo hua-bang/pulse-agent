@@ -45,10 +45,13 @@
   padding-left: 60px;
   font-size: 11px;
   color: var(--text-secondary);
-  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.command-palette-row-hint--flush {
+  padding-left: 0;
 }
 
 .command-palette-shortcut {

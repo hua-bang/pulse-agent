@@ -171,6 +171,16 @@
   pointer-events: none;
 }
 
+/* `content-visibility: auto` (CanvasNodeView/index.css) implies paint
+ * containment, which clips the pill header above the box and the ::before
+ * grab margin. Lift it whenever the header can show. */
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--selected,
+.canvas-node--group.canvas-node--dragging,
+.canvas-node--group.canvas-node--resizing {
+  content-visibility: visible;
+}
+
 .canvas-node--group::before {
   content: "";
   position: absolute;

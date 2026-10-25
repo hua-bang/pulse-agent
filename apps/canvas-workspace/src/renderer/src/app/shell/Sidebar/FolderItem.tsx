@@ -1,8 +1,12 @@
 import type React from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import type { FolderEntry, WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, ChevronRightIcon, FolderIcon, PencilIcon, PlusIcon } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 import { isImeComposing } from '../../../utils/ime';
+
+// Loads on first right-click, like the workspace row's menu.
+const FolderItemMenu = lazy(() => import('./FolderItemMenu').then((m) => ({ default: m.FolderItemMenu })));
 
 interface FolderItemProps {
   folder: FolderEntry;
@@ -53,6 +57,12 @@ export const FolderItem = ({
 }: FolderItemProps) => {
   const { t } = useI18n();
   const isOpen = !folder.collapsed;
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const run = (action: () => void) => {
+    setMenuOpen(false);
+    action();
+  };
 
   return (
     <div
@@ -80,8 +90,17 @@ export const FolderItem = ({
           />
         ) : (
           <button
+            ref={toggleRef}
             className="sidebar-folder-toggle"
             onClick={onToggle}
+            // Double-click renames and right-click opens the folder actions,
+            // like a workspace row. The two clicks of a double-click toggle
+            // the folder twice, so it ends where it started.
+            onDoubleClick={onStartRename}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuOpen(true);
+            }}
             title={t('sidebar.toggleFolder')}
           >
             <span className={`sidebar-folder-chevron${isOpen ? ' sidebar-folder-chevron--open' : ''}`}>
@@ -120,6 +139,18 @@ export const FolderItem = ({
               <CloseIcon size={12} strokeWidth={1.5} />
             </button>
           </div>
+        )}
+        {menuOpen && (
+          <Suspense fallback={null}>
+            <FolderItemMenu
+              anchorRef={toggleRef}
+              label={folder.name}
+              onClose={() => setMenuOpen(false)}
+              onCreateWorkspace={() => run(onCreateWorkspace)}
+              onRename={() => run(onStartRename)}
+              onDelete={() => run(onDelete)}
+            />
+          </Suspense>
         )}
       </div>
 

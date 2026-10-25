@@ -14,7 +14,8 @@ const FOCUSABLE_SELECTOR = [
  * route-scoped dialogs. While `active`:
  *  - on activation, remembers `document.activeElement` and moves focus into
  *    `containerRef` (its first focusable descendant, or the container
- *    itself via a temporary `tabindex="-1"` when it has none);
+ *    itself via a temporary `tabindex="-1"` when it has none). A descendant
+ *    that already took focus on mount (`autoFocus`) keeps it;
  *  - Tab / Shift+Tab cycle within the container's focusable descendants
  *    unless `trap:false` keeps a parallel app region interactive;
  *  - on deactivate/unmount, restores focus to the element that held it
@@ -28,21 +29,28 @@ export const useFocusTrap = (
 ): void => {
   const trap = options.trap ?? true;
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const wasActiveRef = useRef(false);
+  // Read the outside focus during render: by the time the effect runs, an
+  // `autoFocus` field inside the overlay has already taken it.
+  if (active && !wasActiveRef.current) {
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasActiveRef.current = active;
 
   useEffect(() => {
     if (!active) return undefined;
-
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const container = containerRef.current;
     const getFocusables = (): HTMLElement[] =>
       Array.from(container?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? []);
 
+    // An `autoFocus` descendant may already hold focus; keep it there.
     const first = getFocusables()[0];
-    if (first) {
+    const focusedInside = container?.contains(document.activeElement) ?? false;
+    if (!focusedInside && first) {
       first.focus();
-    } else if (container) {
+    } else if (!focusedInside && container) {
       if (!container.hasAttribute('tabindex')) container.setAttribute('tabindex', '-1');
       container.focus();
     }

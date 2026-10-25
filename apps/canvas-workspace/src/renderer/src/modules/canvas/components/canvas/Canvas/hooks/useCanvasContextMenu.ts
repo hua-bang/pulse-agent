@@ -48,6 +48,8 @@ interface AddNodeUiOptions extends AddNodeOptions {
 /** Share of the visible canvas a toolbar-created frame may take. */
 const FRAME_VIEW_SHARE = 0.6;
 const MIN_FRAME_SIZE = 240;
+/** Clear band kept between a right-click-created node and the view edge. */
+const VIEW_MARGIN_SHARE = 0.03;
 
 /**
  * The default frame (720x600) is larger than a small viewport, so creating
@@ -145,20 +147,43 @@ export const useCanvasContextMenu = ({
   const handleCreateNode = useCallback(
     (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => {
       if (!contextMenu) return;
+      const container = containerRef.current;
       // Right-click drop point becomes the new node's top-left so the
       // node grows down-right from the cursor — matches typical
       // "create here" affordances in design tools.
-      const slot = resolveNonStackingSlot(
-        nodesRef.current ?? [],
-        contextMenu.canvasX,
-        contextMenu.canvasY,
-      );
-      const node = addNode(type, slot.x, slot.y, options);
+      let { canvasX: x, canvasY: y } = contextMenu;
+      let createOptions = options;
+      if (container) {
+        // A frame is sized to the view, and a node that would run past the
+        // right or bottom edge moves back inside it. Otherwise the reveal
+        // below pans the camera away from the spot the user picked.
+        const rect = container.getBoundingClientRect();
+        // The bottom toolbar floats over the canvas, so the usable view
+        // stops at its top edge (the reveal below measures it the same way).
+        const chrome = container.querySelector('.canvas-bottom-chrome')?.getBoundingClientRect();
+        const bottom = chrome && chrome.height > 0 && chrome.top > rect.top
+          ? Math.min(rect.bottom, chrome.top)
+          : rect.bottom;
+        const topLeft = screenToCanvas(rect.left, rect.top, container);
+        const bottomRight = screenToCanvas(rect.right, bottom, container);
+        const center = { x: (topLeft.x + bottomRight.x) / 2, y: (topLeft.y + bottomRight.y) / 2 };
+        const size = fitFrameToView(type, getNodeDefaultSize(type), topLeft, center);
+        const width = options?.nodePatch?.width ?? size.width;
+        const height = options?.nodePatch?.height ?? size.height;
+        const margin = (bottomRight.x - topLeft.x) * VIEW_MARGIN_SHARE;
+        x = Math.max(topLeft.x + margin, Math.min(x, bottomRight.x - margin - width));
+        y = Math.max(topLeft.y + margin, Math.min(y, bottomRight.y - margin - height));
+        if (type === 'frame') {
+          createOptions = { ...options, nodePatch: { ...options?.nodePatch, width, height } };
+        }
+      }
+      const slot = resolveNonStackingSlot(nodesRef.current ?? [], x, y);
+      const node = addNode(type, slot.x, slot.y, createOptions);
       if (type === 'file' && options?.focusEditor !== false) pendingFocus.current = node.id;
       finalizeAddedNode(node);
       setContextMenu(null);
     },
-    [addNode, contextMenu, finalizeAddedNode, nodesRef],
+    [addNode, containerRef, contextMenu, finalizeAddedNode, nodesRef, screenToCanvas],
   );
 
   const handleToolbarAddNode = useCallback(

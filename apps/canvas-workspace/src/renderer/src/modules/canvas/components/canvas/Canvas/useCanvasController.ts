@@ -18,6 +18,7 @@ import { useCanvasDrawingGestures } from './hooks/useCanvasDrawingGestures';
 import { useCanvasNodeGestures } from './hooks/useCanvasNodeGestures';
 import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
+import { useCanvasFileDrop } from './hooks/useCanvasFileDrop';
 import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { useCanvasCreationActions } from './hooks/useCanvasCreationActions';
 import { useCanvasFeedbackCommands } from './hooks/useCanvasFeedbackCommands';
@@ -222,9 +223,11 @@ export const useCanvasController = ({
     // produce a double reframe at different scales (visible jitter).
     // A web node below the overview threshold still shows only its identity
     // card, so focusing one must land where the page itself renders.
-    const options = node.type === 'iframe' ? { minScale: OVERVIEW_SCALE_THRESHOLD + 0.05 } : undefined;
-    if (!focus.focusModeActive) handleFocusNode(node, options);
-  }, [handleFocusNode, focus.focusModeActive, setHighlightedId, setSelectedEdgeId, setSelectedNodeIds]);
+    // Never zoom in past 100% (or the current zoom, if higher) to show it.
+    const maxScale = Math.max(getLiveTransform().scale, 1);
+    const minScale = node.type === 'iframe' ? OVERVIEW_SCALE_THRESHOLD + 0.05 : undefined;
+    if (!focus.focusModeActive) handleFocusNode(node, { maxScale, minScale });
+  }, [handleFocusNode, focus.focusModeActive, getLiveTransform, setHighlightedId, setSelectedEdgeId, setSelectedNodeIds]);
 
   const { pasteReferenceNodes, placeCanvasReference } = useCanvasReferenceActions({
     addNode,
@@ -237,7 +240,6 @@ export const useCanvasController = ({
     referencePlacementRequest,
     screenToCanvas,
     setSelectedNodeIds,
-    updateNode,
   });
   const canvasReferenceWorkspaces = useMemo(
     () => (createCanvasReferenceNode ? referenceWorkspaces?.filter((workspace) => workspace.id !== canvasId) : undefined),
@@ -349,6 +351,8 @@ export const useCanvasController = ({
     pasteCanvasNodes: pasteClipboardNodes,
   });
 
+  useCanvasFileDrop({ canvasId, containerRef, loaded, screenToCanvas, addNode, nodesRef, setSelectedNodeIds });
+
   useCanvasExternalNodeEvents({
     addNode,
     canvasId,
@@ -357,7 +361,6 @@ export const useCanvasController = ({
     createUrlNode: creation.createUrlNode,
     screenToCanvas,
     setSelectedNodeIds,
-    updateNode,
   });
 
   const paletteCommands = useCanvasPaletteCommands({

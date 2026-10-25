@@ -17,12 +17,14 @@ interface Props {
   item: PaletteItem;
   index: number;
   selected: boolean;
+  /** Badge a command with its group; off when the section header names it. */
+  showGroup?: boolean;
   onActivate: (item: PaletteItem) => void;
   onHover: (index: number) => void;
   onFocus: (index: number) => void;
 }
 
-export const PaletteRow = ({ item, index, selected, onActivate, onHover, onFocus }: Props) => {
+export const PaletteRow = ({ item, index, selected, showGroup = true, onActivate, onHover, onFocus }: Props) => {
   const { t } = useI18n();
   const className = `command-palette-row ${selected ? 'selected' : ''}`;
   const common = {
@@ -54,11 +56,15 @@ export const PaletteRow = ({ item, index, selected, onActivate, onHover, onFocus
   return (
     <button type="button" {...common} aria-label={t('canvas.palette.commandOption', { group: groupLabel, title: item.command.title })}>
       <div className="command-palette-row-main">
-        <span className="command-palette-badge command-palette-badge--cmd">{groupLabel}</span>
+        {showGroup && <span className="command-palette-badge command-palette-badge--cmd">{groupLabel}</span>}
         <span className="command-palette-row-title">{item.command.title}</span>
         {item.command.shortcut && <span className="command-palette-shortcut">{item.command.shortcut}</span>}
       </div>
-      {item.command.hint && <div className="command-palette-row-hint">{item.command.hint}</div>}
+      {item.command.hint && (
+        <div className={`command-palette-row-hint${showGroup ? '' : ' command-palette-row-hint--flush'}`}>
+          {item.command.hint}
+        </div>
+      )}
     </button>
   );
 };

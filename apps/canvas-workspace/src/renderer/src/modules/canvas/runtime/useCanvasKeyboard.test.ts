@@ -195,8 +195,10 @@ describe('useCanvasKeyboard', () => {
   });
 
   // Regression: every keydown pushed a history entry, so HOLDING an arrow
-  // key filled the undo stack with one entry per OS repeat tick.
-  it('ignores auto-repeat so a held arrow key is a single undo step', () => {
+  // key filled the undo stack with one entry per OS repeat tick. Dropping
+  // the repeats instead made a held key move only 1px. A hold now keeps
+  // moving and the keyup records it as one undo step.
+  it('keeps moving on auto-repeat and records a held arrow key as one undo step', () => {
     const moveNodes = vi.fn();
     const commitHistory = vi.fn();
     mountKeyboard({
@@ -210,9 +212,27 @@ describe('useCanvasKeyboard', () => {
     press({ key: 'ArrowRight', repeat: true });
     press({ key: 'ArrowRight', repeat: true });
 
-    expect(moveNodes).toHaveBeenCalledTimes(1);
+    expect(moveNodes).toHaveBeenCalledTimes(3);
+    expect(commitHistory).not.toHaveBeenCalled();
+    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' })); });
     expect(commitHistory).toHaveBeenCalledTimes(1);
-    expect(moveNodes).toHaveBeenCalledWith([{ id: 'node-1', x: 1, y: 0 }]);
+    // A second keyup with nothing moved records nothing.
+    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' })); });
+    expect(commitHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('still drops auto-repeat for shortcuts that do not repeat', () => {
+    const duplicateNodes = vi.fn(() => []);
+    mountKeyboard({
+      nodes: [node('node-1')],
+      selectedNodeIds: ['node-1'],
+      duplicateNodes,
+    });
+
+    press({ key: 'd', metaKey: true });
+    press({ key: 'd', metaKey: true, repeat: true });
+
+    expect(duplicateNodes).toHaveBeenCalledTimes(1);
   });
 
   it('nudges by 10 with Shift held', () => {

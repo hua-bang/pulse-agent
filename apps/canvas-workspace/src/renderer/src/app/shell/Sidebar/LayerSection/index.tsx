@@ -31,6 +31,7 @@ export const LayerSection = ({
           selectedNodeIds={layers.selectedLayerIds}
           primarySelectedNodeId={layers.primarySelectedNodeId}
           onNodeFocus={(nodeId) => onNodeFocus?.(nodeId)}
+          onLayerRename={layers.startLayerRename}
           onContextMenu={layers.handleLayerContextMenu}
           onToggleCollapse={layers.toggleLayerCollapse}
           onToggleAll={layers.toggleAllLayers}

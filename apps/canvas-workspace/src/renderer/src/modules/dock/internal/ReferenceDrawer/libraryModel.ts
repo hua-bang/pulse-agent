@@ -5,7 +5,7 @@ import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
 import { isReferenceableNodeType } from '../../../../utils/referenceNodes';
 import { getNodeSummary, getNodeTitle } from '../../../workspace-nodes';
 
-export type LibraryKind = 'all' | 'note' | 'link' | 'artifact' | 'image' | 'mindmap' | 'other';
+export type LibraryKind = 'all' | 'note' | 'text' | 'link' | 'artifact' | 'image' | 'mindmap' | 'other';
 export interface LibraryItem {
   id: string;
   entry: ReferenceEntry;
@@ -23,8 +23,14 @@ const excerpt = (text: string): string => text.slice(0, 2400)
   .replace(/<[^>]*>/g, ' ').replace(/!\[[^\]]*\]\([^)]*\)/g, '')
   .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/^[\s#>*-]+/gm, '')
   .replace(/`{1,3}/g, '').replace(/\s+/g, ' ').trim().slice(0, 320);
-const kindOf = (type: string): LibraryItem['kind'] => type === 'file' || type === 'text'
-  ? 'note' : type === 'iframe' ? 'link' : type === 'image' ? 'image' : type === 'mindmap' ? 'mindmap' : 'other';
+const KIND_BY_TYPE: Partial<Record<string, LibraryItem['kind']>> = {
+  file: 'note',
+  text: 'text',
+  iframe: 'link',
+  image: 'image',
+  mindmap: 'mindmap',
+};
+const kindOf = (type: string): LibraryItem['kind'] => KIND_BY_TYPE[type] ?? 'other';
 
 export const buildLibraryItems = (
   metadata: WorkspaceNodeListItem[], currentNodes: CanvasNode[], references: ReferenceEntry[],

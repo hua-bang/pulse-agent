@@ -64,6 +64,26 @@ describe('getNodeDisplayLabel — text nodes', () => {
   });
 });
 
+describe('getNodeDisplayLabel — notes', () => {
+  const note = (title: string, content: string): CanvasNode => ({
+    ...textNode('', title),
+    type: 'file',
+    data: { filePath: '', content, saved: false, modified: false },
+  } as unknown as CanvasNode);
+
+  // Regression: a new note stayed "Untitled" in Layers, Library and Find
+  // even after its first line was written.
+  it('names an untitled note by its first line', () => {
+    expect(getNodeDisplayLabel(note('Untitled', '# Meeting plan\n\nAgenda'))).toBe('Meeting plan');
+    expect(getNodeDisplayLabel(note('未命名', '周会安排'))).toBe('周会安排');
+  });
+
+  it('keeps a title the user chose, and the default for an empty note', () => {
+    expect(getNodeDisplayLabel(note('Roadmap', '# Meeting plan'))).toBe('Roadmap');
+    expect(getNodeDisplayLabel(note('Untitled', ''))).toBe('Untitled');
+  });
+});
+
 describe('nodeClipboardText', () => {
   it('falls back to the label for an empty text node', () => {
     expect(nodeClipboardText(textNode('<p></p>', 'Text'))).toBe('Text');

@@ -20,7 +20,7 @@ export const ReferenceDrawerToolbar = ({ source, onSourceChange, query, onQueryC
         ...workspaces.filter(w => w.id !== activeWorkspaceId).map(w => ({ value: `workspace:${w.id}`, label: w.name })),
       ]} />
       <Select value={kind} onChange={value => onKindChange(value as LibraryKind)} ariaLabel={t('reference.libraryType')}
-        options={(['all', 'note', 'link', 'artifact', 'image', 'mindmap', 'other'] as const).map(value => ({ value, label: t(`reference.libraryKind.${value}`) }))} />
+        options={(['all', 'note', 'text', 'link', 'artifact', 'image', 'mindmap', 'other'] as const).map(value => ({ value, label: t(`reference.libraryKind.${value}`) }))} />
     </div>
     <TextField type="search" value={query} onChange={event => onQueryChange(event.target.value)}
       aria-label={t('reference.librarySearch')} placeholder={t('reference.librarySearch')} />

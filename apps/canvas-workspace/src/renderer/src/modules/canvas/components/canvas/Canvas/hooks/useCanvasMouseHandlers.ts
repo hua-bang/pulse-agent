@@ -358,6 +358,22 @@ export const useCanvasMouseHandlers = ({
     return () => container.removeEventListener('selectstart', onSelectStart);
   }, [edgeInteractionState, marquee.active, containerRef]);
 
+  // A press on the canvas takes keyboard focus back from panels beside it.
+  // Most canvas gestures call preventDefault on mousedown, which also stops
+  // the browser from moving focus, so a focused Dock terminal kept every
+  // typed key and shortcut. Blurring the helper textarea updates xterm too.
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      const container = containerRef.current;
+      const active = document.activeElement;
+      if (!container || !(event.target instanceof Node) || !container.contains(event.target)) return;
+      if (!(active instanceof HTMLElement) || active === document.body || container.contains(active)) return;
+      active.blur();
+    };
+    document.addEventListener('mousedown', onMouseDown, true);
+    return () => document.removeEventListener('mousedown', onMouseDown, true);
+  }, [containerRef]);
+
   const cursorClass = activeTool === 'hand'
     ? ' canvas-container--hand'
     : shapeToolActive ? ' canvas-container--shape'

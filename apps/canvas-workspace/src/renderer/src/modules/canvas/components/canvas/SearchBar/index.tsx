@@ -5,6 +5,7 @@ import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
 import { isImeComposing } from '../../../../../utils/ime';
 import { useI18n } from '../../../../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
+import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
 
 /** Quiet period before a typed query is committed to the canvas scan. */
 export const CANVAS_FIND_DEBOUNCE_MS = 150;
@@ -221,7 +222,7 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
             const node = nodesById.get(m.nodeId);
             if (!node) return null;
             const isActive = idx === activeIndex;
-            const title = node.title || t('canvas.find.untitled');
+            const title = getNodeDisplayLabel(node) || t('canvas.find.untitled');
             return (
               <button
                 type="button"

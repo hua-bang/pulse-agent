@@ -1,4 +1,7 @@
 .skills-library {
+  /* The Dock narrows this page without narrowing the window, so the
+   * responsive rules below follow the page width, not the viewport. */
+  container-type: inline-size;
   box-sizing: border-box;
   display: flex;
   flex: 1;
@@ -307,7 +310,13 @@
   border-top: 1px solid var(--border);
 }
 
-@media (max-width: 760px) {
+.skills-library__discard {
+  margin-right: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@container (max-width: 760px) {
   .skills-library__scope-bar {
     align-items: stretch;
     flex-direction: column;

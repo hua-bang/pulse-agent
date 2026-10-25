@@ -56,12 +56,13 @@ describe('useCanvasMouseHandlers resize completion', () => {
   let commitHistory: ReturnType<typeof vi.fn>;
   let onNodesChange: ReturnType<typeof vi.fn>;
   let suppressBlankClickRef: { current: boolean };
+  const containerRef: { current: HTMLDivElement | null } = { current: null };
 
   const Probe = () => {
     hook = useCanvasMouseHandlers({
       canvasId: 'canvas-1',
       activeTool: 'select',
-      containerRef: { current: null },
+      containerRef,
       suppressBlankClickRef,
       setSelectedNodeIds: vi.fn(),
       setSelectedEdgeId: vi.fn(),
@@ -126,6 +127,26 @@ describe('useCanvasMouseHandlers resize completion', () => {
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 140, clientY: 130 }));
     });
   };
+
+  it('takes keyboard focus back from a panel beside the canvas on mousedown', () => {
+    const container = document.createElement('div');
+    const terminal = document.createElement('textarea');
+    document.body.append(container, terminal);
+    containerRef.current = container;
+    try {
+      terminal.focus();
+      expect(document.activeElement).toBe(terminal);
+      // A press elsewhere leaves the panel focused.
+      act(() => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+      expect(document.activeElement).toBe(terminal);
+      act(() => container.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+      expect(document.activeElement).not.toBe(terminal);
+    } finally {
+      containerRef.current = null;
+      container.remove();
+      terminal.remove();
+    }
+  });
 
   it('suppresses the trailing blank click when a moved resize returns to its origin', () => {
     onResizeMove.mockReturnValueOnce(true).mockReturnValue(false);

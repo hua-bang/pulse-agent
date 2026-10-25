@@ -191,7 +191,9 @@ export const useCanvasNodeActions = ({
     notify({
       tone: 'success',
       title: t('canvas.nodesGrouped'),
-      description: t('canvas.nodesGroupedDescription', { count: selectedNodeIds.length }),
+      description: selectedNodeIds.length === 1
+        ? t('canvas.nodesGroupedDescriptionOne')
+        : t('canvas.nodesGroupedDescription', { count: selectedNodeIds.length }),
     });
   }, [groupNodes, selectedNodeIds, notify, setSelectedNodeIds, t]);
 
@@ -206,9 +208,11 @@ export const useCanvasNodeActions = ({
     notify({
       tone: 'success',
       title: selectedGroups.length === 1 ? t('canvas.groupDissolved') : t('canvas.groupsDissolved'),
-      description: releasedIds.length > 0
-        ? t('canvas.groupDissolvedDescription', { count: releasedIds.length })
-        : t('canvas.groupDissolvedEmpty'),
+      description: releasedIds.length === 0
+        ? t('canvas.groupDissolvedEmpty')
+        : releasedIds.length === 1
+          ? t('canvas.groupDissolvedDescriptionOne')
+          : t('canvas.groupDissolvedDescription', { count: releasedIds.length }),
     });
   }, [selectedNodeIds, ungroupNodes, notify, nodesRef, setSelectedNodeIds, t]);
 
@@ -220,7 +224,9 @@ export const useCanvasNodeActions = ({
     notify({
       tone: 'success',
       title: t('canvas.frameCreated'),
-      description: t('canvas.frameCreatedDescription', { count: selectedNodeIds.length }),
+      description: selectedNodeIds.length === 1
+        ? t('canvas.frameCreatedDescriptionOne')
+        : t('canvas.frameCreatedDescription', { count: selectedNodeIds.length }),
     });
   }, [wrapNodesInFrame, selectedNodeIds, notify, setSelectedNodeIds, t]);
 

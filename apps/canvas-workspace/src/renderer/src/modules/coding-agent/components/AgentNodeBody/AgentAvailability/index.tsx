@@ -118,6 +118,9 @@ export const AgentAvailability = ({
                 aria-label={tooltip}
               >
                 <span className="agent-tab__main"><AgentIcon id={item.id} size={16} /><span className="agent-tab__label">{item.label}</span></span>
+                {/* The reason must show without hover: a native tooltip on a
+                  disabled tab is easy to miss. */}
+                {missing && <span className="agent-tab__note">{t('agent.cliNotInstalled')}</span>}
               </button>
             </span>
           );
