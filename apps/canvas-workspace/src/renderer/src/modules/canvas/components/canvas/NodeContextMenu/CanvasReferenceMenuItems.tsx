@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useI18n } from "../../../../../i18n";
-import { ChevronRightIcon, NodeTypeIcon } from "../../../../../components/icons";
-import { Button } from "../../../../../components/ui";
-import type { WorkspaceEntry } from "../../../../../shared/workspaces";
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useI18n } from '../../../../../i18n';
+import { ChevronRightIcon, NodeTypeIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 interface Props {
   /** Every workspace except the current canvas. */

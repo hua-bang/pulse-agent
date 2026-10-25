@@ -1,13 +1,13 @@
-import "./index.css";
-import { Popover } from "../../../../../components/ui/Popover";
-import { useI18n } from "../../../../../i18n";
-import type { CreatableCanvasNodeType } from "../../../../../utils/nodeFactory";
-import { useRightDock } from "../../../../../shared/dockPort";
-import { ExportIcon, NodeTypeIcon } from "../../../../../components/icons";
-import type { AddNodeUiOptions } from "../FloatingToolbar/types";
-import { McpAppMenuItems } from "./McpAppMenuItems";
-import { CanvasReferenceMenuItems } from "./CanvasReferenceMenuItems";
-import type { WorkspaceEntry } from "../../../../../shared/workspaces";
+import './index.css';
+import { Popover } from '../../../../../components/ui/Popover';
+import { useI18n } from '../../../../../i18n';
+import type { CreatableCanvasNodeType } from '../../../../../utils/nodeFactory';
+import { useRightDock } from '../../../../../shared/dockPort';
+import { ExportIcon, NodeTypeIcon } from '../../../../../components/icons';
+import type { AddNodeUiOptions } from '../FloatingToolbar/types';
+import { McpAppMenuItems } from './McpAppMenuItems';
+import { CanvasReferenceMenuItems } from './CanvasReferenceMenuItems';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 interface Props {
   x: number;

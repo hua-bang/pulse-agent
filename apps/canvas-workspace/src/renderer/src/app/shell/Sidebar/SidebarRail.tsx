@@ -15,7 +15,7 @@ import {
 import { useI18n } from '../../../i18n';
 import { AppsSection } from './AppsSection';
 // Loaded on first hover, so the flyout stays out of the startup bundle.
-const WorkspaceFlyout = lazy(() => import('./WorkspaceFlyout'));
+const WorkspaceFlyout = lazy(() => import('./WorkspaceFlyout').then((module) => ({ default: module.WorkspaceFlyout })));
 
 /** What the narrow rail's workspace flyout lists and opens. */
 interface WorkspaceFlyoutData {
