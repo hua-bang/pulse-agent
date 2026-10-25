@@ -25,7 +25,7 @@ interface WorkspaceFlyoutProps {
  * rail only reports hover; this lazy module owns the open/close timing so it
  * stays out of the startup bundle.
  */
-const WorkspaceFlyout = ({
+export const WorkspaceFlyout = ({
   anchorRef,
   triggerHovered,
   workspaces,
@@ -100,4 +100,3 @@ const WorkspaceFlyout = ({
 };
 
 // Default export keeps the rail's lazy() import free of a re-wrap.
-export default WorkspaceFlyout;
