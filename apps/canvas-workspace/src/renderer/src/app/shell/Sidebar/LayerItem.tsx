@@ -20,6 +20,8 @@ interface LayerItemProps {
   selectedNodeIds: Set<string>;
   primarySelectedNodeId?: string;
   onFocus: (nodeId: string) => void;
+  /** Double-click starts an inline rename, like a workspace row. */
+  onRename?: (nodeId: string) => void;
   onContextMenu: (e: ReactMouseEvent, nodeId: string) => void;
   onToggleCollapse: (id: string) => void;
   onRegisterLayerButton: (nodeId: string, element: HTMLButtonElement | null) => void;
@@ -39,6 +41,7 @@ export const LayerItem = ({
   selectedNodeIds,
   primarySelectedNodeId,
   onFocus,
+  onRename,
   onContextMenu,
   onToggleCollapse,
   onRegisterLayerButton,
@@ -129,6 +132,7 @@ export const LayerItem = ({
           ref={setLayerItemElement}
           className={layerItemClassName}
           onClick={() => onFocus(node.id)}
+          onDoubleClick={onRename ? () => onRename(node.id) : undefined}
           onContextMenu={(e) => onContextMenu(e, node.id)}
           onKeyDown={handleButtonKeyDown}
           title={displayLabel}
@@ -173,6 +177,7 @@ export const LayerItem = ({
                 selectedNodeIds={selectedNodeIds}
                 primarySelectedNodeId={primarySelectedNodeId}
                 onFocus={onFocus}
+                onRename={onRename}
                 onContextMenu={onContextMenu}
                 onToggleCollapse={onToggleCollapse}
                 onRegisterLayerButton={onRegisterLayerButton}

@@ -218,6 +218,8 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
                       item={item}
                       index={idx}
                       selected={isSelected}
+                      // A section named after the group already says it.
+                      showGroup={section.id === 'commands'}
                       onActivate={runItem}
                       onHover={setSelectedIndex}
                       onFocus={setSelectedIndex}

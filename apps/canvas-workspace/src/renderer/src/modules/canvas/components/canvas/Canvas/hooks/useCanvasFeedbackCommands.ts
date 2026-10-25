@@ -24,7 +24,9 @@ export const useCanvasFeedbackCommands = ({ undo, redo, pasteReferenceNodes }: O
     if (created.length > 0) {
       notify({
         tone: 'info',
-        title: t('canvas.pastedReferences', { count: created.length }),
+        title: created.length === 1
+          ? t('canvas.pastedReferencesOne')
+          : t('canvas.pastedReferences', { count: created.length }),
         description: t('canvas.pastedReferencesDescription'),
       });
     }

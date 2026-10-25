@@ -79,7 +79,7 @@ interface Options {
    *  is what records it as a discrete undo entry). */
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void;
   /** Push the current node state onto the undo stack. Called once per
-   *  arrow-key press so each nudge is an independent undo step. */
+   *  arrow-key hold (on keyup) so each nudge is an independent undo step. */
   commitHistory: () => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
@@ -161,6 +161,10 @@ export const useCanvasKeyboard = ({
   );
   const lockedRef = useRef(keyboardLocked);
   lockedRef.current = keyboardLocked;
+  const commitHistoryRef = useRef(commitHistory);
+  commitHistoryRef.current = commitHistory;
+  /** True while a nudge hold has moved nodes that are not in history yet. */
+  const nudgePendingRef = useRef(false);
 
   const cycleSelection = (backwards: boolean) => {
     if (nodes.length === 0) return;
@@ -189,7 +193,7 @@ export const useCanvasKeyboard = ({
       .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
     if (moves.length === 0) return;
     moveNodes(moves);
-    commitHistory();
+    nudgePendingRef.current = true;
   };
 
   /**
@@ -285,9 +289,9 @@ export const useCanvasKeyboard = ({
     'canvas.toolHand': (event) => { event.preventDefault(); setActiveTool('hand'); },
     'canvas.toolConnect': (event) => { event.preventDefault(); setActiveTool('connect'); },
 
-    // Each press is its own undo step, so a chain of nudges can be reversed
-    // one at a time. Auto-repeat is filtered upstream — holding an arrow key
-    // used to push one history entry per repeat and drown the undo stack.
+    // Each press or hold is its own undo step, so a chain of nudges can be
+    // reversed one at a time. A held arrow key keeps moving on auto-repeat,
+    // and the keyup records the whole hold as one history entry.
     'canvas.nudge': (event) => nudge(event, 1),
     'canvas.nudgeCoarse': (event) => nudge(event, 10),
     'canvas.renameSelection': (event) => {
@@ -394,7 +398,7 @@ export const useCanvasKeyboard = ({
       // Auto-repeat fires this handler once per OS repeat tick. Actions that
       // mutate the document (nudge, duplicate, delete) would stack one undo
       // entry per tick, so a held key is treated as a single press.
-      if (e.repeat && match.definition.editable !== 'allow') return;
+      if (e.repeat && match.definition.editable !== 'allow' && !match.definition.repeats) return;
 
       const active = document.activeElement;
       if (match.definition.editable !== 'allow' && isEditableElement(active)) return;
@@ -402,7 +406,25 @@ export const useCanvasKeyboard = ({
       handlersRef.current[match.id as CanvasShortcutId](e, match.binding);
     };
 
+    // Nudges move without history; the hold ends on keyup (or when the
+    // window loses the keyup) and is recorded as one undo step.
+    const commitNudge = () => {
+      if (!nudgePendingRef.current) return;
+      nudgePendingRef.current = false;
+      commitHistoryRef.current();
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key.startsWith('Arrow')) commitNudge();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', commitNudge);
+    return () => {
+      commitNudge();
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', commitNudge);
+    };
   }, []);
 };

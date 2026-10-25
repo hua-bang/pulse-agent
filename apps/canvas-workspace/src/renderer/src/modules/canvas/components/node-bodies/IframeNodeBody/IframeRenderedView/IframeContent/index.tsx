@@ -119,12 +119,16 @@ export const IframeContent = ({
           {view.loadState === 'failed' && (
             <div className="iframe-load-error">
               <div className="iframe-load-error-card">
-                <div className="iframe-load-error-title">Can’t display this page here</div>
-                <div className="iframe-load-error-message">{view.loadError ?? 'The embedded page could not be displayed.'}</div>
-                <div className="iframe-load-error-note">It stays on the canvas as a reference.</div>
+                <div className="iframe-load-error-title">{t('iframe.loadError.title')}</div>
+                <div className="iframe-load-error-message">{view.loadError ?? t('iframe.loadError.message')}</div>
+                <div className="iframe-load-error-note">{t('iframe.loadError.note')}</div>
                 <div className="iframe-load-error-actions">
-                  <Button type="button" variant="primary" size="sm" onClick={actions.reload}>Reload</Button>
-                  <Button type="button" variant="secondary" size="sm" onClick={actions.openExternal}>Open externally</Button>
+                  <Button type="button" variant="primary" size="sm" onClick={actions.reload}>
+                    {t('iframe.loadError.reload')}
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={actions.openExternal}>
+                    {t('iframe.loadError.openExternal')}
+                  </Button>
                 </div>
               </div>
             </div>

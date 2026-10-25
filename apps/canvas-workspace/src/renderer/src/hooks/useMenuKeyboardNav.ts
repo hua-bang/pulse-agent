@@ -13,7 +13,9 @@ type MenuKeyboardNavOptions = {
  * Keyboard navigation for popup menus (context menus, dropdowns). Moves
  * focus into the first item on mount, lets ArrowUp/ArrowDown (and
  * Home/End) cycle through the menu's buttons, and closes on Escape.
- * Enter/Space activate the focused item via native button behavior.
+ * Enter/Space activate the focused item via native button behavior. While
+ * an item holds focus, the pointer moves focus to the item it hovers, so
+ * the keyboard item and the hovered item are never highlighted at once.
  *
  * Escape is delegated to the shared `useEscapeClose` so every overlay
  * dismisses on Escape identically: capture phase, `stopPropagation` (so it
@@ -74,7 +76,23 @@ export const useMenuKeyboardNav = (
       else next = items.length - 1;
       items[next].focus();
     };
+    // Only follow the pointer from a focused item: a menu with a search
+    // field must keep focus in the field while the pointer passes over rows.
+    const handleMouseOver = (e: MouseEvent) => {
+      const menu = ref.current;
+      const active = document.activeElement;
+      if (!menu || !(active instanceof HTMLButtonElement) || !menu.contains(active)) return;
+      const item = (e.target as Element | null)?.closest?.('button:not(:disabled)');
+      if (item instanceof HTMLButtonElement && item !== active && menu.contains(item)) {
+        item.focus({ preventScroll: true });
+      }
+    };
+    const menu = ref.current;
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    menu?.addEventListener('mouseover', handleMouseOver);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      menu?.removeEventListener('mouseover', handleMouseOver);
+    };
   }, [enabled, ref, onClose, scope]);
 };

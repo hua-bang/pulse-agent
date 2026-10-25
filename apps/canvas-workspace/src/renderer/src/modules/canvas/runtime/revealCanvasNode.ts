@@ -16,7 +16,12 @@ export const revealCanvasNode = (
     const right = dockRect && dockRect.bottom > rect.top && dockRect.top < rect.bottom
       ? Math.min(rect.right, dockRect.left) : rect.right;
     const width = right - rect.left;
-    if (width <= 48 || rect.height <= 48) return;
+    // The bottom toolbar floats over the canvas; a node revealed under it is
+    // still hidden, so the usable height stops at the toolbar.
+    const chrome = container.querySelector<HTMLElement>('.canvas-bottom-chrome')?.getBoundingClientRect();
+    const height = chrome && chrome.height > 0 && chrome.top > rect.top
+      ? Math.min(rect.bottom, chrome.top) - rect.top : rect.height;
+    if (width <= 48 || height <= 48) return;
     const current = getTransform();
     const offset = (start: number, size: number, available: number) => {
       const end = start + size;
@@ -25,7 +30,7 @@ export const revealCanvasNode = (
       return end > available - 24 ? available - 24 - end : 0;
     };
     const dx = offset(node.x * current.scale + current.x, node.width * current.scale, width);
-    const dy = offset(node.y * current.scale + current.y, node.height * current.scale, rect.height);
+    const dy = offset(node.y * current.scale + current.y, node.height * current.scale, height);
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
       setTransform({ ...current, x: current.x + dx, y: current.y + dy });
     }

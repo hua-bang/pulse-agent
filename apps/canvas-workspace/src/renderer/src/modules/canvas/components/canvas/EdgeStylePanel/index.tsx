@@ -18,7 +18,9 @@ import { CapPreview, StylePreview, WidthPreview } from './previews';
 
 /** Half the panel's width on screen, used to find cards it would cover. */
 const PANEL_HALF_SPAN_PX = 170;
-const MAX_BOUNDED_NODE_PX = 320;
+const MAX_BOUNDED_NODE_PX = 480;
+/** Room above a card for its header and hover toolbar, which sit outside its box. */
+const NODE_CHROME_PX = 36;
 
 /**
  * A compact floating panel, shown when an edge is selected, that lets
@@ -122,7 +124,7 @@ export const EdgeStylePanel = ({
       const node = endpoint.kind === 'node' ? nodesById.get(endpoint.nodeId) : undefined;
       if (!node || node.height * transform.scale > MAX_BOUNDED_NODE_PX) continue;
       if (node.x > midpoint.x + halfSpan || node.x + node.width < midpoint.x - halfSpan) continue;
-      ys.push(node.y, node.y + node.height);
+      ys.push(node.y - NODE_CHROME_PX / transform.scale, node.y + node.height);
     }
     return {
       x: midpoint.x * transform.scale + transform.x,

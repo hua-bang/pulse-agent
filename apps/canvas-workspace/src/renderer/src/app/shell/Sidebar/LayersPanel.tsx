@@ -24,6 +24,7 @@ interface LayersPanelProps {
   selectedNodeIds: Set<string>;
   primarySelectedNodeId?: string;
   onNodeFocus: (nodeId: string) => void;
+  onLayerRename?: (nodeId: string) => void;
   onContextMenu: (e: ReactMouseEvent, nodeId: string) => void;
   onToggleCollapse: (id: string) => void;
   onToggleAll: () => void;
@@ -64,6 +65,7 @@ export const LayersPanel = ({
   selectedNodeIds,
   primarySelectedNodeId,
   onNodeFocus,
+  onLayerRename,
   onContextMenu,
   onToggleCollapse,
   onToggleAll,
@@ -262,6 +264,7 @@ export const LayersPanel = ({
               selectedNodeIds={selectedNodeIds}
               primarySelectedNodeId={primarySelectedNodeId}
               onFocus={onNodeFocus}
+              onRename={onLayerRename}
               onContextMenu={onContextMenu}
               onToggleCollapse={onToggleCollapse}
               onRegisterLayerButton={registerLayerButton}

@@ -15,6 +15,13 @@
   -webkit-user-drag: none;
 }
 
+/* Files dragged in from the OS: show that the canvas accepts the drop. */
+.canvas-container--file-drop {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent-light) 35%, var(--bg-canvas));
+}
+
 .canvas-container--hand {
   cursor: grab;
 }
@@ -204,6 +211,22 @@
   .canvas-bottom-chrome:has(> .floating-toolbar) > .canvas-bottom-chrome__left,
   .canvas-bottom-chrome:has(> .floating-toolbar) > .canvas-bottom-chrome__right {
     grid-row: 2;
+  }
+}
+
+/* With the Layers panel and a Dock both open the canvas can be narrower than
+ * one tool group. Let the groups wrap too, or their buttons spill out of the
+ * toolbar onto the zoom controls. */
+@container (max-width: 420px) {
+  .canvas-bottom-chrome > .floating-toolbar .toolbar-group {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .canvas-bottom-chrome > .floating-toolbar .toolbar-divider {
+    display: none;
   }
 }
 

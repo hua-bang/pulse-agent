@@ -97,10 +97,20 @@ export const PluginDetailModal = ({
           <h3>{t(keys.capabilities)}</h3>
           <div className="plugin-market-detail__capabilities">
             {listing.capabilities.skillCount > 0 && (
-              <span><Sparkle size={15} />{t(keys.skillsCount, { count: listing.capabilities.skillCount })}</span>
+              <span>
+                <Sparkle size={15} />
+                {listing.capabilities.skillCount === 1
+                  ? t(keys.skillsCountOne)
+                  : t(keys.skillsCount, { count: listing.capabilities.skillCount })}
+              </span>
             )}
             {listing.capabilities.mcpServerCount > 0 && (
-              <span><PlugsConnected size={15} />{t(keys.mcpServersCount, { count: listing.capabilities.mcpServerCount })}</span>
+              <span>
+                <PlugsConnected size={15} />
+                {listing.capabilities.mcpServerCount === 1
+                  ? t(keys.mcpServersCountOne)
+                  : t(keys.mcpServersCount, { count: listing.capabilities.mcpServerCount })}
+              </span>
             )}
             {listing.capabilities.hasPulseExtension && (
               <span><Code size={15} />{t(keys.pulseExtension)}</span>

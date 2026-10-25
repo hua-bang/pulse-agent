@@ -19,6 +19,7 @@
 
 .agent-tab {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -50,6 +51,14 @@
 .agent-tab__label {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.agent-tab__note {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .agent-tab:hover {

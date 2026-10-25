@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import { useI18n } from '../../../../i18n';
+import { formatShortcut } from '../../../../utils/keyboardShortcut';
 
 interface ChatMessageEditorProps {
   value: string;
@@ -37,7 +38,7 @@ export const ChatMessageEditor = ({
         </p>
       )}
       <div className="chat-message-edit-actions">
-        <span className="chat-message-edit-hint">{t('chat.recovery.editHint')}</span>
+        <span className="chat-message-edit-hint">{t('chat.recovery.editHint', { shortcut: formatShortcut({ key: '↵', mod: true }) })}</span>
         <button
           type="button"
           className="chat-message-toolbar-btn"

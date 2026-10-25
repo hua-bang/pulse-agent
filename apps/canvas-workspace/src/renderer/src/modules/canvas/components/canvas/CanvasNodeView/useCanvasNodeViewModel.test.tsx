@@ -282,3 +282,55 @@ describe('useCanvasNodeViewModel', () => {
     );
   });
 });
+
+// Regression: a group's header was clipped by `content-visibility`, and a
+// press on its box stopped propagation without starting a drag, so a group
+// could not be moved, renamed, or ungrouped with the mouse.
+describe('useCanvasNodeViewModel group body', () => {
+  it('starts a drag from anywhere on the group box except its header and handles', () => {
+    const group = {
+      id: 'group-1', type: 'group', title: 'Group', x: 0, y: 0, width: 300, height: 200,
+      data: { childIds: [] },
+    } as unknown as CanvasNode;
+    const onDragStart = vi.fn();
+    const onSelect = vi.fn();
+    let model: ReturnType<typeof useCanvasNodeViewModel> | undefined;
+    const Probe = () => {
+      model = useCanvasNodeViewModel({
+        embedded: false, focusState: 'neutral', isFullscreen: false, readOnly: false,
+        isDragging: false, isHighlighted: false, isResizing: false, isSelected: false,
+        node: group, onDragStart, onFocus: vi.fn(), onRemove: vi.fn(),
+        onResizeStart: vi.fn(), onSelect, onUpdate: vi.fn(),
+      });
+      return null;
+    };
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      act(() => root.render(<I18nProvider><AppShellProvider><Probe /></AppShellProvider></I18nProvider>));
+      const press = (target: Element) => ({
+        button: 0, target, currentTarget: target, stopPropagation: vi.fn(),
+        shiftKey: false, metaKey: false, ctrlKey: false, altKey: false,
+      }) as unknown as React.MouseEvent;
+
+      const body = document.createElement('div');
+      const bodyPress = press(body);
+      model?.handleNodeBodyMouseDown(bodyPress);
+      expect(onSelect).toHaveBeenCalledWith('group-1');
+      expect(onDragStart).toHaveBeenCalledWith(bodyPress, group);
+      expect(bodyPress.stopPropagation).toHaveBeenCalled();
+
+      onDragStart.mockClear();
+      const header = document.createElement('div');
+      header.className = 'node-header';
+      const title = document.createElement('span');
+      header.append(title);
+      model?.handleNodeBodyMouseDown(press(title));
+      expect(onDragStart).not.toHaveBeenCalled();
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+    }
+  });
+});

@@ -70,6 +70,12 @@ export interface ShortcutDefinition {
    * expected rather than a bug.
    */
   requiresSelection?: boolean;
+  /**
+   * Run the handler on OS auto-repeat too. Without it a held key counts as a
+   * single press. A repeating handler must keep the whole hold to one undo
+   * step itself (nudging commits history on keyup).
+   */
+  repeats?: boolean;
 }
 
 export interface KeyEventLike {

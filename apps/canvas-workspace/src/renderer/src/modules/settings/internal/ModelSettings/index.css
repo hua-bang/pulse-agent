@@ -35,7 +35,14 @@
   cursor: pointer;
 }
 
-.chat-model-provider-tab:hover,
+.chat-model-provider-tab--readonly {
+  cursor: default;
+  margin-bottom: 4px;
+  background: var(--tint-success);
+  color: var(--ink);
+}
+
+.chat-model-provider-tab:not(.chat-model-provider-tab--readonly):hover,
 .chat-model-provider-tab--active {
   background: rgba(35, 131, 226, 0.08);
   color: var(--ink);

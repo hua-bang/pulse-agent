@@ -263,7 +263,12 @@ export const DefaultCanvasNode = ({
   }
 
   return (
-    <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
+    <div
+      className={nodeClasses}
+      style={wrapperStyle}
+      onClick={handleNodeClick}
+      onMouseDown={node.type === 'group' ? handleNodeBodyMouseDown : undefined}
+    >
       {!frameBodyOnly && !hideHeader && header}
       <div
         className="node-body"

@@ -1,14 +1,16 @@
 import type {
   CanvasNode,
+  FileNodeData,
   MindmapNodeData,
   MindmapTopic,
   PluginNodeData,
   ReferenceNodeData,
   TextNodeData,
 } from "../types";
-import { DEFAULT_TEXT_NODE_TITLES } from "../../../shared/canvas-node-defaults";
+import { DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from "../../../shared/canvas-node-defaults";
 
 const TEXT_LABEL_MAX_CHARS = 10;
+const NOTE_LABEL_MAX_CHARS = 24;
 const MINDMAP_LABEL_MAX_CHARS = 16;
 
 /**
@@ -31,6 +33,14 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
     const preview = textContentPreview((node.data as TextNodeData).content);
     if (preview) return preview;
     return node.title || "Text";
+  }
+
+  if (node.type === "file") {
+    // A note nobody renamed is named by its first line, like a text node.
+    const title = node.title.trim();
+    if (title && !DEFAULT_NOTE_TITLES.has(title)) return node.title;
+    const preview = textContentPreview((node.data as FileNodeData).content, NOTE_LABEL_MAX_CHARS);
+    return preview || node.title;
   }
 
   if (node.type === "mindmap") {

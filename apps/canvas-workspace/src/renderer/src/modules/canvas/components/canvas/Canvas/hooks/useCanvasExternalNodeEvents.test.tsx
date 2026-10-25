@@ -30,7 +30,6 @@ it('places a dropped dock web tab as a web node once the canvas has loaded', () 
       createUrlNode,
       screenToCanvas: (x, y) => ({ x: x / 2, y: y / 2 }),
       setSelectedNodeIds: vi.fn(),
-      updateNode: vi.fn(),
     });
     return null;
   };

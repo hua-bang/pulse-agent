@@ -4,7 +4,12 @@ import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
 import { DOCK_LINK_DRAG_TYPE } from '../../../../../../shared/dock/dock-link-drag';
 
 interface UseCanvasExternalNodeEventsParams {
-  addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
+  addNode: (
+    type: CanvasNode['type'],
+    x: number,
+    y: number,
+    options?: { nodePatch?: Partial<CanvasNode> },
+  ) => CanvasNode;
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
   /** The container ref is only attached once the canvas has loaded. */
@@ -19,7 +24,6 @@ interface UseCanvasExternalNodeEventsParams {
     container: HTMLElement,
   ) => { x: number; y: number };
   setSelectedNodeIds: (ids: string[]) => void;
-  updateNode: (id: string, patch: Partial<CanvasNode>) => void;
 }
 
 function coerceCanvasNodeType(value: unknown): CanvasNode['type'] | null {
@@ -50,7 +54,6 @@ export const useCanvasExternalNodeEvents = ({
   createUrlNode,
   screenToCanvas,
   setSelectedNodeIds,
-  updateNode,
 }: UseCanvasExternalNodeEventsParams) => {
   // A web tab dragged out of the dock lands as a web node under the pointer.
   // The source tab stays open; the shared default session keeps its login.
@@ -96,16 +99,17 @@ export const useCanvasExternalNodeEvents = ({
         rect.top + rect.height / 2,
         container,
       );
-      const node = addNode('iframe', center.x - 260, center.y - 200);
-      let title = node.title;
+      let title: string | undefined;
       try {
-        title = new URL(detail.url).host || title;
+        title = new URL(detail.url).host || undefined;
       } catch {
         // Leave default title if URL is malformed.
       }
-      updateNode(node.id, {
-        title,
-        data: { url: detail.url, html: '', mode: 'url', prompt: '' },
+      const node = addNode('iframe', center.x - 260, center.y - 200, {
+        nodePatch: {
+          ...(title ? { title } : {}),
+          data: { url: detail.url, html: '', mode: 'url', prompt: '' },
+        },
       });
       setSelectedNodeIds([node.id]);
     };
@@ -113,7 +117,7 @@ export const useCanvasExternalNodeEvents = ({
     return () => {
       window.removeEventListener('canvas:add-iframe-from-url', handler);
     };
-  }, [addNode, canvasId, containerRef, screenToCanvas, setSelectedNodeIds, updateNode]);
+  }, [addNode, canvasId, containerRef, screenToCanvas, setSelectedNodeIds]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -136,16 +140,17 @@ export const useCanvasExternalNodeEvents = ({
       );
       const nodeType = coerceCanvasNodeType(incoming.type) ?? 'text';
       const size = getNodeDefaultSize(nodeType);
-      const node = addNode(nodeType, center.x - size.width / 2, center.y - size.height / 2);
-      updateNode(node.id, {
-        ...incoming,
-        id: incoming.id,
-        type: nodeType,
-        x: center.x - (incoming.width ?? size.width) / 2,
-        y: center.y - (incoming.height ?? size.height) / 2,
-        width: incoming.width ?? size.width,
-        height: incoming.height ?? size.height,
-        data: (incoming.data ?? {}) as CanvasNode['data'],
+      addNode(nodeType, center.x - size.width / 2, center.y - size.height / 2, {
+        nodePatch: {
+          ...incoming,
+          id: incoming.id,
+          type: nodeType,
+          x: center.x - (incoming.width ?? size.width) / 2,
+          y: center.y - (incoming.height ?? size.height) / 2,
+          width: incoming.width ?? size.width,
+          height: incoming.height ?? size.height,
+          data: (incoming.data ?? {}) as CanvasNode['data'],
+        },
       });
       setSelectedNodeIds([incoming.id]);
     };
@@ -153,5 +158,5 @@ export const useCanvasExternalNodeEvents = ({
     return () => {
       window.removeEventListener('canvas:add-workspace-node', handler);
     };
-  }, [addNode, canvasId, containerRef, screenToCanvas, setSelectedNodeIds, updateNode]);
+  }, [addNode, canvasId, containerRef, screenToCanvas, setSelectedNodeIds]);
 };

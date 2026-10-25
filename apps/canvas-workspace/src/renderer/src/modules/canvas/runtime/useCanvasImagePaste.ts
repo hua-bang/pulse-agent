@@ -3,6 +3,8 @@ import type { CanvasNode, TextNodeData } from '../../../types';
 import { normalizeReferenceUrl } from '../../../shared/reference/utils';
 import { looksLikeUrl } from '../../../platform/browser/address-input';
 import { getNodeDefaultSize } from '../../../utils/nodeFactory';
+import { saveImageAsNodePatch } from './canvasImageFile';
+import { useI18n } from '../../../i18n';
 
 interface Options {
   /** Current canvas workspace id — used as the saveImage target directory. */
@@ -43,20 +45,6 @@ interface Options {
    */
   pasteCanvasNodes?: (systemText: string) => boolean;
 }
-
-/** Clamp the pasted image to a reasonable default on-canvas size while
- *  preserving its aspect ratio. Very tall/wide images are still viewable
- *  without filling the screen, and small icons keep their native dimensions. */
-const MAX_DEFAULT_DIM = 480;
-
-const fitDimensions = (w: number, h: number): { width: number; height: number } => {
-  if (w <= 0 || h <= 0) return { width: 320, height: 240 };
-  const largest = Math.max(w, h);
-  if (largest <= MAX_DEFAULT_DIM) return { width: w, height: h };
-  const scale = MAX_DEFAULT_DIM / largest;
-  return { width: Math.round(w * scale), height: Math.round(h * scale) };
-};
-
 
 const getClipboardText = (event: ClipboardEvent): string => {
   const plain = event.clipboardData?.getData('text/plain') ?? '';
@@ -155,6 +143,8 @@ export const useCanvasImagePaste = ({
   resolveSlot,
   pasteCanvasNodes,
 }: Options) => {
+  const { t } = useI18n();
+
   useEffect(() => {
     if (!active) return;
 
@@ -209,50 +199,27 @@ export const useCanvasImagePaste = ({
       if (!blob) return;
       e.preventDefault();
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(',')[1];
-        if (!base64) return;
-        const ext = imageItem.type.replace('image/', '').split(';')[0] ?? 'png';
-        const api = window.canvasWorkspace?.file;
-        if (!api) return;
-
-        const saved = await api.saveImage(canvasId, base64, ext);
-        if (!saved.ok || !saved.filePath) return;
-
-        // Measure natural size so the node frames the image correctly.
-        const { width, height } = await new Promise<{ width: number; height: number }>((resolve) => {
-          const img = new Image();
-          img.onload = () => resolve(fitDimensions(img.naturalWidth, img.naturalHeight));
-          img.onerror = () => resolve({ width: 320, height: 240 });
-          img.src = dataUrl;
-        });
-
-        // Drop at the viewport centre. Using a known-good anchor here
-        // beats guessing at the last mouse position (which would lag
-        // when the user pastes via keyboard shortcut only).
+      void (async () => {
+        // A clipboard image has no file name, so name it by when it arrived
+        // instead of by the generated storage name.
+        const time = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        const patch = await saveImageAsNodePatch(canvasId, blob, t('canvas.pastedImageTitle', { time }));
         const container = containerRef.current;
-        if (!container) return;
+        if (!patch || !container) return;
+        // Centre on the viewport. Using a known-good anchor here beats
+        // guessing at the last mouse position (which would lag when the user
+        // pastes via keyboard shortcut only). Then move it into clear space.
         const rect = container.getBoundingClientRect();
         const centre = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, container);
-        const x = centre.x - width / 2;
-        const y = centre.y - height / 2;
-
-        const node = addNode('image', x, y, {
-          nodePatch: {
-            width,
-            height,
-            title: saved.fileName ?? 'Image',
-            data: { filePath: saved.filePath ?? '' },
-          },
-        });
+        const x = centre.x - patch.width / 2;
+        const y = centre.y - patch.height / 2;
+        const slot = resolveSlot?.(x, y, patch.width, patch.height) ?? { x, y };
+        const node = addNode('image', slot.x, slot.y, { nodePatch: patch });
         onCreated?.(node);
-      };
-      reader.readAsDataURL(blob);
+      })();
     };
 
     document.addEventListener('paste', handler);
     return () => document.removeEventListener('paste', handler);
-  }, [active, canvasId, containerRef, screenToCanvas, addNode, onCreated, onPasteUrl, resolveSlot, pasteCanvasNodes]);
+  }, [active, canvasId, containerRef, screenToCanvas, addNode, onCreated, onPasteUrl, resolveSlot, pasteCanvasNodes, t]);
 };

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { AgentSessionInfo } from '../../../../../shared/agent-chat';
-import type { CanvasSummary } from '../../../../../shared/canvas';
+import type { CanvasNode, CanvasSummary } from '../../../../../shared/canvas';
+import { DEFAULT_TEXT_NODE_TITLES } from '../../../../../shared/canvas-node-defaults';
+import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { readRecentWorkspaceIds } from '../recentWorkspaces';
 
 const THUMB_CARD_LIMIT = 3;
@@ -44,6 +46,14 @@ export const toThumbCards = (nodes: NodeBox[]): ThumbCard[] => nodes
     height: Math.round(52 + 28 * Math.min(1, Math.max(0, node.height / node.width - 0.5))),
   }));
 
+/** A loaded card is named the way the canvas names it; an empty text node
+ * gets no title rather than its "Text" placeholder. */
+const toLabelledBox = (node: CanvasNode): NodeBox => {
+  // Memory snapshots can omit a title or data; the label helpers expect both.
+  const label = getNodeDisplayLabel({ ...node, title: node.title ?? '', data: node.data ?? {} });
+  return { ...node, title: node.type === 'text' && DEFAULT_TEXT_NODE_TITLES.has(label) ? '' : label };
+};
+
 /** Most recently opened first; never-opened workspaces keep the sidebar order. */
 const pickRecentWorkspaces = (workspaces: WorkspaceEntry[]) => {
   const recentIds = readRecentWorkspaceIds();
@@ -65,7 +75,7 @@ const pickRecentWorkspaces = (workspaces: WorkspaceEntry[]) => {
  */
 export const useLauncherData = (
   workspaces: WorkspaceEntry[],
-  loadedNodes: Record<string, NodeBox[]>,
+  loadedNodes: Record<string, CanvasNode[]>,
   globalName: string,
   /** The launcher stays mounted while hidden; each return to it reloads the
    * recent lists, so chats and workspaces opened elsewhere show up. */
@@ -107,7 +117,7 @@ export const useLauncherData = (
       if (summary) result[id] = { nodeCount: summary.nodeCount, cards: toThumbCards(summary.boxes) };
     }
     for (const [id, nodes] of Object.entries(loadedNodes)) {
-      result[id] = { nodeCount: nodes.length, cards: toThumbCards(nodes) };
+      result[id] = { nodeCount: nodes.length, cards: toThumbCards(nodes.map(toLabelledBox)) };
     }
     return result;
   }, [stored, loadedNodes]);

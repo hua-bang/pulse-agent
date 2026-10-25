@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { CanvasNode } from '../../../types';
 import { useCanvasImagePaste } from './useCanvasImagePaste';
+import { I18nProvider } from '../../../i18n';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -49,7 +50,7 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
     onPasteUrl = vi.fn(() => null);
     resolveSlot = vi.fn((x: number, y: number) => ({ x: x + 500, y }));
     root = createRoot(host);
-    act(() => root.render(<Probe />));
+    act(() => root.render(<I18nProvider><Probe /></I18nProvider>));
   });
 
   afterEach(() => {

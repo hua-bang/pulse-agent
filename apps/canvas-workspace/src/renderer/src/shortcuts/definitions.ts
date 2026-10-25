@@ -123,6 +123,7 @@ export const SHORTCUTS = {
       { key: 'ArrowRight', hidden: true },
     ],
     requiresSelection: true,
+    repeats: true,
   },
   'canvas.nudgeCoarse': {
     owner: 'canvas',
@@ -133,6 +134,7 @@ export const SHORTCUTS = {
       { key: 'ArrowRight', shift: true, hidden: true },
     ],
     requiresSelection: true,
+    repeats: true,
   },
   'canvas.renameSelection': {
     owner: 'canvas',

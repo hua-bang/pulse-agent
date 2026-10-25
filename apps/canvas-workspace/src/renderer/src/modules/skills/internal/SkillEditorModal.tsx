@@ -29,12 +29,27 @@ export const SkillEditorModal = ({
   const [target, setTarget] = useState(initialScope.level);
   const [draft, setDraft] = useState<CanvasSkillInput>(EMPTY_SKILL);
   const [saving, setSaving] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setTarget(initialScope.level);
     setDraft(EMPTY_SKILL);
+    setConfirmDiscard(false);
   }, [initialScope.level, open]);
+
+  const dirty = Boolean(draft.name.trim() || draft.description.trim() || draft.body.trim());
+
+  // Esc, a backdrop press, and the × are easy to hit by accident, so they
+  // never drop typed text silently: the first one asks, a second one
+  // discards. The Cancel button is an explicit choice and closes at once.
+  const requestClose = () => {
+    if (!dirty || confirmDiscard) {
+      onClose();
+      return;
+    }
+    setConfirmDiscard(true);
+  };
 
   const submit = async () => {
     if (!draft.name.trim() || !draft.description.trim()) return;
@@ -55,7 +70,7 @@ export const SkillEditorModal = ({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={requestClose}
       width={520}
       labelledBy="skills-library-create-title"
       className="skills-library__modal"
@@ -65,7 +80,7 @@ export const SkillEditorModal = ({
           <span>{t('skillsLibrary.kicker')}</span>
           <h2 id="skills-library-create-title">{t('skillsLibrary.createTitle')}</h2>
         </div>
-        <Button variant="icon" size="md" aria-label={t('skillsConfig.cancel')} onClick={onClose}>
+        <Button variant="icon" size="md" aria-label={t('skillsConfig.cancel')} onClick={requestClose}>
           ×
         </Button>
       </div>
@@ -110,8 +125,13 @@ export const SkillEditorModal = ({
         </div>
       </div>
       <div className="skills-library__modal-actions">
+        {confirmDiscard && (
+          <span className="skills-library__discard" role="status">
+            {t('skillsLibrary.discardPrompt')}
+          </span>
+        )}
         <Button variant="secondary" onClick={onClose} disabled={saving}>
-          {t('skillsConfig.cancel')}
+          {confirmDiscard ? t('skillsLibrary.discard') : t('skillsConfig.cancel')}
         </Button>
         <Button
           variant="primary"

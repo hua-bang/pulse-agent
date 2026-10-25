@@ -14,6 +14,8 @@ const VIEWPORT_GAP = 8;
 
 interface Props {
   node: CanvasNode;
+  /** Other cards on the canvas; the bar avoids covering their text. */
+  nodes?: CanvasNode[];
   transform: CanvasTransform;
   onAsk: (prompt: ChatPromptSubmission) => Promise<ChatDeliveryReceipt>;
 }
@@ -25,7 +27,21 @@ interface Props {
  * The question starts a new workspace chat scoped to that node; the answer
  * shows in the dock chat, not here.
  */
-export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
+/** True when a card (not a container) other than `self` meets the screen rect. */
+const coversCard = (
+  nodes: CanvasNode[],
+  self: CanvasNode,
+  transform: CanvasTransform,
+  rect: { left: number; top: number; right: number; bottom: number },
+) => nodes.some((other) => {
+  if (other.id === self.id || other.type === 'frame' || other.type === 'group') return false;
+  const left = other.x * transform.scale + transform.x;
+  const top = other.y * transform.scale + transform.y;
+  return rect.left < left + other.width * transform.scale && rect.right > left
+    && rect.top < top + other.height * transform.scale && rect.bottom > top;
+});
+
+export const NodeAskBar = ({ node, nodes = [], transform, onAsk }: Props) => {
   const { t } = useI18n();
   const notifyChatDelivery = useChatDeliveryNotifier();
   const barRef = useRef<HTMLFormElement>(null);
@@ -51,13 +67,23 @@ export const NodeAskBar = ({ node, transform, onAsk }: Props) => {
     const host = bar?.offsetParent as HTMLElement | null;
     if (!bar || !host) return;
     const height = bar.offsetHeight;
-    setPlaceAbove(belowTop + height > host.clientHeight && aboveBottom - height > 0);
     // Above the card, align to its right edge (the left side of that row
     // holds frame titles and their tools), but stay inside the canvas.
     const width = bar.offsetWidth;
     const maxLeft = Math.max(VIEWPORT_GAP, host.clientWidth - width - VIEWPORT_GAP);
-    setAboveLeft(Math.min(Math.max(right - width, VIEWPORT_GAP), maxLeft));
-  }, [aboveBottom, belowTop, expanded, right]);
+    const nextAboveLeft = Math.min(Math.max(right - width, VIEWPORT_GAP), maxLeft);
+    const fitsAbove = aboveBottom - height > 0;
+    // Also flip when the bar would sit on the card below and the row above
+    // is clear, so it does not cover a neighbour's text.
+    const coversBelow = coversCard(nodes, node, transform, {
+      left, top: belowTop, right: left + width, bottom: belowTop + height,
+    });
+    const coversAbove = coversCard(nodes, node, transform, {
+      left: nextAboveLeft, top: aboveBottom - height, right: nextAboveLeft + width, bottom: aboveBottom,
+    });
+    setPlaceAbove(fitsAbove && (belowTop + height > host.clientHeight || (coversBelow && !coversAbove)));
+    setAboveLeft(nextAboveLeft);
+  }, [aboveBottom, belowTop, expanded, left, node, nodes, right, transform]);
 
   const handleBlur = (event: FocusEvent<HTMLFormElement>) => {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;

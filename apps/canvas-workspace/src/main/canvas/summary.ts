@@ -13,7 +13,7 @@
 
 import { ipcMain } from 'electron';
 import type { CanvasSummary, CanvasSummaryBox } from '../../shared/canvas';
-import { DEFAULT_TEXT_NODE_TITLES } from '../../shared/canvas-node-defaults';
+import { DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from '../../shared/canvas-node-defaults';
 import { getCanvasBackend } from './persistence/backend';
 import { readJsonWithRecovery } from './persistence/atomic-json';
 import { MANIFEST_ID, STORE_DIR, getCanvasJsonPath } from './persistence/paths';
@@ -58,7 +58,10 @@ const toBox = (node: unknown): CanvasSummaryBox | null => {
     return null;
   }
   if (width <= 0 || height <= 0) return null;
-  const label = type === 'text' ? textFirstLine(data) || (DEFAULT_TEXT_NODE_TITLES.has(title) ? '' : title) : title;
+  // Text nodes, and notes nobody renamed, are named by their first line.
+  const label = type === 'text'
+    ? textFirstLine(data) || (DEFAULT_TEXT_NODE_TITLES.has(title) ? '' : title)
+    : type === 'file' && DEFAULT_NOTE_TITLES.has(title) ? textFirstLine(data) || title : title;
   const shortTitle = typeof label === 'string' ? label.trim().slice(0, SUMMARY_TITLE_LIMIT) : '';
   const box: CanvasSummaryBox = shortTitle ? { type, title: shortTitle, x, y, width, height } : { type, x, y, width, height };
   const color = (data as { color?: unknown } | undefined)?.color;

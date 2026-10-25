@@ -223,8 +223,14 @@ export const useCanvasNodeViewModel = ({
 
   const handleNodeBodyMouseDown = useCallback((e: MouseEvent) => {
     if (isCanvasPanGesture(e)) return;
+    // A group has no content of its own, so its whole box is the drag
+    // handle. The header and resize handles keep their own gestures.
+    if (node.type === 'group') {
+      if ((e.target as Element).closest('.node-header, .resize-handle')) return;
+      handleHeaderMouseDown(e);
+    }
     e.stopPropagation();
-  }, []);
+  }, [node.type, handleHeaderMouseDown]);
 
   const handleTitleBlur = useCallback(
     (e: FocusEvent<HTMLSpanElement>) => {

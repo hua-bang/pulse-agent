@@ -355,7 +355,7 @@ export const CanvasRootView = ({
 
       {askNode && onAskAboutNodes && (
         <Suspense fallback={null}>
-          <NodeAskBar node={askNode} transform={transform} onAsk={onAskAboutNodes} />
+          <NodeAskBar node={askNode} nodes={nodes} transform={transform} onAsk={onAskAboutNodes} />
         </Suspense>
       )}
     </div>

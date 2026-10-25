@@ -34,6 +34,13 @@ export const CANVAS_NODE_DEFAULTS: Record<CanvasNode['type'], CanvasNodeDefaults
  */
 export const DEFAULT_TEXT_NODE_TITLES: ReadonlySet<unknown> = new Set(['Text', '文本']);
 
+/**
+ * A note's default title in each UI language (i18n
+ * `canvas.nodeDefaultTitle.file`). A note still on this title is labelled by
+ * its first line instead. A test keeps both in sync.
+ */
+export const DEFAULT_NOTE_TITLES: ReadonlySet<unknown> = new Set(['Untitled', '未命名']);
+
 let edgeIdCounter = 0;
 export function genEdgeId(): string {
   return `edge-${Date.now()}-${++edgeIdCounter}`;
