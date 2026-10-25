@@ -62,7 +62,7 @@ interface DefaultCanvasNodeProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void | Promise<void>;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void | Promise<void>;
   readOnly: boolean;
   renderFullFileBody: boolean;
   renderMode?: CanvasNodeRenderMode;

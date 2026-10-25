@@ -30,6 +30,7 @@ import { McpManager } from '../settings-config/McpManager';
 import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../../../i18n';
 import { runViewTransition } from '../../../../shared/viewTransition';
+import { usePageEscape } from '../../../../hooks/usePageEscape';
 import './index.css';
 
 type SettingsPage = 'models' | 'chat' | 'agent' | 'tools-integrations' | 'general' | 'experimental';
@@ -152,6 +153,10 @@ export const Settings = ({ initialSection, onClose }: SettingsProps) => {
     setActivePage(target.page);
     if (target.toolsTab) setToolsTab(target.toolsTab);
   }, [initialSection]);
+
+  // Escape leaves the page like its close button. Dialogs opened from a
+  // section close first: their capture-phase `useEscapeClose` consumes it.
+  usePageEscape(true, onClose);
 
   const activeDef = SECTIONS.find((s) => s.id === activePage) ?? SECTIONS[0];
 

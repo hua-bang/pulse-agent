@@ -33,4 +33,17 @@ describe('selectNodeMenuCommands', () => {
       'delete-selection',
     ]);
   });
+
+  it('leads with rename and add-to-chat when the palette offers them', () => {
+    const commands = [
+      command('delete-selection'),
+      command('add-selection-to-chat'),
+      command('rename-selection'),
+    ];
+    expect(selectNodeMenuCommands(commands).map((item) => item.id)).toEqual([
+      'rename-selection',
+      'add-selection-to-chat',
+      'delete-selection',
+    ]);
+  });
 });

@@ -4,6 +4,7 @@ import { useI18n } from '../../../i18n';
 import type { SettingsSection } from '../../settings';
 import { useAppShell } from '../../../shared/appShell';
 import { ChatPageBody } from '../../../modules/chat/embedded';
+import { localizeBuiltInTasks } from './formatters';
 import './index.css';
 
 interface Props {
@@ -23,7 +24,7 @@ export const ScheduledTaskChatPage = ({ taskId, onExit, onOpenAppSettings }: Pro
       notify({ tone: 'error', title: t('scheduled.loadFailed'), description: response.error });
       return;
     }
-    const next = response.tasks.find((candidate) => candidate.id === taskId);
+    const next = localizeBuiltInTasks(response.tasks, t).find((candidate) => candidate.id === taskId);
     if (!next) {
       onExit();
       return;

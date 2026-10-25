@@ -8,7 +8,7 @@ import '../TextNodeBody/index.css';
 
 interface Props {
   node: CanvasNode;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void;
   isSelected: boolean;
   isResizing: boolean;
   onSelect: (id: string) => void;

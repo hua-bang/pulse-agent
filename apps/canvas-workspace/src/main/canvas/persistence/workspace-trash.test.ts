@@ -7,7 +7,7 @@ import { activateLocalCanvasStorage } from '@pulse-coder/storage/local';
 import { activateLocalConversationStorage } from '@pulse-coder/storage/local-conversations';
 import { closeCanvasStorage, getLocalCanvasStorage } from './backend';
 import { setCanvasSessionArchivePort, type CanvasSessionArchivePort } from './session-archive-port';
-import { trashWorkspace, saveWorkspaceManifest } from './workspace-trash';
+import { restoreTrashedWorkspace, trashWorkspace, saveWorkspaceManifest } from './workspace-trash';
 import { filterWorkspaceManifest, listWorkspaces, readWorkspaceManifest } from '../workspaces';
 import { ensureWelcomeWorkspaceSeeded } from '../welcome-workspace';
 
@@ -94,6 +94,22 @@ describe('App workspace soft deletion', () => {
     expect((await filterWorkspaceManifest(root, raw)).workspaces[0]).not.toHaveProperty('folderId');
     await saveWorkspaceManifest(root, { workspaces: [other], folders: [], activeId: 'other' });
     expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other', 'work']);
+  });
+
+  it('undoes an app delete by republishing the manifest entry and SQL visibility', async () => {
+    await activate();
+    await writeManifest({ workspaces: [entry, other], folders: [], activeId: 'work' });
+    const before = await storage!.workspaces.readBundle('work');
+    await trashWorkspace(root, 'work');
+    await saveWorkspaceManifest(root, { workspaces: [other], folders: [], activeId: 'other' });
+    expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other']);
+
+    await expect(restoreTrashedWorkspace(root, 'work')).resolves.toEqual(entry);
+
+    expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other', 'work']);
+    expect((await storage!.workspaces.readBundle('work'))!.canvas.nodes).toEqual(before!.canvas.nodes);
+    expect(await storage!.workspaces.getTrashed('work')).toBeNull();
+    await expect(restoreTrashedWorkspace(root, 'work')).rejects.toMatchObject({ code: 'not_found' });
   });
 
   it('refuses legacy deletion without removing JSON or creating an SQLite store', async () => {

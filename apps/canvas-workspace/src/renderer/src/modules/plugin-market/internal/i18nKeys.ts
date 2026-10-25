@@ -93,3 +93,17 @@ export const pluginMarketKeys = {
   uninstall: key('pluginMarket.uninstall'),
   uninstalling: key('pluginMarket.uninstalling'),
 } as const;
+
+/** Catalog categories arrive as English words; known ones get a translation. */
+const CATEGORY_KEYS: Record<string, I18nKey> = {
+  research: key('pluginMarket.category.research'),
+  productivity: key('pluginMarket.category.productivity'),
+  design: key('pluginMarket.category.design'),
+  data: key('pluginMarket.category.data'),
+  development: key('pluginMarket.category.development'),
+};
+
+export const pluginCategoryLabel = (category: string, t: (key: I18nKey) => string): string => {
+  const known = CATEGORY_KEYS[category.trim().toLowerCase()];
+  return known ? t(known) : category;
+};

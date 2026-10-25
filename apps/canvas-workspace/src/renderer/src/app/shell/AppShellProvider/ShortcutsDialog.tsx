@@ -55,6 +55,7 @@ export const SHORTCUT_HELP = {
   'app.togglePanels': { section: 'panels', descriptionKey: 'shortcuts.panels.focus' },
   'app.toggleTheme': { section: 'panels', descriptionKey: 'shortcuts.panels.toggleTheme' },
   'app.switchWorkspace': { section: 'panels', descriptionKey: 'shortcuts.panels.switchWorkspace' },
+  'app.closeTab': { section: 'panels', descriptionKey: 'shortcuts.panels.closeTab' },
   'app.shortcutsHelp': { section: 'panels', descriptionKey: 'shortcuts.panels.shortcuts' },
   'terminal.mentionPicker': { section: 'panels', descriptionKey: 'shortcuts.panels.terminalMentionPicker' },
 } satisfies Record<ShortcutId, { section: ShortcutSectionId; descriptionKey: I18nKey }>;
@@ -74,6 +75,18 @@ const GESTURE_HELP: Array<{
   { section: 'selection', descriptionKey: 'shortcuts.selection.extend', combos: ['Shift + drag on blank canvas'] },
   { section: 'selection', descriptionKey: 'shortcuts.selection.disableSnap', combos: ['Ctrl/Cmd while dragging'] },
 ];
+
+/** Gesture words in the chips above; key names (Shift, Space, Ctrl/Cmd) stay as printed. */
+const GESTURE_WORD_KEYS: Record<string, I18nKey> = {
+  'Right-click / Double-click': 'shortcuts.gesture.rightOrDoubleClick',
+  Scroll: 'shortcuts.gesture.scroll',
+  Drag: 'shortcuts.gesture.drag',
+  'Drag on blank canvas': 'shortcuts.gesture.dragBlank',
+  'drag on blank canvas': 'shortcuts.gesture.dragBlank',
+  Click: 'shortcuts.gesture.click',
+  click: 'shortcuts.gesture.click',
+  'Ctrl/Cmd while dragging': 'shortcuts.gesture.modWhileDragging',
+};
 
 /**
  * Help-only projection of the shortcut registry. This module is lazy because
@@ -126,7 +139,9 @@ export const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
                         <span key={combo} className="shell-shortcuts__combo-group">
                           {index > 0 && <span className="shell-shortcuts__or">/</span>}
                           {combo.split(/\s*\+\s*/).map((part) => (
-                            <span key={`${combo}-${part}`} className="shell-shortcuts__key">{part}</span>
+                            <span key={`${combo}-${part}`} className="shell-shortcuts__key">
+                              {GESTURE_WORD_KEYS[part] ? t(GESTURE_WORD_KEYS[part]) : part}
+                            </span>
                           ))}
                         </span>
                       ))}

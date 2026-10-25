@@ -18,17 +18,30 @@ import { app, Menu, type MenuItemConstructorOptions } from "electron";
  *    canvas transform (`canvas.zoomIn` / `zoomOut` / `zoomReset` in
  *    `shortcuts/registry.ts`).
  *
+ * The default File and Window menus bind CmdOrCtrl+W to closing the window.
+ * That key now closes the active workspace tab (`app.closeTab`), as in a
+ * browser, so the window-close item moves to Shift+CmdOrCtrl+W.
+ *
  * `reload` / `forceReload` stay behind the dev build: reloading the window
  * tears down every live terminal PTY and webview guest, which is a developer
  * action, not something a stray Cmd+R should do to real work.
  */
+const CLOSE_WINDOW_ACCELERATOR = "Shift+CmdOrCtrl+W";
+
 export function configureApplicationMenu(): void {
   const isMac = process.platform === "darwin";
   const isDev = !app.isPackaged;
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [{ role: "appMenu" } as MenuItemConstructorOptions] : []),
-    { role: "fileMenu" },
+    {
+      label: "File",
+      submenu: [
+        isMac
+          ? { role: "close", accelerator: CLOSE_WINDOW_ACCELERATOR }
+          : { role: "quit" },
+      ],
+    },
     {
       label: "Edit",
       submenu: [
@@ -58,7 +71,22 @@ export function configureApplicationMenu(): void {
         { role: "togglefullscreen" },
       ],
     },
-    { role: "windowMenu" },
+    {
+      label: "Window",
+      // The `window` role gives macOS its open-window list.
+      role: "window",
+      submenu: isMac
+        ? [
+          { role: "minimize" },
+          { role: "zoom" },
+          { type: "separator" },
+          { role: "front" },
+        ]
+        : [
+          { role: "minimize" },
+          { role: "close", accelerator: CLOSE_WINDOW_ACCELERATOR },
+        ],
+    },
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

@@ -35,6 +35,7 @@ describe('workspace lifecycle synchronization', () => {
     ok: true, data: id === '__workspaces__' ? manifest : { nodes: [] },
   }));
   const importWorkspace = vi.fn();
+  const restoreDeleted = vi.fn();
   const unsubscribe = vi.fn();
 
   const Probe = () => { state = useWorkspaces(); return null; };
@@ -52,7 +53,7 @@ describe('workspace lifecycle synchronization', () => {
     unsubscribe.mockClear();
     (globalThis as { canvasWorkspace?: unknown }).canvasWorkspace = {
       store: {
-        load, save, delete: remove, importWorkspace,
+        load, save, delete: remove, importWorkspace, restoreDeleted,
         onExternalUpdate: (listener: typeof onUpdate) => { onUpdate = listener; return unsubscribe; },
       },
     };
@@ -217,6 +218,21 @@ describe('workspace lifecycle synchronization', () => {
     await act(async () => { acknowledgement.resolve({ ok: true }); result = await pending; });
     expect(state.activeId).toBe('a');
     expect(result).toMatchObject({ switchedActive: false, newActiveId: 'a', switchedToEmpty: false });
+  });
+
+  it('undoes a delete by putting the restored entry back in its old place', async () => {
+    await mount();
+    await act(async () => { await state.deleteWorkspace('a'); });
+    expect(state.workspaces.map(workspace => workspace.id)).toEqual(['b', 'c']);
+    restoreDeleted.mockResolvedValueOnce({ ok: true, workspace: { ...ws('a'), folderId: 'f' } });
+
+    let result: { ok: boolean } | undefined;
+    await act(async () => { result = await state.restoreDeletedWorkspace('a', 0); });
+
+    expect(restoreDeleted).toHaveBeenCalledWith('a');
+    expect(result).toEqual({ ok: true });
+    expect(state.workspaces.map(workspace => workspace.id)).toEqual(['a', 'b', 'c']);
+    expect(state.workspaces[0]).toMatchObject({ folderId: 'f' });
   });
 
   it('does not duplicate an import that an observer refresh already loaded from the manifest', async () => {

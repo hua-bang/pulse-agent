@@ -1,9 +1,15 @@
-import type { CSSProperties, MouseEvent } from 'react';
+import { lazy, Suspense, type CSSProperties, type MouseEvent } from 'react';
 import type { CanvasNode } from '../../../../../types';
-import { ShapeNodeBody, ShapeStylePicker } from '../../node-bodies/ShapeNodeBody';
+import { ShapeNodeBody } from '../../node-bodies/ShapeNodeBody';
 import { AddToChatButton, CloseButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
+
+// The style picker only mounts on a selected shape, so it stays out of the
+// entry chunk.
+const ShapeStylePicker = lazy(() =>
+  import('../../node-bodies/ShapeNodeBody/ShapeStylePicker').then((module) => ({ default: module.ShapeStylePicker })),
+);
 
 interface ShapeCanvasNodeProps {
   classes: string;
@@ -45,7 +51,11 @@ export const ShapeCanvasNode = ({
         readOnly={readOnly}
       />
     </div>
-    {isSelected && !readOnly && <ShapeStylePicker node={node} onUpdate={onUpdate} />}
+    {isSelected && !readOnly && (
+      <Suspense fallback={null}>
+        <ShapeStylePicker node={node} onUpdate={onUpdate} />
+      </Suspense>
+    )}
     {handleAddToChat ? <AddToChatButton floating onClick={handleAddToChat} /> : null}
     {readOnly ? null : <CloseButton floating onClick={handleClose} />}
     <NodeResizeHandles

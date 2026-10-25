@@ -77,6 +77,8 @@ interface PointAnchorProps extends SharedProps {
   x: number;
   /** Anchor y (viewport/screen px) — usually a click event's clientY. */
   y: number;
+  /** Bottom edge to use instead when the panel does not fit below `y`. */
+  flipAboveY?: number;
   anchorRef?: undefined;
 }
 
@@ -164,6 +166,7 @@ export const Popover = (props: Props) => {
   // instance uses.
   let x = 0;
   let y = 0;
+  let flipAboveY: number | undefined;
   let anchorRef: RefObject<HTMLElement> = NO_ANCHOR;
   let placement: 'top' | 'bottom' | undefined;
   let align: 'start' | 'end' | undefined;
@@ -179,9 +182,10 @@ export const Popover = (props: Props) => {
   } else {
     x = props.x;
     y = props.y;
+    flipAboveY = props.flipAboveY;
   }
 
-  const pointAnchor = useViewportClampedPosition<HTMLDivElement>(x, y);
+  const pointAnchor = useViewportClampedPosition<HTMLDivElement>(x, y, flipAboveY);
   const rectAnchor = useAnchorRectPosition<HTMLDivElement>({
     anchorRef,
     placement,

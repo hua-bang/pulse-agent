@@ -12,7 +12,7 @@ import {
 import { Button, DropdownShell, SegmentedControl } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { SpinnerIcon } from '../../../components/icons';
-import { pluginMarketKeys as keys } from './i18nKeys';
+import { pluginCategoryLabel, pluginMarketKeys as keys } from './i18nKeys';
 
 interface ToolbarProps {
   onNavigateSkills: () => void;
@@ -200,7 +200,7 @@ export const PluginMarketFilters = ({
             }}
           >
             <Check size={14} className={category === option ? '' : 'plugin-market__check-hidden'} />
-            {option || t(keys.allCategories)}
+            {option ? pluginCategoryLabel(option, t) : t(keys.allCategories)}
           </Button>
         ))}
       </DropdownShell>

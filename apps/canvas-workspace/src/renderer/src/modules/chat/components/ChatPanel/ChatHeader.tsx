@@ -1,5 +1,5 @@
 import { useCallback, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PlusIcon, SpinnerIcon } from '../../../../components/icons';
+import { CopyIcon, ExternalLinkIcon, ListLinesIcon, PencilIcon, PlusIcon, SpinnerIcon } from '../../../../components/icons';
 import type { OtherWorkspaceSession } from '../../../../types';
 import { useI18n } from '../../../../i18n';
 import { useMenuKeyboardNav } from '../../../../hooks/useMenuKeyboardNav';
@@ -270,7 +270,9 @@ export const ChatHeader = ({
           title={t('chat.newAiChat')}
           aria-label={t('chat.newAiChat')}
         >
-          <PlusIcon size={16} strokeWidth={1.3} />
+          {/* A compose mark, not "+": the dock strip right above already has
+              a "+" that opens a new tab, and the two read as one action. */}
+          <PencilIcon size={15} />
         </button>
         {/* Close hidden — this panel is now a persistent dock tab, and the
             dock's own collapse control (⇥) already closes it; a second,

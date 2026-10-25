@@ -101,6 +101,9 @@ including an old primary/backup manifest left after an interrupted deletion.
 Restoration publishes the saved manifest entry before restoring SQL visibility;
 if that write fails, the workspace remains in trash and can be retried. The shared
 root migration fence and workspace lock serialize CLI deletion/restoration.
+The app's delete toast offers Undo through `restoreTrashedWorkspace` in
+`apps/canvas-workspace/src/main/canvas/persistence/workspace-trash.ts`; it follows
+the same manifest-then-SQL order under the legacy write fence.
 The manifest and database are still separate commits, not one filesystem/SQL
 transaction. Reads hide a prematurely published entry until restoration commits.
 

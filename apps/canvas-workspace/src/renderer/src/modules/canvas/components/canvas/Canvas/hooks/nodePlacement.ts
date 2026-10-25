@@ -1,7 +1,7 @@
 import type { CanvasNode } from '../../../../../../types';
 
 /** Diagonal step applied when a proposed slot is already occupied.
- *  Matches the +24/+24 cascade used by `duplicateNode`/`pasteNodes`
+ *  Matches the +24/+24 cascade used by `duplicateNodes`/`pasteNodes`
  *  so consecutive adds and duplicates feel the same. */
 const CASCADE_STEP = 24;
 /** Two nodes whose top-lefts differ by less than this are treated as

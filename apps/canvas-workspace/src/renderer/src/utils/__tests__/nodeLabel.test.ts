@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasNode } from '../../types';
-import { getNodeDisplayLabel } from '../nodeLabel';
+import { getNodeDisplayLabel, nodeClipboardText } from '../nodeLabel';
 
 const textNode = (content: string, title = ''): CanvasNode => ({
   id: 'n1',
@@ -59,5 +59,38 @@ describe('getNodeDisplayLabel — text nodes', () => {
 
   it('ignores the placeholder "Text" title and previews content instead', () => {
     expect(getNodeDisplayLabel(textNode('<p>Hello</p>', 'Text'))).toBe('Hello');
+    // A text node created in a Chinese UI stores the Chinese placeholder.
+    expect(getNodeDisplayLabel(textNode('<p>Hello</p>', '文本'))).toBe('Hello');
+  });
+});
+
+describe('nodeClipboardText', () => {
+  it('falls back to the label for an empty text node', () => {
+    expect(nodeClipboardText(textNode('<p></p>', 'Text'))).toBe('Text');
+  });
+
+  it('writes a mind map as an indented outline', () => {
+    const mindmap = {
+      ...textNode(''),
+      type: 'mindmap',
+      data: {
+        layout: 'right',
+        root: {
+          id: 'r',
+          text: 'Root',
+          children: [{ id: 'a', text: 'A', children: [{ id: 'b', text: 'B', children: [] }] }],
+        },
+      },
+    } as CanvasNode;
+    expect(nodeClipboardText(mindmap)).toBe('Root\n  - A\n    - B');
+  });
+
+  it('tolerates leaf topics without a children array', () => {
+    const mindmap = {
+      ...textNode(''),
+      type: 'mindmap',
+      data: { layout: 'right', root: { id: 'r', text: 'Root', children: [{ id: 'a', text: 'A' }] } },
+    } as unknown as CanvasNode;
+    expect(nodeClipboardText(mindmap)).toBe('Root\n  - A');
   });
 });

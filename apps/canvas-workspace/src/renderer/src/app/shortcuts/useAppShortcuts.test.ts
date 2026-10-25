@@ -26,6 +26,7 @@ describe('useAppShortcuts', () => {
       toggleSidebar: vi.fn(),
       togglePanels: vi.fn(),
       selectWorkspaceByIndex: vi.fn(),
+      closeActiveTab: vi.fn(() => true),
       ...overrides,
     };
     const Harness = () => {
@@ -44,6 +45,27 @@ describe('useAppShortcuts', () => {
     act(() => { (target ?? window).dispatchEvent(event); });
     return event;
   };
+
+  it('closes the active tab with Mod+W, even from a text field', () => {
+    const options = mount();
+    const input = document.createElement('input');
+    document.body.append(input);
+
+    const event = press({ key: 'w', ctrlKey: true }, input);
+
+    expect(options.closeActiveTab).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    input.remove();
+  });
+
+  it('leaves Mod+W alone when no tab bar is showing', () => {
+    const options = mount({ closeActiveTab: vi.fn(() => false) });
+
+    const event = press({ key: 'w', metaKey: true });
+
+    expect(options.closeActiveTab).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(false);
+  });
 
   it('toggles the chat page and the sidebar', () => {
     const options = mount();

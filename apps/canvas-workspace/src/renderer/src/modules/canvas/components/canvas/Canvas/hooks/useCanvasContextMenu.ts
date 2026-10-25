@@ -45,6 +45,30 @@ interface AddNodeUiOptions extends AddNodeOptions {
  * `isBlankCanvasTarget` is exported so the root mouse handlers can
  * reuse the same DOM-target check that gates the menu.
  */
+/** Share of the visible canvas a toolbar-created frame may take. */
+const FRAME_VIEW_SHARE = 0.6;
+const MIN_FRAME_SIZE = 240;
+
+/**
+ * The default frame (720x600) is larger than a small viewport, so creating
+ * one used to pan the camera to fit it. Shrink it to part of the view
+ * instead; other node types keep their default size.
+ */
+const fitFrameToView = (
+  type: CreatableCanvasNodeType,
+  size: { width: number; height: number },
+  topLeft: { x: number; y: number },
+  center: { x: number; y: number },
+) => {
+  if (type !== 'frame') return size;
+  const viewWidth = (center.x - topLeft.x) * 2;
+  const viewHeight = (center.y - topLeft.y) * 2;
+  return {
+    width: Math.round(Math.min(size.width, Math.max(MIN_FRAME_SIZE, viewWidth * FRAME_VIEW_SHARE))),
+    height: Math.round(Math.min(size.height, Math.max(MIN_FRAME_SIZE, viewHeight * FRAME_VIEW_SHARE))),
+  };
+};
+
 export const useCanvasContextMenu = ({
   containerRef,
   screenToCanvas,
@@ -155,7 +179,12 @@ export const useCanvasContextMenu = ({
         rect.top + rect.height / 2,
         containerRef.current,
       );
-      const defaultSize = getNodeDefaultSize(type);
+      const defaultSize = fitFrameToView(
+        type,
+        getNodeDefaultSize(type),
+        screenToCanvas(rect.left, rect.top, containerRef.current),
+        center,
+      );
       const width = typeof options?.nodePatch?.width === 'number'
         ? options.nodePatch.width
         : defaultSize.width;
@@ -169,7 +198,9 @@ export const useCanvasContextMenu = ({
         width,
         height,
       );
-      const node = addNode(type, slot.x, slot.y, options);
+      const node = addNode(type, slot.x, slot.y, type === 'frame'
+        ? { ...options, nodePatch: { ...options?.nodePatch, width, height } }
+        : options);
       if (type === 'file' && options?.focusEditor !== false) pendingFocus.current = node.id;
       finalizeAddedNode(node);
     },

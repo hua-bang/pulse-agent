@@ -8,6 +8,8 @@ import type { PaletteCommand } from '../CommandPalette';
 
 /** Palette commands that act on the selection, in menu order. */
 const NODE_MENU_COMMAND_IDS = [
+  'rename-selection',
+  'add-selection-to-chat',
   'duplicate-selection',
   'group-selection',
   'ungroup-selection',

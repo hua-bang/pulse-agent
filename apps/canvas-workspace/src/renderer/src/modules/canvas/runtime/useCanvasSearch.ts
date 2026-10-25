@@ -136,8 +136,12 @@ export const useCanvasSearch = ({ nodes }: Args) => {
       } else if (title && norm(title).includes(q)) {
         out.push({ nodeId: node.id, field: 'title', snippet: title });
       } else if (node.type === 'file') {
-        const fp = (node.data as FileNodeData).filePath ?? '';
-        if (fp && norm(fp).includes(q)) out.push({ nodeId: node.id, field: 'filePath', snippet: fp });
+        // Only the file name: the directory path is the same for every note
+        // in a workspace, so a word in it ("canvas") matched every empty note.
+        const fileName = ((node.data as FileNodeData).filePath ?? '').split(/[\\/]/).pop() ?? '';
+        if (fileName && norm(fileName).includes(q)) {
+          out.push({ nodeId: node.id, field: 'filePath', snippet: fileName });
+        }
       }
     }
 

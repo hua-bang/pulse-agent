@@ -37,6 +37,38 @@ const pickOption = async (ariaLabel: string, label: string): Promise<void> => {
 };
 
 describe('TaskEditorModal', () => {
+  it('asks before Esc discards a filled form and closes on the second Esc', async () => {
+    const onClose = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <AppShellProvider>
+            <TaskEditorModal open onClose={onClose} onSave={vi.fn(async () => true)} />
+          </AppShellProvider>
+        </I18nProvider>,
+      );
+    });
+    const input = document.querySelector<HTMLInputElement>('.scheduled-editor input')!;
+    expect(input.required).toBe(true);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'Daily digest');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const pressEscape = () => act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    await pressEscape();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector('.scheduled-editor__discard')).not.toBeNull();
+
+    await pressEscape();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('uses AI to draft editable instructions from the task name', async () => {
     const polishScheduledPrompt = vi.fn(async () => ({
       ok: true,

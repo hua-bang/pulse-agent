@@ -24,6 +24,8 @@ import { useCanvasFeedbackCommands } from './hooks/useCanvasFeedbackCommands';
 import { useNativeCanvasZoomGuard } from './hooks/useNativeCanvasZoomGuard';
 import { useLocalViewportHandoff } from './hooks/useLocalViewportHandoff';
 import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
+import { findFreeSlot } from './hooks/nodePlacement';
+import { useEmptyTextCleanup } from './hooks/useEmptyTextCleanup';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
@@ -108,7 +110,7 @@ export const useCanvasController = ({
     moveNode, moveNodes, resizeNode,
     addEdge, updateEdge, removeEdge,
     setTransformForSave, flushSave, reloadCanvas, commitHistory, hasAutoFittedRef,
-    undo, redo, duplicateNode, pasteNodes,
+    undo, redo, duplicateNodes, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
     mergeMindmapTopic, splitMindmapTopic,
   } = useCanvasDocumentHost({
@@ -140,6 +142,7 @@ export const useCanvasController = ({
     handleMarqueeSelect,
     getAllNodes,
   } = useCanvasSelection({ nodesRef });
+  useEmptyTextCleanup({ selectedNodeIds, nodesRef, removeNodes });
 
   const addReferenceToChat = useCallback(async (nodeId: string) => {
     const receipt = await onAddToChat?.(nodeId);
@@ -149,6 +152,17 @@ export const useCanvasController = ({
     }
     return receipt ?? { status: 'unavailable' as const, target: null };
   }, [getLiveTransform, onAddToChat, revealNode]);
+
+  // Opening the chat dock narrows the canvas; keep a lone selected node,
+  // usually the one about to be discussed, from ending up under the dock.
+  const chatWasOpenRef = useRef(chatPanelOpen);
+  useEffect(() => {
+    const opened = chatPanelOpen && !chatWasOpenRef.current;
+    chatWasOpenRef.current = chatPanelOpen;
+    const node = opened && selectedNodeIds.length === 1
+      ? nodesRef.current.find((item) => item.id === selectedNodeIds[0]) : undefined;
+    if (node) void revealNode(node, getLiveTransform);
+  }, [chatPanelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const creation = useCanvasCreationActions({
     surface: { canvasId, canvasName, rootFolder, containerRef, screenToCanvas },
@@ -285,7 +299,7 @@ export const useCanvasController = ({
     undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
     nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
-    duplicateNode,
+    duplicateNodes,
     setClipboard: onClipboardChange ?? (() => undefined),
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
@@ -328,9 +342,10 @@ export const useCanvasController = ({
 
   useCanvasImagePaste({
     canvasId, active: ownsKeyboard, containerRef, screenToCanvas,
-    addNode, updateNode,
+    addNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
     onPasteUrl: creation.createUrlNode,
+    resolveSlot: (x, y, width, height) => findFreeSlot(nodesRef.current, x, y, width, height),
     pasteCanvasNodes: pasteClipboardNodes,
   });
 
@@ -347,7 +362,7 @@ export const useCanvasController = ({
 
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef: visibleNodesRef,
-    duplicateNode, requestRemoveNodes: actions.requestRemoveNodes,
+    duplicateNodes, requestRemoveNodes: actions.requestRemoveNodes,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     wrapSelectedNodesInFrame: actions.wrapSelectedNodesInFrame,
@@ -355,7 +370,8 @@ export const useCanvasController = ({
     fitAllNodes, resetTransform, refreshCanvas: reloadCanvas,
     chatPanelOpen, onChatToggle,
     referenceDrawerOpen, onReferenceToggle,
-    onPinReferenceNode, openShortcuts,
+    onPinReferenceNode, openShortcuts, renameNode,
+    onAddNodeToChat: onAddToChat ? (nodeId) => { void addReferenceToChat(nodeId); } : undefined,
     focusModeActive: focus.focusModeActive,
     focusModeAvailable: focus.focusModeAvailable,
     toggleFocusMode: focus.toggleFocusMode,

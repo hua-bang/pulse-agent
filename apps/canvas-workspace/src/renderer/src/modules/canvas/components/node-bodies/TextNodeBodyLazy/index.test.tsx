@@ -123,14 +123,14 @@ it('keeps rich read-only content and never begins editing or updates its geometr
   expect(onUpdate).not.toHaveBeenCalled();
 });
 
-it('keeps auto-size and fixed-width wrapping measurements without mounting an editor', async () => {
+it('keeps auto-size and fixed-width wrapping measurements out of undo history without mounting an editor', async () => {
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(260);
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(70);
   await renderNode();
-  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { width: 260, height: 70 });
+  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { width: 260, height: 70 }, { history: false });
   onUpdate.mockClear();
   await renderNode({ node: { ...node, data: { ...node.data, autoSize: false } } });
-  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { height: 70 });
+  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { height: 70 }, { history: false });
   onUpdate.mockClear();
   await renderNode({ isResizing: true });
   expect(onUpdate).not.toHaveBeenCalled();
@@ -147,7 +147,7 @@ it('never saves the zero size of a hidden workspace and measures again once show
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(62);
   await renderNode({ node: fixed, workspaceActive: true, isSelected: true });
   expect(onUpdate).toHaveBeenCalledOnce();
-  expect(onUpdate).toHaveBeenCalledWith(node.id, { height: 62 });
+  expect(onUpdate).toHaveBeenCalledWith(node.id, { height: 62 }, { history: false });
 });
 
 it('skips the layout read when a workspace is shown again with an unchanged node', async () => {
@@ -161,7 +161,7 @@ it('skips the layout read when a workspace is shown again with an unchanged node
   await renderNode({ node: edited, workspaceActive: false });
   height.mockReturnValue(70);
   await renderNode({ node: edited, workspaceActive: true });
-  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { height: 70 });
+  expect(onUpdate).toHaveBeenLastCalledWith(node.id, { height: 70 }, { history: false });
 });
 
 it('reflects external and undo content changes in the idle preview', async () => {

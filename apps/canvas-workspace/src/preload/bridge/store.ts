@@ -20,6 +20,9 @@ export const createStoreApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["st
   delete: (id) =>
     ipcRenderer.invoke("canvas:delete", { id }),
 
+  restoreDeleted: (id) =>
+    ipcRenderer.invoke("canvas:restoreDeleted", { id }),
+
   getDir: (id) =>
     ipcRenderer.invoke("canvas:getDir", { id }),
 

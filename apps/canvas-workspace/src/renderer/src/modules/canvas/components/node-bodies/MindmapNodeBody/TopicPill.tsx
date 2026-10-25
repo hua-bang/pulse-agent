@@ -53,8 +53,10 @@ export const TopicPill = ({
     if (readOnly || !isEditing) return;
     const el = editorRef.current;
     if (!el) return;
+    // Typing on a selected topic replaces its text, like a spreadsheet
+    // cell; F2, Enter-to-edit, and double-click keep the text.
     if (initialInput) {
-      el.innerText = `${topic.text}${initialInput}`;
+      el.innerText = initialInput;
     }
     el.focus();
     const range = document.createRange();
@@ -71,6 +73,15 @@ export const TopicPill = ({
     if (isEditing || readOnly) return;
     if (isSelected && outerCanvasSelected) pillRef.current?.focus();
   }, [isSelected, outerCanvasSelected, isEditing, readOnly]);
+
+  // A deselected topic must give up keyboard focus. Otherwise canvas
+  // shortcuts typed after a click on the blank canvas land in this pill and
+  // start editing it.
+  useEffect(() => {
+    if (isSelected && outerCanvasSelected) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && pillRef.current?.contains(active)) active.blur();
+  }, [isSelected, outerCanvasSelected]);
 
   useEffect(() => {
     if (isEditing) return;

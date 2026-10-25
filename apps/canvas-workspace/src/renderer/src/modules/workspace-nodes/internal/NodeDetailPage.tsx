@@ -1,11 +1,10 @@
-import { useEffect } from 'react';
 import { SparklesIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode, useWorkspaceNodeList } from './useWorkspaceNodes';
 import { useAppShell } from '../../../shared/appShell';
-import { isImeComposing } from '../../../utils/ime';
+import { usePageEscape } from '../../../hooks/usePageEscape';
 import './index.css';
 
 interface NodeDetailPageProps {
@@ -32,18 +31,7 @@ export const NodeDetailPage = ({
   // the list it was opened from, never straight to the canvas. Lives here
   // rather than in App's global shortcut block because this route unmounts
   // when it is not active, which is exactly the condition the handler needs.
-  // Bubble phase and target-gated: an open picker (capture-phase
-  // `useEscapeClose`) and any text/contenteditable field keep their own Escape.
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || isOverlayOpen || isImeComposing(event)) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
-      onBack();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isOverlayOpen, onBack]);
+  usePageEscape(!isOverlayOpen, onBack);
 
   return (
     <main className="workspace-node-detail-page">

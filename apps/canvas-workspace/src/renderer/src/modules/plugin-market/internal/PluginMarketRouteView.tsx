@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { WarningCircle, X } from '@phosphor-icons/react';
 import type { PluginMarketListing } from '../../../../../shared/plugin-market';
-import { Button, TextField } from '../../../components/ui';
+import { Button, PageHeader, TextField } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { GitPluginModal } from './GitPluginModal';
 import { PluginDetailModal } from './PluginDetailModal';
@@ -13,7 +13,7 @@ import {
   PluginMarketFilters,
   PluginMarketToolbar,
 } from './PluginMarketToolbar';
-import { pluginMarketKeys as keys } from './i18nKeys';
+import { pluginCategoryLabel, pluginMarketKeys as keys } from './i18nKeys';
 import { usePluginMarket } from './usePluginMarket';
 import './index.css';
 import './toolbar.css';
@@ -99,13 +99,11 @@ export const PluginMarketRouteView = ({
       />
 
       <div className="plugin-market__content">
-        <header className="plugin-market__intro">
-          <div>
-            <span>{t(keys.kicker)}</span>
-            <h1>{t(keys.title)}</h1>
-            <p>{t(keys.description)}</p>
-          </div>
-        </header>
+        <PageHeader
+          kicker={t(keys.kicker)}
+          title={t(keys.title)}
+          description={t(keys.description)}
+        />
 
         <TextField
           className="plugin-market__search"
@@ -196,7 +194,7 @@ export const PluginMarketRouteView = ({
               {grouped.map(([title, entries]) => (
                 <PluginListingSection
                   key={title}
-                  title={title}
+                  title={pluginCategoryLabel(title, t)}
                   listings={entries}
                   busyKey={market.busyKey}
                   onOpen={openListing}

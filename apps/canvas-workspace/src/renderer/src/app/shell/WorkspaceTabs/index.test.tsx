@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
+import { CLOSE_ACTIVE_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
 import { WorkspaceTabs } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -73,6 +74,26 @@ describe('WorkspaceTabs', () => {
     expect(onSelect).toHaveBeenCalledWith('a');
   });
 
+  it('closes other tabs from the tab context menu and selects the kept tab', async () => {
+    window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b', 'c']));
+    await render('a');
+    const betaTab = host.querySelectorAll<HTMLElement>('.workspace-tabs__tab')[1];
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    await act(async () => { betaTab.dispatchEvent(event); });
+    expect(event.defaultPrevented).toBe(true);
+    const closeOthers = await vi.waitFor(() => {
+      const item = [...document.querySelectorAll<HTMLButtonElement>('.workspace-tabs__menu [role="menuitem"]')]
+        .find((button) => button.textContent === 'Close other tabs');
+      if (!item) throw new Error('menu not open');
+      return item;
+    });
+
+    await act(async () => closeOthers.click());
+
+    expect(tabNames()).toEqual(['Beta']);
+    expect(onSelect).toHaveBeenCalledWith('b');
+  });
+
   it('shows the neighbour after closing the active tab, and the launcher after the last', async () => {
     window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b']));
     await render('b');
@@ -84,6 +105,14 @@ describe('WorkspaceTabs', () => {
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Close Alpha"]')!.click());
     expect(onOpenLauncher).toHaveBeenCalledTimes(1);
     expect(tabNames()).toEqual([]);
+  });
+
+  it('closes the active tab when the shortcut layer asks', async () => {
+    window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b']));
+    await render('b');
+    await act(async () => window.dispatchEvent(new Event(CLOSE_ACTIVE_TAB_EVENT)));
+    expect(onSelect).toHaveBeenCalledWith('a');
+    expect(tabNames()).toEqual(['Alpha']);
   });
 
   it('closing a background tab keeps the current workspace', async () => {

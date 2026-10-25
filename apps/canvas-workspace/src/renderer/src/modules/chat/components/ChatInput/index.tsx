@@ -1,4 +1,4 @@
-import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
+import { useMemo, type ClipboardEventHandler, type KeyboardEventHandler, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
 import './index.css';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../../../types';
 import { ImageIcon, PlusIcon } from '../../../../components/icons';
@@ -120,6 +120,21 @@ export const ChatInput = ({
   );
   const hasSendableContent = Boolean(input.trim() || readyAttachments.length > 0);
   const canSend = hasSendableContent && !sendDisabled && !attachmentSendBlocked;
+  // The box is about twice the height of the editable line; a click on its
+  // padding or empty toolbar row should still place the caret.
+  const focusInputFromBox = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const editable = editableRef.current;
+    if (interactionDisabled || !editable) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, textarea, a, select, [contenteditable="true"], [role="menu"], [role="listbox"]')) return;
+    event.preventDefault();
+    editable.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    range.collapse(false);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+  };
   return (
     <div className="chat-input-container">
       {mentionPopup}
@@ -134,7 +149,10 @@ export const ChatInput = ({
           onRemove={onRemoveQueued}
         />
       )}
-      <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
+      <div
+        className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}
+        onMouseDown={focusInputFromBox}
+      >
         {showContextChips && (
           <div className="chat-context-chips" aria-label={t('chat.currentContext')}>
             {contextChips.map(chip => (

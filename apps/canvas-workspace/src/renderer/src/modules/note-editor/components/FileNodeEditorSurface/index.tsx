@@ -216,6 +216,7 @@ export const FileNodeEditorSurface = ({
           panelId={slashPanelId}
           x={slashMenu.x}
           y={slashMenu.y}
+          caretTop={slashMenu.top}
           query={slashMenu.query}
           selectedIndex={slashMenu.index}
           items={slashItems}

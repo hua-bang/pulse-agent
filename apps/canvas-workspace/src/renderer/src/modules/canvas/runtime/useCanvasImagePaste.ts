@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import type { CanvasNode, TextNodeData } from '../../../types';
 import { normalizeReferenceUrl } from '../../../shared/reference/utils';
+import { looksLikeUrl } from '../../../platform/browser/address-input';
+import { getNodeDefaultSize } from '../../../utils/nodeFactory';
 
 interface Options {
   /** Current canvas workspace id — used as the saveImage target directory. */
@@ -11,14 +13,22 @@ interface Options {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** Convert screen coords to canvas coords (honours pan/zoom). */
   screenToCanvas: (x: number, y: number, container: HTMLElement) => { x: number; y: number };
-  /** Create a node on the canvas. */
-  addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
-  /** Update a node after its image has been saved and measured. */
-  updateNode: (id: string, patch: Partial<CanvasNode>) => void;
+  /**
+   * Create a node on the canvas. The pasted content goes in `nodePatch`, so
+   * the paste is one undo step instead of an add plus a fill.
+   */
+  addNode: (
+    type: CanvasNode['type'],
+    x: number,
+    y: number,
+    options?: { nodePatch?: Partial<CanvasNode> },
+  ) => CanvasNode;
   /** Make the new image the current selection. */
   onCreated?: (node: CanvasNode) => void;
-  /** Create a web node when the clipboard carries a URL instead of plain notes. */
-  onPasteUrl?: (url: string) => CanvasNode | null;
+  /** Create a web node centred on `at` when the clipboard carries a URL instead of plain notes. */
+  onPasteUrl?: (url: string, options?: { at?: { x: number; y: number } }) => CanvasNode | null;
+  /** Move a pasted node's desired top-left into clear space. */
+  resolveSlot?: (x: number, y: number, width: number, height: number) => { x: number; y: number };
   /**
    * Paste the canvas-local node clipboard. Receives the system clipboard's
    * plain text so it can decide which clipboard is newer, and returns true
@@ -140,9 +150,9 @@ export const useCanvasImagePaste = ({
   containerRef,
   screenToCanvas,
   addNode,
-  updateNode,
   onCreated,
   onPasteUrl,
+  resolveSlot,
   pasteCanvasNodes,
 }: Options) => {
   useEffect(() => {
@@ -164,21 +174,30 @@ export const useCanvasImagePaste = ({
           return;
         }
         if (!text) return;
-        const normalizedUrl = normalizeReferenceUrl(text);
-        if (normalizedUrl && onPasteUrl) {
-          e.preventDefault();
-          onPasteUrl(normalizedUrl);
-          return;
-        }
-        e.preventDefault();
         const container = containerRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const centre = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, container);
+        const place = (width: number, height: number) => (
+          resolveSlot?.(centre.x - width / 2, centre.y - height / 2, width, height)
+          ?? { x: centre.x - width / 2, y: centre.y - height / 2 }
+        );
+        // `normalizeReferenceUrl` accepts almost any text (`new URL` drops
+        // newlines and escapes spaces), so plain notes must fail the omnibox
+        // check first or they become web nodes with nonsense addresses.
+        const normalizedUrl = looksLikeUrl(text) ? normalizeReferenceUrl(text) : undefined;
+        if (normalizedUrl && onPasteUrl) {
+          e.preventDefault();
+          const size = getNodeDefaultSize('iframe');
+          const slot = place(size.width, size.height);
+          onPasteUrl(normalizedUrl, { at: { x: slot.x + size.width / 2, y: slot.y + size.height / 2 } });
+          return;
+        }
+        e.preventDefault();
         const patch = createTextPatch(text);
-        const node = addNode('text', centre.x - patch.width / 2, centre.y - patch.height / 2);
-        updateNode(node.id, patch);
-        onCreated?.({ ...node, ...patch });
+        const slot = place(patch.width, patch.height);
+        const node = addNode('text', slot.x, slot.y, { nodePatch: patch });
+        onCreated?.(node);
         return;
       }
 
@@ -220,12 +239,13 @@ export const useCanvasImagePaste = ({
         const x = centre.x - width / 2;
         const y = centre.y - height / 2;
 
-        const node = addNode('image', x, y);
-        updateNode(node.id, {
-          width,
-          height,
-          title: saved.fileName ?? 'Image',
-          data: { filePath: saved.filePath ?? '' },
+        const node = addNode('image', x, y, {
+          nodePatch: {
+            width,
+            height,
+            title: saved.fileName ?? 'Image',
+            data: { filePath: saved.filePath ?? '' },
+          },
         });
         onCreated?.(node);
       };
@@ -234,5 +254,5 @@ export const useCanvasImagePaste = ({
 
     document.addEventListener('paste', handler);
     return () => document.removeEventListener('paste', handler);
-  }, [active, canvasId, containerRef, screenToCanvas, addNode, updateNode, onCreated, onPasteUrl, pasteCanvasNodes]);
+  }, [active, canvasId, containerRef, screenToCanvas, addNode, onCreated, onPasteUrl, resolveSlot, pasteCanvasNodes]);
 };

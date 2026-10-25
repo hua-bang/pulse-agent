@@ -84,6 +84,7 @@ const GRAPH_MAX_ZOOM = 2.5;
 // Labels outside the hovered/selected neighbourhood stay readable but recede.
 const DIMMED_NODE_ALPHA = 0.18;
 const DIMMED_LABEL_ALPHA = 0.4;
+const GRAPH_LABEL_MAX_CHARS = 24;
 // A node this close to the viewport edge counts as hidden.
 const REVEAL_MARGIN_PX = 48;
 // Labels keep one on-screen size at every zoom level.
@@ -97,10 +98,14 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
   const colors = useResolvedTheme() === 'dark' ? DARK_GRAPH_COLORS : GRAPH_COLORS;
   const sizeRef = useRef({ width: view.width, height: view.height });
   sizeRef.current = { width: view.width, height: view.height };
+  // The layout keeps moving after the first fit. Fit again when it settles,
+  // unless the user or a focus command has moved the view since.
+  const viewMovedRef = useRef(false);
 
   useImperativeHandle(ref, () => ({
     focusNode: (node, zoom = GRAPH_MAX_ZOOM) => {
       if (node.x === undefined || node.y === undefined) return;
+      viewMovedRef.current = true;
       graphRef.current?.centerAt(node.x, node.y, 520);
       graphRef.current?.zoom(zoom, 520);
     },
@@ -111,7 +116,9 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
       const { width, height } = sizeRef.current;
       const visible = point.x >= REVEAL_MARGIN_PX && point.x <= width - REVEAL_MARGIN_PX
         && point.y >= REVEAL_MARGIN_PX && point.y <= height - REVEAL_MARGIN_PX;
-      if (!visible) graph.centerAt(node.x, node.y, 420);
+      if (visible) return;
+      viewMovedRef.current = true;
+      graph.centerAt(node.x, node.y, 420);
     },
     setPaused: (paused) => {
       if (paused) graphRef.current?.pauseAnimation();
@@ -133,6 +140,7 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
     charge?.distanceMax?.(view.layoutPreset === 'loose' ? 1200 : 900);
     graph.d3Force('link')?.distance?.(preset.linkDistance);
     graph.d3ReheatSimulation();
+    viewMovedRef.current = false;
     const timeout = window.setTimeout(() => graph.zoomToFit(450, 140), 60);
     return () => window.clearTimeout(timeout);
   }, [view.graph.links.length, view.graph.nodes.length, view.layoutPreset]);
@@ -168,7 +176,12 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
     const showLabel = view.showLabels || selected || hovered || isWorkspace || globalScale > 2.3;
     if (showLabel) {
       ctx.globalAlpha = highlighted ? 1 : DIMMED_LABEL_ALPHA;
-      const label = node.label || nodeId;
+      // Long titles overlapped their neighbours; the full text shows on
+      // hover and selection.
+      const fullLabel = node.label || nodeId;
+      const label = selected || hovered || fullLabel.length <= GRAPH_LABEL_MAX_CHARS
+        ? fullLabel
+        : `${fullLabel.slice(0, GRAPH_LABEL_MAX_CHARS - 1)}…`;
       const fontSize = LABEL_SCREEN_PX / globalScale;
       ctx.font = `${fontSize}px "Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const textWidth = ctx.measureText(label).width;
@@ -192,44 +205,59 @@ export const ForceGraphCanvas = forwardRef<ForceGraphCanvasHandle, Props>(({ vie
     ctx.restore();
   }, [colors, view.activeNodeId, view.highlightedNodeIds, view.hoverNodeId, view.showLabels]);
 
+  const markViewMoved = () => {
+    viewMovedRef.current = true;
+  };
+
   return (
-    <ForceGraph2D
-      ref={graphRef as MutableRefObject<ForceGraphMethods<any, any> | undefined>}
-      graphData={view.graph}
-      width={view.width}
-      height={view.height}
-      backgroundColor="rgba(0,0,0,0)"
-      // Labels are drawn on the canvas; a hover tooltip would repeat them.
-      nodeLabel={() => ''}
-      onNodeHover={(node) => actions.hoverNode(node ? getGraphId(node.id) : null)}
-      onNodeClick={(node, event) => actions.clickNode(node, event)}
-      onNodeRightClick={(node, event) => { event.preventDefault(); actions.clickNode(node, event); }}
-      onBackgroundClick={actions.clearSelection}
-      linkWidth={(link) => view.highlightedLinkIds.size === 0 || view.highlightedLinkIds.has(linkKey(link)) ? 1.15 : 0.35}
-      linkColor={(link) => {
-        if (link.kind === 'workspace') return colors.workspaceLink;
-        return view.highlightedLinkIds.size === 0 || view.highlightedLinkIds.has(linkKey(link))
-          ? colors.linkHighlight
-          : colors.link;
-      }}
-      linkDirectionalParticles={(link) => link.kind !== 'workspace' && view.highlightedLinkIds.has(linkKey(link)) ? 2 : 0}
-      linkDirectionalParticleWidth={1.2}
-      linkDirectionalParticleSpeed={0.005}
-      cooldownTime={12000}
-      // Settle the layout before the first paint, so the first fit frames the
-      // spread-out graph instead of a tight cluster. The cap stops a handful
-      // of nodes from filling the screen.
-      warmupTicks={80}
-      maxZoom={GRAPH_MAX_ZOOM}
-      nodeCanvasObject={renderNode}
-      nodePointerAreaPaint={(node, paintColor, ctx) => {
-        const radius = node.kind === 'workspace' ? 16 : node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;
-        ctx.fillStyle = paintColor;
-        ctx.beginPath();
-        ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }}
-    />
+    // `display: contents` keeps the graph canvas in the parent's layout.
+    <div
+      className="force-graph-canvas"
+      style={{ display: 'contents' }}
+      onPointerDownCapture={markViewMoved}
+      onWheelCapture={markViewMoved}
+    >
+      <ForceGraph2D
+        ref={graphRef as MutableRefObject<ForceGraphMethods<any, any> | undefined>}
+        graphData={view.graph}
+        width={view.width}
+        height={view.height}
+        backgroundColor="rgba(0,0,0,0)"
+        // Labels are drawn on the canvas; a hover tooltip would repeat them.
+        nodeLabel={() => ''}
+        onNodeHover={(node) => actions.hoverNode(node ? getGraphId(node.id) : null)}
+        onNodeClick={(node, event) => actions.clickNode(node, event)}
+        onNodeRightClick={(node, event) => { event.preventDefault(); actions.clickNode(node, event); }}
+        onBackgroundClick={actions.clearSelection}
+        linkWidth={(link) => view.highlightedLinkIds.size === 0 || view.highlightedLinkIds.has(linkKey(link)) ? 1.15 : 0.35}
+        linkColor={(link) => {
+          if (link.kind === 'workspace') return colors.workspaceLink;
+          return view.highlightedLinkIds.size === 0 || view.highlightedLinkIds.has(linkKey(link))
+            ? colors.linkHighlight
+            : colors.link;
+        }}
+        linkDirectionalParticles={(link) => link.kind !== 'workspace' && view.highlightedLinkIds.has(linkKey(link)) ? 2 : 0}
+        linkDirectionalParticleWidth={1.2}
+        linkDirectionalParticleSpeed={0.005}
+        cooldownTime={12000}
+        // Settle the layout before the first paint, so the first fit frames the
+        // spread-out graph instead of a tight cluster. The cap stops a handful
+        // of nodes from filling the screen.
+        warmupTicks={80}
+        onEngineStop={() => {
+          if (!viewMovedRef.current) graphRef.current?.zoomToFit(450, 140);
+        }}
+        maxZoom={GRAPH_MAX_ZOOM}
+        nodeCanvasObject={renderNode}
+        nodePointerAreaPaint={(node, paintColor, ctx) => {
+          const radius = node.kind === 'workspace' ? 16 : node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;
+          ctx.fillStyle = paintColor;
+          ctx.beginPath();
+          ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }}
+      />
+    </div>
   );
 });
 

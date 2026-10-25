@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
+import { CLOSE_ACTIVE_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
 import { useOpenWorkspaceTabs } from './useOpenWorkspaceTabs';
 import { WorkspacePicker } from './WorkspacePicker';
 import './index.css';
+
+// Loads on the first right-click, outside the startup bundle.
+const WorkspaceTabMenu = lazy(() => import('./WorkspaceTabMenu').then((m) => ({ default: m.WorkspaceTabMenu })));
 
 interface Props {
   workspaces: WorkspaceEntry[];
@@ -34,10 +38,12 @@ export const WorkspaceTabs = ({
   const newButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const menuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const [menuTabId, setMenuTabId] = useState<string | null>(null);
   // Like Chrome: closing a tab keeps the others at their width until the
   // pointer leaves the bar, so the next close button stays under it.
   const [frozenWidth, setFrozenWidth] = useState<number | null>(null);
-  const { openIds, close } = useOpenWorkspaceTabs(workspaces, activeId);
+  const { openIds, close, closeOthers } = useOpenWorkspaceTabs(workspaces, activeId);
   const byId = new Map(workspaces.map((ws) => [ws.id, ws]));
   const tabs = openIds.flatMap((id) => {
     const workspace = byId.get(id);
@@ -66,11 +72,36 @@ export const WorkspaceTabs = ({
     else onOpenLauncher();
   };
 
+  // Mod+W from the app shortcut layer. The ref keeps one listener while
+  // onClose changes every render.
+  const closeActiveRef = useRef(() => {});
+  closeActiveRef.current = () => {
+    if (activeId) onClose(activeId);
+  };
+  useEffect(() => {
+    const handler = () => closeActiveRef.current();
+    window.addEventListener(CLOSE_ACTIVE_TAB_EVENT, handler);
+    return () => window.removeEventListener(CLOSE_ACTIVE_TAB_EVENT, handler);
+  }, []);
+
   const closeFromPointer = (event: MouseEvent<HTMLElement>, id: string) => {
     const tab = event.currentTarget.closest('.workspace-tabs__tab');
     if (tab) setFrozenWidth(tab.getBoundingClientRect().width);
     onClose(id);
   };
+
+  const openTabMenu = (event: MouseEvent<HTMLElement>, id: string) => {
+    event.preventDefault();
+    menuAnchorRef.current = event.currentTarget.querySelector('.workspace-tabs__select');
+    setMenuTabId(id);
+  };
+
+  const keepOnlyTab = (id: string) => {
+    closeOthers(id);
+    if (id !== activeId) onSelect(id);
+  };
+
+  const menuTab = menuTabId ? byId.get(menuTabId) : undefined;
 
   const handleAuxClick = (event: MouseEvent<HTMLElement>, id: string) => {
     if (event.button !== 1) return;
@@ -111,6 +142,7 @@ export const WorkspaceTabs = ({
               key={workspace.id}
               className={`workspace-tabs__tab${active ? ' workspace-tabs__tab--active' : ''}`}
               onAuxClick={(event) => handleAuxClick(event, workspace.id)}
+              onContextMenu={(event) => openTabMenu(event, workspace.id)}
             >
               <Button
                 variant="secondary"
@@ -150,6 +182,24 @@ export const WorkspaceTabs = ({
       >
         <PlusIcon size={13} />
       </Button>
+      {menuTab && (
+        <Suspense fallback={null}>
+          <WorkspaceTabMenu
+            anchorRef={menuAnchorRef}
+            name={menuTab.name}
+            canCloseOthers={tabs.length > 1}
+            onClose={() => setMenuTabId(null)}
+            onCloseTab={() => {
+              setMenuTabId(null);
+              onClose(menuTab.id);
+            }}
+            onCloseOthers={() => {
+              setMenuTabId(null);
+              keepOnlyTab(menuTab.id);
+            }}
+          />
+        </Suspense>
+      )}
       {pickerOpen && (
         <WorkspacePicker
           anchorRef={newButtonRef}

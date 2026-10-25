@@ -138,6 +138,42 @@ describe('useCanvasDocument text resize commit', () => {
     expect((hook.nodes[0].data as { content?: string }).content).toBe('hello');
   });
 
+  // A new text node measures itself right after mount. With that measure in
+  // history, undo restored the default size, the next measure pushed again,
+  // and undo could never remove the node or reach anything before it.
+  it('undoes a new text node in one step after its silent measure', () => {
+    let createdId = '';
+    act(() => {
+      createdId = hook.addNode('text', 400, 400).id;
+    });
+    act(() => {
+      hook.updateNode(createdId, { width: 96, height: 32 }, { history: false });
+    });
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual(['text-1']);
+  });
+
+  it('duplicates a multi-node selection as one undo step', () => {
+    act(() => {
+      hook.addNode('text', 400, 400);
+    });
+    const ids = hook.nodes.map((item) => item.id);
+    let copies: CanvasNode[] = [];
+    act(() => {
+      copies = hook.duplicateNodes(ids);
+    });
+    expect(copies).toHaveLength(2);
+    expect(hook.nodes).toHaveLength(4);
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual(ids);
+  });
+
   it('preserves the loaded viewport when an embedded editor saves only node changes', async () => {
     act(() => {
       hook.updateNode('text-1', { title: 'Edited in AI Chat' });

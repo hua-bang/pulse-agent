@@ -316,6 +316,28 @@ body {
   font-weight: 400;
 }
 
+/* Chrome and the canvas surface are controls, not reading text. A drag that
+ * starts on a canvas overlay (the node Ask bar) or a Ctrl+A outside a field
+ * otherwise selected every label in the window, and a copy of that selection
+ * then pasted as a node. Editable fields opt back in below; chat messages
+ * keep their own `user-select: text`. */
+.sidebar,
+.workspace-tabs,
+.canvas-container,
+.canvas-bottom-chrome,
+.floating-toolbar,
+.right-dock__tabs,
+.chat-page-topbar {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.canvas-container :is(input, textarea, [contenteditable="true"], .ProseMirror),
+.sidebar :is(input, textarea) {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 h1,
 h2,
 h3,

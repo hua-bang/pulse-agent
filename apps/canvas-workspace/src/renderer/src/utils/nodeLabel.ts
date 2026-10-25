@@ -1,4 +1,12 @@
-import type { CanvasNode, MindmapNodeData, PluginNodeData, ReferenceNodeData, TextNodeData } from "../types";
+import type {
+  CanvasNode,
+  MindmapNodeData,
+  MindmapTopic,
+  PluginNodeData,
+  ReferenceNodeData,
+  TextNodeData,
+} from "../types";
+import { DEFAULT_TEXT_NODE_TITLES } from "../../../shared/canvas-node-defaults";
 
 const TEXT_LABEL_MAX_CHARS = 10;
 const MINDMAP_LABEL_MAX_CHARS = 16;
@@ -53,7 +61,7 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
  */
 export function getNodeSearchTitle(node: CanvasNode): string {
   const title = node.title.trim();
-  return node.type === "text" && title === "Text" ? "" : title;
+  return node.type === "text" && DEFAULT_TEXT_NODE_TITLES.has(title) ? "" : title;
 }
 
 /**
@@ -108,4 +116,27 @@ export function textContentPreview(content: string | undefined, maxChars = TEXT_
   // user-visible problem.
   if (stripped.length <= maxChars) return stripped;
   return `${stripped.slice(0, maxChars)}…`;
+}
+
+const mindmapOutline = (topic: MindmapTopic, depth = 0): string[] => [
+  `${"  ".repeat(depth)}${depth === 0 ? "" : "- "}${topic.text}`,
+  // Externally written maps may omit `children` on leaf topics.
+  ...(topic.children ?? []).flatMap(child => mindmapOutline(child, depth + 1)),
+];
+
+/**
+ * Plain text for the system clipboard when nodes are copied. Text nodes give
+ * their prose and mind maps an indented outline, so pasting into another app
+ * yields the content instead of placeholder titles like "Text".
+ */
+export function nodeClipboardText(node: CanvasNode): string {
+  if (node.type === "text") {
+    const text = htmlToPlainText((node.data as TextNodeData).content ?? "").trim();
+    if (text) return text;
+  }
+  if (node.type === "mindmap") {
+    const root = (node.data as MindmapNodeData).root;
+    if (root) return mindmapOutline(root).join("\n");
+  }
+  return getNodeDisplayLabel(node);
 }

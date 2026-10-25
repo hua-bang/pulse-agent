@@ -4,6 +4,17 @@
   box-sizing: border-box;
 }
 
+/* Folded, only the chip is a target. The form box around it swallowed
+ * pointer downs (it stops propagation), so a marquee that started beside the
+ * chip became a native text selection instead. */
+.node-ask-bar:not(.node-ask-bar--expanded) {
+  pointer-events: none;
+}
+
+.node-ask-bar:not(.node-ask-bar--expanded) .node-ask-bar__chip {
+  pointer-events: auto;
+}
+
 /* Folded: a small chip that stays out of the way of the card. */
 .node-ask-bar .node-ask-bar__chip {
   display: inline-flex;
