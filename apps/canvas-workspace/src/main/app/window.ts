@@ -1,7 +1,7 @@
-import { BrowserWindow, nativeTheme, shell } from "electron";
-import { APP_NAME } from "./identity";
-import { isSafeExternalUrl } from "./shell-ipc";
-import type { WriteLog } from "./logging";
+import { BrowserWindow, nativeTheme, shell } from 'electron';
+import { APP_NAME } from './identity';
+import { isSafeExternalUrl } from './shell-ipc';
+import type { WriteLog } from './logging';
 
 export interface CreateWindowOptions {
   preloadPath: string;

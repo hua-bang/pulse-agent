@@ -5,7 +5,7 @@
  * alongside this file later with the same `start()` shape.
  */
 
-import type { HttpPollFetcher } from "../types";
+import type { HttpPollFetcher } from '../types';
 
 export interface RunnerHandle {
   /** Stop the runner. Idempotent — safe to call multiple times. */

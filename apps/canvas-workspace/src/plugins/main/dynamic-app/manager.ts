@@ -27,23 +27,23 @@
  *   window.__ACTIONS__ — { actionName: postUrl, ... } (stateful only)
  */
 
-import http, { type IncomingMessage, type ServerResponse } from "node:http";
-import { app } from "electron";
-import { startHttpPoll, type RunnerHandle } from "./runners/http-poll";
-import { startMock } from "./runners/mock";
-import { runAction, runTransform } from "./sandbox-runner";
+import http, { type IncomingMessage, type ServerResponse } from 'node:http';
+import { app } from 'electron';
+import { startHttpPoll, type RunnerHandle } from './runners/http-poll';
+import { startMock } from './runners/mock';
+import { runAction, runTransform } from './sandbox-runner';
 import {
   deleteState,
   getState,
   setState,
-} from "./store";
+} from './store';
 import type {
   DynamicAppSpec,
   PollingSpec,
   StatefulSpec,
   UiSpec,
-} from "./types";
-import { stripRequestQuery } from "./utils";
+} from './types';
+import { stripRequestQuery } from './utils';
 
 interface BaseRunner {
   id: string;

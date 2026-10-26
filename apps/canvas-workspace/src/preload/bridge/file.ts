@@ -1,6 +1,6 @@
-import type { IpcRenderer } from "electron";
-import type { FileApi } from "../../shared/api/files";
-import { subscribe } from "./ipc";
+import type { IpcRenderer } from 'electron';
+import type { FileApi } from '../../shared/api/files';
+import { subscribe } from './ipc';
 
 type FileChangedPayload = {
   filePath: string;

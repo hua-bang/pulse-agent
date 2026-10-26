@@ -1,4 +1,4 @@
-import { app, session } from "electron";
+import { app, session } from 'electron';
 
 // Google sign-in compatibility for embedded browsing surfaces.
 //

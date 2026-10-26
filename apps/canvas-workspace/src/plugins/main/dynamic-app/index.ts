@@ -23,18 +23,18 @@
  * within ~30s.
  */
 
-import { readFileSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
-import type { MainCanvasPlugin } from "../../types";
+import { readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
+import type { MainCanvasPlugin } from '../../types';
 import {
   EXPERIMENTAL_FLAG_DYNAMIC_APP,
   resolveFeatureValues,
-} from "../../../shared/experimental-features";
-import { DynamicAppManager } from "./manager";
-import { startReconciler } from "./reconciler";
-import { createDynamicAppTools } from "./tools";
-import { deleteState, getSpec } from "./store";
+} from '../../../shared/experimental-features';
+import { DynamicAppManager } from './manager';
+import { startReconciler } from './reconciler';
+import { createDynamicAppTools } from './tools';
+import { deleteState, getSpec } from './store';
 
 function experimentalFlagsPath(): string {
   const envPath = process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim();

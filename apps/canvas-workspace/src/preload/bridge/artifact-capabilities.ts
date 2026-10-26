@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { ArtifactCapabilitiesApi } from "../../shared/artifact-capabilities";
+import type { IpcRenderer } from 'electron';
+import type { ArtifactCapabilitiesApi } from '../../shared/artifact-capabilities';
 
 export const createArtifactCapabilitiesApi = (
   ipcRenderer: IpcRenderer,

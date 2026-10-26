@@ -1,7 +1,7 @@
-import { app, net, protocol } from "electron";
-import { isAbsolute, join, normalize, sep } from "path";
-import { pathToFileURL } from "url";
-import type { WriteLog } from "../logging";
+import { app, net, protocol } from 'electron';
+import { isAbsolute, join, normalize, sep } from 'path';
+import { pathToFileURL } from 'url';
+import type { WriteLog } from '../logging';
 
 // Custom scheme for serving local image/file assets to the renderer.
 // Chromium blocks `file://` URLs in renderer-loaded pages for security

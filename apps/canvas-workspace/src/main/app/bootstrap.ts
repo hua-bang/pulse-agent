@@ -1,96 +1,96 @@
-import { APP_NAME, configureAppIdentity } from "./identity";
-import { app, BrowserWindow, powerMonitor, session } from "electron";
-import { existsSync } from "fs";
-import { join } from "path";
-import { setupPtyIpc, killAllPty } from "../terminal/pty-manager";
-import { setupScrollbackCapture } from "../terminal/scrollback";
-import { setupDockTabsIpc } from "../dock/tab-store";
-import { setupDockTabActionsIpc } from "../dock/tab-actions";
-import { setupBrowsingHistoryIpc } from "../dock/history-store";
+import { APP_NAME, configureAppIdentity } from './identity';
+import { app, BrowserWindow, powerMonitor, session } from 'electron';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { setupPtyIpc, killAllPty } from '../terminal/pty-manager';
+import { setupScrollbackCapture } from '../terminal/scrollback';
+import { setupDockTabsIpc } from '../dock/tab-store';
+import { setupDockTabActionsIpc } from '../dock/tab-actions';
+import { setupBrowsingHistoryIpc } from '../dock/history-store';
 import {
   setupCanvasStoreIpc,
   teardownCanvasWatchers,
   auditPollutedWorkspacesAtStartup,
-} from "../canvas/store";
-import { ensureWelcomeWorkspaceSeeded } from "../canvas/welcome-workspace";
-import { setupFileManagerIpc } from "../files/manager";
-import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
+} from '../canvas/store';
+import { ensureWelcomeWorkspaceSeeded } from '../canvas/welcome-workspace';
+import { setupFileManagerIpc } from '../files/manager';
+import { setupFileWatcherIpc, teardownFileWatcher } from '../files/watcher';
 import {
   getCanvasAgentService,
   setupCanvasAgentIpc,
   teardownCanvasAgent,
-} from "../agent/ipc";
-import { setupCodexSessionsIpc } from "../agent/external/codex-sessions";
-import { setupCanvasModelIpc } from "../models/ipc";
-import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
-import { upsertCanvasSkill } from "../agent/skills/config";
-import { saveMemory } from "../agent/memory/memory-store";
-import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
-import { ensureDefaultSkillsSeeded } from "../agent/skills/default-skills";
-import { setupCanvasPromptIpc } from "../agent/prompt-profile/prompt-profile-ipc";
-import { setupAgentRolesIpc } from "../agent/roles/agent-roles-ipc";
-import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
-import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
-import { setupCanvasPluginsConfigIpc } from "../plugin-market/config-ipc";
-import { setupPluginMarketIpc } from "../plugin-market/ipc";
-import { getExperimentalFlagSync, setupExperimentalIpc } from "../settings/experimental-ipc";
+} from '../agent/ipc';
+import { setupCodexSessionsIpc } from '../agent/external/codex-sessions';
+import { setupCanvasModelIpc } from '../models/ipc';
+import { setupCanvasSkillsIpc } from '../agent/skills/ipc';
+import { upsertCanvasSkill } from '../agent/skills/config';
+import { saveMemory } from '../agent/memory/memory-store';
+import { setupCanvasMcpIpc } from '../agent/mcp/ipc';
+import { ensureDefaultSkillsSeeded } from '../agent/skills/default-skills';
+import { setupCanvasPromptIpc } from '../agent/prompt-profile/prompt-profile-ipc';
+import { setupAgentRolesIpc } from '../agent/roles/agent-roles-ipc';
+import { setupBuiltInToolsConfigIpc } from '../settings/built-in-tools-ipc';
+import { applyStoredBuiltInToolsConfigToEnv } from '../settings/built-in-tools-config';
+import { setupCanvasPluginsConfigIpc } from '../plugin-market/config-ipc';
+import { setupPluginMarketIpc } from '../plugin-market/ipc';
+import { getExperimentalFlagSync, setupExperimentalIpc } from '../settings/experimental-ipc';
 import {
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_DEFAULT_BROWSER,
-} from "../../shared/experimental-features";
-import { setupWebviewRegistryIpc } from "../webview/registry";
-import { startWebviewDiscardMonitor } from "../webview/lifecycle/discard-monitor";
-import { setupHtmlGeneratorIpc } from "../generation/ipc";
-import { setupWebpageReaderIpc } from "../webview/reader";
-import { setupArtifactIpc } from "../artifacts/ipc";
-import { setupReferenceIpc } from "../references/ipc";
-import { setupShellIpc } from "./shell-ipc";
+} from '../../shared/experimental-features';
+import { setupWebviewRegistryIpc } from '../webview/registry';
+import { startWebviewDiscardMonitor } from '../webview/lifecycle/discard-monitor';
+import { setupHtmlGeneratorIpc } from '../generation/ipc';
+import { setupWebpageReaderIpc } from '../webview/reader';
+import { setupArtifactIpc } from '../artifacts/ipc';
+import { setupReferenceIpc } from '../references/ipc';
+import { setupShellIpc } from './shell-ipc';
 import {
   BUILT_IN_MAIN_PLUGINS,
   reloadConfiguredExternalMainPlugins,
   setupCanvasPlugins,
   teardownCanvasPlugins,
   setAgentServiceAccessor,
-} from "../../plugins/main";
-import { applyChannelConfigToEnv } from "../../plugins/main/channel/config";
-import { setupChannelConfigIpc } from "../../plugins/main/channel/config-ipc";
+} from '../../plugins/main';
+import { applyChannelConfigToEnv } from '../../plugins/main/channel/config';
+import { setupChannelConfigIpc } from '../../plugins/main/channel/config-ipc';
 import {
   createMainLogger,
   setupFatalErrorLogging,
   setupRendererLogIpc,
   type WriteLog,
-} from "./logging";
+} from './logging';
 import {
   registerPulseCanvasProtocol,
   registerPulseCanvasSchemesAsPrivileged,
-} from "./protocol/protocol";
-import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
-import { startLoopDelaySampler } from "../perf/loop-delay";
-import { createWindow } from "./window";
-import { applyLoginShellPath, augmentProcessPath } from "../shell-path";
+} from './protocol/protocol';
+import { logStartupSummaryOnce, startupMark } from './startup-metrics';
+import { startLoopDelaySampler } from '../perf/loop-delay';
+import { createWindow } from './window';
+import { applyLoginShellPath, augmentProcessPath } from '../shell-path';
 import {
   activateWorkspaceWindow,
   getCanvasWindow,
   getLiveCanvasWindow,
   setWindowFactory,
-} from "./window-manager";
-import { setCanvasWindowPort } from "../agent/window-port";
-import { setAgentScheduledPort } from "../agent/scheduled/scheduled-port";
-import { setAgentCapabilityPort } from "../agent/capability-port";
-import { setArtifactAgentWritePort } from "../artifacts/agent-write-port";
-import { setPluginMarketAgentPort } from "../plugin-market/agent-port";
+} from './window-manager';
+import { setCanvasWindowPort } from '../agent/window-port';
+import { setAgentScheduledPort } from '../agent/scheduled/scheduled-port';
+import { setAgentCapabilityPort } from '../agent/capability-port';
+import { setArtifactAgentWritePort } from '../artifacts/agent-write-port';
+import { setPluginMarketAgentPort } from '../plugin-market/agent-port';
 import {
   connectCanvasMcpOAuth,
-} from "../agent/mcp/oauth";
+} from '../agent/mcp/oauth';
 
 let teardownConversationRuntime: () => void = () => undefined;
-import { setupLinkPolicy } from "./browsing/link-policy";
-import { setupUnloadPrompt } from "./browsing/unload-prompt";
-import { setupWebviewShortcuts } from "../webview/webview-shortcuts";
-import { setupWebviewContextMenu } from "../webview/webview-context-menu";
-import { setupGoogleAuthCompat } from "./browsing/google-auth";
-import { setupDeepLinkEarly } from "../default-browser/deep-link";
-import { setupDefaultBrowserIpc } from "../default-browser/ipc";
+import { setupLinkPolicy } from './browsing/link-policy';
+import { setupUnloadPrompt } from './browsing/unload-prompt';
+import { setupWebviewShortcuts } from '../webview/webview-shortcuts';
+import { setupWebviewContextMenu } from '../webview/webview-context-menu';
+import { setupGoogleAuthCompat } from './browsing/google-auth';
+import { setupDeepLinkEarly } from '../default-browser/deep-link';
+import { setupDefaultBrowserIpc } from '../default-browser/ipc';
 import { resolveProfileCachePolicy, runProfileCacheMaintenance } from './profile-cache-maintenance';
 import { startStorage, stopStorageAfterWriters } from './storage-lifecycle';
 

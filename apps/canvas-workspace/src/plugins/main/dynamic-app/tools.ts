@@ -14,18 +14,18 @@
  * component (no URL-editor chrome). The reconciler and the inspector
  * IPC find them via `data.dynamicAppId`.
  */
-import { z } from "zod";
-import { randomUUID } from "node:crypto";
+import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import {
   readCanvasFull,
   writeCanvasFull,
   type CanvasNode,
   type CanvasSaveData,
-} from "../../../main/canvas/storage";
-import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
-import type { DynamicAppSpec } from "./types";
-import type { DynamicAppManager } from "./manager";
-import { deleteSpec, getSpec, listWorkspaceSpecs, setSpec } from "./store";
+} from '../../../main/canvas/storage';
+import { broadcastCanvasUpdate } from '../../../main/canvas/broadcast';
+import type { DynamicAppSpec } from './types';
+import type { DynamicAppManager } from './manager';
+import { deleteSpec, getSpec, listWorkspaceSpecs, setSpec } from './store';
 
 interface CanvasTool {
   name: string;

@@ -25,7 +25,7 @@
  * unwrap it.
  */
 
-import vm from "node:vm";
+import vm from 'node:vm';
 
 const EXEC_TIMEOUT_MS = 1_000;
 const MAX_CODE_LENGTH = 20_000;

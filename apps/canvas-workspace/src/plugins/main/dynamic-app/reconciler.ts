@@ -24,10 +24,10 @@ import {
   writeCanvasFull,
   type CanvasNode,
   type CanvasSaveData,
-} from "../../../main/canvas/storage";
-import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
-import { deleteSpec, listAllSpecs } from "./store";
-import type { DynamicAppManager } from "./manager";
+} from '../../../main/canvas/storage';
+import { broadcastCanvasUpdate } from '../../../main/canvas/broadcast';
+import { deleteSpec, listAllSpecs } from './store';
+import type { DynamicAppManager } from './manager';
 
 interface NodeMatch {
   canvas: CanvasSaveData;

@@ -10,8 +10,8 @@
  *     stock-price-shaped fixtures.
  */
 
-import type { MockFetcher } from "../types";
-import type { RunnerEvents, RunnerHandle } from "./http-poll";
+import type { MockFetcher } from '../types';
+import type { RunnerEvents, RunnerHandle } from './http-poll';
 
 const MIN_INTERVAL_MS = 250;
 

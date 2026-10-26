@@ -1,12 +1,12 @@
-import type { IpcRenderer } from "electron";
-import type { IframeApi } from "../../shared/api/iframe";
-import type { LinkApi } from "../../shared/api/link";
-import type { LlmApi } from "../../shared/api/llm";
-import type { ShellApi } from "../../shared/api/shell";
-import type { WebApi } from "../../shared/api/web";
-import type { LinkOpenRequest } from "../../shared/link-open";
-import type { WebviewContextMenuRequest } from "../../shared/webview-context-menu";
-import { subscribe } from "./ipc";
+import type { IpcRenderer } from 'electron';
+import type { IframeApi } from '../../shared/api/iframe';
+import type { LinkApi } from '../../shared/api/link';
+import type { LlmApi } from '../../shared/api/llm';
+import type { ShellApi } from '../../shared/api/shell';
+import type { WebApi } from '../../shared/api/web';
+import type { LinkOpenRequest } from '../../shared/link-open';
+import type { WebviewContextMenuRequest } from '../../shared/webview-context-menu';
+import { subscribe } from './ipc';
 
 export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
   registerWebview: (workspaceId, nodeId, webContentsId, surfaceKind, ready) =>

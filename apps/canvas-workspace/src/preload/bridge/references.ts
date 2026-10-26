@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { ReferencesApi } from "../../shared/references";
+import type { IpcRenderer } from 'electron';
+import type { ReferencesApi } from '../../shared/references';
 
 export const createReferencesApi = (ipcRenderer: IpcRenderer): ReferencesApi => ({
   list: (workspaceId) =>

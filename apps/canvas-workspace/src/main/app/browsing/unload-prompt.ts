@@ -6,7 +6,7 @@ import {
   webContents,
   type IpcMainEvent,
   type WebContents,
-} from "electron";
+} from 'electron';
 
 // A page with a `beforeunload` handler (Notion, Google Docs, most editors)
 // blocks unload once the user has interacted with it. Chromium would ask the

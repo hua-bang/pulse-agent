@@ -1,6 +1,6 @@
-import type { IpcRenderer } from "electron";
-import type { CanvasWorkspaceApi } from "../../shared/api/workspace-api";
-import { subscribe } from "./ipc";
+import type { IpcRenderer } from 'electron';
+import type { CanvasWorkspaceApi } from '../../shared/api/workspace-api';
+import { subscribe } from './ipc';
 
 export const createWorkspaceNodesApi = (
   ipcRenderer: IpcRenderer
