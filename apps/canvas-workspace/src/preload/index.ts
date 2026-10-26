@@ -1,24 +1,24 @@
-import { contextBridge, ipcRenderer } from "electron";
-import type { CanvasWorkspaceApi } from "../shared/api/workspace-api";
-import { createAgentApi } from "./bridge/agent";
-import { createAgentRolesApi } from "./bridge/agent-roles";
-import { createAgentTeamsApi } from "./bridge/agent-teams";
-import { createAppInfoApi } from "./bridge/app-info";
-import { createArtifactsApi } from "./bridge/artifacts";
-import { createReferencesApi } from "./bridge/references";
-import { createCodexSessionsApi } from "./bridge/codex-sessions";
-import { createDefaultBrowserApi } from "./bridge/default-browser";
-import { createMemoryReportApi } from "./bridge/memory-report";
-import { createScheduledApi } from "./bridge/scheduled";
-import { createArtifactCapabilitiesApi } from "./bridge/artifact-capabilities";
-import { createDockApi } from "./bridge/dock";
-import { createFileApi } from "./bridge/file";
-import { readPluginFlags } from "./bridge/flags";
-import { createHistoryApi } from "./bridge/history";
-import { createLogSender, installRendererErrorLogging } from "./bridge/logging";
-import { createPluginBridge } from "./bridge/plugin";
-import { createPluginMarketApi } from "./bridge/plugin-market";
-import { createPtyApi } from "./bridge/pty";
+import { contextBridge, ipcRenderer } from 'electron';
+import type { CanvasWorkspaceApi } from '../shared/api/workspace-api';
+import { createAgentApi } from './bridge/agent';
+import { createAgentRolesApi } from './bridge/agent-roles';
+import { createAgentTeamsApi } from './bridge/agent-teams';
+import { createAppInfoApi } from './bridge/app-info';
+import { createArtifactsApi } from './bridge/artifacts';
+import { createReferencesApi } from './bridge/references';
+import { createCodexSessionsApi } from './bridge/codex-sessions';
+import { createDefaultBrowserApi } from './bridge/default-browser';
+import { createMemoryReportApi } from './bridge/memory-report';
+import { createScheduledApi } from './bridge/scheduled';
+import { createArtifactCapabilitiesApi } from './bridge/artifact-capabilities';
+import { createDockApi } from './bridge/dock';
+import { createFileApi } from './bridge/file';
+import { readPluginFlags } from './bridge/flags';
+import { createHistoryApi } from './bridge/history';
+import { createLogSender, installRendererErrorLogging } from './bridge/logging';
+import { createPluginBridge } from './bridge/plugin';
+import { createPluginMarketApi } from './bridge/plugin-market';
+import { createPtyApi } from './bridge/pty';
 import {
   createCanvasMcpApi,
   createCanvasPluginsApi,
@@ -31,16 +31,16 @@ import {
   createPromptProfileApi,
   createSkillsApi,
   createTelemetryApi
-} from "./bridge/settings";
-import { createStoreApi } from "./bridge/store";
+} from './bridge/settings';
+import { createStoreApi } from './bridge/store';
 import {
   createIframeApi,
   createLinkApi,
   createLlmApi,
   createShellApi,
   createWebApi
-} from "./bridge/webview";
-import { createWorkspaceNodesApi } from "./bridge/workspace-nodes";
+} from './bridge/webview';
+import { createWorkspaceNodesApi } from './bridge/workspace-nodes';
 
 declare const __APP_VERSION__: string;
 

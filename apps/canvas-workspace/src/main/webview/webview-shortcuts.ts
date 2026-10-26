@@ -12,12 +12,12 @@
  * page-first: the guest preload observes the DOM event and opens host Find
  * only when site code leaves the default unclaimed.
  */
-import { app, type WebContents } from "electron";
+import { app, type WebContents } from 'electron';
 import {
   resolveDockBrowserCommand,
   type DockShortcutRequest,
-} from "../../shared/dock-shortcuts";
-import { getWebviewRegistration } from "./registry";
+} from '../../shared/dock-shortcuts';
+import { getWebviewRegistration } from './registry';
 
 export function setupWebviewShortcuts(): void {
   app.on("web-contents-created", (_event, contents) => {

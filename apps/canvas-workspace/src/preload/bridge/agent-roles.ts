@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { AgentRolesApi } from "../../shared/agent-roles";
+import type { IpcRenderer } from 'electron';
+import type { AgentRolesApi } from '../../shared/agent-roles';
 
 export const createAgentRolesApi = (ipcRenderer: IpcRenderer): AgentRolesApi => ({
   list: () => ipcRenderer.invoke("agent-roles:list"),

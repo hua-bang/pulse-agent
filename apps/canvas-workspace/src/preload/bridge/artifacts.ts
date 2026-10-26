@@ -1,6 +1,6 @@
-import type { IpcRenderer } from "electron";
-import type { ArtifactsApi } from "../../shared/api/artifacts";
-import { subscribe } from "./ipc";
+import type { IpcRenderer } from 'electron';
+import type { ArtifactsApi } from '../../shared/api/artifacts';
+import { subscribe } from './ipc';
 
 export const createArtifactsApi = (ipcRenderer: IpcRenderer): ArtifactsApi => ({
   list: (workspaceId) =>

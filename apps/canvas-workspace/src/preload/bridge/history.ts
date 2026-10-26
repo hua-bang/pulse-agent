@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { BrowsingHistoryApi } from "../../shared/browsing-history";
+import type { IpcRenderer } from 'electron';
+import type { BrowsingHistoryApi } from '../../shared/browsing-history';
 
 export const createHistoryApi = (ipcRenderer: IpcRenderer): BrowsingHistoryApi => ({
   record: (input) => ipcRenderer.send("history:record", input),

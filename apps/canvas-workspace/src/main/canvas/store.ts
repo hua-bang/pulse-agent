@@ -1,8 +1,8 @@
 import { readCanvasForMerge } from './sync/read-canvas';
 import { loadSqliteCanvas, saveSqliteCanvas, listSqliteCanvases, stopSqliteCanvasObserver } from './sqlite-ipc';
-import { ipcMain, BrowserWindow } from "electron";
-import { promises as fs } from "fs";
-import { join, basename } from "path";
+import { ipcMain, BrowserWindow } from 'electron';
+import { promises as fs } from 'fs';
+import { join, basename } from 'path';
 import {
   MANIFEST_ID,
   STORE_DIR,
@@ -16,7 +16,7 @@ import {
   CanvasPollutionDetectedError,
   type MigrationProgress,
   type ReadJsonResult,
-} from "./storage";
+} from './storage';
 import { getWorkspaceDir } from './persistence/paths';
 import { scheduleWorkspaceNodesChanged } from './nodes/broadcast';
 import { stopWorkspaceMarkdown } from './sync/markdown-index';

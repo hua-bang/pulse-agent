@@ -1,9 +1,9 @@
-import { app, shell, type WebContents } from "electron";
-import { isSafeExternalUrl } from "../shell-ipc";
-import { isGoogleAuthUrl } from "./google-auth";
-import { openGoogleAuthPopup } from "./google-auth-popup";
-import { getWebviewRegistration } from "../../webview/registry";
-import { reportPageLinkRequest } from "../../webview/page-link-events";
+import { app, shell, type WebContents } from 'electron';
+import { isSafeExternalUrl } from '../shell-ipc';
+import { isGoogleAuthUrl } from './google-auth';
+import { openGoogleAuthPopup } from './google-auth-popup';
+import { getWebviewRegistration } from '../../webview/registry';
+import { reportPageLinkRequest } from '../../webview/page-link-events';
 
 // Centralized popup policy. Fires for every webContents the app ever creates:
 // the main BrowserWindow, sandboxed iframes within it, and every <webview> tag

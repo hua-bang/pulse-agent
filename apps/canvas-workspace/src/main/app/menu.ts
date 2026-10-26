@@ -1,4 +1,4 @@
-import { app, Menu, type MenuItemConstructorOptions } from "electron";
+import { app, Menu, type MenuItemConstructorOptions } from 'electron';
 
 /**
  * Replaces Electron's default application menu.

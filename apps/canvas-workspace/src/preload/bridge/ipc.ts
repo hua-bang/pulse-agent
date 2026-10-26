@@ -1,4 +1,4 @@
-import type { IpcRenderer, IpcRendererEvent } from "electron";
+import type { IpcRenderer, IpcRendererEvent } from 'electron';
 
 export type Unsubscribe = () => void;
 

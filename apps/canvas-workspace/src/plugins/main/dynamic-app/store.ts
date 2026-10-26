@@ -21,10 +21,10 @@
  * per-workspace deletion awkward — so this plugin uses direct fs.
  */
 
-import { promises as fs } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { STORE_DIR, getWorkspaceDir } from "../../../main/canvas/storage";
-import type { DynamicAppSpec } from "./types";
+import { promises as fs } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { STORE_DIR, getWorkspaceDir } from '../../../main/canvas/storage';
+import type { DynamicAppSpec } from './types';
 
 const FILE_VERSION = 1;
 

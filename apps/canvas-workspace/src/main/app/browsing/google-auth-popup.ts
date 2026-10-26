@@ -1,5 +1,5 @@
-import { BrowserWindow, type WebContents } from "electron";
-import { isGoogleAuthUrl } from "./google-auth";
+import { BrowserWindow, type WebContents } from 'electron';
+import { isGoogleAuthUrl } from './google-auth';
 
 // Why a popup: Google's strict full-page sign-in flow
 // (accounts.google.com/v3/signin) risk-scores the surface it runs in, and a

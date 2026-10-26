@@ -1,9 +1,9 @@
-import { execFile } from "child_process";
-import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage, shell } from "electron";
-import { promises as fs } from "fs";
-import { join, basename, resolve, isAbsolute } from "path";
-import { homedir } from "os";
-import { promisify } from "util";
+import { execFile } from 'child_process';
+import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage, shell } from 'electron';
+import { promises as fs } from 'fs';
+import { join, basename, resolve, isAbsolute } from 'path';
+import { homedir } from 'os';
+import { promisify } from 'util';
 import { readTextFile, saveFilePreview, saveTextFile } from './file-save';
 import type {
   FileCreateEntryRequest,

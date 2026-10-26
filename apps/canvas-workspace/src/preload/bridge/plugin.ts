@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { PluginBridge } from "../../plugins/types";
+import type { IpcRenderer } from 'electron';
+import type { PluginBridge } from '../../plugins/types';
 
 export const createPluginBridge = (ipcRenderer: IpcRenderer): PluginBridge => ({
   invoke: (pluginId, channel, ...args) =>

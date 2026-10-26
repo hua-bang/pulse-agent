@@ -1,11 +1,11 @@
-import type { IpcRenderer } from "electron";
-import type { AgentContextTabRef } from "../../shared/agent-chat";
-import type { DockShortcutRequest } from "../../shared/dock-shortcuts";
+import type { IpcRenderer } from 'electron';
+import type { AgentContextTabRef } from '../../shared/agent-chat';
+import type { DockShortcutRequest } from '../../shared/dock-shortcuts';
 import type {
   DockActivateTabRequest,
   DockActivateTabResult,
-} from "../../shared/dock-tab-commands";
-import { subscribe, type Unsubscribe } from "./ipc";
+} from '../../shared/dock-tab-commands';
+import { subscribe, type Unsubscribe } from './ipc';
 
 export const createDockApi = (ipcRenderer: IpcRenderer) => ({
   publishTabs: (workspaceId: string, tabs: AgentContextTabRef[]) =>

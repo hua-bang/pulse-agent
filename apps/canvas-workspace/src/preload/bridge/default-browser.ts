@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { DefaultBrowserApi } from "../../shared/default-browser";
+import type { IpcRenderer } from 'electron';
+import type { DefaultBrowserApi } from '../../shared/default-browser';
 
 export const createDefaultBrowserApi = (
   ipcRenderer: IpcRenderer,

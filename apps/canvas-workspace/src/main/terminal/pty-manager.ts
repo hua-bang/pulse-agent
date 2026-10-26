@@ -1,16 +1,16 @@
-import { ipcMain } from "electron";
-import * as pty from "node-pty";
-import { createRequire } from "module";
-import { platform, homedir } from "os";
-import { execFile, execFileSync } from "child_process";
-import { chmodSync, existsSync } from "fs";
-import { readlink } from "fs/promises";
-import { delimiter, dirname, join, resolve } from "path";
-import { PtySessionLeaseRegistry } from "./session-lease";
-import { commonPosixBinDirs, mergePath } from "../shell-path";
+import { ipcMain } from 'electron';
+import * as pty from 'node-pty';
+import { createRequire } from 'module';
+import { platform, homedir } from 'os';
+import { execFile, execFileSync } from 'child_process';
+import { chmodSync, existsSync } from 'fs';
+import { readlink } from 'fs/promises';
+import { delimiter, dirname, join, resolve } from 'path';
+import { PtySessionLeaseRegistry } from './session-lease';
+import { commonPosixBinDirs, mergePath } from '../shell-path';
 
 /** Session output held in memory; readers of terminal nodes prefer it to saved text. */
-export { readSessionOutput } from "./session-output";
+export { readSessionOutput } from './session-output';
 
 const sessions = new Map<string, pty.IPty>();
 const sessionLeases = new PtySessionLeaseRegistry();

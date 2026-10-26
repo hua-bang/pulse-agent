@@ -1,6 +1,6 @@
-import type { IpcRenderer } from "electron";
-import type { CanvasWorkspaceApi } from "../../shared/api/workspace-api";
-import { subscribe } from "./ipc";
+import type { IpcRenderer } from 'electron';
+import type { CanvasWorkspaceApi } from '../../shared/api/workspace-api';
+import { subscribe } from './ipc';
 
 type ExternalUpdate = Parameters<Parameters<CanvasWorkspaceApi["store"]["onExternalUpdate"]>[0]>[0];
 type MigrationProgress = Parameters<Parameters<CanvasWorkspaceApi["store"]["onMigrationProgress"]>[0]>[0];

@@ -10,8 +10,8 @@
  * `event.preventDefault()` is deliberately NOT called: Electron shows no
  * menu of its own unless the app builds one, so there is nothing to suppress.
  */
-import { app } from "electron";
-import type { WebviewContextMenuRequest } from "../../shared/webview-context-menu";
+import { app } from 'electron';
+import type { WebviewContextMenuRequest } from '../../shared/webview-context-menu';
 
 export function setupWebviewContextMenu(): void {
   app.on("web-contents-created", (_event, contents) => {

@@ -1,5 +1,5 @@
-import type { IpcRenderer } from "electron";
-import type { SendLog } from "./logging";
+import type { IpcRenderer } from 'electron';
+import type { SendLog } from './logging';
 
 const truthy = (value: string | undefined): boolean => {
   const normalized = value?.trim().toLowerCase();

@@ -1,11 +1,11 @@
 import type { CodexSessionIndexEntry, CodexThreadMatch } from '../../../shared/codex-sessions';
 export type { CodexSessionIndexEntry, CodexThreadMatch } from '../../../shared/codex-sessions';
-import { ipcMain } from "electron";
-import { execFile } from "child_process";
-import { existsSync } from "fs";
-import { readFile } from "fs/promises";
-import { homedir } from "os";
-import { join } from "path";
+import { ipcMain } from 'electron';
+import { execFile } from 'child_process';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import { homedir } from 'os';
+import { join } from 'path';
 
 interface CodexSessionIndexLine {
   id?: unknown;

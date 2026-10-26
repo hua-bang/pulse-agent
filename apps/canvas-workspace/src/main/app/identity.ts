@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app } from 'electron';
 
 export const APP_NAME = "Pulse Canvas";
 

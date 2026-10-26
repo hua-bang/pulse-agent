@@ -1,4 +1,4 @@
-import type { IpcRenderer } from "electron";
+import type { IpcRenderer } from 'electron';
 
 export type SendLog = (level: string, message: string, details?: string) => void;
 
