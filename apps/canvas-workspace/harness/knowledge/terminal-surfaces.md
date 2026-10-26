@@ -36,6 +36,23 @@ the real geometry a frame or two later (see the ladder below).
 `cols`/`rows` are finite and `cols` is at least `MIN_FITTABLE_TERMINAL_COLS`
 (20).
 
+## Rule: the gutter is padding on `.xterm`, never on its parent
+
+`FitAddon.proposeDimensions()` reads the computed `height`/`width` of the
+`.xterm` element's PARENT and subtracts only the `.xterm` element's own
+padding. The renderer's global `* { box-sizing: border-box }` makes that
+computed size the border box, so padding or a border on the parent container
+counts as terminal space. The fit then proposes too many rows and columns: a
+full-screen TUI (Claude Code, Codex) loses its bottom status line and its
+last columns to the container's `overflow: hidden`.
+
+Keep the xterm parent free of padding and border. Put the gutter on
+`.xterm` (`.workspace-terminal-dock__xterm .xterm`,
+`.terminal-xterm-container .xterm`, `.agent-xterm-container .xterm`), and
+draw a frame with `outline` plus a negative `outline-offset`. An overlay that
+sits on the terminal (such as the mention hint) must take its own strip
+outside the fitted container, not float over the bottom rows.
+
 ## The mount/reattach fit ladder, and its scroll side effect
 
 `scheduleTerminalFit(fitAddon, term, containerEl)` is the mount/reattach fit

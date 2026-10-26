@@ -195,20 +195,29 @@
   background: var(--bg);
 }
 
+/* The gutter is padding on .xterm, never on this container. FitAddon sizes
+   rows/cols from this element's computed height/width and subtracts only the
+   .xterm padding. Under the global border-box rule, padding here is counted
+   as terminal space: rows ran past the bottom edge (a TUI's status line was
+   clipped) and the last columns past the right edge. */
 .workspace-terminal-dock__xterm {
   position: absolute;
   inset: 0;
-  padding: 10px 10px 8px;
   overflow: hidden;
   background: var(--bg);
 }
 
-.workspace-terminal-dock--pane .workspace-terminal-dock__xterm {
-  padding: 12px 12px 10px;
+.workspace-terminal-dock__body--with-hint .workspace-terminal-dock__xterm {
+  bottom: var(--workspace-terminal-hint-height);
 }
 
 .workspace-terminal-dock__xterm .xterm {
   height: 100%;
+  padding: 10px 10px 8px;
+}
+
+.workspace-terminal-dock--pane .workspace-terminal-dock__xterm .xterm {
+  padding: 12px 12px 10px;
 }
 
 .workspace-terminal-dock__xterm .xterm-viewport {
@@ -220,16 +229,24 @@
   height: 100%;
 }
 
+/* The hint owns a strip below the terminal instead of floating over it: a
+   full-screen TUI (Claude Code, Codex) draws its prompt and status line in
+   the bottom rows, which an overlay would cover. */
+.workspace-terminal-dock__body {
+  --workspace-terminal-hint-height: 36px;
+}
+
 .workspace-terminal-dock__mention-hint {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 4px;
   z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   max-width: calc(100% - 24px);
-  padding: 6px 8px;
+  height: 28px;
+  padding: 0 8px;
   border: 1px solid rgba(15, 118, 110, 0.14);
   border-radius: var(--radius-md);
   background:
