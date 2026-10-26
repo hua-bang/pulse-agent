@@ -16,13 +16,16 @@ const NODE_GAP = 24;
 const VIEWPORT_GAP = 8;
 
 /**
- * Card whose question started the current ask conversation. A question about
- * another card starts a new conversation, so it does not land in an
- * unrelated thread; a follow-up about the same card keeps its history.
+ * Card whose question started the current ask conversation, per workspace.
+ * A question about another card starts a new conversation, so it does not
+ * land in an unrelated thread; a follow-up about the same card keeps its
+ * history. Each workspace has its own chat, so each keeps its own card.
  */
-let lastAskedNodeId: string | null = null;
+const lastAskedNodeIds = new Map<string, string>();
 
 interface Props {
+  /** Workspace whose chat receives the question. */
+  workspaceId: string;
   node: CanvasNode;
   /** Other cards on the canvas; the bar avoids covering their text. */
   nodes?: CanvasNode[];
@@ -51,7 +54,7 @@ const coversCard = (
     && rect.top < top + other.height * transform.scale && rect.bottom > top;
 });
 
-export const NodeAskBar = ({ node, nodes = [], transform, onAsk }: Props) => {
+export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: Props) => {
   const { t } = useI18n();
   const notifyChatDelivery = useChatDeliveryNotifier();
   const barRef = useRef<HTMLFormElement>(null);
@@ -116,9 +119,9 @@ export const NodeAskBar = ({ node, nodes = [], transform, onAsk }: Props) => {
       const receipt = await onAsk({
         text: question,
         nodes: [{ id: node.id, title: label, type: node.type }],
-        ...(lastAskedNodeId === node.id ? {} : { newSession: true }),
+        ...(lastAskedNodeIds.get(workspaceId) === node.id ? {} : { newSession: true }),
       });
-      if (receipt.status === 'delivered' || receipt.status === 'queued') lastAskedNodeId = node.id;
+      if (receipt.status === 'delivered' || receipt.status === 'queued') lastAskedNodeIds.set(workspaceId, node.id);
       // A delivered question is visible in the chat itself; only report problems.
       if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
       if (receipt.status === 'delivered' || receipt.status === 'queued') {

@@ -171,6 +171,25 @@ describe('useCanvasMouseHandlers resize completion', () => {
     }
   });
 
+  it('keeps focus in the node Ask bar when its own input is pressed', () => {
+    const container = document.createElement('div');
+    const bar = document.createElement('form');
+    bar.className = 'node-ask-bar';
+    const input = document.createElement('input');
+    bar.append(input);
+    container.append(bar);
+    document.body.append(container);
+    containerRef.current = container;
+    try {
+      input.focus();
+      act(() => input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+      expect(document.activeElement).toBe(input);
+    } finally {
+      containerRef.current = null;
+      container.remove();
+    }
+  });
+
   it('suppresses the trailing blank click when a moved resize returns to its origin', () => {
     onResizeMove.mockReturnValueOnce(true).mockReturnValue(false);
     onResizeEnd.mockReturnValue(false);

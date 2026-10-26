@@ -62,6 +62,8 @@ const isEdgeDragging = (state: EdgeInteractionState | null) =>
   || state?.kind === 'move-edge';
 
 const CANVAS_CHROME_SELECTOR = '.canvas-bottom-chrome, .canvas-fullscreen-chip';
+/** Canvas areas whose presses leave focus where the canvas put it. */
+const CANVAS_FOCUS_KEEPERS = '.canvas-node, .node-ask-bar';
 
 export const getCanvasInteractionShieldState = ({
   activeTool,
@@ -363,7 +365,9 @@ export const useCanvasMouseHandlers = ({
   // the browser from moving focus, so a focused Dock terminal kept every
   // typed key and shortcut. Blurring the helper textarea updates xterm too.
   // A press on empty canvas also takes focus from a field inside a node (a
-  // web node's URL box), which otherwise kept Cmd/Ctrl+Z and zoom.
+  // web node's URL box), which otherwise kept Cmd/Ctrl+Z and zoom. Presses
+  // on cards and on controls laid over the canvas (the node Ask bar) keep
+  // focus inside the canvas, since those controls manage it themselves.
   useEffect(() => {
     const onMouseDown = (event: MouseEvent) => {
       const container = containerRef.current;
@@ -371,7 +375,7 @@ export const useCanvasMouseHandlers = ({
       const target = event.target;
       if (!container || !(target instanceof Element) || !container.contains(target)) return;
       if (!(active instanceof HTMLElement) || active === document.body) return;
-      if (container.contains(active) && target.closest('.canvas-node')) return;
+      if (container.contains(active) && target.closest(CANVAS_FOCUS_KEEPERS)) return;
       active.blur();
     };
     document.addEventListener('mousedown', onMouseDown, true);

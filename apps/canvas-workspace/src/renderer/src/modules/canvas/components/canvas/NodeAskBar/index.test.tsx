@@ -70,7 +70,7 @@ describe('NodeAskBar', () => {
 
   it('starts as a chip and folds back when left empty or on Escape', () => {
     act(() => root.render(
-      <I18nProvider><NodeAskBar node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={vi.fn()} /></I18nProvider>,
+      <I18nProvider><NodeAskBar workspaceId="ws-a" node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={vi.fn()} /></I18nProvider>,
     ));
     expect(host.querySelector('input')).toBeNull();
 
@@ -94,7 +94,7 @@ describe('NodeAskBar', () => {
   it('sits under the card in screen space and sends a question scoped to it', async () => {
     const onAsk = vi.fn(async () => ({ status: 'delivered' as const, target }));
     act(() => root.render(
-      <I18nProvider><NodeAskBar node={node} transform={{ x: 10, y: 20, scale: 2 }} onAsk={onAsk} /></I18nProvider>,
+      <I18nProvider><NodeAskBar workspaceId="ws-a" node={node} transform={{ x: 10, y: 20, scale: 2 }} onAsk={onAsk} /></I18nProvider>,
     ));
     const form = host.querySelector('form') as HTMLFormElement;
     const input = open();
@@ -126,13 +126,36 @@ describe('NodeAskBar', () => {
       text: 'And the price?',
       nodes: [{ id: 'node-1', title: 'Research', type: 'text' }],
     });
+
+    // A question in another workspace does not end this one's conversation.
+    const other = { ...node, id: 'node-2' };
+    act(() => root.render(
+      <I18nProvider><NodeAskBar workspaceId="ws-b" node={other} transform={{ x: 0, y: 0, scale: 1 }} onAsk={onAsk} /></I18nProvider>,
+    ));
+    type(open(), 'Elsewhere?');
+    await act(async () => {
+      host.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(onAsk).toHaveBeenLastCalledWith(expect.objectContaining({ newSession: true }));
+
+    act(() => root.render(
+      <I18nProvider><NodeAskBar workspaceId="ws-a" node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={onAsk} /></I18nProvider>,
+    ));
+    type(open(), 'Back again?');
+    await act(async () => {
+      host.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(onAsk).toHaveBeenLastCalledWith({
+      text: 'Back again?',
+      nodes: [{ id: 'node-1', title: 'Research', type: 'text' }],
+    });
   });
 
   it('keeps the question and reports it when the chat refuses it', async () => {
     const receipt = { status: 'failed' as const, target };
     const onAsk = vi.fn(async () => receipt);
     act(() => root.render(
-      <I18nProvider><NodeAskBar node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={onAsk} /></I18nProvider>,
+      <I18nProvider><NodeAskBar workspaceId="ws-a" node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={onAsk} /></I18nProvider>,
     ));
     const form = host.querySelector('form') as HTMLFormElement;
     const input = open();
@@ -151,7 +174,7 @@ describe('NodeAskBar', () => {
     act(() => root.render(
       <I18nProvider>
         <div onMouseDown={onCanvasMouseDown}>
-          <NodeAskBar node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={vi.fn()} />
+          <NodeAskBar workspaceId="ws-a" node={node} transform={{ x: 0, y: 0, scale: 1 }} onAsk={vi.fn()} />
         </div>
       </I18nProvider>,
     ));
