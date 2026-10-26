@@ -27,6 +27,7 @@ import {
 } from '../../../../utils/codingAgentCommand';
 import { createTerminalKeyArbiter, fitTerminalIfSane } from '../../../coding-agent/terminal';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
+import { useFocusOnOpen } from './useFocusOnOpen';
 import './index.css';
 
 interface WorkspaceTerminalDockProps {
@@ -235,6 +236,9 @@ export const WorkspaceTerminalDock = ({
     ) ?? null;
   }, []);
 
+  const focusTerminal = useCallback(() => { termRef.current?.focus(); return !!termRef.current; }, []);
+  const focusOpenedTerminal = useFocusOnOpen(open, focusTerminal);
+
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
     spawnedRef.current = true;
@@ -247,6 +251,7 @@ export const WorkspaceTerminalDock = ({
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
+    focusOpenedTerminal();
     // Size to the real container before spawning so the shell starts at the
     // correct cols/rows, rather than the 80×24 default that then reflows on the
     // first scheduled fit. Keeps 80×24 when the container is not measurable
@@ -327,7 +332,7 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, refreshCwd, scheduleFit, sessionId, workspaceId]);
+  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, focusOpenedTerminal, refreshCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
@@ -339,10 +344,6 @@ export const WorkspaceTerminalDock = ({
     }
     void initTerminal();
     scheduleFit();
-    // A terminal the user just opened takes the keyboard; typing otherwise
-    // reached the canvas and ran its single-key tools. Tabs restored at launch
-    // carry no user activation, so they leave focus alone.
-    if (navigator.userActivation?.isActive) termRef.current?.focus();
   }, [initTerminal, open, scheduleFit]);
 
   useEffect(() => {

@@ -7,7 +7,8 @@ import type {
 } from '../../../../types';
 import { TrashIcon } from '../../../../components/icons';
 import { ModelProviderFields } from './ModelProviderFields';
-import { ModelProviderRail } from './ModelProviderRail';
+import { EnvProviderPanel } from './EnvProviderPanel';
+import { ENV_PROVIDER_ID, isEnvProviderInUse, ModelProviderRail } from './ModelProviderRail';
 import { useProviderModelActions } from './hooks/useProviderModelActions';
 import { useProviderModelSelection } from './hooks/useProviderModelSelection';
 import { useI18n } from '../../../../i18n';
@@ -167,7 +168,9 @@ export const ModelsSection = ({
     if (initializedRef.current) return;
     if (!status) return;
     initializedRef.current = true;
-    const initial = status.currentProvider ?? providers[0]?.id ?? 'new';
+    // Open on the setup chat uses now, not on an empty "add" form.
+    const initial = status.currentProvider
+      ?? (isEnvProviderInUse(status) ? ENV_PROVIDER_ID : providers[0]?.id ?? 'new');
     setActiveProviderId(initial);
     const provider = providers.find((item) => item.id === initial);
     setDraft(providerToDraft(provider));
@@ -230,85 +233,93 @@ export const ModelsSection = ({
         />
 
         <div className="chat-model-settings-form">
-          <div className="chat-model-settings-card chat-model-settings-card--intro">
-            <div>
-              <strong>
-                {activeProviderId === 'new'
-                  ? t('models.addTitle')
-                  : t('models.editTitle', { name: draft.name || t('models.providerFallback') })}
-              </strong>
-              <p>{t('models.intro')}</p>
-              {status && (
-                <p>
-                  {status.apiKeyPresent
-                    ? t('models.detectedKey', { env: status.resolvedApiKeyEnv ?? 'API key' })
-                    : t('models.noDetectedKey')}
-                </p>
+          {activeProviderId === ENV_PROVIDER_ID && status ? (
+            <EnvProviderPanel status={status} onAddProvider={() => selectProvider('new')} />
+          ) : (
+            <>
+              <div className="chat-model-settings-card chat-model-settings-card--intro">
+                <div>
+                  <strong>
+                    {activeProviderId === 'new'
+                      ? t('models.addTitle')
+                      : t('models.editTitle', { name: draft.name || t('models.providerFallback') })}
+                  </strong>
+                  <p>{t('models.intro')}</p>
+                  {status && (
+                    <p>
+                      {status.apiKeyPresent
+                        ? t('models.detectedKey', { env: status.resolvedApiKeyEnv ?? 'API key' })
+                        : t('models.noDetectedKey')}
+                    </p>
+                  )}
+                </div>
+                {activeProviderId !== 'new' && (
+                  <button
+                    type="button"
+                    className={`chat-model-danger-btn${confirmingRemove ? ' chat-model-danger-btn--confirm' : ''}`}
+                    title={t('models.removeProvider')}
+                    aria-label={t('models.removeProvider')}
+                    onClick={() => {
+                      if (!confirmingRemove) {
+                        setConfirmingRemove(true);
+                        return;
+                      }
+                      setConfirmingRemove(false);
+                      void onRemoveProvider(activeProviderId);
+                    }}
+                  >
+                    <TrashIcon />
+                    {confirmingRemove && <span>{t('models.removeProviderConfirm')}</span>}
+                  </button>
+                )}
+              </div>
+
+              {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
+
+              {activeProviderId === 'new' && (
+                <div className="chat-model-preset-grid" aria-label={t('models.presetsAria')}>
+                  {PROVIDER_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={`chat-model-preset${draft.id === preset.provider.id ? ' chat-model-preset--active' : ''}`}
+                      onClick={() => applyPreset(preset)}
+                    >
+                      <span className="chat-model-preset__title">{t(preset.labelKey)}</span>
+                      <span className="chat-model-preset__description">{t(preset.descriptionKey)}</span>
+                    </button>
+                  ))}
+                </div>
               )}
-            </div>
-            {activeProviderId !== 'new' && (
-              <button
-                type="button"
-                className={`chat-model-danger-btn${confirmingRemove ? ' chat-model-danger-btn--confirm' : ''}`}
-                title={t('models.removeProvider')}
-                aria-label={t('models.removeProvider')}
-                onClick={() => {
-                  if (!confirmingRemove) {
-                    setConfirmingRemove(true);
-                    return;
-                  }
-                  setConfirmingRemove(false);
-                  void onRemoveProvider(activeProviderId);
-                }}
-              >
-                <TrashIcon />
-                {confirmingRemove && <span>{t('models.removeProviderConfirm')}</span>}
-              </button>
-            )}
-          </div>
 
-          {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
-
-          {activeProviderId === 'new' && (
-            <div className="chat-model-preset-grid" aria-label={t('models.presetsAria')}>
-              {PROVIDER_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={`chat-model-preset${draft.id === preset.provider.id ? ' chat-model-preset--active' : ''}`}
-                  onClick={() => applyPreset(preset)}
-                >
-                  <span className="chat-model-preset__title">{t(preset.labelKey)}</span>
-                  <span className="chat-model-preset__description">{t(preset.descriptionKey)}</span>
-                </button>
-              ))}
-            </div>
+              <ModelProviderFields
+                activeProviderId={activeProviderId}
+                activeProviderStatus={activeProviderStatus}
+                addManualModel={addManualModel}
+                availableModels={availableModels}
+                draft={draft}
+                fetching={fetching}
+                fetchModels={fetchModels}
+                manualModel={manualModel}
+                setDraftField={setDraftField}
+                setManualModel={setManualModel}
+                setModelContextWindow={setModelContextWindow}
+                setModelsSelected={setModelsSelected}
+                toggleModel={toggleModel}
+              />
+            </>
           )}
-
-          <ModelProviderFields
-            activeProviderId={activeProviderId}
-            activeProviderStatus={activeProviderStatus}
-            addManualModel={addManualModel}
-            availableModels={availableModels}
-            draft={draft}
-            fetching={fetching}
-            fetchModels={fetchModels}
-            manualModel={manualModel}
-            setDraftField={setDraftField}
-            setManualModel={setManualModel}
-            setModelContextWindow={setModelContextWindow}
-            setModelsSelected={setModelsSelected}
-            toggleModel={toggleModel}
-          />
         </div>
       </div>
 
       <div className="chat-model-settings-footer">
         <span title={status?.path}>{status?.path}</span>
         <button type="button" className="chat-model-secondary-btn" onClick={onClose}>{t('models.cancel')}</button>
-        <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
-          {saving ? t('models.testing') : t('models.testAndSave')}
-        </button>
+        {activeProviderId !== ENV_PROVIDER_ID && (
+          <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
+            {saving ? t('models.testing') : t('models.testAndSave')}
+          </button>
+        )}
       </div>
     </>
   );

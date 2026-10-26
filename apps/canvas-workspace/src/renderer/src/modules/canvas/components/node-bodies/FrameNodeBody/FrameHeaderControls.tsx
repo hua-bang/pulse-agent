@@ -36,6 +36,7 @@ export const FrameChildrenToggle = ({
   onUpdate,
   readOnly = false,
 }: FrameChildrenToggleProps) => {
+  const { t } = useI18n();
   if (node.type !== 'frame') return null;
   const data = node.data as FrameNodeData;
   const collapsed = data.childrenCollapsed === true;
@@ -63,12 +64,12 @@ export const FrameChildrenToggle = ({
       onMouseDown={(e) => e.stopPropagation()}
       title={
         !hasDescendants
-          ? 'No frame children'
+          ? t('frameChildren.none')
           : readOnly
-            ? `${descendantCount} frame children`
-            : collapsed ? 'Show frame children' : 'Hide frame children'
+            ? t('frameChildren.count', { count: descendantCount })
+            : collapsed ? t('frameChildren.show') : t('frameChildren.hide')
       }
-      aria-label={collapsed ? 'Show frame children' : 'Hide frame children'}
+      aria-label={collapsed ? t('frameChildren.show') : t('frameChildren.hide')}
       aria-pressed={collapsed}
       disabled={!hasDescendants || readOnly}
     >

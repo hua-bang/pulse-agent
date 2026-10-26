@@ -3,6 +3,7 @@ import { isImeComposing } from '../../utils/ime';
 import { matchShortcut, type AppShortcutId } from '../../shortcuts/registry';
 import { useWebviewShortcutBridge } from '../../platform/browser/useWebviewShortcutBridge';
 import { toggleTheme } from '../../shared/theme';
+import { isGlobalChatLauncherVisible, useRightDock } from '../../modules/dock';
 
 interface Options {
   /** True while a modal/overlay owns the keyboard. */
@@ -16,6 +17,11 @@ interface Options {
   selectWorkspaceByIndex: (index: number) => void;
   /** Close the active workspace tab; false when no tab bar is showing. */
   closeActiveTab: () => boolean;
+  /**
+   * Toggle the dock chat on routes without a canvas; false on the canvas
+   * route, where the canvas layer owns the side-chat chord.
+   */
+  toggleDockChat: () => boolean;
 }
 
 /**
@@ -51,7 +57,10 @@ export const useAppShortcuts = ({
   togglePanels,
   selectWorkspaceByIndex,
   closeActiveTab,
+  toggleDockChat,
 }: Options) => {
+  const toggleDockChatRef = useRef(toggleDockChat);
+  toggleDockChatRef.current = toggleDockChat;
   const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
   const overlayRef = useRef(isOverlayOpen);
   overlayRef.current = isOverlayOpen;
@@ -97,7 +106,13 @@ export const useAppShortcuts = ({
       if (event.repeat) return;
 
       const match = matchShortcut(event, 'app');
-      if (!match) return;
+      if (!match) {
+        // The floating chat button names this chord on every page, but its
+        // canvas-layer owner is locked off the canvas route.
+        if (matchShortcut(event, 'canvas')?.id !== 'canvas.toggleChatPanel') return;
+        if (toggleDockChatRef.current()) event.preventDefault();
+        return;
+      }
       if (match.definition.editable !== 'allow' && isEditableTarget(event.target)) return;
 
       handlersRef.current[match.id as AppShortcutId](event);
@@ -132,6 +147,7 @@ export const useAppShortcutBindings = ({
   setLocation,
   routes,
 }: AppShortcutBindingsOptions): void => {
+  const dock = useRightDock();
   useWebviewShortcutBridge();
   useAppShortcuts({
     isOverlayOpen,
@@ -146,6 +162,11 @@ export const useAppShortcutBindings = ({
     closeActiveTab: () => {
       if (activeView !== 'canvas') return false;
       window.dispatchEvent(new Event(CLOSE_ACTIVE_TAB_EVENT));
+      return true;
+    },
+    toggleDockChat: () => {
+      if (!isGlobalChatLauncherVisible(activeView)) return false;
+      dock.toggleChat();
       return true;
     },
   });

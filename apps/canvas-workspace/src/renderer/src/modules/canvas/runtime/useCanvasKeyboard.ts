@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { CanvasNode, FileNodeData } from '../../../types';
 import type { CanvasClipboard } from '../../../types/ui-interaction';
 import { isImeComposing } from '../../../utils/ime';
+import { withContainerDescendants } from '../../../utils/frameHierarchy';
 import { nodeClipboardText } from '../../../utils/nodeLabel';
 import {
   matchShortcut,
@@ -28,6 +29,18 @@ const isEditableElement = (active: ActiveElementLike | null): boolean => !!activ
   active.tagName === 'TEXTAREA' ||
   active.isContentEditable === true
 );
+
+/**
+ * App chrome outside the canvas that keeps focus after a click. A bare key
+ * typed there (a letter tool, Delete) is not meant for the canvas.
+ */
+const BARE_KEY_EXCLUDED_SURFACE_SELECTOR = '.right-dock, .workspace-tabs';
+
+export const isBareKeyBlockedByFocus = (
+  binding: KeyBinding,
+  active: ActiveElementLike | null,
+): boolean => !binding.mod && !binding.ctrl && !binding.alt
+  && !!active?.closest?.(BARE_KEY_EXCLUDED_SURFACE_SELECTOR);
 
 const CANVAS_FIND_EXCLUDED_SURFACE_SELECTOR = [
   '.note-card',
@@ -315,7 +328,10 @@ export const useCanvasKeyboard = ({
       if (created.length > 0) setSelectedNodeIds(created.map((node) => node.id));
     },
     'canvas.copy': () => {
-      const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
+      const selected = withContainerDescendants(
+        nodes.filter((n) => selectedNodeIds.includes(n.id)),
+        nodes,
+      );
       if (selected.length === 0) return;
       // Mirror the copy into the system clipboard and remember exactly what
       // we wrote. The paste path compares the two: if the system clipboard
@@ -402,6 +418,7 @@ export const useCanvasKeyboard = ({
 
       const active = document.activeElement;
       if (match.definition.editable !== 'allow' && isEditableElement(active)) return;
+      if (isBareKeyBlockedByFocus(match.binding, active)) return;
 
       handlersRef.current[match.id as CanvasShortcutId](e, match.binding);
     };

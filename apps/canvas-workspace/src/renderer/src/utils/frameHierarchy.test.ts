@@ -5,6 +5,7 @@ import {
   collectNestedFrameDepths,
   collectNestedFrameIds,
   filterCollapsedFrameDescendants,
+  withContainerDescendants,
 } from './frameHierarchy';
 
 const makeNode = (
@@ -115,5 +116,27 @@ describe('nested frame boundaries', () => {
     const inner = frameNode('inner', 80, 80, 160, 160);
     expect([...collectNestedFrameIds([group, inner])]).toEqual([]);
     expect([...collectNestedFrameIds([outer, group, inner])]).toEqual(['inner']);
+  });
+});
+
+describe('withContainerDescendants', () => {
+  it('adds the contents of selected frames, in canvas order', () => {
+    const frame = frameNode('frame', 0, 0, 300, 300);
+    const child = textNode('child', 40, 40);
+    const nestedFrame = frameNode('nested-frame', 80, 80, 140, 140);
+    const nestedChild = textNode('nested-child', 110, 110);
+    const outside = textNode('outside', 420, 420);
+    const nodes = [frame, child, nestedFrame, nestedChild, outside];
+
+    expect(withContainerDescendants([frame], nodes).map((node) => node.id)).toEqual([
+      'frame',
+      'child',
+      'nested-frame',
+      'nested-child',
+    ]);
+    expect(withContainerDescendants([outside, child], nodes).map((node) => node.id)).toEqual([
+      'child',
+      'outside',
+    ]);
   });
 });

@@ -10,13 +10,14 @@ import {
 } from 'react';
 import type { CanvasNode } from '../../../../../types';
 import type { ResizeEdge } from '../../../runtime/useNodeResize';
+import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
+import { formatRelativeTime } from '../../../../../utils/relativeTime';
 import { collectContainerDescendants } from '../../../../../utils/frameHierarchy';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import { FULLSCREEN_NODE_TYPES } from './constants';
 import type { CanvasNodeViewProps } from './types';
 import {
-  formatRelativeTime,
   getNodeClasses,
   getNodeWrapperStyle,
   getTextAutoSize,
@@ -119,6 +120,7 @@ export const useCanvasNodeViewModel = ({
   const [, setTick] = useState(0);
   const titleRef = useRef<HTMLSpanElement>(null);
   const notifyChatDelivery = useChatDeliveryNotifier();
+  const { language } = useI18n();
 
   useEffect(() => {
     if (!node.updatedAt) return;
@@ -381,7 +383,7 @@ export const useCanvasNodeViewModel = ({
     handleUngroup,
     isEditingTitle,
     makeResizeHandler,
-    relativeTime: node.updatedAt ? formatRelativeTime(node.updatedAt) : null,
+    relativeTime: node.updatedAt ? formatRelativeTime(node.updatedAt, language) : null,
     titleRef,
     // Caller (CanvasSurface) already gates dragOffset to null for any node
     // that isn't the one currently being dragged — a single source of

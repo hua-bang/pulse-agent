@@ -163,6 +163,7 @@ describe('WorkspaceTabs', () => {
     expect(pickerItems()).toEqual(['Alpha', 'Gamma', 'Beta', 'New workspace', 'Pulse Agent']);
 
     const search = document.querySelector<HTMLInputElement>('.workspace-picker__search')!;
+    expect(document.activeElement).toBe(search);
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     await act(async () => {
       setter?.call(search, 'gam');

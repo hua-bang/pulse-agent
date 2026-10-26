@@ -362,12 +362,16 @@ export const useCanvasMouseHandlers = ({
   // Most canvas gestures call preventDefault on mousedown, which also stops
   // the browser from moving focus, so a focused Dock terminal kept every
   // typed key and shortcut. Blurring the helper textarea updates xterm too.
+  // A press on empty canvas also takes focus from a field inside a node (a
+  // web node's URL box), which otherwise kept Cmd/Ctrl+Z and zoom.
   useEffect(() => {
     const onMouseDown = (event: MouseEvent) => {
       const container = containerRef.current;
       const active = document.activeElement;
-      if (!container || !(event.target instanceof Node) || !container.contains(event.target)) return;
-      if (!(active instanceof HTMLElement) || active === document.body || container.contains(active)) return;
+      const target = event.target;
+      if (!container || !(target instanceof Element) || !container.contains(target)) return;
+      if (!(active instanceof HTMLElement) || active === document.body) return;
+      if (container.contains(active) && target.closest('.canvas-node')) return;
       active.blur();
     };
     document.addEventListener('mousedown', onMouseDown, true);

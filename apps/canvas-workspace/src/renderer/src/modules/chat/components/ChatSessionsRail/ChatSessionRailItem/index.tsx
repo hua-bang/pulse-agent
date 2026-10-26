@@ -12,6 +12,7 @@ import { SessionTitle } from '../../SessionTitle';
 import type { ChatSessionsRailProps, UnifiedSession } from '../types';
 import { sessionTitleText } from '../../utils/sessionTitle';
 import { isImeComposing } from '../../../../../utils/ime';
+import { ChatSessionRailMenu } from './ChatSessionRailMenu';
 import './index.css';
 
 interface Props {
@@ -53,12 +54,17 @@ export const ChatSessionRailItem = ({
   const [mode, setMode] = useState<'idle' | 'rename' | 'delete'>('idle');
   const [renameValue, setRenameValue] = useState(title);
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const changeMode = (next: typeof mode) => {
     setMode(next);
     onEditingChange?.(session.sessionId, next !== 'idle');
   };
   useEffect(() => () => onEditingChange?.(session.sessionId, false), [onEditingChange, session.sessionId]);
   const hasActions = Boolean(onRenameSession || onDeleteSession || onTogglePinSession);
+  const startRename = () => {
+    setRenameValue(title);
+    changeMode('rename');
+  };
 
   const submitRename = async () => {
     const nextTitle = renameValue.trim();
@@ -178,7 +184,19 @@ export const ChatSessionRailItem = ({
   }
 
   return (
-    <div className={`chat-page-rail-item-shell${session.isPinned ? ' chat-page-rail-item-shell--pinned' : ''}`}>
+    <div
+      className={[
+        'chat-page-rail-item-shell',
+        session.isPinned && 'chat-page-rail-item-shell--pinned',
+        hasActions && 'chat-page-rail-item-shell--actions',
+      ].filter(Boolean).join(' ')}
+      onContextMenu={(event) => {
+        // Rows inside a dropdown menu keep their inline actions only.
+        if (!hasActions || menuItem || disabled) return;
+        event.preventDefault();
+        setMenu({ x: event.clientX, y: event.clientY });
+      }}
+    >
       <button
         type="button"
         className={`chat-page-rail-item${session.isCurrent ? ' chat-page-rail-item--active' : ''}`}
@@ -241,10 +259,7 @@ export const ChatSessionRailItem = ({
               size="sm"
               className="chat-page-rail-item-action"
               aria-label={t('chat.renameSession', { title })}
-              onClick={() => {
-                setRenameValue(title);
-                changeMode('rename');
-              }}
+              onClick={startRename}
               disabled={busy || disabled}
             >
               <PencilIcon size={13} />
@@ -264,6 +279,18 @@ export const ChatSessionRailItem = ({
             </Button>
           )}
         </div>
+      )}
+      {menu && (
+        <ChatSessionRailMenu
+          x={menu.x}
+          y={menu.y}
+          title={title}
+          pinned={session.isPinned ?? false}
+          onClose={() => setMenu(null)}
+          onTogglePin={onTogglePinSession ? () => void togglePin() : undefined}
+          onRename={onRenameSession ? startRename : undefined}
+          onDelete={onDeleteSession ? () => changeMode('delete') : undefined}
+        />
       )}
     </div>
   );

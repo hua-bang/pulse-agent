@@ -8,9 +8,19 @@ import { useI18n } from '../../../../../i18n';
 import { getNodeDisplayLabel } from '../../../../../utils/nodeLabel';
 import './index.css';
 
-/** Screen-space gap between the selected card and the bar. */
-const NODE_GAP = 10;
+/**
+ * Screen-space gap between the selected card and the bar. It clears the
+ * connect handles, which sit 14px outside the card and are 10px wide.
+ */
+const NODE_GAP = 24;
 const VIEWPORT_GAP = 8;
+
+/**
+ * Card whose question started the current ask conversation. A question about
+ * another card starts a new conversation, so it does not land in an
+ * unrelated thread; a follow-up about the same card keeps its history.
+ */
+let lastAskedNodeId: string | null = null;
 
 interface Props {
   node: CanvasNode;
@@ -103,11 +113,12 @@ export const NodeAskBar = ({ node, nodes = [], transform, onAsk }: Props) => {
     if (!question || sending) return;
     setSending(true);
     try {
-      // Joins the current conversation, so follow-ups keep their history.
       const receipt = await onAsk({
         text: question,
         nodes: [{ id: node.id, title: label, type: node.type }],
+        ...(lastAskedNodeId === node.id ? {} : { newSession: true }),
       });
+      if (receipt.status === 'delivered' || receipt.status === 'queued') lastAskedNodeId = node.id;
       // A delivered question is visible in the chat itself; only report problems.
       if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
       if (receipt.status === 'delivered' || receipt.status === 'queued') {

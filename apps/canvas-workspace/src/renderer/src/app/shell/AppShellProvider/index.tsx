@@ -270,15 +270,16 @@ const ConfirmDialog = ({
   onConfirm: () => void;
   t: ReturnType<typeof useI18n>['t'];
 }) => {
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
-
-  // Focus the confirm button on open so Enter accepts; Esc is handled by the
-  // Modal shell (useEscapeClose). Replaces the old hand-rolled window keydown.
-  useEffect(() => {
-    confirmRef.current?.focus();
-  }, []);
-
   const intent = options.intent ?? 'default';
+
+  // Focus a button on open so Enter answers; Esc is handled by the Modal
+  // shell (useEscapeClose). A destructive dialog focuses Cancel: it often
+  // opens from Delete or Enter, and a repeated key must not confirm it.
+  useEffect(() => {
+    (intent === 'danger' ? cancelRef : confirmRef).current?.focus();
+  }, [intent]);
 
   return (
     <Modal open onClose={onCancel} width={520} labelledBy="shell-confirm-title">
@@ -292,7 +293,7 @@ const ConfirmDialog = ({
         <div className="shell-dialog__description">{options.description}</div>
       )}
       <div className="shell-dialog__footer">
-        <button type="button" className="shell-dialog__button" onClick={onCancel}>
+        <button ref={cancelRef} type="button" className="shell-dialog__button" onClick={onCancel}>
           {options.cancelLabel ?? t('shell.cancel')}
         </button>
         <button

@@ -3,16 +3,6 @@ import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from '../../../../../types';
 import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
 
-export function formatRelativeTime(epochMs: number): string {
-  const diffSec = Math.floor((Date.now() - epochMs) / 1000);
-  if (diffSec < 60) return 'just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.floor(diffHr / 24)}d ago`;
-}
-
 export function isCanvasPanGesture(e: MouseEvent): boolean {
   const handToolActive = e.currentTarget.closest('.canvas-container--hand') != null;
   return e.button === 1 || (e.button === 0 && (e.altKey || handToolActive));

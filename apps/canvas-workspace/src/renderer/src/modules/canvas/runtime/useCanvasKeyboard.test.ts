@@ -3,7 +3,11 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../types';
-import { shouldHandleCanvasFindShortcut, useCanvasKeyboard } from './useCanvasKeyboard';
+import {
+  isBareKeyBlockedByFocus,
+  shouldHandleCanvasFindShortcut,
+  useCanvasKeyboard,
+} from './useCanvasKeyboard';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -59,6 +63,23 @@ describe('shouldHandleCanvasFindShortcut', () => {
       .toBe(false);
     expect(shouldHandleCanvasFindShortcut(modF({ key: 'k' }), elementOutsideExcludedSurfaces())).toBe(false);
     expect(shouldHandleCanvasFindShortcut(modF({ shiftKey: true }), elementOutsideExcludedSurfaces())).toBe(false);
+  });
+});
+
+describe('isBareKeyBlockedByFocus', () => {
+  const focusIn = (selector: string | null) => ({
+    closest: (query: string) => (selector && query.includes(selector) ? {} : null),
+  });
+
+  it('keeps bare keys away from the canvas while a dock or tab button has focus', () => {
+    expect(isBareKeyBlockedByFocus({ key: 'v' }, focusIn('.right-dock'))).toBe(true);
+    expect(isBareKeyBlockedByFocus({ key: 'Delete' }, focusIn('.workspace-tabs'))).toBe(true);
+  });
+
+  it('lets modified keys and keys from other surfaces through', () => {
+    expect(isBareKeyBlockedByFocus({ key: 'z', mod: true }, focusIn('.right-dock'))).toBe(false);
+    expect(isBareKeyBlockedByFocus({ key: 'v' }, focusIn(null))).toBe(false);
+    expect(isBareKeyBlockedByFocus({ key: 'v' }, null)).toBe(false);
   });
 });
 

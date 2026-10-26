@@ -100,20 +100,32 @@ describe('NodeAskBar', () => {
     const input = open();
 
     expect(form.style.left).toBe('210px');
-    expect(form.style.top).toBe(`${(40 + 120) * 2 + 20 + 10}px`);
+    expect(form.style.top).toBe(`${(40 + 120) * 2 + 20 + 24}px`);
 
     type(input, 'Which tier?');
     await act(async () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
 
+    // The first question about a card starts its own conversation.
     expect(onAsk).toHaveBeenCalledWith({
       text: 'Which tier?',
       nodes: [{ id: 'node-1', title: 'Research', type: 'text' }],
+      newSession: true,
     });
     // Sent: the bar folds back to its chip.
     expect(host.querySelector('input')).toBeNull();
     expect(notify).not.toHaveBeenCalled();
+
+    // A follow-up about the same card keeps that conversation.
+    type(open(), 'And the price?');
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(onAsk).toHaveBeenLastCalledWith({
+      text: 'And the price?',
+      nodes: [{ id: 'node-1', title: 'Research', type: 'text' }],
+    });
   });
 
   it('keeps the question and reports it when the chat refuses it', async () => {

@@ -136,6 +136,23 @@ export const collectContainerDescendants = (
  * itself and any deeper-nested descendants. Used to render a compact summary
  * of what a collapsed frame is hiding.
  */
+/**
+ * The selection plus everything inside its frames and groups, in canvas
+ * order. Copy and duplicate use it: a container copied without its
+ * contents comes out empty.
+ */
+export const withContainerDescendants = (
+  selected: readonly CanvasNode[],
+  nodes: CanvasNode[],
+): CanvasNode[] => {
+  const ids = new Set(selected.map((node) => node.id));
+  for (const node of selected) {
+    if (!isContainerNode(node)) continue;
+    for (const child of collectContainerDescendants(node.id, nodes)) ids.add(child.id);
+  }
+  return nodes.filter((node) => ids.has(node.id));
+};
+
 export const collectDirectContainerChildren = (
   containerId: string,
   nodes: CanvasNode[],
