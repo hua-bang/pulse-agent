@@ -54,7 +54,7 @@ export const IframeToolbar = (props: ToolbarProps) => {
       <IframeAddressButton {...props} />
       <div className="iframe-bar-actions">
         {props.mode === 'ai' && !props.generating && !props.readOnly && (
-          <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={() => void props.handleRegenerate()} title={t('iframe.toolbar.regenerate')} aria-label={t('iframe.toolbar.regenerate')}>
+          <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={() => void props.handleRegenerate()} title={t('chat.turn.regenerate')} aria-label={t('chat.turn.regenerate')}>
             <SparkIcon />
           </Button>
         )}
@@ -77,15 +77,15 @@ export const IframeToolbar = (props: ToolbarProps) => {
             size="xs"
             className={`iframe-bar-btn${props.reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
             onClick={() => void props.handlePickReviewElement()}
-            title={props.reviewPickerActive ? t('iframe.toolbar.selectingReview') : t('iframe.toolbar.addReview')}
-            aria-label={props.reviewPickerActive ? t('iframe.toolbar.selectingReview') : t('iframe.toolbar.addReview')}
+            title={props.reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+            aria-label={props.reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
             disabled={props.generating || props.domPickerActive || props.reviewPickerActive || !props.workspaceId || props.readOnly}
           >
             <ReviewIcon />
           </Button>
         )}
         {props.mode === 'url' && (
-          <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={props.handleOpenExternal} title={t('iframe.toolbar.openExternal')} aria-label={t('iframe.toolbar.openExternal')}>
+          <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={props.handleOpenExternal} title={t('iframe.loadError.openExternal')} aria-label={t('iframe.loadError.openExternal')}>
             <ExternalLinkIcon />
           </Button>
         )}

@@ -44,7 +44,7 @@ export const ChatSessionRailMenu = ({
       )}
       {onRename && (
         <Button size="sm" className="context-menu-item" role="menuitem" onClick={run(onRename)}>
-          {t('chat.sessionMenu.rename')}
+          {t('sidebar.rename')}
         </Button>
       )}
       {onDelete && (

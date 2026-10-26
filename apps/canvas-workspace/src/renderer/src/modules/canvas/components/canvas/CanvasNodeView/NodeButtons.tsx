@@ -17,7 +17,7 @@ export const FullscreenButton = ({ floating, isFullscreen, onClick }: Fullscreen
       onClick={onClick}
       onMouseDown={(e) => e.stopPropagation()}
       title={isFullscreen ? t('nodeButtons.exitFullscreenHint') : t('nodeButtons.fullscreen')}
-      aria-label={isFullscreen ? t('nodeButtons.exitFullscreen') : t('nodeButtons.enterFullscreen')}
+      aria-label={isFullscreen ? t('nodeButtons.exitFullscreenHint') : t('nodeButtons.fullscreen')}
     >
       {isFullscreen ? (
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -235,7 +235,7 @@ export const AddToCanvasButton = ({ onClick }: { onClick: (e: MouseEvent) => voi
       onClick={onClick}
       onMouseDown={(e) => e.stopPropagation()}
       title={t('nodeButtons.addToCanvas')}
-      aria-label={t('nodeButtons.addToCanvasLabel')}
+      aria-label={t('nodeButtons.addToCanvas')}
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -259,7 +259,7 @@ export const AddToChatButton = ({
       onClick={onClick}
       onMouseDown={(e) => e.stopPropagation()}
       title={t('nodeButtons.addToChat')}
-      aria-label={t('nodeButtons.addToChatLabel')}
+      aria-label={t('nodeButtons.addToChat')}
     >
       <AppLogoIcon />
     </button>
@@ -286,8 +286,8 @@ export const OpenSourceButton = ({
       type="button"
       onClick={onClick}
       onMouseDown={(e) => e.stopPropagation()}
-      title={title ?? t('nodeButtons.openSource')}
-      aria-label={ariaLabel ?? t('nodeButtons.openSource')}
+      title={title ?? t('reference.openSource')}
+      aria-label={ariaLabel ?? t('reference.openSource')}
       disabled={disabled}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">

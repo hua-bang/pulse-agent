@@ -265,7 +265,7 @@ describe('ModelProviderFields model picker', () => {
 
     const buttons = () => Array.from(host.querySelectorAll<HTMLButtonElement>('button'));
     expect(host.querySelector('.chat-model-provider-tab--env.chat-model-provider-tab--active')).not.toBeNull();
-    expect(host.textContent).toContain('Using OPENAI_API_KEY');
+    expect(host.textContent).toContain('Chat uses the API key in this environment variable.');
     expect(host.textContent).toContain('gpt-4o');
     expect(host.querySelector('[placeholder="Enter API Key"]')).toBeNull();
     expect(buttons().some((button) => button.textContent?.trim() === 'Test & Save')).toBe(false);

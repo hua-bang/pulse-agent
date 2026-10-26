@@ -17,14 +17,14 @@ export const EnvProviderPanel = ({
   return (
     <div className="chat-model-settings-card chat-model-settings-card--intro chat-model-env-panel">
       <div>
-        <strong>{t('models.envTitle', { env })}</strong>
+        <strong>{t('models.envProvider', { env })}</strong>
         <p>{t('models.envDescription')}</p>
         <dl className="chat-model-env-panel__facts">
           <dt>{t('models.envModel')}</dt>
           <dd>{status.resolvedModel}</dd>
           {status.resolvedBaseURL && (
             <>
-              <dt>{t('models.envBaseUrl')}</dt>
+              <dt>{t('toolsConfig.baseUrl')}</dt>
               <dd>{status.resolvedBaseURL}</dd>
             </>
           )}
