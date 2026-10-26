@@ -460,7 +460,10 @@ export const WorkspaceTerminalDock = ({
           </button>
         </div>
       )}
-      <div className="workspace-terminal-dock__body" onClick={() => termRef.current?.focus()}>
+      <div
+        className={`workspace-terminal-dock__body${mentionHintVisible ? ' workspace-terminal-dock__body--with-hint' : ''}`}
+        onClick={() => termRef.current?.focus()}
+      >
         {pickerOpen && (
           <NodeMentionPicker
             nodes={nodesRef.current}

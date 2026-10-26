@@ -25,12 +25,14 @@
   transform: scale(calc(1 / var(--canvas-scale, 1)));
   transform-origin: top left;
   background: var(--bg);
-  padding: 6px 4px 4px;
   overflow: hidden;
 }
 
+/* Gutter on .xterm, not the container: FitAddon subtracts only .xterm
+   padding, so container padding clips the last row and column. */
 .terminal-xterm-container .xterm {
   height: 100%;
+  padding: 6px 4px 4px;
 }
 
 .terminal-xterm-container .xterm-viewport {

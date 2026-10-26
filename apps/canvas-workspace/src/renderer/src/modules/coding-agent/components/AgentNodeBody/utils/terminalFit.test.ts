@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { FitAddon, ITerminalDimensions } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
@@ -48,5 +49,25 @@ describe('fitTerminalIfSane', () => {
     } as unknown as FitAddon;
     expect(fitTerminalIfSane(fakeTerminal(80, 24), throwing)).toBe(false);
     expect(fitTerminalIfSane(null, fakeFit({ cols: 120, rows: 30 }).addon)).toBe(false);
+  });
+});
+
+// FitAddon sizes the terminal from the computed border-box of the `.xterm`
+// parent and subtracts only `.xterm` padding, so padding or a border on the
+// parent becomes phantom rows/cols that clip a TUI's status line.
+describe('xterm fit parents', () => {
+  const ruleBody = (css: string, selector: string): string => {
+    const start = css.indexOf(`\n${selector} {`);
+    expect(start, `${selector} rule`).toBeGreaterThanOrEqual(0);
+    return css.slice(start, css.indexOf('}', start));
+  };
+
+  it.each([
+    ['../../../../dock/internal/WorkspaceTerminalDock/index.css', '.workspace-terminal-dock__xterm'],
+    ['../../../../canvas/components/node-bodies/TerminalNodeBody/index.css', '.terminal-xterm-container'],
+    ['../AgentTerminal/index.css', '.agent-xterm-container'],
+  ])('%s keeps padding and border off %s', (path, selector) => {
+    const body = ruleBody(readFileSync(new URL(path, import.meta.url), 'utf8'), selector);
+    expect(body).not.toMatch(/^\s*(padding(-[a-z]+)?|border(-(top|right|bottom|left|width))?)\s*:/m);
   });
 });

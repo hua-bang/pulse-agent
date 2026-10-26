@@ -122,13 +122,17 @@
   transform-origin: top left;
   border-radius: var(--radius-lg);
   background: var(--bg);
-  padding: 6px 4px 4px;
   overflow: hidden;
-  border: 1px solid var(--border-light);
+  /* An outline, not a border: FitAddon counts this element's border-box as
+     terminal space, so a border (or padding) here clips the last row and
+     column. The gutter is padding on .xterm, which FitAddon subtracts. */
+  outline: 1px solid var(--border-light);
+  outline-offset: -1px;
 }
 
 .agent-xterm-container .xterm {
   height: 100%;
+  padding: 7px 5px 5px;
 }
 
 .agent-xterm-container .xterm-viewport {
