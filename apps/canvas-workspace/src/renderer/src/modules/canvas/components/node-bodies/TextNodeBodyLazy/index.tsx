@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState
 import type { CanvasNode, TextNodeData } from '../../../../../types';
 import { useI18n } from '../../../../../i18n';
 import { useTextNodeSize } from '../TextNodeBody/useTextNodeSize';
+import { resolveTextNodeColor } from '../TextNodeBody/colorPresets';
 import { renderTextPreview } from './textPreview';
 import { DeferredEditorBoundary, useDeferredEditorInput } from '../useDeferredEditorInput';
 import '../TextNodeBody/index.css';
@@ -68,7 +69,7 @@ export const TextNodeBodyLazy = (props: Props) => {
       }}
 
       style={{
-        color: data.textColor,
+        color: resolveTextNodeColor(data.textColor),
         backgroundColor: data.backgroundColor,
         fontSize: data.fontSize ?? 18,
       }}

@@ -5,6 +5,7 @@ import { TextSelectionBubble } from "./TextSelectionBubble";
 import { useTextNodeSize } from "./useTextNodeSize";
 import { applyDeferredEditorInput, type DeferredEditorReady } from "../applyDeferredEditorInput";
 import { createTextNodeExtensions } from "./textNodeExtensions";
+import { resolveTextNodeColor } from "./colorPresets";
 import type { CanvasNode, TextNodeData } from "../../../../../types";
 import { isImeComposing } from "../../../../../utils/ime";
 import { useI18n } from "../../../../../i18n";
@@ -230,7 +231,7 @@ export const TextNodeBody = ({
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       style={{
-        color: data.textColor,
+        color: resolveTextNodeColor(data.textColor),
         backgroundColor: data.backgroundColor,
         fontSize: data.fontSize ?? 18,
       }}

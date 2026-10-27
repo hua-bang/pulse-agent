@@ -7,6 +7,7 @@ import type {
 } from '../../../types';
 import { createNodeData, genId } from '../../../utils/nodeFactory';
 import { degradeEndpointsForDeletedNode } from '../model/edgeFactory';
+import { releaseDroppedGroupMembers } from '../model/releaseDroppedGroupMembers';
 import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
 import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 
@@ -145,7 +146,8 @@ export const useCanvasCoreCommands = ({
     const nodes = nodesRef.current.map(node => node.id === id
       ? { ...node, x, y, updatedAt: Date.now() }
       : node);
-    applyNodes(resizeGroupsToChildren(nodes), false);
+    const released = releaseDroppedGroupMembers(nodesRef.current, nodes, new Set([id]));
+    applyNodes(resizeGroupsToChildren(released), false);
   }, [applyNodes, nodesRef]);
 
   const moveNodes = useCallback((moves: Array<{ id: string; x: number; y: number }>) => {
@@ -155,7 +157,8 @@ export const useCanvasCoreCommands = ({
       const move = moveById.get(node.id);
       return move ? { ...node, x: move.x, y: move.y, updatedAt: now } : node;
     });
-    applyNodes(resizeGroupsToChildren(nodes), false);
+    const released = releaseDroppedGroupMembers(nodesRef.current, nodes, new Set(moveById.keys()));
+    applyNodes(resizeGroupsToChildren(released), false);
   }, [applyNodes, nodesRef]);
 
   const resizeNode = useCallback((
