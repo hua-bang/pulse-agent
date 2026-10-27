@@ -3,6 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { CanvasEdge, CanvasNode } from '../../../../../../types';
+import { requestCanvasSelection } from '../../../../../../shared/canvasSelection';
 import { shouldPersistViewportTransform, useCanvasSyncEffects } from './useCanvasSyncEffects';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -115,5 +116,42 @@ describe('useCanvasSyncEffects', () => {
 
     act(() => root.unmount());
     host.remove();
+  });
+
+  it('applies a selection request for its own canvas and drops unknown ids', () => {
+    const node = { id: 'node-1', type: 'text', title: 'A', x: 0, y: 0, width: 10, height: 10, data: {} } as CanvasNode;
+    const setSelectedNodeIds = vi.fn();
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const Harness = () => {
+      useCanvasSyncEffects({
+        canvasId: 'canvas-1',
+        loaded: true,
+        nodes: [node],
+        edges: [],
+        transform: { x: 0, y: 0, scale: 1 },
+        selectedNodeIds: [],
+        setSelectedNodeIds,
+        nodesRef: { current: [node] },
+        isDraggingRef: { current: false },
+        pendingParentNodesRef: { current: null },
+        hasAutoFittedRef: { current: true },
+        setTransformForSave: vi.fn(),
+        flushSave: vi.fn(),
+        fitAllNodes: vi.fn(),
+        handleNodeViewportFocus: vi.fn(),
+        updateNode: vi.fn(),
+        handleExternalDelete: vi.fn(),
+      });
+      return null;
+    };
+    act(() => root.render(createElement(Harness)));
+
+    act(() => requestCanvasSelection('canvas-2', ['node-1']));
+    expect(setSelectedNodeIds).not.toHaveBeenCalled();
+    act(() => requestCanvasSelection('canvas-1', ['node-1', 'gone']));
+    expect(setSelectedNodeIds).toHaveBeenCalledWith(['node-1']);
+
+    act(() => root.unmount());
   });
 });

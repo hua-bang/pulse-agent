@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { sessionTitleText } from '../../../modules/chat/components/utils/sessionTitle';
 import { useRunningConversationKeys } from '../../../modules/chat/sessions/useScopeRunningSessions';
-import { formatRelativeTime } from './relativeTime';
+import { formatRelativeTime } from '../../../utils/relativeTime';
 import type { RecentChat } from './useLauncherData';
 
 interface Props {

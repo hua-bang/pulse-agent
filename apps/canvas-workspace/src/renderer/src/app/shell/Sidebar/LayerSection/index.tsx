@@ -2,6 +2,7 @@ import { LayersPanel } from '../LayersPanel';
 import { LayerContextMenu } from '../LayerContextMenu';
 import { useSidebarLayers } from '../useSidebarLayers';
 import type { SidebarProps } from '../types';
+import { requestCanvasSelection } from '../../../../shared/canvasSelection';
 
 type Props = Pick<SidebarProps,
   'activeId' | 'activeNodes' | 'selectedNodeIds' | 'onNodeFocus' | 'onNodeRename' | 'onNodeDelete'
@@ -30,7 +31,16 @@ export const LayerSection = ({
           collapsedLayers={layers.collapsedLayers}
           selectedNodeIds={layers.selectedLayerIds}
           primarySelectedNodeId={layers.primarySelectedNodeId}
-          onNodeFocus={(nodeId) => onNodeFocus?.(nodeId)}
+          onNodeFocus={(nodeId, additive) => {
+            if (!additive || !activeId) {
+              onNodeFocus?.(nodeId);
+              return;
+            }
+            const current = [...layers.selectedLayerIds];
+            requestCanvasSelection(activeId, layers.selectedLayerIds.has(nodeId)
+              ? current.filter((id) => id !== nodeId)
+              : [...current, nodeId]);
+          }}
           onLayerRename={layers.startLayerRename}
           onContextMenu={layers.handleLayerContextMenu}
           onToggleCollapse={layers.toggleLayerCollapse}

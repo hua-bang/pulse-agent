@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { recordRecentWorkspace } from '../recentWorkspaces';
 
@@ -27,6 +27,11 @@ const writeOpenTabs = (ids: string[]): void => {
  */
 export const useOpenWorkspaceTabs = (workspaces: WorkspaceEntry[], activeId: string) => {
   const [openIds, setOpenIds] = useState<string[]>(readOpenTabs);
+  /** Closed tabs, most recent last, for Mod+Shift+T. */
+  const closedRef = useRef<string[]>([]);
+  const remember = useCallback((ids: string[]) => {
+    closedRef.current = [...closedRef.current.filter((id) => !ids.includes(id)), ...ids].slice(-20);
+  }, []);
 
   const update = useCallback((next: (ids: string[]) => string[]) => {
     setOpenIds((ids) => {
@@ -59,14 +64,27 @@ export const useOpenWorkspaceTabs = (workspaces: WorkspaceEntry[], activeId: str
     const index = openIds.indexOf(id);
     if (index < 0) return null;
     const remaining = openIds.filter((openId) => openId !== id);
+    remember([id]);
     update(() => remaining);
     return remaining[Math.min(index, remaining.length - 1)] ?? null;
   }, [openIds, update]);
 
   /** Keeps only this tab open. */
   const closeOthers = useCallback((id: string) => {
+    remember(openIds.filter((openId) => openId !== id));
     update((ids) => (ids.length === 1 && ids[0] === id ? ids : [id]));
-  }, [update]);
+  }, [openIds, remember, update]);
 
-  return { openIds, close, closeOthers };
+  /** The most recently closed tab whose workspace still exists, or null. */
+  const takeClosed = useCallback((): string | null => {
+    const known = new Set(workspaces.map((ws) => ws.id));
+    while (closedRef.current.length > 0) {
+      const id = closedRef.current[closedRef.current.length - 1];
+      closedRef.current = closedRef.current.slice(0, -1);
+      if (known.has(id) && !openIds.includes(id)) return id;
+    }
+    return null;
+  }, [openIds, workspaces]);
+
+  return { openIds, close, closeOthers, takeClosed };
 };

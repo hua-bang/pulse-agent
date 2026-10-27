@@ -51,7 +51,7 @@ const getAgentTeamId = (node: CanvasNode): string | undefined => {
 
 /**
  * Bundles the canvas's higher-level mutation callbacks — group / ungroup
- * / wrap-in-frame, the confirmed edge delete, the safe multi-node
+ * / wrap-in-frame, the edge delete, the safe multi-node
  * delete, and the mindmap → PNG exporter. Pure callbacks; no internal
  * state. Keeps the parent's body free of toast / confirm boilerplate.
  */
@@ -151,29 +151,16 @@ export const useCanvasNodeActions = ({
     [canvasId, confirm, nodesRef, notify, removeNodes, setSelectedNodeIds, syncDeletedNodes, t],
   );
 
+  // Edge deletes skip the confirm and the toast, like node deletes: the
+  // change is visible on the canvas and undo brings the edge back.
   const requestRemoveEdge = useCallback(
     async (id: string) => {
-      const edge = edges.find((item) => item.id === id);
-      if (!edge) return;
-
-      const accepted = await confirm({
-        intent: 'danger',
-        title: t('canvas.deleteConnectionTitle'),
-        description: t('canvas.deleteConnectionDescription'),
-        confirmLabel: t('canvas.deleteConnectionConfirm'),
-      });
-      if (!accepted) return;
-
+      if (!edges.some((item) => item.id === id)) return;
       removeEdge(id);
       setSelectedEdgeId((current) => (current === id ? null : current));
       if (editingEdgeLabelId === id) setEditingEdgeLabelId(null);
-      notify({
-        tone: 'success',
-        title: t('canvas.connectionDeleted'),
-        description: edge.label?.trim() ? edge.label : t('canvas.connectionDeletedDescription'),
-      });
     },
-    [edges, confirm, removeEdge, editingEdgeLabelId, setEditingEdgeLabelId, notify, setSelectedEdgeId, t],
+    [edges, removeEdge, editingEdgeLabelId, setEditingEdgeLabelId, setSelectedEdgeId],
   );
 
   const handleRemoveNode = useCallback(

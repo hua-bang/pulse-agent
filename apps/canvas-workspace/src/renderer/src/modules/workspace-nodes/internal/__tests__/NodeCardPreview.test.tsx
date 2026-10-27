@@ -21,6 +21,11 @@ const listItem = (
 });
 
 describe('NodeCardPreview', () => {
+  it('shows no excerpt for a text node whose title is its whole content', () => {
+    expect(getNodeCardPreviewModel(listItem('text', { summary: 'Hello 中文 text' }), 'Hello 中文 text'))
+      .toEqual({ kind: 'empty' });
+  });
+
   it('derives typed previews from list-item fields only', () => {
     expect(getNodeCardPreviewModel(listItem('file'), 'File title')).toMatchObject({
       kind: 'file',

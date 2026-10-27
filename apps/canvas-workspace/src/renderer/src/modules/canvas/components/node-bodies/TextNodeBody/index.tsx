@@ -5,6 +5,7 @@ import { TextSelectionBubble } from "./TextSelectionBubble";
 import { useTextNodeSize } from "./useTextNodeSize";
 import { applyDeferredEditorInput, type DeferredEditorReady } from "../applyDeferredEditorInput";
 import { createTextNodeExtensions } from "./textNodeExtensions";
+import { resolveTextNodeColor } from "./colorPresets";
 import type { CanvasNode, TextNodeData } from "../../../../../types";
 import { isImeComposing } from "../../../../../utils/ime";
 import { useI18n } from "../../../../../i18n";
@@ -74,6 +75,7 @@ export const TextNodeBody = ({
   const prevContentRef = useRef(data.content);
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+  const typedSinceEditRef = useRef(false);
 
   const editor = useEditor({
     extensions: createTextNodeExtensions(t('canvas.textPlaceholder'), t('canvas.textEditingPlaceholder')),
@@ -86,9 +88,13 @@ export const TextNodeBody = ({
       const html = editor.getHTML();
       if (html === dataRef.current.content) return;
       prevContentRef.current = html;
+      // Keystrokes skip canvas history; leaving the editor records the whole
+      // edit as one step (below). Per-keystroke entries made one canvas undo
+      // remove one character and pushed older steps out of the history.
+      typedSinceEditRef.current = true;
       onUpdateRef.current(nodeIdRef.current, {
         data: { ...dataRef.current, content: html },
-      });
+      }, { history: false });
     },
     onBlur: () => {
       if (!readOnly) setEditing(false);
@@ -105,6 +111,13 @@ export const TextNodeBody = ({
       editor.off("transaction", refresh);
     };
   }, [editor]);
+
+  // One history step per edit session, recorded when editing ends.
+  useEffect(() => {
+    if (editing || !typedSinceEditRef.current) return;
+    typedSinceEditRef.current = false;
+    onUpdateRef.current(nodeIdRef.current, { data: { ...dataRef.current } });
+  }, [editing]);
 
   // Sync the editable flag with our `editing` state. Tiptap's options are
   // captured once, so we toggle imperatively.
@@ -218,7 +231,7 @@ export const TextNodeBody = ({
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       style={{
-        color: data.textColor,
+        color: resolveTextNodeColor(data.textColor),
         backgroundColor: data.backgroundColor,
         fontSize: data.fontSize ?? 18,
       }}

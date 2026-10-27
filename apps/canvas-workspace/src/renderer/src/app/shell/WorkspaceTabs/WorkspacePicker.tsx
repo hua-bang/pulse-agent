@@ -67,13 +67,14 @@ export const WorkspacePicker = ({
       placement="bottom"
       align="start"
       gap={4}
-      autoFocus={false}
       ariaLabel={t('workspaceTabs.open')}
       className="workspace-picker"
       onClose={onClose}
     >
+      {/* The panel mounts hidden until it is measured, and a hidden input
+          rejects `autoFocus`. The Popover focuses this field once visible. */}
       <TextField
-        autoFocus
+        data-menu-autofocus="true"
         className="workspace-picker__search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}

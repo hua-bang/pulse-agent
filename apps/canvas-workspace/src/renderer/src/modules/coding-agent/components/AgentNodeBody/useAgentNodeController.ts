@@ -18,6 +18,8 @@ import {
 } from '../../session/useAgentSessionActivation';
 import { useCodexSessionRecovery } from '../../session/useCodexSessionRecovery';
 import { createTerminalKeyArbiter } from './utils/terminalFocus';
+import { findMissingAgentCommand } from './utils/agentCommandCheck';
+import { useAgentPromptDraft } from './useAgentPromptDraft';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   createDebouncedTerminalRefit,
@@ -59,7 +61,7 @@ export const useAgentNodeController = ({
     && shouldAutoResumeCodingAgentSession(data);
   const [selectedAgent, setSelectedAgent] = useState(normalizeAgentType(data.agentType));
   const [cwdInput, setCwdInput] = useState(defaultCwd);
-  const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
+  const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.draftPrompt || data.lastInitPrompt || '');
   const [dangerousMode, setDangerousMode] = useState(data.dangerousMode ?? isTeamManagedAgent);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
@@ -327,21 +329,20 @@ export const useAgentNodeController = ({
     });
   }, [viewMode, isMirrorTerminal, readOnly]);
 
+  useAgentPromptDraft({
+    prompt: promptInput,
+    active: viewMode === 'setup' && !readOnly && !isMirrorTerminal,
+    dataRef,
+    nodeIdRef,
+    onUpdateRef,
+  });
+
   const ensureAgentCommandAvailable = useCallback(async (agentType: string, skipPreflight = false): Promise<boolean> => {
     setLaunchErrorCommand(null);
     if (skipPreflight) return true;
-    const command = getAgentCommand(agentType);
-    if (!command) return true;
-    const api = window.canvasWorkspace?.pty;
-    if (!api?.checkCommand) return true;
-    const commands = workspaceId && command !== 'pulse-canvas' ? [command, 'pulse-canvas'] : [command];
-    for (const requiredCommand of commands) {
-      const result = await api.checkCommand(requiredCommand);
-      if (result.ok && result.available) continue;
-      setLaunchErrorCommand(requiredCommand);
-      return false;
-    }
-    return true;
+    const missing = await findMissingAgentCommand(agentType, workspaceId);
+    setLaunchErrorCommand(missing);
+    return !missing;
   }, [workspaceId]);
 
   const handleLaunch = useCallback(async (options?: { skipPreflight?: boolean }) => {
@@ -366,6 +367,7 @@ export const useAgentNodeController = ({
       cwd: effectiveCwd,
       inlinePrompt: prompt,
       lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
+      draftPrompt: undefined,
       dangerousMode: effectiveDangerousMode,
       status: 'running' as const,
       sessionId: freshSessionId,

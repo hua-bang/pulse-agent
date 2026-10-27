@@ -4,7 +4,7 @@ import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
-import { CLOSE_ACTIVE_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
+import { CLOSE_ACTIVE_TAB_EVENT, REOPEN_CLOSED_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
 import { useOpenWorkspaceTabs } from './useOpenWorkspaceTabs';
 import { WorkspacePicker } from './WorkspacePicker';
 import './index.css';
@@ -43,7 +43,7 @@ export const WorkspaceTabs = ({
   // Like Chrome: closing a tab keeps the others at their width until the
   // pointer leaves the bar, so the next close button stays under it.
   const [frozenWidth, setFrozenWidth] = useState<number | null>(null);
-  const { openIds, close, closeOthers } = useOpenWorkspaceTabs(workspaces, activeId);
+  const { openIds, close, closeOthers, takeClosed } = useOpenWorkspaceTabs(workspaces, activeId);
   const byId = new Map(workspaces.map((ws) => [ws.id, ws]));
   const tabs = openIds.flatMap((id) => {
     const workspace = byId.get(id);
@@ -78,10 +78,21 @@ export const WorkspaceTabs = ({
   closeActiveRef.current = () => {
     if (activeId) onClose(activeId);
   };
+  // Mod+Shift+T: selecting the workspace opens its tab again.
+  const reopenRef = useRef(() => {});
+  reopenRef.current = () => {
+    const id = takeClosed();
+    if (id) onSelect(id);
+  };
   useEffect(() => {
-    const handler = () => closeActiveRef.current();
-    window.addEventListener(CLOSE_ACTIVE_TAB_EVENT, handler);
-    return () => window.removeEventListener(CLOSE_ACTIVE_TAB_EVENT, handler);
+    const close = () => closeActiveRef.current();
+    const reopen = () => reopenRef.current();
+    window.addEventListener(CLOSE_ACTIVE_TAB_EVENT, close);
+    window.addEventListener(REOPEN_CLOSED_TAB_EVENT, reopen);
+    return () => {
+      window.removeEventListener(CLOSE_ACTIVE_TAB_EVENT, close);
+      window.removeEventListener(REOPEN_CLOSED_TAB_EVENT, reopen);
+    };
   }, []);
 
   const closeFromPointer = (event: MouseEvent<HTMLElement>, id: string) => {

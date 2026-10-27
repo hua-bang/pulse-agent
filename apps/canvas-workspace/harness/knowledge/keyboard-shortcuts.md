@@ -208,6 +208,16 @@ Drawer browser/find surfaces, because those areas own their own find flow and
 must not have canvas-level search steal focus from note editing, embedded page
 controls, or browser find-in-page.
 
+Bare canvas keys (no Mod, Ctrl, or Alt: letter tools, Delete, Escape) have
+one more guard, `isBareKeyBlockedByFocus`. A button in the right dock or the
+workspace tab bar keeps focus after a click, and a letter typed next must not
+switch the canvas tool or delete the canvas selection. Chords still pass.
+
+`canvas.toggleChatPanel` is the one canvas chord that pages without a canvas
+also advertise (the floating chat button tooltip). The canvas layer is locked
+off the canvas route, so `useAppShortcuts` handles that chord there through
+its `toggleDockChat` option instead of adding a listener.
+
 An `'allow'` chord still reaches a focused editor first only if the editor
 claims it. Both dispatchers skip events with `defaultPrevented`, so an editor
 that owns a chord must `preventDefault` it in the capture phase. The note

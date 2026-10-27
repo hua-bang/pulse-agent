@@ -147,6 +147,15 @@
   pointer-events: auto;
 }
 
+/* While the actions show, the title ends before them instead of running
+   under their fade. */
+@media (hover: hover) {
+  .chat-page-rail-item-shell--actions:hover .chat-page-rail-item,
+  .chat-page-rail-item-shell--actions:focus-within .chat-page-rail-item {
+    padding-right: 92px;
+  }
+}
+
 .chat-page-rail-item-action {
   color: var(--chat-a11y-secondary);
 }

@@ -1,5 +1,6 @@
 import "./index.css";
 import { Popover } from "../../../../../components/ui/Popover";
+import { Button } from "../../../../../components/ui";
 import { useI18n } from "../../../../../i18n";
 import type { CreatableCanvasNodeType } from "../../../../../utils/nodeFactory";
 import { useRightDock } from "../../../../../shared/dockPort";
@@ -18,6 +19,9 @@ interface Props {
   canvasReferenceWorkspaces?: WorkspaceEntry[];
   onCreateCanvasReference?: (workspaceId: string) => void;
   onExportImage?: () => void;
+  /** Canvas-wide actions shown under the create items. */
+  onSelectAll?: () => void;
+  onFitAll?: () => void;
   onClose: () => void;
 }
 
@@ -64,10 +68,16 @@ export const NodeContextMenu = ({
   canvasReferenceWorkspaces,
   onCreateCanvasReference,
   onExportImage,
+  onSelectAll,
+  onFitAll,
   onClose,
 }: Props) => {
   const { t } = useI18n();
   const dock = useRightDock();
+  const canvasActions = [
+    { key: 'selectAll', label: t('canvas.menu.selectAll'), run: onSelectAll },
+    { key: 'fitAll', label: t('canvas.zoom.fitAll'), run: onFitAll },
+  ].filter((action) => action.run);
 
   return (
     <Popover x={x} y={y} onClose={onClose} className="context-menu">
@@ -124,6 +134,21 @@ export const NodeContextMenu = ({
               onCreate={(options) => onCreate('plugin', options)}
             />
           )}
+          {canvasActions.length > 0 && <div className="context-menu-separator" role="separator" />}
+          {canvasActions.map((action) => (
+            <Button
+              key={action.key}
+              size="sm"
+              className="context-menu-item"
+              role="menuitem"
+              onClick={() => {
+                action.run?.();
+                onClose();
+              }}
+            >
+              <span className="context-menu-label"><strong>{action.label}</strong></span>
+            </Button>
+          ))}
         </>
       )}
     </Popover>

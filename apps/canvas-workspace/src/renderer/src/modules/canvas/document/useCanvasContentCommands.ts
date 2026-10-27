@@ -1,20 +1,9 @@
 import { useCallback, type MutableRefObject } from 'react';
-import type {
-  CanvasNode,
-  FileNodeData,
-  FrameNodeData,
-  GroupNodeData,
-  ImageNodeData,
-  MindmapNodeData,
-  ShapeNodeData,
-  TextNodeData,
-} from '../../../types';
-import {
-  cloneMindmapTopic,
-  createDefaultNode,
-  createNodeData,
-  genId,
-} from '../../../utils/nodeFactory';
+import type { CanvasNode, FileNodeData } from '../../../types';
+import { createDefaultNode, genId } from '../../../utils/nodeFactory';
+import { pasteOffset } from '../model/pasteOffset';
+import { withContainerDescendants } from '../../../utils/frameHierarchy';
+import { cloneNodeData } from './cloneNodeData';
 import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
 
 export interface AddNodeOptions {
@@ -28,32 +17,6 @@ interface ContentCommandOptions {
   nodesRef: MutableRefObject<CanvasNode[]>;
   applyNodes: (nodes: CanvasNode[], addToHistory?: boolean) => void;
 }
-
-const cloneNodeData = (
-  source: CanvasNode,
-  idMap?: ReadonlyMap<string, string>,
-): CanvasNode['data'] => {
-  if (source.type === 'frame') return { ...(source.data as FrameNodeData) };
-  if (source.type === 'group') {
-    const childIds = idMap
-      ? ((source.data as GroupNodeData).childIds ?? [])
-        .map(id => idMap.get(id))
-        .filter((id): id is string => !!id)
-      : [];
-    return { ...(source.data as GroupNodeData), childIds };
-  }
-  if (source.type === 'text') return { ...(source.data as TextNodeData) };
-  if (source.type === 'image') return { ...(source.data as ImageNodeData) };
-  if (source.type === 'shape') return { ...(source.data as ShapeNodeData) };
-  if (source.type === 'file') {
-    return { ...(source.data as FileNodeData), filePath: '', saved: false, modified: false };
-  }
-  if (source.type === 'mindmap') {
-    const data = source.data as MindmapNodeData;
-    return { ...data, root: cloneMindmapTopic(data.root), rev: 0 } satisfies MindmapNodeData;
-  }
-  return createNodeData(source.type);
-};
 
 const materializeFileNode = async ({
   applyNodes,
@@ -125,8 +88,9 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
     return node;
   }, [applyNodes, canvasId, nodesRef]);
 
-  const pasteNodes = useCallback((sources: CanvasNode[], offsetX = 24, offsetY = 24) => {
+  const pasteNodes = useCallback((sources: CanvasNode[]) => {
     if (sources.length === 0) return [];
+    const { x: offsetX, y: offsetY } = pasteOffset(sources, nodesRef.current);
     const idMap = new Map(sources.map(source => [source.id, genId()] as const));
     const now = Date.now();
     const pasted = sources.map((source): CanvasNode => ({
@@ -158,7 +122,8 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
   // every copy.
   const duplicateNodes = useCallback((ids: readonly string[]) => {
     const idSet = new Set(ids);
-    return pasteNodes(nodesRef.current.filter(node => idSet.has(node.id)));
+    const selected = nodesRef.current.filter(node => idSet.has(node.id));
+    return pasteNodes(withContainerDescendants(selected, nodesRef.current));
   }, [nodesRef, pasteNodes]);
 
   return { addNode, duplicateNodes, pasteNodes };

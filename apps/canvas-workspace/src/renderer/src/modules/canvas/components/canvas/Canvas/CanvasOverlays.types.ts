@@ -28,6 +28,8 @@ export interface CanvasOverlaysProps {
   scale: number;
   /** Reframe the viewport around every node. Surfaced next to the zoom chip. */
   onFitAll?: () => void;
+  /** Select every node; offered by the blank-canvas context menu. */
+  onSelectAll?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;

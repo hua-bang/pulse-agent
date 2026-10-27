@@ -94,7 +94,7 @@ describe('ReferenceCanvasNode', () => {
   it('routes AI, fullscreen and focus through the outer reference actions', () => {
     const handleAddToChat = vi.fn(), handleToggleFullscreen = vi.fn(), handleFocus = vi.fn();
     renderReferenceNode({ handleAddToChat, handleToggleFullscreen, handleFocus });
-    for (const label of ['Add node to AI chat', 'Enter fullscreen', 'Focus node']) {
+    for (const label of ['Add to chat', 'Fullscreen', 'Focus node']) {
       (host?.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement).click();
     }
     expect(handleAddToChat).toHaveBeenCalledTimes(1);

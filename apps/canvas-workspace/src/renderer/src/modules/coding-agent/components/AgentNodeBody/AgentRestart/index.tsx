@@ -3,6 +3,7 @@ import { AGENT_REGISTRY } from '../../../../../config/agentRegistry';
 import { AgentIcon } from '../AgentIcon';
 import { truncatePath } from '../utils/terminal';
 import { useI18n } from '../../../../../i18n';
+import { agentCardCopy } from '../copy';
 
 interface AgentRestartProps {
   agentType: string;
@@ -89,9 +90,10 @@ export const AgentRestart = ({
   onRestart,
   onEdit,
 }: AgentRestartProps) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const copy = agentCardCopy(language);
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
-  const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
+  const cwdDisplay = cwd ? truncatePath(cwd, 36) : copy.workingDirectory;
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
   const promptPreview = hasPrompt ? t('agent.promptSaved') : t('agent.promptNotProvided');
   // Only offer "resume" when this node's conversation is addressable on its
@@ -109,8 +111,8 @@ export const AgentRestart = ({
         : false;
   const restartLabel = canResume ? t('agent.resumeSession') : t('agent.restartSession');
   const restartTitle = canResume
-    ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
-    : 'Restart with saved configuration';
+    ? copy.resumeTitle.replace('{agent}', agentDef?.label ?? 'agent')
+    : copy.restartTitle;
   // `canResume` is a CAPABILITY, so the no-resume copy must not assert a
   // CAUSE. This view is reached by an app relaunch, by a PTY that ended, and
   // by Back-from-"Edit initial parameters" — the old wording claimed the app
@@ -151,7 +153,7 @@ export const AgentRestart = ({
             <div className="agent-saved-row" title={prompt ?? ''}>
               <span className="agent-saved-row-left">
                 <ChatGlyph />
-                <span className="agent-saved-row-label">Initial Prompt</span>
+                <span className="agent-saved-row-label">{copy.initialPrompt}</span>
               </span>
               <span className="agent-saved-row-meta">{promptPreview}</span>
             </div>

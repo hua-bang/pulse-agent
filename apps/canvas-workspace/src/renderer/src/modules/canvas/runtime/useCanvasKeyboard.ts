@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { CanvasNode, FileNodeData } from '../../../types';
 import type { CanvasClipboard } from '../../../types/ui-interaction';
 import { isImeComposing } from '../../../utils/ime';
+import { withContainerDescendants } from '../../../utils/frameHierarchy';
 import { nodeClipboardText } from '../../../utils/nodeLabel';
 import {
   matchShortcut,
@@ -28,6 +29,21 @@ const isEditableElement = (active: ActiveElementLike | null): boolean => !!activ
   active.tagName === 'TEXTAREA' ||
   active.isContentEditable === true
 );
+
+/**
+ * App chrome outside the canvas that keeps focus after a click. A bare key
+ * typed there (a letter tool, Delete) is not meant for the canvas.
+ */
+/** Pause after the last nudge keyup that ends one undo step. */
+const NUDGE_COMMIT_DELAY_MS = 800;
+
+const BARE_KEY_EXCLUDED_SURFACE_SELECTOR = '.right-dock, .workspace-tabs';
+
+export const isBareKeyBlockedByFocus = (
+  binding: KeyBinding,
+  active: ActiveElementLike | null,
+): boolean => !binding.mod && !binding.ctrl && !binding.alt
+  && !!active?.closest?.(BARE_KEY_EXCLUDED_SURFACE_SELECTOR);
 
 const CANVAS_FIND_EXCLUDED_SURFACE_SELECTOR = [
   '.note-card',
@@ -79,7 +95,7 @@ interface Options {
    *  is what records it as a discrete undo entry). */
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void;
   /** Push the current node state onto the undo stack. Called once per
-   *  arrow-key hold (on keyup) so each nudge is an independent undo step. */
+   *  run of nudges, so a quick series of arrow presses is one undo step. */
   commitHistory: () => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
@@ -165,6 +181,8 @@ export const useCanvasKeyboard = ({
   commitHistoryRef.current = commitHistory;
   /** True while a nudge hold has moved nodes that are not in history yet. */
   const nudgePendingRef = useRef(false);
+  /** Delays the nudge commit so quick repeated presses share one undo step. */
+  const nudgeTimerRef = useRef<number | null>(null);
 
   const cycleSelection = (backwards: boolean) => {
     if (nodes.length === 0) return;
@@ -192,6 +210,8 @@ export const useCanvasKeyboard = ({
       .filter((n) => idSet.has(n.id))
       .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
     if (moves.length === 0) return;
+    if (nudgeTimerRef.current !== null) window.clearTimeout(nudgeTimerRef.current);
+    nudgeTimerRef.current = null;
     moveNodes(moves);
     nudgePendingRef.current = true;
   };
@@ -289,9 +309,8 @@ export const useCanvasKeyboard = ({
     'canvas.toolHand': (event) => { event.preventDefault(); setActiveTool('hand'); },
     'canvas.toolConnect': (event) => { event.preventDefault(); setActiveTool('connect'); },
 
-    // Each press or hold is its own undo step, so a chain of nudges can be
-    // reversed one at a time. A held arrow key keeps moving on auto-repeat,
-    // and the keyup records the whole hold as one history entry.
+    // A held arrow key keeps moving on auto-repeat. A run of presses or
+    // holds less than NUDGE_COMMIT_DELAY_MS apart is one undo step.
     'canvas.nudge': (event) => nudge(event, 1),
     'canvas.nudgeCoarse': (event) => nudge(event, 10),
     'canvas.renameSelection': (event) => {
@@ -315,7 +334,10 @@ export const useCanvasKeyboard = ({
       if (created.length > 0) setSelectedNodeIds(created.map((node) => node.id));
     },
     'canvas.copy': () => {
-      const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
+      const selected = withContainerDescendants(
+        nodes.filter((n) => selectedNodeIds.includes(n.id)),
+        nodes,
+      );
       if (selected.length === 0) return;
       // Mirror the copy into the system clipboard and remember exactly what
       // we wrote. The paste path compares the two: if the system clipboard
@@ -394,6 +416,8 @@ export const useCanvasKeyboard = ({
 
       const match = matchShortcut(e, 'canvas');
       if (!match) return;
+      // Another shortcut (undo first of all) must see the nudges in history.
+      if (match.id !== 'canvas.nudge' && match.id !== 'canvas.nudgeCoarse') commitNudge();
 
       // Auto-repeat fires this handler once per OS repeat tick. Actions that
       // mutate the document (nudge, duplicate, delete) would stack one undo
@@ -402,26 +426,34 @@ export const useCanvasKeyboard = ({
 
       const active = document.activeElement;
       if (match.definition.editable !== 'allow' && isEditableElement(active)) return;
+      if (isBareKeyBlockedByFocus(match.binding, active)) return;
 
       handlersRef.current[match.id as CanvasShortcutId](e, match.binding);
     };
 
-    // Nudges move without history; the hold ends on keyup (or when the
-    // window loses the keyup) and is recorded as one undo step.
+    // Nudges move without history. A short pause after the last keyup, a
+    // pointer press, another shortcut, or a lost keyup records the run as
+    // one undo step.
     const commitNudge = () => {
+      if (nudgeTimerRef.current !== null) window.clearTimeout(nudgeTimerRef.current);
+      nudgeTimerRef.current = null;
       if (!nudgePendingRef.current) return;
       nudgePendingRef.current = false;
       commitHistoryRef.current();
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key.startsWith('Arrow')) commitNudge();
+      if (!e.key.startsWith('Arrow') || !nudgePendingRef.current) return;
+      if (nudgeTimerRef.current !== null) window.clearTimeout(nudgeTimerRef.current);
+      nudgeTimerRef.current = window.setTimeout(commitNudge, NUDGE_COMMIT_DELAY_MS);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', commitNudge);
+    window.addEventListener('pointerdown', commitNudge, true);
     return () => {
       commitNudge();
+      window.removeEventListener('pointerdown', commitNudge, true);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', commitNudge);

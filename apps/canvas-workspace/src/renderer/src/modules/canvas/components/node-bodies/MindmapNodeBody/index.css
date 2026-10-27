@@ -91,9 +91,10 @@
  * The bar is centered on the topic's vertical middle (1em-ish tall)
  * so it sits next to the text rather than spanning the whole slot,
  * which would look disconnected now that text is centered on the
- * branch line.
+ * branch line. It shows only while the mindmap node itself is selected,
+ * so a deselected mindmap does not keep a caret-like bar.
  */
-.mindmap-topic--selected::before {
+.mindmap-node-body--selected .mindmap-topic--selected::before {
   content: "";
   position: absolute;
   left: 0;
@@ -105,7 +106,7 @@
   background: var(--mindmap-topic-accent, #5b7cbf);
 }
 
-.mindmap-topic--root.mindmap-topic--selected::before {
+.mindmap-node-body--selected .mindmap-topic--root.mindmap-topic--selected::before {
   /* Root is larger; give its accent bar a bit more height to match. */
   height: 1.1em;
   margin-top: -0.55em;

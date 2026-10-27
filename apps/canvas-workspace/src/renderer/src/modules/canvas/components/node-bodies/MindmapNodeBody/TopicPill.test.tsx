@@ -82,6 +82,52 @@ describe('TopicPill editing', () => {
     expect(document.activeElement).toBe(host.querySelector('.mindmap-topic-text'));
   });
 
+  const renderSelected = (onEnterEdit: (input?: string) => void) => {
+    act(() => root.render(<I18nProvider><TopicPill
+      topic={topic}
+      isSelected
+      isEditing={false}
+      outerCanvasSelected
+      isDragSource={false}
+      dropHint={null}
+      onBeginReorder={vi.fn()}
+      onAddChild={vi.fn()}
+      onSelect={vi.fn()}
+      onEnterEdit={onEnterEdit}
+      onCommitText={vi.fn()}
+      onToggleCollapsed={vi.fn()}
+      onKeyAction={vi.fn()}
+    /></I18nProvider>));
+    return host.querySelector<HTMLElement>('.mindmap-topic')!;
+  };
+
+  it('starts editing on the letter f instead of leaving it to the canvas', () => {
+    const onEnterEdit = vi.fn();
+    const pill = renderSelected(onEnterEdit);
+    const event = new KeyboardEvent('keydown', { key: 'f', bubbles: true, cancelable: true });
+    act(() => {
+      pill.dispatchEvent(event);
+    });
+    expect(onEnterEdit).toHaveBeenCalledWith('f');
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('starts editing on an IME keystroke and leaves the key to the IME', () => {
+    const onEnterEdit = vi.fn();
+    const pill = renderSelected(onEnterEdit);
+    const event = new KeyboardEvent('keydown', {
+      key: 'Process',
+      keyCode: 229,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      pill.dispatchEvent(event);
+    });
+    expect(onEnterEdit).toHaveBeenCalledWith('');
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('gives up keyboard focus when the mind map is deselected', () => {
     const renderPill = (outerCanvasSelected: boolean) => (
       <I18nProvider>

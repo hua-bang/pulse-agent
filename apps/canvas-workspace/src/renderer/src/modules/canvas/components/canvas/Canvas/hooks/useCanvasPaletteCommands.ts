@@ -7,6 +7,7 @@ import { useI18n } from '../../../../../../i18n';
 import { useRightDock } from '../../../../../../shared/dockPort';
 import { formatShortcutId } from '../../../../../../shortcuts/registry';
 import { toggleTheme } from '../../../../../../shared/theme';
+import { ALIGN_MODES, alignNodeMoves, canAlign } from '../../../../model/alignNodes';
 
 interface Options {
   selectedNodeIds: string[];
@@ -17,6 +18,9 @@ interface Options {
    *  edit. */
   nodesRef: MutableRefObject<CanvasNode[]>;
   duplicateNodes: (ids: readonly string[]) => CanvasNode[];
+  /** Align and distribute move nodes without history, then record one step. */
+  moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void;
+  commitHistory: () => void;
   requestRemoveNodes: (ids: string[]) => void | Promise<void>;
   groupSelectedNodes: () => void;
   ungroupSelectedNodes: () => void;
@@ -52,6 +56,8 @@ export const useCanvasPaletteCommands = ({
   setSelectedNodeIds,
   nodesRef,
   duplicateNodes,
+  moveNodes,
+  commitHistory,
   requestRemoveNodes,
   groupSelectedNodes,
   ungroupSelectedNodes,
@@ -129,6 +135,19 @@ export const useCanvasPaletteCommands = ({
           ungroupSelectedNodes();
         },
       },
+      ...ALIGN_MODES.map((mode): PaletteCommand => ({
+        id: `align-${mode}`,
+        group: 'edit',
+        title: t(`canvas.palette.command.align.${mode}`),
+        aliases: ['align', 'distribute'],
+        enabled: canAlign(mode, selectionCount),
+        run: () => {
+          const moves = alignNodeMoves(nodesRef.current, selectedNodeIds, mode);
+          if (moves.length === 0) return;
+          moveNodes(moves);
+          commitHistory();
+        },
+      })),
       {
         id: 'wrap-selection-in-frame',
         group: 'edit',

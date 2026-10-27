@@ -54,17 +54,6 @@ export function getNodeDeleteConfirm(
     };
   }
 
-  // A whole mindmap contains many topics, even though it is one canvas node,
-  // so it confirms too. Name it rather than saying "Delete 1 nodes?".
-  if (victims.length === 1 && victims[0].type === 'mindmap') {
-    return {
-      titleKey: 'canvas.deleteMindmapTitle',
-      descriptionKey: 'canvas.deleteMindmapDescription',
-      confirmKey: 'canvas.deleteMindmapConfirm',
-      params: { title: labelOf(victims[0]) },
-    };
-  }
-
   if (victims.length > 1) {
     return {
       titleKey: 'canvas.deleteNodesTitle',

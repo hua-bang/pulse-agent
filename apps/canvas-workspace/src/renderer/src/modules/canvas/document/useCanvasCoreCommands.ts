@@ -5,8 +5,9 @@ import type {
   GroupNodeData,
   TextNodeData,
 } from '../../../types';
-import { createNodeData, genId } from '../../../utils/nodeFactory';
+import { createNodeData, defaultNodeTitle, genId } from '../../../utils/nodeFactory';
 import { degradeEndpointsForDeletedNode } from '../model/edgeFactory';
+import { releaseDroppedGroupMembers } from '../model/releaseDroppedGroupMembers';
 import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
 import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 
@@ -145,7 +146,8 @@ export const useCanvasCoreCommands = ({
     const nodes = nodesRef.current.map(node => node.id === id
       ? { ...node, x, y, updatedAt: Date.now() }
       : node);
-    applyNodes(resizeGroupsToChildren(nodes), false);
+    const released = releaseDroppedGroupMembers(nodesRef.current, nodes, new Set([id]));
+    applyNodes(resizeGroupsToChildren(released), false);
   }, [applyNodes, nodesRef]);
 
   const moveNodes = useCallback((moves: Array<{ id: string; x: number; y: number }>) => {
@@ -155,7 +157,8 @@ export const useCanvasCoreCommands = ({
       const move = moveById.get(node.id);
       return move ? { ...node, x: move.x, y: move.y, updatedAt: now } : node;
     });
-    applyNodes(resizeGroupsToChildren(nodes), false);
+    const released = releaseDroppedGroupMembers(nodesRef.current, nodes, new Set(moveById.keys()));
+    applyNodes(resizeGroupsToChildren(released), false);
   }, [applyNodes, nodesRef]);
 
   const resizeNode = useCallback((
@@ -185,7 +188,7 @@ export const useCanvasCoreCommands = ({
     const group: CanvasNode = {
       id: genId(),
       type: 'group',
-      title: 'Group',
+      title: defaultNodeTitle('group'),
       x: bounds.minX - padding,
       y: bounds.minY - padding,
       width: bounds.maxX - bounds.minX + padding * 2,
@@ -206,7 +209,7 @@ export const useCanvasCoreCommands = ({
     const frame: CanvasNode = {
       id: genId(),
       type: 'frame',
-      title: 'Frame',
+      title: defaultNodeTitle('frame'),
       x: bounds.minX - padding.x,
       y: bounds.minY - padding.top,
       width: bounds.maxX - bounds.minX + padding.x * 2,

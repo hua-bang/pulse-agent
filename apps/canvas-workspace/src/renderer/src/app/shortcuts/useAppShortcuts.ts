@@ -3,6 +3,7 @@ import { isImeComposing } from '../../utils/ime';
 import { matchShortcut, type AppShortcutId } from '../../shortcuts/registry';
 import { useWebviewShortcutBridge } from '../../platform/browser/useWebviewShortcutBridge';
 import { toggleTheme } from '../../shared/theme';
+import { isGlobalChatLauncherVisible, useRightDock } from '../../modules/dock';
 
 interface Options {
   /** True while a modal/overlay owns the keyboard. */
@@ -16,6 +17,13 @@ interface Options {
   selectWorkspaceByIndex: (index: number) => void;
   /** Close the active workspace tab; false when no tab bar is showing. */
   closeActiveTab: () => boolean;
+  /** Reopen the last closed workspace tab; false when no tab bar is showing. */
+  reopenClosedTab: () => boolean;
+  /**
+   * Toggle the dock chat on routes without a canvas; false on the canvas
+   * route, where the canvas layer owns the side-chat chord.
+   */
+  toggleDockChat: () => boolean;
 }
 
 /**
@@ -23,6 +31,7 @@ interface Options {
  * layer asks it to close the active tab with this window event.
  */
 export const CLOSE_ACTIVE_TAB_EVENT = 'pulse:close-active-workspace-tab';
+export const REOPEN_CLOSED_TAB_EVENT = 'pulse:reopen-closed-workspace-tab';
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
   const element = target as HTMLElement | null;
@@ -51,7 +60,11 @@ export const useAppShortcuts = ({
   togglePanels,
   selectWorkspaceByIndex,
   closeActiveTab,
+  reopenClosedTab,
+  toggleDockChat,
 }: Options) => {
+  const toggleDockChatRef = useRef(toggleDockChat);
+  toggleDockChatRef.current = toggleDockChat;
   const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
   const overlayRef = useRef(isOverlayOpen);
   overlayRef.current = isOverlayOpen;
@@ -87,6 +100,9 @@ export const useAppShortcuts = ({
       // Off the canvas route there is no tab bar; leave the key alone.
       if (closeActiveTab()) event.preventDefault();
     },
+    'app.reopenTab': (event) => {
+      if (reopenClosedTab()) event.preventDefault();
+    },
   };
 
   useEffect(() => {
@@ -97,7 +113,13 @@ export const useAppShortcuts = ({
       if (event.repeat) return;
 
       const match = matchShortcut(event, 'app');
-      if (!match) return;
+      if (!match) {
+        // The floating chat button names this chord on every page, but its
+        // canvas-layer owner is locked off the canvas route.
+        if (matchShortcut(event, 'canvas')?.id !== 'canvas.toggleChatPanel') return;
+        if (toggleDockChatRef.current()) event.preventDefault();
+        return;
+      }
       if (match.definition.editable !== 'allow' && isEditableTarget(event.target)) return;
 
       handlersRef.current[match.id as AppShortcutId](event);
@@ -132,6 +154,7 @@ export const useAppShortcutBindings = ({
   setLocation,
   routes,
 }: AppShortcutBindingsOptions): void => {
+  const dock = useRightDock();
   useWebviewShortcutBridge();
   useAppShortcuts({
     isOverlayOpen,
@@ -146,6 +169,16 @@ export const useAppShortcutBindings = ({
     closeActiveTab: () => {
       if (activeView !== 'canvas') return false;
       window.dispatchEvent(new Event(CLOSE_ACTIVE_TAB_EVENT));
+      return true;
+    },
+    reopenClosedTab: () => {
+      if (activeView !== 'canvas') return false;
+      window.dispatchEvent(new Event(REOPEN_CLOSED_TAB_EVENT));
+      return true;
+    },
+    toggleDockChat: () => {
+      if (!isGlobalChatLauncherVisible(activeView)) return false;
+      dock.toggleChat();
       return true;
     },
   });

@@ -317,6 +317,10 @@ export const CanvasRootView = ({
         moving={moving}
         scale={moving ? settledScale : transform.scale}
         onFitAll={onFitAll}
+        onSelectAll={() => {
+          setSelectedNodeIds(nodes.map((node) => node.id));
+          setSelectedEdgeId(null);
+        }}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
         referenceDrawerOpen={referenceDrawerOpen}
@@ -355,7 +359,13 @@ export const CanvasRootView = ({
 
       {askNode && onAskAboutNodes && (
         <Suspense fallback={null}>
-          <NodeAskBar node={askNode} nodes={nodes} transform={transform} onAsk={onAskAboutNodes} />
+          <NodeAskBar
+            workspaceId={canvasId}
+            node={askNode}
+            nodes={nodes}
+            transform={transform}
+            onAsk={onAskAboutNodes}
+          />
         </Suspense>
       )}
     </div>

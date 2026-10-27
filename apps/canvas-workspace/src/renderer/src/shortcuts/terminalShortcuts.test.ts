@@ -31,6 +31,8 @@ const mountAppShortcuts = () => {
     togglePanels: vi.fn(),
     selectWorkspaceByIndex: vi.fn(),
     closeActiveTab: vi.fn(() => true),
+    reopenClosedTab: vi.fn(() => true),
+    toggleDockChat: vi.fn(() => false),
   };
   const Harness = () => {
     useAppShortcuts(options);

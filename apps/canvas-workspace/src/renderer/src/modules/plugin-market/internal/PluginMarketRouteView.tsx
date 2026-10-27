@@ -3,6 +3,7 @@ import { WarningCircle, X } from '@phosphor-icons/react';
 import type { PluginMarketListing } from '../../../../../shared/plugin-market';
 import { Button, PageHeader, TextField } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
+import { useAppShell } from '../../../shared/appShell';
 import { GitPluginModal } from './GitPluginModal';
 import { PluginDetailModal } from './PluginDetailModal';
 import { PluginGlyph } from './PluginGlyph';
@@ -38,6 +39,7 @@ export const PluginMarketRouteView = ({
   onOpenSettings,
 }: PluginMarketRouteViewProps) => {
   const { t } = useI18n();
+  const { confirm } = useAppShell();
   const market = usePluginMarket(
     t(keys.apiUnavailable),
     t(keys.exploreUnavailable),
@@ -77,6 +79,25 @@ export const PluginMarketRouteView = ({
   const openListing = (listing: PluginMarketListing) => {
     market.clearError();
     setSelectedId(listing.id);
+  };
+
+  const uninstall = async (id: string) => {
+    const listing = listings.find((item) => item.id === id);
+    const accepted = await confirm({
+      intent: 'danger',
+      title: t(keys.uninstallTitle, { name: listing?.name ?? id }),
+      confirmLabel: t(keys.uninstall),
+    });
+    if (!accepted || !(await market.uninstall(id))) return;
+    // The modal's Uninstall button is gone now, so close the modal and
+    // put focus on the plugin's row instead of letting it fall to <body>.
+    setSelectedId(null);
+    requestAnimationFrame(() => {
+      const row = [...(marketRef.current?.querySelectorAll<HTMLElement>('[data-plugin-id]') ?? [])]
+        .find((element) => element.dataset.pluginId === id)
+        ?.querySelector<HTMLElement>('.plugin-market__listing-main');
+      (row ?? marketRef.current?.querySelector<HTMLElement>('.plugin-market__search input'))?.focus();
+    });
   };
 
   return (
@@ -132,6 +153,14 @@ export const PluginMarketRouteView = ({
                 >
                   <PluginGlyph listing={listing} size={21} />
                   <span className="plugin-market__installed-name">{listing.name}</span>
+                  {listing.mcpAuthState === 'connectable' && (
+                    <span
+                      role="img"
+                      className="plugin-market__installed-pending"
+                      title={t(keys.connectionRequired)}
+                      aria-label={t(keys.connectionRequired)}
+                    />
+                  )}
                 </Button>
               ))}
             </div>
@@ -188,6 +217,7 @@ export const PluginMarketRouteView = ({
                   busyKey={market.busyKey}
                   onOpen={openListing}
                   onInstall={(listing) => void market.install(listing.id)}
+                  onConnect={(listing) => void market.connectMcp(listing.id)}
                   onExplore={(listing) => void market.explore(listing)}
                 />
               )}
@@ -199,6 +229,7 @@ export const PluginMarketRouteView = ({
                   busyKey={market.busyKey}
                   onOpen={openListing}
                   onInstall={(listing) => void market.install(listing.id)}
+                  onConnect={(listing) => void market.connectMcp(listing.id)}
                   onExplore={(listing) => void market.explore(listing)}
                 />
               ))}
@@ -222,7 +253,7 @@ export const PluginMarketRouteView = ({
         onClose={() => setSelectedId(null)}
         onInstall={(id) => void market.install(id)}
         onUpdate={(id) => void market.update(id)}
-        onUninstall={(id) => void market.uninstall(id)}
+        onUninstall={(id) => void uninstall(id)}
         onConnectMcp={(id) => void market.connectMcp(id)}
         onSetNativeEnabled={(id, enabled) => void market.setNativeEnabled(id, enabled)}
         onExplore={(listing) => void market.explore(listing)}

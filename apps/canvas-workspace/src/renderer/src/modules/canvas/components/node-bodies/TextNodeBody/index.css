@@ -131,6 +131,8 @@
 
 .text-node-body {
   display: block;
+  /* Default ink; a color the user picked overrides it inline. */
+  color: var(--text-primary);
   width: 100%;
   height: auto;
   min-width: 32px;

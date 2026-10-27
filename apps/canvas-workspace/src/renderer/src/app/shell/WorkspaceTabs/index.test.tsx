@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
-import { CLOSE_ACTIVE_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
+import { CLOSE_ACTIVE_TAB_EVENT, REOPEN_CLOSED_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
 import { WorkspaceTabs } from '.';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -115,6 +115,25 @@ describe('WorkspaceTabs', () => {
     expect(tabNames()).toEqual(['Alpha']);
   });
 
+  it('reopens closed tabs, most recent first, when the shortcut layer asks', async () => {
+    window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b', 'c']));
+    await render('a');
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Close Beta"]')!.click());
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Close Gamma"]')!.click());
+
+    await act(async () => window.dispatchEvent(new Event(REOPEN_CLOSED_TAB_EVENT)));
+    expect(onSelect).toHaveBeenLastCalledWith('c');
+    await render('c');
+    await act(async () => window.dispatchEvent(new Event(REOPEN_CLOSED_TAB_EVENT)));
+    expect(onSelect).toHaveBeenLastCalledWith('b');
+    await render('b');
+    expect(tabNames()).toEqual(['Alpha', 'Gamma', 'Beta']);
+
+    onSelect.mockClear();
+    await act(async () => window.dispatchEvent(new Event(REOPEN_CLOSED_TAB_EVENT)));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('closing a background tab keeps the current workspace', async () => {
     window.localStorage.setItem('pulse-canvas.open-workspace-tabs', JSON.stringify(['a', 'b']));
     await render('b');
@@ -163,6 +182,7 @@ describe('WorkspaceTabs', () => {
     expect(pickerItems()).toEqual(['Alpha', 'Gamma', 'Beta', 'New workspace', 'Pulse Agent']);
 
     const search = document.querySelector<HTMLInputElement>('.workspace-picker__search')!;
+    expect(document.activeElement).toBe(search);
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     await act(async () => {
       setter?.call(search, 'gam');

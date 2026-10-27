@@ -19,7 +19,9 @@ interface LayerItemProps {
   searchActive: boolean;
   selectedNodeIds: Set<string>;
   primarySelectedNodeId?: string;
-  onFocus: (nodeId: string) => void;
+  /** `additive` is true for Shift/Cmd/Ctrl+click, which toggles the node
+   *  in the canvas selection instead of focusing it. */
+  onFocus: (nodeId: string, additive?: boolean) => void;
   /** Double-click starts an inline rename, like a workspace row. */
   onRename?: (nodeId: string) => void;
   onContextMenu: (e: ReactMouseEvent, nodeId: string) => void;
@@ -131,7 +133,7 @@ export const LayerItem = ({
         <button
           ref={setLayerItemElement}
           className={layerItemClassName}
-          onClick={() => onFocus(node.id)}
+          onClick={(e) => onFocus(node.id, e.shiftKey || e.metaKey || e.ctrlKey)}
           onDoubleClick={onRename ? () => onRename(node.id) : undefined}
           onContextMenu={(e) => onContextMenu(e, node.id)}
           onKeyDown={handleButtonKeyDown}

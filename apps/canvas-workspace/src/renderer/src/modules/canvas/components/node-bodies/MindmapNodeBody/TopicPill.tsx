@@ -55,7 +55,7 @@ export const TopicPill = ({
     if (!el) return;
     // Typing on a selected topic replaces its text, like a spreadsheet
     // cell; F2, Enter-to-edit, and double-click keep the text.
-    if (initialInput) {
+    if (initialInput !== undefined) {
       el.innerText = initialInput;
     }
     el.focus();
@@ -102,7 +102,13 @@ export const TopicPill = ({
       // Mid-IME-composition keys (Enter to confirm a candidate, Escape to
       // dismiss it) belong to the IME — committing/cancelling the topic
       // here would eat CJK input.
-      if (isImeComposing(e)) return;
+      if (isImeComposing(e)) {
+        // A CJK keystroke on a selected topic replaces its text, like a
+        // Latin letter does. Leave the event to the IME, which then types
+        // into the emptied editor.
+        if (!isEditing) onEnterEdit('');
+        return;
+      }
       const consume = () => {
         e.preventDefault();
         e.stopPropagation();
@@ -184,7 +190,6 @@ export const TopicPill = ({
             && !e.metaKey
             && !e.ctrlKey
             && !e.altKey
-            && e.key.toLowerCase() !== 'f'
           ) {
             consume();
             onEnterEdit(e.key);

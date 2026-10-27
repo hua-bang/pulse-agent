@@ -63,6 +63,7 @@ export const CanvasOverlays = ({
   moving = false,
   scale,
   onFitAll,
+  onSelectAll,
   chatPanelOpen,
   onChatToggle,
   referenceDrawerOpen,
@@ -108,35 +109,39 @@ export const CanvasOverlays = ({
     [edgeInteractionState, edges, selectedEdge],
   );
 
+  // The compact next-steps bar sits in the bottom chrome, so it never
+  // covers new nodes near the top of the view or the find bar.
+  const emptyHint = (
+    <CanvasEmptyHint
+      compact={nodes.length > 0}
+      completedTypes={nextSteps}
+      onDismiss={() => setNextSteps([])}
+      onCreateNode={(type) => {
+        if (type === 'file') {
+          onAddNode(type, {
+            focusEditor: true,
+            fileName: t('canvas.empty.briefTitle'),
+            fileContent: t('canvas.empty.briefTemplate'),
+            nodePatch: {
+              title: t('canvas.empty.briefTitle'),
+              data: { filePath: '', content: t('canvas.empty.briefTemplate') },
+            },
+          });
+        } else {
+          onAddNode(type);
+        }
+        setNextSteps((current) => current.includes(type) ? current : [...current, type]);
+      }}
+      onCreateDemo={onCreateDemo}
+      onOpenShortcuts={onOpenShortcuts}
+      onSetRootFolder={onSetRootFolder}
+    />
+  );
+
   return (
     <>
-      {(nodes.length === 0 || nextSteps.length > 0) && !contextMenu && (
-        <Suspense fallback={null}>
-          <CanvasEmptyHint
-            compact={nodes.length > 0}
-            completedTypes={nextSteps}
-            onDismiss={() => setNextSteps([])}
-            onCreateNode={(type) => {
-              if (type === 'file') {
-                onAddNode(type, {
-                  focusEditor: true,
-                  fileName: t('canvas.empty.briefTitle'),
-                  fileContent: t('canvas.empty.briefTemplate'),
-                  nodePatch: {
-                    title: t('canvas.empty.briefTitle'),
-                    data: { filePath: '', content: t('canvas.empty.briefTemplate') },
-                  },
-                });
-              } else {
-                onAddNode(type);
-              }
-              setNextSteps((current) => current.includes(type) ? current : [...current, type]);
-            }}
-            onCreateDemo={onCreateDemo}
-            onOpenShortcuts={onOpenShortcuts}
-            onSetRootFolder={onSetRootFolder}
-          />
-        </Suspense>
+      {nodes.length === 0 && !contextMenu && (
+        <Suspense fallback={null}>{emptyHint}</Suspense>
       )}
 
       {contextMenu && (
@@ -148,6 +153,8 @@ export const CanvasOverlays = ({
             canvasReferenceWorkspaces={canvasReferenceWorkspaces}
             onCreateCanvasReference={onCreateCanvasReference}
             workspaceId={workspaceId}
+            onSelectAll={nodes.length > 0 ? onSelectAll : undefined}
+            onFitAll={nodes.length > 0 ? onFitAll : undefined}
             onClose={onCloseContextMenu}
           />
         </Suspense>
@@ -245,6 +252,9 @@ export const CanvasOverlays = ({
             onReset={onResetTransform}
             onFitAll={onFitAll}
           />
+          {nodes.length > 0 && nextSteps.length > 0 && (
+            <Suspense fallback={null}>{emptyHint}</Suspense>
+          )}
         </div>
         <div className="canvas-bottom-chrome__right">
           {onChatToggle && (

@@ -1,4 +1,5 @@
 import type { CanvasNode, IframeNodeData } from '../../../../../types';
+import type { LanguageCode } from '../../../../../i18n';
 import { BLANK_PAGE_URL } from '../../../../../platform/browser/url';
 export { BLANK_PAGE_URL, normalizeUrl } from '../../../../../platform/browser/url';
 
@@ -80,15 +81,29 @@ export function syncBrowserFavicon(favicons: string[], ctx: BrowserMetaSyncConte
   ctx.onUpdate(ctx.node.id, { data: nextData });
 }
 
-/** One plain sentence for the error card. The card already says the node
- *  stays on the canvas, so the message does not repeat that, and a raw
- *  network code only appears when there is no plainer way to say it. */
+// Kept out of the shared message table: that table ships in the startup
+// bundle, and only the lazy web card shows these.
+const loadErrorCopy = {
+  en: {
+    blocked: 'This site does not allow embedded previews. Open it in your browser to view the page.',
+    unreachable: 'The page could not be reached from this network.',
+  },
+  zh: {
+    blocked: '此网站不允许嵌入预览，请在浏览器中打开查看。',
+    unreachable: '当前网络无法访问此网页。',
+  },
+};
+
+/** One plain sentence for the error card, or null for the card's generic
+ *  message. The card already says the node stays on the canvas, so the
+ *  message does not repeat that. */
 export function getFriendlyLoadErrorMessage(
   errorDescription: string | undefined,
   errorCode: number | undefined,
-): string {
-  const description = errorDescription || '';
-  const normalized = description.toUpperCase();
+  language: LanguageCode,
+): string | null {
+  const copy = language === 'zh' ? loadErrorCopy.zh : loadErrorCopy.en;
+  const normalized = (errorDescription || '').toUpperCase();
   if (
     normalized.includes('ERR_BLOCKED_BY_RESPONSE')
     || normalized.includes('ERR_BLOCKED_BY_CLIENT')
@@ -96,7 +111,7 @@ export function getFriendlyLoadErrorMessage(
     || normalized.includes('FRAME')
     || errorCode === -27
   ) {
-    return 'This site does not allow embedded previews. Open it in your browser to view the page.';
+    return copy.blocked;
   }
   if (
     normalized.includes('ERR_NAME_NOT_RESOLVED')
@@ -106,9 +121,7 @@ export function getFriendlyLoadErrorMessage(
     || normalized.includes('ERR_PROXY')
     || normalized.includes('ERR_TIMED_OUT')
   ) {
-    return 'The page could not be reached from this network.';
+    return copy.unreachable;
   }
-  return description
-    ? `The embedded page could not be displayed (${description}).`
-    : 'The embedded page could not be displayed.';
+  return null;
 }

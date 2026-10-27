@@ -616,6 +616,51 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(testHost.querySelector('.chat-page-rail-item-actions')).toBeNull();
   });
 
+  it('opens the row actions from a right-click menu', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const onTogglePinSession = vi.fn(async () => undefined);
+
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <ChatSessionsRail
+            allSessions={[sessions[0]]}
+            onNewSession={vi.fn()}
+            onSelectSession={vi.fn()}
+            onTogglePinSession={onTogglePinSession}
+            onRenameSession={vi.fn(async () => undefined)}
+            onDeleteSession={vi.fn(async () => undefined)}
+          />
+        </I18nProvider>,
+      );
+    });
+    const testHost = host;
+    const row = testHost.querySelector('.chat-page-rail-item-shell');
+    const menuItems = () => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Actions for First conversation"] [role="menuitem"]')];
+
+    await act(async () => {
+      row?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 30 }));
+    });
+    expect(menuItems().map((item) => item.textContent)).toEqual(['Pin', 'Rename', 'Delete']);
+
+    await act(async () => {
+      menuItems()[0].click();
+      await Promise.resolve();
+    });
+    expect(onTogglePinSession).toHaveBeenCalledWith(sessions[0]);
+    expect(menuItems()).toEqual([]);
+
+    await act(async () => {
+      row?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+    await act(async () => {
+      menuItems()[1].click();
+    });
+    expect(testHost.querySelector('input[aria-label="Rename First conversation"]')).not.toBeNull();
+  });
+
   it('keeps session rail readable while preventing session changes during generation', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);

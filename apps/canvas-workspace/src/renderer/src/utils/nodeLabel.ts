@@ -9,7 +9,7 @@ import type {
 } from "../types";
 import { DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from "../../../shared/canvas-node-defaults";
 
-const TEXT_LABEL_MAX_CHARS = 10;
+const TEXT_LABEL_MAX_CHARS = 24;
 const NOTE_LABEL_MAX_CHARS = 24;
 const MINDMAP_LABEL_MAX_CHARS = 16;
 

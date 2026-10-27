@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppShellPortProvider, type AppShellPort } from '../../../../../shared/appShell';
+import { I18nProvider } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
 import { ImageCanvasNode } from './ImageCanvasNode';
 import { ShapeCanvasNode } from './ShapeCanvasNode';
@@ -33,7 +34,7 @@ const render = (element: ReactNode) => {
   document.body.appendChild(host);
   root = createRoot(host);
   flushSync(() => {
-    root?.render(<AppShellPortProvider value={appShell}>{element}</AppShellPortProvider>);
+    root?.render(<I18nProvider><AppShellPortProvider value={appShell}>{element}</AppShellPortProvider></I18nProvider>);
   });
   return host;
 };

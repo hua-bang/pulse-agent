@@ -2,6 +2,7 @@ import { Button } from '../../../../../../../components/ui';
 import './index.css';
 import { ExternalLinkIcon } from '../../../../../../../components/icons';
 import { BrowserNavigationButtons } from '../../../../../../../components/ui/BrowserNavigationButtons';
+import { useI18n } from '../../../../../../../i18n';
 import type { IframeRenderedViewProps } from '../types';
 
 const SHOW_REVIEW_COMMENT_ACTION = false;
@@ -37,58 +38,61 @@ type ToolbarProps = Pick<IframeRenderedViewProps,
   | 'workspaceId'
 >;
 
-export const IframeToolbar = (props: ToolbarProps) => (
-  <div className="iframe-bar">
-    <BrowserNavigationButtons
-      canGoBack={props.canGoBack}
-      canGoForward={props.canGoForward}
-      disabled={props.generating}
-      onBack={props.handleGoBack}
-      onForward={props.handleGoForward}
-      onReload={props.handleReload}
-      showHistory={props.mode === 'url'}
-    />
-    <IframeAddressButton {...props} />
-    <div className="iframe-bar-actions">
-      {props.mode === 'ai' && !props.generating && !props.readOnly && (
-        <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={() => void props.handleRegenerate()} title="Regenerate" aria-label="Regenerate">
-          <SparkIcon />
-        </Button>
-      )}
-      <Button
-        type="button"
-        variant="icon"
-        size="xs"
-        className={`iframe-bar-btn${props.domPickerActive ? ' iframe-bar-btn--active' : ''}`}
-        onClick={() => void props.handlePickDomElement()}
-        title={props.domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
-        aria-label={props.domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
-        disabled={props.generating || props.domPickerActive || props.reviewPickerActive || !props.workspaceId}
-      >
-        <InspectIcon />
-      </Button>
-      {SHOW_REVIEW_COMMENT_ACTION && props.mode === 'url' && (
+export const IframeToolbar = (props: ToolbarProps) => {
+  const { t } = useI18n();
+  return (
+    <div className="iframe-bar">
+      <BrowserNavigationButtons
+        canGoBack={props.canGoBack}
+        canGoForward={props.canGoForward}
+        disabled={props.generating}
+        onBack={props.handleGoBack}
+        onForward={props.handleGoForward}
+        onReload={props.handleReload}
+        showHistory={props.mode === 'url'}
+      />
+      <IframeAddressButton {...props} />
+      <div className="iframe-bar-actions">
+        {props.mode === 'ai' && !props.generating && !props.readOnly && (
+          <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={() => void props.handleRegenerate()} title={t('chat.turn.regenerate')} aria-label={t('chat.turn.regenerate')}>
+            <SparkIcon />
+          </Button>
+        )}
         <Button
           type="button"
           variant="icon"
           size="xs"
-          className={`iframe-bar-btn${props.reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
-          onClick={() => void props.handlePickReviewElement()}
-          title={props.reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
-          aria-label={props.reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
-          disabled={props.generating || props.domPickerActive || props.reviewPickerActive || !props.workspaceId || props.readOnly}
+          className={`iframe-bar-btn${props.domPickerActive ? ' iframe-bar-btn--active' : ''}`}
+          onClick={() => void props.handlePickDomElement()}
+          title={props.domPickerActive ? t('iframe.toolbar.selectingDom') : t('iframe.toolbar.selectDom')}
+          aria-label={props.domPickerActive ? t('iframe.toolbar.selectingDom') : t('iframe.toolbar.selectDom')}
+          disabled={props.generating || props.domPickerActive || props.reviewPickerActive || !props.workspaceId}
         >
-          <ReviewIcon />
+          <InspectIcon />
         </Button>
-      )}
-      {props.mode === 'url' && (
-        <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={props.handleOpenExternal} title="Open externally" aria-label="Open externally">
-          <ExternalLinkIcon />
-        </Button>
-      )}
+        {SHOW_REVIEW_COMMENT_ACTION && props.mode === 'url' && (
+          <Button
+            type="button"
+            variant="icon"
+            size="xs"
+            className={`iframe-bar-btn${props.reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
+            onClick={() => void props.handlePickReviewElement()}
+            title={props.reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+            aria-label={props.reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+            disabled={props.generating || props.domPickerActive || props.reviewPickerActive || !props.workspaceId || props.readOnly}
+          >
+            <ReviewIcon />
+          </Button>
+        )}
+        {props.mode === 'url' && (
+          <Button type="button" variant="icon" size="xs" className="iframe-bar-btn" onClick={props.handleOpenExternal} title={t('iframe.loadError.openExternal')} aria-label={t('iframe.loadError.openExternal')}>
+            <ExternalLinkIcon />
+          </Button>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const IframeAddressButton = ({
   artifact,
@@ -109,9 +113,10 @@ const IframeAddressButton = ({
   url,
   workspaceId,
 }: ToolbarProps) => {
+  const { t } = useI18n();
   if (isArtifactMode) {
     return (
-      <button className="iframe-bar-url iframe-bar-url--html" onClick={() => { if (workspaceId && artifactId) openArtifact(workspaceId, artifactId); }} title={artifact?.title ?? 'Open artifact'}>
+      <button className="iframe-bar-url iframe-bar-url--html" onClick={() => { if (workspaceId && artifactId) openArtifact(workspaceId, artifactId); }} title={artifact?.title ?? t('iframe.toolbar.openArtifact')}>
         <span className="iframe-bar-badge iframe-bar-badge--ai">Artifact</span>
         <span className="iframe-bar-url-text">{artifact?.title ?? 'Loading artifact...'}</span>
       </button>
@@ -119,7 +124,7 @@ const IframeAddressButton = ({
   }
   if (mode === 'url') {
     return (
-      <div className={`iframe-bar-url iframe-bar-url--editable${readOnly ? ' iframe-bar-url--readonly' : ''}`} title={readOnly ? url : 'Edit URL'}>
+      <div className={`iframe-bar-url iframe-bar-url--editable${readOnly ? ' iframe-bar-url--readonly' : ''}`} title={readOnly ? url : t('iframe.toolbar.editUrl')}>
         <input
           className="iframe-bar-url-input"
           type="url"

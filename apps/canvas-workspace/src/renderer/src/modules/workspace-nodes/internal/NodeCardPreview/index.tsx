@@ -136,10 +136,14 @@ export const getNodeCardPreviewModel = (
       const sections = previewSegments(body, 3);
       return sections.length > 0 ? { kind: 'file', sections } : { kind: 'empty' };
     }
-    case 'text':
-      return summary
-        ? { kind: 'text', excerpt: truncateText(compactText(stripLineMarkers(summary)), 260) }
+    case 'text': {
+      // A short text node takes its title from its content. Repeating that
+      // line under the title adds nothing.
+      const text = compactText(stripLineMarkers(summary));
+      return text && text !== compactText(title)
+        ? { kind: 'text', excerpt: truncateText(text, 260) }
         : { kind: 'empty' };
+    }
     case 'iframe':
       return {
         kind: 'iframe',

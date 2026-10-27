@@ -1,10 +1,10 @@
 import {
   ArrowSquareOut,
   CheckCircle,
+  ClockClockwise,
   Pause,
   PencilSimple,
   Play,
-  PlayCircle,
   Sparkle,
   SpinnerGap,
   Trash,
@@ -168,7 +168,9 @@ export const TaskRow = ({
           title={task.enabled ? t('scheduled.pause') : t('scheduled.resume')}
           onClick={() => onToggle(task)}
         >
-          {task.enabled ? <Pause size={15} /> : <PlayCircle size={15} />}
+          {/* Not a play icon: "Run now" already uses one, and resuming only
+              restarts the schedule. */}
+          {task.enabled ? <Pause size={15} /> : <ClockClockwise size={15} />}
         </Button>
         <Button
           variant="icon"

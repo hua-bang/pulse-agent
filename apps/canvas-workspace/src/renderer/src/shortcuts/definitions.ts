@@ -271,6 +271,11 @@ export const SHORTCUTS = {
     // Works from a text field: Mod+W has no text-editing meaning.
     editable: 'allow',
   },
+  'app.reopenTab': {
+    owner: 'app',
+    bindings: [{ key: 't', mod: true, shift: true }],
+    editable: 'allow',
+  },
   // ---- Terminal-scoped ---------------------------------------------------
   // Only live while a terminal / coding-agent surface owns focus, so they may
   // deliberately share a chord with a global canvas/app binding — the focused

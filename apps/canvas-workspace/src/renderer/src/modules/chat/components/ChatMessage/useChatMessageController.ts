@@ -53,7 +53,7 @@ export const useChatMessageController = ({
   hasLaterTurns = false,
   getLaterMessageCount,
 }: Options) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const roleColors = useRoleColors();
   const roleNames = useRoleNameColors();
   // OrderedChatContent owns block rendering; the compatibility text projection
@@ -72,7 +72,7 @@ export const useChatMessageController = ({
     [message.role, message.content, nodes, rootFolder, roleColors],
   );
   const showCopyToolbar = !isStreaming && !!message.content;
-  const relativeTime = formatRelativeTime(message.timestamp);
+  const relativeTime = formatRelativeTime(message.timestamp, language);
   const absoluteTime = formatAbsoluteTime(message.timestamp);
   const speakerLabel = message.speakerRoleName
     ?? (message.role === 'assistant' ? t('chat.assistantSpeaker') : t('chat.userSpeaker'));
@@ -107,7 +107,8 @@ export const useChatMessageController = ({
     if (event.key === 'Escape') {
       event.preventDefault();
       handleCancelEdit();
-    } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    } else if (event.key === 'Enter' && !event.shiftKey) {
+      // Same keys as the composer: Enter sends, Shift+Enter adds a line.
       event.preventDefault();
       void handleSaveEdit();
     }

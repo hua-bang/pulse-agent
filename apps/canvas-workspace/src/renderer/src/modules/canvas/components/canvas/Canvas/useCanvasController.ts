@@ -366,6 +366,7 @@ export const useCanvasController = ({
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef: visibleNodesRef,
     duplicateNodes, requestRemoveNodes: actions.requestRemoveNodes,
+    moveNodes, commitHistory,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     wrapSelectedNodesInFrame: actions.wrapSelectedNodesInFrame,
@@ -406,7 +407,7 @@ export const useCanvasController = ({
   });
 
   useCanvasSyncEffects({
-    canvasId, loaded, nodes, edges, transform, selectedNodeIds,
+    canvasId, loaded, nodes, edges, transform, selectedNodeIds, setSelectedNodeIds,
     moving,
     persistViewport,
     autoFitNodes: visibleNodes,

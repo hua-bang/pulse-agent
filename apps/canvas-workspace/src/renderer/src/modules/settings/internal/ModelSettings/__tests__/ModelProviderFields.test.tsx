@@ -252,6 +252,29 @@ describe('ModelProviderFields model picker', () => {
     expect(onSaveProvider.mock.calls[0]?.[0].available_models).toEqual(availableModels);
   });
 
+  it('opens on the env-key setup chat uses, with a way to add a provider', () => {
+    mount(
+      <ModelsSection
+        status={{ ...status, currentProvider: undefined, providers: [] }}
+        onClose={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onRemoveProvider={vi.fn()}
+        onFetchModels={vi.fn()}
+      />,
+    );
+
+    const buttons = () => Array.from(host.querySelectorAll<HTMLButtonElement>('button'));
+    expect(host.querySelector('.chat-model-provider-tab--env.chat-model-provider-tab--active')).not.toBeNull();
+    expect(host.textContent).toContain('Chat uses the API key in this environment variable.');
+    expect(host.textContent).toContain('gpt-4o');
+    expect(host.querySelector('[placeholder="Enter API Key"]')).toBeNull();
+    expect(buttons().some((button) => button.textContent?.trim() === 'Test & Save')).toBe(false);
+
+    const add = host.querySelector<HTMLButtonElement>('.chat-model-env-panel button');
+    act(() => add?.click());
+    expect(host.querySelector('[placeholder="Enter API Key"]')).not.toBeNull();
+  });
+
   it('pauses first-time save after fetching so the user can select a model', async () => {
     const onFetchModels = vi.fn().mockResolvedValue(availableModels);
     const onSaveProvider = vi.fn().mockResolvedValue(status);

@@ -97,7 +97,7 @@ describe('ScheduledPage', () => {
     expect(row?.querySelector('.scheduled-page__row-main')?.tagName).toBe('DIV');
     expect([...host.querySelectorAll('button')].map((button) =>
       button.textContent?.trim() || button.getAttribute('aria-label')))
-      .toEqual(['Create task', 'Run now', 'Pause', 'Edit task', 'Delete task']);
+      .toEqual(['Create task', 'Run now', 'Pause schedule', 'Edit task', 'Delete task']);
   });
 
   it('opens the latest successful run in the dock from the last-run cell', async () => {

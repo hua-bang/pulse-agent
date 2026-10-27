@@ -35,14 +35,13 @@
   cursor: pointer;
 }
 
-.chat-model-provider-tab--readonly {
-  cursor: default;
+.chat-model-provider-tab--env {
   margin-bottom: 4px;
   background: var(--tint-success);
   color: var(--ink);
 }
 
-.chat-model-provider-tab:not(.chat-model-provider-tab--readonly):hover,
+.chat-model-provider-tab:hover,
 .chat-model-provider-tab--active {
   background: rgba(35, 131, 226, 0.08);
   color: var(--ink);
@@ -390,4 +389,22 @@
   text-overflow: ellipsis;
   color: rgba(var(--ink-rgb), 0.38);
   font-size: 11px;
+}
+
+.chat-model-env-panel__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+
+.chat-model-env-panel__facts dt {
+  color: var(--text-secondary);
+}
+
+.chat-model-env-panel__facts dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }

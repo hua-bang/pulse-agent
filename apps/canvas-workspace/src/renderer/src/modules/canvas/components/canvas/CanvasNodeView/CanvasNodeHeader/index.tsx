@@ -118,7 +118,7 @@ export const CanvasNodeHeader = ({
   relativeTime,
   titleRef,
 }: CanvasNodeHeaderProps) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const agentTeamRole = node.type === 'agent'
     ? (node.data as AgentNodeData).agentTeamRole
     : undefined;
@@ -186,7 +186,7 @@ export const CanvasNodeHeader = ({
         />
       )}
       {relativeTime && (
-        <span className="node-time-label" title={new Date(node.updatedAt!).toLocaleString()}>
+        <span className="node-time-label" title={new Date(node.updatedAt!).toLocaleString(language === 'zh' ? 'zh-CN' : 'en')}>
           {relativeTime}
         </span>
       )}

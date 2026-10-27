@@ -59,11 +59,8 @@ describe('getNodeDeleteConfirm', () => {
     });
   });
 
-  it('names a single mind map instead of counting one node', () => {
-    expect(getNodeDeleteConfirm([node('m', 'mindmap')], labelOf)).toMatchObject({
-      titleKey: 'canvas.deleteMindmapTitle',
-      params: { title: labelOf(node('m', 'mindmap')) },
-    });
+  it('deletes a single mind map at once, like other nodes undo can restore', () => {
+    expect(getNodeDeleteConfirm([node('m', 'mindmap')], labelOf)).toBeNull();
   });
 
   it('treats a terminal node as ordinary — only agents get the extra prompt', () => {

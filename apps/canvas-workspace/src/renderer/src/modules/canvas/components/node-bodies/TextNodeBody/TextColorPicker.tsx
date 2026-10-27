@@ -1,4 +1,4 @@
-import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "./colorPresets";
+import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS, resolveTextNodeColor } from "./colorPresets";
 import type { CanvasNode, TextNodeData } from "../../../../../types";
 import { DropdownShell, SwatchRow } from "../../../../../components/ui";
 import { useI18n } from "../../../../../i18n";
@@ -33,6 +33,10 @@ const TextColorTrigger = ({
   const optionLabelKey = kind === "text" ? 'canvas.textStyle.textColorOption' : 'canvas.textStyle.backgroundColorOption';
 
   const isTransparent = currentValue === "transparent";
+  // The default ink follows the theme, so its dot does too.
+  const dotColor = kind === "text"
+    ? resolveTextNodeColor(currentValue) ?? "var(--text-primary)"
+    : currentValue;
 
   return (
     <DropdownShell
@@ -49,7 +53,7 @@ const TextColorTrigger = ({
         <button
           type="button"
           className={`text-color-dot${isTransparent ? " text-color-dot--transparent" : ""}`}
-          style={{ backgroundColor: isTransparent ? undefined : currentValue }}
+          style={{ backgroundColor: isTransparent ? undefined : dotColor }}
           title={title}
           aria-label={title}
           aria-haspopup="menu"
