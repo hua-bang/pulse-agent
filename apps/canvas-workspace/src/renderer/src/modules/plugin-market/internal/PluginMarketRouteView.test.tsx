@@ -22,6 +22,11 @@ vi.mock('../../../i18n', () => ({
   }),
 }));
 
+const confirm = vi.fn(async () => true);
+vi.mock('../../../shared/appShell', () => ({
+  useAppShell: () => ({ confirm }),
+}));
+
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
@@ -414,5 +419,46 @@ describe('PluginMarketRouteView', () => {
     act(() => host?.querySelector<HTMLButtonElement>('.plugin-market__listing-main')?.click());
     expect([...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
       .some((button) => button.textContent?.includes('pluginMarket.update'))).toBe(false);
+  });
+
+  it('offers Connect on the row of an installed plugin that is not connected', async () => {
+    const disconnected = listing({ installState: 'installed', mcpAuthState: 'connectable' });
+    const api = createApi(snapshot([disconnected]));
+    await render(api);
+
+    expect(host?.querySelector('.plugin-market__installed-pending')).not.toBeNull();
+    const connect = host?.querySelector<HTMLButtonElement>('.plugin-market__listing-action button');
+    expect(connect?.textContent).toBe('pluginMarket.connect');
+    await act(async () => { connect?.click(); });
+    expect(api.connectMcp).toHaveBeenCalledWith('computer-use');
+  });
+
+  it('confirms before uninstalling and keeps focus in the market', async () => {
+    const installed = listing({ installState: 'installed' });
+    const api = createApi(snapshot([installed]));
+    vi.mocked(api.uninstall).mockResolvedValue({ ok: true, snapshot: snapshot([listing()]) });
+    confirm.mockResolvedValueOnce(false);
+    await render(api);
+    // Open the details from the installed strip: that button goes away with
+    // the uninstall, so nothing would hold focus without the handoff.
+    const opener = host?.querySelector<HTMLButtonElement>('.plugin-market__installed-button');
+    act(() => {
+      opener?.focus();
+      opener?.click();
+    });
+    const findUninstall = () => [...document.querySelectorAll<HTMLButtonElement>('.plugin-market-modal button')]
+      .find((button) => button.textContent?.includes('pluginMarket.uninstall'));
+
+    await act(async () => { findUninstall()?.click(); });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(api.uninstall).not.toHaveBeenCalled();
+
+    await act(async () => {
+      findUninstall()?.click();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(api.uninstall).toHaveBeenCalledWith('computer-use');
+    expect(document.querySelector('.plugin-market-detail')).toBeNull();
+    expect(document.activeElement?.className).toContain('plugin-market__listing-main');
   });
 });

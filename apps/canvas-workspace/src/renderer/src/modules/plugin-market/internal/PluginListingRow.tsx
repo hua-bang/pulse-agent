@@ -14,6 +14,7 @@ interface Props {
   busy: boolean;
   onOpen: () => void;
   onInstall: () => void;
+  onConnect: () => void;
   onExplore: () => void;
 }
 
@@ -22,10 +23,25 @@ export const PluginListingRow = ({
   busy,
   onOpen,
   onInstall,
+  onConnect,
   onExplore,
 }: Props) => {
   const { t } = useI18n();
-  const action = listing.installState === 'available' ? (
+  const needsConnect = listing.installState === 'installed' && listing.mcpAuthState === 'connectable';
+  // An installed remote plugin is not usable until it connects, so the row
+  // offers Connect instead of the details menu.
+  const action = needsConnect ? (
+    <Button
+      size="xs"
+      variant="primary"
+      className="plugin-market__row-action"
+      disabled={busy}
+      title={t(keys.connectionRequired)}
+      onClick={onConnect}
+    >
+      {busy ? t(keys.connecting) : t(keys.connect)}
+    </Button>
+  ) : listing.installState === 'available' ? (
     <Button
       size="xs"
       variant="primary"
@@ -90,8 +106,15 @@ interface SectionProps {
   busyKey: string | null;
   onOpen: (listing: PluginMarketListing) => void;
   onInstall: (listing: PluginMarketListing) => void;
+  onConnect: (listing: PluginMarketListing) => void;
   onExplore: (listing: PluginMarketListing) => void;
 }
+
+const busyKeyFor = (listing: PluginMarketListing): string => {
+  if (listing.installState === 'available') return `install:${listing.id}`;
+  if (listing.installState === 'installed') return `connect:${listing.id}`;
+  return `explore:${listing.id}`;
+};
 
 export const PluginListingSection = ({
   title,
@@ -99,6 +122,7 @@ export const PluginListingSection = ({
   busyKey,
   onOpen,
   onInstall,
+  onConnect,
   onExplore,
 }: SectionProps) => (
   <section className="plugin-market__section" aria-label={title}>
@@ -108,9 +132,10 @@ export const PluginListingSection = ({
         <PluginListingRow
           key={listing.id}
           listing={listing}
-          busy={busyKey === `${listing.installState === 'available' ? 'install' : 'explore'}:${listing.id}`}
+          busy={busyKey === busyKeyFor(listing)}
           onOpen={() => onOpen(listing)}
           onInstall={() => onInstall(listing)}
+          onConnect={() => onConnect(listing)}
           onExplore={() => onExplore(listing)}
         />
       ))}

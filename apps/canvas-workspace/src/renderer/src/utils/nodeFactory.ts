@@ -106,14 +106,17 @@ export const cloneMindmapTopic = (topic: MindmapTopic): MindmapTopic => ({
   children: topic.children.map(cloneMindmapTopic),
 });
 
+// The title is stored, so it takes the UI language at creation time. A
+// later language switch keeps it, like any title the user typed.
+export const defaultNodeTitle = (type: CanvasNode['type']): string =>
+  messages[getInitialLanguage()][`canvas.nodeDefaultTitle.${type}`];
+
 export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number): CanvasNode => {
   const def = CANVAS_NODE_DEFAULTS[type];
   return {
     id: genId(),
     type,
-    // The title is stored, so it takes the UI language at creation time. A
-    // later language switch keeps it, like any title the user typed.
-    title: messages[getInitialLanguage()][`canvas.nodeDefaultTitle.${type}`],
+    title: defaultNodeTitle(type),
     x,
     y,
     width: def.width,

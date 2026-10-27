@@ -22,6 +22,7 @@ import {
   syncBrowserPageTitle,
 } from './utils';
 import { isImeComposing } from '../../../../../utils/ime';
+import { useI18n } from '../../../../../i18n';
 import { useWebviewBackgroundThrottle } from './useWebviewBackgroundThrottle';
 import { useIframeArtifact } from './useIframeArtifact';
 import { pickDomElementFromHtmlIframe, type DomPickerResult } from './domPickerBridge';
@@ -33,6 +34,7 @@ export const useIframeNodeState = ({
   onPageTitleChange,
   readOnly = false,
 }: IframeNodeBodyProps) => {
+  const { language } = useI18n();
   const data = node.data as IframeNodeData;
   const mode = data.mode ?? 'url';
   const url = data.url ?? '';
@@ -155,7 +157,7 @@ export const useIframeNodeState = ({
       ? 'queued'
       : browser.loadState;
   const loadError = browser.loadError
-    ? getFriendlyLoadErrorMessage(browser.loadError.description, browser.loadError.code)
+    ? getFriendlyLoadErrorMessage(browser.loadError.description, browser.loadError.code, language)
     : null;
 
   useEffect(() => { setDraftUrl(url); }, [url]);

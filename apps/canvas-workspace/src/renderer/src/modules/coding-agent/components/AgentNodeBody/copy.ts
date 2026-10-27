@@ -1,0 +1,71 @@
+import type { LanguageCode } from '../../../../i18n';
+
+// Kept out of the shared message table: that table ships in the startup
+// bundle, and only the lazy Coding Agent card shows these strings.
+const copy = {
+  en: {
+    workingDirectory: 'Working directory',
+    cwdDefaultsToRoot: 'Defaults to workspace root: {path}',
+    cwdDefaultsToHome: 'Defaults to your home directory',
+    browseFolder: 'Browse for folder',
+    recent: 'Recent',
+    initialPrompt: 'Initial prompt',
+    workspace: 'Workspace',
+    approvals: 'Approvals',
+    bypassed: 'Bypassed',
+    prompt: 'Prompt',
+    briefTeamLead: 'Brief Team Lead',
+    resumeTitle: 'Resume the previous {agent} conversation',
+    restartTitle: 'Restart with saved configuration',
+    leaderRunning: 'Coordinating team work',
+    leaderDone: 'Leader run finished',
+    leaderError: 'Leader needs attention',
+    leaderIdle: 'Waiting for a brief',
+    statusRunning: 'Running',
+    statusDone: 'Done',
+    statusError: 'Error',
+    statusIdle: 'Idle',
+    waitingCommand: 'Waiting for the next team command.',
+    waitingUpdates: 'Waiting for team updates.',
+    workspaceRoot: 'workspace root',
+    decision: 'Decision',
+    activity: 'Activity',
+    agent: 'Agent',
+    advancedTerminal: 'Advanced terminal',
+  },
+  zh: {
+    workingDirectory: '工作目录',
+    cwdDefaultsToRoot: '默认使用工作区根目录：{path}',
+    cwdDefaultsToHome: '默认使用你的主目录',
+    browseFolder: '选择文件夹',
+    recent: '最近',
+    initialPrompt: '初始提示',
+    workspace: '工作区',
+    approvals: '审批',
+    bypassed: '已跳过',
+    prompt: '提示',
+    briefTeamLead: '给 Team Lead 的任务说明',
+    resumeTitle: '恢复之前的 {agent} 对话',
+    restartTitle: '使用已保存的配置重新启动',
+    leaderRunning: '正在协调团队工作',
+    leaderDone: 'Leader 本轮已完成',
+    leaderError: 'Leader 需要处理',
+    leaderIdle: '等待任务说明',
+    statusRunning: '运行中',
+    statusDone: '已完成',
+    statusError: '出错',
+    statusIdle: '空闲',
+    waitingCommand: '等待下一条团队指令。',
+    waitingUpdates: '等待团队动态。',
+    workspaceRoot: '工作区根目录',
+    decision: '决策',
+    activity: '动态',
+    agent: 'Agent',
+    advancedTerminal: '高级终端',
+  },
+};
+
+export type AgentCardCopy = typeof copy.en;
+
+export const agentCardCopy = (language: LanguageCode): AgentCardCopy =>
+  (language === 'zh' ? copy.zh : copy.en);

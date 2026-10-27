@@ -7,6 +7,7 @@ import { useTextareaMention } from '../../../../node-mentions';
 import { isImeComposing } from '../../../../../utils/ime';
 import { NodeMentionPicker } from '../../../../node-mentions';
 import { truncatePath } from '../utils/terminal';
+import { agentCardCopy } from '../copy';
 
 interface Props {
   selectedAgent: string;
@@ -68,7 +69,8 @@ export const AgentLaunchForm = ({
   onPickFolder,
   onLaunch,
 }: Props) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const copy = agentCardCopy(language);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const promptMention = useTextareaMention({ textareaRef: promptRef, value: promptInput, onChange: onPromptChange });
   const effectiveCwd = cwdInput || rootFolder || '';
@@ -88,16 +90,16 @@ export const AgentLaunchForm = ({
       {teamLead ? (
         <>
           <div className="agent-team-lead-setup-summary">
-            <div><span>Workspace</span><strong title={effectiveCwd || '~'}>{effectiveCwd ? truncatePath(effectiveCwd, 46) : '~'}</strong></div>
-            <div><span>Approvals</span><strong>Bypassed</strong></div>
-            <div><span>Prompt</span><strong>Brief Team Lead</strong></div>
+            <div><span>{copy.workspace}</span><strong title={effectiveCwd || '~'}>{effectiveCwd ? truncatePath(effectiveCwd, 46) : '~'}</strong></div>
+            <div><span>{copy.approvals}</span><strong>{copy.bypassed}</strong></div>
+            <div><span>{copy.prompt}</span><strong>{copy.briefTeamLead}</strong></div>
           </div>
           {teamLeadBriefSlot}
         </>
       ) : (
         <>
           <div className="agent-field">
-            <div className="agent-field-label"><FolderGlyph /><span>Working Directory</span></div>
+            <div className="agent-field-label"><FolderGlyph /><span>{copy.workingDirectory}</span></div>
             <div className="agent-dir-field">
               <input
                 type="text"
@@ -105,7 +107,7 @@ export const AgentLaunchForm = ({
                 value={cwdInput}
                 onChange={(event) => onCwdChange(event.target.value)}
                 placeholder={rootFolder ? truncatePath(rootFolder, 36) : '~'}
-                title={rootFolder ? `Defaults to workspace root: ${rootFolder}` : 'Defaults to your home directory'}
+                title={rootFolder ? copy.cwdDefaultsToRoot.replace('{path}', rootFolder) : copy.cwdDefaultsToHome}
                 spellCheck={false}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !isImeComposing(event)) {
@@ -114,11 +116,11 @@ export const AgentLaunchForm = ({
                   }
                 }}
               />
-              <button type="button" className="agent-dir-icon" onClick={onPickFolder} title="Browse…" aria-label="Browse for folder"><FolderGlyph /></button>
+              <button type="button" className="agent-dir-icon" onClick={onPickFolder} title={copy.browseFolder} aria-label={copy.browseFolder}><FolderGlyph /></button>
             </div>
             {visibleRecents.length > 0 && (
               <div className="agent-recent">
-                <span className="agent-recent-label">Recent</span>
+                <span className="agent-recent-label">{copy.recent}</span>
                 {visibleRecents.map((path) => (
                   <button key={path} type="button" className="agent-recent-chip" onClick={() => onCwdChange(path)} title={path}>{truncatePath(path, 22)}</button>
                 ))}
@@ -127,7 +129,7 @@ export const AgentLaunchForm = ({
           </div>
 
           <div className="agent-field">
-            <div className="agent-field-label"><ChatGlyph /><span>Initial Prompt</span></div>
+            <div className="agent-field-label"><ChatGlyph /><span>{copy.initialPrompt}</span></div>
             <textarea
               ref={promptRef}
               className="agent-prompt-input"

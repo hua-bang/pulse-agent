@@ -218,8 +218,9 @@ describe('useCanvasKeyboard', () => {
   // Regression: every keydown pushed a history entry, so HOLDING an arrow
   // key filled the undo stack with one entry per OS repeat tick. Dropping
   // the repeats instead made a held key move only 1px. A hold now keeps
-  // moving and the keyup records it as one undo step.
-  it('keeps moving on auto-repeat and records a held arrow key as one undo step', () => {
+  // moving, and a run of presses is recorded as one undo step after a pause.
+  it('keeps moving on auto-repeat and records a run of nudges as one undo step', () => {
+    vi.useFakeTimers();
     const moveNodes = vi.fn();
     const commitHistory = vi.fn();
     mountKeyboard({
@@ -228,18 +229,45 @@ describe('useCanvasKeyboard', () => {
       moveNodes,
       commitHistory,
     });
+    const keyup = () => act(() => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+    });
 
     press({ key: 'ArrowRight' });
     press({ key: 'ArrowRight', repeat: true });
-    press({ key: 'ArrowRight', repeat: true });
+    keyup();
+    act(() => { vi.advanceTimersByTime(300); });
+    press({ key: 'ArrowRight' });
+    keyup();
 
     expect(moveNodes).toHaveBeenCalledTimes(3);
     expect(commitHistory).not.toHaveBeenCalled();
-    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' })); });
+    act(() => { vi.advanceTimersByTime(1000); });
     expect(commitHistory).toHaveBeenCalledTimes(1);
     // A second keyup with nothing moved records nothing.
-    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' })); });
+    keyup();
+    act(() => { vi.advanceTimersByTime(1000); });
     expect(commitHistory).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('records pending nudges before undo runs', () => {
+    const commitHistory = vi.fn();
+    const undo = vi.fn(() => {
+      expect(commitHistory).toHaveBeenCalledTimes(1);
+    });
+    mountKeyboard({
+      nodes: [node('node-1')],
+      selectedNodeIds: ['node-1'],
+      commitHistory,
+      undo,
+    });
+
+    press({ key: 'ArrowRight' });
+    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' })); });
+    press({ key: 'z', metaKey: true });
+
+    expect(undo).toHaveBeenCalledTimes(1);
   });
 
   it('still drops auto-repeat for shortcuts that do not repeat', () => {

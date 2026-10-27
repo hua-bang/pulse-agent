@@ -96,6 +96,15 @@
   white-space: nowrap;
 }
 
+/* Installed but not connected yet: the plugin's remote tools are off. */
+.plugin-market__installed-pending {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .plugin-market__installed-empty {
   margin: 0;
   padding: 10px 2px 2px;

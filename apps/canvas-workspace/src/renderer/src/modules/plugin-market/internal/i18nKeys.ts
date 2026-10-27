@@ -94,6 +94,7 @@ export const pluginMarketKeys = {
   updatedNativeDisabled: key('pluginMarket.updatedNativeDisabled'),
   uninstall: key('pluginMarket.uninstall'),
   uninstalling: key('pluginMarket.uninstalling'),
+  uninstallTitle: key('pluginMarket.uninstallTitle'),
 } as const;
 
 /** Catalog categories arrive as English words; known ones get a translation. */

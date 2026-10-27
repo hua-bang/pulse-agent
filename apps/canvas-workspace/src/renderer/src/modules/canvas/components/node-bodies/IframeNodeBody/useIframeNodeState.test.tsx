@@ -2,6 +2,7 @@
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
 import { useIframeNodeState } from './useIframeNodeState';
 
@@ -236,7 +237,7 @@ async function renderHookHarness(): Promise<void> {
   root = createRoot(host);
 
   flushSync(() => {
-    root?.render(<IframeHookHarness />);
+    root?.render(<I18nProvider><IframeHookHarness /></I18nProvider>);
   });
   await flushEffects();
 }

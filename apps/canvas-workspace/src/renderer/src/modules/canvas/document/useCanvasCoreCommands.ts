@@ -5,7 +5,7 @@ import type {
   GroupNodeData,
   TextNodeData,
 } from '../../../types';
-import { createNodeData, genId } from '../../../utils/nodeFactory';
+import { createNodeData, defaultNodeTitle, genId } from '../../../utils/nodeFactory';
 import { degradeEndpointsForDeletedNode } from '../model/edgeFactory';
 import { releaseDroppedGroupMembers } from '../model/releaseDroppedGroupMembers';
 import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
@@ -188,7 +188,7 @@ export const useCanvasCoreCommands = ({
     const group: CanvasNode = {
       id: genId(),
       type: 'group',
-      title: 'Group',
+      title: defaultNodeTitle('group'),
       x: bounds.minX - padding,
       y: bounds.minY - padding,
       width: bounds.maxX - bounds.minX + padding * 2,
@@ -209,7 +209,7 @@ export const useCanvasCoreCommands = ({
     const frame: CanvasNode = {
       id: genId(),
       type: 'frame',
-      title: 'Frame',
+      title: defaultNodeTitle('frame'),
       x: bounds.minX - padding.x,
       y: bounds.minY - padding.top,
       width: bounds.maxX - bounds.minX + padding.x * 2,

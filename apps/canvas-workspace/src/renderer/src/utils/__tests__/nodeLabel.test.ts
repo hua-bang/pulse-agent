@@ -45,8 +45,8 @@ describe('getNodeDisplayLabel — text nodes', () => {
   });
 
   it('truncates long previews with an ellipsis', () => {
-    const label = getNodeDisplayLabel(textNode('<p>abcdefghijklmnop</p>'));
-    expect(label).toBe('abcdefghij…');
+    const label = getNodeDisplayLabel(textNode('<p>abcdefghijklmnopqrstuvwxyz0123</p>'));
+    expect(label).toBe('abcdefghijklmnopqrstuvwx…');
   });
 
   it('falls back to "Text" when the body is empty markup', () => {
