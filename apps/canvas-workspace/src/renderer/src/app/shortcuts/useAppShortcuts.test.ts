@@ -27,6 +27,7 @@ describe('useAppShortcuts', () => {
       togglePanels: vi.fn(),
       selectWorkspaceByIndex: vi.fn(),
       closeActiveTab: vi.fn(() => true),
+      reopenClosedTab: vi.fn(() => true),
       toggleDockChat: vi.fn(() => true),
       ...overrides,
     };
@@ -57,6 +58,13 @@ describe('useAppShortcuts', () => {
     expect(options.closeActiveTab).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
     input.remove();
+  });
+
+  it('reopens the last closed tab with Mod+Shift+T', () => {
+    const options = mount();
+    expect(press({ key: 'T', ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(true);
+    expect(options.reopenClosedTab).toHaveBeenCalledTimes(1);
+    expect(options.closeActiveTab).not.toHaveBeenCalled();
   });
 
   it('toggles the dock chat with Mod+Shift+A off the canvas route', () => {

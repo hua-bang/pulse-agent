@@ -107,6 +107,7 @@ export const CanvasEdgePath = ({
           onHandleMouseDown={(handle, event) => (
             onHandleMouseDown(edge.id, handle, event, { s: source, t: target })
           )}
+          onMidpointDoubleClick={(event) => onBodyDoubleClick?.(edge.id, event)}
         />
       )}
       <path

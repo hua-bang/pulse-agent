@@ -1,6 +1,10 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../../types';
 import type { CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../../../../types/ui-interaction';
+import {
+  SELECT_CANVAS_NODES_EVENT,
+  type SelectCanvasNodesDetail,
+} from '../../../../../../shared/canvasSelection';
 
 interface Options {
   canvasId: string;
@@ -17,6 +21,8 @@ interface Options {
   /** False for embedded editors whose viewport is local to their pane. */
   persistViewport?: boolean;
   selectedNodeIds: string[];
+  /** Applies selection requests from outside the canvas (Layers Shift+click). */
+  setSelectedNodeIds?: (ids: string[]) => void;
   nodesRef: MutableRefObject<CanvasNode[]>;
   /** True while a node drag/resize is in flight. Used to defer the
    *  parent's `onNodesChange` callback so downstream consumers don't
@@ -71,6 +77,7 @@ export const useCanvasSyncEffects = ({
   moving = false,
   persistViewport = true,
   selectedNodeIds,
+  setSelectedNodeIds,
   nodesRef,
   isDraggingRef,
   pendingParentNodesRef,
@@ -144,6 +151,18 @@ export const useCanvasSyncEffects = ({
     if (!loaded) return;
     onSelectionChange?.(canvasId, selectedNodeIds);
   }, [canvasId, loaded, onSelectionChange, selectedNodeIds]);
+
+  useEffect(() => {
+    if (!setSelectedNodeIds) return;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<SelectCanvasNodesDetail>).detail;
+      if (detail?.workspaceId !== canvasId) return;
+      const known = new Set(nodesRef.current.map((node) => node.id));
+      setSelectedNodeIds(detail.nodeIds.filter((id) => known.has(id)));
+    };
+    window.addEventListener(SELECT_CANVAS_NODES_EVENT, handler);
+    return () => window.removeEventListener(SELECT_CANVAS_NODES_EVENT, handler);
+  }, [canvasId, nodesRef, setSelectedNodeIds]);
 
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {

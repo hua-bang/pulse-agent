@@ -81,11 +81,15 @@ export const EdgeHandles = ({
   t,
   midpoint,
   onHandleMouseDown,
+  onMidpointDoubleClick,
 }: {
   s: Point;
   t: Point;
   midpoint: Point;
   onHandleMouseDown: (handle: 'source' | 'target' | 'bend', e: React.MouseEvent) => void;
+  /** The bend handle covers the edge's midpoint, where users double-click
+   *  to edit the label, so it forwards that gesture. */
+  onMidpointDoubleClick?: (e: React.MouseEvent) => void;
 }) => {
   const handleStyle: React.CSSProperties = {
     pointerEvents: 'all',
@@ -119,6 +123,15 @@ export const EdgeHandles = ({
         style={handleStyle}
         onMouseDown={(e) => {
           e.stopPropagation();
+          // The bend drag puts a shield over the canvas, so the second
+          // click never reaches this circle as a dblclick. Read the click
+          // count on mousedown instead, and keep the mousedown from moving
+          // focus off the label input it opens.
+          if (e.detail >= 2 && onMidpointDoubleClick) {
+            e.preventDefault();
+            onMidpointDoubleClick(e);
+            return;
+          }
           onHandleMouseDown('bend', e);
         }}
       />

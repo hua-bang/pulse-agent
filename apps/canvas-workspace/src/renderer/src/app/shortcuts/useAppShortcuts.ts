@@ -17,6 +17,8 @@ interface Options {
   selectWorkspaceByIndex: (index: number) => void;
   /** Close the active workspace tab; false when no tab bar is showing. */
   closeActiveTab: () => boolean;
+  /** Reopen the last closed workspace tab; false when no tab bar is showing. */
+  reopenClosedTab: () => boolean;
   /**
    * Toggle the dock chat on routes without a canvas; false on the canvas
    * route, where the canvas layer owns the side-chat chord.
@@ -29,6 +31,7 @@ interface Options {
  * layer asks it to close the active tab with this window event.
  */
 export const CLOSE_ACTIVE_TAB_EVENT = 'pulse:close-active-workspace-tab';
+export const REOPEN_CLOSED_TAB_EVENT = 'pulse:reopen-closed-workspace-tab';
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
   const element = target as HTMLElement | null;
@@ -57,6 +60,7 @@ export const useAppShortcuts = ({
   togglePanels,
   selectWorkspaceByIndex,
   closeActiveTab,
+  reopenClosedTab,
   toggleDockChat,
 }: Options) => {
   const toggleDockChatRef = useRef(toggleDockChat);
@@ -95,6 +99,9 @@ export const useAppShortcuts = ({
     'app.closeTab': (event) => {
       // Off the canvas route there is no tab bar; leave the key alone.
       if (closeActiveTab()) event.preventDefault();
+    },
+    'app.reopenTab': (event) => {
+      if (reopenClosedTab()) event.preventDefault();
     },
   };
 
@@ -162,6 +169,11 @@ export const useAppShortcutBindings = ({
     closeActiveTab: () => {
       if (activeView !== 'canvas') return false;
       window.dispatchEvent(new Event(CLOSE_ACTIVE_TAB_EVENT));
+      return true;
+    },
+    reopenClosedTab: () => {
+      if (activeView !== 'canvas') return false;
+      window.dispatchEvent(new Event(REOPEN_CLOSED_TAB_EVENT));
       return true;
     },
     toggleDockChat: () => {

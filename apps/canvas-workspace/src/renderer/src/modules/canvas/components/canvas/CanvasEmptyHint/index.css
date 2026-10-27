@@ -171,15 +171,17 @@
   }
 }
 
+/* Floats just above the zoom controls, out of the bottom chrome's grid,
+ * so it does not push the toolbar or cover node headers and the find bar
+ * at the top of the view. */
 .canvas-next-steps {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  bottom: calc(100% + 8px);
+  left: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  max-width: calc(100% - 32px);
-  padding: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);

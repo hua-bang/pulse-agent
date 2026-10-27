@@ -23,7 +23,7 @@ interface LayersPanelProps {
   collapsedLayers: Set<string>;
   selectedNodeIds: Set<string>;
   primarySelectedNodeId?: string;
-  onNodeFocus: (nodeId: string) => void;
+  onNodeFocus: (nodeId: string, additive?: boolean) => void;
   onLayerRename?: (nodeId: string) => void;
   onContextMenu: (e: ReactMouseEvent, nodeId: string) => void;
   onToggleCollapse: (id: string) => void;

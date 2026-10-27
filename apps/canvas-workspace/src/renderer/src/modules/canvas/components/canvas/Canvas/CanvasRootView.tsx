@@ -317,6 +317,10 @@ export const CanvasRootView = ({
         moving={moving}
         scale={moving ? settledScale : transform.scale}
         onFitAll={onFitAll}
+        onSelectAll={() => {
+          setSelectedNodeIds(nodes.map((node) => node.id));
+          setSelectedEdgeId(null);
+        }}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
         referenceDrawerOpen={referenceDrawerOpen}

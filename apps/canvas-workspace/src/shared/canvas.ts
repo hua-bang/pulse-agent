@@ -217,6 +217,11 @@ export interface AgentNodeData {
    */
   lastInitPrompt?: string;
   /**
+   * Prompt typed in the launch form before the agent starts. Kept so a
+   * reload does not lose it; cleared on launch. It never starts a session.
+   */
+  draftPrompt?: string;
+  /**
    * Current AgentNodeBody view ('setup' | 'running' | 'restart'). Persisted
    * so the outer `CanvasNodeView` header can render the status pill that
    * matches the body and so a cold reload mid-running session can be
