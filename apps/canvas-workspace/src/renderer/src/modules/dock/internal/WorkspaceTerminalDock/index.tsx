@@ -11,11 +11,9 @@ import {
   readStoredTerminalFontSize,
   storeTerminalFontSize,
 } from '../../../../config/terminalTheme';
-import type { CanvasNode } from '../../../../types';
-import { buildNodeMentionInsertion } from '../../../../utils/nodeMention';
+import type { AgentContextTabRef, CanvasNode } from '../../../../types';
 import { formatShortcutId } from '../../../../shortcuts/registry';
 import { claimTerminalKey, handleTerminalShortcut } from '../../../../shortcuts/terminalShortcuts';
-import { NodeMentionPicker } from '../../../node-mentions';
 import { useDragResize } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/state/dock-store';
@@ -28,6 +26,7 @@ import {
 import { createTerminalKeyArbiter, fitTerminalIfSane } from '../../../coding-agent/terminal';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
 import { useFocusOnOpen } from './useFocusOnOpen';
+import { TerminalMentionPicker } from './TerminalMentionPicker';
 import './index.css';
 
 interface WorkspaceTerminalDockProps {
@@ -37,6 +36,8 @@ interface WorkspaceTerminalDockProps {
   workspaceName?: string;
   rootFolder?: string;
   nodes: CanvasNode[];
+  /** This workspace's dock tabs, offered by the ⌘2 picker beside the nodes. */
+  dockTabs?: AgentContextTabRef[];
   open: boolean;
   onClose: () => void;
   onAgentTypeChange?: (agentType?: string) => void;
@@ -82,6 +83,7 @@ export const WorkspaceTerminalDock = ({
   workspaceName,
   rootFolder,
   nodes,
+  dockTabs,
   open,
   onClose,
   onAgentTypeChange,
@@ -113,9 +115,7 @@ export const WorkspaceTerminalDock = ({
   const codingAgentActiveRef = useRef(false);
   const commandInputRef = useRef('');
   const terminalOutputTailRef = useRef('');
-  const nodesRef = useRef(nodes);
   const rootFolderRef = useRef(rootFolder);
-  nodesRef.current = nodes;
   rootFolderRef.current = rootFolder;
   heightRef.current = height;
 
@@ -407,15 +407,6 @@ export const WorkspaceTerminalDock = ({
     },
   });
 
-  const handleMentionSelect = useCallback((selected: CanvasNode) => {
-    setPickerOpen(false);
-    const api = window.canvasWorkspace?.pty;
-    if (api) {
-      api.write(sessionId, buildNodeMentionInsertion(selected));
-    }
-    termRef.current?.focus();
-  }, [sessionId]);
-
   const handleMentionClose = useCallback(() => {
     setPickerOpen(false);
     termRef.current?.focus();
@@ -466,9 +457,11 @@ export const WorkspaceTerminalDock = ({
         onClick={() => termRef.current?.focus()}
       >
         {pickerOpen && (
-          <NodeMentionPicker
-            nodes={nodesRef.current}
-            onSelect={handleMentionSelect}
+          <TerminalMentionPicker
+            sessionId={sessionId}
+            terminalId={terminalId}
+            nodes={nodes}
+            dockTabs={dockTabs}
             onClose={handleMentionClose}
           />
         )}

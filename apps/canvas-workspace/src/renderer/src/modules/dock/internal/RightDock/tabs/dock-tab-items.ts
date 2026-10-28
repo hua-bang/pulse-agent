@@ -1,5 +1,6 @@
 import type { DockPreviewTab, DockState } from '../state/dock-types';
 import { CHAT_TAB_ID } from '../../../../../shared/dock/dock-tab-ids';
+import { terminalTabAgentTitle } from '../../../../../shared/dock/tabRefs';
 
 export interface DockTabSwitcherItem {
   id: string;
@@ -27,7 +28,7 @@ export function getDockTabSwitcherItems(
       : []),
     ...state.terminalTabs.map((tab) => ({
       id: tab.id,
-      title: tab.title ?? `${terminalTitle} ${tab.ordinal}`,
+      title: tab.title ?? terminalTabAgentTitle(tab) ?? `${terminalTitle} ${tab.ordinal}`,
       kind: 'terminal' as const,
       ...(tab.agentType ? { agentType: tab.agentType } : {}),
     })),

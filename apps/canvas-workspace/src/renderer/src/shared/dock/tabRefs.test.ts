@@ -71,4 +71,21 @@ describe('buildDockTabRefs', () => {
       { id: 'terminal:2', kind: 'terminal', title: 'Build', workspaceId: 'ws-1', dockWorkspaceId: 'ws-1', sessionId: 'workspace-terminal:ws-1:terminal:2', isActive: false, isVisible: false, isSplit: false },
     ]);
   });
+
+  it('titles an agent terminal tab like the tab strip, so "@claude" finds it', () => {
+    const state = baseState({
+      terminalTabsByWorkspace: {
+        'ws-1': {
+          tabs: [
+            { id: 'terminal', ordinal: 1, agentType: 'claude-code' },
+            { id: 'terminal:2', ordinal: 2, agentType: 'codex', title: 'Review' },
+            { id: 'terminal:3', ordinal: 3, agentType: 'unknown-agent' },
+          ],
+          nextOrdinal: 4,
+        },
+      },
+    });
+
+    expect(buildDockTabRefs(state, 'ws-1').map((ref) => ref.title)).toEqual(['Claude 1', 'Review', 'Terminal 3']);
+  });
 });

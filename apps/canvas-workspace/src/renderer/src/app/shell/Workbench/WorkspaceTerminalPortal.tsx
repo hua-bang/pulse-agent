@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useRightDockTerminalHost } from '../../../modules/dock';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
-import type { CanvasNode } from '../../../types';
+import type { AgentContextTabRef, CanvasNode } from '../../../types';
 import type { DockTerminalWorkspaceState } from '../../../modules/dock';
 
 // The dock terminal pulls @xterm/xterm (+ addons). React.lazy keeps that out
@@ -18,6 +18,8 @@ interface WorkspaceTerminalPortalProps {
   workspaces: WorkspaceEntry[];
   mountedWorkspaceIds: Set<string>;
   allNodes: Record<string, CanvasNode[]>;
+  /** Tabs of the active workspace's dock, for the terminal ⌘2 picker. */
+  activeDockTabs: AgentContextTabRef[];
   terminalTabsByWorkspace: Record<string, DockTerminalWorkspaceState>;
   activeTerminalTabId?: string;
   open: boolean;
@@ -30,6 +32,7 @@ export const WorkspaceTerminalPortal = ({
   workspaces,
   mountedWorkspaceIds,
   allNodes,
+  activeDockTabs,
   terminalTabsByWorkspace,
   activeTerminalTabId,
   open,
@@ -58,6 +61,7 @@ export const WorkspaceTerminalPortal = ({
               workspaceName={ws.name}
               rootFolder={ws.rootFolder}
               nodes={allNodes[ws.id] || []}
+              dockTabs={ws.id === activeWorkspaceId ? activeDockTabs : undefined}
               open={visible && open}
               onClose={() => onClose(tab.id)}
               onAgentTypeChange={(agentType) => onAgentTypeChange(tab.id, agentType, ws.id)}

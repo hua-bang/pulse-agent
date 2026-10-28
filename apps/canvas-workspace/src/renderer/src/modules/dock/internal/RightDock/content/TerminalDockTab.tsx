@@ -5,6 +5,7 @@ import { DockTabIcon } from '../tabs/DockTabIcon';
 import type { DockTerminalTab } from '../state/dock-store';
 import type { DockTabVisualState } from '../tabs/dock-tab-visual-state';
 import { dockPaneElementId, dockTabElementId } from '../../../../../shared/dock/dock-tab-ids';
+import { terminalTabAgentTitle } from '../../../../../shared/dock/tabRefs';
 
 interface TerminalDockTabProps {
   tab: DockTerminalTab;
@@ -34,14 +35,7 @@ export const TerminalDockTab = ({
   onDragEnd,
 }: TerminalDockTabProps) => {
   const { t } = useI18n();
-  const agentDefaultTitle = tab.agentType === 'claude-code'
-    ? `Claude ${tab.ordinal}`
-    : tab.agentType === 'codex'
-      ? `Codex ${tab.ordinal}`
-      : tab.agentType === 'pi'
-        ? `Pi ${tab.ordinal}`
-        : undefined;
-  const defaultTitle = agentDefaultTitle ?? t('rightDock.terminalNumber', { number: tab.ordinal });
+  const defaultTitle = terminalTabAgentTitle(tab) ?? t('rightDock.terminalNumber', { number: tab.ordinal });
   const title = tab.title ?? defaultTitle;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
