@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { OVERVIEW_SCALE_THRESHOLD, useCanvas } from '../../../runtime/useCanvas';
+import { useCanvas } from '../../../runtime/useCanvas';
 import { useCanvasDocumentHost } from '../../../document/useCanvasDocumentHost';
 import { useCanvasContext } from '../../../runtime/useCanvasContext';
 import { useCanvasFit } from '../../../runtime/useCanvasFit';
@@ -187,7 +187,7 @@ export const useCanvasController = ({
 
   const focus = useCanvasFocusMode({
     nodes: visibleNodes, nodesById: visibleNodesById, nodesRef, selectedNodeIds, handleFocusNode,
-    getLiveTransform, animateTransform,
+    getLiveTransform, animateTransform, setSelectedNodeIds, setSelectedEdgeId, setHighlightedId,
   });
 
   const revealAddedNode = useCallback(
@@ -214,20 +214,7 @@ export const useCanvasController = ({
 
   useCanvasContext(rootFolder, nodes, canvasName);
 
-  const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
-    setSelectedNodeIds([node.id]);
-    setSelectedEdgeId(null);
-    setHighlightedId(node.id);
-    // In focus mode the dedicated reframe effect handles the zoom with
-    // tighter padding/maxScale — calling handleFocusNode here too would
-    // produce a double reframe at different scales (visible jitter).
-    // A web node below the overview threshold still shows only its identity
-    // card, so focusing one must land where the page itself renders.
-    // Never zoom in past 100% (or the current zoom, if higher) to show it.
-    const maxScale = Math.max(getLiveTransform().scale, 1);
-    const minScale = node.type === 'iframe' ? OVERVIEW_SCALE_THRESHOLD + 0.05 : undefined;
-    if (!focus.focusModeActive) handleFocusNode(node, { maxScale, minScale });
-  }, [handleFocusNode, focus.focusModeActive, getLiveTransform, setHighlightedId, setSelectedEdgeId, setSelectedNodeIds]);
+  const handleNodeViewportFocus = focus.focusNodeInViewport;
 
   const { pasteReferenceNodes, placeCanvasReference } = useCanvasReferenceActions({
     addNode,

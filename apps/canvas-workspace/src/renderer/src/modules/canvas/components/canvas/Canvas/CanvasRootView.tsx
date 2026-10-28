@@ -179,7 +179,9 @@ export const CanvasRootView = ({
     <div
       ref={containerRef}
       className={`canvas-container${mouse.cursorClass}${mouse.iframeShieldClass}`}
-      onWheel={handleWheel}
+      // Fullscreen pins the camera to its node; wheel pan/zoom would slide
+      // the stretched box off the viewport.
+      onWheel={focus.fullscreenNodeId ? undefined : handleWheel}
       onMouseDown={mouse.handleRootMouseDown}
       onMouseMove={(e) => {
         mouse.handleMouseMove(e);
