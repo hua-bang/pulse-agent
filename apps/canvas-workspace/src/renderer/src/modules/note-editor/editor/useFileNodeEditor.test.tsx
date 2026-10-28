@@ -76,6 +76,31 @@ describe('useFileNodeEditor slash ownership', () => {
     expect(getMarkdown(hookState!.editor)).not.toContain('Local draft');
   });
 
+  it('saves keystrokes typed just before the auto-save fires', async () => {
+    vi.useFakeTimers();
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const persist = vi.fn().mockResolvedValue(undefined);
+    const original = { filePath: '/tmp/note.md', content: '', modified: false };
+    await act(async () => {
+      root?.render(<I18nProvider><ContentHarness value={original} persist={persist} /></I18nProvider>);
+    });
+    act(() => {
+      hookState!.editor!.view.dom.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+      hookState!.editor!.commands.insertContent('one two');
+    });
+    // The first snapshot is committed; its auto-save is about to fire.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+    act(() => { hookState!.editor!.commands.insertContent(' three'); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(150); });
+
+    // The write acknowledgement reloads the editor with what was written,
+    // so a write of the older snapshot would erase " three".
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(expect.stringContaining('one two three'), '/tmp/note.md');
+  });
+
   it('keeps a restored unsaved draft until an explicit reload', async () => {
     host = document.createElement('div');
     document.body.append(host);
