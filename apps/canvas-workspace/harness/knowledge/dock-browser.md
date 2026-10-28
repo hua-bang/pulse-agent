@@ -194,7 +194,7 @@ frame is not a reliable mount barrier.
 strip, keyboard cycling, and the All Tabs menu. Hidden terminal sessions are
 excluded consistently. Overflow is discoverable through the counted All
 Tabs search dialog (title/URL filtering, domain labels, visible-pane labels,
-recent activation order and workspace-scoped recently closed web tabs), and the pinned Pulse AI tab remains reachable at the start of the
+recent activation order and the workspace's tab archive), and the pinned Pulse AI tab remains reachable at the start of the
 strip rather than scrolling away with page tabs.
 
 The strip and All Tabs search share one fixed 16px icon slot and the same Pulse,
@@ -218,9 +218,15 @@ next to its reorder drag, and `useCanvasExternalNodeEvents` reads it. Only the
 URL and title travel; the tab stays open. Dock and canvas webviews share the
 default session, so the node keeps the login but reloads the page state.
 
-Closed web tabs enter the bounded, workspace-scoped reopen stack. Reopen must
-allocate a fresh id if the original id already exists; duplicate React keys or
-guest identities are never permitted.
+Closed web tabs enter the tab archive (`links/dock-tab-archive.ts`). The
+archive is per workspace, keeps at most 100 entries per workspace, and is saved
+in localStorage, so it survives a restart. Each entry records its strip
+position, close time, and reason (`manual`, `idle`, or `overflow`). Blank tabs
+are not archived. "Reopen closed tab" and the All Tabs archive group both read
+it; All Tabs lists five entries until "show all", every match while searching,
+and can delete one entry or clear the archive. Reopen must allocate a fresh id
+if the original id already exists; duplicate React keys or guest identities are
+never permitted.
 
 The persisted dock session records when each web tab was last the active tab
 (`lastActiveAt`); non-web tabs get the same times in memory only. Only the tab
@@ -234,13 +240,16 @@ once per workspace per app launch, on its first visit
 clean, and opening a tab in the current workspace enforces only the cap. Only
 web tabs survive a restart, so in practice the idle rule closes web tabs.
 Every batch shows a toast (`DockAutoCloseToasts`, mounted in `App`); the
-store queues batches closed before it subscribes. A first-visit toast restores
-its web tabs; a cap toast has no restore, because a restored tab would push the
-strip over the cap again. All Tabs offers the idle close as one action. The active tab, split
+store queues batches closed before it subscribes. Each toast with archived web
+tabs has a "view" button: it expands the dock and asks All Tabs to open on the
+archive (`requestReveal`; the request waits until the lazy switcher mounts). A
+first-visit toast also restores its web tabs; a cap toast has no restore,
+because a restored tab would push the strip over the cap again. All Tabs offers
+the idle close as one "archive" action. The active tab, split
 panes, pinned tabs, folder tabs (unsaved drafts), and MCP App tabs (live app
 state) are never closed automatically. These closes go through `store.close`,
-so closed web tabs land on the reopen stack; the stack limit must hold one
-cleanup. Opening a URL reuses a tab showing the same page: a plain `#anchor`
+so closed web tabs land in the archive with their reason; the per-workspace
+limit must hold one cleanup. Opening a URL reuses a tab showing the same page: a plain `#anchor`
 or a trailing path slash does not make a new page, but a `#/route` or a query
 does (`dedupeUrlKey`).
 

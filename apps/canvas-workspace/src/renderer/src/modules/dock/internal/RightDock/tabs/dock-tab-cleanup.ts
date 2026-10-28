@@ -5,8 +5,10 @@
  * enforces only the cap, and switching workspaces closes nothing.
  *
  * Pure rules over `DockState` and per-tab last-use times; `DockStore` runs
- * the closes through `store.close`, so closed web tabs stay reopenable.
+ * the closes through `store.close`, so closed web tabs go to the archive
+ * with the reason they closed.
  */
+import type { DockTabArchiveReason } from '../links/dock-tab-archive';
 import type { DockPreviewTab, DockState } from '../state/dock-types';
 
 /** Content tabs unused this long are closed. */
@@ -20,7 +22,7 @@ type CleanupState = Pick<DockState, 'tabs' | 'activeTabId' | 'splitTabIds'>;
 /**
  * Folder tabs can hold an unsaved draft and MCP App tabs hold live app state,
  * so only tabs that are cheap to get back are closed automatically. Web tabs
- * go to the reopen stack; the others reopen from their canvas or library.
+ * go to the archive; the others reopen from their canvas or library.
  */
 const AUTO_CLOSE_KINDS = new Set<DockPreviewTab['kind']>(['link', 'node-detail', 'artifact', 'canvas', 'skill']);
 
@@ -82,13 +84,19 @@ export interface DockAutoCloseNotice {
   workspaceId: string;
   reason: 'first-visit' | 'overflow';
   count: number;
-  /** Web tabs in the batch; they are on the reopen stack. */
-  reopenableTabIds: string[];
+  /** Web tabs in the batch with a page loaded; they are in the archive. */
+  archivedTabIds: string[];
 }
+
+type CleanupTarget = CleanupState & Pick<DockState, 'activeTerminalWorkspaceId'>;
+
+/** Closes one tab and archives it with `reason` (only web tabs are archived). */
+type ArchiveClose = (id: string, reason: DockTabArchiveReason) => void;
 
 /**
  * Runs `staleTabIds` once per workspace per app launch, on its first visit,
- * and reports each batch of automatic closes to its listeners.
+ * enforces the cap when a tab opens, and reports each batch of automatic
+ * closes to its listeners.
  */
 export class DockTabCleanup {
   private readonly cleanedWorkspaceIds = new Set<string>();
@@ -104,29 +112,37 @@ export class DockTabCleanup {
     return () => { this.listeners.delete(listener); };
   }
 
-  /** Close `ids` through `close`, then report the batch. */
-  close(
+  /** Full cleanup on the workspace's first visit after launch; later visits close nothing. */
+  firstVisit(
+    workspaceId: string,
+    lastActiveAt: Readonly<Record<string, number>>,
+    state: CleanupTarget,
+    now: number,
+    close: ArchiveClose,
+  ): void {
+    if (this.cleanedWorkspaceIds.has(workspaceId)) return;
+    this.cleanedWorkspaceIds.add(workspaceId);
+    const idle = new Set(idleTabIds(lastActiveAt, state, now));
+    const ids = staleTabIds(lastActiveAt, state, now);
+    this.closeBatch(ids, state, 'first-visit', (id) => close(id, idle.has(id) ? 'idle' : 'overflow'));
+  }
+
+  /** After a tab opens: close the least recently used tabs past the cap. */
+  enforceCap(lastActiveAt: Readonly<Record<string, number>>, state: CleanupTarget, close: ArchiveClose): void {
+    this.closeBatch(overflowTabIds(lastActiveAt, state), state, 'overflow', (id) => close(id, 'overflow'));
+  }
+
+  private closeBatch(
     ids: readonly string[],
-    state: CleanupState & Pick<DockState, 'activeTerminalWorkspaceId'>,
+    state: CleanupTarget,
     reason: DockAutoCloseNotice['reason'],
     close: (id: string) => void,
   ): void {
     if (ids.length === 0) return;
-    const reopenableTabIds = state.tabs.filter((tab) => tab.kind === 'link' && ids.includes(tab.id)).map((tab) => tab.id);
-    const notice = { workspaceId: state.activeTerminalWorkspaceId, reason, count: ids.length, reopenableTabIds };
+    const archivedTabIds = state.tabs.filter((tab) => tab.kind === 'link' && tab.url && ids.includes(tab.id)).map((tab) => tab.id);
+    const notice = { workspaceId: state.activeTerminalWorkspaceId, reason, count: ids.length, archivedTabIds };
     for (const id of ids) close(id);
     if (this.listeners.size === 0) this.pending.push(notice);
     for (const listener of [...this.listeners]) listener(notice);
-  }
-
-  firstVisitTabIds(
-    workspaceId: string,
-    lastActiveAt: Readonly<Record<string, number>>,
-    state: CleanupState,
-    now: number,
-  ): string[] {
-    if (this.cleanedWorkspaceIds.has(workspaceId)) return [];
-    this.cleanedWorkspaceIds.add(workspaceId);
-    return staleTabIds(lastActiveAt, state, now);
   }
 }

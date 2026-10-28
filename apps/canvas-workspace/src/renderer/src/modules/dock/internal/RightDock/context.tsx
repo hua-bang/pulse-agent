@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { DockStore, type DockState } from './state/dock-store';
 import { createDockSessionPersistence } from './state/dock-session-persistence';
+import { createDockTabArchivePersistence } from './links/dock-tab-archive';
 import type {
   AgentContextDomReviewComment,
   AgentContextDomSelectionRef,
@@ -50,6 +51,7 @@ const RightDockContext = createContext<RightDockContextValue | null>(null);
 export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const store = useMemo(() => new DockStore(
     typeof window === 'undefined' ? undefined : createDockSessionPersistence(window.localStorage),
+    typeof window === 'undefined' ? undefined : createDockTabArchivePersistence(window.localStorage),
   ), []);
   const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);

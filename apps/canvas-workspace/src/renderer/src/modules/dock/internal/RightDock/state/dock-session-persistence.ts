@@ -14,7 +14,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
 
-const parseLinkTab = (value: unknown): DockLinkTab | null => {
+export const parseLinkTab = (value: unknown): DockLinkTab | null => {
   if (!isRecord(value)) return null;
   if (
     value.kind !== 'link'
