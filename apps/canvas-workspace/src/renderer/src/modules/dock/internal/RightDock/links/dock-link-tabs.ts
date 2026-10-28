@@ -1,7 +1,7 @@
 /**
  * Pure link-tab (web tab) helpers for the dock store: id allocation, browser
- * -style insertion next to the opener tab, origin comparison for favicon
- * retention, and the closed-tab stack behind "reopen closed tab".
+ * -style insertion next to the opener tab, and origin comparison for favicon
+ * retention. Closed web tabs live in `dock-tab-archive`.
  *
  * `DockStore` owns commits and persistence; everything here is a value
  * transform so the browsing rules can be tested without React or storage.
@@ -9,11 +9,6 @@
 import { LINK_TAB_ID, linkTabId } from '../../../../../shared/dock/dock-tab-ids';
 import type { DockLinkTab } from './dock-link-sessions';
 import type { DockPreviewTab, RetainedLinkWorkspace } from '../state/dock-types';
-
-/** How many closed web tabs stay reopenable. Chrome keeps a long list; the
- *  dock is a side panel, so a bounded stack is enough. It matches the saved
- *  per-workspace tab cap, so one cleanup of inactive tabs stays reversible. */
-export const CLOSED_TAB_STACK_LIMIT = 50;
 
 /**
  * How many RECENTLY-LEFT workspaces keep their web tabs mounted.
@@ -89,14 +84,6 @@ export function applyRetainedTabPatch(
   return entries;
 }
 
-export interface ClosedLinkTab {
-  tab: DockLinkTab;
-  /** Position it held in the tab strip, so a reopen lands where it was. */
-  index: number;
-  /** Owning workspace — a tab closed in one canvas must not resurface in another. */
-  workspaceId: string;
-}
-
 /**
  * Same-origin test used to decide whether a navigation may keep the tab's
  * resolved favicon. Non-parseable input is never treated as same-origin.
@@ -155,39 +142,4 @@ export function insertLinkTab(
     insertAt += 1;
   }
   return [...tabs.slice(0, insertAt), tab, ...tabs.slice(insertAt)];
-}
-
-/**
- * Bounded most-recently-closed stack. Entries are workspace-scoped because
- * link tabs are per-workspace sessions: reopening in a different canvas would
- * drop a tab into a strip it never belonged to.
- */
-export class ClosedLinkTabStack {
-  private entries: ClosedLinkTab[] = [];
-
-  constructor(private readonly limit = CLOSED_TAB_STACK_LIMIT) {}
-
-  push(entry: ClosedLinkTab): void {
-    this.entries.push(entry);
-    if (this.entries.length > this.limit) this.entries.shift();
-  }
-
-  /** Pop the newest entry for `workspaceId`, leaving other workspaces' alone. */
-  list(workspaceId: string): ClosedLinkTab[] {
-    return this.entries.filter(entry => entry.workspaceId === workspaceId).reverse();
-  }
-
-  pop(workspaceId: string, offset = 0): ClosedLinkTab | undefined {
-    for (let index = this.entries.length - 1; index >= 0; index -= 1) {
-      if (this.entries[index].workspaceId !== workspaceId) continue;
-      if (offset-- > 0) continue;
-      const [entry] = this.entries.splice(index, 1);
-      return entry;
-    }
-    return undefined;
-  }
-
-  has(workspaceId: string): boolean {
-    return this.entries.some((entry) => entry.workspaceId === workspaceId);
-  }
 }

@@ -67,13 +67,35 @@ describe('DockAutoCloseToasts', () => {
     expect(store?.getSnapshot().activeTabId).toBe(store?.getSnapshot().tabs[2]?.id);
   });
 
-  it('reports a cap close without a restore action', () => {
+  it('offers to view the archive after a first-visit cleanup', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(0);
+    const before = new DockStore(createDockSessionPersistence(window.localStorage));
+    before.setActiveWorkspace('ws-a');
+    for (const page of ['a', 'b']) before.openLink(`https://${page}.example`);
+
+    vi.setSystemTime(IDLE_TAB_MS + 1);
+    render();
+    const toast = notify.mock.calls[0][0];
+    expect(toast.title).toBe('Archived 1 tabs you have not used in a while');
+    expect(toast.secondaryAction?.label).toBe('View');
+    act(() => store?.collapse());
+
+    act(() => toast.secondaryAction?.onClick());
+    expect(store?.getSnapshot().expanded).toBe(true);
+    expect(store?.archive.takeReveal()).toBe(true);
+  });
+
+  it('reports a cap close with a view action but no restore', () => {
     render();
     act(() => {
       for (let index = 0; index <= DOCK_TAB_LIMIT; index += 1) store?.openLink(`https://page-${index}.example`);
     });
     expect(titles()).toHaveLength(DOCK_TAB_LIMIT);
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify.mock.calls[0][0].action).toBeUndefined();
+    const toast = notify.mock.calls[0][0];
+    expect(toast.action?.label).toBe('View');
+    expect(toast.secondaryAction).toBeUndefined();
+    expect(store?.archive.list('ws-a').map((entry) => entry.reason)).toEqual(['overflow']);
   });
 });

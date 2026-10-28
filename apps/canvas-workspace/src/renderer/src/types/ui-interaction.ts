@@ -16,6 +16,8 @@ export interface ToastInput {
   description?: string;
   autoCloseMs?: number;
   action?: ToastAction;
+  /** A second button after `action`, for a toast that offers two next steps. */
+  secondaryAction?: ToastAction;
 }
 
 export interface ToastRecord extends ToastInput {

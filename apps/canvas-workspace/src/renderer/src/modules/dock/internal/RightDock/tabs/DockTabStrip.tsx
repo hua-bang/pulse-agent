@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
+import { lazy, Suspense, useSyncExternalStore, type ReactNode, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 import { useI18n } from '../../../../../i18n';
 import { focusActiveDockTarget, focusDockLinkTarget } from '../links/dock-browser-commands';
@@ -71,6 +71,10 @@ export const DockTabStrip = ({
   const comparisonActive = Boolean(splitTabIds);
   // Read at use: tabs can go stale while nothing re-renders the strip.
   const inactiveTabIds = () => idleTabIds(store.getTabActivity(), store.getSnapshot(), Date.now());
+  // Removing or clearing archive entries does not commit dock state.
+  useSyncExternalStore(store.archive.subscribe, store.archive.getRevision);
+  const archived = store.archive.list(state.activeTerminalWorkspaceId)
+    .map(({ tab, closedAt, reason }) => ({ item: tab, closedAt, reason }));
   // The observer owner mounts with its DOM, including on the first lazy open.
   const tabIndicator = useDockTabIndicator({ scopeId: state.activeTerminalWorkspaceId,
     activeTabId: activePaneId, visible: tabStripVisible,
@@ -173,13 +177,16 @@ export const DockTabStrip = ({
           />
         ))}
       </div>
-      {(allTabItems.length > 0 || store.canReopenClosedTab()) && (
+      {(allTabItems.length > 0 || archived.length > 0) && (
         <Suspense fallback={null}>
           <DockTabSwitcher key={activeWorkspaceId} items={allTabItems} activeTabId={activePaneId} splitTabIds={splitTabIds}
-            closedTabs={store.getClosedTabs()} onReopen={offset => { store.reopenClosedTab(offset); focusActiveDockTarget(store); }}
+            archived={archived} onReopen={offset => { store.reopenClosedTab(offset); focusActiveDockTarget(store); }}
+            onRemoveArchived={offset => store.archive.remove(state.activeTerminalWorkspaceId, offset)}
+            onClearArchive={() => store.archive.clear(state.activeTerminalWorkspaceId)}
+            reveal={store.archive}
             onActivate={activateFromUser} onClose={id => store.close(id)}
             lastActiveAt={store.getTabActivity()} getInactiveCount={() => inactiveTabIds().length}
-            onCloseInactive={() => { for (const id of inactiveTabIds()) store.close(id); }} />
+            onCloseInactive={() => { for (const id of inactiveTabIds()) store.close(id, 'idle'); }} />
         </Suspense>
       )}
       {visible && (

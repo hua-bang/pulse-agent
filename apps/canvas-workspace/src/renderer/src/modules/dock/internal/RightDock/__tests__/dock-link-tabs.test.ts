@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ClosedLinkTabStack,
   allocateTabId,
   applyRetainedTabPatch,
   insertLinkTab,
@@ -150,38 +149,5 @@ describe('linkPaneKey', () => {
     // Tab ids are derived from the URL, so two canvases holding the same page
     // produce the same id — the mounted-pane bookkeeping must not conflate them.
     expect(linkPaneKey('ws1', 'link:x')).not.toBe(linkPaneKey('ws2', 'link:x'));
-  });
-});
-
-describe('ClosedLinkTabStack', () => {
-  it('pops most-recent-first within a workspace', () => {
-    const stack = new ClosedLinkTabStack();
-    stack.push({ tab: link('a') as never, index: 0, workspaceId: 'ws1' });
-    stack.push({ tab: link('b') as never, index: 1, workspaceId: 'ws1' });
-
-    expect(stack.pop('ws1')?.tab.id).toBe('b');
-    expect(stack.pop('ws1')?.tab.id).toBe('a');
-    expect(stack.pop('ws1')).toBeUndefined();
-  });
-
-  it('never hands a tab to a different workspace', () => {
-    const stack = new ClosedLinkTabStack();
-    stack.push({ tab: link('a') as never, index: 0, workspaceId: 'ws1' });
-
-    expect(stack.has('ws2')).toBe(false);
-    expect(stack.pop('ws2')).toBeUndefined();
-    // ws1's entry is untouched by the miss.
-    expect(stack.pop('ws1')?.tab.id).toBe('a');
-  });
-
-  it('drops the oldest entry past the limit', () => {
-    const stack = new ClosedLinkTabStack(2);
-    stack.push({ tab: link('a') as never, index: 0, workspaceId: 'ws1' });
-    stack.push({ tab: link('b') as never, index: 0, workspaceId: 'ws1' });
-    stack.push({ tab: link('c') as never, index: 0, workspaceId: 'ws1' });
-
-    expect(stack.pop('ws1')?.tab.id).toBe('c');
-    expect(stack.pop('ws1')?.tab.id).toBe('b');
-    expect(stack.pop('ws1')).toBeUndefined();
   });
 });

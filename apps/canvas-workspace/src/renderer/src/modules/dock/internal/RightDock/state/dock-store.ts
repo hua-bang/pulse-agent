@@ -15,8 +15,8 @@ import {
   type TerminalCommit,
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
-import { ClosedLinkTabStack } from '../links/dock-link-tabs';
-import { DockTabCleanup, overflowTabIds } from '../tabs/dock-tab-cleanup';
+import { DockTabArchive, type DockTabArchivePersistence, type DockTabArchiveReason } from '../links/dock-tab-archive';
+import { DockTabCleanup } from '../tabs/dock-tab-cleanup';
 import {
   getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch, getReopenTabPatch,
   getSetFaviconPatch, getSetTitlePatch, getSyncLinkUrlPatch,
@@ -58,11 +58,13 @@ export class DockStore {
   private listeners = new Set<() => void>();
   private nextLinkOrdinal = 1;
   private readonly linkSessions: DockLinkSessionStore;
-  private readonly closedLinkTabs = new ClosedLinkTabStack();
+  /** Closed web tabs, kept across launches; reopen and the switcher read it. */
+  readonly archive: DockTabArchive;
   readonly tabCleanup = new DockTabCleanup();
 
-  constructor(sessionPersistence?: DockSessionPersistence) {
+  constructor(sessionPersistence?: DockSessionPersistence, archivePersistence?: DockTabArchivePersistence) {
     this.linkSessions = new DockLinkSessionStore(sessionPersistence);
+    this.archive = new DockTabArchive(archivePersistence);
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -84,7 +86,7 @@ export class DockStore {
     for (const listener of [...this.listeners]) listener();
     const opened = this.state.tabs.length > previous.tabs.length
       && this.state.activeTerminalWorkspaceId === previous.activeTerminalWorkspaceId;
-    if (opened) this.tabCleanup.close(overflowTabIds(this.getTabActivity(), this.state), this.state, 'overflow', (id) => this.close(id));
+    if (opened) this.tabCleanup.enforceCap(this.getTabActivity(), this.state, (id, reason) => this.close(id, reason));
   }
 
   private persistActiveLinkSession(): void {
@@ -329,8 +331,7 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.commit(this.linkSessions.switchWorkspace(this.state, workspaceId));
-    const stale = this.tabCleanup.firstVisitTabIds(workspaceId, this.getTabActivity(), this.state, Date.now());
-    this.tabCleanup.close(stale, this.state, 'first-visit', (id) => this.close(id));
+    this.tabCleanup.firstVisit(workspaceId, this.getTabActivity(), this.state, Date.now(), (id, reason) => this.close(id, reason));
   }
 
   /** When each tab of this workspace was last active (epoch ms by tab id). */
@@ -444,7 +445,7 @@ export class DockStore {
     this.commit(next);
   }
 
-  close(id: string): void {
+  close(id: string, reason: DockTabArchiveReason = 'manual'): void {
     const scope = this.state.activeTerminalWorkspaceId;
     if (id === 'folder' && !this.folderEditor.allow(scope, () => { if (this.state.activeTerminalWorkspaceId === scope) this.close(id); })) return;
     if (id === 'folder') this.folderEditor.discard(scope);
@@ -452,15 +453,10 @@ export class DockStore {
     if (index === -1) return;
     const comparisonSurvivorId = getComparisonSurvivorId(this.state, id);
     const closed = this.state.tabs[index];
-    const closingLink = closed.kind === 'link';
     // A web tab carries browsing state (history, scroll, sign-in); closing one
-    // is the only destructive tab action, so keep it reopenable.
-    if (closingLink) {
-      this.closedLinkTabs.push({
-        tab: closed as DockLinkTab,
-        index,
-        workspaceId: this.state.activeTerminalWorkspaceId,
-      });
+    // is the only destructive tab action, so archive it. A blank tab has nothing to keep.
+    if (closed.kind === 'link' && closed.url) {
+      this.archive.push({ tab: closed, index, workspaceId: scope, closedAt: Date.now(), reason });
     }
     const tabs = this.state.tabs.filter((tab) => tab.id !== id);
     let activeTabId = this.state.activeTabId;
@@ -480,14 +476,14 @@ export class DockStore {
 
   /** Whether `reopenClosedTab` has anything to restore in this workspace. */
   canReopenClosedTab(): boolean {
-    return this.closedLinkTabs.has(this.state.activeTerminalWorkspaceId);
+    return this.archive.has(this.state.activeTerminalWorkspaceId);
   }
 
-  /** Closed history is scoped to this workspace. */
-  getClosedTabs(): DockLinkTab[] { return this.closedLinkTabs.list(this.state.activeTerminalWorkspaceId).map(entry => entry.tab); }
+  /** Archived tabs of this workspace, newest first. */
+  getClosedTabs(): DockLinkTab[] { return this.archive.list(this.state.activeTerminalWorkspaceId).map(entry => entry.tab); }
 
   reopenClosedTab(offset = 0): void {
-    const entry = this.closedLinkTabs.pop(this.state.activeTerminalWorkspaceId, offset);
+    const entry = this.archive.pop(this.state.activeTerminalWorkspaceId, offset);
     if (entry) this.commit(getReopenTabPatch(this.state.tabs, entry));
   }
 

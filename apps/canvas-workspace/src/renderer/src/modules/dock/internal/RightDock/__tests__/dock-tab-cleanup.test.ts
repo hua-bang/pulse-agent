@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DOCK_TAB_LIMIT, IDLE_TAB_MS, overflowTabIds, staleTabIds } from '../tabs/dock-tab-cleanup';
 import { DockStore, type DockLinkSessions, type DockPreviewTab } from '../state/dock-store';
 import { dedupeUrlKey } from '../links/dock-link-commands';
+import type { DockArchivedTab, DockTabArchivePersistence } from '../links/dock-tab-archive';
 
 const link = (id: string, extra: Partial<DockPreviewTab> = {}): DockPreviewTab => (
   { id, kind: 'link', title: id, url: `https://${id}.example`, ...extra } as DockPreviewTab
@@ -100,6 +101,36 @@ describe('DockStore tab cleanup', () => {
       const relaunched = new DockStore(persistence);
       relaunched.setActiveWorkspace('ws-a');
       expect(relaunched.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['https://c.example']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('archives closed web tabs with their reason, across a relaunch', () => {
+    let sessions: DockLinkSessions = {};
+    let entries: DockArchivedTab[] = [];
+    const persistence = { load: () => sessions, save: (next: DockLinkSessions) => { sessions = structuredClone(next); } };
+    const archive: DockTabArchivePersistence = { load: () => entries, save: (next) => { entries = structuredClone([...next]); } };
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const dock = new DockStore(persistence, archive);
+      dock.setActiveWorkspace('ws-a');
+      for (const page of ['idle', 'manual', 'current']) dock.openLink(`https://${page}.example`);
+      dock.newLink('Blank');
+      dock.close(dock.getSnapshot().activeTabId);
+      dock.close(dock.getSnapshot().tabs[1].id);
+      vi.setSystemTime(IDLE_TAB_MS + 1);
+
+      const relaunched = new DockStore(persistence, archive);
+      relaunched.setActiveWorkspace('ws-a');
+      expect(relaunched.archive.list('ws-a').map((entry) => [entry.tab.title, entry.reason, entry.closedAt])).toEqual([
+        ['https://idle.example', 'idle', IDLE_TAB_MS + 1],
+        ['https://manual.example', 'manual', 0],
+      ]);
+      relaunched.reopenClosedTab(1);
+      expect(relaunched.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['https://current.example', 'https://manual.example']);
+      expect(entries.map((entry) => entry.tab.title)).toEqual(['https://idle.example']);
     } finally {
       vi.useRealTimers();
     }
