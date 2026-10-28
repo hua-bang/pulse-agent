@@ -394,28 +394,30 @@ export function explicitlyNamedSkillsForContext(context: { messages: unknown[] }
   );
 }
 
+/** Skill names and descriptions are user-authored; keep them from breaking the list markup. */
+function escapeXml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export function generateSkillTool(
   registry: BuiltInSkillRegistry,
   explicitlyInvokedSkillNames: ReadonlySet<string> = new Set(),
 ): Tool<SkillToolInput, SkillInfo> {
   const getSkillsPrompt = (availableSkills: SkillInfo[]) => {
     return [
-      "If query matches an available skill's description or instruction [use skill], use the skill tool to get detailed instructions.",
-      "Load a skill to get detailed instructions for a specific task.",
-      "Skills provide specialized knowledge and step-by-step guidance.",
-      "Use this when a task matches an available skill's description, or when the user explicitly names an installed skill.",
-      "Skills marked disable-model-invocation are omitted from this list and may only be loaded when the user names them exactly.",
-      "Only the model-invocable skills listed here are available for automatic matching:",
-      "[!important] You should follow the skill's step-by-step guidance. If the skill is not complete, ask the user for more information.",
+      "Load a skill: step-by-step instructions for one kind of task.",
+      "Call this when the task matches a listed skill's description, or when the user names an installed skill.",
+      "Follow the loaded instructions. If they leave a gap, ask the user.",
+      "Skills marked disable-model-invocation are not listed; load one only when the user names it exactly.",
       "<available_skills>",
       ...availableSkills.filter(isModelInvocable).flatMap((skill) => [
         `  <skill>`,
-        `    <name>${skill.name}</name>`,
-        `    <description>${skill.description}</description>`,
+        `    <name>${escapeXml(skill.name)}</name>`,
+        `    <description>${escapeXml(skill.description)}</description>`,
         `  </skill>`
       ]),
       "</available_skills>"
-    ].join(" ");
+    ].join("\n");
   };
 
   return {

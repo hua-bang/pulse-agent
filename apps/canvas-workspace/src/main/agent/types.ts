@@ -296,6 +296,8 @@ export interface WorkspaceSummary {
   /** Edges are optional for backwards compatibility with callers that
    *  pre-date the connections feature. */
   edges?: EdgeSummary[];
+  /** Set when the prompt copy was trimmed to the summary budget. */
+  omitted?: { nodes: number; edges: number };
 }
 
 export interface ChatResponse {

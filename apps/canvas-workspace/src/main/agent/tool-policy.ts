@@ -335,15 +335,28 @@ function createBuiltInTools(names: readonly string[]): EngineToolMap {
 }
 
 /**
+ * Engine built-ins with no Canvas product purpose. `deferred_demo` only
+ * exercises the defer-loading path (engine `harness/spec/public-surface.md`
+ * item 4 tracks the engine-wide decision), so Canvas never exposes it.
+ */
+const EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES = new Set(['deferred_demo']);
+
+function createWorkspaceBuiltInTools(): EngineToolMap {
+  return Object.fromEntries(
+    Object.entries(BuiltinToolsMap).filter(([name]) => !EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES.has(name)),
+  );
+}
+
+/**
  * Select the host-side tool boundary before constructing an Engine.
- * Workspace chat preserves the Engine defaults. Interactive Global chat gets
+ * Workspace chat keeps the Engine defaults except demo tools. Interactive Global chat gets
  * independently useful built-ins plus explicit-target Canvas operations;
  * scheduled runs keep the narrower unattended boundary.
  */
 export function createCanvasAgentToolPolicy(scope: AgentScope): CanvasAgentToolPolicy {
   if (scope.kind === 'workspace') {
     return {
-      builtInTools: { ...BuiltinToolsMap },
+      builtInTools: createWorkspaceBuiltInTools(),
       canvasTools: createCanvasTools(scope.workspaceId),
     };
   }

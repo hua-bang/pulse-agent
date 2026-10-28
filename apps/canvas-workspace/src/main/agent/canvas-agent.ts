@@ -53,6 +53,7 @@ import { createFailedTurnToolTracker, failedAssistantMessage } from './run/chat-
 import { completeCanvasHostRun, markCanvasRuntimeCompleted, markCanvasRuntimeStarted } from './observability/host-run';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './context/dom-selection-context';
 import { formatSelectionFocusBlock } from './context/selection-focus-context';
+import { limitSummaryForPrompt } from './context/summary-budget';
 import { formatQuickActionBlock, formatQuickActionLines } from './context/quick-action-context';
 import { formatReferencedTabsBlock } from './context/referenced-tabs-context';
 import {
@@ -133,7 +134,7 @@ You are the single AI entry point for this workspace. You can:
 - Generate documents, PRDs, and technical specs
 
 ## Context Strategy
-Your system prompt contains a summary of all canvas nodes. For detailed content:
+Your system prompt contains a summary of the canvas nodes. On a large canvas it is partial and says so; use \`canvas_search_nodes\` for the rest. For detailed content:
 - Use \`canvas_read_node\` to read a specific node's full content
 - Use \`canvas_read_context\` with detail="full" for everything at once
 - For spatial/layout work, search for and call the layout tools (\`canvas_read_layout\`, then \`canvas_apply_layout\`); for single-node insertion prefer semantic \`placement\` (\`near_node\`, \`inside_frame\`, \`at\`) over raw x/y unless the user gave a precise location.
@@ -228,7 +229,7 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 - Reply in the user's language.
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - When creating file nodes, give them meaningful titles
-- When the user references a node by title, look it up in the summary below
+- When the user references a node by title, look it up in the summary below, or with \`canvas_search_nodes\` when the summary is partial
 - For canvas-related tasks, use the canvas_* tools
 - When asked to read an image, analyze an image node, OCR a screenshot, or create a mindmap from a picture, use \`image_analyze\` first.
 - When asked to generate/draw/create a picture, use \`image_generate\`; when the source is a mindmap node, prefer \`image_generate_from_mindmap\`.
@@ -503,7 +504,10 @@ export class CanvasAgent {
     const workspaceId = this.config.scope.kind === 'workspace'
       ? this.config.scope.workspaceId
       : undefined;
-    const summary = workspaceId ? await buildWorkspaceSummary(workspaceId) : null;
+    const fullSummary = workspaceId ? await buildWorkspaceSummary(workspaceId) : null;
+    const summary = fullSummary
+      ? limitSummaryForPrompt(fullSummary, (requestContext?.selectedNodes ?? []).map((node) => node.id))
+      : null;
 
     // Anchor to the conversation the renderer showed; other conversations in
     // the same workspace stay free to run concurrently.

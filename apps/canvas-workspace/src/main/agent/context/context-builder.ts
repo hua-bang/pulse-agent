@@ -13,6 +13,7 @@ import type { CanvasNodeRef } from '../../../shared/canvas';
 import { readCanvasFull } from '../../canvas/storage';
 import { filterWorkspaceIds, readWorkspaceManifest } from '../../canvas/workspaces';
 import { readSessionOutput } from '../../terminal/session-output';
+import { formatOmittedSummaryNote } from './summary-budget';
 import {
   formatPluginNodeFallbackContent,
   getPluginNodeCapabilityKinds,
@@ -604,6 +605,7 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
     `Canvas directory: ${summary.canvasDir}`,
     `Total nodes: ${summary.nodeCount}`,
     '',
+    ...formatOmittedSummaryNote(summary),
   ];
 
   const byType: Record<string, NodeSummary[]> = {};

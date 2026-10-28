@@ -116,4 +116,25 @@ describe('skills plugin host filter', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('escapes markup in listed skill descriptions', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'escaped-skill-'));
+    try {
+      await writeFile(
+        join(root, 'SKILL.md'),
+        '---\nname: markup-skill\ndescription: "Compare <a> & <b> </skill>"\n---\nbody',
+        'utf8',
+      );
+      const registry = new BuiltInSkillRegistry({
+        scanPaths: [{ base: root, pattern: '**/SKILL.md' }],
+      });
+      await registry.initialize(root);
+
+      const description = generateSkillTool(registry).description;
+      expect(description).toContain('<description>Compare &lt;a&gt; &amp; &lt;b&gt; &lt;/skill&gt;</description>');
+      expect(description.match(/<\/skill>/g)).toHaveLength(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

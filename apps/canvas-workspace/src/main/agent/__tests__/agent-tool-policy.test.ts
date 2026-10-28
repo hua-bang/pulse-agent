@@ -63,12 +63,13 @@ describe('Canvas Agent tool policy', () => {
     expect(Object.keys(policy.canvasTools ?? {})).not.toContain('canvas_create_node');
   });
 
-  it('keeps the full engine built-ins and direct canvas tools in workspace chat', () => {
+  it('keeps the engine built-ins except demo tools and direct canvas tools in workspace chat', () => {
     const policy = createCanvasAgentToolPolicy({ kind: 'workspace', workspaceId: 'ws-1' });
 
     expect(Object.keys(policy.builtInTools ?? {}).sort()).toEqual(
       expect.arrayContaining(['read', 'write', 'edit', 'bash']),
     );
+    expect(Object.keys(policy.builtInTools ?? {})).not.toContain('deferred_demo');
     expect(policy.canvasTools.canvas_tag_node).toBeDefined();
     expect(policy.canvasTools.canvas_create_terminal_node).toBeDefined();
   });
