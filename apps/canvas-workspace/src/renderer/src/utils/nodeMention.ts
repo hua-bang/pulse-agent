@@ -1,4 +1,4 @@
-import type { CanvasNode, FileNodeData } from '../types';
+import type { AgentContextTabRef, CanvasNode, FileNodeData } from '../types';
 
 /**
  * Canonical `@[label](canvas:id)` mention string for a canvas node.
@@ -13,14 +13,33 @@ export function buildNodeMention(node: CanvasNode): string {
   return `@[${label}](canvas:${node.id})`;
 }
 
-export function buildNodeMentionInsertion(
-  node: CanvasNode,
-  context?: { before?: string; after?: string },
-): string {
-  const mention = buildNodeMention(node);
+/**
+ * Plain-text mention for a dock tab, for terminals that cannot carry chat
+ * mention chips. A web page points at its URL and a node-detail tab uses the
+ * node format above. Other tabs point at the dock tab id, which
+ * `pulse-canvas runtime call browser.tabs.list` resolves.
+ */
+export function buildTabMention(tab: AgentContextTabRef): string {
+  if (tab.kind === 'link' && tab.url) return `@[${tab.title}](${tab.url})`;
+  if (tab.kind === 'node-detail' && tab.nodeId) return `@[${tab.title}](canvas:${tab.nodeId})`;
+  return `@[${tab.title}](tab:${tab.id})`;
+}
+
+function padMention(mention: string, context?: { before?: string; after?: string }): string {
   const needsLeading = context ? Boolean(context.before && !/\s$/.test(context.before)) : true;
   const needsTrailing = context ? !context.after || !/^\s/.test(context.after) : true;
   const leading = needsLeading ? ' ' : '';
   const trailing = needsTrailing ? ' ' : '';
   return `${leading}${mention}${trailing}`;
+}
+
+export function buildNodeMentionInsertion(
+  node: CanvasNode,
+  context?: { before?: string; after?: string },
+): string {
+  return padMention(buildNodeMention(node), context);
+}
+
+export function buildTabMentionInsertion(tab: AgentContextTabRef): string {
+  return padMention(buildTabMention(tab));
 }

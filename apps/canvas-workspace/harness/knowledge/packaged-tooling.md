@@ -250,4 +250,6 @@ skill-installer, shell-path, and the Settings UI files above) to:
 
 `src/main/shell-path.ts` — a GUI launch inherits a stripped PATH, and every child (agent `bash`, which the engine spawns with NO `env`, MCP stdio servers, the bundled CLI) takes `process.env` verbatim, so a missing binary surfaces as a bare "command not found". Repaired once in `bootstrap.ts` before any spawn: `augmentProcessPath()` (sync, well-known per-user bin dirs incl. `~/.pulse-coder/bin`) then a best-effort `applyLoginShellPath()` (async, timeout-bounded `$SHELL -ilc`, only ever widens). PTY env shares the same bin-dir list — do not fork a second copy. Tests: `src/main/__tests__/shell-path.test.ts`
 
+PTY env also gets a UTF-8 `LANG` when LC_ALL, LC_CTYPE, and LANG are all unset (GUI launch). Without it, CLIs run in the C locale and `pbcopy` reads UTF-8 as Mac Roman, so copied Chinese text is garbled. An explicit locale wins. Tests: `src/main/terminal/pty-locale.test.ts`
+
 Repo harness skills guide coding agents; src/main/agent/skills is the product runtime feature. The files/skill-installer boundary deploys the external pulse-canvas CLI and bundled skills through the same compatibility bundle.

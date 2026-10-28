@@ -1,22 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
-import type { CanvasNode, FileNodeData } from '../../../../types';
+import type { AgentContextTabRef, CanvasNode, FileNodeData } from '../../../../types';
 import { isImeComposing } from '../../../../utils/ime';
-import { useI18n } from '../../../../i18n';
+import { useI18n, type I18nKey } from '../../../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../utils/nodeTypeI18n';
 import { useEscapeClose } from '../../../../hooks/useEscapeClose';
 import { formatShortcutId } from '../../../../shortcuts/registry';
 import { useIndexNav } from '../../../../components/ui';
+import { groupMentionEntries, type MentionEntry } from './mentionGroups';
 
 interface Props {
   nodes: CanvasNode[];
   onSelect: (node: CanvasNode) => void;
   onClose: () => void;
+  /** Dock tabs to offer above the nodes; shown only with `onSelectTab`. */
+  tabs?: AgentContextTabRef[];
+  onSelectTab?: (tab: AgentContextTabRef) => void;
 }
 
-const MAX_RESULTS = 20;
+const EMPTY_TABS: AgentContextTabRef[] = [];
 
-export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
+const TAB_KIND_LABEL_KEY: Record<AgentContextTabRef['kind'], I18nKey> = {
+  link: 'chat.tabKind.link',
+  artifact: 'chat.tabKind.artifact',
+  'node-detail': 'chat.tabKind.nodeDetail',
+  canvas: 'chat.tabKind.canvas',
+  terminal: 'chat.tabKind.terminal',
+};
+
+export const NodeMentionPicker = ({ nodes, onSelect, onClose, tabs = EMPTY_TABS, onSelectTab }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const { index: selectedIndex, setIndex: setSelectedIndex, move, reset } = useIndexNav();
@@ -30,21 +42,22 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
     inputRef.current?.focus();
   }, []);
 
-  const filtered = useMemo((): CanvasNode[] => {
-    if (!query.trim()) return nodes.slice(0, MAX_RESULTS);
-    const q = query.toLowerCase();
-    return nodes
-      .filter((n) => {
-        if (n.title.toLowerCase().includes(q)) return true;
-        if (t(CANVAS_NODE_TYPE_LABEL_KEY[n.type]).toLowerCase().includes(q)) return true;
-        if (n.type === 'file') {
-          const fp = (n.data as FileNodeData).filePath ?? '';
-          return fp.toLowerCase().includes(q);
-        }
-        return false;
-      })
-      .slice(0, MAX_RESULTS);
-  }, [query, nodes, t]);
+  const entryTypeLabel = useCallback((entry: MentionEntry) => (
+    entry.kind === 'tab'
+      ? t(TAB_KIND_LABEL_KEY[entry.tab.kind])
+      : t(CANVAS_NODE_TYPE_LABEL_KEY[entry.node.type])
+  ), [t]);
+  const groups = useMemo(() => groupMentionEntries({
+    nodes,
+    tabs: onSelectTab ? tabs : EMPTY_TABS,
+    query,
+    typeLabel: entryTypeLabel,
+  }), [entryTypeLabel, nodes, onSelectTab, query, tabs]);
+  const filtered = useMemo(() => groups.flatMap(group => group.entries), [groups]);
+  const selectEntry = useCallback((entry: MentionEntry) => {
+    if (entry.kind === 'tab') onSelectTab?.(entry.tab);
+    else onSelect(entry.node);
+  }, [onSelect, onSelectTab]);
   const activeOptionId = selectedIndex >= 0 && selectedIndex < filtered.length
     ? `node-mention-option-${selectedIndex}`
     : undefined;
@@ -79,12 +92,17 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
         return;
       }
       if (e.key === 'Enter' && filtered[selectedIndex]) {
-        onSelect(filtered[selectedIndex]);
+        selectEntry(filtered[selectedIndex]);
         return;
       }
     },
-    [filtered, selectedIndex, onSelect, onClose, move],
+    [filtered, selectedIndex, selectEntry, onClose, move],
   );
+
+  const placeholder = onSelectTab && tabs.length > 0
+    ? t('nodeMention.searchPlaceholderWithTabs')
+    : t('nodeMention.searchPlaceholder');
+  let optionIndex = 0;
 
   return (
     <div className="node-mention-backdrop" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>
@@ -98,8 +116,8 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
             ref={inputRef}
             type="text"
             className="node-mention-input"
-            placeholder={t('nodeMention.searchPlaceholder')}
-            aria-label={t('nodeMention.searchPlaceholder')}
+            placeholder={placeholder}
+            aria-label={placeholder}
             role="combobox"
             aria-controls={filtered.length > 0 ? listId : undefined}
             aria-activedescendant={activeOptionId}
@@ -114,35 +132,48 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
           {filtered.length === 0 ? (
             <div className="node-mention-empty">{t('nodeMention.empty')}</div>
           ) : (
-            filtered.map((node, idx) => {
-              const filePath = node.type === 'file' ? (node.data as FileNodeData).filePath : undefined;
-              const fileName = filePath ? filePath.split('/').pop() : undefined;
-              return (
-                <button
-                  key={node.id}
-                  id={`node-mention-option-${idx}`}
-                  type="button"
-                  role="option"
-                  aria-selected={idx === selectedIndex}
-                  aria-label={t('nodeMention.option', {
-                    type: t(CANVAS_NODE_TYPE_LABEL_KEY[node.type]),
-                    title: node.title || t('nodeMention.untitled'),
-                  })}
-                  data-node-mention-index={idx}
-                  className={`node-mention-item${idx === selectedIndex ? ' selected' : ''}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onSelect(node)}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  onFocus={() => setSelectedIndex(idx)}
-                >
-                  <span className={`node-mention-badge node-mention-badge--${node.type}`}>
-                    {t(CANVAS_NODE_TYPE_LABEL_KEY[node.type])}
-                  </span>
-                  <span className="node-mention-title">{node.title || t('nodeMention.untitled')}</span>
-                  {fileName && <span className="node-mention-path">{fileName}</span>}
-                </button>
-              );
-            })
+            groups.map(group => (
+              <div key={group.key} role="group" aria-labelledby={`node-mention-group-${group.key}`}>
+                <div id={`node-mention-group-${group.key}`} className="node-mention-group-header">
+                  {group.key === 'tab' ? t('chat.mention.tab') : t(CANVAS_NODE_TYPE_LABEL_KEY[group.key])}
+                </div>
+                {group.entries.map((entry) => {
+                  const idx = optionIndex++;
+                  const typeLabel = entryTypeLabel(entry);
+                  const title = entry.kind === 'tab'
+                    ? entry.tab.title || t('nodeMention.untitled')
+                    : entry.node.title || t('nodeMention.untitled');
+                  const filePath = entry.kind === 'node' && entry.node.type === 'file'
+                    ? (entry.node.data as FileNodeData).filePath
+                    : undefined;
+                  const fileName = filePath ? filePath.split('/').pop() : undefined;
+                  return (
+                    <button
+                      key={entry.key}
+                      id={`node-mention-option-${idx}`}
+                      type="button"
+                      role="option"
+                      aria-selected={idx === selectedIndex}
+                      aria-label={t('nodeMention.option', { type: typeLabel, title })}
+                      data-node-mention-index={idx}
+                      className={`node-mention-item${idx === selectedIndex ? ' selected' : ''}`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectEntry(entry)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      onFocus={() => setSelectedIndex(idx)}
+                    >
+                      {entry.kind === 'tab' && (
+                        <span className={`node-mention-badge node-mention-badge--tab-${entry.tab.kind}`}>
+                          {typeLabel}
+                        </span>
+                      )}
+                      <span className="node-mention-title">{title}</span>
+                      {fileName && <span className="node-mention-path">{fileName}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ))
           )}
         </div>
         <div className="node-mention-hint">

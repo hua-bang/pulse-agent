@@ -1017,6 +1017,7 @@ const en = {
 
   'nodeMention.title': '@ Reference a node',
   'nodeMention.searchPlaceholder': 'Search node names...',
+  'nodeMention.searchPlaceholderWithTabs': 'Search tabs and nodes...',
   'nodeMention.empty': 'No matching nodes',
   'nodeMention.untitled': '(untitled)',
   'nodeMention.results': 'Mentionable nodes',
@@ -3033,6 +3034,7 @@ const zh: Record<keyof typeof en, string> = {
 
   'nodeMention.title': '@ 引用节点',
   'nodeMention.searchPlaceholder': '搜索节点名称...',
+  'nodeMention.searchPlaceholderWithTabs': '搜索标签页和节点...',
   'nodeMention.empty': '无匹配节点',
   'nodeMention.untitled': '（未命名）',
   'nodeMention.results': '可引用节点',

@@ -1,5 +1,5 @@
 import type { AgentContextTabRef } from '../../types';
-import type { DockState } from '../dockTypes';
+import type { DockState, DockTerminalTab } from '../dockTypes';
 import { TERMINAL_TAB_ID } from './dock-tab-ids';
 import { isDockTabPresented } from './dock-split-state';
 
@@ -12,6 +12,22 @@ export function terminalSessionId(workspaceId: string, terminalTabId: string): s
   return terminalTabId === TERMINAL_TAB_ID
     ? `workspace-terminal:${workspaceId}`
     : `workspace-terminal:${workspaceId}:${terminalTabId}`;
+}
+
+const AGENT_TERMINAL_TITLES: Record<string, string> = {
+  'claude-code': 'Claude',
+  codex: 'Codex',
+  pi: 'Pi',
+};
+
+/**
+ * Default title of a terminal tab that runs a known coding agent, such as
+ * "Claude 2". The tab strip, the tab switcher, and `@` mentions all use it,
+ * so a mention query matches the label the user sees.
+ */
+export function terminalTabAgentTitle(tab: Pick<DockTerminalTab, 'agentType' | 'ordinal'>): string | undefined {
+  const name = tab.agentType ? AGENT_TERMINAL_TITLES[tab.agentType] : undefined;
+  return name ? `${name} ${tab.ordinal}` : undefined;
 }
 
 /**
@@ -46,7 +62,7 @@ export function buildDockTabRefs(state: DockState, workspaceId: string): AgentCo
     refs.push({
       id: tab.id,
       kind: 'terminal',
-      title: tab.title || `Terminal ${tab.ordinal}`,
+      title: tab.title || terminalTabAgentTitle(tab) || `Terminal ${tab.ordinal}`,
       workspaceId,
       dockWorkspaceId: workspaceId,
       sessionId: terminalSessionId(workspaceId, tab.id),

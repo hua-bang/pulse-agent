@@ -321,6 +321,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
           workspaces={workspaces}
           mountedWorkspaceIds={mountedWorkspaceIds}
           allNodes={allNodes}
+          activeDockTabs={buildDockTabRefs(dockState, dockState.activeTerminalWorkspaceId)}
           terminalTabsByWorkspace={dockState.terminalTabsByWorkspace}
           activeTerminalTabId={dockState.activeTerminalTabId}
           open={terminalDockOpen}

@@ -8,6 +8,7 @@ import { readlink } from "fs/promises";
 import { delimiter, dirname, join, resolve } from "path";
 import { PtySessionLeaseRegistry } from "./session-lease";
 import { commonPosixBinDirs, mergePath } from "../shell-path";
+import { withUtf8Locale } from "./pty-locale";
 
 /** Session output held in memory; readers of terminal nodes prefer it to saved text. */
 export { readSessionOutput } from "./session-output";
@@ -117,7 +118,7 @@ const buildPtyEnv = (): Record<string, string> => {
   // Shares one bin-dir list with the startup PATH repair, so a command the
   // agent's bash can find is also findable in a terminal node, and vice versa.
   env.PATH = mergePath(env.PATH, commonPosixBinDirs());
-  return env;
+  return withUtf8Locale(env, platform());
 };
 
 const COMMAND_LOOKUP_MARKER = "__PULSE_CANVAS_COMMAND_PATH__:";
