@@ -120,6 +120,18 @@ describe('DockStore tab cleanup', () => {
     }
   });
 
+  it('opens a blank tab right after the active tab, or at the end from chat', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openLink('https://a.example');
+    dock.openLink('https://b.example');
+    dock.activate(dock.getSnapshot().tabs[0].id);
+    dock.newLink('First');
+    dock.openChat();
+    dock.newLink('Last');
+    expect(dock.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['https://a.example', 'First', 'https://b.example', 'Last']);
+  });
+
   it('saves the pin with the web tab', () => {
     let sessions: DockLinkSessions = {};
     const persistence = { load: () => sessions, save: (next: DockLinkSessions) => { sessions = structuredClone(next); } };
