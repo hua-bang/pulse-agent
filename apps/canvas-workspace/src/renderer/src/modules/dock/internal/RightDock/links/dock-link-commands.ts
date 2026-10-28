@@ -90,7 +90,10 @@ export function getReopenTabPatch(
   return { tabs: next, activeTabId: id, expanded: true };
 }
 
-/** Blank tab. Unlike an opened URL, blank tabs are never deduped. */
+/**
+ * Blank tab, placed right after the active content tab (at the end when chat
+ * or a terminal is active). Unlike an opened URL, blank tabs are never deduped.
+ */
 export function getNewLinkPatch(
   state: DockState,
   title: string,
@@ -98,7 +101,10 @@ export function getNewLinkPatch(
 ): Partial<DockState> {
   const id = blankLinkTabId(state.tabs, ordinal);
   const tab: DockPreviewTab = { id, kind: 'link', title, url: '' };
-  return { tabs: [...state.tabs, tab], activeTabId: id, expanded: true };
+  const activeIndex = state.tabs.findIndex((item) => item.id === state.activeTabId);
+  const tabs = [...state.tabs];
+  tabs.splice(activeIndex === -1 ? tabs.length : activeIndex + 1, 0, tab);
+  return { tabs, activeTabId: id, expanded: true };
 }
 
 /** Address-bar navigation: a new destination, so the title and icon reset. */

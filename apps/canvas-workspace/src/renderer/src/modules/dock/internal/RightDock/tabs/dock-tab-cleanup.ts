@@ -1,6 +1,8 @@
 /**
  * Automatic dock tab cleanup: which content tabs to close because they sat
- * unused too long, or because the strip grew past its cap.
+ * unused too long, or because the strip grew past its cap. A workspace gets
+ * the full cleanup on its first visit after launch; later, opening a tab
+ * enforces only the cap, and switching workspaces closes nothing.
  *
  * Pure rules over `DockState` and per-tab last-use times; `DockStore` runs
  * the closes through `store.close`, so closed web tabs stay reopenable.
@@ -73,4 +75,58 @@ export function staleTabIds(
   const idle = idleTabIds(lastActiveAt, state, now);
   const remaining = { ...state, tabs: state.tabs.filter((tab) => !idle.includes(tab.id)) };
   return [...idle, ...overflowTabIds(lastActiveAt, remaining)];
+}
+
+/** One batch of automatic closes, so the UI can say what went. */
+export interface DockAutoCloseNotice {
+  workspaceId: string;
+  reason: 'first-visit' | 'overflow';
+  count: number;
+  /** Web tabs in the batch; they are on the reopen stack. */
+  reopenableTabIds: string[];
+}
+
+/**
+ * Runs `staleTabIds` once per workspace per app launch, on its first visit,
+ * and reports each batch of automatic closes to its listeners.
+ */
+export class DockTabCleanup {
+  private readonly cleanedWorkspaceIds = new Set<string>();
+  private readonly listeners = new Set<(notice: DockAutoCloseNotice) => void>();
+  /** Batches closed before anyone listened: the first canvas is entered before the UI subscribes. */
+  private pending: DockAutoCloseNotice[] = [];
+
+  subscribe(listener: (notice: DockAutoCloseNotice) => void): () => void {
+    this.listeners.add(listener);
+    const pending = this.pending;
+    this.pending = [];
+    for (const notice of pending) listener(notice);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  /** Close `ids` through `close`, then report the batch. */
+  close(
+    ids: readonly string[],
+    state: CleanupState & Pick<DockState, 'activeTerminalWorkspaceId'>,
+    reason: DockAutoCloseNotice['reason'],
+    close: (id: string) => void,
+  ): void {
+    if (ids.length === 0) return;
+    const reopenableTabIds = state.tabs.filter((tab) => tab.kind === 'link' && ids.includes(tab.id)).map((tab) => tab.id);
+    const notice = { workspaceId: state.activeTerminalWorkspaceId, reason, count: ids.length, reopenableTabIds };
+    for (const id of ids) close(id);
+    if (this.listeners.size === 0) this.pending.push(notice);
+    for (const listener of [...this.listeners]) listener(notice);
+  }
+
+  firstVisitTabIds(
+    workspaceId: string,
+    lastActiveAt: Readonly<Record<string, number>>,
+    state: CleanupState,
+    now: number,
+  ): string[] {
+    if (this.cleanedWorkspaceIds.has(workspaceId)) return [];
+    this.cleanedWorkspaceIds.add(workspaceId);
+    return staleTabIds(lastActiveAt, state, now);
+  }
 }

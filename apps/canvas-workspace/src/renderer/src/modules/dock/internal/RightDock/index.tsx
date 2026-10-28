@@ -61,6 +61,7 @@ export {
   isGlobalChatLauncherVisible,
 } from '../../../../shared/dock/dock-chat-availability';
 export { useChatDockWorkspace } from './useChatDockWorkspace';
+export { DockAutoCloseToasts } from './tabs/DockAutoCloseToasts';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
@@ -216,13 +217,6 @@ export const RightDock = ({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  // A window left open for days never switches workspace; check again on return.
-  useEffect(() => {
-    const onFocus = () => store.closeStaleTabs();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [store]);
 
   useEffect(() => {
     // Reflow is a per-route policy (`reserveSpace`), NOT a function of the

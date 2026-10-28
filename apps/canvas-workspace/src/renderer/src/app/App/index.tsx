@@ -4,7 +4,7 @@ import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
 import { ConversationCompletionToastBridge } from '../shell/ConversationCompletionToastBridge';
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
-import { GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
+import { DockAutoCloseToasts, GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
 import { Workbench, useWorkbenchState } from '../shell/Workbench';
@@ -474,6 +474,7 @@ const AppContent = () => {
         onActivateWorkspace={activateDockWorkspace}
       />
       <ConversationCompletionToastBridge onOpenSessionInScope={openSessionInOwningScope} />
+      <DockAutoCloseToasts />
       <Suspense fallback={null}><MigrationSpinner /></Suspense>
       <DeferredSettings
         workspaceLoaded={workspaceSettingsLoaded}
