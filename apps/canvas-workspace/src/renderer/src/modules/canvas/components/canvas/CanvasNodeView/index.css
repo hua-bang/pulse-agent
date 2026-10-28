@@ -66,8 +66,11 @@
 
 /* A selected card's header toolbar sits outside its box, so later siblings
  * painted over it. Lift the selection above its neighbours. Containers stay
- * in their layer, or a selected frame would cover its own children. */
-.canvas-node--selected:not(.canvas-node--frame):not(.canvas-node--group) {
+ * in their layer, or a selected frame would cover its own children. A
+ * fullscreen node keeps its own layer above the backdrop: this more specific
+ * rule would otherwise drop it under the dim, and a click on its content
+ * would hit the backdrop and exit fullscreen. */
+.canvas-node--selected:not(.canvas-node--frame):not(.canvas-node--group):not(.canvas-node--fullscreen) {
   z-index: 1;
 }
 .canvas-node--dragging {

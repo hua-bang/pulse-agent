@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { CanvasNode, CanvasTransform } from '../../../../../../types';
 import { isContainerNode, isInsideContainer } from '../../../../../../utils/frameHierarchy';
+import { OVERVIEW_SCALE_THRESHOLD } from '../../../../runtime/useCanvas';
 
 // Focus-mode reframe sizing. Padding leaves breathing room around the
 // focused node so siblings can peek in at the edges (Heptabase-style),
@@ -23,10 +24,13 @@ interface Options {
   selectedNodeIds: string[];
   handleFocusNode: (
     node: CanvasNode,
-    opts?: { padding?: number; maxScale?: number },
+    opts?: { padding?: number; maxScale?: number; minScale?: number },
   ) => void;
   getLiveTransform: () => CanvasTransform;
   animateTransform: (next: CanvasTransform) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
+  setSelectedEdgeId: (id: string | null) => void;
+  setHighlightedId: (id: string | null) => void;
 }
 
 /**
@@ -42,6 +46,9 @@ export const useCanvasFocusMode = ({
   handleFocusNode,
   getLiveTransform,
   animateTransform,
+  setSelectedNodeIds,
+  setSelectedEdgeId,
+  setHighlightedId,
 }: Options) => {
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   // ID of the node currently rendered fullscreen. Fullscreen is an
@@ -122,6 +129,35 @@ export const useCanvasFocusMode = ({
     setFullscreenNodeId(null);
   }, []);
 
+  // Select and frame a node for a navigation (layer click, find, open on
+  // canvas). Fullscreen pins the camera to its node: focusing that node
+  // again keeps the camera, and focusing another node ends fullscreen first.
+  // That exit skips the return glide, or the glide would override the new
+  // framing.
+  const focusNodeInViewport = useCallback((node: CanvasNode) => {
+    setSelectedNodeIds([node.id]);
+    setSelectedEdgeId(null);
+    setHighlightedId(node.id);
+    if (fullscreenNodeId === node.id) return;
+    if (fullscreenNodeId) {
+      fullscreenReturnRef.current = null;
+      setFullscreenNodeId(null);
+    }
+    // In focus mode the dedicated reframe effect handles the zoom with
+    // tighter padding/maxScale — calling handleFocusNode here too would
+    // produce a double reframe at different scales (visible jitter).
+    if (focusModeActive) return;
+    // A web node below the overview threshold still shows only its identity
+    // card, so focusing one must land where the page itself renders.
+    // Never zoom in past 100% (or the current zoom, if higher) to show it.
+    const maxScale = Math.max(getLiveTransform().scale, 1);
+    const minScale = node.type === 'iframe' ? OVERVIEW_SCALE_THRESHOLD + 0.05 : undefined;
+    handleFocusNode(node, { maxScale, minScale });
+  }, [
+    focusModeActive, fullscreenNodeId, getLiveTransform, handleFocusNode,
+    setHighlightedId, setSelectedEdgeId, setSelectedNodeIds,
+  ]);
+
   // Drop the fullscreen pin if its node disappears (deleted, workspace
   // swapped, etc.) — leaving it would render an overlay for a node that
   // no longer exists in the tree.
@@ -180,5 +216,6 @@ export const useCanvasFocusMode = ({
     exitFocusMode,
     handleToggleFullscreen,
     exitFullscreen,
+    focusNodeInViewport,
   };
 };

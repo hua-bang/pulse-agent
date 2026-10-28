@@ -153,6 +153,14 @@ export const useFileNodeEditor = ({
     } else {
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = null;
+        // Keystrokes after this snapshot may still sit in the commit debounce.
+        // Commit them now so the write carries them: the write acknowledgement
+        // reloads the editor with the written Markdown, so a stale snapshot
+        // would erase them.
+        if (contentCommitRef.current) {
+          latestCommitContentRef.current(true);
+          return;
+        }
         persist();
       }, AUTO_SAVE_MS);
     }

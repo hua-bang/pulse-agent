@@ -268,31 +268,36 @@ export const useCanvasKeyboard = ({
       if (event.shiftKey) findPrev();
       else findNext();
     },
+    // Fullscreen pins the camera to its node: the stretched box only fills
+    // the viewport at that exact camera, so keys that move the camera do
+    // nothing until fullscreen ends.
     'canvas.cycleNodes': (event) => {
       event.preventDefault();
+      if (fullscreenActive) return;
       cycleSelection(event.shiftKey);
     },
     'canvas.focusMode': (event) => {
       if (!focusModeEnabled && !canToggleFocusMode) return;
       event.preventDefault();
+      if (fullscreenActive) return;
       onToggleFocusMode?.();
     },
 
     'canvas.zoomIn': (event) => {
       event.preventDefault();
-      zoomBy(KEYBOARD_ZOOM_STEP);
+      if (!fullscreenActive) zoomBy(KEYBOARD_ZOOM_STEP);
     },
     'canvas.zoomOut': (event) => {
       event.preventDefault();
-      zoomBy(1 / KEYBOARD_ZOOM_STEP);
+      if (!fullscreenActive) zoomBy(1 / KEYBOARD_ZOOM_STEP);
     },
     'canvas.zoomReset': (event) => {
       event.preventDefault();
-      resetZoom();
+      if (!fullscreenActive) resetZoom();
     },
     'canvas.fitAll': (event) => {
       event.preventDefault();
-      fitNodes(nodes);
+      if (!fullscreenActive) fitNodes(nodes);
     },
     'canvas.refresh': (event) => {
       event.preventDefault();
@@ -303,7 +308,7 @@ export const useCanvasKeyboard = ({
       const selected = nodes.filter((n) => idSet.has(n.id));
       if (selected.length === 0) return;
       event.preventDefault();
-      fitNodes(selected);
+      if (!fullscreenActive) fitNodes(selected);
     },
     'canvas.toolSelect': (event) => { event.preventDefault(); setActiveTool('select'); },
     'canvas.toolHand': (event) => { event.preventDefault(); setActiveTool('hand'); },
