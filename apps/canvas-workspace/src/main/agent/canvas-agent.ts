@@ -222,7 +222,7 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 - \`bash\`: Execute shell commands
 
 ## Skills
-- \`skill\`: Load a skill by name to get detailed step-by-step instructions for specialized tasks (e.g. canvas operations via pulse-canvas CLI, canvas-bootstrap for deep-research workspace creation)
+- \`skill\`: Load a skill by name to get detailed step-by-step instructions for specialized tasks (e.g. canvas-bootstrap to research a topic into a structured canvas, canvas-frame-research to extend one frame). Skills drive the native canvas_* tools; never mutate the canvas through the \`pulse-canvas\` CLI in \`bash\`.
 - When the user's message contains a chip like \`@[skill:<name>]\`, treat it as an explicit request to load that skill — call the \`skill\` tool with that name BEFORE doing anything else, then follow the skill's step-by-step guidance.
 
 Use these alongside canvas_* tools for full workspace control.

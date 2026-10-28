@@ -22,6 +22,8 @@ import {
 import { skillNameKey } from '../../../shared/skill-name';
 import { getCanvasPluginSkillSources } from '../../plugin-market/config';
 import { findSkillResources } from './resources';
+import { isCanvasAgentSkill } from './audience';
+import { readFrontMatterFields } from './front-matter';
 import type { CanvasSkillsStatus } from '../../../shared/settings-config';
 export type { CanvasSkillsStatus } from '../../../shared/settings-config';
 export interface CanvasSkill {
@@ -76,29 +78,20 @@ function serializeSkill(skill: CanvasSkill): string {
 }
 
 /** Best-effort parse of a SKILL.md the UI wrote (front matter + body). */
-function parseSkill(content: string): { name: string; description: string; body: string } | null {
+function parseSkill(
+  content: string,
+): { name: string; description: string; body: string; canvasAgent: boolean } | null {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(content);
   if (!match) return null;
   const [, frontMatter, body] = match;
-  let name = '';
-  let description = '';
-  for (const line of frontMatter.split(/\r?\n/)) {
-    const kv = /^(\w+)\s*:\s*(.*)$/.exec(line);
-    if (!kv) continue;
-    const [, key, rawValue] = kv;
-    let value = rawValue.trim();
-    if (value.startsWith('"')) {
-      try {
-        value = JSON.parse(value) as string;
-      } catch {
-        value = value.replace(/^"|"$/g, '');
-      }
-    }
-    if (key === 'name') name = value;
-    else if (key === 'description') description = value;
-  }
-  if (!name) return null;
-  return { name, description, body: body.replace(/^\s+/, '') };
+  const fields = readFrontMatterFields(frontMatter);
+  if (!fields.name) return null;
+  return {
+    name: fields.name,
+    description: fields.description ?? '',
+    body: body.replace(/^\s+/, ''),
+    canvasAgent: isCanvasAgentSkill(fields),
+  };
 }
 
 /**
@@ -170,13 +163,17 @@ export async function listCanvasSkills(scope: CanvasConfigScope): Promise<Canvas
       }
       const parsed = parseSkill(content);
       if (!parsed) continue;
+      // Mirror the engine filter: skills written only for external agents
+      // are neither loaded nor listed, and they do not shadow same-name skills.
+      const { canvasAgent, ...skill } = parsed;
+      if (!canvasAgent) continue;
 
-      const nameKey = skillNameKey(parsed.name);
+      const nameKey = skillNameKey(skill.name);
       if (seenNames.has(nameKey)) continue;
       seenNames.add(nameKey);
 
       skills.push({
-        ...parsed,
+        ...skill,
         scope: scope.level,
         path,
         source: src.source,
@@ -386,25 +383,10 @@ export interface CanvasSkillImportResult {
 
 /** Parse just the front matter; used for zip entries before we touch disk. */
 function parseFrontMatterOnly(bytes: Uint8Array): { name?: string; description?: string } {
-  const text = strFromU8(bytes);
-  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(strFromU8(bytes));
   if (!match) return {};
-  const out: { name?: string; description?: string } = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const kv = /^(\w+)\s*:\s*(.*)$/.exec(line);
-    if (!kv) continue;
-    let value = kv[2].trim();
-    if (value.startsWith('"')) {
-      try {
-        value = JSON.parse(value) as string;
-      } catch {
-        value = value.replace(/^"|"$/g, '');
-      }
-    }
-    if (kv[1] === 'name') out.name = value;
-    else if (kv[1] === 'description') out.description = value;
-  }
-  return out;
+  const { name, description } = readFrontMatterFields(match[1]);
+  return { name, description };
 }
 
 export async function importCanvasSkillsZip(

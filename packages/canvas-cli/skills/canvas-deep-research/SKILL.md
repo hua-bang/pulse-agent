@@ -1,6 +1,6 @@
 ---
 name: canvas-deep-research
-description: Source-backed research workflow for Pulse Canvas bootstrapping, due diligence, technical/product/market landscape analysis, current-state research, and any canvas task where Codex must gather reliable evidence before producing an artifact. Use when canvas-bootstrap needs a bundled research protocol, or when the user asks to research reliable sources before creating or organizing a canvas.
+description: Source-backed research workflow for Pulse Canvas bootstrapping, due diligence, technical/product/market landscape analysis, current-state research, and any canvas task where the agent must gather reliable evidence before producing an artifact. Use when canvas-bootstrap needs a bundled research protocol, or when the user asks to research reliable sources before creating or organizing a canvas.
 ---
 
 # Canvas Deep Research

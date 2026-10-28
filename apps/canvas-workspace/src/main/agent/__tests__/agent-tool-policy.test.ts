@@ -370,3 +370,70 @@ describe('Canvas Agent tool policy', () => {
     expect(prompt).not.toMatch(/There are no `write`\/`edit` tools/i);
   });
 });
+
+describe('pulse-canvas CLI node creation through bash', () => {
+  it.each([
+    'pulse-canvas node create --type file --title Report',
+    "'/Users/me/.pulse-coder/bin/pulse-canvas' apply --workspace ws --file plan.json",
+    'cd /tmp && pulse-canvas workspace create "Topic" --format json',
+  ])('requires a node-creation card in Auto mode for %s', async (command) => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'bash',
+      input: { command },
+      toolContext: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: 'tool-bash-cli',
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).toHaveBeenCalledWith(expect.objectContaining({
+      question: expect.stringContaining('creating a new node'),
+    }));
+    expect(result).toMatchObject({ output: { ok: false, cancelled: true } });
+  });
+
+  it.each([
+    'pulse-canvas node list --format json',
+    'pulse-canvas apply --workspace ws --file plan.json --dry-run --format json',
+    'pulse-canvas edge list | grep create',
+    'ls -la',
+  ])('leaves %s ungated in Auto mode', async (command) => {
+    const onClarificationRequest = vi.fn(async () => 'No');
+    const result = await enforceCanvasAskModeToolPolicy({
+      name: 'bash',
+      input: { command },
+      toolContext: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: 'tool-bash-read',
+        onClarificationRequest,
+      },
+    });
+
+    expect(onClarificationRequest).not.toHaveBeenCalled();
+    expect(result).toBeUndefined();
+  });
+
+  it('keeps CLI node-creation session grants separate from ordinary bash grants', async () => {
+    clearSessionApprovalGrants();
+    const runContext = { executionMode: 'ask', sessionId: 'session-cli' };
+    const grantAll = vi.fn(async () => SESSION_APPROVAL_ANSWER);
+    await requestAskModeApproval({
+      name: 'bash',
+      input: { command: 'ls' },
+      context: { runContext, toolCallId: 'bash-1', onClarificationRequest: grantAll },
+    });
+
+    const refuse = vi.fn(async () => 'No');
+    const decision = await requestAskModeApproval({
+      name: 'bash',
+      input: { command: 'pulse-canvas node create --type file' },
+      context: { runContext, toolCallId: 'bash-2', onClarificationRequest: refuse },
+    });
+
+    expect(refuse).toHaveBeenCalledTimes(1);
+    expect(decision.approved).toBe(false);
+    clearSessionApprovalGrants();
+  });
+});

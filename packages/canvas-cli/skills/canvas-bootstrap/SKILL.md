@@ -1,11 +1,14 @@
 ---
 name: canvas-bootstrap
 description: Deep-research a topic and build a structured Pulse Canvas workspace with approved research depth, source-backed findings, progressive or final canvas creation, spatially organized frames, content nodes, and connections. Use when the user asks to bootstrap, generate, research, organize, or build an AI-created canvas.
+canvas-agent: false
 ---
 
 # Canvas Bootstrap
 
-Turn a topic into a source-backed Pulse Canvas workspace. This skill is an orchestrator: use a user-approved research skill or the bundled `canvas-deep-research` protocol for evidence gathering, then use canvas layout tools for geometry.
+Turn a topic into a source-backed Pulse Canvas workspace. This skill is an orchestrator: use a user-approved research skill or the bundled `canvas-deep-research` protocol for evidence gathering, then use `pulse-canvas` layout commands for geometry.
+
+This version is for agents that reach the canvas through the `pulse-canvas` CLI. The Canvas Agent inside Pulse Canvas has its own native-tool version of this skill.
 
 ## Core Contract
 
@@ -21,7 +24,7 @@ Turn a topic into a source-backed Pulse Canvas workspace. This skill is an orche
 
 ## Phase 0: Depth Gate
 
-If the user did not explicitly choose a depth, ask a short question and stop:
+If the user did not explicitly choose a depth, ask a short question and stop. Translate this example into the user's language:
 
 ```text
 请选择这次调研深度：
@@ -112,10 +115,10 @@ Live-board rules:
 - Add source nodes or source summaries as they are reviewed.
 - Move findings from draft to synthesis only after cross-checking.
 - Keep live updates compact; do not flood the canvas with every search result.
-- Use `pulse-canvas layout frame-grid --frame <draft-frame-id>` to tidy the active draft frame without moving unrelated nodes.
+- Use `pulse-canvas layout frame-grid --workspace <id> --frame <draft-frame-id>` to tidy the active draft frame without moving unrelated nodes.
 - Run final layout after synthesis, not after every small update.
 
-If canvas tools are unavailable, report progress conversationally and create the canvas only when tools become available.
+If the `pulse-canvas` CLI is unavailable, report progress conversationally and create the canvas only when it becomes available.
 
 ## Phase 4: Synthesize Canvas Plan
 
@@ -174,19 +177,9 @@ Node type strategy:
 
 ## Phase 5: Create Canvas Content
 
-Preferred path inside Canvas Agent runtime:
+Check existing geometry with `pulse-canvas layout read --workspace <id> --format json` before creating or arranging content in an existing workspace.
 
-1. Check existing geometry with `pulse-canvas layout read --workspace <id> --format json` before creating or arranging content in an existing workspace.
-2. Create frames and nodes with canvas creation tools.
-3. For single semantic insertions, use `placement` instead of raw coordinates:
-   - `append_canvas` for a new top-level cluster
-   - `near_node` for a finding derived from a source or existing node
-   - `inside_frame` for content that belongs in a known frame
-   - `at` only when the user gave a precise location
-4. Create sparse edges with `canvas_create_edge`.
-
-Fallback path outside Canvas Agent runtime — prefer ONE validated batch plan over
-command loops. SQLite commits graph changes and file intents in one transaction,
+Prefer ONE validated batch plan over command loops. SQLite commits graph changes and file intents in one transaction,
 then applies file writes. File effects can partially fail after the commit.
 Legacy JSON writes also do not provide a transaction across files:
 
@@ -320,8 +313,8 @@ dashboard, which is exactly the look to avoid.
 6. One claim per card; long-form depth lives in linked detail cards.
 7. Size encodes importance, sources stay on the periphery, and colored
    emphasis stays under ~20% of cards.
-6. Layout tools are the default for geometry; manual coordinates are fallback only.
-7. Existing unrelated nodes are not moved unless the user approved an organizing action.
-8. Edges explain relationships with short labels and meaningful kinds.
-9. Uncertainty, conflicts, and open questions remain visible in the canvas.
-10. The final canvas focuses on information organization. Action-oriented nodes are opt-in, not default.
+8. Layout tools are the default for geometry; manual coordinates are fallback only.
+9. Existing unrelated nodes are not moved unless the user approved an organizing action.
+10. Edges explain relationships with short labels and meaningful kinds.
+11. Uncertainty, conflicts, and open questions remain visible in the canvas.
+12. The final canvas focuses on information organization. Action-oriented nodes are opt-in, not default.

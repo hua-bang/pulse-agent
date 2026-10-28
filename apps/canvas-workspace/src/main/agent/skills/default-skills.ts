@@ -4,7 +4,9 @@
  * `save-as-skill` / `promote-skill` are meta-skills for in-chat skill
  * management; `suggest-tags` drives the "find which nodes should carry a tag"
  * advisory workflow; `visual-style` is the style guide the workspace prompt
- * tells the agent to load before writing visual HTML/SVG. They are plain SKILL.md files in
+ * tells the agent to load before writing visual HTML/SVG; `canvas-bootstrap` /
+ * `canvas-frame-research` are the native-tool research workflows (see
+ * `canvas-research-skills.ts`). They are plain SKILL.md files in
  * the global scope — the agent's behavior is defined by these (user-editable)
  * markdown files, not by hard-coded prompts. Each one leans on a companion
  * tool for the resulting action (`skill_save` / `skill_promote`
@@ -170,11 +172,23 @@ Build a period report from chat history, propose memory candidates, and persist 
   ],
 };
 
-// The visual style guide is ~12KB of text needed only while seeding, so it
-// loads on demand instead of sitting in the main entry bundle.
-async function loadDefaultSkills(): Promise<DefaultSkill[]> {
-  const { VISUAL_STYLE_SKILL } = await import('./visual-style-skill');
-  return [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS, MEMORY_REVIEW, VISUAL_STYLE_SKILL];
+// The visual style guide and the research workflows are long texts needed
+// only while seeding, so they load on demand instead of sitting in the main
+// entry bundle.
+export async function loadDefaultSkills(): Promise<DefaultSkill[]> {
+  const [{ VISUAL_STYLE_SKILL }, { CANVAS_BOOTSTRAP_SKILL, CANVAS_FRAME_RESEARCH_SKILL }] = await Promise.all([
+    import('./visual-style-skill'),
+    import('./canvas-research-skills'),
+  ]);
+  return [
+    SAVE_AS_SKILL,
+    PROMOTE_SKILL,
+    SUGGEST_TAGS,
+    MEMORY_REVIEW,
+    VISUAL_STYLE_SKILL,
+    CANVAS_BOOTSTRAP_SKILL,
+    CANVAS_FRAME_RESEARCH_SKILL,
+  ];
 }
 
 // Exact SHA-256 of the previously bundled suggest-tags SKILL.md. Updating only

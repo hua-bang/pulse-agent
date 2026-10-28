@@ -125,6 +125,24 @@ export function requiresCanvasNodeCreationApproval(name: string): boolean {
     );
 }
 
+/**
+ * `bash` can reach the bundled `pulse-canvas` CLI, which adds nodes without
+ * passing through the native creators above. Treat a shell segment that runs
+ * a node-adding CLI command as node creation, so Auto mode cannot skip the
+ * card. `apply --dry-run` only validates and stays ungated.
+ */
+const CLI_NODE_CREATION_RE = /\bpulse-canvas\b.*\s(?:node\s+create|workspace\s+create|apply)(?=\s|$)/;
+
+export function isCliCanvasNodeCreation(name: string, input: unknown): boolean {
+  if (name.trim().toLowerCase() !== 'bash' || !input || typeof input !== 'object') return false;
+  const command = (input as { command?: unknown }).command;
+  if (typeof command !== 'string') return false;
+  return command.split(/[\n;&|]+/).some(segment =>
+    CLI_NODE_CREATION_RE.test(segment)
+    && !(/\sapply(?=\s|$)/.test(segment) && /\s--dry-run(?=\s|=|$)/.test(segment)),
+  );
+}
+
 export function classifyCanvasToolOperation(name: string): CanvasToolOperationKind {
   const normalized = name.toLowerCase();
   // Mutating words win over reader-like words: `get_or_create` and
@@ -182,7 +200,11 @@ export async function requestAskModeApproval(options: {
   context?: CanvasToolExecutionContext;
 }): Promise<AskModeApprovalDecision> {
   const { name, input, context } = options;
-  const nodeCreationRequiresApproval = requiresCanvasNodeCreationApproval(name);
+  const cliNodeCreation = isCliCanvasNodeCreation(name, input);
+  const nodeCreationRequiresApproval = requiresCanvasNodeCreationApproval(name) || cliNodeCreation;
+  // A session grant for CLI node creation must not approve every other shell
+  // command, and an ordinary bash grant must not approve CLI node creation.
+  const grantKey = cliNodeCreation ? `${name}:pulse-canvas-node-creation` : name;
   const askMode = context?.runContext?.executionMode === 'ask';
   if (!askMode && !nodeCreationRequiresApproval) return { approved: true, toolContext: context };
 
@@ -208,7 +230,7 @@ export async function requestAskModeApproval(options: {
       approvalGrantedFor: toolCallId,
     },
   });
-  if (sessionId && sessionApprovalGrants.get(sessionId)?.has(name)) {
+  if (sessionId && sessionApprovalGrants.get(sessionId)?.has(grantKey)) {
     return { approved: true, toolContext: approvedContext() };
   }
 
@@ -228,7 +250,7 @@ export async function requestAskModeApproval(options: {
   const trimmed = answer.trim();
   if (sessionId && trimmed === SESSION_APPROVAL_ANSWER) {
     const grants = sessionApprovalGrants.get(sessionId) ?? new Set<string>();
-    grants.add(name);
+    grants.add(grantKey);
     sessionApprovalGrants.set(sessionId, grants);
     return { approved: true, toolContext: approvedContext() };
   }

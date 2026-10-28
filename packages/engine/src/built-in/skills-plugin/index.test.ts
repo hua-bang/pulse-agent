@@ -82,3 +82,38 @@ describe('skills plugin invocation control', () => {
     }
   });
 });
+
+describe('skills plugin host filter', () => {
+  it('drops filtered skills before same-name dedupe so a lower-priority copy can load', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'filtered-skill-'));
+    const highDir = join(root, 'high', 'shared');
+    const lowDir = join(root, 'low', 'shared');
+    try {
+      await mkdir(highDir, { recursive: true });
+      await mkdir(lowDir, { recursive: true });
+      await writeFile(
+        join(highDir, 'SKILL.md'),
+        '---\nname: shared\ndescription: Host-specific copy\naudience: other-host\n---\nhigh',
+        'utf8',
+      );
+      await writeFile(
+        join(lowDir, 'SKILL.md'),
+        '---\nname: shared\ndescription: Portable copy\n---\nlow',
+        'utf8',
+      );
+      const registry = new BuiltInSkillRegistry({
+        scanPaths: [
+          { base: join(root, 'high'), pattern: '**/SKILL.md' },
+          { base: join(root, 'low'), pattern: '**/SKILL.md' },
+        ],
+        filter: (skill) => skill.metadata?.audience !== 'other-host',
+      });
+      await registry.initialize(root);
+
+      expect(registry.getAll()).toHaveLength(1);
+      expect(registry.get('shared')?.description).toBe('Portable copy');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});

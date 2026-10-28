@@ -2,6 +2,7 @@
 name: canvas
 description: Operate Pulse Canvas workspaces — read user-curated context, write results, create nodes
 version: 1.0.0
+canvas-agent: false
 ---
 
 # Pulse Canvas
