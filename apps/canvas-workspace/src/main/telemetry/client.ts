@@ -6,8 +6,14 @@
  *     events: [{ event, ts, props }] }
  *
  * The client never blocks the app: events queue in memory, flush on a timer
- * or when the batch is full, and a failed send drops the batch. The user
- * setting and the anonymous device id persist in one small JSON file.
+ * or when the batch is full, and a failed or timed-out send drops the batch.
+ * The user setting, the notice flag, and the anonymous device id persist in
+ * one small JSON file.
+ *
+ * Nothing leaves the device before the user has seen the first-launch
+ * notice: events queue until the user makes a choice (`setEnabled`), then
+ * the queue sends, or clears on opt-out. Without a choice, the queue is
+ * dropped at quit.
  */
 
 import { randomUUID } from 'crypto';
@@ -37,6 +43,8 @@ interface TelemetryEventRecord {
 interface TelemetrySettings {
   enabled: boolean;
   deviceId: string;
+  /** The user saw the notice and chose; until then nothing is sent. */
+  noticeSeen: boolean;
 }
 
 export interface TelemetryClientOptions {
@@ -56,6 +64,8 @@ const MAX_QUEUE = 200;
 /** The gateway accepts at most this many events per request. */
 const MAX_BATCH = 100;
 const MAX_STRING = 200;
+/** A hung gateway must not block the send chain for the rest of the run. */
+const SEND_TIMEOUT_MS = 10_000;
 const ALLOWED_PROPS: Record<string, readonly string[]> = TELEMETRY_EVENTS;
 
 /** Keep only the event's listed prop keys with short primitive values. */
@@ -99,7 +109,11 @@ export class TelemetryClient {
 
   async status(): Promise<TelemetryStatus> {
     const settings = await this.loadSettings();
-    return { configured: this.configured, enabled: settings.enabled };
+    return {
+      configured: this.configured,
+      enabled: settings.enabled,
+      noticeSeen: settings.noticeSeen,
+    };
   }
 
   /** True when this run generated the device id: the first launch here. */
@@ -108,12 +122,21 @@ export class TelemetryClient {
     return this.newDevice;
   }
 
-  /** Persists first; a failed write rejects and leaves the setting unchanged. */
+  /**
+   * The user's choice, from the first-launch notice or Settings; it also
+   * marks the notice as seen. Persists first; a failed write rejects and
+   * leaves the settings unchanged. Turning it on sends the held queue.
+   */
   async setEnabled(enabled: boolean): Promise<TelemetryStatus> {
     const settings = await this.loadSettings();
-    await this.writeSettings({ ...settings, enabled });
+    await this.writeSettings({ ...settings, enabled, noticeSeen: true });
     settings.enabled = enabled;
-    if (!enabled) this.queue = [];
+    settings.noticeSeen = true;
+    if (enabled) {
+      if (this.queue.length > 0) void this.flush();
+    } else {
+      this.queue = [];
+    }
     return this.status();
   }
 
@@ -153,6 +176,8 @@ export class TelemetryClient {
   }
 
   private async sendQueued(): Promise<void> {
+    // Hold the queue until the user has seen the notice.
+    if (!(await this.loadSettings()).noticeSeen) return;
     while (this.queue.length > 0) {
       await this.sendBatch(this.queue.splice(0, MAX_BATCH));
     }
@@ -171,6 +196,7 @@ export class TelemetryClient {
           app: this.options.app,
           events,
         }),
+        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       });
     } catch {
       // Telemetry is best effort: a failed batch is dropped, not retried.
@@ -208,6 +234,7 @@ export class TelemetryClient {
     const settings: TelemetrySettings = {
       enabled: typeof stored.enabled === 'boolean' ? stored.enabled : true,
       deviceId: typeof stored.deviceId === 'string' && stored.deviceId ? stored.deviceId : randomUUID(),
+      noticeSeen: stored.noticeSeen === true,
     };
     this.newDevice = settings.deviceId !== stored.deviceId;
     // An unconfigured build writes nothing to disk.

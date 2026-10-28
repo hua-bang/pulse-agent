@@ -21,6 +21,8 @@ This workspace owns one Cloudflare Worker. It receives anonymous usage batches f
 - Keep the Worker free of runtime dependencies. Wrangler is a global CLI, not a workspace dependency.
 - Secrets (the PostHog key) go through `wrangler secret put`, never `wrangler.toml` or source.
 - Never forward free text from the client beyond the sanitized props: no conversation text, paths, or URLs reach a sink.
+- Never forward the client IP to a sink. It is only a rate limit key (`IP_RATE_LIMITER`), because the device id is client-chosen.
+- `src/batch.ts` imports `TELEMETRY_EVENTS` from the Canvas shared contract by relative path, and Wrangler bundles it. The gateway drops unlisted events and prop keys, so deploy it before a Canvas release that adds one.
 
 ## Validation
 

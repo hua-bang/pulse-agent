@@ -7,7 +7,9 @@
  * Sinks, each active only when configured:
  *   - PostHog: secret POSTHOG_API_KEY, optional var POSTHOG_HOST.
  *   - Analytics Engine: dataset binding EVENTS (raw copy, SQL access).
- * Optional RATE_LIMITER binding limits requests per device id.
+ * Optional rate limit bindings: IP_RATE_LIMITER per client IP (checked first,
+ * because a client can make up any device id) and RATE_LIMITER per device id.
+ * The IP is only a rate limit key; no sink receives it.
  *
  * Clients only know this URL, so a sink can change without a client release.
  */
@@ -36,6 +38,7 @@ export interface Env {
   POSTHOG_HOST?: string;
   EVENTS?: AnalyticsEngineDataset;
   RATE_LIMITER?: RateLimiter;
+  IP_RATE_LIMITER?: RateLimiter;
 }
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -47,7 +50,7 @@ const status = (code: number, headers?: Record<string, string>) => (
   new Response(null, { status: code, headers })
 );
 
-async function deliver(batch: TelemetryBatch, env: Env, ip: string | undefined): Promise<void> {
+async function deliver(batch: TelemetryBatch, env: Env): Promise<void> {
   if (env.EVENTS) {
     try {
       for (const point of toAnalyticsDataPoints(batch)) env.EVENTS.writeDataPoint(point);
@@ -68,7 +71,7 @@ async function deliver(batch: TelemetryBatch, env: Env, ip: string | undefined):
     const response = await fetch(`${host}/batch/`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(toPostHogBatch(batch, apiKey, ip)),
+      body: JSON.stringify(toPostHogBatch(batch, apiKey)),
     });
     if (!response.ok) console.error('posthog batch failed', response.status);
   } catch (error) {
@@ -85,6 +88,12 @@ export default {
     const contentType = request.headers.get('content-type') ?? '';
     if (!/^application\/json\s*(;|$)/i.test(contentType)) return status(415);
     if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return status(413);
+
+    const ip = request.headers.get('cf-connecting-ip');
+    if (env.IP_RATE_LIMITER && ip) {
+      const { success } = await env.IP_RATE_LIMITER.limit({ key: ip });
+      if (!success) return status(429);
+    }
 
     // Measure wire bytes: a chunked request has no content-length.
     const bytes = await request.arrayBuffer();
@@ -103,7 +112,7 @@ export default {
       if (!success) return status(429);
     }
 
-    ctx.waitUntil(deliver(batch, env, request.headers.get('cf-connecting-ip') ?? undefined));
+    ctx.waitUntil(deliver(batch, env));
     return status(204);
   },
 };
