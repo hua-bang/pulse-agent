@@ -92,7 +92,13 @@ Do not prescribe an implementation unless evidence supports it. Separate confirm
 
 Completion criterion: the title names the observable problem, and every factual claim in the body comes from user input or inspected evidence.
 
-### 5. Create the issue
+### 5. Confirm the draft
+
+Show the user the final title and body, and ask them to confirm before you create the issue. Apply their edits first. An issue is public; do not create it in the same turn as the draft.
+
+Completion criterion: the user approved this exact title and body.
+
+### 6. Create the issue
 
 Write the body to a temporary file to avoid shell quoting problems, then run:
 

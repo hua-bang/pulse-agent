@@ -12,8 +12,10 @@
  * tool for the resulting action (`skill_save` / `skill_promote`
  * in `tools/skills.ts`); the SKILL.md tells the agent *when* and *how* to call it.
  *
- * On every app start we write them only if absent. The one obsolete bundled
- * default is upgraded by exact hash; user-edited variants keep their version.
+ * On every app start we write them only if absent. A file that matches a
+ * previously bundled version byte-for-byte (`legacyHashes`) is upgraded in
+ * place; user-edited variants keep their version. When you change a bundled
+ * body, add the hash of the version you replace.
  */
 
 import { promises as fs } from 'fs';
@@ -49,22 +51,26 @@ Use this when the user explicitly asks to turn what just happened in the convers
 
 2. **Draft three fields:**
    - **name** — short kebab-case identifier (e.g. \`code-review\`, \`bug-trace\`). Specific over generic.
-   - **description** — ONE sentence telling future-you (the agent) *when* to load this skill. Phrased like "When the user … use this to …". This is what gets matched against future user queries, so make it concrete.
+   - **description** — ONE sentence telling future-you (the agent) *when* to load this skill. Phrased like "When the user … use this to …", with one or two trigger phrases in the user's own language. This is what gets matched against future user queries, so make it concrete.
    - **body** — Markdown step-by-step instructions. Distill what *actually worked* in the conversation, not a textbook procedure. Reference specific tools, file patterns, or commands you used.
 
 3. **Pick a scope:** default to \`workspace\` (this canvas only). Switch to \`global\` only if the user says so, or if the skill is obviously generic (e.g. nothing workspace-specific in the body).
 
-4. **Show the draft to the user** as a chat message — all three fields plus the chosen scope. End with a question like "保存吗?要改哪里?" so they can adjust the name, edit a step, change scope, or cancel.
+4. **Check for a name clash.** Compare the name with the skills in the \`skill\` tool's list. If it already exists, tell the user that saving in the same scope replaces it, and that a workspace skill hides a global skill with the same name. Suggest a different name unless they want the replacement.
 
-5. **Apply their edits**, then call the \`skill_save\` tool with the final \`{ name, description, body, scope }\`. Confirm the path it landed at.
+5. **Show the draft to the user** as a chat message — all three fields plus the chosen scope. End with a question like "保存吗?要改哪里?" so they can adjust the name, edit a step, change scope, or cancel.
+
+6. **Apply their edits**, then call the \`skill_save\` tool with the final \`{ name, description, body, scope }\`. Confirm the path it landed at.
 
 ## Rules
 
 - **Never call \`skill_save\` without explicit user confirmation in the conversation.** A "looks good" or "保存吧" counts; silence does not.
 - **Don't auto-save in the same turn the user asked.** Always show the draft first, then save on the next turn.
 - If the user pushes back ("no, drop step 3", "rename to foo"), apply the change and re-show the draft before saving.
+- \`skill_save\` writes only SKILL.md. If the workflow needs scripts or reference files, say so and put the essential content in the body.
 - If the conversation didn't actually accomplish anything useful (just exploration, no concrete steps that worked), say so and suggest the user invoke this later when there's something concrete to save.
 `,
+  legacyHashes: ['5a5198dec88d29ae99c383748a77a18b545ce23ff4a80cbbb949e1003aced61b'],
 };
 
 const PROMOTE_SKILL: DefaultSkill = {
@@ -82,10 +88,11 @@ Use this when the user wants a workspace-only skill to be available across every
 
 2. **Quickly check the skill body for workspace-specific content** (hard-coded paths, project names, team URLs). If you see any, flag it: "这条里有 \`/Users/.../auth-server\` 这种本地路径,提升到全局后在别的 workspace 跑会怪。要不要先编辑一下?" Wait for the user's decision before continuing.
 
-3. **Warn if a global skill with the same name already exists** — promoting overwrites it. Confirm before proceeding.
+3. **Warn about overwrite.** \`skill_promote\` replaces any global skill with the same name, and you cannot see that global copy while the workspace copy hides it. Tell the user this and get confirmation before you call the tool.
 
 4. **Call \`skill_promote\` with \`{ name }\`.** The tool moves the file from the workspace's skills dir to the global one and removes the workspace copy. Confirm the result.
 `,
+  legacyHashes: ['fb75f0941d5e9138c1051f34641df6923694c1388ee9442e786014a512ca22c3'],
 };
 
 const SUGGEST_TAGS: DefaultSkill = {
@@ -106,9 +113,9 @@ Works in global chat (the whole system) and inside a single workspace. It is adv
 1. **Pin down the tag and its meaning.** Call \`knowledge_list_tags\` for the exact name/id and the tag's **description** — that description is your rubric. If the tag is new, or its meaning is vague, ask the user one line about what it should cover BEFORE judging. (A new tag is created only if the user later applies a proposal.)
    - *Scope:* default all workspaces; pass a \`workspaceId\` (resolve via \`workspace_list\`) only if the user scoped it.
 
-2. **Shortlist (don't decide yet).** \`knowledge_list_nodes({ untaggedOnly: true })\` — add \`query\` with the tag's keywords to keep the shortlist tight on a big canvas. Use \`title\` + \`summary\` ONLY to narrow down to plausible candidates; **do not tag based on the title/summary alone.**
+2. **Shortlist (don't decide yet).** Call \`knowledge_list_nodes({ query })\` with the tag's keywords, and drop nodes that already carry the tag. Add \`untaggedOnly: true\` only when the user asks about nodes with no tags at all; a node with other tags can still need this one. Use \`title\` + \`summary\` ONLY to narrow down to plausible candidates; **do not tag based on the title/summary alone.**
 
-3. **Read the full content before suggesting — mandatory.** For EVERY node you intend to suggest, call \`canvas_read_node({ workspaceId, nodeId })\` and judge from the **actual content**, not the title or snippet. Do not put a node in the result you haven't read.
+3. **Read the full content before suggesting — mandatory.** For EVERY node you intend to suggest, call \`knowledge_read_node({ nodeId })\` (it needs no workspace) and judge from the **actual content**, not the title or snippet. Do not put a node in the result you haven't read.
 
 4. **Judge strictly against the rubric.** Include a node only when its content is *substantively about* the tag's meaning (step 1's description) — i.e. the tag is a real subject/topic of the node, not a passing mention or an incidental keyword. When unsure, exclude it (or list it under a separate "maybe / 不确定" group); never auto-include to look thorough.
 
@@ -121,6 +128,7 @@ Works in global chat (the whole system) and inside a single workspace. It is adv
 - Reading full content costs tokens — keep the shortlist tight (use \`query\`) so you're not reading the whole canvas.
 - If nothing clearly fits, say so instead of forcing low-confidence tags.
 `,
+  legacyHashes: ['c71fdb764c3ccbeaf2cfcd00676d4bc6a34c875b60c980b318468c06c6e182eb'],
 };
 
 const MEMORY_REVIEW: DefaultSkill = {
