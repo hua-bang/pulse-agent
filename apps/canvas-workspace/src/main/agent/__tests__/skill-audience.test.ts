@@ -20,6 +20,7 @@ vi.mock('os', async () => {
 
 import { isCanvasAgentSkill } from '../skills/audience';
 import { listCanvasSkills } from '../skills/config';
+import { readFrontMatterFields } from '../skills/front-matter';
 import { loadDefaultSkills } from '../skills/default-skills';
 import { createCanvasAgentToolPolicy } from '../tool-policy';
 
@@ -61,6 +62,15 @@ describe('Canvas Agent skill audience', () => {
     expect(isCanvasAgentSkill({ 'canvas-agent': true })).toBe(true);
     expect(isCanvasAgentSkill({ 'canvas-agent': false })).toBe(false);
     expect(isCanvasAgentSkill({ 'canvas-agent': 'false' })).toBe(false);
+  });
+
+  it.each([
+    'canvas-agent: false',
+    'canvas-agent: false # CLI only',
+    "canvas-agent: 'false'",
+    'canvas-agent: "false"',
+  ])('reads %s the way the engine does', (line) => {
+    expect(isCanvasAgentSkill(readFrontMatterFields(`name: x\n${line}`))).toBe(false);
   });
 
   it('hides external-only skills from the settings list without shadowing same-name skills', async () => {
