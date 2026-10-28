@@ -16,7 +16,7 @@ import {
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
 import { ClosedLinkTabStack } from '../links/dock-link-tabs';
-import { staleTabIds } from '../tabs/dock-tab-cleanup';
+import { FirstVisitTabCleanup, overflowTabIds } from '../tabs/dock-tab-cleanup';
 import {
   getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch, getReopenTabPatch,
   getSetFaviconPatch, getSetTitlePatch, getSyncLinkUrlPatch,
@@ -59,6 +59,7 @@ export class DockStore {
   private nextLinkOrdinal = 1;
   private readonly linkSessions: DockLinkSessionStore;
   private readonly closedLinkTabs = new ClosedLinkTabStack();
+  private readonly firstVisitCleanup = new FirstVisitTabCleanup();
 
   constructor(sessionPersistence?: DockSessionPersistence) {
     this.linkSessions = new DockLinkSessionStore(sessionPersistence);
@@ -81,7 +82,9 @@ export class DockStore {
       || previous.expanded !== this.state.expanded
     ) this.persistActiveLinkSession();
     for (const listener of [...this.listeners]) listener();
-    if (this.state.tabs.length > previous.tabs.length) this.closeStaleTabs();
+    const opened = this.state.tabs.length > previous.tabs.length
+      && this.state.activeTerminalWorkspaceId === previous.activeTerminalWorkspaceId;
+    if (opened) for (const id of overflowTabIds(this.getTabActivity(), this.state)) this.close(id);
   }
 
   private persistActiveLinkSession(): void {
@@ -326,14 +329,11 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.commit(this.linkSessions.switchWorkspace(this.state, workspaceId));
-    this.closeStaleTabs();
+    for (const id of this.firstVisitCleanup.staleTabIds(workspaceId, this.getTabActivity(), this.state, Date.now())) this.close(id);
   }
 
   /** When each tab of this workspace was last active (epoch ms by tab id). */
   getTabActivity(): Record<string, number> { return this.linkSessions.getTabActivity(this.state.activeTerminalWorkspaceId); }
-
-  /** Close idle tabs and, past `DOCK_TAB_LIMIT`, the least recently used (`tabs/dock-tab-cleanup.ts`). */
-  closeStaleTabs(): void { for (const id of staleTabIds(this.getTabActivity(), this.state, Date.now())) this.close(id); }
 
   togglePin(id: string): void { const next = getTogglePinPatch(this.state.tabs, id); if (next) this.commit(next); }
 

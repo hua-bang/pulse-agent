@@ -1,6 +1,8 @@
 /**
  * Automatic dock tab cleanup: which content tabs to close because they sat
- * unused too long, or because the strip grew past its cap.
+ * unused too long, or because the strip grew past its cap. A workspace gets
+ * the full cleanup on its first visit after launch; later, opening a tab
+ * enforces only the cap, and switching workspaces closes nothing.
  *
  * Pure rules over `DockState` and per-tab last-use times; `DockStore` runs
  * the closes through `store.close`, so closed web tabs stay reopenable.
@@ -73,4 +75,20 @@ export function staleTabIds(
   const idle = idleTabIds(lastActiveAt, state, now);
   const remaining = { ...state, tabs: state.tabs.filter((tab) => !idle.includes(tab.id)) };
   return [...idle, ...overflowTabIds(lastActiveAt, remaining)];
+}
+
+/** Runs `staleTabIds` once per workspace per app launch, on its first visit. */
+export class FirstVisitTabCleanup {
+  private readonly cleanedWorkspaceIds = new Set<string>();
+
+  staleTabIds(
+    workspaceId: string,
+    lastActiveAt: Readonly<Record<string, number>>,
+    state: CleanupState,
+    now: number,
+  ): string[] {
+    if (this.cleanedWorkspaceIds.has(workspaceId)) return [];
+    this.cleanedWorkspaceIds.add(workspaceId);
+    return staleTabIds(lastActiveAt, state, now);
+  }
 }

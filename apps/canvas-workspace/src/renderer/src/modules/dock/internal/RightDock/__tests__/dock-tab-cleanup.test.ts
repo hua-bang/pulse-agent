@@ -62,20 +62,59 @@ describe('DockStore tab cleanup', () => {
     }
   });
 
-  it('closes idle non-web previews too, and spares a pinned tab', () => {
+  it('closes idle tabs on the first visit after launch, and spares a pinned tab', () => {
+    let sessions: DockLinkSessions = {};
+    const persistence = { load: () => sessions, save: (next: DockLinkSessions) => { sessions = structuredClone(next); } };
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const dock = new DockStore(persistence);
+      dock.setActiveWorkspace('ws-a');
+      dock.openLink('https://idle.example');
+      dock.openLink('https://pinned.example');
+      dock.togglePin(dock.getSnapshot().activeTabId);
+      dock.openLink('https://current.example');
+      vi.setSystemTime(IDLE_TAB_MS);
+      const relaunched = new DockStore(persistence);
+      relaunched.setActiveWorkspace('ws-a');
+      expect(relaunched.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['https://pinned.example', 'https://current.example']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cleans a workspace on its first visit after launch, not on later switches', () => {
+    let sessions: DockLinkSessions = {};
+    const persistence = { load: () => sessions, save: (next: DockLinkSessions) => { sessions = structuredClone(next); } };
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const dock = new DockStore(persistence);
+      dock.setActiveWorkspace('ws-a');
+      for (const page of ['a', 'b', 'c']) dock.openLink(`https://${page}.example`);
+      dock.setActiveWorkspace('ws-b');
+      vi.setSystemTime(IDLE_TAB_MS + 1);
+      dock.setActiveWorkspace('ws-a');
+      expect(dock.getSnapshot().tabs).toHaveLength(3);
+
+      const relaunched = new DockStore(persistence);
+      relaunched.setActiveWorkspace('ws-a');
+      expect(relaunched.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['https://c.example']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opening a tab enforces only the cap, not the idle rule', () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
       const dock = new DockStore();
       dock.setActiveWorkspace('ws-a');
-      dock.openArtifact('ws-a', 'artifact-1');
-      dock.openLink('https://pinned.example');
-      const pinnedId = dock.getSnapshot().activeTabId;
-      dock.togglePin(pinnedId);
-      dock.openLink('https://current.example');
-      vi.setSystemTime(IDLE_TAB_MS);
-      dock.closeStaleTabs();
-      expect(dock.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['https://pinned.example', 'https://current.example']);
+      dock.openLink('https://old.example');
+      vi.setSystemTime(IDLE_TAB_MS + 1);
+      dock.openLink('https://new.example');
+      expect(dock.getSnapshot().tabs).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }

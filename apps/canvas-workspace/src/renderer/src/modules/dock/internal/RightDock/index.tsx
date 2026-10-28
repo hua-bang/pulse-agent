@@ -217,13 +217,6 @@ export const RightDock = ({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // A window left open for days never switches workspace; check again on return.
-  useEffect(() => {
-    const onFocus = () => store.closeStaleTabs();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [store]);
-
   useEffect(() => {
     // Reflow is a per-route policy (`reserveSpace`), NOT a function of the
     // chat tab: a route without one (the full-page chats) still shows link and
