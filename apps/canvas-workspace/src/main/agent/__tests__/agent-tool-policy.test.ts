@@ -364,8 +364,11 @@ describe('Canvas Agent tool policy', () => {
     expect(prompt).toMatch(/`bash`/);
     expect(prompt).toMatch(/`write`/);
     expect(prompt).toMatch(/`edit`/);
-    expect(prompt).toContain('Before calling any node-creating tool');
-    expect(prompt).toContain('do not call `user_ask` for a second confirmation');
+    // The host card is the one node-creation confirmation; the prompt must
+    // not also ask the model to wait for a chat reply or a `user_ask`.
+    expect(prompt).toContain('That card is the confirmation');
+    expect(prompt).toContain('without asking in chat first or calling `user_ask`');
+    expect(prompt).not.toMatch(/wait for explicit user confirmation/i);
     expect(prompt).not.toMatch(/cannot[^.]*execute shell/i);
     expect(prompt).not.toMatch(/There are no `write`\/`edit` tools/i);
   });

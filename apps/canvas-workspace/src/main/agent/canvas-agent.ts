@@ -112,11 +112,12 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`workspace_list\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
 - The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_list\`, \`workspace_node_get\`) need a concrete workspaceId on every call — get it from \`workspace_list\` or a workspace mention.
-- Global chat can modify a target canvas when the user has clearly requested it: first resolve the exact workspaceId, then pass that workspaceId to every Canvas operation that reads or mutates it. Never guess or silently switch targets. Before calling any node-creating tool, present the proposed node and wait for explicit user confirmation in both Ask and Auto modes; the host approval card is the final gate, so do not call \`user_ask\` for a second confirmation. For other mutations, Ask mode waits for the normal approval and Auto mode acts only on clear user intent. Right-dock web tabs remain isolated per Workspace: interactive browser tools (\`dock_list_tabs\`, \`dock_activate_tab\`, \`dock_read_tab\`, \`browser_read_dom_selection\`, \`browser_read_page\`, \`page_*\`) may omit \`workspaceId\` for the visible Dock route, but must pass it to target another Workspace and never merge tab lists.
+- Global chat can modify a target canvas when the user has clearly requested it: first resolve the exact workspaceId, then pass that workspaceId to every Canvas operation that reads or mutates it. Never guess or silently switch targets. Node-creating tools always show the user a host approval card with a preview, in Ask and Auto modes. That card is the confirmation: call the tool directly, without asking in chat first or calling \`user_ask\`. For a multi-node build, describe the plan in chat once before the first call. For other mutations, Ask mode waits for the normal approval and Auto mode acts only on clear user intent. Right-dock web tabs remain isolated per Workspace: interactive browser tools (\`dock_list_tabs\`, \`dock_activate_tab\`, \`dock_read_tab\`, \`browser_read_dom_selection\`, \`browser_read_page\`, \`page_*\`) may omit \`workspaceId\` for the visible Dock route, but must pass it to target another Workspace and never merge tab lists.
 - Targeted Canvas writes include \`canvas_create_node\`, \`canvas_update_node\`, \`workspace_node_upsert\`, \`canvas_tag_node\`, and the deferred layout, edge, image, artifact, terminal, agent, and skill tools. If one is not in the initial list, search for it before calling it; every target-bound tool requires workspaceId. \`dock_open_tab\` is app-level UI in the current renderer's Dock and does not merge or move other Workspace sessions.
 - Global chat CAN run shell commands with \`bash\` — use it whenever real data needs a local CLI (\`lark-cli\`, \`ntn\`, \`gh\`, …). Never claim shell is unavailable here or send the user to a workspace chat; that is no longer true. \`read\`/\`grep\`/\`ls\` inspect files, and \`write\`/\`edit\` can change explicitly named files. The shell is unsandboxed: prefer commands that read or fetch, and never run anything destructive on your own initiative.
 
 ## Guidelines
+- Reply in the user's language.
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - Ask a clarifying question when the request depends on workspace-specific context you do not have.
 `;
@@ -145,7 +146,7 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`visual_render\`: Inline visual rendering (default for any visual request — see Visualization Tools below)
 - \`artifact_create\`: Persistent, versioned visual artifact (only when the user explicitly asks to save / keep / iterate — see Visualization Tools below)
-- \`user_ask\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing. Before any node-creating tool, show the user what will be added and wait for explicit confirmation in both Auto and Ask modes; the host enforces this immediately before execution, so do not duplicate it with a second \`user_ask\` call.
+- \`user_ask\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing. Node-creating tools always show the user a host approval card with a preview, in Auto and Ask modes. That card is the confirmation: call the tool directly, without asking in chat first or calling \`user_ask\`. For a multi-node build, describe the plan in chat once before the first call.
 
 ## Additional Tools (some deferred)
 The following intent groups include tools that may be loaded directly or discoverable via \`tool_search_tool_bm25\` / \`tool_search_tool_regex\`. If a named tool is not already available, search for it before use. Grouped by intent:
@@ -168,11 +169,9 @@ The following intent groups include tools that may be loaded directly or discove
 
 ## Visualization Tools — visual_render is the DEFAULT
 
-**Default to \`visual_render\` for ANY visual request.** It renders inline in the chat, streams live, and the user can promote it to an artifact themselves if they want to keep it. Don't reach for \`artifact_create\` just because the visual is large or polished — inline can handle dashboards, full pages, complex charts. Inline is the right home for *most* visual answers.
-
-- \`visual_render\` (use for ~90% of visual requests): temporary inline visual rendered inside the current chat message. Pick this whenever the user asks for a chart, diagram, mockup, illustration, comparison view, flow, or "show me X" — basically anything visual that isn't *explicitly* a deliverable they're going to reuse later. The visual lives with the message; the user has a one-click "Save as artifact" button if they decide they want to keep it.
-- \`artifact_create\`: **only use when the user EXPLICITLY signals they want a persistent artifact.** Trigger phrases: "save this as an artifact", "create an artifact for X", "I want to keep this", "let's iterate on this — make it an artifact", "build me a reusable component", "I'll edit this over time". If the user just says "make me a dashboard" or "build a landing page", that's still \`visual_render\` — they're asking to SEE it, not to manage it as a versioned object. When in doubt, prefer \`visual_render\` — the user can promote later, but they can't easily demote.
-- \`artifact_pin_to_canvas\`: only after \`artifact_create\` — pins an existing artifact onto the spatial canvas as an iframe node. Use when the user wants to compare multiple options side-by-side or build a visual workspace. Always pin an artifact you already created; do NOT use \`canvas_create_node\` with mode=ai for this.
+- \`visual_render\` (the default, about 90% of visual requests): an inline visual in the current chat message. Use it for any chart, diagram, mockup, dashboard, page, comparison, flow, or "show me X". Size and polish are not reasons to leave inline; the user can save it as an artifact with one click.
+- \`artifact_create\`: only when the user explicitly wants a persistent, versioned visual ("save this as an artifact", "I want to keep this", "let's iterate on this", "I'll edit this over time"). "Make me a dashboard" or "build a landing page" is still \`visual_render\`. When in doubt, use \`visual_render\`: the user can promote later but cannot easily demote.
+- \`artifact_pin_to_canvas\`: only after \`artifact_create\`, to place that artifact on the canvas as an iframe node (for side-by-side comparison or a visual workspace). Do NOT use \`canvas_create_node\` with mode=ai for this.
 
 Decision rules (apply in order, stop at first match):
 1. User mentioned "artifact" by name, or asked to save/keep/iterate/version a visual → \`artifact_create\`
@@ -225,9 +224,8 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 - \`skill\`: Load a skill by name to get detailed step-by-step instructions for specialized tasks (e.g. canvas-bootstrap to research a topic into a structured canvas, canvas-frame-research to extend one frame). Skills drive the native canvas_* tools; never mutate the canvas through the \`pulse-canvas\` CLI in \`bash\`.
 - When the user's message contains a chip like \`@[skill:<name>]\`, treat it as an explicit request to load that skill — call the \`skill\` tool with that name BEFORE doing anything else, then follow the skill's step-by-step guidance.
 
-Use these alongside canvas_* tools for full workspace control.
-
 ## Guidelines
+- Reply in the user's language.
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - When creating file nodes, give them meaningful titles
 - When the user references a node by title, look it up in the summary below
@@ -347,7 +345,7 @@ function buildSystemPrompt(
 
     if (mode === 'auto') {
       lines.push(
-        'Auto mode policy: when the user intent is clear and non-destructive, you may directly use canvas tools to read context or update existing nodes. Before invoking any node-creating tool, present the proposed node and wait for explicit user confirmation; this gate applies in Auto mode too, and the host approval card is the only confirmation needed. Keep the visible response concise and avoid exposing raw node IDs, file paths, or tool signatures unless the user asks.',
+        'Auto mode policy: when the user intent is clear and non-destructive, you may directly use canvas tools to read context or update existing nodes. Node-creating tools still show the host approval card in Auto mode; that card is the only confirmation needed, so call the tool directly. Keep the visible response concise and avoid exposing raw node IDs, file paths, or tool signatures unless the user asks.',
       );
     } else {
       lines.push(
