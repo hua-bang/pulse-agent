@@ -16,7 +16,7 @@ import {
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
 import { ClosedLinkTabStack } from '../links/dock-link-tabs';
-import { FirstVisitTabCleanup, overflowTabIds } from '../tabs/dock-tab-cleanup';
+import { DockTabCleanup, overflowTabIds } from '../tabs/dock-tab-cleanup';
 import {
   getNavigateLinkPatch, getNewLinkPatch, getOpenLinkPatch, getReopenTabPatch,
   getSetFaviconPatch, getSetTitlePatch, getSyncLinkUrlPatch,
@@ -59,7 +59,7 @@ export class DockStore {
   private nextLinkOrdinal = 1;
   private readonly linkSessions: DockLinkSessionStore;
   private readonly closedLinkTabs = new ClosedLinkTabStack();
-  private readonly firstVisitCleanup = new FirstVisitTabCleanup();
+  readonly tabCleanup = new DockTabCleanup();
 
   constructor(sessionPersistence?: DockSessionPersistence) {
     this.linkSessions = new DockLinkSessionStore(sessionPersistence);
@@ -84,7 +84,7 @@ export class DockStore {
     for (const listener of [...this.listeners]) listener();
     const opened = this.state.tabs.length > previous.tabs.length
       && this.state.activeTerminalWorkspaceId === previous.activeTerminalWorkspaceId;
-    if (opened) for (const id of overflowTabIds(this.getTabActivity(), this.state)) this.close(id);
+    if (opened) this.tabCleanup.close(overflowTabIds(this.getTabActivity(), this.state), this.state, 'overflow', (id) => this.close(id));
   }
 
   private persistActiveLinkSession(): void {
@@ -329,7 +329,8 @@ export class DockStore {
   setActiveWorkspace(workspaceId: string): void {
     if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
     this.commit(this.linkSessions.switchWorkspace(this.state, workspaceId));
-    for (const id of this.firstVisitCleanup.staleTabIds(workspaceId, this.getTabActivity(), this.state, Date.now())) this.close(id);
+    const stale = this.tabCleanup.firstVisitTabIds(workspaceId, this.getTabActivity(), this.state, Date.now());
+    this.tabCleanup.close(stale, this.state, 'first-visit', (id) => this.close(id));
   }
 
   /** When each tab of this workspace was last active (epoch ms by tab id). */

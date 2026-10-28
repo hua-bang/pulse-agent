@@ -61,6 +61,7 @@ export {
   isGlobalChatLauncherVisible,
 } from '../../../../shared/dock/dock-chat-availability';
 export { useChatDockWorkspace } from './useChatDockWorkspace';
+export { DockAutoCloseToasts } from './tabs/DockAutoCloseToasts';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const RESIZING_CLASS = 'right-dock-resizing';
