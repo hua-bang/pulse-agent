@@ -13,9 +13,10 @@ import {
   planPlaceNear,
 } from '../_shared/layout/layout';
 import { planRegionGrid } from '../_shared/layout/layout-region';
-import { LAYOUT_PRESETS, planLayoutPreset, type LayoutPreset } from '../_shared/layout/layout-presets';
+import type { LayoutPreset } from '../_shared/layout/layout-presets';
 
 const layoutDirectionSchema = z.enum(['right', 'below', 'left', 'above']);
+const LAYOUT_PRESETS = ['board', 'flow', 'matrix', 'stack'] as const satisfies readonly LayoutPreset[];
 
 export function createLayoutTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -139,6 +140,8 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
           } else if (mode === 'preset') {
             const preset = input.preset as LayoutPreset | undefined;
             if (!preset) return 'Error: preset is required for mode="preset"';
+            // Loaded on first use to keep it out of the main entry chunk.
+            const { planLayoutPreset } = await import('../_shared/layout/layout-presets');
             const plan = planLayoutPreset(canvas.nodes, {
               preset,
               frameIds: input.nodeIds as string[] | undefined,

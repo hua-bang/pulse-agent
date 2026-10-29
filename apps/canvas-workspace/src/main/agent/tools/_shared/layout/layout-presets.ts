@@ -23,8 +23,7 @@ import {
  * - `stack`: frames stacked top to bottom at one width. Use for a report
  *   that reads in order.
  */
-export const LAYOUT_PRESETS = ['board', 'flow', 'matrix', 'stack'] as const;
-export type LayoutPreset = (typeof LAYOUT_PRESETS)[number];
+export type LayoutPreset = 'board' | 'flow' | 'matrix' | 'stack';
 
 export interface LayoutPresetOptions {
   preset: LayoutPreset;

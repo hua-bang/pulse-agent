@@ -8,7 +8,7 @@ import {
   type WorkspaceNodeRecord,
 } from './nodes/store';
 import { readKnowledgeTags } from './nodes/tags';
-import { queryTerms, scoreNode, snippetAround } from './nodes/search-ranking';
+import type { snippetAround as SnippetAround } from './nodes/search-ranking';
 
 export interface SearchCanvasNodesInput {
   query?: string;
@@ -48,6 +48,8 @@ export async function searchCanvasNodes(
   const canvas = await loadCanvas(workspaceId);
   if (!canvas) return null;
 
+  // Loaded on first use to keep it out of the main entry chunk.
+  const { queryTerms, scoreNode, snippetAround } = await import('./nodes/search-ranking');
   const query = input.query?.trim() ?? '';
   const terms = queryTerms(query);
   const typeFilter = input.type
@@ -100,7 +102,7 @@ export async function searchCanvasNodes(
         id: node.id,
         type: node.type,
         title: node.title ?? '',
-        snippet: nodeSnippet(node, score?.bodyMatchIndex ?? -1),
+        snippet: nodeSnippet(node, score?.bodyMatchIndex ?? -1, snippetAround),
         x: node.x ?? 0,
         y: node.y ?? 0,
         ...(storedTags.length ? { tags: storedTags } : {}),
@@ -170,7 +172,7 @@ function nodeHaystacks(node: CanvasNode): string[] {
   return fields;
 }
 
-function nodeSnippet(node: CanvasNode, bodyMatchIndex: number): string {
+function nodeSnippet(node: CanvasNode, bodyMatchIndex: number, snippetAround: typeof SnippetAround): string {
   const data = node.data as Record<string, unknown>;
   // A match inside the body shows the text around it; otherwise the first field.
   if (bodyMatchIndex >= 0) {
