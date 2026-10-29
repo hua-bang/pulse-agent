@@ -182,6 +182,16 @@ documentation generation. Link-page detail extraction (`linked-page-context.ts`)
 loads only when reading a URL node; startup summaries do not load its live-page
 lookup and HTTP fallback coordinator.
 
+Agent layout is deterministic and lives in `tools/_shared/layout/`: a
+column-aligned grid (`grid.ts`), the frame/canvas/region modes, and four board
+presets (`layout-presets.ts`: `board`, `flow`, `matrix`, `stack`) behind
+`canvas_apply_layout` `mode: "preset"`. Agent-created notes size their height
+from their text (`content-size.ts`). Guards: `layout-presets.test.ts`,
+`content-size.test.ts`. Node search (`canvas/node-operations.ts` with
+`canvas/nodes/search-ranking.ts`) matches words separately, CJK by character
+pairs, and ranks by matched terms; the `pulse-canvas` CLI keeps its own
+substring search (`packages/canvas-cli/src/core/nodes.ts`).
+
 ### `agent-teams/`
 
 Multi-agent teams ownership: team service and store, team IPC, PTY bridge for

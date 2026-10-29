@@ -41,6 +41,7 @@ describe('ensureDefaultSkillsSeeded', () => {
     expect(Object.keys(byName).sort()).toEqual([
       'canvas-bootstrap',
       'canvas-frame-research',
+      'canvas-tidy-layout',
       'memory-review',
       'promote-skill',
       'save-as-skill',

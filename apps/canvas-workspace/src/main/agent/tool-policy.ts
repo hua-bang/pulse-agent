@@ -322,6 +322,17 @@ export function createCanvasAskModeToolPolicyPlugin() {
   };
 }
 
+/**
+ * Deferred engine built-ins that Canvas loads eagerly. Research skills read
+ * pages with `tavily_extract` right after `tavily`; deferring it made the model
+ * search for the tool first, or settle for search excerpts.
+ */
+const EAGER_BUILTIN_TOOL_NAMES = new Set(['tavily_extract']);
+
+function withCanvasLoading(name: string, tool: EngineToolMap[string]): EngineToolMap[string] {
+  return EAGER_BUILTIN_TOOL_NAMES.has(name) ? { ...tool, defer_loading: false } : tool;
+}
+
 function createBuiltInTools(names: readonly string[]): EngineToolMap {
   const tools: EngineToolMap = {};
   for (const name of names) {
@@ -329,7 +340,7 @@ function createBuiltInTools(names: readonly string[]): EngineToolMap {
     if (!tool) {
       throw new Error(`Missing required global Canvas Agent built-in tool: ${name}`);
     }
-    tools[name] = tool;
+    tools[name] = withCanvasLoading(name, tool);
   }
   return tools;
 }
@@ -343,7 +354,9 @@ const EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES = new Set(['deferred_demo']);
 
 function createWorkspaceBuiltInTools(): EngineToolMap {
   return Object.fromEntries(
-    Object.entries(BuiltinToolsMap).filter(([name]) => !EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES.has(name)),
+    Object.entries(BuiltinToolsMap)
+      .filter(([name]) => !EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES.has(name))
+      .map(([name, tool]) => [name, withCanvasLoading(name, tool)]),
   );
 }
 

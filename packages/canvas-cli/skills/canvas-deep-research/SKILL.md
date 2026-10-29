@@ -66,6 +66,20 @@ For each source used, record:
 
 Use short quotes only when exact wording matters. Otherwise paraphrase and cite the source id.
 
+### Search Tactics
+
+Search quality decides research quality. For each core question:
+
+- **Write several queries, not one.** Use 2-4 short keyword queries per question: the plain topic, the official name or product term, and a "vs", "pricing", "benchmark", "limitations", or "criticism" variant. Do not paste the user's sentence as a query.
+- **Search in the language of the sources.** For a topic asked in Chinese, also search in English when the primary sources are English (most standards, APIs, papers, and global companies), and the reverse for China-specific topics. Write findings in the user's language.
+- **Reach primary sources directly.** Restrict a search to the official domain when you know it (with Tavily: `includeDomains`), for example the vendor's docs, the standard body, or the regulator.
+- **Ask for freshness when it matters.** For recent events, prices, releases, or "latest", restrict the period (with Tavily: `topic: "news"` and `timeRange`) and record each source's date.
+- **Use the deeper mode for research.** With Tavily, use `searchDepth: "advanced"` and 8-10 results for `standard` and `deep` work; `basic` is for quick orientation.
+- **Read before you cite.** Search excerpts are fragments. Before a source supports a key finding, read the page itself (with Tavily: `tavily_extract`, passing `query` to pull the relevant parts). Never cite a page you only saw as an excerpt.
+- **Follow the trail.** When a good page cites a primary source, read that source and cite it instead.
+- **Stop at saturation.** Stop a question when new queries return sources you already have, or when two independent strong sources agree. Note the question as open when they disagree.
+- **Drop weak sources.** Skip SEO listicles, content farms, undated pages, and pages that only restate other sources, unless nothing better exists; then mark the finding `low` confidence.
+
 ### 4. Cross-Check and Synthesize
 
 - Compare claims across source types before treating them as settled.

@@ -13,7 +13,7 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
         'Use this before `canvas_read_node` to narrow down which nodes to read in detail.',
       inputSchema: z.object({
         query: z.string().optional().describe(
-          'Case-insensitive substring matched against node title, label, content, url, and filePath.',
+          'Words or a phrase matched against node title, label, content, url, and filePath. Words match separately (Chinese text without spaces matches by character pairs); results are ranked by how many words match, with title matches first. Use the distinctive words, not a full sentence.',
         ),
         type: z.union([
           z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']),

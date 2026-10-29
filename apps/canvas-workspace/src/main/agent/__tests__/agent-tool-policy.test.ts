@@ -70,6 +70,8 @@ describe('Canvas Agent tool policy', () => {
       expect.arrayContaining(['read', 'write', 'edit', 'bash']),
     );
     expect(Object.keys(policy.builtInTools ?? {})).not.toContain('deferred_demo');
+    expect(policy.builtInTools?.tavily_extract?.defer_loading).toBe(false);
+    expect(createCanvasAgentToolPolicy({ kind: 'global' }).builtInTools?.tavily_extract?.defer_loading).toBe(false);
     expect(policy.canvasTools.canvas_tag_node).toBeDefined();
     expect(policy.canvasTools.canvas_create_terminal_node).toBeDefined();
   });

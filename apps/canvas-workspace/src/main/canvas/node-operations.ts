@@ -8,6 +8,7 @@ import {
   type WorkspaceNodeRecord,
 } from './nodes/store';
 import { readKnowledgeTags } from './nodes/tags';
+import { queryTerms, scoreNode, snippetAround } from './nodes/search-ranking';
 
 export interface SearchCanvasNodesInput {
   query?: string;
@@ -47,7 +48,8 @@ export async function searchCanvasNodes(
   const canvas = await loadCanvas(workspaceId);
   if (!canvas) return null;
 
-  const query = input.query?.trim().toLowerCase() ?? '';
+  const query = input.query?.trim() ?? '';
+  const terms = queryTerms(query);
   const typeFilter = input.type
     ? new Set(Array.isArray(input.type) ? input.type : [input.type])
     : null;
@@ -75,8 +77,8 @@ export async function searchCanvasNodes(
     ]));
   }
 
-  const matches: CanvasNodeSearchMatch[] = [];
-  for (const node of canvas.nodes ?? []) {
+  const ranked: Array<{ match: CanvasNodeSearchMatch; matchedTerms: number; score: number; order: number }> = [];
+  for (const [order, node] of (canvas.nodes ?? []).entries()) {
     if (!node.id) continue;
     if (typeFilter && !typeFilter.has(node.type)) continue;
     const record = workspaceNodeById.get(node.id);
@@ -88,25 +90,34 @@ export async function searchCanvasNodes(
     )) {
       continue;
     }
-    if (query && !nodeHaystacks(node).join('\n').toLowerCase().includes(query)) continue;
+    const score = terms.length > 0
+      ? scoreNode({ title: node.title ?? '', body: nodeSearchBody(node) }, query, terms)
+      : null;
+    if (terms.length > 0 && !score) continue;
 
-    matches.push({
-      id: node.id,
-      type: node.type,
-      title: node.title ?? '',
-      snippet: nodeSnippet(node),
-      x: node.x ?? 0,
-      y: node.y ?? 0,
-      ...(storedTags.length ? { tags: storedTags } : {}),
+    ranked.push({
+      match: {
+        id: node.id,
+        type: node.type,
+        title: node.title ?? '',
+        snippet: nodeSnippet(node, score?.bodyMatchIndex ?? -1),
+        x: node.x ?? 0,
+        y: node.y ?? 0,
+        ...(storedTags.length ? { tags: storedTags } : {}),
+      },
+      matchedTerms: score?.matchedTerms ?? 0,
+      score: score?.score ?? 0,
+      order,
     });
-    if (matches.length >= limit) break;
   }
 
+  // Without a query, canvas order; with one, most matched terms first.
+  ranked.sort((a, b) => (b.matchedTerms - a.matchedTerms) || (b.score - a.score) || (a.order - b.order));
   return {
     workspaceId,
-    total: matches.length,
-    truncated: matches.length >= limit,
-    matches,
+    total: ranked.length,
+    truncated: ranked.length > limit,
+    matches: ranked.slice(0, limit).map((entry) => entry.match),
   };
 }
 
@@ -143,6 +154,13 @@ export async function updateCanvasNode(
   return 'updated';
 }
 
+/** Searchable text after the title; the type goes last so it can match
+ * without leading every snippet. */
+function nodeSearchBody(node: CanvasNode): string {
+  const [, type, ...fields] = nodeHaystacks(node);
+  return [...fields, type].join('\n');
+}
+
 function nodeHaystacks(node: CanvasNode): string[] {
   const fields = [node.title ?? '', node.type ?? ''];
   const data = node.data as Record<string, unknown>;
@@ -152,11 +170,14 @@ function nodeHaystacks(node: CanvasNode): string[] {
   return fields;
 }
 
-function nodeSnippet(node: CanvasNode): string {
+function nodeSnippet(node: CanvasNode, bodyMatchIndex: number): string {
   const data = node.data as Record<string, unknown>;
+  // A match inside the body shows the text around it; otherwise the first field.
+  if (bodyMatchIndex >= 0) {
+    return snippetAround(nodeSearchBody(node), bodyMatchIndex);
+  }
   const first = ['content', 'label', 'url', 'filePath']
     .map((key) => data[key])
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? '';
-  const normalized = first.replace(/\s+/g, ' ').trim();
-  return normalized.length > 160 ? `${normalized.slice(0, 157)}...` : normalized;
+  return snippetAround(first, 0);
 }

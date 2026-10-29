@@ -1,4 +1,5 @@
 import type { CanvasNode } from '../../types';
+import { defaultFrameColumns, layoutGrid } from './grid';
 import { alignToGrid, bottom, centerX, centerY, clampSize, DEFAULT_FRAME_PADDING, DEFAULT_GRID, DEFAULT_LAYOUT_GAP, getBoundingRect, MIN_NODE_SIZE, overlapArea, rectContainsCenter, rectContainsRect, rectOf, rectsOverlap, right, type Rect } from './geometry';
 
 export { DEFAULT_FRAME_PADDING, DEFAULT_GRID, DEFAULT_LAYOUT_GAP, MIN_NODE_SIZE, rectOf, rectsOverlap };
@@ -72,17 +73,30 @@ export function getFrameChildren(
   const frame = nodes.find((node) => node.id === frameId);
   if (!frame || frame.type !== 'frame') return [];
 
+  // Explicit ids keep the caller's order, so the agent can put the most
+  // important card first; spatial children keep their reading order.
   if (explicitNodeIds && explicitNodeIds.length > 0) {
-    const requested = new Set(explicitNodeIds.filter((id) => id !== frameId));
-    return nodes.filter((node) => requested.has(node.id));
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    return explicitNodeIds
+      .filter((id, index) => id !== frameId && explicitNodeIds.indexOf(id) === index)
+      .map((id) => byId.get(id))
+      .filter((node): node is CanvasNode => Boolean(node));
   }
 
   const frameRect = rectOf(frame);
-  return nodes.filter((node) => {
+  return sortByReadingOrder(nodes.filter((node) => {
     if (node.id === frameId) return false;
     if (node.type === 'frame') return false;
     return rectContainsCenter(frameRect, rectOf(node));
-  });
+  }));
+}
+
+/** Top-to-bottom, then left-to-right, with a tolerance so cards on one
+ * visual row are not split by a few pixels of drift. */
+export function sortByReadingOrder(nodes: CanvasNode[], rowTolerance = 40): CanvasNode[] {
+  return [...nodes].sort((a, b) => (
+    Math.abs(a.y - b.y) <= rowTolerance ? a.x - b.x : a.y - b.y
+  ));
 }
 
 export function findParentFrame(node: CanvasNode, nodes: CanvasNode[]): string | undefined {
@@ -152,47 +166,6 @@ export function buildLayoutSnapshot(nodes: CanvasNode[], gap = 0): LayoutSnapsho
   };
 }
 
-function layoutGrid(
-  nodes: CanvasNode[],
-  start: { x: number; y: number },
-  options: { columns?: number; gap?: number },
-): { mutations: LayoutMutation[]; bounds: Rect | null } {
-  const gap = options.gap ?? DEFAULT_LAYOUT_GAP;
-  const columns = Math.max(
-    1,
-    Math.min(options.columns ?? Math.ceil(Math.sqrt(Math.max(1, nodes.length))), Math.max(1, nodes.length)),
-  );
-  const mutations: LayoutMutation[] = [];
-  const rects: Rect[] = [];
-  let cursorX = start.x;
-  let cursorY = start.y;
-  let rowHeight = 0;
-  let col = 0;
-
-  for (const node of nodes) {
-    if (col >= columns) {
-      cursorX = start.x;
-      cursorY += rowHeight + gap;
-      rowHeight = 0;
-      col = 0;
-    }
-
-    const rect = {
-      x: cursorX,
-      y: cursorY,
-      width: clampSize(node.width),
-      height: clampSize(node.height),
-    };
-    mutations.push({ nodeId: node.id, x: rect.x, y: rect.y });
-    rects.push(rect);
-    cursorX += rect.width + gap;
-    rowHeight = Math.max(rowHeight, rect.height);
-    col += 1;
-  }
-
-  return { mutations, bounds: getBoundingRect(rects) };
-}
-
 function frameInnerRect(frame: CanvasNode, padding: number): Rect {
   return {
     x: frame.x + padding,
@@ -223,7 +196,7 @@ export function planFrameGrid(
   const children = getFrameChildren(nodes, frameId, options.nodeIds);
   const inner = frameInnerRect(frame, padding);
   const laidOut = layoutGrid(children, { x: inner.x, y: inner.y }, {
-    columns: options.columns ?? (children.length <= 3 ? children.length || 1 : 2),
+    columns: options.columns ?? defaultFrameColumns(children.length),
     gap: options.gap,
   });
   const mutations = [...laidOut.mutations];

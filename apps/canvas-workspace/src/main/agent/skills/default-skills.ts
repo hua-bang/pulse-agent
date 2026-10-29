@@ -184,9 +184,14 @@ Build a period report from chat history, propose memory candidates, and persist 
 // only while seeding, so they load on demand instead of sitting in the main
 // entry bundle.
 export async function loadDefaultSkills(): Promise<DefaultSkill[]> {
-  const [{ VISUAL_STYLE_SKILL }, { CANVAS_BOOTSTRAP_SKILL, CANVAS_FRAME_RESEARCH_SKILL }] = await Promise.all([
+  const [
+    { VISUAL_STYLE_SKILL },
+    { CANVAS_BOOTSTRAP_SKILL, CANVAS_FRAME_RESEARCH_SKILL },
+    { CANVAS_TIDY_LAYOUT_SKILL },
+  ] = await Promise.all([
     import('./visual-style-skill'),
     import('./canvas-research-skills'),
+    import('./canvas-layout-skill'),
   ]);
   return [
     SAVE_AS_SKILL,
@@ -196,6 +201,7 @@ export async function loadDefaultSkills(): Promise<DefaultSkill[]> {
     VISUAL_STYLE_SKILL,
     CANVAS_BOOTSTRAP_SKILL,
     CANVAS_FRAME_RESEARCH_SKILL,
+    CANVAS_TIDY_LAYOUT_SKILL,
   ];
 }
 

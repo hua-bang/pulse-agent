@@ -48,7 +48,7 @@ Draft the plan, then ask for approval. The plan states:
 
 - research objective, boundary, and questions
 - source strategy and planned passes
-- provisional frame names and information layers (overview, structure, details, sources, open questions)
+- provisional frame names, information layers (overview, structure, details, sources, open questions), and the layout preset you will use (see Phase 5)
 - the approximate node count, and that each new node shows an approval card. Tell the user once that they can pick the "approve for this session" option on the first card, so a full board does not need one confirmation per node.
 - what counts as done
 
@@ -56,7 +56,7 @@ Do not browse or create nodes while you wait.
 
 ## Phase 2: research
 
-Follow \`canvas-deep-research\` (or the user's chosen skill). Use \`tavily\` to search and \`tavily_extract\` to read specific pages; do not open Dock tabs just to read. Keep a source ledger with ids, cross-check important claims, and label inference, weak evidence, and conflicts.
+Follow \`canvas-deep-research\` (or the user's chosen skill), including its Search Tactics: several keyword queries per question, \`searchDepth: "advanced"\` for standard and deep work, and \`tavily_extract\` on every page that supports a key finding. Do not open Dock tabs just to read. Keep a source ledger with ids, cross-check important claims, and label inference, weak evidence, and conflicts.
 
 ## Phase 3: canvas plan
 
@@ -78,15 +78,20 @@ If the research changes the approved structure, show the change and ask for a qu
 
 1. Call \`canvas_read_layout\` to see the existing geometry before you add anything to a non-empty canvas.
 2. Create each frame with \`canvas_create_node\` (\`type: "frame"\`, width/height large enough for its cards, \`placement: { mode: "append_canvas" }\`).
-3. Create each card with \`canvas_create_node\` (\`type: "file"\`) and \`placement: { mode: "inside_frame", frameId }\`. Use \`near_node\` for a card derived from another card, and \`at\` only for a location the user gave.
+3. Create each card with \`canvas_create_node\` (\`type: "file"\`) and \`placement: { mode: "inside_frame", frameId }\`, most important card first. Set \`width\` to encode importance and leave \`height\` unset: the card height follows its text. Use \`near_node\` for a card derived from another card, and \`at\` only for a location the user gave.
 4. Create edges with \`canvas_create_edge\` (\`sourceNodeId\`, \`targetNodeId\`, \`label\`, \`kind\`, a small \`bend\`).
 5. Make the calls one at a time. Do not use \`bash\` or the \`pulse-canvas\` CLI to create nodes.
 
 ## Phase 5: layout
 
-1. For each frame, call \`canvas_apply_layout\` with \`mode: "frame_grid"\` and its \`frameId\` to arrange the cards and fit the frame.
-2. Call \`canvas_apply_layout\` with \`mode: "canvas_grid"\` and the new frame ids in \`nodeIds\` to arrange the frames. Do not move unrelated existing nodes unless the user approved an organizing action.
-3. Call \`canvas_apply_layout\` with \`mode: "validate"\`. Fix overlaps or overflow with another \`frame_grid\` run or \`canvas_move_node\` / \`canvas_resize_node\`, then validate again.
+1. Pick a preset that matches the content, and say which one in the summary:
+   - \`board\` (default for research): an overview frame across the top, detail frames in a row below, the sources frame on the right edge.
+   - \`flow\`: steps, stages, a timeline, or a pipeline, read left to right.
+   - \`matrix\`: 2x2 comparisons, quadrants, or options side by side.
+   - \`stack\`: a report or brief read top to bottom.
+2. Call \`canvas_apply_layout\` with \`mode: "preset"\`, the preset, and the new frame ids in reading order in \`nodeIds\`. For \`board\`, pass \`overviewFrameId\` and \`sourcesFrameId\`. The preset arranges the cards inside every frame and fits each frame. On a non-empty canvas, pass \`startX\` / \`startY\` in a clear area from \`canvas_read_layout\` so unrelated nodes do not move.
+3. Inside a frame, cards follow the order you created them in. To change it, run \`mode: "frame_grid"\` for that frame with \`nodeIds\` in the order you want, thesis card first.
+4. Call \`canvas_apply_layout\` with \`mode: "validate"\`. Fix overlaps with \`canvas_move_node\` / \`canvas_resize_node\`, or rerun the preset with another start point, then validate again.
 
 ## Phase 6: verify and summarize
 
@@ -143,7 +148,7 @@ For more than one or two nodes, show a compact plan first: the nodes to add or u
 
 ## Phase 5: layout only the frame
 
-Call \`canvas_apply_layout\` with \`mode: "frame_grid"\` and the target \`frameId\`, then \`mode: "validate"\`. Fix flagged nodes with \`canvas_move_node\` or \`canvas_resize_node\`. Do not touch frames outside the target.
+Call \`canvas_apply_layout\` with \`mode: "frame_grid"\`, the target \`frameId\`, and \`nodeIds\` in reading order (the frame's summary or thesis card first), then \`mode: "validate"\`. Fix flagged nodes with \`canvas_move_node\` or \`canvas_resize_node\`. Do not touch frames outside the target.
 
 ## Phase 6: summarize
 

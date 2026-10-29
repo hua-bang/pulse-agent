@@ -13,6 +13,7 @@ import {
   resolvePlacement,
   type PlacementIntent,
 } from '../_shared/layout/placement';
+import { estimateNoteHeight } from '../_shared/layout/content-size';
 import { createPassiveNodeData } from '../_shared/passive-node-data';
 import { normalizeIframeUrl, shouldCreateIframeForHtml } from '../_shared/iframe';
 import {
@@ -88,7 +89,9 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         if (!def) return `Error: unsupported node type: ${nodeType}`;
 
         const width = (input.width as number | undefined) ?? def.width;
-        const height = (input.height as number | undefined) ?? def.height;
+        // Agent notes fit their text; other types keep their default height.
+        const height = (input.height as number | undefined)
+          ?? (nodeType === 'file' && content.trim() ? estimateNoteHeight(content, width) : def.height);
         let pos: { x: number; y: number };
         try {
           pos = resolvePlacement(
