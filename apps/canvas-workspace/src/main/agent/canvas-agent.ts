@@ -11,7 +11,13 @@ import type { ModelMessage } from 'ai';
 import { join } from 'path';
 import { resolveCanvasModel, type ResolvedCanvasModel } from '../models/config';
 import { createCanvasEnginePlugins } from './engine-plugins';
-import { formatSelectedAppAndPluginsBlock } from './context/plugin-selection-context';
+import {
+  buildGlobalTurnContext,
+  buildWorkspaceTurnContext,
+  TURN_CONTEXT_NOTE,
+  withTurnContext,
+  type CanvasAgentRequestContext,
+} from './context/turn-context';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -42,20 +48,14 @@ import {
 import type {
   AgentClarificationRequest,
   AgentScope,
-  AgentRequestContext,
   CanvasAgentConfig,
   CanvasAgentImageAttachment,
   CanvasAgentMessage,
   CanvasAgentSession,
-  WorkspaceSummary,
 } from './types';
 import { createFailedTurnToolTracker, failedAssistantMessage } from './run/chat-failure-persistence';
 import { completeCanvasHostRun, markCanvasRuntimeCompleted, markCanvasRuntimeStarted } from './observability/host-run';
-import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './context/dom-selection-context';
-import { formatSelectionFocusBlock } from './context/selection-focus-context';
 import { limitSummaryForPrompt } from './context/summary-budget';
-import { formatQuickActionBlock, formatQuickActionLines } from './context/quick-action-context';
-import { formatReferencedTabsBlock } from './context/referenced-tabs-context';
 import {
   ROLE_RELAY_MAX_SEGMENTS,
   stripRoleMentionMarkers,
@@ -86,7 +86,6 @@ import type { PendingClarificationRequest } from './run/clarification-registry';
 import { CanvasRunRegistry } from './run/canvas-run-registry';
 import { prepareRunSession } from './sessions/run-session-context';
 import { executeMcpAppTool, resolveMcpApp } from './mcp-apps/mcp-app-runtime';
-type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
 This is a global chat, not bound to any specific canvas workspace.
@@ -134,19 +133,14 @@ You are the single AI entry point for this workspace. You can:
 - Generate documents, PRDs, and technical specs
 
 ## Context Strategy
-Your system prompt contains a summary of the canvas nodes. On a large canvas it is partial and says so; use \`canvas_search_nodes\` for the rest. For detailed content:
+The latest user message's \`<turn_context>\` block contains a summary of the canvas nodes. On a large canvas it is partial and says so; use \`canvas_search_nodes\` for the rest. For detailed content:
 - Use \`canvas_read_node\` to read a specific node's full content
 - Use \`canvas_read_context\` with detail="full" for everything at once
 - For spatial/layout work, search for and call the layout tools (\`canvas_read_layout\`, then \`canvas_apply_layout\`); for single-node insertion prefer semantic \`placement\` (\`near_node\`, \`inside_frame\`, \`at\`) over raw x/y unless the user gave a precise location.
 
 ## Canvas Tools (always loaded)
-- \`canvas_read_context\`: Read workspace overview or full context
-- \`canvas_read_node\`: Read a single node's content in detail
-- \`canvas_search_nodes\`: Search nodes by query / type / tag — use this BEFORE \`canvas_read_node\` when the canvas has many nodes so you don't blow the context window pulling the full summary
-- \`canvas_create_node\`: Create new file/frame/text/image/iframe/mindmap nodes (generic)
-- \`canvas_update_node\`: Update existing nodes (content, title, data)
-- \`visual_render\`: Inline visual rendering (default for any visual request — see Visualization Tools below)
-- \`artifact_create\`: Persistent, versioned visual artifact (only when the user explicitly asks to save / keep / iterate — see Visualization Tools below)
+- \`canvas_search_nodes\`: search by query, type, or tag. Use it before \`canvas_read_node\` on a canvas with many nodes, instead of pulling everything.
+- \`canvas_create_node\` / \`canvas_update_node\`: create or change nodes. Visual tools are under Visualization Tools below.
 - \`user_ask\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing. Node-creating tools always show the user a host approval card with a preview, in Auto and Ask modes. That card is the confirmation: call the tool directly, without asking in chat first or calling \`user_ask\`. For a multi-node build, describe the plan in chat once before the first call.
 
 ## Additional Tools (some deferred)
@@ -213,14 +207,6 @@ Use \`canvas_create_terminal_node\` to spawn an interactive shell after the host
 The shell starts automatically. Set \`cwd\` for the working directory.
 Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm run dev", "docker compose up").
 
-## Filesystem Tools (built-in)
-- \`read\`: Read file contents (with offset/limit support)
-- \`write\`: Write or create files
-- \`edit\`: Edit files with find & replace
-- \`grep\`: Search file contents by regex
-- \`ls\`: List directory contents
-- \`bash\`: Execute shell commands
-
 ## Skills
 - \`skill\`: Load a skill by name to get detailed step-by-step instructions for specialized tasks (e.g. canvas-bootstrap to research a topic into a structured canvas, canvas-frame-research to extend one frame). Skills drive the native canvas_* tools; never mutate the canvas through the \`pulse-canvas\` CLI in \`bash\`.
 - When the user's message contains a chip like \`@[skill:<name>]\`, treat it as an explicit request to load that skill — call the \`skill\` tool with that name BEFORE doing anything else, then follow the skill's step-by-step guidance.
@@ -229,7 +215,7 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 - Reply in the user's language.
 - Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - When creating file nodes, give them meaningful titles
-- When the user references a node by title, look it up in the summary below, or with \`canvas_search_nodes\` when the summary is partial
+- When the user references a node by title, look it up in the canvas summary, or with \`canvas_search_nodes\` when the summary is partial
 - For canvas-related tasks, use the canvas_* tools
 - When asked to read an image, analyze an image node, OCR a screenshot, or create a mindmap from a picture, use \`image_analyze\` first.
 - When asked to generate/draw/create a picture, use \`image_generate\`; when the source is a mindmap node, prefer \`image_generate_from_mindmap\`.
@@ -238,86 +224,17 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 
 `;
 
-function formatMentionedCanvasesSection(
-  mentionedCanvases: Array<{ id: string; name: string }> = [],
-): string {
-  if (mentionedCanvases.length === 0) return '';
-
-  const lines: string[] = [
-    '',
-    '## Other Canvases Referenced by the User',
-    'The user has `@`-mentioned the canvases listed below. This is a ' +
-      '**reference table only** — it tells you which workspaceIds the user ' +
-      'might be talking about. It is **not** an instruction to read them.',
-    '',
-    '**Strict rule — do NOT auto-read:** Do not call `canvas_read_context` ' +
-      'or `canvas_read_node` for any canvas in this list unless the user\'s ' +
-      'current message **explicitly asks** you to read, open, look at, ' +
-      'summarize, compare, or otherwise use content from that specific ' +
-      'canvas. A bare mention like "`@[canvas:Foo]` 怎么样？" where "怎么样" ' +
-      'stands alone is **not** an explicit read request — ask the user what ' +
-      'they want to know about it instead. Fetching without an explicit ' +
-      'request wastes the user\'s tokens and is considered incorrect behavior.',
-    '',
-    'When the user **does** explicitly ask, use the matching `workspaceId` ' +
-      'from the list with `canvas_read_context` (detail="summary" for the ' +
-      'node list, detail="full" for file contents and terminal scrollback), ' +
-      'or with `canvas_read_node` for a single node.',
-    '',
-    'Mentioned canvases:',
-  ];
-  for (const c of mentionedCanvases) {
-    lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
-  }
-  lines.push('');
-  return lines.join('\n');
-}
-
 /**
- * Render the "Scoped Context" block for tags / whole canvases the user pinned
- * via the global assistant's @-picker. Members are fetched on demand by the
- * agent rather than dumped into the prompt (a tag can cover hundreds of nodes).
+ * Workspace system prompt: only content that stays stable across turns, so
+ * the prompt cache can reuse it and the history after it. Per-turn context
+ * rides on the user message (`./context/turn-context`).
  */
-function formatScopeContextBlock(
-  tags: Array<{ name: string; workspaceIds?: string[] }> = [],
-  canvases: Array<{ id: string; name: string }> = [],
-): string {
-  if (tags.length === 0 && canvases.length === 0) return '';
-  const lines: string[] = ['', '## Scoped Context'];
-  if (canvases.length > 0) {
-    lines.push('', 'The user scoped this turn to these canvases — treat them as the primary workspaces to inspect:');
-    for (const canvas of canvases) {
-      lines.push(`- **${canvas.name}** — workspaceId: \`${canvas.id}\``);
-    }
-    lines.push('Use `canvas_search_nodes` / `canvas_read_node` with the matching workspaceId.');
-  }
-  if (tags.length > 0) {
-    lines.push('', 'The user scoped this turn to these tags. To get their members, call `canvas_search_nodes({ tag: "<name>", workspaceId })` once per listed workspace — it filters by tag (names are resolved automatically) and returns a compact id/title/snippet list. Then `canvas_read_node` only the matches you actually need; do NOT dump every node with `workspace_node_list` and filter by hand:');
-    for (const tag of tags) {
-      const ws = tag.workspaceIds && tag.workspaceIds.length > 0
-        ? ` — workspaceId(s): ${tag.workspaceIds.map((id) => `\`${id}\``).join(', ')}`
-        : '';
-      lines.push(`- tag \`${tag.name}\`${ws}`);
-    }
-  }
-  return lines.join('\n') + '\n';
-}
-
 function buildSystemPrompt(
-  summary: WorkspaceSummary | null,
-  mentionedCanvases: Array<{ id: string; name: string }> = [],
   requestContext?: CanvasAgentRequestContext,
   promptProfileSection: string = '',
   workspaceDocSection: string = '',
 ): string {
-  const selectedNodes = requestContext?.selectedNodes ?? [], domSelections = requestContext?.domSelections ?? [];
-  // When the user has nodes selected, surface them BEFORE the full workspace
-  // summary so the focused subset is the first thing the model anchors on.
-  const selectionBlock = formatSelectionFocusBlock(selectedNodes, { requireWorkspaceId: false });
-  const domSelectionBlock = formatDomSelectionFocusBlock(domSelections, { requireWorkspaceId: false });
-  let base = summary
-    ? BASE_SYSTEM_PROMPT + selectionBlock + domSelectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
-    : BASE_SYSTEM_PROMPT + selectionBlock + domSelectionBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
+  let base = BASE_SYSTEM_PROMPT + TURN_CONTEXT_NOTE;
   if (requestContext) {
     const mode = requestContext.executionMode ?? 'auto';
     const scope = requestContext.scope ?? 'current_canvas';
@@ -327,22 +244,6 @@ function buildSystemPrompt(
       `- Execution mode: ${mode}`,
       `- Context scope: ${scope}`,
     ];
-
-    if (requestContext.quickAction) {
-      lines.push(...formatQuickActionLines(requestContext.quickAction));
-    }
-
-    if (selectedNodes.length > 0) {
-      lines.push(
-        `- Selection: ${selectedNodes.length} node(s) — see "Current Focus" above for the authoritative list.`,
-      );
-    }
-
-    if (domSelections.length > 0) {
-      lines.push(
-        `- DOM selection: ${domSelections.length} element(s) — see "Current Focus" above for selectors and text excerpts.`,
-      );
-    }
 
     if (mode === 'auto') {
       lines.push(
@@ -357,7 +258,7 @@ function buildSystemPrompt(
     base += lines.join('\n') + '\n';
   }
 
-  return base + formatMentionedCanvasesSection(mentionedCanvases) + workspaceDocSection + promptProfileSection;
+  return base + workspaceDocSection + promptProfileSection;
 }
 
 // ─── Canvas Agent ──────────────────────────────────────────────────
@@ -587,21 +488,13 @@ export class CanvasAgent {
     const knownRoleNames = new Set([...activeRoles, ...handoffLibrary].map(entry => entry.name));
 
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
+    // Stable content only, so the prompt cache survives across turns.
     const basePrompt = workspaceId
-      ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
-        + formatSelectedAppAndPluginsBlock(requestContext)
-        + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
-        + memorySection
-      : GLOBAL_AGENT_SYSTEM_PROMPT
-        + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
-        + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
-        + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
-        + formatQuickActionBlock(requestContext?.quickAction)
-        + formatSelectedAppAndPluginsBlock(requestContext)
-        + formatReferencedTabsBlock(requestContext?.tabs ?? [])
-        + formatMentionedCanvasesSection(mentionedCanvases)
-        + memorySection
-        + promptProfileSection;
+      ? buildSystemPrompt(requestContext, promptProfileSection, workspaceDocSection) + memorySection
+      : GLOBAL_AGENT_SYSTEM_PROMPT + TURN_CONTEXT_NOTE + memorySection + promptProfileSection;
+    const turnContext = workspaceId
+      ? buildWorkspaceTurnContext(summary, mentionedCanvases, requestContext, workspaceId)
+      : buildGlobalTurnContext(mentionedCanvases, requestContext);
 
     // Model-facing user text: role markers become plain `@name` (the store
     // keeps the raw marker for chips and regenerate/edit replays).
@@ -622,8 +515,8 @@ export class CanvasAgent {
         ].join('\n')
       : modelUserText;
 
-    // Add user message: model sees local paths; history keeps structured attachments.
-    runMessages.push({ role: 'user', content: attachmentPrompt } as ModelMessage);
+    // Model sees local paths and this turn's context; history keeps the raw text and structured attachments.
+    runMessages.push({ role: 'user', content: withTurnContext(attachmentPrompt, turnContext) } as ModelMessage);
     appendRunMessages([{
       role: 'user',
       content: message,

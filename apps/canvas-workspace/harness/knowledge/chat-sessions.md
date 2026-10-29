@@ -730,6 +730,21 @@ first long turn compacts once and records a new one. Apply compactions through
 the main entry chunk and inside the main bundle ratchet. Guard:
 `sessions/compaction-checkpoint.test.ts`.
 
+### Prompt cache layout
+
+Prompt caching matches on prefixes, so the system prompt holds only content
+that stays stable across turns: the base prompt, execution mode and policy,
+workspace doc, prompt profile, and memory. Per-message context (selection,
+DOM selection, quick action, the canvas summary, `@` mentions, selected
+plugins and apps, referenced tabs) rides in a `<turn_context>` block at the
+start of the turn's model-facing user message (`agent/context/turn-context.ts`).
+The store keeps the raw user text, and history is rebuilt from it each turn, so
+earlier messages carry no stale block. Before this split, any selection or
+node change invalidated the cached system prompt and the whole history. The
+canvas summary in the block is capped (`agent/context/summary-budget.ts`) and
+tells the model to search for the omitted nodes. Guards:
+`context/turn-context.test.ts`, `context/summary-budget.test.ts`.
+
 ### Chat latency trace
 
 The existing `canvas-agent-debug-trace` experimental feature records a bounded

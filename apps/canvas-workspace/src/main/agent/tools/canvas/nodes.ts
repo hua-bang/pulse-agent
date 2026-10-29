@@ -33,28 +33,17 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
     canvas_create_node: {
       name: 'canvas_create_node',
       description:
-        'Create a new node on the canvas.\n' +
-        '- **file**: Creates a markdown note with a backing file. Use `content` for initial text. If `content` is full HTML, or `data.contentType: "text/html"` / `data.renderAs: "html"` is provided, it is automatically created as a renderable iframe HTML node instead. Use `data.renderAs: "note"` to force a markdown note.\n' +
-        '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `image_generate` when the user asks AI to create an image.\n' +
-        '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
-        '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
-        '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +
-        '- **agent**: Creates an AI agent node (Claude Code or Codex). ' +
-        'Set `data.agentType`, `data.cwd`, `data.status: "running"` to auto-launch, `data.prompt` for initial context, and optional `data.agentArgs`.\n' +
-        '- **text**: Creates a free-form text label (TLDRAW-style). Use `content` for the text body, ' +
-        'and `data.textColor` / `data.backgroundColor` (hex or "transparent") for styling. Optional `data.fontSize`.\n' +
-        '- **iframe**: Embeds an external web page, renders raw HTML, or generates HTML from a prompt. ' +
-        'Use `data.url` for URL mode, `data.html` + `data.mode: "html"` for raw HTML, or `data.prompt` + `data.mode: "ai"` for generated HTML. ' +
-        'Note: some sites block URL embedding via X-Frame-Options / CSP.\n' +
-        '- **shape**: Draws a primitive geometric shape (rectangle or ellipse). ' +
-        'Use `data.kind` ("rect" | "ellipse"), `data.fill` / `data.stroke` (hex or "transparent"), ' +
-        'and `data.strokeWidth` (px). For precise sizing pass explicit `x`, `y`, and set width/height ' +
-        'via the dedicated `canvas_create_shape` tool — this generic one uses default dimensions.\n' +
-        '- **mindmap**: Creates a radial mindmap. Pass `data.root` as a recursive topic tree ' +
-        '`{ text: string, children?: Topic[], color?: string, collapsed?: boolean }`; topic ids are auto-generated.\n' +
-        '- **plugin**: Creates a custom plugin node shell. Pass `data.pluginId`, `data.nodeType`, and optional `data.payload`. ' +
-        'For the built-in MVP mock nodes, use `{ pluginId: "mock", nodeType: "mock.card", payload: { text?: string, count?: number } }` ' +
-        'or `{ pluginId: "mock", nodeType: "mock.todo-list", payload: { title?: string, items?: Array<{ id?: string, text: string, done?: boolean }> } }`.',
+        'Create a new node on the canvas. Pick `type`:\n' +
+        '- file: markdown note with a backing file; `content` is its text. Full HTML content, or `data.renderAs: "html"`, becomes an HTML iframe node; `data.renderAs: "note"` forces a note.\n' +
+        '- text: free-form label; `content` is the text.\n' +
+        '- frame: named container for other nodes. group: membership through `data.childIds`.\n' +
+        '- image: from a local `data.filePath`. To make a new picture, use `image_generate`.\n' +
+        '- iframe: a web page (`data.url`), raw HTML (`data.mode: "html"`), or generated HTML (`data.mode: "ai"`). Some sites block embedding.\n' +
+        '- shape: primitive shape with default size; use `canvas_create_shape` for exact size.\n' +
+        '- mindmap: radial mindmap from the `data.root` topic tree.\n' +
+        '- terminal: interactive shell in `data.cwd`. agent: Claude Code, Codex, or Pi agent; `data.status: "running"` launches it.\n' +
+        '- plugin: custom node from `data.pluginId` and `data.nodeType`.\n' +
+        'Prefer `placement` over raw x/y. The `data` field lists the keys for each type.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap', 'plugin']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
@@ -68,6 +57,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         ),
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
+          '- image: { filePath: string } (absolute local path)\n' +
           '- terminal: { cwd?: string }\n' +
           '- agent: { agentType?: "claude-code"|"codex"|"pi", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
@@ -77,7 +67,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           '- file HTML routing: { contentType?: \"text/html\", renderAs?: \"html\"|\"note\" }\\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
           '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape\n' +
-          '- plugin: { pluginId: string, nodeType: string, payload?: Record<string, unknown>, version?: string }. Defaults to the built-in mock.card plugin node. Use nodeType "mock.todo-list" for a Todo List plugin node.',
+          '- plugin: { pluginId: string, nodeType: string, payload?: Record<string, unknown>, version?: string }. Defaults to the built-in mock.card node; nodeType "mock.todo-list" makes a Todo List node.',
         ),
       }),
       execute: async (input) => {
