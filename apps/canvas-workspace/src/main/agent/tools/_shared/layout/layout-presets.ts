@@ -1,6 +1,7 @@
 import type { CanvasNode } from '../../types';
 import { DEFAULT_FRAME_PADDING, DEFAULT_LAYOUT_GAP, getBoundingRect, rectOf, type Rect } from './geometry';
-import { defaultFrameColumns, layoutGrid } from './grid';
+import { defaultFrameColumns } from './grid';
+import { placeCells, placeMasonry, type FrameBox, type FrameCell } from './frame-cells';
 import {
   applyLayoutMutations,
   findParentFrame,
@@ -12,7 +13,10 @@ import {
 
 /**
  * Preset board layouts. Each preset arranges a set of frames as one design:
- * the cards inside every frame first, then the frames themselves.
+ * the cards inside every frame first, then the frames themselves. Frames that
+ * share a column get one width and, in the row-based designs (board, flow,
+ * matrix), frames that share a row get one height. Cards widen to fill a
+ * frame that was stretched.
  *
  * - `board`: research board. An overview frame spans the top, detail frames
  *   sit in one row below it, and a sources frame runs down the right edge.
@@ -22,14 +26,22 @@ import {
  *   or options side by side.
  * - `stack`: frames stacked top to bottom at one width. Use for a report
  *   that reads in order.
+ * - `hub`: a central frame with the other frames around it (top, right,
+ *   bottom, left, then the corners), each centered on its side. Use for one
+ *   topic and its facets.
+ * - `spotlight`: a large lead frame on the left and the other frames in a
+ *   column on the right. Use for one main finding with supporting points.
+ * - `masonry`: frames packed into even-width columns, each frame in the
+ *   shortest column. Use for many loosely related frames, such as a
+ *   collection or a mood board.
  */
-export type LayoutPreset = 'board' | 'flow' | 'matrix' | 'stack';
+export type LayoutPreset = 'board' | 'flow' | 'matrix' | 'stack' | 'hub' | 'spotlight' | 'masonry';
 
 export interface LayoutPresetOptions {
   preset: LayoutPreset;
   /** Frames in reading order. Omitted means every top-level frame. */
   frameIds?: string[];
-  /** board: the frame that spans the top. Defaults to the first frame. */
+  /** board, hub, spotlight: the main frame. Defaults to the first frame. */
   overviewFrameId?: string;
   /** board: the frame on the right edge. Optional. */
   sourcesFrameId?: string;
@@ -47,13 +59,19 @@ export interface LayoutPresetPlan {
 
 /** Frames sit further apart than cards so each frame reads as one region. */
 const FRAME_GAP_FACTOR = 2;
+/** Cards widen to fill a stretched frame up to the note editor's text width. */
+const MAX_FILLED_CARD_WIDTH = 800;
+/** Hub spokes in order: top, right, bottom, left, then the corners. */
+const HUB_CELLS = [[1, 0], [2, 1], [1, 2], [0, 1], [0, 0], [2, 0], [2, 2], [0, 2]];
+const PRESETS_WITH_OVERVIEW = new Set<LayoutPreset>(['board', 'hub', 'spotlight']);
+
+type Roles = LayoutPresetPlan['roles'];
 
 export function planLayoutPreset(nodes: CanvasNode[], options: LayoutPresetOptions): LayoutPresetPlan {
   const frames = resolveFrames(nodes, options.frameIds);
   if (frames.length === 0) throw new Error('No frames to lay out');
 
   const gap = options.gap ?? DEFAULT_LAYOUT_GAP;
-  const frameGap = gap * FRAME_GAP_FACTOR;
   const padding = options.padding ?? DEFAULT_FRAME_PADDING;
   const roles = assignRoles(frames, options);
 
@@ -74,26 +92,22 @@ export function planLayoutPreset(nodes: CanvasNode[], options: LayoutPresetOptio
     applyLayoutMutations(draft, plan.mutations, 0);
   }
 
-  const start = {
-    x: options.startX ?? getBoundingRect(frames.map(rectOf))?.x ?? 100,
-    y: options.startY ?? getBoundingRect(frames.map(rectOf))?.y ?? 100,
-  };
-  const ordered = frames.map((frame) => draftById.get(frame.id) as CanvasNode);
-  const placements = placeFrames(options.preset, ordered, roles, start, frameGap);
+  const bounds = getBoundingRect(frames.map(rectOf));
+  const start = { x: options.startX ?? bounds?.x ?? 100, y: options.startY ?? bounds?.y ?? 100 };
+  const fitted = frames.map((frame) => draftById.get(frame.id) as CanvasNode);
+  const boxes = placeFrames(options.preset, fitted, roles, start, gap * FRAME_GAP_FACTOR);
 
-  for (const placement of placements) {
-    const frame = draftById.get(placement.id) as CanvasNode;
-    const dx = placement.x - frame.x;
-    const dy = placement.y - frame.y;
-    frame.x = placement.x;
-    frame.y = placement.y;
-    if (placement.width !== undefined) frame.width = placement.width;
-    for (const childId of childrenByFrame.get(frame.id) ?? []) {
-      const child = draftById.get(childId);
-      if (!child) continue;
+  for (const box of boxes) {
+    const frame = draftById.get(box.id) as CanvasNode;
+    const children = (childrenByFrame.get(frame.id) ?? []).map((id) => draftById.get(id)).filter((child): child is CanvasNode => !!child);
+    const dx = box.x - frame.x;
+    const dy = box.y - frame.y;
+    for (const child of children) {
       child.x += dx;
       child.y += dy;
     }
+    Object.assign(frame, { x: box.x, y: box.y, width: box.width, height: box.height });
+    fillFrameWidth(frame, children, padding, gap);
   }
 
   return {
@@ -115,13 +129,13 @@ function resolveFrames(nodes: CanvasNode[], frameIds?: string[]): CanvasNode[] {
   return sortByReadingOrder(nodes.filter((node) => node.type === 'frame' && !findParentFrame(node, nodes)));
 }
 
-function assignRoles(frames: CanvasNode[], options: LayoutPresetOptions): LayoutPresetPlan['roles'] {
-  const roles: LayoutPresetPlan['roles'] = {};
-  if (options.preset !== 'board') {
+function assignRoles(frames: CanvasNode[], options: LayoutPresetOptions): Roles {
+  const roles: Roles = {};
+  if (!PRESETS_WITH_OVERVIEW.has(options.preset)) {
     for (const frame of frames) roles[frame.id] = 'section';
     return roles;
   }
-  const sourcesId = frames.length > 1 ? options.sourcesFrameId : undefined;
+  const sourcesId = options.preset === 'board' && frames.length > 1 ? options.sourcesFrameId : undefined;
   const overviewId = options.overviewFrameId ?? frames.find((frame) => frame.id !== sourcesId)?.id;
   for (const frame of frames) {
     roles[frame.id] = frame.id === overviewId ? 'overview' : frame.id === sourcesId ? 'sources' : 'detail';
@@ -136,87 +150,101 @@ function innerColumns(preset: LayoutPreset, role: string, count: number, frameCo
       if (role === 'sources') return 1;
       return frameCount > 4 ? 1 : Math.min(count, 2);
     case 'flow':
+    case 'masonry':
       return 1;
     case 'matrix':
+    case 'spotlight':
       return Math.min(count, 2);
+    case 'hub':
+      return role === 'overview' ? Math.min(count, 2) : 1;
     case 'stack':
     default:
       return defaultFrameColumns(count);
   }
 }
 
-interface FramePlacement {
-  id: string;
-  x: number;
-  y: number;
-  width?: number;
-}
-
 function placeFrames(
   preset: LayoutPreset,
   frames: CanvasNode[],
-  roles: LayoutPresetPlan['roles'],
+  roles: Roles,
   start: { x: number; y: number },
   gap: number,
-): FramePlacement[] {
-  if (preset === 'flow') return placeRow(frames, start, gap);
-  if (preset === 'matrix') {
-    return layoutGrid(frames, start, { columns: Math.min(2, frames.length), gap }).mutations
-      .map((mutation) => ({ id: mutation.nodeId, x: mutation.x as number, y: mutation.y as number }));
-  }
-  if (preset === 'stack') {
-    const width = Math.max(...frames.map((frame) => frame.width));
-    let y = start.y;
-    return frames.map((frame) => {
-      const placement = { id: frame.id, x: start.x, y, width };
-      y += frame.height + gap;
-      return placement;
-    });
-  }
-  return placeBoard(frames, roles, start, gap);
-}
-
-function placeRow(frames: CanvasNode[], start: { x: number; y: number }, gap: number): FramePlacement[] {
-  let x = start.x;
-  return frames.map((frame) => {
-    const placement = { id: frame.id, x, y: start.y };
-    x += frame.width + gap;
-    return placement;
+): FrameBox[] {
+  const cell = (frame: CanvasNode, col: number, row: number, span: Partial<FrameCell> = {}): FrameCell => ({
+    id: frame.id,
+    width: frame.width,
+    height: frame.height,
+    col,
+    row,
+    ...span,
   });
+  const main = frames.find((frame) => roles[frame.id] === 'overview');
+  const others = frames.filter((frame) => frame !== main);
+
+  switch (preset) {
+    case 'flow':
+      return placeCells(frames.map((frame, index) => cell(frame, index, 0)), start, gap);
+    case 'stack':
+      return placeCells(frames.map((frame, index) => cell(frame, 0, index)), start, gap);
+    case 'matrix':
+      return placeCells(frames.map((frame, index) => cell(frame, index % 2, Math.floor(index / 2))), start, gap);
+    case 'masonry':
+      return placeMasonry(frames, frames.length <= 4 ? 2 : 3, start, gap);
+    case 'hub': {
+      const cells = main ? [cell(main, 1, 1)] : [];
+      others.forEach((frame, index) => {
+        // Past the eight cells around the hub, extra frames wrap in rows below.
+        const [col, row] = HUB_CELLS[index] ?? [(index - HUB_CELLS.length) % 3, 3 + Math.floor((index - HUB_CELLS.length) / 3)];
+        cells.push(cell(frame, col, row));
+      });
+      return placeCells(cells, start, gap, 'center');
+    }
+    case 'spotlight': {
+      // More than three side frames split into two side columns.
+      const perColumn = Math.max(1, Math.ceil(others.length / Math.ceil(others.length / 3)));
+      const rows = Math.max(1, Math.min(others.length, perColumn));
+      const cells = main ? [cell(main, 0, 0, { rowSpan: rows })] : [];
+      others.forEach((frame, index) => cells.push(cell(frame, 1 + Math.floor(index / perColumn), index % perColumn)));
+      return placeCells(cells, start, gap, 'top');
+    }
+    case 'board':
+    default: {
+      const sources = frames.find((frame) => roles[frame.id] === 'sources');
+      const details = frames.filter((frame) => roles[frame.id] === 'detail');
+      const detailRow = main ? 1 : 0;
+      const cells = details.map((frame, index) => cell(frame, index, detailRow));
+      if (main) cells.push(cell(main, 0, 0, { colSpan: Math.max(1, details.length) }));
+      if (sources) cells.push(cell(sources, Math.max(1, details.length), 0, { rowSpan: detailRow + 1 }));
+      return placeCells(cells, start, gap);
+    }
+  }
 }
 
-function placeBoard(
-  frames: CanvasNode[],
-  roles: LayoutPresetPlan['roles'],
-  start: { x: number; y: number },
-  gap: number,
-): FramePlacement[] {
-  const overview = frames.find((frame) => roles[frame.id] === 'overview');
-  const sources = frames.find((frame) => roles[frame.id] === 'sources');
-  const details = frames.filter((frame) => roles[frame.id] === 'detail');
+/**
+ * Spread the extra width of a stretched frame over its card columns, so the
+ * cards fill the frame instead of leaving an empty strip on the right.
+ */
+function fillFrameWidth(frame: CanvasNode, children: CanvasNode[], padding: number, gap: number): void {
+  const cards = children.filter((child) => child.data?.layoutLocked !== true);
+  const content = getBoundingRect(cards.map(rectOf));
+  if (!content) return;
+  const columnXs = [...new Set(cards.map((card) => card.x))].sort((a, b) => a - b);
+  const extra = Math.floor((frame.width - padding * 2 - content.width) / columnXs.length);
+  if (extra <= 0) return;
 
-  const detailTop = overview ? start.y + overview.height + gap : start.y;
-  const detailRow = placeRow(details, { x: start.x, y: detailTop }, gap);
-  const detailRect = getBoundingRect(details.map((frame, index) => ({
-    ...rectOf(frame),
-    x: detailRow[index].x,
-    y: detailRow[index].y,
-  })));
-  const placements: FramePlacement[] = [];
-  if (overview) {
-    // The overview spans the detail row so the board reads as one block.
-    const width = Math.max(overview.width, detailRect?.width ?? 0);
-    placements.push({ id: overview.id, x: start.x, y: start.y, width });
+  const columnWidths = columnXs.map((x) => Math.max(...cards.filter((card) => card.x === x).map((card) => card.width)));
+  const widths = columnWidths.map((width) => Math.max(width, Math.min(MAX_FILLED_CARD_WIDTH, width + extra)));
+  const lefts: number[] = [];
+  let cursor = frame.x + padding;
+  for (const width of widths) {
+    lefts.push(cursor);
+    cursor += width + gap;
   }
-  placements.push(...detailRow);
-  if (sources) {
-    const contentRight = Math.max(
-      overview ? start.x + Math.max(overview.width, detailRect?.width ?? 0) : start.x,
-      detailRect ? detailRect.x + detailRect.width : start.x,
-    );
-    placements.push({ id: sources.id, x: contentRight + gap, y: start.y });
+  for (const card of cards) {
+    const column = columnXs.indexOf(card.x);
+    card.x = lefts[column];
+    card.width = widths[column];
   }
-  return placements;
 }
 
 function diffGeometry(original: CanvasNode[], draftById: Map<string, CanvasNode>): LayoutMutation[] {

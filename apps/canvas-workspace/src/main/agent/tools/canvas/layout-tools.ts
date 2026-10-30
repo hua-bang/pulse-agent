@@ -16,7 +16,7 @@ import { planRegionGrid } from '../_shared/layout/layout-region';
 import type { LayoutPreset } from '../_shared/layout/layout-presets';
 
 const layoutDirectionSchema = z.enum(['right', 'below', 'left', 'above']);
-const LAYOUT_PRESETS = ['board', 'flow', 'matrix', 'stack'] as const satisfies readonly LayoutPreset[];
+const LAYOUT_PRESETS = ['board', 'flow', 'matrix', 'stack', 'hub', 'spotlight', 'masonry'] as const satisfies readonly LayoutPreset[];
 
 export function createLayoutTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -56,13 +56,17 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
         'preset="board" (overview frame across the top, detail frames in a row below, optional sources frame on the right edge; the default for research canvases), ' +
         '"flow" (frames left to right, cards stacked: steps, stages, timelines, kanban), ' +
         '"matrix" (2-column grid of frames: 2x2 comparisons, quadrants, options), ' +
-        '"stack" (frames top to bottom at one width: a report read in order). ' +
+        '"stack" (frames top to bottom at one width: a report read in order), ' +
+        '"hub" (central frame with the others around it: one topic and its facets), ' +
+        '"spotlight" (large lead frame on the left, others in a column on the right: one main finding with supporting points), ' +
+        '"masonry" (frames packed into even columns: many loosely related frames, a collection). ' +
+        'Presets give frames in one row one height and frames in one column one width. ' +
         'This is preferred whenever the user asks to organize, tidy, lay out, or generate a structured canvas.',
       inputSchema: z.object({
         mode: z.enum(['place_near', 'frame_grid', 'region_grid', 'canvas_grid', 'preset', 'validate']).describe('Layout operation to run. validate returns a layout snapshot without writing.'),
         nodeIds: z.array(z.string()).optional().describe('Nodes to place/layout, in the order to use. For frame_grid, omitted means current spatial children of the frame in reading order; list the most important card first. For region_grid, pass selected nodes or omit and provide region. For canvas_grid, omitted means top-level nodes. For preset, the frames in reading order; omitted means every top-level frame.'),
         preset: z.enum(LAYOUT_PRESETS).optional().describe('Board design for mode="preset".'),
-        overviewFrameId: z.string().optional().describe('preset="board": the frame that spans the top. Defaults to the first frame.'),
+        overviewFrameId: z.string().optional().describe('preset="board", "hub", or "spotlight": the main frame (board top, hub center, spotlight lead). Defaults to the first frame.'),
         sourcesFrameId: z.string().optional().describe('preset="board": the frame placed on the right edge, for sources or references.'),
         anchorNodeId: z.string().optional().describe('Anchor node for place_near. If omitted, placement starts at the canvas bounds.'),
         frameId: z.string().optional().describe('Frame node for frame_grid.'),

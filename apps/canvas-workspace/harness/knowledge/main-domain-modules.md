@@ -183,10 +183,14 @@ loads only when reading a URL node; startup summaries do not load its live-page
 lookup and HTTP fallback coordinator.
 
 Agent layout is deterministic and lives in `tools/_shared/layout/`: a
-column-aligned grid (`grid.ts`), the frame/canvas/region modes, and four board
-presets (`layout-presets.ts`: `board`, `flow`, `matrix`, `stack`) behind
-`canvas_apply_layout` `mode: "preset"`. Agent-created notes size their height
-from their text (`content-size.ts`). Guards: `layout-presets.test.ts`,
+column-aligned grid (`grid.ts`), the frame/canvas/region modes, and seven board
+presets (`layout-presets.ts`: `board`, `flow`, `matrix`, `stack`, `hub`,
+`spotlight`, `masonry`) behind `canvas_apply_layout` `mode: "preset"`. Presets
+place whole frames on shared column and row tracks (`frame-cells.ts`), so frame
+edges line up, and widen cards to fill stretched frames. Agent-created notes
+size their height from their text (`content-size.ts`); its constants follow the
+card editor's typography in the renderer's `FileNodeBody/index.css`, so update
+both together. Guards: `layout-presets.test.ts`,
 `content-size.test.ts`. Node search (`canvas/node-operations.ts` with
 `canvas/nodes/search-ranking.ts`) matches words separately, CJK by character
 pairs, and ranks by matched terms; the `pulse-canvas` CLI keeps its own

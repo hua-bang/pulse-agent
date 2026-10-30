@@ -46,7 +46,7 @@ export function layoutGrid(
   return { mutations, bounds: getBoundingRect(rects) };
 }
 
-function offsets(start: number, sizes: number[], gap: number): number[] {
+export function offsets(start: number, sizes: number[], gap: number): number[] {
   const result: number[] = [];
   let cursor = start;
   for (const size of sizes) {

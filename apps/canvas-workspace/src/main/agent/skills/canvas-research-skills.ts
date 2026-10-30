@@ -89,7 +89,10 @@ If the research changes the approved structure, show the change and ask for a qu
    - \`flow\`: steps, stages, a timeline, or a pipeline, read left to right.
    - \`matrix\`: 2x2 comparisons, quadrants, or options side by side.
    - \`stack\`: a report or brief read top to bottom.
-2. Call \`canvas_apply_layout\` with \`mode: "preset"\`, the preset, and the new frame ids in reading order in \`nodeIds\`. For \`board\`, pass \`overviewFrameId\` and \`sourcesFrameId\`. The preset arranges the cards inside every frame and fits each frame. On a non-empty canvas, pass \`startX\` / \`startY\` in a clear area from \`canvas_read_layout\` so unrelated nodes do not move.
+   - \`hub\`: one topic in the middle with its facets around it.
+   - \`spotlight\`: one main finding as a large frame, with supporting frames beside it.
+   - \`masonry\`: many loosely related frames, such as a collection.
+2. Call \`canvas_apply_layout\` with \`mode: "preset"\`, the preset, and the new frame ids in reading order in \`nodeIds\`. For \`board\`, pass \`overviewFrameId\` and \`sourcesFrameId\`; for \`hub\` and \`spotlight\`, pass the main frame as \`overviewFrameId\`. The preset arranges the cards inside every frame and fits each frame. On a non-empty canvas, pass \`startX\` / \`startY\` in a clear area from \`canvas_read_layout\` so unrelated nodes do not move.
 3. Inside a frame, cards follow the order you created them in. To change it, run \`mode: "frame_grid"\` for that frame with \`nodeIds\` in the order you want, thesis card first.
 4. Call \`canvas_apply_layout\` with \`mode: "validate"\`. Fix overlaps with \`canvas_move_node\` / \`canvas_resize_node\`, or rerun the preset with another start point, then validate again.
 
