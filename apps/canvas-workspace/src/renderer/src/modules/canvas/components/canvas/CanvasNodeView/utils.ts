@@ -1,6 +1,6 @@
 import { resolveFrameAccent, resolveFramePalette } from '../../node-bodies/FrameNodeBody/colorPresets';
 import type { CSSProperties, MouseEvent } from 'react';
-import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from '../../../../../types';
+import type { CanvasNode, FileNodeData, FrameNodeData, GroupNodeData, TextNodeData } from '../../../../../types';
 import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
 
 export function isCanvasPanGesture(e: MouseEvent): boolean {
@@ -11,6 +11,17 @@ export function isCanvasPanGesture(e: MouseEvent): boolean {
 export const getTextAutoSize = (node: CanvasNode) => (
   node.type === 'text' && (node.data as TextNodeData).autoSize !== false
 );
+
+/** A note card shows its title as the first line, so a leading heading that
+ * repeats the title would print it twice; the card hides that heading. */
+export const noteRepeatsTitle = (node: CanvasNode): boolean => {
+  if (node.type !== 'file') return false;
+  const title = node.title.trim();
+  if (!title) return false;
+  const firstLine = ((node.data as FileNodeData).content ?? '').trimStart().split('\n', 1)[0];
+  const heading = /^#{1,6}\s+(.*)$/.exec(firstLine.trim());
+  return heading !== null && heading[1].trim() === title;
+};
 
 export const getNodeClasses = ({
   embedded,
@@ -52,6 +63,7 @@ export const getNodeClasses = ({
   embedded && 'canvas-node--embedded',
   textAutoSize && 'canvas-node--text-auto',
   isFullscreen && 'canvas-node--fullscreen',
+  noteRepeatsTitle(node) && 'canvas-node--title-in-body',
 ]
   .filter(Boolean)
   .join(' ');

@@ -6,7 +6,7 @@ export const DEFAULT_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
   color: '#6b6b67',
-  width: 2.4,
+  width: 3,
   style: 'solid',
 };
 

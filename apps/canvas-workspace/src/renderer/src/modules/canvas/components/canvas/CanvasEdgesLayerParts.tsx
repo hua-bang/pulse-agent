@@ -1,8 +1,15 @@
 import type { CanvasNode, EdgeArrowCap } from '../../../../types';
 import type { Point } from '../../runtime/useEdgeInteraction';
+import { DEFAULT_EDGE_STROKE } from '../../../../../../shared/canvas';
 
 export const SELECTION_COLOR = '#2a7fff';
 export const HANDLE_RADIUS = 5;
+
+/** The default edge color follows the theme; a picked color stays as is.
+ *  Use it as a style value: SVG attributes do not resolve CSS variables. */
+export const edgePaint = (color: string): string => (
+  color === DEFAULT_EDGE_STROKE.color ? 'var(--edge-stroke)' : color
+);
 
 export const capId = (
   prefix: string,
@@ -24,22 +31,23 @@ export const capSize = (strokeWidth: number): number => 6 + strokeWidth * 2.5;
 const MarkerShape = ({ cap, color }: { cap: EdgeArrowCap; color: string }) => {
   switch (cap) {
     case 'triangle':
-      return <path d="M0,1.5 L10,5 L0,8.5 z" fill={color} />;
+      return <path d="M0,1.5 L10,5 L0,8.5 z" fill={color} style={{ fill: edgePaint(color) }} />;
     case 'arrow':
       return (
         <path
           d="M0,1.5 L10,5 L0,8.5"
           fill="none"
           stroke={color}
+          style={{ stroke: edgePaint(color) }}
           strokeWidth={1.8}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
       );
     case 'dot':
-      return <circle cx={5} cy={5} r={3.2} fill={color} />;
+      return <circle cx={5} cy={5} r={3.2} fill={color} style={{ fill: edgePaint(color) }} />;
     case 'bar':
-      return <rect x={4} y={0} width={2} height={10} fill={color} />;
+      return <rect x={4} y={0} width={2} height={10} fill={color} style={{ fill: edgePaint(color) }} />;
     case 'none':
     default:
       return null;

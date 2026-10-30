@@ -16,7 +16,7 @@ describe('createDefaultEdge', () => {
 
     expect(edge.stroke).toEqual({
       color: '#6b6b67',
-      width: 2.4,
+      width: 3,
       style: 'solid',
     });
   });

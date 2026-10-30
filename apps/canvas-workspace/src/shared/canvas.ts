@@ -400,22 +400,23 @@ export interface EdgeLabelStyle {
 
 export const DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
   color: '#6b6b67',
-  width: 2.4,
+  width: 3,
   style: 'solid',
 };
 
-const LEGACY_DEFAULT_EDGE_STROKE: Readonly<Required<EdgeStroke>> = {
-  color: '#1f2328',
-  width: 2.4,
-  style: 'solid',
-};
+/** Earlier defaults; an edge still on one of them follows the current one. */
+const LEGACY_DEFAULT_EDGE_STROKES: ReadonlyArray<Readonly<Required<EdgeStroke>>> = [
+  { color: '#1f2328', width: 2.4, style: 'solid' },
+  { color: '#6b6b67', width: 2.4, style: 'solid' },
+];
 
 export const resolveEdgeStroke = (stroke?: EdgeStroke): Required<EdgeStroke> => {
   const resolved = { ...DEFAULT_EDGE_STROKE, ...stroke };
-  const isLegacyDefault =
-    resolved.color === LEGACY_DEFAULT_EDGE_STROKE.color &&
-    resolved.width === LEGACY_DEFAULT_EDGE_STROKE.width &&
-    resolved.style === LEGACY_DEFAULT_EDGE_STROKE.style;
+  const isLegacyDefault = LEGACY_DEFAULT_EDGE_STROKES.some((legacy) => (
+    resolved.color === legacy.color
+    && resolved.width === legacy.width
+    && resolved.style === legacy.style
+  ));
   return isLegacyDefault ? { ...DEFAULT_EDGE_STROKE } : resolved;
 };
 

@@ -45,7 +45,7 @@
 /* A nested label ranks below its parent's, so the outline is not the only
  * cue for depth. */
 .canvas-node--frame.canvas-node--nested-frame .node-header .node-title {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .canvas-node--frame.canvas-node--nested-frame .node-header {
@@ -142,8 +142,9 @@
   flex: 0 1 auto;
   color: inherit;
   padding: 0;
+  /* A section label, one step under the reading cards' titles. */
   font-weight: 500;
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1.2;
   letter-spacing: 0;
 }

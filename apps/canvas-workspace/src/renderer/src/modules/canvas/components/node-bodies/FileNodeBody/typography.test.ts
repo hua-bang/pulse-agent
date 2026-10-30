@@ -39,8 +39,18 @@ describe('rich text presentation contract', () => {
     expect(rule('.note-tiptap-editor .ProseMirror pre code')).toContain('background: none');
   });
 
-  it('inherits shared node header geometry, title truncation, icon and action states', () => {
-    expect(nodeBodyCss).not.toMatch(/\.canvas-node--file[^{}]*\.node-header/);
+  it('shows a board note as a reading card and keeps the toolbar header for fullscreen', () => {
+    const card = '.canvas-node--file:not(.canvas-node--fullscreen)';
+    const header = nodeBodyCss.slice(nodeBodyCss.indexOf(`${card}>.node-header {`));
+    expect(header).toContain('padding: 28px 32px 0');
+    expect(header).toContain('background: transparent');
+    expect(nodeBodyCss).toContain(`${card}:not(:hover):not(.canvas-node--selected)>.node-header .node-header__actions {\n  display: none;`);
+    const title = rule(`${card}>.node-header .node-title`);
+    expect(title).toContain('font-size: 22px');
+    expect(title).toContain('-webkit-line-clamp: 3');
+    expect(rule(`${card} .note-tiptap-editor .ProseMirror`)).toContain('padding: 12px 32px 32px');
+    expect(css).toContain('.canvas-node--title-in-body:not(.canvas-node--fullscreen) .note-tiptap-editor :is(.ProseMirror, .note-markdown-preview)>h1:first-child {\n  display: none;');
+    // Fullscreen and other nodes keep the shared header geometry.
     expect(headerCss).toContain('min-height: 32px');
     expect(headerCss).toContain('font-size: 13px');
     expect(headerCss).toContain('text-overflow: ellipsis');

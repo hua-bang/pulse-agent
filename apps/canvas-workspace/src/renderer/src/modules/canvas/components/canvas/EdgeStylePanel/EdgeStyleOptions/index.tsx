@@ -17,9 +17,9 @@ const COLORS = [
   '#8e4ec6',
 ];
 const WIDTHS = [
-  { label: 'S', value: 1.6 },
-  { label: 'M', value: 2.4 },
-  { label: 'L', value: 4 },
+  { label: 'S', value: 2 },
+  { label: 'M', value: 3 },
+  { label: 'L', value: 4.5 },
 ];
 const STYLES: Array<NonNullable<EdgeStroke['style']>> = ['solid', 'dashed', 'dotted'];
 const CAPS: EdgeArrowCap[] = ['none', 'triangle', 'arrow', 'dot', 'bar'];

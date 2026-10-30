@@ -92,7 +92,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         // The estimator loads on first use to keep it out of the main entry chunk.
         const height = (input.height as number | undefined)
           ?? (nodeType === 'file' && content.trim()
-            ? (await import('../_shared/layout/content-size')).estimateNoteHeight(content, width)
+            ? (await import('../_shared/layout/content-size')).estimateNoteHeight(content, width, title)
             : def.height);
         let pos: { x: number; y: number };
         try {
