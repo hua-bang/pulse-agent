@@ -212,6 +212,12 @@ Electron Builder 因此又复制完整 npm 包。可迁入 devDependencies 的�
 > arm64 实测 DMG 160.8→96.6 MB、`.app` 471.7→235.1 MiB、ASAR
 > 约 224→44.0 MiB、native unpacked 约 24→2.3 MiB；packaged executable
 > 已用独立 HOME + CDP 启动，欢迎 Canvas/3 节点正常且无缺失模块日志。
+>
+> 2026-10-31 补充：ASAR 回涨到 48.8 MiB。第三方包里的 TypeScript 源码
+> （`*.ts/*.cts/*.mts`，Node 不执行）、`ai` 的 `.mdx` 文档和 Lark SDK
+> 的 `es/` 副本（无 `exports`，Node 走 `main` 指向的 `lib/`）合计约
+> 13 MiB，现已排除。Linux dir 包实测 ASAR 47.9→34.9 MiB；packaged
+> 运行时可导入 Lark SDK、happy-dom、zod、ai 与 engine，应用启动并初始化 Agent。
 
 **任务**：
 
