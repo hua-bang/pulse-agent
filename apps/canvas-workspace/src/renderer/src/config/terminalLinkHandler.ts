@@ -1,11 +1,11 @@
 import type { ILinkHandler } from '@xterm/xterm';
 import { getInitialLanguage } from '../i18n';
-import { messages } from '../i18n/messages';
+import { getMessages } from '../i18n/messages';
 
 const OPEN_DIALOG_CLASS = 'terminal-link-confirm';
 
 function dialogCopy() {
-  const dict = messages[getInitialLanguage()];
+  const dict = getMessages(getInitialLanguage());
   return {
     title: dict['terminalLink.confirmTitle'],
     description: dict['terminalLink.confirmDescription'],

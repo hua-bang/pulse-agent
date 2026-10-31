@@ -12,10 +12,11 @@ import type {
   FileTrashEntryRequest,
   FileWriteRequest,
 } from '../../shared/files';
+import type { RenderedImagePreview } from '../../shared/api/files';
 import { createEntry, renameEntry, trashEntry } from './file-operations';
 import { workspaceFiles } from './workspace-files';
 import { readFilePreview } from './file-preview';
-import { ensureImagePreview } from './image-preview';
+import { lookupImagePreview, storeImagePreview } from './image-preview';
 import { deleteSavedImage, saveBase64Image } from './image-save';
 
 const IGNORED_DIRS = new Set([
@@ -290,9 +291,24 @@ export const setupFileManagerIpc = () => {
     async (_event, payload: { filePath: string; maxDimension?: number }) => {
       try {
         if (!payload.filePath) return { ok: false, error: 'Missing image path' };
-        const preview = await ensureImagePreview(payload.filePath, {
+        const found = await lookupImagePreview(payload.filePath, {
           cacheDir: IMAGE_PREVIEW_DIR,
           maxDimension: payload.maxDimension,
+        });
+        return { ok: true, ...found };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'file:storeImagePreview',
+    async (_event, payload: { filePath: string; cacheKey: string; rendered: RenderedImagePreview }) => {
+      try {
+        if (!payload.filePath) return { ok: false, error: 'Missing image path' };
+        const preview = await storeImagePreview(payload.filePath, payload.cacheKey, payload.rendered, {
+          cacheDir: IMAGE_PREVIEW_DIR,
         });
         return { ok: true, preview };
       } catch (err) {

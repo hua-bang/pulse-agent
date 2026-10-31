@@ -140,18 +140,18 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口实测 753KB（10/4 为 736KB，主要增长来自 MCP App 全局侧栏一批 PR 约 7KB、新外壳、知识入口与 Heptabase 式连线各约 2KB）。保留 680 target 作为常驻聊天壳瘦身压力。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 753, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口实测 753KB（10/4 为 736KB，主要增长来自 MCP App 全局侧栏一批 PR 约 7KB、新外壳、知识入口与 Heptabase 式连线各约 2KB）。保留 680 target 作为常驻聊天壳瘦身压力。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 661, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口 gzip 实测 223KB。保留 target 185 与 warning 210 作为瘦身压力。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 223, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 gzip 225→197KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口 gzip 实测 223KB。保留 target 185 与 warning 210 作为瘦身压力。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 197, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。启动静态闭包实测 753KB，与入口相同（启动闭包只有入口一个 JS）。保留 650 target 作为启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 753, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），启动 JS 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。启动静态闭包实测 753KB，与入口相同（启动闭包只有入口一个 JS）。保留 650 target 作为启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 661, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
@@ -164,9 +164,9 @@
       "gate": { "kind": "ratchet", "baseline": 6794, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
-      "profile": "global-deterministic", "target": 550, "warning": 690,
-      "confidence": "high", "basis": "2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。main 实测 721KB（8/29 为 699KB，10/4 已到 719KB，此前一直在 3% 容差内悄悄增长）。保留 550 target 与 690 warning；后续继续拆分 MCP Apps IPC 与协议服务。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 721, "tolerancePct": 1, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 400, "warning": 550,
+      "confidence": "high", "basis": "2026-10-31：Canvas Agent 服务（engine、工具、会话存储）改为首次 agent 调用时动态加载，main 入口 726→394KB，ratchet 锚点同步收紧到实测值。target 400 / warning 550 防止 agent 代码重新进入启动入口。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 394, "tolerancePct": 1, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
@@ -175,8 +175,8 @@
     },
     "startup.loaded_to_lcp_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
-      "confidence": "medium", "basis": "同一 warm trace 中 file:// 资源时序均记为 0，LCP 前资源与 Canvas 前资源同为 1912.5KB；随笔记编辑器能力校准 ratchet，同时保留 950/1050 目标。", "asOf": "2026-07-26",
-      "gate": { "kind": "ratchet", "baseline": 1912.5, "tolerancePct": 5, "scope": "runtime" }
+      "confidence": "medium", "basis": "2026-10-31：应用图标改为 192px（162→25KB），highlight.js 改为首次遇到代码块才加载，页面空闲预加载推迟 1.5s 不再落在 LCP 前；同容器 3 次 warm trace 稳定为 1096.7KB（之前随预加载时机在 1388–1912KB 两峰间跳动），ratchet 锚点收紧到 1100。之前：同一 warm trace 中 file:// 资源时序均记为 0，LCP 前资源与 Canvas 前资源同为 1912.5KB；随笔记编辑器能力校准 ratchet，同时保留 950/1050 目标。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 1100, "tolerancePct": 5, "scope": "runtime" }
     },
     "bundle.heavy_in_entry_count": {
       "profile": "global-deterministic", "target": 0,
@@ -189,8 +189,8 @@
     },
     "package.dmg_mb": {
       "profile": "darwin-arm64-package", "target": 105, "warning": 115,
-      "confidence": "high", "basis": "2026-08-29 CI 对 MCP Apps Host 完整 arm64 安装包实测 99.1MB；app unpacked、ASAR、native unpacked 与 locale gates 同次全部通过，仍低于 105MB target。", "asOf": "2026-08-29",
-      "gate": { "kind": "ratchet", "baseline": 99.1, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：ASAR 排除运行时不用的文件后，CI arm64 DMG 实测 98.7MB（压缩后收益小于 ASAR 的 13MiB），ratchet 锚点收紧到实测值。之前：2026-08-29 实测 99.1MB。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 98.7, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.app_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 250, "warning": 275,
@@ -199,8 +199,8 @@
     },
     "package.asar_mib": {
       "profile": "darwin-arm64-package", "target": 50, "warning": 60,
-      "confidence": "high", "basis": "2026-10-21 基线重整：CI arm64 包 ASAR 实测 48.8MiB，原 46.2 +5% 的上限 49 只剩 0.2MiB；按实测重置，容差收到 3%（上限 50）。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 48.8, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：第三方包的 TS 源码、ai 的 .mdx 文档与 Lark SDK 的 es/ 副本不再打包，CI arm64 ASAR 48.8→35.5MiB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整按实测 48.8MiB 重置，容差 3%。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 35.5, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.native_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 5, "warning": 8,
@@ -245,14 +245,14 @@
       "confidence": "medium", "basis": "521 delta 固定回放的同机帧历史", "asOf": "2026-07-10"
     },
     "chat.stream.md_render_count": {
-      "profile": "global-deterministic", "target": 65, "warning": 72,
-      "confidence": "high", "basis": "521 delta 固定回放；批处理后实测 64，2026-10-21 CI 实测 49。2026-10-21 基线重整：Gate 由 80 收紧到 warning 72。", "asOf": "2026-10-21",
-      "gate": { "kind": "max", "value": 72, "scope": "runtime" }
+      "profile": "global-deterministic", "target": 20, "warning": 26,
+      "confidence": "high", "basis": "2026-10-31：批处理窗口随回复长度放宽（每次提交都重渲染整条消息），521 delta 固定回放实测 19，Gate 由 72 收紧到 26。之前：批处理后实测 64，2026-10-21 CI 实测 49。", "asOf": "2026-10-31",
+      "gate": { "kind": "max", "value": 26, "scope": "runtime" }
     },
     "chat.stream.commit_count": {
-      "profile": "global-deterministic", "target": 65, "warning": 72,
-      "confidence": "high", "basis": "521 delta 固定回放的流式提交次数", "asOf": "2026-07-10",
-      "gate": { "kind": "max", "value": 72, "scope": "runtime" }
+      "profile": "global-deterministic", "target": 20, "warning": 26,
+      "confidence": "high", "basis": "2026-10-31：批处理窗口随回复长度放宽，521 delta 固定回放实测 20 次提交，Gate 由 72 收紧到 26。", "asOf": "2026-10-31",
+      "gate": { "kind": "max", "value": 26, "scope": "runtime" }
     },
     "chat.stream.md_cache_hit_ratio": {
       "profile": "global-deterministic", "target": 50, "warning": 40,

@@ -5,6 +5,7 @@ import type { CanvasNode, ToolCallStatus } from '../../../../types';
 import { useRoleColors, useRoleNameColors } from '../../mentions/roleMentionItems';
 import { renderMdWithMentions } from '../../mentions/mentions';
 import { renderMermaidIn } from '../../../../utils/mermaid';
+import { useHighlighterVersion } from '../../../../utils/syntaxHighlighter';
 import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
@@ -25,9 +26,11 @@ function TextBlock({ text, streaming, nodes, rootFolder }: {
   const bodyRef = useRef<HTMLDivElement>(null);
   const roleColors = useRoleColors();
   const roleNames = useRoleNameColors();
+  // highlighterVersion re-renders plain code once the highlighter loads.
+  const highlighterVersion = useHighlighterVersion();
   const html = useMemo(() => renderMdWithMentions(text, nodes, {
     streaming, rootFolder, roleColors, roleNames,
-  }), [text, nodes, streaming, rootFolder, roleColors, roleNames]);
+  }), [text, nodes, streaming, rootFolder, roleColors, roleNames, highlighterVersion]);
   useEffect(() => {
     if (!streaming) renderMermaidIn(bodyRef.current);
   }, [html, streaming]);

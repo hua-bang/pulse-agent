@@ -13,7 +13,7 @@
 
 import { ipcMain } from 'electron';
 import { parseScopePayload, type CanvasConfigScope } from '../scope/config-scope';
-import { getCanvasAgentService } from '../ipc';
+import { peekCanvasAgentService } from '../agent-service-lifecycle';
 import {
   getCanvasSkillsStatus,
   importCanvasSkillFromUrl,
@@ -26,8 +26,8 @@ import {
 import { promoteCanvasSkill } from './promote';
 
 async function refreshAgents(scope: CanvasConfigScope): Promise<void> {
-  const service = getCanvasAgentService();
-  await service.reloadSkills(scope.level === 'workspace' ? scope.workspaceId : undefined);
+  // Agents rescan on reload; a service that has not loaded has no agents yet.
+  await peekCanvasAgentService()?.reloadSkills(scope.level === 'workspace' ? scope.workspaceId : undefined);
 }
 
 export function setupCanvasSkillsIpc(): void {

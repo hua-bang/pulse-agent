@@ -77,7 +77,7 @@ describe('MCP App entrypoint IPC', () => {
   beforeEach(() => {
     electron.handlers.clear();
     executeMcpAppTool.mockClear();
-    setupMcpAppIpc(service as never);
+    setupMcpAppIpc(async () => service as never);
   });
 
   it('lists one entrypoint per app, preferring Pulse node and dropping duplicate thread tabs', async () => {

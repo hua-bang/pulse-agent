@@ -1,21 +1,20 @@
 import { ipcMain } from 'electron';
 import type { AgentScopeRef } from '../types';
-import type { CanvasAgentService } from '../service';
 import type { McpAppEntrypointKind } from '../../../shared/mcp-apps';
 import { listMcpAppEntrypoints, listMcpAppEntrypointsOfKind } from './mcp-app-entrypoints';
 import { setupMcpAppNodeContextIpc } from './mcp-app-node-context-ipc';
-import { boundedRequest, errorResult, executeWithTimeout, managerFor, resolveAgentScope, validMcpName } from './mcp-app-request';
+import { boundedRequest, errorResult, executeWithTimeout, managerFor, resolveAgentScope, validMcpName, type LoadAgentService } from './mcp-app-request';
 
 export { resolveAgentScope } from './mcp-app-request';
 
-function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
+function setupMcpAppEntrypointIpc(loadService: LoadAgentService): void {
   ipcMain.handle('canvas-agent:mcp-app-list-entrypoints', async (
     event,
     payload: AgentScopeRef & { kind?: McpAppEntrypointKind },
   ) => {
     try {
       return await boundedRequest(event, async () => {
-        const { manager } = await managerFor(service, resolveAgentScope(payload ?? {}));
+        const { manager } = await managerFor(loadService, resolveAgentScope(payload ?? {}));
         const apps = manager.listToolApps();
         const kind = payload?.kind;
         const listings = kind === 'node' || kind === 'global' || kind === 'thread'
@@ -43,7 +42,7 @@ function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
       }
       try {
         return await boundedRequest(event, async () => {
-          const { agent, manager } = await managerFor(service, resolveAgentScope(payload));
+          const { agent, manager } = await managerFor(loadService, resolveAgentScope(payload));
           const registeredName = manager.getRegisteredToolName(serverName, toolName);
           const app = registeredName ? manager.getToolApp(registeredName) : undefined;
           if (!registeredName || !app || listMcpAppEntrypoints([app]).length === 0) {
@@ -58,9 +57,9 @@ function setupMcpAppEntrypointIpc(service: CanvasAgentService): void {
   );
 }
 
-export function setupMcpAppIpc(service: CanvasAgentService): void {
+export function setupMcpAppIpc(loadService: LoadAgentService): void {
   setupMcpAppNodeContextIpc();
-  setupMcpAppEntrypointIpc(service);
+  setupMcpAppEntrypointIpc(loadService);
   ipcMain.handle(
     'canvas-agent:mcp-app-list-resources',
     async (event, payload: AgentScopeRef & { serverName?: string; cursor?: string }) => {
@@ -69,7 +68,7 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
       if (payload.cursor && payload.cursor.length > 1_024) return { ok: false, error: 'resource cursor is too long' };
       try {
         return await boundedRequest(event, async () => {
-          const { manager } = await managerFor(service, resolveAgentScope(payload));
+          const { manager } = await managerFor(loadService, resolveAgentScope(payload));
           return { ok: true, value: await manager.listResources(serverName, payload.cursor) };
         });
       } catch (error) {
@@ -88,7 +87,7 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
       }
       try {
         return await boundedRequest(event, async () => {
-          const { manager } = await managerFor(service, resolveAgentScope(payload));
+          const { manager } = await managerFor(loadService, resolveAgentScope(payload));
           return { ok: true, value: await manager.readResource(serverName, uri) };
         });
       } catch (error) {
@@ -101,7 +100,7 @@ export function setupMcpAppIpc(service: CanvasAgentService): void {
   let toolHandler: Promise<ReturnType<typeof import('./mcp-app-tool-handler').createMcpAppToolHandler>> | undefined;
   ipcMain.handle('canvas-agent:mcp-app-call-tool', async (event, payload) => {
     const handler = await (toolHandler ??= import('./mcp-app-tool-handler')
-      .then(module => module.createMcpAppToolHandler(service)));
+      .then(module => module.createMcpAppToolHandler(loadService)));
     return handler(event, payload);
   });
 }

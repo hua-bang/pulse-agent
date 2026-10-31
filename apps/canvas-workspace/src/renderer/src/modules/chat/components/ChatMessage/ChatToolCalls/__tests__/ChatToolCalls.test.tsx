@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { I18nProvider } from '../../../../../../i18n';
 import { ChatToolCalls } from '..';
 import type { ToolCallStatus } from '../../../../../../types';
+import { loadMessages } from '../../../../../../i18n/messages';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -53,6 +54,9 @@ const tabToolNames = [
   'dock_open_tab',
   'browser_read_dom_selection',
 ] as const;
+
+// The Chinese catalog loads on demand; tests render it synchronously.
+beforeAll(() => loadMessages('zh'));
 
 describe('ChatToolCalls tab tool labels', () => {
   it.each(['running', 'succeeded'] as const)('shows the concrete action for a single collapsed %s tool', status => {

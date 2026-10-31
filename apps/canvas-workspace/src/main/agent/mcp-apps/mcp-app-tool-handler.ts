@@ -1,12 +1,11 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
 import type { AgentScope, AgentScopeRef } from '../types';
-import type { CanvasAgentService } from '../service';
 import { serializeMcpAppToolArguments, type McpAppToolApprovalResponse } from '../../../shared/mcp-apps';
 import { classifyCanvasToolOperation } from '../tool-policy';
 import { McpAppPendingApprovals } from './mcp-app-pending-approvals';
 import { McpAppSessionApprovals } from './mcp-app-session-approvals';
-import { boundedRequest, errorResult, executeWithTimeout, managerFor, resolveAgentScope, validMcpName } from './mcp-app-request';
+import { boundedRequest, errorResult, executeWithTimeout, managerFor, resolveAgentScope, validMcpName, type LoadAgentService } from './mcp-app-request';
 
 interface PendingMcpAppApproval {
   requestId: string;
@@ -54,7 +53,7 @@ function matchesApproval(
     && pending.serializedArguments === serializedArguments);
 }
 
-export function createMcpAppToolHandler(service: CanvasAgentService) {
+export function createMcpAppToolHandler(loadService: LoadAgentService) {
   return async (event: IpcMainInvokeEvent, payload: AgentScopeRef & {
     serverName?: string;
     toolName?: string;
@@ -88,7 +87,7 @@ export function createMcpAppToolHandler(service: CanvasAgentService) {
     try {
       // Resolve enabled tools before asking. Use the host's existing classifier,
       // with the bare tool name so server names cannot alter operation policy.
-      const { manager } = await managerFor(service, scope);
+      const { manager } = await managerFor(loadService, scope);
       const registeredName = manager.getRegisteredToolName(serverName, toolName);
       if (!registeredName) throw new Error('Unknown or disabled MCP App tool');
       const readOnly = classifyCanvasToolOperation(`mcp_app_${toolName}`) === 'read';
@@ -141,7 +140,7 @@ export function createMcpAppToolHandler(service: CanvasAgentService) {
         }
       }
       return await boundedRequest(event, async () => {
-        const { agent, manager } = await managerFor(service, scope);
+        const { agent, manager } = await managerFor(loadService, scope);
         const currentName = manager.getRegisteredToolName(serverName, toolName);
         if (!currentName) throw new Error('Unknown or disabled MCP App tool');
         return {

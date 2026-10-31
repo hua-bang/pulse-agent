@@ -1,5 +1,6 @@
 import { Suspense, type ComponentProps } from 'react';
 import { preloadableLazy } from '../../shared/preloadableLazy';
+import { loadHighlighter } from '../../utils/syntaxHighlighter';
 
 // Chat surfaces pull markdown-it + highlight.js + the whole chat component
 // tree. React.lazy keeps that out of the eagerly-parsed entry chunk (C3);
@@ -11,7 +12,13 @@ import { preloadableLazy } from '../../shared/preloadableLazy';
 const ChatPageInner = preloadableLazy(() => import('./components/ChatPage').then((m) => ({ default: m.ChatPage })));
 const ChatPanelInner = preloadableLazy(() => import('./components/ChatPanel').then((m) => ({ default: m.ChatPanel })));
 
-export const preloadChatSurfaces = () => Promise.all([ChatPageInner.preload(), ChatPanelInner.preload()]);
+// The highlighter loads with the chat surfaces, so a reply's code is
+// highlighted on its first render.
+export const preloadChatSurfaces = () => Promise.all([
+  ChatPageInner.preload(),
+  ChatPanelInner.preload(),
+  loadHighlighter(),
+]);
 
 export const ChatPageLazy = (props: ComponentProps<typeof ChatPageInner>) => (
   <Suspense fallback={null}>

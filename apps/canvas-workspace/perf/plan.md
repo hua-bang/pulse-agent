@@ -42,7 +42,13 @@
 
 **B2 完成记录(2026-07-10,S+M 完成)**:`ImageNodeBody` 保留 `decoding="async"` + `loading="lazy"`,并新增主进程 `nativeImage.resize` sidecar 管线。普通画布等待 960px preview 就绪后才挂 `<img>`(不先瞬时解码原图),全屏切回原图;源路径 + size + mtime 指纹负责失效,metadata 让 cache hit 不再打开原图,旧指纹 sidecar 自动清理,生成失败回退原图。并发生成串行且每张之间让出 event loop,10 图 burst 的 main loop-delay max 从 246.7ms 降到 55.6ms。新增自包含 `image-memory` 场景与 `memory.image.decoded_mb`:10×4000×3000 原图估算 457.8MB,preview 实测 26.4MB,下降 17.4×;真实 CDP 另验证普通画布 natural size 960×720、全屏恢复 4000×3000。
 
+**B2 更新(2026-10-31)**:CPU profile 显示 `nativeImage` 的解码、缩放和 PNG 编码每张图在主进程同步阻塞约 110ms,image-memory 场景因此把 main loop-delay p99 推到 129ms。preview 现在由渲染进程 Worker 生成(`createImageBitmap` + `OffscreenCanvas`),主进程只负责缓存查找、原子写入和清理(`file:getImagePreview` 未命中时返回 `cacheKey`,`file:storeImagePreview` 校验 key 与源文件指纹后落盘)。无需缩小的小图也写入 metadata,不再每次重新解码。同机复测 p99 129→23.4ms;剩余 max 来自启动时 `new BrowserWindow` 的原生耗时。
+
 **AI 流式完成记录(2026-07-10)**:新增仅在 `PULSE_CANVAS_PERF=1` 可触发的本地确定性回放,521 个 delta 走真实 IPC、`useChatStream` 和 Markdown/Mermaid 渲染链路。文本 delta 以 32ms 视觉窗口合并,流式 Markdown 全量渲染从 374 次降到 64 次(下降 82.9%),frames>20ms 从 0.7% 降到 0.3%,Mermaid tail 0.8ms;`chat-md-stream-render ≤80` 与 commit 同步设为 gate。
+
+**AI 流式更新(2026-10-31)**:CI frames>20ms 回升到 14.8%。renderer profile 显示每次提交都重渲染整条消息（Markdown、代码高亮、整段 DOM 的样式与布局），单次 30–45ms，且随回复变长而变重。批处理窗口现在随已提交字数放宽(32→200ms,每 64 字符加 1ms),短回复不变。521 delta 回放:提交 50→20 次,流式期间 renderer task 总时长约 2.4s→1.0s,frames>20ms 14.8%→7.7%(同容器);commit 与 md render gate 由 72 收紧到 26。曾尝试把跟随滚动从 `scrollIntoView` 改成 `scrollTop`,强制布局只是换了位置,实测无收益,未保留。
+
+**首屏资源与启动链(2026-10-31)**:warm trace 显示 LCP 前的大块里有 162KB 的 512px 应用图标(只按 ≤56px 显示)和 154KB 的 highlight.js 语言包(画布上的 Markdown 预览一挂载就随 `markdown` chunk 静态加载)。图标改为 192px(162→25KB);highlight.js 改由 `utils/syntaxHighlighter` 首次遇到代码块时加载,加载前代码块先显示纯文本、不进 settled 缓存,加载后由 `useHighlighterVersion` 触发一次重渲;聊天面板空闲预加载时一起带上。另一个噪声源是页面空闲预加载:renderer 第一次空闲时 Canvas 首屏还没画完,约 600KB 的聊天/设置等 chunk 时而落在 LCP 前(同一构建 1388–1912KB 两峰)。`preloadWhenIdle` 改为先等 1.5s 再等空闲。同容器 3 次复测 `startup.loaded_to_lcp_kb` 稳定为 1096.7KB,`loaded_to_canvas_kb` 906.6KB。启动串行链拆解(demo profile 复启,非首启):whenReady→pluginsActivated 约 125–150ms,分散在菜单 import(12–16ms)、存储打开(约 25ms)、IPC 注册与按需 import(约 30ms)、插件激活(约 30ms)等多步,没有单个大头;temp profile 每次都是首启,额外包含约 90ms 的 SQLite 激活与会话迁移,所以 `startup.serial_chain_ms` 在 CI 上偏高是首启成本,不是复启回归。window 创建到 dom-ready 约 230ms,其中约 160ms 是原生 `new BrowserWindow`。
 
 **指标补全记录(2026-07-10)**:dashboard 最后 3 个缺口已接通。Welcome 内容最初由 guest `dom-ready` 计算开窗后耗时，2026-07-11 已改为本地 HTML 的 `welcome:local-content-ready`；AI mock turn 在 temp HOME 中走真实 `SessionStore` 持久化,稳定产生 `main.session_persist.bytes_per_turn`;新增双真实 PTY 定速流场景,统计 renderer 收到的 `pty:data` IPC/s。
 

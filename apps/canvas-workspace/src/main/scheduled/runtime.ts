@@ -16,7 +16,7 @@ const scheduledScope = (taskId: string) => ({ kind: 'scheduled' as const, taskId
 const conversationRuntime = () => getConversationRuntimeService(getCanvasAgentService);
 
 async function createScheduledSession(
-  agentService: ReturnType<typeof getCanvasAgentService>,
+  agentService: Awaited<ReturnType<typeof getCanvasAgentService>>,
   taskId: string,
 ): Promise<string> {
   const created = await agentService.newSessionForScope(scheduledScope(taskId));
@@ -56,7 +56,7 @@ async function executeScheduledTask(
   task: ScheduledTask,
   context: ScheduledTaskExecutionContext,
 ): Promise<{ sessionId?: string }> {
-  const agentService = getCanvasAgentService();
+  const agentService = await getCanvasAgentService();
   const scope = scheduledScope(task.id);
   let sessionId = context.sessionId;
   try {
@@ -102,7 +102,7 @@ async function executeScheduledTask(
  * otherwise still be activating and the chat would miss the whole run.
  */
 async function prepareManualSession(taskId: string): Promise<string> {
-  const sessionId = await createScheduledSession(getCanvasAgentService(), taskId);
+  const sessionId = await createScheduledSession(await getCanvasAgentService(), taskId);
   await conversationRuntime().hasSession(scheduledScope(taskId), sessionId);
   return sessionId;
 }

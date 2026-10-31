@@ -19,7 +19,7 @@
 
 import { ipcMain } from 'electron';
 import { parseScopePayload, type CanvasConfigScope } from '../scope/config-scope';
-import { getCanvasAgentService } from '../ipc';
+import { getCanvasAgentService, peekCanvasAgentService } from '../agent-service-lifecycle';
 import {
   getCanvasMcpStatus,
   importCanvasMcpJson,
@@ -36,14 +36,14 @@ import {
 } from './oauth';
 
 async function reloadAgents(scope: CanvasConfigScope): Promise<void> {
-  const service = getCanvasAgentService();
+  const service = await getCanvasAgentService();
   await service.reloadMcp(scope.level === 'workspace' ? scope.workspaceId : undefined);
 }
 
 /** Attach per-server connection statuses from the active agent's engine. */
 async function withStatuses(status: CanvasMcpStatus, scope: CanvasConfigScope): Promise<CanvasMcpStatus> {
   const workspaceId = scope.level === 'workspace' ? scope.workspaceId : undefined;
-  const statuses = getCanvasAgentService().getMcpStatuses(workspaceId);
+  const statuses = peekCanvasAgentService()?.getMcpStatuses(workspaceId) ?? {};
   const oauthStatuses: CanvasMcpStatus['oauthStatuses'] = {};
   await Promise.all(
     status.servers.map(async (server) => {
