@@ -76,6 +76,7 @@ Search quality decides research quality. For each core question:
 - **Ask for freshness when it matters.** For recent events, prices, releases, or "latest", restrict the period (with Tavily: `topic: "news"` and `timeRange`) and record each source's date.
 - **Use the deeper mode for research.** With Tavily, use `searchDepth: "advanced"` and 8-10 results for `standard` and `deep` work; `basic` is for quick orientation.
 - **Read before you cite.** Search excerpts are fragments. Before a source supports a key finding, read the page itself (with Tavily: `tavily_extract`, passing `query` to pull the relevant parts). Never cite a page you only saw as an excerpt.
+- **Keep the visuals.** When a chart, diagram, or product screenshot would prove a finding, ask for images (with Tavily: `includeImages: true` on search or extract) and record the image URL with its source id. Skip logos and decoration.
 - **Follow the trail.** When a good page cites a primary source, read that source and cite it instead.
 - **Stop at saturation.** Stop a question when new queries return sources you already have, or when two independent strong sources agree. Note the question as open when they disagree.
 - **Drop weak sources.** Skip SEO listicles, content farms, undated pages, and pages that only restate other sources, unless nothing better exists; then mark the finding `low` confidence.
@@ -122,7 +123,9 @@ research_brief:
         purpose: "Why this grouping exists"
         nodes:
           - title: "Node title"
-            summary: "Content to place in the node"
+            type: "note | mindmap | web | image"
+            summary: "Note: the claim and its support. Mindmap: the branches. Web or image: what it shows."
+            url: "Page URL for web, image URL for image"
             source_ids: ["S1"]
     edges:
       - from: "Frame or node title"
@@ -140,6 +143,7 @@ When another skill such as `canvas-bootstrap` will create a canvas:
 - Organize findings into natural frames, not a fixed template.
 - Suggest 3-6 frames for most topics.
 - Suggest 2-4 substantial content nodes per frame.
+- Pick each node type by content: `note` for one claim or conclusion (at most 3-4 per frame), `mindmap` for a taxonomy, breakdown, or list of options, `web` for one key source page to embed (1-3 per canvas), and `image` for a chart or screenshot that proves a finding. Do not turn every finding into a note.
 - Include source ids inside each node summary so final canvas content can cite evidence.
 - Include only meaningful edges; avoid connecting everything to everything.
 - Mark draft, uncertain, or assumption-heavy nodes clearly.

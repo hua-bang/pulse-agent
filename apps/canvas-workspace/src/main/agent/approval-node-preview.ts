@@ -20,6 +20,8 @@ export const createApprovalNodePreview = (
   const extra = proposed.data && typeof proposed.data === 'object'
     ? proposed.data as Record<string, unknown>
     : {};
+  // A web image has no local file until the tool runs, so there is nothing to show yet.
+  if (type === 'image' && !extra.filePath && typeof extra.url === 'string') return undefined;
   const defaults = CANVAS_NODE_DEFAULTS[type];
   const title = typeof proposed.title === 'string' ? proposed.title : defaults.title;
   const content = typeof proposed.content === 'string' ? proposed.content : '';

@@ -107,6 +107,13 @@ describe('planLayoutPreset', () => {
     // The single intro card now spans the frame that stretched to the body width.
     expect(card.x).toBe(intro.x + 32);
     expect(card.width).toBe(intro.width - 64);
+
+    const imageNodes = [...frameWithCards('chart', 0, 0, 1, 300), ...frameWithCards('report', 2000, 0, 2, 300)];
+    const chart = imageNodes[1];
+    chart.type = 'image';
+    const imageStack = apply(imageNodes, { preset: 'stack', startX: 0, startY: 0 }).byId;
+    // An image keeps its size; a wider box would only add blank margins.
+    expect(imageStack.get('chart-card-0')!.width).toBe(300);
   });
 
   it('hub: the main frame sits in the middle with the others centered on each side', () => {
