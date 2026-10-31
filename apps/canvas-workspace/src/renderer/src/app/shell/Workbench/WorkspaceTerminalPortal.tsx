@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useRightDockTerminalHost } from '../../../modules/dock';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../shared/agent-chat';
 import type { AgentContextTabRef, CanvasNode } from '../../../types';
 import type { DockTerminalWorkspaceState } from '../../../modules/dock';
 
@@ -42,8 +43,15 @@ export const WorkspaceTerminalPortal = ({
   const terminalHost = useRightDockTerminalHost();
   if (!terminalHost) return null;
 
+  // Global has no workspace entry; its terminals start in the home folder.
+  const scopes: Array<{ id: string; name?: string; rootFolder?: string }> = workspaces
+    .filter((ws) => mountedWorkspaceIds.has(ws.id) || terminalTabsByWorkspace[ws.id]?.tabs.length);
+  if (terminalTabsByWorkspace[GLOBAL_CHAT_STORE_ID]?.tabs.length) {
+    scopes.push({ id: GLOBAL_CHAT_STORE_ID });
+  }
+
   return createPortal(
-    workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id) || terminalTabsByWorkspace[ws.id]?.tabs.length).flatMap((ws) => {
+    scopes.flatMap((ws) => {
       const terminalTabs = terminalTabsByWorkspace[ws.id]?.tabs ?? [];
       return terminalTabs.map((tab) => {
         const visible = ws.id === activeWorkspaceId && tab.id === activeTerminalTabId;

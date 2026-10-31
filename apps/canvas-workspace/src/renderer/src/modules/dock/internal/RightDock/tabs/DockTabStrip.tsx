@@ -1,5 +1,6 @@
 import { lazy, Suspense, useSyncExternalStore, type ReactNode, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import type { WorkspaceEntry } from '../../../../../shared/workspaces';
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../../../shared/agent-chat';
 import { useI18n } from '../../../../../i18n';
 import { focusActiveDockTarget, focusDockLinkTarget } from '../links/dock-browser-commands';
 import { handleDockTabListKeyDown } from './dock-accessibility';
@@ -195,7 +196,7 @@ export const DockTabStrip = ({
             store={store}
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
-            showTerminal={workspaces.some(workspace => workspace.id === activeWorkspaceId)}
+            showTerminal={activeWorkspaceId === GLOBAL_CHAT_STORE_ID || workspaces.some(workspace => workspace.id === activeWorkspaceId)}
             newTabTitle={t('rightDock.newTabTitle')}
             mountedWorkspaceIds={state.mountedWorkspaceIds}
             terminalWorkspaceIds={new Set(Object.keys(state.terminalTabsByWorkspace))}

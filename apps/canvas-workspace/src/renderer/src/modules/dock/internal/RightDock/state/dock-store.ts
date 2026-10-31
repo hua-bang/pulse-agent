@@ -1,5 +1,4 @@
 import { DockFolderEditor } from './dock-folder-editor';
-import { GLOBAL_CHAT_STORE_ID } from '../../../../../../../shared/agent-chat';
 /** Framework-free state for the pinned chat plus preview/terminal tabs.
  * Owns activation, dedupe, workspace sessions, closing order, comparison pairing,
  * collapse retention, and chat unread policy. React binds with
@@ -370,14 +369,12 @@ export class DockStore {
   }
 
   openTerminal(): void {
-    if (this.state.activeTerminalWorkspaceId === GLOBAL_CHAT_STORE_ID) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
     const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
     this.applyTerminalCommit(openTerminalCommit(this.state, workspace), workspaceId);
   }
 
   newTerminal(): void {
-    if (this.state.activeTerminalWorkspaceId === GLOBAL_CHAT_STORE_ID) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
     this.applyTerminalCommit(
       newTerminalCommit(terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId)),
