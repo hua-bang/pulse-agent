@@ -245,14 +245,14 @@
       "confidence": "medium", "basis": "521 delta 固定回放的同机帧历史", "asOf": "2026-07-10"
     },
     "chat.stream.md_render_count": {
-      "profile": "global-deterministic", "target": 65, "warning": 72,
-      "confidence": "high", "basis": "521 delta 固定回放；批处理后实测 64，2026-10-21 CI 实测 49。2026-10-21 基线重整：Gate 由 80 收紧到 warning 72。", "asOf": "2026-10-21",
-      "gate": { "kind": "max", "value": 72, "scope": "runtime" }
+      "profile": "global-deterministic", "target": 20, "warning": 26,
+      "confidence": "high", "basis": "2026-10-31：批处理窗口随回复长度放宽（每次提交都重渲染整条消息），521 delta 固定回放实测 19，Gate 由 72 收紧到 26。之前：批处理后实测 64，2026-10-21 CI 实测 49。", "asOf": "2026-10-31",
+      "gate": { "kind": "max", "value": 26, "scope": "runtime" }
     },
     "chat.stream.commit_count": {
-      "profile": "global-deterministic", "target": 65, "warning": 72,
-      "confidence": "high", "basis": "521 delta 固定回放的流式提交次数", "asOf": "2026-07-10",
-      "gate": { "kind": "max", "value": 72, "scope": "runtime" }
+      "profile": "global-deterministic", "target": 20, "warning": 26,
+      "confidence": "high", "basis": "2026-10-31：批处理窗口随回复长度放宽，521 delta 固定回放实测 20 次提交，Gate 由 72 收紧到 26。", "asOf": "2026-10-31",
+      "gate": { "kind": "max", "value": 26, "scope": "runtime" }
     },
     "chat.stream.md_cache_hit_ratio": {
       "profile": "global-deterministic", "target": 50, "warning": 40,

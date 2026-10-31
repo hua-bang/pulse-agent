@@ -46,6 +46,8 @@
 
 **AI 流式完成记录(2026-07-10)**:新增仅在 `PULSE_CANVAS_PERF=1` 可触发的本地确定性回放,521 个 delta 走真实 IPC、`useChatStream` 和 Markdown/Mermaid 渲染链路。文本 delta 以 32ms 视觉窗口合并,流式 Markdown 全量渲染从 374 次降到 64 次(下降 82.9%),frames>20ms 从 0.7% 降到 0.3%,Mermaid tail 0.8ms;`chat-md-stream-render ≤80` 与 commit 同步设为 gate。
 
+**AI 流式更新(2026-10-31)**:CI frames>20ms 回升到 14.8%。renderer profile 显示每次提交都重渲染整条消息（Markdown、代码高亮、整段 DOM 的样式与布局），单次 30–45ms，且随回复变长而变重。批处理窗口现在随已提交字数放宽(32→200ms,每 64 字符加 1ms),短回复不变。521 delta 回放:提交 50→20 次,流式期间 renderer task 总时长约 2.4s→1.0s,frames>20ms 14.8%→7.7%(同容器);commit 与 md render gate 由 72 收紧到 26。曾尝试把跟随滚动从 `scrollIntoView` 改成 `scrollTop`,强制布局只是换了位置,实测无收益,未保留。
+
 **指标补全记录(2026-07-10)**:dashboard 最后 3 个缺口已接通。Welcome 内容最初由 guest `dom-ready` 计算开窗后耗时，2026-07-11 已改为本地 HTML 的 `welcome:local-content-ready`；AI mock turn 在 temp HOME 中走真实 `SessionStore` 持久化,稳定产生 `main.session_persist.bytes_per_turn`;新增双真实 PTY 定速流场景,统计 renderer 收到的 `pty:data` IPC/s。
 
 **CDP trace 诊断补全(2026-07-10)**:复用现有 Electron harness 的动态 CDP 端口,完整报告在 100 节点业务场景之后额外执行一次明确命名的 warm renderer reload。采集 lab LCP/CLS、FCP→Canvas blocking time、Task/Script/RecalcStyle/Layout duration,并产出 `renderer-trace-summary.json` + 可由 DevTools/Perfetto 下钻的 `renderer-trace.json.gz`。核心 coverage 与 diagnostic coverage 已拆开:trace 不支持/丢数据会如实显示 unavailable/invalid,但不会伪造 0 或打红现有核心报告。MCP 只作为交互式分析层,不进入 CI 的可复现采集链。
