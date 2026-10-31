@@ -2,6 +2,7 @@
 name: canvas
 description: Operate Pulse Canvas workspaces — read user-curated context, write results, create nodes
 version: 1.0.0
+canvas-agent: false
 ---
 
 # Pulse Canvas
@@ -84,6 +85,20 @@ pulse-canvas edge delete <edgeId> --format json
 ```bash
 pulse-canvas workspace list --format json
 ```
+
+### Other node commands
+```bash
+pulse-canvas node search "<query>" --format json      # find nodes without reading each one
+pulse-canvas node update <nodeId> --x 100 --y 200 --title "New title" --format json   # move, resize, rename
+pulse-canvas node delete <nodeId> --format json
+```
+
+### Check the setup
+```bash
+pulse-canvas status --format json     # store, resolved workspace, app reachability
+pulse-canvas describe --format json   # every command, node type, and error code
+```
+Run `describe` when a command or flag here does not match what the CLI accepts.
 
 ### Send input to a running agent node
 ```bash

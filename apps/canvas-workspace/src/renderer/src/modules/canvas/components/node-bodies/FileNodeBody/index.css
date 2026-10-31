@@ -496,6 +496,55 @@
   border: 2px solid transparent;
 }
 
+/* Reading card on the board (CanvasNodeBody/index.css places the header).
+ * The title is the card's first line in the document face. The text fills
+ * the card at the title's inset, and bold text carries the accent. A first
+ * heading that repeats the title stays hidden, in both the static preview
+ * and the mounted editor. */
+.canvas-node--file:not(.canvas-node--fullscreen)>.node-header .node-title {
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.canvas-node--file:not(.canvas-node--fullscreen) .note-tiptap-editor .ProseMirror {
+  width: 100%;
+  margin-inline: 0;
+  padding: 12px 32px 32px;
+  line-height: 1.75;
+}
+
+.canvas-node--file:not(.canvas-node--fullscreen) .note-tiptap-editor .ProseMirror strong {
+  color: var(--note-emphasis);
+}
+
+.canvas-node--title-in-body:not(.canvas-node--fullscreen) .note-tiptap-editor :is(.ProseMirror, .note-markdown-preview)>h1:first-child {
+  display: none;
+}
+
+.canvas-node--title-in-body:not(.canvas-node--fullscreen) .note-tiptap-editor :is(.ProseMirror, .note-markdown-preview)>h1:first-child+* {
+  margin-top: 0;
+}
+
+@container (min-width: 480px) {
+  .canvas-node--file:not(.canvas-node--fullscreen)>.node-header .node-title {
+    font-size: 28px;
+  }
+
+  .canvas-node--file:not(.canvas-node--fullscreen) .note-tiptap-editor .ProseMirror {
+    padding: 16px 44px 40px;
+    font-size: 16px;
+  }
+}
+
 /* Reuse Canvas presentation states; narrow focus windows keep card density. */
 @container (min-width: 561px) {
   :is(.canvas-node--focus-mode-focused, .canvas-node--fullscreen) .note-tiptap-editor .ProseMirror {

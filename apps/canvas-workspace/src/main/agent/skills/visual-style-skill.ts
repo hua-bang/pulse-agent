@@ -34,8 +34,16 @@ Producing the right look means picking the right *archetype* for the content fir
 | "时间线"/"roadmap"/"history"/"timeline" | **Timeline** | horizontal axis with milestones, or vertical date-stacked entries |
 | "架构"/"system"/"模块关系"/"components" | **Architecture map** | grouped boxes with labeled connections, optional swimlanes |
 | "概念图"/"mindmap"/"taxonomy" | **Concept tree** | radial or indented tree |
+| "柱状图"/"折线图"/"趋势"/"占比"/"chart"/"plot" (one measure) | **Single chart** | one card: title, one-line takeaway, one Chart.js chart, source note |
 
 When the user's request fits two archetypes, prefer the **richer** one (e.g. "可视化加工逻辑" can be a step diagram OR a pipeline spec with step boxes + per-stage field/QC rows — the spec form carries more information and is usually what the user actually wants).
+
+## Data honesty (apply to all archetypes)
+
+- Every number, name, and status comes from the conversation, a tool result, or the user. Never invent metrics to fill a layout.
+- If the user asks for a mockup without data, use sample values and label the visual "示例数据" / "Sample data" in the user's language.
+- Show a live indicator, "最后更新" time, or refresh interval only when the data really is live. A static snapshot gets a plain "数据截至 <date>" / "As of <date>" line.
+- Write all labels in the user's language. The Chinese strings below are examples, not required copy.
 
 ## Soft rules (apply to all archetypes)
 
@@ -51,7 +59,7 @@ Still off-limits (these break the inline register):
 - Gradient backgrounds anywhere
 - Glows, heavy drop shadows, or any shadow stronger than the subtle elevation above
 - Border-radius > 14px, oversized hero headers, full-bleed colored banners
-- Decorative emoji clouds, marketing-style CTA buttons, animated/looping effects
+- Decorative emoji clouds, marketing-style CTA buttons, animated/looping effects (the \`.pulse\` status dot on a live dashboard is the only exception)
 - Nested bordered cards (a card inside a card inside a card)
 - Rainbow palettes used for decoration rather than meaning
 
@@ -108,7 +116,7 @@ Keep \`<body>\` transparent and width auto-fitting; don't set a fixed pixel widt
 
 **Dashboard** (monitoring, operational overview):
 - Register: "operations console", not "documentation diagram". KPIs should feel **alive and color-coded**, not muted. Numbers are LOUD, chrome is QUIET.
-- **Header row**: title (18-20px bold) on the left; on the right, an inline "live" line — pulse dot + \`实时监控\` (or \`Live\`) + \`·\` separators + \`最后更新 HH:MM:SS\` + \`刷新 30s\`. Use \`.dot-ok\` + \`.pulse\` for the indicator. Subtitle (\`.t-muted\`) under the title shows scope (\`生产环境 · 最近 24 小时\`).
+- **Header row**: title (18-20px bold) on the left. On the right, for live data only, an inline "live" line — pulse dot + \`实时监控\` (or \`Live\`) + \`·\` separators + \`最后更新 HH:MM:SS\` + the real refresh interval; use \`.dot-ok\` + \`.pulse\` for the indicator. For a snapshot, show "数据截至 <date>" instead. Subtitle (\`.t-muted\`) under the title shows the real scope (for example \`生产环境 · 最近 24 小时\`).
 - **KPI row** (3-5 tiles, CSS grid \`repeat(auto-fit,minmax(170px,1fr))\`, gap 12-14px):
   - Each tile uses \`.card\` + \`.elev\` (or just \`.kpi\` on a soft surface — either is fine).
   - Structure (top to bottom): \`.kpi-name\` metric label → optional \`.kpi-rule\` thin colored bar (in number's color) → \`.kpi-num\` BIG bold number with semantic color (\`--ok\` / \`--warn\` / \`--err\` / \`--neutral\` / \`--info\`) → \`.kpi-delta\` rounded pill with ▲ / ▼ + delta value + " vs 昨日" or " vs baseline".
@@ -133,6 +141,12 @@ Minimal KPI tile structure (copy-adapt, don't paste verbatim):
   <div class="kpi-delta kpi-delta--good">▲ 0.03% vs 昨日</div>
 </div>
 \`\`\`
+
+**Single chart** (one measure over time, across items, or as parts of a whole):
+- One \`.card\`: \`.t-title\` title, then one \`.t-muted\` sentence that states the takeaway with its number.
+- Line for a trend over time, bars for a comparison across items, doughnut only for 2-5 parts of a whole.
+- One accent color for the main series; a second hue only for a real second series. Label axes with units.
+- A small \`.t-label\` source / date note under the chart.
 
 **Schema spec** (data model, field list, table structure):
 - Single \`.card\` per entity: header row (entity name + small \`.t-label\` for kind/source), then a table-ish field list
@@ -166,4 +180,5 @@ If the user request mentions multiple intents ("可视化加工流程，包含�
 
 \`artifact_create\` may go further toward product-quality polish (subtle gradients on hero, brand color, slightly stronger shadows) since it lives in the side drawer; \`visual_render\` stays at documentation density.
 `,
+  legacyHashes: ['558709e65b954dda1e5bd3947c9271fa87befa6bea048ee775f876460b5d5065'],
 };

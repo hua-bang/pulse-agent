@@ -7,52 +7,8 @@ import {
   type LayoutMutation,
   type Rect,
 } from './layout';
-import {
-  clampSize,
-  getBoundingRect,
-  rectContainsCenter,
-} from './geometry';
-
-function layoutGrid(
-  nodes: CanvasNode[],
-  start: { x: number; y: number },
-  options: { columns?: number; gap?: number },
-): { mutations: LayoutMutation[]; bounds: Rect | null } {
-  const gap = options.gap ?? 48;
-  const columns = Math.max(
-    1,
-    Math.min(options.columns ?? Math.ceil(Math.sqrt(Math.max(1, nodes.length))), Math.max(1, nodes.length)),
-  );
-  const mutations: LayoutMutation[] = [];
-  const rects: Rect[] = [];
-  let cursorX = start.x;
-  let cursorY = start.y;
-  let rowHeight = 0;
-  let col = 0;
-
-  for (const node of nodes) {
-    if (col >= columns) {
-      cursorX = start.x;
-      cursorY += rowHeight + gap;
-      rowHeight = 0;
-      col = 0;
-    }
-
-    const rect = {
-      x: cursorX,
-      y: cursorY,
-      width: clampSize(node.width),
-      height: clampSize(node.height),
-    };
-    mutations.push({ nodeId: node.id, x: rect.x, y: rect.y });
-    rects.push(rect);
-    cursorX += rect.width + gap;
-    rowHeight = Math.max(rowHeight, rect.height);
-    col += 1;
-  }
-
-  return { mutations, bounds: getBoundingRect(rects) };
-}
+import { getBoundingRect, rectContainsCenter } from './geometry';
+import { layoutGrid } from './grid';
 
 function rootLayoutCandidates(candidates: CanvasNode[], nodes: CanvasNode[]): CanvasNode[] {
   const candidateIds = new Set(candidates.map((node) => node.id));

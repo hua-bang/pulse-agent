@@ -62,11 +62,12 @@ describe('renderer typography system', () => {
       return Array.from({ length: count }, () => relative(rendererRoot, path));
     });
     expect(new Set(declarations)).toEqual(allowed);
-    // The neutral document face uses semibold only for H1–H3 and strong;
-    // product chrome retains its existing one-title-per-owner allowance.
+    // The neutral document face uses semibold only for the reading-card
+    // title, H1–H3 and strong; product chrome retains its existing
+    // one-title-per-owner allowance.
     for (const path of allowed) {
       expect(declarations.filter((entry) => entry === path)).toHaveLength(
-        path.endsWith('/FileNodeBody/index.css') ? 4 : 1,
+        path.endsWith('/FileNodeBody/index.css') ? 5 : 1,
       );
     }
   });

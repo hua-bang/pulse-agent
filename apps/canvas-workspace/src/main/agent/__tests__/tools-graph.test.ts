@@ -280,7 +280,7 @@ describe('canvas_create_edge', () => {
     const { data } = await readCanvasFull(wsId);
     expect((data?.edges?.[0] as CanvasEdge | undefined)?.stroke).toEqual({
       color: '#6b6b67',
-      width: 2.4,
+      width: 3,
       style: 'solid',
     });
   });
@@ -305,7 +305,7 @@ describe('canvas_create_edge', () => {
     const { data } = await readCanvasFull(wsId);
     expect((data?.edges?.[0] as CanvasEdge | undefined)?.stroke).toEqual({
       color: '#ff0000',
-      width: 2.4,
+      width: 3,
       style: 'solid',
     });
   });

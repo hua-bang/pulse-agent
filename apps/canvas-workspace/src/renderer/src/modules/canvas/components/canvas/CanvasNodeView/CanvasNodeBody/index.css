@@ -16,7 +16,45 @@
   border-color: var(--accent-border);
   box-shadow: var(--note-shadow), var(--shadow-focus);
 }
-/* Notes reuse CanvasNodeHeader geometry, icon, title and action states. */
+/* Reading card: the note's title is its first line, set in the document
+ * face (FileNodeBody/index.css), not a toolbar strip. The header element
+ * stays the drag handle and rename target. Its actions float at the
+ * top-right and show on hover, like the zoomed-out popover. Fullscreen
+ * keeps the regular toolbar header. */
+.canvas-node--file:not(.canvas-node--fullscreen)>.node-header {
+  align-items: flex-start;
+  padding: 28px 32px 0;
+  min-height: 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+.canvas-node--file:not(.canvas-node--fullscreen)>.node-header :is(.node-type-badge, .node-time-label) {
+  display: none;
+}
+
+.canvas-node--file:not(.canvas-node--fullscreen)>.node-header .node-header__actions {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 5;
+  padding: 3px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+}
+
+.canvas-node--file:not(.canvas-node--fullscreen):not(:hover):not(.canvas-node--selected)>.node-header .node-header__actions {
+  display: none;
+}
+
+@container (min-width: 480px) {
+  .canvas-node--file:not(.canvas-node--fullscreen)>.node-header {
+    padding: 36px 44px 0;
+  }
+}
+
 
 .canvas-node--iframe {
   border-color: rgba(var(--ink-rgb), 0.1);

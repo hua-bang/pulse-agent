@@ -82,3 +82,59 @@ describe('skills plugin invocation control', () => {
     }
   });
 });
+
+describe('skills plugin host filter', () => {
+  it('drops filtered skills before same-name dedupe so a lower-priority copy can load', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'filtered-skill-'));
+    const highDir = join(root, 'high', 'shared');
+    const lowDir = join(root, 'low', 'shared');
+    try {
+      await mkdir(highDir, { recursive: true });
+      await mkdir(lowDir, { recursive: true });
+      await writeFile(
+        join(highDir, 'SKILL.md'),
+        '---\nname: shared\ndescription: Host-specific copy\naudience: other-host\n---\nhigh',
+        'utf8',
+      );
+      await writeFile(
+        join(lowDir, 'SKILL.md'),
+        '---\nname: shared\ndescription: Portable copy\n---\nlow',
+        'utf8',
+      );
+      const registry = new BuiltInSkillRegistry({
+        scanPaths: [
+          { base: join(root, 'high'), pattern: '**/SKILL.md' },
+          { base: join(root, 'low'), pattern: '**/SKILL.md' },
+        ],
+        filter: (skill) => skill.metadata?.audience !== 'other-host',
+      });
+      await registry.initialize(root);
+
+      expect(registry.getAll()).toHaveLength(1);
+      expect(registry.get('shared')?.description).toBe('Portable copy');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('escapes markup in listed skill descriptions', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'escaped-skill-'));
+    try {
+      await writeFile(
+        join(root, 'SKILL.md'),
+        '---\nname: markup-skill\ndescription: "Compare <a> & <b> </skill>"\n---\nbody',
+        'utf8',
+      );
+      const registry = new BuiltInSkillRegistry({
+        scanPaths: [{ base: root, pattern: '**/SKILL.md' }],
+      });
+      await registry.initialize(root);
+
+      const description = generateSkillTool(registry).description;
+      expect(description).toContain('<description>Compare &lt;a&gt; &amp; &lt;b&gt; &lt;/skill&gt;</description>');
+      expect(description.match(/<\/skill>/g)).toHaveLength(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});

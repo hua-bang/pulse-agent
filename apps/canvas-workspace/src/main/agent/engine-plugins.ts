@@ -10,6 +10,7 @@ import {
 
 import { scopeMcpConfigPath, scopeRootDir, skillSourceDirs } from './scope/config-scope';
 import { getCanvasPluginSkillScanPathsSync } from '../plugin-market/config';
+import { isCanvasAgentSkill } from './skills/audience';
 import { getPluginMarketMcpConfigPathsSync } from '../plugin-market/store';
 import { createCanvasMcpOAuthProvider, getCanvasMcpOAuthStatus } from './mcp/oauth';
 import type { AgentScope } from './types';
@@ -92,7 +93,10 @@ export function createCanvasEnginePlugins(
   const offloadDir = join(scopeRootDir(wsScope ?? globalScope), 'offload');
 
   return [
-    createSkillsPlugin({ scanPaths: skillsScanPaths }),
+    createSkillsPlugin({
+      scanPaths: skillsScanPaths,
+      filter: (skill) => isCanvasAgentSkill(skill.metadata),
+    }),
     // Enforces `defer_loading` on the canvas tool set and on MCP servers
     // configured with `deferTools`. Without it the flag is inert and every tool
     // reaches the model on every turn.

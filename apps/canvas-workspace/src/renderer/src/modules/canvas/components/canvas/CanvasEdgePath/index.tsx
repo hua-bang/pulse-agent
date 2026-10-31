@@ -2,7 +2,7 @@ import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasEdge, EdgeStroke } from '../../../../../types';
 import { resolveEdgePathGeometry } from '../../../model/edgeFactory';
 import type { Point } from '../../../runtime/useEdgeInteraction';
-import { capId, EdgeHandles, SELECTION_COLOR } from '../CanvasEdgesLayerParts';
+import { capId, EdgeHandles, edgePaint, SELECTION_COLOR } from '../CanvasEdgesLayerParts';
 
 interface Props {
   edge: CanvasEdge;
@@ -114,6 +114,7 @@ export const CanvasEdgePath = ({
         d={d}
         fill="none"
         stroke={stroke.color}
+        style={{ stroke: edgePaint(stroke.color) }}
         strokeWidth={stroke.width}
         strokeDasharray={strokeDasharray(stroke.style)}
         strokeLinecap={head !== 'none' || tail !== 'none' ? 'butt' : 'round'}

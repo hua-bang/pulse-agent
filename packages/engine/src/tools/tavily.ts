@@ -23,6 +23,7 @@ interface TavilySearchResult {
   url?: string;
   content?: string;
   score?: number;
+  published_date?: string;
 }
 
 interface TavilySearchResponse {
@@ -76,28 +77,60 @@ interface TavilyMapResponse {
   usage?: { credits?: number };
 }
 
-export const TavilyTool: Tool<
-  { query: string; maxResults?: number; timeout?: number },
-  { results: Array<{ title: string; url: string; content: string; score?: number }> }
-> = {
+type TavilySearchInput = {
+  query: string;
+  maxResults?: number;
+  searchDepth?: 'basic' | 'advanced';
+  topic?: 'general' | 'news' | 'finance';
+  timeRange?: 'day' | 'week' | 'month' | 'year';
+  includeDomains?: string[];
+  excludeDomains?: string[];
+  timeout?: number;
+};
+
+type TavilySearchOutput = {
+  results: Array<{ title: string; url: string; content: string; score?: number; publishedDate?: string }>;
+};
+
+export const TavilyTool: Tool<TavilySearchInput, TavilySearchOutput> = {
   name: 'tavily',
-  description: 'Search the web using Tavily API',
+  description:
+    'Search the web using Tavily API. Returns ranked results with a short excerpt each; excerpts are not the source, so read important pages with tavily_extract before citing them. ' +
+    'Use searchDepth "advanced" for research, topic "news" plus timeRange for recent events, and includeDomains to reach official or primary sources.',
   inputSchema: z.object({
-    query: z.string().describe('The search query'),
-    maxResults: z.number().optional().default(5).describe('Maximum number of results to return'),
+    query: z.string().describe('The search query. Use a few specific keywords, not a full question.'),
+    maxResults: z.number().int().min(1).max(20).optional().default(5).describe('Maximum number of results to return (1-20).'),
+    searchDepth: z
+      .enum(['basic', 'advanced'])
+      .optional()
+      .describe('basic (default) is fast; advanced returns more relevant excerpts and costs more. Use advanced for research.'),
+    topic: z
+      .enum(['general', 'news', 'finance'])
+      .optional()
+      .describe('Search category. news favors recent reporting and returns published dates.'),
+    timeRange: z
+      .enum(['day', 'week', 'month', 'year'])
+      .optional()
+      .describe('Only return results from this recent period.'),
+    includeDomains: z.array(z.string()).optional().describe('Only search these domains, e.g. ["docs.python.org"].'),
+    excludeDomains: z.array(z.string()).optional().describe('Never return results from these domains.'),
     timeout: z
       .number()
       .optional()
       .describe('Request timeout in milliseconds. Defaults to 120000 (2 minutes).'),
   }),
-  execute: async ({ query, maxResults = 5, timeout }) => {
+  execute: async ({ query, maxResults = 5, searchDepth, topic, timeRange, includeDomains, excludeDomains, timeout }) => {
     const data = await tavilyPost<TavilySearchResponse>({
       endpoint: '/search',
       timeout,
       body: {
         query,
         max_results: maxResults,
-        search_depth: 'basic',
+        search_depth: searchDepth ?? 'basic',
+        topic,
+        time_range: timeRange,
+        include_domains: includeDomains?.length ? includeDomains : undefined,
+        exclude_domains: excludeDomains?.length ? excludeDomains : undefined,
         include_answer: false,
         include_raw_content: false,
         include_images: false,
@@ -111,6 +144,7 @@ export const TavilyTool: Tool<
           url: result.url || '',
           content: truncateOutput(result.content || ''),
           score: result.score || 0,
+          ...(result.published_date ? { publishedDate: result.published_date } : {}),
         })) || [],
     };
   },

@@ -48,7 +48,7 @@ Every tunable the engine reads, with defaults and read sites. All `config/index.
 
 ## Runtime Configuration Layout
 
-Write new configuration under .pulse-coder and preserve .coder compatibility unless explicitly migrating. Runtime task skills are loaded by the engine's skills plugin; repository action protocols under harness/skills are a separate layer. A local skill with frontmatter `disable-model-invocation: true` remains loadable by exact name but is omitted from the model's automatic-matching list, so it requires explicit user invocation.
+Write new configuration under .pulse-coder and preserve .coder compatibility unless explicitly migrating. Runtime task skills are loaded by the engine's skills plugin; repository action protocols under harness/skills are a separate layer. A local skill with frontmatter `disable-model-invocation: true` remains loadable by exact name but is omitted from the model's automatic-matching list, so it requires explicit user invocation. A host can pass `filter` to `createSkillsPlugin` to drop skills before same-name dedupe; Canvas uses it to skip skills marked `canvas-agent: false`.
 
 | Task | Source / entry |
 |---|---|

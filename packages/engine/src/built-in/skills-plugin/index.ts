@@ -103,6 +103,11 @@ export interface SkillScanPath {
  */
 export interface SkillRegistryOptions {
   scanPaths?: SkillScanPath[];
+  /**
+   * 宿主过滤：返回 false 的 skill 不进入注册表。过滤发生在同名去重之前，
+   * 所以被排除的 skill 不会遮住低优先级来源里的同名 skill。
+   */
+  filter?: (skill: SkillInfo) => boolean;
 }
 
 /**
@@ -112,10 +117,12 @@ export class BuiltInSkillRegistry {
   private skills: Map<string, SkillInfo> = new Map();
   private initialized = false;
   private scanPathsOverride?: SkillScanPath[];
+  private filter?: (skill: SkillInfo) => boolean;
   private cwd: string = process.cwd();
 
   constructor(options: SkillRegistryOptions = {}) {
     this.scanPathsOverride = options.scanPaths;
+    this.filter = options.filter;
   }
 
   /**
@@ -159,6 +166,7 @@ export class BuiltInSkillRegistry {
     if (remoteConfig.endpoints.length > 0) {
       const remoteSkills = await fetchRemoteSkills(remoteConfig.endpoints);
       for (const skill of remoteSkills) {
+        if (this.filter && !this.filter(skill)) continue;
         this.skills.set(skill.name, skill);
       }
     }
@@ -218,6 +226,10 @@ export class BuiltInSkillRegistry {
           try {
             const skillInfo = await this.parseSkillFile(filePath);
             if (!skillInfo) continue;
+            if (this.filter && !this.filter(skillInfo)) {
+              console.debug(`[Skills] Skipping ${filePath}: excluded by host filter`);
+              continue;
+            }
 
             const nameKey = skillInfo.name.toLowerCase();
             if (seenNames.has(nameKey)) {
@@ -382,28 +394,30 @@ export function explicitlyNamedSkillsForContext(context: { messages: unknown[] }
   );
 }
 
+/** Skill names and descriptions are user-authored; keep them from breaking the list markup. */
+function escapeXml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export function generateSkillTool(
   registry: BuiltInSkillRegistry,
   explicitlyInvokedSkillNames: ReadonlySet<string> = new Set(),
 ): Tool<SkillToolInput, SkillInfo> {
   const getSkillsPrompt = (availableSkills: SkillInfo[]) => {
     return [
-      "If query matches an available skill's description or instruction [use skill], use the skill tool to get detailed instructions.",
-      "Load a skill to get detailed instructions for a specific task.",
-      "Skills provide specialized knowledge and step-by-step guidance.",
-      "Use this when a task matches an available skill's description, or when the user explicitly names an installed skill.",
-      "Skills marked disable-model-invocation are omitted from this list and may only be loaded when the user names them exactly.",
-      "Only the model-invocable skills listed here are available for automatic matching:",
-      "[!important] You should follow the skill's step-by-step guidance. If the skill is not complete, ask the user for more information.",
+      "Load a skill: step-by-step instructions for one kind of task.",
+      "Call this when the task matches a listed skill's description, or when the user names an installed skill.",
+      "Follow the loaded instructions. If they leave a gap, ask the user.",
+      "Skills marked disable-model-invocation are not listed; load one only when the user names it exactly.",
       "<available_skills>",
       ...availableSkills.filter(isModelInvocable).flatMap((skill) => [
         `  <skill>`,
-        `    <name>${skill.name}</name>`,
-        `    <description>${skill.description}</description>`,
+        `    <name>${escapeXml(skill.name)}</name>`,
+        `    <description>${escapeXml(skill.description)}</description>`,
         `  </skill>`
       ]),
       "</available_skills>"
-    ].join(" ");
+    ].join("\n");
   };
 
   return {
@@ -426,10 +440,12 @@ export function generateSkillTool(
 /**
  * 技能插件配置。
  * - `scanPaths` 显式指定扫描路径（多 scope 场景，如 canvas 的全局 + workspace 目录）。
+ * - `filter` 宿主按 skill 内容或元数据排除不适用的 skill。
  * - `cwd` 默认扫描路径的根目录（仅当未提供 scanPaths 时生效）。
  */
 export interface SkillsPluginOptions {
   scanPaths?: SkillScanPath[];
+  filter?: SkillRegistryOptions['filter'];
   cwd?: string;
 }
 
@@ -446,7 +462,10 @@ export function createSkillsPlugin(options: SkillsPluginOptions = {}): EnginePlu
     version: '1.0.0',
 
     async initialize(context: EnginePluginContext) {
-      const registry = new BuiltInSkillRegistry({ scanPaths: options.scanPaths });
+      const registry = new BuiltInSkillRegistry({
+        scanPaths: options.scanPaths,
+        filter: options.filter,
+      });
       await registry.initialize(options.cwd ?? process.cwd());
 
       context.registerService('skillRegistry', registry);

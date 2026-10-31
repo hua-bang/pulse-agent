@@ -1,11 +1,14 @@
 ---
 name: canvas-frame-research
 description: Extend an existing Pulse Canvas frame with local, source-backed research while preserving the surrounding canvas. Use when the user asks to research, enrich, expand, verify, update, or add sources/details inside a selected or named frame, rather than bootstrapping a whole new canvas.
+canvas-agent: false
 ---
 
 # Canvas Frame Research
 
 Research within one existing frame and add layered information back into that frame. This skill is for local expansion, not whole-canvas generation.
+
+This version is for agents that reach the canvas through the `pulse-canvas` CLI. The Canvas Agent inside Pulse Canvas has its own native-tool version of this skill.
 
 ## Core Contract
 
@@ -22,18 +25,17 @@ Research within one existing frame and add layered information back into that fr
 
 Identify the target frame before researching:
 
-1. Prefer the currently selected frame.
-2. If child nodes are selected, infer their containing frame from layout/context.
-3. If the user named a frame, resolve it by exact or near-exact title.
-4. If multiple frames match, ask the user to choose.
-5. If no frame can be identified, ask the user to select or name a frame.
+1. If the user named a frame, resolve it by exact or near-exact title.
+2. If the user named child nodes, infer their containing frame from the layout.
+3. If multiple frames match, ask the user to choose.
+4. If no frame can be identified, ask the user to name a frame. The CLI cannot see the user's selection.
 
 Read the current frame context before planning:
 
-- `canvas_read_context` for workspace summary
+- `pulse-canvas context --format json` for the workspace summary
 - `pulse-canvas layout read --workspace <id> --format json` for frame bounds, children, and nearby nodes
-- `canvas_read_node` for the target frame and relevant child nodes
-- `canvas_list_edges` when relationships around the frame matter
+- `pulse-canvas node read <nodeId> --format json` for the target frame and relevant child nodes
+- `pulse-canvas edge list --format json` when relationships around the frame matter
 
 ## Phase 1: Local Research Contract
 
@@ -46,7 +48,7 @@ Decide the local intent:
 - `verify`: check claims and mark confidence/conflicts
 - `update`: refresh stale or current-state information
 
-If the request is broad, current, or likely to create many nodes, ask for research depth:
+If the request is broad, current, or likely to create many nodes, ask for research depth. Translate this example into the user's language:
 
 ```text
 这次只扩展当前 frame。请选择局部调研深度：
@@ -94,20 +96,16 @@ Layer the information from shallow to deep:
 
 ## Phase 4: Create Local Nodes
 
-Preferred Canvas Agent path:
-
-1. Create new nodes with `placement: { mode: "inside_frame", frameId: "<target-frame-id>" }`.
-2. Use source/web node types when the runtime supports them; otherwise use note/file nodes with source ids.
-3. Connect only meaningful local relationships with `canvas_create_edge`.
-4. Avoid duplicating existing child nodes. Update or extend an existing node when that is cleaner.
-
-Fallback CLI path:
+1. Create new nodes inside the target frame's bounds (read them from `layout read`), then let `layout frame-grid` settle the positions:
 
 ```bash
-pulse-canvas node create --type file --title "<node>" --data '{"content":"..."}' --format json
+pulse-canvas node create --workspace <id> --type file --title "<node>" --x <x> --y <y> --data '{"content":"..."}' --format json
 ```
 
-Use manual coordinates only when layout tools are unavailable.
+2. Use note/file nodes with visible source ids for sources.
+3. Connect only meaningful local relationships with `pulse-canvas edge create --workspace <id> --from <nodeId> --to <nodeId> --label "<label>" --format json`.
+4. Avoid duplicating existing child nodes. Update or extend an existing node when that is cleaner.
+5. Run all mutations sequentially and pass `--workspace <id>` on every one.
 
 ## Phase 5: Layout Only the Frame
 

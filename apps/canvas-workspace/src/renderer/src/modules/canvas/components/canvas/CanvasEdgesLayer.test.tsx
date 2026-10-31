@@ -217,6 +217,32 @@ describe('default edge presentation', () => {
     );
 
     expect(html).toContain('stroke="transparent" stroke-width="16" vector-effect="non-scaling-stroke"');
-    expect(html).toContain('stroke="#6b6b67" stroke-width="2.4"');
+    expect(html).toContain('stroke="#6b6b67" style="stroke:var(--edge-stroke)" stroke-width="3"');
+  });
+
+  it('upgrades the previous gray default and keeps picked colors literal', () => {
+    const edges: CanvasEdge[] = [
+      {
+        id: 'old-default',
+        source: { kind: 'point', x: 0, y: 0 },
+        target: { kind: 'point', x: 100, y: 0 },
+        arrowHead: 'none',
+        stroke: { color: '#6b6b67', width: 2.4, style: 'solid' },
+      },
+      {
+        id: 'picked',
+        source: { kind: 'point', x: 0, y: 40 },
+        target: { kind: 'point', x: 100, y: 40 },
+        arrowHead: 'none',
+        stroke: { color: '#e5484d', width: 2.4, style: 'solid' },
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <CanvasEdgesLayer edges={edges} nodes={[]} selectedEdgeId={null} />,
+    );
+
+    expect(html).toContain('style="stroke:var(--edge-stroke)" stroke-width="3"');
+    expect(html).toContain('stroke="#e5484d" style="stroke:#e5484d" stroke-width="2.4"');
   });
 });

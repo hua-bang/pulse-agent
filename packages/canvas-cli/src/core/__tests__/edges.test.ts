@@ -55,7 +55,7 @@ describe('edges', () => {
       expect(canvas?.edges?.[0].kind).toBe('dependency');
       expect(canvas?.edges?.[0].stroke).toEqual({
         color: '#6b6b67',
-        width: 2.4,
+        width: 3,
         style: 'solid',
       });
     });
@@ -123,7 +123,7 @@ describe('edges', () => {
       expect(result.ok).toBe(true);
 
       const canvas = await loadCanvas(workspaceId, testDir);
-      expect(canvas?.edges?.[0].stroke).toEqual({ color: '#ff0000', width: 2.4, style: 'solid' });
+      expect(canvas?.edges?.[0].stroke).toEqual({ color: '#ff0000', width: 3, style: 'solid' });
     });
 
     it('applies custom anchors', async () => {

@@ -39,6 +39,9 @@ describe('ensureDefaultSkillsSeeded', () => {
     const byName = Object.fromEntries(skills.map((s) => [s.name, s]));
 
     expect(Object.keys(byName).sort()).toEqual([
+      'canvas-bootstrap',
+      'canvas-frame-research',
+      'canvas-tidy-layout',
       'memory-review',
       'promote-skill',
       'save-as-skill',
@@ -81,6 +84,22 @@ describe('ensureDefaultSkillsSeeded', () => {
     const upgraded = await fs.readFile(join(skillDir, 'SKILL.md'), 'utf8');
     expect(upgraded).not.toMatch(/canvas_propose_node_change/);
     expect(upgraded).not.toMatch(/canvas_tag_node/);
+  });
+
+  it('upgrades an untouched previous save-as-skill default to the current body', async () => {
+    const skillDir = join(sandboxHome, '.pulse-coder', 'canvas', 'skills', 'save-as-skill');
+    await fs.mkdir(skillDir, { recursive: true });
+    const legacy = await fs.readFile(
+      join(process.cwd(), 'src/main/agent/__tests__/fixtures/legacy-save-as-skill.md'),
+      'utf8',
+    );
+    await fs.writeFile(join(skillDir, 'SKILL.md'), legacy, 'utf8');
+
+    await ensureDefaultSkillsSeeded();
+
+    const upgraded = await fs.readFile(join(skillDir, 'SKILL.md'), 'utf8');
+    expect(upgraded).not.toBe(legacy);
+    expect(upgraded).toMatch(/Check for a name clash/);
   });
 
   it('does not overwrite an existing user-edited SKILL.md', async () => {

@@ -125,6 +125,24 @@ export function requiresCanvasNodeCreationApproval(name: string): boolean {
     );
 }
 
+/**
+ * `bash` can reach the bundled `pulse-canvas` CLI, which adds nodes without
+ * passing through the native creators above. Treat a shell segment that runs
+ * a node-adding CLI command as node creation, so Auto mode cannot skip the
+ * card. `apply --dry-run` only validates and stays ungated.
+ */
+const CLI_NODE_CREATION_RE = /\bpulse-canvas\b.*\s(?:node\s+create|workspace\s+create|apply)(?=\s|$)/;
+
+export function isCliCanvasNodeCreation(name: string, input: unknown): boolean {
+  if (name.trim().toLowerCase() !== 'bash' || !input || typeof input !== 'object') return false;
+  const command = (input as { command?: unknown }).command;
+  if (typeof command !== 'string') return false;
+  return command.split(/[\n;&|]+/).some(segment =>
+    CLI_NODE_CREATION_RE.test(segment)
+    && !(/\sapply(?=\s|$)/.test(segment) && /\s--dry-run(?=\s|=|$)/.test(segment)),
+  );
+}
+
 export function classifyCanvasToolOperation(name: string): CanvasToolOperationKind {
   const normalized = name.toLowerCase();
   // Mutating words win over reader-like words: `get_or_create` and
@@ -182,7 +200,11 @@ export async function requestAskModeApproval(options: {
   context?: CanvasToolExecutionContext;
 }): Promise<AskModeApprovalDecision> {
   const { name, input, context } = options;
-  const nodeCreationRequiresApproval = requiresCanvasNodeCreationApproval(name);
+  const cliNodeCreation = isCliCanvasNodeCreation(name, input);
+  const nodeCreationRequiresApproval = requiresCanvasNodeCreationApproval(name) || cliNodeCreation;
+  // A session grant for CLI node creation must not approve every other shell
+  // command, and an ordinary bash grant must not approve CLI node creation.
+  const grantKey = cliNodeCreation ? `${name}:pulse-canvas-node-creation` : name;
   const askMode = context?.runContext?.executionMode === 'ask';
   if (!askMode && !nodeCreationRequiresApproval) return { approved: true, toolContext: context };
 
@@ -208,7 +230,7 @@ export async function requestAskModeApproval(options: {
       approvalGrantedFor: toolCallId,
     },
   });
-  if (sessionId && sessionApprovalGrants.get(sessionId)?.has(name)) {
+  if (sessionId && sessionApprovalGrants.get(sessionId)?.has(grantKey)) {
     return { approved: true, toolContext: approvedContext() };
   }
 
@@ -228,7 +250,7 @@ export async function requestAskModeApproval(options: {
   const trimmed = answer.trim();
   if (sessionId && trimmed === SESSION_APPROVAL_ANSWER) {
     const grants = sessionApprovalGrants.get(sessionId) ?? new Set<string>();
-    grants.add(name);
+    grants.add(grantKey);
     sessionApprovalGrants.set(sessionId, grants);
     return { approved: true, toolContext: approvedContext() };
   }
@@ -300,6 +322,17 @@ export function createCanvasAskModeToolPolicyPlugin() {
   };
 }
 
+/**
+ * Deferred engine built-ins that Canvas loads eagerly. Research skills read
+ * pages with `tavily_extract` right after `tavily`; deferring it made the model
+ * search for the tool first, or settle for search excerpts.
+ */
+const EAGER_BUILTIN_TOOL_NAMES = new Set(['tavily_extract']);
+
+function withCanvasLoading(name: string, tool: EngineToolMap[string]): EngineToolMap[string] {
+  return EAGER_BUILTIN_TOOL_NAMES.has(name) ? { ...tool, defer_loading: false } : tool;
+}
+
 function createBuiltInTools(names: readonly string[]): EngineToolMap {
   const tools: EngineToolMap = {};
   for (const name of names) {
@@ -307,21 +340,36 @@ function createBuiltInTools(names: readonly string[]): EngineToolMap {
     if (!tool) {
       throw new Error(`Missing required global Canvas Agent built-in tool: ${name}`);
     }
-    tools[name] = tool;
+    tools[name] = withCanvasLoading(name, tool);
   }
   return tools;
 }
 
 /**
+ * Engine built-ins with no Canvas product purpose. `deferred_demo` only
+ * exercises the defer-loading path (engine `harness/spec/public-surface.md`
+ * item 4 tracks the engine-wide decision), so Canvas never exposes it.
+ */
+const EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES = new Set(['deferred_demo']);
+
+function createWorkspaceBuiltInTools(): EngineToolMap {
+  return Object.fromEntries(
+    Object.entries(BuiltinToolsMap)
+      .filter(([name]) => !EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES.has(name))
+      .map(([name, tool]) => [name, withCanvasLoading(name, tool)]),
+  );
+}
+
+/**
  * Select the host-side tool boundary before constructing an Engine.
- * Workspace chat preserves the Engine defaults. Interactive Global chat gets
+ * Workspace chat keeps the Engine defaults except demo tools. Interactive Global chat gets
  * independently useful built-ins plus explicit-target Canvas operations;
  * scheduled runs keep the narrower unattended boundary.
  */
 export function createCanvasAgentToolPolicy(scope: AgentScope): CanvasAgentToolPolicy {
   if (scope.kind === 'workspace') {
     return {
-      builtInTools: { ...BuiltinToolsMap },
+      builtInTools: createWorkspaceBuiltInTools(),
       canvasTools: createCanvasTools(scope.workspaceId),
     };
   }

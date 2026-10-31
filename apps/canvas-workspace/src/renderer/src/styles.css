@@ -60,6 +60,8 @@
   --note-border-hover: rgba(20, 20, 18, 0.12);
   --note-shadow: 0 1px 2px rgba(20, 20, 18, 0.04), 0 8px 24px rgba(20, 20, 18, 0.06);
   --note-shadow-hover: 0 1px 3px rgba(20, 20, 18, 0.05), 0 12px 32px rgba(20, 20, 18, 0.09);
+  --note-emphasis: #c2610f;
+  --edge-stroke: #6b6b67;
   --note-callout-bg: #faf6ef;
   --note-callout-border: #eee8de;
   --note-inline-code-bg: rgba(55, 53, 47, 0.07);
@@ -245,6 +247,8 @@
   --note-border-hover: rgba(255, 255, 255, 0.14);
   --note-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.3);
   --note-shadow-hover: 0 1px 3px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.4);
+  --note-emphasis: #f0a05a;
+  --edge-stroke: #a3a39d;
   --note-callout-bg: #2c2a26;
   --note-callout-border: #3b3831;
   --note-inline-code-bg: rgba(255, 255, 255, 0.09);

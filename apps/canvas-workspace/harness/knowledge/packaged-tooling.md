@@ -28,6 +28,16 @@ Treat the CLI + skills as one compatibility bundle: they are installed and,
 on failure, rolled back together (see "Failure-atomic bundle activation"
 below) — never ship a change that updates one without the other.
 
+The Canvas Agent scans the same global skill dirs. A bundled skill that
+mutates the canvas through the CLI must set `canvas-agent: false` in its front
+matter, so the Canvas Agent neither loads nor lists it
+(`src/main/agent/skills/audience.ts`); its Canvas Agent counterpart is a
+same-name default skill that uses native tools
+(`src/main/agent/skills/canvas-research-skills.ts`). `bash` commands that add
+nodes through the CLI still pass the node-creation approval card
+(`isCliCanvasNodeCreation` in `src/main/agent/tool-policy.ts`).
+`src/main/agent/__tests__/skill-audience.test.ts` enforces both rules.
+
 ## Production installation must never depend on a source checkout
 
 The optional Engine Codemode worker uses the release-sync QuickJS/WASM variant

@@ -13,8 +13,10 @@ import {
   planPlaceNear,
 } from '../_shared/layout/layout';
 import { planRegionGrid } from '../_shared/layout/layout-region';
+import type { LayoutPreset } from '../_shared/layout/layout-presets';
 
 const layoutDirectionSchema = z.enum(['right', 'below', 'left', 'above']);
+const LAYOUT_PRESETS = ['board', 'flow', 'matrix', 'stack', 'hub', 'spotlight', 'masonry'] as const satisfies readonly LayoutPreset[];
 
 export function createLayoutTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -49,11 +51,23 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
         'Use mode="place_near" to place existing nodes near an anchor while avoiding collisions; ' +
         'mode="frame_grid" to arrange nodes inside a frame and auto-fit the frame; ' +
         'mode="region_grid" to arrange selected nodes or nodes inside a rectangular region while leaving outside nodes fixed; ' +
-        'mode="canvas_grid" to arrange top-level nodes/frames on the canvas. ' +
+        'mode="canvas_grid" to arrange top-level nodes/frames on the canvas; ' +
+        'mode="preset" to lay out frames and their cards as one designed board: ' +
+        'preset="board" (overview frame across the top, detail frames in a row below, optional sources frame on the right edge; the default for research canvases), ' +
+        '"flow" (frames left to right, cards stacked: steps, stages, timelines, kanban), ' +
+        '"matrix" (2-column grid of frames: 2x2 comparisons, quadrants, options), ' +
+        '"stack" (frames top to bottom at one width: a report read in order), ' +
+        '"hub" (central frame with the others around it: one topic and its facets), ' +
+        '"spotlight" (large lead frame on the left, others in a column on the right: one main finding with supporting points), ' +
+        '"masonry" (frames packed into even columns: many loosely related frames, a collection). ' +
+        'Presets give frames in one row one height and frames in one column one width. ' +
         'This is preferred whenever the user asks to organize, tidy, lay out, or generate a structured canvas.',
       inputSchema: z.object({
-        mode: z.enum(['place_near', 'frame_grid', 'region_grid', 'canvas_grid', 'validate']).describe('Layout operation to run. validate returns a layout snapshot without writing.'),
-        nodeIds: z.array(z.string()).optional().describe('Nodes to place/layout. For frame_grid, omitted means current spatial children of the frame. For region_grid, pass selected nodes or omit and provide region. For canvas_grid, omitted means top-level nodes.'),
+        mode: z.enum(['place_near', 'frame_grid', 'region_grid', 'canvas_grid', 'preset', 'validate']).describe('Layout operation to run. validate returns a layout snapshot without writing.'),
+        nodeIds: z.array(z.string()).optional().describe('Nodes to place/layout, in the order to use. For frame_grid, omitted means current spatial children of the frame in reading order; list the most important card first. For region_grid, pass selected nodes or omit and provide region. For canvas_grid, omitted means top-level nodes. For preset, the frames in reading order; omitted means every top-level frame.'),
+        preset: z.enum(LAYOUT_PRESETS).optional().describe('Board design for mode="preset".'),
+        overviewFrameId: z.string().optional().describe('preset="board", "hub", or "spotlight": the main frame (board top, hub center, spotlight lead). Defaults to the first frame.'),
+        sourcesFrameId: z.string().optional().describe('preset="board": the frame placed on the right edge, for sources or references.'),
         anchorNodeId: z.string().optional().describe('Anchor node for place_near. If omitted, placement starts at the canvas bounds.'),
         frameId: z.string().optional().describe('Frame node for frame_grid.'),
         region: z.object({
@@ -67,8 +81,8 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
         gap: z.number().min(0).max(500).optional().describe(`Gap between nodes. Default ${DEFAULT_LAYOUT_GAP}.`),
         padding: z.number().min(0).max(500).optional().describe(`Frame inner padding. Default ${DEFAULT_FRAME_PADDING}.`),
         fitFrame: z.boolean().optional().describe('For frame_grid, resize the frame to fit children. Default true.'),
-        startX: z.number().optional().describe('Canvas-grid start X. Defaults to current canvas min X, or 100.'),
-        startY: z.number().optional().describe('Canvas-grid start Y. Defaults to current canvas min Y, or 100.'),
+        startX: z.number().optional().describe('Start X for canvas_grid and preset. Defaults to current canvas min X, or 100.'),
+        startY: z.number().optional().describe('Start Y for canvas_grid and preset. Defaults to current canvas min Y, or 100.'),
         lockedNodeIds: z.array(z.string()).optional().describe('Nodes canvas_grid should not move.'),
         respectLayoutLocked: z.boolean().optional().describe('When true, canvas_grid skips nodes with data.layoutLocked=true. Default true.'),
       }),
@@ -76,7 +90,7 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
 
-        const mode = input.mode as 'place_near' | 'frame_grid' | 'region_grid' | 'canvas_grid' | 'validate';
+        const mode = input.mode as 'place_near' | 'frame_grid' | 'region_grid' | 'canvas_grid' | 'preset' | 'validate';
         if (mode === 'validate') {
           return JSON.stringify({
             ok: true,
@@ -127,6 +141,23 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
             });
             mutations = plan.mutations;
             meta = { arrangedNodeIds: plan.arrangedNodeIds, skippedNodeIds: plan.skippedNodeIds, contentBounds: plan.bounds };
+          } else if (mode === 'preset') {
+            const preset = input.preset as LayoutPreset | undefined;
+            if (!preset) return 'Error: preset is required for mode="preset"';
+            // Loaded on first use to keep it out of the main entry chunk.
+            const { planLayoutPreset } = await import('../_shared/layout/layout-presets');
+            const plan = planLayoutPreset(canvas.nodes, {
+              preset,
+              frameIds: input.nodeIds as string[] | undefined,
+              overviewFrameId: input.overviewFrameId as string | undefined,
+              sourcesFrameId: input.sourcesFrameId as string | undefined,
+              gap: input.gap as number | undefined,
+              padding: input.padding as number | undefined,
+              startX: input.startX as number | undefined,
+              startY: input.startY as number | undefined,
+            });
+            mutations = plan.mutations;
+            meta = { preset, frameIds: plan.frameIds, roles: plan.roles };
           } else {
             const plan = planCanvasGrid(canvas.nodes, {
               nodeIds: input.nodeIds as string[] | undefined,

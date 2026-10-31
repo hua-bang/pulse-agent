@@ -15,12 +15,12 @@ describe('EdgeStyleOptions', () => {
     act(() => {
       root.render(
         <I18nProvider>
-          <EdgeStyleOptions section="width" stroke={{ color: '#111', width: 1.6, style: 'solid' }} head="triangle" tail="none" changeStroke={changeStroke} changeHead={vi.fn()} changeTail={vi.fn()} />
+          <EdgeStyleOptions section="width" stroke={{ color: '#111', width: 2, style: 'solid' }} head="triangle" tail="none" changeStroke={changeStroke} changeHead={vi.fn()} changeTail={vi.fn()} />
         </I18nProvider>,
       );
     });
     act(() => { host.querySelectorAll<HTMLButtonElement>('button')[1]?.click(); });
-    expect(changeStroke).toHaveBeenCalledWith({ width: 2.4 });
+    expect(changeStroke).toHaveBeenCalledWith({ width: 3 });
     act(() => root.unmount());
   });
 });

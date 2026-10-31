@@ -25,13 +25,15 @@
   justify-content: center;
   min-width: 20px;
   max-width: 240px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-float);
-  font-size: 12px;
-  line-height: 16px;
+  /* Sized to read beside the reading cards' 22-28px titles. */
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
   color: var(--text);
   text-align: center;
   /* Sit above the edge stroke (inside .canvas-transform) but below the
