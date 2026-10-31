@@ -16,7 +16,11 @@ describe('estimateNoteHeight', () => {
   it('matches reading-card heights measured in the renderer', () => {
     // Measured in the app: border, title header and the editor's height.
     // The leading heading repeats the title, so the card hides it.
-    const near = (estimate: number, measured: number) => expect(Math.abs(estimate - measured)).toBeLessThanOrEqual(8);
+    // It may run up to two 8px steps tall, never short: short shows a scrollbar.
+    const near = (estimate: number, measured: number) => {
+      expect(estimate).toBeGreaterThanOrEqual(measured);
+      expect(estimate - measured).toBeLessThanOrEqual(16);
+    };
     near(estimateNoteHeight('# IDC 2026 Q2\n\n端侧 AI 设备追踪报告，包含**出货量**与份额数据。', 520, 'IDC 2026 Q2'), 170);
     near(estimateNoteHeight('# 手机侧格局已基本稳定\n\n- 高通、联发科、苹果合计占手机端 **八成以上** 份额。\n- 新进入者难以撼动，集中在低功耗推理细分市场。\n- 后续只需按季度跟踪份额变化。', 640, '手机侧格局已基本稳定'), 246);
   });

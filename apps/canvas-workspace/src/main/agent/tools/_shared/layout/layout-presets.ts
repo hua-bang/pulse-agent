@@ -58,7 +58,7 @@ export interface LayoutPresetPlan {
 }
 
 /** Frames sit further apart than cards so each frame reads as one region. */
-const FRAME_GAP_FACTOR = 2;
+const FRAME_GAP_FACTOR = 3;
 /** Cards widen to fill a stretched frame up to the note editor's text width. */
 const MAX_FILLED_CARD_WIDTH = 800;
 /** Hub spokes in order: top, right, bottom, left, then the corners. */

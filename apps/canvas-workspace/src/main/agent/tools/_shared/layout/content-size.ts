@@ -5,8 +5,8 @@
  * the reading-card type scale in the renderer (CanvasNodeBody/index.css for
  * the title, FileNodeBody/index.css for the text): a bold title of up to
  * three lines, then text at line-height 1.75 inside the card's padding, with
- * a roomier scale from 480px wide. The result is clamped, so a wrong guess
- * only costs some white space or a short scroll.
+ * a roomier scale from 480px wide. The result leans tall and is clamped, so
+ * a wrong guess only costs some white space or a short scroll.
  */
 const WIDE_CARD = 480;
 const NARROW = { titleTop: 28, title: 22, padTop: 12, padBottom: 32, padX: 32, font: 15 };
@@ -15,6 +15,7 @@ const TITLE_LINE_HEIGHT = 1.35;
 const TITLE_MAX_LINES = 3;
 const LINE_HEIGHT = 1.75;
 const BORDER = 2;
+const SLACK = 8;
 const LATIN_CHAR_EM = 0.55;
 export const MIN_NOTE_HEIGHT = 160;
 export const MAX_NOTE_HEIGHT = 640;
@@ -114,7 +115,9 @@ export function estimateNoteHeight(content: string, width: number, title = ''): 
     if (index > 0) height += Math.max(blocks[index - 1].marginBottom, block.marginTop);
   });
   if (blocks.length > 0) height += blocks[blocks.length - 1].marginBottom;
-  return Math.ceil(Math.min(MAX_NOTE_HEIGHT, Math.max(MIN_NOTE_HEIGHT, height)) / 8) * 8;
+  // Round up with one step of slack: a few pixels short shows a scrollbar,
+  // a few pixels over only shows white space.
+  return Math.ceil(Math.min(MAX_NOTE_HEIGHT, Math.max(MIN_NOTE_HEIGHT, height + SLACK)) / 8) * 8;
 }
 
 function wrappedLines(text: string, width: number, fontSize: number): number {
