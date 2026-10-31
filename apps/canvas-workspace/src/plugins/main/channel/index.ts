@@ -67,8 +67,8 @@ export const ChannelMainPlugin: MainCanvasPlugin = {
   enabledWhen: () => isChannelsFlagEnabled() && anyChannelConfigured(),
 
   async activate(ctx: MainCtx): Promise<void> {
-    const service = ctx.getAgentService();
-    const runtime = getConversationRuntimeService(() => service);
+    const service = await ctx.getAgentService();
+    const runtime = getConversationRuntimeService(async () => service);
     bridge = new ChannelBridge(service, runtime, ctx.store, {
       activateCanvas: activateWorkspaceWindow,
     });

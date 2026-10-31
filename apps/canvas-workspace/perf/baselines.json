@@ -164,9 +164,9 @@
       "gate": { "kind": "ratchet", "baseline": 6794, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
-      "profile": "global-deterministic", "target": 550, "warning": 690,
-      "confidence": "high", "basis": "2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。main 实测 721KB（8/29 为 699KB，10/4 已到 719KB，此前一直在 3% 容差内悄悄增长）。保留 550 target 与 690 warning；后续继续拆分 MCP Apps IPC 与协议服务。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 721, "tolerancePct": 1, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 400, "warning": 550,
+      "confidence": "high", "basis": "2026-10-31：Canvas Agent 服务（engine、工具、会话存储）改为首次 agent 调用时动态加载，main 入口 726→394KB，ratchet 锚点同步收紧到实测值。target 400 / warning 550 防止 agent 代码重新进入启动入口。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 394, "tolerancePct": 1, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

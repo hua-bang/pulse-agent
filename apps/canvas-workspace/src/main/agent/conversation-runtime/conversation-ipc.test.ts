@@ -48,7 +48,7 @@ describe('conversation runtime IPC', () => {
   it('acknowledges an accepted turn before its completion event', async () => {
     let finish!: (result: { ok: boolean; response: string }) => void;
     mocks.chat.mockReturnValue(new Promise(resolve => { finish = resolve; }));
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const handler = mocks.handlers.get('canvas-agent:conversation-chat');
     const send = vi.fn();
     const invocation = handler?.({
@@ -61,8 +61,7 @@ describe('conversation runtime IPC', () => {
     const settled: unknown[] = [];
     void Promise.resolve(invocation).then((result: unknown) => settled.push(result));
 
-    await Promise.resolve();
-    expect(settled).toEqual([{ ok: true, sessionId: 'session-a' }]);
+    await vi.waitFor(() => expect(settled).toEqual([{ ok: true, sessionId: 'session-a' }]));
     // The turn counts as running before activation, so New chat cannot reuse its session.
     expect(sessionMutations.reserveRun).toHaveBeenCalledWith({ kind: 'global' }, 'session-a');
     expect(releaseRun).not.toHaveBeenCalled();
@@ -90,12 +89,12 @@ describe('conversation runtime IPC', () => {
     });
     const snapshot = { status: 'running', messages: [], draft: { role: 'assistant', content: 'Par' } };
     mocks.liveSnapshot.mockReturnValue(snapshot);
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const original = { isDestroyed: () => false, send: vi.fn() };
     const reloaded = { isDestroyed: () => false, send: vi.fn() };
     const payload = { scope: { kind: 'workspace', workspaceId: 'ws-a' }, sessionId: 'session-a' };
 
-    mocks.handlers.get('canvas-agent:conversation-chat')?.({ sender: original }, { ...payload, message: 'hello' });
+    await mocks.handlers.get('canvas-agent:conversation-chat')?.({ sender: original }, { ...payload, message: 'hello' });
     onText('Par');
     expect(mocks.handlers.get('canvas-agent:conversation-attach')?.({ sender: reloaded }, payload))
       .toEqual({ ok: true, running: true, snapshot });
@@ -118,12 +117,12 @@ describe('conversation runtime IPC', () => {
       return new Promise(resolve => { finish = resolve; });
     });
     mocks.liveSnapshot.mockReturnValue({ status: 'running', messages: [], draft: null });
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const chatWindow = { isDestroyed: () => false, send: vi.fn() };
     const payload = { scope: { kind: 'scheduled', taskId: 'brief' }, sessionId: 'run-1' };
 
     const run = chatToSubscribers(
-      getConversationRuntimeService(() => ({}) as never),
+      getConversationRuntimeService(async () => ({}) as never),
       payload.scope as never,
       payload.sessionId,
       'Scheduled task: brief',
@@ -141,12 +140,12 @@ describe('conversation runtime IPC', () => {
     let finish!: (result: { ok: boolean; response: string }) => void;
     mocks.chat.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
     mocks.liveSnapshot.mockReturnValue({ status: 'running', messages: [], draft: null });
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const chatWindow = { isDestroyed: () => false, send: vi.fn() };
     const payload = { scope: { kind: 'global' }, sessionId: 'session-c' };
 
     const run = chatToSubscribers(
-      getConversationRuntimeService(() => ({}) as never),
+      getConversationRuntimeService(async () => ({}) as never),
       payload.scope as never,
       payload.sessionId,
       'hello',
@@ -164,7 +163,7 @@ describe('conversation runtime IPC', () => {
 
   it('reports an idle conversation without subscribing the window', () => {
     mocks.liveSnapshot.mockReturnValue(null);
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
 
     expect(mocks.handlers.get('canvas-agent:conversation-attach')?.(
       { sender: { isDestroyed: () => false, send: vi.fn() } },
@@ -174,7 +173,7 @@ describe('conversation runtime IPC', () => {
 
   it('reports running sessions from the conversation runtime registry', () => {
     mocks.runningSessionIds.mockReturnValue(['session-a', 'session-b']);
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const handler = mocks.handlers.get('canvas-agent:conversation-running-sessions');
 
     expect(handler?.({}, { scope: { kind: 'global' } })).toEqual({
@@ -185,15 +184,15 @@ describe('conversation runtime IPC', () => {
 
   it('uses the deterministic perf replay on the conversation IPC path', async () => {
     vi.stubEnv('PULSE_CANVAS_PERF', '1');
-    setupConversationRuntimeIpc(() => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
+    setupConversationRuntimeIpc(async () => ({ getAgentForScope: vi.fn(), sessionMutations }) as never);
     const handler = mocks.handlers.get('canvas-agent:conversation-chat');
     const sender = { isDestroyed: () => false, send: vi.fn() };
 
-    expect(handler?.({ sender }, {
+    await expect(handler?.({ sender }, {
       scope: { kind: 'global' },
       sessionId: 'perf-session',
       message: '__pulse_perf_chat_stream__',
-    })).toEqual({ ok: true, sessionId: 'perf-session' });
+    })).resolves.toEqual({ ok: true, sessionId: 'perf-session' });
     expect(mocks.replay).toHaveBeenCalledWith(sender, 'perf-session');
     vi.unstubAllEnvs();
   });

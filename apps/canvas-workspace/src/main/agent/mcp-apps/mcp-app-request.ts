@@ -20,7 +20,11 @@ export function resolveAgentScope(payload: AgentScopeRef): AgentScope {
   return { kind: 'global' };
 }
 
-export async function managerFor(service: CanvasAgentService, scope: AgentScope) {
+/** Resolves the Canvas Agent service, which loads on first use. */
+export type LoadAgentService = () => Promise<CanvasAgentService>;
+
+export async function managerFor(loadService: LoadAgentService, scope: AgentScope) {
+  const service = await loadService();
   await service.activateScope(scope);
   const agent = service.getAgentForScope(scope);
   const manager = agent?.getMcpAppsManager();

@@ -24,9 +24,9 @@ const loaded = new Set<string>();
  * registry's own import graph stays light (the agent pulls in the engine)
  * and unit-testable in isolation.
  */
-let agentServiceAccessor: (() => CanvasAgentServiceRef) | null = null;
+let agentServiceAccessor: (() => Promise<CanvasAgentServiceRef>) | null = null;
 
-export function setAgentServiceAccessor(accessor: () => CanvasAgentServiceRef): void {
+export function setAgentServiceAccessor(accessor: () => Promise<CanvasAgentServiceRef>): void {
   agentServiceAccessor = accessor;
 }
 
@@ -198,7 +198,7 @@ function createMainCtx(pluginId: string): MainCtx {
         id: `${pluginId}:${subscriber.id}`,
       });
     },
-    getAgentService(): CanvasAgentServiceRef {
+    getAgentService(): Promise<CanvasAgentServiceRef> {
       if (!agentServiceAccessor) {
         throw new Error(
           '[canvas-plugins] agent service accessor not configured; ' +

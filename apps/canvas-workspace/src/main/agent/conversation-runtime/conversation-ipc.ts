@@ -19,27 +19,34 @@ import { startAgentTurnTelemetry, type AgentTurnTrigger } from '../../telemetry/
 let service: ConversationRuntimeService | null = null;
 
 export function getConversationRuntimeService(
-  getService: () => unknown,
+  loadService: () => Promise<unknown>,
 ): ConversationRuntimeService {
   if (!service) {
-    const agentService = getService() as CanvasAgentService;
+    // The agent service loads on first use. Every path to a live agent goes
+    // through activateScope, which loads it, so getAgent can stay synchronous.
+    let agentService: CanvasAgentService | undefined;
+    const load = async (): Promise<CanvasAgentService> => {
+      const loaded = await loadService() as CanvasAgentService;
+      agentService = loaded;
+      return loaded;
+    };
     service = new ConversationRuntimeService(
-      (scope) => agentService.getAgentForScope(scope),
+      (scope) => agentService?.getAgentForScope(scope),
       (storeId, scope) => ({
-        create: (sessionId, messages) => agentService.sessionMutations.createStoredConversation(scope, async () => {
+        create: async (sessionId, messages) => (await load()).sessionMutations.createStoredConversation(scope, async () => {
           await new SessionStore(storeId, scope).createConversationById(sessionId, messages);
         }),
         loadMessages: async (sessionId) => (
-          agentService.sessionMutations.readConversation(scope, sessionId)
+          (await load()).sessionMutations.readConversation(scope, sessionId)
         ),
-        persist: (sessionId, messages) => (
-          agentService.sessionMutations.replaceConversationMessages(scope, sessionId, messages)
+        persist: async (sessionId, messages) => (
+          (await load()).sessionMutations.replaceConversationMessages(scope, sessionId, messages)
         ),
       }),
-      (scope, sessionId, operation) => (
-        agentService.sessionMutations.runChat(scope, operation, sessionId)
+      async (scope, sessionId, operation) => (
+        (await load()).sessionMutations.runChat(scope, operation, sessionId)
       ),
-      (scope) => agentService.activateScope(scope),
+      async (scope) => (await load()).activateScope(scope),
       tracedAssertWorkspaceAvailable,
     );
   }
@@ -151,12 +158,12 @@ export interface ConversationRuntimeChatPayload {
  * stream events as the legacy protocol, so the existing renderer listeners
  * work unchanged while main owns per-conversation state.
  */
-export function setupConversationRuntimeIpc(getService: () => CanvasAgentService): void {
-  const ensure = (): ConversationRuntimeService => getConversationRuntimeService(getService);
+export function setupConversationRuntimeIpc(loadService: () => Promise<CanvasAgentService>): void {
+  const ensure = (): ConversationRuntimeService => getConversationRuntimeService(loadService);
 
   ipcMain.handle(
     'canvas-agent:conversation-chat',
-    (
+    async (
       event,
       payload: ConversationRuntimeChatPayload,
     ) => {
@@ -166,8 +173,9 @@ export function setupConversationRuntimeIpc(getService: () => CanvasAgentService
         void replayPerfChatStream(event.sender, sessionId);
         return { ok: true, sessionId };
       }
+      const agentService = await loadService();
       subscribersFor(scope, sessionId).add(event.sender);
-      const releaseRun = getService().sessionMutations.reserveRun(scope, sessionId);
+      const releaseRun = agentService.sessionMutations.reserveRun(scope, sessionId);
       void chatToSubscribers(runtime, scope, sessionId, message, {
         mentionedWorkspaceIds,
         requestContext,
