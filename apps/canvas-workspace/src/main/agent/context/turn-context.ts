@@ -55,9 +55,20 @@ export function buildGlobalTurnContext(
     + formatMentionedCanvasesSection(mentionedCanvases);
 }
 
+/**
+ * Titles, notes, and DOM excerpts are host data. A literal turn_context tag
+ * in that data would close the wrapper early and make the rest look like
+ * the user's message. Break the introducer; leave the rest of the text.
+ */
+const TURN_CONTEXT_TAG_RE = /<\s*\/?\s*turn_context\b/gi;
+
+function neutralizeTurnContextTags(body: string): string {
+  return body.replace(TURN_CONTEXT_TAG_RE, (match) => match.replace(/</g, '\\u003c'));
+}
+
 /** Prefix the model-facing user text with the turn context block. */
 export function withTurnContext(userText: string, turnContext: string): string {
-  const body = turnContext.trim();
+  const body = neutralizeTurnContextTags(turnContext.trim());
   if (!body) return userText;
   return [
     '<turn_context>',
