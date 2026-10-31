@@ -1,33 +1,18 @@
 import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { lookupImagePreview, storeImagePreview } from './image-preview';
 
-const imageMock = vi.hoisted(() => {
-  let empty = false;
-  const resize = vi.fn(() => ({
-    getSize: () => ({ width: 960, height: 720 }),
-    toPNG: () => Buffer.from('preview-png'),
-  }));
-  const createFromPath = vi.fn(() => ({
-    isEmpty: () => empty,
-    getSize: () => empty ? { width: 0, height: 0 } : { width: 4000, height: 3000 },
-    resize,
-  }));
-  return {
-    createFromPath,
-    resize,
-    setEmpty: (value: boolean) => { empty = value; },
-  };
-});
+const rendered = {
+  png: new Uint8Array(Buffer.from('preview-png')),
+  width: 960,
+  height: 720,
+  originalWidth: 4000,
+  originalHeight: 3000,
+};
 
-vi.mock('electron', () => ({
-  nativeImage: { createFromPath: imageMock.createFromPath },
-}));
-
-import { ensureImagePreview } from './image-preview';
-
-describe('ensureImagePreview', () => {
+describe('image preview cache', () => {
   let dir: string;
   let sourcePath: string;
   let cacheDir: string;
@@ -37,56 +22,66 @@ describe('ensureImagePreview', () => {
     sourcePath = join(dir, 'large.png');
     cacheDir = join(dir, 'cache');
     await writeFile(sourcePath, Buffer.from('original-image'));
-    imageMock.setEmpty(false);
-    imageMock.resize.mockClear();
-    imageMock.createFromPath.mockClear();
   });
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('creates and reuses a bounded preview for a large source image', async () => {
-    const first = await ensureImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
-    const second = await ensureImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
+  const requestKey = async (): Promise<string> => {
+    const found = await lookupImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
+    if (!('request' in found)) throw new Error('expected a cache miss');
+    return found.request.cacheKey;
+  };
 
-    expect(first).toMatchObject({
+  it('asks for a render on a miss and serves the stored preview afterwards', async () => {
+    const missed = await lookupImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
+    expect(missed).toMatchObject({ request: { maxDimension: 960 } });
+
+    const stored = await storeImagePreview(sourcePath, await requestKey(), rendered, { cacheDir });
+    const hit = await lookupImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
+
+    expect(stored).toMatchObject({
       generated: true,
       width: 960,
       height: 720,
       originalWidth: 4000,
       originalHeight: 3000,
     });
-    expect(first.path).toBe(second.path);
-    expect(await readFile(first.path)).toEqual(Buffer.from('preview-png'));
-    expect(imageMock.resize).toHaveBeenCalledTimes(1);
-    expect(imageMock.createFromPath).toHaveBeenCalledTimes(1);
-    expect(imageMock.resize).toHaveBeenCalledWith({ width: 960, height: 720, quality: 'good' });
+    expect(hit).toEqual({ preview: stored });
+    expect(await readFile(stored.path)).toEqual(Buffer.from('preview-png'));
   });
 
-  it('invalidates the old sidecar when the source file changes', async () => {
-    const first = await ensureImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
+  it('caches a small source as its own path so it is not decoded again', async () => {
+    const small = { width: 640, height: 480, originalWidth: 640, originalHeight: 480 };
+    const stored = await storeImagePreview(sourcePath, await requestKey(), small, { cacheDir });
+
+    expect(stored).toEqual({ path: sourcePath, generated: false, ...small });
+    expect(await lookupImagePreview(sourcePath, { cacheDir, maxDimension: 960 })).toEqual({ preview: stored });
+  });
+
+  it('invalidates the old preview when the source file changes', async () => {
+    const first = await storeImagePreview(sourcePath, await requestKey(), rendered, { cacheDir });
     await writeFile(sourcePath, Buffer.from('replacement-image-with-a-different-size'));
     const future = new Date(Date.now() + 2_000);
     await utimes(sourcePath, future, future);
 
-    const second = await ensureImagePreview(sourcePath, { cacheDir, maxDimension: 960 });
+    const second = await storeImagePreview(sourcePath, await requestKey(), rendered, { cacheDir });
 
     expect(second.path).not.toBe(first.path);
     await expect(stat(first.path)).rejects.toThrow();
-    expect(imageMock.resize).toHaveBeenCalledTimes(2);
   });
 
-  it('falls back to the original image when Electron cannot decode it', async () => {
-    imageMock.setEmpty(true);
+  it('rejects a render whose source changed after the lookup', async () => {
+    const staleKey = await requestKey();
+    await writeFile(sourcePath, Buffer.from('replacement-image-with-a-different-size'));
 
-    await expect(ensureImagePreview(sourcePath, { cacheDir, maxDimension: 960 })).resolves.toEqual({
-      path: sourcePath,
-      generated: false,
-      width: 0,
-      height: 0,
-      originalWidth: 0,
-      originalHeight: 0,
-    });
+    await expect(storeImagePreview(sourcePath, staleKey, rendered, { cacheDir }))
+      .rejects.toThrow('Image changed');
+  });
+
+  it('rejects a key that could name a path outside the cache', async () => {
+    await expect(storeImagePreview(sourcePath, '../escape', rendered, { cacheDir }))
+      .rejects.toThrow('Invalid image preview key');
   });
 });

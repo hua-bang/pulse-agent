@@ -42,6 +42,8 @@
 
 **B2 完成记录(2026-07-10,S+M 完成)**:`ImageNodeBody` 保留 `decoding="async"` + `loading="lazy"`,并新增主进程 `nativeImage.resize` sidecar 管线。普通画布等待 960px preview 就绪后才挂 `<img>`(不先瞬时解码原图),全屏切回原图;源路径 + size + mtime 指纹负责失效,metadata 让 cache hit 不再打开原图,旧指纹 sidecar 自动清理,生成失败回退原图。并发生成串行且每张之间让出 event loop,10 图 burst 的 main loop-delay max 从 246.7ms 降到 55.6ms。新增自包含 `image-memory` 场景与 `memory.image.decoded_mb`:10×4000×3000 原图估算 457.8MB,preview 实测 26.4MB,下降 17.4×;真实 CDP 另验证普通画布 natural size 960×720、全屏恢复 4000×3000。
 
+**B2 更新(2026-10-31)**:CPU profile 显示 `nativeImage` 的解码、缩放和 PNG 编码每张图在主进程同步阻塞约 110ms,image-memory 场景因此把 main loop-delay p99 推到 129ms。preview 现在由渲染进程 Worker 生成(`createImageBitmap` + `OffscreenCanvas`),主进程只负责缓存查找、原子写入和清理(`file:getImagePreview` 未命中时返回 `cacheKey`,`file:storeImagePreview` 校验 key 与源文件指纹后落盘)。无需缩小的小图也写入 metadata,不再每次重新解码。同机复测 p99 129→23.4ms;剩余 max 来自启动时 `new BrowserWindow` 的原生耗时。
+
 **AI 流式完成记录(2026-07-10)**:新增仅在 `PULSE_CANVAS_PERF=1` 可触发的本地确定性回放,521 个 delta 走真实 IPC、`useChatStream` 和 Markdown/Mermaid 渲染链路。文本 delta 以 32ms 视觉窗口合并,流式 Markdown 全量渲染从 374 次降到 64 次(下降 82.9%),frames>20ms 从 0.7% 降到 0.3%,Mermaid tail 0.8ms;`chat-md-stream-render ≤80` 与 commit 同步设为 gate。
 
 **指标补全记录(2026-07-10)**:dashboard 最后 3 个缺口已接通。Welcome 内容最初由 guest `dom-ready` 计算开窗后耗时，2026-07-11 已改为本地 HTML 的 `welcome:local-content-ready`；AI mock turn 在 temp HOME 中走真实 `SessionStore` 持久化,稳定产生 `main.session_persist.bytes_per_turn`;新增双真实 PTY 定速流场景,统计 renderer 收到的 `pty:data` IPC/s。

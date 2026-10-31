@@ -13,6 +13,24 @@ import type {
 
 export type * from '../files';
 
+export interface ImagePreview {
+  path: string;
+  generated: boolean;
+  width: number;
+  height: number;
+  originalWidth: number;
+  originalHeight: number;
+}
+
+/** PNG bytes are absent when the source needs no smaller preview. */
+export interface RenderedImagePreview {
+  png?: Uint8Array;
+  width: number;
+  height: number;
+  originalWidth: number;
+  originalHeight: number;
+}
+
 export interface FileApi {
   savePreview: (request: FileSaveRequest) => Promise<FileSaveResult>;
   preview: (filePath: string) => Promise<FilePreviewResult>;
@@ -69,21 +87,21 @@ export interface FileApi {
     workspaceId: string | undefined,
     filePath: string,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /** Cached preview, or a request to render one and pass it to storeImagePreview. */
   getImagePreview: (
     filePath: string,
     maxDimension?: number,
   ) => Promise<{
     ok: boolean;
-    preview?: {
-      path: string;
-      generated: boolean;
-      width: number;
-      height: number;
-      originalWidth: number;
-      originalHeight: number;
-    };
+    preview?: ImagePreview;
+    request?: { cacheKey: string; maxDimension: number };
     error?: string;
   }>;
+  storeImagePreview: (
+    filePath: string,
+    cacheKey: string,
+    rendered: RenderedImagePreview,
+  ) => Promise<{ ok: boolean; preview?: ImagePreview; error?: string }>;
   exportImage: (
     defaultName: string,
     data: string,

@@ -15,6 +15,7 @@ import { useI18n } from '../../../../../i18n';
 import { useAppShell } from '../../../../../shared/appShell';
 import { matchShortcut, formatShortcutId } from '../../../../../shortcuts/registry';
 import type { ShortcutIdFor } from '../../../../../shortcuts/definitions';
+import { getImagePreview } from '../../../../../utils/imagePreview';
 import type { DockPreviewTab, DockStore } from '../state/dock-store';
 import { isFileDirty } from '../state/dock-folder-editor';
 import { EntryNameInput } from './EntryNameInput';
@@ -115,7 +116,7 @@ export const FolderDockTab = ({ tab, store, active }: Props) => {
     setPreview({ path, loading: true });
     const load = async (): Promise<Preview> => {
       if (isImage(path)) {
-        const result = await window.canvasWorkspace.file.getImagePreview(path, 1600);
+        const result = await getImagePreview(path, 1600);
         return result.ok && result.preview
           ? { path, imagePath: result.preview.path }
           : { path, error: result.error || t('folder.readFailed') };
