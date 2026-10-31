@@ -34,7 +34,11 @@ or a mutating command. `src/core/store.ts` is the compatibility facade;
   active SQLite storage.
 - SQL workspace discovery uses repository records, not the existence of a
   `canvas.json` file, so `workspace create` removes its SQL workspace (at the
-  created revision) when manifest publication fails. `status` reports `json`,
+  created revision) when manifest publication fails. The app's manifest save
+  (`saveWorkspaceManifest`) registers an empty SQL canvas for each listed
+  workspace without one, so a new canvas is addressable before its first edit;
+  an entry left unregistered by an older build heals on the next manifest save.
+  `status` reports `json`,
   `sqlite`, or unavailable storage; its manifest read sits inside that guard.
 
 Guards: `src/core/__tests__/sqlite-store.test.ts` covers v1/v2 with no revision,

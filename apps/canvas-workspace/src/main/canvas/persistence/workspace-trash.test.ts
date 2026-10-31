@@ -96,6 +96,23 @@ describe('App workspace soft deletion', () => {
     expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other', 'work']);
   });
 
+  it('registers a new manifest entry in SQLite before its first canvas save', async () => {
+    await activate();
+    await writeManifest({ workspaces: [entry, other], folders: [], activeId: 'work' });
+    const untouched = await storage!.canvas.read('work');
+    await saveWorkspaceManifest(root, { workspaces: [entry, other, { id: 'ws-new', name: 'GEO' }], folders: [], activeId: 'ws-new' });
+
+    const created = await storage!.canvas.read('ws-new');
+    expect(created).toMatchObject({ workspaceId: 'ws-new', nodes: [], placements: [] });
+    expect(await storage!.canvas.read('work')).toEqual(untouched);
+    // A repeated save keeps the existing record instead of rewriting it.
+    await saveWorkspaceManifest(root, { workspaces: [entry, other, { id: 'ws-new', name: 'GEO' }], folders: [], activeId: 'ws-new' });
+    expect((await storage!.canvas.read('ws-new'))!.revision).toBe(created!.revision);
+    // Deleting it now uses the normal trash path instead of failing as not found.
+    await trashWorkspace(root, 'ws-new');
+    expect(await storage!.workspaces.getTrashed('ws-new')).not.toBeNull();
+  });
+
   it('undoes an app delete by republishing the manifest entry and SQL visibility', async () => {
     await activate();
     await writeManifest({ workspaces: [entry, other], folders: [], activeId: 'work' });
