@@ -223,6 +223,7 @@ function placeFrames(
 /**
  * Spread the extra width of a stretched frame over its card columns, so the
  * cards fill the frame instead of leaving an empty strip on the right.
+ * Images keep their size: a wider box would only add blank side margins.
  */
 function fillFrameWidth(frame: CanvasNode, children: CanvasNode[], padding: number, gap: number): void {
   const cards = children.filter((child) => child.data?.layoutLocked !== true);
@@ -243,7 +244,7 @@ function fillFrameWidth(frame: CanvasNode, children: CanvasNode[], padding: numb
   for (const card of cards) {
     const column = columnXs.indexOf(card.x);
     card.x = lefts[column];
-    card.width = widths[column];
+    if (card.type !== 'image') card.width = widths[column];
   }
 }
 

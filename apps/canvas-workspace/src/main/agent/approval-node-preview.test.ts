@@ -42,6 +42,12 @@ describe('approval node previews', () => {
     }, 'preview')?.data).toEqual({ filePath });
   });
 
+  it('does not mount a web image before it is downloaded', () => {
+    expect(createApprovalNodePreview('canvas_create_node', {
+      type: 'image', data: { url: 'https://example.com/chart.png' },
+    }, 'preview')).toBeUndefined();
+  });
+
   it('does not mount active node types or unrelated tool inputs', () => {
     for (const type of ['terminal', 'agent', 'iframe', 'plugin', 'file']) {
       expect(createApprovalNodePreview('canvas_create_node', { type }, 'preview')).toBeUndefined();
