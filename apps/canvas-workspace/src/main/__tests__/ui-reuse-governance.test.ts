@@ -227,7 +227,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 111→110: Library cards reuse radius tokens.
   // 110→105 (dead-code cleanup): knip found unused pickers, settings
   // panels and icons, which were deleted.
-  borderRadiusLiterals: 105,
+  // 105→97 (UI style pass): 8 square-corner `0` radii use the radius-none token.
+  borderRadiusLiterals: 97,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
