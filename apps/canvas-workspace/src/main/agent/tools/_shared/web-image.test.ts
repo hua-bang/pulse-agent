@@ -76,4 +76,24 @@ describe('web image download', () => {
     await expect(downloadWebImage('ws-1', 'file:///etc/passwd')).rejects.toThrow('http or https');
     await expect(downloadWebImage('ws-1', 'https://example.com/page')).rejects.toThrow('not a supported image');
   });
+
+  it('stops reading a body without Content-Length at the size limit', async () => {
+    let pulled = 0;
+    const chunk = new Uint8Array(1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        if (pulled > 64) controller.close();
+        else controller.enqueue(chunk);
+      },
+    });
+    globalThis.fetch = vi.fn(async () => new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    })) as unknown as typeof fetch;
+    const { downloadWebImage } = await import('./web-image');
+
+    await expect(downloadWebImage('ws-1', 'https://example.com/huge.png')).rejects.toThrow('larger than 15 MB');
+    expect(pulled).toBeLessThan(20);
+  });
 });

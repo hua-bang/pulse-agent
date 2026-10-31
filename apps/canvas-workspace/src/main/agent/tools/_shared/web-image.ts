@@ -48,8 +48,7 @@ export async function downloadWebImage(workspaceId: string, rawUrl: string): Pro
 
   const declaredLength = Number(response.headers.get('content-length') ?? 0);
   if (declaredLength > MAX_IMAGE_BYTES) throw new Error(`image is larger than 15 MB: ${url.href}`);
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > MAX_IMAGE_BYTES) throw new Error(`image is larger than 15 MB: ${url.href}`);
+  const buffer = await readLimitedBody(response, url.href);
 
   const imagesDir = join(STORE_DIR, workspaceId, 'images');
   await fs.mkdir(imagesDir, { recursive: true });
@@ -58,6 +57,25 @@ export async function downloadWebImage(workspaceId: string, rawUrl: string): Pro
 
   const size = readImageSize(buffer);
   return { filePath, bytes: buffer.length, ...(size ? { size } : {}) };
+}
+
+/** Read the body in chunks and stop at the size limit, so a server without Content-Length cannot exhaust memory. */
+async function readLimitedBody(response: Response, href: string): Promise<Buffer> {
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_IMAGE_BYTES) {
+      await reader.cancel();
+      throw new Error(`image is larger than 15 MB: ${href}`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
 }
 
 /** Fit pixel dimensions into the default on-canvas size, keeping the aspect ratio. */
