@@ -27,11 +27,18 @@ export const preloadableLazy = <T extends ComponentType<any>>(load: Loader<T>): 
   return Object.assign(Component, { preload });
 };
 
+const PRELOAD_DELAY_MS = 1500;
+
 /** Preloads page chunks once the renderer is idle after startup, so the
  * first visit to each page does not wait on the network. */
 export const preloadWhenIdle = (loaders: Array<() => Promise<unknown>>): void => {
   // Chromium always has it; test DOMs without it skip the preload.
-  window.requestIdleCallback?.(() => {
-    for (const load of loaders) void load().catch(() => undefined);
-  }, { timeout: 5000 });
+  if (!window.requestIdleCallback) return;
+  // The renderer is first idle while the canvas still paints its first
+  // screen. Wait past that, so the preload does not delay the largest paint.
+  window.setTimeout(() => {
+    window.requestIdleCallback(() => {
+      for (const load of loaders) void load().catch(() => undefined);
+    }, { timeout: 5000 });
+  }, PRELOAD_DELAY_MS);
 };

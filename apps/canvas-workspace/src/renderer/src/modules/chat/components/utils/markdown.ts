@@ -1,12 +1,7 @@
-import hljs from 'highlight.js/lib/core';
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
-import { syntaxHighlightLanguages } from '../../../../utils/syntaxHighlightLanguages';
+import { loadedHighlighter, loadHighlighter } from '../../../../utils/syntaxHighlighter';
 import { count } from '../../../../perf/counters';
-
-for (const [name, language] of Object.entries(syntaxHighlightLanguages)) {
-  hljs.registerLanguage(name, language);
-}
 
 // Minimum highlight.js auto-detection relevance before its guessed language is
 // trusted as the code-block header label. Below this, syntax coloring is still
@@ -24,8 +19,15 @@ function escapeAttr(value: string): string {
 function highlightCode(
   code: string,
   lang: string,
-  streaming: boolean,
+  env: MarkdownEnv | undefined,
 ): { html: string; lang: string } {
+  const hljs = loadedHighlighter();
+  if (!hljs) {
+    // Show plain code now. The caller renders again once the load finishes.
+    void loadHighlighter();
+    if (env) env.unhighlighted = true;
+    return { html: '', lang: '' };
+  }
   const trimmedLang = lang.trim().toLowerCase();
   if (trimmedLang && hljs.getLanguage(trimmedLang)) {
     try {
@@ -39,7 +41,7 @@ function highlightCode(
   // re-rendered on every streamed token — running it while the block is still
   // growing is O(tokens × languages × size). Render plain until the stream
   // settles; the final render does the full pass.
-  if (streaming) return { html: '', lang: '' };
+  if (env?.streaming === true) return { html: '', lang: '' };
   // No language hint (or unsupported) — auto-detect for syntax coloring. The
   // detected name only becomes the header label when highlight.js is reasonably
   // confident; otherwise we keep the coloring but fall back to a neutral label,
@@ -87,7 +89,7 @@ function renderCodeBlockHtml(
   requestedLang: string,
   env: MarkdownEnv | undefined,
 ): string {
-  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang, env?.streaming === true);
+  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang, env);
   const displayLang = requestedLang || lang || 'text';
   const codeHtml = highlighted
     ? highlighted
@@ -189,6 +191,8 @@ interface MarkdownEnv {
   softBreaks?: boolean;
   streaming?: boolean;
   variant?: MarkdownVariant;
+  /** Set when a code block rendered plain because the highlighter had not loaded. */
+  unhighlighted?: boolean;
 }
 
 export interface RenderMarkdownOptions {
@@ -232,7 +236,10 @@ export function renderMarkdown(content: string, options?: RenderMarkdownOptions)
     return cached;
   }
   count('chat-md-render');
-  const html = markdown.render(content, { softBreaks: options?.softBreaks, variant });
+  const env: MarkdownEnv = { softBreaks: options?.softBreaks, variant };
+  const html = markdown.render(content, env);
+  // A plain-code render is temporary, so it must not stay in the cache.
+  if (env.unhighlighted) return html;
   settledRenderCache.set(cacheKey, html);
   if (settledRenderCache.size > SETTLED_RENDER_CACHE_MAX) {
     const oldest = settledRenderCache.keys().next().value;
