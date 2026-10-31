@@ -113,6 +113,21 @@
   text-overflow: ellipsis;
 }
 
+.workspace-tabs__select--renaming {
+  cursor: text;
+}
+
+.workspace-tabs__select--renaming .ui-textfield {
+  flex: 1;
+}
+
+.workspace-tabs__rename.ui-textfield__control {
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+
 .workspace-tabs .workspace-tabs__close {
   flex: none;
   width: 20px;

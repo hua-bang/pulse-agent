@@ -2,9 +2,10 @@ import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type M
 import { SidebarSimple } from '@phosphor-icons/react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { CloseIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
-import { Button } from '../../../components/ui';
+import { Button, TextField } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { CLOSE_ACTIVE_TAB_EVENT, REOPEN_CLOSED_TAB_EVENT } from '../../shortcuts/useAppShortcuts';
+import { isImeComposing } from '../../../utils/ime';
 import { useOpenWorkspaceTabs } from './useOpenWorkspaceTabs';
 import { WorkspacePicker } from './WorkspacePicker';
 import './index.css';
@@ -17,6 +18,7 @@ interface Props {
   activeId: string;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onRename: (id: string, name: string) => void;
   /** Opens the launcher; also used when the last tab closes. */
   onOpenLauncher: () => void;
   /** Whether the workspace panel beside the rail is closed. */
@@ -30,6 +32,7 @@ export const WorkspaceTabs = ({
   activeId,
   onSelect,
   onCreate,
+  onRename,
   onOpenLauncher,
   panelCollapsed,
   onTogglePanel,
@@ -43,6 +46,9 @@ export const WorkspaceTabs = ({
   // Like Chrome: closing a tab keeps the others at their width until the
   // pointer leaves the bar, so the next close button stays under it.
   const [frozenWidth, setFrozenWidth] = useState<number | null>(null);
+  // Double-clicking a tab name edits it in place.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const { openIds, close, closeOthers, takeClosed } = useOpenWorkspaceTabs(workspaces, activeId);
   const byId = new Map(workspaces.map((ws) => [ws.id, ws]));
   const tabs = openIds.flatMap((id) => {
@@ -112,6 +118,17 @@ export const WorkspaceTabs = ({
     if (id !== activeId) onSelect(id);
   };
 
+  const startRename = (workspace: WorkspaceEntry) => {
+    setRenamingId(workspace.id);
+    setRenameValue(workspace.name);
+  };
+
+  const commitRename = () => {
+    // onRename ignores a blank or unchanged name.
+    if (renamingId) onRename(renamingId, renameValue);
+    setRenamingId(null);
+  };
+
   const menuTab = menuTabId ? byId.get(menuTabId) : undefined;
 
   const handleAuxClick = (event: MouseEvent<HTMLElement>, id: string) => {
@@ -155,17 +172,38 @@ export const WorkspaceTabs = ({
               onAuxClick={(event) => handleAuxClick(event, workspace.id)}
               onContextMenu={(event) => openTabMenu(event, workspace.id)}
             >
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-current={active ? 'page' : undefined}
-                className="workspace-tabs__select"
-                onClick={() => onSelect(workspace.id)}
-                title={workspace.name}
-              >
-                <WorkspaceIcon size={13} />
-                <span className="workspace-tabs__name">{workspace.name}</span>
-              </Button>
+              {renamingId === workspace.id ? (
+                <div className="workspace-tabs__select workspace-tabs__select--renaming">
+                  <WorkspaceIcon size={13} />
+                  <TextField
+                    className="workspace-tabs__rename"
+                    value={renameValue}
+                    aria-label={t('workspaceTabs.rename')}
+                    autoFocus
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(event) => {
+                      if (isImeComposing(event)) return;
+                      if (event.key === 'Enter') commitRename();
+                      if (event.key === 'Escape') setRenamingId(null);
+                    }}
+                  />
+                </div>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-current={active ? 'page' : undefined}
+                  className="workspace-tabs__select"
+                  onClick={() => onSelect(workspace.id)}
+                  onDoubleClick={() => startRename(workspace)}
+                  title={workspace.name}
+                >
+                  <WorkspaceIcon size={13} />
+                  <span className="workspace-tabs__name">{workspace.name}</span>
+                </Button>
+              )}
               <Button
                 variant="icon"
                 size="xs"

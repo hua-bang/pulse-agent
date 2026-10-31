@@ -23,6 +23,8 @@ interface WorkspaceFlyoutData {
   folders: FolderEntry[];
   activeId: string;
   onSelect: (id: string) => void;
+  /** Creates an untitled workspace and opens it. */
+  onCreate: () => void;
 }
 
 interface SidebarRailProps {
