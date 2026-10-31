@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { FolderEntry, WorkspaceEntry } from '../../../shared/workspaces';
-import { WorkspaceIcon } from '../../../components/icons';
+import { PlusIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button, Popover } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 
@@ -17,6 +17,7 @@ interface WorkspaceFlyoutProps {
   folders: FolderEntry[];
   activeId: string;
   onSelect: (id: string) => void;
+  onCreate: () => void;
 }
 
 /**
@@ -32,6 +33,7 @@ const WorkspaceFlyout = ({
   folders,
   activeId,
   onSelect,
+  onCreate,
 }: WorkspaceFlyoutProps) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -95,6 +97,20 @@ const WorkspaceFlyout = ({
           {group.items.map(renderItem)}
         </div>
       ))}
+      <div className="sidebar-flyout-group">
+        <Button
+          size="sm"
+          role="menuitem"
+          className="sidebar-item-menu-item sidebar-flyout-item"
+          onClick={() => {
+            onCreate();
+            close();
+          }}
+        >
+          <PlusIcon size={13} />
+          <span className="sidebar-flyout-name">{t('launcher.newWorkspace')}</span>
+        </Button>
+      </div>
     </Popover>
   );
 };

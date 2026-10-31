@@ -19,6 +19,7 @@ let root: Root;
 let onSelect: ReturnType<typeof vi.fn>;
 let onOpenLauncher: ReturnType<typeof vi.fn>;
 let onCreate: ReturnType<typeof vi.fn>;
+let onRename: ReturnType<typeof vi.fn>;
 let onTogglePanel: ReturnType<typeof vi.fn>;
 
 const render = (activeId: string, list = workspaces, panelCollapsed = false) => act(() => root.render(
@@ -28,6 +29,7 @@ const render = (activeId: string, list = workspaces, panelCollapsed = false) => 
       activeId={activeId}
       onSelect={onSelect}
       onCreate={onCreate}
+      onRename={onRename}
       onOpenLauncher={onOpenLauncher}
       panelCollapsed={panelCollapsed}
       onTogglePanel={onTogglePanel}
@@ -49,6 +51,7 @@ beforeEach(() => {
   onSelect = vi.fn();
   onOpenLauncher = vi.fn();
   onCreate = vi.fn();
+  onRename = vi.fn();
   onTogglePanel = vi.fn();
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -206,6 +209,36 @@ describe('WorkspaceTabs', () => {
     await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.workspace-picker__item')]
       .find((item) => item.textContent === 'Pulse Agent')!.click());
     expect(onOpenLauncher).toHaveBeenCalledTimes(1);
+  });
+
+  it('renames a tab on double-click; Enter saves and Escape cancels', async () => {
+    await render('a');
+    const tabInput = () => host.querySelector<HTMLInputElement>('.workspace-tabs__rename');
+    const startRename = () => act(async () => {
+      host.querySelector('.workspace-tabs__select')!
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    const type = (value: string) => act(async () => {
+      const input = tabInput()!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const press = (key: string) => act(async () => {
+      tabInput()!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    });
+
+    await startRename();
+    expect(tabInput()?.value).toBe('Alpha');
+    await type('Escaped');
+    await press('Escape');
+    expect(tabInput()).toBeNull();
+    expect(onRename).not.toHaveBeenCalled();
+
+    await startRename();
+    await type('Renamed');
+    await press('Enter');
+    expect(onRename).toHaveBeenCalledWith('a', 'Renamed');
+    expect(tabInput()).toBeNull();
   });
 
   it('offers a way back to the workspace panel only while it is closed', async () => {

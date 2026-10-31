@@ -32,7 +32,7 @@ const baseProps = (): ComponentProps<typeof SidebarRail> => ({
   pluginNavItems: [],
   onNavigate: vi.fn(),
   activeMcpAppKey: null,
-  workspaceFlyout: { workspaces: [], folders: [], activeId: '', onSelect: vi.fn() },
+  workspaceFlyout: { workspaces: [], folders: [], activeId: '', onSelect: vi.fn(), onCreate: vi.fn() },
 });
 
 const render = (props: ComponentProps<typeof SidebarRail>) => act(() => root.render(
@@ -111,8 +111,9 @@ describe('SidebarRail', () => {
     expect(order).toEqual(['apps', 'tree']);
   });
 
-  it('lists workspaces on hover over the narrow rail and opens the picked one', async () => {
+  it('lists workspaces on hover over the narrow rail, opens the picked one, and creates one', async () => {
     const onSelect = vi.fn();
+    const onCreate = vi.fn();
     const workspaceFlyout = {
       workspaces: [
         { id: 'a', name: 'Alpha', folderId: 'f1' },
@@ -121,6 +122,7 @@ describe('SidebarRail', () => {
       folders: [{ id: 'f1', name: 'Work' }],
       activeId: 'b',
       onSelect,
+      onCreate,
     };
     const hover = () => act(() => {
       button('Workspaces').parentElement!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
@@ -134,11 +136,25 @@ describe('SidebarRail', () => {
       return panel!;
     });
     const names = [...flyout.querySelectorAll('.sidebar-flyout-name')].map((el) => el.textContent);
-    expect(names).toEqual(['Alpha', 'Beta']);
+    expect(names).toEqual(['Alpha', 'Beta', 'New workspace']);
     expect(flyout.querySelector('[aria-current="true"]')?.textContent).toBe('Beta');
 
     act(() => (flyout.querySelectorAll('.sidebar-flyout-item')[0] as HTMLButtonElement).click());
     expect(onSelect).toHaveBeenCalledWith('a');
+    expect(document.querySelector('.sidebar-flyout')).toBeNull();
+
+    act(() => {
+      button('Workspaces').parentElement!.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    });
+    hover();
+    const reopened = await vi.waitFor(() => {
+      const panel = document.querySelector('.sidebar-flyout');
+      expect(panel).not.toBeNull();
+      return panel!;
+    });
+    act(() => [...reopened.querySelectorAll<HTMLButtonElement>('.sidebar-flyout-item')]
+      .find((item) => item.textContent === 'New workspace')!.click());
+    expect(onCreate).toHaveBeenCalledOnce();
     expect(document.querySelector('.sidebar-flyout')).toBeNull();
 
     render({ ...baseProps(), expanded: true, workspaceFlyout });

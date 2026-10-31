@@ -368,6 +368,7 @@ const AppContent = () => {
                   activeId={activeId}
                   onSelect={workspaceActions.select}
                   onCreate={() => workspaceActions.select(workspaceActions.create(''))}
+                  onRename={workspaceActions.rename}
                   onOpenLauncher={() => setLocation(ROUTE_HOME)}
                   panelCollapsed={sidebarCollapsed}
                   onTogglePanel={handleSidebarToggle}

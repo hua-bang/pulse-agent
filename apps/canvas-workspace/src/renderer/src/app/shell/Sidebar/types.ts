@@ -13,7 +13,8 @@ export interface SidebarProps {
   folders: FolderEntry[];
   activeId: string;
   onSelect: (id: string) => void;
-  onCreate: (name: string, folderId?: string) => void;
+  /** Returns the new workspace's id. */
+  onCreate: (name: string, folderId?: string) => string;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
