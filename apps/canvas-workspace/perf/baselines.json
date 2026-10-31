@@ -189,8 +189,8 @@
     },
     "package.dmg_mb": {
       "profile": "darwin-arm64-package", "target": 105, "warning": 115,
-      "confidence": "high", "basis": "2026-08-29 CI 对 MCP Apps Host 完整 arm64 安装包实测 99.1MB；app unpacked、ASAR、native unpacked 与 locale gates 同次全部通过，仍低于 105MB target。", "asOf": "2026-08-29",
-      "gate": { "kind": "ratchet", "baseline": 99.1, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：ASAR 排除运行时不用的文件后，CI arm64 DMG 实测 98.7MB（压缩后收益小于 ASAR 的 13MiB），ratchet 锚点收紧到实测值。之前：2026-08-29 实测 99.1MB。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 98.7, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.app_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 250, "warning": 275,
@@ -199,8 +199,8 @@
     },
     "package.asar_mib": {
       "profile": "darwin-arm64-package", "target": 50, "warning": 60,
-      "confidence": "high", "basis": "2026-10-21 基线重整：CI arm64 包 ASAR 实测 48.8MiB，原 46.2 +5% 的上限 49 只剩 0.2MiB；按实测重置，容差收到 3%（上限 50）。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 48.8, "tolerancePct": 3, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-10-31：第三方包的 TS 源码、ai 的 .mdx 文档与 Lark SDK 的 es/ 副本不再打包，CI arm64 ASAR 48.8→35.5MiB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整按实测 48.8MiB 重置，容差 3%。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 35.5, "tolerancePct": 3, "scope": "bundle" }
     },
     "package.native_unpacked_mib": {
       "profile": "darwin-arm64-package", "target": 5, "warning": 8,
