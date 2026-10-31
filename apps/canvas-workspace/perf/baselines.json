@@ -175,8 +175,8 @@
     },
     "startup.loaded_to_lcp_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
-      "confidence": "medium", "basis": "同一 warm trace 中 file:// 资源时序均记为 0，LCP 前资源与 Canvas 前资源同为 1912.5KB；随笔记编辑器能力校准 ratchet，同时保留 950/1050 目标。", "asOf": "2026-07-26",
-      "gate": { "kind": "ratchet", "baseline": 1912.5, "tolerancePct": 5, "scope": "runtime" }
+      "confidence": "medium", "basis": "2026-10-31：应用图标改为 192px（162→25KB），highlight.js 改为首次遇到代码块才加载，页面空闲预加载推迟 1.5s 不再落在 LCP 前；同容器 3 次 warm trace 稳定为 1096.7KB（之前随预加载时机在 1388–1912KB 两峰间跳动），ratchet 锚点收紧到 1100。之前：同一 warm trace 中 file:// 资源时序均记为 0，LCP 前资源与 Canvas 前资源同为 1912.5KB；随笔记编辑器能力校准 ratchet，同时保留 950/1050 目标。", "asOf": "2026-10-31",
+      "gate": { "kind": "ratchet", "baseline": 1100, "tolerancePct": 5, "scope": "runtime" }
     },
     "bundle.heavy_in_entry_count": {
       "profile": "global-deterministic", "target": 0,
