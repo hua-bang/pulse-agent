@@ -49,6 +49,18 @@ describe('getImagePreview', () => {
     expect(api.storeImagePreview).toHaveBeenCalledWith('/img/b.png', 'key-b', rendered);
   });
 
+  it('shares one render between concurrent requests for the same image', async () => {
+    const preview = { path: '/cache/d.png', generated: true, width: 960, height: 720, originalWidth: 4000, originalHeight: 3000 };
+    api.getImagePreview.mockResolvedValue({ ok: true, request: { cacheKey: 'key-d', maxDimension: 960 } });
+    api.storeImagePreview.mockResolvedValue({ ok: true, preview });
+
+    const results = await Promise.all([getImagePreview('/img/d.png'), getImagePreview('/img/d.png')]);
+
+    expect(results).toEqual([{ ok: true, preview }, { ok: true, preview }]);
+    expect(posted).toHaveLength(1);
+    expect(api.storeImagePreview).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the original path when the preview cannot be stored', async () => {
     api.getImagePreview.mockResolvedValue({ ok: true, request: { cacheKey: 'key-c', maxDimension: 960 } });
     api.storeImagePreview.mockResolvedValue({ ok: false, error: 'Image changed' });

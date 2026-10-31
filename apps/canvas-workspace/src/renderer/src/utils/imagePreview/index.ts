@@ -52,17 +52,32 @@ const originalImage = (filePath: string): ImagePreview => ({
   originalHeight: 0,
 });
 
-/** Resolves to a preview path; an image that cannot be rendered keeps its original path. */
-export const getImagePreview = async (filePath: string, maxDimension?: number): Promise<PreviewResult> => {
-  const api = window.canvasWorkspace.file;
-  const found = await api.getImagePreview(filePath, maxDimension);
-  if (!found.ok || found.preview || !found.request) return found;
-  const { cacheKey } = found.request;
+const renderAndStore = async (
+  filePath: string,
+  request: { cacheKey: string; maxDimension: number },
+): Promise<PreviewResult> => {
   try {
-    const rendered = await renderPreview(filePath, found.request.maxDimension);
-    const stored = await api.storeImagePreview(filePath, cacheKey, rendered);
+    const rendered = await renderPreview(filePath, request.maxDimension);
+    const stored = await window.canvasWorkspace.file.storeImagePreview(filePath, request.cacheKey, rendered);
     return stored.ok ? stored : { ok: true, preview: originalImage(filePath) };
   } catch {
     return { ok: true, preview: originalImage(filePath) };
   }
+};
+
+// Nodes that show the same image share one render instead of each decoding it.
+const inFlight = new Map<string, Promise<PreviewResult>>();
+
+/** Resolves to a preview path; an image that cannot be rendered keeps its original path. */
+export const getImagePreview = async (filePath: string, maxDimension?: number): Promise<PreviewResult> => {
+  const found = await window.canvasWorkspace.file.getImagePreview(filePath, maxDimension);
+  if (!found.ok || found.preview || !found.request) return found;
+  const { cacheKey } = found.request;
+  let pending = inFlight.get(cacheKey);
+  if (!pending) {
+    pending = renderAndStore(filePath, found.request);
+    inFlight.set(cacheKey, pending);
+    void pending.then(() => inFlight.delete(cacheKey));
+  }
+  return pending;
 };

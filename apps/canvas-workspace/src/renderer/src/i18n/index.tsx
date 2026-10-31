@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -67,10 +68,15 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
 
   // Switch only after the catalog has loaded, so the UI never shows a mix
   // of two languages. English is always loaded and is the fallback.
+  // Only the latest request applies: a slow load must not override a newer choice.
+  const requestedLanguage = useRef(language);
   const setLanguage = useCallback((nextLanguage: LanguageCode) => {
+    requestedLanguage.current = nextLanguage;
     void loadMessages(nextLanguage)
       .catch(error => console.error('[i18n] failed to load language', nextLanguage, error))
-      .then(() => setLanguageState(nextLanguage));
+      .then(() => {
+        if (requestedLanguage.current === nextLanguage) setLanguageState(nextLanguage);
+      });
   }, []);
 
   const t = useCallback((key: I18nKey, params?: Params) => {
