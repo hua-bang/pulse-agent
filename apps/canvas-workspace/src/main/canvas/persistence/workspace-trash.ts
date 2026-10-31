@@ -83,12 +83,21 @@ export async function restoreTrashedWorkspace(root: string, workspaceId: string)
  * as missing. The renderer creates entries before their first canvas save, so
  * register empty canvases here. Trashed ids were already filtered out.
  */
-async function ensureListedCanvases(backend: CanvasBackend, workspaces: unknown): Promise<void> {
+async function ensureListedCanvases(root: string, backend: CanvasBackend, workspaces: unknown): Promise<void> {
   if (!Array.isArray(workspaces)) return;
+  const storage = await getLocalCanvasStorage(root);
+  if (!storage) return;
+  // Metadata-only listing: this runs on every sidebar action in the main process.
+  const registered = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = await storage.canvas.list({ cursor, limit: 500 });
+    for (const item of page.items) registered.add(item.workspaceId);
+    cursor = page.nextCursor;
+  } while (cursor !== undefined);
   for (const item of workspaces) {
     const id = object(item) ? item.id : undefined;
-    if (typeof id !== 'string' || id === MANIFEST_ID || !isSafeNodeId(id)) continue;
-    if (await backend.readCanvas(id)) continue;
+    if (typeof id !== 'string' || id === MANIFEST_ID || !isSafeNodeId(id) || registered.has(id)) continue;
     try {
       await backend.writeCanvas(id, { nodes: [], edges: [], transform: { x: 0, y: 0, scale: 1 } }, { allowEmpty: true });
     } catch (error) {
@@ -113,6 +122,6 @@ export async function saveWorkspaceManifest(root: string, input: unknown): Promi
     }
     await atomicWriteJson(getCanvasJsonPath(MANIFEST_ID, root), JSON.stringify(next, null, 2), { rollingBackup: true });
     // After the manifest: a failure here leaves the entry listed, and the next save retries.
-    if (backend && Array.isArray(input.workspaces)) await ensureListedCanvases(backend, next.workspaces);
+    if (backend && Array.isArray(input.workspaces)) await ensureListedCanvases(root, backend, next.workspaces);
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
 }
