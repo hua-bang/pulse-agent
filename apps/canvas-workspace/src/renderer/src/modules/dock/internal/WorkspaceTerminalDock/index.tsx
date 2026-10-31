@@ -17,6 +17,7 @@ import { claimTerminalKey, handleTerminalShortcut } from '../../../../shortcuts/
 import { useDragResize } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/state/dock-store';
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../../shared/agent-chat';
 import {
   appendTerminalOutputTail,
   detectCodingAgentCommand,
@@ -295,7 +296,10 @@ export const WorkspaceTerminalDock = ({
 
     const spawnCwd = rootFolderRef.current || undefined;
     if (spawnCwd) setCwd(spawnCwd);
-    const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
+    // Global terminals belong to no Canvas workspace, so they get no
+    // PULSE_CANVAS_WORKSPACE_ID for the canvas CLI to target.
+    const spawnWorkspaceId = workspaceId === GLOBAL_CHAT_STORE_ID ? undefined : workspaceId;
+    const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, spawnWorkspaceId);
     if (!result.ok) {
       dismissBooting(true);
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);

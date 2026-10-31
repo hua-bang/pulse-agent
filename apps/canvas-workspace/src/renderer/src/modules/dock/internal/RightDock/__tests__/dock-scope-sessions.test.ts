@@ -104,11 +104,21 @@ describe('scope-owned Dock sessions', () => {
     expect(dock.getSnapshot().tabs).toEqual([]);
   });
 
-  it('does not create a terminal against the Global storage sentinel', () => {
+  it('keeps Global terminals in their own scope', () => {
     const dock = new DockStore();
-    dock.setActiveWorkspace(globalId);
-    dock.openTerminal();
+    dock.setActiveWorkspace('a');
     dock.newTerminal();
+    dock.newTerminal();
+    dock.setActiveWorkspace(globalId);
     expect(dock.getSnapshot().terminalTabs).toEqual([]);
+    dock.newTerminal();
+    const globalTerminals = dock.getSnapshot().terminalTabs;
+    expect(globalTerminals).toHaveLength(1);
+    expect(dock.getSnapshot().activeTabId).toBe(globalTerminals[0].id);
+    expect(dock.getSnapshot().terminalTabsByWorkspace[globalId]?.tabs).toEqual(globalTerminals);
+    dock.setActiveWorkspace('a');
+    expect(dock.getSnapshot().terminalTabs).toHaveLength(2);
+    dock.setActiveWorkspace(globalId);
+    expect(dock.getSnapshot().terminalTabs).toEqual(globalTerminals);
   });
 });
