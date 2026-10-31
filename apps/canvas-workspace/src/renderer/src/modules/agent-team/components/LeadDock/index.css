@@ -85,7 +85,7 @@
 
 .agent-team-lead-dock__agent-surface .agent-card {
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   box-shadow: none;
 }
 

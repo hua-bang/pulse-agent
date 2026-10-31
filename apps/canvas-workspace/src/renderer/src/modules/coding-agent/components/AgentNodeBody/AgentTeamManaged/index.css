@@ -11,7 +11,7 @@
   height: 100%;
   padding: 14px;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   background: transparent;
   box-shadow: none;
   overflow-y: auto;

@@ -9,7 +9,7 @@
   gap: 8px;
   background: transparent;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   padding: 0;
   box-shadow: none;
   max-width: calc(100% - 36px);
