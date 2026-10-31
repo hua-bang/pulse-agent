@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../i18n';
 import type { CanvasNode, IframeNodeData } from '../../../../../types';
 import { IframeOverviewControl } from './IframeOverviewControl';
 import { IframeOverviewBadge } from './IframeOverviewBadge';
+import { loadMessages } from '../../../../../i18n/messages';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
@@ -29,6 +30,9 @@ const makeNode = (data: Partial<IframeNodeData> = {}): CanvasNode => ({
   x: 0, y: 0, width: 900, height: 600,
   data: { mode: 'url', url: 'https://example.com/plan', faviconUrl: 'https://example.com/icon.png', ...data },
 });
+
+// The Chinese catalog loads on demand; tests render it synchronously.
+beforeAll(() => loadMessages('zh'));
 
 describe('overview preview control', () => {
   it('opts a legacy node in, preserves content, and can switch back from persisted data', () => {

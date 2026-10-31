@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { MindmapNodeData, PluginNodeData } from '../types';
 import { createDefaultNode, createTodoListPluginNodePatch } from './nodeFactory';
 import {
@@ -9,7 +9,8 @@ import {
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 import { CANVAS_NODE_DEFAULTS, DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from '../../../shared/canvas-node-defaults';
-import { messages } from '../i18n/messages';
+import { enMessages, loadMessages } from '../i18n/messages';
+import { zhMessages } from '../i18n/messages-zh';
 
 const useLanguage = (language: string) => {
   vi.stubGlobal('window', {
@@ -17,6 +18,9 @@ const useLanguage = (language: string) => {
     navigator: { language },
   });
 };
+
+// The Chinese catalog loads on demand; tests render it synchronously.
+beforeAll(() => loadMessages('zh'));
 
 describe('createDefaultNode titles', () => {
   afterEach(() => {
@@ -41,13 +45,13 @@ describe('createDefaultNode titles', () => {
 
   it('lists every default text title that previews skip', () => {
     expect([...DEFAULT_TEXT_NODE_TITLES].sort()).toEqual(
-      Object.values(messages).map((dict) => dict['canvas.nodeDefaultTitle.text']).sort(),
+      [enMessages, zhMessages].map((dict) => dict['canvas.nodeDefaultTitle.text']).sort(),
     );
   });
 
   it('lists every default note title that labels replace with the first line', () => {
     expect([...DEFAULT_NOTE_TITLES].sort()).toEqual(
-      Object.values(messages).map((dict) => dict['canvas.nodeDefaultTitle.file']).sort(),
+      [enMessages, zhMessages].map((dict) => dict['canvas.nodeDefaultTitle.file']).sort(),
     );
   });
 });

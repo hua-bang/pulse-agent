@@ -10,7 +10,9 @@ import {
 import {
   LANGUAGE_OPTIONS,
   SUPPORTED_LANGUAGES,
-  messages,
+  enMessages,
+  getMessages,
+  loadMessages,
   type I18nKey,
   type LanguageCode,
 } from './messages';
@@ -63,12 +65,16 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
     window.localStorage.setItem(STORAGE_KEY, language);
   }, [language]);
 
+  // Switch only after the catalog has loaded, so the UI never shows a mix
+  // of two languages. English is always loaded and is the fallback.
   const setLanguage = useCallback((nextLanguage: LanguageCode) => {
-    setLanguageState(nextLanguage);
+    void loadMessages(nextLanguage)
+      .catch(error => console.error('[i18n] failed to load language', nextLanguage, error))
+      .then(() => setLanguageState(nextLanguage));
   }, []);
 
   const t = useCallback((key: I18nKey, params?: Params) => {
-    const template = messages[language][key] ?? messages.en[key];
+    const template = getMessages(language)[key] ?? enMessages[key];
     return interpolate(template, params);
   }, [language]);
 

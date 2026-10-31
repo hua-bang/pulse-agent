@@ -54,6 +54,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {
   'src/renderer/src/i18n/messages.ts': 'Locale message catalog: data-like copy table governed by i18n review, not file-size refactors.',
+  'src/renderer/src/i18n/messages-zh.ts': 'Chinese locale catalog, split from messages.ts so it loads on demand; same data-like copy table.',
 };
 
 interface ScannedFile {
