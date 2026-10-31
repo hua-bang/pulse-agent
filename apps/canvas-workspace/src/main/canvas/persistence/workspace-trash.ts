@@ -1,10 +1,12 @@
-import { StorageError, type JsonObject } from '@pulse-coder/storage';
+import { isStorageError, StorageError, type JsonObject } from '@pulse-coder/storage';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { getCanvasBackend, getLocalCanvasStorage, resolveStorageNativeBinding } from './backend';
 import { getCanvasJsonPath, isSafeNodeId, MANIFEST_ID } from './paths';
 import { atomicWriteJson, readJsonWithRecovery } from './atomic-json';
 import { getCanvasSessionArchivePort } from './session-archive-port';
 import { filterWorkspaceManifest } from '../workspaces';
+
+type CanvasBackend = NonNullable<Awaited<ReturnType<typeof getCanvasBackend>>>;
 
 const object = (value: unknown): value is Record<string, unknown> => (
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -76,18 +78,41 @@ export async function restoreTrashedWorkspace(root: string, workspaceId: string)
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
 }
 
+/**
+ * A listed workspace must have a Canvas record, or the CLI and deletion treat it
+ * as missing. The renderer creates entries before their first canvas save, so
+ * register empty canvases here. Trashed ids were already filtered out.
+ */
+async function ensureListedCanvases(backend: CanvasBackend, workspaces: unknown): Promise<void> {
+  if (!Array.isArray(workspaces)) return;
+  for (const item of workspaces) {
+    const id = object(item) ? item.id : undefined;
+    if (typeof id !== 'string' || id === MANIFEST_ID || !isSafeNodeId(id)) continue;
+    if (await backend.readCanvas(id)) continue;
+    try {
+      await backend.writeCanvas(id, { nodes: [], edges: [], transform: { x: 0, y: 0, scale: 1 } }, { allowEmpty: true });
+    } catch (error) {
+      // A concurrent first save created it; that record wins.
+      if (!(isStorageError(error) && error.code === 'revision_conflict')) throw error;
+    }
+  }
+}
+
 /** Preserve restored/externally-created entries against an older renderer list. */
 export async function saveWorkspaceManifest(root: string, input: unknown): Promise<void> {
   if (!object(input)) throw new StorageError('invalid_argument', 'Workspace manifest must be an object');
   await withLegacyCanvasWrite(root, async () => {
     const previous = await readRawManifest(root);
     let next = { ...previous, ...input };
-    if (await getCanvasBackend(root) && Array.isArray(input.workspaces)) {
+    const backend = await getCanvasBackend(root);
+    if (backend && Array.isArray(input.workspaces)) {
       const incoming = new Set(input.workspaces.filter(object).map(item => item.id));
       const oldEntries = Array.isArray(previous.workspaces) ? previous.workspaces : [];
       next = { ...next, workspaces: [...input.workspaces, ...oldEntries.filter(item => object(item) && !incoming.has(item.id))] };
       next = await filterWorkspaceManifest(root, next);
     }
     await atomicWriteJson(getCanvasJsonPath(MANIFEST_ID, root), JSON.stringify(next, null, 2), { rollingBackup: true });
+    // After the manifest: a failure here leaves the entry listed, and the next save retries.
+    if (backend && Array.isArray(input.workspaces)) await ensureListedCanvases(backend, next.workspaces);
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
 }
