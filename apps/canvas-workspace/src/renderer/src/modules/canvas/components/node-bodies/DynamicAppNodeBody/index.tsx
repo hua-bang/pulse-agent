@@ -61,12 +61,12 @@ function apiBaseFromUiUrl(uiUrl: string): string {
   return noQuery.replace(/\/ui\//, "/api/");
 }
 
-export function DynamicAppNodeBody({
+export const DynamicAppNodeBody = ({
   node,
   workspaceId,
   readOnly: _readOnly,
   isResizing: _isResizing,
-}: DynamicAppNodeBodyProps) {
+}: DynamicAppNodeBodyProps) => {
   // The dispatcher only routes `type === 'dynamic-app'` here, so
   // node.data narrows to DynamicAppNodeData. Be defensive about the
   // shape in case canvas.json was hand-edited.
@@ -167,4 +167,4 @@ export function DynamicAppNodeBody({
       </div>
     </div>
   );
-}
+};

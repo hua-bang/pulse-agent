@@ -488,7 +488,7 @@ const AppContent = () => {
     </div>
   );
 };
-const App = () => (
+export const App = () => (
   <I18nProvider>
     <AppShellProvider>
       <ChatTargetProvider>
@@ -497,4 +497,3 @@ const App = () => (
     </AppShellProvider>
   </I18nProvider>
 );
-export default App;
