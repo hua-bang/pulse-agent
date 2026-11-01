@@ -244,6 +244,20 @@ describe('activated SQLite CLI storage', () => {
     finally { await stored!.close(); }
   });
 
+  it('refuses to import an unreadable manifest and keeps the file for repair', async () => {
+    await activate();
+    const manifestFile = join(root, '__workspaces__.json');
+    await fs.writeFile(manifestFile, '{ truncated');
+    await expect(store.loadWorkspaceManifest(root)).rejects.toMatchObject({ code: 'corrupt_data' });
+    expect(await fs.readFile(manifestFile, 'utf8')).toBe('{ truncated');
+    const db = await openLocalStorage({ root });
+    try { expect(await db!.workspaceManifest.read()).toBeNull(); }
+    finally { await db!.close(); }
+    // After repair, the next read imports it.
+    await fs.writeFile(manifestFile, JSON.stringify({ workspaces: [{ id: workspaceId, name: 'Repaired' }] }));
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([{ id: workspaceId, name: 'Repaired' }]);
+  });
+
   it('leaves a legacy store on the manifest file without touching SQLite', async () => {
     await store.saveWorkspaceManifest({ workspaces: [{ id: workspaceId, name: 'Legacy' }] }, root);
     expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([{ id: workspaceId, name: 'Legacy' }]);
@@ -252,6 +266,8 @@ describe('activated SQLite CLI storage', () => {
 
   it('keeps a created workspace when only the JSON mirror write fails', async () => {
     await activate();
+    await store.loadWorkspaceManifest(root);
+    await fs.rm(join(root, '__workspaces__.json'), { force: true });
     await fs.mkdir(join(root, '__workspaces__.json'));
     await fs.writeFile(join(root, '__workspaces__.json', 'blocker'), 'not a manifest');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

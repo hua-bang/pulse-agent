@@ -244,8 +244,14 @@ function normalizeManifest(parsed: Record<string, unknown>): WorkspaceManifest {
   return { ...parsed, workspaces, activeId: parsed.activeId as string | undefined };
 }
 
-/** The legacy store's manifest, and the source of the one-time import into storage. */
-async function readManifestFile(storeDir?: string): Promise<WorkspaceManifest> {
+const isMissingFile = (error: unknown): boolean => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
+
+/**
+ * The legacy store's manifest, and the source of the one-time import into
+ * storage. `strict` (the import) fails instead of returning an empty list when
+ * a file exists but cannot be read: an import is permanent and rewrites the file.
+ */
+async function readManifestFile(storeDir?: string, strict = false): Promise<WorkspaceManifest> {
   const path = manifestPath(storeDir);
   const backupPath = `${path}.bak`;
   try {
@@ -257,7 +263,12 @@ async function readManifestFile(storeDir?: string): Promise<WorkspaceManifest> {
         `[canvas-cli] workspace manifest unreadable (${String(primaryErr)}); recovered from __workspaces__.json.bak`,
       );
       return manifest;
-    } catch {
+    } catch (backupErr) {
+      if (strict && !(isMissingFile(primaryErr) && isMissingFile(backupErr))) {
+        throw new StorageError('corrupt_data',
+          `The workspace manifest and its backup are unreadable; repair ${path} before continuing: ${String(primaryErr)}`,
+          { cause: primaryErr });
+      }
       return { workspaces: [] };
     }
   }
@@ -298,7 +309,7 @@ function manifestStorageOptions(
     storage,
     resolveNativeBinding: resolveSqliteNativeBinding,
     // Imported once; afterwards the file is only a mirror for older readers.
-    loadLegacyManifest: async () => toJsonObject(hideTrashed(await readManifestFile(storeDir), deleted)),
+    loadLegacyManifest: async () => toJsonObject(hideTrashed(await readManifestFile(storeDir, true), deleted)),
     mirrorPath: manifestPath(storeDir),
   };
 }
