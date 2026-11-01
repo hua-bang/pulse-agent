@@ -4,13 +4,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import {
   LANGUAGE_OPTIONS,
   SUPPORTED_LANGUAGES,
-  messages,
+  enMessages,
+  getMessages,
+  loadMessages,
   type I18nKey,
   type LanguageCode,
 } from './messages';
@@ -63,12 +66,21 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
     window.localStorage.setItem(STORAGE_KEY, language);
   }, [language]);
 
+  // Switch only after the catalog has loaded, so the UI never shows a mix
+  // of two languages. English is always loaded and is the fallback.
+  // Only the latest request applies: a slow load must not override a newer choice.
+  const requestedLanguage = useRef(language);
   const setLanguage = useCallback((nextLanguage: LanguageCode) => {
-    setLanguageState(nextLanguage);
+    requestedLanguage.current = nextLanguage;
+    void loadMessages(nextLanguage)
+      .catch(error => console.error('[i18n] failed to load language', nextLanguage, error))
+      .then(() => {
+        if (requestedLanguage.current === nextLanguage) setLanguageState(nextLanguage);
+      });
   }, []);
 
   const t = useCallback((key: I18nKey, params?: Params) => {
-    const template = messages[language][key] ?? messages.en[key];
+    const template = getMessages(language)[key] ?? enMessages[key];
     return interpolate(template, params);
   }, [language]);
 

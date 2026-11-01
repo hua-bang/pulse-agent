@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileContent } from '../FileContent';
 import { I18nProvider } from '../../../../../../i18n';
 import { copyTextToClipboard } from '../../../../../../utils/clipboard';
+import { loadHighlighter } from '../../../../../../utils/syntaxHighlighter';
 
 vi.mock('../../../../../../utils/clipboard', () => ({ copyTextToClipboard: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,6 +20,10 @@ const copyButton = () => {
   if (!button) throw new Error('Missing rendered copy button');
   return button;
 };
+// Load first, so the highlighter's one-time re-render cannot reset the copy label.
+beforeAll(async () => {
+  await loadHighlighter();
+});
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(copyTextToClipboard).mockResolvedValue(undefined);

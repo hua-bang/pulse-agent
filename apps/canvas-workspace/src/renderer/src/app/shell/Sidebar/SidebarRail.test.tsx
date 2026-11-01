@@ -3,6 +3,7 @@ import { act, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n';
+import { formatShortcutId } from '../../../shortcuts/registry';
 import { SidebarRail } from './SidebarRail';
 
 vi.mock('./AppsSection', () => ({ AppsSection: () => <div data-testid="apps" /> }));
@@ -101,7 +102,14 @@ describe('SidebarRail', () => {
 
     render({ ...props, expanded: true });
     expect(button('Hide labels').textContent).toBe('');
-    expect(button('Settings').textContent).toBe('Settings');
+    expect(button('Settings').querySelector('.sidebar-rail-label')?.textContent).toBe('Settings');
+  });
+
+  it('names the Settings shortcut on the gear', () => {
+    const shortcut = formatShortcutId('app.openSettings');
+    render({ ...baseProps(), expanded: true });
+    expect(button('Settings').getAttribute('title')).toBe(`Settings (${shortcut})`);
+    expect(button('Settings').querySelector('kbd')?.textContent).toBe(shortcut);
   });
 
   it('shows the apps above the workspace tree on the wide rail', () => {

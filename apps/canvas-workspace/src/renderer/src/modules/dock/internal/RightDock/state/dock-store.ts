@@ -11,6 +11,7 @@ import {
   projectTerminalWorkspace,
   renameTerminalCommit,
   terminalWorkspaceFor,
+  terminalCwdCommit,
   type TerminalCommit,
 } from './dock-terminal-tabs';
 import { DockLinkSessionStore, type DockLinkTab, type DockSessionPersistence } from '../links/dock-link-sessions';
@@ -30,7 +31,7 @@ import { getToggleContentTabsPatch } from '../../../../../shared/dock/dock-conte
 import { getOpenWorkspaceLinkMutation, getRetainedLinkTabMutation } from '../links/dock-retained-links';
 import { getOpenMcpAppPatch } from './dock-mcp-app';
 import { getKeepNodeDetailPatch, getOpenNodeDetailPatch } from './dock-node-detail';
-import type { DockPreviewTab, DockState, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
+import type { DockPreviewTab, DockState, DockTerminalPersistence, DockTerminalTab, DockTerminalWorkspaceState } from './dock-types';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../../../../types';
 export { CHAT_TAB_ID, LINK_TAB_ID, TERMINAL_TAB_ID, artifactTabId, canvasPreviewTabId, isTerminalTabId, linkTabId, mcpAppTabId, nodeDetailTabId, skillTabId, terminalTabId } from '../../../../../shared/dock/dock-tab-ids';
 export type { DockLinkSession, DockLinkSessions, DockLinkTab, DockSessionPersistence } from '../links/dock-link-sessions';
@@ -61,7 +62,12 @@ export class DockStore {
   readonly archive: DockTabArchive;
   readonly tabCleanup = new DockTabCleanup();
 
-  constructor(sessionPersistence?: DockSessionPersistence, archivePersistence?: DockTabArchivePersistence) {
+  constructor(
+    sessionPersistence?: DockSessionPersistence,
+    archivePersistence?: DockTabArchivePersistence,
+    private readonly terminalPersistence?: DockTerminalPersistence,
+  ) {
+    this.state = { ...INITIAL, terminalTabsByWorkspace: terminalPersistence?.load() ?? {} };
     this.linkSessions = new DockLinkSessionStore(sessionPersistence);
     this.archive = new DockTabArchive(archivePersistence);
   }
@@ -107,6 +113,7 @@ export class DockStore {
       ? projectTerminalWorkspace(terminalTabsByWorkspace, workspaceId)
       : {};
     this.commit({ terminalTabsByWorkspace, ...projection, ...next });
+    this.terminalPersistence?.save(terminalTabsByWorkspace);
   }
 
   openFolder(folderPath: string): void {
@@ -281,8 +288,7 @@ export class DockStore {
     }
     if (activatingTerminal) {
       const workspaceId = this.state.activeTerminalWorkspaceId;
-      const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
-      this.commitTerminalWorkspace(workspaceId, { ...workspace, activeTabId: id }, {
+      this.commitTerminalWorkspace(workspaceId, { ...this.terminalWorkspace(workspaceId), activeTabId: id }, {
         expanded: true,
         activeTabId: id,
       });
@@ -368,18 +374,18 @@ export class DockStore {
     this.commitTerminalWorkspace(workspaceId, commit.workspace, commit.patch);
   }
 
+  private terminalWorkspace(workspaceId: string): DockTerminalWorkspaceState {
+    return terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
+  }
+
   openTerminal(): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
-    this.applyTerminalCommit(openTerminalCommit(this.state, workspace), workspaceId);
+    this.applyTerminalCommit(openTerminalCommit(this.state, this.terminalWorkspace(workspaceId)), workspaceId);
   }
 
   newTerminal(): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    this.applyTerminalCommit(
-      newTerminalCommit(terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId)),
-      workspaceId,
-    );
+    this.applyTerminalCommit(newTerminalCommit(this.terminalWorkspace(workspaceId)), workspaceId);
   }
 
   toggleTerminal(): void {
@@ -393,20 +399,21 @@ export class DockStore {
   closeTerminal(id = this.state.activeTerminalTabId): void {
     if (!id) return;
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
-    this.applyTerminalCommit(closeTerminalCommit(this.state, workspace, id), workspaceId);
+    this.applyTerminalCommit(closeTerminalCommit(this.state, this.terminalWorkspace(workspaceId), id), workspaceId);
   }
 
   renameTerminal(id: string, title: string): void {
     const workspaceId = this.state.activeTerminalWorkspaceId;
-    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
-    this.applyTerminalCommit(renameTerminalCommit(workspace, id, title), workspaceId);
+    this.applyTerminalCommit(renameTerminalCommit(this.terminalWorkspace(workspaceId), id, title), workspaceId);
   }
 
   setTerminalAgentType(id: string, agentType?: string, workspaceId = this.state.activeTerminalWorkspaceId): void {
-    const workspace = terminalWorkspaceFor(this.state.terminalTabsByWorkspace, workspaceId);
-    const next = updateTerminalAgentType(workspace, id, agentType);
+    const next = updateTerminalAgentType(this.terminalWorkspace(workspaceId), id, agentType);
     if (next) this.commitTerminalWorkspace(workspaceId, next);
+  }
+
+  setTerminalCwd(id: string, cwd: string, workspaceId = this.state.activeTerminalWorkspaceId): void {
+    this.applyTerminalCommit(terminalCwdCommit(this.terminalWorkspace(workspaceId), id, cwd), workspaceId);
   }
 
   reorderTab(sourceId: string, targetId: string, position: DockTabDropPosition): void {

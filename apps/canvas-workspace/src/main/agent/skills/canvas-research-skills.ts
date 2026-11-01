@@ -58,15 +58,23 @@ Do not browse or create nodes while you wait.
 
 Follow \`canvas-deep-research\` (or the user's chosen skill), including its Search Tactics: several keyword queries per question, \`searchDepth: "advanced"\` for standard and deep work, and \`tavily_extract\` on every page that supports a key finding. Do not open Dock tabs just to read. Keep a source ledger with ids, cross-check important claims, and label inference, weak evidence, and conflicts.
 
+Collect visuals while you research: when a chart, diagram, or product screenshot would prove a finding, call \`tavily\` or \`tavily_extract\` with \`includeImages: true\` and keep the image URL with its source id.
+
 ## Phase 3: canvas plan
 
 Convert the research brief into a canvas plan before you create anything.
 
 - Each frame is one logical category from the research. Aim for 3-6 frames with 2-4 substantial nodes each. Merge frames with one weak node; split frames with more than four.
+- **Pick the node type by content.** A board of only note cards is hard to read.
+  - Claim or conclusion: note card (\`type: "file"\`). At most 3-4 note cards per frame.
+  - Taxonomy, breakdown, hierarchy, or a list of options: one \`mindmap\` (\`data.root\`, 3-6 branches, at most 2 levels) instead of several cards.
+  - Key source page: \`iframe\` with \`data.url\`, about 480 x 360 px. Embed 1-3 primary pages per board, not every source. Some sites block embedding; cite those in a note instead.
+  - Chart, diagram, product screenshot, or photo that proves a finding: \`image\` with \`data.url\` (the tool saves it into the workspace and sizes the node to the picture). Put the source id in the title. Skip logos and decoration.
+  Most frames mix two types, for example a mindmap plus two claim cards, or a chart plus its claim card.
 - **One claim per card.** Title = one assertion; body = 2-5 short support bullets with source ids. Move long prose into a linked detail card.
-- **Card budget.** Deep topics land around 25-35 cards in total.
+- **Node budget.** Deep topics land around 20-30 nodes in total, and at most about two thirds of them are note cards.
 - **Size encodes importance.** Thesis cards widest (about 460-520 px), evidence cards about 320-380 px, side notes smaller.
-- **Sources live on the periphery**, at the right or bottom edge, never between claim cards.
+- **Sources live on the periphery**, at the right or bottom edge, never between claim cards. The sources frame holds the embedded key pages and one note with the full source ledger.
 - **Highlight budget.** Colored emphasis on at most about 20% of cards.
 - **Hue budget.** At most 3 accent frames; all other frames, and every source frame, stay neutral (no \`data.color\`). Accent swatches: entry/overview \`oklch(0.68 0.108 224)\`, core analysis \`oklch(0.68 0.108 142)\`, risks/decisions \`oklch(0.68 0.108 28)\`.
 - **Edges are local.** 2-5 meaningful edges with short labels, between neighbors, never across several frames.
@@ -78,7 +86,7 @@ If the research changes the approved structure, show the change and ask for a qu
 
 1. Call \`canvas_read_layout\` to see the existing geometry before you add anything to a non-empty canvas.
 2. Create each frame with \`canvas_create_node\` (\`type: "frame"\`, width/height large enough for its cards, \`placement: { mode: "append_canvas" }\`).
-3. Create each card with \`canvas_create_node\` (\`type: "file"\`) and \`placement: { mode: "inside_frame", frameId }\`, most important card first. Set \`width\` to encode importance and leave \`height\` unset: the card height follows its text. Use \`near_node\` for a card derived from another card, and \`at\` only for a location the user gave.
+3. Create each node with \`canvas_create_node\`, the type from the plan, and \`placement: { mode: "inside_frame", frameId }\`, most important node first. For note cards, set \`width\` to encode importance and leave \`height\` unset: the card height follows its text. For images, leave both unset. If an image download fails, skip it or use another image; do not retry the same URL. Use \`near_node\` for a node derived from another node, and \`at\` only for a location the user gave.
 4. Create edges with \`canvas_create_edge\` (\`sourceNodeId\`, \`targetNodeId\`, \`label\`, \`kind\`, a small \`bend\`).
 5. Make the calls one at a time. Do not use \`bash\` or the \`pulse-canvas\` CLI to create nodes.
 
@@ -98,11 +106,12 @@ If the research changes the approved structure, show the change and ask for a qu
 
 ## Phase 6: verify and summarize
 
-- Overview check: the board reads as 3-6 regions, thesis cards are larger than evidence cards, and sources sit on the edge.
+- Overview check: the board reads as 3-6 regions, thesis cards are larger than evidence cards, frames mix node types instead of only notes, and sources sit on the edge.
 - Detail check: read 2-3 cards with \`canvas_read_node\`. Each is one claim plus short bullets with source ids.
 - Every frame has useful content, important findings have source ids, and edges are sparse and local.
 - Summarize the frames, key findings, source quality, open questions, and any layout caveats.
 `,
+  legacyHashes: ['7da7ede60a237190a6bf55b54862072617ef091c9aefca632c96473946eea063'],
 };
 
 export const CANVAS_FRAME_RESEARCH_SKILL: DefaultSkill = {
@@ -136,15 +145,17 @@ Pick the intent: fill gaps, add sources, deepen, compare, verify, or update stal
 
 ## Phase 2: local research
 
-Reuse the frame's content first. Then use \`tavily\` / \`tavily_extract\` for current or unstable facts. Prefer primary sources, keep source ids visible, separate facts from inference, and surface conflicts. If findings belong outside the frame, ask before creating a sibling frame.
+Reuse the frame's content first. Then use \`tavily\` / \`tavily_extract\` for current or unstable facts, with \`includeImages: true\` when a chart or screenshot would prove a finding. Prefer primary sources, keep source ids visible, separate facts from inference, and surface conflicts. If findings belong outside the frame, ask before creating a sibling frame.
 
 ## Phase 3: local plan
 
-For more than one or two nodes, show a compact plan first: the nodes to add or update, their layer (overview, structure, detail, source, open question), and their sources. Each new node shows an approval card; mention once that the user can approve for the session.
+For more than one or two nodes, show a compact plan first: the nodes to add or update, their type, their layer (overview, structure, detail, source, open question), and their sources.
+
+Pick the type by content, as in \`canvas-bootstrap\` Phase 3: a note card for one claim (at most 3-4 notes in the frame), a \`mindmap\` for a breakdown or list of options, an \`iframe\` (\`data.url\`) for one key source page, and an \`image\` (\`data.url\`) for a chart or screenshot that proves a finding. Each new node shows an approval card; mention once that the user can approve for the session.
 
 ## Phase 4: create or update nodes
 
-1. Create nodes with \`canvas_create_node\` and \`placement: { mode: "inside_frame", frameId }\`.
+1. Create nodes with \`canvas_create_node\` and \`placement: { mode: "inside_frame", frameId }\`. Leave \`height\` unset for note cards and images; both size to their content.
 2. Prefer \`canvas_update_node\` on an existing child when extending it is cleaner than adding a duplicate.
 3. Connect only meaningful local relationships with \`canvas_create_edge\`.
 4. Make the calls one at a time. Do not use \`bash\` or the \`pulse-canvas\` CLI to create nodes.
@@ -157,4 +168,5 @@ Call \`canvas_apply_layout\` with \`mode: "frame_grid"\`, the target \`frameId\`
 
 Tell the user what was added or updated, which sources support it, what remains uncertain, and whether anything should move to a sibling frame. If the frame is crowded, suggest a split instead of adding more nodes.
 `,
+  legacyHashes: ['b6caf25ba77faf2cb93d2357155e01475a3f47d5bd0ec96a92ed783837aac589'],
 };

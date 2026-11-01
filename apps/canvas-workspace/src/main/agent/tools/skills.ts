@@ -23,7 +23,7 @@ import {
   upsertCanvasSkill,
 } from '../skills/config';
 import { promoteCanvasSkill } from '../skills/promote';
-import { getCanvasAgentService } from '../ipc';
+import { peekCanvasAgentService } from '../agent-service-lifecycle';
 import type { CanvasTool } from './types';
 
 const scopeArg = z
@@ -32,7 +32,7 @@ const scopeArg = z
   .describe('Where to save the skill. Defaults to "workspace" (this canvas only).');
 
 async function refresh(scope: CanvasConfigScope): Promise<void> {
-  await getCanvasAgentService().reloadSkills(
+  await peekCanvasAgentService()?.reloadSkills(
     scope.level === 'workspace' ? scope.workspaceId : undefined,
   );
 }

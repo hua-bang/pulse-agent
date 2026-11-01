@@ -2,6 +2,7 @@ import type { CanvasNode } from '../../../../../types';
 import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 export type * from '../../../../../shared/dockTypes';
+export type { DockTerminalPersistence, DockTerminalWorkspaces } from './dock-terminal-persistence';
 
 export interface RightDockProps {
   activeWorkspaceId: string;

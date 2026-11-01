@@ -28,6 +28,7 @@ interface TavilySearchResult {
 
 interface TavilySearchResponse {
   results?: TavilySearchResult[];
+  images?: Array<string | { url?: string; description?: string }>;
 }
 
 interface TavilyExtractResult {
@@ -85,11 +86,13 @@ type TavilySearchInput = {
   timeRange?: 'day' | 'week' | 'month' | 'year';
   includeDomains?: string[];
   excludeDomains?: string[];
+  includeImages?: boolean;
   timeout?: number;
 };
 
 type TavilySearchOutput = {
   results: Array<{ title: string; url: string; content: string; score?: number; publishedDate?: string }>;
+  images?: Array<{ url: string; description?: string }>;
 };
 
 export const TavilyTool: Tool<TavilySearchInput, TavilySearchOutput> = {
@@ -114,12 +117,26 @@ export const TavilyTool: Tool<TavilySearchInput, TavilySearchOutput> = {
       .describe('Only return results from this recent period.'),
     includeDomains: z.array(z.string()).optional().describe('Only search these domains, e.g. ["docs.python.org"].'),
     excludeDomains: z.array(z.string()).optional().describe('Never return results from these domains.'),
+    includeImages: z
+      .boolean()
+      .optional()
+      .describe('Also return related image URLs with short descriptions, e.g. charts or product shots.'),
     timeout: z
       .number()
       .optional()
       .describe('Request timeout in milliseconds. Defaults to 120000 (2 minutes).'),
   }),
-  execute: async ({ query, maxResults = 5, searchDepth, topic, timeRange, includeDomains, excludeDomains, timeout }) => {
+  execute: async ({
+    query,
+    maxResults = 5,
+    searchDepth,
+    topic,
+    timeRange,
+    includeDomains,
+    excludeDomains,
+    includeImages,
+    timeout,
+  }) => {
     const data = await tavilyPost<TavilySearchResponse>({
       endpoint: '/search',
       timeout,
@@ -133,11 +150,14 @@ export const TavilyTool: Tool<TavilySearchInput, TavilySearchOutput> = {
         exclude_domains: excludeDomains?.length ? excludeDomains : undefined,
         include_answer: false,
         include_raw_content: false,
-        include_images: false,
+        include_images: includeImages === true,
+        ...(includeImages ? { include_image_descriptions: true } : {}),
       },
     });
 
+    const images = includeImages ? normalizeSearchImages(data.images) : undefined;
     return {
+      ...(images ? { images } : {}),
       results:
         data.results?.map((result) => ({
           title: result.title || '',
@@ -149,6 +169,16 @@ export const TavilyTool: Tool<TavilySearchInput, TavilySearchOutput> = {
     };
   },
 };
+
+function normalizeSearchImages(
+  images: TavilySearchResponse['images'],
+): Array<{ url: string; description?: string }> {
+  return (images ?? []).flatMap((image) => {
+    if (typeof image === 'string') return image ? [{ url: image }] : [];
+    if (!image?.url) return [];
+    return [{ url: image.url, ...(image.description ? { description: image.description } : {}) }];
+  });
+}
 
 export const TavilyExtractTool: Tool<
   {

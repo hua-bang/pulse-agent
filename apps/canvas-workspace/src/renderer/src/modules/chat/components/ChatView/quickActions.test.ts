@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { messages } from '../../../../i18n/messages';
+import { enMessages } from '../../../../i18n/messages';
+import { zhMessages } from '../../../../i18n/messages-zh';
 import { KNOWLEDGE_QUICK_ACTIONS } from './quickActions';
 
 describe('KNOWLEDGE_QUICK_ACTIONS', () => {
@@ -18,10 +19,10 @@ describe('KNOWLEDGE_QUICK_ACTIONS', () => {
 
   it('resolves every knowledge action label and prompt through both locales', () => {
     expect(KNOWLEDGE_QUICK_ACTIONS.map((action) => ({
-      enLabel: messages.en[action.labelKey],
-      enPrompt: messages.en[action.promptKey],
-      zhLabel: messages.zh[action.labelKey],
-      zhPrompt: messages.zh[action.promptKey],
+      enLabel: enMessages[action.labelKey],
+      enPrompt: enMessages[action.promptKey],
+      zhLabel: zhMessages[action.labelKey],
+      zhPrompt: zhMessages[action.promptKey],
     }))).toEqual([
       {
         enLabel: 'Summarize knowledge',

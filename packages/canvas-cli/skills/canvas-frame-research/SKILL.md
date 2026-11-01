@@ -88,7 +88,7 @@ Default node budget:
 Layer the information from shallow to deep:
 
 - Overview layer: one short summary or "what changed" note when useful.
-- Structure layer: shapes or small structural notes for categories, comparison axes, timelines, or relationships.
+- Structure layer: one `mindmap` node (`data.root`) for a breakdown or list of options, or shapes and small structural notes for comparison axes, timelines, or relationships. Keep at most 3-4 note cards in the frame.
 - Detail layer: note or file nodes for deeper analysis.
 - Source layer: source or web nodes when available; otherwise source-summary notes.
 - Open-question layer: note nodes for unresolved claims, conflicts, or weak evidence.

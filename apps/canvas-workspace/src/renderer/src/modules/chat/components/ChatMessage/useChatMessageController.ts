@@ -59,9 +59,15 @@ export const useChatMessageController = ({
   // OrderedChatContent owns block rendering; the compatibility text projection
   // must not also be parsed into HTML that this message never displays.
   const usesLegacyAssistantHtml = message.role === 'assistant' && !message.contentBlocks;
+  // A streaming reply renders through StreamingMarkdown, which takes this
+  // renderer; the whole-message HTML is built once the stream ends.
+  const renderAssistantStreaming = useCallback(
+    (markdown: string) => renderMdWithMentions(markdown, nodes, { streaming: true, rootFolder, roleColors, roleNames }),
+    [nodes, rootFolder, roleColors, roleNames],
+  );
   const assistantHtml = useMemo(
-    () => (usesLegacyAssistantHtml
-      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming, rootFolder, roleColors, roleNames })
+    () => (usesLegacyAssistantHtml && !isStreaming
+      ? renderMdWithMentions(message.content, nodes, { rootFolder, roleColors, roleNames })
       : ''),
     [usesLegacyAssistantHtml, message.content, nodes, isStreaming, rootFolder, roleColors, roleNames],
   );
@@ -172,6 +178,7 @@ export const useChatMessageController = ({
   return {
     absoluteTime,
     assistantHtml,
+    renderAssistantStreaming,
     attachmentCount,
     bodyRef,
     canEdit,

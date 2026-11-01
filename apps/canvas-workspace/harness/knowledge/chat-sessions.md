@@ -223,6 +223,14 @@ writes do not emit the metric; this measures payload size, not physical WAL byte
 During application quit, runtime disposal aborts active turns and resolves queued
 waiters as stopped. `SessionMutationCoordinator.stopAndDrain` rejects new runs,
 aborts leased runs, and awaits their final queued writes before Agent archival.
+The Canvas Agent service (engine, tools, session stores) is not in the main
+startup entry. `getCanvasAgentService()` imports and constructs it on the first
+agent call and returns a promise; concurrent callers share one load. Callers that
+only touch already-live agents (skill rescans, MCP status reads, the conversation
+runtime's `getAgent`) use `peekCanvasAgentService()` and do not trigger a load.
+Guard: `agent-service-lifecycle.test.ts`; `bundle.main_raw_kb` in
+`perf/baselines.json`.
+
 `teardownCanvasAgent` is awaitable. The service lifecycle retains every pending
 window-close drain, including earlier
 service instances from windows reopened on macOS, for the final quit to await.

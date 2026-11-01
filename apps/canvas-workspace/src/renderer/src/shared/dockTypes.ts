@@ -45,6 +45,8 @@ export interface DockTerminalTab {
   title?: string;
   ordinal: number;
   agentType?: string;
+  /** Last folder the shell reported; a restored tab spawns its new shell here. */
+  cwd?: string;
 }
 
 export interface DockTerminalWorkspaceState {

@@ -1,8 +1,29 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { loadHighlighter } from '../../../../utils/syntaxHighlighter';
 import { renderMarkdown } from './markdown';
 
+// This block runs first, while the highlighter is still unloaded.
+describe('chat Markdown before the highlighter loads', () => {
+  it('shows plain code, then highlights it once the highlighter loads', async () => {
+    const source = '```typescript\nconst early = 1;\n```';
+    const plain = renderMarkdown(source);
+
+    expect(plain).toContain('data-lang="typescript"');
+    expect(plain).toContain('const early = 1;');
+    expect(plain).not.toContain('hljs-keyword');
+
+    await loadHighlighter();
+
+    expect(renderMarkdown(source)).toContain('hljs-keyword');
+  });
+});
+
 describe('chat Markdown syntax highlighting', () => {
+  beforeAll(async () => {
+    await loadHighlighter();
+  });
+
   it('highlights a supported TypeScript fence', () => {
     const html = renderMarkdown('```typescript\nconst answer: number = 42;\n```');
 

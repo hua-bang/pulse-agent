@@ -12,6 +12,17 @@ export interface AppShellPort {
   isOverlayOpen: boolean;
 }
 
+/**
+ * Opens the Settings page from anywhere: the Cmd/Ctrl+, chord and the
+ * canvas command palette. A window event, like the other shell requests, so
+ * a module needs no handle on the router.
+ */
+export const OPEN_APP_SETTINGS_EVENT = 'pulse:open-app-settings';
+
+export const requestOpenAppSettings = (): void => {
+  window.dispatchEvent(new Event(OPEN_APP_SETTINGS_EVENT));
+};
+
 const AppShellContext = createContext<AppShellPort | null>(null);
 
 export const AppShellPortProvider = ({

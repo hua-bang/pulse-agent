@@ -54,4 +54,30 @@ describe('TavilyTool', () => {
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(init.body as string)).toMatchObject({ search_depth: 'basic', max_results: 5 });
   });
+
+  it('returns image URLs only when asked', async () => {
+    process.env.TAVILY_API_KEY = 'test-key';
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      results: [],
+      images: [
+        { url: 'https://example.com/chart.png', description: 'Market share chart' },
+        'https://example.com/photo.jpg',
+        { description: 'missing url' },
+      ],
+    }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const withImages = await TavilyTool.execute({ query: 'market share', includeImages: true });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({ include_images: true, include_image_descriptions: true });
+    expect(withImages.images).toEqual([
+      { url: 'https://example.com/chart.png', description: 'Market share chart' },
+      { url: 'https://example.com/photo.jpg' },
+    ]);
+
+    const withoutImages = await TavilyTool.execute({ query: 'market share' });
+    const [, plainInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(JSON.parse(plainInit.body as string)).toMatchObject({ include_images: false });
+    expect(withoutImages).not.toHaveProperty('images');
+  });
 });

@@ -46,7 +46,7 @@ describe('ImageNodeBody path validation and recovery', () => {
 
   it('renders valid previews and the original in fullscreen', async () => {
     await render('/tmp/original.png');
-    expect(getImagePreview).toHaveBeenCalledWith('/tmp/original.png');
+    expect(getImagePreview).toHaveBeenCalledWith('/tmp/original.png', undefined);
     expect(host.querySelector('img')?.getAttribute('src')).toBe('pulse-canvas://local/cache/preview.png');
     await render('/tmp/original.png', true);
     expect(host.querySelector('img')?.getAttribute('src')).toBe('pulse-canvas://local/tmp/original.png');

@@ -37,7 +37,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         '- file: markdown note with a backing file; `content` is its text. Full HTML content, or `data.renderAs: "html"`, becomes an HTML iframe node; `data.renderAs: "note"` forces a note.\n' +
         '- text: free-form label; `content` is the text.\n' +
         '- frame: named container for other nodes. group: membership through `data.childIds`.\n' +
-        '- image: from a local `data.filePath`. To make a new picture, use `image_generate`.\n' +
+        '- image: from a local `data.filePath`, or a web image `data.url` that is saved into the workspace. To make a new picture, use `image_generate`.\n' +
         '- iframe: a web page (`data.url`), raw HTML (`data.mode: "html"`), or generated HTML (`data.mode: "ai"`). Some sites block embedding.\n' +
         '- shape: primitive shape with default size; use `canvas_create_shape` for exact size.\n' +
         '- mindmap: radial mindmap from the `data.root` topic tree.\n' +
@@ -57,7 +57,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         ),
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
-          '- image: { filePath: string } (absolute local path)\n' +
+          '- image: { filePath?: string (absolute local path), url?: string (http(s) image URL to download) }\n' +
           '- terminal: { cwd?: string }\n' +
           '- agent: { agentType?: "claude-code"|"codex"|"pi", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
@@ -73,7 +73,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
       execute: async (input) => {
         const requestedNodeType = input.type as NodeType;
         const content = (input.content as string) ?? '';
-        const extraData = (input.data as Record<string, unknown>) ?? {};
+        const extraData = { ...((input.data as Record<string, unknown>) ?? {}) };
         const nodeType: NodeType = shouldCreateIframeForHtml(requestedNodeType, content, extraData) ? 'iframe' : requestedNodeType;
         const defaultTitle = nodeType === 'plugin' && extraData.nodeType === MOCK_TODO_LIST_NODE_TYPE
           ? MOCK_TODO_LIST_DEFAULT_PAYLOAD.title
@@ -87,13 +87,29 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         const def = CANVAS_NODE_DEFAULTS[nodeType];
         if (!def) return `Error: unsupported node type: ${nodeType}`;
 
-        const width = (input.width as number | undefined) ?? def.width;
-        // Agent notes fit their text; other types keep their default height.
+        // A web image is saved into the workspace first, so the node also works offline.
+        let imageSize: { width: number; height: number } | undefined;
+        if (nodeType === 'image' && !extraData.filePath && typeof extraData.url === 'string') {
+          try {
+            const { downloadWebImage, fitImageNodeSize } = await import('../_shared/web-image');
+            const downloaded = await downloadWebImage(workspaceId, extraData.url);
+            extraData.filePath = downloaded.filePath;
+            if (downloaded.size) imageSize = fitImageNodeSize(downloaded.size);
+          } catch (err) {
+            return `Error: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        }
+
+        const requestedWidth = input.width as number | undefined;
+        const width = requestedWidth ?? imageSize?.width ?? def.width;
+        // Agent notes fit their text; images keep their aspect ratio; other types keep their default height.
         // The estimator loads on first use to keep it out of the main entry chunk.
         const height = (input.height as number | undefined)
           ?? (nodeType === 'file' && content.trim()
             ? (await import('../_shared/layout/content-size')).estimateNoteHeight(content, width, title)
-            : def.height);
+            : imageSize
+              ? Math.max(40, Math.round(width * imageSize.height / imageSize.width))
+              : def.height);
         let pos: { x: number; y: number };
         try {
           pos = resolvePlacement(

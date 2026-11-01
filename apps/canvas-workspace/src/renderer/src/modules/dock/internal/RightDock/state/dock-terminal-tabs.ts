@@ -119,6 +119,23 @@ export function closeTerminalCommit(
   };
 }
 
+/** Record the shell's folder; a restored tab starts its new shell there. */
+export function terminalCwdCommit(
+  workspace: DockTerminalWorkspaceState,
+  id: string,
+  cwd: string,
+): TerminalCommit | null {
+  const tab = workspace.tabs.find((item) => item.id === id);
+  if (!cwd || !tab || tab.cwd === cwd) return null;
+  return {
+    workspace: {
+      ...workspace,
+      tabs: workspace.tabs.map((item) => (item.id === id ? { ...item, cwd } : item)),
+    },
+    patch: {},
+  };
+}
+
 export function renameTerminalCommit(
   workspace: DockTerminalWorkspaceState,
   id: string,

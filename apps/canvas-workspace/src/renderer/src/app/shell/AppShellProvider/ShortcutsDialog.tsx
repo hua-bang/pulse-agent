@@ -54,6 +54,7 @@ export const SHORTCUT_HELP = {
   'app.toggleSidebar': { section: 'panels', descriptionKey: 'shortcuts.panels.sidebar' },
   'app.togglePanels': { section: 'panels', descriptionKey: 'shortcuts.panels.focus' },
   'app.toggleTheme': { section: 'panels', descriptionKey: 'shortcuts.panels.toggleTheme' },
+  'app.openSettings': { section: 'panels', descriptionKey: 'shortcuts.panels.openSettings' },
   'app.switchWorkspace': { section: 'panels', descriptionKey: 'shortcuts.panels.switchWorkspace' },
   'app.closeTab': { section: 'panels', descriptionKey: 'shortcuts.panels.closeTab' },
   'app.reopenTab': { section: 'panels', descriptionKey: 'shortcuts.panels.reopenTab' },
