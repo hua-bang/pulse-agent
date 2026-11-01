@@ -6,7 +6,6 @@
  */
 
 import { z } from 'zod';
-import { readWorkspaceContext, writeWorkspaceContext } from './workspace-context';
 import type { CanvasTool } from '../tools/types';
 
 export function createWorkspaceContextTools(workspaceId: string): Record<string, CanvasTool> {
@@ -23,6 +22,8 @@ export function createWorkspaceContextTools(workspaceId: string): Record<string,
         .describe('Revision the update is based on; null to create the first version.'),
     }),
     execute: async (input: { content: string; expected_revision: number | null }) => {
+      // Lazy chunk: the tool list is built eagerly, storage access is not needed until a call.
+      const { readWorkspaceContext, writeWorkspaceContext } = await import('./workspace-context');
       const result = await writeWorkspaceContext(workspaceId, input.content, input.expected_revision);
       if (result.ok) return JSON.stringify({ ok: true, revision: result.revision });
       if (!result.conflict) return JSON.stringify({ ok: false, error: result.error });

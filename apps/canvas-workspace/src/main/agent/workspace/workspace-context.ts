@@ -84,3 +84,44 @@ export async function writeWorkspaceContext(
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+
+/**
+ * Workspace environment + workspace context section of the system prompt.
+ * Lives here, not in canvas-agent.ts (at its file-size baseline) or in the
+ * eagerly bundled workspace-meta.ts.
+ */
+export function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: WorkspaceContextDoc | null): string {
+  const docContent = workspaceDoc?.content.trim() ?? '';
+  if (!rootFolder && !docContent) return '';
+
+  const parts: string[] = [];
+
+  if (rootFolder) {
+    parts.push(
+      '\n## Workspace Environment',
+      `- Root folder: \`${rootFolder}\``,
+      '- When creating agent or terminal nodes, use `canvas_create_agent_node` / `canvas_create_terminal_node`; search for a tool first if it is not already available. Omit the `cwd` argument to use the workspace root automatically. Only pass an explicit `cwd` when the work needs to happen outside the root (e.g. a sibling repo or a specific subdirectory).',
+      '- File-system tools (`read`, `write`, `edit`, `grep`, `ls`, `bash`) should resolve relative paths against the workspace root.',
+      '',
+    );
+  }
+
+  if (docContent) {
+    parts.push(
+      '## Workspace Context',
+      'The following document is authored jointly by the user and you. ' +
+        'It captures the goal, current status, and any decisions for this workspace. ' +
+        'Treat it as authoritative context — refer back to it when planning your next steps. ' +
+        'It is stored in Pulse workspace storage, not as a file: never create or edit a ' +
+        '`pulse-workspace.md` file in the workspace folder. ' +
+        'When you make meaningful progress, change direction, or resolve a blocker, ' +
+        'call `workspace_context_update` (search for it first if it is not loaded) with the full updated document and ' +
+        `\`expected_revision: ${workspaceDoc?.revision ?? 'null'}\` so the user sees fresh state next time.`,
+      '',
+      docContent,
+      '',
+    );
+  }
+
+  return parts.join('\n');
+}

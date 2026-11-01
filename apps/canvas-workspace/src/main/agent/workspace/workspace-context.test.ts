@@ -14,8 +14,7 @@ vi.mock('./workspace-meta', async (importOriginal) => ({
   readWorkspaceMeta: async () => ({ rootFolder: mocks.rootFolder }),
 }));
 
-import { readWorkspaceContext, writeWorkspaceContext } from './workspace-context';
-import { formatWorkspaceContextSection } from './workspace-meta';
+import { formatWorkspaceContextSection, readWorkspaceContext, writeWorkspaceContext } from './workspace-context';
 import { createWorkspaceContextTools } from './workspace-context-tool';
 
 let dir: string;
