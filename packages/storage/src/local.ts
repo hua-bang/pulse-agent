@@ -6,7 +6,7 @@ import type { EntityRecord, JsonObject, PulseStorage, RecordChanges } from './co
 import { StorageError, isStorageError } from './errors.js';
 import { isUninitializedSqliteFile, openSqliteStorage, type SqliteStorage } from './sqlite/index.js';
 import { encodeJson, validateId } from './sqlite/validation.js';
-import type { WorkspaceManifestSnapshot } from './workspace-manifest.js';
+import type { WorkspaceManifestCommit, WorkspaceManifestSnapshot } from './workspace-manifest.js';
 
 export type LocalStorageDomain = 'canvas' | 'conversations';
 
@@ -439,15 +439,18 @@ export interface LocalWorkspaceManifestOptions extends Pick<LocalStorageOptions,
   /**
    * Host-owned legacy reader for the one-time import: backup fallback, list-key
    * normalization, unknown fields, and filtering of trashed ids. Return `{}`
-   * when there is no file. Called only under the storage lock, and only while
-   * the database has no manifest.
+   * when there is no file; throw when a file exists but cannot be read. Called
+   * only under the storage lock, and only while the database has no manifest.
    */
   loadLegacyManifest: () => Promise<JsonObject>;
-  /** Transitional JSON mirror for readers not yet on storage. This module never reads it. */
-  mirrorPath: string;
-  /** A failed mirror write does not fail the commit; the next commit rewrites the mirror. */
-  onMirrorError?: (error: unknown) => void;
 }
+
+/**
+ * Commits a prepared manifest change. The default is the manifest repository;
+ * workspace bundle operations pass their own commit so the bundle change and
+ * the manifest change are one transaction.
+ */
+export type WorkspaceManifestCommitter = (input: WorkspaceManifestCommit) => Promise<unknown>;
 
 const IMPORT_LOCK_ATTEMPTS = 50;
 const IMPORT_LOCK_DELAY_MS = 100;
@@ -459,16 +462,10 @@ async function assertCanvasActive(storage: SqliteStorage): Promise<void> {
   }
 }
 
-async function writeManifestMirror(options: LocalWorkspaceManifestOptions, manifest: JsonObject): Promise<void> {
-  try {
-    await writeJsonAtomic(options.mirrorPath, manifest);
-  } catch (error) {
-    if (options.onMirrorError) options.onMirrorError(error);
-    else console.warn('[storage] workspace manifest mirror write failed; the next commit retries it', error);
-  }
-}
-
-/** Import the legacy file once. The database is authoritative after this commit. */
+/**
+ * Import the legacy file once. The database is authoritative after this
+ * commit; the file is left in place as retained legacy data and never read again.
+ */
 async function importManifestLocked(options: LocalWorkspaceManifestOptions): Promise<WorkspaceManifestSnapshot> {
   const current = await options.storage.workspaceManifest.read();
   if (current) return current;
@@ -480,7 +477,6 @@ async function importManifestLocked(options: LocalWorkspaceManifestOptions): Pro
   const receipt = await options.storage.workspaceManifest.commit({
     expectedGeneration: options.storage.generation, expectedRevision: null, manifest,
   });
-  await writeManifestMirror(options, manifest);
   return { generation: receipt.generation, revision: receipt.revision, manifest };
 }
 
@@ -516,12 +512,14 @@ export async function readLocalWorkspaceManifest(options: LocalWorkspaceManifest
 }
 
 /**
- * Replace the manifest from its current revision under the storage lock, then
- * refresh the JSON mirror. A stale revision rejects; nothing is overwritten.
+ * Replace the manifest from its current revision under the storage lock. A
+ * stale revision rejects; nothing is overwritten. Pass `commit` to publish the
+ * change inside a workspace bundle transaction.
  */
 export async function updateLocalWorkspaceManifest(
   options: LocalWorkspaceManifestOptions,
   update: (current: JsonObject) => JsonObject | Promise<JsonObject>,
+  commit: WorkspaceManifestCommitter = input => options.storage.workspaceManifest.commit(input),
 ): Promise<WorkspaceManifestSnapshot> {
   validateRoot(options.root);
   await assertCanvasActive(options.storage);
@@ -532,10 +530,10 @@ export async function updateLocalWorkspaceManifest(
       throw new StorageError('invalid_argument', 'Workspace manifest must be an object');
     }
     const manifest = JSON.parse(encodeJson(next)) as JsonObject;
-    const receipt = await options.storage.workspaceManifest.commit({
-      expectedGeneration: current.generation, expectedRevision: current.revision, manifest,
-    });
-    await writeManifestMirror(options, manifest);
-    return { generation: receipt.generation, revision: receipt.revision, manifest };
+    await commit({ expectedGeneration: current.generation, expectedRevision: current.revision, manifest });
+    // The lock is still held, so this read returns the document just committed.
+    const committed = await options.storage.workspaceManifest.read();
+    if (!committed) throw new StorageError('corrupt_data', 'Workspace manifest is missing after its commit');
+    return committed;
   });
 }

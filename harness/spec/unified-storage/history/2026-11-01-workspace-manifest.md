@@ -50,29 +50,36 @@ transaction.
   `sqlite_sequence` high-water mark is kept, so cursors stay valid and pruned
   sequences are not reused.
 
-## Transitional JSON mirror
+## One transaction per workspace change (stage 2)
 
-- **Chosen:** after each database commit, the same document is written to
-  `__workspaces__.json` with an atomic rename. Direct readers not yet on storage
-  (`agent/workspace/workspace-meta.ts`, the channel plugin) and older builds keep
-  working. A mirror failure is logged; the next commit rewrites it. New code
-  never reads the mirror.
+- **Chosen:** `importBundle`, `trashBundle`, and `restoreBundle` take an
+  optional manifest commit and run it in their own transaction. CLI creation is
+  `importBundle` with the new entry. A stale manifest revision rolls back the
+  bundle change too. `updateLocalWorkspaceManifest` takes the committer, so
+  hosts keep one read-update-commit path under the storage lock.
+- **Removed:** CLI create compensation (`removeBundle` after a failed
+  publish), the "manifest first" restore order, and the App import
+  compensation with its `database-committed` journal phase.
+- **Kept:** `import-recovery` still publishes a missing entry for a journal at
+  `database-committed`. Released builds write that phase; the step is
+  idempotent. New imports leave only a `prepared` journal, which recovery sets
+  aside or, after a commit, removes. Read-time filtering of trashed ids also
+  stays: it protects documents imported from older files.
+
+## The JSON mirror (stage 1 only)
+
+- Stage 1 wrote each committed document back to `__workspaces__.json` for
+  direct readers (`agent/workspace/workspace-meta.ts`, the channel plugin).
+  Stage 2 moved both readers to storage and stopped the mirror. The file is
+  retained legacy data after the import.
+- An older build cannot open a schema v4 database (`initializeSchema` rejects a
+  newer `user_version`), so no older reader depends on the mirror.
 - The App does not watch the manifest file. The renderer refreshes on SQL
-  Canvas changes (a new or deleted workspace), so the mirror is not needed for
-  CLI-to-App updates. Subscribing the renderer to `workspace-manifest` changes
-  is left to stage 2.
-
-## Stage 2 (not delivered)
-
-- `trashBundle`, `restoreBundle`, `importBundle`, and workspace creation update
-  the manifest in the same transaction. Then remove create compensation, the
-  restore "manifest first" order, the manifest part of `import-recovery`, and
-  read-time trash filtering.
-- Stop writing the mirror once every reader uses storage.
+  Canvas changes. Subscribing the renderer to `workspace-manifest` changes is
+  not done.
 
 ## Open decisions
 
-- Downgrade: edits an older build makes to the file are ignored after the
-  document exists. Accept, or write the revision into the mirror and detect a
-  newer file at startup?
 - One document or one row per workspace.
+- Downgrade: older builds stop on a v4 database (fail closed). Confirm that this
+  is acceptable.

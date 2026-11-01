@@ -1,6 +1,6 @@
-import type { JsonObject } from '../contracts.js';
+import type { CommitReceipt, JsonObject } from '../contracts.js';
 import { RevisionConflictError, StorageError } from '../errors.js';
-import type { WorkspaceManifestCommit, WorkspaceManifestRepository } from '../workspace-manifest.js';
+import type { WorkspaceManifestCommit, WorkspaceManifestRepository, WorkspaceManifestSnapshot } from '../workspace-manifest.js';
 import type { SqliteContext } from './context.js';
 import { decodeJson, encodeJson, validateId } from './validation.js';
 
@@ -59,40 +59,49 @@ function validateInput(input: WorkspaceManifestCommit): string {
   return encodeJson(input.manifest);
 }
 
-export function createWorkspaceManifestRepository(ctx: SqliteContext): WorkspaceManifestRepository {
+export interface WorkspaceManifestOperations {
+  read(): WorkspaceManifestSnapshot | null;
+  /** Must run inside the caller's transaction, so bundle changes and the manifest commit together. */
+  commit(input: WorkspaceManifestCommit): CommitReceipt;
+}
+
+export function createWorkspaceManifestOperations(ctx: SqliteContext): WorkspaceManifestOperations {
   const select = ctx.db.prepare('SELECT revision, body FROM workspace_manifest WHERE singleton = 1');
   const put = ctx.db.prepare(`
     INSERT INTO workspace_manifest (singleton, revision, body) VALUES (1, ?, ?)
     ON CONFLICT(singleton) DO UPDATE SET revision = excluded.revision, body = excluded.body
   `);
-  const commit = ctx.db.transaction((input: WorkspaceManifestCommit, body: string) => {
-    if (input.expectedGeneration !== undefined && input.expectedGeneration !== ctx.generation) {
-      throw new StorageError('revision_conflict', 'Workspace manifest belongs to a different storage generation');
-    }
-    const previous = select.get() as ManifestRow | undefined;
-    const actual = previous?.revision ?? null;
-    if (actual !== input.expectedRevision) throw new RevisionConflictError(RESOURCE, input.expectedRevision, actual);
-    const revision = ctx.nextRevision('workspace-manifest', SCOPE, RESOURCE);
-    put.run(revision, body);
-    const ids = changedIds(previous ? decodeJson<JsonObject>(previous.body) : null, input.manifest);
-    const changeCursor = ctx.change('workspace-manifest', SCOPE, RESOURCE, revision, 'updated', ids);
-    return { generation: ctx.generation, revision, changeCursor };
-  });
   return {
-    async read() {
-      return ctx.guard(() => {
-        const row = select.get() as ManifestRow | undefined;
-        if (!row) return null;
-        const manifest = decodeJson<unknown>(row.body);
-        if (!isObject(manifest)) throw new StorageError('corrupt_data', 'Stored workspace manifest is not an object');
-        return { generation: ctx.generation, revision: row.revision, manifest };
-      });
+    read() {
+      const row = select.get() as ManifestRow | undefined;
+      if (!row) return null;
+      const manifest = decodeJson<unknown>(row.body);
+      if (!isObject(manifest)) throw new StorageError('corrupt_data', 'Stored workspace manifest is not an object');
+      return { generation: ctx.generation, revision: row.revision, manifest };
     },
-    async commit(input) {
-      return ctx.guard(() => {
-        const body = validateInput(input);
-        return commit.immediate(input, body);
-      });
+    commit(input) {
+      if (!ctx.db.inTransaction) throw new StorageError('storage_unavailable', 'Manifest commits require a transaction');
+      const body = validateInput(input);
+      if (input.expectedGeneration !== undefined && input.expectedGeneration !== ctx.generation) {
+        throw new StorageError('revision_conflict', 'Workspace manifest belongs to a different storage generation');
+      }
+      const previous = select.get() as ManifestRow | undefined;
+      const actual = previous?.revision ?? null;
+      if (actual !== input.expectedRevision) throw new RevisionConflictError(RESOURCE, input.expectedRevision, actual);
+      const revision = ctx.nextRevision('workspace-manifest', SCOPE, RESOURCE);
+      put.run(revision, body);
+      const ids = changedIds(previous ? decodeJson<JsonObject>(previous.body) : null, input.manifest);
+      const changeCursor = ctx.change('workspace-manifest', SCOPE, RESOURCE, revision, 'updated', ids);
+      return { generation: ctx.generation, revision, changeCursor };
     },
+  };
+}
+
+export function createWorkspaceManifestRepository(ctx: SqliteContext): WorkspaceManifestRepository {
+  const operations = createWorkspaceManifestOperations(ctx);
+  const commit = ctx.db.transaction((input: WorkspaceManifestCommit) => operations.commit(input));
+  return {
+    async read() { return ctx.guard(() => operations.read()); },
+    async commit(input) { return ctx.guard(() => commit.immediate(input)); },
   };
 }

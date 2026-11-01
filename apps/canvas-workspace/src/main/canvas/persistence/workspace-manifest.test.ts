@@ -69,14 +69,14 @@ describe('App workspace manifest authority', () => {
     expect(view).toMatchObject({ kind: 'ok', data: { activeId: 'work', workspaces: [{ id: 'work', name: 'Work' }] } });
   });
 
-  it('saves renderer changes to the database and mirrors them to the file', async () => {
+  it('saves renderer changes to the database and leaves the legacy file as it was', async () => {
     await activate();
     await writeFile(manifestFile(), JSON.stringify(legacy));
     await saveWorkspaceManifest(root, { workspaces: [{ id: 'work', name: 'Renamed' }], activeId: 'work' });
     const document = await readWorkspaceManifestDocument(root);
     expect(document).toMatchObject({ futureKey: ['kept'], activeId: 'work' });
     expect((document.workspaces as Array<{ name: string }>).map(item => item.name)).toEqual(['Renamed', 'Gone']);
-    expect(JSON.parse(await readFile(manifestFile(), 'utf8'))).toEqual(document);
+    expect(JSON.parse(await readFile(manifestFile(), 'utf8'))).toEqual(legacy);
     expect((await (await getLocalCanvasStorage(root))!.workspaceManifest.read())?.revision).toBe(2);
   });
 
@@ -97,7 +97,7 @@ describe('App workspace manifest authority', () => {
     expect(await readWorkspaceManifest(root)).toEqual({
       activeId: 'default', workspaces: [{ id: 'default', name: 'Pulse Canvas', rootFolder: undefined }],
     });
-    expect(JSON.parse(await readFile(manifestFile(), 'utf8')).activeId).toBe('default');
+    await expect(stat(manifestFile())).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('keeps a legacy store on the file and never creates a database', async () => {

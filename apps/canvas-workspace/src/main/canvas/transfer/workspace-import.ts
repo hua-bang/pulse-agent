@@ -15,7 +15,6 @@ import {
   rewriteWorkspaceNodeFiles,
   stageSqliteWorkspaceImport,
   validateWorkspaceArchiveSchema,
-  WorkspaceImportRecoveryError,
 } from '../persistence/sqlite-workspace';
 import { getCanvasSessionArchivePort, isWorkspaceSessionFile } from '../persistence/session-archive-port';
 import { updateWorkspaceManifestDocument } from '../persistence/workspace-manifest';
@@ -36,8 +35,8 @@ export interface ImportedWorkspace {
   canvas: unknown;
 }
 
-async function registerWorkspace(storeDir: string, result: ImportedWorkspace): Promise<void> {
-  await updateWorkspaceManifestDocument(storeDir, manifest => ({
+function withImportedEntry(manifest: Record<string, unknown>, result: ImportedWorkspace): Record<string, unknown> {
+  return {
     ...manifest,
     workspaces: [
       ...(Array.isArray(manifest.workspaces) ? manifest.workspaces : []),
@@ -45,7 +44,7 @@ async function registerWorkspace(storeDir: string, result: ImportedWorkspace): P
     ],
     folders: Array.isArray(manifest.folders) ? manifest.folders : [],
     activeId: result.workspaceId,
-  }));
+  };
 }
 
 const importWorkspaceUnlocked = async ({
@@ -114,16 +113,16 @@ const importWorkspaceUnlocked = async ({
     ownsFinalDir = true;
     if (storage && prepared) {
       result.canvas = await commitSqliteWorkspaceImport(
-        storage, prepared, finalDir, () => registerWorkspace(storeDir, result),
+        storeDir, prepared, finalDir, manifest => withImportedEntry(manifest, result),
         conversationsActive && sessions ? sessions : undefined,
       );
     } else {
-      await registerWorkspace(storeDir, result);
+      await updateWorkspaceManifestDocument(storeDir, manifest => withImportedEntry(manifest, result));
     }
     return result;
   } catch (error) {
     await fs.rm(stagingDir, { recursive: true, force: true });
-    if (ownsFinalDir && !(error instanceof WorkspaceImportRecoveryError)) {
+    if (ownsFinalDir) {
       await fs.rm(finalDir, { recursive: true, force: true });
     }
     throw error;

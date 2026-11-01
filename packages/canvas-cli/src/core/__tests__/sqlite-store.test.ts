@@ -174,17 +174,24 @@ describe('activated SQLite CLI storage', () => {
       .rejects.toMatchObject({ code: 'workspace_not_found' });
   });
 
-  it('removes the SQL workspace when manifest publication fails after creation', async () => {
+  it('creates neither the SQL workspace nor its entry when the manifest commit conflicts', async () => {
     await activate();
-    await store.loadWorkspaceManifest(root);
+    const before = await store.loadWorkspaceManifest(root);
     const original = sqliteStore.withSqliteCanvas;
     const failure = vi.spyOn(sqliteStore, 'withSqliteCanvas').mockImplementation((storeDir, operation) => original(storeDir, async (db, canvas) => {
-      db.workspaceManifest.commit = async () => { throw new Error('Manifest publication failed'); };
+      const importBundle = db.workspaces.importBundle.bind(db.workspaces);
+      db.workspaces.importBundle = async input => {
+        // A commit lands first, so the bundle transaction's manifest revision is stale.
+        const current = (await db.workspaceManifest.read())!;
+        await db.workspaceManifest.commit({ expectedRevision: current.revision, manifest: current.manifest });
+        return importBundle(input);
+      };
       return operation(db, canvas);
     }));
     const result = await store.createWorkspace('Unpublished', root);
     failure.mockRestore();
     expect(result.ok).toBe(false);
+    expect(await store.loadWorkspaceManifest(root)).toEqual(before);
     expect(await store.listWorkspaceIds(root)).toEqual([workspaceId]);
     expect((await fs.readdir(root)).filter(name => name.startsWith('ws-') && name !== workspaceId)).toEqual([]);
   });
@@ -209,15 +216,17 @@ describe('activated SQLite CLI storage', () => {
     expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([
       { id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } },
     ]);
-    // Writes go to the database and refresh the mirror.
+    // Writes go to the database only; the retained file is not rewritten.
+    const staleBytes = await fs.readFile(manifestFile, 'utf8');
     const created = await store.createWorkspace('Second', root);
     if (!created.ok) throw new Error(created.error);
-    const mirror = JSON.parse(await fs.readFile(manifestFile, 'utf8'));
-    expect(mirror.workspaces.map((entry: { name: string }) => entry.name)).toEqual(['Imported', 'Second']);
-    expect(mirror.futureKey).toBe('kept');
+    expect(await fs.readFile(manifestFile, 'utf8')).toBe(staleBytes);
     const db = await openLocalStorage({ root });
-    try { expect((await db!.workspaceManifest.read())?.manifest).toEqual(mirror); }
-    finally { await db!.close(); }
+    try {
+      const stored = (await db!.workspaceManifest.read())!.manifest;
+      expect((stored.workspaces as { name: string }[]).map(entry => entry.name)).toEqual(['Imported', 'Second']);
+      expect(stored.futureKey).toBe('kept');
+    } finally { await db!.close(); }
   });
 
   it('imports from the backup when the primary manifest is corrupt and skips trashed ids', async () => {
@@ -262,24 +271,6 @@ describe('activated SQLite CLI storage', () => {
     await store.saveWorkspaceManifest({ workspaces: [{ id: workspaceId, name: 'Legacy' }] }, root);
     expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([{ id: workspaceId, name: 'Legacy' }]);
     await expect(fs.access(join(root, '__storage__.sqlite'))).rejects.toMatchObject({ code: 'ENOENT' });
-  });
-
-  it('keeps a created workspace when only the JSON mirror write fails', async () => {
-    await activate();
-    await store.loadWorkspaceManifest(root);
-    await fs.rm(join(root, '__workspaces__.json'), { force: true });
-    await fs.mkdir(join(root, '__workspaces__.json'));
-    await fs.writeFile(join(root, '__workspaces__.json', 'blocker'), 'not a manifest');
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const result = await store.createWorkspace('Mirrored later', root);
-    if (!result.ok) throw new Error(result.error);
-    expect(warn).toHaveBeenCalled();
-    expect((await store.loadWorkspaceManifest(root)).workspaces.map(entry => entry.name)).toContain('Mirrored later');
-    await fs.rm(join(root, '__workspaces__.json'), { recursive: true });
-    const next = await store.createWorkspace('Second', root);
-    if (!next.ok) throw new Error(next.error);
-    const mirror = JSON.parse(await fs.readFile(join(root, '__workspaces__.json'), 'utf8'));
-    expect(mirror.workspaces.map((entry: { name: string }) => entry.name)).toEqual(expect.arrayContaining(['Mirrored later', 'Second']));
   });
 
   it('routes node and edge commands through the original SQL revision and preserves Markdown editing', async () => {
@@ -432,14 +423,14 @@ describe('migration fencing for legacy CLI writes', () => {
     await activate();
     const manifest = { workspaces: [{ id: workspaceId, name: 'Keep' }] };
     await store.saveWorkspaceManifest(manifest, root);
-    const oldBytes = await fs.readFile(join(root, '__workspaces__.json'), 'utf8');
     await fs.unlink(join(root, '__storage__.json'));
     const resolver = vi.spyOn(nativeBinding, 'resolveSqliteNativeBinding').mockImplementation(() => {
       throw new Error('Correct packaged native binding is unavailable');
     });
     await expect(store.saveWorkspaceManifest({ workspaces: [] }, root)).rejects.toThrow('Correct packaged native binding is unavailable');
     expect(resolver).toHaveBeenCalledOnce();
-    expect(await fs.readFile(join(root, '__workspaces__.json'), 'utf8')).toBe(oldBytes);
+    // The fence stops before the legacy fallback can write a manifest file.
+    await expect(fs.access(join(root, '__workspaces__.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('keeps Canvas on JSON when only the conversations domain has been activated', async () => {

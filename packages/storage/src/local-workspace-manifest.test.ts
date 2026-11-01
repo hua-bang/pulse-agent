@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -31,10 +31,12 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const mirrorPath = () => join(root, '__workspaces__.json');
-function options(loadLegacyManifest: () => Promise<JsonObject>, extra: Partial<LocalWorkspaceManifestOptions> = {}): LocalWorkspaceManifestOptions {
-  return { root, storage, loadLegacyManifest, mirrorPath: mirrorPath(), ...extra };
+const legacyPath = () => join(root, '__workspaces__.json');
+function options(loadLegacyManifest: () => Promise<JsonObject>): LocalWorkspaceManifestOptions {
+  return { root, storage, loadLegacyManifest };
 }
+const bundle = (workspaceId: string) => ({ canvas: { workspaceId, metadata: {}, nodes: [], placements: [], edges: [] } });
+const entryIds = (manifest: JsonObject) => (manifest.workspaces as JsonObject[]).map(entry => entry.id);
 
 describe('local workspace manifest', () => {
   it('imports the legacy file once, then never reads it again', async () => {
@@ -42,7 +44,7 @@ describe('local workspace manifest', () => {
     const first = await readLocalWorkspaceManifest(options(loader));
     expect(first).toMatchObject({ revision: 1, manifest: legacy });
     // A later file edit (an older build, or a stale backup) is not current state.
-    await writeFile(mirrorPath(), JSON.stringify({ workspaces: [{ id: 'stale', name: 'Old name' }] }));
+    await writeFile(legacyPath(), JSON.stringify({ workspaces: [{ id: 'stale', name: 'Old name' }] }));
     expect((await readLocalWorkspaceManifest(options(loader))).manifest).toEqual(legacy);
     expect(loader).toHaveBeenCalledTimes(1);
   });
@@ -50,33 +52,50 @@ describe('local workspace manifest', () => {
   it('imports an empty manifest when there is no file and keeps it authoritative', async () => {
     const loader = vi.fn(async () => ({}));
     expect((await readLocalWorkspaceManifest(options(loader))).manifest).toEqual({});
-    await writeFile(mirrorPath(), JSON.stringify(legacy));
+    await writeFile(legacyPath(), JSON.stringify(legacy));
     expect((await readLocalWorkspaceManifest(options(loader))).manifest).toEqual({});
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
-  it('commits updates from the current revision and mirrors them to the JSON file', async () => {
+  it('commits updates from the current revision and does not write the legacy file', async () => {
     const loader = vi.fn(async () => structuredClone(legacy) as JsonObject);
+    await writeFile(legacyPath(), JSON.stringify(legacy));
     const next = await updateLocalWorkspaceManifest(options(loader), current => ({
       ...current,
       workspaces: [...(current.workspaces as JsonObject[]), { id: 'b', name: 'Beta' }],
     }));
-    expect(next.revision).toBe(2);
     expect(next.manifest.futureKey).toEqual([1, 'two']);
-    expect(JSON.parse(await readFile(mirrorPath(), 'utf8'))).toEqual(next.manifest);
-    expect((await readLocalWorkspaceManifest(options(loader))).manifest).toEqual(next.manifest);
+    expect(entryIds(next.manifest)).toEqual(['a', 'b']);
+    expect(JSON.parse(await readFile(legacyPath(), 'utf8'))).toEqual(legacy);
+    expect(await readLocalWorkspaceManifest(options(loader))).toEqual(next);
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the database commit when the mirror write fails', async () => {
-    const onMirrorError = vi.fn();
-    await mkdir(join(root, 'blocked'));
-    // A directory at the mirror path makes the rename fail.
-    await mkdir(join(root, 'blocked', '__workspaces__.json'));
-    const broken = options(async () => ({}), { mirrorPath: join(root, 'blocked', '__workspaces__.json'), onMirrorError });
-    const result = await updateLocalWorkspaceManifest(broken, () => ({ workspaces: [{ id: 'x', name: 'X' }] }));
-    expect(onMirrorError).toHaveBeenCalled();
-    expect((await storage.workspaceManifest.read())?.manifest).toEqual(result.manifest);
+  it('publishes a bundle and its manifest entry through a bundle committer', async () => {
+    const loader = vi.fn(async () => structuredClone(legacy) as JsonObject);
+    const next = await updateLocalWorkspaceManifest(
+      options(loader),
+      current => ({ ...current, workspaces: [...(current.workspaces as JsonObject[]), { id: 'b', name: 'Beta' }] }),
+      manifest => storage.workspaces.importBundle({ ...bundle('b'), manifest }),
+    );
+    expect(entryIds(next.manifest)).toEqual(['a', 'b']);
+    expect(await storage.workspaces.readBundle('b')).not.toBeNull();
+  });
+
+  it('commits neither the bundle nor the manifest when the update is stale', async () => {
+    const loader = vi.fn(async () => structuredClone(legacy) as JsonObject);
+    const before = await readLocalWorkspaceManifest(options(loader));
+    await expect(updateLocalWorkspaceManifest(
+      options(loader),
+      current => ({ ...current, workspaces: [] }),
+      async manifest => {
+        // Another commit lands between the read and this bundle transaction.
+        await storage.workspaceManifest.commit({ expectedRevision: manifest.expectedRevision, manifest: { workspaces: [] } });
+        return storage.workspaces.importBundle({ ...bundle('b'), manifest });
+      },
+    )).rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(await storage.workspaces.readBundle('b')).toBeNull();
+    expect((await storage.workspaceManifest.read())?.revision).toBeGreaterThan(before.revision);
   });
 
   it('serializes concurrent first reads to one import', async () => {
@@ -97,7 +116,7 @@ describe('local workspace manifest', () => {
     const legacyStore = await openSqliteStorage({ path: join(other, '__storage__.sqlite') });
     try {
       const loader = vi.fn(async () => ({}));
-      await expect(readLocalWorkspaceManifest({ root: other, storage: legacyStore, loadLegacyManifest: loader, mirrorPath: join(other, 'm.json') }))
+      await expect(readLocalWorkspaceManifest({ root: other, storage: legacyStore, loadLegacyManifest: loader }))
         .rejects.toMatchObject({ code: 'storage_unavailable' });
       expect(loader).not.toHaveBeenCalled();
     } finally {

@@ -33,8 +33,9 @@ or a mutating command. `src/core/store.ts` is the compatibility facade;
   still respect the migration lock. `restore` is a v1 recovery tool and refuses
   active SQLite storage.
 - SQL workspace discovery uses repository records, not the existence of a
-  `canvas.json` file, so `workspace create` removes its SQL workspace (at the
-  created revision) when manifest publication fails. The app's manifest save
+  `canvas.json` file. On SQLite, `workspace create` commits the empty canvas and
+  its manifest entry in one `importBundle` transaction, so a failure leaves
+  neither. The app's manifest save
   (`saveWorkspaceManifest`) registers an empty SQL canvas for each listed
   workspace without one, so a new canvas is addressable before its first edit;
   an entry left unregistered by an older build heals on the next manifest save.
@@ -63,17 +64,20 @@ exists is the only import state.
   fallback; after a rename, deletion, or crash it can hold stale names or
   deleted workspaces. A write commits from the read revision; a stale revision
   rejects.
-- Mirror: after each commit the same document is written to
-  `__workspaces__.json` with an atomic rename, for direct readers not yet on
-  storage and for older builds. A mirror failure is logged and does not fail the
-  command; the next commit rewrites it. New code must not read the mirror.
-- Downgrade: edits an older build makes to the file are not imported after the
-  document exists. This is an open decision (see the unified-storage spec).
+- The file is not written after the import. It stays on disk as retained
+  legacy data. Every in-repo reader uses storage.
+- Workspace changes: create, trash, restore, and import pass the prepared
+  manifest commit to `importBundle`, `trashBundle`, or `restoreBundle`, through
+  the committer argument of `updateLocalWorkspaceManifest`. The bundle and the
+  entry change are one transaction; a stale manifest revision rolls back both.
+- Downgrade: an older build cannot open a schema v4 database and stops (fail
+  closed). The owner still has to confirm this (see the unified-storage spec).
 
 Guards: `src/core/__tests__/sqlite-store.test.ts` (import once, `.bak` and
-trash filtering, mirror failure, legacy file path);
+trash filtering, file not rewritten, create rollback, legacy file path);
 `packages/storage/src/local-workspace-manifest.test.ts` and
-`packages/storage/src/sqlite/workspace-manifest.test.ts` (CAS, change log, reopen, unknown fields).
+`packages/storage/src/sqlite/workspace-manifest.test.ts` (CAS, change log,
+reopen, unknown fields, bundle and manifest rollback).
 
 ## SQLite concurrency and file recovery
 
@@ -130,18 +134,15 @@ the same identities, name, content and conversation pointer. There is no automat
 expiry or permanent-delete command. File bytes are never rewritten by restoration;
 external file edits made while a workspace is in trash remain intact.
 
-The database is authoritative for visibility. Manifest reads filter deleted ids,
-including an entry left after an interrupted deletion.
-Restoration publishes the saved manifest entry before restoring SQL visibility;
-if that commit fails, the workspace remains in trash and can be retried. The shared
-root migration fence and workspace lock serialize CLI deletion/restoration.
-The app's delete toast offers Undo through `restoreTrashedWorkspace` in
-`apps/canvas-workspace/src/main/canvas/persistence/workspace-trash.ts`; it follows
-the same manifest-then-SQL order under the legacy write fence.
-The manifest document and the trash record are still separate commits (stage 1
-of the manifest migration). Reads hide a prematurely published entry until
-restoration commits. Stage 2 commits them in one transaction and removes this
-ordering and `import-recovery`'s manifest step.
+The database is authoritative for visibility. Deletion removes the manifest
+entry and restoration republishes the saved entry in the same transaction as
+the trash record. If that commit fails, nothing changes and the command can be
+retried. Manifest reads still filter deleted ids, because a document imported
+from an older file can list one. The shared root migration fence and workspace
+lock serialize CLI deletion/restoration. The app's delete and its Undo
+(`trashWorkspace` / `restoreTrashedWorkspace` in
+`apps/canvas-workspace/src/main/canvas/persistence/workspace-trash.ts`) use the
+same transactions under the legacy write fence.
 
 Legacy-only stores must first be opened in the updated app to activate storage.
 Deletion/restoration refuses those stores without removing files; it never falls
@@ -149,8 +150,9 @@ back to irreversible directory deletion. The top-level `restore` command remains
 the separate legacy v1 snapshot-recovery tool.
 
 Guards: `src/core/__tests__/workspace-trash.test.ts` covers retention/restoration,
-other-scope isolation, old-snapshot rejection, concurrent chat activity, interrupted
-manifest updates, external file preservation, and CLI command output.
+other-scope isolation, old-snapshot rejection, concurrent chat activity, manifest
+conflicts that roll back the whole change, external file preservation, and CLI
+command output.
 
 ## The incident (parallel writers destroyed each other's nodes)
 

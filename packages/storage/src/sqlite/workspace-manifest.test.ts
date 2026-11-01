@@ -82,3 +82,59 @@ describe('workspace manifest repository', () => {
     ]);
   });
 });
+
+describe('workspace bundle operations with a manifest commit', () => {
+  const bundle = (workspaceId: string) => ({ canvas: { workspaceId, metadata: {}, nodes: [{ id: 'n' }], placements: [], edges: [] } });
+  const listed = (...ids: string[]) => ({ workspaces: ids.map(id => ({ id, name: id })) });
+  const condition = async (workspaceId: string) => {
+    const current = (await storage.workspaces.readBundle(workspaceId))!;
+    return {
+      workspaceId, expectedCanvasRevision: current.canvas.revision, generation: storage.generation,
+      expectedConversations: current.conversationState,
+    };
+  };
+
+  it('imports, trashes, and restores a workspace together with its entry', async () => {
+    await storage.workspaceManifest.commit({ expectedRevision: null, manifest: listed() });
+    const cursor = await storage.changes.latestCursor();
+    await storage.workspaces.importBundle({ ...bundle('a'), manifest: { expectedRevision: 1, manifest: listed('a') } });
+    expect((await storage.workspaceManifest.read())?.manifest).toEqual(listed('a'));
+    const changes = (await storage.changes.read({ cursor })).items;
+    expect(changes.find(change => change.domain === 'workspace-manifest')?.changedIds).toEqual(['a']);
+
+    const afterImport = (await storage.workspaceManifest.read())!;
+    const trashed = await storage.workspaces.trashBundle({
+      ...await condition('a'), manifest: { expectedRevision: afterImport.revision, manifest: listed() },
+    });
+    expect((await storage.workspaceManifest.read())?.manifest).toEqual(listed());
+
+    const afterTrash = (await storage.workspaceManifest.read())!;
+    await storage.workspaces.restoreBundle('a', trashed.revision, trashed.generation, {
+      expectedRevision: afterTrash.revision, manifest: listed('a'),
+    });
+    expect((await storage.workspaceManifest.read())?.manifest).toEqual(listed('a'));
+    expect(await storage.workspaces.readBundle('a')).not.toBeNull();
+  });
+
+  it('rolls back the bundle change when the manifest revision is stale', async () => {
+    await storage.workspaceManifest.commit({ expectedRevision: null, manifest: listed() });
+    await storage.workspaceManifest.commit({ expectedRevision: 1, manifest: listed('other') });
+    const stale = { expectedRevision: 1, manifest: listed('a') };
+
+    await expect(storage.workspaces.importBundle({ ...bundle('a'), manifest: stale }))
+      .rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(await storage.workspaces.readBundle('a')).toBeNull();
+
+    await storage.workspaces.importBundle(bundle('a'));
+    await expect(storage.workspaces.trashBundle({ ...await condition('a'), manifest: stale }))
+      .rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(await storage.workspaces.getTrashed('a')).toBeNull();
+    expect(await storage.workspaces.readBundle('a')).not.toBeNull();
+
+    const trashed = await storage.workspaces.trashBundle(await condition('a'));
+    await expect(storage.workspaces.restoreBundle('a', trashed.revision, trashed.generation, stale))
+      .rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(await storage.workspaces.getTrashed('a')).toEqual(trashed);
+    expect((await storage.workspaceManifest.read())?.manifest).toEqual(listed('other'));
+  });
+});

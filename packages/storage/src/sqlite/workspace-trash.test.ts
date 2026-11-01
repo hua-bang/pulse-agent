@@ -107,7 +107,6 @@ describe('workspace trash lifecycle', () => {
       () => storage.conversations.remove('ws', 'archive', 2),
       () => storage.conversationScopes.commit({ scopeId: 'ws', expectedRevision: 2, currentSessionId: null }),
       () => storage.conversationScopes.commit({ scopeId: 'ws', expectedRevision: null }),
-      () => storage.workspaces.removeBundle('ws', trashed.revision, trashed.generation),
     ];
     for (const write of writes) await expect(write()).rejects.toMatchObject({ code: 'not_found' });
     await expect(storage.workspaces.importBundle(bundle())).rejects.toMatchObject({ code: 'revision_conflict' });

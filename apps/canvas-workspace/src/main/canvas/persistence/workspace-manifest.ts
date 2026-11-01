@@ -1,4 +1,4 @@
-import { StorageError, type JsonObject } from '@pulse-coder/storage';
+import { StorageError, type JsonObject, type WorkspaceManifestCommit } from '@pulse-coder/storage';
 import {
   readLocalWorkspaceManifest,
   updateLocalWorkspaceManifest,
@@ -13,8 +13,8 @@ import { getCanvasJsonPath, MANIFEST_ID } from './paths';
 /**
  * The workspace manifest (`__workspaces__.json`): names, folders, order, and
  * the active id. After Canvas activation the database owns it; the legacy file
- * is imported once and then only mirrored for readers not yet on storage.
- * Legacy stores keep the file.
+ * is imported once and then neither read nor written again. Legacy stores keep
+ * the file.
  */
 
 const object = (value: unknown): value is Record<string, unknown> => (
@@ -49,8 +49,11 @@ async function trashedIds(storage: SqliteStorage): Promise<Set<string>> {
   return ids;
 }
 
-/** The one-time import leaves out trashed workspaces; every other field is kept as written. */
-function withoutTrashed(manifest: Record<string, unknown>, trashed: Set<string>): Record<string, unknown> {
+/**
+ * Drop the entries of `trashed` ids and move a trashed `activeId` to the first
+ * remaining entry. Every other field is kept as written.
+ */
+export function withoutTrashed(manifest: Record<string, unknown>, trashed: ReadonlySet<string>): Record<string, unknown> {
   const result: Record<string, unknown> = { ...manifest };
   for (const key of ['workspaces', 'entries']) {
     const list = manifest[key];
@@ -74,8 +77,6 @@ function storageOptions(root: string, storage: SqliteStorage): LocalWorkspaceMan
     storage,
     resolveNativeBinding: resolveStorageNativeBinding,
     loadLegacyManifest: async () => toJsonObject(withoutTrashed(await readManifestFile(root), await trashedIds(storage))),
-    mirrorPath: getCanvasJsonPath(MANIFEST_ID, root),
-    onMirrorError: error => console.warn('[canvas-storage] workspace manifest mirror write failed; the next save retries it', error),
   };
 }
 
@@ -87,13 +88,20 @@ export async function readWorkspaceManifestDocument(root: string): Promise<Recor
 }
 
 /**
+ * A workspace bundle transaction that also commits the prepared manifest, so
+ * the bundle change and its entry change are one commit. Requires SQLite.
+ */
+export type WorkspaceManifestBundleCommit = (storage: SqliteStorage, manifest: WorkspaceManifestCommit) => Promise<unknown>;
+
+/**
  * Replace the manifest under the storage lock. Active stores commit to the
- * database from the current revision and refresh the mirror; legacy stores
- * write the file with its rolling backup.
+ * database from the current revision, through `bundle` when it is given;
+ * legacy stores write the file with its rolling backup.
  */
 export async function updateWorkspaceManifestDocument(
   root: string,
   update: (current: Record<string, unknown>) => Record<string, unknown> | Promise<Record<string, unknown>>,
+  bundle?: WorkspaceManifestBundleCommit,
 ): Promise<Record<string, unknown>> {
   return withLegacyCanvasWrite(root, async () => {
     const storage = await getManifestStorage(root);
@@ -101,9 +109,11 @@ export async function updateWorkspaceManifestDocument(
       const snapshot = await updateLocalWorkspaceManifest(
         storageOptions(root, storage),
         async current => toJsonObject(await update(current)),
+        bundle && (input => bundle(storage, input)),
       );
       return snapshot.manifest;
     }
+    if (bundle) throw new StorageError('storage_unavailable', 'This workspace change requires SQLite storage');
     const next = await update(await readManifestFile(root));
     await atomicWriteJson(getCanvasJsonPath(MANIFEST_ID, root), JSON.stringify(next, null, 2), { rollingBackup: true });
     return next;

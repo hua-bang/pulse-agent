@@ -27,7 +27,8 @@ async function commit(workspaceId: string) {
   });
 }
 
-const readManifest = async () => JSON.parse(await readFile(join(root, '__workspaces__.json'), 'utf8'));
+// The database owns the manifest after activation; the first read imports the file written above.
+const readManifest = () => workspaceManifest.readWorkspaceManifestDocument(root);
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'import-recovery-'));

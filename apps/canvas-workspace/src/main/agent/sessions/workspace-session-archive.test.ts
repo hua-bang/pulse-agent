@@ -8,7 +8,7 @@ import { createWorkspaceExportArchive, createWorkspaceExportPayload, type Worksp
 import { importWorkspaceArchiveToStore } from '../../canvas/transfer/workspace-import';
 import { closeCanvasStorage } from '../../canvas/persistence/backend';
 import { setCanvasSessionArchivePort } from '../../canvas/persistence/session-archive-port';
-import { readWorkspaceExportSource, rewriteCanvasFilePaths, rewriteWorkspaceArchiveFiles, WorkspaceImportRecoveryError } from '../../canvas/persistence/sqlite-workspace';
+import { readWorkspaceExportSource, rewriteCanvasFilePaths, rewriteWorkspaceArchiveFiles } from '../../canvas/persistence/sqlite-workspace';
 import * as workspaceManifest from '../../canvas/persistence/workspace-manifest';
 import { createCanvasSessionArchivePort, initializeCanvasSessionArchivePort } from './workspace-session-archive';
 import { activateSqliteSessions } from './sqlite/migration';
@@ -195,7 +195,7 @@ describe('workspace conversation archive port', () => {
     expect(await readFile(join(storeDir, 'copy', 'agent-sessions', 'images', 'image.png'))).toEqual(Buffer.from([1, 2, 3, 4]));
   });
 
-  it('preserves later chat work when manifest failure attempts to compensate a Canvas import', async () => {
+  it('commits neither Canvas nor conversations when the manifest commit of an import conflicts', async () => {
     await seedLegacyAndUpgrade();
     const source = await readWorkspaceExportSource(storeDir, 'source', async () => null);
     const archive = join(root, 'restore.pulsecanvas.zip');
@@ -203,18 +203,19 @@ describe('workspace conversation archive port', () => {
       exportedAt: '2026-09-19T00:00:00Z', workspace: { id: 'source', name: 'Recovery' }, canvas: source.canvas, files: source.files,
     })));
     const storage = (await getSqliteSessionStorage(storeDir))!;
-    vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockImplementation(async () => {
-      await storage.conversations.commit({
-        scopeId: 'recovery', sessionId: 'current', expectedRevision: 1, expectedGeneration: storage.generation,
-        appendMessages: [{ id: 'later-message', role: 'user', content: 'New work after import', timestamp: 9 }],
-      });
-      throw new Error('manifest unavailable');
-    });
+    const original = workspaceManifest.updateWorkspaceManifestDocument;
+    vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockImplementation((target, update, bundle) => original(
+      target, update, bundle && (async (db, manifest) => {
+        const current = (await storage.workspaceManifest.read())!;
+        await storage.workspaceManifest.commit({ expectedRevision: current.revision, manifest: current.manifest });
+        return bundle(db, manifest);
+      }),
+    ));
     await expect(importWorkspaceArchiveToStore({ sourcePath: archive, storeDir, workspaceId: 'recovery', agentsTemplate: '# Agents' }))
-      .rejects.toBeInstanceOf(WorkspaceImportRecoveryError);
-    expect((await storage.canvas.read('recovery'))?.revision).toBe(1);
-    expect((await storage.conversations.read('recovery', 'current'))?.messages.at(-1)?.content).toBe('New work after import');
-    expect(JSON.parse(await readFile(join(storeDir, 'recovery', '.workspace-import.json'), 'utf8')))
-      .toMatchObject({ phase: 'database-committed', conversationState: { scope: { revision: 1 } } });
+      .rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(await storage.canvas.read('recovery')).toBeNull();
+    expect(await storage.conversationScopes.read('recovery')).toBeNull();
+    expect(await storage.conversations.read('recovery', 'current')).toBeNull();
+    await expect(readFile(join(storeDir, 'recovery', '.workspace-import.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

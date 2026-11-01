@@ -3,7 +3,7 @@ import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { getCanvasBackend, getLocalCanvasStorage, resolveStorageNativeBinding } from './backend';
 import { isSafeNodeId, MANIFEST_ID } from './paths';
 import { getCanvasSessionArchivePort } from './session-archive-port';
-import { readWorkspaceManifestDocument, updateWorkspaceManifestDocument } from './workspace-manifest';
+import { updateWorkspaceManifestDocument, withoutTrashed } from './workspace-manifest';
 import { filterWorkspaceManifest } from '../workspaces';
 
 type CanvasBackend = NonNullable<Awaited<ReturnType<typeof getCanvasBackend>>>;
@@ -28,23 +28,26 @@ export async function trashWorkspace(root: string, workspaceId: string): Promise
     if (await storage.workspaces.getTrashed(workspaceId)) return;
     const bundle = await storage.workspaces.readBundle(workspaceId);
     if (!bundle) throw new StorageError('not_found', 'Workspace was not found');
-    const manifest = await readWorkspaceManifestDocument(root);
-    const entries = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.entries;
-    const entry = Array.isArray(entries) ? entries.find(item => object(item) && item.id === workspaceId) : undefined;
-    await storage.workspaces.trashBundle({
+    let entry: unknown;
+    // The trash record and the entry removal commit in one transaction.
+    await updateWorkspaceManifestDocument(root, manifest => {
+      const entries = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.entries;
+      entry = Array.isArray(entries) ? entries.find(item => object(item) && item.id === workspaceId) : undefined;
+      return withoutTrashed(manifest, new Set([workspaceId]));
+    }, (db, manifest) => db.workspaces.trashBundle({
       workspaceId,
       expectedCanvasRevision: bundle.canvas.revision,
       generation: bundle.canvas.generation,
       expectedConversations: bundle.conversationState,
       metadata: (object(entry) ? entry : { id: workspaceId, name: workspaceId }) as JsonObject,
-    });
+      manifest,
+    }));
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding }));
 }
 
 /**
- * Undo for an app-side delete. Like the CLI restore, it publishes the saved
- * manifest entry first (reads hide it until SQL commits), then restores SQL
- * visibility, so a failed manifest write leaves the workspace in trash.
+ * Undo for an app-side delete. Like the CLI restore, the saved manifest entry
+ * and the restored bundle commit in one transaction; a failure changes neither.
  */
 export async function restoreTrashedWorkspace(root: string, workspaceId: string): Promise<JsonObject> {
   if (!isSafeNodeId(workspaceId) || workspaceId === MANIFEST_ID) {
@@ -64,8 +67,7 @@ export async function restoreTrashedWorkspace(root: string, workspaceId: string)
       const others = (Array.isArray(manifest.workspaces) ? manifest.workspaces : [])
         .filter(item => !(object(item) && item.id === workspaceId));
       return { ...manifest, workspaces: [...others, entry] };
-    });
-    await storage.workspaces.restoreBundle(workspaceId, record.revision, record.generation);
+    }, (db, manifest) => db.workspaces.restoreBundle(workspaceId, record.revision, record.generation, manifest));
     return entry;
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
 }

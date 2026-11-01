@@ -25,11 +25,20 @@ async function storage() {
   return opened;
 }
 
-/** Fail the manifest's database commit, the step that publishes a manifest change. */
-function failManifestCommits() {
+/**
+ * Land a manifest commit just before each bundle transaction, so the
+ * transaction's own manifest revision is stale and the whole change must roll back.
+ */
+function conflictBundleManifestCommits() {
   const original = sqliteStore.withSqliteCanvas;
   return vi.spyOn(sqliteStore, 'withSqliteCanvas').mockImplementation((storeDir, operation) => original(storeDir, async (db, canvas) => {
-    db.workspaceManifest.commit = async () => { throw new Error('Manifest publication failed'); };
+    const bump = async () => {
+      const current = (await db.workspaceManifest.read())!;
+      await db.workspaceManifest.commit({ expectedRevision: current.revision, manifest: current.manifest });
+    };
+    const { trashBundle, restoreBundle } = db.workspaces;
+    db.workspaces.trashBundle = async input => { await bump(); return trashBundle.call(db.workspaces, input); };
+    db.workspaces.restoreBundle = async (...args) => { await bump(); return restoreBundle.apply(db.workspaces, args); };
     return operation(db, canvas);
   }));
 }
@@ -105,12 +114,15 @@ describe('recoverable workspace deletion', () => {
     } finally { await db.close(); }
   });
 
-  it('keeps the workspace in trash if manifest publication fails and supports a retry', async () => {
+  it('keeps the workspace in trash and unlisted if the manifest commit conflicts, and supports a retry', async () => {
     expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: true });
-    const failure = failManifestCommits();
-    expect(await store.restoreWorkspace(workspaceId, root)).toMatchObject({ ok: false });
+    const failure = conflictBundleManifestCommits();
+    expect(await store.restoreWorkspace(workspaceId, root)).toMatchObject({ ok: false, code: 'revision_conflict' });
     expect(await store.loadCanvas(workspaceId, root)).toBeNull();
     expect(await store.listDeletedWorkspaces(root)).toHaveLength(1);
+    const db = await storage();
+    try { expect((await db.workspaceManifest.read())?.manifest.workspaces).toEqual([]); }
+    finally { await db.close(); }
     failure.mockRestore();
     expect(await store.restoreWorkspace(workspaceId, root)).toMatchObject({ ok: true });
     expect((await store.loadWorkspaceManifest(root)).workspaces[0].name).toBe('Original name');
@@ -139,17 +151,18 @@ describe('recoverable workspace deletion', () => {
     expect((await store.loadCanvas(other.id, root))?.revision).toBe(1);
   });
 
-  it('hides stale manifest entries after an interrupted deletion and finishes cleanup on retry', async () => {
-    // Load once so the manifest is imported before the failing commit.
+  it('trashes nothing and keeps the entry when the manifest commit conflicts, then succeeds on retry', async () => {
+    // Load once so the manifest is imported before the conflicting commit.
     await store.loadWorkspaceManifest(root);
-    const failure = failManifestCommits();
-    expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: false });
-    expect(await store.listWorkspaceIds(root)).toEqual([]);
-    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([]);
-    expect(await store.listDeletedWorkspaces(root)).toMatchObject([{ metadata: { name: 'Original name' } }]);
+    const failure = conflictBundleManifestCommits();
+    expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: false, code: 'revision_conflict' });
+    expect(await store.listWorkspaceIds(root)).toEqual([workspaceId]);
+    expect((await store.loadWorkspaceManifest(root)).workspaces.map(entry => entry.id)).toEqual([workspaceId]);
+    expect(await store.listDeletedWorkspaces(root)).toEqual([]);
     expect(await fs.readFile(join(root, workspaceId, 'note.md'), 'utf8')).toBe('Original Markdown');
     failure.mockRestore();
     expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: true });
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([]);
     expect(await store.restoreWorkspace(workspaceId, root)).toMatchObject({ ok: true });
   });
 
