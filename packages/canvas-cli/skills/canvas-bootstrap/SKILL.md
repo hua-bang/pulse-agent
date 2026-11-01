@@ -169,7 +169,7 @@ If research materially changes the approved plan, show the changed structure and
 Node type strategy:
 
 - Overview layer: use summary-style note nodes for the research question, key conclusions, reading path, and strongest takeaways.
-- Structure layer: use frames, shapes, and edges to show categories, comparisons, timelines, dependencies, tensions, and hierarchy.
+- Structure layer: use frames, shapes, and edges to show categories, comparisons, timelines, dependencies, tensions, and hierarchy. Put a taxonomy, breakdown, or list of options in one `mindmap` node (`data.root`) instead of several note cards; keep at most 3-4 note cards per frame.
 - Detail layer: use note or file nodes for deeper explanations, evidence, assumptions, and per-topic analysis.
 - Source layer: use source or web nodes when available; otherwise use source-summary note nodes. Keep source ids visible.
 - Open-question layer: use note nodes for unresolved questions, conflicts, weak evidence, and areas that need future human judgment.
