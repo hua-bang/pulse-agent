@@ -1,5 +1,18 @@
 import type { CanvasNode } from './canvas';
 
+/** Catalog keys for approval copy. `question` stays the English fallback. */
+export type ApprovalCopyKey =
+  | 'chat.nodeQ'
+  | 'chat.no'
+  | 'chat.to';
+
+/** Title, type, and http(s) host shown when a node body must not mount yet. */
+export interface ApprovalNodeSummary {
+  title: string;
+  type: string;
+  urlHost?: string;
+}
+
 export interface CanvasNodeDefaults {
   title: string;
   width: number;

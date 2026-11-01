@@ -396,6 +396,9 @@ move has passed typecheck and tests.
   every moved topic subtree, update both maps in one history snapshot, and
   degrade bound edges in that same snapshot when a whole source map is removed.
   Topic components own only drag intent; `useCanvasDocument` owns mutation and undo.
+  A failed workspace read sets `loadFailed` and does not raise the save-failed
+  toast. Reload runs load again and does not flush a save.
+  Guards: `useCanvasDocument.test.tsx` and `Canvas/CanvasLoadState.test.tsx`.
 
 `src/main/artifacts/ipc.ts` — pin refuses sentinel (`__*`) scopes, dedupes against a live mirror, list/get lazily clear a stale `pinnedNodeId`, delete removes the canvas mirror node; `artifact:list-all` (metadata-only summaries) skips `__*` dirs EXCEPT `__global_chat__` (session-store sentinel rule — a blanket skip silently hides global artifacts). Library drawer = renamed ReferenceDrawer: Pinned entries persist per workspace via the `references` IPC domain (`src/main/references/`, `src/shared/references.ts`, hydrate/save in `Workbench/useReferenceEntries.ts`); Artifacts source tab is `ReferenceDrawer/ArtifactsPicker.tsx` (cross-scope pin disabled by design). Tests: `src/main/artifacts/__tests__/pin-lifecycle.test.ts`
 

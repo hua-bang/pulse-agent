@@ -13,8 +13,10 @@ type BeforeQuitTask = () => Promise<void> | void;
 const tasks = new Set<BeforeQuitTask>();
 let installed = false;
 
-export const runBeforeQuitTasks = async (): Promise<void> => {
-  await Promise.allSettled([...tasks].map(task => Promise.resolve().then(task)));
+/** True only when every task finished. A rejection is an unsaved quit. */
+export const runBeforeQuitTasks = async (): Promise<boolean> => {
+  const results = await Promise.allSettled([...tasks].map(task => Promise.resolve().then(task)));
+  return results.every(result => result.status === 'fulfilled');
 };
 
 export const installBeforeQuitFlush = (): void => {
@@ -22,7 +24,9 @@ export const installBeforeQuitFlush = (): void => {
   if (installed || !store?.onFlushBeforeQuit) return;
   installed = true;
   store.onFlushBeforeQuit((requestId) => {
-    void runBeforeQuitTasks().finally(() => store.flushedBeforeQuit(requestId));
+    void runBeforeQuitTasks()
+      .then(ok => store.flushedBeforeQuit(requestId, ok))
+      .catch(() => store.flushedBeforeQuit(requestId, false));
   });
 };
 
@@ -33,7 +37,11 @@ export const registerBeforeQuit = (task: BeforeQuitTask): (() => void) => {
   return () => { tasks.delete(task); };
 };
 
-/** Save a workspace now; its document reports its own failures. */
+/**
+ * Save a workspace now. A failure rejects so the quit handshake can refuse
+ * to treat the quit as saved. Callers that only need a best-effort write
+ * catch it themselves.
+ */
 export const flushWorkspace = async (workspaceId: string | undefined): Promise<void> => {
-  if (workspaceId) await flushWorkspacePersistence(workspaceId).catch(() => undefined);
+  if (workspaceId) await flushWorkspacePersistence(workspaceId);
 };

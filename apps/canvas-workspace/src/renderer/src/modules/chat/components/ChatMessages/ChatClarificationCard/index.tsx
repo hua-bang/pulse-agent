@@ -2,10 +2,11 @@ import './index.css';
 import { lazy, Suspense, useId } from 'react';
 import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../../utils/nodeTypeI18n';
 import { BotAvatarIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
 import { ApprovalPreviewBoundary } from './ApprovalPreviewBoundary';
-import type { PendingClarification } from '../../../../../types';
+import type { CanvasNode, PendingClarification } from '../../../../../types';
 import { SESSION_APPROVAL_ANSWER } from '../../../../../../../shared/agent-chat';
 import { loadApprovalNodePreview } from '../../../../../shared/approvalNodePreview';
 
@@ -36,6 +37,16 @@ export const ChatClarificationCard = ({
   const defaultAction = pendingClarify.defaultAnswer?.trim().toLowerCase() === 'yes'
     ? t('chat.approve')
     : t('chat.reject');
+  const question = pendingClarify.questionKey
+    ? t(pendingClarify.questionKey, pendingClarify.questionParams)
+    : pendingClarify.question;
+  const summary = pendingClarify.nodeSummary;
+  const typeKey = summary
+    ? CANVAS_NODE_TYPE_LABEL_KEY[summary.type as CanvasNode['type']]
+    : undefined;
+  const sessionLabel = pendingClarify.sessionApprovalScope === 'node-creation'
+    ? t('chat.nodes')
+    : t('chat.approveForSession');
 
   return (
     <div
@@ -52,7 +63,12 @@ export const ChatClarificationCard = ({
           <div className="chat-clarify-label">
             {t(approval ? 'chat.approvalRequired' : 'chat.needsClarification')}
           </div>
-          <div className="chat-clarify-question">{pendingClarify.question}</div>
+          <div className="chat-clarify-question">{question}</div>
+          {summary && (
+            <div className="chat-clarify-context">
+              {`${summary.title} · ${typeKey ? t(typeKey) : summary.type}${summary.urlHost ? ` · ${summary.urlHost}` : ''}`}
+            </div>
+          )}
           {approval && pendingClarify.nodePreview && (
             <ApprovalPreviewBoundary
               key={`preview:${pendingClarify.id}`}
@@ -89,7 +105,7 @@ export const ChatClarificationCard = ({
                     disabled={answering || disabled}
                     onClick={() => void onAnswer(SESSION_APPROVAL_ANSWER)}
                   >
-                    {t('chat.approveForSession')}
+                    {sessionLabel}
                   </Button>
                 )}
                 <Button

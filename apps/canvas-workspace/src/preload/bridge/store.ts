@@ -47,7 +47,9 @@ export const createStoreApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["st
   onFlushBeforeQuit: (callback) =>
     subscribe<string>(ipcRenderer, "canvas:flush-before-quit", callback),
 
-  flushedBeforeQuit: (requestId) => ipcRenderer.send("canvas:flushed", requestId),
+  flushedBeforeQuit: (requestId, ok = true) => ipcRenderer.send("canvas:flushed", requestId, ok),
+
+  consumeUnsavedQuit: () => ipcRenderer.invoke("canvas:consume-unsaved-quit"),
 
   onMigrationProgress: (callback) =>
     subscribe<MigrationProgress>(ipcRenderer, "canvas:migration-progress", callback)

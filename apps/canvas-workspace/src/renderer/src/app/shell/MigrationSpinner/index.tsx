@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../../i18n';
+import { useUnsavedQuitNotice } from './useUnsavedQuitNotice';
 import type { I18nKey } from '../../../i18n/messages';
 import './index.css';
 
@@ -67,6 +68,7 @@ const PHASE_LABEL_KEYS: Record<MigrationPhase, I18nKey> = {
 export const MigrationSpinner = (): JSX.Element | null => {
   const { notify } = useAppShell();
   const { t } = useI18n();
+  useUnsavedQuitNotice();
 
   const [visible, setVisible] = useState<VisibleState | null>(null);
   // Buffer the latest event from the moment a migration starts; the timer

@@ -46,7 +46,10 @@ export class ClarificationRegistry {
         if (active || !this.entries.has(request.id)) return;
         active = true;
         if (request.timeout && Number.isFinite(request.timeout) && request.timeout > 0) {
-          timer = setTimeout(() => settle(fallback), request.timeout);
+          // A user rejection and an abort still resolve to `fallback`. Only
+          // the timer may use `timeoutAnswer`, so the two can be told apart.
+          const onTimeout = request.timeoutAnswer ?? fallback;
+          timer = setTimeout(() => settle(onTimeout), request.timeout);
         }
         try {
           notify(request);

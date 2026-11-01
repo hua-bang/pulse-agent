@@ -6,7 +6,8 @@ import type {
   CanvasTransform,
 } from '../../../types';
 import { count } from '../../../perf/counters';
-import { registerWorkspacePersistence } from '../../../shared/workspacePersistence';
+import { flushWorkspacePersistence, registerWorkspacePersistence } from '../../../shared/workspacePersistence';
+import { registerBeforeQuit } from './beforeQuit';
 import {
   mergeExternalDocumentUpdate,
   shouldReloadForExternalUpdate,
@@ -53,6 +54,7 @@ export const useCanvasDocument = (
    * over the real data on disk.
    */
   const loadedRef = useRef(false);
+  const loadFailedRef = useRef(false);
 
   /**
    * Ids that have been confirmed on disk in this session — either seeded
@@ -106,8 +108,15 @@ export const useCanvasDocument = (
   }, [doSave]);
 
   const [loaded, setLoaded] = useState(false);
+  /** A read failed. Distinct from a save failure: Retry must call load again. */
+  const [loadFailed, setLoadFailed] = useState(false);
   /** Bumped by `reloadCanvas` to re-run the load effect for the same canvas. */
   const [reloadToken, setReloadToken] = useState(0);
+
+  const markLoadFailed = useCallback((failed: boolean) => {
+    loadFailedRef.current = failed;
+    setLoadFailed(failed);
+  }, []);
 
   const {
     nodes, edges, nodesRef, edgesRef,
@@ -281,6 +290,7 @@ export const useCanvasDocument = (
     // New canvas selected — block saves until this load finishes.
     loadedRef.current = false;
     setLoaded(false);
+    markLoadFailed(false);
     transformRef.current = { x: 0, y: 0, scale: 1 };
     const api = window.canvasWorkspace?.store;
     if (!api) {
@@ -337,10 +347,16 @@ export const useCanvasDocument = (
       await persistence.requestSave();
       if (persistence.hasChanges) throw new Error('Save failed. Retry before deleting.');
     });
+    // Quit must flush this document even when no terminal node is mounted.
+    // A still-loading canvas has nothing to persist, so it does not fail quit.
+    const unregisterQuit = registerBeforeQuit(() => {
+      if (!loadedRef.current) return undefined;
+      return flushWorkspacePersistence(canvasId);
+    });
     void api.load(canvasId).then((result) => {
       if (!active) return;
       if (!result.ok) {
-        onSaveErrorRef.current?.();
+        markLoadFailed(true);
         return;
       }
       if (result.ok && result.data) {
@@ -369,10 +385,11 @@ export const useCanvasDocument = (
       setLoaded(true);
     }).catch((error) => {
       console.warn(`[canvas] load failed for ${canvasId}:`, error);
-      if (active) onSaveErrorRef.current?.();
+      if (active) markLoadFailed(true);
     });
     return () => {
       active = false;
+      unregisterQuit();
       unregisterPersistence();
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -381,16 +398,28 @@ export const useCanvasDocument = (
       loadedRef.current = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasId, resetState, reloadToken]);
+  }, [canvasId, markLoadFailed, resetState, reloadToken]);
+
+  /** Re-run the load after a read failure. Does not call save. */
+  const retryLoad = useCallback(() => {
+    setReloadToken((token) => token + 1);
+  }, []);
 
   /**
    * Re-read the current canvas from disk (the "refresh" shortcut). Pending
    * edits are saved first so the reload can never drop them; when that save
-   * fails the reload is skipped and `false` is returned.
+   * fails the reload is skipped and `false` is returned. A failed load has
+   * nothing to save, so refresh runs the load again.
    */
   const reloadCanvas = useCallback(async (): Promise<boolean> => {
+    if (!loadedRef.current || !persistenceRef.current) {
+      if (loadFailedRef.current) {
+        retryLoad();
+        return true;
+      }
+      return false;
+    }
     const persistence = persistenceRef.current;
-    if (!loadedRef.current || !persistence) return false;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = null;
     persistence.setDraft(captureDraft());
@@ -398,7 +427,7 @@ export const useCanvasDocument = (
     if (persistence.hasChanges) return false;
     setReloadToken((token) => token + 1);
     return true;
-  }, [captureDraft]);
+  }, [captureDraft, retryLoad]);
 
   const contentCommands = useCanvasContentCommands({ canvasId, nodesRef, applyNodes });
   const coreCommands = useCanvasCoreCommands({
@@ -415,12 +444,14 @@ export const useCanvasDocument = (
     nodes,
     edges,
     loaded,
+    loadFailed,
     externallyEditedIds,
     mergeMindmapTopic,
     splitMindmapTopic,
     setTransformForSave,
     flushSave,
     reloadCanvas,
+    retryLoad,
     commitHistory,
     undo,
     redo,

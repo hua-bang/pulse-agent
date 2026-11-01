@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { act, lazy } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatClarificationCard } from './index';
 import { I18nProvider } from '../../../../../i18n';
+import { loadMessages } from '../../../../../i18n/messages';
+import type { PendingClarification } from '../../../../../types';
 import type { CanvasNode } from '../../../../../types';
 import { SESSION_APPROVAL_ANSWER } from '../../../../../../../shared/agent-chat';
 import { setApprovalNodePreviewLoader } from '../../../../../shared/approvalNodePreview';
@@ -22,13 +24,20 @@ setApprovalNodePreviewLoader(async () => ({ default: MockApprovalNodePreview }))
 let host: HTMLDivElement;
 let root: Root;
 const onAnswer = vi.fn().mockResolvedValue(undefined);
-const render = async (title: string, id = 'approval-1', disabled = false, allowSessionApproval = false) => {
+const render = async (
+  title: string,
+  id = 'approval-1',
+  disabled = false,
+  allowSessionApproval = false,
+  extra: Partial<PendingClarification> = {},
+) => {
   await act(async () => root.render(
     <I18nProvider>
       <ChatClarificationCard
         pendingClarify={{
           id, kind: 'approval', question: 'Create this image?', context: 'Tool arguments', defaultAnswer: 'No', allowSessionApproval,
           nodePreview: { id, type: 'image', title, x: 0, y: 0, width: 100, height: 100, data: { filePath: '/tmp/image.png' } },
+          ...extra,
         }}
         clarifyInput=""
         answering={false}
@@ -41,6 +50,8 @@ const render = async (title: string, id = 'approval-1', disabled = false, allowS
   ));
 };
 
+beforeAll(() => loadMessages('zh'));
+
 beforeEach(() => {
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -52,6 +63,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  window.localStorage.removeItem('pulse-canvas.language');
   vi.restoreAllMocks();
 });
 
@@ -67,6 +79,22 @@ describe('approval preview containment', () => {
     await act(async () => buttons[0].click());
     await act(async () => buttons[1].click());
     expect(onAnswer.mock.calls).toEqual([['Yes'], ['No']]);
+  });
+
+  it('shows the node, a translated question, and what session approval covers', async () => {
+    window.localStorage.setItem('pulse-canvas.language', 'zh');
+    await render('Chart', 'approval-zh', false, true, {
+      question: 'Confirm creating a new node on the canvas via “canvas_create_node”?',
+      questionKey: 'chat.nodeQ',
+      questionParams: { name: 'canvas_create_node' },
+      sessionApprovalScope: 'node-creation',
+      nodeSummary: { title: 'Chart', type: 'image', urlHost: 'cdn.example.com' },
+    });
+    expect(host.textContent).toContain('新建「canvas_create_node」？');
+    expect(host.textContent).toContain('Chart · 图片');
+    expect(host.textContent).toContain('cdn.example.com');
+    expect(host.textContent).toContain('本会话此后新建节点');
+    expect(host.textContent).not.toContain('Confirm creating');
   });
 
   it('offers a session approval when the host allows it', async () => {

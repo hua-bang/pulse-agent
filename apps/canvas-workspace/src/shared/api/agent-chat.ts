@@ -4,6 +4,8 @@ import type {
   AgentChatMcpApp,
   AgentChatToolCall,
   AgentClarificationRequest,
+  ApprovalCopyKey,
+  ApprovalNodeSummary,
   AgentContextDomSelectionRef,
   AgentContextTabRef,
   AgentRequestContext,
@@ -59,11 +61,15 @@ export type ToolCallStatus = AgentChatToolCall;
 export interface PendingClarification {
   id: string;
   question: string;
+  questionKey?: ApprovalCopyKey;
+  questionParams?: Record<string, string>;
   context?: string;
   kind?: 'clarification' | 'approval';
   nodePreview?: CanvasNode;
+  nodeSummary?: ApprovalNodeSummary;
   defaultAnswer?: string;
   allowSessionApproval?: boolean;
+  sessionApprovalScope?: 'node-creation';
 }
 
 export interface MentionItem {

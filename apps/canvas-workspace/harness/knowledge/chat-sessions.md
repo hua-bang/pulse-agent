@@ -963,15 +963,29 @@ Guards: `useConversationRecovery.test.tsx` and `conversation-runtime.test.ts`.
 Node-creation approvals carry an optional `nodePreview` through the shared
 clarification request and renderer snapshot. The preview is separate from the
 truncated parameter excerpt and reuses passive, read-only node bodies; terminal,
-agent, webview and plugin runtimes must not mount before approval. Parameter
-details start collapsed and scroll independently of the approval actions.
+agent, webview and plugin runtimes must not mount before approval. Web images
+and other nodes that have no passive body still carry `nodeSummary` (title,
+type, and the http(s) host of `data.url`). The card shows that summary, with the
+host beside the title and type. The node-creation question, the not-approved
+sentence, and the timeout sentence use catalog keys (`chat.nodeQ`, `chat.no`,
+`chat.to`). Other ask approvals keep the English `question` string. That string
+stays on the request as a fallback. A timer resolves `timeoutAnswer`
+and the tool result says the call timed out and was rejected. A user rejection
+and an abort still use the default answer and say the call was not approved.
+The session button for node creation says it covers later new-node creations
+in this chat. That grant is one key for every new-node tool, including CLI
+node creation. It does not cover other tools, and it does not cross chats.
+Parameter details start collapsed and scroll independently of the approval
+actions.
 Image paths are checked at node-data construction and again in the image body;
 non-string paths use the empty-image state. Preview IPC failures fall back to
 the validated original path. The approval card contains render and lazy-load
 failures inside a preview-only error boundary, so its details and decision
 buttons remain available. A new request resets that boundary.
 Guards: `approval-node-preview.test.ts` (`src/main/agent/`),
-`ImageNodeBody/index.test.tsx`, and `ChatClarificationCard/index.test.tsx`.
+`agent-tool-policy.test.ts`, `ImageNodeBody/index.test.tsx`,
+`ChatClarificationCard/index.test.tsx`, and
+`ChatToolCalls/__tests__/ChatToolCallDetails.test.tsx`.
 
 The renderer has one visible approval card, so main must serialize
 concurrent clarification requests and start each timeout only when that

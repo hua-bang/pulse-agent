@@ -191,14 +191,17 @@ writes failed with `revision_conflict`.
   - Quitting: `before-quit` closes storage before windows close, so main
     first asks each window to save (`canvas:flush-before-quit` /
     `canvas:flushed`, `main/canvas/flush-before-quit.ts`, loaded on quit,
-    1.5s timeout). The renderer side (`canvas/document/beforeQuit.ts`) runs
+    15s timeout). The renderer side (`canvas/document/beforeQuit.ts`) runs
     the tasks mounted terminal nodes registered, each writing its output and
-    flushing its workspace, then answers. The renderer entry installs the
-    listener at startup, so a window with no tasks answers at once; before,
-    it never listened and every such quit waited the full 1.5s. Workspaces
-    without a terminal are
-    not flushed, so a quit still loses their edits inside the 800ms save
-    debounce, as before.
+    flushing its workspace, and the mounted canvas document flushes its own
+    pending edit even when no terminal is open. The renderer entry installs
+    the listener at startup, so a window with no tasks answers at once.
+    A failed flush or a timeout is not a successful save: main writes
+    `unsaved-quit.json` in userData (`main/canvas/unsaved-quit.ts`,
+    `canvas:consume-unsaved-quit`) and the next launch shows a sticky notice,
+    then deletes the marker. Quit still continues, because `before-quit` has
+    already begun teardown. The quit handshake stays a lazy import so it is
+    not pulled into the startup bundle.
   - The IPC for main's output store (`terminal/scrollback-ipc.ts`) and the
     quit handshake load lazily, and nothing is added to the entry chunk:
     the entry-chunk and main-bundle gates had under 1 KB of headroom when
@@ -212,7 +215,9 @@ without saved output), `main/terminal/session-output.test.ts`,
 `AgentDetail/useLiveAgentOutput.test.tsx`, `TerminalNodeBody/index.test.tsx`
 (per-tick publish, once-a-minute save, exit and unload saves),
 `session/ownerTerminal.test.ts` (read-only previews prefer live output),
-`canvas/document/beforeQuit.test.ts`, and `main/canvas/flush-before-quit.test.ts`.
+`canvas/document/beforeQuit.test.ts`, `main/canvas/flush-before-quit.test.ts`,
+`useCanvasDocument.test.tsx` (quit flush), and
+`MigrationSpinner/useUnsavedQuitNotice.test.tsx`.
 
 ## Not automatic
 

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { SESSION_APPROVAL_ANSWER } from '../../../shared/agent-chat';
 import {
+  APPROVAL_TIMEOUT_ANSWER,
   classifyCanvasToolOperation,
   clearSessionApprovalGrants,
   createCanvasAgentToolPolicy,
@@ -130,6 +131,9 @@ describe('Canvas Agent tool policy', () => {
       id: `tool-approval:tool-${name}`,
       kind: 'approval',
       question: expect.stringContaining('creating a new node'),
+      questionKey: 'chat.nodeQ',
+      sessionApprovalScope: 'node-creation',
+      timeoutAnswer: 'Approval timed out',
       defaultAnswer: 'No',
     }));
     expect(result).toMatchObject({
@@ -137,8 +141,48 @@ describe('Canvas Agent tool policy', () => {
         ok: false,
         cancelled: true,
         error: expect.stringContaining('did not run'),
+        errorKey: 'chat.no',
       },
     });
+  });
+
+  it('describes a web image or iframe and treats a timeout as a rejection', async () => {
+    const onClarificationRequest = vi.fn(async (request: { timeoutAnswer?: string }) => request.timeoutAnswer ?? 'No');
+    const timedOut = await requestAskModeApproval({
+      name: 'canvas_create_node',
+      input: { type: 'image', title: 'Chart', data: { url: 'https://cdn.example.com/chart.png' } },
+      context: {
+        runContext: { executionMode: 'auto', sessionId: 'session-preview' },
+        toolCallId: 'tool-image',
+        onClarificationRequest,
+      },
+    });
+    expect(onClarificationRequest).toHaveBeenCalledWith(expect.objectContaining({
+      questionKey: 'chat.nodeQ',
+      questionParams: { name: 'canvas_create_node' },
+      sessionApprovalScope: 'node-creation',
+      nodeSummary: { title: 'Chart', type: 'image', urlHost: 'cdn.example.com' },
+      nodePreview: undefined,
+      timeoutAnswer: APPROVAL_TIMEOUT_ANSWER,
+    }));
+    expect(timedOut).toMatchObject({
+      approved: false,
+      error: 'canvas_create_node timed out and was rejected.',
+      errorKey: 'chat.to',
+    });
+
+    const rejected = await requestAskModeApproval({
+      name: 'canvas_create_node',
+      input: { type: 'iframe', title: 'Docs', data: { url: 'https://docs.example.com/guide' } },
+      context: {
+        runContext: { executionMode: 'auto' },
+        toolCallId: 'tool-iframe',
+        onClarificationRequest: async () => 'No',
+      },
+    });
+    expect(rejected.error).toBe('canvas_create_node was not approved and did not run.');
+    expect(rejected.errorKey).toBe('chat.no');
+    expect(rejected.error).not.toContain('timed out');
   });
 
   it('allows a confirmed Auto-mode node creation and carries the receipt forward', async () => {
@@ -163,7 +207,7 @@ describe('Canvas Agent tool policy', () => {
     });
   });
 
-  it('remembers a session approval for the same tool in the same chat session only', async () => {
+  it('remembers a node-creation session approval for later new nodes in that chat only', async () => {
     clearSessionApprovalGrants();
     const onClarificationRequest = vi.fn(async () => SESSION_APPROVAL_ANSWER);
     const approve = (sessionId: string, toolCallId: string, name = 'canvas_create_agent_node') =>
@@ -179,7 +223,7 @@ describe('Canvas Agent tool policy', () => {
 
     await expect(approve('session-a', 'call-1')).resolves.toMatchObject({ approved: true });
     expect(onClarificationRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ allowSessionApproval: true }),
+      expect.objectContaining({ allowSessionApproval: true, sessionApprovalScope: 'node-creation' }),
     );
     await expect(approve('session-a', 'call-2')).resolves.toMatchObject({
       approved: true,
@@ -187,14 +231,28 @@ describe('Canvas Agent tool policy', () => {
     });
     expect(onClarificationRequest).toHaveBeenCalledTimes(1);
 
-    // Another tool or another session still asks.
-    await approve('session-a', 'call-3', 'canvas_create_node');
+    // Later new-node tools in this chat are covered. Another session still asks.
+    await expect(approve('session-a', 'call-3', 'canvas_create_node')).resolves.toMatchObject({ approved: true });
+    expect(onClarificationRequest).toHaveBeenCalledTimes(1);
     await approve('session-b', 'call-4');
-    expect(onClarificationRequest).toHaveBeenCalledTimes(3);
+    expect(onClarificationRequest).toHaveBeenCalledTimes(2);
+
+    const shell = vi.fn(async () => 'No');
+    const shellDecision = await requestAskModeApproval({
+      name: 'bash',
+      input: { command: 'ls' },
+      context: {
+        runContext: { executionMode: 'ask', sessionId: 'session-a' },
+        toolCallId: 'bash-after-node-grant',
+        onClarificationRequest: shell,
+      },
+    });
+    expect(shell).toHaveBeenCalledTimes(1);
+    expect(shellDecision.approved).toBe(false);
 
     clearSessionApprovalGrants('session-a');
     await approve('session-a', 'call-5');
-    expect(onClarificationRequest).toHaveBeenCalledTimes(4);
+    expect(onClarificationRequest).toHaveBeenCalledTimes(3);
     clearSessionApprovalGrants();
   });
 

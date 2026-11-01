@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useI18n } from '../../../../../i18n';
+import { useI18n, type I18nKey } from '../../../../../i18n';
 import type { ToolCallStatus } from '../../../../../types';
 import { parseCodemodeResult } from './codemodeResult';
 import { CodemodeToolSections } from './CodemodeToolSections';
@@ -21,6 +21,21 @@ interface Props {
 }
 
 const SESSION_TOOL_NAMES = new Set(['session_search', 'session_summary']);
+
+/** Prefer the catalog sentence when the tool result names an approval error. */
+const approvalErrorText = (
+  tool: ToolCallStatus,
+  t: (key: I18nKey, params?: Record<string, string>) => string,
+): string | undefined => {
+  if (!tool.error || !tool.result) return tool.error;
+  try {
+    const key = (JSON.parse(tool.result) as { errorKey?: unknown }).errorKey;
+    if (key === 'chat.no' || key === 'chat.to') return t(key, { name: tool.name });
+  } catch {
+    // The result is not JSON. Show the stored sentence.
+  }
+  return tool.error;
+};
 
 const formatArgs = (args: unknown): string => {
   if (args === undefined || args === null) return '';
@@ -91,6 +106,7 @@ const parseSessionRefs = (tool: ToolCallStatus): SessionRef[] | null => {
 
 export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
   const { t } = useI18n();
+  const errorText = approvalErrorText(tool, t);
   const sessionRefs = parseSessionRefs(tool);
   const codemode = parseCodemodeResult(tool);
   const hasDetails = Boolean(tool.result || tool.error || tool.args !== undefined);
@@ -176,7 +192,7 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
               {!codemode && tool.error && tool.error !== tool.result && (
                 <div className="chat-tool-call-section chat-tool-call-section--error">
                   <div className="chat-tool-call-section-label">{t('chat.toolCalls.error')}</div>
-                  <pre>{tool.error}</pre>
+                  <pre>{errorText}</pre>
                 </div>
               )}
             </div>

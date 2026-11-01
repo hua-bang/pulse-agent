@@ -7,6 +7,32 @@ afterEach(() => {
 });
 
 describe('ClarificationRegistry', () => {
+  it('uses a timeout answer only for the timer, not for abort', async () => {
+    vi.useFakeTimers();
+    const registry = new ClarificationRegistry();
+    const timedOut = registry.wait({
+      id: 'approval-timeout',
+      question: 'Allow write?',
+      defaultAnswer: 'No',
+      timeoutAnswer: 'Approval timed out',
+      timeout: 300_000,
+    }, () => undefined);
+    const controller = new AbortController();
+    const aborted = registry.wait({
+      id: 'approval-abort-distinct',
+      question: 'Allow write?',
+      defaultAnswer: 'No',
+      timeoutAnswer: 'Approval timed out',
+      timeout: 300_000,
+    }, () => undefined, controller.signal);
+
+    controller.abort();
+    await expect(aborted).resolves.toBe('No');
+
+    await vi.advanceTimersByTimeAsync(300_000);
+    await expect(timedOut).resolves.toBe('Approval timed out');
+  });
+
   it('uses the default answer on timeout and removes the pending resolver', async () => {
     vi.useFakeTimers();
     const registry = new ClarificationRegistry();
