@@ -1,4 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+/** Quiet time after shell output before the folder is read again. */
+const OUTPUT_SETTLE_MS = 400;
 
 interface TerminalCwdOptions {
   sessionId: string;
@@ -12,6 +15,9 @@ interface TerminalCwdOptions {
  * Owns the folder shown in the terminal header. `spawnCwd` picks where a new
  * shell starts; `refreshCwd` asks the pty for the shell's folder and reports a
  * change, so the dock can restore the tab in the same folder after a restart.
+ * A read right after Enter can run before the command changes folder (for
+ * example `sleep 1; cd /tmp`), so `noteOutput` reads again once output settles,
+ * which is when the shell prints its next prompt.
  */
 export function useTerminalCwd({ sessionId, rootFolder, initialCwd, onCwdChange }: TerminalCwdOptions) {
   const [cwd, setCwd] = useState(initialCwd || rootFolder || '');
@@ -38,5 +44,18 @@ export function useTerminalCwd({ sessionId, rootFolder, initialCwd, onCwdChange 
     });
   }, [sessionId]);
 
-  return { cwd, spawnCwd, refreshCwd };
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteOutput = useCallback(() => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      refreshCwd();
+    }, OUTPUT_SETTLE_MS);
+  }, [refreshCwd]);
+
+  useEffect(() => () => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+  }, []);
+
+  return { cwd, spawnCwd, refreshCwd, noteOutput };
 }

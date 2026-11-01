@@ -129,7 +129,7 @@ export const WorkspaceTerminalDock = ({
       : `workspace-terminal:${workspaceId}:${terminalId}`,
     [terminalId, workspaceId],
   );
-  const { cwd, spawnCwd: resolveSpawnCwd, refreshCwd } = useTerminalCwd({
+  const { cwd, spawnCwd: resolveSpawnCwd, refreshCwd, noteOutput } = useTerminalCwd({
     sessionId, rootFolder, initialCwd, onCwdChange,
   });
 
@@ -309,6 +309,7 @@ export const WorkspaceTerminalDock = ({
       if (!bootDismissTimerRef.current) dismissBooting();
       term.write(data);
       captureTerminalOutput(data);
+      noteOutput();
     });
     const removeExit = api.onExit(sessionId, (code) => {
       dismissBooting(true);
@@ -333,7 +334,7 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, focusOpenedTerminal, refreshCwd, resolveSpawnCwd, scheduleFit, sessionId, workspaceId]);
+  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, focusOpenedTerminal, noteOutput, refreshCwd, resolveSpawnCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
