@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { I18nProvider } from '../../../../../../i18n';
 import { ChatToolCallDetails } from '../ChatToolCallDetails';
+import { loadMessages } from '../../../../../../i18n/messages';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -25,6 +26,9 @@ const renderDetails = (node: ReactNode) => {
   root = createRoot(host);
   act(() => root?.render(<I18nProvider>{node}</I18nProvider>));
 };
+
+// The Chinese catalog loads on demand; tests render it synchronously.
+beforeAll(() => loadMessages('zh'));
 
 describe('ChatToolCallDetails', () => {
   it('localizes technical section labels instead of embedding English fallbacks', () => {

@@ -5,7 +5,6 @@ import './index.css';
 interface Props {
   bodyRef: RefObject<HTMLDivElement>;
   html: string;
-  streaming?: boolean;
   onClick?: MouseEventHandler<HTMLDivElement>;
   imagePreview?: boolean;
   /** Replaces the chat typography classes for hosts with their own document styles. */
@@ -15,7 +14,6 @@ interface Props {
 export const MarkdownContent = ({
   bodyRef,
   html,
-  streaming = false,
   onClick,
   imagePreview = false,
   className,
@@ -56,7 +54,7 @@ export const MarkdownContent = ({
       <div
         ref={bodyRef}
         className={className
-          ?? `chat-message-content chat-md${streaming ? ' chat-md--streaming' : ''}${imagePreview ? ' chat-md--image-preview' : ''}`}
+          ?? `chat-message-content chat-md${imagePreview ? ' chat-md--image-preview' : ''}`}
         dangerouslySetInnerHTML={{ __html: html }}
         onClick={onClick}
       />

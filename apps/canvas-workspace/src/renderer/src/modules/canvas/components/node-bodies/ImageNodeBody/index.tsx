@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import './index.css';
 import type { CanvasNode, ImageNodeData } from '../../../../../types';
 import { toFileUrl } from '../../../../../utils/fileUrl';
+import { getImagePreview } from '../../../../../utils/imagePreview';
 import { selectImageSource } from './imageSource';
 
 interface Props {
@@ -32,7 +33,7 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
     setPreviewResolved(false);
     if (!filePath) return undefined;
     let cancelled = false;
-    void Promise.resolve().then(() => window.canvasWorkspace.file.getImagePreview(filePath)).then((result) => {
+    void Promise.resolve().then(() => getImagePreview(filePath)).then((result) => {
       if (cancelled) return;
       const path = result.ok && result.preview ? result.preview.path : null;
       setPreviewPath(typeof path === 'string' && path ? path : filePath);

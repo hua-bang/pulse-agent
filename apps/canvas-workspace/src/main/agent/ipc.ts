@@ -48,7 +48,6 @@
 
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
-import type { CanvasAgentService } from './service';
 import { getCanvasAgentService, teardownCanvasAgentServices } from './agent-service-lifecycle';
 import { streamWorkspaceDoc } from './workspace/workspace-doc-generator';
 import { generateScheduledPrompt } from './scheduled/scheduled-prompt-generator';
@@ -64,17 +63,13 @@ import type { AgentObservabilityMarkInput } from '../../shared/agent-observabili
 import { publishAgentTraceEvent } from '../../plugins/main';
 import { isAgentObservabilityMark } from './observability/renderer-mark';
 import { resolveAgentScope, setupMcpAppIpc } from './mcp-apps/mcp-app-ipc';
+import { setupCanvasAgentSessionIpc } from './sessions/ipc/session-ipc';
 export { getCanvasAgentService } from './agent-service-lifecycle';
 const activeChats = new ActiveChatRegistry();
 const preparedChats = new PreparedChatRegistry();
 
-function getService(): CanvasAgentService {
-  return getCanvasAgentService();
-}
-
 export function setupCanvasAgentIpc(): void {
-  const svc = getService();
-  setupMcpAppIpc(svc);
+  setupMcpAppIpc(getCanvasAgentService);
 
   ipcMain.handle(
     'canvas-agent:polish-scheduled-prompt',
@@ -99,10 +94,10 @@ export function setupCanvasAgentIpc(): void {
     preparedChats,
   });
 
-  const start = (event: IpcMainInvokeEvent, sessionId: string) => startChatTurn({
+  const start = async (event: IpcMainInvokeEvent, sessionId: string) => startChatTurn({
     sender: event.sender,
     sessionId,
-    service: svc,
+    service: await getCanvasAgentService(),
     activeChats,
     preparedChats,
   });
@@ -141,13 +136,14 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:abort',
-    (_event, payload: { sessionId?: string; workspaceId?: string }) => {
+    async (_event, payload: { sessionId?: string; workspaceId?: string }) => {
       if (payload.sessionId && activeChats.abort(payload.sessionId)) {
         return { ok: true };
       }
       const workspaceId = payload.workspaceId;
       if (!workspaceId) return { ok: false, error: 'No active run for sessionId' };
       // Legacy fallback: abort the most recent run for the workspace.
+      const svc = await getCanvasAgentService();
       svc.abort(workspaceId);
       return { ok: true };
     },
@@ -164,7 +160,7 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:scope-run-status',
-    (_event, payload: AgentScopeRef & { sessionId?: string }) => {
+    async (_event, payload: AgentScopeRef & { sessionId?: string }) => {
       const scope = resolveAgentScope(payload);
       // Per-session busy: the renderer asks about the conversation it is
       // currently showing. A different conversation streaming in the same
@@ -180,7 +176,7 @@ export function setupCanvasAgentIpc(): void {
           ? conversationSessionId
           : undefined,
         pendingClarification: runSessionId
-          ? svc.getPendingClarificationForScope(scope, conversationSessionId ?? undefined) ?? undefined
+          ? (await getCanvasAgentService()).getPendingClarificationForScope(scope, conversationSessionId ?? undefined) ?? undefined
           : undefined,
       };
     },
@@ -199,10 +195,11 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:stop-relay',
-    (_event, payload: { sessionId: string }) => {
+    async (_event, payload: { sessionId: string }) => {
       const scope = payload.sessionId ? activeChats.scopeOf(payload.sessionId) : undefined;
       if (!scope) return { ok: false, error: 'No active run for sessionId' };
       const conversationSessionId = activeChats.conversationSessionIdOf(payload.sessionId);
+      const svc = await getCanvasAgentService();
       const stopped = svc.stopRelayForScope(scope, conversationSessionId);
       return { ok: stopped, error: stopped ? undefined : 'No relay in flight' };
     },
@@ -210,12 +207,13 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:clarify-answer',
-    (
+    async (
       _event,
       payload: { sessionId: string; requestId: string; answer: string },
     ) => {
       const scope = activeChats.scopeOf(payload.sessionId);
       if (!scope) return { ok: false, error: 'No active run for sessionId' };
+      const svc = await getCanvasAgentService();
       const matched = svc.answerClarificationForScope(scope, payload.requestId, payload.answer);
       return { ok: matched, error: matched ? undefined : 'No pending clarification matched' };
     },
@@ -236,7 +234,8 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:status',
-    (_event, payload: AgentScopeRef) => {
+    async (_event, payload: AgentScopeRef) => {
+      const svc = await getCanvasAgentService();
       return svc.getStatusForScope(resolveAgentScope(payload));
     },
   );
@@ -245,6 +244,7 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:list-skills',
     async (_event, payload: AgentScopeRef) => {
       try {
+        const svc = await getCanvasAgentService();
         const skills = await svc.listSkillsForScope(resolveAgentScope(payload));
         return { ok: true, skills };
       } catch (err) {
@@ -253,158 +253,13 @@ export function setupCanvasAgentIpc(): void {
     },
   );
 
-  ipcMain.handle(
-    'canvas-agent:history',
-    async (_event, payload: AgentScopeRef) => {
-      try {
-        const scope = resolveAgentScope(payload);
-        const snapshot = await svc.getHistorySnapshotForScope(scope);
-        return { ok: true, ...snapshot };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:sessions',
-    async (_event, payload: AgentScopeRef) => {
-      try {
-        const sessions = await svc.listSessionsForScope(resolveAgentScope(payload));
-        return { ok: true, sessions };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:new-session',
-    async (_event, payload: AgentScopeRef) => {
-      try {
-        const scope = resolveAgentScope(payload);
-        return await svc.newSessionForScope(scope);
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:branch-session',
-    async (_event, payload: AgentScopeRef & { fromIndex: number; sourceSessionId?: string }) => {
-      const scope = resolveAgentScope(payload);
-      return svc.branchSessionForScope(scope, payload.fromIndex, payload.sourceSessionId);
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:rename-session',
-    async (_event, payload: AgentScopeRef & { sessionId: string; title: string }) => {
-      const scope = resolveAgentScope(payload);
-      return svc.renameSessionForScope(scope, payload.sessionId, payload.title);
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:set-session-pinned',
-    async (_event, payload: AgentScopeRef & { sessionId: string; pinned: boolean }) => {
-      const scope = resolveAgentScope(payload);
-      return svc.setSessionPinnedForScope(scope, payload.sessionId, payload.pinned);
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:delete-session',
-    async (_event, payload: AgentScopeRef & { sessionId: string }) => {
-      try {
-        const scope = resolveAgentScope(payload);
-        return await svc.deleteSessionForScope(scope, payload.sessionId);
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:rewind-messages',
-    async (_event, payload: AgentScopeRef & { fromIndex: number }) => {
-      try {
-        const scope = resolveAgentScope(payload);
-        return await svc.rewindMessagesForScope(scope, payload.fromIndex);
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:load-session',
-    async (_event, payload: AgentScopeRef & { sessionId: string }) => {
-      try {
-        const scope = resolveAgentScope(payload);
-        return await svc.loadSessionForDisplayScope(scope, payload.sessionId);
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:all-sessions',
-    async (_event, payload: { workspaceNames: Record<string, string> }) => {
-      try {
-        const groups = await svc.listAllSessions(payload.workspaceNames);
-        return { ok: true, groups };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:current-session',
-    async (_event, payload: AgentScopeRef) => {
-      try {
-        const sessionId = await svc.resolveCurrentSessionId(resolveAgentScope(payload));
-        return { ok: true, sessionId };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:search-sessions',
-    async (_event, payload: { query: string; limit?: number }) => {
-      try {
-        const hits = await svc.searchSessions(payload.query ?? '', payload.limit);
-        return { ok: true, hits };
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'canvas-agent:load-cross-workspace-session',
-    async (_event, payload: { targetWorkspaceId: string; sourceWorkspaceId: string; sessionId: string }) => {
-      try {
-        return await svc.loadCrossWorkspaceSession(
-          payload.targetWorkspaceId,
-          payload.sourceWorkspaceId,
-          payload.sessionId,
-        );
-      } catch (err) {
-        return { ok: false, error: String(err) };
-      }
-    },
-  );
+  setupCanvasAgentSessionIpc();
 
   ipcMain.handle(
     'canvas-agent:activate',
     async (_event, payload: { workspaceId: string }) => {
       try {
+        const svc = await getCanvasAgentService();
         await svc.activate(payload.workspaceId);
         return { ok: true };
       } catch (err) {
@@ -416,7 +271,9 @@ export function setupCanvasAgentIpc(): void {
   ipcMain.on('canvas-agent:warm-scope', (_event, payload: AgentScopeRef) => {
     try {
       const scope = resolveAgentScope(payload);
-      void svc.activateScope(scope).catch(error => console.warn('[canvas-agent] Background scope warmup failed:', error));
+      void getCanvasAgentService()
+        .then(svc => svc.activateScope(scope))
+        .catch(error => console.warn('[canvas-agent] Background scope warmup failed:', error));
     } catch (error) {
       console.warn('[canvas-agent] Ignored invalid background warmup request:', error);
     }
@@ -434,6 +291,7 @@ export function setupCanvasAgentIpc(): void {
             error: 'Another reply is already running for this chat scope.',
           };
         }
+        const svc = await getCanvasAgentService();
         await svc.deactivate(payload.workspaceId);
         return { ok: true };
       } catch (err) {

@@ -47,6 +47,8 @@ const ENTRY_MODULE_WATCHLIST = [
   { lib: 'force-graph (d3-force)', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?(?:react-force-graph|force-graph|d3-force)(?:@|\/)/ },
   { lib: 'module-federation runtime', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@module-federation\// },
   { lib: 'mermaid (must stay lazy)', matches: /\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?mermaid\// },
+  // Non-English UI copy loads on demand; English is the entry's fallback.
+  { lib: 'zh UI catalog', matches: /\/src\/renderer\/src\/i18n\/messages-zh\.ts$/ },
 ];
 
 const kb = (bytes) => Math.round(bytes / 1024);

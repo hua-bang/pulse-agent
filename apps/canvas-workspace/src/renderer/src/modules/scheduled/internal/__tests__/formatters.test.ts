@@ -4,10 +4,11 @@ import {
   MEMORY_REPORT_TITLE,
   type ScheduledTask,
 } from '../../../../../../shared/scheduled';
-import { messages, type I18nKey } from '../../../../i18n/messages';
+import type { I18nKey } from '../../../../i18n/messages';
+import { zhMessages } from '../../../../i18n/messages-zh';
 import { localizeBuiltInTasks, localizeRunTitle, restoreBuiltInTaskInput } from '../formatters';
 
-const zh = (key: I18nKey) => messages.zh[key];
+const zh = (key: I18nKey) => zhMessages[key];
 
 const task = (patch: Partial<ScheduledTask>): ScheduledTask => ({
   id: 'memory-report',

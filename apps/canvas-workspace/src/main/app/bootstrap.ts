@@ -20,6 +20,7 @@ import {
   setupCanvasAgentIpc,
   teardownCanvasAgent,
 } from "../agent/ipc";
+import { peekCanvasAgentService } from "../agent/agent-service-lifecycle";
 import { setupCodexSessionsIpc } from "../agent/external/codex-sessions";
 import { setupCanvasModelIpc } from "../models/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
@@ -127,8 +128,8 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     activateWorkspaceWindow,
   });
   setPluginMarketAgentPort({
-    reloadMcp: () => getCanvasAgentService().reloadMcp(),
-    getMcpStatuses: () => getCanvasAgentService().getMcpStatuses(),
+    reloadMcp: async () => (await getCanvasAgentService()).reloadMcp(),
+    getMcpStatuses: () => peekCanvasAgentService()?.getMcpStatuses() ?? {},
     connectMcpOAuth: connectCanvasMcpOAuth,
   });
   setAgentCapabilityPort({
@@ -306,7 +307,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // Let plugins reach the Canvas Agent service singleton (e.g. the channel
     // plugin drives conversations from external chat). Inject before
     // activation so getAgentService() is available in activate().
-    setAgentServiceAccessor(() => getCanvasAgentService());
+    setAgentServiceAccessor(getCanvasAgentService);
     // Plugin activation can register canvas-agent tools; we need that done
     // BEFORE any canvas-agent is constructed (which happens when the
     // renderer first calls into canvas-agent IPC). Await so the registry

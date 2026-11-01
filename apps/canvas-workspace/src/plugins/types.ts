@@ -213,9 +213,10 @@ export interface MainCtx {
    * Access the host's Canvas Agent service singleton. Lets a plugin *drive*
    * conversations (e.g. relay a chat turn from an external channel) rather
    * than only observe them via {@link onAgent}. Returns a narrow structural
-   * view — see {@link CanvasAgentServiceRef}.
+   * view — see {@link CanvasAgentServiceRef}. The service loads on first
+   * use, so the call resolves asynchronously.
    */
-  getAgentService(): CanvasAgentServiceRef;
+  getAgentService(): Promise<CanvasAgentServiceRef>;
   /**
    * Register a factory that contributes canvas-agent tools. The factory
    * is invoked once per workspace at canvas-agent construction time —

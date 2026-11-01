@@ -35,7 +35,7 @@ describe('MCP App IPC approvals', () => {
     electron.handlers.clear();
     executeMcpAppTool.mockClear();
     manager.getRegisteredToolName.mockReturnValue('mcp_cowart_save');
-    setupMcpAppIpc(service as never);
+    setupMcpAppIpc(async () => service as never);
   });
 
   it('uses one in-app session approval for repeated calls to the same server and scope', async () => {

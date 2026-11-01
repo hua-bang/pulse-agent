@@ -13,6 +13,8 @@ import { installJankMonitor } from "./perf/jank-monitor";
 import { installBeforeQuitFlush } from "./modules/canvas/document/beforeQuit";
 import { runViewTransition } from "./shared/viewTransition";
 import { installTheme } from "./shared/theme";
+import { getInitialLanguage } from "./i18n";
+import { loadMessages } from "./i18n/messages";
 
 installTheme();
 installPerfMonitor();
@@ -40,10 +42,16 @@ const aroundNav: AroundNavHandler = (navigate, to, options) => {
   runViewTransition(() => navigate(to, options));
 };
 
-markOnce("renderer:render-called");
-createRoot(root).render(
-  <Router hook={useHashLocation} aroundNav={aroundNav}>
-    <App />
-  </Router>,
-);
-requestAnimationFrame(() => markOnce("renderer:first-frame"));
+// A non-English catalog is a separate chunk. Load it before the first render
+// so the first frame is already in the user's language.
+void loadMessages(getInitialLanguage())
+  .catch((err) => console.error('[i18n] failed to load the initial language', err))
+  .then(() => {
+    markOnce("renderer:render-called");
+    createRoot(root).render(
+      <Router hook={useHashLocation} aroundNav={aroundNav}>
+        <App />
+      </Router>,
+    );
+    requestAnimationFrame(() => markOnce("renderer:first-frame"));
+  });

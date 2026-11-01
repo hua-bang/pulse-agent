@@ -52,6 +52,9 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
   getImagePreview: (filePath, maxDimension) =>
     ipcRenderer.invoke('file:getImagePreview', { filePath, maxDimension }),
 
+  storeImagePreview: (filePath, cacheKey, rendered) =>
+    ipcRenderer.invoke('file:storeImagePreview', { filePath, cacheKey, rendered }),
+
   exportImage: (defaultName, data, ext) =>
     ipcRenderer.invoke("file:exportImage", { defaultName, data, ext }),
 
