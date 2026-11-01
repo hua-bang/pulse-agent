@@ -125,6 +125,28 @@
   white-space: nowrap;
 }
 
+/* The wide rail names a row's shortcut on hover, so the chord is found
+   where the destination is. */
+.sidebar-rail-kbd {
+  display: none;
+}
+
+.sidebar--rail-expanded .sidebar-rail-kbd {
+  display: block;
+  flex: none;
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.sidebar--rail-expanded .sidebar-rail-btn:hover > .sidebar-rail-kbd,
+.sidebar--rail-expanded .sidebar-rail-btn:focus-visible > .sidebar-rail-kbd {
+  opacity: 1;
+}
+
 .sidebar--rail-expanded .sidebar-rail-chevron {
   transform: rotate(180deg);
 }

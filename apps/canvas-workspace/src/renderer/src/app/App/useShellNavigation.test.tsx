@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
+import { requestOpenAppSettings } from '../../shared/appShell';
 import { useRailExpanded, useSettingsNavigation } from './useShellNavigation';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -29,6 +30,28 @@ describe('useSettingsNavigation', () => {
     act(() => api.closeAppSettings());
     expect(setLocation).toHaveBeenLastCalledWith('/');
     act(() => root.unmount());
+  });
+
+  it('opens the default section on request and returns to the caller', () => {
+    const setLocation = vi.fn();
+    let api!: ReturnType<typeof useSettingsNavigation>;
+    const Harness = ({ location, activeView }: { location: string; activeView: string }) => {
+      api = useSettingsNavigation({ location, activeView, setLocation });
+      return null;
+    };
+    const root = createRoot(document.createElement('div'));
+
+    act(() => root.render(<Harness location="/nodes" activeView="nodes" />));
+    act(() => requestOpenAppSettings());
+    expect(setLocation).toHaveBeenLastCalledWith('/settings?section=models');
+    act(() => api.closeAppSettings());
+    expect(setLocation).toHaveBeenLastCalledWith('/nodes');
+
+    // Unmounted, the hook stops listening.
+    act(() => root.unmount());
+    setLocation.mockClear();
+    requestOpenAppSettings();
+    expect(setLocation).not.toHaveBeenCalled();
   });
 });
 

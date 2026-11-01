@@ -14,7 +14,7 @@ import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/works
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
-import { useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
+import { DEFAULT_SETTINGS_SECTION, useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
@@ -329,7 +329,7 @@ const AppContent = () => {
           onDelete={workspaceActions.remove}
           onExport={workspaceActions.exportWorkspace}
           onOpenSettings={openWorkspaceSettings}
-          onOpenAppSettings={() => openAppSettings('models')}
+          onOpenAppSettings={() => openAppSettings(DEFAULT_SETTINGS_SECTION)}
           onImport={workspaceActions.importWorkspace}
           onCreateFolder={workspaceActions.createFolder}
           onRenameFolder={workspaceActions.renameFolder}

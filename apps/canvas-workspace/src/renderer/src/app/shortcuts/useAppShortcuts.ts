@@ -3,6 +3,7 @@ import { isImeComposing } from '../../utils/ime';
 import { matchShortcut, type AppShortcutId } from '../../shortcuts/registry';
 import { useWebviewShortcutBridge } from '../../platform/browser/useWebviewShortcutBridge';
 import { toggleTheme } from '../../shared/theme';
+import { requestOpenAppSettings } from '../../shared/appShell';
 import { isGlobalChatLauncherVisible, useRightDock } from '../../modules/dock';
 
 interface Options {
@@ -89,6 +90,10 @@ export const useAppShortcuts = ({
     'app.toggleTheme': (event) => {
       event.preventDefault();
       toggleTheme();
+    },
+    'app.openSettings': (event) => {
+      event.preventDefault();
+      requestOpenAppSettings();
     },
     'app.switchWorkspace': (event) => {
       const index = Number.parseInt(event.key, 10);

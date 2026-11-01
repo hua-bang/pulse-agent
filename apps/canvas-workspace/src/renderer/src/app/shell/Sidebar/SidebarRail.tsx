@@ -13,6 +13,7 @@ import {
   WorkspaceIcon,
 } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
+import { formatShortcutId } from '../../../shortcuts/registry';
 import { AppsSection } from './AppsSection';
 // Loaded on first hover, so the flyout stays out of the startup bundle.
 const WorkspaceFlyout = lazy(() => import('./WorkspaceFlyout'));
@@ -61,11 +62,13 @@ interface RailButtonProps {
   title?: string;
   /** Keep the label for assistive tech only, even on the wide rail. */
   iconOnly?: boolean;
+  /** A keyboard chord the wide rail shows beside the label on hover. */
+  shortcut?: string;
   onClick: () => void;
   children: ReactNode;
 }
 
-const RailButton = ({ active, label, title, iconOnly, onClick, children }: RailButtonProps) => (
+const RailButton = ({ active, label, title, iconOnly, shortcut, onClick, children }: RailButtonProps) => (
   <button
     type="button"
     className={`sidebar-rail-btn${active ? ' sidebar-rail-btn--active' : ''}`}
@@ -76,6 +79,7 @@ const RailButton = ({ active, label, title, iconOnly, onClick, children }: RailB
   >
     {children}
     {!iconOnly && <span className="sidebar-rail-label">{label}</span>}
+    {!iconOnly && shortcut && <kbd className="sidebar-rail-kbd">{shortcut}</kbd>}
   </button>
 );
 
@@ -119,6 +123,7 @@ export const SidebarRail = ({
   // its questions and recent chats open. On the canvas the Workspaces icon
   // opens or closes the panel; elsewhere it returns to the canvas.
   const handleWorkspaces = activeView === 'canvas' ? onTogglePanel : onEnterCanvas;
+  const settingsShortcut = formatShortcutId('app.openSettings');
 
   return (
     <nav className="sidebar-rail" aria-label={t('sidebar.railLabel')}>
@@ -222,6 +227,8 @@ export const SidebarRail = ({
         <RailButton
           active={activeView === 'settings'}
           label={t('sidebar.settings')}
+          title={`${t('sidebar.settings')} (${settingsShortcut})`}
+          shortcut={settingsShortcut}
           onClick={onOpenAppSettings}
         >
           <SettingsIcon size={15} strokeWidth={1.4} />
