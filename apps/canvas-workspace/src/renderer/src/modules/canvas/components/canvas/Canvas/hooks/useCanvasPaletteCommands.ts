@@ -7,6 +7,7 @@ import { useI18n } from '../../../../../../i18n';
 import { useRightDock } from '../../../../../../shared/dockPort';
 import { formatShortcutId } from '../../../../../../shortcuts/registry';
 import { toggleTheme } from '../../../../../../shared/theme';
+import { requestOpenAppSettings } from '../../../../../../shared/appShell';
 import { ALIGN_MODES, alignNodeMoves, canAlign } from '../../../../model/alignNodes';
 
 interface Options {
@@ -318,6 +319,14 @@ export const useCanvasPaletteCommands = ({
         shortcut: formatShortcutId('app.toggleTheme'),
         aliases: ['dark', 'light', 'theme', 'appearance', 'night'],
         run: () => toggleTheme(),
+      },
+      {
+        id: 'open-settings',
+        group: 'view',
+        title: t('canvas.palette.command.openSettings'),
+        shortcut: formatShortcutId('app.openSettings'),
+        aliases: ['settings', 'preferences', 'options', 'config', '设置'],
+        run: () => requestOpenAppSettings(),
       },
       {
         id: 'shortcuts',

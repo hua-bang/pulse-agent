@@ -244,6 +244,15 @@ export const SHORTCUTS = {
     // input a keyboard black hole.
     editable: 'allow',
   },
+  'app.openSettings': {
+    owner: 'app',
+    // The platform convention for Settings / Preferences.
+    bindings: [{ key: ',', mod: true }],
+    // Works from a text field, terminal, or embedded page: this chord
+    // has no text-editing meaning, and blocking it made every focused
+    // input a keyboard black hole.
+    editable: 'allow',
+  },
   'app.switchWorkspace': {
     owner: 'app',
     bindings: [

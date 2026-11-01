@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SettingsSection } from '../../modules/settings';
+import { OPEN_APP_SETTINGS_EVENT } from '../../shared/appShell';
 import { APP_ROUTES } from './routeModel';
 
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
@@ -43,9 +44,13 @@ interface SettingsNavigationOptions {
   setLocation: (path: string) => void;
 }
 
+/** The section that the rail gear, Cmd/Ctrl+, and the palette open. */
+export const DEFAULT_SETTINGS_SECTION: SettingsSection = 'models';
+
 /**
  * Settings is a route. Opening it remembers where the user came from, and
- * closing it goes back there.
+ * closing it goes back there. `requestOpenAppSettings` opens it at the
+ * default section.
  */
 export const useSettingsNavigation = ({ location, activeView, setLocation }: SettingsNavigationOptions) => {
   const returnPathRef = useRef<string | null>(null);
@@ -54,6 +59,12 @@ export const useSettingsNavigation = ({ location, activeView, setLocation }: Set
     if (activeView !== 'settings') returnPathRef.current = location;
     setLocation(`${APP_ROUTES.settings}?section=${encodeURIComponent(section)}`);
   }, [activeView, location, setLocation]);
+
+  useEffect(() => {
+    const handleOpen = () => openAppSettings(DEFAULT_SETTINGS_SECTION);
+    window.addEventListener(OPEN_APP_SETTINGS_EVENT, handleOpen);
+    return () => window.removeEventListener(OPEN_APP_SETTINGS_EVENT, handleOpen);
+  }, [openAppSettings]);
 
   const closeAppSettings = useCallback(() => {
     const returnPath = returnPathRef.current;
