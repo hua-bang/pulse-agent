@@ -9,7 +9,7 @@ import { importWorkspaceArchiveToStore } from '../../canvas/transfer/workspace-i
 import { closeCanvasStorage } from '../../canvas/persistence/backend';
 import { setCanvasSessionArchivePort } from '../../canvas/persistence/session-archive-port';
 import { readWorkspaceExportSource, rewriteCanvasFilePaths, rewriteWorkspaceArchiveFiles, WorkspaceImportRecoveryError } from '../../canvas/persistence/sqlite-workspace';
-import * as atomicJson from '../../canvas/persistence/atomic-json';
+import * as workspaceManifest from '../../canvas/persistence/workspace-manifest';
 import { createCanvasSessionArchivePort, initializeCanvasSessionArchivePort } from './workspace-session-archive';
 import { activateSqliteSessions } from './sqlite/migration';
 import { closeSqliteSessionStorage, getSqliteSessionStorage } from './sqlite/backend';
@@ -203,9 +203,7 @@ describe('workspace conversation archive port', () => {
       exportedAt: '2026-09-19T00:00:00Z', workspace: { id: 'source', name: 'Recovery' }, canvas: source.canvas, files: source.files,
     })));
     const storage = (await getSqliteSessionStorage(storeDir))!;
-    const write = atomicJson.atomicWriteJson;
-    vi.spyOn(atomicJson, 'atomicWriteJson').mockImplementation(async (path, ...args) => {
-      if (!path.endsWith('__workspaces__.json')) return write(path, ...args);
+    vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockImplementation(async () => {
       await storage.conversations.commit({
         scopeId: 'recovery', sessionId: 'current', expectedRevision: 1, expectedGeneration: storage.generation,
         appendMessages: [{ id: 'later-message', role: 'user', content: 'New work after import', timestamp: 9 }],

@@ -10,6 +10,7 @@ import { prepareLegacyCanvasImport, type LegacyCanvas } from '@pulse-coder/stora
 import { openSqliteStorage } from '@pulse-coder/storage/sqlite';
 import * as store from '../store';
 import * as nativeBinding from '../native-binding';
+import * as sqliteStore from '../sqlite-store';
 import { hasSqliteStorage } from '../sqlite-store';
 import { createNode, updateNode, writeNode } from '../nodes';
 import { createEdge, deleteEdge } from '../edges';
@@ -175,12 +176,94 @@ describe('activated SQLite CLI storage', () => {
 
   it('removes the SQL workspace when manifest publication fails after creation', async () => {
     await activate();
-    await fs.mkdir(join(root, '__workspaces__.json'));
-    await fs.writeFile(join(root, '__workspaces__.json', 'blocker'), 'not a manifest');
+    await store.loadWorkspaceManifest(root);
+    const original = sqliteStore.withSqliteCanvas;
+    const failure = vi.spyOn(sqliteStore, 'withSqliteCanvas').mockImplementation((storeDir, operation) => original(storeDir, async (db, canvas) => {
+      db.workspaceManifest.commit = async () => { throw new Error('Manifest publication failed'); };
+      return operation(db, canvas);
+    }));
     const result = await store.createWorkspace('Unpublished', root);
+    failure.mockRestore();
     expect(result.ok).toBe(false);
     expect(await store.listWorkspaceIds(root)).toEqual([workspaceId]);
     expect((await fs.readdir(root)).filter(name => name.startsWith('ws-') && name !== workspaceId)).toEqual([]);
+  });
+
+  it('imports the manifest file once after activation, then reads only the database', async () => {
+    const manifestFile = join(root, '__workspaces__.json');
+    await fs.writeFile(manifestFile, JSON.stringify({
+      workspaces: [{ id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } }],
+      folders: [{ id: 'f', name: 'Folder', extra: 1 }],
+      activeId: workspaceId,
+      futureKey: 'kept',
+    }));
+    await activate();
+    expect(await store.loadWorkspaceManifest(root)).toMatchObject({
+      workspaces: [{ id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } }],
+      folders: [{ id: 'f', name: 'Folder', extra: 1 }],
+      activeId: workspaceId,
+      futureKey: 'kept',
+    });
+    // A later file edit (an older build) does not change current state.
+    await fs.writeFile(manifestFile, JSON.stringify({ workspaces: [{ id: workspaceId, name: 'Stale' }, { id: 'ghost', name: 'Deleted' }] }));
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([
+      { id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } },
+    ]);
+    // Writes go to the database and refresh the mirror.
+    const created = await store.createWorkspace('Second', root);
+    if (!created.ok) throw new Error(created.error);
+    const mirror = JSON.parse(await fs.readFile(manifestFile, 'utf8'));
+    expect(mirror.workspaces.map((entry: { name: string }) => entry.name)).toEqual(['Imported', 'Second']);
+    expect(mirror.futureKey).toBe('kept');
+    const db = await openLocalStorage({ root });
+    try { expect((await db!.workspaceManifest.read())?.manifest).toEqual(mirror); }
+    finally { await db!.close(); }
+  });
+
+  it('imports from the backup when the primary manifest is corrupt and skips trashed ids', async () => {
+    await activate();
+    const db = await openLocalStorage({ root });
+    try {
+      await db!.canvas.commit({ workspaceId: 'gone', expectedRevision: null });
+      const bundle = await db!.workspaces.readBundle('gone');
+      await db!.workspaces.trashBundle({
+        workspaceId: 'gone', expectedCanvasRevision: bundle!.canvas.revision, generation: db!.generation,
+        expectedConversations: bundle!.conversationState, metadata: { id: 'gone', name: 'Gone' },
+      });
+    } finally { await db!.close(); }
+    await fs.writeFile(join(root, '__workspaces__.json'), '{ truncated');
+    await fs.writeFile(join(root, '__workspaces__.json.bak'), JSON.stringify({
+      entries: [{ id: 'gone', name: 'Gone' }, { id: workspaceId, name: 'From backup' }], activeId: 'gone',
+    }));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const manifest = await store.loadWorkspaceManifest(root);
+    expect(manifest.workspaces).toEqual([{ id: workspaceId, name: 'From backup' }]);
+    expect(manifest.activeId).toBe(workspaceId);
+    const stored = await openLocalStorage({ root });
+    try { expect((await stored!.workspaceManifest.read())?.manifest.workspaces).toEqual([{ id: workspaceId, name: 'From backup' }]); }
+    finally { await stored!.close(); }
+  });
+
+  it('leaves a legacy store on the manifest file without touching SQLite', async () => {
+    await store.saveWorkspaceManifest({ workspaces: [{ id: workspaceId, name: 'Legacy' }] }, root);
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([{ id: workspaceId, name: 'Legacy' }]);
+    await expect(fs.access(join(root, '__storage__.sqlite'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('keeps a created workspace when only the JSON mirror write fails', async () => {
+    await activate();
+    await fs.mkdir(join(root, '__workspaces__.json'));
+    await fs.writeFile(join(root, '__workspaces__.json', 'blocker'), 'not a manifest');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const result = await store.createWorkspace('Mirrored later', root);
+    if (!result.ok) throw new Error(result.error);
+    expect(warn).toHaveBeenCalled();
+    expect((await store.loadWorkspaceManifest(root)).workspaces.map(entry => entry.name)).toContain('Mirrored later');
+    await fs.rm(join(root, '__workspaces__.json'), { recursive: true });
+    const next = await store.createWorkspace('Second', root);
+    if (!next.ok) throw new Error(next.error);
+    const mirror = JSON.parse(await fs.readFile(join(root, '__workspaces__.json'), 'utf8'));
+    expect(mirror.workspaces.map((entry: { name: string }) => entry.name)).toEqual(expect.arrayContaining(['Mirrored later', 'Second']));
   });
 
   it('routes node and edge commands through the original SQL revision and preserves Markdown editing', async () => {

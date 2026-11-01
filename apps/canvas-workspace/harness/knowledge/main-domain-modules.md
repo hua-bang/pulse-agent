@@ -159,6 +159,15 @@ published one only loses the journal, and one that never reached SQL is moved to
 `__storage-backup__/interrupted-imports/` instead of being deleted. Untrusted
 journals are left in place and logged; a failed recovery never blocks startup.
 
+The workspace manifest (`__workspaces__.json`) follows Canvas authority.
+`persistence/workspace-manifest.ts` is its only reader and writer in main for
+an active store: the first read imports the file once (with `.bak` fallback,
+without trashed ids) under the storage lock, and later reads and writes use
+the database only. Each commit rewrites the file as a mirror for direct readers
+not yet on storage (`agent/workspace/workspace-meta.ts`, the channel plugin) and
+for older builds; a mirror failure is logged and the next commit retries it.
+Legacy stores keep the file. Guard: `persistence/workspace-manifest.test.ts`.
+
 The App and CLI use this same repository boundary. Before App deletion, mounted
 Canvas documents flush their pending drafts and await persistence; a failed save
 blocks the operation and retains the draft. Manifest visibility follows

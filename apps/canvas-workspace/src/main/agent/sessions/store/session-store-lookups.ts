@@ -5,6 +5,7 @@ import type { CanvasAgentSession } from '../../types';
 import { archiveSortKey, isListableSession } from '../session-file-summary';
 import { decodeSession } from '../sqlite/codec';
 import { getSqliteSessionStorage, listSqliteConversations, listSqliteSessionScopes } from '../sqlite/backend';
+import { readWorkspaceManifestDocument } from '../../../canvas/persistence/workspace-manifest';
 
 export const GLOBAL_CHAT_SESSION_STORE_ID = GLOBAL_CHAT_STORE_ID;
 // Matches the renderer's `chat.scope.global` label, so the same scope has one name everywhere.
@@ -55,7 +56,7 @@ export async function readSessionFromWorkspace(root: string, storeId: string, se
 
 export async function workspaceNames(root: string): Promise<Map<string, string>> {
   try {
-    const manifest = JSON.parse(await fs.readFile(join(root, '__workspaces__.json'), 'utf8')) as {
+    const manifest = await readWorkspaceManifestDocument(root) as {
       workspaces?: Array<{ id: string; name: string }>;
       entries?: Array<{ id: string; name: string }>;
     };

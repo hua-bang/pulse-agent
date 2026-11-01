@@ -11,9 +11,10 @@ or mutate Pulse Canvas workspaces.
 
 Most commands operate on the local canvas store under `~/.pulse-coder/canvas/`
 without a running app. Unactivated stores retain v1/v2 JSON; database-owned
-activation selects the shared SQLite adapter for the `canvas` domain. Markdown,
-attachments, and the workspace manifest remain files. The `agent`, `team`, and `runtime`
-command families are different: they require a running `apps/canvas-workspace` instance
+activation selects the shared SQLite adapter for the `canvas` domain. Markdown
+and attachments remain files. After activation the workspace manifest lives in
+the database too; `__workspaces__.json` is imported once and then only mirrored.
+The `agent`, `team`, and `runtime` command families are different: they require a running `apps/canvas-workspace` instance
 and call its loopback runtime-control server using the bearer secret advertised
 in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`.
 

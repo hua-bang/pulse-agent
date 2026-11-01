@@ -189,13 +189,36 @@ describe('workspace trash lifecycle', () => {
     expect(await readFile(filePath, 'utf8')).toBe('Requested body');
   });
 
-  it.each([1, 2])('upgrades schema v%s without changing retained payloads or identities', async version => {
+  it.each([1, 2, 3])('upgrades schema v%s without changing retained payloads, identities, or cursors', async version => {
     await storage.workspaces.importBundle(bundle());
     const before = await storage.workspaces.readBundle('ws');
     const generation = storage.generation;
+    const cursor = await storage.changes.latestCursor();
+    const changes = (await storage.changes.read()).items;
     await storage.close();
     const old = new Database(path);
-    old.exec('DROP TABLE workspace_trash');
+    const highWater = (old.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'storage_changes'").get() as { seq: number }).seq;
+    // Rebuild a real pre-v4 database: the old domain CHECK, then older versions' tables.
+    const oldDomains = "'canvas', 'conversation', 'conversation-scope'";
+    old.exec(`
+      DROP TABLE workspace_manifest;
+      CREATE TABLE rv (
+        domain TEXT NOT NULL CHECK (domain IN (${oldDomains})), scope_id TEXT NOT NULL, resource_id TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK (revision > 0), PRIMARY KEY (domain, scope_id, resource_id)
+      ) STRICT;
+      INSERT INTO rv SELECT * FROM resource_versions; DROP TABLE resource_versions; ALTER TABLE rv RENAME TO resource_versions;
+      CREATE TABLE sc (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT, domain TEXT NOT NULL CHECK (domain IN (${oldDomains})),
+        scope_id TEXT NOT NULL, resource_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK (revision > 0),
+        kind TEXT NOT NULL CHECK (kind IN ('updated', 'removed')), changed_ids TEXT NOT NULL CHECK (json_valid(changed_ids))
+      ) STRICT;
+      INSERT INTO sc SELECT * FROM storage_changes; DROP TABLE storage_changes; ALTER TABLE sc RENAME TO storage_changes;
+    `);
+    // Simulate pruned history: the high-water mark is above every retained row.
+    old.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'storage_changes'").run(highWater + 50);
+    expect(() => old.prepare("INSERT INTO storage_changes (domain, scope_id, resource_id, revision, kind, changed_ids) VALUES ('workspace-manifest', 'x', 'x', 1, 'updated', '[]')").run())
+      .toThrow(/CHECK/);
+    if (version < 3) old.exec('DROP TABLE workspace_trash');
     if (version === 1) old.exec('DROP TABLE local_activations');
     old.pragma(`user_version = ${version}`);
     old.close();
@@ -203,11 +226,16 @@ describe('workspace trash lifecycle', () => {
     expect(storage.generation).toBe(generation);
     expect(await storage.workspaces.readBundle('ws')).toEqual(before);
     expect((await storage.workspaces.listTrashed()).items).toEqual([]);
+    expect((await storage.changes.read()).items).toEqual(changes);
+    expect(await storage.changes.latestCursor()).toBe(cursor);
     const inspect = new Database(path, { readonly: true });
-    try { expect(inspect.pragma('user_version', { simple: true })).toBe(3); }
+    try { expect(inspect.pragma('user_version', { simple: true })).toBe(4); }
     finally { inspect.close(); }
     const trashed = await storage.workspaces.trashBundle(await deletion());
     await storage.workspaces.restoreBundle('ws', trashed.revision, trashed.generation);
+    const receipt = await storage.workspaceManifest.commit({ expectedRevision: null, manifest: { workspaces: [{ id: 'ws', name: 'ws' }] } });
+    // Pruned sequences are never reused after the rebuild.
+    expect(Number(Buffer.from(receipt.changeCursor, 'base64url').toString())).toBeGreaterThan(highWater + 50);
     expect(await storage.checkIntegrity()).toEqual({ ok: true, issues: [] });
   });
 });

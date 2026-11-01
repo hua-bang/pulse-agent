@@ -6,6 +6,7 @@ import type { EntityRecord, JsonObject, PulseStorage, RecordChanges } from './co
 import { StorageError, isStorageError } from './errors.js';
 import { isUninitializedSqliteFile, openSqliteStorage, type SqliteStorage } from './sqlite/index.js';
 import { encodeJson, validateId } from './sqlite/validation.js';
+import type { WorkspaceManifestSnapshot } from './workspace-manifest.js';
 
 export type LocalStorageDomain = 'canvas' | 'conversations';
 
@@ -429,4 +430,112 @@ export async function activateLocalCanvasStorage(options: ActivateLocalCanvasSto
     await connection.storage?.close().catch(() => undefined);
     throw localError('Local Canvas storage migration failed', error);
   }
+}
+
+export interface LocalWorkspaceManifestOptions extends Pick<LocalStorageOptions, 'nativeBinding' | 'resolveNativeBinding'> {
+  root: string;
+  /** An open store whose `canvas` domain is active. Legacy stores keep their file. */
+  storage: SqliteStorage;
+  /**
+   * Host-owned legacy reader for the one-time import: backup fallback, list-key
+   * normalization, unknown fields, and filtering of trashed ids. Return `{}`
+   * when there is no file. Called only under the storage lock, and only while
+   * the database has no manifest.
+   */
+  loadLegacyManifest: () => Promise<JsonObject>;
+  /** Transitional JSON mirror for readers not yet on storage. This module never reads it. */
+  mirrorPath: string;
+  /** A failed mirror write does not fail the commit; the next commit rewrites the mirror. */
+  onMirrorError?: (error: unknown) => void;
+}
+
+const IMPORT_LOCK_ATTEMPTS = 50;
+const IMPORT_LOCK_DELAY_MS = 100;
+
+async function assertCanvasActive(storage: SqliteStorage): Promise<void> {
+  const states = await storage.localActivation.read();
+  if (!states.some(state => state.domain === 'canvas' && state.state === 'active')) {
+    throw new StorageError('storage_unavailable', 'The workspace manifest moves to storage only after Canvas activation');
+  }
+}
+
+async function writeManifestMirror(options: LocalWorkspaceManifestOptions, manifest: JsonObject): Promise<void> {
+  try {
+    await writeJsonAtomic(options.mirrorPath, manifest);
+  } catch (error) {
+    if (options.onMirrorError) options.onMirrorError(error);
+    else console.warn('[storage] workspace manifest mirror write failed; the next commit retries it', error);
+  }
+}
+
+/** Import the legacy file once. The database is authoritative after this commit. */
+async function importManifestLocked(options: LocalWorkspaceManifestOptions): Promise<WorkspaceManifestSnapshot> {
+  const current = await options.storage.workspaceManifest.read();
+  if (current) return current;
+  const legacy = await options.loadLegacyManifest();
+  const manifest = JSON.parse(encodeJson(legacy)) as JsonObject;
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new StorageError('invalid_argument', 'The legacy workspace manifest must be an object');
+  }
+  const receipt = await options.storage.workspaceManifest.commit({
+    expectedGeneration: options.storage.generation, expectedRevision: null, manifest,
+  });
+  await writeManifestMirror(options, manifest);
+  return { generation: receipt.generation, revision: receipt.revision, manifest };
+}
+
+function lockedManifest<T>(options: LocalWorkspaceManifestOptions, operation: () => Promise<T>): Promise<T> {
+  return withLegacyCanvasWrite(options.root, operation, {
+    allowActive: true, nativeBinding: options.nativeBinding, resolveNativeBinding: options.resolveNativeBinding,
+  });
+}
+
+/**
+ * Read the workspace manifest from storage. Only when storage has none yet is
+ * the legacy file imported, under the root migration fence and storage lock.
+ * There is no per-read fallback to the file: after a rename, deletion, or crash
+ * the file can hold stale names or deleted workspaces.
+ */
+export async function readLocalWorkspaceManifest(options: LocalWorkspaceManifestOptions): Promise<WorkspaceManifestSnapshot> {
+  validateRoot(options.root);
+  await assertCanvasActive(options.storage);
+  const current = await options.storage.workspaceManifest.read();
+  if (current) return current;
+  if (activeLegacyWriter(options.root)) return importManifestLocked(options);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await lockedManifest(options, () => importManifestLocked(options));
+    } catch (error) {
+      // The import happens once; wait out a short-lived writer instead of failing a read.
+      if (!(isStorageError(error) && error.code === 'storage_busy') || attempt >= IMPORT_LOCK_ATTEMPTS) throw error;
+      await new Promise(resolve => setTimeout(resolve, IMPORT_LOCK_DELAY_MS));
+      const imported = await options.storage.workspaceManifest.read();
+      if (imported) return imported;
+    }
+  }
+}
+
+/**
+ * Replace the manifest from its current revision under the storage lock, then
+ * refresh the JSON mirror. A stale revision rejects; nothing is overwritten.
+ */
+export async function updateLocalWorkspaceManifest(
+  options: LocalWorkspaceManifestOptions,
+  update: (current: JsonObject) => JsonObject | Promise<JsonObject>,
+): Promise<WorkspaceManifestSnapshot> {
+  validateRoot(options.root);
+  await assertCanvasActive(options.storage);
+  return lockedManifest(options, async () => {
+    const current = await importManifestLocked(options);
+    const next = await update(JSON.parse(encodeJson(current.manifest)) as JsonObject);
+    if (!next || typeof next !== 'object' || Array.isArray(next)) {
+      throw new StorageError('invalid_argument', 'Workspace manifest must be an object');
+    }
+    const manifest = JSON.parse(encodeJson(next)) as JsonObject;
+    const receipt = await options.storage.workspaceManifest.commit({
+      expectedGeneration: current.generation, expectedRevision: current.revision, manifest,
+    });
+    await writeManifestMirror(options, manifest);
+    return { generation: receipt.generation, revision: receipt.revision, manifest };
+  });
 }

@@ -7,7 +7,7 @@ import { activateLocalCanvasStorage } from '@pulse-coder/storage/local';
 import { importWorkspaceArchiveToStore } from '../transfer/workspace-import';
 import { createWorkspaceExportArchive, createWorkspaceExportPayload, type WorkspaceExportFile } from '../transfer/workspace-export-archive';
 import { closeCanvasStorage } from './backend';
-import * as atomicJson from './atomic-json';
+import * as workspaceManifest from './workspace-manifest';
 import { setCanvasSessionArchivePort } from './session-archive-port';
 import {
   readWorkspaceExportSource,
@@ -141,11 +141,7 @@ describe('SQLite workspace archive lifecycle', () => {
   });
 
   it('removes its database commit when manifest publication fails, retaining the source archive', async () => {
-    const write = atomicJson.atomicWriteJson;
-    vi.spyOn(atomicJson, 'atomicWriteJson').mockImplementation(async (path, ...args) => {
-      if (path.endsWith('__workspaces__.json')) throw new Error('manifest disk full');
-      return write(path, ...args);
-    });
+    vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockRejectedValue(new Error('manifest disk full'));
     await expect(importArchive()).rejects.toThrow('manifest disk full');
     expect(await storage.canvas.read('imported')).toBeNull();
     await expect(stat(join(storeDir, 'imported'))).rejects.toMatchObject({ code: 'ENOENT' });
@@ -153,9 +149,7 @@ describe('SQLite workspace archive lifecycle', () => {
   });
 
   it('retains files and a recovery journal instead of deleting later edits if compensation conflicts', async () => {
-    const write = atomicJson.atomicWriteJson;
-    vi.spyOn(atomicJson, 'atomicWriteJson').mockImplementation(async (path, ...args) => {
-      if (!path.endsWith('__workspaces__.json')) return write(path, ...args);
+    vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockImplementation(async () => {
       await storage.canvas.commit({ workspaceId: 'imported', expectedRevision: 1, metadata: { laterEdit: true } });
       throw new Error('manifest disk full');
     });

@@ -25,6 +25,15 @@ async function storage() {
   return opened;
 }
 
+/** Fail the manifest's database commit, the step that publishes a manifest change. */
+function failManifestCommits() {
+  const original = sqliteStore.withSqliteCanvas;
+  return vi.spyOn(sqliteStore, 'withSqliteCanvas').mockImplementation((storeDir, operation) => original(storeDir, async (db, canvas) => {
+    db.workspaceManifest.commit = async () => { throw new Error('Manifest publication failed'); };
+    return operation(db, canvas);
+  }));
+}
+
 function cli(): Command {
   const program = new Command().exitOverride();
   program.option('--store-dir <path>').option('--format <format>', 'Output format', 'json');
@@ -98,11 +107,7 @@ describe('recoverable workspace deletion', () => {
 
   it('keeps the workspace in trash if manifest publication fails and supports a retry', async () => {
     expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: true });
-    const rename = fs.rename.bind(fs);
-    const failure = vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
-      if (String(to) === join(root, '__workspaces__.json')) throw new Error('Manifest publication failed');
-      return rename(from, to);
-    });
+    const failure = failManifestCommits();
     expect(await store.restoreWorkspace(workspaceId, root)).toMatchObject({ ok: false });
     expect(await store.loadCanvas(workspaceId, root)).toBeNull();
     expect(await store.listDeletedWorkspaces(root)).toHaveLength(1);
@@ -135,11 +140,9 @@ describe('recoverable workspace deletion', () => {
   });
 
   it('hides stale manifest entries after an interrupted deletion and finishes cleanup on retry', async () => {
-    const rename = fs.rename.bind(fs);
-    const failure = vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
-      if (String(to) === join(root, '__workspaces__.json')) throw new Error('Manifest publication failed');
-      return rename(from, to);
-    });
+    // Load once so the manifest is imported before the failing commit.
+    await store.loadWorkspaceManifest(root);
+    const failure = failManifestCommits();
     expect(await store.deleteWorkspace(workspaceId, root)).toMatchObject({ ok: false });
     expect(await store.listWorkspaceIds(root)).toEqual([]);
     expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([]);

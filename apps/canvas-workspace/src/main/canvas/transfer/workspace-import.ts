@@ -6,7 +6,6 @@ import {
   isSafeRelativePath,
   parseWorkspaceExportFile,
 } from './workspace-export-archive';
-import { atomicWriteJson, readJsonWithRecovery } from '../storage';
 import { assertSafeNodeId } from '../nodes/store';
 import { getLocalCanvasStorage, resolveStorageNativeBinding } from '../persistence/backend';
 import {
@@ -19,6 +18,7 @@ import {
   WorkspaceImportRecoveryError,
 } from '../persistence/sqlite-workspace';
 import { getCanvasSessionArchivePort, isWorkspaceSessionFile } from '../persistence/session-archive-port';
+import { updateWorkspaceManifestDocument } from '../persistence/workspace-manifest';
 
 export { relativePathFromPortableUrl, rewriteCanvasFilePaths } from '../persistence/sqlite-workspace';
 
@@ -37,24 +37,15 @@ export interface ImportedWorkspace {
 }
 
 async function registerWorkspace(storeDir: string, result: ImportedWorkspace): Promise<void> {
-  const manifestPath = join(storeDir, '__workspaces__.json');
-  const manifestRead = await readJsonWithRecovery(manifestPath);
-  if (manifestRead.kind === 'unrecoverable') throw manifestRead.err;
-  const manifest = manifestRead.kind === 'ok' && manifestRead.data && typeof manifestRead.data === 'object'
-    ? manifestRead.data as {
-      workspaces?: Array<{ id: string; name: string }>;
-      folders?: unknown[];
-      activeId?: string;
-    }
-    : {};
-  const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : [];
-  workspaces.push({ id: result.workspaceId, name: result.workspaceName });
-  await atomicWriteJson(manifestPath, JSON.stringify({
+  await updateWorkspaceManifestDocument(storeDir, manifest => ({
     ...manifest,
-    workspaces,
+    workspaces: [
+      ...(Array.isArray(manifest.workspaces) ? manifest.workspaces : []),
+      { id: result.workspaceId, name: result.workspaceName },
+    ],
     folders: Array.isArray(manifest.folders) ? manifest.folders : [],
     activeId: result.workspaceId,
-  }, null, 2), { rollingBackup: true });
+  }));
 }
 
 const importWorkspaceUnlocked = async ({
