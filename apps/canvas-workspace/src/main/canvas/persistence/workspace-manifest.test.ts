@@ -8,7 +8,8 @@ import { closeCanvasStorage, getLocalCanvasStorage } from './backend';
 import { readWorkspaceManifestDocument, updateWorkspaceManifestDocument } from './workspace-manifest';
 import { saveWorkspaceManifest } from './workspace-trash';
 import { setCanvasSessionArchivePort } from './session-archive-port';
-import { readRendererWorkspaceManifest } from '../workspaces';
+import { readRendererWorkspaceManifest, readWorkspaceManifest } from '../workspaces';
+import { ensureWelcomeWorkspaceSeeded } from '../welcome-workspace';
 
 let root: string;
 let storage: PulseStorage | undefined;
@@ -86,6 +87,17 @@ describe('App workspace manifest authority', () => {
       ...current, workspaces: [...(current.workspaces as unknown[]), { id: 'gone', name: 'Two' }],
     }));
     expect((await readWorkspaceManifestDocument(root)).workspaces).toEqual([{ id: 'work', name: 'One' }, { id: 'gone', name: 'Two' }]);
+  });
+
+  it('seeds the first-run welcome workspace into storage after an empty import', async () => {
+    storage = await activateLocalCanvasStorage({ root, loadLegacyWorkspaces: async () => [] });
+    // A fresh profile: the first manifest read imports an empty document.
+    expect(await readWorkspaceManifestDocument(root)).toEqual({});
+    expect(await ensureWelcomeWorkspaceSeeded(root)).toEqual({ seeded: true, workspaceId: 'default' });
+    expect(await readWorkspaceManifest(root)).toEqual({
+      activeId: 'default', workspaces: [{ id: 'default', name: 'Pulse Canvas', rootFolder: undefined }],
+    });
+    expect(JSON.parse(await readFile(manifestFile(), 'utf8')).activeId).toBe('default');
   });
 
   it('keeps a legacy store on the file and never creates a database', async () => {
