@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode, CanvasSaveData } from '../../../../types';
 import { useCanvasDocument } from '../..';
 import { flushWorkspacePersistence } from '../../../../shared/workspacePersistence';
+import { runBeforeQuitTasks } from '../beforeQuit';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -450,10 +451,60 @@ describe('useCanvasDocument text resize commit', () => {
     load.mockResolvedValueOnce({ ok: false, error: 'Old workspace could not be read' });
     await act(async () => { root.render(<Probe />); });
     expect(hook.loaded).toBe(false);
+    expect(hook.loadFailed).toBe(true);
     act(() => hook.flushSave());
     await act(async () => { await vi.advanceTimersByTimeAsync(800); });
     expect(save).not.toHaveBeenCalled();
-    expect(saveError).toHaveBeenCalledTimes(1);
+    expect(saveError).not.toHaveBeenCalled();
+
+    load.mockResolvedValueOnce({
+      ok: true,
+      data: { revision: 1, nodes: [node], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    let reloaded = false;
+    await act(async () => {
+      reloaded = await hook.reloadCanvas();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(reloaded).toBe(true);
+    expect(hook.loaded).toBe(true);
+    expect(hook.loadFailed).toBe(false);
+    expect(hook.nodes[0]?.id).toBe('text-1');
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('keeps a rejected read as a load failure and reloads without saving', async () => {
+    selectedCanvas = 'rejected';
+    load.mockRejectedValueOnce(new Error('store unavailable'));
+    await act(async () => { root.render(<Probe />); });
+    expect(hook.loaded).toBe(false);
+    expect(hook.loadFailed).toBe(true);
+    expect(saveError).not.toHaveBeenCalled();
+    load.mockResolvedValueOnce({
+      ok: true,
+      data: { revision: 1, nodes: [], edges: [], transform: { x: 0, y: 0, scale: 1 } },
+    });
+    await act(async () => {
+      hook.retryLoad();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(hook.loaded).toBe(true);
+    expect(hook.loadFailed).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('flushes a pending canvas edit on quit and reports a failed save', async () => {
+    act(() => hook.updateNode('text-1', { title: 'Quit edit' }));
+    await act(async () => { await runBeforeQuitTasks(); });
+    expect(save.mock.calls.at(-1)?.[1].nodes[0].title).toBe('Quit edit');
+
+    save.mockResolvedValueOnce({ ok: false, error: 'disk full' });
+    act(() => hook.updateNode('text-1', { title: 'Still dirty' }));
+    await act(async () => {
+      await expect(runBeforeQuitTasks()).resolves.toBe(false);
+    });
   });
 
   it('carries the generation from a first-create acknowledgement into subsequent saves', async () => {

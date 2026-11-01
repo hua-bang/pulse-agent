@@ -38,6 +38,7 @@ import {
   watchedNodeFileWorkspaceIds,
 } from './sync/node-file-watcher';
 import { getLocalCanvasStorage } from './persistence/backend';
+import { registerUnsavedQuitIpc } from './unsaved-quit';
 import { edgesToMap, mergeExternalEdges, type SyncableEdge } from './edge-sync';
 
 /**
@@ -963,6 +964,8 @@ export const setupCanvasStoreIpc = () => {
    * user learns about the problem before clicking into the workspace
    * and seeing empty nodes.
    */
+  registerUnsavedQuitIpc();
+
   ipcMain.handle('canvas:listPollutedWorkspaces', async () => {
     try {
       const findings = await scanForPollutedWorkspaces();

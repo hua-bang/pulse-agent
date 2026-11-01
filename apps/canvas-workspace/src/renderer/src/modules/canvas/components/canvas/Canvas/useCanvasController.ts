@@ -105,12 +105,12 @@ export const useCanvasController = ({
   } = useCanvasFit(containerRef, setTransform);
 
   const {
-    nodes, edges, loaded, externallyEditedIds,
+    nodes, edges, loaded, loadFailed, externallyEditedIds,
     addNode, updateNode, removeNodes,
     syncDeletedNodes,
     moveNode, moveNodes, resizeNode,
     addEdge, updateEdge, removeEdge,
-    setTransformForSave, flushSave, reloadCanvas, commitHistory, hasAutoFittedRef,
+    setTransformForSave, flushSave, reloadCanvas, retryLoad, commitHistory, hasAutoFittedRef,
     undo, redo, duplicateNodes, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
     mergeMindmapTopic, splitMindmapTopic,
@@ -440,6 +440,8 @@ export const useCanvasController = ({
     highlightedId,
     renameSignal,
     loaded,
+    loadFailed,
+    onRetryLoad: retryLoad,
     mouse,
     moving,
     nodes: visibleNodes,

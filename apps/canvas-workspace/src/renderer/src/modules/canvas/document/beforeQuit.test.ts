@@ -31,7 +31,7 @@ describe('before-quit flush', () => {
     unregisterC();
 
     request?.('quit-1');
-    await vi.waitFor(() => expect(flushedBeforeQuit).toHaveBeenCalledWith('quit-1'));
+    await vi.waitFor(() => expect(flushedBeforeQuit).toHaveBeenCalledWith('quit-1', false));
 
     expect(order).toEqual(['write node', 'flush ws', 'answered']);
     unregisterA();
@@ -56,12 +56,12 @@ describe('before-quit flush', () => {
     const { installBeforeQuitFlush } = await import('./beforeQuit');
     installBeforeQuitFlush();
     request?.('quit-2');
-    await vi.waitFor(() => expect(flushedBeforeQuit).toHaveBeenCalledWith('quit-2'));
+    await vi.waitFor(() => expect(flushedBeforeQuit).toHaveBeenCalledWith('quit-2', true));
   });
 
-  it('swallows a workspace flush failure and ignores a missing workspace id', async () => {
+  it('reports a workspace flush failure and ignores a missing workspace id', async () => {
     const unregister = registerWorkspacePersistence('broken', async () => { throw new Error('still loading'); });
-    await expect(flushWorkspace('broken')).resolves.toBeUndefined();
+    await expect(flushWorkspace('broken')).rejects.toThrow('still loading');
     await expect(flushWorkspace(undefined)).resolves.toBeUndefined();
     unregister();
   });

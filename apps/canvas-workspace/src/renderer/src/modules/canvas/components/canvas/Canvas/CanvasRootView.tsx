@@ -6,8 +6,46 @@ import { EdgeContextMenu } from '../EdgeContextMenu';
 import { findNodeAtPoint, NodeActionsMenu } from '../NodeActionsMenu';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import { AppLogoIcon, SpinnerIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
+
+/** Loading spinner, or a read failure with a reload that calls load again. */
+export const CanvasLoadState = ({
+  failed,
+  onRetry,
+}: {
+  failed: boolean;
+  onRetry: () => void;
+}) => {
+  const { t } = useI18n();
+  return (
+    <div
+      className={`canvas-loading${failed ? ' canvas-loading--error' : ''}`}
+      role={failed ? 'alert' : 'status'}
+      aria-live="polite"
+    >
+      <span className="canvas-loading__logo">
+        <AppLogoIcon size={56} />
+      </span>
+      <span className="canvas-loading__status">
+        {!failed && (
+          <span className="canvas-loading__spinner" aria-hidden="true">
+            <SpinnerIcon size={12} strokeWidth={1.75} />
+          </span>
+        )}
+        <span className="canvas-loading__label">
+          {t(failed ? 'canvas.loadFailed' : 'canvas.loading')}
+        </span>
+      </span>
+      {failed && (
+        <Button variant="primary" size="sm" onClick={onRetry}>
+          {t('iframe.loadError.reload')}
+        </Button>
+      )}
+    </div>
+  );
+};
 
 // Loaded on the first single selection, so it stays out of the startup bundle.
 const NodeAskBar = lazy(() => import('../NodeAskBar')
@@ -42,6 +80,8 @@ export const CanvasRootView = ({
   highlightedId,
   renameSignal,
   loaded,
+  loadFailed,
+  onRetryLoad,
   mouse,
   moving,
   nodes,
@@ -160,17 +200,7 @@ export const CanvasRootView = ({
     return (
       <div className="canvas-container">
         <div className="canvas-grid" />
-        <div className="canvas-loading" role="status" aria-live="polite">
-          <span className="canvas-loading__logo">
-            <AppLogoIcon size={56} />
-          </span>
-          <span className="canvas-loading__status">
-            <span className="canvas-loading__spinner" aria-hidden="true">
-              <SpinnerIcon size={12} strokeWidth={1.75} />
-            </span>
-            <span className="canvas-loading__label">{t('canvas.loading')}</span>
-          </span>
-        </div>
+        <CanvasLoadState failed={loadFailed} onRetry={onRetryLoad} />
       </div>
     );
   }

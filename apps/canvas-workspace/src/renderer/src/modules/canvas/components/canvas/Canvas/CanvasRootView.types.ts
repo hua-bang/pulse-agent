@@ -57,6 +57,10 @@ export type CanvasRootViewProps = Pick<
   highlightedId: string | null;
   renameSignal?: { nodeId: string; token: number } | null;
   loaded: boolean;
+  /** The last read failed. The canvas is not still loading. */
+  loadFailed: boolean;
+  /** Re-run the failed read. Does not flush a save. */
+  onRetryLoad: () => void;
   mouse: ReturnType<typeof useCanvasMouseHandlers>;
   moving: boolean;
   nodes: CanvasNode[];

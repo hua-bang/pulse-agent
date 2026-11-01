@@ -52,6 +52,53 @@ describe('ChatToolCallDetails', () => {
     expect(labels).toEqual(['bash · 输入', '输出', '错误']);
   });
 
+  it('translates an approval timeout separately from a user rejection', () => {
+    window.localStorage.setItem('pulse-canvas.language', 'zh');
+    renderDetails(
+      <ChatToolCallDetails
+        expanded
+        tool={{
+          id: 3,
+          name: 'canvas_create_node',
+          status: 'cancelled',
+          result: JSON.stringify({
+            ok: false,
+            cancelled: true,
+            error: 'canvas_create_node timed out and was rejected.',
+            errorKey: 'chat.to',
+            errorParams: { name: 'canvas_create_node' },
+          }),
+          error: 'canvas_create_node timed out and was rejected.',
+        }}
+      />,
+    );
+    const error = host!.querySelector('.chat-tool-call-section--error pre');
+    expect(error?.textContent).toBe('canvas_create_node已超时，已拒绝。');
+    expect(error?.textContent).not.toContain('未获批准');
+
+    act(() => root?.render(
+      <I18nProvider>
+        <ChatToolCallDetails
+          expanded
+          tool={{
+            id: 4,
+            name: 'canvas_create_node',
+            status: 'cancelled',
+            result: JSON.stringify({
+              ok: false,
+              error: 'canvas_create_node was not approved and did not run.',
+              errorKey: 'chat.no',
+              errorParams: { name: 'canvas_create_node' },
+            }),
+            error: 'canvas_create_node was not approved and did not run.',
+          }}
+        />
+      </I18nProvider>,
+    ));
+    expect(host!.querySelector('.chat-tool-call-section--error pre')?.textContent)
+      .toBe('canvas_create_node未获批准。');
+  });
+
   it('localizes session-reference message counts', () => {
     window.localStorage.setItem('pulse-canvas.language', 'zh');
     renderDetails(

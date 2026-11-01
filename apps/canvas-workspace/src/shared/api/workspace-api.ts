@@ -155,8 +155,16 @@ export interface CanvasWorkspaceApi {
     ) => () => void;
     /** Main asks for a final save before it closes storage on quit. */
     onFlushBeforeQuit: (callback: (requestId: string) => void) => () => void;
-    /** Answer a flush request once the final save has finished. */
-    flushedBeforeQuit: (requestId: string) => void;
+    /**
+     * Answer a flush request once the final save has finished.
+     * `ok` is false when a save failed. Omitted means the save finished.
+     */
+    flushedBeforeQuit: (requestId: string, ok?: boolean) => void;
+    /**
+     * Read and clear the marker left when the last quit could not finish
+     * saving. `pending` is true once, then false.
+     */
+    consumeUnsavedQuit: () => Promise<{ ok: boolean; pending?: boolean; error?: string }>;
     /**
      * Subscribe to canvas storage migration progress events.
      *

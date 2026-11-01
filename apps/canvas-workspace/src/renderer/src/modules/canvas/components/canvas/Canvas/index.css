@@ -122,6 +122,18 @@
   font-size: 12.5px;
 }
 
+/* A failed read. Clicks must land; the loading state ignores them. */
+.canvas-loading--error {
+  pointer-events: auto;
+  gap: 8px;
+}
+
+.canvas-loading--error .canvas-loading__label {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .canvas-loading {
     opacity: 1;

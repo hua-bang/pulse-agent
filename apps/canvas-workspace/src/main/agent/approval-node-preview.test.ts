@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { requestAskModeApproval } from './tool-policy';
-import { createApprovalNodePreview } from './approval-node-preview';
+import { createApprovalNodePreview, describeApprovalNode } from './approval-node-preview';
 import type { AgentClarificationRequest } from '../../shared/agent-chat';
 
 describe('approval node previews', () => {
@@ -44,8 +44,11 @@ describe('approval node previews', () => {
 
   it('does not mount a web image before it is downloaded', () => {
     expect(createApprovalNodePreview('canvas_create_node', {
-      type: 'image', data: { url: 'https://example.com/chart.png' },
+      type: 'image', title: 'Chart', data: { url: 'https://example.com/chart.png' },
     }, 'preview')).toBeUndefined();
+    expect(describeApprovalNode('canvas_create_node', {
+      type: 'image', title: 'Chart', data: { url: 'https://example.com/chart.png?token=secret' },
+    })).toEqual({ title: 'Chart', type: 'image', urlHost: 'example.com' });
   });
 
   it('does not mount active node types or unrelated tool inputs', () => {
@@ -53,6 +56,23 @@ describe('approval node previews', () => {
       expect(createApprovalNodePreview('canvas_create_node', { type }, 'preview')).toBeUndefined();
     }
     expect(createApprovalNodePreview('canvas_update_node', { type: 'text' }, 'preview')).toBeUndefined();
+    expect(describeApprovalNode('canvas_update_node', { type: 'iframe', title: 'Docs' })).toBeUndefined();
+  });
+
+  it('describes an iframe by title, type, and URL host', () => {
+    expect(describeApprovalNode('canvas_create_node', {
+      type: 'iframe',
+      title: 'Docs',
+      data: { url: 'https://docs.example.com:8443/guide' },
+    })).toEqual({ title: 'Docs', type: 'iframe', urlHost: 'docs.example.com:8443' });
+    expect(describeApprovalNode('canvas_create_node', {
+      type: 'file',
+      data: { url: 'not a url' },
+    })).toEqual({ title: 'Untitled', type: 'file' });
+    expect(describeApprovalNode('canvas_create_node', { type: 'terminal' })).toEqual({
+      title: 'Terminal',
+      type: 'terminal',
+    });
   });
 
   it('uses the creation defaults for empty mindmaps and null shape styles', () => {

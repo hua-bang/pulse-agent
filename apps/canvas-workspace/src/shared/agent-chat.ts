@@ -4,6 +4,9 @@ import type { AgentContextSkills } from './settings-config';
 export type { AgentContextMcpAppSnapshot } from './mcp-app-context';
 import type { CanvasNode } from './canvas';
 import type { AgentTraceEvent } from './agent-observability';
+import type { ApprovalCopyKey, ApprovalNodeSummary } from './canvas-node-defaults';
+
+export type { ApprovalCopyKey, ApprovalNodeSummary };
 
 export interface ChatImageAttachment {
   id: string;
@@ -29,30 +32,32 @@ export interface AgentScopeRef {
 export interface AgentClarificationRequest {
   id: string;
   question: string;
+  questionKey?: ApprovalCopyKey;
+  questionParams?: Record<string, string>;
   context?: string;
   kind?: 'clarification' | 'approval';
   /** Read-only proposed node; never persisted or activated before approval. */
   nodePreview?: CanvasNode;
+  nodeSummary?: ApprovalNodeSummary;
   defaultAnswer?: string;
+  /** Timer answer. Abort and a user rejection keep `defaultAnswer`. */
+  timeoutAnswer?: string;
   /** Approval may be granted for the rest of this chat session. */
   allowSessionApproval?: boolean;
+  /** Covers later new-node creations in this chat, not one tool name. */
+  sessionApprovalScope?: 'node-creation';
   timeout?: number;
 }
 
 /**
- * Answer token for "approve and stop asking for this tool in this chat
- * session". Shared so the renderer button and the main-process gate agree.
+ * Answer token for "approve later calls in this chat session". For node
+ * creation that covers later new nodes. Shared so the button and the gate agree.
  */
 export const SESSION_APPROVAL_ANSWER = 'Approve for this session';
 
 /**
  * Session-store directory id for a scheduled task's isolated chat scope.
- *
- * Session listings key groups by STORE id, not workspace id, and the stores
- * that are not workspaces use a `__` sentinel prefix. Anything that turns a
- * listed session back into a scope must map these explicitly — treating one
- * as a workspace id activates an agent against a workspace that
- * does not exist.
+ * Sentinel store ids are not workspace ids. `scheduled-tasks.md` owns the rule.
  */
 export const SCHEDULED_SESSION_STORE_PREFIX = '__scheduled__-';
 
@@ -74,12 +79,7 @@ export const scopeSessionStoreId = (scope: AgentScope): string => {
   return GLOBAL_CHAT_STORE_ID;
 };
 
-/**
- * Whether a session-store directory holds user-readable conversations.
- * Blindly listing `__`-prefixed dirs would surface manifests and internals,
- * but a blanket skip hides real chats — global and scheduled stores both
- * live behind the prefix — so the readable kinds are allowlisted.
- */
+/** Allowlisted `__` stores stay listable. A blanket skip hides real chats. */
 export const isListableSessionStore = (dir: string): boolean => {
   if (dir.startsWith('.')) return false;
   if (!dir.startsWith('__')) return true;

@@ -3,9 +3,12 @@ import { BuiltinToolsMap } from 'pulse-coder-engine';
 import type { AgentScope } from './types';
 import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import type { CanvasTool, CanvasToolExecutionContext } from './tools';
-import { createApprovalNodePreview } from './approval-node-preview';
+import { createApprovalNodePreview, describeApprovalNode } from './approval-node-preview';
 import { isCliCanvasNodeCreation } from './policy/cli-node-creation';
-import { SESSION_APPROVAL_ANSWER } from '../../shared/agent-chat';
+import { SESSION_APPROVAL_ANSWER, type ApprovalCopyKey } from '../../shared/agent-chat';
+
+/** Registry timeout token. It must not match a user approval or rejection. */
+export const APPROVAL_TIMEOUT_ANSWER = 'Approval timed out';
 
 /**
  * Built-ins available in interactive global chat. Global chat has no ambient
@@ -155,7 +158,8 @@ function previewToolInput(input: unknown): string {
 }
 
 /**
- * In-memory "approve for this session" grants: chat session id -> tool names.
+ * In-memory "approve for this session" grants: chat session id -> grant keys.
+ * Node creation shares the key `node-creation`. Other tools keep their name.
  * Grants never persist, so an app restart asks again.
  */
 const sessionApprovalGrants = new Map<string, Set<string>>();
@@ -174,6 +178,9 @@ export interface AskModeApprovalDecision {
   approved: boolean;
   toolContext?: CanvasToolExecutionContext;
   error?: string;
+  /** Catalog key for the sentence in `error`. The renderer translates it. */
+  errorKey?: ApprovalCopyKey;
+  errorParams?: Record<string, string>;
 }
 
 export async function requestAskModeApproval(options: {
@@ -185,9 +192,10 @@ export async function requestAskModeApproval(options: {
   const { name, input, context } = options;
   const cliNodeCreation = isCliCanvasNodeCreation(name, input);
   const nodeCreationRequiresApproval = requiresCanvasNodeCreationApproval(name) || cliNodeCreation;
-  // A session grant for CLI node creation must not approve every other shell
-  // command, and an ordinary bash grant must not approve CLI node creation.
-  const grantKey = cliNodeCreation ? `${name}:pulse-canvas-node-creation` : name;
+  // One node-creation grant covers later new nodes in this chat, including
+  // CLI `node create`. It must not approve other shell commands, and an
+  // ordinary bash grant must not approve node creation.
+  const grantKey = nodeCreationRequiresApproval ? 'node-creation' : name;
   const askMode = context?.runContext?.executionMode === 'ask';
   if (!askMode && !nodeCreationRequiresApproval) return { approved: true, toolContext: context };
 
@@ -217,6 +225,12 @@ export async function requestAskModeApproval(options: {
     return { approved: true, toolContext: approvedContext() };
   }
 
+  const questionKey: ApprovalCopyKey | undefined = nodeCreationRequiresApproval
+    ? 'chat.nodeQ'
+    : undefined;
+  const questionParams: Record<string, string> | undefined = nodeCreationRequiresApproval
+    ? { name }
+    : undefined;
   const question = nodeCreationRequiresApproval
     ? `Confirm creating a new node on the canvas via “${name}”?`
     : `Allow ${operation} operation “${name}”?`;
@@ -224,10 +238,15 @@ export async function requestAskModeApproval(options: {
     id: `tool-approval:${toolCallId}`,
     kind: 'approval',
     nodePreview: createApprovalNodePreview(name, input, toolCallId),
+    nodeSummary: describeApprovalNode(name, input),
     question,
+    questionKey,
+    questionParams,
     context: `Proposed input:\n${previewToolInput(input)}`,
     defaultAnswer: 'No',
+    timeoutAnswer: APPROVAL_TIMEOUT_ANSWER,
     allowSessionApproval: Boolean(sessionId),
+    sessionApprovalScope: nodeCreationRequiresApproval ? 'node-creation' : undefined,
     timeout: 300_000,
   });
   const trimmed = answer.trim();
@@ -237,10 +256,20 @@ export async function requestAskModeApproval(options: {
     sessionApprovalGrants.set(sessionId, grants);
     return { approved: true, toolContext: approvedContext() };
   }
+  if (trimmed === APPROVAL_TIMEOUT_ANSWER) {
+    return {
+      approved: false,
+      error: `${name} timed out and was rejected.`,
+      errorKey: 'chat.to',
+      errorParams: { name },
+    };
+  }
   if (!APPROVAL_RE.test(trimmed)) {
     return {
       approved: false,
       error: `${name} was not approved and did not run.`,
+      errorKey: 'chat.no',
+      errorParams: { name },
     };
   }
 
@@ -277,6 +306,10 @@ export async function enforceCanvasAskModeToolPolicy(
         ok: false,
         cancelled: true,
         error: decision.error,
+        ...(decision.errorKey ? {
+          errorKey: decision.errorKey,
+          errorParams: decision.errorParams,
+        } : {}),
       },
     };
   }
