@@ -1,6 +1,7 @@
 import type { ConversationScopeRepository } from './conversation-scopes.js';
 import type { FileWriteInput, FileWriteRepository } from './file-contracts.js';
 import type { WorkspaceRepository } from './workspace-contracts.js';
+import type { WorkspaceContextRepository } from './workspace-context.js';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue }
@@ -93,7 +94,7 @@ export interface ConversationRepository {
 
 export interface StorageChange {
   cursor: string;
-  domain: 'canvas' | 'conversation' | 'conversation-scope';
+  domain: 'canvas' | 'conversation' | 'conversation-scope' | 'workspace-context';
   scopeId: string;
   resourceId: string;
   revision: number;
@@ -121,6 +122,7 @@ export interface PulseStorage {
   generation: string;
   canvas: CanvasRepository;
   workspaces: WorkspaceRepository;
+  workspaceContext: WorkspaceContextRepository;
   conversations: ConversationRepository;
   conversationScopes: ConversationScopeRepository;
   fileWrites: FileWriteRepository;

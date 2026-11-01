@@ -30,12 +30,8 @@ import {
 } from './tool-policy';
 import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './sessions/store/session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile/prompt-profile';
-import {
-  formatWorkspaceContextSection,
-  readWorkspaceDoc,
-  readWorkspaceMeta,
-  WORKSPACE_DOC_FILENAME,
-} from './workspace/workspace-meta';
+import { formatWorkspaceContextSection, readWorkspaceMeta } from './workspace/workspace-meta';
+import { readWorkspaceContext } from './workspace/workspace-context';
 import { buildMemoryPromptSection } from './memory/memory-store';
 import { linkRunAbortSignal, persistStoppedBeforeSegment, resolveSegmentOutcome, settleStoppedToolCalls } from './run/chat-stop';
 import {
@@ -454,10 +450,10 @@ export class CanvasAgent {
       try {
         const meta = await readWorkspaceMeta(workspaceId);
         workspaceRootFolder = meta.rootFolder;
-        const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
+        const workspaceDoc = await readWorkspaceContext(workspaceId);
         workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
       } catch (err) {
-        console.warn(`[canvas-agent] Failed to load workspace environment / ${WORKSPACE_DOC_FILENAME}:`, err);
+        console.warn('[canvas-agent] Failed to load workspace environment / context:', err);
       }
     }
 

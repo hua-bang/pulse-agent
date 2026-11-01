@@ -10,9 +10,6 @@ vi.mock('../../../../shared/appShell', () => ({ useAppShell: () => ({ confirm: v
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const workspace = { id: 'ws-1', name: 'Demo', rootFolder: '/repo' };
-const docPath = '/repo/pulse-workspace.md';
-
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
@@ -24,8 +21,11 @@ afterEach(() => {
   delete (window as { canvasWorkspace?: unknown }).canvasWorkspace;
 });
 
-const render = async (file: { read: unknown; write: unknown }) => {
-  (window as { canvasWorkspace?: unknown }).canvasWorkspace = { file };
+const render = async (
+  agent: { readWorkspaceContext: unknown; writeWorkspaceContext: unknown },
+  rootFolder?: string,
+) => {
+  (window as { canvasWorkspace?: unknown }).canvasWorkspace = { agent };
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -33,7 +33,7 @@ const render = async (file: { read: unknown; write: unknown }) => {
     root?.render(
       <I18nProvider>
         <WorkspaceSettingsDrawer
-          workspace={workspace}
+          workspace={{ id: 'ws-1', name: 'Demo', rootFolder }}
           onClose={vi.fn()}
           onRename={vi.fn()}
           onSetRootFolder={vi.fn()}
@@ -54,38 +54,40 @@ const editAndSave = async (content: string) => {
   await act(async () => save.click());
 };
 
-describe('WorkspaceSettingsDrawer pulse-workspace.md save', () => {
-  it('saves against the version it read and chains the saved version', async () => {
-    const read = vi.fn(async () => ({ ok: true, content: '# Demo', version: 'sha256:a' }));
-    const write = vi.fn()
-      .mockResolvedValueOnce({ ok: true, version: 'sha256:b' })
-      .mockResolvedValueOnce({ ok: true, version: 'sha256:c' });
-    await render({ read, write });
+describe('WorkspaceSettingsDrawer workspace context', () => {
+  it('edits the stored document without a root folder and chains revisions', async () => {
+    const readWorkspaceContext = vi.fn(async () => ({ ok: true, content: '# Demo', revision: 3 }));
+    const writeWorkspaceContext = vi.fn()
+      .mockResolvedValueOnce({ ok: true, revision: 4 })
+      .mockResolvedValueOnce({ ok: true, revision: 5 });
+    await render({ readWorkspaceContext, writeWorkspaceContext });
 
+    expect(readWorkspaceContext).toHaveBeenCalledWith('ws-1');
     await editAndSave('# Demo\nfirst');
-    expect(write).toHaveBeenLastCalledWith(docPath, '# Demo\nfirst', 'sha256:a');
+    expect(writeWorkspaceContext).toHaveBeenLastCalledWith('ws-1', '# Demo\nfirst', 3);
     await editAndSave('# Demo\nsecond');
-    expect(write).toHaveBeenLastCalledWith(docPath, '# Demo\nsecond', 'sha256:b');
+    expect(writeWorkspaceContext).toHaveBeenLastCalledWith('ws-1', '# Demo\nsecond', 4);
   });
 
-  it('keeps the draft and reports a conflict when the file changed meanwhile', async () => {
-    const read = vi.fn(async () => ({ ok: true, content: '# Demo', version: 'sha256:a' }));
-    const write = vi.fn(async () => ({ ok: false, conflict: true, error: 'changed' }));
-    await render({ read, write });
+  it('keeps the draft and reports a conflict when the agent updated the document meanwhile', async () => {
+    const readWorkspaceContext = vi.fn(async () => ({ ok: true, content: '# Demo', revision: 3 }));
+    const writeWorkspaceContext = vi.fn(async () => ({ ok: false, conflict: true, error: 'changed' }));
+    await render({ readWorkspaceContext, writeWorkspaceContext }, '/repo');
 
     await editAndSave('# Demo\nmine');
     expect(document.querySelector('.workspace-settings-error')?.textContent)
-      .toContain('pulse-workspace.md changed after you opened it');
+      .toContain('The workspace context changed after you opened it');
     expect(document.querySelector<HTMLTextAreaElement>('.workspace-settings-textarea')!.value)
       .toBe('# Demo\nmine');
   });
 
-  it('creates a missing file without a version', async () => {
-    const read = vi.fn(async () => ({ ok: false, error: 'ENOENT' }));
-    const write = vi.fn(async () => ({ ok: true, version: 'sha256:new' }));
-    await render({ read, write });
+  it('starts from the template and creates the first version with a null revision', async () => {
+    const readWorkspaceContext = vi.fn(async () => ({ ok: true, content: '', revision: null }));
+    const writeWorkspaceContext = vi.fn(async () => ({ ok: true, revision: 1 }));
+    await render({ readWorkspaceContext, writeWorkspaceContext });
 
+    expect(document.querySelector<HTMLTextAreaElement>('.workspace-settings-textarea')!.value).toContain('## Goal');
     await editAndSave('# Demo\nnew');
-    expect(write).toHaveBeenLastCalledWith(docPath, '# Demo\nnew', undefined);
+    expect(writeWorkspaceContext).toHaveBeenLastCalledWith('ws-1', '# Demo\nnew', null);
   });
 });

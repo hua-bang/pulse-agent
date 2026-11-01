@@ -436,6 +436,14 @@ export interface AgentApi {
     title: string;
     currentPrompt?: string;
   }) => Promise<{ ok: boolean; content?: string; error?: string }>;
+  readWorkspaceContext: (
+    workspaceId: string,
+  ) => Promise<{ ok: boolean; content?: string; revision?: number | null; error?: string }>;
+  writeWorkspaceContext: (
+    workspaceId: string,
+    content: string,
+    expectedRevision: number | null,
+  ) => Promise<{ ok: boolean; revision?: number; conflict?: boolean; error?: string }>;
   streamWorkspaceDoc: (payload: {
     workspaceName: string;
     intent: string;

@@ -50,6 +50,7 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'crypto';
 import { getCanvasAgentService, teardownCanvasAgentServices } from './agent-service-lifecycle';
 import { streamWorkspaceDoc } from './workspace/workspace-doc-generator';
+import { readWorkspaceContext, writeWorkspaceContext } from './workspace/workspace-context';
 import { generateScheduledPrompt } from './scheduled/scheduled-prompt-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentScopeRef } from './types';
@@ -298,6 +299,20 @@ export function setupCanvasAgentIpc(): void {
         return { ok: false, error: String(err) };
       }
     },
+  );
+
+  // ── Workspace context document (settings drawer read/save) ──
+  ipcMain.handle('canvas-agent:read-workspace-context', async (_event, payload: { workspaceId: string }) => {
+    try {
+      return { ok: true, ...(await readWorkspaceContext(payload.workspaceId)) };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+  ipcMain.handle(
+    'canvas-agent:write-workspace-context',
+    (_event, payload: { workspaceId: string; content: string; expectedRevision: number | null }) =>
+      writeWorkspaceContext(payload.workspaceId, payload.content, payload.expectedRevision),
   );
 
   // ── Workspace doc one-shot generation (user-triggered from settings) ──

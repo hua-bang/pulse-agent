@@ -1,24 +1,17 @@
 /**
  * Workspace meta reader — lets the agent learn the workspace's rootFolder
- * (from the renderer-owned manifest) and load its pulse-workspace.md if
- * present.
- *
- * pulse-workspace.md is the workspace's shared "brain" — humans and the
- * Canvas Agent both edit it. Its content is appended to the system prompt
- * every turn so the agent always sees the latest goal/status the human
- * wrote. We use a Pulse-specific filename (rather than the community
- * AGENTS.md convention) so that other coding agents opening the same
- * folder don't pick it up as instructions to themselves.
+ * (from the renderer-owned manifest), and formats the workspace environment
+ * and context-document section of the system prompt. The context document
+ * itself lives in storage (see ./workspace-context).
  */
 
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import type { WorkspaceContextDoc } from './workspace-context';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const MANIFEST_PATH = join(STORE_DIR, '__workspaces__.json');
-
-export const WORKSPACE_DOC_FILENAME = 'pulse-workspace.md';
 
 interface ManifestWorkspace {
   id: string;
@@ -47,24 +40,14 @@ export async function readWorkspaceMeta(workspaceId: string): Promise<WorkspaceM
   }
 }
 
-export async function readWorkspaceDoc(rootFolder: string | undefined): Promise<string | null> {
-  if (!rootFolder) return null;
-  try {
-    const content = await fs.readFile(join(rootFolder, WORKSPACE_DOC_FILENAME), 'utf-8');
-    const trimmed = content.trim();
-    return trimmed.length > 0 ? content : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Workspace environment + `pulse-workspace.md` section of the system prompt.
- * Lives beside the meta/doc readers it formats (moved out of canvas-agent.ts,
+ * Workspace environment + workspace context section of the system prompt.
+ * Lives beside the meta reader it formats (moved out of canvas-agent.ts,
  * which is at its file-size baseline).
  */
-export function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: string | null): string {
-  if (!rootFolder && !workspaceDoc) return '';
+export function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: WorkspaceContextDoc | null): string {
+  const docContent = workspaceDoc?.content.trim() ?? '';
+  if (!rootFolder && !docContent) return '';
 
   const parts: string[] = [];
 
@@ -78,17 +61,19 @@ export function formatWorkspaceContextSection(rootFolder: string | undefined, wo
     );
   }
 
-  if (workspaceDoc) {
-    const docPath = rootFolder ? `${rootFolder}/${WORKSPACE_DOC_FILENAME}` : WORKSPACE_DOC_FILENAME;
+  if (docContent) {
     parts.push(
-      `## Workspace Context (${docPath})`,
+      '## Workspace Context',
       'The following document is authored jointly by the user and you. ' +
         'It captures the goal, current status, and any decisions for this workspace. ' +
         'Treat it as authoritative context — refer back to it when planning your next steps. ' +
+        'It is stored in Pulse workspace storage, not as a file: never create or edit a ' +
+        '`pulse-workspace.md` file in the workspace folder. ' +
         'When you make meaningful progress, change direction, or resolve a blocker, ' +
-        'use the `edit` tool to update the relevant section so the user sees fresh state next time.',
+        'call `workspace_context_update` (search for it first if it is not loaded) with the full updated document and ' +
+        `\`expected_revision: ${workspaceDoc?.revision ?? 'null'}\` so the user sees fresh state next time.`,
       '',
-      workspaceDoc.trim(),
+      docContent,
       '',
     );
   }

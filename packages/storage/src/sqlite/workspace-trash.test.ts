@@ -189,13 +189,14 @@ describe('workspace trash lifecycle', () => {
     expect(await readFile(filePath, 'utf8')).toBe('Requested body');
   });
 
-  it.each([1, 2])('upgrades schema v%s without changing retained payloads or identities', async version => {
+  it.each([1, 2, 3])('upgrades schema v%s without changing retained payloads or identities', async version => {
     await storage.workspaces.importBundle(bundle());
     const before = await storage.workspaces.readBundle('ws');
     const generation = storage.generation;
     await storage.close();
     const old = new Database(path);
-    old.exec('DROP TABLE workspace_trash');
+    old.exec('DROP TABLE workspace_context');
+    if (version < 3) old.exec('DROP TABLE workspace_trash');
     if (version === 1) old.exec('DROP TABLE local_activations');
     old.pragma(`user_version = ${version}`);
     old.close();
@@ -204,7 +205,7 @@ describe('workspace trash lifecycle', () => {
     expect(await storage.workspaces.readBundle('ws')).toEqual(before);
     expect((await storage.workspaces.listTrashed()).items).toEqual([]);
     const inspect = new Database(path, { readonly: true });
-    try { expect(inspect.pragma('user_version', { simple: true })).toBe(3); }
+    try { expect(inspect.pragma('user_version', { simple: true })).toBe(4); }
     finally { inspect.close(); }
     const trashed = await storage.workspaces.trashBundle(await deletion());
     await storage.workspaces.restoreBundle('ws', trashed.revision, trashed.generation);
