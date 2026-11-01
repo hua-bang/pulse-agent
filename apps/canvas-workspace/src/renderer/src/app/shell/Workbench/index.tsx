@@ -327,6 +327,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
           open={terminalDockOpen}
           onClose={dock.closeTerminal}
           onAgentTypeChange={dock.setTerminalAgentType}
+          onCwdChange={dock.setTerminalCwd}
         />
       </FileNodeEditorRegistryProvider>
     </>

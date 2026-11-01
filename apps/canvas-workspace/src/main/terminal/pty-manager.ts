@@ -253,7 +253,8 @@ export const setupPtyIpc = () => {
           name: "xterm-256color",
           cols,
           rows,
-          cwd: cwd || homedir(),
+          // A restored tab's saved folder may be gone; start in home instead of failing.
+          cwd: cwd && existsSync(cwd) ? cwd : homedir(),
           env: spawnEnv
         });
 

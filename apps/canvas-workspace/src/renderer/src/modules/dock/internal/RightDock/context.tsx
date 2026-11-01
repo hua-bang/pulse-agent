@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { DockStore, type DockState } from './state/dock-store';
 import { createDockSessionPersistence } from './state/dock-session-persistence';
+import { createDockTerminalPersistence } from './state/dock-terminal-persistence';
 import { createDockTabArchivePersistence } from './links/dock-tab-archive';
 import type {
   AgentContextDomReviewComment,
@@ -52,6 +53,7 @@ export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const store = useMemo(() => new DockStore(
     typeof window === 'undefined' ? undefined : createDockSessionPersistence(window.localStorage),
     typeof window === 'undefined' ? undefined : createDockTabArchivePersistence(window.localStorage),
+    typeof window === 'undefined' ? undefined : createDockTerminalPersistence(window.localStorage),
   ), []);
   const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
@@ -195,6 +197,7 @@ export function useRightDock(): DockActions {
     closeTerminal: (id?: string) => store.closeTerminal(id),
     setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) =>
       store.setTerminalAgentType(id, agentType, workspaceId),
+    setTerminalCwd: (id: string, cwd: string, workspaceId?: string) => store.setTerminalCwd(id, cwd, workspaceId),
     setMountedWorkspaces: (ids: Iterable<string>) => store.setMountedWorkspaces(ids),
     collapse: () => store.collapse(),
     expand: () => {
