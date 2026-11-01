@@ -40,6 +40,7 @@ export interface DockActions {
   toggleTerminal: () => void;
   closeTerminal: (id?: string) => void;
   setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) => void;
+  setTerminalCwd: (id: string, cwd: string, workspaceId?: string) => void;
   setMountedWorkspaces: (ids: Iterable<string>) => void;
   collapse: () => void;
   /** Show the dock again on the tab it had when it was hidden. */

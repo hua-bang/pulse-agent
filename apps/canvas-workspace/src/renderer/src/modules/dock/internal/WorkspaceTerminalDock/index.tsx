@@ -27,6 +27,7 @@ import {
 import { createTerminalKeyArbiter, fitTerminalIfSane } from '../../../coding-agent/terminal';
 import { scheduleBootOverlayDismiss } from './boot-overlay';
 import { useFocusOnOpen } from './useFocusOnOpen';
+import { useTerminalCwd } from './useTerminalCwd';
 import { TerminalMentionPicker } from './TerminalMentionPicker';
 import './index.css';
 
@@ -36,12 +37,15 @@ interface WorkspaceTerminalDockProps {
   terminalTitle?: string;
   workspaceName?: string;
   rootFolder?: string;
+  /** Folder saved for a restored tab; its new shell starts there. */
+  initialCwd?: string;
   nodes: CanvasNode[];
   /** This workspace's dock tabs, offered by the ⌘2 picker beside the nodes. */
   dockTabs?: AgentContextTabRef[];
   open: boolean;
   onClose: () => void;
   onAgentTypeChange?: (agentType?: string) => void;
+  onCwdChange?: (cwd: string) => void;
   placement?: 'bottom' | 'pane';
 }
 
@@ -83,17 +87,18 @@ export const WorkspaceTerminalDock = ({
   terminalTitle,
   workspaceName,
   rootFolder,
+  initialCwd,
   nodes,
   dockTabs,
   open,
   onClose,
   onAgentTypeChange,
+  onCwdChange,
   placement = 'bottom',
 }: WorkspaceTerminalDockProps) => {
   const { t } = useI18n();
   const [height, setHeight] = useState(() => clampHeight(readStoredHeight() ?? DEFAULT_HEIGHT));
   const heightRef = useRef(height);
-  const [cwd, setCwd] = useState(rootFolder ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mentionHintVisible, setMentionHintVisible] = useState(false);
   // True from the moment the dock opens until the shell prints its first
@@ -116,8 +121,6 @@ export const WorkspaceTerminalDock = ({
   const codingAgentActiveRef = useRef(false);
   const commandInputRef = useRef('');
   const terminalOutputTailRef = useRef('');
-  const rootFolderRef = useRef(rootFolder);
-  rootFolderRef.current = rootFolder;
   heightRef.current = height;
 
   const sessionId = useMemo(
@@ -126,6 +129,9 @@ export const WorkspaceTerminalDock = ({
       : `workspace-terminal:${workspaceId}:${terminalId}`,
     [terminalId, workspaceId],
   );
+  const { cwd, spawnCwd: resolveSpawnCwd, refreshCwd } = useTerminalCwd({
+    sessionId, rootFolder, initialCwd, onCwdChange,
+  });
 
   const fitTerminal = useCallback(() => {
     const term = termRef.current;
@@ -161,14 +167,6 @@ export const WorkspaceTerminalDock = ({
     storeTerminalFontSize(clamped);
     fitTerminal();
   }, [fitTerminal]);
-
-  const refreshCwd = useCallback(() => {
-    const api = window.canvasWorkspace?.pty;
-    if (!api) return;
-    void api.getCwd(sessionId).then((result) => {
-      if (result.ok && result.cwd) setCwd(result.cwd);
-    });
-  }, [sessionId]);
 
   const dismissMentionHint = useCallback(() => {
     setMentionHintVisible(false);
@@ -294,8 +292,7 @@ export const WorkspaceTerminalDock = ({
       return;
     }
 
-    const spawnCwd = rootFolderRef.current || undefined;
-    if (spawnCwd) setCwd(spawnCwd);
+    const spawnCwd = resolveSpawnCwd();
     // Global terminals belong to no Canvas workspace, so they get no
     // PULSE_CANVAS_WORKSPACE_ID for the canvas CLI to target.
     const spawnWorkspaceId = workspaceId === GLOBAL_CHAT_STORE_ID ? undefined : workspaceId;
@@ -336,7 +333,7 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, focusOpenedTerminal, refreshCwd, scheduleFit, sessionId, workspaceId]);
+  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, dismissBooting, focusOpenedTerminal, refreshCwd, resolveSpawnCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
