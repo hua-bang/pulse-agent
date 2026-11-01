@@ -4,6 +4,7 @@ import type { AgentScope } from './types';
 import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import type { CanvasTool, CanvasToolExecutionContext } from './tools';
 import { createApprovalNodePreview } from './approval-node-preview';
+import { isCliCanvasNodeCreation } from './policy/cli-node-creation';
 import { SESSION_APPROVAL_ANSWER } from '../../shared/agent-chat';
 
 /**
@@ -123,24 +124,6 @@ export function requiresCanvasNodeCreationApproval(name: string): boolean {
     || Array.from(ALWAYS_CONFIRM_CANVAS_NODE_CREATION_TOOLS).some(toolName =>
       normalized.endsWith(`_${toolName}`),
     );
-}
-
-/**
- * `bash` can reach the bundled `pulse-canvas` CLI, which adds nodes without
- * passing through the native creators above. Treat a shell segment that runs
- * a node-adding CLI command as node creation, so Auto mode cannot skip the
- * card. `apply --dry-run` only validates and stays ungated.
- */
-const CLI_NODE_CREATION_RE = /\bpulse-canvas\b.*\s(?:node\s+create|workspace\s+create|apply)(?=\s|$)/;
-
-export function isCliCanvasNodeCreation(name: string, input: unknown): boolean {
-  if (name.trim().toLowerCase() !== 'bash' || !input || typeof input !== 'object') return false;
-  const command = (input as { command?: unknown }).command;
-  if (typeof command !== 'string') return false;
-  return command.split(/[\n;&|]+/).some(segment =>
-    CLI_NODE_CREATION_RE.test(segment)
-    && !(/\sapply(?=\s|$)/.test(segment) && /\s--dry-run(?=\s|=|$)/.test(segment)),
-  );
 }
 
 export function classifyCanvasToolOperation(name: string): CanvasToolOperationKind {

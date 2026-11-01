@@ -35,7 +35,7 @@ matter, so the Canvas Agent neither loads nor lists it
 same-name default skill that uses native tools
 (`src/main/agent/skills/canvas-research-skills.ts`). `bash` commands that add
 nodes through the CLI still pass the node-creation approval card
-(`isCliCanvasNodeCreation` in `src/main/agent/tool-policy.ts`).
+(`isCliCanvasNodeCreation` in `src/main/agent/policy/cli-node-creation.ts`).
 `src/main/agent/__tests__/skill-audience.test.ts` enforces both rules.
 
 ## Production installation must never depend on a source checkout

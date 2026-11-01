@@ -382,6 +382,19 @@ describe('pulse-canvas CLI node creation through bash', () => {
     'pulse-canvas node create --type file --title Report',
     "'/Users/me/.pulse-coder/bin/pulse-canvas' apply --workspace ws --file plan.json",
     'cd /tmp && pulse-canvas workspace create "Topic" --format json',
+    'pulse-canvas\nnode create --type file',
+    'pulse-canvas \\\nnode create --type file',
+    'PULSE-CANVAS node create --type file',
+    'pulse-canvas NODE CREATE --type file',
+    '$(pulse-canvas node create --type file)',
+    '$(pulse-canvas\nnode create --type file)',
+    '`pulse-canvas node create --type file`',
+    'eval "pulse-canvas node create --type file"',
+    'pulse-canvas apply --workspace ws --file plan.json # --dry-run',
+    'pulse-canvas apply --file plan.json --title "keep # --dry-run in the title"',
+    'pulse-canvas apply --file plan.json\n--dry-run',
+    'pulse-canvas apply --file plan.json # comment \\\n--dry-run',
+    'pulse-canvas node create --type file # --dry-run',
   ])('requires a node-creation card in Auto mode for %s', async (command) => {
     const onClarificationRequest = vi.fn(async () => 'No');
     const result = await enforceCanvasAskModeToolPolicy({
@@ -403,6 +416,12 @@ describe('pulse-canvas CLI node creation through bash', () => {
   it.each([
     'pulse-canvas node list --format json',
     'pulse-canvas apply --workspace ws --file plan.json --dry-run --format json',
+    'pulse-canvas apply --file plan.json --title "note" --dry-run',
+    'pulse-canvas apply --file plan.json --dry-run # still a dry-run',
+    'pulse-canvas apply --file plan.json \\\n--dry-run',
+    'pulse-canvas node list\necho hello',
+    'pulse-canvas\nnode list',
+    'echo hello\nnode create --type file',
     'pulse-canvas edge list | grep create',
     'ls -la',
   ])('leaves %s ungated in Auto mode', async (command) => {
