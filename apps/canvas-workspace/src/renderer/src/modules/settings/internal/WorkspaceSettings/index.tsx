@@ -57,6 +57,9 @@ export const WorkspaceSettingsDrawer = ({
   const [agentsDoc, setAgentsDoc] = useState('');
   const [agentsDocLoaded, setAgentsDocLoaded] = useState(false);
   const [agentsDocExists, setAgentsDocExists] = useState(false);
+  // Content version of the file as last read or saved. Saves compare against
+  // it so a Canvas Agent `edit` made while the drawer is open is not lost.
+  const [docVersion, setDocVersion] = useState<string>();
   const [savingDoc, setSavingDoc] = useState(false);
   const [error, setError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
@@ -82,6 +85,7 @@ export const WorkspaceSettingsDrawer = ({
     if (!workspace.rootFolder) {
       setAgentsDoc('');
       setAgentsDocExists(false);
+      setDocVersion(undefined);
       setAgentsDocLoaded(true);
       return;
     }
@@ -91,6 +95,7 @@ export const WorkspaceSettingsDrawer = ({
       if (res.ok && typeof res.content === 'string') {
         setAgentsDoc(res.content);
         setAgentsDocExists(true);
+        setDocVersion(res.version);
       } else {
         setAgentsDoc(buildWorkspaceDocTemplate(workspace.name, {
           goal: t('workspaceSettings.goalPlaceholder'),
@@ -98,6 +103,7 @@ export const WorkspaceSettingsDrawer = ({
           notes: t('workspaceSettings.notesPlaceholder'),
         }));
         setAgentsDocExists(false);
+        setDocVersion(undefined);
       }
       setAgentsDocLoaded(true);
     });
@@ -125,18 +131,21 @@ export const WorkspaceSettingsDrawer = ({
     setError(undefined);
     try {
       const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
-      const res = await window.canvasWorkspace?.file.write(filePath, agentsDoc);
+      const res = await window.canvasWorkspace?.file.write(filePath, agentsDoc, docVersion);
       if (!res?.ok) {
-        setError(res?.error ?? t('workspaceSettings.saveFailed', { fileName: WORKSPACE_DOC_FILENAME }));
+        setError(res?.conflict
+          ? t('workspaceSettings.saveConflict', { fileName: WORKSPACE_DOC_FILENAME })
+          : res?.error ?? t('workspaceSettings.saveFailed', { fileName: WORKSPACE_DOC_FILENAME }));
         return;
       }
+      setDocVersion(res.version);
       setAgentsDocExists(true);
       setSavedHint(true);
       window.setTimeout(() => setSavedHint(false), 1800);
     } finally {
       setSavingDoc(false);
     }
-  }, [agentsDoc, workspace, t]);
+  }, [agentsDoc, docVersion, workspace, t]);
 
   const handleGenerate = useCallback(async () => {
     if (!workspace) return;

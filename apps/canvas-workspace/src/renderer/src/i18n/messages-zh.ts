@@ -1398,6 +1398,7 @@ export const zhMessages: MessageCatalog = {
   'workspaceSettings.statusPlaceholder': '目前进展到哪里？下一步是什么？',
   'workspaceSettings.notesPlaceholder': '决策、参考资料、开放问题 - 你和 agent 都可以自由编辑。',
   'workspaceSettings.saveFailed': '保存 {fileName} 失败',
+  'workspaceSettings.saveConflict': '{fileName} 在打开后被修改过，可能是 Canvas Agent 改的。草稿已保留。请先复制需要的内容，再关闭并重新打开设置以读取最新文件。',
   'workspaceSettings.replaceConfirmTitle': '替换当前草稿？',
   'workspaceSettings.replaceConfirm': '现有 pulse-workspace.md 内容会作为上下文发给模型，以便保留有价值的部分。',
   'workspaceSettings.generationStartFailed': '启动生成失败',

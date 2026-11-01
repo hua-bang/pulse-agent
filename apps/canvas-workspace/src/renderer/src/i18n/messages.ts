@@ -1414,6 +1414,7 @@ export const enMessages = {
   'workspaceSettings.statusPlaceholder': 'Where are we right now? What is next?',
   'workspaceSettings.notesPlaceholder': 'Decisions, references, open questions - both you and the agent edit this freely.',
   'workspaceSettings.saveFailed': 'Failed to save {fileName}',
+  'workspaceSettings.saveConflict': '{fileName} changed after you opened it, possibly by the Canvas Agent. Your draft is kept. Copy what you need, then close and reopen settings to load the latest file.',
   'workspaceSettings.replaceConfirmTitle': 'Replace current draft?',
   'workspaceSettings.replaceConfirm': 'The existing pulse-workspace.md content will be sent to the model as context so good parts can be kept.',
   'workspaceSettings.generationStartFailed': 'Failed to start generation',
