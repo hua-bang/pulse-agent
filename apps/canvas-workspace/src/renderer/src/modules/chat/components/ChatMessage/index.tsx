@@ -2,6 +2,7 @@ import { memo, useCallback, useContext } from 'react';
 import { useChatRenderTiming } from '../../runtime/useChatRenderTiming';
 import './index.css';
 import { OrderedChatContent } from './OrderedChatContent';
+import { StreamingMarkdown } from './StreamingMarkdown';
 import type { AgentChatMessage, CanvasNode, ToolCallStatus } from '../../../../types';
 import { toFileUrl } from '../../../../utils/fileUrl';
 import { BotAvatarIcon } from '../../../../components/icons';
@@ -80,6 +81,7 @@ const ChatMessageView = ({
   const {
     absoluteTime,
     assistantHtml,
+    renderAssistantStreaming,
     attachmentCount,
     bodyRef,
     canEdit,
@@ -223,7 +225,7 @@ const ChatMessageView = ({
           />
         ) : isStreaming ? (
           message.content ? (
-            <MarkdownContent imagePreview bodyRef={bodyRef} html={assistantHtml} streaming />
+            <StreamingMarkdown text={message.content} render={renderAssistantStreaming} />
           ) : null
         ) : (
           <MarkdownContent imagePreview bodyRef={bodyRef} html={assistantHtml} />

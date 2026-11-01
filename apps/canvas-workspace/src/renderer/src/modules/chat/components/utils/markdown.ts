@@ -222,7 +222,6 @@ const SETTLED_RENDER_CACHE_MAX = 100;
 
 export function renderMarkdown(content: string, options?: RenderMarkdownOptions): string {
   if (options?.streaming === true) {
-    count('chat-md-stream-render');
     return markdown.render(content, { streaming: true, softBreaks: options.softBreaks, variant: options.variant });
   }
   const variant = options?.variant ?? 'chat';

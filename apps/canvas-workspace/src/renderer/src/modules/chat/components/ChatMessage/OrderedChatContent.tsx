@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AgentChatContentBlock } from '../../../../../../shared/agent-chat';
 import { groupContentBlocks } from '../../../../../../shared/chat-content-blocks';
 import type { CanvasNode, ToolCallStatus } from '../../../../types';
@@ -7,6 +7,7 @@ import { renderMdWithMentions } from '../../mentions/mentions';
 import { renderMermaidIn } from '../../../../utils/mermaid';
 import { useHighlighterVersion } from '../../../../utils/syntaxHighlighter';
 import { MarkdownContent } from './MarkdownContent';
+import { StreamingMarkdown } from './StreamingMarkdown';
 
 interface Props {
   blocks: AgentChatContentBlock[];
@@ -28,13 +29,17 @@ function TextBlock({ text, streaming, nodes, rootFolder }: {
   const roleNames = useRoleNameColors();
   // highlighterVersion re-renders plain code once the highlighter loads.
   const highlighterVersion = useHighlighterVersion();
-  const html = useMemo(() => renderMdWithMentions(text, nodes, {
-    streaming, rootFolder, roleColors, roleNames,
-  }), [text, nodes, streaming, rootFolder, roleColors, roleNames, highlighterVersion]);
+  const renderStreaming = useCallback((markdown: string) => renderMdWithMentions(markdown, nodes, {
+    streaming: true, rootFolder, roleColors, roleNames,
+  }), [nodes, rootFolder, roleColors, roleNames, highlighterVersion]);
+  const html = useMemo(() => (streaming ? '' : renderMdWithMentions(text, nodes, {
+    rootFolder, roleColors, roleNames,
+  })), [text, nodes, streaming, rootFolder, roleColors, roleNames, highlighterVersion]);
   useEffect(() => {
     if (!streaming) renderMermaidIn(bodyRef.current);
   }, [html, streaming]);
-  return <MarkdownContent imagePreview bodyRef={bodyRef} html={html} streaming={streaming} />;
+  if (streaming) return <StreamingMarkdown text={text} render={renderStreaming} />;
+  return <MarkdownContent imagePreview bodyRef={bodyRef} html={html} />;
 }
 
 function ToolGroup({ tools, renderTools }: Pick<Props, 'tools' | 'renderTools'>) {
