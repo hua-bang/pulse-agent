@@ -164,8 +164,21 @@ export interface PluginCanvasSnapshot {
   nodes: CanvasNode[];
 }
 
+export interface PluginWorkspaceSummary {
+  id: string;
+  name: string;
+}
+
+export interface PluginWorkspaceListing {
+  /** Workspace the app last opened, when known. */
+  activeId?: string;
+  workspaces: PluginWorkspaceSummary[];
+}
+
 export interface PluginCanvasApi {
   read(workspaceId: string): Promise<PluginCanvasSnapshot | null>;
+  /** List workspaces (id and name only). Read-only. */
+  listWorkspaces(): Promise<PluginWorkspaceListing>;
 }
 
 export interface PluginWebContentsRef {

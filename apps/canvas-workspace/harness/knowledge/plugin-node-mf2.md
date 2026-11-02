@@ -73,6 +73,13 @@ export default {
 };
 ```
 
+Main-side plugins can also read Canvas data. These APIs are read-only:
+
+- `ctx.canvas.read(workspaceId)`: the nodes of one workspace.
+- `ctx.canvas.listWorkspaces()`: `{ activeId?, workspaces: [{ id, name }] }`.
+  `activeId` is the workspace the app last opened. Root folders are not
+  exposed. A renderer half gets this data through `invoke` to its main half.
+
 Host tools exposed to the Canvas Agent:
 
 - `canvas_read_node`: automatically delegates to plugin `read`.

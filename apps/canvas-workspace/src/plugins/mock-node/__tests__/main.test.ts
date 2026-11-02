@@ -22,6 +22,7 @@ function createCtx() {
     },
     canvas: {
       read: vi.fn(async () => null),
+      listWorkspaces: vi.fn(async () => ({ workspaces: [] })),
     },
     webviews: {
       get: vi.fn(() => null),
