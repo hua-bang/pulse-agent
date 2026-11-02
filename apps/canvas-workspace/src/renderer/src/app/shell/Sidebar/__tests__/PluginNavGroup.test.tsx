@@ -19,7 +19,7 @@ const market = vi.hoisted(() => ({
 vi.mock('../../../../shared/appShell', () => ({ useAppShell: () => shell }));
 vi.mock('../../../../modules/plugin-market', () => market);
 
-import { PluginNavGroup } from '../PluginNavGroup';
+import PluginNavGroup from '../PluginNavGroup';
 
 const items: PluginNavItem[] = [
   { id: 'sticky-nav', path: '/plugins/sticky', label: 'Sticky Wall', pluginId: 'sticky-wall' },

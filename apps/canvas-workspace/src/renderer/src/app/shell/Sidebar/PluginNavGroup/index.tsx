@@ -31,7 +31,7 @@ const loadMarket = () => import('../../../../modules/plugin-market');
  * Plugin-contributed rail entries, grouped under one header that the user
  * can collapse. Right-click an entry to uninstall the plugin behind it.
  */
-export const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
+const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
   const { t } = useI18n();
   const { confirm, notify } = useAppShell();
   const [collapsed, toggleCollapsed] = usePluginNavCollapsed();
