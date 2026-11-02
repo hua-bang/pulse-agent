@@ -15,9 +15,10 @@ import {
 import { useI18n } from '../../../i18n';
 import { formatShortcutId } from '../../../shortcuts/registry';
 import { AppsSection } from './AppsSection';
-import { PluginNavGroup } from './PluginNavGroup';
 // Loaded on first hover, so the flyout stays out of the startup bundle.
 const WorkspaceFlyout = lazy(() => import('./WorkspaceFlyout'));
+// Only rendered once a plugin registers a nav item.
+const PluginNavGroup = lazy(() => import('./PluginNavGroup'));
 
 /** What the narrow rail's workspace flyout lists and opens. */
 interface WorkspaceFlyoutData {
@@ -198,7 +199,9 @@ export const SidebarRail = ({
         </RailButton>
       )}
       {pluginNavItems.length > 0 && (
-        <PluginNavGroup items={pluginNavItems} activeView={activeView} onNavigate={onNavigate} />
+        <Suspense fallback={null}>
+          <PluginNavGroup items={pluginNavItems} activeView={activeView} onNavigate={onNavigate} />
+        </Suspense>
       )}
       {onOpenMcpApp && (
         <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp} />

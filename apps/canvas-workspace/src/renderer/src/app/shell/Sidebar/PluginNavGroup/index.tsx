@@ -122,3 +122,5 @@ export const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
     </div>
   );
 };
+
+export default PluginNavGroup;
