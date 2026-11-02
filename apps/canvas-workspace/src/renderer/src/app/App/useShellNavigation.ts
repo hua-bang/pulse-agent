@@ -5,6 +5,7 @@ import { APP_ROUTES } from './routeModel';
 
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const RAIL_EXPANDED_KEY = 'pulse-canvas.rail-expanded';
+const PLUGIN_NAV_COLLAPSED_KEY = 'pulse-canvas.plugin-nav-collapsed';
 
 /** A boolean shell preference kept in localStorage; `fallback` when unset or unreadable. */
 const usePersistedToggle = (key: string, fallback = false) => {
@@ -37,6 +38,9 @@ export const useSidebarCollapsed = () => usePersistedToggle(SIDEBAR_COLLAPSED_KE
  * Wide by default, because the workspace list only shows in the wide rail.
  */
 export const useRailExpanded = () => usePersistedToggle(RAIL_EXPANDED_KEY, true);
+
+/** Persisted open/closed state of the plugin group on the app rail. */
+export const usePluginNavCollapsed = () => usePersistedToggle(PLUGIN_NAV_COLLAPSED_KEY);
 
 interface SettingsNavigationOptions {
   location: string;

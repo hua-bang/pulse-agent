@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import './index.css';
 import { AppShellProvider, useAppShell } from '../shell/AppShellProvider';
@@ -6,7 +6,7 @@ import { ConversationCompletionToastBridge } from '../shell/ConversationCompleti
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
 import { DockAutoCloseToasts, GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
-import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
+import { getRegisteredNavItems, getRegisteredRoutes, getRendererPluginRegistryVersion, subscribeRendererPluginRegistry } from '../../../../plugins/renderer';
 import { Workbench, useWorkbenchState } from '../shell/Workbench';
 import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
@@ -66,9 +66,10 @@ const AppContent = () => {
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
   const search = useSearch();
-  // so a one-shot read is sufficient.
-  const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
-  const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
+  // Plugins can activate after mount (market install, federation sync); re-read on registry change.
+  const pluginRegistryVersion = useSyncExternalStore(subscribeRendererPluginRegistry, getRendererPluginRegistryVersion);
+  const pluginRoutes = useMemo(() => getRegisteredRoutes().slice(), [pluginRegistryVersion]);
+  const pluginNavItems = useMemo(() => getRegisteredNavItems(), [pluginRegistryVersion]);
   const route = useMemo(() => resolveAppRoute(location, {
     nodesEnabled: NODES_ENABLED,
     graphEnabled: GRAPH_ENABLED,

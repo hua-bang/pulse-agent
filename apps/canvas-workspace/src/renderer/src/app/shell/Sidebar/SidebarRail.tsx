@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState, type ReactNode } from 'react';
-import type { NavItem } from '../../../../../plugins/types';
+import type { PluginNavItem } from '../../../../../plugins/types';
 import type { FolderEntry, WorkspaceEntry } from '../../../shared/workspaces';
 import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
 import {
@@ -15,6 +15,7 @@ import {
 import { useI18n } from '../../../i18n';
 import { formatShortcutId } from '../../../shortcuts/registry';
 import { AppsSection } from './AppsSection';
+import { PluginNavGroup } from './PluginNavGroup';
 // Loaded on first hover, so the flyout stays out of the startup bundle.
 const WorkspaceFlyout = lazy(() => import('./WorkspaceFlyout'));
 
@@ -46,7 +47,7 @@ interface SidebarRailProps {
   graphEnabled: boolean;
   enableSkills: boolean;
   enableScheduled: boolean;
-  pluginNavItems: ReadonlyArray<NavItem>;
+  pluginNavItems: ReadonlyArray<PluginNavItem>;
   onNavigate: (path: string) => void;
   activeMcpAppKey: string | null;
   onOpenMcpApp?: (listing: McpAppEntrypointListing) => void;
@@ -196,20 +197,9 @@ export const SidebarRail = ({
           <ScheduledIcon size={15} />
         </RailButton>
       )}
-      {pluginNavItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <RailButton
-            key={item.id}
-            active={activeView === item.path}
-            label={item.label}
-            title={item.title ?? item.label}
-            onClick={() => onNavigate(item.path)}
-          >
-            {Icon ? <Icon size={15} /> : item.label.slice(0, 1)}
-          </RailButton>
-        );
-      })}
+      {pluginNavItems.length > 0 && (
+        <PluginNavGroup items={pluginNavItems} activeView={activeView} onNavigate={onNavigate} />
+      )}
       {onOpenMcpApp && (
         <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp} />
       )}

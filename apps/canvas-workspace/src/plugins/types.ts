@@ -350,6 +350,11 @@ export interface NavItem {
   icon?: ComponentType<{ size?: number }>;
 }
 
+/** A registered nav item plus the id of the plugin that registered it. */
+export interface PluginNavItem extends NavItem {
+  pluginId: string;
+}
+
 export interface PluginNodeViewProps {
   node: CanvasNode;
   workspaceId?: string;

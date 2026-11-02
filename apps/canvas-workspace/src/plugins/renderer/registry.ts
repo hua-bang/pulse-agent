@@ -3,6 +3,7 @@ import type {
   ChatCardSpec,
   NavItem,
   PluginBridge,
+  PluginNavItem,
   PluginNodeViewProps,
   RendererCanvasPlugin,
   RendererCtx,
@@ -173,8 +174,8 @@ export function getRegisteredChatCards(): ReadonlyArray<ChatCardEntry> {
   return chatCards;
 }
 
-export function getRegisteredNavItems(): ReadonlyArray<NavItem> {
-  return navItems.map((entry) => entry.item);
+export function getRegisteredNavItems(): ReadonlyArray<PluginNavItem> {
+  return navItems.map((entry) => ({ ...entry.item, pluginId: entry.pluginId }));
 }
 
 export function getRegisteredNodeView(nodeType: string): NodeViewEntry | undefined {

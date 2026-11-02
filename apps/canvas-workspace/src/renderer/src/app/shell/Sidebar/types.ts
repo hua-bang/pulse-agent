@@ -1,4 +1,4 @@
-import type { NavItem } from '../../../../../plugins/types';
+import type { PluginNavItem } from '../../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../../shared/workspaces';
 import type { CanvasNode } from '../../../types';
 import type { McpAppEntrypointListing } from '../../../../../shared/mcp-apps';
@@ -49,7 +49,7 @@ export interface SidebarProps {
   nodesEnabled: boolean;
   /** When false, the Graph nav button is hidden (feature flag off). */
   graphEnabled: boolean;
-  pluginNavItems: ReadonlyArray<NavItem>;
+  pluginNavItems: ReadonlyArray<PluginNavItem>;
   onNavigate: (path: string) => void;
   onExitChat: () => void;
   /** Key of the global MCP App the main area shows, or null. */
