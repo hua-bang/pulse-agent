@@ -49,7 +49,7 @@ export function useChatComposerInput({
     scopeId,
     workspaceId,
   });
-  const { insertFileMention, insertNodeMention, insertDomSelectionMention, insertTabMention } = useContextMentionInsertions({
+  const { insertFileMention, insertNodeMention, insertDomSelectionMention, insertTabMention, insertText } = useContextMentionInsertions({
     editableRef, nodes, workspaceId, setInput, describeTab,
   });
   const insertSkillMention = useSkillMentionInsertion({ editableRef, nodes, setInput });
@@ -149,6 +149,7 @@ export function useChatComposerInput({
     insertSkillMention,
     insertFileMention,
     insertTabMention,
+    insertText,
     mentionIndex,
     mentionItems,
     mentionLoading,

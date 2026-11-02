@@ -31,6 +31,8 @@ export type ChatInsertion =
   | { kind: 'node'; node: CanvasNode; sourceWorkspaceId?: string }
   | { kind: 'dom-selection'; selection: AgentContextDomSelectionRef }
   | { kind: 'tab'; tab: AgentContextTabRef }
+  /** Plain text appended to the composer, e.g. a quote sent by a plugin. */
+  | { kind: 'text'; text: string }
   | { kind: 'skill'; skillName: string }
   | { kind: 'dom-review'; comments: AgentContextDomReviewComment[] }
   | { kind: 'prompt'; prompt: ChatPromptSubmission }
@@ -51,6 +53,7 @@ export interface ChatTargetHandlers {
   insertNode?: (node: CanvasNode, sourceWorkspaceId?: string) => void;
   insertDomSelection?: (selection: AgentContextDomSelectionRef) => void;
   insertTab?: (tab: AgentContextTabRef) => void;
+  insertText?: (text: string) => void;
   startSkillChat?: (skillName: string) => Promise<void>;
   submitDomReview?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   submitPrompt?: (prompt: ChatPromptSubmission) => Promise<boolean>;

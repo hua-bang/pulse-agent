@@ -1,8 +1,10 @@
-import { useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useChatTargetBroker, waitForActiveChatTarget } from '../../modules/chat';
 import {
   getRegisteredNavItems,
   getRegisteredRoutes,
   getRendererPluginRegistryVersion,
+  setPluginChatTextHandler,
   subscribeRendererPluginRegistry,
 } from '../../../../plugins/renderer';
 
@@ -16,4 +18,23 @@ export const usePluginRegistry = () => {
   const pluginRoutes = useMemo(() => getRegisteredRoutes().slice(), [version]);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), [version]);
   return { pluginRoutes, pluginNavItems };
+};
+
+/**
+ * Backs `RendererCtx.addTextToChat`: appends the text to the active chat
+ * composer, opening the chat first when no composer is mounted.
+ */
+export const usePluginChatBridge = (openChat: () => void) => {
+  const broker = useChatTargetBroker();
+  useEffect(() => {
+    setPluginChatTextHandler(async (text) => {
+      let receipt = await broker.deliver({ kind: 'text', text });
+      if (receipt.status === 'unavailable' && !receipt.target) {
+        openChat();
+        if (await waitForActiveChatTarget(broker)) receipt = await broker.deliver({ kind: 'text', text });
+      }
+      return receipt.status;
+    });
+    return () => setPluginChatTextHandler(null);
+  }, [broker, openChat]);
 };

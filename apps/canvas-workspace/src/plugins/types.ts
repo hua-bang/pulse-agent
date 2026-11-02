@@ -393,7 +393,17 @@ export interface RendererCtx {
   // plugin's main half via ctx.handle. Plugin id is bound on activation
   // so the renderer code does not have to repeat it.
   invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T>;
+  /**
+   * Append plain text to the active chat composer, e.g. a quote the user
+   * selected in the plugin page. Opens the chat when it is closed. The user
+   * still sends the message.
+   */
+  addTextToChat(text: string): Promise<PluginChatDeliveryStatus>;
 }
+
+/** `unavailable`: no chat composer could take the text. */
+export type PluginChatDeliveryStatus = 'delivered' | 'queued' | 'unavailable' | 'failed';
+export type PluginChatTextHandler = (text: string) => Promise<PluginChatDeliveryStatus>;
 
 // Preload-side bridge that backs RendererCtx.invoke. The host preload
 // exposes this on `window.canvasWorkspace.plugin` so the renderer half

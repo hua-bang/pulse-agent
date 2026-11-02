@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { RendererCanvasPlugin } from '../types';
 import {
   activateCanvasPlugins,
@@ -7,6 +7,7 @@ import {
   getRegisteredNodeView,
   getRegisteredRoutes,
   isRendererPluginActivated,
+  setPluginChatTextHandler,
 } from './registry';
 
 describe('renderer plugin lifecycle', () => {
@@ -58,5 +59,26 @@ describe('renderer plugin lifecycle', () => {
     expect(isRendererPluginActivated(plugin.id)).toBe(false);
     expect(getRegisteredRoutes().some((entry) => entry.pluginId === plugin.id)).toBe(false);
     expect(getRegisteredNodeView('lifecycle-failure-node')).toBeUndefined();
+  });
+
+  it('routes addTextToChat through the host handler', async () => {
+    let ctxRef: Parameters<RendererCanvasPlugin['activate']>[0] | null = null;
+    const plugin: RendererCanvasPlugin = {
+      id: 'chat-text-test-plugin',
+      activate: (ctx) => { ctxRef = ctx; },
+    };
+    activateCanvasPlugins([plugin]);
+
+    await expect(ctxRef!.addTextToChat('quote')).resolves.toBe('unavailable');
+
+    const handler = vi.fn(async () => 'delivered' as const);
+    setPluginChatTextHandler(handler);
+    await expect(ctxRef!.addTextToChat('quote')).resolves.toBe('delivered');
+    await expect(ctxRef!.addTextToChat('   ')).resolves.toBe('unavailable');
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith('quote');
+
+    setPluginChatTextHandler(null);
+    deactivateCanvasPlugin(plugin.id);
   });
 });

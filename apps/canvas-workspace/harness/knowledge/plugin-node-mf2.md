@@ -48,6 +48,14 @@ export default {
 `updateNode` writes host-owned canvas state. `invoke` calls the matching
 main-side plugin channel.
 
+`RendererCtx.addTextToChat(text)` appends plain text to the active chat
+composer (whitespace collapsed), opening the chat first when no composer is
+mounted. The user still sends the message. It resolves to `delivered`,
+`queued`, `unavailable` or `failed`. The app shell installs the handler
+(`usePluginChatBridge`); the text rides the chat target broker as a
+`{ kind: 'text' }` insertion. Selection UI, highlights and menus stay in the
+plugin.
+
 A plugin that adds only routes, nav items or chat cards needs no node. Declare
 a plugin-level `renderer` (same fields as a node `renderer`) in
 `extensions["com.pulsecanvas"]` or a legacy `manifest.json`. The host merges it
