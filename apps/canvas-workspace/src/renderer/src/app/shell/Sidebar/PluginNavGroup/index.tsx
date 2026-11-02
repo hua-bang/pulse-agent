@@ -2,6 +2,7 @@ import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import type { PluginNavItem } from '../../../../../../plugins/types';
 import type { PluginMarketListing } from '../../../../../../shared/plugin-market';
 import { ChevronRightIcon } from '../../../../components/icons';
+import { Button } from '../../../../components/ui';
 import { Popover } from '../../../../components/ui/Popover';
 import { useI18n } from '../../../../i18n';
 import { useAppShell } from '../../../../shared/appShell';
@@ -67,10 +68,11 @@ export const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
 
   return (
     <div className="sidebar-plugin-nav" role="group" aria-label={t('sidebar.pluginNav.title')}>
-      <button
-        type="button"
+      <Button
+        variant="icon"
         className="sidebar-rail-btn sidebar-plugin-nav__header"
         aria-expanded={!collapsed}
+        aria-label={t(collapsed ? 'sidebar.pluginNav.expand' : 'sidebar.pluginNav.collapse')}
         title={t(collapsed ? 'sidebar.pluginNav.expand' : 'sidebar.pluginNav.collapse')}
         onClick={toggleCollapsed}
       >
@@ -79,14 +81,14 @@ export const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
           className={`sidebar-plugin-nav__chevron${collapsed ? '' : ' sidebar-plugin-nav__chevron--open'}`}
         />
         <span className="sidebar-rail-label">{t('sidebar.pluginNav.title')}</span>
-      </button>
+      </Button>
       {!collapsed && items.map((item) => {
         const Icon = item.icon;
         const active = activeView === item.path;
         return (
-          <button
+          <Button
             key={item.id}
-            type="button"
+            variant="icon"
             className={`sidebar-rail-btn${active ? ' sidebar-rail-btn--active' : ''}`}
             onClick={() => onNavigate(item.path)}
             onContextMenu={(event) => openMenu(event, item)}
@@ -96,15 +98,16 @@ export const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
           >
             {Icon ? <Icon size={15} /> : item.label.slice(0, 1)}
             <span className="sidebar-rail-label">{item.label}</span>
-          </button>
+          </Button>
         );
       })}
       {menu && (
         <Popover x={menu.x} y={menu.y} onClose={() => setMenu(null)} className="sidebar-layer-context-menu sidebar-plugin-nav-menu">
-          <button
-            type="button"
+          <Button
+            variant="danger"
+            size="sm"
             role="menuitem"
-            className="sidebar-layer-context-menu-item sidebar-layer-context-menu-item--danger"
+            className="sidebar-plugin-nav-menu__item"
             disabled={!menuListing}
             onClick={() => { if (menuListing) void uninstall(menuListing); }}
           >
@@ -113,7 +116,7 @@ export const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
                 ? t('sidebar.pluginNav.builtIn')
                 : t('sidebar.pluginNav.uninstall')}
             </span>
-          </button>
+          </Button>
         </Popover>
       )}
     </div>

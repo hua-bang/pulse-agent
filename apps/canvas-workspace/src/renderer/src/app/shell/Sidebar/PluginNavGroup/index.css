@@ -25,7 +25,6 @@
   transform: rotate(90deg);
 }
 
-.sidebar-plugin-nav-menu .sidebar-layer-context-menu-item:disabled {
-  cursor: default;
-  opacity: 0.6;
+.sidebar-plugin-nav-menu__item {
+  width: 100%;
 }
