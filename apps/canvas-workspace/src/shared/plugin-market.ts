@@ -119,6 +119,11 @@ export interface PluginPackagePulseExtension {
   data: JsonObject;
   schemaVersion?: number;
   main?: PulseCanvasPluginMain;
+  /**
+   * Plugin-level renderer entry. Loads the renderer half without a node, for
+   * plugins that only add routes, nav items or chat cards.
+   */
+  renderer?: PulseCanvasPluginRenderer;
   nodes: PulseCanvasPluginNode[];
   config: PulseCanvasPluginConfigField[];
 }

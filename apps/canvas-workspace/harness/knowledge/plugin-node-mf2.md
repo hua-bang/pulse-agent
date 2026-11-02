@@ -48,6 +48,11 @@ export default {
 `updateNode` writes host-owned canvas state. `invoke` calls the matching
 main-side plugin channel.
 
+A plugin that adds only routes, nav items or chat cards needs no node. Declare
+a plugin-level `renderer` (same fields as a node `renderer`) in
+`extensions["com.pulsecanvas"]` or a legacy `manifest.json`. The host merges it
+with node renderers and dedupes the specs.
+
 ## Main Capability Shape
 
 Main-side plugins register semantic capabilities:

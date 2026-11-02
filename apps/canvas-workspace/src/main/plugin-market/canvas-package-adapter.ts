@@ -60,9 +60,8 @@ function rendererSpec(
   pluginId: string,
   version: string | undefined,
   dir: string,
-  node: CanvasPluginManifestNode,
+  renderer: CanvasPluginManifestNode['renderer'],
 ): CanvasPluginRendererSpec | null {
-  const renderer = node.renderer;
   if (!renderer?.entry) return null;
   const remoteName = (renderer.remoteName ?? renderer.name ?? '').trim();
   if (!remoteName) return null;
@@ -171,8 +170,8 @@ export function canvasEntryFromPackage(
     .map((node) => normalizeNode(plugin.root, node))
     .filter((node): node is CanvasPluginManifestNode => node !== null);
   const rendererSpecs = dedupeRendererSpecs(
-    nodes
-      .map((node) => rendererSpec(plugin.name, plugin.version, plugin.root, node))
+    [extension?.renderer, ...nodes.map((node) => node.renderer)]
+      .map((renderer) => rendererSpec(plugin.name, plugin.version, plugin.root, renderer))
       .filter((spec): spec is CanvasPluginRendererSpec => spec !== null),
   );
   return {

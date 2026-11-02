@@ -217,6 +217,26 @@ describe('canvas plugins config', () => {
     expect(stored.pluginDirs).toEqual([resolve(pluginDir)]);
   });
 
+  it('loads a plugin-level renderer for a package with no nodes', async () => {
+    const pluginDir = await mkdtemp(join(tmpdir(), 'canvas-plugin-nav-only-'));
+    pluginDirsToClean.push(pluginDir);
+    await writeFile(join(pluginDir, 'manifest.json'), JSON.stringify({
+      id: 'nav-only',
+      version: '0.1.0',
+      renderer: { remoteName: 'nav_only', entry: 'renderer/remoteEntry.js', type: 'global' },
+    }), 'utf8');
+    await mkdir(join(pluginDir, 'renderer'), { recursive: true });
+    await writeFile(join(pluginDir, 'renderer', 'remoteEntry.js'), 'export default {}', 'utf8');
+    const { addCanvasPluginDirectory } = await loadConfigModule();
+
+    const status = await addCanvasPluginDirectory(pluginDir);
+
+    expect(status.plugins[0]).toMatchObject({ id: 'nav-only', nodes: [] });
+    expect(status.rendererSpecs).toEqual([
+      expect.objectContaining({ id: 'nav-only', name: 'nav_only', expose: './plugin' }),
+    ]);
+  });
+
   it('exposes plugin skill scan paths for the agent registry', async () => {
     const pluginDir = await createPluginDir('skill-demo');
     const {
