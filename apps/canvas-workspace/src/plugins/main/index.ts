@@ -16,4 +16,4 @@ export {
   setAgentServiceAccessor,
 } from './registry';
 export { BUILT_IN_MAIN_PLUGINS, isAgentObservabilityEnabled } from './built-in';
-export { reloadConfiguredExternalMainPlugins } from './external';
+export { isExternalMainPlugin, reloadConfiguredExternalMainPlugins } from './external';

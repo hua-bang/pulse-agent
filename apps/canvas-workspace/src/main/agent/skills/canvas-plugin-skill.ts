@@ -138,7 +138,7 @@ Main \`ctx\` (\`MainCtx\`):
 - \`store.get/set/delete/list\`: persistent key-value storage for this plugin. Use it instead of writing your own files.
 - \`canvas.listWorkspaces()\` and \`canvas.read(workspaceId)\`: read-only canvas data (workspace list, nodes).
 - \`handle(channel, handler)\`: the handler gets \`(event, ...args)\`; return JSON-safe data.
-- \`registerCanvasTool(factory)\`: give the Canvas Agent tools for this plugin. The factory returns \`{ <tool_name>: { description, inputSchema, execute } }\`. Write \`inputSchema\` as plain JSON Schema; \`execute(input)\` returns a string. Prefix tool names with the plugin name so they do not clash. The tools work in workspace and All-workspaces chat, from the next message after the plugin is enabled or reloaded.
+- \`registerCanvasTool(factory)\`: give the Canvas Agent tools for this plugin. The factory returns \`{ <tool_name>: { description, inputSchema, execute } }\`. Write \`inputSchema\` as plain JSON Schema; \`execute(input)\` returns a string. Prefix tool names with the plugin name so they do not clash. The tools are registered dynamically: they work in workspace and All-workspaces chat as soon as the plugin is enabled or reloaded, even in the same turn, without an app restart.
 
 The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.json.
 

@@ -76,7 +76,7 @@ function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>): string {
       + 'in this chat. Do not ask them to open settings, and do not claim the plugin is running yet.';
   }
   return 'Installed and already enabled. The open app reloaded the changed plugin files, so the user can '
-    + 'look at the plugin page again. Tools from registerCanvasTool are available from the next chat message.';
+    + 'look at the plugin page again. Tools from registerCanvasTool are live now, so you can call them in this turn.';
 }
 
 /** Tells every window to sync its renderer plugins, which hot-reloads changed ones. */

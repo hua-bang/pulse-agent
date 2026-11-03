@@ -10,6 +10,11 @@ type PluginModule = Record<string, unknown>;
 /** Active external plugin id -> version of the main entry it loaded. */
 const activeExternalPlugins = new Map<string, string>();
 
+/** True for an active plugin loaded from the plugin market, not a built-in one. */
+export function isExternalMainPlugin(id: string): boolean {
+  return activeExternalPlugins.has(id);
+}
+
 /**
  * The entry file's mtime. It goes into the import URL so a changed file
  * loads as a new module instead of the cached one. Only the entry file is
