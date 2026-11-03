@@ -14,6 +14,7 @@ import { isCanvasAgentSkill } from './skills/audience';
 import { getPluginMarketMcpConfigPathsSync } from '../plugin-market/store';
 import { createCanvasMcpOAuthProvider, getCanvasMcpOAuthStatus } from './mcp/oauth';
 import type { AgentScope } from './types';
+import { createLivePluginToolsEnginePlugin } from './tools/plugins/contributed';
 import { isAgentObservabilityEnabled } from '../../plugins/main';
 import { getExperimentalFlagSync } from '../settings/experimental-ipc';
 import { EXPERIMENTAL_FLAG_AGENT_CODEMODE } from '../../shared/experimental-features';
@@ -101,6 +102,8 @@ export function createCanvasEnginePlugins(
     // configured with `deferTools`. Without it the flag is inert and every tool
     // reaches the model on every turn.
     builtInToolSearchPlugin,
+    // Market plugin tools change while the app runs; read them per model call.
+    createLivePluginToolsEnginePlugin(scope),
     createMcpPlugin({
       configPaths: mcpConfigPaths,
       authProviderFactory: async ({ serverName, config }) => {

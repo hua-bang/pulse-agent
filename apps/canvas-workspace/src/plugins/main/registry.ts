@@ -46,6 +46,8 @@ const deactivators: Array<{ id: string; deactivate: () => void | Promise<void> }
  * canvas-agent construction time to assemble plugin-contributed tools.
  */
 const canvasToolFactories = new Map<string, CanvasToolFactory>();
+/** Why a plugin's main half last failed to load or activate; cleared on success. */
+const loadErrors = new Map<string, string>();
 const nodeCapabilities = new Map<string, PluginNodeCapabilityEntry>();
 const ipcHandlerChannels = new Map<string, Set<string>>();
 
@@ -56,6 +58,15 @@ function removePluginIpcHandlers(pluginId: string): void {
   for (const channel of channels) {
     ipcMain.removeHandler(channel);
   }
+}
+
+export function recordCanvasPluginLoadError(pluginId: string, error: unknown): void {
+  loadErrors.set(pluginId, error instanceof Error ? error.message : String(error));
+}
+
+/** The last load or activation error of a main plugin, if its latest attempt failed. */
+export function getCanvasPluginLoadError(pluginId: string): string | undefined {
+  return loadErrors.get(pluginId);
 }
 
 export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<string[]> {
@@ -70,6 +81,7 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
     }
     try {
       await plugin.activate(createMainCtx(plugin.id));
+      loadErrors.delete(plugin.id);
       loaded.add(plugin.id);
       activated.push(plugin.id);
       if (plugin.deactivate) {
@@ -77,6 +89,8 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
       }
     } catch (err) {
       removePluginIpcHandlers(plugin.id);
+      canvasToolFactories.delete(plugin.id);
+      recordCanvasPluginLoadError(plugin.id, err);
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
   }

@@ -74,7 +74,7 @@ The Plugins and Skills library routes reserve the expanded RightDock width inste
 
 ## Sidebar plugin group
 
-Renderer plugin nav items (`registerNavItem`) show on the app rail inside one "Plugins" group (`app/shell/Sidebar/PluginNavGroup`). The group collapses; the state persists in localStorage (`pulse-canvas.plugin-nav-collapsed`). The rail re-reads routes and nav items on every renderer registry change, so a plugin that activates after startup shows without a restart.
+Renderer plugin nav items (`registerNavItem`) show flat on the app rail, first in the same group as the MCP global apps (`AppsSection`, entries from `app/shell/Sidebar/PluginNavGroup`). There is no header and no collapse. The rail re-reads routes and nav items on every renderer registry change, so a plugin that activates after startup shows without a restart.
 
 Right-click on an entry offers uninstall. The renderer plugin id is the package name, so the entry maps to the installed listing whose `name` matches (`findInstalledListing`). An entry with no installed listing (a built-in plugin) shows the action disabled. Uninstall asks for confirmation, calls `pluginMarket.uninstall`, and then syncs renderer federation in the current window. The market module loads on demand, so the Plugins route view stays out of the startup bundle.
 
@@ -89,7 +89,13 @@ Hot reload: after a successful install, the tool sends `canvas-plugins:changed` 
 - Renderer: `syncFederatedRendererPlugins` compares each active plugin's entry URLs with the new specs. On a change it re-registers the remote with `registerRemotes(..., { force: true })` (this drops the cached container and global), loads the new module, and then swaps the old registrations for the new ones in one tick, so an open plugin page keeps its route.
 - Main: `reloadConfiguredExternalMainPlugins` keeps the entry mtime per active plugin. On a change it deactivates the plugin and imports the entry with a new `?v=` query.
 
-Limits: only the main entry file is versioned, so modules it imports stay in the ESM cache. Old module instances stay in memory until restart. Tools from `registerCanvasTool` are read when an agent is built, so they can need a restart.
+Limits: only the main entry file is versioned, so modules it imports stay in the ESM cache. Old module instances stay in memory until restart.
+
+Tools from `registerCanvasTool` follow the plugin's source. Built-in plugins activate once, so `createCanvasTools` adds their tools when an engine is built. Market plugins change while the app runs, so `createLivePluginToolsEnginePlugin` (`main/agent/tools/plugins/contributed.ts`) reads their factories in a `beforeLLMCall` hook before every model call: a plugin enabled, reloaded, or removed mid-turn changes the tool list at the next model step, without an engine rebuild. Global chat calls these factories with `''`; scheduled runs get none; built-in tools win on a name clash. Ask mode still applies, because it runs in `beforeToolCall`.
+
+Plugin tools may declare `inputSchema` as plain JSON Schema, because no-build plugins cannot import zod; the host wraps it with the AI SDK `jsonSchema`. The `create-canvas-plugin` skill requires a read tool for every plugin that keeps data, so the agent answers from the plugin and does not search the disk for store files.
+
+A main plugin that fails to import or activate records the error (`getCanvasPluginLoadError`); its IPC handlers and tool factory are removed, so its page gets "No handler registered". `canvas_plugin_install` reports the error as a `main.load-failed` diagnostic for an enabled plugin.
 
 ## Chat mention semantics
 

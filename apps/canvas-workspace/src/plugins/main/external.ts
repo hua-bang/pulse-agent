@@ -3,12 +3,17 @@ import { pathToFileURL } from 'node:url';
 import type { CanvasPluginEntry } from '../../shared/settings-config';
 import { getCanvasPluginsStatus } from '../../main/plugin-market/config';
 import type { MainCanvasPlugin } from '../types';
-import { deactivateCanvasPlugin, setupCanvasPlugins } from './registry';
+import { deactivateCanvasPlugin, recordCanvasPluginLoadError, setupCanvasPlugins } from './registry';
 
 type PluginModule = Record<string, unknown>;
 
 /** Active external plugin id -> version of the main entry it loaded. */
 const activeExternalPlugins = new Map<string, string>();
+
+/** True for an active plugin loaded from the plugin market, not a built-in one. */
+export function isExternalMainPlugin(id: string): boolean {
+  return activeExternalPlugins.has(id);
+}
 
 /**
  * The entry file's mtime. It goes into the import URL so a changed file
@@ -74,12 +79,14 @@ export async function loadExternalMainPluginEntries(
       const mod = await import(moduleUrl) as PluginModule;
       const plugin = pickMainPluginExport(mod);
       if (!plugin) {
+        recordCanvasPluginLoadError(entry.id, 'main entry did not export a plugin with an id and an activate function');
         console.warn(
           `[canvas-plugins] skipping ${entry.id}: main entry did not export a valid plugin`,
         );
         continue;
       }
       if (plugin.id !== entry.id) {
+        recordCanvasPluginLoadError(entry.id, `main export id "${plugin.id}" does not match the plugin name "${entry.id}"`);
         console.warn(
           `[canvas-plugins] skipping ${entry.id}: main export id "${plugin.id}" does not match manifest id`,
         );
@@ -87,6 +94,7 @@ export async function loadExternalMainPluginEntries(
       }
       plugins.push(plugin);
     } catch (err) {
+      recordCanvasPluginLoadError(entry.id, err);
       console.error(`[canvas-plugins] failed to load external main plugin ${entry.id}`, err);
     }
   }

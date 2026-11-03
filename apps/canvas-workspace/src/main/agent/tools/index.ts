@@ -1,4 +1,3 @@
-import { getRegisteredCanvasToolFactories } from '../../../plugins/main';
 import { getActiveDockWorkspaceId } from '../../dock/tab-store';
 import { z } from 'zod';
 import type { CanvasTool } from './types';
@@ -26,6 +25,7 @@ import { createLayoutTools } from './canvas/layout-tools';
 import { createMemoryTools } from './memory';
 import { createScheduledTools } from './scheduled';
 import { createRoleTools } from './roles';
+import { createPluginContributedTools } from './plugins/contributed';
 import { createPluginInstallTools } from './plugins/install';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
@@ -268,23 +268,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createPluginInstallTools(),
   };
 
-  // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's
-  // factory is in the registry iff its `enabledWhen` returned true at
-  // bootstrap, so flag-gating is already enforced — we just merge what
-  // each factory produces for this workspace. Last writer wins on name
-  // collisions; that matters if a future plugin shadows a built-in tool
-  // intentionally (none do today).
-  for (const [pluginId, factory] of getRegisteredCanvasToolFactories()) {
-    try {
-      const contributed = factory(workspaceId) as Record<string, CanvasTool>;
-      Object.assign(base, contributed);
-    } catch (err) {
-      console.error(
-        `[canvas-tools] plugin ${pluginId} tool factory threw; skipping its tools`,
-        err,
-      );
-    }
-  }
-
-  return base;
+  // Built-in plugin tools join here. Market plugin tools are added before
+  // each model call instead (`createLivePluginToolsEnginePlugin`).
+  return Object.assign(base, createPluginContributedTools(workspaceId, 'built-in'));
 }

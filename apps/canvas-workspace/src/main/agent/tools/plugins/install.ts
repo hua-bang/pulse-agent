@@ -18,6 +18,7 @@ import {
   type PluginPackageDiagnostic,
   type PulseCanvasPluginRenderer,
 } from '../../../../shared/plugin-market';
+import { getCanvasPluginLoadError } from '../../../../plugins/main';
 import { readPluginPackage } from '../../../plugin-market/package-reader/reader';
 import { getPluginMarketService } from '../../../plugin-market/service';
 import type { CanvasTool } from '../types';
@@ -51,6 +52,20 @@ function loadWarnings(plugin: NormalizedPluginPackage): PluginPackageDiagnostic[
   ];
 }
 
+/** An enabled plugin whose main.mjs failed to load registers no handlers or tools. */
+function mainLoadDiagnostics(plugin: NormalizedPluginPackage, nativeEnabled: boolean): PluginPackageDiagnostic[] {
+  if (!nativeEnabled || !plugin.pulseExtension?.main) return [];
+  const error = getCanvasPluginLoadError(plugin.name);
+  if (!error) return [];
+  return [{
+    severity: 'error',
+    scope: 'pulse-extension',
+    code: 'main.load-failed',
+    message: `main.mjs did not load, so its handlers and tools are missing: ${error}`,
+    componentId: 'main',
+  }];
+}
+
 function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>): string {
   if (!report.ok) return 'Fix the errors in the diagnostics, then call canvas_plugin_install again.';
   if (!report.hasNativeCode) {
@@ -61,7 +76,7 @@ function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>): string {
       + 'in this chat. Do not ask them to open settings, and do not claim the plugin is running yet.';
   }
   return 'Installed and already enabled. The open app reloaded the changed plugin files, so the user can '
-    + 'look at the plugin page again. Agent tools from registerCanvasTool are read when the agent starts, so they may need an app restart.';
+    + 'look at the plugin page again. Tools from registerCanvasTool are live now, so you can call them in this turn.';
 }
 
 /** Tells every window to sync its renderer plugins, which hot-reloads changed ones. */
@@ -86,12 +101,12 @@ async function installPluginDirectory(dir: string): Promise<CanvasPluginInstallR
   }
   const plugin = read.package;
   const extension = plugin.pulseExtension;
-  const extra = loadWarnings(plugin);
   const result = await getPluginMarketService().installDirectory(plugin.root);
   if (result.ok) notifyPluginsChanged();
   const listing = result.snapshot?.listings.find(
     (entry) => entry.name === plugin.name && entry.installState === 'installed',
   );
+  const extra = [...loadWarnings(plugin), ...mainLoadDiagnostics(plugin, listing?.nativeEnabled === true)];
   const report: Omit<CanvasPluginInstallReport, 'nextStep'> = {
     ok: result.ok && extra.length === 0,
     root: plugin.root,

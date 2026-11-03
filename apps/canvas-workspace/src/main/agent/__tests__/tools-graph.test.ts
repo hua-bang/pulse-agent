@@ -61,6 +61,7 @@ vi.mock('pulse-coder-engine', () => ({
 // don't pick up plugin-contributed tools from the real registry.
 vi.mock('../../../plugins/main', () => ({
   getRegisteredCanvasToolFactories: () => new Map(),
+  isExternalMainPlugin: () => false,
 }));
 vi.mock('../../dock/tab-store', () => ({
   getActiveDockWorkspaceId: () => activeDockWorkspaceId.value,
