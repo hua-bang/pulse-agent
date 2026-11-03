@@ -208,7 +208,7 @@ describe('canvas plugins config', () => {
       }),
     ]);
     expect(status.rendererSpecs[0].entry).toMatch(
-      /^pulse-canvas:\/\/local\/.+\/renderer\/remoteEntry\.js$/,
+      /^pulse-canvas:\/\/local\/.+\/renderer\/remoteEntry\.js\?v=[\d.]+$/,
     );
 
     const stored = JSON.parse(await readFile(canvasPluginsConfigPath(), 'utf8')) as {

@@ -153,4 +153,10 @@ export interface CanvasPluginsApi {
     key: string,
     value: string,
   ) => Promise<{ ok: boolean; status?: CanvasPluginsStatus; error?: string }>;
+  /**
+   * Fires when the main process changed the plugin config or plugin files
+   * without a renderer request, for example the agent's plugin install.
+   * The renderer then syncs its plugins (and hot-reloads changed ones).
+   */
+  onChanged: (cb: () => void) => () => void;
 }

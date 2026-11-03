@@ -84,7 +84,12 @@ The bundled `create-canvas-plugin` skill tells the Canvas Agent how to write a p
 
 The install keeps native code off. The chat renders the tool result as `PluginInstallCard` (lazy, from the market module). Its "Enable and open" button is the trust gate: only that user click calls `setNativeEnabled`, syncs renderer federation, and opens the plugin page through `requestOpenPluginPage`. The app accepts that request only for a route that a plugin registered. The agent has no tool that enables native code.
 
-An enabled plugin does not hot-reload. The main loader and the federation runtime cache loaded modules, so code changes take effect after an app restart.
+Hot reload: after a successful install, the tool sends `canvas-plugins:changed` to every window, and `usePluginRegistry` runs the market's renderer sync. Entry URLs carry the file mtime (`?v=<mtimeMs>`):
+
+- Renderer: `syncFederatedRendererPlugins` compares each active plugin's entry URLs with the new specs. On a change it re-registers the remote with `registerRemotes(..., { force: true })` (this drops the cached container and global), loads the new module, and then swaps the old registrations for the new ones in one tick, so an open plugin page keeps its route.
+- Main: `reloadConfiguredExternalMainPlugins` keeps the entry mtime per active plugin. On a change it deactivates the plugin and imports the entry with a new `?v=` query.
+
+Limits: only the main entry file is versioned, so modules it imports stay in the ESM cache. Old module instances stay in memory until restart. Tools from `registerCanvasTool` are read when an agent is built, so they can need a restart.
 
 ## Chat mention semantics
 

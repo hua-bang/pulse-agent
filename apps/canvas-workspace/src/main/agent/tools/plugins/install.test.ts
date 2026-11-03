@@ -9,6 +9,11 @@ import {
 } from '../../../../shared/plugin-market';
 
 const installDirectory = vi.fn();
+const send = vi.fn();
+
+vi.mock('electron', () => ({
+  BrowserWindow: { getAllWindows: () => [{ isDestroyed: () => false, webContents: { send } }] },
+}));
 
 vi.mock('../../../plugin-market/service', () => ({
   getPluginMarketService: () => ({ installDirectory }),
@@ -38,6 +43,7 @@ async function run(dir: string): Promise<CanvasPluginInstallReport> {
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'plugin-install-tool-'));
   installDirectory.mockReset();
+  send.mockReset();
 });
 
 afterEach(async () => {
@@ -50,6 +56,7 @@ describe('canvas_plugin_install', () => {
 
     expect(report).toMatchObject({ ok: false, error: 'dir must be an absolute path' });
     expect(installDirectory).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('reports an installed plugin whose native code waits for the user', async () => {
@@ -75,6 +82,8 @@ describe('canvas_plugin_install', () => {
       diagnostics: [],
     });
     expect(report.nextStep).toContain('Enable and open');
+    // Open windows sync their plugins, which hot-reloads changed files.
+    expect(send).toHaveBeenCalledWith('canvas-plugins:changed');
   });
 
   it('flags a renderer that the host would skip', async () => {

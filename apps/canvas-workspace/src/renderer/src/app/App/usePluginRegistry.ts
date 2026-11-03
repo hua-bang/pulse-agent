@@ -13,7 +13,7 @@ import { OPEN_PLUGIN_PAGE_EVENT } from '../../shared/appShell';
  * Plugin routes and nav items, re-read on every renderer registry change.
  * Plugins can activate after mount (market install, federation sync), so a
  * one-shot read would miss them until restart. Also handles requests to open
- * a plugin page.
+ * a plugin page, and syncs plugins when the main process reports a change.
  */
 export const usePluginRegistry = (navigate: (path: string) => void) => {
   const version = useSyncExternalStore(subscribeRendererPluginRegistry, getRendererPluginRegistryVersion);
@@ -30,6 +30,14 @@ export const usePluginRegistry = (navigate: (path: string) => void) => {
     window.addEventListener(OPEN_PLUGIN_PAGE_EVENT, handleOpen);
     return () => window.removeEventListener(OPEN_PLUGIN_PAGE_EVENT, handleOpen);
   }, [navigate]);
+
+  // The main process announces plugin changes it made itself (the agent's
+  // install tool). Syncing reloads plugins whose files changed.
+  useEffect(() => window.canvasWorkspace?.canvasPlugins?.onChanged?.(() => {
+    void import('../../modules/plugin-market')
+      .then((market) => market.syncRendererPlugins())
+      .catch((error: unknown) => console.warn('[canvas-plugins] sync after change failed', error));
+  }), []);
 
   return { pluginRoutes, pluginNavItems };
 };

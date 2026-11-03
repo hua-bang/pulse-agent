@@ -8,6 +8,7 @@
  * press it.
  */
 
+import { BrowserWindow } from 'electron';
 import { isAbsolute } from 'path';
 import { z } from 'zod';
 import {
@@ -59,8 +60,15 @@ function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>): string {
     return 'Installed with native code off. Tell the user to press "Enable and open" on the install card '
       + 'in this chat. Do not ask them to open settings, and do not claim the plugin is running yet.';
   }
-  return 'Installed and already enabled. Code changes to an enabled plugin take effect after the user '
-    + 'restarts Pulse Canvas.';
+  return 'Installed and already enabled. The open app reloaded the changed plugin files, so the user can '
+    + 'look at the plugin page again. Agent tools from registerCanvasTool are read when the agent starts, so they may need an app restart.';
+}
+
+/** Tells every window to sync its renderer plugins, which hot-reloads changed ones. */
+function notifyPluginsChanged(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send('canvas-plugins:changed');
+  }
 }
 
 async function installPluginDirectory(dir: string): Promise<CanvasPluginInstallReport> {
@@ -80,6 +88,7 @@ async function installPluginDirectory(dir: string): Promise<CanvasPluginInstallR
   const extension = plugin.pulseExtension;
   const extra = loadWarnings(plugin);
   const result = await getPluginMarketService().installDirectory(plugin.root);
+  if (result.ok) notifyPluginsChanged();
   const listing = result.snapshot?.listings.find(
     (entry) => entry.name === plugin.name && entry.installState === 'installed',
   );

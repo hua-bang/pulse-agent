@@ -1,3 +1,4 @@
+import { statSync } from 'fs';
 import { isAbsolute, join, normalize } from 'path';
 import type { NormalizedPluginPackage } from '../../shared/plugin-market';
 import type {
@@ -56,6 +57,19 @@ function normalizeNode(dir: string, value: unknown): CanvasPluginManifestNode | 
   };
 }
 
+/**
+ * `?v=<mtime>` for a renderer entry. A changed file gets a new URL, so the
+ * renderer can tell that it must load the remote again (hot reload) and the
+ * browser cannot serve a stale copy.
+ */
+function entryVersionQuery(path: string): string {
+  try {
+    return `?v=${statSync(path).mtimeMs}`;
+  } catch {
+    return '';
+  }
+}
+
 function rendererSpec(
   pluginId: string,
   version: string | undefined,
@@ -71,7 +85,7 @@ function rendererSpec(
   return {
     id: pluginId,
     name: remoteName,
-    entry: toLocalPluginAssetUrl(sourcePath),
+    entry: `${toLocalPluginAssetUrl(sourcePath)}${entryVersionQuery(sourcePath)}`,
     expose: renderer.expose ?? DEFAULT_EXPOSE,
     type: renderer.type,
     entryGlobalName: renderer.entryGlobalName ?? remoteName,

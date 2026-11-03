@@ -22,8 +22,11 @@ const DEFAULT_EXPOSE = './plugin';
 const ENV_REMOTES_KEY = 'VITE_CANVAS_RENDERER_MF_REMOTES';
 
 let initialized = false;
-const registeredRemoteNames = new Set<string>();
+/** Remote name -> entry URL it was registered with. */
+const registeredRemoteEntries = new Map<string, string>();
 const configuredUserPluginIds = new Set<string>();
+/** Active plugin id -> entry URLs it was loaded from. */
+const activeEntriesById = new Map<string, string>();
 
 // @module-federation/runtime is only needed once a federated plugin actually
 // activates, so it is imported dynamically to keep the runtime out of the
@@ -91,13 +94,14 @@ function toRemote(spec: RendererFederatedPluginSpec): RemoteShape {
 
 async function ensureFederation(specs: RendererFederatedPluginSpec[]): Promise<void> {
   installLocalSmokeRemoteBridge();
-  const remotes = specs
-    .map(toRemote)
-    .filter((remote) => {
-      if (registeredRemoteNames.has(remote.name)) return false;
-      registeredRemoteNames.add(remote.name);
-      return true;
-    });
+  const remotes: RemoteShape[] = [];
+  const changed: RemoteShape[] = [];
+  for (const remote of specs.map(toRemote)) {
+    const registered = registeredRemoteEntries.get(remote.name);
+    if (registered === remote.entry) continue;
+    registeredRemoteEntries.set(remote.name, remote.entry);
+    (registered === undefined ? remotes : changed).push(remote);
+  }
   const { init, registerRemotes } = await loadFederationRuntime();
   if (!initialized) {
     init({
@@ -106,11 +110,20 @@ async function ensureFederation(specs: RendererFederatedPluginSpec[]): Promise<v
       shared: createHostShared(),
     });
     initialized = true;
-    return;
-  }
-  if (remotes.length > 0) {
+  } else if (remotes.length > 0) {
     registerRemotes(remotes);
   }
+  // A new entry URL means the file changed. `force` drops the cached
+  // container and module so the next load fetches the new script.
+  if (changed.length > 0) registerRemotes(changed, { force: true });
+}
+
+function entriesKey(specs: RendererFederatedPluginSpec[], pluginId: string): string {
+  return specs
+    .filter((spec) => spec.id === pluginId)
+    .map((spec) => spec.entry)
+    .sort()
+    .join('\n');
 }
 
 function loadId(spec: RendererFederatedPluginSpec): string {
@@ -266,7 +279,10 @@ export async function activateFederatedRendererPlugins(
   const activated: RendererCanvasPlugin[] = [];
 
   for (const spec of specs) {
-    if (isRendererPluginActivated(spec.id)) continue;
+    const key = entriesKey(specs, spec.id);
+    const loadedFrom = activeEntriesById.get(spec.id);
+    // An active plugin loads again only when its entry files changed (hot reload).
+    if (isRendererPluginActivated(spec.id) && (loadedFrom === undefined || loadedFrom === key)) continue;
     try {
       const mod = await loadRemote<RemotePluginModule>(loadId(spec), { from: 'runtime' });
       const plugin = normalizeRemotePlugin(spec, mod);
@@ -274,7 +290,10 @@ export async function activateFederatedRendererPlugins(
         console.warn(`[canvas-plugins] remote ${spec.id} did not export a renderer plugin`);
         continue;
       }
+      // Swap in the same tick, so an open plugin page keeps its route.
+      deactivateCanvasPlugin(spec.id);
       activateCanvasPlugins([plugin]);
+      activeEntriesById.set(spec.id, key);
       activated.push(plugin);
     } catch (err) {
       console.error(`[canvas-plugins] failed to load federated renderer plugin ${spec.id}`, err);
@@ -290,7 +309,10 @@ export async function syncFederatedRendererPlugins(
 ): Promise<RendererCanvasPlugin[]> {
   const desiredIds = new Set(specs.map((spec) => spec.id));
   for (const pluginId of configuredUserPluginIds) {
-    if (!desiredIds.has(pluginId)) deactivateCanvasPlugin(pluginId);
+    if (!desiredIds.has(pluginId)) {
+      deactivateCanvasPlugin(pluginId);
+      activeEntriesById.delete(pluginId);
+    }
   }
   configuredUserPluginIds.clear();
   for (const pluginId of desiredIds) configuredUserPluginIds.add(pluginId);

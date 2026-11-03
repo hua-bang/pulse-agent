@@ -88,7 +88,16 @@ export const createCanvasPluginsApi = (ipcRenderer: IpcRenderer): CanvasPluginsA
     ipcRenderer.invoke("canvas-plugins:import-json", { json }),
 
   setConfig: (pluginId, key, value) =>
-    ipcRenderer.invoke("canvas-plugins:set-config", { pluginId, key, value })
+    ipcRenderer.invoke("canvas-plugins:set-config", { pluginId, key, value }),
+
+  onChanged: (cb: () => void) => {
+    const channel = "canvas-plugins:changed";
+    const listener = () => cb();
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+    };
+  }
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({
