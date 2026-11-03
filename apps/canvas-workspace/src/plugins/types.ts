@@ -169,8 +169,8 @@ export interface PluginAgentApi {
   /** One call to the user's current model, without tools. For summaries, labels, and rewrites. */
   complete(prompt: string, options?: PluginAgentCallOptions): Promise<PluginAgentResult>;
   /**
-   * A full agent loop with the headless read-only toolset (canvases,
-   * knowledge, sessions, memory reads). It cannot change canvas state or memory.
+   * A full agent loop with read-only tools (canvases, knowledge, chat
+   * sessions, memory, scheduled tasks, roles). It cannot change app state.
    */
   run(prompt: string, options?: PluginAgentCallOptions): Promise<PluginAgentResult>;
 }

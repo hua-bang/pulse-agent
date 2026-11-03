@@ -52,6 +52,7 @@ vi.mock('../../models/config', () => ({
 import {
   completeForPlugin,
   createHeadlessCanvasTools,
+  PLUGIN_RUN_TOOL_NAMES,
   runForPlugin,
   runHeadlessAgentTask,
   type HeadlessEngineFactory,
@@ -189,17 +190,20 @@ describe('plugin agent calls (MainCtx.agent)', () => {
     expect(systemPrompt.endsWith('Reply in Chinese.')).toBe(true);
   });
 
-  it('run gets the headless read-only toolset and a bounded step count', async () => {
+  it('run gets only the read-only allowlist and a bounded step count', async () => {
     const { factory, captured } = fakeFactory({ run: async () => 'done' });
 
     const result = await runForPlugin('todo-list', 'Which canvases mention the launch?', {}, factory);
 
     expect(result).toEqual({ ok: true, text: 'done' });
     const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
-    expect(toolNames).toEqual(Object.keys(createHeadlessCanvasTools()).sort());
-    expect(toolNames).not.toContain('canvas_create_node');
-    expect(toolNames).not.toContain('memory_save');
-    expect(toolNames).not.toContain('user_ask');
+    // Every allowlisted tool exists, so a rename cannot silently drop one.
+    expect(toolNames).toEqual([...PLUGIN_RUN_TOOL_NAMES].sort());
+    expect(Object.keys(createHeadlessCanvasTools())).toEqual(expect.arrayContaining(toolNames));
+    for (const write of ['scheduled_task_create', 'scheduled_task_update', 'chat_role_save', 'dock_open_tab',
+      'dock_activate_tab', 'screen_capture', 'memory_save', 'user_ask']) {
+      expect(toolNames).not.toContain(write);
+    }
     expect(captured.runOptions).toMatchObject({ maxSteps: 30 });
   });
 

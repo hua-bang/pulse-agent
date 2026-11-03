@@ -169,6 +169,38 @@ export async function runHeadlessAgentTask(
 // ── Plugin entry points (`MainCtx.agent`) ─────────────────────────────────
 
 const PLUGIN_RUN_MAX_STEPS = 30;
+
+/**
+ * Plugin runs get an allowlist, not the headless toolset as is: that set
+ * still holds writes (scheduled tasks, chat roles) and tools that change or
+ * capture the user's screen (Dock tabs, screen capture, browser history).
+ * New tools stay out until they are added here.
+ */
+export const PLUGIN_RUN_TOOL_NAMES = new Set([
+  'workspace_list',
+  'canvas_read_context',
+  'canvas_read_node',
+  'canvas_read_layout',
+  'canvas_search_nodes',
+  'canvas_list_edges',
+  'workspace_node_list',
+  'workspace_node_get',
+  'knowledge_search_nodes',
+  'knowledge_list_nodes',
+  'knowledge_list_tags',
+  'knowledge_read_node',
+  'session_search',
+  'session_summary',
+  'memory_list',
+  'scheduled_task_list',
+  'chat_role_list',
+]);
+
+function createPluginRunTools(): Record<string, CanvasTool> {
+  return Object.fromEntries(
+    Object.entries(createHeadlessCanvasTools()).filter(([name]) => PLUGIN_RUN_TOOL_NAMES.has(name)),
+  );
+}
 const PLUGIN_COMPLETE_TIMEOUT_MS = 2 * 60_000;
 
 const PLUGIN_COMPLETE_SYSTEM = 'You are a text helper inside a Pulse Canvas plugin. '
@@ -208,9 +240,9 @@ export function completeForPlugin(
 }
 
 /**
- * A full agent loop in an isolated background run with the headless toolset.
- * It has no session store, so nothing reaches the user's chat history, and
- * it cannot write canvas state or memory.
+ * A full agent loop in an isolated background run with read-only tools
+ * (`PLUGIN_RUN_TOOL_NAMES`). It has no session store, so nothing reaches the
+ * user's chat history, and it cannot change app state.
  */
 export function runForPlugin(
   pluginId: string,
@@ -222,7 +254,7 @@ export function runForPlugin(
     label: `plugin:${pluginId}:run`,
     systemPrompt: pluginSystemPrompt(PLUGIN_RUN_SYSTEM, options.system),
     prompt,
-    tools: createHeadlessCanvasTools(),
+    tools: createPluginRunTools(),
     maxSteps: options.maxSteps ?? PLUGIN_RUN_MAX_STEPS,
     timeoutMs: options.timeoutMs,
   }, ...(engineFactory ? [engineFactory] : []));
