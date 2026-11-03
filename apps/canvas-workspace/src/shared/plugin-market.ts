@@ -239,6 +239,8 @@ export interface CanvasPluginInstallReport {
   listingId?: string;
   name?: string;
   version?: string;
+  /** The package's one-sentence description, shown on the chat card. */
+  description?: string;
   /** True when the package has Pulse code (renderer, main, or nodes) that the trust gate holds. */
   hasNativeCode: boolean;
   nativeEnabled: boolean;

@@ -87,6 +87,7 @@ describe('canvas_plugin_install', () => {
       diagnostics: [],
     });
     expect(report.nextStep).toContain('Enable and open');
+    expect(report.nextStep).toContain('two or three sentences');
     // Open windows sync their plugins, which hot-reloads changed files.
     expect(send).toHaveBeenCalledWith('canvas-plugins:changed');
   });

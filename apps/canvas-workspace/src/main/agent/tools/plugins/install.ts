@@ -66,17 +66,22 @@ function mainLoadDiagnostics(plugin: NormalizedPluginPackage, nativeEnabled: boo
   }];
 }
 
+/** The chat card already shows install status, so the reply only adds what the card cannot. */
+const REPLY_GUIDE = ' Keep your reply to two or three sentences: what the plugin does, and the one thing the user '
+  + 'should do next. Do not repeat the install status or list every feature.';
+
 function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>): string {
   if (!report.ok) return 'Fix the errors in the diagnostics, then call canvas_plugin_install again.';
   if (!report.hasNativeCode) {
-    return 'Installed. The package has only skills or MCP servers, so it is active now.';
+    return `Installed. The package has only skills or MCP servers, so it is active now.${REPLY_GUIDE}`;
   }
   if (!report.nativeEnabled) {
     return 'Installed with native code off. Tell the user to press "Enable and open" on the install card '
-      + 'in this chat. Do not ask them to open settings, and do not claim the plugin is running yet.';
+      + `in this chat. Do not ask them to open settings, and do not claim the plugin is running yet.${REPLY_GUIDE}`;
   }
-  return 'Installed and already enabled. The open app reloaded the changed plugin files, so the user can '
-    + 'look at the plugin page again. Tools from registerCanvasTool are live now, so you can call them in this turn.';
+  return 'Installed and already enabled: the card shows an Open button, so do not ask the user to enable it. '
+    + 'The open app reloaded the changed plugin files. Tools from registerCanvasTool are live now, so you can '
+    + `call them in this turn.${REPLY_GUIDE}`;
 }
 
 /** Tells every window to sync its renderer plugins, which hot-reloads changed ones. */
@@ -113,6 +118,7 @@ async function installPluginDirectory(dir: string): Promise<CanvasPluginInstallR
     listingId: listing?.id,
     name: plugin.name,
     version: plugin.version,
+    ...(plugin.description ? { description: plugin.description } : {}),
     hasNativeCode: Boolean(extension?.main || extension?.renderer || extension?.nodes.length),
     nativeEnabled: listing?.nativeEnabled === true,
     contents: {

@@ -75,6 +75,19 @@ describe('PluginInstallResult', () => {
     expect(fakes.requestOpenPluginPage).toHaveBeenCalledWith('/plugin/session-stats');
   });
 
+  it('shows the description and the sidebar entry for an enabled plugin, without technical labels', async () => {
+    await render(JSON.stringify({ ...report, nativeEnabled: true, description: 'Track your session stats.' }));
+
+    expect(host.textContent).toContain('Track your session stats.');
+    expect(host.textContent).toContain('Stats');
+    expect(host.textContent).not.toContain('Main process');
+    expect(host.textContent).not.toContain('Enable and open');
+    const open = host.querySelector<HTMLButtonElement>('.plugin-install-card__footer button')!;
+    await act(async () => { open.click(); });
+    expect(fakes.requestOpenPluginPage).toHaveBeenCalledWith('/plugin/session-stats');
+    expect(fakes.setNativeEnabled).not.toHaveBeenCalled();
+  });
+
   it('shows errors and no enable button for a failed install', async () => {
     await render(JSON.stringify({
       ...report,

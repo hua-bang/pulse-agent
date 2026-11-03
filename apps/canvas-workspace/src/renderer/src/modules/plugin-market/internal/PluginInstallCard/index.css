@@ -35,6 +35,12 @@
   white-space: nowrap;
 }
 
+.plugin-install-card__description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .plugin-install-card__chips {
   display: flex;
   flex-wrap: wrap;
