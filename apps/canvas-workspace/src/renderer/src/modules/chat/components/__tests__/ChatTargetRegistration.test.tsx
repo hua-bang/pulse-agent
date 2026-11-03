@@ -43,6 +43,29 @@ describe('useRegisterChatTarget', () => {
     act(() => root.unmount());
   });
 
+  it('forwards the text handler that plugin addTextToChat relies on', async () => {
+    let broker: ReturnType<typeof useChatTargetBroker> | undefined;
+    const insertText = vi.fn();
+    const Probe = () => {
+      broker = useChatTargetBroker();
+      useRegisterChatTarget(target, { insertText });
+      return null;
+    };
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    await act(async () => root.render(
+      <ChatTargetProvider>
+        <Probe />
+      </ChatTargetProvider>,
+    ));
+
+    await expect(broker?.deliver({ kind: 'text', text: 'quoted line' }))
+      .resolves.toEqual({ status: 'delivered', target });
+    expect(insertText).toHaveBeenCalledWith('quoted line');
+
+    act(() => root.unmount());
+  });
+
   it('switches the receipt and handler together before layout consumers run', async () => {
     const workspaceBTarget: ChatTarget = {
       ...target,
