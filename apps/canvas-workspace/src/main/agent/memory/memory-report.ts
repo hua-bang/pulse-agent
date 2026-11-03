@@ -26,9 +26,8 @@ import { listWorkspaces } from '../../canvas/workspaces';
 import { addArtifactVersion, createArtifact, listArtifacts, updateArtifact } from '../../artifacts/store';
 import { listMemory, memoryBaseDir, type MemoryEntry } from './memory-store';
 import { GLOBAL_CHAT_SESSION_STORE_ID } from '../sessions/store/session-store';
-import { createGlobalCanvasTools } from '../tools/index';
-import type { CanvasTool } from '../tools/types';
 import {
+  createHeadlessCanvasTools,
   runHeadlessAgentTask,
   type HeadlessEngineFactory,
   type HeadlessRunResult,
@@ -55,32 +54,6 @@ export interface MemoryReportOptions {
 }
 
 const MAX_EXISTING_ENTRIES_PER_SCOPE = 50;
-
-/**
- * The headless toolset is the safe baseline returned by
- * `createGlobalCanvasTools()` (deliberate alignment with the non-interactive
- * global boundary — future complex background tasks reuse it as-is), with
- * exactly two categories of exceptions:
- * - `user_ask`: an unattended run has no user to answer.
- * - memory writes (`memory_save`/`memory_forget`/`memory_adopt`): the memory
- *   product's invariant is that writes happen only with the user's explicit
- *   confirmation in chat — a background run must not hold a write path.
- */
-export const HEADLESS_EXCLUDED_TOOLS = new Set([
-  'user_ask',
-  'memory_save',
-  'memory_forget',
-  'memory_adopt',
-]);
-
-/** Global-chat toolset aligned for unattended use (see HEADLESS_EXCLUDED_TOOLS). */
-function buildReportTools(): Record<string, CanvasTool> {
-  const tools: Record<string, CanvasTool> = {};
-  for (const [name, tool] of Object.entries(createGlobalCanvasTools())) {
-    if (!HEADLESS_EXCLUDED_TOOLS.has(name)) tools[name] = tool;
-  }
-  return tools;
-}
 
 function formatExistingEntries(label: string, entries: MemoryEntry[]): string[] {
   if (entries.length === 0) return [];
@@ -168,7 +141,7 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
         // for unattended use). Same generous step ceiling as chat;
         // the wall clock, output validation, progress visibility, and the
         // cancel button are the reliability guardrails.
-        tools: buildReportTools(),
+        tools: createHeadlessCanvasTools(),
         maxSteps: 200,
         timeoutMs: options.timeoutMs ?? 10 * 60_000,
         onToolCall: () => {

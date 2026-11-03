@@ -24,6 +24,10 @@ function createCtx() {
       read: vi.fn(async () => null),
       listWorkspaces: vi.fn(async () => ({ workspaces: [] })),
     },
+    agent: {
+      complete: vi.fn(async () => ({ ok: true as const, text: '' })),
+      run: vi.fn(async () => ({ ok: true as const, text: '' })),
+    },
     webviews: {
       get: vi.fn(() => null),
       withCdp: vi.fn(async () => {

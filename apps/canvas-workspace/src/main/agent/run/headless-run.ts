@@ -14,6 +14,7 @@
 
 import { Engine } from 'pulse-coder-engine';
 import { resolveCanvasModel } from '../../models/config';
+import { createGlobalCanvasTools } from '../tools/index';
 import type { CanvasTool } from '../tools/types';
 
 const DEFAULT_MAX_STEPS = 12;
@@ -35,6 +36,31 @@ export interface HeadlessRunOptions {
   onTextStart?: () => void;
   /** External cancellation (e.g. a user cancel button). */
   abortSignal?: AbortSignal;
+}
+
+/**
+ * The headless toolset is the safe baseline returned by
+ * `createGlobalCanvasTools()` (the non-interactive global boundary), with
+ * exactly two categories of exceptions:
+ * - `user_ask`: an unattended run has no user to answer.
+ * - memory writes (`memory_save`/`memory_forget`/`memory_adopt`): the memory
+ *   product's invariant is that writes happen only with the user's explicit
+ *   confirmation in chat — a background run must not hold a write path.
+ */
+export const HEADLESS_EXCLUDED_TOOLS = new Set([
+  'user_ask',
+  'memory_save',
+  'memory_forget',
+  'memory_adopt',
+]);
+
+/** Global-chat toolset aligned for unattended use (see HEADLESS_EXCLUDED_TOOLS). */
+export function createHeadlessCanvasTools(): Record<string, CanvasTool> {
+  const tools: Record<string, CanvasTool> = {};
+  for (const [name, tool] of Object.entries(createGlobalCanvasTools())) {
+    if (!HEADLESS_EXCLUDED_TOOLS.has(name)) tools[name] = tool;
+  }
+  return tools;
 }
 
 export type HeadlessRunResult =
@@ -138,4 +164,66 @@ export async function runHeadlessAgentTask(
     clearTimeout(timer);
     options.abortSignal?.removeEventListener('abort', onExternalAbort);
   }
+}
+
+// ── Plugin entry points (`MainCtx.agent`) ─────────────────────────────────
+
+const PLUGIN_RUN_MAX_STEPS = 30;
+const PLUGIN_COMPLETE_TIMEOUT_MS = 2 * 60_000;
+
+const PLUGIN_COMPLETE_SYSTEM = 'You are a text helper inside a Pulse Canvas plugin. '
+  + 'Answer the request directly. Return only the requested output.';
+
+const PLUGIN_RUN_SYSTEM = 'You are the Pulse Canvas agent, running a background task for a plugin. '
+  + 'No user is watching this run, so do not ask questions. You can read canvases, knowledge, '
+  + 'sessions, and memory through your tools; you cannot change them. Finish with the answer the '
+  + 'plugin asked for.';
+
+export interface PluginAgentCallOptions {
+  /** Extra system instructions from the plugin. */
+  system?: string;
+  timeoutMs?: number;
+  /** `run` only: upper bound on model steps. */
+  maxSteps?: number;
+}
+
+function pluginSystemPrompt(base: string, extra?: string): string {
+  return extra?.trim() ? `${base}\n\n${extra.trim()}` : base;
+}
+
+/** One model call with the user's current model and no tools. Nothing reaches chat history. */
+export function completeForPlugin(
+  pluginId: string,
+  prompt: string,
+  options: PluginAgentCallOptions = {},
+  engineFactory?: HeadlessEngineFactory,
+): Promise<HeadlessRunResult> {
+  return runHeadlessAgentTask({
+    label: `plugin:${pluginId}:complete`,
+    systemPrompt: pluginSystemPrompt(PLUGIN_COMPLETE_SYSTEM, options.system),
+    prompt,
+    maxSteps: 1,
+    timeoutMs: options.timeoutMs ?? PLUGIN_COMPLETE_TIMEOUT_MS,
+  }, ...(engineFactory ? [engineFactory] : []));
+}
+
+/**
+ * A full agent loop in an isolated background run with the headless toolset.
+ * It has no session store, so nothing reaches the user's chat history, and
+ * it cannot write canvas state or memory.
+ */
+export function runForPlugin(
+  pluginId: string,
+  prompt: string,
+  options: PluginAgentCallOptions = {},
+  engineFactory?: HeadlessEngineFactory,
+): Promise<HeadlessRunResult> {
+  return runHeadlessAgentTask({
+    label: `plugin:${pluginId}:run`,
+    systemPrompt: pluginSystemPrompt(PLUGIN_RUN_SYSTEM, options.system),
+    prompt,
+    tools: createHeadlessCanvasTools(),
+    maxSteps: options.maxSteps ?? PLUGIN_RUN_MAX_STEPS,
+    timeoutMs: options.timeoutMs,
+  }, ...(engineFactory ? [engineFactory] : []));
 }

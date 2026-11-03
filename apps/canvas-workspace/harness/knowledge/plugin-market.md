@@ -95,6 +95,8 @@ Tools from `registerCanvasTool` follow the plugin's source. Built-in plugins act
 
 Plugin tools may declare `inputSchema` as plain JSON Schema, because no-build plugins cannot import zod; the host wraps it with the AI SDK `jsonSchema`. The `create-canvas-plugin` skill requires a read tool for every plugin that keeps data, so the agent answers from the plugin and does not search the disk for store files.
 
+Main plugins also get `ctx.agent` (`PluginAgentApi` in `src/plugins/types.ts`). `complete` is one tool-free model call; `run` is a full agent loop with the headless toolset (`createHeadlessCanvasTools`: the non-interactive global tools minus `user_ask` and memory writes). Both use `runHeadlessAgentTask` (`main/agent/run/headless-run.ts`): no session store, so nothing reaches chat history, and no approval card. The registry loads the runner lazily. `ctx.getAgentService()` is different: it drives the user's own chat session for a scope, so its turns appear in that chat. The `create-canvas-plugin` skill tells agent-written plugins to use `ctx.agent` for AI work and never to ask for API keys.
+
 A main plugin that fails to import or activate records the error (`getCanvasPluginLoadError`); its IPC handlers and tool factory are removed, so its page gets "No handler registered". `canvas_plugin_install` reports the error as a `main.load-failed` diagnostic for an enabled plugin.
 
 ## Chat mention semantics

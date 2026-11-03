@@ -147,6 +147,34 @@ export interface CanvasAgentServiceRef {
   ): Promise<{ ok: boolean; sessionId?: string; messageCount?: number; error?: string }>;
 }
 
+// ── Agent capabilities for plugins (`MainCtx.agent`) ─────────────────────────
+
+export interface PluginAgentCallOptions {
+  /** Extra system instructions, appended to the host's. */
+  system?: string;
+  timeoutMs?: number;
+  /** `run` only: upper bound on model steps (default 30). */
+  maxSteps?: number;
+}
+
+export type PluginAgentResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string; timedOut?: boolean };
+
+/**
+ * Model and agent calls that run in the background, apart from the user's
+ * chats: nothing is written to chat history, and no approval card is shown.
+ */
+export interface PluginAgentApi {
+  /** One call to the user's current model, without tools. For summaries, labels, and rewrites. */
+  complete(prompt: string, options?: PluginAgentCallOptions): Promise<PluginAgentResult>;
+  /**
+   * A full agent loop with the headless read-only toolset (canvases,
+   * knowledge, sessions, memory reads). It cannot change canvas state or memory.
+   */
+  run(prompt: string, options?: PluginAgentCallOptions): Promise<PluginAgentResult>;
+}
+
 // Subset of Electron's IpcMainInvokeEvent the plugin contract needs.
 // Defined inline so the shared types file does not import 'electron',
 // which is only valid in the main tsconfig.
@@ -212,6 +240,8 @@ export interface MainCtx {
   canvas: PluginCanvasApi;
   /** Access to live webviews mounted by plugin/iframe nodes. */
   webviews: PluginWebviewApi;
+  /** Background model and agent calls that stay out of the user's chats. */
+  agent: PluginAgentApi;
   // Mirror of ipcMain.handle: register a channel callable from the
   // renderer plugin via ctx.invoke. Channel is auto-prefixed with
   // `plugin:<id>:` so plugins cannot collide with each other or with

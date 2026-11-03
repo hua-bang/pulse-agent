@@ -10,8 +10,11 @@ export const CREATE_CANVAS_PLUGIN_SKILL: DefaultSkill = {
   name: 'create-canvas-plugin',
   description:
     'Build a Pulse Canvas plugin from a chat request: a sidebar page, a tool panel, a reader, a dashboard, or a canvas node. Use when the user asks to make, generate, or change a plugin, an app inside Pulse Canvas, or a sidebar page, e.g. "做一个插件", "帮我生成一个侧边栏页面".',
-  // 0.1.91 shipped the version without plugin data tools.
-  legacyHashes: ['5ce21fed69674b41eb1f6bf4274e0a0b31b94c8febb4a943232775e3b63cccfc'],
+  // 0.1.91: without plugin data tools. 0.1.92: without ctx.agent.
+  legacyHashes: [
+    '5ce21fed69674b41eb1f6bf4274e0a0b31b94c8febb4a943232775e3b63cccfc',
+    'afa9e49faa10f3d462bec1a26d14b32f5d1b1e9b340c5afaf6efbdaa31261f23',
+  ],
   body: `# create-canvas-plugin
 
 Write a plugin folder, install it with \`canvas_plugin_install\`, and hand the user one click to enable it.
@@ -138,6 +141,9 @@ Main \`ctx\` (\`MainCtx\`):
 - \`store.get/set/delete/list\`: persistent key-value storage for this plugin. Use it instead of writing your own files.
 - \`canvas.listWorkspaces()\` and \`canvas.read(workspaceId)\`: read-only canvas data (workspace list, nodes).
 - \`handle(channel, handler)\`: the handler gets \`(event, ...args)\`; return JSON-safe data.
+- \`agent.complete(prompt, { system? })\`: one call to the user's current model, without tools. Use it for summaries, labels, translation, and rewrites.
+- \`agent.run(prompt, { system?, maxSteps? })\`: a full agent loop in the background. It can read canvases, knowledge, chat sessions, and memory, but it cannot change them. Use it when the answer needs that context.
+- Both return \`{ ok: true, text }\` or \`{ ok: false, error }\`. They never write to the user's chat history. Call them from a \`ctx.handle\` handler, so the page triggers them with \`invoke\` and shows a loading state; a run can take a minute.
 - \`registerCanvasTool(factory)\`: give the Canvas Agent tools for this plugin. The factory returns \`{ <tool_name>: { description, inputSchema, execute } }\`. Write \`inputSchema\` as plain JSON Schema; \`execute(input)\` returns a string. Prefix tool names with the plugin name so they do not clash. The tools are registered dynamically: they work in workspace and All-workspaces chat as soon as the plugin is enabled or reloaded, even in the same turn, without an app restart.
 
 The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.json.
@@ -156,6 +162,7 @@ The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.jso
 - Do not write into the Pulse Canvas source tree or the plugin market packages folder.
 - Never put a plugin inside \`~/.pulse-coder/canvas/\`: every folder there is read as a workspace.
 - Never claim the plugin works before the user has enabled it and seen the page.
+- When a plugin needs AI (summarize, classify, suggest, answer from canvas content), use \`ctx.agent\`. Never ask the user for an API key and never call a model provider directly.
 - To answer a question about a plugin's data, call that plugin's tools. Do not search the disk for its storage files. If the plugin has no tool for it, add one to \`main.mjs\` and install again.
 `,
 };
