@@ -22,7 +22,7 @@ Write a plugin folder, install it with \`canvas_plugin_install\`, and hand the u
 
 ## 2. Write the files
 
-Write to \`~/.pulse-coder/canvas/local-plugins/<name>/\` unless the user names another folder. Use the \`write\` tool. Keep the folder small:
+Write to \`~/.pulse-coder/canvas-plugins/<name>/\` unless the user names another folder. Use the \`write\` tool. Keep the folder small:
 
 \`\`\`text
 <name>/
@@ -71,7 +71,7 @@ Plain browser JavaScript. Use the host React through \`globalThis.__PULSE_CANVAS
     React.useEffect(function () {
       ctx.invoke('list').then(setItems).catch(function () { setItems([]); });
     }, []);
-    return h('div', { style: { padding: 24, overflow: 'auto', height: '100%', boxSizing: 'border-box' } },
+    return h('div', { style: { padding: 24, overflow: 'auto', width: '100%', height: '100%', boxSizing: 'border-box' } },
       h('h2', null, '<Title>'),
       items.map(function (item) { return h('div', { key: item.id }, item.text); }),
     );
@@ -138,6 +138,7 @@ The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.jso
 
 - Keep the plugin self-contained in its folder. No network calls, no shell commands, and no reads outside \`ctx\` APIs unless the user asked for them.
 - Do not write into the Pulse Canvas source tree or the plugin market packages folder.
+- Never put a plugin inside \`~/.pulse-coder/canvas/\`: every folder there is read as a workspace.
 - Never claim the plugin works before the user has enabled it and seen the page.
 `,
 };
