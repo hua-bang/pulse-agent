@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import type { CanvasPluginEntry } from '../../shared/settings-config';
 import { getCanvasPluginsStatus } from '../../main/plugin-market/config';
@@ -6,21 +7,45 @@ import { deactivateCanvasPlugin, setupCanvasPlugins } from './registry';
 
 type PluginModule = Record<string, unknown>;
 
-const activeExternalPluginIds = new Set<string>();
+/** Active external plugin id -> version of the main entry it loaded. */
+const activeExternalPlugins = new Map<string, string>();
 
+/**
+ * The entry file's mtime. It goes into the import URL so a changed file
+ * loads as a new module instead of the cached one. Only the entry file is
+ * versioned: modules it imports stay cached until restart.
+ */
+function mainEntryVersion(entry: CanvasPluginEntry): string {
+  if (!entry.main) return '';
+  try {
+    return String(statSync(entry.main.entry).mtimeMs);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Bring the active main plugins in line with the plugin config. A plugin
+ * whose main entry changed on disk is deactivated and loaded again, so an
+ * edit takes effect without an app restart.
+ */
 export async function reloadConfiguredExternalMainPlugins(): Promise<void> {
   const status = await getCanvasPluginsStatus();
-  const plugins = await loadExternalMainPluginEntries(status.plugins);
-  const expectedIds = new Set(plugins.map((plugin) => plugin.id));
-  for (const id of Array.from(activeExternalPluginIds)) {
-    if (!expectedIds.has(id)) {
+  const versions = new Map(
+    status.plugins.filter((entry) => entry.main).map((entry) => [entry.id, mainEntryVersion(entry)]),
+  );
+  for (const [id, version] of Array.from(activeExternalPlugins)) {
+    if (versions.get(id) !== version) {
       await deactivateCanvasPlugin(id);
-      activeExternalPluginIds.delete(id);
+      activeExternalPlugins.delete(id);
     }
   }
 
+  const plugins = await loadExternalMainPluginEntries(
+    status.plugins.filter((entry) => !activeExternalPlugins.has(entry.id)),
+  );
   const activated = await setupCanvasPlugins(plugins);
-  for (const id of activated) activeExternalPluginIds.add(id);
+  for (const id of activated) activeExternalPlugins.set(id, versions.get(id) ?? '');
 }
 
 export async function loadExternalMainPluginEntries(
@@ -44,7 +69,8 @@ export async function loadExternalMainPluginEntries(
     }
 
     try {
-      const moduleUrl = pathToFileURL(entry.main.entry).href;
+      const version = mainEntryVersion(entry);
+      const moduleUrl = `${pathToFileURL(entry.main.entry).href}${version ? `?v=${version}` : ''}`;
       const mod = await import(moduleUrl) as PluginModule;
       const plugin = pickMainPluginExport(mod);
       if (!plugin) {

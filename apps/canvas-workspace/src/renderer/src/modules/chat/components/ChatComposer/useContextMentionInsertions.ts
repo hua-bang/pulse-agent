@@ -2,7 +2,7 @@ import { useCallback, type RefObject } from 'react';
 import type { AgentContextDomSelectionRef, AgentContextTabRef, CanvasNode } from '../../../../types';
 import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
 import type { MentionItem } from '../../../../types';
-import { appendMentionChipToEditable } from '../../mentions/editableMentions';
+import { appendMentionChipToEditable, appendTextToEditable } from '../../mentions/editableMentions';
 import { createMentionChipElement, serializeEditable } from '../../mentions/mentions';
 
 interface Options {
@@ -63,5 +63,14 @@ export const useContextMentionInsertions = ({
     appendItem({ type: isDirectory ? 'folder' : 'file', label: filePath, path: filePath });
   }, [appendItem]);
 
-  return { insertFileMention, insertNodeMention, insertDomSelectionMention, insertTabMention };
+  const insertText = useCallback((text: string) => {
+    const element = editableRef.current;
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (!element || !normalized) return;
+    appendTextToEditable(element, normalized);
+    setInput(serializeEditable(element));
+    element.focus();
+  }, [editableRef, setInput]);
+
+  return { insertFileMention, insertNodeMention, insertDomSelectionMention, insertTabMention, insertText };
 };

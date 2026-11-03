@@ -5,10 +5,12 @@ import type {
   MainCanvasPlugin,
   MainCtx,
   PluginCanvasSnapshot,
+  PluginWorkspaceListing,
   PluginNodeCapabilities,
   PluginNodeCapabilityEntry,
 } from '../types';
 import { loadCanvas } from '../../main/agent/tools/_shared/canvas-io';
+import { listWorkspaces } from '../../main/canvas/workspaces';
 import { resolveCanvasPluginConfigValue } from '../../main/plugin-market/config';
 import { withCdp, type CdpSender } from '../../main/webview/cdp-session';
 import { getWebContentsForNode } from '../../main/webview/registry';
@@ -154,6 +156,13 @@ function createMainCtx(pluginId: string): MainCtx {
       async read(workspaceId): Promise<PluginCanvasSnapshot | null> {
         const canvas = await loadCanvas(workspaceId);
         return canvas ? { nodes: canvas.nodes as unknown as PluginCanvasSnapshot['nodes'] } : null;
+      },
+      async listWorkspaces(): Promise<PluginWorkspaceListing> {
+        const { activeId, workspaces } = await listWorkspaces();
+        return {
+          ...(activeId ? { activeId } : {}),
+          workspaces: workspaces.map(({ id, name }) => ({ id, name })),
+        };
       },
     },
     webviews: {

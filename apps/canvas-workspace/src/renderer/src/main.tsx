@@ -4,7 +4,6 @@ import { useHashLocation } from "wouter/use-hash-location";
 import App from "./app/App";
 import "./styles.css";
 import {
-  activateConfiguredFederatedRendererPlugins,
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
 } from "../../plugins/renderer";
@@ -33,9 +32,13 @@ if (!root) {
 // React render so any registered routes / chat cards are visible to the
 // host on initial mount.
 activateCanvasPlugins(BUILT_IN_RENDERER_PLUGINS);
-void activateConfiguredFederatedRendererPlugins().catch((err) => {
-  console.error('[canvas-plugins] federated renderer bootstrap failed', err);
-});
+// Federated plugins load after the first render anyway, so their loader is a
+// separate chunk instead of part of the startup entry.
+void import("../../plugins/renderer/federation")
+  .then((federation) => federation.activateConfiguredFederatedRendererPlugins())
+  .catch((err) => {
+    console.error('[canvas-plugins] federated renderer bootstrap failed', err);
+  });
 
 // Every route change cross-fades the old page into the new one.
 const aroundNav: AroundNavHandler = (navigate, to, options) => {

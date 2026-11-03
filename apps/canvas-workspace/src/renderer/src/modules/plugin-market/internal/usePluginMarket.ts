@@ -16,11 +16,11 @@ type CanvasWindow = Window & {
   canvasWorkspace?: Window['canvasWorkspace'] & { pluginMarket?: PluginMarketApi };
 };
 
-const resolveApi = (): PluginMarketApi | undefined => (
+export const resolveApi = (): PluginMarketApi | undefined => (
   (window as CanvasWindow).canvasWorkspace?.pluginMarket
 );
 
-const syncRendererPlugins = async (): Promise<void> => {
+export const syncRendererPlugins = async (): Promise<void> => {
   const api = (window as CanvasWindow).canvasWorkspace?.canvasPlugins;
   if (!api) return;
   const result = await api.list();

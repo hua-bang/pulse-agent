@@ -267,6 +267,16 @@ async function persistPackage(
   }
   return committedResult(diagnostics);
 }
+async function installLocalDirectory(root: string): Promise<PluginMarketMutationResult> {
+  const read = await readPluginPackage(root);
+  if (!read.package) {
+    return { ok: false, diagnostics: read.diagnostics, error: 'Selected directory is not an installable plugin package' };
+  }
+  const source: PluginMarketSource = { kind: 'directory', path: read.package.root };
+  return persistPackage(
+    personalListingId(read.package, source), source, read.package, false, read.diagnostics,
+  );
+}
 function mutate(
   operation: () => Promise<PluginMarketMutationResult>,
 ): Promise<PluginMarketMutationResult> {
@@ -307,16 +317,16 @@ export class PluginMarketService {
         ? await dialog.showOpenDialog(window, options)
         : await dialog.showOpenDialog(options);
       if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
-      const root = result.filePaths[0];
-      const read = await readPluginPackage(root);
-      if (!read.package) {
-        return { ok: false, diagnostics: read.diagnostics, error: 'Selected directory is not an installable plugin package' };
-      }
-      const source: PluginMarketSource = { kind: 'directory', path: read.package.root };
-      return persistPackage(
-        personalListingId(read.package, source), source, read.package, false, read.diagnostics,
-      );
+      return installLocalDirectory(result.filePaths[0]);
     });
+  }
+  /**
+   * Install or re-register a local plugin directory without a dialog. The
+   * agent's `canvas_plugin_install` tool uses this. Native code stays off
+   * until the user enables it.
+   */
+  async installDirectory(root: string): Promise<PluginMarketMutationResult> {
+    return mutate(() => installLocalDirectory(root));
   }
   async addGit(source: PluginMarketSource): Promise<PluginMarketMutationResult> {
     return mutate(() => installGitSource(source, personalListingId, persistPackage));

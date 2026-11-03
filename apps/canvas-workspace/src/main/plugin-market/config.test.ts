@@ -208,13 +208,33 @@ describe('canvas plugins config', () => {
       }),
     ]);
     expect(status.rendererSpecs[0].entry).toMatch(
-      /^pulse-canvas:\/\/local\/.+\/renderer\/remoteEntry\.js$/,
+      /^pulse-canvas:\/\/local\/.+\/renderer\/remoteEntry\.js\?v=[\d.]+$/,
     );
 
     const stored = JSON.parse(await readFile(canvasPluginsConfigPath(), 'utf8')) as {
       pluginDirs: string[];
     };
     expect(stored.pluginDirs).toEqual([resolve(pluginDir)]);
+  });
+
+  it('loads a plugin-level renderer for a package with no nodes', async () => {
+    const pluginDir = await mkdtemp(join(tmpdir(), 'canvas-plugin-nav-only-'));
+    pluginDirsToClean.push(pluginDir);
+    await writeFile(join(pluginDir, 'manifest.json'), JSON.stringify({
+      id: 'nav-only',
+      version: '0.1.0',
+      renderer: { remoteName: 'nav_only', entry: 'renderer/remoteEntry.js', type: 'global' },
+    }), 'utf8');
+    await mkdir(join(pluginDir, 'renderer'), { recursive: true });
+    await writeFile(join(pluginDir, 'renderer', 'remoteEntry.js'), 'export default {}', 'utf8');
+    const { addCanvasPluginDirectory } = await loadConfigModule();
+
+    const status = await addCanvasPluginDirectory(pluginDir);
+
+    expect(status.plugins[0]).toMatchObject({ id: 'nav-only', nodes: [] });
+    expect(status.rendererSpecs).toEqual([
+      expect.objectContaining({ id: 'nav-only', name: 'nav_only', expose: './plugin' }),
+    ]);
   });
 
   it('exposes plugin skill scan paths for the agent registry', async () => {

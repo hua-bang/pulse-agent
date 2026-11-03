@@ -46,6 +46,18 @@ vi.mock('electron', () => ({
   },
 }));
 
+// Plugins see workspace ids and names only; the host-local root folder
+// stays private.
+vi.mock('../../../main/canvas/workspaces', () => ({
+  listWorkspaces: async () => ({
+    activeId: 'ws-a',
+    workspaces: [
+      { id: 'ws-a', name: 'Alpha', rootFolder: '/Users/me/alpha' },
+      { id: 'ws-b', name: 'Beta' },
+    ],
+  }),
+}));
+
 // Reset the registry module between tests so its module-local registries are
 // fresh — there's no public clear() API, and we don't want to add one just
 // for tests.
@@ -290,5 +302,27 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
       },
     ])).resolves.toEqual(['p-ipc-failure']);
     errSpy.mockRestore();
+  });
+});
+
+describe('MainCtx.canvas.listWorkspaces', () => {
+  it('returns the active id and workspace ids/names without root folders', async () => {
+    const { setupCanvasPlugins } = await loadRegistry();
+    let listing: unknown;
+    await setupCanvasPlugins([
+      {
+        id: 'p-list-workspaces',
+        async activate(ctx) {
+          listing = await ctx.canvas.listWorkspaces();
+        },
+      },
+    ]);
+    expect(listing).toEqual({
+      activeId: 'ws-a',
+      workspaces: [
+        { id: 'ws-a', name: 'Alpha' },
+        { id: 'ws-b', name: 'Beta' },
+      ],
+    });
   });
 });

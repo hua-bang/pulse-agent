@@ -72,6 +72,25 @@ Every operation returns JSON-safe data from `src/shared/plugin-market.ts`. Rende
 
 The Plugins and Skills library routes reserve the expanded RightDock width instead of letting it overlay page content. Plugin rows use a container query against the remaining page width, so the catalog is two columns when space permits and one column beside a wide dock. Plugin details use a route-scoped dialog: its backdrop and card stay inside the Plugins surface, omit global `aria-modal` semantics, and do not trap keyboard focus away from the persistent RightDock. `Connect` keeps the details visible for connection status while the OAuth link tab opens alongside it in the dock.
 
+## Sidebar plugin group
+
+Renderer plugin nav items (`registerNavItem`) show on the app rail inside one "Plugins" group (`app/shell/Sidebar/PluginNavGroup`). The group collapses; the state persists in localStorage (`pulse-canvas.plugin-nav-collapsed`). The rail re-reads routes and nav items on every renderer registry change, so a plugin that activates after startup shows without a restart.
+
+Right-click on an entry offers uninstall. The renderer plugin id is the package name, so the entry maps to the installed listing whose `name` matches (`findInstalledListing`). An entry with no installed listing (a built-in plugin) shows the action disabled. Uninstall asks for confirmation, calls `pluginMarket.uninstall`, and then syncs renderer federation in the current window. The market module loads on demand, so the Plugins route view stays out of the startup bundle.
+
+## Agent-authored plugins
+
+The bundled `create-canvas-plugin` skill tells the Canvas Agent how to write a plugin folder without a build step: `plugin.json`, a global-script `renderer/remoteEntry.js` that uses the host React bridge, and an optional ESM `main.mjs`. The agent then calls `canvas_plugin_install({ dir })` (`src/main/agent/tools/plugins/install.ts`, deferred). The tool reuses `PluginMarketService.installDirectory`, the same path as the "choose directory" dialog, and returns a JSON `CanvasPluginInstallReport`: validity, contents, reader diagnostics, and an extra `renderer.incomplete` error for a renderer that has no `entry` or `remoteName` (the host skips such a renderer without a reader error).
+
+The install keeps native code off. The chat renders the tool result as `PluginInstallCard` (lazy, from the market module). Its "Enable and open" button is the trust gate: only that user click calls `setNativeEnabled`, syncs renderer federation, and opens the plugin page through `requestOpenPluginPage`. The app accepts that request only for a route that a plugin registered. The agent has no tool that enables native code.
+
+Hot reload: after a successful install, the tool sends `canvas-plugins:changed` to every window, and `usePluginRegistry` runs the market's renderer sync. Entry URLs carry the file mtime (`?v=<mtimeMs>`):
+
+- Renderer: `syncFederatedRendererPlugins` compares each active plugin's entry URLs with the new specs. On a change it re-registers the remote with `registerRemotes(..., { force: true })` (this drops the cached container and global), loads the new module, and then swaps the old registrations for the new ones in one tick, so an open plugin page keeps its route.
+- Main: `reloadConfiguredExternalMainPlugins` keeps the entry mtime per active plugin. On a change it deactivates the plugin and imports the entry with a new `?v=` query.
+
+Limits: only the main entry file is versioned, so modules it imports stay in the ESM cache. Old module instances stay in memory until restart. Tools from `registerCanvasTool` are read when an agent is built, so they can need a restart.
+
 ## Chat mention semantics
 
 The chat `@` picker offers healthy installed market listings in a dedicated Plugins group. Selecting one serializes a stable `@[plugin:<encoded-listing-id>|<encoded-name>|<optional-icon-key>]` marker and adds `{ id, name }` to `AgentRequestContext.plugins`; turn snapshots preserve the same refs for regenerate/replay. The marker renders as a plugin chip in both the composer and transcript. Mention rows and chips reuse the market's client-owned brand images; well-known personal packages such as Notion may be recognized by name, while unknown packages use the generic plugin glyph. Agent Plugins v1 itself does not define a portable icon field.

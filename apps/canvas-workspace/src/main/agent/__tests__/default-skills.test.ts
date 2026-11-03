@@ -42,6 +42,7 @@ describe('ensureDefaultSkillsSeeded', () => {
       'canvas-bootstrap',
       'canvas-frame-research',
       'canvas-tidy-layout',
+      'create-canvas-plugin',
       'memory-review',
       'promote-skill',
       'save-as-skill',
@@ -58,6 +59,7 @@ describe('ensureDefaultSkillsSeeded', () => {
     expect(byName['save-as-skill'].description).toMatch(/save.*conversation|reusable skill/i);
     expect(byName['save-as-skill'].body).toMatch(/skill_save/);
     expect(byName['promote-skill'].body).toMatch(/skill_promote/);
+    expect(byName['create-canvas-plugin'].body).toMatch(/canvas_plugin_install/);
     expect(byName['suggest-tags'].body).not.toMatch(/canvas_propose_node_change/);
     expect(byName['suggest-tags'].body).not.toMatch(/canvas_tag_node/);
     expect(byName['suggest-tags'].body).toMatch(/knowledge_list_nodes/);

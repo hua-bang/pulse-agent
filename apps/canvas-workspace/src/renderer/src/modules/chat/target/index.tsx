@@ -52,6 +52,10 @@ export const createChatTargetBroker = (): ChatTargetBroker => {
       registration.handlers.insertTab(insertion.tab);
       return true;
     }
+    if (insertion.kind === 'text' && registration.handlers.insertText) {
+      registration.handlers.insertText(insertion.text);
+      return true;
+    }
     return false;
   };
 
@@ -135,6 +139,7 @@ export const createChatTargetBroker = (): ChatTargetBroker => {
         || insertion.kind === 'node'
         || insertion.kind === 'dom-selection'
         || insertion.kind === 'tab'
+        || insertion.kind === 'text'
       ) {
         if (tryInsertContext(active, insertion)) {
           return { status: 'delivered', target: active.target };

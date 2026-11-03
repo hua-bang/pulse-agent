@@ -69,7 +69,7 @@ async function normalizeRenderer(
   value: unknown,
 ): Promise<PulseCanvasPluginRenderer | undefined> {
   if (value === undefined) return undefined;
-  if (!isRecord(value)) throw new Error('node renderer must be an object');
+  if (!isRecord(value)) throw new Error('renderer must be an object');
   const entry = optionalString(value, 'entry');
   return {
     ...(optionalString(value, 'remoteName') !== undefined
@@ -183,6 +183,7 @@ export async function readPulseExtension(
       throw new Error('schemaVersion must be a positive integer');
     }
     const main = await normalizeMain(root, data.main);
+    const renderer = await normalizeRenderer(root, data.renderer);
     return {
       namespace: PULSE_CANVAS_EXTENSION_NAMESPACE,
       source,
@@ -190,6 +191,7 @@ export async function readPulseExtension(
       data,
       ...(typeof schemaVersion === 'number' ? { schemaVersion } : {}),
       ...(main ? { main } : {}),
+      ...(renderer ? { renderer } : {}),
       nodes: await normalizeNodes(root, data.nodes),
       config: normalizeConfig(data.config),
     };

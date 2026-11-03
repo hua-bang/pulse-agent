@@ -3,6 +3,8 @@ import type {
   ChatCardSpec,
   NavItem,
   PluginBridge,
+  PluginChatTextHandler,
+  PluginNavItem,
   PluginNodeViewProps,
   RendererCanvasPlugin,
   RendererCtx,
@@ -37,6 +39,12 @@ const nodeViews: NodeViewEntry[] = [];
 const activated = new Set<string>();
 const registryListeners = new Set<() => void>();
 let registryVersion = 0;
+let chatTextHandler: PluginChatTextHandler | null = null;
+
+/** The app shell installs the handler behind `RendererCtx.addTextToChat`. */
+export function setPluginChatTextHandler(handler: PluginChatTextHandler | null): void {
+  chatTextHandler = handler;
+}
 
 // The preload-side bridge is looked up lazily on each invoke so renderer
 // plugins can be authored without depending on a specific global shape.
@@ -120,6 +128,10 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
       invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
         return resolveBridge(plugin.id).invoke<T>(plugin.id, channel, ...args);
       },
+      async addTextToChat(text) {
+        if (!chatTextHandler || !text.trim()) return 'unavailable';
+        return await chatTextHandler(text);
+      },
     };
 
     try {
@@ -173,8 +185,8 @@ export function getRegisteredChatCards(): ReadonlyArray<ChatCardEntry> {
   return chatCards;
 }
 
-export function getRegisteredNavItems(): ReadonlyArray<NavItem> {
-  return navItems.map((entry) => entry.item);
+export function getRegisteredNavItems(): ReadonlyArray<PluginNavItem> {
+  return navItems.map((entry) => ({ ...entry.item, pluginId: entry.pluginId }));
 }
 
 export function getRegisteredNodeView(nodeType: string): NodeViewEntry | undefined {

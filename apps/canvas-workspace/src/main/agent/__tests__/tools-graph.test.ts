@@ -694,6 +694,7 @@ describe('deferred tool partition', () => {
       'canvas_delete_node',
       'canvas_move_node',
       'canvas_patch_html_node',
+      'canvas_plugin_install',
       'canvas_plugin_node_action',
       'canvas_plugin_node_read',
       'canvas_plugin_node_write',

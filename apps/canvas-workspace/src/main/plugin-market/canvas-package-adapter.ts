@@ -1,3 +1,4 @@
+import { statSync } from 'fs';
 import { isAbsolute, join, normalize } from 'path';
 import type { NormalizedPluginPackage } from '../../shared/plugin-market';
 import type {
@@ -56,13 +57,25 @@ function normalizeNode(dir: string, value: unknown): CanvasPluginManifestNode | 
   };
 }
 
+/**
+ * `?v=<mtime>` for a renderer entry. A changed file gets a new URL, so the
+ * renderer can tell that it must load the remote again (hot reload) and the
+ * browser cannot serve a stale copy.
+ */
+function entryVersionQuery(path: string): string {
+  try {
+    return `?v=${statSync(path).mtimeMs}`;
+  } catch {
+    return '';
+  }
+}
+
 function rendererSpec(
   pluginId: string,
   version: string | undefined,
   dir: string,
-  node: CanvasPluginManifestNode,
+  renderer: CanvasPluginManifestNode['renderer'],
 ): CanvasPluginRendererSpec | null {
-  const renderer = node.renderer;
   if (!renderer?.entry) return null;
   const remoteName = (renderer.remoteName ?? renderer.name ?? '').trim();
   if (!remoteName) return null;
@@ -72,7 +85,7 @@ function rendererSpec(
   return {
     id: pluginId,
     name: remoteName,
-    entry: toLocalPluginAssetUrl(sourcePath),
+    entry: `${toLocalPluginAssetUrl(sourcePath)}${entryVersionQuery(sourcePath)}`,
     expose: renderer.expose ?? DEFAULT_EXPOSE,
     type: renderer.type,
     entryGlobalName: renderer.entryGlobalName ?? remoteName,
@@ -171,8 +184,8 @@ export function canvasEntryFromPackage(
     .map((node) => normalizeNode(plugin.root, node))
     .filter((node): node is CanvasPluginManifestNode => node !== null);
   const rendererSpecs = dedupeRendererSpecs(
-    nodes
-      .map((node) => rendererSpec(plugin.name, plugin.version, plugin.root, node))
+    [extension?.renderer, ...nodes.map((node) => node.renderer)]
+      .map((renderer) => rendererSpec(plugin.name, plugin.version, plugin.root, renderer))
       .filter((spec): spec is CanvasPluginRendererSpec => spec !== null),
   );
   return {

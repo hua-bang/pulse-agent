@@ -1,0 +1,30 @@
+.sidebar-plugin-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+
+.sidebar-plugin-nav > .sidebar-rail-btn {
+  flex: none;
+}
+
+.sidebar-plugin-nav__header {
+  color: var(--text-secondary);
+}
+
+.sidebar-plugin-nav__chevron {
+  transition: transform 0.15s;
+}
+
+.sidebar-plugin-nav__chevron--open {
+  transform: rotate(90deg);
+}
+
+.sidebar-plugin-nav-menu__item {
+  width: 100%;
+}

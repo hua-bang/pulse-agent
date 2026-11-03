@@ -6,7 +6,7 @@ import { ConversationCompletionToastBridge } from '../shell/ConversationCompleti
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
 import { DockAutoCloseToasts, GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
-import { getRegisteredNavItems, getRegisteredRoutes } from '../../../../plugins/renderer';
+import { usePluginChatBridge, usePluginRegistry } from './usePluginRegistry';
 import { Workbench, useWorkbenchState } from '../shell/Workbench';
 import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
@@ -66,9 +66,8 @@ const AppContent = () => {
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
   const search = useSearch();
-  // so a one-shot read is sufficient.
-  const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
-  const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
+  const { pluginRoutes, pluginNavItems } = usePluginRegistry(setLocation);
+  usePluginChatBridge(dock.openChat);
   const route = useMemo(() => resolveAppRoute(location, {
     nodesEnabled: NODES_ENABLED,
     graphEnabled: GRAPH_ENABLED,

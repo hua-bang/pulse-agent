@@ -160,3 +160,20 @@ it('queues directory references for the intended page composer without convertin
   broker.register(pageTarget, { insertFile });
   expect(insertFile).toHaveBeenCalledWith('/root/source', true);
 });
+
+it('delivers plain text to the active composer, or queues it until one can take it', async () => {
+  const broker = createChatTargetBroker();
+  const insertText = vi.fn();
+  const unregister = broker.register(dockTarget, {});
+
+  await expect(broker.deliver({ kind: 'text', text: 'a quote' }))
+    .resolves.toEqual({ status: 'queued', target: dockTarget });
+
+  unregister();
+  broker.register(dockTarget, { insertText });
+  expect(insertText).toHaveBeenCalledWith('a quote');
+
+  await expect(broker.deliver({ kind: 'text', text: 'second' }))
+    .resolves.toEqual({ status: 'delivered', target: dockTarget });
+  expect(insertText).toHaveBeenLastCalledWith('second');
+});
