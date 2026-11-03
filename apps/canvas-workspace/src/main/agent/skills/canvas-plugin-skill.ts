@@ -10,6 +10,8 @@ export const CREATE_CANVAS_PLUGIN_SKILL: DefaultSkill = {
   name: 'create-canvas-plugin',
   description:
     'Build a Pulse Canvas plugin from a chat request: a sidebar page, a tool panel, a reader, a dashboard, or a canvas node. Use when the user asks to make, generate, or change a plugin, an app inside Pulse Canvas, or a sidebar page, e.g. "做一个插件", "帮我生成一个侧边栏页面".',
+  // 0.1.91 shipped the version without plugin data tools.
+  legacyHashes: ['5ce21fed69674b41eb1f6bf4274e0a0b31b94c8febb4a943232775e3b63cccfc'],
   body: `# create-canvas-plugin
 
 Write a plugin folder, install it with \`canvas_plugin_install\`, and hand the user one click to enable it.
@@ -53,7 +55,7 @@ Write to \`~/.pulse-coder/canvas-plugins/<name>/\` unless the user names another
 }
 \`\`\`
 
-Leave out \`main\` when the page needs no storage, canvas data, or agent tools. Top-level fields other than \`$schema\`, \`name\`, \`version\`, \`description\`, \`author\`, \`homepage\`, \`repository\`, \`license\`, \`keywords\`, and \`extensions\` cause warnings.
+Leave out \`main\` only when the page keeps no data and the user will never ask you about its content. Top-level fields other than \`$schema\`, \`name\`, \`version\`, \`description\`, \`author\`, \`homepage\`, \`repository\`, \`license\`, \`keywords\`, and \`extensions\` cause warnings.
 
 ### renderer/remoteEntry.js
 
@@ -106,24 +108,37 @@ Renderer \`ctx\` (\`RendererCtx\`):
 
 Style with inline styles that use the host CSS variables, for example \`var(--surface)\`, \`var(--ink)\`, \`var(--radius-md)\`, so the page follows the theme.
 
-### main.mjs (optional)
+### main.mjs
+
+Put data access in one place, then give it to both the page (\`ctx.handle\`) and you (\`ctx.registerCanvasTool\`):
 
 \`\`\`js
 export default {
   id: '<name>',
   activate(ctx) {
-    ctx.handle('list', async () => (await ctx.store.get('items')) ?? []);
+    const list = async () => (await ctx.store.get('items')) ?? [];
+    ctx.handle('list', list);
     ctx.handle('save', async (_event, items) => { await ctx.store.set('items', items); return true; });
+
+    ctx.registerCanvasTool(() => ({
+      <name_with_underscores>_read: {
+        description: 'Read the <name> items the user keeps on the <Title> page. Returns JSON.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => JSON.stringify(await list()),
+      },
+    }));
   },
 };
 \`\`\`
+
+When the plugin keeps or shows data, always register a read tool like this one. Later questions such as "what is on my list" must go through that tool, so the answer matches the page. Add a write tool only when the user wants you to change the data from chat.
 
 Main \`ctx\` (\`MainCtx\`):
 
 - \`store.get/set/delete/list\`: persistent key-value storage for this plugin. Use it instead of writing your own files.
 - \`canvas.listWorkspaces()\` and \`canvas.read(workspaceId)\`: read-only canvas data (workspace list, nodes).
 - \`handle(channel, handler)\`: the handler gets \`(event, ...args)\`; return JSON-safe data.
-- \`registerCanvasTool(factory)\`: give the Canvas Agent new tools for this plugin.
+- \`registerCanvasTool(factory)\`: give the Canvas Agent tools for this plugin. The factory returns \`{ <tool_name>: { description, inputSchema, execute } }\`. Write \`inputSchema\` as plain JSON Schema; \`execute(input)\` returns a string. Prefix tool names with the plugin name so they do not clash. The tools work in workspace and All-workspaces chat, from the next message after the plugin is enabled or reloaded.
 
 The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.json.
 
@@ -132,7 +147,8 @@ The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.jso
 1. Call \`canvas_plugin_install\` with the absolute folder path. If it is not in your tool list, find it with \`tool_search_tool_bm25\`.
 2. Read the JSON result. If \`ok\` is false, fix every \`error\` diagnostic and call the tool again. Fix warnings when they are cheap.
 3. When \`nativeEnabled\` is false, tell the user to press **Enable and open** on the install card in this chat. That card is the trust gate: you cannot enable plugin code yourself, and the user should not need to open settings.
-4. After every later change to the files, call \`canvas_plugin_install\` again. For an enabled plugin it hot-reloads the plugin in the open app, so tell the user to look at the page again. Keep \`main.mjs\` in one file: only the entry file reloads, and modules it imports stay cached. Agent tools from \`registerCanvasTool\` may need an app restart.
+4. After every later change to the files, call \`canvas_plugin_install\` again. For an enabled plugin it hot-reloads the plugin in the open app, so tell the user to look at the page again. Keep \`main.mjs\` in one file: only the entry file reloads, and modules it imports stay cached.
+5. A \`main.load-failed\` diagnostic means \`main.mjs\` threw, so the page gets "No handler registered" errors. Fix the error it names and install again.
 
 ## Rules
 
@@ -140,5 +156,6 @@ The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.jso
 - Do not write into the Pulse Canvas source tree or the plugin market packages folder.
 - Never put a plugin inside \`~/.pulse-coder/canvas/\`: every folder there is read as a workspace.
 - Never claim the plugin works before the user has enabled it and seen the page.
+- To answer a question about a plugin's data, call that plugin's tools. Do not search the disk for its storage files. If the plugin has no tool for it, add one to \`main.mjs\` and install again.
 `,
 };

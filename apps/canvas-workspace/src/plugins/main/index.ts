@@ -12,6 +12,7 @@ export {
   getRegisteredNodeCapabilities,
   getRegisteredNodeCapability,
   deactivateCanvasPlugin,
+  getCanvasPluginLoadError,
   setAgentServiceAccessor,
 } from './registry';
 export { BUILT_IN_MAIN_PLUGINS, isAgentObservabilityEnabled } from './built-in';

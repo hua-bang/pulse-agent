@@ -10,6 +10,7 @@ import {
 
 const installDirectory = vi.fn();
 const send = vi.fn();
+const getCanvasPluginLoadError = vi.fn();
 
 vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: () => [{ isDestroyed: () => false, webContents: { send } }] },
@@ -19,17 +20,20 @@ vi.mock('../../../plugin-market/service', () => ({
   getPluginMarketService: () => ({ installDirectory }),
 }));
 
+vi.mock('../../../../plugins/main', () => ({ getCanvasPluginLoadError }));
+
 const { createPluginInstallTools } = await import('./install');
 
 let root = '';
 
-async function writePlugin(renderer: Record<string, string>): Promise<string> {
+async function writePlugin(renderer: Record<string, string>, main?: Record<string, string>): Promise<string> {
   await writeFile(join(root, 'plugin.json'), JSON.stringify({
     $schema: AGENT_PLUGIN_V1_SCHEMA,
     name: 'session-stats',
     version: '0.1.0',
-    extensions: { [PULSE_CANVAS_EXTENSION_NAMESPACE]: { renderer } },
+    extensions: { [PULSE_CANVAS_EXTENSION_NAMESPACE]: { renderer, ...(main ? { main } : {}) } },
   }), 'utf8');
+  if (main) await writeFile(join(root, 'main.mjs'), 'export default {};', 'utf8');
   await mkdir(join(root, 'renderer'), { recursive: true });
   await writeFile(join(root, 'renderer', 'remoteEntry.js'), '(function () {})();', 'utf8');
   return realpath(root);
@@ -44,6 +48,7 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'plugin-install-tool-'));
   installDirectory.mockReset();
   send.mockReset();
+  getCanvasPluginLoadError.mockReset();
 });
 
 afterEach(async () => {
@@ -84,6 +89,30 @@ describe('canvas_plugin_install', () => {
     expect(report.nextStep).toContain('Enable and open');
     // Open windows sync their plugins, which hot-reloads changed files.
     expect(send).toHaveBeenCalledWith('canvas-plugins:changed');
+  });
+
+  it('reports an enabled plugin whose main.mjs failed to load', async () => {
+    await writePlugin(
+      { remoteName: 'pulse_plugin_session_stats', entry: 'renderer/remoteEntry.js' },
+      { entry: 'main.mjs', format: 'esm', runtime: 'electron-main' },
+    );
+    installDirectory.mockResolvedValue({
+      ok: true,
+      snapshot: {
+        updatedAt: 1,
+        listings: [{ id: 'personal:session-stats:abc', name: 'session-stats', installState: 'installed', nativeEnabled: true }],
+      },
+    });
+    getCanvasPluginLoadError.mockReturnValue('SyntaxError: Unexpected token');
+
+    const report = await run(root);
+
+    expect(getCanvasPluginLoadError).toHaveBeenCalledWith('session-stats');
+    expect(report.ok).toBe(false);
+    expect(report.diagnostics).toEqual([
+      expect.objectContaining({ severity: 'error', code: 'main.load-failed', componentId: 'main' }),
+    ]);
+    expect(report.diagnostics[0].message).toContain('SyntaxError: Unexpected token');
   });
 
   it('flags a renderer that the host would skip', async () => {

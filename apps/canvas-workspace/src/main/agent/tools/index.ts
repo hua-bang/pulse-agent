@@ -1,5 +1,6 @@
 import { getRegisteredCanvasToolFactories } from '../../../plugins/main';
 import { getActiveDockWorkspaceId } from '../../dock/tab-store';
+import { jsonSchema, type JSONSchema7 } from 'ai';
 import { z } from 'zod';
 import type { CanvasTool } from './types';
 import { createNodeTools } from './canvas/nodes';
@@ -220,6 +221,12 @@ export function createGlobalCanvasTools(
     // Plugin installs are app-level, so interactive Global chat gets the
     // tool without a workspace target. Scheduled runs never install.
     Object.assign(tools, createPluginInstallTools());
+    // A plugin tool with a plain JSON Schema cannot take an injected
+    // workspaceId, so Global chat gets it as an app-level tool. Agent-written
+    // plugins use this form for their data tools.
+    for (const [name, tool] of Object.entries(createPluginContributedTools(''))) {
+      if (!(tool.inputSchema instanceof z.ZodType) && !(name in tools)) tools[name] = tool;
+    }
     const directGlobalToolNames = new Set(Object.keys(tools));
     const workspaceToolPrototypes = createCanvasTools('');
 
@@ -236,6 +243,47 @@ export function createGlobalCanvasTools(
     }
   }
 
+  return tools;
+}
+
+/**
+ * A plugin tool may declare `inputSchema` as plain JSON Schema, because a
+ * no-build plugin cannot import zod. The engine reads either form through
+ * the AI SDK `asSchema`, so wrap plain objects with `jsonSchema`. The cast
+ * only bridges `CanvasTool`'s zod-typed field; code that needs zod methods
+ * checks `instanceof z.ZodType` first.
+ */
+function normalizePluginTool(name: string, tool: CanvasTool): CanvasTool {
+  const schema: unknown = tool.inputSchema ?? { type: 'object', properties: {} };
+  if (schema instanceof z.ZodType) return { ...tool, name: tool.name || name };
+  return {
+    ...tool,
+    name: tool.name || name,
+    inputSchema: jsonSchema(schema as JSONSchema7) as unknown as z.ZodType,
+  };
+}
+
+/**
+ * Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's
+ * factory is in the registry only while the plugin is active, and the agent
+ * rebuilds its engine after plugin changes, so this reads the current set.
+ * Last writer wins on name collisions.
+ */
+function createPluginContributedTools(workspaceId: string): Record<string, CanvasTool> {
+  const tools: Record<string, CanvasTool> = {};
+  for (const [pluginId, factory] of getRegisteredCanvasToolFactories()) {
+    try {
+      const contributed = factory(workspaceId) as Record<string, CanvasTool>;
+      for (const [name, tool] of Object.entries(contributed)) {
+        tools[name] = normalizePluginTool(name, tool);
+      }
+    } catch (err) {
+      console.error(
+        `[canvas-tools] plugin ${pluginId} tool factory threw; skipping its tools`,
+        err,
+      );
+    }
+  }
   return tools;
 }
 
@@ -268,23 +316,5 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createPluginInstallTools(),
   };
 
-  // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's
-  // factory is in the registry iff its `enabledWhen` returned true at
-  // bootstrap, so flag-gating is already enforced — we just merge what
-  // each factory produces for this workspace. Last writer wins on name
-  // collisions; that matters if a future plugin shadows a built-in tool
-  // intentionally (none do today).
-  for (const [pluginId, factory] of getRegisteredCanvasToolFactories()) {
-    try {
-      const contributed = factory(workspaceId) as Record<string, CanvasTool>;
-      Object.assign(base, contributed);
-    } catch (err) {
-      console.error(
-        `[canvas-tools] plugin ${pluginId} tool factory threw; skipping its tools`,
-        err,
-      );
-    }
-  }
-
-  return base;
+  return Object.assign(base, createPluginContributedTools(workspaceId));
 }

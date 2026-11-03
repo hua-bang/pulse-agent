@@ -2,13 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { z } from 'zod';
 
 // Pin `os.homedir()` to a temp dir BEFORE the modules under test load it, so
 // every default-rooted helper (canvas-storage, workspace-node-store, tag-store)
 // reads/writes under the per-test sandbox rather than the developer's real
 // ~/.pulse-coder/canvas tree. `vi.hoisted` is the only safe way to share state
 // with `vi.mock` factories, which Vitest hoists above the rest of the file.
-const { sandboxHome, activeDockWorkspaceId, dockTabsByWorkspace } = vi.hoisted(() => {
+const { sandboxHome, activeDockWorkspaceId, dockTabsByWorkspace, pluginToolFactories } = vi.hoisted(() => {
   // `vi.hoisted` runs above all imports, so we cannot use `os.tmpdir()` /
   // `path.join` here. Build the path with environment + string concat instead.
   const base = process.env.TMPDIR || process.env.TEMP || '/tmp';
@@ -17,6 +18,7 @@ const { sandboxHome, activeDockWorkspaceId, dockTabsByWorkspace } = vi.hoisted((
     sandboxHome: `${base}${trailing}canvas-tools-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     activeDockWorkspaceId: { value: '' },
     dockTabsByWorkspace: { value: new Map<string, Array<Record<string, unknown>>>() },
+    pluginToolFactories: new Map<string, (workspaceId: string) => Record<string, unknown>>(),
   };
 });
 
@@ -60,7 +62,7 @@ vi.mock('pulse-coder-engine', () => ({
 // The plugin registry is loaded at tool-creation time. Stub it out so we
 // don't pick up plugin-contributed tools from the real registry.
 vi.mock('../../../plugins/main', () => ({
-  getRegisteredCanvasToolFactories: () => new Map(),
+  getRegisteredCanvasToolFactories: () => Array.from(pluginToolFactories.entries()),
 }));
 vi.mock('../../dock/tab-store', () => ({
   getActiveDockWorkspaceId: () => activeDockWorkspaceId.value,
@@ -376,6 +378,27 @@ describe('createGlobalCanvasTools', () => {
     const found = JSON.parse(await tools.canvas_search_nodes.execute({ workspaceId: wsId, query: 'pipeline' }));
     expect(found.ok).toBe(true);
     expect(found.matches.map((m: { id: string }) => m.id)).toEqual(['n-text']);
+  });
+
+  it('gives Global chat plugin tools that declare a plain JSON Schema', async () => {
+    pluginToolFactories.set('todo-list', () => ({
+      todo_list_read: {
+        description: 'Read the todo list.',
+        inputSchema: { type: 'object', properties: { status: { type: 'string' } } },
+        execute: async (input: { status?: string }) => `todos:${input.status ?? 'all'}`,
+      },
+    }));
+    try {
+      const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
+      const tool = tools.todo_list_read;
+      expect(tool?.name).toBe('todo_list_read');
+      expect(tool.inputSchema).not.toBeInstanceOf(z.ZodType);
+      expect(await tool.execute({ status: 'open' })).toBe('todos:open');
+      // Scheduled runs keep their narrower boundary.
+      expect(createGlobalCanvasTools().todo_list_read).toBeUndefined();
+    } finally {
+      pluginToolFactories.clear();
+    }
   });
 
   it('can expose workspace operations behind an explicit workspaceId', async () => {
