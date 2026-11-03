@@ -188,10 +188,12 @@ export async function loadDefaultSkills(): Promise<DefaultSkill[]> {
     { VISUAL_STYLE_SKILL },
     { CANVAS_BOOTSTRAP_SKILL, CANVAS_FRAME_RESEARCH_SKILL },
     { CANVAS_TIDY_LAYOUT_SKILL },
+    { CREATE_CANVAS_PLUGIN_SKILL },
   ] = await Promise.all([
     import('./visual-style-skill'),
     import('./canvas-research-skills'),
     import('./canvas-layout-skill'),
+    import('./canvas-plugin-skill'),
   ]);
   return [
     SAVE_AS_SKILL,
@@ -202,6 +204,7 @@ export async function loadDefaultSkills(): Promise<DefaultSkill[]> {
     CANVAS_BOOTSTRAP_SKILL,
     CANVAS_FRAME_RESEARCH_SKILL,
     CANVAS_TIDY_LAYOUT_SKILL,
+    CREATE_CANVAS_PLUGIN_SKILL,
   ];
 }
 

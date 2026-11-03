@@ -7,16 +7,30 @@ import {
   setPluginChatTextHandler,
   subscribeRendererPluginRegistry,
 } from '../../../../plugins/renderer';
+import { OPEN_PLUGIN_PAGE_EVENT } from '../../shared/appShell';
 
 /**
  * Plugin routes and nav items, re-read on every renderer registry change.
  * Plugins can activate after mount (market install, federation sync), so a
- * one-shot read would miss them until restart.
+ * one-shot read would miss them until restart. Also handles requests to open
+ * a plugin page.
  */
-export const usePluginRegistry = () => {
+export const usePluginRegistry = (navigate: (path: string) => void) => {
   const version = useSyncExternalStore(subscribeRendererPluginRegistry, getRendererPluginRegistryVersion);
   const pluginRoutes = useMemo(() => getRegisteredRoutes().slice(), [version]);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), [version]);
+
+  // `requestOpenPluginPage` may only reach routes that a plugin registered.
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const path = (event as CustomEvent<unknown>).detail;
+      if (typeof path !== 'string') return;
+      if (getRegisteredRoutes().some((route) => route.path === path)) navigate(path);
+    };
+    window.addEventListener(OPEN_PLUGIN_PAGE_EVENT, handleOpen);
+    return () => window.removeEventListener(OPEN_PLUGIN_PAGE_EVENT, handleOpen);
+  }, [navigate]);
+
   return { pluginRoutes, pluginNavItems };
 };
 

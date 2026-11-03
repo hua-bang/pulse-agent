@@ -228,3 +228,28 @@ export interface PluginMarketApi {
   chooseDirectory: () => Promise<PluginMarketMutationResult>;
   addGit: (source: PluginMarketSource) => Promise<PluginMarketMutationResult>;
 }
+
+/** Agent tool that installs a local plugin directory; its result drives a chat card. */
+export const CANVAS_PLUGIN_INSTALL_TOOL = 'canvas_plugin_install';
+
+/** JSON result of `canvas_plugin_install`, read by the agent and the chat card. */
+export interface CanvasPluginInstallReport {
+  ok: boolean;
+  root: string;
+  listingId?: string;
+  name?: string;
+  version?: string;
+  /** True when the package has Pulse code (renderer, main, or nodes) that the trust gate holds. */
+  hasNativeCode: boolean;
+  nativeEnabled: boolean;
+  contents?: {
+    renderer: boolean;
+    main: boolean;
+    nodeTypes: string[];
+    skills: string[];
+    mcpServers: string[];
+  };
+  diagnostics: PluginPackageDiagnostic[];
+  error?: string;
+  nextStep: string;
+}

@@ -78,6 +78,14 @@ Renderer plugin nav items (`registerNavItem`) show on the app rail inside one "P
 
 Right-click on an entry offers uninstall. The renderer plugin id is the package name, so the entry maps to the installed listing whose `name` matches (`findInstalledListing`). An entry with no installed listing (a built-in plugin) shows the action disabled. Uninstall asks for confirmation, calls `pluginMarket.uninstall`, and then syncs renderer federation in the current window. The market module loads on demand, so the Plugins route view stays out of the startup bundle.
 
+## Agent-authored plugins
+
+The bundled `create-canvas-plugin` skill tells the Canvas Agent how to write a plugin folder without a build step: `plugin.json`, a global-script `renderer/remoteEntry.js` that uses the host React bridge, and an optional ESM `main.mjs`. The agent then calls `canvas_plugin_install({ dir })` (`src/main/agent/tools/plugins/install.ts`, deferred). The tool reuses `PluginMarketService.installDirectory`, the same path as the "choose directory" dialog, and returns a JSON `CanvasPluginInstallReport`: validity, contents, reader diagnostics, and an extra `renderer.incomplete` error for a renderer that has no `entry` or `remoteName` (the host skips such a renderer without a reader error).
+
+The install keeps native code off. The chat renders the tool result as `PluginInstallCard` (lazy, from the market module). Its "Enable and open" button is the trust gate: only that user click calls `setNativeEnabled`, syncs renderer federation, and opens the plugin page through `requestOpenPluginPage`. The app accepts that request only for a route that a plugin registered. The agent has no tool that enables native code.
+
+An enabled plugin does not hot-reload. The main loader and the federation runtime cache loaded modules, so code changes take effect after an app restart.
+
 ## Chat mention semantics
 
 The chat `@` picker offers healthy installed market listings in a dedicated Plugins group. Selecting one serializes a stable `@[plugin:<encoded-listing-id>|<encoded-name>|<optional-icon-key>]` marker and adds `{ id, name }` to `AgentRequestContext.plugins`; turn snapshots preserve the same refs for regenerate/replay. The marker renders as a plugin chip in both the composer and transcript. Mention rows and chips reuse the market's client-owned brand images; well-known personal packages such as Notion may be recognized by name, while unknown packages use the generic plugin glyph. Agent Plugins v1 itself does not define a portable icon field.

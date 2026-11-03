@@ -26,6 +26,7 @@ import { createLayoutTools } from './canvas/layout-tools';
 import { createMemoryTools } from './memory';
 import { createScheduledTools } from './scheduled';
 import { createRoleTools } from './roles';
+import { createPluginInstallTools } from './plugins/install';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -216,6 +217,9 @@ export function createGlobalCanvasTools(
   };
 
   if (options.allowWorkspaceTargetedTools) {
+    // Plugin installs are app-level, so interactive Global chat gets the
+    // tool without a workspace target. Scheduled runs never install.
+    Object.assign(tools, createPluginInstallTools());
     const directGlobalToolNames = new Set(Object.keys(tools));
     const workspaceToolPrototypes = createCanvasTools('');
 
@@ -261,6 +265,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createMemoryTools(workspaceId),
     ...createScheduledTools(),
     ...createRoleTools(),
+    ...createPluginInstallTools(),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's

@@ -23,6 +23,17 @@ export const requestOpenAppSettings = (): void => {
   window.dispatchEvent(new Event(OPEN_APP_SETTINGS_EVENT));
 };
 
+/**
+ * Opens a plugin page by its registered route path, for example from the
+ * plugin install card in chat. The app ignores paths that no plugin
+ * registered.
+ */
+export const OPEN_PLUGIN_PAGE_EVENT = 'pulse:open-plugin-page';
+
+export const requestOpenPluginPage = (path: string): void => {
+  window.dispatchEvent(new CustomEvent<string>(OPEN_PLUGIN_PAGE_EVENT, { detail: path }));
+};
+
 const AppShellContext = createContext<AppShellPort | null>(null);
 
 export const AppShellPortProvider = ({

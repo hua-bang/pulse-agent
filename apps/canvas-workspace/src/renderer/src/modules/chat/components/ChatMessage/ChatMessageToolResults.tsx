@@ -2,6 +2,8 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { ToolCallStatus } from '../../../../types';
 import { ChatToolCalls } from './ChatToolCalls';
 import { McpAppFramesLazy } from './McpAppFramesLazy';
+import { PluginInstallCardLazy } from './PluginInstallCardLazy';
+import { CANVAS_PLUGIN_INSTALL_TOOL } from '../../../../../../shared/plugin-market';
 import { CopyGeneratedImageButton } from './GeneratedImageActions';
 import {
   ChatArtifactCard,
@@ -124,6 +126,9 @@ export const ChatMessageToolResults = ({
             streaming
           />
         );
+      }
+      if (tool.name === CANVAS_PLUGIN_INSTALL_TOOL) {
+        return tool.result ? <PluginInstallCardLazy key={`plugin-install-${tool.id}`} result={tool.result} /> : null;
       }
       if ((tool.name === 'artifact_create' || tool.name === 'artifact_update') && !tool.result) return null;
       const visual = parseVisualToolResult(tool.name, tool.result);

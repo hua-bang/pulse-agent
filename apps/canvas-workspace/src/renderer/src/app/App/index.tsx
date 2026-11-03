@@ -66,7 +66,7 @@ const AppContent = () => {
   const dock = useRightDock();
   const [location, setLocation] = useLocation();
   const search = useSearch();
-  const { pluginRoutes, pluginNavItems } = usePluginRegistry();
+  const { pluginRoutes, pluginNavItems } = usePluginRegistry(setLocation);
   usePluginChatBridge(dock.openChat);
   const route = useMemo(() => resolveAppRoute(location, {
     nodesEnabled: NODES_ENABLED,

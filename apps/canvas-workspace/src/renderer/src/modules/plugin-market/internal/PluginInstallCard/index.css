@@ -1,0 +1,76 @@
+.plugin-install-card {
+  margin-top: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.plugin-install-card__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.plugin-install-card__status {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.plugin-install-card[data-ok='false'] .plugin-install-card__status {
+  color: var(--danger);
+}
+
+.plugin-install-card__name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-install-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plugin-install-card__chips li {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-canvas);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.plugin-install-card__diagnostics {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.plugin-install-card__diagnostics li[data-severity='error'] {
+  color: var(--danger);
+}
+
+.plugin-install-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.plugin-install-card__note {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
