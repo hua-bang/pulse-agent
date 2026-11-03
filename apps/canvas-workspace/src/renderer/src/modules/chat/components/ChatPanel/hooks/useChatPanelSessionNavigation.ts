@@ -28,8 +28,11 @@ interface Options {
   sessionTitle: string;
   messages: AgentChatMessage[];
   busy: boolean;
-  /** Blocks New chat; narrower than `busy` because a streaming reply does not. */
-  newSessionBlocked: boolean;
+  /**
+   * Blocks New chat and switching chats. Narrower than `busy`: a streaming
+   * reply keeps running in its own conversation, so it does not block them.
+   */
+  switchBlocked: boolean;
   focusInput: () => void;
   closeSessionMenu: () => void;
   handleNewSession: () => Promise<{ ok: boolean }>;
@@ -47,7 +50,7 @@ export const useChatPanelSessionNavigation = ({
   sessionTitle,
   messages,
   busy,
-  newSessionBlocked,
+  switchBlocked,
   focusInput,
   closeSessionMenu,
   handleNewSession,
@@ -109,17 +112,17 @@ export const useChatPanelSessionNavigation = ({
     await jumpToSession(entry.sessionId, entry.workspaceId);
   }, [backStack, jumpToSession]);
   const onNewSession = useCallback(async () => {
-    if (newSessionBlocked) return;
+    if (switchBlocked) return;
     const trigger = document.activeElement;
     setBackStack([]);
     const result = await handleNewSession();
     if (result.ok) restoreComposerFocusAfterRender(focusInput, trigger);
-  }, [focusInput, handleNewSession, newSessionBlocked]);
+  }, [focusInput, handleNewSession, switchBlocked]);
   const onLoadSession = useCallback(async (sessionId: string) => {
-    if (busy) return;
+    if (switchBlocked) return;
     setBackStack([]);
     await handleLoadSession(sessionId);
-  }, [busy, handleLoadSession]);
+  }, [handleLoadSession, switchBlocked]);
   const onOpenOriginalSession = useCallback((session: OtherWorkspaceSession) => {
     if (!onOpenSessionInScope) return;
     closeSessionMenu();

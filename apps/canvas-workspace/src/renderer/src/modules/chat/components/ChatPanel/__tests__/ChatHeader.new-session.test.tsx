@@ -10,9 +10,12 @@ const host = document.createElement('div');
 let root: ReturnType<typeof createRoot>;
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-async function render(props: { disabled: boolean; newSessionDisabled?: boolean }) {
+const onLoadSession = vi.fn(async () => {});
+
+async function render(props: { disabled: boolean; switchDisabled?: boolean }) {
   document.body.appendChild(host);
   root = createRoot(host);
+  onLoadSession.mockClear();
   const onNewSession = vi.fn(async () => {});
   await act(async () => root.render(
     <I18nProvider>
@@ -20,12 +23,15 @@ async function render(props: { disabled: boolean; newSessionDisabled?: boolean }
         title="Current"
         sessionMenuOpen
         sessionMenuRef={createRef()}
-        sessions={[]}
+        sessions={[
+          { sessionId: 'current', date: 'Today', messageCount: 2, isCurrent: true, title: 'Current' },
+          { sessionId: 'other', date: 'Today', messageCount: 4, isCurrent: false, title: 'Other chat' },
+        ]}
         otherSessions={[]}
         onToggleSessionMenu={async () => {}}
         onCloseSessionMenu={() => {}}
         onNewSession={onNewSession}
-        onLoadSession={async () => {}}
+        onLoadSession={onLoadSession}
         onOpenSettings={() => {}}
         settingsLabel="Settings"
         onOpenPromptSettings={() => {}}
@@ -43,8 +49,18 @@ const newChatButtons = () => [
 ];
 
 describe('ChatHeader New chat while a reply streams', () => {
+  it('keeps the chat list and switching enabled while a reply streams', async () => {
+    await render({ disabled: true, switchDisabled: false });
+    const title = host.querySelector<HTMLButtonElement>('.chat-panel-title-btn')!;
+    expect(title.disabled).toBe(false);
+    const other = Array.from(host.querySelectorAll<HTMLElement>('.chat-session-menu-list [role="menuitem"]'))
+      .find((item) => item.textContent?.includes('Other chat'))!;
+    await act(async () => other.click());
+    expect(onLoadSession).toHaveBeenCalledWith('other');
+  });
+
   it('keeps New chat enabled when only session switching is blocked', async () => {
-    const onNewSession = await render({ disabled: true, newSessionDisabled: false });
+    const onNewSession = await render({ disabled: true, switchDisabled: false });
     const [menuNew, actionNew] = newChatButtons();
     expect(menuNew.disabled).toBe(false);
     expect(actionNew.disabled).toBe(false);

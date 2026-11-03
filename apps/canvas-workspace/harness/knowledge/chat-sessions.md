@@ -320,8 +320,10 @@ even starts. `skipInitialHistory: true` therefore OBLIGES the caller to call
 `handleLoadSession` itself — with the initial history fetch skipped, nothing
 else will ever clear that seeded-true flag.
 
-**Submit veto.** Sending is vetoed while `sessionLoading` is true — the same
-rule that already blocks session switches while streaming. The veto is
+**Submit veto.** Sending is vetoed while `sessionLoading` is true. A streaming
+reply does not block New chat or switching chats in either the dock panel
+(`ChatHeader` `switchDisabled`) or the chat page rail: the run keeps going in
+its own conversation and shows a `Running` marker. The veto is
 implemented in `useChatComposerInput`' `isSubmitBlocked`, not at a single call site,
 because the composer has TWO submit paths: the send button and
 `handleKeyDown`'s Enter key. A guard placed only in a caller's `handleSubmit`
