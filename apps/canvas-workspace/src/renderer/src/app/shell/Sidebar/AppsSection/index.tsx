@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { useI18n } from '../../../../i18n';
 import { Button } from '../../../../components/ui';
 import {
@@ -15,14 +15,17 @@ interface Props {
   /** Key of the app the main area shows, or null on any other view. */
   activeAppKey: string | null;
   onOpenApp: (listing: McpAppEntrypointListing) => void;
+  /** Plugin page entries, listed before the apps in the same group. */
+  children?: ReactNode;
 }
 
 /**
  * OpenAI `global` entrypoints, the counterpart of ChatGPT's sidebar apps,
  * as icons on the app rail. Clicking one shows its single live instance in
- * the main area.
+ * the main area. Plugin pages share the group, so all add-on entries sit
+ * together under one divider.
  */
-export const AppsSection = ({ activeView, activeAppKey, onOpenApp }: Props) => {
+export const AppsSection = ({ activeView, activeAppKey, onOpenApp, children }: Props) => {
   const { t } = useI18n();
   const { listings, running } = useGlobalMcpApps();
 
@@ -38,10 +41,11 @@ export const AppsSection = ({ activeView, activeAppKey, onOpenApp }: Props) => {
     return [...listings, ...running.filter(app => !listed.has(app.key)).map(app => app.listing)];
   }, [listings, running]);
 
-  if (apps.length === 0) return null;
+  if (apps.length === 0 && !children) return null;
 
   return (
     <div className="sidebar-apps-rail" role="group" aria-label={t('sidebar.apps')}>
+      {children}
       {apps.map((listing) => {
         const key = globalMcpAppKey(listing);
         return (

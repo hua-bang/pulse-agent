@@ -126,6 +126,11 @@ export const SidebarRail = ({
   // opens or closes the panel; elsewhere it returns to the canvas.
   const handleWorkspaces = activeView === 'canvas' ? onTogglePanel : onEnterCanvas;
   const settingsShortcut = formatShortcutId('app.openSettings');
+  const pluginEntries = pluginNavItems.length > 0 ? (
+    <Suspense fallback={null}>
+      <PluginNavGroup items={pluginNavItems} activeView={activeView} onNavigate={onNavigate} />
+    </Suspense>
+  ) : null;
 
   return (
     <nav className="sidebar-rail" aria-label={t('sidebar.railLabel')}>
@@ -198,13 +203,14 @@ export const SidebarRail = ({
           <ScheduledIcon size={15} />
         </RailButton>
       )}
-      {pluginNavItems.length > 0 && (
-        <Suspense fallback={null}>
-          <PluginNavGroup items={pluginNavItems} activeView={activeView} onNavigate={onNavigate} />
-        </Suspense>
-      )}
-      {onOpenMcpApp && (
-        <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp} />
+      {onOpenMcpApp ? (
+        <AppsSection activeView={activeView} activeAppKey={activeMcpAppKey} onOpenApp={onOpenMcpApp}>
+          {pluginEntries}
+        </AppsSection>
+      ) : pluginEntries && (
+        <div className="sidebar-apps-rail" role="group" aria-label={t('sidebar.apps')}>
+          {pluginEntries}
+        </div>
       )}
       {tree}
       <div className="sidebar-rail-spacer" />

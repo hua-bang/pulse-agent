@@ -67,19 +67,11 @@ afterEach(async () => {
 });
 
 describe('PluginNavGroup', () => {
-  it('collapses and expands its entries and remembers the choice', async () => {
+  it('lists every entry flat, with no group header', async () => {
     await render();
     expect(button('Sticky Wall')).not.toBeNull();
-    const header = host.querySelector<HTMLButtonElement>('.sidebar-plugin-nav__header')!;
-    expect(header.getAttribute('aria-expanded')).toBe('true');
-
-    await act(async () => header.click());
-    expect(button('Sticky Wall')).toBeNull();
-    expect(header.getAttribute('aria-expanded')).toBe('false');
-    expect(window.localStorage.getItem('pulse-canvas.plugin-nav-collapsed')).toBe('1');
-
-    await act(async () => header.click());
-    expect(button('Sticky Wall')).not.toBeNull();
+    expect(button('Devtools')).not.toBeNull();
+    expect(host.querySelector('[aria-expanded]')).toBeNull();
   });
 
   it('navigates on click', async () => {

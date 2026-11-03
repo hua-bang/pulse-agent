@@ -1,12 +1,11 @@
 import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import type { PluginNavItem } from '../../../../../../plugins/types';
 import type { PluginMarketListing } from '../../../../../../shared/plugin-market';
-import { ChevronRightIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
 import { Popover } from '../../../../components/ui/Popover';
 import { useI18n } from '../../../../i18n';
+import { GlobalMcpAppTile } from '../../../../modules/mcp-apps/global-apps';
 import { useAppShell } from '../../../../shared/appShell';
-import { usePluginNavCollapsed } from '../../../App/useShellNavigation';
 import './index.css';
 
 interface Props {
@@ -28,13 +27,12 @@ interface MenuState {
 const loadMarket = () => import('../../../../modules/plugin-market');
 
 /**
- * Plugin-contributed rail entries, grouped under one header that the user
- * can collapse. Right-click an entry to uninstall the plugin behind it.
+ * Plugin-contributed rail entries. The rail lists them flat in the apps
+ * group. Right-click an entry to uninstall the plugin behind it.
  */
 const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
   const { t } = useI18n();
   const { confirm, notify } = useAppShell();
-  const [collapsed, toggleCollapsed] = usePluginNavCollapsed();
   const [menu, setMenu] = useState<MenuState | null>(null);
 
   const openMenu = (event: ReactMouseEvent, item: PluginNavItem) => {
@@ -67,22 +65,8 @@ const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
   const menuListing = menu?.listing;
 
   return (
-    <div className="sidebar-plugin-nav" role="group" aria-label={t('sidebar.pluginNav.title')}>
-      <Button
-        variant="icon"
-        className="sidebar-rail-btn sidebar-plugin-nav__header"
-        aria-expanded={!collapsed}
-        aria-label={t(collapsed ? 'sidebar.pluginNav.expand' : 'sidebar.pluginNav.collapse')}
-        title={t(collapsed ? 'sidebar.pluginNav.expand' : 'sidebar.pluginNav.collapse')}
-        onClick={toggleCollapsed}
-      >
-        <ChevronRightIcon
-          size={12}
-          className={`sidebar-plugin-nav__chevron${collapsed ? '' : ' sidebar-plugin-nav__chevron--open'}`}
-        />
-        <span className="sidebar-rail-label">{t('sidebar.pluginNav.title')}</span>
-      </Button>
-      {!collapsed && items.map((item) => {
+    <>
+      {items.map((item) => {
         const Icon = item.icon;
         const active = activeView === item.path;
         return (
@@ -96,7 +80,7 @@ const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
             aria-label={item.label}
             aria-current={active ? 'page' : undefined}
           >
-            {Icon ? <Icon size={15} /> : item.label.slice(0, 1)}
+            {Icon ? <Icon size={15} /> : <GlobalMcpAppTile title={item.label} size={18} />}
             <span className="sidebar-rail-label">{item.label}</span>
           </Button>
         );
@@ -119,7 +103,7 @@ const PluginNavGroup = ({ items, activeView, onNavigate }: Props) => {
           </Button>
         </Popover>
       )}
-    </div>
+    </>
   );
 };
 
