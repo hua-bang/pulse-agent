@@ -403,12 +403,15 @@ describe('SessionStore', () => {
     const messages = Array.from({ length: 10 }, (_, i) => makeMessage(i));
 
     store.setMessages(messages);
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     expect(store.getMessages().map((m) => m.content)).toEqual(messages.map((m) => m.content));
-    const reloaded = new SessionStore('ws-2');
-    const session = await reloaded.loadSession(store.getCurrentSession()!.sessionId);
-    expect(session?.messages.map((m) => m.content)).toEqual(messages.map((m) => m.content));
+    // Persistence is fire-and-forget. Poll the disk instead of a fixed sleep,
+    // which flaked on a loaded CI runner.
+    await vi.waitFor(async () => {
+      const reloaded = new SessionStore('ws-2');
+      const session = await reloaded.loadSession(store.getCurrentSession()!.sessionId);
+      expect(session?.messages.map((m) => m.content)).toEqual(messages.map((m) => m.content));
+    }, { timeout: 5000, interval: 50 });
   });
 
   it('restores the persisted current session without archiving it', async () => {

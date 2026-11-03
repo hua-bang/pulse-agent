@@ -24,8 +24,8 @@ const parsePluginInstallReport = (result: string | undefined): CanvasPluginInsta
   }
 };
 
-const pluginPagePath = (pluginId: string): string | undefined => (
-  getRegisteredNavItems().find((item) => item.pluginId === pluginId)?.path
+const pluginNavItem = (pluginId: string | undefined) => (
+  pluginId ? getRegisteredNavItems().find((item) => item.pluginId === pluginId) : undefined
 );
 
 /**
@@ -66,19 +66,16 @@ const PluginInstallCard = ({ report }: { report: CanvasPluginInstallReport }) =>
     }
     await syncRendererPlugins().catch(() => undefined);
     setState('enabled');
-    const path = report.name ? pluginPagePath(report.name) : undefined;
+    const path = pluginNavItem(report.name)?.path;
     if (path) requestOpenPluginPage(path);
   };
 
-  const openPage = () => {
-    const path = report.name ? pluginPagePath(report.name) : undefined;
-    if (path) requestOpenPluginPage(path);
-  };
+  // Read at render time: enabling re-renders the card after the plugin registers its entry.
+  const navItem = state === 'enabled' ? pluginNavItem(report.name) : undefined;
 
+  // Only parts a user acts on. A page shows up as the sidebar entry once enabled.
   const contents = report.contents;
   const chips = contents ? [
-    contents.renderer && t('pluginInstallCard.page'),
-    contents.main && t('pluginInstallCard.main'),
     contents.nodeTypes.length > 0 && t('pluginInstallCard.nodes', { count: contents.nodeTypes.length }),
     contents.skills.length > 0 && t('pluginInstallCard.skills', { count: contents.skills.length }),
     contents.mcpServers.length > 0 && t('pluginInstallCard.mcp', { count: contents.mcpServers.length }),
@@ -96,6 +93,7 @@ const PluginInstallCard = ({ report }: { report: CanvasPluginInstallReport }) =>
           {name}{report.version ? ` · v${report.version}` : ''}
         </span>
       </header>
+      {report.description && <p className="plugin-install-card__description">{report.description}</p>}
       {chips.length > 0 && (
         <ul className="plugin-install-card__chips">
           {chips.map((chip) => <li key={chip}>{chip}</li>)}
@@ -116,8 +114,12 @@ const PluginInstallCard = ({ report }: { report: CanvasPluginInstallReport }) =>
         <footer className="plugin-install-card__footer">
           {state === 'enabled' ? (
             <>
-              <span className="plugin-install-card__note">{t('pluginInstallCard.enabled')}</span>
-              <Button size="sm" onClick={openPage}>{t('pluginInstallCard.open')}</Button>
+              <span className="plugin-install-card__note">
+                {navItem ? t('pluginInstallCard.inSidebar', { label: navItem.label }) : t('pluginInstallCard.enabled')}
+              </span>
+              {navItem && (
+                <Button size="sm" onClick={() => requestOpenPluginPage(navItem.path)}>{t('pluginInstallCard.open')}</Button>
+              )}
             </>
           ) : (
             <>

@@ -34,6 +34,7 @@ vi.mock('../../terminal/pty-manager', () => ({
 }));
 vi.mock('../../../plugins/main', () => ({
   getRegisteredCanvasToolFactories: () => new Map(),
+  isExternalMainPlugin: () => false,
 }));
 
 // The runner resolves the chat model before every run; stub it so tests never
@@ -48,7 +49,14 @@ vi.mock('../../models/config', () => ({
   }),
 }));
 
-import { runHeadlessAgentTask, type HeadlessEngineFactory } from '../run/headless-run';
+import {
+  completeForPlugin,
+  createHeadlessCanvasTools,
+  PLUGIN_RUN_TOOL_NAMES,
+  runForPlugin,
+  runHeadlessAgentTask,
+  type HeadlessEngineFactory,
+} from '../run/headless-run';
 import { generateMemoryReport, memoryReportsDir, runScheduledMemoryReport } from '../memory/memory-report';
 import { saveMemory } from '../memory/memory-store';
 
@@ -168,6 +176,49 @@ describe('runHeadlessAgentTask', () => {
   });
 });
 
+describe('plugin agent calls (MainCtx.agent)', () => {
+  it('complete makes one tool-free model call with the plugin system text appended', async () => {
+    const { factory, captured } = fakeFactory({ run: async () => 'short summary' });
+
+    const result = await completeForPlugin('todo-list', 'Summarize: buy milk', { system: 'Reply in Chinese.' }, factory);
+
+    expect(result).toEqual({ ok: true, text: 'short summary' });
+    expect((captured.config as { tools: Record<string, unknown> }).tools).toEqual({});
+    expect(captured.runOptions).toMatchObject({ maxSteps: 1 });
+    const systemPrompt = (captured.runOptions as { systemPrompt: string }).systemPrompt;
+    expect(systemPrompt).toContain('Pulse Canvas plugin');
+    expect(systemPrompt.endsWith('Reply in Chinese.')).toBe(true);
+  });
+
+  it('run gets only the read-only allowlist and a bounded step count', async () => {
+    const { factory, captured } = fakeFactory({ run: async () => 'done' });
+
+    const result = await runForPlugin('todo-list', 'Which canvases mention the launch?', {}, factory);
+
+    expect(result).toEqual({ ok: true, text: 'done' });
+    const toolNames = Object.keys((captured.config as { tools: Record<string, unknown> }).tools).sort();
+    // Every allowlisted tool exists, so a rename cannot silently drop one.
+    expect(toolNames).toEqual([...PLUGIN_RUN_TOOL_NAMES].sort());
+    expect(Object.keys(createHeadlessCanvasTools())).toEqual(expect.arrayContaining(toolNames));
+    for (const write of ['scheduled_task_create', 'scheduled_task_update', 'chat_role_save', 'dock_open_tab',
+      'dock_activate_tab', 'screen_capture', 'memory_save', 'user_ask']) {
+      expect(toolNames).not.toContain(write);
+    }
+    expect(captured.runOptions).toMatchObject({ maxSteps: 30 });
+  });
+
+  it('returns ok:false when the model call fails', async () => {
+    const factory: HeadlessEngineFactory = () => ({
+      initialize: async () => undefined,
+      run: async () => { throw new Error('no model configured'); },
+    });
+
+    const result = await completeForPlugin('todo-list', 'hi', {}, factory);
+
+    expect(result).toMatchObject({ ok: false, error: 'no model configured' });
+  });
+});
+
 describe('generateMemoryReport', () => {
   const writeManifest = async (): Promise<void> => {
     await fs.writeFile(
@@ -203,7 +254,7 @@ describe('generateMemoryReport', () => {
     // the interactive clarify tool and the memory write paths. Interactive
     // Global chat opts into explicit-target workspace mutations separately.
     const { createGlobalCanvasTools } = await import('../tools');
-    const { HEADLESS_EXCLUDED_TOOLS } = await import('../memory/memory-report');
+    const { HEADLESS_EXCLUDED_TOOLS } = await import('../run/headless-run');
     const expected = Object.keys(createGlobalCanvasTools())
       .filter((name) => !HEADLESS_EXCLUDED_TOOLS.has(name))
       .sort();

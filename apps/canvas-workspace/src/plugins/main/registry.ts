@@ -4,6 +4,7 @@ import type {
   CanvasToolFactory,
   MainCanvasPlugin,
   MainCtx,
+  PluginAgentApi,
   PluginCanvasSnapshot,
   PluginWorkspaceListing,
   PluginNodeCapabilities,
@@ -158,6 +159,20 @@ export function getRegisteredNodeCapability(
   return nodeCapabilities.get(nodeType);
 }
 
+// The headless runner pulls in the engine, so load it on first use.
+const loadHeadlessRun = () => import('../../main/agent/run/headless-run');
+
+function createPluginAgentApi(pluginId: string): PluginAgentApi {
+  return {
+    async complete(prompt, options) {
+      return (await loadHeadlessRun()).completeForPlugin(pluginId, prompt, options);
+    },
+    async run(prompt, options) {
+      return (await loadHeadlessRun()).runForPlugin(pluginId, prompt, options);
+    },
+  };
+}
+
 function createMainCtx(pluginId: string): MainCtx {
   return {
     store: createPluginStore(pluginId),
@@ -179,6 +194,7 @@ function createMainCtx(pluginId: string): MainCtx {
         };
       },
     },
+    agent: createPluginAgentApi(pluginId),
     webviews: {
       get(workspaceId, nodeId) {
         return getWebContentsForNode(workspaceId, nodeId) ?? null;
