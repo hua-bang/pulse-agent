@@ -37,6 +37,14 @@ export function setupLinkPolicy(): void {
         return { action: "allow" };
       }
 
+      // A plugin page keeps its login in its own partition; the dock uses
+      // the default session and would show the site signed out. Open the
+      // link in the same guest instead.
+      if (isPluginWebview(contents) && isWebNavigationUrl(url)) {
+        void contents.loadURL(url).catch(() => undefined);
+        return { action: "deny" };
+      }
+
       // Everything else is a `preview this link` intent, route to the side
       // drawer. Chromium reports ⌘/Ctrl+click and middle-click as
       // `background-tab`; that gesture means `queue this, keep reading`, so
@@ -188,8 +196,8 @@ function forwardLinkToRenderer(
   // (it maps its own mounted webviews by webContentsId), so the new tab can
   // land beside its opener. Only meaningful when the source is a guest.
   // A plugin guest has no registered identity, and the renderer drops a link
-  // whose guest id it cannot resolve. Send it as an app-level link instead,
-  // so it opens in the dock.
+  // whose guest id it cannot resolve. Send its non-web links (mailto: and
+  // similar) as app-level links instead.
   const sourceWebContentsId = contents.hostWebContents && !isPluginWebview(contents)
     ? contents.id
     : undefined;

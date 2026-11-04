@@ -52,6 +52,7 @@ function createContents(
     setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'webview'),
     getURL: vi.fn(() => currentUrl),
+    loadURL: vi.fn(() => Promise.resolve()),
     on: vi.fn(),
     session: { storagePath },
   };
@@ -241,7 +242,7 @@ describe('link policy', () => {
     expect(hostWebContents.send).not.toHaveBeenCalled();
   });
 
-  it('sends plugin page new-tab links as app-level links the dock can open', async () => {
+  it('opens plugin page new-tab links in the same guest to keep its login', async () => {
     const createdHandler = await installPolicy();
     const { contents, hostWebContents } = createContents(
       'https://www.bilibili.com/',
@@ -251,10 +252,28 @@ describe('link policy', () => {
 
     const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
     const url = 'https://www.bilibili.com/video/1';
-    windowOpenHandler({ url, disposition: 'foreground-tab' });
+    const result = windowOpenHandler({ url, disposition: 'foreground-tab' });
 
+    expect(result).toEqual({ action: 'deny' });
+    expect(contents.loadURL).toHaveBeenCalledWith(url);
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('sends plugin page non-web links as app-level links', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents(
+      'https://www.bilibili.com/',
+      '/home/u/.config/Pulse/Partitions/plugin-video-reader',
+    );
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'mailto:hello@example.com');
+
+    expect(preventDefault).toHaveBeenCalledOnce();
     expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
-      url,
+      url: 'mailto:hello@example.com',
       background: false,
       sourceWebContentsId: undefined,
     });
