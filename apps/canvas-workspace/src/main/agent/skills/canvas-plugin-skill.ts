@@ -126,10 +126,10 @@ h('webview', {
 })
 \`\`\`
 
-- \`partition\` must start with \`persist:\`, or the login is lost when the app restarts. Use one partition per plugin. Set it before the first load; it cannot change after that.
+- Use exactly \`persist:plugin-<name>\`. The \`persist:\` prefix keeps the login across restarts. The host recognizes the \`plugin-\` name: login hops to other origins stay in the page, and new-tab links open in the dock. Set it before the first load; it cannot change after that.
 - Pass attribute values as strings (\`allowpopups: ''\`). React drops \`true\` on unknown attributes.
 - Do not set \`preload\`, \`nodeintegration\`, or \`webpreferences\`. The host sets them for every \`webview\`.
-- Give the element a fixed size and keep it mounted. Unmounting it, moving it in the tree, or hiding it with \`display: none\`, \`visibility: hidden\`, or \`opacity: 0\` can reload the page and drop what the user typed. To switch between pages, stack them and put the active one on top with \`z-index\`.
+- Give the element a fixed size and keep it mounted. Unmounting it, moving it in the tree, or hiding it with \`display: none\`, \`visibility: hidden\`, or \`opacity: 0\` can reload the page and drop what the user typed. To switch between pages, stack them and put the active one on top with \`z-index\`. When the user leaves the plugin page, the host unmounts it; on return the site reloads, and only the login remains.
 - The page cannot read the site's DOM. Navigate by changing \`src\`.
 
 ### main.mjs

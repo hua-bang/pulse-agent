@@ -38,7 +38,10 @@ vi.mock('../../../webview/registry', () => ({
 type WindowOpenHandler = (details: { url: string; disposition: string }) => { action: string };
 type NavigateHandler = (event: { preventDefault(): void }, url: string) => void;
 
-function createContents(currentUrl = 'https://www.figma.com/files/recent') {
+function createContents(
+  currentUrl = 'https://www.figma.com/files/recent',
+  storagePath: string | null = null,
+) {
   const hostWebContents = {
     isDestroyed: vi.fn(() => false),
     send: vi.fn(),
@@ -50,6 +53,7 @@ function createContents(currentUrl = 'https://www.figma.com/files/recent') {
     getType: vi.fn(() => 'webview'),
     getURL: vi.fn(() => currentUrl),
     on: vi.fn(),
+    session: { storagePath },
   };
   return { contents, hostWebContents };
 }
@@ -219,6 +223,59 @@ describe('link policy', () => {
         surfaceKind: 'dock-browser',
       },
     });
+  });
+
+  it('keeps cross-origin navigation inside a plugin page webview', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents(
+      'https://www.bilibili.com/',
+      '/home/u/.config/Pulse/Partitions/plugin-video-reader',
+    );
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'https://passport.bilibili.com/login');
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('sends plugin page new-tab links as app-level links the dock can open', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents(
+      'https://www.bilibili.com/',
+      'C:\\Users\\u\\AppData\\Roaming\\Pulse\\Partitions\\plugin-video-reader',
+    );
+    createdHandler({}, contents);
+
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const url = 'https://www.bilibili.com/video/1';
+    windowOpenHandler({ url, disposition: 'foreground-tab' });
+
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', {
+      url,
+      background: false,
+      sourceWebContentsId: undefined,
+    });
+  });
+
+  it('still intercepts cross-origin navigation in an unregistered non-plugin webview', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents(
+      'https://www.bilibili.com/',
+      '/home/u/.config/Pulse/Partitions/other',
+    );
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'https://passport.bilibili.com/login');
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(hostWebContents.send).toHaveBeenCalledWith('link:open', expect.objectContaining({
+      sourceWebContentsId: 42,
+    }));
   });
 
   it('forwards foreground target=_blank links as foreground opens', async () => {
