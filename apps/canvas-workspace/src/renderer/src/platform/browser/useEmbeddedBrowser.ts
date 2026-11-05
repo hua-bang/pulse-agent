@@ -24,6 +24,8 @@ interface Options {
   onInitialLoadSettled?: (reason: Extract<InitialLoadReleaseReason, 'complete' | 'failed'>) => void;
   onNavigate?: (url: string) => void;
   onTitleChange?: (title: string) => void;
+  /** Guest session partition. Electron reads it once, before the first load. */
+  partition?: string;
   url: string;
 }
 
@@ -54,6 +56,7 @@ export const useEmbeddedBrowser = ({
   onInitialLoadSettled,
   onNavigate,
   onTitleChange,
+  partition,
   url,
 }: Options): Result => {
   const internalHostRef = useRef<HTMLDivElement>(null);
@@ -86,6 +89,7 @@ export const useEmbeddedBrowser = ({
 
     const element = document.createElement('webview') as EmbeddedWebviewTag;
     element.setAttribute('allowpopups', '');
+    if (partition) element.setAttribute('partition', partition);
     const holdForRegistration = navigationGateEnabled && Boolean(urlRef.current);
     const initialGuestUrl = holdForRegistration ? 'about:blank' : urlRef.current;
     realNavigationStartedRef.current = !holdForRegistration;
@@ -197,7 +201,7 @@ export const useEmbeddedBrowser = ({
       element.remove();
       setWebview((current) => current === element ? null : current);
     };
-  }, [className, enabled, mountKey, navigationGateEnabled, reloadKey]);
+  }, [className, enabled, mountKey, navigationGateEnabled, partition, reloadKey]);
 
   useLayoutEffect(() => {
     if (!webview) return;

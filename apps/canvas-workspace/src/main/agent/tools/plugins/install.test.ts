@@ -22,7 +22,7 @@ vi.mock('../../../plugin-market/service', () => ({
 
 vi.mock('../../../../plugins/main', () => ({ getCanvasPluginLoadError }));
 
-const { createPluginInstallTools } = await import('./install');
+const { createPluginInstallTools, installPluginDirectory } = await import('./install');
 
 let root = '';
 
@@ -90,6 +90,25 @@ describe('canvas_plugin_install', () => {
     expect(report.nextStep).toContain('two or three sentences');
     // Open windows sync their plugins, which hot-reloads changed files.
     expect(send).toHaveBeenCalledWith('canvas-plugins:changed');
+  });
+
+  it('points an external caller at the CLI and the Plugins page instead of the chat card', async () => {
+    await writePlugin({ remoteName: 'pulse_plugin_session_stats', entry: 'renderer/remoteEntry.js' });
+    installDirectory.mockResolvedValue({
+      ok: true,
+      snapshot: {
+        updatedAt: 1,
+        listings: [{ id: 'personal:session-stats:abc', name: 'session-stats', installState: 'installed', nativeEnabled: false }],
+      },
+    });
+
+    const report = await installPluginDirectory(root, 'external');
+
+    expect(report.ok).toBe(true);
+    expect(report.nextStep).toContain('open Plugins in Pulse Canvas and enable "session-stats"');
+    expect(report.nextStep).not.toContain('Enable and open');
+    const relative = await installPluginDirectory('plugins/session-stats', 'external');
+    expect(relative.nextStep).toContain('`pulse-canvas plugin install`');
   });
 
   it('reports an enabled plugin whose main.mjs failed to load', async () => {

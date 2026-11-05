@@ -6,7 +6,7 @@ const electronMocks = vi.hoisted(() => ({
   openGoogleAuthPopup: vi.fn(),
 }));
 const registryMocks = vi.hoisted(() => ({
-  surfaceKinds: new Map<number, 'canvas-node' | 'dock-browser'>(),
+  surfaceKinds: new Map<number, 'canvas-node' | 'dock-browser' | 'plugin-page'>(),
 }));
 
 vi.mock('electron', () => ({
@@ -256,6 +256,24 @@ describe('link policy', () => {
 
     expect(result).toEqual({ action: 'deny' });
     expect(contents.loadURL).toHaveBeenCalledWith(url);
+    expect(hostWebContents.send).not.toHaveBeenCalled();
+  });
+
+  it('treats a registered plugin page on the shared session as a plugin page', async () => {
+    const createdHandler = await installPolicy();
+    const { contents, hostWebContents } = createContents('https://calendar.notion.so/');
+    registryMocks.surfaceKinds.set(contents.id, 'plugin-page');
+    createdHandler({}, contents);
+
+    const navigateHandler = contents.on.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as NavigateHandler;
+    const preventDefault = vi.fn();
+    navigateHandler({ preventDefault }, 'https://www.notion.so/login');
+    const windowOpenHandler = contents.setWindowOpenHandler.mock.calls[0]?.[0] as WindowOpenHandler;
+    const result = windowOpenHandler({ url: 'https://calendar.notion.so/event/1', disposition: 'foreground-tab' });
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(result).toEqual({ action: 'deny' });
+    expect(contents.loadURL).toHaveBeenCalledWith('https://calendar.notion.so/event/1');
     expect(hostWebContents.send).not.toHaveBeenCalled();
   });
 

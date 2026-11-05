@@ -24,7 +24,13 @@ import { randomUUID } from 'crypto';
 import { getWebContentsForNode } from './registry';
 import { createDomElementSnapshotScript, type DomElementSnapshotResult } from './dom-snapshot-script';
 import { withCdp, type CdpSender } from './cdp-session';
-import type { WebReadInput, WebReadResult, WebReadStrategy } from '../../shared/web';
+import { webviewRegistryKeyFor } from '../../shared/webview-registration';
+import type {
+  WebReadInput,
+  WebReadResult,
+  WebReadStrategy,
+  WebSelectionInput,
+} from '../../shared/web';
 export type { WebReadInput, WebReadResult, WebReadStrategy } from '../../shared/web';
 
 // ---------------------------------------------------------------------------
@@ -266,7 +272,8 @@ export function setupWebpageReaderIpc(): void {
         return { ok: false, nodeId: nodeId ?? '', strategy: 'dom', error: 'workspaceId and nodeId are required' };
       }
 
-      const wc = getWebContentsForNode(workspaceId, nodeId);
+      const key = webviewRegistryKeyFor(workspaceId, nodeId);
+      const wc = getWebContentsForNode(key.workspaceId, key.nodeId);
       if (!wc) {
         return { ok: false, nodeId, strategy: 'dom', error: `No active webview found for node ${workspaceId}::${nodeId}` };
       }
@@ -308,4 +315,9 @@ export function setupWebpageReaderIpc(): void {
         : { ok: false, nodeId, strategy: 'screenshot', error: result.error! };
     },
   );
+
+  // Loaded on first use to keep the page script out of the startup bundle.
+  ipcMain.handle('web:read-selection', async (_event: unknown, payload: WebSelectionInput) => (
+    (await import('./selection/read-selection')).readSelectionForTarget(payload)
+  ));
 }

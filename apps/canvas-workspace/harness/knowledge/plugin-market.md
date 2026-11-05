@@ -99,6 +99,8 @@ Main plugins also get `ctx.agent` (`PluginAgentApi` in `src/plugins/types.ts`). 
 
 A main plugin that fails to import or activate records the error (`getCanvasPluginLoadError`); its IPC handlers and tool factory are removed, so its page gets "No handler registered". `canvas_plugin_install` reports the error as a `main.load-failed` diagnostic for an enabled plugin.
 
+External coding agents (Claude Code, Codex) use the same path through the CLI. `pulse-canvas plugin guide` calls the `plugins.guide` read capability, which returns the skill body with a short note for callers outside the app. `pulse-canvas plugin install <dir>` calls the `plugins.install` operate capability (`main/runtime/capabilities/plugin-capabilities.ts`). It runs `installPluginDirectory(dir, 'external')`, so the report and the hot reload are the same; only `nextStep` differs, because no chat card exists outside the app. The user enables native code on the Plugins page. `pulse-canvas install-skills` ships the external `create-canvas-plugin` skill (`canvas-agent: false`).
+
 ## Chat mention semantics
 
 The chat `@` picker offers healthy installed market listings in a dedicated Plugins group. Selecting one serializes a stable `@[plugin:<encoded-listing-id>|<encoded-name>|<optional-icon-key>]` marker and adds `{ id, name }` to `AgentRequestContext.plugins`; turn snapshots preserve the same refs for regenerate/replay. The marker renders as a plugin chip in both the composer and transcript. Mention rows and chips reuse the market's client-owned brand images; well-known personal packages such as Notion may be recognized by name, while unknown packages use the generic plugin glyph. Agent Plugins v1 itself does not define a portable icon field.

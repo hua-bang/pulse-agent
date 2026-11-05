@@ -16,6 +16,7 @@ describe('installSkills', () => {
         '<target>/canvas-bootstrap/SKILL.md',
         '<target>/canvas-deep-research/SKILL.md',
         '<target>/canvas-frame-research/SKILL.md',
+        '<target>/create-canvas-plugin/SKILL.md',
         '<target>/file-pulse-agent-issue/SKILL.md',
         '<target>/pulse-canvas/SKILL.md',
       ]);

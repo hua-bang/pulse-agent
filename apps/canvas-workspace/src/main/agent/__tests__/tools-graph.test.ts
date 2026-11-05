@@ -405,6 +405,27 @@ describe('createGlobalCanvasTools', () => {
     expect(data?.nodes?.find((node) => node.id === 'n-text')?.data?.content).toBe('updated from global chat');
   });
 
+  it('reads plugin pages in Global chat without a workspace or Dock route', async () => {
+    const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
+    const calls: Array<{ name: string; workspaceId: string }> = [];
+    setAgentCapabilityPort({
+      call: async (name, _input, context) => {
+        calls.push({ name, workspaceId: context.workspaceId });
+        return { ok: true, value: { text: 'quote' } };
+      },
+    });
+    try {
+      const plugin = JSON.parse(await tools.browser_read_selection.execute({ nodeId: 'plugin:weread/main' }));
+      expect(plugin).toEqual({ ok: true, text: 'quote' });
+      expect(calls).toEqual([{ name: 'browser.page.selection', workspaceId: '__plugin-pages__' }]);
+
+      const other = await tools.browser_read_selection.execute({ nodeId: 'link:current' });
+      expect(other).toContain('no active Dock workspace');
+    } finally {
+      setAgentCapabilityPort(getCanvasCapabilityRuntime());
+    }
+  });
+
   it('uses the current Dock workspace for browser reads without weakening canvas write targeting', async () => {
     const tools = createGlobalCanvasTools({ allowWorkspaceTargetedTools: true });
     activeDockWorkspaceId.value = wsId;
@@ -684,6 +705,7 @@ describe('deferred tool partition', () => {
       'artifact_update',
       'browser_read_dom_selection',
       'browser_read_page',
+      'browser_read_selection',
       'browser_search_history',
       'canvas_add_to_group',
       'canvas_apply_layout',

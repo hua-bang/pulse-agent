@@ -87,6 +87,7 @@ export const TOOL_LABEL_SLUGS: Record<string, string> = {
   dock_activate_tab: 'activateTab',
   dock_open_tab: 'openTab',
   browser_read_dom_selection: 'readDomSelection',
+  browser_read_selection: 'readSelection',
   knowledge_search_nodes: 'searchKnowledgeNodes',
   knowledge_read_node: 'readKnowledgeNode',
   knowledge_analyze_image: 'analyzeKnowledgeImage',

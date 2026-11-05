@@ -118,6 +118,45 @@ describe('browser_read_page capability adapter', () => {
   });
 });
 
+describe('plugin page reads', () => {
+  beforeEach(() => {
+    mocks.runtimeCall.mockReset();
+    mocks.ensureOperable.mockReset();
+  });
+
+  it('reads a plugin page selection without a chat workspace', async () => {
+    mocks.runtimeCall.mockResolvedValue({ ok: true, value: { text: 'quote', hasSelection: true } });
+
+    const output = JSON.parse(await createWebpageTools('').browser_read_selection.execute({
+      nodeId: 'plugin:weread/main',
+    }));
+
+    expect(output).toEqual({ ok: true, text: 'quote', hasSelection: true });
+    expect(mocks.runtimeCall).toHaveBeenCalledWith(
+      'browser.page.selection',
+      { nodeId: 'plugin:weread/main' },
+      expect.objectContaining({ workspaceId: '__plugin-pages__', actor: { kind: 'canvas-agent' } }),
+    );
+  });
+
+  it('reads a plugin page DOM selection without activating a workspace', async () => {
+    const pluginWc = { id: 9 };
+    mocks.findDockLinkTab.mockReturnValue(undefined);
+    mocks.getWebContentsForNode.mockImplementation((workspaceId: string) => (
+      workspaceId === '__plugin-pages__' ? pluginWc : null
+    ));
+    mocks.readDOMElement.mockResolvedValue({ ok: false, selector: 'p', error: 'not found' });
+
+    await createWebpageTools('ws-1').browser_read_dom_selection.execute({
+      nodeId: 'plugin:weread/main',
+      selector: 'p',
+    });
+
+    expect(mocks.readDOMElement).toHaveBeenCalledWith(pluginWc, 'p', 12_000);
+    expect(mocks.ensureOperable).not.toHaveBeenCalled();
+  });
+});
+
 describe('browser_read_dom_selection', () => {
   it('does not activate a workspace when a dock tab guest is temporarily unavailable', async () => {
     // The tab can be stale in the current published tab list while its

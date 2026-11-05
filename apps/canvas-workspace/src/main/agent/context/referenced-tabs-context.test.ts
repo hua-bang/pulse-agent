@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatReferencedTabsBlock } from './referenced-tabs-context';
+import { formatOpenPluginPagesBlock, formatReferencedTabsBlock } from './referenced-tabs-context';
 
 describe('formatReferencedTabsBlock', () => {
   it('returns an empty string when there are no tabs', () => {
@@ -33,5 +33,21 @@ describe('formatReferencedTabsBlock', () => {
       'ws-current',
     );
     expect(block).toContain('workspaceId: "ws-current"');
+  });
+});
+
+describe('formatOpenPluginPagesBlock', () => {
+  it('lists open plugin pages as read pointers only', () => {
+    expect(formatOpenPluginPagesBlock([])).toBe('');
+    const block = formatOpenPluginPagesBlock([{
+      nodeId: 'plugin:weread/main',
+      pluginId: 'weread',
+      viewId: 'main',
+      title: '三体',
+      url: 'https://weread.test/reader',
+    }]);
+    expect(block).toContain('## Open Plugin Pages');
+    expect(block).toContain('**三体** (plugin weread) — nodeId `plugin:weread/main`, https://weread.test/reader');
+    expect(block).toContain('browser_read_selection({ nodeId })');
   });
 });

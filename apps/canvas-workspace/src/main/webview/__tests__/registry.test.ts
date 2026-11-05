@@ -119,6 +119,27 @@ describe('webview registry generations', () => {
     expect(getWebviewRegistration(999)).toBeNull();
   });
 
+  it('keeps plugin pages in the reserved plugin workspace only', () => {
+    const plugin = { workspaceId: '__plugin-pages__', nodeId: 'plugin:weread/main', webContentsId: 101 };
+    expect(invoke('iframe:register-webview', { ...plugin, surfaceKind: 'plugin-page' })).toEqual({ ok: true });
+    expect(getWebContentsForNode('__plugin-pages__', 'plugin:weread/main')).toBe(wc101);
+    expect(getWebviewSurfaceKind(101)).toBe('plugin-page');
+
+    // A canvas workspace cannot claim the plugin kind, the plugin workspace
+    // takes no other kind, and plugin pages need a valid target id.
+    expect(invoke('iframe:register-webview', {
+      workspaceId: 'ws-1', nodeId: 'node-1', webContentsId: 202, surfaceKind: 'plugin-page',
+    })).toEqual({ ok: false });
+    expect(invoke('iframe:register-webview', { ...plugin, webContentsId: 202 })).toEqual({ ok: false });
+    expect(invoke('iframe:register-webview', {
+      ...plugin, nodeId: 'plugin:WeRead/main', webContentsId: 202, surfaceKind: 'plugin-page',
+    })).toEqual({ ok: false });
+    expect(getWebviewRegistration(202)).toBeNull();
+
+    invoke('iframe:unregister-webview', plugin);
+    expect(getWebContentsForNode('__plugin-pages__', 'plugin:weread/main')).toBeNull();
+  });
+
   it('returns a complete non-retryable lifecycle result for invalid payloads', async () => {
     await expect(invoke('iframe:set-lifecycle', { workspaceId: 'ws-1' })).resolves.toEqual({
       ok: false,

@@ -76,5 +76,6 @@ export const createLlmApi = (ipcRenderer: IpcRenderer): LlmApi => ({
 });
 
 export const createWebApi = (ipcRenderer: IpcRenderer): WebApi => ({
-  read: (payload) => ipcRenderer.invoke("web:read", payload)
+  read: (payload) => ipcRenderer.invoke("web:read", payload),
+  readSelection: (payload) => ipcRenderer.invoke("web:read-selection", payload)
 });
