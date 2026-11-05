@@ -13,15 +13,17 @@ import type { PluginWebViewProps } from '../../types';
 import './index.css';
 
 /**
- * Host-owned `<webview>` for a plugin page. The host keeps the login in the
- * `persist:plugin-<id>` partition, registers the guest so the agent and the
- * plugin can read the page and the selection, and shows load failures. The
- * plugin only chooses the URL. The registry loads this module on first use.
+ * Host-owned `<webview>` for a plugin page. By default it shares the login of
+ * the Pulse Canvas browser (the default session); `session: 'isolated'` keeps
+ * it in the `persist:plugin-<id>` partition. The host registers the guest so
+ * the agent and the plugin can read the page and the selection, and shows load
+ * failures. The plugin only chooses the URL. The registry loads this module on first use.
  */
 export default function PluginWebView({
   pluginId,
   src,
   viewId,
+  session = 'shared',
   className,
   style,
   onNavigate,
@@ -31,7 +33,7 @@ export default function PluginWebView({
   const resolvedViewId = isPluginPagePart(viewId) ? viewId : DEFAULT_PLUGIN_PAGE_VIEW_ID;
   const browser = useEmbeddedBrowser({
     className: 'plugin-webview__guest',
-    partition: `persist:plugin-${pluginId}`,
+    partition: session === 'isolated' ? `persist:plugin-${pluginId}` : undefined,
     url: src,
     onNavigate,
     onTitleChange,

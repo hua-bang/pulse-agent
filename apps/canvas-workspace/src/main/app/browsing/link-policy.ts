@@ -37,9 +37,9 @@ export function setupLinkPolicy(): void {
         return { action: "allow" };
       }
 
-      // A plugin page keeps its login in its own partition; the dock uses
-      // the default session and would show the site signed out. Open the
-      // link in the same guest instead.
+      // A plugin page is the plugin's own browsing surface, and an isolated
+      // one keeps its login in its own partition, which the dock cannot see.
+      // Open the link in the same guest instead.
       if (isPluginWebview(contents) && isWebNavigationUrl(url)) {
         void contents.loadURL(url).catch(() => undefined);
         return { action: "deny" };
@@ -137,12 +137,13 @@ function isEmbeddedAuthNavigation(currentRaw: string, nextRaw: string): boolean 
   }
 }
 
-// Plugin pages create their own <webview> and never register with the
-// webview registry. The create-canvas-plugin skill gives each one a
-// `persist:plugin-<name>` partition, which Electron stores under
-// `<userData>/Partitions/plugin-<name>`. The partition is the only stable
-// signal main has for these guests.
+// A plugin page guest. `ctx.WebView` registers its guest as a plugin page;
+// by default it shares the default session, so the registration is the only
+// signal for it. An isolated `ctx.WebView`, and a raw <webview> from an older
+// plugin, use a `persist:plugin-<name>` partition, which Electron stores under
+// `<userData>/Partitions/plugin-<name>`.
 function isPluginWebview(contents: WebContents): boolean {
+  if (getWebviewRegistration(contents.id)?.surfaceKind === "plugin-page") return true;
   const storagePath = contents.session?.storagePath;
   if (!storagePath) return false;
   return /[\\/]Partitions[\\/]plugin-[^\\/]+[\\/]?$/i.test(storagePath);

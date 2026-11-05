@@ -12,11 +12,13 @@ export const CREATE_CANVAS_PLUGIN_SKILL: DefaultSkill = {
     'Build a Pulse Canvas plugin from a chat request: a sidebar page, a tool panel, a reader, a dashboard, or a canvas node. Use when the user asks to make, generate, or change a plugin, an app inside Pulse Canvas, or a sidebar page, e.g. "做一个插件", "帮我生成一个侧边栏页面".',
   // 0.1.91: without plugin data tools. 0.1.92: without ctx.agent.
   // Then: without the embedded web page section. Then: a raw <webview>.
+  // Then: ctx.WebView with a login of its own only.
   legacyHashes: [
     '5ce21fed69674b41eb1f6bf4274e0a0b31b94c8febb4a943232775e3b63cccfc',
     'afa9e49faa10f3d462bec1a26d14b32f5d1b1e9b340c5afaf6efbdaa31261f23',
     'a1db4fb12894980d9d11fddc949e72c314069dd77e355447d54b2cb9448fa3ff',
     'a054e5c949fb181b912c57307c4f44449ad7ffa9d7568f5d4db5254ab7a99f26',
+    'bfabcfb5f66f5bebc7aff3e4e79288d08438a017e23c638124cd8d4d42b1259f',
   ],
   body: `# create-canvas-plugin
 
@@ -130,7 +132,7 @@ h(ctx.WebView, {
 
 The host does the browser work, so the plugin does not:
 
-- It keeps the login across restarts in the plugin's own \`persist:plugin-<name>\` session. Login hops and new-tab links stay in the page.
+- It uses the same browser login as the Pulse Canvas browser, so a site the user signed in to there is signed in here too. Login hops and new-tab links stay in the page. Set \`session: 'isolated'\` only when the user wants a separate account for this plugin; the login is then kept in the plugin's own session.
 - It shows a load failure with a retry button.
 - It registers the page as \`plugin:<name>/<viewId>\`. You and external agents can then read it with \`browser_read_page\` and \`browser_read_selection\`; the chat lists open plugin pages for you.
 

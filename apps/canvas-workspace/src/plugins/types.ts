@@ -446,6 +446,11 @@ export interface PluginWebViewProps {
   src: string;
   /** Names this view when one plugin shows more than one page. Defaults to `main`. */
   viewId?: string;
+  /**
+   * `shared` (default): the login of the Pulse Canvas browser.
+   * `isolated`: a login kept only for this plugin.
+   */
+  session?: 'shared' | 'isolated';
   className?: string;
   style?: CSSProperties;
   onNavigate?: (url: string) => void;

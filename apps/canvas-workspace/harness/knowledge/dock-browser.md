@@ -45,16 +45,19 @@ keeps the native "Leave site?" dialog on the host window.
 
 Plugin pages show third-party sites through the host `ctx.WebView` component
 (`src/plugins/renderer/plugin-webview/`). It uses `useEmbeddedBrowser` with the
-plugin's `persist:plugin-<id>` partition and registers as `plugin-page` under
+default session, so a site the user signed in to in the dock is signed in in the
+plugin too; `session: 'isolated'` uses the plugin's `persist:plugin-<id>`
+partition instead. It registers as `plugin-page` under
 the reserved `PLUGIN_PAGE_WORKSPACE_ID`, with node id `plugin:<id>/<viewId>`.
 `isConsistentWebviewRegistration` rejects a plugin page outside that workspace
 and any other kind inside it. Read paths map a `plugin:` target to that
 workspace from any caller (`webviewRegistryKeyFor`) and never activate a
 canvas workspace for it. `browser.page.read`, `browser.page.selection`, and
 `browser.plugin-pages.list` serve the Canvas Agent and `pulse-canvas runtime`;
-the turn context lists open plugin pages as read pointers. Link policy still
-recognizes plugin guests by partition, so a plugin's own raw `<webview>` keeps
-its login hops but cannot be read.
+the turn context lists open plugin pages as read pointers. Link policy
+recognizes a plugin guest by its `plugin-page` registration or by a
+`persist:plugin-*` partition, so login hops stay in the page. A plugin's own raw
+`<webview>` (older plugins) keeps its login hops but cannot be read.
 
 Only a registered `dock-browser` guest receives browser shortcut interception
 from `main/webview/webview-shortcuts.ts`. Canvas-node pages keep owning their
