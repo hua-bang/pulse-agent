@@ -37,6 +37,14 @@ export function setupLinkPolicy(): void {
         return { action: "allow" };
       }
 
+      // A plugin page keeps its login in its own partition; the dock uses
+      // the default session and would show the site signed out. Open the
+      // link in the same guest instead.
+      if (isPluginWebview(contents) && isWebNavigationUrl(url)) {
+        void contents.loadURL(url).catch(() => undefined);
+        return { action: "deny" };
+      }
+
       // Everything else is a `preview this link` intent, route to the side
       // drawer. Chromium reports ⌘/Ctrl+click and middle-click as
       // `background-tab`; that gesture means `queue this, keep reading`, so
@@ -87,8 +95,13 @@ export function setupLinkPolicy(): void {
           // ordinary safe navigation stays in that tab. Canvas-node guests
           // remain previews, so their cross-origin hops are still intercepted
           // and opened as dock links.
+          // A plugin page's own <webview> is the plugin's browsing surface
+          // too: a login hop to another origin must stay in it.
           if (
-            getWebviewRegistration(contents.id)?.surfaceKind === "dock-browser"
+            (
+              getWebviewRegistration(contents.id)?.surfaceKind === "dock-browser"
+              || isPluginWebview(contents)
+            )
             && isWebNavigationUrl(url)
           ) return;
           event.preventDefault();
@@ -122,6 +135,17 @@ function isEmbeddedAuthNavigation(currentRaw: string, nextRaw: string): boolean 
   } catch {
     return false;
   }
+}
+
+// Plugin pages create their own <webview> and never register with the
+// webview registry. The create-canvas-plugin skill gives each one a
+// `persist:plugin-<name>` partition, which Electron stores under
+// `<userData>/Partitions/plugin-<name>`. The partition is the only stable
+// signal main has for these guests.
+function isPluginWebview(contents: WebContents): boolean {
+  const storagePath = contents.session?.storagePath;
+  if (!storagePath) return false;
+  return /[\\/]Partitions[\\/]plugin-[^\\/]+[\\/]?$/i.test(storagePath);
 }
 
 function isFigmaHost(hostname: string): boolean {
@@ -171,7 +195,12 @@ function forwardLinkToRenderer(
   // The guest id lets the renderer resolve WHICH dock tab opened this link
   // (it maps its own mounted webviews by webContentsId), so the new tab can
   // land beside its opener. Only meaningful when the source is a guest.
-  const sourceWebContentsId = contents.hostWebContents ? contents.id : undefined;
+  // A plugin guest has no registered identity, and the renderer drops a link
+  // whose guest id it cannot resolve. Send its non-web links (mailto: and
+  // similar) as app-level links instead.
+  const sourceWebContentsId = contents.hostWebContents && !isPluginWebview(contents)
+    ? contents.id
+    : undefined;
   const source = sourceWebContentsId === undefined
     ? undefined
     : getWebviewRegistration(sourceWebContentsId) ?? undefined;
