@@ -318,6 +318,44 @@ describe('pulse-canvas runtime capabilities', () => {
   });
 });
 
+describe('pulse-canvas plugin', () => {
+  it('installs a plugin folder by its absolute path through plugins.install', async () => {
+    let seenBody: unknown = null;
+    const { server, baseUrl } = await startStubServer((body) => {
+      seenBody = body;
+      return { status: 200, body: { ok: true, value: { ok: true, name: 'session-stats', diagnostics: [] } } };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli([
+      '--workspace', 'ws-x', '--format', 'json',
+      'plugin', 'install', 'plugins/session-stats',
+    ]);
+    server.close();
+
+    expect(exitCode).toBe(null);
+    expect(seenBody).toEqual({
+      workspaceId: 'ws-x',
+      name: 'plugins.install',
+      input: { dir: join(process.cwd(), 'plugins/session-stats') },
+    });
+    expect(JSON.parse(stdout)).toMatchObject({ ok: true, name: 'session-stats' });
+  });
+
+  it('prints the plugin guide as text', async () => {
+    const { server, baseUrl } = await startStubServer(() => (
+      { status: 200, body: { ok: true, value: { guide: '# Write a plugin' } } }
+    ));
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const { stdout, exitCode } = await runCli(['--workspace', 'ws-x', 'plugin', 'guide']);
+    server.close();
+
+    expect(exitCode).toBe(null);
+    expect(stdout).toContain('# Write a plugin');
+  });
+});
+
 describe('pulse-canvas team propose-plan', () => {
   it('posts structured plans to /agent-team/propose-plan', async () => {
     const planPath = join(tmpdir(), `pulse-canvas-plan-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);

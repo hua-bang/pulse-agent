@@ -2,6 +2,7 @@ import { CapabilityRuntime } from './runtime';
 import { createTabCapabilities } from './tab-capabilities';
 import { createNodeCapabilities } from './node-capabilities';
 import { createPageCapabilities } from './page-capabilities';
+import { createPluginCapabilities } from './plugin-capabilities';
 import { createPluginPageCapabilities } from './plugin-page-capabilities';
 import { getExperimentalFlagSync } from '../../settings/experimental-ipc';
 import {
@@ -15,6 +16,7 @@ export * from './types';
 export * from './tab-capabilities';
 export * from './page-capabilities';
 export * from './node-capabilities';
+export * from './plugin-capabilities';
 export * from './plugin-page-capabilities';
 
 let runtime: CapabilityRuntime | null = null;
@@ -39,6 +41,7 @@ export function getCanvasCapabilityRuntime(): CapabilityRuntime {
       ...createPageCapabilities(),
       ...createNodeCapabilities(),
       ...createPluginPageCapabilities(),
+      ...createPluginCapabilities(),
     ],
     (capability, actor) => {
       if (

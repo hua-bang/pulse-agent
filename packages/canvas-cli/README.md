@@ -194,6 +194,21 @@ Node `require`, but runs in the host page's main world and can call the
 renderer-exposed `window.canvasWorkspace` bridge; treat it as full experimental
 app control for same-user local code.
 
+### Plugin
+
+Let a coding agent outside the app write and install a Pulse Canvas plugin.
+Both commands need the running app:
+
+```bash
+pulse-canvas plugin guide                 # Print the plugin authoring guide
+pulse-canvas plugin install <dir> --format json
+```
+
+`plugin install` installs or reloads the folder that holds `plugin.json` and
+prints the same report the in-app agent gets: diagnostics and a `nextStep`.
+Native code stays off until the user enables the plugin on the Plugins page.
+Run `install` again after each change; open windows reload the plugin.
+
 ### Agent
 
 Send follow-up input to a running agent node (an Enter is appended automatically). Requires the live runtime (see above).
@@ -270,6 +285,7 @@ Copies bundled `SKILL.md` files into global skill directories so that agents (Cl
 - `canvas-deep-research`
 - `canvas-frame-research`
 - `canvas-bootstrap`
+- `create-canvas-plugin`
 
 Target directories (when run without `--dir`):
 

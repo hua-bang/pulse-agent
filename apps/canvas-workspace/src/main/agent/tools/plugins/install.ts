@@ -70,10 +70,21 @@ function mainLoadDiagnostics(plugin: NormalizedPluginPackage, nativeEnabled: boo
 const REPLY_GUIDE = ' Keep your reply to two or three sentences: what the plugin does, and the one thing the user '
   + 'should do next. Do not repeat the install status or list every feature.';
 
-function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>): string {
-  if (!report.ok) return 'Fix the errors in the diagnostics, then call canvas_plugin_install again.';
+/** Who called the install: the Canvas Agent in chat, or an external agent through `pulse-canvas`. */
+export type PluginInstallCaller = 'canvas-agent' | 'external';
+
+function nextStep(report: Omit<CanvasPluginInstallReport, 'nextStep'>, caller: PluginInstallCaller): string {
+  const again = caller === 'external' ? '`pulse-canvas plugin install`' : 'canvas_plugin_install';
+  if (!report.ok) return `Fix the errors in the diagnostics, then run ${again} again.`;
   if (!report.hasNativeCode) {
     return `Installed. The package has only skills or MCP servers, so it is active now.${REPLY_GUIDE}`;
+  }
+  if (caller === 'external') {
+    return report.nativeEnabled
+      ? 'Installed and already enabled. The open app reloaded the changed plugin files, so tell the user to '
+        + 'look at the plugin page again. Run `pulse-canvas plugin install` after every later change.'
+      : `Installed with native code off. Tell the user to open Plugins in Pulse Canvas and enable "${report.name}". `
+        + 'You cannot enable plugin code yourself. Do not claim the plugin is running yet.';
   }
   if (!report.nativeEnabled) {
     return 'Installed with native code off. Tell the user to press "Enable and open" on the install card '
@@ -91,18 +102,27 @@ function notifyPluginsChanged(): void {
   }
 }
 
-async function installPluginDirectory(dir: string): Promise<CanvasPluginInstallReport> {
+/**
+ * Register a plugin directory through the plugin market and report what the
+ * host can load. The Canvas Agent tool and the `plugins.install` runtime
+ * capability share this one implementation; only the next-step advice
+ * differs, because only the chat shows an install card.
+ */
+export async function installPluginDirectory(
+  dir: string,
+  caller: PluginInstallCaller = 'canvas-agent',
+): Promise<CanvasPluginInstallReport> {
   const root = dir.trim();
   const base = { root, hasNativeCode: false, nativeEnabled: false };
   if (!isAbsolute(root)) {
     const report = { ...base, ok: false, diagnostics: [], error: 'dir must be an absolute path' };
-    return { ...report, nextStep: nextStep(report) };
+    return { ...report, nextStep: nextStep(report, caller) };
   }
 
   const read = await readPluginPackage(root);
   if (!read.package) {
     const report = { ...base, ok: false, diagnostics: read.diagnostics, error: 'Not an installable plugin package' };
-    return { ...report, nextStep: nextStep(report) };
+    return { ...report, nextStep: nextStep(report, caller) };
   }
   const plugin = read.package;
   const extension = plugin.pulseExtension;
@@ -131,7 +151,7 @@ async function installPluginDirectory(dir: string): Promise<CanvasPluginInstallR
     diagnostics: [...(result.diagnostics ?? read.diagnostics), ...extra],
     ...(result.error ? { error: result.error } : {}),
   };
-  return { ...report, nextStep: nextStep(report) };
+  return { ...report, nextStep: nextStep(report, caller) };
 }
 
 export function createPluginInstallTools(): Record<string, CanvasTool> {
