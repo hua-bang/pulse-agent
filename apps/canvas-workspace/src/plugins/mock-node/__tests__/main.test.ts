@@ -28,6 +28,13 @@ function createCtx() {
       complete: vi.fn(async () => ({ ok: true as const, text: '' })),
       run: vi.fn(async () => ({ ok: true as const, text: '' })),
     },
+    schedule: {
+      every: vi.fn(async () => undefined),
+      at: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      list: vi.fn(async () => []),
+    },
+    notify: vi.fn(async () => 'in-app' as const),
     webviews: {
       get: vi.fn(() => null),
       withCdp: vi.fn(async () => {

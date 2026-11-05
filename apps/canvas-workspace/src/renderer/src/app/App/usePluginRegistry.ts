@@ -7,7 +7,8 @@ import {
   setPluginChatTextHandler,
   subscribeRendererPluginRegistry,
 } from '../../../../plugins/renderer';
-import { OPEN_PLUGIN_PAGE_EVENT } from '../../shared/appShell';
+import { useI18n } from '../../i18n';
+import { OPEN_PLUGIN_PAGE_EVENT, requestOpenPluginPage, useAppShell } from '../../shared/appShell';
 
 /**
  * Plugin routes and nav items, re-read on every renderer registry change.
@@ -59,4 +60,27 @@ export const usePluginChatBridge = (openChat: () => void) => {
     });
     return () => setPluginChatTextHandler(null);
   }, [broker, openChat]);
+};
+
+/**
+ * Shows `ctx.notify` from a main plugin. Main sends a toast only to the
+ * focused window; after a click on the OS notification it sends `open`.
+ */
+export const usePluginNotifications = () => {
+  const { t } = useI18n();
+  const { notify } = useAppShell();
+  useEffect(() => window.canvasWorkspace?.canvasPlugins?.onNotification?.((event) => {
+    const { path } = event;
+    if (event.open) {
+      if (path) requestOpenPluginPage(path);
+      return;
+    }
+    notify({
+      tone: 'info',
+      title: event.title,
+      description: event.body,
+      autoCloseMs: 0,
+      ...(path ? { action: { label: t('pluginInstallCard.open'), onClick: () => requestOpenPluginPage(path) } } : {}),
+    });
+  }), [notify, t]);
 };

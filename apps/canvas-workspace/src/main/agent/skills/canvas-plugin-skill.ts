@@ -12,13 +12,14 @@ export const CREATE_CANVAS_PLUGIN_SKILL: DefaultSkill = {
     'Build a Pulse Canvas plugin from a chat request: a sidebar page, a tool panel, a reader, a dashboard, or a canvas node. Use when the user asks to make, generate, or change a plugin, an app inside Pulse Canvas, or a sidebar page, e.g. "做一个插件", "帮我生成一个侧边栏页面".',
   // 0.1.91: without plugin data tools. 0.1.92: without ctx.agent.
   // Then: without the embedded web page section. Then: a raw <webview>.
-  // Then: ctx.WebView with a login of its own only.
+  // Then: ctx.WebView with a login of its own only. Then: without ctx.schedule and ctx.notify.
   legacyHashes: [
     '5ce21fed69674b41eb1f6bf4274e0a0b31b94c8febb4a943232775e3b63cccfc',
     'afa9e49faa10f3d462bec1a26d14b32f5d1b1e9b340c5afaf6efbdaa31261f23',
     'a1db4fb12894980d9d11fddc949e72c314069dd77e355447d54b2cb9448fa3ff',
     'a054e5c949fb181b912c57307c4f44449ad7ffa9d7568f5d4db5254ab7a99f26',
     'bfabcfb5f66f5bebc7aff3e4e79288d08438a017e23c638124cd8d4d42b1259f',
+    '722459e71b6ecc99513267fedb7896a3a875a340f64612e4c9cbd27fc5ab6b30',
   ],
   body: `# create-canvas-plugin
 
@@ -176,6 +177,13 @@ Main \`ctx\` (\`MainCtx\`):
 - \`agent.complete(prompt, { system? })\`: one call to the user's current model, without tools. Use it for summaries, labels, translation, and rewrites.
 - \`agent.run(prompt, { system?, maxSteps? })\`: a full agent loop in the background. It can read canvases, knowledge, chat sessions, and memory, but it cannot change them. Use it when the answer needs that context.
 - Both return \`{ ok: true, text }\` or \`{ ok: false, error }\`. They never write to the user's chat history. Call them from a \`ctx.handle\` handler, so the page triggers them with \`invoke\` and shows a loading state; a run can take a minute.
+- \`notify({ title, body?, path? })\`: tell the user something, for example a reminder. When the app has focus the host shows a toast; otherwise it shows an OS notification. \`path\` is a route this plugin registered; clicking the toast or the notification opens it. Put enough in \`title\` to read it without the app (\`"Standup starts in 5 min"\`). It resolves to \`'in-app'\`, \`'system'\`, or \`'none'\`.
+- \`schedule\`: timed jobs. Every method returns a promise; \`await\` it so a bad id or time throws where you can see it. Never use \`setInterval\` or a long \`setTimeout\`: they keep running after the plugin is disabled and are lost on restart.
+  - \`schedule.every(id, repeat, handler)\`: \`repeat\` is \`{ kind: 'interval', intervalMinutes }\` (1 minute or more), \`{ kind: 'daily', timeOfDay: 'HH:mm' }\`, or \`{ kind: 'weekly', weekday: 0-6, timeOfDay }\` (local time, 0 is Sunday).
+  - \`schedule.at(id, time, handler)\`: once, at a time (ms, ISO string, or Date). Registering the same id with a new time moves it; a time that already ran does nothing. Use stable ids such as \`<eventId>:start\`.
+  - \`schedule.cancel(id)\` and \`schedule.list()\`.
+  - The handler gets \`{ id, scheduledAt, startedAt, late }\`. The host keeps only the timing state, so register every job in \`activate\` (rebuild \`at\` jobs from \`ctx.store\`) and again whenever the data changes. A slot missed while the app was closed runs once at the next start with \`late: true\`; check it, for example to skip a "starts now" reminder for an event that is already over.
+  - Reminders need the app to be running. Do not promise reminders while it is quit.
 - \`registerCanvasTool(factory)\`: give the Canvas Agent tools for this plugin. The factory returns \`{ <tool_name>: { description, inputSchema, execute } }\`. Write \`inputSchema\` as plain JSON Schema; \`execute(input)\` returns a string. Prefix tool names with the plugin name so they do not clash. The tools are registered dynamically: they work in workspace and All-workspaces chat as soon as the plugin is enabled or reloaded, even in the same turn, without an app restart.
 
 The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.json.

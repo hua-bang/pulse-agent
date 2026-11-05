@@ -159,4 +159,16 @@ export interface CanvasPluginsApi {
    * The renderer then syncs its plugins (and hot-reloads changed ones).
    */
   onChanged: (cb: () => void) => () => void;
+  /** A plugin notification for this window: a toast, or `open` after a click on the OS notification. */
+  onNotification: (cb: (event: PluginNotificationEvent) => void) => () => void;
+}
+
+export interface PluginNotificationEvent {
+  pluginId: string;
+  title: string;
+  body?: string;
+  /** A route the plugin registered. */
+  path?: string;
+  /** The user clicked the OS notification: open `path` without a toast. */
+  open?: boolean;
 }

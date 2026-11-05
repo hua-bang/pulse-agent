@@ -6,7 +6,7 @@ import { ConversationCompletionToastBridge } from '../shell/ConversationCompleti
 import { DeferredSettings } from '../shell/AppLazyBoundaries';
 import { DockAutoCloseToasts, GlobalChatLauncher, isCanvasTabEditingAllowed, isDockChatTabEnabled, isGlobalChatLauncherVisible, RightDock, RightDockProvider, useChatDockWorkspace, useRightDock } from '../../modules/dock';
 import { Sidebar } from '../shell/Sidebar';
-import { usePluginChatBridge, usePluginRegistry } from './usePluginRegistry';
+import { usePluginChatBridge, usePluginNotifications, usePluginRegistry } from './usePluginRegistry';
 import { Workbench, useWorkbenchState } from '../shell/Workbench';
 import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeChatContext';
 import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
@@ -68,6 +68,7 @@ const AppContent = () => {
   const search = useSearch();
   const { pluginRoutes, pluginNavItems } = usePluginRegistry(setLocation);
   usePluginChatBridge(dock.openChat);
+  usePluginNotifications();
   const route = useMemo(() => resolveAppRoute(location, {
     nodesEnabled: NODES_ENABLED,
     graphEnabled: GRAPH_ENABLED,

@@ -4,6 +4,7 @@ import type {
   BuiltInToolsConfigApi,
   CanvasPluginsApi,
   CanvasSkillsApi,
+  PluginNotificationEvent,
   SkillsApi
 } from "../../shared/api/settings-config";
 import type { CanvasModelApi, PromptProfileApi } from "../../shared/api/models";
@@ -93,6 +94,15 @@ export const createCanvasPluginsApi = (ipcRenderer: IpcRenderer): CanvasPluginsA
   onChanged: (cb: () => void) => {
     const channel = "canvas-plugins:changed";
     const listener = () => cb();
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+    };
+  },
+
+  onNotification: (cb) => {
+    const channel = "canvas-plugins:notification";
+    const listener = (_event: IpcRendererEvent, payload: PluginNotificationEvent) => cb(payload);
     ipcRenderer.on(channel, listener);
     return () => {
       ipcRenderer.removeListener(channel, listener);

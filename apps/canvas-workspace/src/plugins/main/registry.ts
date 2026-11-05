@@ -20,6 +20,15 @@ import { createPluginStore } from './plugin-store';
 
 const loaded = new Set<string>();
 
+// The scheduler and notifications load on first use, to keep the main entry small.
+let schedulerModule: Promise<typeof import('./schedule/plugin-scheduler')> | null = null;
+const loadScheduler = async () => (await (schedulerModule ??= import('./schedule/plugin-scheduler'))).getPluginScheduler();
+
+/** Drops a plugin's scheduled jobs. Does nothing when no plugin used the scheduler. */
+async function clearPluginSchedules(pluginId: string): Promise<void> {
+  if (schedulerModule) (await loadScheduler()).clearPlugin(pluginId);
+}
+
 /**
  * Accessor for the host's Canvas Agent service, injected by the host
  * ({@link setAgentServiceAccessor}) before plugins activate. Kept as a lazy
@@ -91,6 +100,7 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
     } catch (err) {
       removePluginIpcHandlers(plugin.id);
       canvasToolFactories.delete(plugin.id);
+      await clearPluginSchedules(plugin.id);
       recordCanvasPluginLoadError(plugin.id, err);
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
@@ -104,6 +114,7 @@ export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
   loaded.delete(pluginId);
   canvasToolFactories.delete(pluginId);
   removePluginIpcHandlers(pluginId);
+  await clearPluginSchedules(pluginId);
   for (const [nodeType, entry] of Array.from(nodeCapabilities.entries())) {
     if (entry.pluginId === pluginId) nodeCapabilities.delete(nodeType);
   }
@@ -128,6 +139,7 @@ export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
  */
 export async function teardownCanvasPlugins(): Promise<void> {
   await drainAgentTraceEvents();
+  if (schedulerModule) (await loadScheduler()).stop();
   const pending = deactivators.splice(0, deactivators.length);
   await Promise.all(
     pending.map(async ({ id, deactivate }) => {
@@ -195,6 +207,13 @@ function createMainCtx(pluginId: string): MainCtx {
       },
     },
     agent: createPluginAgentApi(pluginId),
+    schedule: {
+      every: async (id, repeat, handler) => (await loadScheduler()).every(pluginId, id, repeat, handler),
+      at: async (id, time, handler) => (await loadScheduler()).at(pluginId, id, time, handler),
+      cancel: async (id) => (await loadScheduler()).cancel(pluginId, id),
+      list: async () => (await loadScheduler()).list(pluginId),
+    },
+    notify: async (input) => (await import('./notify/plugin-notify')).showPluginNotification(pluginId, input),
     webviews: {
       get(workspaceId, nodeId) {
         return getWebContentsForNode(workspaceId, nodeId) ?? null;

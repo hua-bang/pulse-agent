@@ -4,6 +4,7 @@
 import type { ComponentType, CSSProperties } from 'react';
 import type { CanvasNode } from '../shared/canvas';
 import type { WebReadResult, WebSelectionResult } from '../shared/web';
+import type { PluginNotificationDelivery, PluginNotificationInput, PluginScheduleApi } from './host-api-types';
 import type {
   AgentObservabilitySubscriber,
   AgentTraceEvent,
@@ -243,6 +244,10 @@ export interface MainCtx {
   webviews: PluginWebviewApi;
   /** Background model and agent calls that stay out of the user's chats. */
   agent: PluginAgentApi;
+  /** Timed jobs that survive restarts and stop when the plugin is disabled. */
+  schedule: PluginScheduleApi;
+  /** A toast when the app has focus, otherwise an OS notification. */
+  notify(input: PluginNotificationInput): Promise<PluginNotificationDelivery>;
   // Mirror of ipcMain.handle: register a channel callable from the
   // renderer plugin via ctx.invoke. Channel is auto-prefixed with
   // `plugin:<id>:` so plugins cannot collide with each other or with
@@ -466,6 +471,7 @@ export type PluginChatTextHandler = (text: string) => Promise<PluginChatDelivery
 // of every plugin can reach its main half through a single, generic
 // channel.
 export type { PluginBridge } from '../shared/api/workspace-api';
+export type * from './host-api-types';
 
 // Main-side and renderer-side halves are declared separately so each
 // half can live in its own bundle. A "plugin" in conversation usually

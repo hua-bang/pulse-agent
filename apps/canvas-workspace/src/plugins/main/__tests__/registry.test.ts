@@ -275,6 +275,24 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
     expect(electronFakes.handle).toHaveBeenCalledTimes(3);
   });
 
+  it('stops a plugin\'s scheduled jobs when it deactivates', async () => {
+    const { deactivateCanvasPlugin, setupCanvasPlugins } = await loadRegistry();
+    const { getPluginScheduler } = await import('../schedule/plugin-scheduler');
+    await setupCanvasPlugins([{
+      id: 'p-schedule',
+      async activate(ctx) {
+        await ctx.schedule.at('reminder', Date.now() + 60 * 60_000, () => undefined);
+      },
+    }]);
+    expect(getPluginScheduler().list('p-schedule')).toEqual([
+      expect.objectContaining({ id: 'reminder', kind: 'at' }),
+    ]);
+
+    await deactivateCanvasPlugin('p-schedule');
+
+    expect(getPluginScheduler().list('p-schedule')).toEqual([]);
+  });
+
   it('rolls back IPC handlers when plugin activation fails', async () => {
     const { setupCanvasPlugins } = await loadRegistry();
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

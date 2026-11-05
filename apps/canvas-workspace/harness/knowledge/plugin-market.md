@@ -101,6 +101,14 @@ A main plugin that fails to import or activate records the error (`getCanvasPlug
 
 External coding agents (Claude Code, Codex) use the same path through the CLI. `pulse-canvas plugin guide` calls the `plugins.guide` read capability, which returns the skill body with a short note for callers outside the app. `pulse-canvas plugin install <dir>` calls the `plugins.install` operate capability (`main/runtime/capabilities/plugin-capabilities.ts`). It runs `installPluginDirectory(dir, 'external')`, so the report and the hot reload are the same; only `nextStep` differs, because no chat card exists outside the app. The user enables native code on the Plugins page. `pulse-canvas install-skills` ships the external `create-canvas-plugin` skill (`canvas-agent: false`).
 
+## Plugin schedules and notifications
+
+Main plugins get `ctx.schedule` and `ctx.notify` (types in `src/plugins/host-api-types.ts`).
+
+- `ctx.schedule` (`src/plugins/main/schedule/plugin-scheduler.ts`) holds handlers in memory and only the timing state on disk (`<userData>/plugin-schedules.json`: `lastRunAt` per repeating job, `doneAt` per one-off job, kept 7 days). Plugins register jobs again in `activate`. Counting from `lastRunAt`, a slot missed while the app was closed is already due, so it runs once with `late: true`. A one-off job registered again with the same time that already ran is skipped. One timer serves all jobs and waits at most a minute, so sleep and clock changes delay a run by a minute at most. `deactivateCanvasPlugin`, a failed activation, and teardown drop the plugin's handlers; the state stays for the next activation.
+- `ctx.notify` (`src/plugins/main/notify/plugin-notify.ts`) sends a toast to the focused window over `canvas-plugins:notification`, or shows an OS notification when no window has focus. A click on the OS notification restores the window and sends the same event with `open: true`; the renderer (`usePluginNotifications`) opens the path through `requestOpenPluginPage`, which only accepts registered plugin routes. The host keeps each shown `Notification` referenced until click or close, so its click handler is not collected.
+- Not built yet: a per-plugin switch for notifications and a list of plugin jobs on the Plugins page. Nothing runs while the app is quit.
+
 ## Chat mention semantics
 
 The chat `@` picker offers healthy installed market listings in a dedicated Plugins group. Selecting one serializes a stable `@[plugin:<encoded-listing-id>|<encoded-name>|<optional-icon-key>]` marker and adds `{ id, name }` to `AgentRequestContext.plugins`; turn snapshots preserve the same refs for regenerate/replay. The marker renders as a plugin chip in both the composer and transcript. Mention rows and chips reuse the market's client-owned brand images; well-known personal packages such as Notion may be recognized by name, while unknown packages use the generic plugin glyph. Agent Plugins v1 itself does not define a portable icon field.
