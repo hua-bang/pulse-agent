@@ -126,7 +126,7 @@ describe('Canvas Agent skill audience', () => {
       .map(({ content }) => /^name:\s*(.+)$/m.exec(content)?.[1].trim())
       .filter((name): name is string => Boolean(name) && name !== 'canvas');
 
-    expect(externalWorkflows.sort()).toEqual(['canvas-bootstrap', 'canvas-frame-research']);
+    expect(externalWorkflows.sort()).toEqual(['canvas-bootstrap', 'canvas-frame-research', 'create-canvas-plugin']);
     for (const name of externalWorkflows) expect(defaults.has(name)).toBe(true);
   });
 });
