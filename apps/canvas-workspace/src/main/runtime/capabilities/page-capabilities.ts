@@ -4,7 +4,7 @@ import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { getCanvasWindowPort } from '../../agent/window-port';
 import { findDockLinkTab } from '../../dock/tab-actions';
-import { readA11y, readDOM, readSelection, captureScreenshot } from '../../webview/reader';
+import { readA11y, readDOM, captureScreenshot } from '../../webview/reader';
 import {
   cdpClickSelector,
   cdpFillSelector,
@@ -275,6 +275,7 @@ async function readLivePage(workspaceId: string, input: PageReadInput): Promise<
 
 async function readLiveSelection(workspaceId: string, input: PageSelectionInput): Promise<unknown> {
   const wc = await resolveReadTarget(workspaceId, input.nodeId, 'read');
+  const { readSelection } = await import('../../webview/selection/read-selection');
   const result = await readSelection(wc, input.maxChars);
   if (!result.ok) throw new CapabilityError('page_read_failed', result.error, { strategy: 'selection' });
   return {

@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import { createElement, lazy, Suspense, type ComponentType } from 'react';
 import type {
   ChatCardSpec,
   NavItem,
@@ -6,6 +6,7 @@ import type {
   PluginChatTextHandler,
   PluginNavItem,
   PluginNodeViewProps,
+  PluginWebViewProps,
   RendererCanvasPlugin,
   RendererCtx,
 } from '../types';
@@ -15,7 +16,6 @@ import {
   PLUGIN_PAGE_WORKSPACE_ID,
   pluginPageTargetId,
 } from '../../shared/webview-registration';
-import { createPluginWebView } from './plugin-webview';
 
 interface RouteEntry {
   pluginId: string;
@@ -67,6 +67,22 @@ function resolveBridge(pluginId: string): PluginBridge {
     );
   }
   return bridge;
+}
+
+// The web view pulls in the embedded browser hooks, so it loads on first use
+// instead of riding in the startup bundle with the plugin registry.
+const LazyPluginWebView = lazy(() => import('./plugin-webview'));
+
+function createPluginWebView(pluginId: string): ComponentType<PluginWebViewProps> {
+  function PluginWebView(props: PluginWebViewProps) {
+    return createElement(
+      Suspense,
+      { fallback: null },
+      createElement(LazyPluginWebView, { ...props, pluginId }),
+    );
+  }
+  PluginWebView.displayName = `PluginWebView(${pluginId})`;
+  return PluginWebView;
 }
 
 function resolveWebApi(): WebApi {

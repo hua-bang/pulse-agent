@@ -14,9 +14,9 @@ vi.mock('../../dock/tab-actions', () => ({ findDockLinkTab: () => undefined }));
 vi.mock('../../webview/reader', () => ({
   readA11y: vi.fn(),
   readDOM: defaults.readDOM,
-  readSelection: defaults.readSelection,
   captureScreenshot: vi.fn(),
 }));
+vi.mock('../../webview/selection/read-selection', () => ({ readSelection: defaults.readSelection }));
 
 import { CapabilityRuntime } from './runtime';
 import { createPageCapabilities } from './page-capabilities';
