@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { promises as fs, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { computeNextRunAt, normalizeSchedule, type ScheduledSchedule } from '../../../shared/scheduled';
+import { activations } from '../registry';
 import type {
   PluginRepeat,
   PluginScheduleEntry,
@@ -18,10 +19,14 @@ const MAX_JOBS_PER_PLUGIN = 500;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 interface JobState {
+  /** `every`: when the job was first registered; counts until the first run. */
+  since?: number;
   /** `every`: when the last run started. */
   lastRunAt?: number;
   /** `at`: the slot that already ran. */
   doneAt?: number;
+  /** `at`: when that run finished; retention counts from here. */
+  finishedAt?: number;
 }
 
 interface PersistedState {
@@ -31,6 +36,8 @@ interface PersistedState {
 
 interface Job {
   pluginId: string;
+  /** The plugin activation that registered the job. */
+  owner: object;
   id: string;
   kind: 'every' | 'at';
   repeat?: ScheduledSchedule;
@@ -41,6 +48,8 @@ interface Job {
 export interface PluginSchedulerOptions {
   statePath: () => string;
   now?: () => number;
+  /** Whether `owner` is still the plugin's current activation. */
+  isCurrent: (pluginId: string, owner: object) => boolean;
 }
 
 const jobKey = (pluginId: string, id: string): string => `${pluginId}\u0000${id}`;
@@ -70,6 +79,7 @@ function toTime(time: number | string | Date): number {
 export class PluginScheduler {
   private readonly statePath: () => string;
   private readonly now: () => number;
+  private readonly isCurrent: PluginSchedulerOptions['isCurrent'];
   private readonly jobs = new Map<string, Job>();
   /** Keys whose handler is running; a replaced job keeps its key busy. */
   private readonly running = new Set<string>();
@@ -80,30 +90,39 @@ export class PluginScheduler {
   constructor(options: PluginSchedulerOptions) {
     this.statePath = options.statePath;
     this.now = options.now ?? Date.now;
+    this.isCurrent = options.isCurrent;
   }
 
-  every(pluginId: string, id: string, repeat: PluginRepeat, handler: PluginScheduleHandler): void {
-    this.assertJob(pluginId, id, handler);
+  every(pluginId: string, owner: object, id: string, repeat: PluginRepeat, handler: PluginScheduleHandler): void {
+    this.assertJob(pluginId, owner, id, handler);
     const normalized = normalizeRepeat(repeat);
-    const now = this.now();
-    const lastRunAt = this.jobState(pluginId, id)?.lastRunAt;
-    // Counted from the last run, a slot missed while the app was closed is
+    const saved = this.jobState(pluginId, id);
+    let anchor = saved?.lastRunAt ?? saved?.since;
+    if (anchor === undefined) {
+      // Save the first registration, so a slot missed before the first run
+      // still counts after a restart.
+      anchor = this.now();
+      (this.loadState().plugins[pluginId] ??= {})[id] = { since: anchor };
+      this.save();
+    }
+    // Counted from the anchor, a slot missed while the app was closed is
     // already due, so it runs once at the next tick.
-    const nextRunAt = computeNextRunAt(normalized, lastRunAt ?? now);
-    this.put({ pluginId, id, kind: 'every', repeat: normalized, handler, nextRunAt });
+    const nextRunAt = computeNextRunAt(normalized, anchor);
+    this.put({ pluginId, owner, id, kind: 'every', repeat: normalized, handler, nextRunAt });
   }
 
-  at(pluginId: string, id: string, time: number | string | Date, handler: PluginScheduleHandler): void {
-    this.assertJob(pluginId, id, handler);
+  at(pluginId: string, owner: object, id: string, time: number | string | Date, handler: PluginScheduleHandler): void {
+    this.assertJob(pluginId, owner, id, handler);
     const slot = toTime(time);
     if (this.jobState(pluginId, id)?.doneAt === slot) {
       this.removeJob(pluginId, id);
       return;
     }
-    this.put({ pluginId, id, kind: 'at', handler, nextRunAt: slot });
+    this.put({ pluginId, owner, id, kind: 'at', handler, nextRunAt: slot });
   }
 
-  cancel(pluginId: string, id: string): void {
+  cancel(pluginId: string, owner: object, id: string): void {
+    this.assertOwner(pluginId, owner);
     this.removeJob(pluginId, id);
     const jobs = this.loadState().plugins[pluginId];
     if (jobs && id in jobs) {
@@ -112,7 +131,9 @@ export class PluginScheduler {
     }
   }
 
-  list(pluginId: string): PluginScheduleEntry[] {
+  list(pluginId: string, owner: object): PluginScheduleEntry[] {
+    this.assertOwner(pluginId, owner);
+    this.dropStaleJobs();
     return Array.from(this.jobs.values())
       .filter((job) => job.pluginId === pluginId)
       .map((job) => {
@@ -127,12 +148,14 @@ export class PluginScheduler {
       .sort((a, b) => a.nextRunAt - b.nextRunAt);
   }
 
-  /** Drop a plugin's handlers when it deactivates. Its timing state stays on disk. */
-  clearPlugin(pluginId: string): void {
-    for (const job of Array.from(this.jobs.values())) {
-      if (job.pluginId === pluginId) this.jobs.delete(jobKey(pluginId, job.id));
+  /**
+   * Drops the handlers of plugin activations that ended (disabled, reloaded,
+   * or failed). Their timing state stays on disk for the next activation.
+   */
+  private dropStaleJobs(): void {
+    for (const [key, job] of Array.from(this.jobs)) {
+      if (!this.isCurrent(job.pluginId, job.owner)) this.jobs.delete(key);
     }
-    this.arm();
   }
 
   stop(): void {
@@ -146,7 +169,12 @@ export class PluginScheduler {
     await this.writeQueue;
   }
 
-  private assertJob(pluginId: string, id: string, handler: unknown): void {
+  private assertOwner(pluginId: string, owner: object): void {
+    if (!this.isCurrent(pluginId, owner)) throw new Error(`Plugin ${pluginId} is no longer active`);
+  }
+
+  private assertJob(pluginId: string, owner: object, id: string, handler: unknown): void {
+    this.assertOwner(pluginId, owner);
     if (!ID_PATTERN.test(id)) {
       throw new Error(`Invalid plugin schedule id "${id}": use 1-128 letters, digits, ".", "_", ":" or "-"`);
     }
@@ -170,6 +198,7 @@ export class PluginScheduler {
   private arm(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.dropStaleJobs();
     let soonest = Infinity;
     for (const [key, job] of this.jobs) {
       if (!this.running.has(key) && job.nextRunAt < soonest) soonest = job.nextRunAt;
@@ -182,6 +211,7 @@ export class PluginScheduler {
 
   private tick(): void {
     this.timer = null;
+    this.dropStaleJobs();
     const now = this.now();
     for (const [key, job] of Array.from(this.jobs)) {
       if (!this.running.has(key) && job.nextRunAt <= now) void this.run(job, now);
@@ -216,7 +246,7 @@ export class PluginScheduler {
         current.nextRunAt = Math.max(current.nextRunAt, computeNextRunAt(current.repeat, startedAt));
       }
     } else {
-      jobs[job.id] = { doneAt: scheduledAt };
+      jobs[job.id] = { doneAt: scheduledAt, finishedAt: this.now() };
       if (current?.kind === 'at' && current.nextRunAt === scheduledAt) this.jobs.delete(key);
     }
     this.save();
@@ -238,7 +268,8 @@ export class PluginScheduler {
     const cutoff = this.now() - DONE_AT_RETENTION_MS;
     for (const jobs of Object.values(state.plugins)) {
       for (const [id, job] of Object.entries(jobs)) {
-        if (job.doneAt !== undefined && job.doneAt < cutoff) delete jobs[id];
+        const finished = job.finishedAt ?? job.doneAt;
+        if (finished !== undefined && finished < cutoff) delete jobs[id];
       }
     }
     this.state = state;
@@ -265,6 +296,7 @@ let scheduler: PluginScheduler | null = null;
 export function getPluginScheduler(): PluginScheduler {
   scheduler ??= new PluginScheduler({
     statePath: () => join(app.getPath('userData'), 'plugin-schedules.json'),
+    isCurrent: (pluginId, owner) => activations.get(pluginId) === owner,
   });
   return scheduler;
 }

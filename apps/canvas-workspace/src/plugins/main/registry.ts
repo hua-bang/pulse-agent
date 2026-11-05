@@ -21,13 +21,13 @@ import { createPluginStore } from './plugin-store';
 const loaded = new Set<string>();
 
 // The scheduler and notifications load on first use, to keep the main entry small.
-let schedulerModule: Promise<typeof import('./schedule/plugin-scheduler')> | null = null;
-const loadScheduler = async () => (await (schedulerModule ??= import('./schedule/plugin-scheduler'))).getPluginScheduler();
+const loadScheduler = async () => (await import('./schedule/plugin-scheduler')).getPluginScheduler();
 
-/** Drops a plugin's scheduled jobs. Does nothing when no plugin used the scheduler. */
-async function clearPluginSchedules(pluginId: string): Promise<void> {
-  if (schedulerModule) (await loadScheduler()).clearPlugin(pluginId);
-}
+// Each activation gets its own token. The scheduler and notifications serve
+// only the current one, so a handler still running with an old ctx after a
+// disable or reload can no longer schedule jobs or notify.
+// Only the registry writes it; the scheduler and notify module read it.
+export const activations = new Map<string, object>();
 
 /**
  * Accessor for the host's Canvas Agent service, injected by the host
@@ -90,7 +90,9 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
       continue;
     }
     try {
-      await plugin.activate(createMainCtx(plugin.id));
+      const token = {};
+      activations.set(plugin.id, token);
+      await plugin.activate(createMainCtx(plugin.id, token));
       loadErrors.delete(plugin.id);
       loaded.add(plugin.id);
       activated.push(plugin.id);
@@ -100,7 +102,7 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<s
     } catch (err) {
       removePluginIpcHandlers(plugin.id);
       canvasToolFactories.delete(plugin.id);
-      await clearPluginSchedules(plugin.id);
+      activations.delete(plugin.id);
       recordCanvasPluginLoadError(plugin.id, err);
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
@@ -114,7 +116,7 @@ export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
   loaded.delete(pluginId);
   canvasToolFactories.delete(pluginId);
   removePluginIpcHandlers(pluginId);
-  await clearPluginSchedules(pluginId);
+  activations.delete(pluginId);
   for (const [nodeType, entry] of Array.from(nodeCapabilities.entries())) {
     if (entry.pluginId === pluginId) nodeCapabilities.delete(nodeType);
   }
@@ -139,7 +141,8 @@ export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
  */
 export async function teardownCanvasPlugins(): Promise<void> {
   await drainAgentTraceEvents();
-  if (schedulerModule) (await loadScheduler()).stop();
+  // Ends every activation: the scheduler drops their jobs and runs none of them.
+  activations.clear();
   const pending = deactivators.splice(0, deactivators.length);
   await Promise.all(
     pending.map(async ({ id, deactivate }) => {
@@ -185,7 +188,7 @@ function createPluginAgentApi(pluginId: string): PluginAgentApi {
   };
 }
 
-function createMainCtx(pluginId: string): MainCtx {
+function createMainCtx(pluginId: string, token: object): MainCtx {
   return {
     store: createPluginStore(pluginId),
     config: {
@@ -208,12 +211,12 @@ function createMainCtx(pluginId: string): MainCtx {
     },
     agent: createPluginAgentApi(pluginId),
     schedule: {
-      every: async (id, repeat, handler) => (await loadScheduler()).every(pluginId, id, repeat, handler),
-      at: async (id, time, handler) => (await loadScheduler()).at(pluginId, id, time, handler),
-      cancel: async (id) => (await loadScheduler()).cancel(pluginId, id),
-      list: async () => (await loadScheduler()).list(pluginId),
+      every: async (id, repeat, handler) => (await loadScheduler()).every(pluginId, token, id, repeat, handler),
+      at: async (id, time, handler) => (await loadScheduler()).at(pluginId, token, id, time, handler),
+      cancel: async (id) => (await loadScheduler()).cancel(pluginId, token, id),
+      list: async () => (await loadScheduler()).list(pluginId, token),
     },
-    notify: async (input) => (await import('./notify/plugin-notify')).showPluginNotification(pluginId, input),
+    notify: async (input) => (await import('./notify/plugin-notify')).showPluginNotification(pluginId, token, input),
     webviews: {
       get(workspaceId, nodeId) {
         return getWebContentsForNode(workspaceId, nodeId) ?? null;

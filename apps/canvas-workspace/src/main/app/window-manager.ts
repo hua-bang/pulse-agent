@@ -45,7 +45,8 @@ export function getLiveCanvasWindow(): BrowserWindow | null {
   return liveWindow();
 }
 
-function getOrCreateWindow(): BrowserWindow | null {
+/** The Canvas window, created when none is open (on macOS the app runs without one). */
+export function getOrCreateWindow(): BrowserWindow | null {
   return liveWindow() ?? (canvasWindow = windowFactory?.() ?? null);
 }
 

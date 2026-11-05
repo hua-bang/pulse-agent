@@ -100,6 +100,8 @@ export const createCanvasPluginsApi = (ipcRenderer: IpcRenderer): CanvasPluginsA
     };
   },
 
+  takePendingOpen: () => ipcRenderer.invoke("canvas-plugins:take-pending-open"),
+
   onNotification: (cb) => {
     const channel = "canvas-plugins:notification";
     const listener = (_event: IpcRendererEvent, payload: PluginNotificationEvent) => cb(payload);

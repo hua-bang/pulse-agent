@@ -69,6 +69,13 @@ export const usePluginChatBridge = (openChat: () => void) => {
 export const usePluginNotifications = () => {
   const { t } = useI18n();
   const { notify } = useAppShell();
+  // A click on an OS notification can start this window; take its page once.
+  useEffect(() => {
+    void window.canvasWorkspace?.canvasPlugins?.takePendingOpen?.()
+      .then((event) => { if (event?.path) requestOpenPluginPage(event.path); })
+      .catch(() => undefined);
+  }, []);
+
   useEffect(() => window.canvasWorkspace?.canvasPlugins?.onNotification?.((event) => {
     const { path } = event;
     if (event.open) {

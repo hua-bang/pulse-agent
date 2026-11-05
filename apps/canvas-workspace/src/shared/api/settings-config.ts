@@ -161,6 +161,8 @@ export interface CanvasPluginsApi {
   onChanged: (cb: () => void) => () => void;
   /** A plugin notification for this window: a toast, or `open` after a click on the OS notification. */
   onNotification: (cb: (event: PluginNotificationEvent) => void) => () => void;
+  /** The plugin page a notification click asked to open before this window was ready. */
+  takePendingOpen: () => Promise<PluginNotificationEvent | null>;
 }
 
 export interface PluginNotificationEvent {

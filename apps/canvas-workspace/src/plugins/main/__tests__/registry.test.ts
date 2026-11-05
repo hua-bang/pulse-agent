@@ -275,22 +275,30 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
     expect(electronFakes.handle).toHaveBeenCalledTimes(3);
   });
 
-  it('stops a plugin\'s scheduled jobs when it deactivates', async () => {
+  it('stops scheduled jobs on deactivation and rejects the old ctx', async () => {
     const { deactivateCanvasPlugin, setupCanvasPlugins } = await loadRegistry();
-    const { getPluginScheduler } = await import('../schedule/plugin-scheduler');
-    await setupCanvasPlugins([{
+    const contexts: Array<Parameters<MainCanvasPlugin['activate']>[0]> = [];
+    const plugin: MainCanvasPlugin = {
       id: 'p-schedule',
       async activate(ctx) {
-        await ctx.schedule.at('reminder', Date.now() + 60 * 60_000, () => undefined);
+        contexts.push(ctx);
+        if (contexts.length === 1) await ctx.schedule.at('reminder', Date.now() + 60 * 60_000, () => undefined);
       },
-    }]);
-    expect(getPluginScheduler().list('p-schedule')).toEqual([
+    };
+    await setupCanvasPlugins([plugin]);
+    await expect(contexts[0].schedule.list()).resolves.toEqual([
       expect.objectContaining({ id: 'reminder', kind: 'at' }),
     ]);
 
     await deactivateCanvasPlugin('p-schedule');
+    await expect(contexts[0].schedule.at('late', Date.now() + 60_000, () => undefined)).rejects.toThrow(/no longer active/);
+    await expect(contexts[0].notify({ title: 'x' })).rejects.toThrow(/no longer active/);
 
-    expect(getPluginScheduler().list('p-schedule')).toEqual([]);
+    // A new activation sees none of the old jobs, and the old ctx stays locked out.
+    await setupCanvasPlugins([plugin]);
+    await expect(contexts[1].schedule.list()).resolves.toEqual([]);
+    await expect(contexts[0].schedule.cancel('reminder')).rejects.toThrow(/no longer active/);
+    await deactivateCanvasPlugin('p-schedule');
   });
 
   it('rolls back IPC handlers when plugin activation fails', async () => {
