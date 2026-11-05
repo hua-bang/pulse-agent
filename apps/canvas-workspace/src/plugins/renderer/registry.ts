@@ -9,6 +9,13 @@ import type {
   RendererCanvasPlugin,
   RendererCtx,
 } from '../types';
+import type { WebApi } from '../../shared/api/web';
+import {
+  DEFAULT_PLUGIN_PAGE_VIEW_ID,
+  PLUGIN_PAGE_WORKSPACE_ID,
+  pluginPageTargetId,
+} from '../../shared/webview-registration';
+import { createPluginWebView } from './plugin-webview';
 
 interface RouteEntry {
   pluginId: string;
@@ -60,6 +67,19 @@ function resolveBridge(pluginId: string): PluginBridge {
     );
   }
   return bridge;
+}
+
+function resolveWebApi(): WebApi {
+  const web = (globalThis as { canvasWorkspace?: { web?: WebApi } }).canvasWorkspace?.web;
+  if (!web) throw new Error('[canvas-plugins] web bridge missing; page reads cannot proceed');
+  return web;
+}
+
+function pluginPageReadTarget(pluginId: string, viewId?: string): { workspaceId: string; nodeId: string } {
+  return {
+    workspaceId: PLUGIN_PAGE_WORKSPACE_ID,
+    nodeId: pluginPageTargetId({ pluginId, viewId: viewId ?? DEFAULT_PLUGIN_PAGE_VIEW_ID }),
+  };
 }
 
 function emitRegistryChange(): void {
@@ -131,6 +151,20 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
       async addTextToChat(text) {
         if (!chatTextHandler || !text.trim()) return 'unavailable';
         return await chatTextHandler(text);
+      },
+      WebView: createPluginWebView(plugin.id),
+      readPage(viewId, options) {
+        return resolveWebApi().read({
+          ...pluginPageReadTarget(plugin.id, viewId),
+          strategy: 'dom',
+          maxChars: options?.maxChars,
+        });
+      },
+      readSelection(viewId, options) {
+        return resolveWebApi().readSelection({
+          ...pluginPageReadTarget(plugin.id, viewId),
+          maxChars: options?.maxChars,
+        });
       },
     };
 

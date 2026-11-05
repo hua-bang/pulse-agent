@@ -3,14 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 const defaults = vi.hoisted(() => ({
   activateWorkspaceWindow: vi.fn(),
   ensureOperable: vi.fn(),
+  getWebContentsForNode: vi.fn((_workspaceId: string, _nodeId: string): unknown => null),
+  readDOM: vi.fn(),
+  readSelection: vi.fn(),
 }));
 
-vi.mock('../../webview/registry', () => ({ getWebContentsForNode: () => null }));
+vi.mock('../../webview/registry', () => ({ getWebContentsForNode: defaults.getWebContentsForNode }));
 vi.mock('../../webview/ensure-operable', () => ({ ensureOperable: defaults.ensureOperable }));
 vi.mock('../../dock/tab-actions', () => ({ findDockLinkTab: () => undefined }));
 vi.mock('../../webview/reader', () => ({
   readA11y: vi.fn(),
-  readDOM: vi.fn(),
+  readDOM: defaults.readDOM,
+  readSelection: defaults.readSelection,
   captureScreenshot: vi.fn(),
 }));
 
@@ -178,6 +182,47 @@ describe('Page capabilities', () => {
 
     expect(runtime.list({ kind: 'pulse-cli' }).map(({ name }) => name)).toEqual([
       'browser.page.read',
+      'browser.page.selection',
     ]);
+  });
+
+  it('reads plugin pages from the plugin workspace without activating a canvas', async () => {
+    const pluginWc = { id: 7 };
+    defaults.ensureOperable.mockReset();
+    defaults.getWebContentsForNode.mockImplementation((workspaceId, nodeId) => (
+      workspaceId === '__plugin-pages__' && nodeId === 'plugin:weread/main' ? pluginWc : null
+    ));
+    defaults.readDOM.mockResolvedValue({ ok: true, title: 'Book', url: 'https://weread.test/', text: 'chapter text' });
+    defaults.readSelection.mockResolvedValue({
+      ok: true,
+      selection: { text: 'quoted line', before: 'a ', after: ' b', truncated: false, title: 'Book', url: 'https://weread.test/' },
+    });
+    const runtime = new CapabilityRuntime(createPageCapabilities());
+    const context = { workspaceId: 'ws-1', actor: { kind: 'pulse-cli' as const } };
+
+    await expect(runtime.call('browser.page.read', { nodeId: 'plugin:weread/main', strategy: 'dom' }, context))
+      .resolves.toMatchObject({ ok: true, value: { strategy: 'dom', text: 'chapter text' } });
+    await expect(runtime.call('browser.page.selection', { nodeId: 'plugin:weread/main' }, context))
+      .resolves.toEqual({
+        ok: true,
+        value: {
+          text: 'quoted line',
+          before: 'a ',
+          after: ' b',
+          truncated: false,
+          title: 'Book',
+          url: 'https://weread.test/',
+          hasSelection: true,
+        },
+      });
+    expect(defaults.readSelection).toHaveBeenCalledWith(pluginWc, undefined);
+
+    await expect(runtime.call('browser.page.selection', { nodeId: 'plugin:other/main' }, context))
+      .resolves.toMatchObject({
+        ok: false,
+        error: { code: 'webview_not_found', message: expect.stringContaining('Plugin page plugin:other/main is not open') },
+      });
+    expect(defaults.ensureOperable).not.toHaveBeenCalled();
+    defaults.getWebContentsForNode.mockReset().mockReturnValue(null);
   });
 });

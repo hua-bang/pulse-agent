@@ -81,4 +81,36 @@ describe('renderer plugin lifecycle', () => {
     setPluginChatTextHandler(null);
     deactivateCanvasPlugin(plugin.id);
   });
+
+  it('reads only the plugin\'s own web views through the host bridge', async () => {
+    let ctxRef: Parameters<RendererCanvasPlugin['activate']>[0] | null = null;
+    const plugin: RendererCanvasPlugin = {
+      id: 'weread',
+      activate: (ctx) => { ctxRef = ctx; },
+    };
+    const read = vi.fn(async () => ({ ok: false, nodeId: '', strategy: 'dom', error: 'x' }));
+    const readSelection = vi.fn(async () => ({ ok: false, nodeId: '', error: 'x' }));
+    vi.stubGlobal('canvasWorkspace', { web: { read, readSelection } });
+    try {
+      activateCanvasPlugins([plugin]);
+      expect(ctxRef!.WebView.displayName).toBe('PluginWebView(weread)');
+
+      await ctxRef!.readSelection();
+      await ctxRef!.readPage('reader', { maxChars: 100 });
+      expect(readSelection).toHaveBeenCalledWith({
+        workspaceId: '__plugin-pages__',
+        nodeId: 'plugin:weread/main',
+        maxChars: undefined,
+      });
+      expect(read).toHaveBeenCalledWith({
+        workspaceId: '__plugin-pages__',
+        nodeId: 'plugin:weread/reader',
+        strategy: 'dom',
+        maxChars: 100,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      deactivateCanvasPlugin(plugin.id);
+    }
+  });
 });

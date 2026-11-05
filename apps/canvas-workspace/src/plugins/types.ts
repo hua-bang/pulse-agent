@@ -1,8 +1,9 @@
 // Canvas Plugin contracts. Pure types only — safe to import from both the
 // main and renderer tsconfigs.
 
-import type { ComponentType } from 'react';
+import type { ComponentType, CSSProperties } from 'react';
 import type { CanvasNode } from '../shared/canvas';
+import type { WebReadResult, WebSelectionResult } from '../shared/web';
 import type {
   AgentObservabilitySubscriber,
   AgentTraceEvent,
@@ -429,6 +430,26 @@ export interface RendererCtx {
    * still sends the message.
    */
   addTextToChat(text: string): Promise<PluginChatDeliveryStatus>;
+  /**
+   * Host web view for a third-party site. The host keeps the login, shows
+   * load failures, and registers the page so the agent and this plugin can
+   * read it. The agent sees it as `plugin:<pluginId>/<viewId>`.
+   */
+  WebView: ComponentType<PluginWebViewProps>;
+  /** Read the rendered text of this plugin's open web view. */
+  readPage(viewId?: string, options?: { maxChars?: number }): Promise<WebReadResult>;
+  /** Read the text the user selected in this plugin's open web view. */
+  readSelection(viewId?: string, options?: { maxChars?: number }): Promise<WebSelectionResult>;
+}
+
+export interface PluginWebViewProps {
+  src: string;
+  /** Names this view when one plugin shows more than one page. Defaults to `main`. */
+  viewId?: string;
+  className?: string;
+  style?: CSSProperties;
+  onNavigate?: (url: string) => void;
+  onTitleChange?: (title: string) => void;
 }
 
 /** `unavailable`: no chat composer could take the text. */

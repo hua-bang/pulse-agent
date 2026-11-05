@@ -13,7 +13,8 @@ import { formatSummaryForPrompt } from './context-builder';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 import { formatSelectedAppAndPluginsBlock } from './plugin-selection-context';
 import { formatQuickActionBlock } from './quick-action-context';
-import { formatReferencedTabsBlock } from './referenced-tabs-context';
+import { formatOpenPluginPagesBlock, formatReferencedTabsBlock } from './referenced-tabs-context';
+import { listOpenPluginPages } from '../../webview/plugin-pages/list';
 import { formatSelectionFocusBlock } from './selection-focus-context';
 
 export type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
@@ -38,7 +39,8 @@ export function buildWorkspaceTurnContext(
     + (summary ? formatSummaryForPrompt(summary) : '(empty workspace — no nodes yet)\n')
     + formatMentionedCanvasesSection(mentionedCanvases)
     + formatSelectedAppAndPluginsBlock(requestContext)
-    + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId);
+    + formatReferencedTabsBlock(requestContext?.tabs ?? [], workspaceId)
+    + formatOpenPluginPagesBlock(listOpenPluginPages());
 }
 
 /** Volatile sections for a global chat turn. */
@@ -52,6 +54,7 @@ export function buildGlobalTurnContext(
     + formatQuickActionBlock(requestContext?.quickAction)
     + formatSelectedAppAndPluginsBlock(requestContext)
     + formatReferencedTabsBlock(requestContext?.tabs ?? [])
+    + formatOpenPluginPagesBlock(listOpenPluginPages())
     + formatMentionedCanvasesSection(mentionedCanvases);
 }
 

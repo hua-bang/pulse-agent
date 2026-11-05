@@ -11,11 +11,12 @@ export const CREATE_CANVAS_PLUGIN_SKILL: DefaultSkill = {
   description:
     'Build a Pulse Canvas plugin from a chat request: a sidebar page, a tool panel, a reader, a dashboard, or a canvas node. Use when the user asks to make, generate, or change a plugin, an app inside Pulse Canvas, or a sidebar page, e.g. "做一个插件", "帮我生成一个侧边栏页面".',
   // 0.1.91: without plugin data tools. 0.1.92: without ctx.agent.
-  // Then: without the embedded web page section.
+  // Then: without the embedded web page section. Then: a raw <webview>.
   legacyHashes: [
     '5ce21fed69674b41eb1f6bf4274e0a0b31b94c8febb4a943232775e3b63cccfc',
     'afa9e49faa10f3d462bec1a26d14b32f5d1b1e9b340c5afaf6efbdaa31261f23',
     'a1db4fb12894980d9d11fddc949e72c314069dd77e355447d54b2cb9448fa3ff',
+    'a054e5c949fb181b912c57307c4f44449ad7ffa9d7568f5d4db5254ab7a99f26',
   ],
   body: `# create-canvas-plugin
 
@@ -109,28 +110,36 @@ Renderer \`ctx\` (\`RendererCtx\`):
 - \`registerRoute(path, Component)\` and \`registerNavItem({ id, path, label, title? })\`: a page plus its entry in the sidebar Plugins group. Use \`/plugin/<name>\` paths.
 - \`registerNodeView(nodeType, Component)\`: a canvas node view. Declare the node in \`com.pulsecanvas.nodes\` with the same renderer block.
 - \`invoke(channel, ...args)\`: call a channel that \`main.mjs\` registered with \`ctx.handle\`.
-- \`addTextToChat(text)\`: put text into the chat composer, for example a quote the user selected. The user still sends it. Implement the selection or highlight UI inside your page.
+- \`addTextToChat(text)\`: put text into the chat composer, for example a quote the user selected. The user still sends it.
+- \`WebView\`, \`readPage(viewId?)\`, \`readSelection(viewId?)\`: show and read a third-party site. See the next section.
 
 Style with inline styles that use the host CSS variables, for example \`var(--surface)\`, \`var(--ink)\`, \`var(--radius-md)\`, so the page follows the theme.
 
 ### Show a third-party web page
 
-When the plugin shows a real website (for example Douyin, Bilibili, Xiaohongshu, a docs site), render a \`webview\` element, never an \`iframe\`. Most sites send \`X-Frame-Options\` or CSP \`frame-ancestors\`, so an \`iframe\` stays blank. A \`webview\` is a top-level page in its own process, so those headers do not apply.
+When the plugin shows a real website (for example Douyin, Bilibili, Xiaohongshu, WeRead, a docs site), render the host component \`ctx.WebView\`. Never use an \`iframe\` (most sites block it with \`X-Frame-Options\` or CSP) and never create a raw \`webview\` element.
 
 \`\`\`js
-h('webview', {
+h(ctx.WebView, {
   src: url,
-  partition: 'persist:plugin-<name>',
-  allowpopups: '',
-  style: { display: 'flex', width: '100%', height: '100%', border: 0 },
+  viewId: 'main',
+  style: { width: '100%', height: '100%' },
+  onNavigate: function (nextUrl) { /* optional: track the page the user is on */ },
 })
 \`\`\`
 
-- Use exactly \`persist:plugin-<name>\`. The \`persist:\` prefix keeps the login across restarts. The host recognizes the \`plugin-\` name: login hops to other origins and new-tab links stay in the page, so the login is kept. Set it before the first load; it cannot change after that.
-- Pass attribute values as strings (\`allowpopups: ''\`). React drops \`true\` on unknown attributes.
-- Do not set \`preload\`, \`nodeintegration\`, or \`webpreferences\`. The host sets them for every \`webview\`.
-- Give the element a fixed size and keep it mounted. Unmounting it, moving it in the tree, or hiding it with \`display: none\`, \`visibility: hidden\`, or \`opacity: 0\` can reload the page and drop what the user typed. To switch between pages, stack them and put the active one on top with \`z-index\`. When the user leaves the plugin page, the host unmounts it; on return the site reloads, and only the login remains.
-- The page cannot read the site's DOM. Navigate by changing \`src\`.
+The host does the browser work, so the plugin does not:
+
+- It keeps the login across restarts in the plugin's own \`persist:plugin-<name>\` session. Login hops and new-tab links stay in the page.
+- It shows a load failure with a retry button.
+- It registers the page as \`plugin:<name>/<viewId>\`. You and external agents can then read it with \`browser_read_page\` and \`browser_read_selection\`; the chat lists open plugin pages for you.
+
+Rules:
+
+- Give every \`WebView\` on screen its own \`viewId\` (1-64 lowercase letters, digits, periods, or hyphens). Default: \`main\`.
+- Give it a fixed size and keep it mounted. Unmounting it, moving it in the tree, or hiding it with \`display: none\`, \`visibility: hidden\`, or \`opacity: 0\` can reload the page and drop what the user typed. To switch between pages, stack them and put the active one on top with \`z-index\`. When the user leaves the plugin page, the host unmounts it; on return the site reloads, and only the login remains.
+- Navigate by changing \`src\`.
+- Read the page from the plugin with \`ctx.readPage(viewId?)\` and \`ctx.readSelection(viewId?)\`. \`readSelection\` returns \`{ ok, text, before, after, url, title }\`; \`text\` is empty when nothing is selected. Use it for buttons such as "Quote selection": read the selection, add what only the plugin knows (book title, chapter), and pass the result to \`ctx.addTextToChat\`.
 
 ### main.mjs
 
@@ -180,7 +189,7 @@ The \`id\` in \`main.mjs\` and in the renderer must equal \`name\` in plugin.jso
 
 ## Rules
 
-- Keep the plugin self-contained in its folder. No network calls, no shell commands, and no reads outside \`ctx\` APIs unless the user asked for them. A \`webview\` that shows a site the user asked for is allowed.
+- Keep the plugin self-contained in its folder. No network calls, no shell commands, and no reads outside \`ctx\` APIs unless the user asked for them. A \`ctx.WebView\` that shows a site the user asked for is allowed.
 - Do not write into the Pulse Canvas source tree or the plugin market packages folder.
 - Never put a plugin inside \`~/.pulse-coder/canvas/\`: every folder there is read as a workspace.
 - Never claim the plugin works before the user has enabled it and seen the page.

@@ -1,3 +1,4 @@
+import type { OpenPluginPage } from '../../webview/plugin-pages/list';
 import type { AgentContextTabRef } from '../../../shared/agent-chat';
 
 /**
@@ -48,6 +49,29 @@ export function formatReferencedTabsBlock(
         how = 'unknown tab kind';
     }
     lines.push(`- **${tab.title}** (${tab.kind}) — ${how}`);
+  }
+  lines.push('');
+  return `${lines.join('\n')}\n`;
+}
+
+/**
+ * Pointers to the plugin pages the user has open now, so "this page" or
+ * "what I selected" can resolve to a plugin page. Only ids and titles go in
+ * the prompt; the model reads content on demand.
+ */
+export function formatOpenPluginPagesBlock(pages: OpenPluginPage[] = []): string {
+  if (pages.length === 0) return '';
+  const lines: string[] = [
+    '',
+    '## Open Plugin Pages',
+    'The user has these plugin pages open. When the user refers to the page they are reading or the text they selected, '
+      + 'read it on demand: `browser_read_selection({ nodeId })` for the selection, `browser_read_page({ nodeId })` for the page. '
+      + 'Do not read them when the message is about something else.',
+    '',
+  ];
+  for (const page of pages) {
+    const title = page.title.trim() || page.pluginId;
+    lines.push(`- **${title}** (plugin ${page.pluginId}) — nodeId \`${page.nodeId}\`${page.url ? `, ${page.url}` : ''}`);
   }
   lines.push('');
   return `${lines.join('\n')}\n`;

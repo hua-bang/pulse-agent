@@ -1,5 +1,6 @@
 import { getActiveDockWorkspaceId } from '../../dock/tab-store';
 import { z } from 'zod';
+import { parsePluginPageTargetId } from '../../../shared/webview-registration';
 import type { CanvasTool } from './types';
 import { createNodeTools } from './canvas/nodes';
 import { createSearchTools } from './search';
@@ -136,6 +137,25 @@ function requireExplicitWorkspaceId(
   };
 }
 
+/** Page reads that also take plugin page ids, which need no workspace. */
+const PLUGIN_PAGE_READ_TOOLS = new Set(['browser_read_page', 'browser_read_selection']);
+
+/**
+ * Plugin pages belong to the app, so a plugin page read in Global chat must
+ * not wait for a workspace or the visible Dock route. Other targets keep the
+ * workspace-targeted wrapper.
+ */
+function readPluginPagesWithoutWorkspace(targeted: CanvasTool, direct: CanvasTool): CanvasTool {
+  return {
+    ...targeted,
+    execute: (input, ctx) => (
+      parsePluginPageTargetId(String(input?.nodeId ?? ''))
+        ? direct.execute(input, ctx)
+        : targeted.execute(input, ctx)
+    ),
+  };
+}
+
 export interface GlobalCanvasToolsOptions {
   /**
    * Interactive Global chat may opt into workspace-bound operations, but
@@ -229,10 +249,11 @@ export function createGlobalCanvasTools(
     // including plugin-contributed page tools.
     for (const [name, tool] of Object.entries(workspaceToolPrototypes)) {
       if (directGlobalToolNames.has(name)) continue;
-      const targeted = name === 'browser_read_page' || name.startsWith('page_')
+      const pageRead = PLUGIN_PAGE_READ_TOOLS.has(name);
+      const targeted = pageRead || name.startsWith('page_')
         ? requireExplicitWorkspaceId(tool, targetToolSets, { allowActiveDock: true })
         : requireExplicitWorkspaceId(tool, targetToolSets);
-      if (targeted) tools[name] = targeted;
+      if (targeted) tools[name] = pageRead ? readPluginPagesWithoutWorkspace(targeted, tool) : targeted;
     }
   }
 

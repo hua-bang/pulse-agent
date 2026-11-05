@@ -4,7 +4,7 @@ import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { getCanvasWindowPort } from '../../agent/window-port';
 import { findDockLinkTab } from '../../dock/tab-actions';
-import { readA11y, readDOM, captureScreenshot } from '../../webview/reader';
+import { readA11y, readDOM, readSelection, captureScreenshot } from '../../webview/reader';
 import {
   cdpClickSelector,
   cdpFillSelector,
@@ -16,13 +16,22 @@ import {
 } from '../../../plugins/main/webview-page-control/target';
 import { CapabilityError, type AnyCapabilityDefinition } from './types';
 import { PAGE_READINESS_HINT } from '../../../shared/page-readiness';
+import { webviewRegistryKeyFor } from '../../../shared/webview-registration';
 export { PAGE_READINESS_HINT } from '../../../shared/page-readiness';
 
+const READ_TARGET_DESCRIPTION =
+  'Iframe canvas node id, right-dock link-tab id, or plugin page id (plugin:<pluginId>/<viewId>).';
+
 const pageReadInputSchema = z.object({
-  nodeId: z.string().min(1).describe('Iframe canvas node id or right-dock link-tab id.'),
+  nodeId: z.string().min(1).describe(READ_TARGET_DESCRIPTION),
   strategy: z.enum(['auto', 'dom', 'a11y', 'screenshot']).optional(),
   maxChars: z.number().int().positive().optional(),
   sparseThreshold: z.number().int().nonnegative().optional(),
+});
+
+const pageSelectionInputSchema = z.object({
+  nodeId: z.string().min(1).describe(READ_TARGET_DESCRIPTION),
+  maxChars: z.number().int().positive().optional(),
 });
 
 const pageClickInputSchema = z.object({
@@ -69,6 +78,7 @@ export const pageEvalInputSchema = z.object({
 });
 
 export type PageReadInput = z.infer<typeof pageReadInputSchema>;
+export type PageSelectionInput = z.infer<typeof pageSelectionInputSchema>;
 export type PageClickInput = z.infer<typeof pageClickInputSchema>;
 export type PageFillInput = z.infer<typeof pageFillInputSchema>;
 export type PageEvalInput = z.infer<typeof pageEvalInputSchema>;
@@ -78,6 +88,7 @@ export interface PageCapabilityDependencies {
   clickPage: (workspaceId: string, input: PageClickInput) => Promise<unknown>;
   fillPage: (workspaceId: string, input: PageFillInput) => Promise<unknown>;
   evalPage: (workspaceId: string, input: PageEvalInput) => Promise<unknown>;
+  readSelection?: (workspaceId: string, input: PageSelectionInput) => Promise<unknown>;
 }
 
 const defaultDependencies: PageCapabilityDependencies = {
@@ -85,6 +96,7 @@ const defaultDependencies: PageCapabilityDependencies = {
   clickPage: clickLivePage,
   fillPage: fillLivePage,
   evalPage: evalLivePage,
+  readSelection: readLiveSelection,
 };
 
 export interface PageCapabilityOptions {
@@ -98,10 +110,21 @@ export function createPageCapabilities(
   const definitions: AnyCapabilityDefinition[] = [
     {
       name: 'browser.page.read',
-      description: 'Read the rendered contents of an open iframe node or dock link tab.',
+      description: 'Read the rendered contents of an open iframe node, dock link tab, or plugin page.',
       risk: 'read',
       inputSchema: pageReadInputSchema,
       execute: (input, context) => dependencies.readPage(context.workspaceId, input),
+    },
+    {
+      name: 'browser.page.selection',
+      description:
+        'Read the text the user selected in an open iframe node, dock link tab, or plugin page, '
+        + 'with a short piece of the text around it.',
+      risk: 'read',
+      inputSchema: pageSelectionInputSchema,
+      execute: (input, context) => (
+        dependencies.readSelection ?? readLiveSelection
+      )(context.workspaceId, input),
     },
   ];
   if (options.includePageControl !== false) definitions.push(
@@ -131,32 +154,58 @@ export function createPageCapabilities(
   return definitions;
 }
 
+type LiveWebContents = NonNullable<ReturnType<typeof getWebContentsForNode>>;
+
+/**
+ * Find the live guest for a read. Plugin pages and dock link tabs are
+ * app-level surfaces: do not activate a workspace just because the guest is
+ * temporarily unmounted, because that changes the user's current route while
+ * a read is in flight. Canvas nodes are activated first.
+ */
+async function resolveReadTarget(
+  workspaceId: string,
+  nodeId: string,
+  mode: 'read' | 'operate',
+  details: Record<string, unknown> = {},
+): Promise<LiveWebContents> {
+  const key = webviewRegistryKeyFor(workspaceId, nodeId);
+  const isDockTab = !key.isPluginPage
+    && Boolean(findDockLinkTab(workspaceId, nodeId) || nodeId.startsWith('link:'));
+  const wc = key.isPluginPage || isDockTab
+    ? getWebContentsForNode(key.workspaceId, key.nodeId)
+    : await ensureOperable({
+        lookup: () => getWebContentsForNode(workspaceId, nodeId),
+        activate: () => getCanvasWindowPort().activateWorkspaceWindow(workspaceId),
+        mode,
+      });
+  if (wc) return wc;
+  if (key.isPluginPage) {
+    throw new CapabilityError(
+      'webview_not_found',
+      `Plugin page ${nodeId} is not open. Ask the user to open the plugin page, then retry.`,
+      details,
+    );
+  }
+  throw new CapabilityError(
+    'webview_not_found',
+    `No active webview for node ${nodeId} in workspace ${workspaceId} ` +
+      (isDockTab
+        ? '(the dock tab is not mounted or is still loading).'
+        : '(auto-activation attempted). Make sure the iframe node exists and is in URL mode.'),
+    details,
+  );
+}
+
 async function readLivePage(workspaceId: string, input: PageReadInput): Promise<unknown> {
   const strategy = input.strategy ?? 'auto';
   const maxChars = input.maxChars ?? 12_000;
   const sparseThreshold = input.sparseThreshold ?? 200;
-  const dockTab = findDockLinkTab(workspaceId, input.nodeId);
-  const isDockTab = Boolean(dockTab || input.nodeId.startsWith('link:'));
-  // A dock link tab is already an app-level surface. Do not activate its
-  // workspace just because the guest is temporarily unmounted; that changes
-  // the user's current route while a read is in flight.
-  const wc = isDockTab
-    ? getWebContentsForNode(workspaceId, input.nodeId)
-    : await ensureOperable({
-        lookup: () => getWebContentsForNode(workspaceId, input.nodeId),
-        activate: () => getCanvasWindowPort().activateWorkspaceWindow(workspaceId),
-        mode: strategy === 'screenshot' ? 'operate' : 'read',
-      });
-  if (!wc) {
-    throw new CapabilityError(
-      'webview_not_found',
-      `No active webview for node ${input.nodeId} in workspace ${workspaceId} ` +
-        (isDockTab
-          ? '(the dock tab is not mounted or is still loading).'
-          : '(auto-activation attempted). Make sure the iframe node exists and is in URL mode.'),
-      { strategy },
-    );
-  }
+  const wc = await resolveReadTarget(
+    workspaceId,
+    input.nodeId,
+    strategy === 'screenshot' ? 'operate' : 'read',
+    { strategy },
+  );
 
   if (strategy === 'dom' || strategy === 'auto') {
     const result = await readDOM(wc, maxChars);
@@ -221,6 +270,16 @@ async function readLivePage(workspaceId: string, input: PageReadInput): Promise<
       : {
           hint: 'Call image_analyze({ imagePaths: [imagePath] }) to get a vision description.',
         }),
+  };
+}
+
+async function readLiveSelection(workspaceId: string, input: PageSelectionInput): Promise<unknown> {
+  const wc = await resolveReadTarget(workspaceId, input.nodeId, 'read');
+  const result = await readSelection(wc, input.maxChars);
+  if (!result.ok) throw new CapabilityError('page_read_failed', result.error, { strategy: 'selection' });
+  return {
+    ...result.selection,
+    hasSelection: result.selection.text.trim().length > 0,
   };
 }
 

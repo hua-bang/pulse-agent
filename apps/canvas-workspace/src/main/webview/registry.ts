@@ -22,7 +22,7 @@ import type {
 } from '../../shared/webview-lifecycle';
 import {
   DEFAULT_WEBVIEW_SURFACE_KIND,
-  isWebviewSurfaceKind,
+  isConsistentWebviewRegistration,
   webviewInstanceKey,
   type WebviewInstanceIdentity,
   type WebviewRegistrationIdentity,
@@ -337,7 +337,7 @@ export function setupWebviewRegistryIpc(): void {
         !payload?.workspaceId
         || !payload?.nodeId
         || typeof payload.webContentsId !== 'number'
-        || (payload.surfaceKind !== undefined && !isWebviewSurfaceKind(payload.surfaceKind))
+        || !isConsistentWebviewRegistration(payload)
       ) {
         console.warn('[webview-registry] rejected register:', payload);
         return { ok: false };
