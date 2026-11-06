@@ -23,6 +23,14 @@ function positiveIntegerFlag(flag: string, value: string | undefined): number {
   return parsed;
 }
 
+function nonNegativeIntegerFlag(flag: string, value: string | undefined): number {
+  const parsed = Number(value);
+  if (!value || !Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${flag} requires a non-negative integer`);
+  }
+  return parsed;
+}
+
 function requiredFlagValue(flag: string, value: string | undefined): string {
   if (!value || value.startsWith('-')) {
     throw new Error(`${flag} requires a value`);
@@ -151,7 +159,9 @@ export function parseCliArgs(
     }
     if (arg === '--timeout' || arg === '--max-steps' || arg === '--max-tokens') {
       const value = args[index + 1];
-      const parsed = positiveIntegerFlag(arg, value);
+      const parsed = arg === '--timeout'
+        ? nonNegativeIntegerFlag(arg, value)
+        : positiveIntegerFlag(arg, value);
       hasPrintOnlyOption = true;
       if (arg === '--timeout') timeoutSeconds = parsed;
       if (arg === '--max-steps') maxSteps = parsed;
@@ -161,7 +171,7 @@ export function parseCliArgs(
     }
     if (arg.startsWith('--timeout=')) {
       hasPrintOnlyOption = true;
-      timeoutSeconds = positiveIntegerFlag('--timeout', arg.slice('--timeout='.length));
+      timeoutSeconds = nonNegativeIntegerFlag('--timeout', arg.slice('--timeout='.length));
       continue;
     }
     if (arg.startsWith('--max-steps=')) {
@@ -219,7 +229,7 @@ export function parseCliArgs(
     verbose,
     ...(model ? { model } : {}),
     ...(isolated ? { isolated } : {}),
-    ...(timeoutSeconds ? { timeoutSeconds } : {}),
+    ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
     ...(maxSteps ? { maxSteps } : {}),
     ...(maxTokens ? { maxTokens } : {}),
     ...(outputFormat ? { outputFormat } : {}),
