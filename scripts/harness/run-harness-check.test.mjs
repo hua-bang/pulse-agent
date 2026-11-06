@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanupFixtures, commitFixture, createFixture, executeFixture, gitFixture, initializeFixtureGit, quote, repoRoot, validationYaml, workspaceRules, writeFixture } from './test-support.mjs';
 
+import { matchesAny, parseYaml } from './validation-data.mjs';
+
 afterEach(cleanupFixtures);
 
 const run = (...args) => {
@@ -35,6 +37,32 @@ describe('run-harness-check validation levels', () => {
     const release = run('--path', path, '--level', 'release');
     expect(release).toContain('pnpm --filter canvas-workspace test');
     expect(release).toContain('perf:report');
+  });
+
+  it.each(['quick', 'standard'])('routes real MCP app implementation paths at %s', (level) => {
+    for (const file of ['mcp-app-ipc.ts', 'mcp-app-runtime.ts']) {
+      const output = run('--path', `apps/canvas-workspace/src/main/agent/mcp-apps/${file}`, '--level', level);
+      expect(output).toContain('mcp-apps');
+      expect(output).toContain('vitest run src/renderer/src/modules/mcp-apps');
+      if (level === 'standard') {
+        expect(output).toContain('src/main/agent/mcp-apps/mcp-app-ipc.test.ts');
+        expect(output).toContain('pnpm --filter canvas-workspace test');
+      }
+    }
+    const unrelated = run('--path', 'apps/canvas-workspace/src/main/agent/service.ts', '--level', level);
+    expect(unrelated).not.toContain('vitest run src/renderer/src/modules/mcp-apps');
+  });
+
+  it('binds the quality workflow alone and triggers Harness CI on push and PR', () => {
+    const file = '.github/workflows/quality.yml';
+    const output = run('--path', file, '--level', 'standard');
+    expect(output).toContain('pnpm exec vitest run scripts/harness');
+    expect(output).not.toContain('No bound checks');
+    const workflow = parseYaml(fs.readFileSync(path.join(repoRoot, '.github/workflows/harness.yml'), 'utf8'));
+    for (const event of ['pull_request', 'push']) {
+      expect(matchesAny(file, workflow.on[event].paths)).toBe(true);
+      expect(matchesAny('.github/workflows/unrelated.yml', workflow.on[event].paths)).toBe(false);
+    }
   });
 
   it('rejects unknown levels', () => {
