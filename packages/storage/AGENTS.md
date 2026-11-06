@@ -15,9 +15,11 @@ in `harness/spec/unified-storage/README.md`.
   Reject stale revisions instead of silently overwriting newer state. The change
   log is bounded; an expired cursor must fail, never silently skip changes.
 - User workspace deletion uses `workspaces.trashBundle`; preserve records,
-  current pointers, and file intents until explicit restoration. Keep permanent
-  `removeBundle` for import compensation, not user deletion. Trashed reads are
-  hidden and writes reject; restore must invalidate all pre-deletion revisions.
+  current pointers, and file intents until explicit restoration. There is no
+  permanent workspace delete. A bundle change that also changes the workspace
+  manifest passes its manifest commit to the same call, so both commit in one
+  transaction. Trashed reads are hidden and writes reject; restore must
+  invalidate all pre-deletion revisions.
 - Markdown and attachments remain files. Persisted content snapshots and indexes
   are not independent editable copies of their source files.
 - Preserve unknown node and plugin payload fields during migration and round trips.

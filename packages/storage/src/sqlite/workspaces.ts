@@ -7,6 +7,8 @@ import { createConversationOperations } from './conversations.js';
 import { createConversationScopeOperations } from './conversation-scopes.js';
 import { decodeCursor, decodeJson, encodeCursor, encodeJson, pageLimit, validateId } from './validation.js';
 import { createWorkspaceVisibility } from './workspace-visibility.js';
+import { createWorkspaceManifestOperations } from './workspace-manifest.js';
+import type { WorkspaceManifestCommit } from '../workspace-manifest.js';
 
 interface SessionRevision { session_id: string; revision: number }
 interface TrashRow { workspace_id: string; revision: number; deleted_at: string; metadata: string }
@@ -16,10 +18,9 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
   const conversations = createConversationOperations(ctx);
   const scopes = createConversationScopeOperations(ctx);
   const visibility = createWorkspaceVisibility(ctx);
+  const manifest = createWorkspaceManifestOperations(ctx);
   const workspaceRevision = ctx.db.prepare('SELECT revision FROM workspaces WHERE id = ?');
   const sessionRevisions = ctx.db.prepare('SELECT session_id, revision FROM conversations WHERE scope_id = ? ORDER BY session_id');
-  const clearPointer = ctx.db.prepare('UPDATE conversation_scopes SET current_session_id = NULL WHERE scope_id = ?');
-  const deleteScope = ctx.db.prepare('DELETE FROM conversation_scopes WHERE scope_id = ?');
   const trashed = ctx.db.prepare(`
     SELECT t.workspace_id, w.revision, t.deleted_at, t.metadata
     FROM workspace_trash t JOIN workspaces w ON w.id = t.workspace_id WHERE t.workspace_id = ?
@@ -152,6 +153,7 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
       });
       changeCursor = scopeReceipt.changeCursor;
     }
+    if (input.manifest !== undefined) manifest.commit(input.manifest);
     return { ...receipt, changeCursor, conversationState: state(workspaceId) };
   });
 
@@ -171,10 +173,16 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
     const deletedAt = new Date().toISOString();
     advanceBundle(input.workspaceId, 'removed');
     insertTrash.run(input.workspaceId, deletedAt, body);
+    if (input.manifest !== undefined) manifest.commit(input.manifest);
     return trashRecord(trashed.get(input.workspaceId) as TrashRow);
   });
 
-  const restore = ctx.db.transaction((workspaceId: string, revision: number, generation: string) => {
+  const restore = ctx.db.transaction((
+    workspaceId: string,
+    revision: number,
+    generation: string,
+    manifestCommit?: WorkspaceManifestCommit,
+  ) => {
     validateCondition(workspaceId, revision, generation);
     const row = trashed.get(workspaceId) as TrashRow | undefined;
     if ((row?.revision ?? null) !== revision) {
@@ -182,36 +190,8 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
     }
     const receipt = advanceBundle(workspaceId, 'updated');
     deleteTrash.run(workspaceId);
+    if (manifestCommit !== undefined) manifest.commit(manifestCommit);
     return receipt;
-  });
-
-  const remove = ctx.db.transaction((
-    workspaceId: string,
-    expectedCanvasRevision: number,
-    generation: string,
-    expectedConversations?: WorkspaceConversationState,
-  ) => {
-    validateId(workspaceId, 'workspace id');
-    validateId(generation, 'generation');
-    if (generation !== ctx.generation) throw new StorageError('revision_conflict', 'Workspace belongs to a different storage generation');
-    if (!Number.isSafeInteger(expectedCanvasRevision) || expectedCanvasRevision < 1) {
-      throw new StorageError('invalid_argument', 'Expected canvas revision must be a positive safe integer');
-    }
-    const existing = workspaceRevision.get(workspaceId) as { revision: number } | undefined;
-    if ((existing?.revision ?? null) !== expectedCanvasRevision) {
-      throw new RevisionConflictError(workspaceId, expectedCanvasRevision, existing?.revision ?? null);
-    }
-    if (expectedConversations !== undefined) assertConversationState(workspaceId, expectedConversations);
-    const scope = scopes.read(workspaceId);
-    const sessions = sessionRevisions.all(workspaceId) as SessionRevision[];
-    if (scope) clearPointer.run(workspaceId);
-    for (const session of sessions) conversations.remove(workspaceId, session.session_id, session.revision);
-    if (scope) {
-      deleteScope.run(workspaceId);
-      const revision = ctx.nextRevision('conversation-scope', workspaceId, workspaceId);
-      ctx.change('conversation-scope', workspaceId, workspaceId, revision, 'removed', sessions.map(session => session.session_id));
-    }
-    return canvas.remove(workspaceId, expectedCanvasRevision);
   });
 
   return {
@@ -236,11 +216,8 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
         };
       });
     },
-    async restoreBundle(workspaceId, expectedRevision, generation) {
-      return ctx.guard(() => restore.immediate(workspaceId, expectedRevision, generation));
-    },
-    async removeBundle(workspaceId, expectedCanvasRevision, generation, expectedConversations) {
-      return ctx.guard(() => remove.immediate(workspaceId, expectedCanvasRevision, generation, expectedConversations));
+    async restoreBundle(workspaceId, expectedRevision, generation, manifestCommit) {
+      return ctx.guard(() => restore.immediate(workspaceId, expectedRevision, generation, manifestCommit));
     },
   };
 }

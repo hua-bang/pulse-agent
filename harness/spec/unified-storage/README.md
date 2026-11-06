@@ -130,13 +130,18 @@ rebuildable from them.
 |---|---|---|
 | External chat-role CLI session ids | `~/.pulse-coder/canvas/external-agent-state.json` (serialized, atomic since S2) | Store in the owning conversation's metadata so it commits, trashes, and restores with the conversation |
 | Scheduled tasks, Task, Goal | `scheduled-tasks.json` and related files | Decide per domain; not part of the S1 scope |
-| Workspace manifest (names, folders, order) | `__workspaces__.json` | Keep as a file unless S5 needs it in the database |
+| Workspace manifest (names, folders, order, active id) | `__workspaces__.json` | Moved into the database (delivered). One `workspace_manifest` document (schema v4), imported once after Canvas activation. Create, trash, restore, and import commit it in the same transaction as the bundle. The file is not written after the import. Decisions: [history/2026-11-01-workspace-manifest.md](history/2026-11-01-workspace-manifest.md) |
 
 ## Open questions
 
 - Should skipped legacy session files get a re-import path? Add one only if
   users report needing it; today a repaired file is not picked up after cutover.
 - Which S4 domains move, and in what order?
+- Workspace manifest, open for the owner: keep one document, or move to one
+  row per workspace? One document lets unknown top-level fields and `folders`
+  round-trip unchanged. Downgrade: an older build cannot open a schema v4
+  database and stops (fail closed), so it cannot write a manifest that the
+  database then ignores. Confirm that this stop is acceptable.
 - Is S5 (sync) on the product roadmap at all? S3's interface does not assume
   it: URIs and content versions are the only contract a remote adapter needs.
 

@@ -8,6 +8,7 @@ import { createConversationRepository } from './conversations.js';
 import { createConversationScopeRepository } from './conversation-scopes.js';
 import { createFileWriteRepository } from './file-writes.js';
 import { createWorkspaceRepository } from './workspaces.js';
+import { createWorkspaceManifestRepository } from './workspace-manifest.js';
 import { createLocalActivationRepository, type LocalActivationRepository } from './local-activation.js';
 import { createChangeRepository } from './changes.js';
 import { storageError, type SqliteContext } from './context.js';
@@ -155,6 +156,7 @@ export async function openSqliteStorage(options: SqliteStorageOptions): Promise<
     localActivation: createLocalActivationRepository(ctx),
     canvas: createCanvasRepository(ctx),
     workspaces: createWorkspaceRepository(ctx),
+    workspaceManifest: createWorkspaceManifestRepository(ctx),
     conversations: createConversationRepository(ctx),
     conversationScopes: createConversationScopeRepository(ctx),
     fileWrites: createFileWriteRepository(ctx),

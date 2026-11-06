@@ -17,6 +17,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { STORE_DIR } from './nodes/store';
 import { getLocalCanvasStorage } from './persistence/backend';
+import { getManifestStorage, readWorkspaceManifestDocument } from './persistence/workspace-manifest';
 
 export const WORKSPACES_MANIFEST_FILENAME = '__workspaces__.json';
 
@@ -98,13 +99,32 @@ export async function filterWorkspaceManifest<T extends Record<string, unknown>>
   return filtered as T;
 }
 
-/** Read the workspace manifest. Returns an empty listing when absent/unreadable. */
+/** The renderer's view of the manifest: trashed ids hidden, defaults for a missing list. */
+export async function readRendererWorkspaceManifest(
+  root: string = STORE_DIR,
+): Promise<{ kind: 'ok'; data: Record<string, unknown> } | { kind: 'error'; err: unknown }> {
+  let document: Record<string, unknown>;
+  try {
+    document = await readWorkspaceManifestDocument(root);
+  } catch (err) {
+    return { kind: 'error', err };
+  }
+  if (!Object.keys(document).length) return { kind: 'ok', data: { workspaces: [], folders: [], activeId: '' } };
+  return { kind: 'ok', data: await filterWorkspaceManifest(root, document) };
+}
+
+/** Read the workspace manifest. Returns an empty listing when the legacy file is absent/unreadable. */
 export async function readWorkspaceManifest(root: string = STORE_DIR): Promise<WorkspaceListing> {
   let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(await fs.readFile(join(root, WORKSPACES_MANIFEST_FILENAME), 'utf-8'));
-  } catch {
-    parsed = {};
+  if (await getManifestStorage(root)) {
+    // Storage errors propagate: an unreadable database must not fall back to the file.
+    parsed = await readWorkspaceManifestDocument(root);
+  } else {
+    try {
+      parsed = JSON.parse(await fs.readFile(join(root, WORKSPACES_MANIFEST_FILENAME), 'utf-8'));
+    } catch {
+      parsed = {};
+    }
   }
   // A storage error must propagate, not reveal hidden workspaces via fallback.
   const manifest = await filterWorkspaceManifest(root, parsed);

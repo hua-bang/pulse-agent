@@ -6,6 +6,8 @@ import type { PulseStorage } from '@pulse-coder/storage';
 import { activateLocalCanvasStorage } from '@pulse-coder/storage/local';
 import { recoverImportsAtStartup, recoverInterruptedWorkspaceImports } from './import-recovery';
 import { IMPORT_JOURNAL } from '../sqlite-workspace';
+import * as workspaceManifest from '../workspace-manifest';
+import { closeCanvasStorage } from '../backend';
 
 let root: string;
 let storage: PulseStorage;
@@ -25,7 +27,8 @@ async function commit(workspaceId: string) {
   });
 }
 
-const readManifest = async () => JSON.parse(await readFile(join(root, '__workspaces__.json'), 'utf8'));
+// The database owns the manifest after activation; the first read imports the file written above.
+const readManifest = () => workspaceManifest.readWorkspaceManifestDocument(root);
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'import-recovery-'));
@@ -33,6 +36,8 @@ beforeEach(async () => {
   await writeFile(join(root, '__workspaces__.json'), JSON.stringify(manifest));
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
+  await closeCanvasStorage();
   await storage.close();
   await rm(root, { recursive: true, force: true });
 });
@@ -101,9 +106,7 @@ it('logs startup recovery results and swallows failures', async () => {
   await recoverImportsAtStartup(root, storage, writeLog);
   expect(writeLog).toHaveBeenCalledWith('storage', 'Recovered interrupted workspace imports',
     JSON.stringify([{ workspaceId: 'ws-logged', outcome: 'published' }]));
-  await rm(join(root, '__workspaces__.json'));
-  await rm(join(root, '__workspaces__.json.bak'), { force: true });
-  await mkdir(join(root, '__workspaces__.json'));
+  vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockRejectedValue(new Error('manifest commit failed'));
   await stageImport('ws-failing', { schemaVersion: 1, workspaceId: 'ws-failing', workspaceName: 'F' });
   await commit('ws-failing');
   await expect(recoverImportsAtStartup(root, storage, writeLog)).resolves.toBeUndefined();

@@ -10,6 +10,7 @@ import { prepareLegacyCanvasImport, type LegacyCanvas } from '@pulse-coder/stora
 import { openSqliteStorage } from '@pulse-coder/storage/sqlite';
 import * as store from '../store';
 import * as nativeBinding from '../native-binding';
+import * as sqliteStore from '../sqlite-store';
 import { hasSqliteStorage } from '../sqlite-store';
 import { createNode, updateNode, writeNode } from '../nodes';
 import { createEdge, deleteEdge } from '../edges';
@@ -173,14 +174,103 @@ describe('activated SQLite CLI storage', () => {
       .rejects.toMatchObject({ code: 'workspace_not_found' });
   });
 
-  it('removes the SQL workspace when manifest publication fails after creation', async () => {
+  it('creates neither the SQL workspace nor its entry when the manifest commit conflicts', async () => {
     await activate();
-    await fs.mkdir(join(root, '__workspaces__.json'));
-    await fs.writeFile(join(root, '__workspaces__.json', 'blocker'), 'not a manifest');
+    const before = await store.loadWorkspaceManifest(root);
+    const original = sqliteStore.withSqliteCanvas;
+    const failure = vi.spyOn(sqliteStore, 'withSqliteCanvas').mockImplementation((storeDir, operation) => original(storeDir, async (db, canvas) => {
+      const importBundle = db.workspaces.importBundle.bind(db.workspaces);
+      db.workspaces.importBundle = async input => {
+        // A commit lands first, so the bundle transaction's manifest revision is stale.
+        const current = (await db.workspaceManifest.read())!;
+        await db.workspaceManifest.commit({ expectedRevision: current.revision, manifest: current.manifest });
+        return importBundle(input);
+      };
+      return operation(db, canvas);
+    }));
     const result = await store.createWorkspace('Unpublished', root);
+    failure.mockRestore();
     expect(result.ok).toBe(false);
+    expect(await store.loadWorkspaceManifest(root)).toEqual(before);
     expect(await store.listWorkspaceIds(root)).toEqual([workspaceId]);
     expect((await fs.readdir(root)).filter(name => name.startsWith('ws-') && name !== workspaceId)).toEqual([]);
+  });
+
+  it('imports the manifest file once after activation, then reads only the database', async () => {
+    const manifestFile = join(root, '__workspaces__.json');
+    await fs.writeFile(manifestFile, JSON.stringify({
+      workspaces: [{ id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } }],
+      folders: [{ id: 'f', name: 'Folder', extra: 1 }],
+      activeId: workspaceId,
+      futureKey: 'kept',
+    }));
+    await activate();
+    expect(await store.loadWorkspaceManifest(root)).toMatchObject({
+      workspaces: [{ id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } }],
+      folders: [{ id: 'f', name: 'Folder', extra: 1 }],
+      activeId: workspaceId,
+      futureKey: 'kept',
+    });
+    // A later file edit (an older build) does not change current state.
+    await fs.writeFile(manifestFile, JSON.stringify({ workspaces: [{ id: workspaceId, name: 'Stale' }, { id: 'ghost', name: 'Deleted' }] }));
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([
+      { id: workspaceId, name: 'Imported', rootFolder: '/tmp/project', custom: { keep: true } },
+    ]);
+    // Writes go to the database only; the retained file is not rewritten.
+    const staleBytes = await fs.readFile(manifestFile, 'utf8');
+    const created = await store.createWorkspace('Second', root);
+    if (!created.ok) throw new Error(created.error);
+    expect(await fs.readFile(manifestFile, 'utf8')).toBe(staleBytes);
+    const db = await openLocalStorage({ root });
+    try {
+      const stored = (await db!.workspaceManifest.read())!.manifest;
+      expect((stored.workspaces as { name: string }[]).map(entry => entry.name)).toEqual(['Imported', 'Second']);
+      expect(stored.futureKey).toBe('kept');
+    } finally { await db!.close(); }
+  });
+
+  it('imports from the backup when the primary manifest is corrupt and skips trashed ids', async () => {
+    await activate();
+    const db = await openLocalStorage({ root });
+    try {
+      await db!.canvas.commit({ workspaceId: 'gone', expectedRevision: null });
+      const bundle = await db!.workspaces.readBundle('gone');
+      await db!.workspaces.trashBundle({
+        workspaceId: 'gone', expectedCanvasRevision: bundle!.canvas.revision, generation: db!.generation,
+        expectedConversations: bundle!.conversationState, metadata: { id: 'gone', name: 'Gone' },
+      });
+    } finally { await db!.close(); }
+    await fs.writeFile(join(root, '__workspaces__.json'), '{ truncated');
+    await fs.writeFile(join(root, '__workspaces__.json.bak'), JSON.stringify({
+      entries: [{ id: 'gone', name: 'Gone' }, { id: workspaceId, name: 'From backup' }], activeId: 'gone',
+    }));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const manifest = await store.loadWorkspaceManifest(root);
+    expect(manifest.workspaces).toEqual([{ id: workspaceId, name: 'From backup' }]);
+    expect(manifest.activeId).toBe(workspaceId);
+    const stored = await openLocalStorage({ root });
+    try { expect((await stored!.workspaceManifest.read())?.manifest.workspaces).toEqual([{ id: workspaceId, name: 'From backup' }]); }
+    finally { await stored!.close(); }
+  });
+
+  it('refuses to import an unreadable manifest and keeps the file for repair', async () => {
+    await activate();
+    const manifestFile = join(root, '__workspaces__.json');
+    await fs.writeFile(manifestFile, '{ truncated');
+    await expect(store.loadWorkspaceManifest(root)).rejects.toMatchObject({ code: 'corrupt_data' });
+    expect(await fs.readFile(manifestFile, 'utf8')).toBe('{ truncated');
+    const db = await openLocalStorage({ root });
+    try { expect(await db!.workspaceManifest.read()).toBeNull(); }
+    finally { await db!.close(); }
+    // After repair, the next read imports it.
+    await fs.writeFile(manifestFile, JSON.stringify({ workspaces: [{ id: workspaceId, name: 'Repaired' }] }));
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([{ id: workspaceId, name: 'Repaired' }]);
+  });
+
+  it('leaves a legacy store on the manifest file without touching SQLite', async () => {
+    await store.saveWorkspaceManifest({ workspaces: [{ id: workspaceId, name: 'Legacy' }] }, root);
+    expect((await store.loadWorkspaceManifest(root)).workspaces).toEqual([{ id: workspaceId, name: 'Legacy' }]);
+    await expect(fs.access(join(root, '__storage__.sqlite'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('routes node and edge commands through the original SQL revision and preserves Markdown editing', async () => {
@@ -333,14 +423,14 @@ describe('migration fencing for legacy CLI writes', () => {
     await activate();
     const manifest = { workspaces: [{ id: workspaceId, name: 'Keep' }] };
     await store.saveWorkspaceManifest(manifest, root);
-    const oldBytes = await fs.readFile(join(root, '__workspaces__.json'), 'utf8');
     await fs.unlink(join(root, '__storage__.json'));
     const resolver = vi.spyOn(nativeBinding, 'resolveSqliteNativeBinding').mockImplementation(() => {
       throw new Error('Correct packaged native binding is unavailable');
     });
     await expect(store.saveWorkspaceManifest({ workspaces: [] }, root)).rejects.toThrow('Correct packaged native binding is unavailable');
     expect(resolver).toHaveBeenCalledOnce();
-    expect(await fs.readFile(join(root, '__workspaces__.json'), 'utf8')).toBe(oldBytes);
+    // The fence stops before the legacy fallback can write a manifest file.
+    await expect(fs.access(join(root, '__workspaces__.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('keeps Canvas on JSON when only the conversations domain has been activated', async () => {

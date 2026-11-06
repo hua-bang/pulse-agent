@@ -7,14 +7,13 @@ import { activateLocalCanvasStorage } from '@pulse-coder/storage/local';
 import { importWorkspaceArchiveToStore } from '../transfer/workspace-import';
 import { createWorkspaceExportArchive, createWorkspaceExportPayload, type WorkspaceExportFile } from '../transfer/workspace-export-archive';
 import { closeCanvasStorage } from './backend';
-import * as atomicJson from './atomic-json';
+import * as workspaceManifest from './workspace-manifest';
 import { setCanvasSessionArchivePort } from './session-archive-port';
 import {
   readWorkspaceExportSource,
   rewriteCanvasFilePaths,
   rewriteWorkspaceNodeFiles,
   workspaceExportPathContext,
-  WorkspaceImportRecoveryError,
 } from './sqlite-workspace';
 
 let root: string;
@@ -140,30 +139,21 @@ describe('SQLite workspace archive lifecycle', () => {
     await expect(stat(join(storeDir, 'copied', '.workspace-import.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('removes its database commit when manifest publication fails, retaining the source archive', async () => {
-    const write = atomicJson.atomicWriteJson;
-    vi.spyOn(atomicJson, 'atomicWriteJson').mockImplementation(async (path, ...args) => {
-      if (path.endsWith('__workspaces__.json')) throw new Error('manifest disk full');
-      return write(path, ...args);
-    });
-    await expect(importArchive()).rejects.toThrow('manifest disk full');
+  it('commits neither the workspace nor its entry when the manifest commit conflicts, retaining the source archive', async () => {
+    const original = workspaceManifest.updateWorkspaceManifestDocument;
+    vi.spyOn(workspaceManifest, 'updateWorkspaceManifestDocument').mockImplementation((root, update, bundle) => original(
+      root, update, bundle && (async (db, manifest) => {
+        // Another writer commits first, so the import transaction's manifest revision is stale.
+        const current = (await storage.workspaceManifest.read())!;
+        await storage.workspaceManifest.commit({ expectedRevision: current.revision, manifest: current.manifest });
+        return bundle(db, manifest);
+      }),
+    ));
+    await expect(importArchive()).rejects.toMatchObject({ code: 'revision_conflict' });
     expect(await storage.canvas.read('imported')).toBeNull();
+    expect(JSON.stringify((await storage.workspaceManifest.read())?.manifest)).not.toContain('imported');
     await expect(stat(join(storeDir, 'imported'))).rejects.toMatchObject({ code: 'ENOENT' });
     expect((await stat(join(root, 'imported.pulsecanvas.zip'))).isFile()).toBe(true);
-  });
-
-  it('retains files and a recovery journal instead of deleting later edits if compensation conflicts', async () => {
-    const write = atomicJson.atomicWriteJson;
-    vi.spyOn(atomicJson, 'atomicWriteJson').mockImplementation(async (path, ...args) => {
-      if (!path.endsWith('__workspaces__.json')) return write(path, ...args);
-      await storage.canvas.commit({ workspaceId: 'imported', expectedRevision: 1, metadata: { laterEdit: true } });
-      throw new Error('manifest disk full');
-    });
-    await expect(importArchive()).rejects.toBeInstanceOf(WorkspaceImportRecoveryError);
-    expect(await storage.canvas.read('imported')).toMatchObject({ revision: 2, metadata: { laterEdit: true } });
-    expect(await readFile(join(storeDir, 'imported', 'notes', 'card.md'), 'utf8')).toBe('# Original Markdown\n');
-    expect(JSON.parse(await readFile(join(storeDir, 'imported', '.workspace-import.json'), 'utf8')))
-      .toMatchObject({ workspaceId: 'imported', phase: 'database-committed', revision: 1 });
   });
 
   it('never exports stale JSON when the active database has no matching workspace', async () => {
