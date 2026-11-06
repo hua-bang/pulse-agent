@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { CanvasNode } from "../../../types";
-import { collectContainerDescendants, isContainerNode } from "../../../utils/frameHierarchy";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CanvasNode } from '../../../types';
+import { collectContainerDescendants, isContainerNode } from '../../../utils/frameHierarchy';
 import { computeSnap, type SnapBox, type SnapLine } from '../model/canvasSnapping';
 
 /** Grid spacing (canvas-px) for the fallback grid snap. Lines up with
