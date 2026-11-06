@@ -188,7 +188,7 @@
   margin: 0;
   padding: 10px 12px;
   background: transparent;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   /* Wrap long lines instead of scrolling them off-screen — in a narrow
      chat panel a horizontal scrollbar is easy to miss, so code just
      looked truncated. Indentation is still preserved via pre-wrap. */
