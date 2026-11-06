@@ -97,6 +97,11 @@ explicit unfinished imports in schema v2/v3 remain resumable. Legacy JSON is
 retained but stops receiving writes after activation. Unknown schemas, broken
 records, and missing active databases stop startup with a visible error rather
 than returning an empty workspace. Markdown and attachments remain files.
+The workspace context document is SQL state instead (`workspaceContext`,
+schema v4), read and written only through
+`agent/workspace/workspace-context.ts`; a legacy
+`<rootFolder>/pulse-workspace.md` is imported once on first read and never
+written.
 Retained JSON is a pre-cutover recovery source, not a live downgrade target:
 an older binary cannot see later SQLite edits through those files.
 

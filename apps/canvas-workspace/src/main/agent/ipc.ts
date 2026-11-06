@@ -300,6 +300,22 @@ export function setupCanvasAgentIpc(): void {
     },
   );
 
+  // ── Workspace context document (settings drawer read/save) ──
+  // Lazy chunk: storage access stays out of the main bundle until the drawer opens.
+  const workspaceContext = () => import('./workspace/workspace-context');
+  ipcMain.handle('canvas-agent:read-workspace-context', async (_event, payload: { workspaceId: string }) => {
+    try {
+      return { ok: true, ...(await (await workspaceContext()).readWorkspaceContext(payload.workspaceId)) };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+  ipcMain.handle(
+    'canvas-agent:write-workspace-context',
+    async (_event, payload: { workspaceId: string; content: string; expectedRevision: number | null }) =>
+      (await workspaceContext()).writeWorkspaceContext(payload.workspaceId, payload.content, payload.expectedRevision),
+  );
+
   // ── Workspace doc one-shot generation (user-triggered from settings) ──
   // The renderer subscribes to delta + complete events keyed by requestId
   // returned synchronously from the invoke. Mirrors the llm:stream-html

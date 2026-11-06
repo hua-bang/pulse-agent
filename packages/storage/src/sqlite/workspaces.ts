@@ -7,6 +7,7 @@ import { createConversationOperations } from './conversations.js';
 import { createConversationScopeOperations } from './conversation-scopes.js';
 import { decodeCursor, decodeJson, encodeCursor, encodeJson, pageLimit, validateId } from './validation.js';
 import { createWorkspaceVisibility } from './workspace-visibility.js';
+import { createWorkspaceContextOperations } from './workspace-context.js';
 
 interface SessionRevision { session_id: string; revision: number }
 interface TrashRow { workspace_id: string; revision: number; deleted_at: string; metadata: string }
@@ -16,6 +17,7 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
   const conversations = createConversationOperations(ctx);
   const scopes = createConversationScopeOperations(ctx);
   const visibility = createWorkspaceVisibility(ctx);
+  const context = createWorkspaceContextOperations(ctx);
   const workspaceRevision = ctx.db.prepare('SELECT revision FROM workspaces WHERE id = ?');
   const sessionRevisions = ctx.db.prepare('SELECT session_id, revision FROM conversations WHERE scope_id = ? ORDER BY session_id');
   const clearPointer = ctx.db.prepare('UPDATE conversation_scopes SET current_session_id = NULL WHERE scope_id = ?');
@@ -65,6 +67,7 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
       setScopeRevision.run(revision, workspaceId);
       ctx.change('conversation-scope', workspaceId, workspaceId, revision, kind, sessions.map(session => session.session_id));
     }
+    context.advance(workspaceId, kind);
     const revision = ctx.nextRevision('canvas', workspaceId, workspaceId);
     setWorkspaceRevision.run(revision, workspaceId);
     const ids = recordIds.all(workspaceId) as Array<{ id: string }>;
@@ -211,6 +214,8 @@ export function createWorkspaceRepository(ctx: SqliteContext): WorkspaceReposito
       const revision = ctx.nextRevision('conversation-scope', workspaceId, workspaceId);
       ctx.change('conversation-scope', workspaceId, workspaceId, revision, 'removed', sessions.map(session => session.session_id));
     }
+    // The context row cascades with the workspace; announce its removal first.
+    context.advance(workspaceId, 'removed');
     return canvas.remove(workspaceId, expectedCanvasRevision);
   });
 

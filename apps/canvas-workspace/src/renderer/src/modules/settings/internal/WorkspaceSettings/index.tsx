@@ -4,14 +4,13 @@
  * Three sections, mirroring the long-term workspace model:
  *  1. Identity   — name (editable)
  *  2. Environment — rootFolder (the directory where work lands)
- *  3. Intent & State — pulse-workspace.md content (shared brain for
+ *  3. Intent & State — the workspace context document (shared brain for
  *     human + Canvas Agent)
  *
- * pulse-workspace.md lives at <rootFolder>/pulse-workspace.md so it's
- * git-friendly and shareable, while the Pulse-specific filename keeps
- * other coding agents from auto-loading it as their own instructions.
- * Its content is injected into the Canvas Agent's system prompt on every
- * chat turn (see canvas-agent/canvas-agent.ts).
+ * The document lives in Canvas storage, not in the root folder, so neither
+ * side writes into the user's project to keep it current. Its content is
+ * injected into the Canvas Agent's system prompt on every chat turn (see
+ * main/agent/workspace/workspace-context.ts).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,18 +29,11 @@ interface Props {
   onSetRootFolder: (id: string, folderPath: string) => void;
 }
 
-const WORKSPACE_DOC_FILENAME = 'pulse-workspace.md';
-
 const buildWorkspaceDocTemplate = (
   workspaceName: string,
   labels: { goal: string; status: string; notes: string },
 ): string =>
   `# ${workspaceName}\n\n## Goal\n<${labels.goal}>\n\n## Status\n<${labels.status}>\n\n## Notes\n<${labels.notes}>\n`;
-
-const joinPath = (folder: string, file: string): string => {
-  const trimmed = folder.endsWith('/') ? folder.slice(0, -1) : folder;
-  return `${trimmed}/${file}`;
-};
 
 export const WorkspaceSettingsDrawer = ({
   workspace,
@@ -56,7 +48,9 @@ export const WorkspaceSettingsDrawer = ({
   const [nameDraft, setNameDraft] = useState('');
   const [agentsDoc, setAgentsDoc] = useState('');
   const [agentsDocLoaded, setAgentsDocLoaded] = useState(false);
-  const [agentsDocExists, setAgentsDocExists] = useState(false);
+  // Storage revision as last read or saved (null: not saved yet). Saves
+  // compare against it so an agent update made meanwhile is not lost.
+  const [docRevision, setDocRevision] = useState<number | null>(null);
   const [savingDoc, setSavingDoc] = useState(false);
   const [error, setError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
@@ -79,25 +73,20 @@ export const WorkspaceSettingsDrawer = ({
     setIntent('');
     setGenerating(false);
 
-    if (!workspace.rootFolder) {
-      setAgentsDoc('');
-      setAgentsDocExists(false);
-      setAgentsDocLoaded(true);
-      return;
-    }
-
-    const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
-    void window.canvasWorkspace?.file.read(filePath).then((res) => {
-      if (res.ok && typeof res.content === 'string') {
+    void window.canvasWorkspace?.agent.readWorkspaceContext(workspace.id).then((res) => {
+      if (!res.ok) {
+        setError(res.error ?? t('workspaceSettings.loadFailed'));
+        return;
+      }
+      setDocRevision(res.revision ?? null);
+      if (res.content?.trim()) {
         setAgentsDoc(res.content);
-        setAgentsDocExists(true);
       } else {
         setAgentsDoc(buildWorkspaceDocTemplate(workspace.name, {
           goal: t('workspaceSettings.goalPlaceholder'),
           status: t('workspaceSettings.statusPlaceholder'),
           notes: t('workspaceSettings.notesPlaceholder'),
         }));
-        setAgentsDocExists(false);
       }
       setAgentsDocLoaded(true);
     });
@@ -115,28 +104,27 @@ export const WorkspaceSettingsDrawer = ({
     const res = await window.canvasWorkspace?.dialog.openFolder();
     if (!res?.ok || !res.folderPath) return;
     onSetRootFolder(workspace.id, res.folderPath);
-    // Trigger pulse-workspace.md reload from the new location.
-    initializedRef.current = false;
   }, [onSetRootFolder, workspace]);
 
   const handleSaveDoc = useCallback(async () => {
-    if (!workspace?.rootFolder) return;
+    if (!workspace) return;
     setSavingDoc(true);
     setError(undefined);
     try {
-      const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
-      const res = await window.canvasWorkspace?.file.write(filePath, agentsDoc);
-      if (!res?.ok) {
-        setError(res?.error ?? t('workspaceSettings.saveFailed', { fileName: WORKSPACE_DOC_FILENAME }));
+      const res = await window.canvasWorkspace?.agent.writeWorkspaceContext(workspace.id, agentsDoc, docRevision);
+      if (!res?.ok || res.revision === undefined) {
+        setError(res?.conflict
+          ? t('workspaceSettings.saveConflict')
+          : res?.error ?? t('workspaceSettings.saveFailed'));
         return;
       }
-      setAgentsDocExists(true);
+      setDocRevision(res.revision);
       setSavedHint(true);
       window.setTimeout(() => setSavedHint(false), 1800);
     } finally {
       setSavingDoc(false);
     }
-  }, [agentsDoc, workspace, t]);
+  }, [agentsDoc, docRevision, workspace, t]);
 
   const handleGenerate = useCallback(async () => {
     if (!workspace) return;
@@ -244,11 +232,7 @@ export const WorkspaceSettingsDrawer = ({
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.intentState')}</div>
-          {!workspace.rootFolder ? (
-            <div className="workspace-settings-empty">
-              {t('workspaceSettings.setRootFirst')}
-            </div>
-          ) : !agentsDocLoaded ? (
+          {!agentsDocLoaded ? (
             <div className="workspace-settings-empty">{t('workspaceSettings.loading')}</div>
           ) : (
             <>
@@ -284,8 +268,7 @@ export const WorkspaceSettingsDrawer = ({
                 readOnly={generating}
               />
               <div className="workspace-settings-field-hint">
-                {agentsDocExists ? t('workspaceSettings.savedAt') : t('workspaceSettings.willCreateAt')}{' '}
-                <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · {t('workspaceSettings.injectedHint')}
+                {t('workspaceSettings.storageHint')} · {t('workspaceSettings.injectedHint')}
               </div>
             </>
           )}
@@ -303,7 +286,7 @@ export const WorkspaceSettingsDrawer = ({
         </Button>
         <Button
           variant="primary"
-          disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
+          disabled={savingDoc || !agentsDocLoaded}
           onClick={() => void handleSaveDoc()}
         >
           {savingDoc ? t('workspaceSettings.saving') : savedHint ? t('workspaceSettings.saved') : t('workspaceSettings.saveDoc')}

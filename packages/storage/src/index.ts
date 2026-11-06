@@ -18,6 +18,9 @@ export type {
 } from './workspace-files.js';
 export { sameFileVersion } from './workspace-files.js';
 export type {
+  WorkspaceContextSnapshot, WorkspaceContextCommit, WorkspaceContextRepository,
+} from './workspace-context.js';
+export type {
   WorkspaceConversationState, WorkspaceBundle, WorkspaceBundleImport, WorkspaceBundleReceipt, WorkspaceRepository,
   WorkspaceTrashRecord, TrashWorkspaceInput,
 } from './workspace-contracts.js';
