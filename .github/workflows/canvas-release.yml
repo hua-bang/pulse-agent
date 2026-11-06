@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     env:
       VERSION: ${{ inputs.version }}

@@ -356,7 +356,7 @@ jobs:
   package-macos-arm64:
     if: needs.changes.outputs.packaging == 'true' || contains(github.event.pull_request.labels.*.name, 'performance')
     needs: changes
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
