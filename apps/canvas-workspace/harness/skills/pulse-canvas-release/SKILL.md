@@ -12,7 +12,7 @@ description: 发布 Pulse Canvas 的 macOS arm64 版本：默认触发 GitHub Ac
 1. 取版本号：上一个 tag 的下一个版本。`latest.json` 里的版本才是用户已有的版本，不要复用。
 2. 写发布说明：`git log pulse-canvas-v<上一版>..origin/master -- apps/canvas-workspace packages/canvas-cli packages/canvas-nodes`。只写用户能感知的变化，中英各一份。
 3. 触发 `.github/workflows/canvas-release.yml`（Actions 页面 Run workflow，或 API），填 `version`、`notes_zh`、`notes_en`。
-4. 它在 `macos-14` 上依次完成：打包、上传、部署，提交版本号并只推送 `pulse-canvas-v<version>` tag。
+4. 它在 `macos-15` 上依次完成：打包、上传、部署，提交版本号并只推送 `pulse-canvas-v<version>` tag。
 5. 核对：`<下载页>/latest.json?release=<version>` 的版本和文件，以及 DMG 的 `?release=<version>` 地址返回 200。
 
 所需仓库 Secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 和下表四个 `PULSE_CANVAS_*`。workflow 在上传前检查 tag 是否已存在；失败在上传前停止，可直接重跑。
