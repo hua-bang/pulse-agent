@@ -1,4 +1,4 @@
-import "./index.css";
+import './index.css';
 import { Popover } from "../../../../../components/ui/Popover";
 import { Button } from "../../../../../components/ui";
 import { useI18n } from "../../../../../i18n";
