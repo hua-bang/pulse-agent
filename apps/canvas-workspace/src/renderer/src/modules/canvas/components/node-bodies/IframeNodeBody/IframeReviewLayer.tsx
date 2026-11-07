@@ -51,7 +51,7 @@ function pinStyle(selection: AgentContextDomSelectionRef) {
   };
 }
 
-export function IframeReviewLayer({
+export const IframeReviewLayer = ({
   comments,
   draftSelection,
   draftText,
@@ -63,7 +63,7 @@ export function IframeReviewLayer({
   onRemoveComment,
   onSubmit,
   onClear,
-}: IframeReviewLayerProps) {
+}: IframeReviewLayerProps) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeComment = useMemo(
     () => comments.find((comment) => comment.id === activeId) ?? null,
@@ -140,4 +140,4 @@ export function IframeReviewLayer({
       )}
     </div>
   );
-}
+};
