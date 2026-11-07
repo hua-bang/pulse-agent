@@ -50,7 +50,25 @@ export const useMindmapController = ({
   const [reorder, setReorder] = useState<MindmapReorderState | null>(null);
   const pendingFocusRef = useRef<string | null>(null);
 
-  const layout = useMemo(() => layoutMindmap(root), [root]);
+  // Layout measures text with the topic font. Re-measure once web fonts
+  // finish loading, or slots stay sized to the fallback font.
+  const [fontsVersion, setFontsVersion] = useState(0);
+  useEffect(() => {
+    const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+    if (!fonts) return;
+    let cancelled = false;
+    const bump = () => {
+      if (!cancelled) setFontsVersion((version) => version + 1);
+    };
+    void fonts.ready.then(bump);
+    fonts.addEventListener?.('loadingdone', bump);
+    return () => {
+      cancelled = true;
+      fonts.removeEventListener?.('loadingdone', bump);
+    };
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const layout = useMemo(() => layoutMindmap(root), [root, fontsVersion]);
   const padding = 16;
   const wantedWidth = Math.max(140, Math.ceil(layout.width + padding * 2));
   const wantedHeight = Math.max(60, Math.ceil(layout.height + padding * 2));

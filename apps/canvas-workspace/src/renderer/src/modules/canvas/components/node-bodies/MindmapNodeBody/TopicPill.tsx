@@ -252,35 +252,39 @@ export const TopicPill = ({
       }}
       onKeyDown={handleKeyDown}
     >
-      <div
-        ref={editorRef}
-        className={[
-          'mindmap-topic-text',
-          isEmpty && !isEditing && 'mindmap-topic-text--empty',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        contentEditable={!readOnly && isEditing}
-        suppressContentEditableWarning
-        spellCheck={false}
-        data-placeholder="Untitled"
-        onBlur={() => {
-          if (isEditing && !readOnly) {
-            commit();
-            onKeyAction({ kind: 'exit' });
-          }
-        }}
-      >
-        {topic.text}
+      {/* The label hugs the text, so the floating actions sit right
+          after the last glyph, not at the far edge of the slot. */}
+      <div className="mindmap-topic-label">
+        <div
+          ref={editorRef}
+          className={[
+            'mindmap-topic-text',
+            isEmpty && !isEditing && 'mindmap-topic-text--empty',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          contentEditable={!readOnly && isEditing}
+          suppressContentEditableWarning
+          spellCheck={false}
+          data-placeholder="Untitled"
+          onBlur={() => {
+            if (isEditing && !readOnly) {
+              commit();
+              onKeyAction({ kind: 'exit' });
+            }
+          }}
+        >
+          {topic.text}
+        </div>
+        {!readOnly && !isEditing && (
+          <TopicActions
+            topic={topic}
+            onAddChild={onAddChild}
+            onSelect={onSelect}
+            onToggleCollapsed={onToggleCollapsed}
+          />
+        )}
       </div>
-      {!readOnly && !isEditing && (
-        <TopicActions
-          topic={topic}
-          onAddChild={onAddChild}
-          onSelect={onSelect}
-          onToggleCollapsed={onToggleCollapsed}
-        />
-      )}
     </div>
   );
 };

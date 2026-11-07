@@ -25,4 +25,15 @@ describe('Canvas mindmap layout', () => {
     expect(layoutMindmap(topic('root', 'Root', [collapsed])).topics.map((item) => item.id))
       .toEqual(['root', 'branch']);
   });
+
+  it('sizes short topics to their text so branches start near the label', () => {
+    const layout = layoutMindmap(topic('root', 'Root', [
+      topic('short', '度量', [topic('leaf', '定义')]),
+    ]));
+    const short = layout.topics.find((item) => item.id === 'short')!;
+    const leaf = layout.topics.find((item) => item.id === 'leaf')!;
+    // Two CJK glyphs plus padding, not a 90px minimum slot.
+    expect(short.width).toBeLessThan(64);
+    expect(leaf.x - (short.x + short.width)).toBe(64);
+  });
 });

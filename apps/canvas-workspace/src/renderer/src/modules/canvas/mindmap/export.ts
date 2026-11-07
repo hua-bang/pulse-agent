@@ -1,9 +1,13 @@
 import type { CanvasNode, MindmapNodeData } from '../../../types';
-import { layoutMindmap, type MindmapLayout, type LaidOutTopic } from './layout';
+import {
+  layoutMindmap,
+  MINDMAP_FONT_FAMILY as MINDMAP_EXPORT_FONT_FAMILY,
+  type MindmapLayout,
+  type LaidOutTopic,
+} from './layout';
 
 const EXPORT_MARGIN = 28;
 const EXPORT_SCALE = 2;
-const MINDMAP_EXPORT_FONT_FAMILY = '"Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
 export interface MindmapImageExport {
   data: string;
@@ -27,8 +31,7 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
   const fontSize = isRoot ? 20 : 14;
   const fontWeight = isRoot ? 500 : 400;
   const paddingX = isRoot ? 13 : 11;
-  const toggleReserve = !isRoot && topic.hasChildren ? 12 : 0;
-  const availableWidth = Math.max(1, topic.width - paddingX * 2 - toggleReserve);
+  const availableWidth = Math.max(1, topic.width - paddingX * 2);
   const lineHeight = fontSize * 1.3;
   const lines = isRoot
     ? [getTopicLabel(topic)]
@@ -48,10 +51,11 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
     ctx.fillText(line, x, firstLineY + index * lineHeight, availableWidth);
   });
 
-  if (!isRoot && topic.hasChildren) {
+  // Like the canvas, only a collapsed topic shows its dot, just past the text.
+  if (!isRoot && topic.hasChildren && topic.collapsed) {
     ctx.beginPath();
-    ctx.arc(topic.x + topic.width - 2, topic.y + topic.height / 2 + 3, 3, 0, Math.PI * 2);
-    ctx.globalAlpha = topic.collapsed ? 0.9 : 0.18;
+    ctx.arc(topic.x + topic.width + 6, topic.y + topic.height / 2, 3, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = topic.color;
     ctx.fill();
     ctx.globalAlpha = 1;
