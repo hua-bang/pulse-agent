@@ -69,7 +69,7 @@ export type CanvasRootViewProps = Pick<
   openShortcuts: () => void;
   paletteCommands: ReturnType<typeof useCanvasPaletteCommands>;
   resetTransform: () => void;
-  resizeNode: (id: string, width: number, height: number) => void;
+  resizeNode: (id: string, width: number, height: number, x?: number, y?: number) => void;
   settledScale: number;
   search: ReturnType<typeof useCanvasSearch>;
   searchOpen: boolean;

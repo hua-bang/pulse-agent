@@ -65,9 +65,12 @@ export interface LayoutOptions {
   /** Logical topic box height (used when a topic's rendered height is
    *  unknown). In v1 every topic is a single-line pill. */
   topicHeight?: number;
+  /** Text being typed into a topic. Sizes that topic's slot from the
+   *  draft so the tree makes room while editing; `text` stays stored. */
+  draft?: { id: string; text: string } | null;
 }
 
-const DEFAULT_OPTS: Required<LayoutOptions> = {
+const DEFAULT_OPTS: Required<Omit<LayoutOptions, 'draft'>> = {
   hGap: 64,
   vGap: 14,
   topicWidth: 180,
@@ -104,26 +107,12 @@ const CJK = '\\u3000-\\u9fff\\uff00-\\uffef\\u3040-\\u30ff';
 const CJK_RANGE = new RegExp(`[${CJK}]`);
 // One CJK glyph, a word with its trailing spaces, or a run of spaces.
 const WRAP_TOKEN = new RegExp(`[${CJK}]|[^\\s${CJK}]+\\s*|\\s+`, 'g');
-const estimateTextWidth = (text: string, fontSize: number): number => {
-  let width = 0;
-  for (const ch of text) {
-    width += CJK_RANGE.test(ch) ? fontSize * 1.05 : fontSize * 0.65;
-  }
-  return width;
-};
+const estimateTextWidth = (text: string, fontSize: number): number =>
+  text.length * fontSize * (CJK_RANGE.test(text) ? 1.05 : 0.65);
 
 let measureContext: CanvasRenderingContext2D | null | undefined;
-const getMeasureContext = (): CanvasRenderingContext2D | null => {
-  if (measureContext !== undefined) return measureContext;
-  measureContext = null;
-  if (typeof document === 'undefined') return null;
-  try {
-    measureContext = document.createElement('canvas').getContext('2d');
-  } catch {
-    measureContext = null;
-  }
-  return measureContext;
-};
+const getMeasureContext = () =>
+  (measureContext ??= typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d'));
 
 /**
  * Measure the rendered width of a topic label. Uses canvas `measureText`
@@ -134,38 +123,41 @@ const getMeasureContext = (): CanvasRenderingContext2D | null => {
 const measureTextWidth = (text: string, fontSize: number, fontWeight: number): number => {
   if (!text) return 0;
   const ctx = getMeasureContext();
-  if (!ctx) return estimateTextWidth(text, fontSize);
-  ctx.font = `${fontWeight} ${fontSize}px ${MINDMAP_FONT_FAMILY}`;
+  const font = `${fontWeight} ${fontSize}px ${MINDMAP_FONT_FAMILY}`;
+  // Until the font loads, canvas would measure the fallback face; the
+  // estimate errs wide, so text never wraps early.
+  if (!ctx || document.fonts?.check(font) === false) return estimateTextWidth(text, fontSize);
+  ctx.font = font;
   // `pre-wrap` keeps explicit line breaks; the widest line sets the slot.
   return Math.max(...text.split('\n').map((line) => ctx.measureText(line).width));
 };
 
 /**
- * Count the lines one explicit line takes when wrapped like
- * `.mindmap-topic-text` (`pre-wrap` + `overflow-wrap: break-word`):
- * break between words and between CJK glyphs, and break inside a token
- * only when the token alone is wider than the line.
+ * Wrap a topic label into lines like `.mindmap-topic-text` does
+ * (`pre-wrap` + `overflow-wrap: break-word`): break between words and
+ * between CJK glyphs, and inside a token only when it alone is wider
+ * than the line. Layout counts the lines; image export draws them.
  */
-const countWrappedLines = (line: string, available: number, fontSize: number): number => {
-  const tokens = line.match(WRAP_TOKEN) ?? [];
-  let lines = 1;
-  let used = 0;
-  for (const token of tokens) {
-    const width = measureTextWidth(token, fontSize, 400);
-    // Trailing spaces can hang past the line end, so fit the trimmed token.
-    const fitWidth = measureTextWidth(token.trimEnd(), fontSize, 400);
-    if (used + fitWidth <= available) {
-      used += width;
-      continue;
+export const wrapTopicLines = (text: string, maxWidth: number): string[] => {
+  const fits = (value: string) => measureTextWidth(value.trimEnd(), 14, 400) <= maxWidth;
+  const lines: string[] = [];
+  for (const source of text.split('\n')) {
+    let line = '';
+    for (const token of source.match(WRAP_TOKEN) ?? []) {
+      if (line && !fits(line + token)) {
+        lines.push(line.trimEnd());
+        line = token.trimStart();
+      } else {
+        line += token;
+      }
+      while (line.length > 1 && !fits(line)) {
+        let cut = line.length - 1;
+        while (cut > 1 && !fits(line.slice(0, cut))) cut--;
+        lines.push(line.slice(0, cut));
+        line = line.slice(cut);
+      }
     }
-    if (used > 0) lines += 1;
-    if (fitWidth > available) {
-      const extra = Math.ceil(fitWidth / available) - 1;
-      lines += extra;
-      used = width - extra * available;
-    } else {
-      used = width;
-    }
+    lines.push(line || ' ');
   }
   return lines;
 };
@@ -183,6 +175,8 @@ export const layoutMindmap = (
   opts: LayoutOptions = {},
 ): MindmapLayout => {
   const o = { ...DEFAULT_OPTS, ...opts };
+  const labelOf = (t: MindmapTopic) =>
+    (opts.draft?.id === t.id ? opts.draft.text : t.text) || 'Untitled';
   const topics: LaidOutTopic[] = [];
   const branches: LaidOutBranch[] = [];
 
@@ -195,7 +189,7 @@ export const layoutMindmap = (
     const cached = widthOf.get(t.id);
     if (cached !== undefined) return cached;
     // The root renders with `nowrap`, which shows line breaks as spaces.
-    const text = isRoot ? (t.text || 'Untitled').replace(/\n/g, ' ') : t.text || 'Untitled';
+    const text = isRoot ? labelOf(t).replace(/\n/g, ' ') : labelOf(t);
     // Topic actions (+, fold) float outside the slot, so the slot is only
     // the text plus its padding. This keeps the branch line on the text.
     const measured =
@@ -224,11 +218,9 @@ export const layoutMindmap = (
     const lineHeight = Math.ceil(fontSize * 1.3); // matches .mindmap-topic CSS
     const w = resolveWidth(t, false);
     const available = Math.max(lineHeight, w - TOPIC_HORIZONTAL_PADDING);
-    const text = t.text || 'Untitled';
+    const text = labelOf(t);
     // Count wrapped lines per explicit line, so Shift+Enter breaks add height.
-    const lines = text
-      .split('\n')
-      .reduce((sum, line) => sum + countWrappedLines(line, available, fontSize), 0);
+    const lines = wrapTopicLines(text, available).length;
     // 4px = .mindmap-topic-text top+bottom padding (1px) + a hair of buffer
     // for line-box rounding. Clamp to the default topic slot so single-line
     // topics keep their existing visual rhythm.

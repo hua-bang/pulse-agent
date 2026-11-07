@@ -2,6 +2,7 @@ import type { CanvasNode, MindmapNodeData } from '../../../types';
 import {
   layoutMindmap,
   MINDMAP_FONT_FAMILY as MINDMAP_EXPORT_FONT_FAMILY,
+  wrapTopicLines,
   type MindmapLayout,
   type LaidOutTopic,
 } from './layout';
@@ -35,7 +36,7 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
   const lineHeight = fontSize * 1.3;
   const lines = isRoot
     ? [getTopicLabel(topic)]
-    : wrapText(ctx, getTopicLabel(topic), availableWidth);
+    : wrapTopicLines(getTopicLabel(topic), availableWidth);
 
   ctx.save();
   ctx.fillStyle = '#1f2328';
@@ -65,52 +66,6 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
   }
 
   ctx.restore();
-};
-
-const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-  const sourceLines = text.split(/\r?\n/);
-  const lines: string[] = [];
-
-  for (const sourceLine of sourceLines) {
-    const tokens = tokenizeLine(sourceLine);
-    let line = '';
-    for (const token of tokens) {
-      const next = line ? `${line}${token}` : token.trimStart();
-      if (line && ctx.measureText(next).width > maxWidth) {
-        lines.push(line.trimEnd());
-        line = token.trimStart();
-      } else {
-        line = next;
-      }
-
-      while (ctx.measureText(line).width > maxWidth && line.length > 1) {
-        let cut = line.length - 1;
-        while (cut > 1 && ctx.measureText(line.slice(0, cut)).width > maxWidth) cut--;
-        lines.push(line.slice(0, cut));
-        line = line.slice(cut);
-      }
-    }
-    lines.push(line || ' ');
-  }
-
-  return lines;
-};
-
-const tokenizeLine = (line: string) => {
-  const tokens: string[] = [];
-  let current = '';
-  for (const char of line) {
-    current += char;
-    if (/\s/.test(char)) {
-      tokens.push(current);
-      current = '';
-    } else if (/[^\x00-\xff]/.test(char)) {
-      tokens.push(current);
-      current = '';
-    }
-  }
-  if (current) tokens.push(current);
-  return tokens.length > 0 ? tokens : [''];
 };
 
 const drawBranches = (ctx: CanvasRenderingContext2D, layout: MindmapLayout) => {

@@ -159,10 +159,15 @@
   transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
+/* Mindmap topics fill the node right up to its padding, so actions
+ * inside the box covered the top-right topic and its "+" button. Float
+ * them just above the node instead. The bottom padding bridges the gap,
+ * so moving the pointer up from the node keeps the hover. */
 .mindmap-node-actions {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  bottom: 100%;
+  right: 0;
+  padding-bottom: 4px;
   z-index: 5;
 }
 

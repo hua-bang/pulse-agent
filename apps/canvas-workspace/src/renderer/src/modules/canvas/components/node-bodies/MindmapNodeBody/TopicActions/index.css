@@ -12,20 +12,24 @@
   transition: opacity 120ms ease, transform 120ms ease;
 }
 
+/* Selection only shows the actions while the mindmap itself is selected;
+ * otherwise a deselected map keeps a stray "+" next to its last topic. */
 .mindmap-topic:hover .mindmap-topic-actions,
 .mindmap-topic:focus-within .mindmap-topic-actions,
-.mindmap-topic--selected .mindmap-topic-actions,
+.mindmap-node-body--selected .mindmap-topic--selected .mindmap-topic-actions,
 .mindmap-topic--collapsed .mindmap-topic-actions {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(-50%) translateX(0);
 }
 
-.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--add {
+.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--add,
+.mindmap-node-body:not(.mindmap-node-body--selected) .mindmap-topic--collapsed:not(:hover):not(:focus-within) .mindmap-topic-action--add {
   display: none;
 }
 
-.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--unfold {
+.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--unfold,
+.mindmap-node-body:not(.mindmap-node-body--selected) .mindmap-topic--collapsed:not(:hover):not(:focus-within) .mindmap-topic-action--unfold {
   min-width: 22px;
   width: 22px;
   padding: 0;
@@ -34,7 +38,8 @@
   font-size: 0;
 }
 
-.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--unfold::before {
+.mindmap-topic--collapsed:not(:hover):not(:focus-within):not(.mindmap-topic--selected) .mindmap-topic-action--unfold::before,
+.mindmap-node-body:not(.mindmap-node-body--selected) .mindmap-topic--collapsed:not(:hover):not(:focus-within) .mindmap-topic-action--unfold::before {
   content: "";
   display: block;
   width: 6px;

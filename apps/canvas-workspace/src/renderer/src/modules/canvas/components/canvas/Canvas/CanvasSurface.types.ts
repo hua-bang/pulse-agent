@@ -94,7 +94,7 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
    *  whose size is derived from their content (e.g. mindmap auto-fits
    *  to its topic tree) so every typed character doesn't spam the
    *  history stack with a paired text + resize entry. */
-  onAutoResize: (id: string, width: number, height: number) => void;
+  onAutoResize: (id: string, width: number, height: number, x?: number, y?: number) => void;
   onRemove: (id: string) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onExportMindmapImage: (id: string) => void;

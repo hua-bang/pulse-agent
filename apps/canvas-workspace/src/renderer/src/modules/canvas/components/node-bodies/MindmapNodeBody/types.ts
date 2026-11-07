@@ -9,7 +9,7 @@ export interface MindmapNodeBodyProps {
   isOuterDragging?: boolean;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   onSelectNode: (id: string) => void;
-  onAutoResize: (id: string, width: number, height: number) => void;
+  onAutoResize: (id: string, width: number, height: number, x?: number, y?: number) => void;
   onMergeTopic?: (request: MergeMindmapTopicRequest) => boolean;
   onSplitTopic?: (
     sourceNodeId: string,

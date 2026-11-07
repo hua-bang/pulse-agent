@@ -26,7 +26,7 @@ interface MindmapCanvasNodeProps {
   isFullscreen: boolean;
   isSelected: boolean;
   node: CanvasNode;
-  onAutoResize: (id: string, width: number, height: number) => void;
+  onAutoResize: (id: string, width: number, height: number, x?: number, y?: number) => void;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onExportMindmapImage?: (id: string) => void;
   onMergeMindmapTopic?: (request: MergeMindmapTopicRequest) => boolean;

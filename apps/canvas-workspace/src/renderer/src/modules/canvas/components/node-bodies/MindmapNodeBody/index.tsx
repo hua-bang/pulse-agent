@@ -78,6 +78,7 @@ export const MindmapNodeBody = ({
               onSelect={() => controller.selectTopic(topic.id)}
               onEnterEdit={(initialInput) => controller.enterTopicEdit(topic.id, initialInput)}
               onCommitText={(text) => controller.renameTopic(topic.id, text)}
+              onDraftChange={(text) => controller.updateDraft(topic.id, text)}
               onToggleCollapsed={() => controller.toggleTopicCollapsed(topic.id)}
               onKeyAction={(action) => controller.handleTopicKeyAction(topic.id, action)}
               readOnly={readOnly}
