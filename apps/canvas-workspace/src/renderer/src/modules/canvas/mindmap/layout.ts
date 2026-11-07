@@ -100,7 +100,10 @@ export const MINDMAP_FONT_FAMILY =
  * SSR). It biases CJK slightly above 1em so a slot is never narrower
  * than the rendered text, which would wrap the last glyph.
  */
-const CJK_RANGE = /[\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]/;
+const CJK = '\\u3000-\\u9fff\\uff00-\\uffef\\u3040-\\u30ff';
+const CJK_RANGE = new RegExp(`[${CJK}]`);
+// One CJK glyph, a word with its trailing spaces, or a run of spaces.
+const WRAP_TOKEN = new RegExp(`[${CJK}]|[^\\s${CJK}]+\\s*|\\s+`, 'g');
 const estimateTextWidth = (text: string, fontSize: number): number => {
   let width = 0;
   for (const ch of text) {
@@ -144,7 +147,7 @@ const measureTextWidth = (text: string, fontSize: number, fontWeight: number): n
  * only when the token alone is wider than the line.
  */
 const countWrappedLines = (line: string, available: number, fontSize: number): number => {
-  const tokens = line.match(/[\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]|[^\s\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]+\s*|\s+/g) ?? [];
+  const tokens = line.match(WRAP_TOKEN) ?? [];
   let lines = 1;
   let used = 0;
   for (const token of tokens) {
@@ -336,69 +339,21 @@ export const layoutMindmap = (
 
   walk(root, 0, null, 0, 0, ROOT_COLOR);
 
-  // Normalize to a non-negative bounding box so the renderer can
-  // translate directly by (topic.x, topic.y).
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
+  // The walk starts at (0, 0) and every topic sits at or below its
+  // slot's top, so the tree already starts at (0, 0): the first-child
+  // chain ends in a topic whose slot is its own height. Only the far
+  // edges need measuring.
+  let maxX = 0;
+  let maxY = 0;
   for (const t of topics) {
-    if (t.x < minX) minX = t.x;
-    if (t.y < minY) minY = t.y;
-    if (t.x + t.width > maxX) maxX = t.x + t.width;
-    if (t.y + t.height > maxY) maxY = t.y + t.height;
-  }
-  if (!Number.isFinite(minX)) {
-    minX = 0;
-    minY = 0;
-    maxX = o.topicWidth;
-    maxY = o.topicHeight;
-  }
-
-  // Shift so the whole tree starts at (0, 0). Update branch paths by
-  // re-running the same shift on their coordinates.
-  if (minX !== 0 || minY !== 0) {
-    for (const t of topics) {
-      t.x -= minX;
-      t.y -= minY;
-    }
-    for (const b of branches) {
-      b.path = shiftPath(b.path, -minX, -minY);
-    }
+    maxX = Math.max(maxX, t.x + t.width);
+    maxY = Math.max(maxY, t.y + t.height);
   }
 
   return {
     topics,
     branches,
-    width: maxX - minX,
-    height: Math.max(maxY - minY, totalHeight),
+    width: maxX,
+    height: Math.max(maxY, totalHeight),
   };
-};
-
-/**
- * Shift every coordinate in an SVG path command string by (dx, dy).
- * Only used for the M and C commands emitted above, so we can lean on
- * a simple number-token rewrite.
- */
-const shiftPath = (path: string, dx: number, dy: number): string => {
-  const tokens = path.split(/\s+/).filter((t) => t.length > 0);
-  const out: string[] = [];
-  let numberIndex = 0;
-  for (const tok of tokens) {
-    if (tok === 'M' || tok === 'C' || tok === 'L') {
-      out.push(tok);
-      numberIndex = 0;
-      continue;
-    }
-    const cleaned = tok.replace(/,$/, '');
-    const n = Number(cleaned);
-    if (Number.isFinite(n)) {
-      const shifted = numberIndex % 2 === 0 ? n + dx : n + dy;
-      out.push(tok.endsWith(',') ? `${shifted},` : `${shifted}`);
-      numberIndex++;
-    } else {
-      out.push(tok);
-    }
-  }
-  return out.join(' ');
 };

@@ -35,6 +35,7 @@ describe('Canvas mindmap layout', () => {
     // Two CJK glyphs plus padding, not a 90px minimum slot.
     expect(short.width).toBeLessThan(64);
     expect(leaf.x - (short.x + short.width)).toBe(64);
+    expect(Math.min(...layout.topics.map((item) => item.y))).toBe(0);
   });
 
   it('reserves one line per word when long words wrap at word boundaries', () => {
