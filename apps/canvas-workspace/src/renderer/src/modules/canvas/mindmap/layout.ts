@@ -137,6 +137,36 @@ const measureTextWidth = (text: string, fontSize: number, fontWeight: number): n
   return Math.max(...text.split('\n').map((line) => ctx.measureText(line).width));
 };
 
+/**
+ * Count the lines one explicit line takes when wrapped like
+ * `.mindmap-topic-text` (`pre-wrap` + `overflow-wrap: break-word`):
+ * break between words and between CJK glyphs, and break inside a token
+ * only when the token alone is wider than the line.
+ */
+const countWrappedLines = (line: string, available: number, fontSize: number): number => {
+  const tokens = line.match(/[\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]|[^\s\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]+\s*|\s+/g) ?? [];
+  let lines = 1;
+  let used = 0;
+  for (const token of tokens) {
+    const width = measureTextWidth(token, fontSize, 400);
+    // Trailing spaces can hang past the line end, so fit the trimmed token.
+    const fitWidth = measureTextWidth(token.trimEnd(), fontSize, 400);
+    if (used + fitWidth <= available) {
+      used += width;
+      continue;
+    }
+    if (used > 0) lines += 1;
+    if (fitWidth > available) {
+      const extra = Math.ceil(fitWidth / available) - 1;
+      lines += extra;
+      used = width - extra * available;
+    } else {
+      used = width;
+    }
+  }
+  return lines;
+};
+
 const ROOT_MIN_WIDTH = 120;
 const TOPIC_MIN_WIDTH = 36;
 const TOPIC_MAX_WIDTH = 320;
@@ -161,7 +191,8 @@ export const layoutMindmap = (
   const resolveWidth = (t: MindmapTopic, isRoot: boolean): number => {
     const cached = widthOf.get(t.id);
     if (cached !== undefined) return cached;
-    const text = t.text || 'Untitled';
+    // The root renders with `nowrap`, which shows line breaks as spaces.
+    const text = isRoot ? (t.text || 'Untitled').replace(/\n/g, ' ') : t.text || 'Untitled';
     // Topic actions (+, fold) float outside the slot, so the slot is only
     // the text plus its padding. This keeps the branch line on the text.
     const measured =
@@ -194,7 +225,7 @@ export const layoutMindmap = (
     // Count wrapped lines per explicit line, so Shift+Enter breaks add height.
     const lines = text
       .split('\n')
-      .reduce((sum, line) => sum + Math.max(1, Math.ceil(measureTextWidth(line, fontSize, 400) / available)), 0);
+      .reduce((sum, line) => sum + countWrappedLines(line, available, fontSize), 0);
     // 4px = .mindmap-topic-text top+bottom padding (1px) + a hair of buffer
     // for line-box rounding. Clamp to the default topic slot so single-line
     // topics keep their existing visual rhythm.

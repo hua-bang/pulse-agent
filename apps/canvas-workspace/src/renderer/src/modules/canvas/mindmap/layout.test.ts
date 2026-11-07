@@ -36,4 +36,20 @@ describe('Canvas mindmap layout', () => {
     expect(short.width).toBeLessThan(64);
     expect(leaf.x - (short.x + short.width)).toBe(64);
   });
+
+  it('reserves one line per word when long words wrap at word boundaries', () => {
+    const word = 'a'.repeat(18);
+    const layout = layoutMindmap(topic('root', 'Root', [
+      topic('words', Array.from({ length: 5 }, () => word).join(' ')),
+    ]));
+    const words = layout.topics.find((item) => item.id === 'words')!;
+    // 14px * 1.3 line height, five lines, plus 4px padding.
+    expect(words.height).toBeGreaterThanOrEqual(5 * Math.ceil(14 * 1.3) + 4);
+  });
+
+  it('measures a multi-line root as the single line it renders', () => {
+    const single = layoutMindmap(topic('root', 'Central Central Central'));
+    const broken = layoutMindmap(topic('root', 'Central\nCentral\nCentral'));
+    expect(broken.topics[0].width).toBe(single.topics[0].width);
+  });
 });
