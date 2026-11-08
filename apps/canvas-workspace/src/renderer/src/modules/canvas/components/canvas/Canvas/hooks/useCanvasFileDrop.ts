@@ -5,6 +5,7 @@ import { useAppShell } from '../../../../../../shared/appShell';
 import { useI18n } from '../../../../../../i18n';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
 import { saveImageAsNodePatch } from '../../../../runtime/canvasImageFile';
+import { docxToMarkdown } from '../../../../runtime/docxToMarkdown';
 import { findFreeSlot } from './nodePlacement';
 
 type NodePatch = Pick<CanvasNode, 'width' | 'height' | 'title' | 'data'>;
@@ -28,6 +29,8 @@ interface Options {
 
 const DROP_TARGET_CLASS = 'canvas-container--file-drop';
 const TEXT_FILE_PATTERN = /\.(md|markdown|txt)$/i;
+const WORD_FILE_PATTERN = /\.docx$/i;
+const WORD_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 /** Each extra dropped file starts this far below and right of the previous one. */
 const CASCADE_STEP = 32;
 
@@ -39,16 +42,31 @@ const isTextFile = (file: File): boolean => (
   TEXT_FILE_PATTERN.test(file.name) || file.type === 'text/plain' || file.type === 'text/markdown'
 );
 
+const isWordFile = (file: File): boolean => (
+  WORD_FILE_PATTERN.test(file.name) || file.type === WORD_MIME
+);
+
+const isSupported = (file: File): boolean => (
+  file.type.startsWith('image/') || isTextFile(file) || isWordFile(file)
+);
+
 interface DroppedNode {
   type: 'image' | 'file';
   patch: NodePatch;
   options?: Omit<AddNodeOptions, 'nodePatch'>;
 }
 
-/** A dropped text file becomes a note backed by its own new Markdown file. */
+/**
+ * A dropped text file becomes a note backed by its own new Markdown file. A
+ * Word document becomes the same kind of note, with its content converted to
+ * Markdown; the original .docx stays where it was.
+ */
 const createNote = async (file: File): Promise<DroppedNode> => {
-  const content = await file.text();
-  const title = file.name.replace(TEXT_FILE_PATTERN, '') || file.name;
+  const word = isWordFile(file);
+  const content = word
+    ? docxToMarkdown(new Uint8Array(await file.arrayBuffer()))
+    : await file.text();
+  const title = file.name.replace(word ? WORD_FILE_PATTERN : TEXT_FILE_PATTERN, '') || file.name;
   return {
     type: 'file',
     patch: {
@@ -68,7 +86,7 @@ const createImage = async (canvasId: string, file: File): Promise<DroppedNode | 
 
 /**
  * Files dragged in from the OS land under the pointer: images become image
- * nodes and Markdown or text files become notes. Each file is one undo step.
+ * nodes, and Markdown, text, or Word (.docx) files become notes. Each file is one undo step.
  * Other file types are named in a notice instead of being dropped silently.
  */
 export const useCanvasFileDrop = ({
@@ -107,7 +125,7 @@ export const useCanvasFileDrop = ({
       clearHighlight();
 
       const at = screenToCanvas(event.clientX, event.clientY, container);
-      const supported = files.filter((file) => file.type.startsWith('image/') || isTextFile(file));
+      const supported = files.filter(isSupported);
       const unsupported = files.filter((file) => !supported.includes(file));
       if (unsupported.length > 0) {
         notify({

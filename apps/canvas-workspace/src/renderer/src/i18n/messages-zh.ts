@@ -1139,7 +1139,7 @@ export const zhMessages: MessageCatalog = {
   'canvas.pastedReferencesOne': '已粘贴 1 个引用',
   'canvas.pastedReferencesDescription': '来自其他工作区的节点以引用方式粘贴。',
   'canvas.fileDropUnsupported': '无法添加 {names}',
-  'canvas.fileDropUnsupportedDescription': '画布支持拖入图片、Markdown 或文本文件。',
+  'canvas.fileDropUnsupportedDescription': '画布支持拖入图片、Word（.docx）、Markdown 或文本文件。',
   'canvas.fileDropFailed': '无法添加 {name}',
   'canvas.pastedImageTitle': '图片 · {time}',
   'canvas.saveFailed': '保存失败',

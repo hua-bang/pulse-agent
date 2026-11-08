@@ -1153,7 +1153,7 @@ export const enMessages = {
   'canvas.pastedReferencesOne': 'Pasted 1 reference',
   'canvas.pastedReferencesDescription': 'Nodes copied from another workspace are pasted as references.',
   'canvas.fileDropUnsupported': 'Can’t add {names}',
-  'canvas.fileDropUnsupportedDescription': 'Drop images, Markdown, or text files onto the canvas.',
+  'canvas.fileDropUnsupportedDescription': 'Drop images, Word (.docx), Markdown, or text files onto the canvas.',
   'canvas.fileDropFailed': 'Could not add {name}',
   'canvas.pastedImageTitle': 'Image · {time}',
   'canvas.saveFailed': 'Saving failed',
