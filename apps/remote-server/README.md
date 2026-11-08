@@ -55,7 +55,7 @@ OPENAI_MODEL=
 PORT=3000
 HOST=0.0.0.0
 INTERNAL_API_SECRET=          # Required in production
-REMOTE_ALLOWED_SENDERS=       # Optional allowlist; see "Sender Allowlist"
+REMOTE_ALLOWED_SENDERS=       # Optional allowlist entries; see "Sender Allowlist"
 
 # === Feishu ===
 FEISHU_APP_ID=
@@ -134,13 +134,25 @@ Users can type these as in-channel text in any connected channel:
 
 ## Sender Allowlist
 
-`REMOTE_ALLOWED_SENDERS` controls who can talk to the bot. Leave it empty to allow everyone (default). When it is set, every message from a sender who is not listed is rejected before slash commands or an agent run, and the reply shows the sender's key. Entries are comma-separated:
+The allowlist controls who can talk to the bot. Keep it in a list file:
+
+```json
+// ~/.pulse-coder/allowed-senders.json  (override the path with REMOTE_ALLOWED_SENDERS_FILE)
+{
+  "senders": [
+    { "id": "feishu:user:ou_xxx", "note": "Jasper" },
+    { "id": "feishu:chat:oc_xxx", "note": "external partner group" }
+  ]
+}
+```
 
 - `feishu:user:<open_id>`: one Feishu user, in DMs and in any group. `open_id` is per app, so a new Feishu app means new keys.
 - `feishu:chat:<chat_id>`: every member of one Feishu group, only inside that group. Use this for an external group.
 - `discord:user:<user id>`: one Discord user.
 
-To find a key, set the list (for example to your own key, or any placeholder), send the bot a message, and read the reply or the `[access] rejected` log line. A listed sender gets the full agent, including shell tools, so only list people you trust with the server.
+The file is re-read when it changes, so edits apply to the next message without a restart. `REMOTE_ALLOWED_SENDERS` (comma-separated) adds entries to the file's list. With no file and an empty env var, everyone is allowed (default). A file that exists but is not valid JSON rejects everyone until it is fixed, and logs `[access] cannot parse`.
+
+When the allowlist is active, a message from a sender who is not listed is rejected before slash commands or an agent run. The reply and the `[access] rejected` log line show the sender key and, in a group, the chat key; copy the key into the file. A listed sender gets the full agent, including shell tools, so only list people you trust with the server.
 
 ## Discord Setup
 

@@ -54,11 +54,12 @@ arbitrary agent turns (burn API budget, exfiltrate via `jina_ai_read` /
 memory / `read_linked_session`). Floor = anonymous agent control; ceiling =
 host RCE with secrets.
 
-**Mitigations that exist but are not defaults:** `REMOTE_ALLOWED_SENDERS`
-(`src/core/sender-allowlist.ts`, checked first in `dispatcher.ts`
-`runAgentAsync`) rejects every message whose sender (memoryKey) or Feishu
-group is not listed, before slash commands or an agent run; empty means
-everyone, and a listed sender still gets the full agent. The Docker backend
+**Mitigations that exist but are not defaults:** the sender allowlist
+(`src/core/sender-allowlist.ts`: `~/.pulse-coder/allowed-senders.json` plus
+`REMOTE_ALLOWED_SENDERS`, checked first in `dispatcher.ts` `runAgentAsync`)
+rejects every message whose sender (memoryKey) or Feishu group is not
+listed, before slash commands or an agent run. No list means everyone; an
+unparsable file fails closed; a listed sender still gets the full agent. The Docker backend
 (`runner.ts:137-181`) drops uid:gid and network; switching
 `FEISHU_EVENT_SOURCE=long_connection` removes the inbound webhook entirely
 (Feishu dials out over an app-credentialed WebSocket instead). Neither is
