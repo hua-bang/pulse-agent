@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildFeishuPlatformKey,
+  isFeishuGroupReplyInThread,
   isFeishuGroupSharedContext,
   parseFeishuPlatformKey,
   resolveFeishuSharedTopicId,
+  resolveFeishuThreadRootTopicId,
   resolveFeishuTopicId,
 } from './platform-key.js';
 
@@ -87,5 +89,19 @@ describe('Feishu platform keys', () => {
     expect(isFeishuGroupSharedContext({})).toBe(false);
     expect(isFeishuGroupSharedContext({ FEISHU_GROUP_SHARED_CONTEXT: 'true' })).toBe(true);
     expect(isFeishuGroupSharedContext({ FEISHU_GROUP_SHARED_CONTEXT: 'off' })).toBe(false);
+  });
+
+  it('keys reply-in-thread topics by the topic root, so the first question and follow-ups match', () => {
+    const first = resolveFeishuThreadRootTopicId({ message_id: 'om_q' });
+    const followUp = resolveFeishuThreadRootTopicId({
+      message_id: 'om_follow', thread_id: 'omt_new', root_id: 'om_q', parent_id: 'om_bot',
+    });
+    expect(first).toBe('om_q');
+    expect(followUp).toBe('om_q');
+  });
+
+  it('reads FEISHU_GROUP_REPLY_IN_THREAD', () => {
+    expect(isFeishuGroupReplyInThread({})).toBe(false);
+    expect(isFeishuGroupReplyInThread({ FEISHU_GROUP_REPLY_IN_THREAD: 'true' })).toBe(true);
   });
 });

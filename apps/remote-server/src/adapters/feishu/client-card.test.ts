@@ -63,4 +63,14 @@ describe('Feishu run cards', () => {
     expect(JSON.stringify(card)).not.toContain('"tag":"button"');
     expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
   });
+
+  it('completed card with an answer carries the answer and folded tool details', () => {
+    const card = buildCompletedProcessCard(context, ['read — AGENTS.md'], 'final **answer**');
+    const body = texts(card).join('\n');
+
+    expect(body).toContain('<font color="grey">●</font> **Completed**');
+    expect(body).toContain('final **answer**');
+    expect(body).not.toContain('下面是最终答复');
+    expect(elements(card).some((item) => item.tag === 'collapsible_panel')).toBe(true);
+  });
 });

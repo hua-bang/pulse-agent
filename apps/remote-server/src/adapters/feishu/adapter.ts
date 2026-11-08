@@ -18,13 +18,16 @@ import {
   buildThinkingCard,
   buildProgressCard,
   buildCompletedProcessCard,
+  MAX_CARD_ANSWER_LENGTH,
   buildErrorCard,
 } from './client.js';
 import {
   buildFeishuPlatformKey,
+  isFeishuGroupReplyInThread,
   isFeishuGroupSharedContext,
   parseFeishuPlatformKey,
   resolveFeishuSharedTopicId,
+  resolveFeishuThreadRootTopicId,
   resolveFeishuTopicId,
 } from './platform-key.js';
 import { parseFeishuMessageContent } from './message-content.js';
@@ -117,7 +120,7 @@ export class FeishuAdapter implements PlatformAdapter {
       target.chatId,
       target.chatIdType,
       text,
-      target.chatIdType === 'chat_id' && target.sourceMessageId ? { replyToMessageId: target.sourceMessageId } : undefined,
+      target.chatIdType === 'chat_id' ? buildGroupReplyOptions(target.sourceMessageId) : undefined,
     ).catch((err) => {
       console.error('[feishu] Failed to send card action text:', getErrorMessage(err));
     });
@@ -134,7 +137,7 @@ export class FeishuAdapter implements PlatformAdapter {
       target.chatId,
       target.chatIdType,
       result.message,
-      target.chatIdType === 'chat_id' && target.sourceMessageId ? { replyToMessageId: target.sourceMessageId } : undefined,
+      target.chatIdType === 'chat_id' ? buildGroupReplyOptions(target.sourceMessageId) : undefined,
     ).catch((err) => {
       console.error('[feishu] Failed to send card action result:', getErrorMessage(err));
     });
@@ -190,9 +193,7 @@ export class FeishuAdapter implements PlatformAdapter {
     }
 
     const sharedContext = isGroupChat && isFeishuGroupSharedContext();
-    const topicId = !isGroupChat
-      ? undefined
-      : sharedContext ? resolveFeishuSharedTopicId(message) : resolveFeishuTopicId(message);
+    const topicId = resolveGroupTopicId(message, isGroupChat, sharedContext);
     const platformKey = buildFeishuPlatformKey({
       chatId,
       chatType,
@@ -241,7 +242,7 @@ export class FeishuAdapter implements PlatformAdapter {
           meta.chatId,
           meta.chatIdType,
           `✅ Got it: "${text}"`,
-          meta.chatIdType === 'chat_id' && messageId ? { replyToMessageId: messageId } : undefined,
+          meta.chatIdType === 'chat_id' ? buildGroupReplyOptions(messageId) : undefined,
         ).catch((err) => {
           console.error('[feishu] Failed to send clarification ack:', getErrorMessage(err));
         });
@@ -273,7 +274,7 @@ export class FeishuAdapter implements PlatformAdapter {
     const idType = fallbackMeta.chatIdType;
     const sourceMessageId = fallbackMeta.sourceMessageId;
     const allowReaction = fallbackMeta.allowReaction ?? false;
-    const replyOptions = idType === 'chat_id' && sourceMessageId ? { replyToMessageId: sourceMessageId } : undefined;
+    const replyOptions = idType === 'chat_id' ? buildGroupReplyOptions(sourceMessageId) : undefined;
     const { larkClient } = this;
     const activeRun = getActiveRun(incoming.platformKey);
 
@@ -483,15 +484,19 @@ export class FeishuAdapter implements PlatformAdapter {
         await updateChain;
 
         const doneContext = buildRunCardContext();
-        const processCard = () => buildCompletedProcessCard(doneContext, toolCallSummaries);
+        const answer = result || '✅ Done';
 
-        if (cardMessageId && !isCardUpdateDisabled()) {
-          await tryUpdateCard(processCard, 'done', { allowFinal: true });
+        // Put the answer in the run card so the run ends as one message. Fall back to a
+        // separate text message when the answer is too long for a card or the update fails.
+        const mergedIntoCard = answer.length <= MAX_CARD_ANSWER_LENGTH
+          && await tryUpdateCard(() => buildCompletedProcessCard(doneContext, toolCallSummaries, answer), 'done', { allowFinal: true });
+
+        if (!mergedIntoCard) {
+          await tryUpdateCard(() => buildCompletedProcessCard(doneContext, toolCallSummaries), 'done', { allowFinal: true });
+          await sendTextMessage(larkClient, chatId, idType, answer, replyOptions).catch((err) => {
+            console.error('[feishu] Failed to send final answer text:', err);
+          });
         }
-
-        await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch((err) => {
-          console.error('[feishu] Failed to send final answer text:', err);
-        });
 
         if (sourceMessageId && allowReaction) {
           addMessageReaction(sourceMessageId, 'DONE').catch((reactionErr) => {
@@ -561,6 +566,32 @@ function extractFeishuEvent(body: Record<string, unknown>): Record<string, unkno
   }
 
   return null;
+}
+
+function resolveGroupTopicId(
+  message: Record<string, unknown>,
+  isGroupChat: boolean,
+  sharedContext: boolean,
+): string | undefined {
+  if (!isGroupChat) {
+    return undefined;
+  }
+  if (isFeishuGroupReplyInThread()) {
+    return resolveFeishuThreadRootTopicId(message);
+  }
+  return sharedContext ? resolveFeishuSharedTopicId(message) : resolveFeishuTopicId(message);
+}
+
+/** Group replies quote the source message, and open a topic when FEISHU_GROUP_REPLY_IN_THREAD is on. */
+function buildGroupReplyOptions(
+  sourceMessageId: string | undefined,
+): { replyToMessageId: string; replyInThread?: boolean } | undefined {
+  if (!sourceMessageId) {
+    return undefined;
+  }
+  return isFeishuGroupReplyInThread()
+    ? { replyToMessageId: sourceMessageId, replyInThread: true }
+    : { replyToMessageId: sourceMessageId };
 }
 
 function resolveFeishuChatMeta(input: {
