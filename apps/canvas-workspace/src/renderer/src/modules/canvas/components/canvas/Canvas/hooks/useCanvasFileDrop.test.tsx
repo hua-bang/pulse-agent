@@ -60,7 +60,8 @@ it('turns a dropped Word document into a Markdown note', async () => {
     });
     await act(async () => {
       container.dispatchEvent(fileDrop([word]));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // The converter is imported on demand and inflates asynchronously.
+      await vi.waitFor(() => expect(addNode).toHaveBeenCalled());
     });
 
     expect(notify).not.toHaveBeenCalled();

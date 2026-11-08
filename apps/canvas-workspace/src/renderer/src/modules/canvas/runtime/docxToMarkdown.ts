@@ -1,11 +1,13 @@
-import { strFromU8, unzipSync } from 'fflate';
-
 /**
  * Converts a Word (.docx) file into Markdown so a dropped document becomes an
  * ordinary, editable note. It keeps the structure that matters for reading
  * and for agents: headings, paragraphs, lists, tables, links, and bold,
  * italic, or struck-through text. Images, comments, headers, and footers are
  * left out.
+ *
+ * The file drop loads this module on demand, so it stays out of the startup
+ * bundle. It unzips with the platform's DecompressionStream instead of a
+ * bundled inflate library.
  */
 
 const DOCUMENT_PART = 'word/document.xml';
@@ -362,18 +364,57 @@ const renderBlocks = (blocks: Block[]): string => {
   return parts.join('\n\n');
 };
 
-/** Converts the bytes of a .docx file to Markdown. Throws when the file is not
+const EOCD_SIGNATURE = 0x06054b50;
+const CENTRAL_SIGNATURE = 0x02014b50;
+const LOCAL_SIGNATURE = 0x04034b50;
+const STORED = 0;
+const DEFLATED = 8;
+
+const inflateRaw = async (data: Uint8Array): Promise<Uint8Array> => {
+  const stream = new Blob([new Uint8Array(data)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+};
+
+/** Reads the named entries of a zip archive. Throws when the bytes are not a zip. */
+const readZipEntries = async (bytes: Uint8Array, names: Set<string>): Promise<Map<string, string>> => {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let eocd = bytes.length - 22;
+  while (eocd >= 0 && view.getUint32(eocd, true) !== EOCD_SIGNATURE) eocd -= 1;
+  if (eocd < 0) throw new Error('Not a zip archive');
+  const count = view.getUint16(eocd + 10, true);
+  let offset = view.getUint32(eocd + 16, true);
+  const decoder = new TextDecoder();
+  const result = new Map<string, string>();
+  for (let index = 0; index < count; index += 1) {
+    if (view.getUint32(offset, true) !== CENTRAL_SIGNATURE) throw new Error('Corrupt zip archive');
+    const method = view.getUint16(offset + 10, true);
+    const size = view.getUint32(offset + 20, true);
+    const nameLength = view.getUint16(offset + 28, true);
+    const skip = nameLength + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true);
+    const local = view.getUint32(offset + 42, true);
+    const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
+    offset += 46 + skip;
+    if (!names.has(name)) continue;
+    if (view.getUint32(local, true) !== LOCAL_SIGNATURE) throw new Error('Corrupt zip archive');
+    const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+    const data = bytes.subarray(start, start + size);
+    if (method === STORED) result.set(name, decoder.decode(data));
+    else if (method === DEFLATED) result.set(name, decoder.decode(await inflateRaw(data)));
+  }
+  return result;
+};
+
+/** Converts the bytes of a .docx file to Markdown. Rejects when the file is not
  *  a readable Word document. */
-export const docxToMarkdown = (bytes: Uint8Array): string => {
-  const files = unzipSync(bytes, { filter: (file) => PARTS.has(file.name) });
-  const read = (name: string) => (files[name] ? strFromU8(files[name]) : undefined);
-  const document = parseXml(read(DOCUMENT_PART));
+export const docxToMarkdown = async (bytes: Uint8Array): Promise<string> => {
+  const files = await readZipEntries(bytes, PARTS);
+  const document = parseXml(files.get(DOCUMENT_PART));
   const body = document?.documentElement ? child(document.documentElement, 'body') : undefined;
   if (!body) throw new Error('Not a Word document');
   const ctx: DocxContext = {
-    paragraphStyles: readParagraphStyles(parseXml(read(STYLES_PART))),
-    orderedLevels: readOrderedLevels(parseXml(read(NUMBERING_PART))),
-    links: readLinks(parseXml(read(RELS_PART))),
+    paragraphStyles: readParagraphStyles(parseXml(files.get(STYLES_PART))),
+    orderedLevels: readOrderedLevels(parseXml(files.get(NUMBERING_PART))),
+    links: readLinks(parseXml(files.get(RELS_PART))),
   };
   const blocks: Block[] = [];
   readBlocks(body, ctx, blocks);

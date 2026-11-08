@@ -5,7 +5,6 @@ import { useAppShell } from '../../../../../../shared/appShell';
 import { useI18n } from '../../../../../../i18n';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
 import { saveImageAsNodePatch } from '../../../../runtime/canvasImageFile';
-import { docxToMarkdown } from '../../../../runtime/docxToMarkdown';
 import { findFreeSlot } from './nodePlacement';
 
 type NodePatch = Pick<CanvasNode, 'width' | 'height' | 'title' | 'data'>;
@@ -63,9 +62,14 @@ interface DroppedNode {
  */
 const createNote = async (file: File): Promise<DroppedNode> => {
   const word = isWordFile(file);
-  const content = word
-    ? docxToMarkdown(new Uint8Array(await file.arrayBuffer()))
-    : await file.text();
+  let content: string;
+  if (word) {
+    // Loaded on demand so the converter stays out of the startup bundle.
+    const { docxToMarkdown } = await import('../../../../runtime/docxToMarkdown');
+    content = await docxToMarkdown(new Uint8Array(await file.arrayBuffer()));
+  } else {
+    content = await file.text();
+  }
   const title = file.name.replace(word ? WORD_FILE_PATTERN : TEXT_FILE_PATTERN, '') || file.name;
   return {
     type: 'file',

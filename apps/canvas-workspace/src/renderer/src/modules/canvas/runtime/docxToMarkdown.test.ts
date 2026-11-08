@@ -41,7 +41,7 @@ const listItem = (text: string, numId: number, ilvl = 0) => para(
 );
 
 describe('docxToMarkdown', () => {
-  it('keeps headings, lists, emphasis, links, and tables from a Word document', () => {
+  it('keeps headings, lists, emphasis, links, and tables from a Word document', async () => {
     const body = [
       para(run('成熟 CRM 功能画像'), '<w:pStyle w:val="Title"/>'),
       para(run('一、背景'), '<w:pStyle w:val="1"/>'),
@@ -61,7 +61,7 @@ describe('docxToMarkdown', () => {
       </w:tbl>`,
     ].join('');
 
-    const markdown = docxToMarkdown(docx(body, {
+    const markdown = await docxToMarkdown(docx(body, {
       'word/styles.xml': styles,
       'word/numbering.xml': numbering,
       'word/_rels/document.xml.rels': rels,
@@ -79,32 +79,37 @@ describe('docxToMarkdown', () => {
     ].join('\n\n'));
   });
 
-  it('works without styles or numbering parts and escapes Markdown characters', () => {
-    expect(docxToMarkdown(docx(para(run('a*b_c')) + para('<w:r><w:t>x</w:t><w:br/><w:t>y</w:t></w:r>'))))
+  it('works without styles or numbering parts and escapes Markdown characters', async () => {
+    expect(await docxToMarkdown(docx(para(run('a*b_c')) + para('<w:r><w:t>x</w:t><w:br/><w:t>y</w:t></w:r>'))))
       .toBe('a\\*b\\_c\n\nx  \ny');
   });
 
-  it('keeps literal Markdown syntax in Word text as plain text', () => {
+  it('keeps literal Markdown syntax in Word text as plain text', async () => {
     const lines = ['# 不是标题', '- 不是列表', '1. 不是编号', '---', '&copy; 2026', '> 引用'];
-    expect(docxToMarkdown(docx(lines.map((line) => para(run(line.replace(/&/g, '&amp;').replace(/>/g, '&gt;')))).join(''))))
+    expect(await docxToMarkdown(docx(lines.map((line) => para(run(line.replace(/&/g, '&amp;').replace(/>/g, '&gt;')))).join(''))))
       .toBe('\\# 不是标题\n\n\\- 不是列表\n\n1\\. 不是编号\n\n\\---\n\n\\&copy; 2026\n\n\\> 引用');
   });
 
-  it('percent-encodes parentheses in link targets', () => {
+  it('percent-encodes parentheses in link targets', async () => {
     const linkRels = rels.replace('https://example.com/crm', 'https://example.com/a)b (c');
-    expect(docxToMarkdown(docx(para(`<w:hyperlink r:id="rId9">${run('链接')}</w:hyperlink>`), {
+    expect(await docxToMarkdown(docx(para(`<w:hyperlink r:id="rId9">${run('链接')}</w:hyperlink>`), {
       'word/_rels/document.xml.rels': linkRels,
     }))).toBe('[链接](https://example.com/a%29b%20%28c)');
   });
 
-  it('keeps counting a numbered list across a paragraph between its items', () => {
+  it('keeps counting a numbered list across a paragraph between its items', async () => {
     const body = listItem('第一步', 2) + para(run('说明')) + listItem('第二步', 2);
-    expect(docxToMarkdown(docx(body, { 'word/numbering.xml': numbering })))
+    expect(await docxToMarkdown(docx(body, { 'word/numbering.xml': numbering })))
       .toBe('1. 第一步\n\n说明\n\n2. 第二步');
   });
 
-  it('rejects files that are not Word documents', () => {
-    expect(() => docxToMarkdown(zipSync({ 'readme.txt': strToU8('hi') }))).toThrow();
-    expect(() => docxToMarkdown(strToU8('not a zip'))).toThrow();
+  it('rejects files that are not Word documents', async () => {
+    await expect(docxToMarkdown(zipSync({ 'readme.txt': strToU8('hi') }))).rejects.toThrow();
+    await expect(docxToMarkdown(strToU8('not a zip'))).rejects.toThrow();
+  });
+
+  it('reads stored (uncompressed) zip entries too', async () => {
+    const xml = `<w:document ${W}><w:body>${para(run('原文'))}</w:body></w:document>`;
+    expect(await docxToMarkdown(zipSync({ 'word/document.xml': strToU8(xml) }, { level: 0 }))).toBe('原文');
   });
 });
