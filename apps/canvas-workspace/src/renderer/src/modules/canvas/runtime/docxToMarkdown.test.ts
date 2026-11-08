@@ -75,13 +75,32 @@ describe('docxToMarkdown', () => {
       '- 线索\n    - 公海池\n- 商机\n1. 确认范围\n2. 排期',
       '[参考链接](https://example.com/crm)',
       '新增',
-      '| 模块 | 说明 |\n| --- | --- |\n| 线索 | A\\|B<br>第二行 |',
+      '| 模块 | 说明 |\n| --- | --- |\n| 线索 | A\\|B 第二行 |',
     ].join('\n\n'));
   });
 
   it('works without styles or numbering parts and escapes Markdown characters', () => {
     expect(docxToMarkdown(docx(para(run('a*b_c')) + para('<w:r><w:t>x</w:t><w:br/><w:t>y</w:t></w:r>'))))
       .toBe('a\\*b\\_c\n\nx  \ny');
+  });
+
+  it('keeps literal Markdown syntax in Word text as plain text', () => {
+    const lines = ['# 不是标题', '- 不是列表', '1. 不是编号', '---', '&copy; 2026', '> 引用'];
+    expect(docxToMarkdown(docx(lines.map((line) => para(run(line.replace(/&/g, '&amp;').replace(/>/g, '&gt;')))).join(''))))
+      .toBe('\\# 不是标题\n\n\\- 不是列表\n\n1\\. 不是编号\n\n\\---\n\n\\&copy; 2026\n\n\\> 引用');
+  });
+
+  it('percent-encodes parentheses in link targets', () => {
+    const linkRels = rels.replace('https://example.com/crm', 'https://example.com/a)b (c');
+    expect(docxToMarkdown(docx(para(`<w:hyperlink r:id="rId9">${run('链接')}</w:hyperlink>`), {
+      'word/_rels/document.xml.rels': linkRels,
+    }))).toBe('[链接](https://example.com/a%29b%20%28c)');
+  });
+
+  it('keeps counting a numbered list across a paragraph between its items', () => {
+    const body = listItem('第一步', 2) + para(run('说明')) + listItem('第二步', 2);
+    expect(docxToMarkdown(docx(body, { 'word/numbering.xml': numbering })))
+      .toBe('1. 第一步\n\n说明\n\n2. 第二步');
   });
 
   it('rejects files that are not Word documents', () => {

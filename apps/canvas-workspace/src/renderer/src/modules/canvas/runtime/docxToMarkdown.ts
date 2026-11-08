@@ -41,8 +41,14 @@ interface Segment {
   link?: string;
 }
 
+interface ListInfo {
+  numId: string;
+  level: number;
+  ordered: boolean;
+}
+
 type Block =
-  | { kind: 'paragraph'; text: string; heading?: number; list?: { level: number; ordered: boolean } }
+  | { kind: 'paragraph'; text: string; heading?: number; list?: ListInfo }
   | { kind: 'table'; rows: string[][] };
 
 const children = (element: Element, name?: string): Element[] => (
@@ -157,7 +163,18 @@ const readLinks = (rels: Document | null): Map<string, string> => {
   return result;
 };
 
-const escapeText = (text: string): string => text.replace(/([\\`*_[\]])/g, '\\$1');
+/** Escapes inline Markdown syntax and entity introducers such as `&copy;`. */
+const escapeText = (text: string): string => text.replace(/([\\`*_[\]&])/g, '\\$1');
+
+/** Escapes text at the start of a line that Markdown would read as a block:
+ *  `# heading`, `- item`, `> quote`, `1. item`, `---`, and fences. */
+const escapeLineStarts = (text: string): string => text
+  .replace(/^([ \t]*)(?=#{1,6}(?:[ \t]|$)|>|[+-](?:[ \t]|$)|([=~-])\2)/gm, '$1\\')
+  .replace(/^([ \t]*\d{1,9})([.)])(?=[ \t]|$)/gm, '$1\\$2');
+
+const percentEncode = (char: string): string => (
+  `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+);
 
 /** Collects the text runs of a paragraph, including runs nested in links,
  *  tracked insertions, smart tags, and content controls. Deleted text is skipped. */
@@ -226,7 +243,7 @@ const renderSegments = (segments: Segment[]): string => {
       inner += emphasize(merged[index]);
       index += 1;
     }
-    out += link && inner.trim() ? `[${inner}](${link.replace(/[()\s]/g, encodeURIComponent)})` : inner;
+    out += link && inner.trim() ? `[${inner}](${link.replace(/[()<>\s]/g, percentEncode)})` : inner;
   }
   return out;
 };
@@ -235,7 +252,7 @@ const readParagraph = (p: Element, ctx: DocxContext): Block => {
   const pPr = child(p, 'pPr');
   const segments: Segment[] = [];
   collectSegments(p, ctx, undefined, segments);
-  const text = renderSegments(segments).replace(/[ \t]+\n/g, '\n').trim();
+  const text = escapeLineStarts(renderSegments(segments).replace(/[ \t]+\n/g, '\n').trim());
   const style = ctx.paragraphStyles.get(attr(child(pPr, 'pStyle')) ?? '') ?? {};
   const heading = headingFromOutline(pPr) ?? style.heading;
   const numPr = child(pPr, 'numPr');
@@ -245,7 +262,7 @@ const readParagraph = (p: Element, ctx: DocxContext): Block => {
     return {
       kind: 'paragraph',
       text,
-      list: { level: Number(ilvl) || 0, ordered: ctx.orderedLevels.get(`${numId}:${ilvl}`) ?? false },
+      list: { numId, level: Number(ilvl) || 0, ordered: ctx.orderedLevels.get(`${numId}:${ilvl}`) ?? false },
     };
   }
   return { kind: 'paragraph', text, heading };
@@ -266,7 +283,9 @@ const readCell = (cell: Element, ctx: DocxContext): string => {
     }
   };
   visit(cell);
-  return lines.join('<br>').replace(/\n/g, '<br>').replace(/\|/g, '\\|');
+  // The note renderers disable HTML, so a cell cannot hold `<br>`. Its
+  // paragraphs and line breaks become spaces.
+  return lines.join(' ').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|');
 };
 
 function readTable(table: Element, ctx: DocxContext): string[][] {
@@ -303,7 +322,9 @@ const renderTable = (rows: string[][]): string => {
 const renderBlocks = (blocks: Block[]): string => {
   const parts: string[] = [];
   let listDepth = -1;
-  const counters: Array<{ ordered: boolean; count: number }> = [];
+  // `${numId}:${level}` -> last number used. A Word list keeps counting after
+  // a paragraph or table between its items, so counters live for the document.
+  const counters = new Map<string, number>();
   for (const block of blocks) {
     if (block.kind === 'table') {
       listDepth = -1;
@@ -315,11 +336,16 @@ const renderBlocks = (blocks: Block[]): string => {
     if (block.list) {
       // A list item can nest at most one level below the item before it.
       const level = Math.min(block.list.level, listDepth + 1);
-      // Number ordered items per level; a new list or a deeper item restarts the count.
-      counters.length = listDepth < 0 ? 0 : level + 1;
-      const counter = counters[level]?.ordered === block.list.ordered ? counters[level] : undefined;
-      counters[level] = { ordered: block.list.ordered, count: (counter?.count ?? 0) + 1 };
-      const marker = block.list.ordered ? `${counters[level].count}.` : '-';
+      const { numId, ordered } = block.list;
+      // An item restarts the numbering of the deeper levels of its list.
+      for (const key of Array.from(counters.keys())) {
+        const [id, keyLevel] = key.split(':');
+        if (id === numId && Number(keyLevel) > block.list.level) counters.delete(key);
+      }
+      const key = `${numId}:${block.list.level}`;
+      const count = (counters.get(key) ?? 0) + 1;
+      counters.set(key, count);
+      const marker = ordered ? `${count}.` : '-';
       const body = block.text.replace(/\n/g, `  \n${LIST_INDENT.repeat(level + 1)}`);
       const item = `${LIST_INDENT.repeat(level)}${marker} ${body}`;
       if (listDepth >= 0) parts[parts.length - 1] += `\n${item}`;
