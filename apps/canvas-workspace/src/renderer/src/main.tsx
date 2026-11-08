@@ -1,31 +1,31 @@
-import { createRoot } from "react-dom/client";
-import { Router, type AroundNavHandler } from "wouter";
-import { useHashLocation } from "wouter/use-hash-location";
-import App from "./app/App";
-import "./styles.css";
+import { createRoot } from 'react-dom/client';
+import { Router, type AroundNavHandler } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location';
+import App from './app/App';
+import './styles.css';
 import {
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
-} from "../../plugins/renderer";
-import { installPerfMonitor, markOnce } from "./perf/monitor";
-import { installJankMonitor } from "./perf/jank-monitor";
-import { installBeforeQuitFlush } from "./modules/canvas/document/beforeQuit";
-import { runViewTransition } from "./shared/viewTransition";
-import { installTheme } from "./shared/theme";
-import { getInitialLanguage } from "./i18n";
-import { loadMessages } from "./i18n/messages";
+} from '../../plugins/renderer';
+import { installPerfMonitor, markOnce } from './perf/monitor';
+import { installJankMonitor } from './perf/jank-monitor';
+import { installBeforeQuitFlush } from './modules/canvas/document/beforeQuit';
+import { runViewTransition } from './shared/viewTransition';
+import { installTheme } from './shared/theme';
+import { getInitialLanguage } from './i18n';
+import { loadMessages } from './i18n/messages';
 
 installTheme();
 installPerfMonitor();
 installJankMonitor();
 installBeforeQuitFlush();
-markOnce("renderer:main-start");
+markOnce('renderer:main-start');
 
-const root = document.getElementById("root");
-console.log("Renderer bootstrap", { rootFound: Boolean(root) });
+const root = document.getElementById('root');
+console.log('Renderer bootstrap', { rootFound: Boolean(root) });
 
 if (!root) {
-  throw new Error("Root element not found");
+  throw new Error('Root element not found');
 }
 
 // Activate renderer-side built-in plugins synchronously before the first
@@ -34,7 +34,7 @@ if (!root) {
 activateCanvasPlugins(BUILT_IN_RENDERER_PLUGINS);
 // Federated plugins load after the first render anyway, so their loader is a
 // separate chunk instead of part of the startup entry.
-void import("../../plugins/renderer/federation")
+void import('../../plugins/renderer/federation')
   .then((federation) => federation.activateConfiguredFederatedRendererPlugins())
   .catch((err) => {
     console.error('[canvas-plugins] federated renderer bootstrap failed', err);
@@ -50,11 +50,11 @@ const aroundNav: AroundNavHandler = (navigate, to, options) => {
 void loadMessages(getInitialLanguage())
   .catch((err) => console.error('[i18n] failed to load the initial language', err))
   .then(() => {
-    markOnce("renderer:render-called");
+    markOnce('renderer:render-called');
     createRoot(root).render(
       <Router hook={useHashLocation} aroundNav={aroundNav}>
         <App />
       </Router>,
     );
-    requestAnimationFrame(() => markOnce("renderer:first-frame"));
+    requestAnimationFrame(() => markOnce('renderer:first-frame'));
   });

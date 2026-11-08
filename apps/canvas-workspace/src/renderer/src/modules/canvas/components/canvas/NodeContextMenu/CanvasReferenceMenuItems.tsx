@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useI18n } from "../../../../../i18n";
-import { ChevronRightIcon, NodeTypeIcon } from "../../../../../components/icons";
-import { Button } from "../../../../../components/ui";
-import type { WorkspaceEntry } from "../../../../../shared/workspaces";
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useI18n } from '../../../../../i18n';
+import { ChevronRightIcon, NodeTypeIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 interface Props {
   /** Every workspace except the current canvas. */
@@ -61,15 +61,15 @@ export const CanvasReferenceMenuItems = ({ workspaces, onCreate }: Props) => {
         aria-expanded={position !== null}
         onClick={open}
         onKeyDown={(event) => {
-          if (event.key === "ArrowRight") open();
+          if (event.key === 'ArrowRight') open();
         }}
       >
         <span className="context-menu-icon context-menu-icon--reference">
           <NodeTypeIcon type="reference" size={15} />
         </span>
         <span className="context-menu-label">
-          <strong>{t("canvas.menu.canvasReference")}</strong>
-          <small>{t("canvas.menu.canvasReferenceDesc")}</small>
+          <strong>{t('canvas.menu.canvasReference')}</strong>
+          <small>{t('canvas.menu.canvasReferenceDesc')}</small>
         </span>
         <ChevronRightIcon size={14} className="context-menu-chevron" />
       </Button>
@@ -77,10 +77,10 @@ export const CanvasReferenceMenuItems = ({ workspaces, onCreate }: Props) => {
         <div
           className="context-menu context-menu-submenu"
           role="menu"
-          aria-label={t("canvas.menu.canvasReference")}
+          aria-label={t('canvas.menu.canvasReference')}
           style={position}
         >
-          <div className="context-menu-title">{t("canvas.menu.canvasReferencePick")}</div>
+          <div className="context-menu-title">{t('canvas.menu.canvasReferencePick')}</div>
           {workspaces.map((workspace) => (
             <Button
               key={workspace.id}

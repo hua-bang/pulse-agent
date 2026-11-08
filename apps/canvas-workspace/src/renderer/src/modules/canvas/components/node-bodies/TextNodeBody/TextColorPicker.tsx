@@ -1,7 +1,7 @@
-import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS, resolveTextNodeColor } from "./colorPresets";
-import type { CanvasNode, TextNodeData } from "../../../../../types";
-import { DropdownShell, SwatchRow } from "../../../../../components/ui";
-import { useI18n } from "../../../../../i18n";
+import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS, resolveTextNodeColor } from './colorPresets';
+import type { CanvasNode, TextNodeData } from '../../../../../types';
+import { DropdownShell, SwatchRow } from '../../../../../components/ui';
+import { useI18n } from '../../../../../i18n';
 
 /**
  * Color pickers for the text-node header (text color + background color).
@@ -13,7 +13,7 @@ import { useI18n } from "../../../../../i18n";
  * lives in ./index.tsx, which is now behind a React.lazy boundary.
  */
 
-type PickerKind = "text" | "bg";
+type PickerKind = 'text' | 'bg';
 
 const TextColorTrigger = ({
   node,
@@ -27,15 +27,15 @@ const TextColorTrigger = ({
   const { t } = useI18n();
   const data = node.data as TextNodeData;
 
-  const currentValue = kind === "text" ? data.textColor : data.backgroundColor;
-  const presets = kind === "text" ? TEXT_COLOR_PRESETS : BG_COLOR_PRESETS;
-  const title = kind === "text" ? t('canvas.textStyle.textColor') : t('canvas.textStyle.backgroundColor');
-  const optionLabelKey = kind === "text" ? 'canvas.textStyle.textColorOption' : 'canvas.textStyle.backgroundColorOption';
+  const currentValue = kind === 'text' ? data.textColor : data.backgroundColor;
+  const presets = kind === 'text' ? TEXT_COLOR_PRESETS : BG_COLOR_PRESETS;
+  const title = kind === 'text' ? t('canvas.textStyle.textColor') : t('canvas.textStyle.backgroundColor');
+  const optionLabelKey = kind === 'text' ? 'canvas.textStyle.textColorOption' : 'canvas.textStyle.backgroundColorOption';
 
-  const isTransparent = currentValue === "transparent";
+  const isTransparent = currentValue === 'transparent';
   // The default ink follows the theme, so its dot does too.
-  const dotColor = kind === "text"
-    ? resolveTextNodeColor(currentValue) ?? "var(--text-primary)"
+  const dotColor = kind === 'text'
+    ? resolveTextNodeColor(currentValue) ?? 'var(--text-primary)'
     : currentValue;
 
   return (
@@ -52,7 +52,7 @@ const TextColorTrigger = ({
       trigger={({ open, toggle }) => (
         <button
           type="button"
-          className={`text-color-dot${isTransparent ? " text-color-dot--transparent" : ""}`}
+          className={`text-color-dot${isTransparent ? ' text-color-dot--transparent' : ''}`}
           style={{ backgroundColor: isTransparent ? undefined : dotColor }}
           title={title}
           aria-label={title}
@@ -70,7 +70,7 @@ const TextColorTrigger = ({
             toggle();
           }}
         >
-          {kind === "text" && <span className="text-color-dot-glyph">A</span>}
+          {kind === 'text' && <span className="text-color-dot-glyph">A</span>}
         </button>
       )}
     >
@@ -80,12 +80,12 @@ const TextColorTrigger = ({
           options={presets.map((preset) => ({
             value: preset.value,
             label: t(optionLabelKey, { name: preset.name }),
-            isNone: preset.value === "transparent",
+            isNone: preset.value === 'transparent',
           }))}
           value={currentValue}
           onChange={(next) => {
             const patch: Partial<TextNodeData> =
-              kind === "text" ? { textColor: next } : { backgroundColor: next };
+              kind === 'text' ? { textColor: next } : { backgroundColor: next };
             onUpdate(node.id, { data: { ...data, ...patch } });
             close();
           }}

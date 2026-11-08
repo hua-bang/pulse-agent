@@ -6,8 +6,8 @@ import type {
   PluginNodeData,
   ReferenceNodeData,
   TextNodeData,
-} from "../types";
-import { DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from "../../../shared/canvas-node-defaults";
+} from '../types';
+import { DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from '../../../shared/canvas-node-defaults';
 
 const TEXT_LABEL_MAX_CHARS = 24;
 const NOTE_LABEL_MAX_CHARS = 24;
@@ -26,16 +26,16 @@ const MINDMAP_LABEL_MAX_CHARS = 16;
  * call sites (sidebar, mention picker, etc.).
  */
 export function getNodeDisplayLabel(node: CanvasNode): string {
-  if (node.type === "text") {
+  if (node.type === 'text') {
     const explicitTitle = getNodeSearchTitle(node);
     if (explicitTitle) return explicitTitle;
 
     const preview = textContentPreview((node.data as TextNodeData).content);
     if (preview) return preview;
-    return node.title || "Text";
+    return node.title || 'Text';
   }
 
-  if (node.type === "file") {
+  if (node.type === 'file') {
     // A note nobody renamed is named by its first line, like a text node.
     const title = node.title.trim();
     if (title && !DEFAULT_NOTE_TITLES.has(title)) return node.title;
@@ -43,22 +43,22 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
     return preview || node.title;
   }
 
-  if (node.type === "mindmap") {
+  if (node.type === 'mindmap') {
     const rootText = (node.data as MindmapNodeData).root?.text?.trim();
-    if (!rootText) return node.title || "Mindmap";
+    if (!rootText) return node.title || 'Mindmap';
     return rootText.length <= MINDMAP_LABEL_MAX_CHARS
       ? rootText
       : `${rootText.slice(0, MINDMAP_LABEL_MAX_CHARS)}…`;
   }
 
-  if (node.type === "reference") {
+  if (node.type === 'reference') {
     const data = node.data as ReferenceNodeData;
-    return data.titleSnapshot?.trim() || node.title || "Reference";
+    return data.titleSnapshot?.trim() || node.title || 'Reference';
   }
 
-  if (node.type === "plugin") {
+  if (node.type === 'plugin') {
     const data = node.data as Partial<PluginNodeData>;
-    return node.title?.trim() || data.nodeType || "Plugin node";
+    return node.title?.trim() || data.nodeType || 'Plugin node';
   }
 
   return node.title;
@@ -71,7 +71,7 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
  */
 export function getNodeSearchTitle(node: CanvasNode): string {
   const title = node.title.trim();
-  return node.type === "text" && DEFAULT_TEXT_NODE_TITLES.has(title) ? "" : title;
+  return node.type === 'text' && DEFAULT_TEXT_NODE_TITLES.has(title) ? '' : title;
 }
 
 /**
@@ -86,14 +86,14 @@ export function htmlToPlainText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(?:p|div|li|h[1-6]|blockquote|pre|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
     .replace(/&#0*39;|&apos;/gi, "'")
     // Decode &amp; last so an escaped entity like `&amp;lt;` survives as text.
-    .replace(/&amp;/gi, "&");
+    .replace(/&amp;/gi, '&');
 }
 
 /**
@@ -104,21 +104,21 @@ export function htmlToPlainText(html: string): string {
  * formatting glyph, then keeps the first N chars with an ellipsis if we cut.
  */
 export function textContentPreview(content: string | undefined, maxChars = TEXT_LABEL_MAX_CHARS): string {
-  if (!content) return "";
+  if (!content) return '';
 
   const firstLine = htmlToPlainText(content)
     .split(/\r?\n/)
     .map(line => line.trim())
     .find(line => line.length > 0);
-  if (!firstLine) return "";
+  if (!firstLine) return '';
 
   const stripped = firstLine
-    .replace(/^#{1,6}\s+/, "")
-    .replace(/^[-*+]\s+/, "")
-    .replace(/^>\s+/, "")
-    .replace(/^\d+\.\s+/, "")
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^>\s+/, '')
+    .replace(/^\d+\.\s+/, '')
     .trim();
-  if (!stripped) return "";
+  if (!stripped) return '';
 
   // UTF-16 code-unit length is fine for CJK (BMP, 1 unit per char). It can
   // split surrogate pairs (emoji, rare Han outside BMP) in half — good enough
@@ -129,7 +129,7 @@ export function textContentPreview(content: string | undefined, maxChars = TEXT_
 }
 
 const mindmapOutline = (topic: MindmapTopic, depth = 0): string[] => [
-  `${"  ".repeat(depth)}${depth === 0 ? "" : "- "}${topic.text}`,
+  `${'  '.repeat(depth)}${depth === 0 ? '' : '- '}${topic.text}`,
   // Externally written maps may omit `children` on leaf topics.
   ...(topic.children ?? []).flatMap(child => mindmapOutline(child, depth + 1)),
 ];
@@ -140,11 +140,11 @@ const mindmapOutline = (topic: MindmapTopic, depth = 0): string[] => [
  * yields the content instead of placeholder titles like "Text".
  */
 export function nodeClipboardText(node: CanvasNode): string {
-  if (node.type === "text") {
-    const text = htmlToPlainText((node.data as TextNodeData).content ?? "").trim();
+  if (node.type === 'text') {
+    const text = htmlToPlainText((node.data as TextNodeData).content ?? '').trim();
     if (text) return text;
   }
-  if (node.type === "mindmap") {
+  if (node.type === 'mindmap') {
     const root = (node.data as MindmapNodeData).root;
     if (root) return mindmapOutline(root).join("\n");
   }

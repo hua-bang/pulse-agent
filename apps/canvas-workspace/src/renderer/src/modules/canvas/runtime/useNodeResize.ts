@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { CanvasNode, TextNodeData } from "../../../types";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CanvasNode, TextNodeData } from '../../../types';
 
 const DEFAULT_MIN_WIDTH = 200;
 const DEFAULT_MIN_HEIGHT = 120;
 
 export type ResizeEdge =
-  | "right"
-  | "bottom"
-  | "bottom-right"
-  | "left"
-  | "top"
-  | "top-left"
-  | "top-right"
-  | "bottom-left";
+  | 'right'
+  | 'bottom'
+  | 'bottom-right'
+  | 'left'
+  | 'top'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left';
 
 const hasRightEdge = (edge: ResizeEdge): boolean =>
-  edge === "right" || edge === "top-right" || edge === "bottom-right";
+  edge === 'right' || edge === 'top-right' || edge === 'bottom-right';
 const hasLeftEdge = (edge: ResizeEdge): boolean =>
-  edge === "left" || edge === "top-left" || edge === "bottom-left";
+  edge === 'left' || edge === 'top-left' || edge === 'bottom-left';
 const hasBottomEdge = (edge: ResizeEdge): boolean =>
-  edge === "bottom" || edge === "bottom-left" || edge === "bottom-right";
+  edge === 'bottom' || edge === 'bottom-left' || edge === 'bottom-right';
 const hasTopEdge = (edge: ResizeEdge): boolean =>
-  edge === "top" || edge === "top-left" || edge === "top-right";
+  edge === 'top' || edge === 'top-left' || edge === 'top-right';
 
 export interface NodeResizePreview {
   id: string;
