@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildFeishuPlatformKey,
+<<<<<<< HEAD
   isFeishuGroupReplyInThread,
   isFeishuGroupSharedContext,
   parseFeishuPlatformKey,
   resolveFeishuSharedTopicId,
   resolveFeishuThreadRootTopicId,
+=======
+  isFeishuGroupSharedContext,
+  parseFeishuPlatformKey,
+  resolveFeishuSharedTopicId,
+>>>>>>> origin/claude/project-thread-8oecte
   resolveFeishuTopicId,
 } from './platform-key.js';
 
@@ -90,6 +96,7 @@ describe('Feishu platform keys', () => {
     expect(isFeishuGroupSharedContext({ FEISHU_GROUP_SHARED_CONTEXT: 'true' })).toBe(true);
     expect(isFeishuGroupSharedContext({ FEISHU_GROUP_SHARED_CONTEXT: 'off' })).toBe(false);
   });
+<<<<<<< HEAD
 
   it('keys reply-in-thread topics by the topic root, so the first question and follow-ups match', () => {
     const first = resolveFeishuThreadRootTopicId({ message_id: 'om_q' });
@@ -104,4 +111,6 @@ describe('Feishu platform keys', () => {
     expect(isFeishuGroupReplyInThread({})).toBe(false);
     expect(isFeishuGroupReplyInThread({ FEISHU_GROUP_REPLY_IN_THREAD: 'true' })).toBe(true);
   });
+=======
+>>>>>>> origin/claude/project-thread-8oecte
 });

@@ -22,11 +22,17 @@ import {
 } from './client.js';
 import {
   buildFeishuPlatformKey,
+<<<<<<< HEAD
   isFeishuGroupReplyInThread,
   isFeishuGroupSharedContext,
   parseFeishuPlatformKey,
   resolveFeishuSharedTopicId,
   resolveFeishuThreadRootTopicId,
+=======
+  isFeishuGroupSharedContext,
+  parseFeishuPlatformKey,
+  resolveFeishuSharedTopicId,
+>>>>>>> origin/claude/project-thread-8oecte
   resolveFeishuTopicId,
 } from './platform-key.js';
 import { parseFeishuMessageContent } from './message-content.js';
@@ -192,7 +198,13 @@ export class FeishuAdapter implements PlatformAdapter {
     }
 
     const sharedContext = isGroupChat && isFeishuGroupSharedContext();
+<<<<<<< HEAD
     const topicId = resolveGroupTopicId(message, isGroupChat, sharedContext);
+=======
+    const topicId = !isGroupChat
+      ? undefined
+      : sharedContext ? resolveFeishuSharedTopicId(message) : resolveFeishuTopicId(message);
+>>>>>>> origin/claude/project-thread-8oecte
     const platformKey = buildFeishuPlatformKey({
       chatId,
       chatType,

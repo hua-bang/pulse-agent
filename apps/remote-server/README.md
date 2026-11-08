@@ -65,7 +65,10 @@ FEISHU_VERIFICATION_TOKEN=
 FEISHU_EVENT_SOURCE=webhook  # webhook (default), long_connection, or both
 FEISHU_ENABLE_REACTIONS=     # Optional: true, false, or group; default false
 FEISHU_GROUP_SHARED_CONTEXT= # Optional: true = shared group context; see "Feishu Setup"
+<<<<<<< HEAD
 FEISHU_GROUP_REPLY_IN_THREAD= # Optional: true = answer group messages in a topic; see "Feishu Setup"
+=======
+>>>>>>> origin/claude/project-thread-8oecte
 
 # === Discord ===
 DISCORD_PUBLIC_KEY=
@@ -134,7 +137,10 @@ Users can type these as in-channel text in any connected channel:
    ```
    - `FEISHU_EVENT_SOURCE=both`: start the long-connection client while keeping webhook ingestion active for migration. Duplicate events with the same `message_id` are ignored in-process.
 6. Optional, group context: by default each member has their own context in a group (keyed by group, topic, and user; a top-level message starts its own topic). Set `FEISHU_GROUP_SHARED_CONTEXT=true` to let members share one context: per Feishu topic (`thread_id`) when the message is in a topic, otherwise one context for the whole group, including quote replies. In shared mode, each message reaches the model as `[sender: <open_id>] <text>`, only one run per context can be active (others get the busy reply), and `/new` or `/clear` resets the context for everyone. Long-term memory stays per user. Changing the setting starts new sessions, because the session keys change.
+<<<<<<< HEAD
 7. Optional, topic replies: set `FEISHU_GROUP_REPLY_IN_THREAD=true` to make the bot answer every group message inside a Feishu topic (`reply_in_thread`). Each topic is one context, keyed by the topic's first message (`root_id`, or the message's own id for the first question), so the question and its follow-ups stay together and different topics run in parallel. Combine it with `FEISHU_GROUP_SHARED_CONTEXT=true` to let every member of a topic share that context; without it, each member keeps their own context inside the topic. In this mode there is no group-wide context.
+=======
+>>>>>>> origin/claude/project-thread-8oecte
 
 ## Sender Allowlist
 
