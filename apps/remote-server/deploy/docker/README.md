@@ -51,6 +51,25 @@ REMOTE_SERVER_NPM_GLOBALS="@zed-industries/claude-agent-acp @zed-industries/code
   docker compose up -d --build
 ```
 
+### Feishu docs through `lark-cli` (bot identity)
+
+The `lark_cli` agent tool runs the official `lark-cli`. Install it at build
+time and configure it once with the bot app credentials. The config is stored
+in the home volume (`~/.lark-cli`, `~/.local/share/lark-cli`), so it survives
+rebuilds.
+
+```bash
+REMOTE_SERVER_NPM_GLOBALS="@larksuite/cli" docker compose up -d --build
+docker compose exec remote-server sh -c \
+  'printenv FEISHU_APP_SECRET | lark-cli config init --app-id "$FEISHU_APP_ID" --app-secret-stdin --brand feishu'
+docker compose exec remote-server lark-cli docs +fetch --as bot --doc "<doc URL>"
+```
+
+Bot identity needs no browser login. It reads only what the app can reach:
+enable the read scopes for docs/wiki/drive on the app in the Feishu developer
+console, and share each document (or wiki space) with the app. Give the app
+read scopes only, because any agent run can call `lark_cli`.
+
 ## Configuration notes
 
 - `compose.yml` sets `NODE_ENV=production`, `HOST=0.0.0.0` (inside the
