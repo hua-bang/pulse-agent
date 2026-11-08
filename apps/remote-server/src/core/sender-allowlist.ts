@@ -15,8 +15,10 @@ import type { IncomingMessage } from './types.js';
  *
  * An entry matches a sender by memoryKey (`feishu:user:<open_id>`,
  * `discord:user:<user id>`) or a whole Feishu group (`feishu:chat:<chat_id>`).
- * When both sources are empty or missing, every sender is allowed (previous
- * behavior). A list file that exists but cannot be parsed allows nobody.
+ * When the file is missing and the env list is empty, every sender is allowed
+ * (previous behavior). A file that exists turns the allowlist on, even with an
+ * empty list (`{"senders": []}` allows nobody). A file that cannot be parsed
+ * allows nobody.
  * An allowed sender gets the full agent; there is no per-tool restriction.
  */
 export const ALLOWED_SENDERS_ENV = 'REMOTE_ALLOWED_SENDERS';
@@ -82,8 +84,11 @@ export function loadAllowedSenders(env: NodeJS.ProcessEnv = process.env): Set<st
   if (fromFile === 'invalid') {
     return 'invalid';
   }
-  const ids = [...(fromFile ?? []), ...parseEnvList(env[ALLOWED_SENDERS_ENV])];
-  return ids.length > 0 ? new Set(ids) : null;
+  const fromEnv = parseEnvList(env[ALLOWED_SENDERS_ENV]);
+  if (fromFile === null && fromEnv.length === 0) {
+    return null;
+  }
+  return new Set([...(fromFile ?? []), ...fromEnv]);
 }
 
 /** Keys that identify this message's sender and, for Feishu groups, its chat. */

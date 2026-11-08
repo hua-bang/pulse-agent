@@ -150,7 +150,7 @@ The allowlist controls who can talk to the bot. Keep it in a list file:
 - `feishu:chat:<chat_id>`: every member of one Feishu group, only inside that group. Use this for an external group.
 - `discord:user:<user id>`: one Discord user.
 
-The file is re-read when it changes, so edits apply to the next message without a restart. `REMOTE_ALLOWED_SENDERS` (comma-separated) adds entries to the file's list. With no file and an empty env var, everyone is allowed (default). A file that exists but is not valid JSON rejects everyone until it is fixed, and logs `[access] cannot parse`.
+The file is re-read when it changes, so edits apply to the next message without a restart. `REMOTE_ALLOWED_SENDERS` (comma-separated) adds entries to the file's list. With no file and an empty env var, everyone is allowed (default). A file that exists turns the allowlist on, even when its list is empty: start with `{"senders": []}`, message the bot, and copy the key from the reply. A file that exists but is not valid JSON rejects everyone until it is fixed, and logs `[access] cannot parse`.
 
 When the allowlist is active, a message from a sender who is not listed is rejected before slash commands or an agent run. The reply and the `[access] rejected` log line show the sender key and, in a group, the chat key; copy the key into the file. A listed sender gets the full agent, including shell tools, so only list people you trust with the server.
 

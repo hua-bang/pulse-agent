@@ -59,6 +59,11 @@ describe('sender allowlist', () => {
     expect(isSenderAllowed({ platformKey: 'feishu:ou_owner', memoryKey: 'feishu:user:ou_owner' }, withEnv)).toBe(true);
   });
 
+  it('turns the allowlist on when the file exists, even with an empty list', () => {
+    writeList({ senders: [] }, 1000);
+    expect(isSenderAllowed(dm, env)).toBe(false);
+  });
+
   it('rejects everyone when the list file is malformed', () => {
     writeList('{ not json', 1000);
     expect(isSenderAllowed(dm, { ...env, REMOTE_ALLOWED_SENDERS: 'feishu:user:ou_guest' })).toBe(false);
