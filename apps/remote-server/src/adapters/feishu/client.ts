@@ -645,19 +645,64 @@ function statusDot(status: string): string {
   return purple('●');
 }
 
-function renderToolLine(toolCall: string): string {
+/** Longest tool timeline shown in the folded panel; the rest collapse into one "more" row. */
+const MAX_TOOL_TIMELINE_ROWS = 12;
+/** Tool names named in the folded panel header; the rest count as "others". */
+const MAX_TOOL_SUMMARY_NAMES = 3;
+
+function toolTitle(toolCall: string): { title: string; detail: string } {
   const { name, detail } = splitToolSummary(toolCall);
-  const title = titleizeToolName(name || 'tool');
-  return detail ? `${title} · ${detail}` : title;
+  return { title: titleizeToolName(name || 'tool'), detail };
+}
+
+function times(count: number): string {
+  return count > 1 ? ` ×${count}` : '';
+}
+
+/**
+ * Header line of the folded tool panel, e.g. `Called tools 22 times · Bash ×18 · Read ×2 · 1 other`.
+ * It names the most used tools, so the folded card is useful without expanding it.
+ */
+function toolSummaryLine(toolCalls: string[]): string {
+  const counts = new Map<string, number>();
+  for (const toolCall of toolCalls) {
+    const { title } = toolTitle(toolCall);
+    counts.set(title, (counts.get(title) ?? 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const named = ranked.slice(0, MAX_TOOL_SUMMARY_NAMES).map(([title, count]) => `${title}${times(count)}`);
+  const otherCount = ranked.slice(MAX_TOOL_SUMMARY_NAMES).reduce((sum, [, count]) => sum + count, 0);
+  if (otherCount > 0) named.push(`${otherCount} ${otherCount === 1 ? 'other' : 'others'}`);
+  return [toolCountLine(toolCalls.length), ...named].join(' · ');
+}
+
+/** Merges consecutive calls of the same tool into one row, e.g. nine Bash calls in a row -> `Bash ×9`. */
+function toolTimelineRows(toolCalls: string[]): string[] {
+  const runs: Array<{ title: string; detail: string; count: number }> = [];
+  for (const toolCall of toolCalls) {
+    const { title, detail } = toolTitle(toolCall);
+    const last = runs.at(-1);
+    if (last && last.title === title) {
+      last.count += 1;
+      last.detail = detail;
+    } else {
+      runs.push({ title, detail, count: 1 });
+    }
+  }
+
+  const rows = runs.map(({ title, detail, count }) => (
+    count > 1 ? `${title}${times(count)}` : (detail ? `${title} · ${detail}` : title)
+  ));
+  if (rows.length <= MAX_TOOL_TIMELINE_ROWS) return rows;
+
+  // Keep the latest steps: they are the most relevant to the answer.
+  const hidden = rows.length - (MAX_TOOL_TIMELINE_ROWS - 1);
+  return [`… ${hidden} earlier steps`, ...rows.slice(hidden)];
 }
 
 function toolTimeline(toolCalls: string[]): string {
-  return toolCalls
-    .flatMap((toolCall, index) => {
-      const isLast = index === toolCalls.length - 1;
-      const row = `${muted('●')} ${muted(renderToolLine(toolCall))}`;
-      return isLast ? [row] : [row, muted('│')];
-    })
+  return toolTimelineRows(toolCalls)
+    .map((row) => `${muted('●')} ${muted(row)}`)
     .join('\n');
 }
 
@@ -667,13 +712,28 @@ function toolPanel(toolCalls: string[]): object | undefined {
     tag: 'collapsible_panel',
     expanded: false,
     header: {
-      title: md(muted(toolCountLine(toolCalls.length)), 'notation'),
+      title: md(muted(toolSummaryLine(toolCalls)), 'notation'),
+      // An explicit chevron shows that the row folds; without it the header reads as plain text.
+      icon: {
+        tag: 'standard_icon',
+        token: 'down-small-ccm_outlined',
+        color: 'grey',
+        size: '16px 16px',
+      },
+      icon_position: 'right',
+      icon_expanded_angle: -180,
     },
     elements: [md(toolTimeline(toolCalls), 'notation')],
   };
 }
 
-function buildRunProcessElements(context: RunCardContext, status: string, toolCalls: string[] = [], note?: string): object[] {
+function buildRunProcessElements(
+  context: RunCardContext,
+  status: string,
+  toolCalls: string[] = [],
+  note?: string,
+  answer?: string,
+): object[] {
   const normalizedToolCalls = toolCalls.filter(Boolean);
   const title = stepTitle(status, context, normalizedToolCalls);
   const subtitle = stepSubtitle(status, context.elapsed);
@@ -684,6 +744,8 @@ function buildRunProcessElements(context: RunCardContext, status: string, toolCa
   if (status === '运行中' && context.detailText?.trim()) {
     elements.push(md(clampCardText(context.detailText.trim(), 700), 'normal'));
   }
+  // The final answer sits above the folded tool panel, so it is the first content a reader sees.
+  if (answer !== undefined) elements.push(md(answer.trim() || '✅ Done', 'normal'));
   const foldedTools = toolPanel(normalizedToolCalls);
   if (foldedTools) elements.push(foldedTools);
   return elements;
@@ -727,8 +789,8 @@ export function buildCompletedProcessCard(context: RunCardContext, toolCalls: st
       '已完成',
       normalizedToolCalls,
       stepSubtitle('已完成', context.elapsed),
+      answer,
     );
-    elements.push(md(answer.trim() || '✅ Done', 'normal'));
     return buildCard(undefined, 'green', elements, true);
   }
 
