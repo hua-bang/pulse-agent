@@ -687,7 +687,7 @@ class RemoteSessionStore {
     }
 
     const feishu = parseFeishuPlatformKey(session.platformKey);
-    if (feishu) {
+    if (feishu?.openId) {
       return `feishu:user:${feishu.openId}`;
     }
 

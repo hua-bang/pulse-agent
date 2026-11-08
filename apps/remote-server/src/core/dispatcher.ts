@@ -6,6 +6,7 @@ import { processIncomingCommand } from './chat-commands.js';
 import type { CommandResult } from './chat-commands/types.js';
 import { executeAgentTurn, formatCompactionEvents } from './agent-runner.js';
 import { hasIncomingImageAttachments } from './attachments.js';
+import { isSenderAllowed, senderKeys } from './sender-allowlist.js';
 import {
   hasActiveRun,
   setActiveRun,
@@ -63,6 +64,16 @@ async function runAgentAsync(adapter: PlatformAdapter, incoming: IncomingMessage
   const { platformKey, forceNewSession } = incoming;
   const memoryKey = incoming.memoryKey ?? platformKey;
   let text = incoming.text;
+
+  // Sender allowlist (REMOTE_ALLOWED_SENDERS) gates every message, commands included.
+  if (!isSenderAllowed(incoming)) {
+    const [senderKey, chatKey] = senderKeys(incoming);
+    console.warn(`[access] rejected sender=${senderKey}${chatKey ? ` chat=${chatKey}` : ''} platformKey=${platformKey}`);
+    const handle = await adapter.createStreamHandle(incoming, incoming.streamId ?? randomUUID());
+    const keys = chatKey ? `\`${senderKey}\`（本人）或 \`${chatKey}\`（整个群）` : `\`${senderKey}\``;
+    await handle.onDone(`⛔ 你还没有使用权限。请联系管理员把 ${keys} 加入白名单。`);
+    return;
+  }
 
   // Start streaming feedback early for long-running slash commands (for better UX on Feishu/Telegram)
   let commandHandle: StreamHandle | null = null;

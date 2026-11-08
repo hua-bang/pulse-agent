@@ -1,0 +1,54 @@
+# Isolated container for remote-server. Run from this directory:
+#   cp ../../.env.example remote-server.env   # then fill in secrets
+#   docker compose up -d --build
+# See README.md for the procedure and the features that change in a container.
+name: pulse-remote-server
+
+services:
+  remote-server:
+    build:
+      context: ../../../..
+      dockerfile: apps/remote-server/deploy/docker/remote-server.Dockerfile
+      args:
+        NPM_GLOBALS: ${REMOTE_SERVER_NPM_GLOBALS:-}
+    image: pulse-remote-server:local
+    restart: unless-stopped
+    init: true
+    env_file:
+      - remote-server.env
+    # These override remote-server.env (.env.example sets other defaults).
+    environment:
+      NODE_ENV: production
+      # Must stay 0.0.0.0 inside the container; the host side binds loopback.
+      HOST: 0.0.0.0
+      PORT: '3000'
+      # Outbound WebSocket: no public inbound webhook is needed.
+      FEISHU_EVENT_SOURCE: long_connection
+    ports:
+      - 127.0.0.1:${REMOTE_SERVER_PORT:-3000}:3000
+    # All writable state (~/.pulse-coder/*, caches, cloned repos) lives here.
+    volumes:
+      - remote-server-home:/home/node
+    # Root filesystem is read-only; only the home volume and /tmp are writable.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 2g
+    cpus: 2
+    # Lets the container reach a proxy on the host, e.g. http://host.docker.internal:7890
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - remote-server
+    # Never mount /var/run/docker.sock: it gives the agent root on the host.
+
+networks:
+  remote-server: {}
+
+volumes:
+  remote-server-home: {}

@@ -19,6 +19,10 @@ pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server start
 ```
 
+## Run In Docker
+
+To isolate agent runs from the host, use the hardened container in `deploy/docker/` (non-root user, read-only code, one state volume, loopback-only port). See `deploy/docker/README.md` for setup and for the features that change in a container (`/restart`, `cron_job`, `/internal/*` from the host).
+
 ## Required Configuration
 
 Use local `.env` files for secrets. Do not commit secrets.

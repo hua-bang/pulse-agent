@@ -55,6 +55,7 @@ OPENAI_MODEL=
 PORT=3000
 HOST=0.0.0.0
 INTERNAL_API_SECRET=          # Required in production
+REMOTE_ALLOWED_SENDERS=       # Optional allowlist entries; see "Sender Allowlist"
 
 # === Feishu ===
 FEISHU_APP_ID=
@@ -63,6 +64,7 @@ FEISHU_ENCRYPT_KEY=
 FEISHU_VERIFICATION_TOKEN=
 FEISHU_EVENT_SOURCE=webhook  # webhook (default), long_connection, or both
 FEISHU_ENABLE_REACTIONS=     # Optional: true, false, or group; default false
+FEISHU_GROUP_SHARED_CONTEXT= # Optional: true = shared group context; see "Feishu Setup"
 
 # === Discord ===
 DISCORD_PUBLIC_KEY=
@@ -130,6 +132,29 @@ Users can type these as in-channel text in any connected channel:
    https://your-server/webhooks/feishu
    ```
    - `FEISHU_EVENT_SOURCE=both`: start the long-connection client while keeping webhook ingestion active for migration. Duplicate events with the same `message_id` are ignored in-process.
+6. Optional, group context: by default each member has their own context in a group (keyed by group, topic, and user; a top-level message starts its own topic). Set `FEISHU_GROUP_SHARED_CONTEXT=true` to let members share one context: per Feishu topic (`thread_id`) when the message is in a topic, otherwise one context for the whole group, including quote replies. In shared mode, each message reaches the model as `[sender: <open_id>] <text>`, only one run per context can be active (others get the busy reply), and `/new` or `/clear` resets the context for everyone. Long-term memory stays per user. Changing the setting starts new sessions, because the session keys change.
+
+## Sender Allowlist
+
+The allowlist controls who can talk to the bot. Keep it in a list file:
+
+```json
+// ~/.pulse-coder/allowed-senders.json  (override the path with REMOTE_ALLOWED_SENDERS_FILE)
+{
+  "senders": [
+    { "id": "feishu:user:ou_xxx", "note": "Jasper" },
+    { "id": "feishu:chat:oc_xxx", "note": "external partner group" }
+  ]
+}
+```
+
+- `feishu:user:<open_id>`: one Feishu user, in DMs and in any group. `open_id` is per app, so a new Feishu app means new keys.
+- `feishu:chat:<chat_id>`: every member of one Feishu group, only inside that group. Use this for an external group.
+- `discord:user:<user id>`: one Discord user.
+
+The file is re-read when it changes, so edits apply to the next message without a restart. `REMOTE_ALLOWED_SENDERS` (comma-separated) adds entries to the file's list. With no file and an empty env var, everyone is allowed (default). A file that exists turns the allowlist on, even when its list is empty: start with `{"senders": []}`, message the bot, and copy the key from the reply. A file that exists but is not valid JSON rejects everyone until it is fixed, and logs `[access] cannot parse`.
+
+When the allowlist is active, a message from a sender who is not listed is rejected before slash commands or an agent run. The reply and the `[access] rejected` log line show the sender key and, in a group, the chat key; copy the key into the file. A listed sender gets the full agent, including shell tools, so only list people you trust with the server.
 
 ## Discord Setup
 

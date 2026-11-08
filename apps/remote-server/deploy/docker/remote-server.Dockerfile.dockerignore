@@ -1,0 +1,10 @@
+# Applies to remote-server.Dockerfile (BuildKit per-Dockerfile ignore file).
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+.git
+apps/canvas-workspace
+apps/devtools-web
+apps/remote-server/deploy/docker/*.env

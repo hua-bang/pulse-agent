@@ -20,7 +20,13 @@ import {
   buildCompletedProcessCard,
   buildErrorCard,
 } from './client.js';
-import { buildFeishuPlatformKey, parseFeishuPlatformKey, resolveFeishuTopicId } from './platform-key.js';
+import {
+  buildFeishuPlatformKey,
+  isFeishuGroupSharedContext,
+  parseFeishuPlatformKey,
+  resolveFeishuSharedTopicId,
+  resolveFeishuTopicId,
+} from './platform-key.js';
 import { parseFeishuMessageContent } from './message-content.js';
 
 
@@ -183,13 +189,21 @@ export class FeishuAdapter implements PlatformAdapter {
       if (!text && !hasAttachments) return null;
     }
 
-    const topicId = isGroupChat ? resolveFeishuTopicId(message) : undefined;
+    const sharedContext = isGroupChat && isFeishuGroupSharedContext();
+    const topicId = !isGroupChat
+      ? undefined
+      : sharedContext ? resolveFeishuSharedTopicId(message) : resolveFeishuTopicId(message);
     const platformKey = buildFeishuPlatformKey({
       chatId,
       chatType,
       openId,
       topicId,
+      shared: sharedContext,
     });
+    // Shared context: tell the model who is speaking. Slash commands stay as typed.
+    if (sharedContext && text && !text.trimStart().startsWith('/')) {
+      text = `[sender: ${openId}] ${text}`;
+    }
     const memoryKey = `feishu:user:${openId}`;
 
     if (messageId && shouldAddFeishuReactions(isGroupChat)) {
