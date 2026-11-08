@@ -62,8 +62,10 @@ REMOTE_SERVER_NPM_GLOBALS="@zed-industries/claude-agent-acp @zed-industries/code
 - A proxy on the host is reachable as `host.docker.internal`, for example
   `HTTPS_PROXY=http://host.docker.internal:7890` with `NODE_USE_ENV_PROXY=1`,
   or `DISCORD_PROXY_URL=http://host.docker.internal:7890`.
-- Model config: `~/.pulse-coder/config.json` in the volume, or
-  `/app/.pulse-coder/config.json` from the image.
+- Model config: `PULSE_CODER_MODEL_CONFIG` points to
+  `~/.pulse-coder/config.json` in the volume, so `/model` can write it. A new
+  volume is seeded from `apps/remote-server/.pulse-coder/config.json`; later
+  image builds do not overwrite it.
 - Worktree tools need a git repository. Clone one into the volume (for example
   `/home/node/repos/<name>`) and set `PULSE_CODER_REPO_ROOT` to it.
 
