@@ -24,6 +24,7 @@ interface TopicPillProps {
   onSelect: () => void;
   onEnterEdit: (initialInput?: string) => void;
   onCommitText: (text: string) => void;
+  onDraftChange: (text: string) => void;
   onToggleCollapsed: () => void;
   onKeyAction: (action: KeyAction) => void;
   readOnly?: boolean;
@@ -42,6 +43,7 @@ export const TopicPill = ({
   onSelect,
   onEnterEdit,
   onCommitText,
+  onDraftChange,
   onToggleCollapsed,
   onKeyAction,
   readOnly = false,
@@ -205,7 +207,9 @@ export const TopicPill = ({
     width: topic.width,
     minHeight: topic.height,
     color: 'var(--text)',
-    ['--mindmap-topic-accent' as string]: topic.color,
+    // The root's color is near-black, which tints its selection gray;
+    // let it fall back to the default blue accent instead.
+    ['--mindmap-topic-accent' as string]: isRoot ? undefined : topic.color,
   };
   const isEmpty = !topic.text;
 
@@ -252,35 +256,53 @@ export const TopicPill = ({
       }}
       onKeyDown={handleKeyDown}
     >
-      <div
-        ref={editorRef}
-        className={[
-          'mindmap-topic-text',
-          isEmpty && !isEditing && 'mindmap-topic-text--empty',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        contentEditable={!readOnly && isEditing}
-        suppressContentEditableWarning
-        spellCheck={false}
-        data-placeholder="Untitled"
-        onBlur={() => {
-          if (isEditing && !readOnly) {
-            commit();
-            onKeyAction({ kind: 'exit' });
-          }
-        }}
-      >
-        {topic.text}
+      {/* The label hugs the text, so the floating actions sit right
+          after the last glyph, not at the far edge of the slot. */}
+      <div className="mindmap-topic-label">
+        <div
+          ref={editorRef}
+          className={[
+            'mindmap-topic-text',
+            isEmpty && !isEditing && 'mindmap-topic-text--empty',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          contentEditable={!readOnly && isEditing}
+          suppressContentEditableWarning
+          spellCheck={false}
+          data-placeholder="Untitled"
+          onPaste={(e) => {
+            // Paste plain text on one line, as a topic title. A rich paste
+            // would show styled HTML while editing though only text is
+            // stored. (`plaintext-only` would break the
+            // `[contenteditable="true"]` guards that keep canvas shortcuts
+            // out of text fields.)
+            if (!isEditing) return;
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain').replace(/\s*[\r\n]+\s*/g, ' ');
+            document.execCommand('insertText', false, text);
+          }}
+          onInput={(e) => {
+            if (isEditing) onDraftChange(e.currentTarget.innerText.replace(/\n+$/, ''));
+          }}
+          onBlur={() => {
+            if (isEditing && !readOnly) {
+              commit();
+              onKeyAction({ kind: 'exit' });
+            }
+          }}
+        >
+          {topic.text}
+        </div>
+        {!readOnly && !isEditing && (
+          <TopicActions
+            topic={topic}
+            onAddChild={onAddChild}
+            onSelect={onSelect}
+            onToggleCollapsed={onToggleCollapsed}
+          />
+        )}
       </div>
-      {!readOnly && !isEditing && (
-        <TopicActions
-          topic={topic}
-          onAddChild={onAddChild}
-          onSelect={onSelect}
-          onToggleCollapsed={onToggleCollapsed}
-        />
-      )}
     </div>
   );
 };

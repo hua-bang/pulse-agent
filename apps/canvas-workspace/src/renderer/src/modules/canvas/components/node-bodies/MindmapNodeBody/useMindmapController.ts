@@ -17,12 +17,18 @@ import {
   setTopicText,
   toggleCollapsed,
 } from '../../../mindmap/tree';
-import { layoutMindmap, type LaidOutTopic } from '../../../mindmap/layout';
+import { layoutMindmap, type LaidOutTopic, type MindmapLayout } from '../../../mindmap/layout';
 import type { DropHint, KeyAction, MindmapNodeBodyProps } from './types';
 import {
   startMindmapDrag,
   type MindmapReorderState,
 } from './mindmapDrag';
+
+const MINDMAP_PADDING = 16;
+const nodeSizeFor = (layout: MindmapLayout) => ({
+  width: Math.max(140, Math.ceil(layout.width + MINDMAP_PADDING * 2)),
+  height: Math.max(60, Math.ceil(layout.height + MINDMAP_PADDING * 2)),
+});
 
 export const useMindmapController = ({
   node,
@@ -49,19 +55,37 @@ export const useMindmapController = ({
   const [editingInitialInput, setEditingInitialInput] = useState<string | undefined>();
   const [reorder, setReorder] = useState<MindmapReorderState | null>(null);
   const pendingFocusRef = useRef<string | null>(null);
+  // A topic made by Enter, Tab, or "+" that has not been typed into yet.
+  // Leaving it empty cancels it instead of keeping an "Untitled" topic.
+  const freshTopicRef = useRef<string | null>(null);
+  // Text typed into the editing topic, so layout makes room as you type.
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
 
-  const layout = useMemo(() => layoutMindmap(root), [root]);
-  const padding = 16;
-  const wantedWidth = Math.max(140, Math.ceil(layout.width + padding * 2));
-  const wantedHeight = Math.max(60, Math.ceil(layout.height + padding * 2));
+  const layout = useMemo(
+    () => layoutMindmap(root, { draft: editingId && draft?.id === editingId ? draft : null }),
+    [root, draft, editingId],
+  );
+  const padding = MINDMAP_PADDING;
+  const { width: wantedWidth, height: wantedHeight } = nodeSizeFor(layout);
   const viewportWidth = Math.max(0, node.width - padding * 2);
   const viewportHeight = Math.max(0, node.height - padding * 2);
 
+  // Keep the root still on the canvas. The root is centered on the tree's
+  // height, so growing or shrinking a branch moves it inside the node;
+  // shift the node by the same amount the other way. When the node itself
+  // moved (drag, undo restoring an old snapshot), accept the new spot.
+  const rootY = layout.topics[0]?.y ?? 0;
+  const anchorRef = useRef({ nodeY: node.y, rootY });
   useEffect(() => {
-    if (!readOnly && (node.width !== wantedWidth || node.height !== wantedHeight)) {
-      onAutoResize(node.id, wantedWidth, wantedHeight);
+    const prev = anchorRef.current;
+    const dy = node.y === prev.nodeY ? rootY - prev.rootY : 0;
+    const nextY = node.y - dy;
+    anchorRef.current = { nodeY: nextY, rootY };
+    if (readOnly) return;
+    if (dy !== 0 || node.width !== wantedWidth || node.height !== wantedHeight) {
+      onAutoResize(node.id, wantedWidth, wantedHeight, node.x, nextY);
     }
-  }, [wantedWidth, wantedHeight, node.id, node.width, node.height, onAutoResize, readOnly]);
+  }, [rootY, wantedWidth, wantedHeight, node.id, node.x, node.y, node.width, node.height, onAutoResize, readOnly]);
 
   useEffect(() => {
     const stillExists = findTopicPath(root, selectedId);
@@ -83,15 +107,20 @@ export const useMindmapController = ({
 
   const applyRoot = useCallback(
     (nextRoot: MindmapTopic) => {
+      // Size and anchor the node in the same update as the tree, so the
+      // undo entry pairs this tree with its geometry.
+      const nextLayout = layoutMindmap(nextRoot);
+      const dy = (nextLayout.topics[0]?.y ?? 0) - (layout.topics[0]?.y ?? 0);
       onUpdate(node.id, {
         data: {
           ...data,
           root: nextRoot,
           rev: (data.rev ?? 0) + 1,
         },
+        ...(readOnly ? {} : { y: node.y - dy, ...nodeSizeFor(nextLayout) }),
       });
     },
-    [data, node.id, onUpdate],
+    [data, layout.topics, node.id, node.y, onUpdate, readOnly],
   );
 
   const foldPendingEdit = useCallback(
@@ -111,6 +140,7 @@ export const useMindmapController = ({
       const baseRoot = foldPendingEdit(root, pendingEdit);
       applyRoot(insertChild(baseRoot, parentId, topic, afterId));
       pendingFocusRef.current = id;
+      freshTopicRef.current = id;
     },
     [applyRoot, foldPendingEdit, root],
   );
@@ -207,6 +237,7 @@ export const useMindmapController = ({
     if (!pendingId) return;
     if (findTopicPath(root, pendingId)) {
       setSelectedId(pendingId);
+      setDraft(null);
       setEditingInitialInput(undefined);
       setEditingId(pendingId);
       pendingFocusRef.current = null;
@@ -251,6 +282,7 @@ export const useMindmapController = ({
   const enterTopicEdit = useCallback((topicId: string, initialInput?: string) => {
     setSelectedId(topicId);
     setEditingInitialInput(initialInput);
+    setDraft(initialInput === undefined ? null : { id: topicId, text: initialInput });
     setEditingId(topicId);
     onSelectNode(node.id);
   }, [node.id, onSelectNode]);
@@ -282,12 +314,21 @@ export const useMindmapController = ({
       case 'move':
         moveSelection(topicId, action.dir);
         break;
-      case 'exit':
+      case 'exit': {
+        const typed = draft?.id === topicId ? draft.text : '';
         setEditingInitialInput(undefined);
         setEditingId(null);
+        setDraft(null);
+        if (freshTopicRef.current === topicId && !typed.trim()) removeTopic(topicId);
+        freshTopicRef.current = null;
         break;
+      }
     }
-  }, [addChild, addSibling, moveSelection, readOnly, removeTopic, toggleTopicCollapsed, unindentTopic]);
+  }, [addChild, addSibling, draft, moveSelection, readOnly, removeTopic, toggleTopicCollapsed, unindentTopic]);
+
+  const updateDraft = useCallback((topicId: string, text: string) => {
+    setDraft({ id: topicId, text });
+  }, []);
 
   const getDropHint = useCallback((topicId: string): DropHint => {
     if (!reorder?.target) return null;
@@ -313,6 +354,7 @@ export const useMindmapController = ({
     selectTopic,
     setEditingId,
     toggleTopicCollapsed,
+    updateDraft,
     viewportHeight,
     viewportWidth,
   };

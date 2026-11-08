@@ -65,9 +65,12 @@ export interface LayoutOptions {
   /** Logical topic box height (used when a topic's rendered height is
    *  unknown). In v1 every topic is a single-line pill. */
   topicHeight?: number;
+  /** Text being typed into a topic. Sizes that topic's slot from the
+   *  draft so the tree makes room while editing; `text` stays stored. */
+  draft?: { id: string; text: string } | null;
 }
 
-const DEFAULT_OPTS: Required<LayoutOptions> = {
+const DEFAULT_OPTS: Required<Omit<LayoutOptions, 'draft'>> = {
   hGap: 64,
   vGap: 14,
   topicWidth: 180,
@@ -91,47 +94,89 @@ const BRANCH_COLORS = [
 
 const ROOT_COLOR = '#1F2328';
 
+/** Same stack as `--font-sans`, so measured widths match the DOM. */
+export const MINDMAP_FONT_FAMILY =
+  '"Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
 /**
- * Estimate the rendered pixel width of a topic's text without touching
- * the DOM. We intentionally keep this cheap rather than doing a hidden
- * measure pass — the approximation is accurate enough for layout and
- * stays synchronous, which matters because `layoutMindmap` runs in a
- * `useMemo` on every tree mutation.
- *
- * Real CJK glyphs in the system UI fallback fonts (PingFang / Noto Sans
- * CJK) render at ~1.0em — a touch wider once you account for inter-glyph
- * advance. The earlier 0.98 multiplier was tuned for a hypothetical
- * monospace-leaning font and consistently undersized Chinese topics by a
- * few px, which combined with `overflow-wrap: anywhere` to drop the last
- * character onto a new line. Bias the estimate slightly above 1.0 so the
- * slot is never narrower than the rendered text.
+ * Fallback width estimate for environments without a 2D canvas (tests,
+ * SSR). It biases CJK slightly above 1em so a slot is never narrower
+ * than the rendered text, which would wrap the last glyph.
  */
-const CJK_RANGE = /[　-鿿＀-￯぀-ヿ]/;
-const estimateTextWidth = (text: string, fontSize: number): number => {
+const CJK = '\\u3000-\\u9fff\\uff00-\\uffef\\u3040-\\u30ff';
+const CJK_RANGE = new RegExp(`[${CJK}]`);
+// One CJK glyph, a word with its trailing spaces, or a run of spaces.
+const WRAP_TOKEN = new RegExp(`[${CJK}]|[^\\s${CJK}]+\\s*|\\s+`, 'g');
+const estimateTextWidth = (text: string, fontSize: number): number =>
+  text.length * fontSize * (CJK_RANGE.test(text) ? 1.05 : 0.65);
+
+let measureContext: CanvasRenderingContext2D | null | undefined;
+const getMeasureContext = () =>
+  (measureContext ??= typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d'));
+
+/**
+ * Measure the rendered width of a topic label. Uses canvas `measureText`
+ * with the topic font, so the slot hugs the real text and the branch
+ * line starts where the text ends. This stays synchronous, because
+ * `layoutMindmap` runs in a `useMemo` on every tree mutation.
+ */
+const measureTextWidth = (text: string, fontSize: number, fontWeight: number): number => {
   if (!text) return 0;
-  const hasCJK = CJK_RANGE.test(text);
-  const avg = hasCJK ? fontSize * 1.05 : fontSize * 0.65;
-  return text.length * avg;
+  const ctx = getMeasureContext();
+  const font = `${fontWeight} ${fontSize}px ${MINDMAP_FONT_FAMILY}`;
+  // Until the font loads, canvas would measure the fallback face; the
+  // estimate errs wide, so text never wraps early.
+  if (!ctx || document.fonts?.check(font) === false) return estimateTextWidth(text, fontSize);
+  ctx.font = font;
+  // `pre-wrap` keeps explicit line breaks; the widest line sets the slot.
+  return Math.max(...text.split('\n').map((line) => ctx.measureText(line).width));
+};
+
+/**
+ * Wrap a topic label into lines like `.mindmap-topic-text` does
+ * (`pre-wrap` + `overflow-wrap: break-word`): break between words and
+ * between CJK glyphs, and inside a token only when it alone is wider
+ * than the line. Layout counts the lines; image export draws them.
+ */
+export const wrapTopicLines = (text: string, maxWidth: number): string[] => {
+  const fits = (value: string) => measureTextWidth(value.trimEnd(), 14, 400) <= maxWidth;
+  const lines: string[] = [];
+  for (const source of text.split('\n')) {
+    let line = '';
+    for (const token of source.match(WRAP_TOKEN) ?? []) {
+      if (line && !fits(line + token)) {
+        lines.push(line.trimEnd());
+        line = token.trimStart();
+      } else {
+        line += token;
+      }
+      while (line.length > 1 && !fits(line)) {
+        let cut = line.length - 1;
+        while (cut > 1 && !fits(line.slice(0, cut))) cut--;
+        lines.push(line.slice(0, cut));
+        line = line.slice(cut);
+      }
+    }
+    lines.push(line || ' ');
+  }
+  return lines;
 };
 
 const ROOT_MIN_WIDTH = 120;
-const TOPIC_MIN_WIDTH = 90;
+const TOPIC_MIN_WIDTH = 36;
 const TOPIC_MAX_WIDTH = 320;
 // Horizontal chrome around the text: `.mindmap-topic` has `padding: 0 8px`
 // (16px) and the inner `.mindmap-topic-text` adds `padding: 1px 3px` (6px),
-// for 22px total. Keep a small safety buffer for sub-pixel rounding.
-const TOPIC_HORIZONTAL_PADDING = 24;
-// Width reserved for the collapse/expand toggle rendered next to the text
-// of any non-root topic that has children. The toggle is always present
-// (collapsed → filled dot; expanded → hover ring) so it claims layout
-// space unconditionally, not just in the collapsed state.
-const TOGGLE_RESERVE = 12;
+// for 22px total. Keep a buffer for sub-pixel rounding and late font swaps.
+const TOPIC_HORIZONTAL_PADDING = 26;
 
 export const layoutMindmap = (
   root: MindmapTopic,
   opts: LayoutOptions = {},
 ): MindmapLayout => {
   const o = { ...DEFAULT_OPTS, ...opts };
+  const labelOf = (t: MindmapTopic) =>
+    (opts.draft?.id === t.id ? opts.draft.text : t.text) || 'Untitled';
   const topics: LaidOutTopic[] = [];
   const branches: LaidOutBranch[] = [];
 
@@ -143,18 +188,14 @@ export const layoutMindmap = (
   const resolveWidth = (t: MindmapTopic, isRoot: boolean): number => {
     const cached = widthOf.get(t.id);
     if (cached !== undefined) return cached;
-    const fontSize = isRoot ? 20 : 14;
-    const text = t.text || 'Untitled';
-    // Non-root topics with children render an inline toggle button next
-    // to the text — reserve space for it whether expanded or collapsed,
-    // since the button is always present (the hover-only ring still
-    // claims layout width).
-    const toggleReserve =
-      !isRoot && t.children.length > 0 ? TOGGLE_RESERVE : 0;
-    const estimated =
-      estimateTextWidth(text, fontSize) + TOPIC_HORIZONTAL_PADDING + toggleReserve;
+    // The root renders with `nowrap`, which shows line breaks as spaces.
+    const text = isRoot ? labelOf(t).replace(/\n/g, ' ') : labelOf(t);
+    // Topic actions (+, fold) float outside the slot, so the slot is only
+    // the text plus its padding. This keeps the branch line on the text.
+    const measured =
+      measureTextWidth(text, isRoot ? 20 : 14, isRoot ? 500 : 400) + TOPIC_HORIZONTAL_PADDING;
     const min = isRoot ? ROOT_MIN_WIDTH : TOPIC_MIN_WIDTH;
-    const w = Math.max(min, Math.min(TOPIC_MAX_WIDTH, Math.ceil(estimated)));
+    const w = Math.max(min, Math.min(TOPIC_MAX_WIDTH, Math.ceil(measured)));
     widthOf.set(t.id, w);
     return w;
   };
@@ -176,14 +217,10 @@ export const layoutMindmap = (
     const fontSize = 14;
     const lineHeight = Math.ceil(fontSize * 1.3); // matches .mindmap-topic CSS
     const w = resolveWidth(t, false);
-    const toggleReserve = t.children.length > 0 ? TOGGLE_RESERVE : 0;
-    const available = Math.max(
-      lineHeight,
-      w - TOPIC_HORIZONTAL_PADDING - toggleReserve,
-    );
-    const text = t.text || 'Untitled';
-    const textWidth = estimateTextWidth(text, fontSize);
-    const lines = Math.max(1, Math.ceil(textWidth / available));
+    const available = Math.max(lineHeight, w - TOPIC_HORIZONTAL_PADDING);
+    const text = labelOf(t);
+    // Count wrapped lines per explicit line, so Shift+Enter breaks add height.
+    const lines = wrapTopicLines(text, available).length;
     // 4px = .mindmap-topic-text top+bottom padding (1px) + a hair of buffer
     // for line-box rounding. Clamp to the default topic slot so single-line
     // topics keep their existing visual rhythm.
@@ -294,69 +331,21 @@ export const layoutMindmap = (
 
   walk(root, 0, null, 0, 0, ROOT_COLOR);
 
-  // Normalize to a non-negative bounding box so the renderer can
-  // translate directly by (topic.x, topic.y).
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
+  // The walk starts at (0, 0) and every topic sits at or below its
+  // slot's top, so the tree already starts at (0, 0): the first-child
+  // chain ends in a topic whose slot is its own height. Only the far
+  // edges need measuring.
+  let maxX = 0;
+  let maxY = 0;
   for (const t of topics) {
-    if (t.x < minX) minX = t.x;
-    if (t.y < minY) minY = t.y;
-    if (t.x + t.width > maxX) maxX = t.x + t.width;
-    if (t.y + t.height > maxY) maxY = t.y + t.height;
-  }
-  if (!Number.isFinite(minX)) {
-    minX = 0;
-    minY = 0;
-    maxX = o.topicWidth;
-    maxY = o.topicHeight;
-  }
-
-  // Shift so the whole tree starts at (0, 0). Update branch paths by
-  // re-running the same shift on their coordinates.
-  if (minX !== 0 || minY !== 0) {
-    for (const t of topics) {
-      t.x -= minX;
-      t.y -= minY;
-    }
-    for (const b of branches) {
-      b.path = shiftPath(b.path, -minX, -minY);
-    }
+    maxX = Math.max(maxX, t.x + t.width);
+    maxY = Math.max(maxY, t.y + t.height);
   }
 
   return {
     topics,
     branches,
-    width: maxX - minX,
-    height: Math.max(maxY - minY, totalHeight),
+    width: maxX,
+    height: Math.max(maxY, totalHeight),
   };
-};
-
-/**
- * Shift every coordinate in an SVG path command string by (dx, dy).
- * Only used for the M and C commands emitted above, so we can lean on
- * a simple number-token rewrite.
- */
-const shiftPath = (path: string, dx: number, dy: number): string => {
-  const tokens = path.split(/\s+/).filter((t) => t.length > 0);
-  const out: string[] = [];
-  let numberIndex = 0;
-  for (const tok of tokens) {
-    if (tok === 'M' || tok === 'C' || tok === 'L') {
-      out.push(tok);
-      numberIndex = 0;
-      continue;
-    }
-    const cleaned = tok.replace(/,$/, '');
-    const n = Number(cleaned);
-    if (Number.isFinite(n)) {
-      const shifted = numberIndex % 2 === 0 ? n + dx : n + dy;
-      out.push(tok.endsWith(',') ? `${shifted},` : `${shifted}`);
-      numberIndex++;
-    } else {
-      out.push(tok);
-    }
-  }
-  return out.join(' ');
 };

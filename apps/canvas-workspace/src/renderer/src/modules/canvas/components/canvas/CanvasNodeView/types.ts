@@ -43,7 +43,7 @@ export interface CanvasNodeViewProps {
     minHeight?: number
   ) => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>, options?: { history?: boolean }) => void | Promise<void>;
-  onAutoResize: (id: string, width: number, height: number) => void;
+  onAutoResize: (id: string, width: number, height: number, x?: number, y?: number) => void;
   onRemove: (id: string) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onExportMindmapImage?: (id: string) => void;

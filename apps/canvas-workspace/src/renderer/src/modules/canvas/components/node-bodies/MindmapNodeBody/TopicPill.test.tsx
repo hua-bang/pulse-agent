@@ -58,6 +58,7 @@ describe('TopicPill editing', () => {
             setEditing(true);
           }}
           onCommitText={vi.fn()}
+          onDraftChange={vi.fn()}
           onToggleCollapsed={vi.fn()}
           onKeyAction={vi.fn()}
         />
@@ -95,6 +96,7 @@ describe('TopicPill editing', () => {
       onSelect={vi.fn()}
       onEnterEdit={onEnterEdit}
       onCommitText={vi.fn()}
+      onDraftChange={vi.fn()}
       onToggleCollapsed={vi.fn()}
       onKeyAction={vi.fn()}
     /></I18nProvider>));
@@ -143,6 +145,7 @@ describe('TopicPill editing', () => {
           onSelect={vi.fn()}
           onEnterEdit={vi.fn()}
           onCommitText={vi.fn()}
+          onDraftChange={vi.fn()}
           onToggleCollapsed={vi.fn()}
           onKeyAction={vi.fn()}
         />
@@ -175,6 +178,7 @@ describe('TopicPill editing', () => {
             onSelect={vi.fn()}
             onEnterEdit={vi.fn()}
             onCommitText={onCommitText}
+            onDraftChange={vi.fn()}
             onToggleCollapsed={vi.fn()}
             onKeyAction={onKeyAction}
           />

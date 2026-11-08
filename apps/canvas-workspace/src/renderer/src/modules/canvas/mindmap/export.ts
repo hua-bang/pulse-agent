@@ -1,9 +1,14 @@
 import type { CanvasNode, MindmapNodeData } from '../../../types';
-import { layoutMindmap, type MindmapLayout, type LaidOutTopic } from './layout';
+import {
+  layoutMindmap,
+  MINDMAP_FONT_FAMILY as MINDMAP_EXPORT_FONT_FAMILY,
+  wrapTopicLines,
+  type MindmapLayout,
+  type LaidOutTopic,
+} from './layout';
 
 const EXPORT_MARGIN = 28;
 const EXPORT_SCALE = 2;
-const MINDMAP_EXPORT_FONT_FAMILY = '"Lexend Variable", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
 export interface MindmapImageExport {
   data: string;
@@ -27,12 +32,11 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
   const fontSize = isRoot ? 20 : 14;
   const fontWeight = isRoot ? 500 : 400;
   const paddingX = isRoot ? 13 : 11;
-  const toggleReserve = !isRoot && topic.hasChildren ? 12 : 0;
-  const availableWidth = Math.max(1, topic.width - paddingX * 2 - toggleReserve);
+  const availableWidth = Math.max(1, topic.width - paddingX * 2);
   const lineHeight = fontSize * 1.3;
   const lines = isRoot
     ? [getTopicLabel(topic)]
-    : wrapText(ctx, getTopicLabel(topic), availableWidth);
+    : wrapTopicLines(getTopicLabel(topic), availableWidth);
 
   ctx.save();
   ctx.fillStyle = '#1f2328';
@@ -48,10 +52,11 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
     ctx.fillText(line, x, firstLineY + index * lineHeight, availableWidth);
   });
 
-  if (!isRoot && topic.hasChildren) {
+  // Like the canvas, only a collapsed topic shows its dot, just past the text.
+  if (!isRoot && topic.hasChildren && topic.collapsed) {
     ctx.beginPath();
-    ctx.arc(topic.x + topic.width - 2, topic.y + topic.height / 2 + 3, 3, 0, Math.PI * 2);
-    ctx.globalAlpha = topic.collapsed ? 0.9 : 0.18;
+    ctx.arc(topic.x + topic.width + 6, topic.y + topic.height / 2, 3, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = topic.color;
     ctx.fill();
     ctx.globalAlpha = 1;
@@ -61,52 +66,6 @@ const drawTopic = (ctx: CanvasRenderingContext2D, topic: LaidOutTopic) => {
   }
 
   ctx.restore();
-};
-
-const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-  const sourceLines = text.split(/\r?\n/);
-  const lines: string[] = [];
-
-  for (const sourceLine of sourceLines) {
-    const tokens = tokenizeLine(sourceLine);
-    let line = '';
-    for (const token of tokens) {
-      const next = line ? `${line}${token}` : token.trimStart();
-      if (line && ctx.measureText(next).width > maxWidth) {
-        lines.push(line.trimEnd());
-        line = token.trimStart();
-      } else {
-        line = next;
-      }
-
-      while (ctx.measureText(line).width > maxWidth && line.length > 1) {
-        let cut = line.length - 1;
-        while (cut > 1 && ctx.measureText(line.slice(0, cut)).width > maxWidth) cut--;
-        lines.push(line.slice(0, cut));
-        line = line.slice(cut);
-      }
-    }
-    lines.push(line || ' ');
-  }
-
-  return lines;
-};
-
-const tokenizeLine = (line: string) => {
-  const tokens: string[] = [];
-  let current = '';
-  for (const char of line) {
-    current += char;
-    if (/\s/.test(char)) {
-      tokens.push(current);
-      current = '';
-    } else if (/[^\x00-\xff]/.test(char)) {
-      tokens.push(current);
-      current = '';
-    }
-  }
-  if (current) tokens.push(current);
-  return tokens.length > 0 ? tokens : [''];
 };
 
 const drawBranches = (ctx: CanvasRenderingContext2D, layout: MindmapLayout) => {
