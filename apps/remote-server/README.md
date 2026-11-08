@@ -64,6 +64,7 @@ FEISHU_ENCRYPT_KEY=
 FEISHU_VERIFICATION_TOKEN=
 FEISHU_EVENT_SOURCE=webhook  # webhook (default), long_connection, or both
 FEISHU_ENABLE_REACTIONS=     # Optional: true, false, or group; default false
+FEISHU_GROUP_SHARED_CONTEXT= # Optional: true = shared group context; see "Feishu Setup"
 
 # === Discord ===
 DISCORD_PUBLIC_KEY=
@@ -131,6 +132,7 @@ Users can type these as in-channel text in any connected channel:
    https://your-server/webhooks/feishu
    ```
    - `FEISHU_EVENT_SOURCE=both`: start the long-connection client while keeping webhook ingestion active for migration. Duplicate events with the same `message_id` are ignored in-process.
+6. Optional, group context: by default each member has their own context in a group (keyed by group, topic, and user; a top-level message starts its own topic). Set `FEISHU_GROUP_SHARED_CONTEXT=true` to let members share one context: per Feishu topic (`thread_id`) when the message is in a topic, otherwise one context for the whole group, including quote replies. In shared mode, each message reaches the model as `[sender: <open_id>] <text>`, only one run per context can be active (others get the busy reply), and `/new` or `/clear` resets the context for everyone. Long-term memory stays per user. Changing the setting starts new sessions, because the session keys change.
 
 ## Sender Allowlist
 

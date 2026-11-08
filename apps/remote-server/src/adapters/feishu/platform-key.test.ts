@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildFeishuPlatformKey, parseFeishuPlatformKey, resolveFeishuTopicId } from './platform-key.js';
+import {
+  buildFeishuPlatformKey,
+  isFeishuGroupSharedContext,
+  parseFeishuPlatformKey,
+  resolveFeishuSharedTopicId,
+  resolveFeishuTopicId,
+} from './platform-key.js';
 
 describe('Feishu platform keys', () => {
   it('scopes group platform keys by topic when available', () => {
@@ -50,5 +56,36 @@ describe('Feishu platform keys', () => {
       openId: 'ou_user',
       topicId: 'om:root',
     })).toBe('feishu:group:oc_group:topic:om_root:user:ou_user');
+  });
+
+  it('builds shared group keys without a user segment, per topic or per group', () => {
+    const topicKey = buildFeishuPlatformKey({
+      chatId: 'oc_group', chatType: 'group', openId: 'ou_a', topicId: 'omt_topic', shared: true,
+    });
+    const groupKey = buildFeishuPlatformKey({ chatId: 'oc_group', chatType: 'group', openId: 'ou_b', shared: true });
+
+    expect(topicKey).toBe('feishu:group:oc_group:topic:omt_topic');
+    expect(groupKey).toBe('feishu:group:oc_group');
+    expect(parseFeishuPlatformKey(topicKey)).toEqual({ kind: 'group', chatId: 'oc_group', topicId: 'omt_topic' });
+    expect(parseFeishuPlatformKey(groupKey)).toEqual({ kind: 'group', chatId: 'oc_group' });
+    // Direct messages are never shared.
+    expect(buildFeishuPlatformKey({ chatType: 'p2p', openId: 'ou_a', shared: true })).toBe('feishu:ou_a');
+  });
+
+  it('still parses per-user and legacy group keys', () => {
+    expect(parseFeishuPlatformKey('feishu:group:oc_group:user:ou_a')).toEqual({ kind: 'group', chatId: 'oc_group', openId: 'ou_a' });
+    expect(parseFeishuPlatformKey('feishu:group:oc_group:ou_a')).toEqual({ kind: 'group', chatId: 'oc_group', openId: 'ou_a' });
+  });
+
+  it('uses only real topics (thread_id) for shared context', () => {
+    expect(resolveFeishuSharedTopicId({ message_id: 'om_top' })).toBeUndefined();
+    expect(resolveFeishuSharedTopicId({ message_id: 'om_reply', root_id: 'om_top', parent_id: 'om_top' })).toBeUndefined();
+    expect(resolveFeishuSharedTopicId({ message_id: 'om_reply', thread_id: 'omt_topic' })).toBe('omt_topic');
+  });
+
+  it('reads FEISHU_GROUP_SHARED_CONTEXT', () => {
+    expect(isFeishuGroupSharedContext({})).toBe(false);
+    expect(isFeishuGroupSharedContext({ FEISHU_GROUP_SHARED_CONTEXT: 'true' })).toBe(true);
+    expect(isFeishuGroupSharedContext({ FEISHU_GROUP_SHARED_CONTEXT: 'off' })).toBe(false);
   });
 });
