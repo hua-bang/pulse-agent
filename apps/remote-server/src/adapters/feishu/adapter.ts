@@ -18,6 +18,7 @@ import {
   buildThinkingCard,
   buildProgressCard,
   buildCompletedProcessCard,
+  MAX_CARD_ANSWER_LENGTH,
   buildErrorCard,
 } from './client.js';
 import {
@@ -483,15 +484,19 @@ export class FeishuAdapter implements PlatformAdapter {
         await updateChain;
 
         const doneContext = buildRunCardContext();
-        const processCard = () => buildCompletedProcessCard(doneContext, toolCallSummaries);
+        const answer = result || '✅ Done';
 
-        if (cardMessageId && !isCardUpdateDisabled()) {
-          await tryUpdateCard(processCard, 'done', { allowFinal: true });
+        // Put the answer in the run card so the run ends as one message. Fall back to a
+        // separate text message when the answer is too long for a card or the update fails.
+        const mergedIntoCard = answer.length <= MAX_CARD_ANSWER_LENGTH
+          && await tryUpdateCard(() => buildCompletedProcessCard(doneContext, toolCallSummaries, answer), 'done', { allowFinal: true });
+
+        if (!mergedIntoCard) {
+          await tryUpdateCard(() => buildCompletedProcessCard(doneContext, toolCallSummaries), 'done', { allowFinal: true });
+          await sendTextMessage(larkClient, chatId, idType, answer, replyOptions).catch((err) => {
+            console.error('[feishu] Failed to send final answer text:', err);
+          });
         }
-
-        await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch((err) => {
-          console.error('[feishu] Failed to send final answer text:', err);
-        });
 
         if (sourceMessageId && allowReaction) {
           addMessageReaction(sourceMessageId, 'DONE').catch((reactionErr) => {

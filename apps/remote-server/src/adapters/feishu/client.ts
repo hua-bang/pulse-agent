@@ -712,8 +712,26 @@ export function buildProgressCard(context: RunCardContext): object {
   return buildCard(undefined, 'blue', buildProgressElements(context), false);
 }
 
-export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = []): object {
+/** Longest final answer that goes inside the completed card instead of a separate message. */
+export const MAX_CARD_ANSWER_LENGTH = MAX_CARD_TEXT_LENGTH;
+
+/**
+ * Completed run card. With `answer`, the card also carries the final answer, so the
+ * run ends as one message. Without it, the card points to the answer in the next message.
+ */
+export function buildCompletedProcessCard(context: RunCardContext, toolCalls: string[] = [], answer?: string): object {
   const normalizedToolCalls = toolCalls.filter(Boolean);
+  if (answer !== undefined) {
+    const elements = buildRunProcessElements(
+      context,
+      '已完成',
+      normalizedToolCalls,
+      stepSubtitle('已完成', context.elapsed),
+    );
+    elements.push(md(answer.trim() || '✅ Done', 'normal'));
+    return buildCard(undefined, 'green', elements, true);
+  }
+
   const elements = buildRunProcessElements(
     context,
     '已完成',
