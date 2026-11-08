@@ -70,7 +70,8 @@ async function runAgentAsync(adapter: PlatformAdapter, incoming: IncomingMessage
     const [senderKey, chatKey] = senderKeys(incoming);
     console.warn(`[access] rejected sender=${senderKey}${chatKey ? ` chat=${chatKey}` : ''} platformKey=${platformKey}`);
     const handle = await adapter.createStreamHandle(incoming, incoming.streamId ?? randomUUID());
-    await handle.onDone(`⛔ 你还没有使用权限。请联系管理员把 \`${senderKey}\` 加入白名单。`);
+    const keys = chatKey ? `\`${senderKey}\`（本人）或 \`${chatKey}\`（整个群）` : `\`${senderKey}\``;
+    await handle.onDone(`⛔ 你还没有使用权限。请联系管理员把 ${keys} 加入白名单。`);
     return;
   }
 
