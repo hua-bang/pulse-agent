@@ -77,6 +77,22 @@ export function resolveFeishuSharedTopicId(message: Record<string, unknown>): st
   return asNonEmptyString(message.thread_id) ?? undefined;
 }
 
+/** FEISHU_GROUP_REPLY_IN_THREAD: the bot answers group messages inside a Feishu topic. */
+export function isFeishuGroupReplyInThread(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.FEISHU_GROUP_REPLY_IN_THREAD?.trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
+/**
+ * Topic when the bot replies in thread: the topic's first message. The first
+ * question has no root_id (its own message_id), and every later message in the
+ * topic carries root_id = that first message, so both resolve to one key.
+ * thread_id is ignored because the first question has none yet.
+ */
+export function resolveFeishuThreadRootTopicId(message: Record<string, unknown>): string | undefined {
+  return asNonEmptyString(message.root_id) ?? asNonEmptyString(message.message_id) ?? undefined;
+}
+
 export function resolveFeishuTopicId(message: Record<string, unknown>): string | undefined {
   return asNonEmptyString(message.thread_id)
     ?? asNonEmptyString(message.root_id)

@@ -188,6 +188,8 @@ interface DoneCardOptions {
 
 interface SendMessageOptions {
   replyToMessageId?: string;
+  /** Reply as a Feishu topic (thread) under replyToMessageId. */
+  replyInThread?: boolean;
 }
 
 const FEISHU_API_MAX_ATTEMPTS = 3;
@@ -201,6 +203,7 @@ async function replyMessage(
   messageId: string,
   msgType: 'text' | 'interactive' | 'image',
   content: string,
+  replyInThread?: boolean,
 ): Promise<string> {
   const token = await getTenantAccessToken();
   const response = await fetchFeishuWithRetry({
@@ -214,6 +217,7 @@ async function replyMessage(
       body: JSON.stringify({
         msg_type: msgType,
         content,
+        ...(replyInThread ? { reply_in_thread: true } : {}),
       }),
     },
     action: 'reply message',
@@ -249,7 +253,7 @@ export async function sendImageMessage(
   const content = JSON.stringify({ image_key: imageKey });
   if (replyToMessageId) {
     try {
-      return await replyMessage(replyToMessageId, 'image', content);
+      return await replyMessage(replyToMessageId, 'image', content, options?.replyInThread);
     } catch (err) {
       console.error('[feishu] Failed to reply image message:', err);
       throw err;
@@ -337,7 +341,7 @@ export async function sendTextMessage(
   const content = JSON.stringify({ text });
   if (replyToMessageId) {
     try {
-      return await replyMessage(replyToMessageId, 'text', content);
+      return await replyMessage(replyToMessageId, 'text', content, options?.replyInThread);
     } catch (err) {
       console.error('[feishu] Failed to reply text message:', err);
       throw err;
@@ -373,7 +377,7 @@ export async function sendCardMessage(
   const content = JSON.stringify(card);
   if (replyToMessageId) {
     try {
-      return await replyMessage(replyToMessageId, 'interactive', content);
+      return await replyMessage(replyToMessageId, 'interactive', content, options?.replyInThread);
     } catch (err) {
       console.error('[feishu] Failed to reply card message:', err);
       throw err;
