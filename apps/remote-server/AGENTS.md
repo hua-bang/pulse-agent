@@ -36,6 +36,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 | Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
 | Current env / command / route registries | run `node harness/tools/describe-remote-server.mjs` (from this dir; `--json` for machines) |
 | Add a platform adapter / chat command / internal route | `harness/skills/{add-platform-adapter,add-chat-command,add-internal-route}/SKILL.md` |
+| Container deployment / isolating agent runs from the host | `deploy/docker/README.md`, `deploy/docker/compose.yml` |
 | Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 | Bootstrap and mounted routes | `src/index.ts`, `src/server.ts` |
 | Webhook lifecycle | `src/core/dispatcher.ts`, `src/core/types.ts`, `src/core/active-run-store.ts`, `src/core/clarification-queue.ts` |
