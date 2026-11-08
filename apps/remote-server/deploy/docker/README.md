@@ -76,6 +76,9 @@ read scopes only, because any agent run can call `lark_cli`.
   container only), and `FEISHU_EVENT_SOURCE=long_connection`. These override
   `remote-server.env`. To use the Feishu webhook, change the compose file and
   put a reverse proxy in front of it.
+- Set `REMOTE_ALLOWED_SENDERS` so only listed people (or Feishu groups) can
+  talk to the bot. A rejected sender gets a reply with their key, for example
+  `feishu:user:ou_xxx`; add it to the list and restart the container.
 - Set `INTERNAL_API_SECRET`. `NODE_ENV=production` makes it mandatory for
   `/internal/*`.
 - A proxy on the host is reachable as `host.docker.internal`, for example

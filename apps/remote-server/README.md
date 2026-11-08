@@ -55,6 +55,7 @@ OPENAI_MODEL=
 PORT=3000
 HOST=0.0.0.0
 INTERNAL_API_SECRET=          # Required in production
+REMOTE_ALLOWED_SENDERS=       # Optional allowlist; see "Sender Allowlist"
 
 # === Feishu ===
 FEISHU_APP_ID=
@@ -130,6 +131,16 @@ Users can type these as in-channel text in any connected channel:
    https://your-server/webhooks/feishu
    ```
    - `FEISHU_EVENT_SOURCE=both`: start the long-connection client while keeping webhook ingestion active for migration. Duplicate events with the same `message_id` are ignored in-process.
+
+## Sender Allowlist
+
+`REMOTE_ALLOWED_SENDERS` controls who can talk to the bot. Leave it empty to allow everyone (default). When it is set, every message from a sender who is not listed is rejected before slash commands or an agent run, and the reply shows the sender's key. Entries are comma-separated:
+
+- `feishu:user:<open_id>`: one Feishu user, in DMs and in any group. `open_id` is per app, so a new Feishu app means new keys.
+- `feishu:chat:<chat_id>`: every member of one Feishu group, only inside that group. Use this for an external group.
+- `discord:user:<user id>`: one Discord user.
+
+To find a key, set the list (for example to your own key, or any placeholder), send the bot a message, and read the reply or the `[access] rejected` log line. A listed sender gets the full agent, including shell tools, so only list people you trust with the server.
 
 ## Discord Setup
 
