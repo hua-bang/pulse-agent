@@ -1,5 +1,5 @@
 /**
- * One-shot LLM helper for drafting `pulse-workspace.md` from a short
+ * One-shot LLM helper for drafting the workspace context document from a short
  * user-provided intent line. Triggered explicitly from the workspace
  * settings drawer ("✨ Generate"); never invoked autonomously by the
  * Canvas Agent loop.
@@ -41,7 +41,7 @@ function buildUserPrompt(
 ): string {
   const lines: string[] = [`Workspace name: ${workspaceName}`, '', 'User description:', intent.trim()];
   if (currentContent && currentContent.trim().length > 0) {
-    lines.push('', 'Existing pulse-workspace.md to integrate with (preserve what still applies, refresh what changed):', '---', currentContent.trim(), '---');
+    lines.push('', 'Existing workspace context to integrate with (preserve what still applies, refresh what changed):', '---', currentContent.trim(), '---');
   }
   return lines.join('\n');
 }

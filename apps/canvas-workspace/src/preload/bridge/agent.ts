@@ -215,6 +215,12 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   polishScheduledPrompt: (payload) =>
     ipcRenderer.invoke("canvas-agent:polish-scheduled-prompt", payload),
 
+  readWorkspaceContext: (workspaceId) =>
+    ipcRenderer.invoke("canvas-agent:read-workspace-context", { workspaceId }),
+
+  writeWorkspaceContext: (workspaceId, content, expectedRevision) =>
+    ipcRenderer.invoke("canvas-agent:write-workspace-context", { workspaceId, content, expectedRevision }),
+
   streamWorkspaceDoc: (payload) =>
     ipcRenderer.invoke("canvas-agent:stream-workspace-doc", payload),
 

@@ -24,6 +24,7 @@ import { createPluginNodeTools } from './canvas/plugin-nodes';
 import { createHtmlPatchTools } from './web/html-patch';
 import { createLayoutTools } from './canvas/layout-tools';
 import { createMemoryTools } from './memory';
+import { createWorkspaceContextTools } from '../workspace/workspace-context-tool';
 import { createScheduledTools } from './scheduled';
 import { createRoleTools } from './roles';
 import { createPluginContributedTools } from './plugins/contributed';
@@ -284,6 +285,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createPluginNodeTools(workspaceId),
     ...createLayoutTools(workspaceId),
     ...createMemoryTools(workspaceId),
+    ...createWorkspaceContextTools(workspaceId),
     ...createScheduledTools(),
     ...createRoleTools(),
     ...createPluginInstallTools(),

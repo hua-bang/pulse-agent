@@ -748,6 +748,7 @@ describe('deferred tool partition', () => {
       'session_summary',
       'skill_promote',
       'skill_save',
+      'workspace_context_update',
       'workspace_node_get',
       'workspace_node_list',
       'workspace_node_upsert',

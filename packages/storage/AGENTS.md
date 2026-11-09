@@ -19,7 +19,9 @@ in `harness/spec/unified-storage/README.md`.
   `removeBundle` for import compensation, not user deletion. Trashed reads are
   hidden and writes reject; restore must invalidate all pre-deletion revisions.
 - Markdown and attachments remain files. Persisted content snapshots and indexes
-  are not independent editable copies of their source files.
+  are not independent editable copies of their source files. The workspace
+  context document is workspace state, not a user file: `workspaceContext`
+  stores it, and it follows its workspace through trash, restore, and removal.
 - Preserve unknown node and plugin payload fields during migration and round trips.
 - Tests use temporary databases and fixture files, never user runtime directories.
 - Keep schema migration, integrity checks, and consistent backups in the adapter;

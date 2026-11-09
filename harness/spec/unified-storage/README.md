@@ -131,6 +131,7 @@ rebuildable from them.
 | External chat-role CLI session ids | `~/.pulse-coder/canvas/external-agent-state.json` (serialized, atomic since S2) | Store in the owning conversation's metadata so it commits, trashes, and restores with the conversation |
 | Scheduled tasks, Task, Goal | `scheduled-tasks.json` and related files | Decide per domain; not part of the S1 scope |
 | Workspace manifest (names, folders, order) | `__workspaces__.json` | Keep as a file unless S5 needs it in the database |
+| Workspace context document (goal, status) | SQLite `workspace_context`, schema v4 | Migrated (user decision, 2026-11-01): agents must not write into the project folder to keep it current. The legacy `<rootFolder>/pulse-workspace.md` is imported once on first read and never written |
 
 ## Open questions
 
