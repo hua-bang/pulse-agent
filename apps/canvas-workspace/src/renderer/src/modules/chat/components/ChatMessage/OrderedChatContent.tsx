@@ -47,7 +47,7 @@ function ToolGroup({ tools, renderTools }: Pick<Props, 'tools' | 'renderTools'>)
   return <>{renderTools(tools, collapsed, () => setCollapsed(value => !value))}</>;
 }
 
-export function OrderedChatContent({ blocks, tools, streaming, nodes, rootFolder, renderTools }: Props) {
+export const OrderedChatContent = ({ blocks, tools, streaming, nodes, rootFolder, renderTools }: Props) => {
   const groups = groupContentBlocks(blocks, tools);
   return <div className="chat-ordered-content">
     {groups.map((group, index) => group.type === 'text' ? (
@@ -62,4 +62,4 @@ export function OrderedChatContent({ blocks, tools, streaming, nodes, rootFolder
       <ToolGroup key={`tools-${index}`} tools={group.tools} renderTools={renderTools} />
     ))}
   </div>;
-}
+};
