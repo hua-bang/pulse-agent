@@ -412,7 +412,7 @@
   color: var(--text);
   background: transparent;
   padding: 0;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   font-family: var(--font-mono);
   font-size: 0.86em;
   line-height: 1.6;
