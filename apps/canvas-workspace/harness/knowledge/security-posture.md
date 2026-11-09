@@ -59,6 +59,9 @@ host actually does and does not gate. Facts verified against source
   mode leaves them ungated, so one script can repeat an MCP write up to the
   100-call limit. Canvas writes, agent messaging, terminals and plugin actions
   stay direct-only. Guard: `src/main/agent/__tests__/engine-plugins.test.ts`.
+  Canvas sets a 512 KiB per-call UTF-8 argument budget for bulk MCP patches.
+  The worker and host enforce it before queuing; the total queued argument
+  budget stays 1 MiB. Other hosts retain the Engine default of 64 KiB.
   Chat renders script calls from the persisted Codemode result (`calls`), so
   completed and reloaded turns show each nested name, status and error; live
   per-call progress is not streamed yet. Trace events carry
