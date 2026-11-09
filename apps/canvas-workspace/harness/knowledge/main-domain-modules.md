@@ -149,15 +149,28 @@ and the original manifest entry. Markdown, attachments and retained legacy files
 stay at their existing paths. Normal reads exclude deleted workspaces, writes and
 file-intent recovery reject them, and deletion/restoration advance revisions so
 old drafts cannot overwrite restored state. Global and other workspace scopes
-are unchanged. `removeBundle` is reserved for unpublished import compensation.
+are unchanged. Deletion and restoration commit the manifest entry in the same
+transaction as the trash record.
 
-A workspace import keeps `.workspace-import.json` in its directory until the
-manifest entry is published. At startup, before IPC, `persistence/recovery/import-recovery.ts`
-finishes any import a hard interrupt left behind: a SQL-committed workspace gets
-its manifest entry (the current selection is unchanged), a trashed or already
-published one only loses the journal, and one that never reached SQL is moved to
+A workspace import commits the bundle and its manifest entry in one transaction
+and keeps `.workspace-import.json` in its directory until that commit. At
+startup, before IPC, `persistence/recovery/import-recovery.ts` finishes any
+import a hard interrupt left behind: a SQL-committed workspace gets its manifest
+entry if it lacks one (journals from released builds, which committed the two
+separately; the current selection is unchanged), a trashed or already published
+one only loses the journal, and one that never reached SQL is moved to
 `__storage-backup__/interrupted-imports/` instead of being deleted. Untrusted
 journals are left in place and logged; a failed recovery never blocks startup.
+
+The workspace manifest (`__workspaces__.json`) follows Canvas authority.
+`persistence/workspace-manifest.ts` is its only reader and writer in main for
+an active store: the first read imports the file once (with `.bak` fallback,
+without trashed ids) under the storage lock, and later reads and writes use
+the database only; the file is not written again. Direct readers
+(`agent/workspace/workspace-meta.ts`, the channel plugin) also read through
+it. Bundle changes pass their transaction to `updateWorkspaceManifestDocument`,
+so the entry change commits with the bundle. Legacy stores keep the file.
+Guards: `persistence/workspace-manifest.test.ts`, `persistence/workspace-trash.test.ts`.
 
 The App and CLI use this same repository boundary. Before App deletion, mounted
 Canvas documents flush their pending drafts and await persistence; a failed save

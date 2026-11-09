@@ -1,9 +1,9 @@
 import { isStorageError, StorageError, type JsonObject } from '@pulse-coder/storage';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { getCanvasBackend, getLocalCanvasStorage, resolveStorageNativeBinding } from './backend';
-import { getCanvasJsonPath, isSafeNodeId, MANIFEST_ID } from './paths';
-import { atomicWriteJson, readJsonWithRecovery } from './atomic-json';
+import { isSafeNodeId, MANIFEST_ID } from './paths';
 import { getCanvasSessionArchivePort } from './session-archive-port';
+import { updateWorkspaceManifestDocument, withoutTrashed } from './workspace-manifest';
 import { filterWorkspaceManifest } from '../workspaces';
 
 type CanvasBackend = NonNullable<Awaited<ReturnType<typeof getCanvasBackend>>>;
@@ -11,14 +11,6 @@ type CanvasBackend = NonNullable<Awaited<ReturnType<typeof getCanvasBackend>>>;
 const object = (value: unknown): value is Record<string, unknown> => (
   !!value && typeof value === 'object' && !Array.isArray(value)
 );
-
-async function readRawManifest(root: string): Promise<Record<string, unknown>> {
-  const result = await readJsonWithRecovery(getCanvasJsonPath(MANIFEST_ID, root));
-  if (result.kind === 'unrecoverable') throw result.err;
-  if (result.kind === 'missing') return {};
-  if (!object(result.data)) throw new StorageError('corrupt_data', 'Invalid workspace manifest');
-  return result.data;
-}
 
 /** The retained entry is display metadata, never a second deletion authority. */
 export async function trashWorkspace(root: string, workspaceId: string): Promise<void> {
@@ -36,23 +28,26 @@ export async function trashWorkspace(root: string, workspaceId: string): Promise
     if (await storage.workspaces.getTrashed(workspaceId)) return;
     const bundle = await storage.workspaces.readBundle(workspaceId);
     if (!bundle) throw new StorageError('not_found', 'Workspace was not found');
-    const manifest = await readRawManifest(root);
-    const entries = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.entries;
-    const entry = Array.isArray(entries) ? entries.find(item => object(item) && item.id === workspaceId) : undefined;
-    await storage.workspaces.trashBundle({
+    let entry: unknown;
+    // The trash record and the entry removal commit in one transaction.
+    await updateWorkspaceManifestDocument(root, manifest => {
+      const entries = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.entries;
+      entry = Array.isArray(entries) ? entries.find(item => object(item) && item.id === workspaceId) : undefined;
+      return withoutTrashed(manifest, new Set([workspaceId]));
+    }, (db, manifest) => db.workspaces.trashBundle({
       workspaceId,
       expectedCanvasRevision: bundle.canvas.revision,
       generation: bundle.canvas.generation,
       expectedConversations: bundle.conversationState,
       metadata: (object(entry) ? entry : { id: workspaceId, name: workspaceId }) as JsonObject,
-    });
+      manifest,
+    }));
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding }));
 }
 
 /**
- * Undo for an app-side delete. Like the CLI restore, it publishes the saved
- * manifest entry first (reads hide it until SQL commits), then restores SQL
- * visibility, so a failed manifest write leaves the workspace in trash.
+ * Undo for an app-side delete. Like the CLI restore, the saved manifest entry
+ * and the restored bundle commit in one transaction; a failure changes neither.
  */
 export async function restoreTrashedWorkspace(root: string, workspaceId: string): Promise<JsonObject> {
   if (!isSafeNodeId(workspaceId) || workspaceId === MANIFEST_ID) {
@@ -68,12 +63,11 @@ export async function restoreTrashedWorkspace(root: string, workspaceId: string)
       id: workspaceId,
       name: typeof record.metadata.name === 'string' ? record.metadata.name : workspaceId,
     };
-    const manifest = await readRawManifest(root);
-    const others = (Array.isArray(manifest.workspaces) ? manifest.workspaces : [])
-      .filter(item => !(object(item) && item.id === workspaceId));
-    const next = { ...manifest, workspaces: [...others, entry] };
-    await atomicWriteJson(getCanvasJsonPath(MANIFEST_ID, root), JSON.stringify(next, null, 2), { rollingBackup: true });
-    await storage.workspaces.restoreBundle(workspaceId, record.revision, record.generation);
+    await updateWorkspaceManifestDocument(root, manifest => {
+      const others = (Array.isArray(manifest.workspaces) ? manifest.workspaces : [])
+        .filter(item => !(object(item) && item.id === workspaceId));
+      return { ...manifest, workspaces: [...others, entry] };
+    }, (db, manifest) => db.workspaces.restoreBundle(workspaceId, record.revision, record.generation, manifest));
     return entry;
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });
 }
@@ -111,16 +105,17 @@ async function ensureListedCanvases(root: string, backend: CanvasBackend, worksp
 export async function saveWorkspaceManifest(root: string, input: unknown): Promise<void> {
   if (!object(input)) throw new StorageError('invalid_argument', 'Workspace manifest must be an object');
   await withLegacyCanvasWrite(root, async () => {
-    const previous = await readRawManifest(root);
-    let next = { ...previous, ...input };
     const backend = await getCanvasBackend(root);
-    if (backend && Array.isArray(input.workspaces)) {
+    const next = await updateWorkspaceManifestDocument(root, async previous => {
+      const merged = { ...previous, ...input };
+      if (!backend || !Array.isArray(input.workspaces)) return merged;
       const incoming = new Set(input.workspaces.filter(object).map(item => item.id));
       const oldEntries = Array.isArray(previous.workspaces) ? previous.workspaces : [];
-      next = { ...next, workspaces: [...input.workspaces, ...oldEntries.filter(item => object(item) && !incoming.has(item.id))] };
-      next = await filterWorkspaceManifest(root, next);
-    }
-    await atomicWriteJson(getCanvasJsonPath(MANIFEST_ID, root), JSON.stringify(next, null, 2), { rollingBackup: true });
+      return filterWorkspaceManifest(root, {
+        ...merged,
+        workspaces: [...input.workspaces, ...oldEntries.filter(item => object(item) && !incoming.has(item.id))],
+      });
+    });
     // After the manifest: a failure here leaves the entry listed, and the next save retries.
     if (backend && Array.isArray(input.workspaces)) await ensureListedCanvases(root, backend, next.workspaces);
   }, { allowActive: true, resolveNativeBinding: resolveStorageNativeBinding });

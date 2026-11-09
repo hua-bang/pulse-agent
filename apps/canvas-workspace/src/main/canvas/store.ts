@@ -778,18 +778,13 @@ export const setupCanvasStoreIpc = () => {
           // the migration takes longer than 1s.
           await ensureMigrated(payload.id);
         }
-        const filePath = getFilePath(payload.id);
         let data: CanvasSaveData;
         let recoveredFromBackup = false;
         if (payload.id === MANIFEST_ID) {
-          const readResult = await readCanvasJsonWithRecovery(filePath);
-          if (readResult.kind === 'missing') return { ok: true, data: { workspaces: [], folders: [], activeId: '' } };
-          if (readResult.kind === 'unrecoverable') {
-            return { ok: false, error: String(readResult.err) };
-          }
-          const { filterWorkspaceManifest } = await import('./workspaces');
-          data = await filterWorkspaceManifest(STORE_DIR, readResult.data as Record<string, unknown>) as unknown as CanvasSaveData;
-          recoveredFromBackup = readResult.recoveredFromBackup;
+          const { readRendererWorkspaceManifest } = await import('./workspaces');
+          const manifest = await readRendererWorkspaceManifest(STORE_DIR);
+          if (manifest.kind === 'error') return { ok: false, error: String(manifest.err) };
+          data = manifest.data as unknown as CanvasSaveData;
         } else {
           // `readCanvasFull` returns v1-shape (with inline node.data)
           // regardless of on-disk schema. The renderer never sees v2
