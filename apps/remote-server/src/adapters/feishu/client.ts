@@ -538,7 +538,7 @@ function formatCardDetailText(...parts: Array<string | undefined>): string {
   return clampCardText(normalizedParts.join('\n\n'));
 }
 
-function md(content: string, textSize?: 'heading' | 'normal' | 'notation'): object {
+function md(content: string, textSize?: 'normal' | 'notation'): object {
   return { tag: 'markdown', content, ...(textSize ? { text_size: textSize } : {}) };
 }
 
@@ -738,7 +738,7 @@ function buildRunProcessElements(
   const title = stepTitle(status, context, normalizedToolCalls);
   const subtitle = stepSubtitle(status, context.elapsed);
   const elements: object[] = [
-    md(`${statusDot(status)} **${title}**`, 'heading'),
+    md(`${statusDot(status)} **${title}**`, 'normal'),
     md(muted(note ?? subtitle), 'notation'),
   ];
   if (status === '运行中' && context.detailText?.trim()) {

@@ -43,7 +43,7 @@ describe('Feishu run cards', () => {
     expect(body).toContain('<font color="grey">运行中 · 3s</font>');
     expect(body).toContain('partial answer');
     expect(body).toContain('<font color="grey">Called tools 1 time · Read</font>');
-    expect(JSON.stringify(card)).toContain('"text_size":"heading"');
+    expect(JSON.stringify(card)).not.toContain('"text_size":"heading"');
     expect(JSON.stringify(card)).toContain('"text_size":"notation"');
     expect(body).not.toContain('**当前答复**');
     expect(body).not.toContain('run-123');
