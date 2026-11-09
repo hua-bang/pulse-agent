@@ -102,6 +102,17 @@ describe('docxToMarkdown', () => {
       .toBe('1. 第一步\n\n说明\n\n2. 第二步');
   });
 
+  it('keeps configured starting numbers from w:start and w:startOverride', () => {
+    const startNumbering = `<w:numbering ${W}>
+      <w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="3"/><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>
+      <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+      <w:num w:numId="2"><w:abstractNumId w:val="0"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="5"/></w:lvlOverride></w:num>
+    </w:numbering>`;
+    const body = listItem('甲', 1) + listItem('乙', 1) + para(run('说明')) + listItem('丙', 2) + listItem('丁', 2);
+    expect(docxToMarkdown(docx(body, { 'word/numbering.xml': startNumbering })))
+      .toBe('3. 甲\n4. 乙\n\n说明\n\n5. 丙\n6. 丁');
+  });
+
   it('rejects files that are not Word documents', () => {
     expect(() => docxToMarkdown(zipSync({ 'readme.txt': strToU8('hi') }))).toThrow();
     expect(() => docxToMarkdown(strToU8('not a zip'))).toThrow();

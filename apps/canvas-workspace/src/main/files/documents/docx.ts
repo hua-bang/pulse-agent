@@ -32,7 +32,7 @@ interface DocxContext {
   /** Paragraph style id -> heading level and list numbering, with `basedOn` resolved. */
   paragraphStyles: Map<string, ParagraphStyle>;
   /** `${numId}:${ilvl}` -> true when that list level is numbered, not bulleted. */
-  orderedLevels: Map<string, boolean>;
+  listLevels: Map<string, ListLevel>;
   /** Relationship id -> external hyperlink target. */
   links: Map<string, string>;
 }
@@ -52,10 +52,17 @@ interface Segment {
   link?: string;
 }
 
+interface ListLevel {
+  ordered: boolean;
+  /** First number of the level (`w:start`, or the list's `w:startOverride`). */
+  start: number;
+}
+
 interface ListInfo {
   numId: string;
   level: number;
   ordered: boolean;
+  start: number;
 }
 
 type Block =
@@ -108,22 +115,33 @@ const readParagraphStyles = (styles: XmlElement | null): Map<string, ParagraphSt
   return new Map(Array.from(own.keys(), (id) => [id, resolve(id, 0)]));
 };
 
-const readOrderedLevels = (numbering: XmlElement | null): Map<string, boolean> => {
-  const result = new Map<string, boolean>();
+const readListLevels = (numbering: XmlElement | null): Map<string, ListLevel> => {
+  const result = new Map<string, ListLevel>();
   if (!numbering) return result;
-  const abstractLevels = new Map<string, Map<string, boolean>>();
+  const abstractLevels = new Map<string, Map<string, ListLevel>>();
   for (const abstract of children(numbering, 'abstractNum')) {
-    const levels = new Map<string, boolean>();
+    const levels = new Map<string, ListLevel>();
     for (const lvl of children(abstract, 'lvl')) {
       const format = attr(child(lvl, 'numFmt')) ?? 'bullet';
-      levels.set(attr(lvl, 'ilvl') ?? '0', format !== 'bullet' && format !== 'none');
+      levels.set(attr(lvl, 'ilvl') ?? '0', {
+        ordered: format !== 'bullet' && format !== 'none',
+        start: Number(attr(child(lvl, 'start')) ?? '1') || 1,
+      });
     }
     abstractLevels.set(attr(abstract, 'abstractNumId') ?? '', levels);
   }
   for (const num of children(numbering, 'num')) {
     const levels = abstractLevels.get(attr(child(num, 'abstractNumId')) ?? '');
     if (!levels) continue;
-    for (const [ilvl, ordered] of levels) result.set(`${attr(num, 'numId')}:${ilvl}`, ordered);
+    const overrides = new Map(children(num, 'lvlOverride').map((override) => [
+      attr(override, 'ilvl') ?? '0',
+      attr(child(override, 'startOverride')),
+    ]));
+    for (const [ilvl, level] of levels) {
+      const override = overrides.get(ilvl);
+      const start = override ? Number(override) : level.start;
+      result.set(`${attr(num, 'numId')}:${ilvl}`, { ...level, start: Number.isFinite(start) ? start : 1 });
+    }
   }
   return result;
 };
@@ -229,7 +247,11 @@ const readParagraph = (p: XmlElement, ctx: DocxContext): Block => {
     return {
       kind: 'paragraph',
       text,
-      list: { numId, level: Number(ilvl) || 0, ordered: ctx.orderedLevels.get(`${numId}:${ilvl}`) ?? false },
+      list: {
+        numId,
+        level: Number(ilvl) || 0,
+        ...(ctx.listLevels.get(`${numId}:${ilvl}`) ?? { ordered: false, start: 1 }),
+      },
     };
   }
   return { kind: 'paragraph', text, heading };
@@ -298,7 +320,7 @@ const renderBlocks = (blocks: Block[]): string => {
         if (id === numId && Number(keyLevel) > block.list.level) counters.delete(key);
       }
       const key = `${numId}:${block.list.level}`;
-      const count = (counters.get(key) ?? 0) + 1;
+      const count = (counters.get(key) ?? block.list.start - 1) + 1;
       counters.set(key, count);
       const marker = ordered ? `${count}.` : '-';
       const body = block.text.replace(/\n/g, `  \n${LIST_INDENT.repeat(level + 1)}`);
@@ -325,7 +347,7 @@ export const docxToMarkdown = (bytes: Uint8Array): string => {
   if (!body) throw new Error('Not a Word document');
   const ctx: DocxContext = {
     paragraphStyles: readParagraphStyles(parseXml(files.get(STYLES_PART))),
-    orderedLevels: readOrderedLevels(parseXml(files.get(NUMBERING_PART))),
+    listLevels: readListLevels(parseXml(files.get(NUMBERING_PART))),
     links: readLinks(parseXml(files.get(RELS_PART))),
   };
   const blocks: Block[] = [];

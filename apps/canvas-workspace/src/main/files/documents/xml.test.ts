@@ -19,6 +19,13 @@ describe('parseXmlElement', () => {
     expect(root.children.map((node) => node.textContent)).toEqual(['<1> & 中文', '<raw>']);
   });
 
+  it('allows > inside quoted attribute values', () => {
+    const root = parseXmlElement('<a><b title="x > y"/><c name=\'1>0\'>text</c></a>');
+    expect(root.children[0].attributes.get('title')).toBe('x > y');
+    expect(root.children[1].attributes.get('name')).toBe('1>0');
+    expect(root.textContent).toBe('text');
+  });
+
   it('does not expand custom entities', () => {
     expect(parseXmlElement('<!DOCTYPE a [<!ENTITY x "boom">]><a>&x;</a>').textContent).toBe('&x;');
   });

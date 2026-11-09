@@ -49,6 +49,23 @@ const decodeEntities = (text: string): string => text.replace(/&(#x[0-9a-f]+|#\d
 const ATTRIBUTE = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 const TAG_NAME = /^[^\s/>]+/;
 
+/** Index of the `>` that ends a tag. A `>` inside a quoted attribute value
+ *  is allowed in XML and does not end the tag. */
+const findTagEnd = (source: string, from: number): number => {
+  let quote = '';
+  for (let index = from; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === quote) quote = '';
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '>') {
+      return index;
+    }
+  }
+  return -1;
+};
+
 /** Parses an XML string and returns its root element. Throws on malformed XML. */
 export const parseXmlElement = (source: string): XmlElement => {
   const stack: XmlElement[] = [];
@@ -81,7 +98,7 @@ export const parseXmlElement = (source: string): XmlElement => {
       index = end + 3;
       continue;
     }
-    const close = source.indexOf('>', open);
+    const close = findTagEnd(source, open + 1);
     if (close < 0) throw new Error('Unclosed tag');
     const tag = source.slice(open + 1, close);
     index = close + 1;

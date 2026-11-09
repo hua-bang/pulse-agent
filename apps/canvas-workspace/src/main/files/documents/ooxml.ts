@@ -9,9 +9,25 @@ export type { XmlElement };
  * prefixed namespaces (`w:`, `a:`, `p:`), so lookups match local names.
  */
 
-/** Reads the named parts of a zip archive as UTF-8 text. Throws when the bytes are not a zip. */
+/** Inflated size limits. A small archive can hold a huge, highly compressed
+ *  part, so the on-disk file size alone does not bound memory. */
+const MAX_PART_BYTES = 64 * 1024 * 1024;
+const MAX_TOTAL_PART_BYTES = 256 * 1024 * 1024;
+
+/** Reads the named parts of a zip archive as UTF-8 text. Throws when the bytes
+ *  are not a zip or the selected parts would inflate past the size limits. */
 export const readZipParts = (bytes: Uint8Array, wanted: (name: string) => boolean): Map<string, string> => {
-  const files = unzipSync(bytes, { filter: (file) => wanted(file.name) });
+  let total = 0;
+  const files = unzipSync(bytes, {
+    filter: (file) => {
+      if (!wanted(file.name)) return false;
+      total += file.originalSize;
+      if (file.originalSize > MAX_PART_BYTES || total > MAX_TOTAL_PART_BYTES) {
+        throw new Error(`Document part ${file.name} is too large to read`);
+      }
+      return true;
+    },
+  });
   return new Map(Object.entries(files).map(([name, data]) => [name, strFromU8(data)]));
 };
 

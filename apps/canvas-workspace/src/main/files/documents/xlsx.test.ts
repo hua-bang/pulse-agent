@@ -50,6 +50,21 @@ describe('xlsxToMarkdown', () => {
     );
   });
 
+  it('uses the 1904 date system when the workbook asks for it', () => {
+    const styles = `<styleSheet ${NS}><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>`;
+    const dated = '<row r="1"><c r="A1" t="inlineStr"><is><t>日期</t></is></c></row><row r="2"><c r="A2" s="1"><v>1</v></c></row>';
+    const files = unzipSync(workbook(dated));
+    const book = new TextDecoder().decode(files['xl/workbook.xml']).replace('<sheets>', '<workbookPr date1904="1"/><sheets>');
+    const bytes = zipSync({ ...files, 'xl/workbook.xml': strToU8(book), 'xl/styles.xml': strToU8(styles) });
+    expect(xlsxToMarkdown(bytes)).toContain('| 1904-01-02 |');
+  });
+
+  it('says how many cells right of column CV were left out', () => {
+    const wide = '<row r="1"><c r="CW1" t="inlineStr"><is><t>远</t></is></c></row>';
+    const markdown = xlsxToMarkdown(workbook(wide));
+    expect(markdown).toContain('## Sheet: 需求\n\n(1 cell right of column CV not shown)');
+  });
+
   it('rejects files that are not workbooks', () => {
     expect(() => xlsxToMarkdown(zipSync({ 'a.txt': strToU8('a') }))).toThrow();
   });

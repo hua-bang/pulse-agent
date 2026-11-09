@@ -26,6 +26,7 @@ const STYLES_PART = 'xl/styles.xml';
 const WORKSHEET_PATTERN = /^xl\/worksheets\/[^/]+\.xml$/;
 /** Rows kept per sheet. Larger sheets are cut and say how many rows were left out. */
 export const XLSX_MAX_ROWS_PER_SHEET = 500;
+/** Columns kept per sheet (A to CV). Cells further right are counted, not shown. */
 const MAX_COLUMNS = 100;
 
 /** Text of a shared or inline string, without phonetic (`rPh`) runs. */
@@ -45,7 +46,9 @@ const readSharedStrings = (source: string | undefined): string[] => {
 
 /** Built-in number formats that show dates or times (ECMA-376 18.8.30). */
 const BUILT_IN_DATE_FORMATS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]);
-const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30);
+/** Day zero of the 1900 and 1904 date systems (`workbookPr date1904`). */
+const EPOCH_1900_MS = Date.UTC(1899, 11, 30);
+const EPOCH_1904_MS = Date.UTC(1904, 0, 1);
 const DAY_MS = 86_400_000;
 
 /** Style index -> true when the cell format shows a date or time. */
@@ -64,9 +67,9 @@ const readDateStyles = (source: string | undefined): boolean[] => {
   });
 };
 
-/** Excel serial date (1900 system) -> `2026-11-20` or `2026-11-20 09:30`. */
-const formatSerialDate = (serial: number): string => {
-  const iso = new Date(EXCEL_EPOCH_MS + Math.round(serial * DAY_MS / 60_000) * 60_000).toISOString();
+/** Excel serial date -> `2026-11-20` or `2026-11-20 09:30`. */
+const formatSerialDate = (serial: number, epochMs: number): string => {
+  const iso = new Date(epochMs + Math.round(serial * DAY_MS / 60_000) * 60_000).toISOString();
   return Number.isInteger(serial) ? iso.slice(0, 10) : `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 };
 
@@ -81,6 +84,7 @@ const columnIndex = (ref: string): number => {
 interface WorkbookContext {
   sharedStrings: string[];
   dateStyles: boolean[];
+  epochMs: number;
 }
 
 const cellValue = (cell: XmlElement, ctx: WorkbookContext): string => {
@@ -104,35 +108,46 @@ const cellValue = (cell: XmlElement, ctx: WorkbookContext): string => {
     default: {
       const serial = Number(value);
       const isDate = ctx.dateStyles[Number(attr(cell, 's') ?? '0')] && Number.isFinite(serial) && serial >= 0;
-      return isDate ? formatSerialDate(serial) : value;
+      return isDate ? formatSerialDate(serial, ctx.epochMs) : value;
     }
   }
 };
 
 interface SheetRows {
   rows: string[][];
-  omitted: number;
+  omittedRows: number;
+  omittedCells: number;
 }
 
 const readSheetRows = (source: string | undefined, ctx: WorkbookContext): SheetRows => {
   const doc = parseXml(source);
   const data = doc ? child(doc, 'sheetData') : undefined;
   const rows: string[][] = [];
-  let omitted = 0;
+  let omittedRows = 0;
+  let omittedCells = 0;
   for (const row of data ? children(data, 'row') : []) {
     const cells: string[] = [];
+    let cutCells = 0;
     children(row, 'c').forEach((cell, position) => {
       const ref = attr(cell, 'r');
       const index = ref ? columnIndex(ref) : position;
-      if (index < 0 || index >= MAX_COLUMNS) return;
-      cells[index] = tableCell(cellValue(cell, ctx));
+      const value = tableCell(cellValue(cell, ctx));
+      if (index < 0 || index >= MAX_COLUMNS) {
+        if (value) cutCells += 1;
+        return;
+      }
+      cells[index] = value;
     });
     const filled = Array.from(cells, (cell) => cell ?? '');
-    if (!filled.some(Boolean)) continue;
-    if (rows.length >= XLSX_MAX_ROWS_PER_SHEET) omitted += 1;
-    else rows.push(filled);
+    if (!filled.some(Boolean) && cutCells === 0) continue;
+    if (rows.length >= XLSX_MAX_ROWS_PER_SHEET) {
+      omittedRows += 1;
+    } else {
+      rows.push(filled);
+      omittedCells += cutCells;
+    }
   }
-  return { rows, omitted };
+  return { rows, omittedRows, omittedCells };
 };
 
 /** Drops columns that are empty in every kept row. */
@@ -141,6 +156,8 @@ const dropEmptyColumns = (rows: string[][]): string[][] => {
   const keep = Array.from({ length: width }, (_, column) => rows.some((row) => row[column]));
   return rows.map((row) => keep.flatMap((kept, column) => (kept ? [row[column] ?? ''] : [])));
 };
+
+const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 const resolveSheetPart = (target: string): string => (
   target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`
@@ -167,18 +184,21 @@ export const xlsxToMarkdown = (bytes: Uint8Array): string => {
     const target = attr(rel, 'Target');
     if (id && target) targets.set(id, resolveSheetPart(target));
   }
+  const date1904 = attr(child(workbook ?? undefined, 'workbookPr'), 'date1904');
   const ctx: WorkbookContext = {
     sharedStrings: readSharedStrings(files.get(SHARED_STRINGS_PART)),
     dateStyles: readDateStyles(files.get(STYLES_PART)),
+    epochMs: date1904 === '1' || date1904 === 'true' ? EPOCH_1904_MS : EPOCH_1900_MS,
   };
 
   return children(sheets, 'sheet').map((sheet) => {
     const heading = `## Sheet: ${escapeText(attr(sheet, 'name') ?? '')}`;
     const part = targets.get(relationshipId(sheet) ?? '');
-    const { rows, omitted } = readSheetRows(part ? files.get(part) : undefined, ctx);
+    const { rows, omittedRows, omittedCells } = readSheetRows(part ? files.get(part) : undefined, ctx);
     if (rows.length === 0) return `${heading}\n\n(empty)`;
-    const table = renderTable(dropEmptyColumns(rows));
-    const note = omitted > 0 ? `\n\n(${omitted} more rows not shown)` : '';
-    return `${heading}\n\n${table}${note}`;
+    const parts = [heading, renderTable(dropEmptyColumns(rows))];
+    if (omittedRows > 0) parts.push(`(${plural(omittedRows, 'more row')} not shown)`);
+    if (omittedCells > 0) parts.push(`(${plural(omittedCells, 'cell')} right of column CV not shown)`);
+    return parts.filter(Boolean).join('\n\n');
   }).join('\n\n');
 };
