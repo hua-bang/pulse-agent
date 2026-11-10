@@ -421,7 +421,12 @@ describe('SessionStore', () => {
     const messages = [makeMessage(0), makeMessage(1)];
 
     store.setMessages(messages);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Persistence is fire-and-forget. Poll the disk instead of a fixed sleep,
+    // which flaked on a loaded CI runner.
+    await vi.waitFor(async () => {
+      const saved = await new SessionStore('ws-restore').loadSession(sessionId);
+      expect(saved?.messages).toHaveLength(messages.length);
+    }, { timeout: 5000, interval: 50 });
 
     const reloaded = new SessionStore('ws-restore');
     const restored = await reloaded.restoreCurrentSession();
