@@ -112,16 +112,3 @@ export const rebaseOnExternalChange = <T extends Entity>(
   }
   return next;
 };
-
-/** Edges of a recorded state that still point at nodes removed externally. */
-export const dropEdgesOfRemovedNodes = (
-  edges: CanvasEdge[],
-  removedNodeIds: ReadonlySet<string>,
-): CanvasEdge[] => {
-  if (removedNodeIds.size === 0) return edges;
-  const kept = edges.filter(edge => (
-    !(edge.source.kind === 'node' && removedNodeIds.has(edge.source.nodeId))
-    && !(edge.target.kind === 'node' && removedNodeIds.has(edge.target.nodeId))
-  ));
-  return kept.length === edges.length ? edges : kept;
-};

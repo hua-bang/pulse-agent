@@ -75,6 +75,8 @@ interface Options {
   undo: () => void;
   redo: () => void;
   nodes: CanvasNode[];
+  /** Every node of the document, including those hidden by a collapsed frame. */
+  getAllNodes: () => CanvasNode[];
   selectedNodeIds: string[];
   setSelectedNodeIds: (ids: string[]) => void;
   /** Currently selected edge (if any). Delete/Backspace removes it; Esc
@@ -149,7 +151,7 @@ interface Options {
  */
 export const useCanvasKeyboard = ({
   canvasId,
-  undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
+  undo, redo, nodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
   duplicateNodes, setClipboard, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
@@ -207,7 +209,9 @@ export const useCanvasKeyboard = ({
     const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
     const idSet = new Set(selectedNodeIds);
     // A frame or group moves with its content, as it does when dragged.
-    const moves = withContainerDescendants(nodes.filter((n) => idSet.has(n.id)), nodes)
+    // The full document: a collapsed frame hides its content from `nodes`.
+    const allNodes = getAllNodes();
+    const moves = withContainerDescendants(allNodes.filter((n) => idSet.has(n.id)), allNodes)
       .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
     if (moves.length === 0) return;
     if (nudgeTimerRef.current !== null) window.clearTimeout(nudgeTimerRef.current);

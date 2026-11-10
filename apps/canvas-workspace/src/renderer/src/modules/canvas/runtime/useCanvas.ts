@@ -329,7 +329,10 @@ export const useCanvas = (
     scaleOf: (current: number) => number,
     container: HTMLElement | null,
   ) => {
-    setTransformSafe((prev) => {
+    // During a wheel gesture the newest transform lives only in the ref.
+    const live = movingRef.current ? transformRef.current : null;
+    setTransformSafe((state) => {
+      const prev = live ?? state;
       const newScale = clampScale(scaleOf(prev.scale));
       if (newScale === prev.scale) return prev;
       const rect = container?.getBoundingClientRect();

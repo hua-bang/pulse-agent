@@ -1,10 +1,10 @@
 import type { CanvasEdge, CanvasNode } from '../../../types';
 import {
   diffExternalChange,
-  dropEdgesOfRemovedNodes,
   isEmptyDelta,
   rebaseOnExternalChange,
 } from './historyRebase';
+import { dropDanglingEdges } from './revisionMerge';
 
 export interface CanvasDocumentSnapshot {
   nodes: CanvasNode[];
@@ -62,10 +62,7 @@ export class CanvasDocumentHistory {
     if (!isEmptyDelta(nodeDelta) || !isEmptyDelta(edgeDelta)) {
       this.entries = this.entries.map((entry) => {
         const nodes = rebaseOnExternalChange(entry.nodes, nodeDelta);
-        const edges = dropEdgesOfRemovedNodes(
-          rebaseOnExternalChange(entry.edges, edgeDelta),
-          nodeDelta.removedIds,
-        );
+        const edges = dropDanglingEdges(rebaseOnExternalChange(entry.edges, edgeDelta), nodes);
         return nodes === entry.nodes && edges === entry.edges ? entry : { nodes, edges };
       });
     }

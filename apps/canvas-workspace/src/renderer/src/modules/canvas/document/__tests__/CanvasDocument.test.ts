@@ -84,6 +84,22 @@ describe('CanvasDocumentHistory', () => {
     });
   });
 
+  it('does not give a recorded state an external edge to a node it lacks', () => {
+    const initial = { nodes: [], edges: [] };
+    const history = new CanvasDocumentHistory(initial);
+    history.apply({ nodes: [node('mine')] });
+    const toMine: CanvasEdge = {
+      id: 'to-mine',
+      source: { kind: 'node', nodeId: 'mine' },
+      target: { kind: 'node', nodeId: 'agent' },
+    };
+
+    history.applyExternal({ nodes: [node('mine'), node('agent')], edges: [toMine] });
+
+    expect(history.undo()).toEqual({ nodes: [node('agent')], edges: [] });
+    expect(history.redo()).toEqual({ nodes: [node('mine'), node('agent')], edges: [toMine] });
+  });
+
   it('keeps an unfinished drag separate from an external change', () => {
     const initial = { nodes: [node('mine')], edges: [] };
     const history = new CanvasDocumentHistory(initial);

@@ -123,6 +123,23 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
   return ordered;
 }
 
+/**
+ * Edges whose node endpoints exist in `nodes`. A rebased state can lose an
+ * endpoint: the other writer removed the node, or added an edge to a node
+ * that this recorded state does not have yet.
+ */
+export const dropDanglingEdges = <T extends CanvasEdge>(
+  edges: T[],
+  nodes: readonly CanvasNode[],
+): T[] => {
+  const nodeIds = new Set(nodes.map(node => node.id));
+  const kept = edges.filter(edge => (
+    !(edge.source.kind === 'node' && !nodeIds.has(edge.source.nodeId))
+    && !(edge.target.kind === 'node' && !nodeIds.has(edge.target.nodeId))
+  ));
+  return kept.length === edges.length ? edges : kept;
+};
+
 export function mergeDocumentRevision(
   base: CanvasSaveData,
   local: CanvasSaveData,
@@ -136,7 +153,11 @@ export function mergeDocumentRevision(
   }
   const overridden: string[] = [];
   const nodes = mergeEntities(base.nodes, local.nodes, remote.nodes, 'nodes', overridden);
-  const edges = mergeEntities(base.edges ?? [], local.edges ?? [], remote.edges ?? [], 'edges', overridden);
+  // One side can delete a node while the other side connects an edge to it.
+  const edges = dropDanglingEdges(
+    mergeEntities(base.edges ?? [], local.edges ?? [], remote.edges ?? [], 'edges', overridden),
+    nodes,
+  );
   const transform = mergeValue(base.transform, local.transform, remote.transform, 'transform', overridden);
   return {
     ok: true,

@@ -43,6 +43,16 @@ describe('revision three-way merge', () => {
     expect(local.nodes[0].title).toBe('Local');
   });
 
+  it('drops an edge of one side that points at a node the other side deleted', () => {
+    const base = document([node('a')]);
+    const remote: CanvasSaveData = {
+      ...document([node('a'), node('b')], 2),
+      edges: [{ id: 'a-b', source: { kind: 'node', nodeId: 'a' }, target: { kind: 'node', nodeId: 'b' } }],
+    };
+    const result = mergeDocumentRevision(base, document([]), remote);
+    expect(result).toMatchObject({ ok: true, data: { nodes: [{ id: 'b' }], edges: [] } });
+  });
+
   it('keeps independent creations and accepts a deletion despite timestamp-only local changes', () => {
     const base = document([node()]);
     const local = document([{ ...node(), updatedAt: 20 }, node('local')]);

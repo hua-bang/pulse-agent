@@ -289,7 +289,7 @@ export const useCanvasController = ({
   useCanvasKeyboard({
     canvasId,
     undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
-    nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
+    nodes: visibleNodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNodes,
     setClipboard: onClipboardChange ?? (() => undefined),

@@ -103,6 +103,7 @@ describe('useCanvasKeyboard', () => {
       undo: vi.fn(),
       redo: vi.fn(),
       nodes: [],
+      getAllNodes: () => overrides.nodes ?? [],
       selectedNodeIds: [],
       setSelectedNodeIds: vi.fn(),
       selectedEdgeId: null,
@@ -300,6 +301,25 @@ describe('useCanvasKeyboard', () => {
     expect(moveNodes).toHaveBeenCalledWith([
       { id: 'frame-1', x: 1, y: 0 },
       { id: 'inside', x: 41, y: 40 },
+    ]);
+  });
+
+  it('nudges content that a collapsed inner frame hides', () => {
+    const moveNodes = vi.fn();
+    const frame: CanvasNode = { ...node('frame-1'), type: 'frame', width: 600, height: 400 };
+    const hidden: CanvasNode = { ...node('hidden'), x: 40, y: 40 };
+    mountKeyboard({
+      nodes: [frame],
+      getAllNodes: () => [frame, hidden],
+      selectedNodeIds: ['frame-1'],
+      moveNodes,
+    });
+
+    press({ key: 'ArrowRight' });
+
+    expect(moveNodes).toHaveBeenCalledWith([
+      { id: 'frame-1', x: 1, y: 0 },
+      { id: 'hidden', x: 41, y: 40 },
     ]);
   });
 
