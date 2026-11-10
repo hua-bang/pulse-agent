@@ -17,7 +17,7 @@
  */
 
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import "./index.css";
+import './index.css';
 import type { CanvasNode, DynamicAppNodeData } from "../../../../../types";
 
 // The inspector only opens on demand, so it stays out of the entry chunk.
