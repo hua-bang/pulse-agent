@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import { Router, type AroundNavHandler } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import App from "./app/App";
-import "./styles.css";
+import './styles.css';
 import {
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
