@@ -97,7 +97,7 @@ export const useCanvasController = ({
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
-    screenToCanvas, resetTransform, zoomByStep, getLiveTransform,
+    screenToCanvas, zoomByStep, zoomToActualSize, getLiveTransform,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
   const {
@@ -244,6 +244,9 @@ export const useCanvasController = ({
   const zoomCanvasBy = useCallback((factor: number) => {
     zoomByStep(factor, containerRef.current);
   }, [zoomByStep]);
+  const resetTransform = useCallback(() => {
+    zoomToActualSize(containerRef.current);
+  }, [zoomToActualSize]);
 
   // Zoom-chip companions: reframe around everything / the selection.
   const handleFitAll = useCallback(() => {
@@ -286,7 +289,7 @@ export const useCanvasController = ({
   useCanvasKeyboard({
     canvasId,
     undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
-    nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
+    nodes: visibleNodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNodes,
     setClipboard: onClipboardChange ?? (() => undefined),

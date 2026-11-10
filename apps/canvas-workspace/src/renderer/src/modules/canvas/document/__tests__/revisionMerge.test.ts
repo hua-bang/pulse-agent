@@ -31,14 +31,26 @@ describe('revision three-way merge', () => {
     });
   });
 
-  it('rejects same-field edits and delete-versus-edit without mutating inputs', () => {
+  it('keeps the local value for same-field edits and delete-versus-edit, and reports the paths', () => {
     const base = document([node()]);
     const local = document([{ ...node(), title: 'Local' }]);
-    expect(mergeDocumentRevision(base, local, document([{ ...node(), title: 'Remote' }], 2)))
-      .toEqual({ ok: false, conflicts: ['nodes.a.title'] });
+    expect(mergeDocumentRevision(base, local, document([{ ...node(), title: 'Remote', x: 90 }], 2)))
+      .toMatchObject({ ok: true, overridden: ['nodes.a.title'], data: { revision: 2, nodes: [{ title: 'Local', x: 90 }] } });
     expect(mergeDocumentRevision(base, local, document([], 2)))
-      .toEqual({ ok: false, conflicts: ['nodes.a'] });
+      .toMatchObject({ ok: true, overridden: ['nodes.a'], data: { nodes: [{ id: 'a', title: 'Local' }] } });
+    expect(mergeDocumentRevision(base, document([]), document([{ ...node(), title: 'Remote' }], 2)))
+      .toMatchObject({ ok: true, overridden: ['nodes.a'], data: { nodes: [] } });
     expect(local.nodes[0].title).toBe('Local');
+  });
+
+  it('drops an edge of one side that points at a node the other side deleted', () => {
+    const base = document([node('a')]);
+    const remote: CanvasSaveData = {
+      ...document([node('a'), node('b')], 2),
+      edges: [{ id: 'a-b', source: { kind: 'node', nodeId: 'a' }, target: { kind: 'node', nodeId: 'b' } }],
+    };
+    const result = mergeDocumentRevision(base, document([]), remote);
+    expect(result).toMatchObject({ ok: true, data: { nodes: [{ id: 'b' }], edges: [] } });
   });
 
   it('keeps independent creations and accepts a deletion despite timestamp-only local changes', () => {
@@ -49,10 +61,11 @@ describe('revision three-way merge', () => {
     expect(result.ok && result.data.nodes.map(item => item.id)).toEqual(['remote', 'local']);
   });
 
-  it('rejects incompatible reorderings rather than silently dropping one side', () => {
+  it('keeps the local order for incompatible reorderings without losing an item', () => {
     const [a, b, c] = [node('a'), node('b'), node('c')];
-    expect(mergeDocumentRevision(document([a, b, c]), document([b, a, c]), document([a, c, b], 2)))
-      .toEqual({ ok: false, conflicts: ['nodes.order'] });
+    const result = mergeDocumentRevision(document([a, b, c]), document([b, a, c]), document([a, c, b], 2));
+    expect(result).toMatchObject({ ok: true, overridden: ['nodes.order'] });
+    expect(result.ok && result.data.nodes.map(item => item.id)).toEqual(['b', 'a', 'c']);
   });
 
   it('preserves insertions from both sides relative to the existing order', () => {

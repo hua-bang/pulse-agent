@@ -153,6 +153,7 @@ export const CanvasSurface = ({
       dragOffset={nodeIsDragging ? dragOffset : null}
       isResizing={resizingId === node.id}
       isSelected={selectedNodeIdSet.has(node.id)}
+      inMultiSelection={selectedNodeIdSet.size > 1 && selectedNodeIdSet.has(node.id)}
       isHighlighted={highlightedId === node.id}
       renameToken={renameSignal?.nodeId === node.id ? renameSignal.token : 0}
       isAgentEdited={externallyEditedIds.has(node.id)}

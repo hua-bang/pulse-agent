@@ -6,6 +6,7 @@ import { useMindmapController } from './useMindmapController';
 export const MindmapNodeBody = ({
   node,
   isSelected,
+  inMultiSelection = false,
   isOuterDragging = false,
   onUpdate,
   onSelectNode,
@@ -70,7 +71,7 @@ export const MindmapNodeBody = ({
               isSelected={controller.selectedId === topic.id}
               isEditing={controller.editingId === topic.id}
               initialInput={controller.editingId === topic.id ? controller.editingInitialInput : undefined}
-              outerCanvasSelected={isSelected}
+              outerCanvasSelected={isSelected && !inMultiSelection}
               isDragSource={controller.reorder?.sourceId === topic.id}
               dropHint={controller.getDropHint(topic.id)}
               onBeginReorder={(e) => controller.beginReorder(topic.id, e)}

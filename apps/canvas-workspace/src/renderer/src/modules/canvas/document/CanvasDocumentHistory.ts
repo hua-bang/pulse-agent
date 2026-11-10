@@ -1,4 +1,10 @@
 import type { CanvasEdge, CanvasNode } from '../../../types';
+import {
+  diffExternalChange,
+  isEmptyDelta,
+  rebaseOnExternalChange,
+} from './historyRebase';
+import { dropDanglingEdges } from './revisionMerge';
 
 export interface CanvasDocumentSnapshot {
   nodes: CanvasNode[];
@@ -34,6 +40,36 @@ export class CanvasDocumentHistory {
     };
     this.snapshot = next;
     if (addToHistory) this.push(next);
+    return next;
+  }
+
+  /**
+   * Adopt a state that another writer (the Canvas Agent, the CLI) changed.
+   *
+   * The change is not an undo step of this user, so it adds no entry. It is
+   * applied to every recorded state instead: undo and redo restore whole
+   * states, and a state recorded before the change would otherwise remove
+   * the other writer's nodes when it is restored.
+   */
+  applyExternal(next: CanvasDocumentSnapshot): CanvasDocumentSnapshot {
+    const previous = this.snapshot;
+    const nodeDelta = diffExternalChange(previous.nodes, next.nodes);
+    const edgeDelta = diffExternalChange(previous.edges, next.edges);
+    const recordedAtCursor = this.entries[this.cursor];
+    const cursorIsCurrent = recordedAtCursor.nodes === previous.nodes
+      && recordedAtCursor.edges === previous.edges;
+
+    if (!isEmptyDelta(nodeDelta) || !isEmptyDelta(edgeDelta)) {
+      this.entries = this.entries.map((entry) => {
+        const nodes = rebaseOnExternalChange(entry.nodes, nodeDelta);
+        const edges = dropDanglingEdges(rebaseOnExternalChange(entry.edges, edgeDelta), nodes);
+        return nodes === entry.nodes && edges === entry.edges ? entry : { nodes, edges };
+      });
+    }
+    // Keep the recorded state identical to the published one, so the next
+    // `commit` does not record the external change as a step of this user.
+    if (cursorIsCurrent) this.entries[this.cursor] = next;
+    this.snapshot = next;
     return next;
   }
 

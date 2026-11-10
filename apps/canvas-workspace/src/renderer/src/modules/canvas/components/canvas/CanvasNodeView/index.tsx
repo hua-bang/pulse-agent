@@ -22,6 +22,7 @@ const CanvasNodeViewComponent = ({
   dragOffset,
   isResizing,
   isSelected,
+  inMultiSelection,
   frameDepth,
   renameToken,
   isHighlighted,
@@ -194,6 +195,7 @@ const CanvasNodeViewComponent = ({
         isDragging={isDragging}
         isFullscreen={isFullscreen}
         isSelected={isSelected}
+        inMultiSelection={inMultiSelection}
         node={node}
         onAutoResize={onAutoResize}
         onDragStart={onDragStart}
@@ -270,6 +272,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.dragOffset === next.dragOffset &&
   prev.isResizing === next.isResizing &&
   prev.isSelected === next.isSelected &&
+  prev.inMultiSelection === next.inMultiSelection &&
   prev.frameDepth === next.frameDepth &&
   prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&

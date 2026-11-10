@@ -36,6 +36,8 @@ export const useCanvasDocument = (
    *  error). The canvas surfaces a retry toast — without this, failed
    *  saves were console.warn-only and edits could be silently lost. */
   onSaveError?: () => void,
+  /** Invoked when a local edit was kept over an external change to the same field. */
+  onConflictResolved?: () => void,
 ) => {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<CanvasTransform>({ x: 0, y: 0, scale: 1 });
@@ -45,6 +47,8 @@ export const useCanvasDocument = (
   onAgentCreatedRef.current = onAgentCreated;
   const onSaveErrorRef = useRef(onSaveError);
   onSaveErrorRef.current = onSaveError;
+  const onConflictResolvedRef = useRef(onConflictResolved);
+  onConflictResolvedRef.current = onConflictResolved;
 
   /**
    * Mirrors `loaded` state so `doSave`/`flushSave` (stable callbacks) can
@@ -336,6 +340,10 @@ export const useCanvasDocument = (
           saveTimer.current = null;
           onSaveErrorRef.current?.();
         }
+      },
+      overrode: (paths) => {
+        console.warn(`[canvas] kept local edits over external changes for ${canvasId}:`, paths);
+        if (active) onConflictResolvedRef.current?.();
       },
     });
     persistenceRef.current = persistence;

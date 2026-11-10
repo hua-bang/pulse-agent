@@ -92,7 +92,10 @@ export const formatAllBindings = (definition: ShortcutDefinition): string[] =>
  * conditions omitted this and let `Cmd+Shift+A` run the `Cmd+A` branch.
  */
 export const matchesBinding = (event: KeyEventLike, binding: KeyBinding): boolean => {
-  if (event.key.toLowerCase() !== binding.key.toLowerCase()) return false;
+  // Shift+1 reports `key` as "!" (or another symbol, by layout), so a digit
+  // binding also matches the physical digit key.
+  const digitKey = /^[0-9]$/.test(binding.key) && event.code === `Digit${binding.key}`;
+  if (!digitKey && event.key.toLowerCase() !== binding.key.toLowerCase()) return false;
   if (binding.ctrl) {
     if (!event.ctrlKey || event.metaKey) return false;
   } else if (binding.mod) {

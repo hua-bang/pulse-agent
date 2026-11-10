@@ -25,6 +25,7 @@ interface MindmapCanvasNodeProps {
   isDragging: boolean;
   isFullscreen: boolean;
   isSelected: boolean;
+  inMultiSelection?: boolean;
   node: CanvasNode;
   onAutoResize: (id: string, width: number, height: number, x?: number, y?: number) => void;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
@@ -55,6 +56,7 @@ export const MindmapCanvasNode = ({
   isDragging,
   isFullscreen,
   isSelected,
+  inMultiSelection,
   node,
   onAutoResize,
   onDragStart,
@@ -93,6 +95,7 @@ export const MindmapCanvasNode = ({
           <MindmapNodeBody
             node={node}
             isSelected={isSelected}
+            inMultiSelection={inMultiSelection}
             isOuterDragging={isDragging}
             onUpdate={onUpdate}
             onSelectNode={onSelect}

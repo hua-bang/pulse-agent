@@ -121,6 +121,32 @@ describe('useCanvas zoom gesture', () => {
     expect(hook.settledScale).toBe(2);
   });
 
+  it('resets zoom to 100% around the viewport centre, not the canvas origin', () => {
+    host.getBoundingClientRect = () => ({ width: 800, height: 600 } as DOMRect);
+    act(() => {
+      hook.setTransform({ x: -1000, y: -400, scale: 2 });
+    });
+    // Canvas point (700, 350) is at the viewport centre (400, 300).
+    act(() => {
+      hook.zoomToActualSize(host);
+    });
+    expect(hook.transform).toEqual({ x: -300, y: -50, scale: 1 });
+  });
+
+  it('resets zoom from the live transform while a wheel gesture is active', () => {
+    host.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 } as DOMRect);
+    act(() => {
+      hook.handleWheel({ ...wheelEvent(0), ctrlKey: false, deltaX: 100, deltaY: 50 } as React.WheelEvent);
+      vi.advanceTimersByTime(20);
+    });
+    expect(hook.moving).toBe(true);
+    act(() => {
+      hook.zoomToActualSize(host);
+    });
+    // The scale is already 1, so the pan of the gesture must stay.
+    expect(hook.transform).toEqual({ x: -100, y: -50, scale: 1 });
+  });
+
   it('keeps screenToCanvas identity-stable while reading the live transform', () => {
     const before = hook.screenToCanvas;
 

@@ -76,6 +76,27 @@ describe('MindmapNodeBody editing', () => {
     host.remove();
   });
 
+  // Regression: after "select all" the root topic took focus and consumed
+  // Delete, so the selected nodes were not deleted.
+  it('leaves key focus to the canvas while other nodes are selected too', () => {
+    expect(document.activeElement).toBe(pill('root'));
+
+    act(() => root.render(
+      <I18nProvider>
+        <MindmapNodeBody
+          node={initialNode}
+          isSelected
+          inMultiSelection
+          onUpdate={() => undefined}
+          onSelectNode={() => undefined}
+          onAutoResize={() => undefined}
+        />
+      </I18nProvider>,
+    ));
+
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it('keeps the root still on the canvas when a branch grows', () => {
     const before = rootCanvasY();
     act(() => pill('b').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })));

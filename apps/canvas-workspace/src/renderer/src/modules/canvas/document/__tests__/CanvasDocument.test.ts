@@ -46,6 +46,70 @@ describe('CanvasDocumentHistory', () => {
     expect(history.undo()).toEqual(initial);
     expect(history.redo()).toEqual({ nodes: moved, edges: [] });
   });
+
+  it('keeps a node that another writer created when the user undoes', () => {
+    const initial = { nodes: [node('mine')], edges: [] };
+    const history = new CanvasDocumentHistory(initial);
+    history.apply({ nodes: [node('mine', 'Renamed')] });
+
+    history.applyExternal({ nodes: [node('mine', 'Renamed'), node('agent')], edges: [edge('agent-edge')] });
+
+    // The external change is not an undo step of this user.
+    expect(history.commit()).toBe(false);
+    expect(history.undo()).toEqual({ nodes: [node('mine'), node('agent')], edges: [edge('agent-edge')] });
+    expect(history.undo()).toBeNull();
+    expect(history.redo()).toEqual({
+      nodes: [node('mine', 'Renamed'), node('agent')],
+      edges: [edge('agent-edge')],
+    });
+  });
+
+  it('applies an external edit and an external delete to every recorded state', () => {
+    const linked: CanvasEdge = {
+      id: 'linked',
+      source: { kind: 'node', nodeId: 'gone' },
+      target: { kind: 'point', x: 10, y: 10 },
+    };
+    const initial = { nodes: [node('kept'), node('gone')], edges: [linked] };
+    const history = new CanvasDocumentHistory(initial);
+    history.apply({ nodes: [{ ...node('kept'), x: 50 }, node('gone')] });
+
+    const edited = { ...node('kept', 'Agent title'), x: 50, data: { ...node('kept').data, content: 'Agent text' } };
+    history.applyExternal({ nodes: [edited], edges: [] });
+
+    // The user's move is undone; the other writer's edit and delete stay.
+    expect(history.undo()).toEqual({
+      nodes: [{ ...edited, x: 0 }],
+      edges: [],
+    });
+  });
+
+  it('does not give a recorded state an external edge to a node it lacks', () => {
+    const initial = { nodes: [], edges: [] };
+    const history = new CanvasDocumentHistory(initial);
+    history.apply({ nodes: [node('mine')] });
+    const toMine: CanvasEdge = {
+      id: 'to-mine',
+      source: { kind: 'node', nodeId: 'mine' },
+      target: { kind: 'node', nodeId: 'agent' },
+    };
+
+    history.applyExternal({ nodes: [node('mine'), node('agent')], edges: [toMine] });
+
+    expect(history.undo()).toEqual({ nodes: [node('agent')], edges: [] });
+    expect(history.redo()).toEqual({ nodes: [node('mine'), node('agent')], edges: [toMine] });
+  });
+
+  it('keeps an unfinished drag separate from an external change', () => {
+    const initial = { nodes: [node('mine')], edges: [] };
+    const history = new CanvasDocumentHistory(initial);
+    history.apply({ nodes: [{ ...node('mine'), x: 40 }] }, false);
+
+    history.applyExternal({ nodes: [{ ...node('mine'), x: 40 }, node('agent')], edges: [] });
+
+    expect(history.commit()).toBe(true);
+    expect(history.undo()).toEqual({ nodes: [node('mine'), node('agent')], edges: [] });
+  });
 });
 
 describe('mergeExternalDocumentUpdate', () => {
