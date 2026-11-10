@@ -1,7 +1,7 @@
-import { Mark } from "@tiptap/react";
+import { Mark } from '@tiptap/react';
 
 export const TextColorMark = Mark.create({
-  name: "textColor",
+  name: 'textColor',
 
   addAttributes() {
     return {
@@ -19,7 +19,7 @@ export const TextColorMark = Mark.create({
   parseHTML() {
     return [
       {
-        tag: "span[style]",
+        tag: 'span[style]',
         getAttrs: (element) => {
           const color = (element as HTMLElement).style.color;
           return color ? { color } : false;
@@ -29,6 +29,6 @@ export const TextColorMark = Mark.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ["span", HTMLAttributes, 0];
+    return ['span', HTMLAttributes, 0];
   },
 });

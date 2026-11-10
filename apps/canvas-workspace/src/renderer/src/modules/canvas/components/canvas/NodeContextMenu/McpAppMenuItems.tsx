@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
-import { useI18n } from "../../../../../i18n";
-import { NodeTypeIcon } from "../../../../../components/icons";
-import { Button } from "../../../../../components/ui";
-import type { AddNodeUiOptions } from "../FloatingToolbar/types";
-import type { McpAppEntrypointListing } from "../../../../../../../shared/mcp-apps";
+import { useEffect, useState } from 'react';
+import { useI18n } from '../../../../../i18n';
+import { NodeTypeIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui';
+import type { AddNodeUiOptions } from '../FloatingToolbar/types';
+import type { McpAppEntrypointListing } from '../../../../../../../shared/mcp-apps';
 import {
   MCP_APP_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_PLUGIN_ID,
   MCP_APP_NODE_TYPE,
   mcpAppNodeBindingFromListing,
-} from "../../../../../../../shared/mcp-app-node";
+} from '../../../../../../../shared/mcp-app-node';
 
 interface Props {
   workspaceId: string;
@@ -41,7 +41,7 @@ export const McpAppMenuItems = ({ workspaceId, onCreate }: Props) => {
   useEffect(() => {
     let cancelled = false;
     void window.canvasWorkspace.agent.mcpApps
-      .listEntrypoints({ kind: "workspace", workspaceId })
+      .listEntrypoints({ kind: 'workspace', workspaceId })
       .then((result) => {
         if (!cancelled && result.ok) setListings(result.value ?? []);
       })
@@ -53,7 +53,7 @@ export const McpAppMenuItems = ({ workspaceId, onCreate }: Props) => {
 
   return (
     <>
-      <div className="context-menu-title">{t("mcpApp.node.menuTitle")}</div>
+      <div className="context-menu-title">{t('mcpApp.node.menuTitle')}</div>
       {listings.map((listing) => (
         <Button
           key={`${listing.serverName}:${listing.toolName}`}
@@ -68,7 +68,7 @@ export const McpAppMenuItems = ({ workspaceId, onCreate }: Props) => {
           <span className="context-menu-label">
             <strong>{listing.title}</strong>
             <small>
-              {t("mcpApp.node.menuDesc", { server: listing.serverName, kind: listing.kind })}
+              {t('mcpApp.node.menuDesc', { server: listing.serverName, kind: listing.kind })}
             </small>
           </span>
         </Button>

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { useAppShell } from "../../../../../shared/appShell";
+import { useCallback, useEffect, useState } from 'react';
+import { useAppShell } from '../../../../../shared/appShell';
 
 /** What the main-side `get-spec` IPC returns. */
 interface GetSpecOk {
   ok: true;
-  spec: { kind: "polling" | "stateful"; [k: string]: unknown };
+  spec: { kind: 'polling' | 'stateful'; [k: string]: unknown };
   createdAt: number;
 }
 interface IpcError {
@@ -14,9 +14,9 @@ interface IpcError {
 type GetSpecResult = GetSpecOk | IpcError;
 type ActionResult = { ok: true; url: string } | IpcError;
 
-type Tab = "spec" | "payload" | "actions";
+type Tab = 'spec' | 'payload' | 'actions';
 
-const PLUGIN_ID = "dynamic-app";
+const PLUGIN_ID = 'dynamic-app';
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   // PluginBridge exposed via preload — `window.canvasWorkspace.plugin.invoke`
@@ -45,7 +45,7 @@ export function DynamicAppInspector({
   apiUrl,
   onUrlChanged,
 }: DynamicAppInspectorProps) {
-  const [tab, setTab] = useState<Tab>("spec");
+  const [tab, setTab] = useState<Tab>('spec');
   const [spec, setSpec] = useState<GetSpecOk | null>(null);
   const [specError, setSpecError] = useState<string | null>(null);
 
@@ -56,7 +56,7 @@ export function DynamicAppInspector({
     let cancelled = false;
     setSpec(null);
     setSpecError(null);
-    invoke<GetSpecResult>("get-spec", workspaceId, dynamicAppId)
+    invoke<GetSpecResult>('get-spec', workspaceId, dynamicAppId)
       .then((res) => {
         if (cancelled) return;
         if (res.ok) setSpec(res);
@@ -74,26 +74,26 @@ export function DynamicAppInspector({
     <div className="dynamic-app-inspector">
       <div className="dynamic-app-inspector-tabs">
         <button
-          className={`dynamic-app-inspector-tab ${tab === "spec" ? "active" : ""}`}
-          onClick={() => setTab("spec")}
+          className={`dynamic-app-inspector-tab ${tab === 'spec' ? 'active' : ''}`}
+          onClick={() => setTab('spec')}
         >
           Spec
         </button>
         <button
-          className={`dynamic-app-inspector-tab ${tab === "payload" ? "active" : ""}`}
-          onClick={() => setTab("payload")}
+          className={`dynamic-app-inspector-tab ${tab === 'payload' ? 'active' : ''}`}
+          onClick={() => setTab('payload')}
         >
           Payload
         </button>
         <button
-          className={`dynamic-app-inspector-tab ${tab === "actions" ? "active" : ""}`}
-          onClick={() => setTab("actions")}
+          className={`dynamic-app-inspector-tab ${tab === 'actions' ? 'active' : ''}`}
+          onClick={() => setTab('actions')}
         >
           Actions
         </button>
       </div>
       <div className="dynamic-app-inspector-body">
-        {tab === "spec" &&
+        {tab === 'spec' &&
           (specError ? (
             <div className="dynamic-app-inspector-toast error">{specError}</div>
           ) : !spec ? (
@@ -103,8 +103,8 @@ export function DynamicAppInspector({
               {JSON.stringify(spec.spec, null, 2)}
             </pre>
           ))}
-        {tab === "payload" && <PayloadTab apiUrl={apiUrl} />}
-        {tab === "actions" && (
+        {tab === 'payload' && <PayloadTab apiUrl={apiUrl} />}
+        {tab === 'actions' && (
           <ActionsTab
             workspaceId={workspaceId}
             dynamicAppId={dynamicAppId}
@@ -134,12 +134,12 @@ function PayloadTab({ apiUrl }: { apiUrl: string }) {
         setStreamError(`parse error: ${String(err)}`);
       }
     };
-    es.addEventListener("error", (e) => {
+    es.addEventListener('error', (e) => {
       // Server-side errors come as named SSE 'error' events with a JSON
       // body. EventSource transport errors arrive on the same handler
       // but without a `data` field — branch on that.
       const msg = (e as MessageEvent).data;
-      if (typeof msg === "string" && msg.length > 0) {
+      if (typeof msg === 'string' && msg.length > 0) {
         try {
           const parsed = JSON.parse(msg);
           setStreamError(parsed.message ?? msg);
@@ -147,7 +147,7 @@ function PayloadTab({ apiUrl }: { apiUrl: string }) {
           setStreamError(msg);
         }
       } else {
-        setStreamError("stream disconnected");
+        setStreamError('stream disconnected');
       }
     });
     return () => es.close();
@@ -176,7 +176,7 @@ function ActionsTab({
 }: {
   workspaceId: string;
   dynamicAppId: string;
-  kind: "polling" | "stateful" | undefined;
+  kind: 'polling' | 'stateful' | undefined;
   onUrlChanged(url: string): void;
 }) {
   const { notify } = useAppShell();
@@ -184,18 +184,18 @@ function ActionsTab({
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   const run = useCallback(
-    async (channel: "restart" | "reset-state", successMsg: string) => {
+    async (channel: 'restart' | 'reset-state', successMsg: string) => {
       setBusy(true);
       try {
         const res = await invoke<ActionResult>(channel, workspaceId, dynamicAppId);
         if (res.ok) {
-          notify({ tone: "success", title: successMsg });
+          notify({ tone: 'success', title: successMsg });
           onUrlChanged(res.url);
         } else {
-          notify({ tone: "error", title: res.error });
+          notify({ tone: 'error', title: res.error });
         }
       } catch (err) {
-        notify({ tone: "error", title: String(err) });
+        notify({ tone: 'error', title: String(err) });
       } finally {
         setBusy(false);
         setConfirmingReset(false);
@@ -208,7 +208,7 @@ function ActionsTab({
     <div className="dynamic-app-inspector-section">
       <button
         className="dynamic-app-inspector-action"
-        onClick={() => void run("restart", "runner restarted")}
+        onClick={() => void run('restart', 'runner restarted')}
         disabled={busy}
       >
         Restart runner
@@ -217,12 +217,12 @@ function ActionsTab({
         Stops and re-forks. State (if stateful) survives.
       </p>
 
-      {kind === "stateful" &&
+      {kind === 'stateful' &&
         (confirmingReset ? (
           <>
             <button
               className="dynamic-app-inspector-action danger"
-              onClick={() => void run("reset-state", "state reset to initial")}
+              onClick={() => void run('reset-state', 'state reset to initial')}
               disabled={busy}
             >
               Confirm — wipe state

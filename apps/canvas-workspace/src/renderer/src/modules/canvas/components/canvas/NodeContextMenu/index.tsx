@@ -1,19 +1,19 @@
-import "./index.css";
-import { Popover } from "../../../../../components/ui/Popover";
-import { Button } from "../../../../../components/ui";
-import { useI18n } from "../../../../../i18n";
-import type { CreatableCanvasNodeType } from "../../../../../utils/nodeFactory";
-import { useRightDock } from "../../../../../shared/dockPort";
-import { ExportIcon, NodeTypeIcon } from "../../../../../components/icons";
-import type { AddNodeUiOptions } from "../FloatingToolbar/types";
-import { McpAppMenuItems } from "./McpAppMenuItems";
-import { CanvasReferenceMenuItems } from "./CanvasReferenceMenuItems";
-import type { WorkspaceEntry } from "../../../../../shared/workspaces";
+import './index.css';
+import { Popover } from '../../../../../components/ui/Popover';
+import { Button } from '../../../../../components/ui';
+import { useI18n } from '../../../../../i18n';
+import type { CreatableCanvasNodeType } from '../../../../../utils/nodeFactory';
+import { useRightDock } from '../../../../../shared/dockPort';
+import { ExportIcon, NodeTypeIcon } from '../../../../../components/icons';
+import type { AddNodeUiOptions } from '../FloatingToolbar/types';
+import { McpAppMenuItems } from './McpAppMenuItems';
+import { CanvasReferenceMenuItems } from './CanvasReferenceMenuItems';
+import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 interface Props {
   x: number;
   y: number;
-  mode?: "create" | "mindmap";
+  mode?: 'create' | 'mindmap';
   onCreate?: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
   workspaceId?: string;
   canvasReferenceWorkspaces?: WorkspaceEntry[];
@@ -62,7 +62,7 @@ const CreateMenuItem = ({
 export const NodeContextMenu = ({
   x,
   y,
-  mode = "create",
+  mode = 'create',
   onCreate,
   workspaceId,
   canvasReferenceWorkspaces,
@@ -81,7 +81,7 @@ export const NodeContextMenu = ({
 
   return (
     <Popover x={x} y={y} onClose={onClose} className="context-menu">
-      {mode === "mindmap" ? (
+      {mode === 'mindmap' ? (
         <>
           <div className="context-menu-title">{t('canvas.menu.mindmapTitle')}</div>
           <button

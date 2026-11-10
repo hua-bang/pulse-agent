@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import "./index.css";
-import { TextSelectionBubble } from "./TextSelectionBubble";
-import { useTextNodeSize } from "./useTextNodeSize";
-import { applyDeferredEditorInput, type DeferredEditorReady } from "../applyDeferredEditorInput";
-import { createTextNodeExtensions } from "./textNodeExtensions";
-import { resolveTextNodeColor } from "./colorPresets";
-import type { CanvasNode, TextNodeData } from "../../../../../types";
-import { isImeComposing } from "../../../../../utils/ime";
-import { useI18n } from "../../../../../i18n";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import './index.css';
+import { TextSelectionBubble } from './TextSelectionBubble';
+import { useTextNodeSize } from './useTextNodeSize';
+import { applyDeferredEditorInput, type DeferredEditorReady } from '../applyDeferredEditorInput';
+import { createTextNodeExtensions } from './textNodeExtensions';
+import { resolveTextNodeColor } from './colorPresets';
+import type { CanvasNode, TextNodeData } from '../../../../../types';
+import { isImeComposing } from '../../../../../utils/ime';
+import { useI18n } from '../../../../../i18n';
 
 interface Props {
   node: CanvasNode;
@@ -79,7 +79,7 @@ export const TextNodeBody = ({
 
   const editor = useEditor({
     extensions: createTextNodeExtensions(t('canvas.textPlaceholder'), t('canvas.textEditingPlaceholder')),
-    content: data.content || "",
+    content: data.content || '',
     editable: false,
     onUpdate: ({ editor }) => {
       if (readOnly) return;
@@ -104,11 +104,11 @@ export const TextNodeBody = ({
   useEffect(() => {
     if (!editor) return;
     const refresh = () => rerenderStyleControls((value) => value + 1);
-    editor.on("selectionUpdate", refresh);
-    editor.on("transaction", refresh);
+    editor.on('selectionUpdate', refresh);
+    editor.on('transaction', refresh);
     return () => {
-      editor.off("selectionUpdate", refresh);
-      editor.off("transaction", refresh);
+      editor.off('selectionUpdate', refresh);
+      editor.off('transaction', refresh);
     };
   }, [editor]);
 
@@ -133,7 +133,7 @@ export const TextNodeBody = ({
     if (data.content === prevContentRef.current) return;
     prevContentRef.current = data.content;
     // `emitUpdate: false` avoids firing our onUpdate → onUpdate loop.
-    editor.commands.setContent(data.content || "", { emitUpdate: false });
+    editor.commands.setContent(data.content || '', { emitUpdate: false });
   }, [editor, data.content]);
 
   // Empty selected nodes drop straight into editing so typing works immediately
@@ -142,7 +142,7 @@ export const TextNodeBody = ({
   // stray caret/placeholder artifact.
   useEffect(() => {
     if (!editor || onEditorReady) return;
-    if (!readOnly && isSelected && data.content === "") {
+    if (!readOnly && isSelected && data.content === '') {
       setEditing(true);
       // Defer focus until editable=true has applied to the DOM.
       const t = setTimeout(() => editor.commands.focus(), 0);
@@ -214,7 +214,7 @@ export const TextNodeBody = ({
       // Escape mid-IME-composition dismisses the candidate window — exiting
       // edit mode there would eat the half-typed CJK input.
       if (isImeComposing(e)) return;
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         e.preventDefault();
         editor?.commands.blur();
         setEditing(false);
@@ -226,7 +226,7 @@ export const TextNodeBody = ({
   return (
     <div
       ref={wrapperRef}
-      className={`text-node-body${editing ? " text-node-body--editing" : ""}`}
+      className={`text-node-body${editing ? ' text-node-body--editing' : ''}`}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}

@@ -16,13 +16,13 @@
  * `window.canvasWorkspace.plugin.invoke('dynamic-app', ...)`.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import "./index.css";
-import type { CanvasNode, DynamicAppNodeData } from "../../../../../types";
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import './index.css';
+import type { CanvasNode, DynamicAppNodeData } from '../../../../../types';
 
 // The inspector only opens on demand, so it stays out of the entry chunk.
 const DynamicAppInspector = lazy(() =>
-  import("./Inspector").then((module) => ({ default: module.DynamicAppInspector })),
+  import('./Inspector').then((module) => ({ default: module.DynamicAppInspector })),
 );
 
 interface DynamicAppNodeBodyProps {
@@ -35,7 +35,7 @@ interface DynamicAppNodeBodyProps {
 
 interface GetSpecOk {
   ok: true;
-  spec: { kind: "polling" | "stateful" };
+  spec: { kind: 'polling' | 'stateful' };
 }
 interface IpcError {
   ok: false;
@@ -49,7 +49,7 @@ function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
         plugin: { invoke: <R>(p: string, c: string, ...a: unknown[]) => Promise<R> };
       };
     }
-  ).canvasWorkspace.plugin.invoke<T>("dynamic-app", channel, ...args);
+  ).canvasWorkspace.plugin.invoke<T>('dynamic-app', channel, ...args);
 }
 
 /** Strip query and fragment to recover the canonical API base.
@@ -58,7 +58,7 @@ function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 function apiBaseFromUiUrl(uiUrl: string): string {
   const noQuery = uiUrl.split(/[?#]/)[0];
   // /ui/<id> → /api/<id>
-  return noQuery.replace(/\/ui\//, "/api/");
+  return noQuery.replace(/\/ui\//, '/api/');
 }
 
 export function DynamicAppNodeBody({
@@ -71,8 +71,8 @@ export function DynamicAppNodeBody({
   // node.data narrows to DynamicAppNodeData. Be defensive about the
   // shape in case canvas.json was hand-edited.
   const data = node.data as Partial<DynamicAppNodeData> | undefined;
-  const url = data?.url ?? "";
-  const dynamicAppId = data?.dynamicAppId ?? "";
+  const url = data?.url ?? '';
+  const dynamicAppId = data?.dynamicAppId ?? '';
 
   const [iframeKey, setIframeKey] = useState(0);
   // Allow inspector actions (restart / reset) to swap in a fresh URL
@@ -80,14 +80,14 @@ export function DynamicAppNodeBody({
   // node's persisted URL when nothing has run.
   const [overrideUrl, setOverrideUrl] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [kind, setKind] = useState<"polling" | "stateful" | null>(null);
+  const [kind, setKind] = useState<'polling' | 'stateful' | null>(null);
 
   // Fetch kind once per dynamicAppId so the toolbar can show the badge.
   // Don't block render — kind appears once the IPC returns.
   useEffect(() => {
     if (!workspaceId || !dynamicAppId) return;
     let cancelled = false;
-    invoke<GetSpecOk | IpcError>("get-spec", workspaceId, dynamicAppId)
+    invoke<GetSpecOk | IpcError>('get-spec', workspaceId, dynamicAppId)
       .then((res) => {
         if (cancelled) return;
         if (res.ok) setKind(res.spec.kind);
@@ -99,7 +99,7 @@ export function DynamicAppNodeBody({
   }, [workspaceId, dynamicAppId]);
 
   const effectiveUrl = overrideUrl ?? url;
-  const apiUrl = effectiveUrl ? apiBaseFromUiUrl(effectiveUrl) : "";
+  const apiUrl = effectiveUrl ? apiBaseFromUiUrl(effectiveUrl) : '';
 
   const handleRefresh = useCallback(() => {
     setIframeKey((k) => k + 1);
@@ -108,7 +108,7 @@ export function DynamicAppNodeBody({
   const handleUrlChanged = useCallback((next: string) => {
     // Append our own cache-buster so the iframe actually reloads even
     // when restart returned the same canonical URL.
-    const bust = `${next}${next.includes("?") ? "&" : "?"}v=${Date.now()}`;
+    const bust = `${next}${next.includes('?') ? '&' : '?'}v=${Date.now()}`;
     setOverrideUrl(bust);
     setIframeKey((k) => k + 1);
   }, []);
@@ -140,7 +140,7 @@ export function DynamicAppNodeBody({
         </button>
         <button
           type="button"
-          className={`dynamic-app-tool-btn ${inspectorOpen ? "active" : ""}`}
+          className={`dynamic-app-tool-btn ${inspectorOpen ? 'active' : ''}`}
           title="Inspect: spec, payload, runner actions"
           onClick={() => setInspectorOpen((v) => !v)}
         >

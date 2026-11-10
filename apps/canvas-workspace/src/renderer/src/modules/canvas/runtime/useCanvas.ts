@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { CanvasTransform } from "../../../types";
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import type { CanvasTransform } from '../../../types';
 import {
   HEAVY_EMBED_THRESHOLD,
   setCanvasMotion,
