@@ -1,19 +1,19 @@
-import { createRoot } from "react-dom/client";
-import { Router, type AroundNavHandler } from "wouter";
-import { useHashLocation } from "wouter/use-hash-location";
-import App from "./app/App";
-import "./styles.css";
+import { createRoot } from 'react-dom/client';
+import { Router, type AroundNavHandler } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location';
+import App from './app/App';
+import './styles.css';
 import {
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
-} from "../../plugins/renderer";
-import { installPerfMonitor, markOnce } from "./perf/monitor";
-import { installJankMonitor } from "./perf/jank-monitor";
-import { installBeforeQuitFlush } from "./modules/canvas/document/beforeQuit";
-import { runViewTransition } from "./shared/viewTransition";
-import { installTheme } from "./shared/theme";
-import { getInitialLanguage } from "./i18n";
-import { loadMessages } from "./i18n/messages";
+} from '../../plugins/renderer';
+import { installPerfMonitor, markOnce } from './perf/monitor';
+import { installJankMonitor } from './perf/jank-monitor';
+import { installBeforeQuitFlush } from './modules/canvas/document/beforeQuit';
+import { runViewTransition } from './shared/viewTransition';
+import { installTheme } from './shared/theme';
+import { getInitialLanguage } from './i18n';
+import { loadMessages } from './i18n/messages';
 
 installTheme();
 installPerfMonitor();
