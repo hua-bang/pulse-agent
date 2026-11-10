@@ -166,6 +166,11 @@ is what stops `Cmd+Shift+A` from falling into the `Cmd+A` (`canvas.selectAll`)
 branch: the earlier hand-written matcher checked only the modifiers a
 condition happened to mention, so an unlisted Shift fell through silently.
 
+A digit binding also matches the physical key (`event.code === 'Digit1'`).
+Shift changes `event.key` to a symbol (`!` on a US layout), so a `key`-only
+match made `Shift+1` / `Shift+2` (`canvas.fitAll` / `canvas.fitSelection`)
+dead. Guard: `registry.test.ts` ("matches a shifted digit binding").
+
 ## macOS-eaten chords
 
 macOS eats `Cmd+H` and `Cmd+Tab` before the renderer ever sees them

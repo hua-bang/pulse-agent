@@ -122,9 +122,17 @@ Canvas mutations atomically commit records, a revision, and a change event.
 Both app and CLI compare the revision and database generation; matching numeric
 revisions from an old backend do not authorize an overwrite. The app polls the
 commit log instead of watching SQLite/WAL files. Renderer persistence owns a
-durable baseline, serializes saves, and rebases independent edits; conflicting
-fields retain the local draft and show a save error. Drafts held only by the
-renderer are not a cross-restart recovery guarantee.
+durable baseline, serializes saves, and rebases independent edits. When both
+sides change the same field, the local value wins, the save continues, and a
+notice tells the user; only a database-generation mismatch stops the merge. A
+conflict must never block later saves. Drafts held only by the renderer are not
+a cross-restart recovery guarantee.
+
+Undo history holds whole document states. An external change (Canvas Agent,
+CLI) adds no undo step; `CanvasDocumentHistory.applyExternal` applies it to
+every recorded state, so undo and redo cannot remove another writer's nodes or
+restore nodes that the writer deleted. Guards: `document/__tests__/`
+`CanvasDocument.test.ts`, `revisionMerge.test.ts`, `useCanvasDocument.test.tsx`.
 
 Markdown and attachment content in main goes through `files/workspace-files.ts`,
 the shared `WorkspaceFiles` repository from `@pulse-coder/storage`. Reads carry

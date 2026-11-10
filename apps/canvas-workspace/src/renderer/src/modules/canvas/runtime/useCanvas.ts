@@ -325,9 +325,12 @@ export const useCanvas = (
    * update, not a gesture, so there is no rAF stream to ride and no reason
    * to enter the `moving` state.
    */
-  const zoomByStep = useCallback((factor: number, container: HTMLElement | null) => {
+  const zoomAtCentre = useCallback((
+    scaleOf: (current: number) => number,
+    container: HTMLElement | null,
+  ) => {
     setTransformSafe((prev) => {
-      const newScale = clampScale(prev.scale * factor);
+      const newScale = clampScale(scaleOf(prev.scale));
       if (newScale === prev.scale) return prev;
       const rect = container?.getBoundingClientRect();
       const cx = rect ? rect.width / 2 : 0;
@@ -340,6 +343,15 @@ export const useCanvas = (
       };
     });
   }, [setTransformSafe]);
+
+  const zoomByStep = useCallback((factor: number, container: HTMLElement | null) => {
+    zoomAtCentre((scale) => scale * factor, container);
+  }, [zoomAtCentre]);
+
+  /** Back to 100% without leaving the content that is on screen. */
+  const zoomToActualSize = useCallback((container: HTMLElement | null) => {
+    zoomAtCentre(() => 1, container);
+  }, [zoomAtCentre]);
 
   const renderTransform = moving ? transformRef.current : transform;
   // A gesture's latest frame lives only in the ref until the idle timer
@@ -359,6 +371,7 @@ export const useCanvas = (
     screenToCanvas,
     resetTransform,
     zoomByStep,
+    zoomToActualSize,
     getLiveTransform
   };
 };

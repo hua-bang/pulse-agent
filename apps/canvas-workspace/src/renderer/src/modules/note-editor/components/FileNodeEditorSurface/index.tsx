@@ -17,6 +17,7 @@ import { NoteLinkPrompt } from '../NoteLinkPrompt';
 import { NoteMentionMenu } from '../NoteMentionMenu';
 import { NoteOutline } from '../NoteOutline';
 import { SlashCommandMenu } from '../SlashCommandMenu';
+import { contentOwnsWheel } from './contentOwnsWheel';
 
 interface Props {
   editor: Editor | null;
@@ -183,7 +184,9 @@ export const FileNodeEditorSurface = ({
       <div
         className="note-content"
         onPaste={(event) => event.stopPropagation()}
-        onWheel={(event) => event.stopPropagation()}
+        onWheel={(event) => {
+          if (contentOwnsWheel(event)) event.stopPropagation();
+        }}
         onScrollCapture={() => {
           // Slash, mention, and selection surfaces use one-shot viewport
           // coordinates. Once the editor's own scroller moves, dismiss them

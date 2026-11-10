@@ -30,19 +30,24 @@ export function sameDocumentContent(left: CanvasSaveData, right: CanvasSaveData)
     && equalDocumentValue(left.transform, right.transform);
 }
 
-function mergeValue(base: Value, local: Value, remote: Value, path: string, conflicts: string[]): Value {
+/**
+ * Three-way merge of one value. When both sides changed the same field, the
+ * local value wins: it is the edit of the user who has the canvas open. The
+ * path is reported in `overridden`.
+ */
+function mergeValue(base: Value, local: Value, remote: Value, path: string, overridden: string[]): Value {
   if (equalDocumentValue(local, base)) return remote;
   if (equalDocumentValue(remote, base) || equalDocumentValue(local, remote)) return local;
   if (object(base) && object(local) && object(remote)) {
     const merged = Object.create(null) as Record<string, Value>;
     for (const key of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
-      const value = mergeValue(base[key], local[key], remote[key], `${path}.${key}`, conflicts);
+      const value = mergeValue(base[key], local[key], remote[key], `${path}.${key}`, overridden);
       if (value !== undefined) merged[key] = value;
     }
     return merged;
   }
   // Arrays are atomic fields: text/topic/order edits have no safe scalar merge.
-  conflicts.push(path);
+  overridden.push(path);
   return local;
 }
 
@@ -53,7 +58,7 @@ function semanticRecord<T extends CanvasNode | CanvasEdge>(value: T | undefined)
 }
 
 function mergeEntities<T extends CanvasNode | CanvasEdge>(
-  base: T[], local: T[], remote: T[], path: string, conflicts: string[],
+  base: T[], local: T[], remote: T[], path: string, overridden: string[],
 ): T[] {
   const byId = (items: T[]) => new Map(items.map(item => [item.id, item]));
   const bases = byId(base);
@@ -63,7 +68,7 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
   for (const id of new Set([...bases.keys(), ...locals.keys(), ...remotes.keys()])) {
     const current = mergeValue(
       semanticRecord(bases.get(id)), semanticRecord(locals.get(id)), semanticRecord(remotes.get(id)),
-      `${path}.${id}`, conflicts,
+      `${path}.${id}`, overridden,
     );
     if (!object(current)) continue;
     const timestamps = [bases.get(id)?.updatedAt, locals.get(id)?.updatedAt, remotes.get(id)?.updatedAt]
@@ -74,7 +79,8 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
     } as T);
   }
 
-  // Concurrent membership changes can coexist; conflicting reorders cannot.
+  // Concurrent membership changes can coexist. Of two different reorders,
+  // the local order wins.
   const common = new Set(base.filter(item => locals.has(item.id) && remotes.has(item.id)).map(item => item.id));
   const order = (items: T[]) => items.filter(item => common.has(item.id)).map(item => item.id);
   const baseOrder = order(base);
@@ -83,7 +89,7 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
   const localReordered = !equalDocumentValue(localOrder, baseOrder);
   const remoteReordered = !equalDocumentValue(remoteOrder, baseOrder);
   if (localReordered && remoteReordered && !equalDocumentValue(localOrder, remoteOrder)) {
-    conflicts.push(`${path}.order`);
+    overridden.push(`${path}.order`);
   }
   const preferred = localReordered ? local : remote;
   const ids = new Set([...preferred.map(item => item.id), ...local.map(item => item.id), ...remote.map(item => item.id)]);
@@ -95,8 +101,8 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
     for (let i = 1; i < present.length; i += 1) {
       const before = present[i - 1].id;
       const after = present[i].id;
-      // An unchanged baseline order must not veto the other side's reorder.
-      if (index === 1 && localReordered !== remoteReordered && bases.has(before) && bases.has(after)) continue;
+      // The secondary order of baseline items must not veto the preferred one.
+      if (index === 1 && (localReordered || remoteReordered) && bases.has(before) && bases.has(after)) continue;
       const following = successors.get(before) ?? new Set<string>();
       if (!following.has(after)) incoming.set(after, incoming.get(after)! + 1);
       following.add(after);
@@ -106,12 +112,11 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
   const ordered: T[] = [];
   const remaining = [...ids].filter(id => merged.has(id));
   while (remaining.length) {
-    const index = remaining.findIndex(id => incoming.get(id) === 0);
-    if (index < 0) {
-      if (!conflicts.includes(`${path}.order`)) conflicts.push(`${path}.order`);
-      break;
-    }
-    const [id] = remaining.splice(index, 1);
+    const free = remaining.findIndex(id => incoming.get(id) === 0);
+    // Insertions of both sides can still form a cycle. Break it at the first
+    // item of the preferred order, so no item is lost.
+    if (free < 0 && !overridden.includes(`${path}.order`)) overridden.push(`${path}.order`);
+    const [id] = remaining.splice(Math.max(free, 0), 1);
     ordered.push(merged.get(id)!);
     for (const next of successors.get(id) ?? []) incoming.set(next, incoming.get(next)! - 1);
   }
@@ -124,18 +129,18 @@ export function mergeDocumentRevision(
   remote: CanvasSaveData,
   options: { allowStorageGenerationChange?: boolean } = {},
 ):
-  | { ok: true; data: CanvasSaveData }
+  | { ok: true; data: CanvasSaveData; overridden: string[] }
   | { ok: false; conflicts: string[] } {
   if (base.storageGeneration !== remote.storageGeneration && !options.allowStorageGenerationChange) {
     return { ok: false, conflicts: ['storageGeneration'] };
   }
-  const conflicts: string[] = [];
-  const nodes = mergeEntities(base.nodes, local.nodes, remote.nodes, 'nodes', conflicts);
-  const edges = mergeEntities(base.edges ?? [], local.edges ?? [], remote.edges ?? [], 'edges', conflicts);
-  const transform = mergeValue(base.transform, local.transform, remote.transform, 'transform', conflicts);
-  if (conflicts.length) return { ok: false, conflicts };
+  const overridden: string[] = [];
+  const nodes = mergeEntities(base.nodes, local.nodes, remote.nodes, 'nodes', overridden);
+  const edges = mergeEntities(base.edges ?? [], local.edges ?? [], remote.edges ?? [], 'edges', overridden);
+  const transform = mergeValue(base.transform, local.transform, remote.transform, 'transform', overridden);
   return {
     ok: true,
+    overridden,
     data: copyDocument({ ...remote, nodes, edges, transform: transform as CanvasSaveData['transform'] }),
   };
 }

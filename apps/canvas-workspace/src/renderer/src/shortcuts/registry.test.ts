@@ -70,6 +70,14 @@ describe('shortcut registry', () => {
     expect(matchesBinding(event({ key: 'A', metaKey: true }), selectAll)).toBe(true);
   });
 
+  it('matches a shifted digit binding by its physical key', () => {
+    expect(matchShortcut(event({ key: '!', code: 'Digit1', shiftKey: true }), 'canvas')?.id)
+      .toBe('canvas.fitAll');
+    expect(matchShortcut(event({ key: '@', code: 'Digit2', shiftKey: true }), 'canvas')?.id)
+      .toBe('canvas.fitSelection');
+    expect(matchShortcut(event({ key: '!', code: 'Digit1' }), 'canvas')).toBeNull();
+  });
+
   it('does not match a literal-Ctrl binding when Cmd is held instead', () => {
     const cycle = SHORTCUTS['canvas.cycleNodes'].bindings[0];
     expect(matchesBinding(event({ key: 'Tab', ctrlKey: true }), cycle)).toBe(true);

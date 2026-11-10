@@ -1159,6 +1159,8 @@ export const enMessages = {
   'canvas.saveFailed': 'Saving failed',
   'canvas.saveFailedDescription': 'Your latest changes could not be written to disk.',
   'canvas.saveRetry': 'Retry',
+  'canvas.keptLocalEdit': 'Your edit was kept',
+  'canvas.keptLocalEditDescription': 'Another writer changed the same item at the same time.',
   'canvas.loadFailed': 'Could not read canvas',
   'canvas.unsaved': 'Last session had unsaved changes',
   'canvas.textPlaceholder': 'Double-click or press Enter to edit',

@@ -19,6 +19,8 @@ export interface CanvasNodeViewProps {
   dragOffset?: NodeDragOffset | null;
   isResizing: boolean;
   isSelected: boolean;
+  /** Selected together with other nodes; keys then act on the whole selection. */
+  inMultiSelection?: boolean;
   /** Number of frame ancestors (unset = root). Derived from the canvas
    * container hierarchy, never persisted on the node. */
   frameDepth?: number;

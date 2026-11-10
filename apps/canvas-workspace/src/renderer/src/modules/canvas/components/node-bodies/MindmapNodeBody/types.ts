@@ -6,6 +6,8 @@ import type {
 export interface MindmapNodeBodyProps {
   node: CanvasNode;
   isSelected: boolean;
+  /** Selected together with other nodes; the topic must not take key focus. */
+  inMultiSelection?: boolean;
   isOuterDragging?: boolean;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   onSelectNode: (id: string) => void;

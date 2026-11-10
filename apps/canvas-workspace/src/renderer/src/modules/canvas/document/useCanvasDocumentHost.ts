@@ -51,6 +51,15 @@ export const useCanvasDocumentHost = ({
     });
   }, [dismissToast, notify, t]);
 
+  const handleConflictResolved = useCallback(() => {
+    notify({
+      tone: 'info',
+      title: t('canvas.keptLocalEdit'),
+      description: t('canvas.keptLocalEditDescription'),
+      autoCloseMs: 8000,
+    });
+  }, [notify, t]);
+
   const handleAgentCreated = useCallback((node: CanvasNode) => {
     if (isAgentTeamTeammateNode(node)) return;
     const container = containerRef.current;
@@ -78,6 +87,7 @@ export const useCanvasDocumentHost = ({
       : undefined,
     handleAgentCreated,
     handleSaveError,
+    handleConflictResolved,
   );
   useEffect(() => { flushSaveRef.current = document.flushSave; }, [document.flushSave]);
 

@@ -121,6 +121,18 @@ describe('useCanvas zoom gesture', () => {
     expect(hook.settledScale).toBe(2);
   });
 
+  it('resets zoom to 100% around the viewport centre, not the canvas origin', () => {
+    host.getBoundingClientRect = () => ({ width: 800, height: 600 } as DOMRect);
+    act(() => {
+      hook.setTransform({ x: -1000, y: -400, scale: 2 });
+    });
+    // Canvas point (700, 350) is at the viewport centre (400, 300).
+    act(() => {
+      hook.zoomToActualSize(host);
+    });
+    expect(hook.transform).toEqual({ x: -300, y: -50, scale: 1 });
+  });
+
   it('keeps screenToCanvas identity-stable while reading the live transform', () => {
     const before = hook.screenToCanvas;
 

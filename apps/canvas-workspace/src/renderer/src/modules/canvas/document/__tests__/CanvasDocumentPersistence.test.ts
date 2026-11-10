@@ -71,25 +71,30 @@ describe('workspace save serialization', () => {
     expect(failed).not.toHaveBeenCalled();
   });
 
-  it('stops a backend-switch rebase when the confirmed backend conflicts with the draft', async () => {
+  it('keeps the draft value when the confirmed backend changed the same field', async () => {
     const base = { ...initial(), storageGeneration: 'original-db' };
     const replacement = { ...base, storageGeneration: 'replacement-db', transform: { x: 40, y: 0, scale: 1 } };
-    const save = vi.fn().mockResolvedValue({ ok: false, code: 'revision_conflict', data: replacement });
+    const save = vi.fn()
+      .mockResolvedValueOnce({ ok: false, code: 'revision_conflict', data: replacement })
+      .mockResolvedValue({ ok: true, revision: 2, storageGeneration: 'replacement-db' });
     const load = vi.fn().mockResolvedValue(replacement);
     const failed = vi.fn();
-    const publish = vi.fn();
+    const overrode = vi.fn();
     const persistence = new CanvasDocumentPersistence({
-      workspaceId: 'replacement', save, load, publish, persisted: vi.fn(), failed,
+      workspaceId: 'replacement', save, load, publish: vi.fn(), persisted: vi.fn(), failed, overrode,
     });
     persistence.initialize(base);
     persistence.setDraft({ ...base, transform: { x: 30, y: 0, scale: 1 } });
     await persistence.requestSave();
-    expect(save).toHaveBeenCalledTimes(1);
     expect(load).toHaveBeenCalledTimes(1);
-    expect(failed).toHaveBeenCalledTimes(1);
-    expect(publish).not.toHaveBeenCalled();
-    expect(persistence.storageGeneration).toBe('original-db');
-    expect(persistence.hasChanges).toBe(true);
+    expect(save.mock.calls[1][0]).toMatchObject({
+      storageGeneration: 'replacement-db', transform: { x: 30, y: 0, scale: 1 },
+    });
+    expect(failed).not.toHaveBeenCalled();
+    // A viewport-only conflict is not reported as a lost edit.
+    expect(overrode).not.toHaveBeenCalled();
+    expect(persistence.storageGeneration).toBe('replacement-db');
+    expect(persistence.hasChanges).toBe(false);
   });
 
   it('does not adopt a superseded backend while generation confirmation is in flight', async () => {

@@ -38,8 +38,9 @@ export const useCanvasDocumentHistory = (scheduleSave: () => void) => {
     applyState({ edges }, addToHistory);
   }, [applyState]);
 
+  /** Adopt a change made by another writer; see `applyExternal`. */
   const replaceState = useCallback((next: CanvasDocumentSnapshot) => {
-    history.current.apply(next, false);
+    history.current.applyExternal(next);
     publish(next);
   }, [publish]);
 

@@ -80,6 +80,8 @@ export interface ShortcutDefinition {
 
 export interface KeyEventLike {
   key: string;
+  /** Physical key. Lets a digit binding match when Shift changes `key`. */
+  code?: string;
   metaKey: boolean;
   ctrlKey: boolean;
   altKey: boolean;

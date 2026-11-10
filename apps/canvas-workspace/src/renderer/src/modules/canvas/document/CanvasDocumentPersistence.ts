@@ -17,6 +17,8 @@ interface PersistenceOptions {
   publish: (data: CanvasSaveData) => void;
   persisted: (data: CanvasSaveData) => void;
   failed: (error: unknown) => void;
+  /** Both sides changed these document paths; the local value was kept. */
+  overrode?: (paths: string[]) => void;
 }
 
 const RECENT_WRITE_LIMIT = 8;
@@ -182,6 +184,9 @@ export class CanvasDocumentPersistence {
     this.draft = result.data;
     this.options.persisted(this.baseline);
     this.options.publish(copyDocument(this.draft));
+    // A viewport-only conflict is not a lost edit of the other writer.
+    const paths = result.overridden.filter(path => !path.startsWith('transform'));
+    if (paths.length > 0) this.options.overrode?.(paths);
     return true;
   }
 

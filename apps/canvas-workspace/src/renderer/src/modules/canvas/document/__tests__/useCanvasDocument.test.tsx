@@ -16,6 +16,7 @@ describe('useCanvasDocument text resize commit', () => {
   let save: ReturnType<typeof vi.fn>;
   let load: ReturnType<typeof vi.fn>;
   let saveError: ReturnType<typeof vi.fn>;
+  let conflictResolved: ReturnType<typeof vi.fn>;
   let externalUpdate: (event: { workspaceId: string; nodeIds: string[]; source: string; revision?: number }) => Promise<void>;
   let selectedCanvas: string;
   let originalCanvasWorkspace: typeof window.canvasWorkspace;
@@ -33,7 +34,7 @@ describe('useCanvasDocument text resize commit', () => {
   } as CanvasNode;
 
   const Probe = () => {
-    hook = useCanvasDocument(selectedCanvas, undefined, undefined, saveError);
+    hook = useCanvasDocument(selectedCanvas, undefined, undefined, saveError, conflictResolved);
     return null;
   };
 
@@ -41,6 +42,7 @@ describe('useCanvasDocument text resize commit', () => {
     vi.useFakeTimers();
     save = vi.fn().mockResolvedValue({ ok: true });
     saveError = vi.fn();
+    conflictResolved = vi.fn();
     selectedCanvas = 'canvas-1';
     load = vi.fn().mockResolvedValue({
       ok: true,
@@ -284,20 +286,26 @@ describe('useCanvasDocument text resize commit', () => {
     expect(saveError).not.toHaveBeenCalled();
   });
 
-  it('preserves a conflicting local draft without writing it under the external revision', async () => {
+  it('keeps a conflicting local edit and still saves it under the external revision', async () => {
     act(() => hook.updateNode('text-1', { title: 'Local draft' }));
-    await deliverExternal(remote({ title: 'Remote title' }));
-    expect(hook.nodes[0].title).toBe('Local draft');
-    expect(saveError).toHaveBeenCalled();
-    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-    expect(save).not.toHaveBeenCalled();
-    // Explicitly aligning the conflicting field lets the retained merge finish.
-    act(() => {
-      hook.updateNode('text-1', { title: 'Remote title' });
-      hook.flushSave();
-    });
-    await act(async () => { await Promise.resolve(); });
-    expect(save.mock.calls[0][1].revision).toBe(6);
+    await deliverExternal(remote({ title: 'Remote title', x: 90 }));
+    expect(hook.nodes[0]).toMatchObject({ title: 'Local draft', x: 90 });
+    expect(saveError).not.toHaveBeenCalled();
+    expect(conflictResolved).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    expect(save.mock.calls[0][1]).toMatchObject({ revision: 6, nodes: [{ title: 'Local draft', x: 90 }] });
+  });
+
+  it('does not let undo remove a node that another writer created', async () => {
+    act(() => hook.updateNode('text-1', { title: 'First edit' }));
+    const created = { ...node, id: 'agent-node', title: 'From agent' };
+    await deliverExternal({ ...remote({ title: 'First edit' }), nodes: [{ ...node, title: 'First edit' }, created] });
+    act(() => hook.updateNode('text-1', { title: 'Second edit' }));
+    act(() => { hook.undo(); });
+    act(() => { hook.undo(); });
+    expect(hook.nodes.map(item => [item.id, item.title])).toEqual([
+      ['text-1', node.title], ['agent-node', 'From agent'],
+    ]);
   });
 
   it('defers external snapshots arriving before an in-flight save acknowledgement', async () => {
@@ -356,12 +364,15 @@ describe('useCanvasDocument text resize commit', () => {
     expect(saveError).not.toHaveBeenCalled();
   });
 
-  it('keeps the draft when a save rejects a same-field conflict', async () => {
-    save.mockResolvedValueOnce({ ok: false, code: 'revision_conflict', data: remote({ title: 'Remote' }) });
+  it('keeps the local value and retries when a save rejects a same-field conflict', async () => {
+    save.mockResolvedValueOnce({ ok: false, code: 'revision_conflict', data: remote({ title: 'Remote' }) })
+      .mockResolvedValueOnce({ ok: true, revision: 7 });
     act(() => hook.updateNode('text-1', { title: 'Local' }));
     await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-    expect(save).toHaveBeenCalledTimes(1);
-    expect(saveError).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls.map(([, payload]) => [payload.revision, payload.nodes[0].title]))
+      .toEqual([[5, 'Local'], [6, 'Local']]);
+    expect(saveError).not.toHaveBeenCalled();
+    expect(conflictResolved).toHaveBeenCalledTimes(1);
     expect(hook.nodes[0].title).toBe('Local');
   });
 

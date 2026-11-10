@@ -284,6 +284,25 @@ describe('useCanvasKeyboard', () => {
     expect(duplicateNodes).toHaveBeenCalledTimes(1);
   });
 
+  it('nudges a frame together with the nodes inside it', () => {
+    const moveNodes = vi.fn();
+    const frame: CanvasNode = { ...node('frame-1'), type: 'frame', width: 600, height: 400 };
+    const inside: CanvasNode = { ...node('inside'), x: 40, y: 40 };
+    const outside: CanvasNode = { ...node('outside'), x: 900, y: 900 };
+    mountKeyboard({
+      nodes: [frame, inside, outside],
+      selectedNodeIds: ['frame-1'],
+      moveNodes,
+    });
+
+    press({ key: 'ArrowRight' });
+
+    expect(moveNodes).toHaveBeenCalledWith([
+      { id: 'frame-1', x: 1, y: 0 },
+      { id: 'inside', x: 41, y: 40 },
+    ]);
+  });
+
   it('nudges by 10 with Shift held', () => {
     const moveNodes = vi.fn();
     mountKeyboard({

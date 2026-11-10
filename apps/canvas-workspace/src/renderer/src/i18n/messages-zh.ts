@@ -1145,6 +1145,8 @@ export const zhMessages: MessageCatalog = {
   'canvas.saveFailed': '保存失败',
   'canvas.saveFailedDescription': '最新更改未能写入磁盘。',
   'canvas.saveRetry': '重试',
+  'canvas.keptLocalEdit': '已保留你的修改',
+  'canvas.keptLocalEditDescription': '其他写入方同时改了同一处。',
   'canvas.loadFailed': '无法读取画布',
   'canvas.unsaved': '上次未保存',
   'canvas.textPlaceholder': '双击或按 Enter 编辑',

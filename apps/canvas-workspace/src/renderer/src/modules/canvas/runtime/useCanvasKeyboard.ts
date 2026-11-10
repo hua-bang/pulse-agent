@@ -206,8 +206,8 @@ export const useCanvasKeyboard = ({
     const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
     const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
     const idSet = new Set(selectedNodeIds);
-    const moves = nodes
-      .filter((n) => idSet.has(n.id))
+    // A frame or group moves with its content, as it does when dragged.
+    const moves = withContainerDescendants(nodes.filter((n) => idSet.has(n.id)), nodes)
       .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
     if (moves.length === 0) return;
     if (nudgeTimerRef.current !== null) window.clearTimeout(nudgeTimerRef.current);
