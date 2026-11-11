@@ -84,4 +84,66 @@ describe('revision three-way merge', () => {
       data: { edges: [{ label: 'local', bend: 20, updatedAt: 15 }], transform: { x: 30, y: 40 } },
     });
   });
+
+  describe('mindmap topics', () => {
+    type Topic = { id: string; text: string; children: Topic[] };
+    const topic = (id: string, children: Topic[] = [], text = id): Topic => ({ id, text, children });
+    const mindmap = (root: Topic, rev = 1): CanvasNode => ({
+      id: 'm', type: 'mindmap', title: 'Map', x: 0, y: 0, width: 400, height: 300,
+      data: { root, layout: 'right', rev } as CanvasNode['data'], updatedAt: 1,
+    });
+    const merge = (base: Topic, local: Topic, remote: Topic) => {
+      const result = mergeDocumentRevision(
+        document([mindmap(base)]), document([mindmap(local, 2)]), document([mindmap(remote, 3)], 2),
+      );
+      if (!result.ok) throw new Error('merge failed');
+      return { root: (result.data.nodes[0].data as { root: Topic }).root, result };
+    };
+
+    it('merges edits of different topics instead of keeping one whole tree', () => {
+      const base = topic('root', [topic('a'), topic('b')]);
+      const local = topic('root', [topic('a', [], 'A local'), topic('b')]);
+      const remote = topic('root', [topic('a'), topic('b', [topic('b1')], 'B remote')]);
+      const { root, result } = merge(base, local, remote);
+      expect(root).toEqual(topic('root', [topic('a', [], 'A local'), topic('b', [topic('b1')], 'B remote')]));
+      expect(result.overridden).toEqual([]);
+      expect((result.data.nodes[0].data as { rev: number }).rev).toBe(3);
+    });
+
+    it('keeps topics that both sides added, and a deletion by one side', () => {
+      const base = topic('root', [topic('a'), topic('b'), topic('c')]);
+      const local = topic('root', [topic('a'), topic('local'), topic('b'), topic('c')]);
+      const remote = topic('root', [topic('a'), topic('b'), topic('remote')]);
+      const { root } = merge(base, local, remote);
+      expect(root.children.map(child => child.id)).toEqual(['a', 'local', 'b', 'remote']);
+    });
+
+    it('keeps the local text of a topic that both sides renamed, and reports it', () => {
+      const base = topic('root', [topic('a')]);
+      const { root, result } = merge(
+        base, topic('root', [topic('a', [], 'Local')]), topic('root', [topic('a', [], 'Remote')]),
+      );
+      expect(root.children[0].text).toBe('Local');
+      expect(result.overridden).toEqual(['nodes.m.data.root.children.a.text']);
+    });
+
+    it('keeps the local order of topics that both sides reordered, and reports it', () => {
+      const base = topic('root', [topic('a'), topic('b'), topic('c')]);
+      const { root, result } = merge(
+        base, topic('root', [topic('b'), topic('a'), topic('c')]), topic('root', [topic('a'), topic('c'), topic('b')]),
+      );
+      expect(root.children.map(child => child.id)).toEqual(['b', 'a', 'c']);
+      expect(result.overridden).toEqual(['nodes.m.data.root.children.order']);
+    });
+
+    it('keeps the local tree when a merge by id would hold a topic twice', () => {
+      const base = topic('root', [topic('a', [topic('t')]), topic('b')]);
+      // Local renames the topic in place. Remote moves it under another parent.
+      const local = topic('root', [topic('a', [topic('t', [], 'Renamed')]), topic('b')]);
+      const remote = topic('root', [topic('a'), topic('b', [topic('t')])]);
+      const { root, result } = merge(base, local, remote);
+      expect(root).toEqual(local);
+      expect(result.overridden).toContain('nodes.m.data.root');
+    });
+  });
 });

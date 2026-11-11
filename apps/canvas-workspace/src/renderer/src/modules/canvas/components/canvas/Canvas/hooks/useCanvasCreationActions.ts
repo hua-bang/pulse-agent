@@ -8,7 +8,6 @@ import {
   getSelectionAfterMindmapMerge,
   type MergeMindmapTopicRequest,
 } from '../../../../mindmap/transfer';
-import { useCanvasDemoCanvas } from './useCanvasDemoCanvas';
 
 interface Options {
   surface: {
@@ -141,17 +140,20 @@ export const useCanvasCreationActions = ({ surface, document, selection, feedbac
     });
   }, [canvasId, canvasName, getViewportCenter, notify, rootFolder, setHighlightedId, setSelectedNodeIds, t, updateToast]);
 
-  const createDemoCanvas = useCanvasDemoCanvas({
-    addEdge,
-    addNode,
-    getViewportCenter,
-    notify,
-    rootFolder,
-    setHighlightedId,
-    setSelectedNodeIds,
-    t,
-    updateNode,
-  });
+  // The demo content loads on demand: it runs once, from the empty-canvas hint.
+  const createDemoCanvas = useCallback(() => {
+    void import('./createDemoCanvas').then(({ createDemoCanvas: create }) => create({
+      addEdge,
+      addNode,
+      getViewportCenter,
+      notify,
+      rootFolder,
+      setHighlightedId,
+      setSelectedNodeIds,
+      t,
+      updateNode,
+    }));
+  }, [addEdge, addNode, getViewportCenter, notify, rootFolder, setHighlightedId, setSelectedNodeIds, t, updateNode]);
 
   return {
     createAgentTeam,

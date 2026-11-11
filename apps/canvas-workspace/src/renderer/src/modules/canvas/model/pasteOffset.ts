@@ -48,3 +48,15 @@ export const pasteOffset = (
   }
   return cascade;
 };
+
+/** Offset that puts the centre of `sources` on the canvas point `at`. */
+export const offsetToCentre = (
+  sources: readonly CanvasNode[],
+  at: { x: number; y: number },
+): { x: number; y: number } => {
+  const box = bounds(sources);
+  return {
+    x: Math.round(at.x - (box.left + box.width / 2)),
+    y: Math.round(at.y - (box.top + box.height / 2)),
+  };
+};

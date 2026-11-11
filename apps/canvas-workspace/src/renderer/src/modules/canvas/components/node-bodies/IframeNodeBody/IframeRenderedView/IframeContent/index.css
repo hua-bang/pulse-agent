@@ -74,6 +74,18 @@
   cursor: inherit;
 }
 
+/* ── Wheel pass-through for an unselected web node ──────────────────────
+ *
+ * An embedded page keeps every wheel event, so the canvas could not pan or
+ * zoom while the pointer was on a web node. An unselected web node lets
+ * pointer input through: the wheel reaches the canvas, and the first click
+ * selects the node. A selected, fullscreen, focused, or embedded node is
+ * interactive. */
+
+.canvas-node--iframe:not(.canvas-node--selected, .canvas-node--fullscreen, .canvas-node--focus-mode-focused, .canvas-node--embedded) :is(.iframe-frame, .iframe-frame-host) {
+  pointer-events: none;
+}
+
 /* ── The iframe/webview itself ──────────────────────────────────────── */
 
 .iframe-frame {

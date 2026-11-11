@@ -24,7 +24,7 @@ import { useCanvasCreationActions } from './hooks/useCanvasCreationActions';
 import { useCanvasFeedbackCommands } from './hooks/useCanvasFeedbackCommands';
 import { useNativeCanvasZoomGuard } from './hooks/useNativeCanvasZoomGuard';
 import { useLocalViewportHandoff } from './hooks/useLocalViewportHandoff';
-import { useCanvasClipboardPaste } from './hooks/useCanvasClipboardPaste';
+import { useCanvasClipboard } from './hooks/useCanvasClipboard';
 import { findFreeSlot } from './hooks/nodePlacement';
 import { useEmptyTextCleanup } from './hooks/useEmptyTextCleanup';
 import { useAppShell } from '../../../../../shared/appShell';
@@ -112,7 +112,7 @@ export const useCanvasController = ({
     addEdge, updateEdge, removeEdge,
     setTransformForSave, flushSave, reloadCanvas, retryLoad, commitHistory, hasAutoFittedRef,
     undo, redo, duplicateNodes, pasteNodes,
-    groupNodes, ungroupNodes, wrapNodesInFrame,
+    groupNodes, ungroupNodes, wrapNodesInFrame, reorderNodes,
     mergeMindmapTopic, splitMindmapTopic,
   } = useCanvasDocumentHost({
     canvasId,
@@ -286,13 +286,18 @@ export const useCanvasController = ({
     },
   });
 
+  const clip = useCanvasClipboard({
+    canvasId, clipboard, setClipboard: onClipboardChange ?? (() => undefined),
+    nodes: visibleNodes, edges, selectedNodeIds, setSelectedNodeIds, containerRef, screenToCanvas,
+    pasteNodes, pasteReferenceNodes: feedbackCommands.pasteReferencesWithFeedback,
+    removeNodes: actions.requestRemoveNodes,
+  });
+
   useCanvasKeyboard({
-    canvasId,
     undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
     nodes: visibleNodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
-    duplicateNodes,
-    setClipboard: onClipboardChange ?? (() => undefined),
+    duplicateNodes, copySelection: clip.copy, cutSelection: clip.cut, reorderNodes,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     removeNodes: actions.requestRemoveNodes,
@@ -326,19 +331,13 @@ export const useCanvasController = ({
     keyboardLocked,
   });
 
-  const pasteClipboardNodes = useCanvasClipboardPaste({
-    canvasId, clipboard, pasteNodes,
-    pasteReferenceNodes: feedbackCommands.pasteReferencesWithFeedback,
-    setSelectedNodeIds,
-  });
-
   useCanvasImagePaste({
     canvasId, active: ownsKeyboard, containerRef, screenToCanvas,
     addNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
     onPasteUrl: creation.createUrlNode,
     resolveSlot: (x, y, width, height) => findFreeSlot(nodesRef.current, x, y, width, height),
-    pasteCanvasNodes: pasteClipboardNodes,
+    pasteCanvasNodes: clip.paste,
   });
 
   useCanvasFileDrop({ canvasId, containerRef, loaded, screenToCanvas, addNode, nodesRef, setSelectedNodeIds });
@@ -356,6 +355,7 @@ export const useCanvasController = ({
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef: visibleNodesRef,
     duplicateNodes, requestRemoveNodes: actions.requestRemoveNodes,
+    copySelection: clip.copy, cutSelection: clip.cut, reorderNodes,
     moveNodes, commitHistory,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
@@ -452,6 +452,9 @@ export const useCanvasController = ({
     onChatOpen,
     onChatToggle,
     onFitAll: handleFitAll,
+    onPasteHere: clip.canPaste && contextMenuPoint
+      ? () => clip.pasteAt({ x: contextMenuPoint.canvasX, y: contextMenuPoint.canvasY })
+      : undefined,
     onOpenReferenceSource,
     onPinReferenceNode,
     onAddToChat: onAddToChat ? addReferenceToChat : undefined,

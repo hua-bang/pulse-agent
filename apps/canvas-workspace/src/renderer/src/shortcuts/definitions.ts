@@ -157,6 +157,21 @@ export const SHORTCUTS = {
     bindings: [{ key: 'c', mod: true }],
     requiresSelection: true,
   },
+  'canvas.cut': {
+    owner: 'canvas',
+    bindings: [{ key: 'x', mod: true }],
+    requiresSelection: true,
+  },
+  'canvas.bringToFront': {
+    owner: 'canvas',
+    bindings: [{ key: ']' }],
+    requiresSelection: true,
+  },
+  'canvas.sendToBack': {
+    owner: 'canvas',
+    bindings: [{ key: '[' }],
+    requiresSelection: true,
+  },
   'canvas.paste': {
     owner: 'document',
     bindings: [{ key: 'v', mod: true }],

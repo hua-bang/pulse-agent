@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import type {
   AgentNodeData,
   CanvasEdge,
@@ -21,7 +21,7 @@ interface NotifyArgs {
   autoCloseMs?: number;
 }
 
-interface UseCanvasDemoCanvasOptions {
+export interface DemoCanvasOptions {
   addEdge: (edge: CanvasEdge) => void;
   addNode: (type: CanvasNode['type'], x: number, y: number) => CanvasNode;
   getViewportCenter: () => { x: number; y: number } | null;
@@ -33,7 +33,11 @@ interface UseCanvasDemoCanvasOptions {
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
 }
 
-export const useCanvasDemoCanvas = ({
+/**
+ * Fills the empty canvas with the demo content. The caller loads this module
+ * on demand, so the demo content stays out of the startup bundle.
+ */
+export const createDemoCanvas = ({
   addEdge,
   addNode,
   getViewportCenter,
@@ -43,7 +47,7 @@ export const useCanvasDemoCanvas = ({
   setSelectedNodeIds,
   t,
   updateNode,
-}: UseCanvasDemoCanvasOptions) => useCallback(() => {
+}: DemoCanvasOptions): void => {
   const center = getViewportCenter();
   if (!center) return;
 
@@ -196,14 +200,4 @@ export const useCanvasDemoCanvas = ({
     description: t('canvas.demo.createdDescription'),
     autoCloseMs: 2600,
   });
-}, [
-  addEdge,
-  addNode,
-  getViewportCenter,
-  notify,
-  rootFolder,
-  setHighlightedId,
-  setSelectedNodeIds,
-  t,
-  updateNode,
-]);
+};

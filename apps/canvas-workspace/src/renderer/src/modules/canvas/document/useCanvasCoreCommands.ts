@@ -9,6 +9,7 @@ import { createNodeData, defaultNodeTitle, genId } from '../../../utils/nodeFact
 import { degradeEndpointsForDeletedNode } from '../model/edgeFactory';
 import { releaseDroppedGroupMembers } from '../model/releaseDroppedGroupMembers';
 import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
+import { edgesAmong } from './useCanvasContentCommands';
 import type { CanvasDocumentSnapshot } from './CanvasDocumentHistory';
 
 interface CoreCommandOptions {
@@ -64,14 +65,17 @@ export const useCanvasCoreCommands = ({
     applyState({ nodes: resizeGroupsToChildren(nodes), edges });
   }, [applyState, edgesRef, nodesRef]);
 
-  const removeNodes = useCallback((ids: string[]) => {
+  const removeNodes = useCallback((ids: string[], options?: { withInnerEdges?: boolean }) => {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
     const victims = nodesRef.current.filter(node => idSet.has(node.id));
     const nodes = nodesRef.current.filter(node => !idSet.has(node.id));
+    // A cut takes the edges between the cut nodes with it. A delete keeps
+    // every edge as a free arrow.
+    const inner = new Set(options?.withInnerEdges ? edgesAmong(edgesRef.current, victims).map(edge => edge.id) : []);
     const edges = victims.reduce(
       (current, victim) => degradeEndpointsForDeletedNode(current, victim),
-      edgesRef.current,
+      inner.size > 0 ? edgesRef.current.filter(edge => !inner.has(edge.id)) : edgesRef.current,
     );
     applyState({ nodes: resizeGroupsToChildren(nodes), edges });
   }, [applyState, edgesRef, nodesRef]);
@@ -221,6 +225,17 @@ export const useCanvasCoreCommands = ({
     return frame;
   }, [applyNodes, nodesRef]);
 
+  // Regular nodes paint in array order, so the last one is on top.
+  const reorderNodes = useCallback((ids: readonly string[], to: 'front' | 'back') => {
+    const idSet = new Set(ids);
+    const moved = nodesRef.current.filter(node => idSet.has(node.id));
+    if (moved.length === 0) return;
+    const rest = nodesRef.current.filter(node => !idSet.has(node.id));
+    const next = to === 'front' ? [...rest, ...moved] : [...moved, ...rest];
+    if (next.every((node, index) => node === nodesRef.current[index])) return;
+    applyNodes(next);
+  }, [applyNodes, nodesRef]);
+
   const addEdge = useCallback((edge: CanvasEdge) => {
     applyEdges([...edgesRef.current, edge]);
     return edge;
@@ -253,6 +268,7 @@ export const useCanvasCoreCommands = ({
     resizeNode,
     groupNodes,
     wrapNodesInFrame,
+    reorderNodes,
     addEdge,
     updateEdge,
     removeEdge,

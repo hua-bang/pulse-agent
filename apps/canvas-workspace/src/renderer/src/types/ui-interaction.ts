@@ -1,4 +1,4 @@
-import type { CanvasNode } from '../types';
+import type { CanvasEdge, CanvasNode } from '../types';
 
 export type ToastTone = 'success' | 'error' | 'loading' | 'info';
 
@@ -51,6 +51,10 @@ export interface CanvasNodePatchRequest {
 export interface CanvasClipboard {
   sourceWorkspaceId: string;
   nodes: CanvasNode[];
+  /** True when the copy was a cut: the source nodes no longer exist. */
+  cut?: boolean;
+  /** Edges between the copied nodes. A same-workspace paste copies them too. */
+  edges?: CanvasEdge[];
   /**
    * Exactly what the canvas copy wrote into the SYSTEM clipboard. The paste
    * path compares it against the incoming clipboard text to decide which

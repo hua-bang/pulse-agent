@@ -63,6 +63,7 @@ export const CanvasOverlays = ({
   moving = false,
   scale,
   onFitAll,
+  onPasteHere,
   onSelectAll,
   chatPanelOpen,
   onChatToggle,
@@ -155,6 +156,7 @@ export const CanvasOverlays = ({
             workspaceId={workspaceId}
             onSelectAll={nodes.length > 0 ? onSelectAll : undefined}
             onFitAll={nodes.length > 0 ? onFitAll : undefined}
+            onPaste={onPasteHere}
             onClose={onCloseContextMenu}
           />
         </Suspense>

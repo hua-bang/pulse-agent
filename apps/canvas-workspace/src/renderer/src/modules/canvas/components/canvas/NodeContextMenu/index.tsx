@@ -22,6 +22,8 @@ interface Props {
   /** Canvas-wide actions shown under the create items. */
   onSelectAll?: () => void;
   onFitAll?: () => void;
+  /** Paste the canvas clipboard at the menu point. */
+  onPaste?: () => void;
   onClose: () => void;
 }
 
@@ -70,11 +72,13 @@ export const NodeContextMenu = ({
   onExportImage,
   onSelectAll,
   onFitAll,
+  onPaste,
   onClose,
 }: Props) => {
   const { t } = useI18n();
   const dock = useRightDock();
   const canvasActions = [
+    { key: 'paste', label: t('canvas.menu.paste'), run: onPaste },
     { key: 'selectAll', label: t('canvas.menu.selectAll'), run: onSelectAll },
     { key: 'fitAll', label: t('canvas.zoom.fitAll'), run: onFitAll },
   ].filter((action) => action.run);

@@ -66,6 +66,8 @@ export type CanvasRootViewProps = Pick<
   nodes: CanvasNode[];
   nodesById: Map<string, CanvasNode>;
   onFitAll?: () => void;
+  /** Paste the canvas clipboard at the point of the open create menu. */
+  onPasteHere?: () => void;
   openShortcuts: () => void;
   paletteCommands: ReturnType<typeof useCanvasPaletteCommands>;
   resetTransform: () => void;
