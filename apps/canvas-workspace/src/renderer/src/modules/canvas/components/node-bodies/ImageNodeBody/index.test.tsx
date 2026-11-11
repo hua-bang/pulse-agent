@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../../../../i18n';
 import { ImageNodeBody } from './index';
 import type { CanvasNode } from '../../../../../types';
 
@@ -16,7 +17,9 @@ const node = (filePath: unknown): CanvasNode => ({
 });
 const render = async (filePath: unknown, isFullscreen = false) => {
   await act(async () => root.render(
-    <ImageNodeBody node={node(filePath)} isFullscreen={isFullscreen} onSelect={vi.fn()} onDragStart={vi.fn()} readOnly />,
+    <I18nProvider>
+      <ImageNodeBody node={node(filePath)} isFullscreen={isFullscreen} onSelect={vi.fn()} onDragStart={vi.fn()} readOnly />
+    </I18nProvider>,
   ));
 };
 

@@ -11,6 +11,7 @@ import {
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
 import { CanvasConnectHandles } from '../CanvasConnectHandles';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
+import { CanvasErrorBoundary, NodeErrorFallback } from '../CanvasErrorBoundary';
 import { CanvasNodeView } from '../CanvasNodeView';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
 import { CanvasGestureHud, MarqueePreview, ShapeDraftPreview } from './CanvasGestureOverlays';
@@ -141,52 +142,71 @@ export const CanvasSurface = ({
     const nodeIsDragging = draggingIds.has(node.id) || draggingId === node.id;
     const renderedNode = applyNodeResizePreview(node, resizePreview);
     return (
-    <CanvasNodeView
-      key={`${node.id}:${renderMode}`}
-      node={renderedNode}
-      frameDepth={nestedFrameDepths.get(node.id)}
-      getAllNodes={getAllNodes}
-      rootFolder={rootFolder}
-      workspaceId={canvasId}
-      workspaceName={canvasName}
-      isDragging={nodeIsDragging}
-      dragOffset={nodeIsDragging ? dragOffset : null}
-      isResizing={resizingId === node.id}
-      isSelected={selectedNodeIdSet.has(node.id)}
-      inMultiSelection={selectedNodeIdSet.size > 1 && selectedNodeIdSet.has(node.id)}
-      isHighlighted={highlightedId === node.id}
-      renameToken={renameSignal?.nodeId === node.id ? renameSignal.token : 0}
-      isAgentEdited={externallyEditedIds.has(node.id)}
-      focusState={!focusModeEnabled
-        ? 'neutral'
-        : focusedNodeIds?.has(node.id) ? 'focused'
-          : focusContextNodeIds?.has(node.id) ? 'context'
-            : 'dimmed'}
-      onDragStart={onDragStart}
-      onResizeStart={onResizeStart}
-      onUpdate={onUpdate}
-      onAutoResize={onAutoResize}
-      onRemove={onRemove}
-      onRemoveNodes={onRemoveNodes}
-      onExportMindmapImage={onExportMindmapImage}
-      onMergeMindmapTopic={onMergeMindmapTopic}
-      onSplitMindmapTopic={onSplitMindmapTopic}
-      onSelect={onSelect}
-      onFocus={onFocus}
-      onReference={onReference}
-      onAddToChat={onAddToChat}
-      onAddToCanvas={onAddToCanvas}
-      onAddDomSelectionToChat={onAddDomSelectionToChat}
-      onSubmitDomReviewComments={onSubmitDomReviewComments}
-      resolveReferenceNode={resolveReferenceNode}
-      onOpenReferenceSource={onOpenReferenceSource}
-      onUpdateReferenceSource={onUpdateReferenceSource}
-      onUngroupSelectedGroups={onUngroupSelectedGroups}
-      isFullscreen={fullscreenNodeId === node.id}
-      onToggleFullscreen={onToggleFullscreen}
-      readOnly={readOnly}
-      renderMode={renderMode}
-    />
+      // One node that throws must not unmount every other node on the canvas.
+      <CanvasErrorBoundary
+        key={`${node.id}:${renderMode}`}
+        scope={`node:${node.id}`}
+        // A frame renders twice (body and title layers); one placeholder is enough.
+        fallback={(retry) => (renderMode === 'frame-title' ? null : (
+          <NodeErrorFallback
+            title={node.title || node.type}
+            // Plain geometry: the node's own style helpers may be what threw.
+            style={{
+              width: renderedNode.width,
+              height: renderedNode.height,
+              transform: `translate(${renderedNode.x}px, ${renderedNode.y}px)`,
+            }}
+            onRetry={retry}
+            onRemove={readOnly ? undefined : () => onRemove(node.id)}
+          />
+        ))}
+      >
+        <CanvasNodeView
+          node={renderedNode}
+          frameDepth={nestedFrameDepths.get(node.id)}
+          getAllNodes={getAllNodes}
+          rootFolder={rootFolder}
+          workspaceId={canvasId}
+          workspaceName={canvasName}
+          isDragging={nodeIsDragging}
+          dragOffset={nodeIsDragging ? dragOffset : null}
+          isResizing={resizingId === node.id}
+          isSelected={selectedNodeIdSet.has(node.id)}
+          inMultiSelection={selectedNodeIdSet.size > 1 && selectedNodeIdSet.has(node.id)}
+          isHighlighted={highlightedId === node.id}
+          renameToken={renameSignal?.nodeId === node.id ? renameSignal.token : 0}
+          isAgentEdited={externallyEditedIds.has(node.id)}
+          focusState={!focusModeEnabled
+            ? 'neutral'
+            : focusedNodeIds?.has(node.id) ? 'focused'
+              : focusContextNodeIds?.has(node.id) ? 'context'
+                : 'dimmed'}
+          onDragStart={onDragStart}
+          onResizeStart={onResizeStart}
+          onUpdate={onUpdate}
+          onAutoResize={onAutoResize}
+          onRemove={onRemove}
+          onRemoveNodes={onRemoveNodes}
+          onExportMindmapImage={onExportMindmapImage}
+          onMergeMindmapTopic={onMergeMindmapTopic}
+          onSplitMindmapTopic={onSplitMindmapTopic}
+          onSelect={onSelect}
+          onFocus={onFocus}
+          onReference={onReference}
+          onAddToChat={onAddToChat}
+          onAddToCanvas={onAddToCanvas}
+          onAddDomSelectionToChat={onAddDomSelectionToChat}
+          onSubmitDomReviewComments={onSubmitDomReviewComments}
+          resolveReferenceNode={resolveReferenceNode}
+          onOpenReferenceSource={onOpenReferenceSource}
+          onUpdateReferenceSource={onUpdateReferenceSource}
+          onUngroupSelectedGroups={onUngroupSelectedGroups}
+          isFullscreen={fullscreenNodeId === node.id}
+          onToggleFullscreen={onToggleFullscreen}
+          readOnly={readOnly}
+          renderMode={renderMode}
+        />
+      </CanvasErrorBoundary>
     );
   };
 

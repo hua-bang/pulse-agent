@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { useI18n } from '../../../../../i18n';
 import type { EditMode } from './types';
 
 interface IframeEditorProps {
@@ -48,6 +49,7 @@ export const IframeEditor = ({
   setDraftUrl,
   textareaRef,
 }: IframeEditorProps) => {
+  const { t } = useI18n();
   const canCommit =
     draftMode === 'url' ? !!draftUrl.trim()
       : draftMode === 'html' ? !!draftHtml.trim()
@@ -70,7 +72,7 @@ export const IframeEditor = ({
 
         {draftMode === 'url' ? (
           <>
-            <div className="iframe-empty-label">Embed a web page</div>
+            <div className="iframe-empty-label">{t('iframe.editor.embedLabel')}</div>
             <input
               ref={inputRef}
               className="iframe-empty-input"
@@ -87,17 +89,17 @@ export const IframeEditor = ({
               onClick={openBlankPage}
               disabled={generating}
             >
-              Open blank page
+              {t('iframe.editor.blankPage')}
             </button>
           </>
         ) : draftMode === 'html' ? (
           <>
-            <div className="iframe-empty-label">Render HTML</div>
+            <div className="iframe-empty-label">{t('iframe.editor.htmlLabel')}</div>
             <textarea
               ref={textareaRef}
               className="iframe-empty-textarea"
               value={draftHtml}
-              placeholder={'<h1>Hello</h1>\n<p>Type your HTML here...</p>'}
+              placeholder={t('iframe.editor.htmlPlaceholder')}
               onChange={(e) => setDraftHtml(e.target.value)}
               onKeyDown={handleTextareaKeyDown}
               spellCheck={false}
@@ -105,12 +107,12 @@ export const IframeEditor = ({
           </>
         ) : (
           <>
-            <div className="iframe-empty-label">Describe what to generate</div>
+            <div className="iframe-empty-label">{t('iframe.editor.aiLabel')}</div>
             <textarea
               ref={promptRef}
               className="iframe-empty-textarea iframe-empty-textarea--prompt"
               value={draftPrompt}
-              placeholder={'A pie chart showing Q1 revenue by region...\nAn interactive to-do list with drag & drop...\nA flow diagram of the CI/CD pipeline...'}
+              placeholder={t('iframe.editor.aiPlaceholder')}
               onChange={(e) => setDraftPrompt(e.target.value)}
               onKeyDown={handlePromptKeyDown}
               spellCheck={false}
@@ -123,7 +125,7 @@ export const IframeEditor = ({
         <div className="iframe-empty-actions">
           {canCancel && !generating && (
             <button className="iframe-empty-btn" onClick={cancel}>
-              Cancel
+              {t('iframe.editor.cancel')}
             </button>
           )}
           {draftMode === 'ai' ? (
@@ -135,14 +137,14 @@ export const IframeEditor = ({
               {generating ? (
                 <>
                   <span className="iframe-spinner" />
-                  Generating...
+                  {t('iframe.editor.generating')}
                 </>
               ) : (
                 <>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                     <path d="M8 1.5l1.85 4.15L14 7.5l-4.15 1.85L8 13.5l-1.85-4.15L2 7.5l4.15-1.85L8 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                   </svg>
-                  Generate
+                  {t('iframe.editor.generate')}
                 </>
               )}
             </button>
@@ -152,17 +154,17 @@ export const IframeEditor = ({
               onClick={commit}
               disabled={!canCommit}
             >
-              {draftMode === 'url' ? 'Load' : 'Render'}
+              {t(draftMode === 'url' ? 'iframe.editor.load' : 'iframe.editor.render')}
             </button>
           )}
         </div>
 
         <div className="iframe-empty-hint">
-          {draftMode === 'url'
-            ? 'Type a URL, "blank", or "about:blank". Some sites block embedding.'
+          {t(draftMode === 'url'
+            ? 'iframe.editor.urlHint'
             : draftMode === 'html'
-              ? 'Cmd/Ctrl+Enter to confirm. Scripts are sandboxed.'
-              : 'Cmd/Ctrl+Enter to generate. Describe a chart, diagram, UI, or any visual.'}
+              ? 'iframe.editor.htmlHint'
+              : 'iframe.editor.aiHint')}
         </div>
       </div>
     </div>

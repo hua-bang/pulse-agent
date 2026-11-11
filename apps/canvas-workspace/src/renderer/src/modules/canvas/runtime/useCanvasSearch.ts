@@ -1,7 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasNode, FileNodeData, TextNodeData } from '../../../types';
+import type { CanvasNode, FileNodeData } from '../../../types';
 import { useFileNodeEditorRegistry } from '../../../shared/fileNodeEditorRegistry';
-import { getNodeSearchTitle, htmlToPlainText } from '../../../utils/nodeLabel';
+import { getNodeSearchTitle } from '../../../utils/nodeLabel';
+import { getNodeSearchText } from '../../../utils/nodeSearchText';
 
 // noteSearchExtension pulls @tiptap/react + @tiptap/pm; a static import here
 // would drag prosemirror into the entry chunk via Canvas → useCanvasSearch
@@ -32,26 +33,6 @@ interface Args {
 }
 
 const SNIPPET_RADIUS = 24;
-
-/**
- * Tag-stripped text of a file node's HTML content, keyed by the node's data
- * object. Node updates replace `data`, so an entry is valid for exactly as
- * long as its content; unchanged notes skip the regex on every keystroke.
- */
-const fileSearchTextCache = new WeakMap<FileNodeData, { text: string; lower: string }>();
-
-const fileSearchText = (data: FileNodeData): { text: string; lower: string } => {
-  let cached = fileSearchTextCache.get(data);
-  if (!cached) {
-    // Tiptap stores HTML in `content`. Strip tags cheaply for the text
-    // search — we don't need ProseMirror-level accuracy at the find-bar
-    // level (inline highlighting lives in noteSearchExtension).
-    const text = (data.content ?? '').replace(/<[^>]+>/g, ' ');
-    cached = { text, lower: text.toLowerCase() };
-    fileSearchTextCache.set(data, cached);
-  }
-  return cached;
-};
 
 /**
  * Find-in-canvas state machine.
@@ -111,20 +92,13 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     // the context, and it drives in-note highlighting), then the title,
     // then the file path.
     const contentMatch = (node: CanvasNode): SearchMatch | null => {
-      let text = '';
-      let hay = '';
-      if (node.type === 'file') {
-        const data = node.data as FileNodeData;
-        if (!data.content) return null;
-        const searchText = fileSearchText(data);
-        text = searchText.text;
-        hay = caseSensitive ? text : searchText.lower;
-      } else if (node.type === 'text') {
-        text = htmlToPlainText((node.data as TextNodeData).content ?? '');
-        hay = norm(text);
-      }
-      const idx = text ? hay.indexOf(q) : -1;
-      return idx === -1 ? null : { nodeId: node.id, field: 'content', snippet: snippetAround(text, idx) };
+      const searchText = getNodeSearchText(node);
+      if (!searchText.text) return null;
+      const hay = caseSensitive ? searchText.text : searchText.lower;
+      const idx = hay.indexOf(q);
+      return idx === -1
+        ? null
+        : { nodeId: node.id, field: 'content', snippet: snippetAround(searchText.text, idx) };
     };
 
     for (const node of ordered) {

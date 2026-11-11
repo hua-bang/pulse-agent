@@ -4,6 +4,7 @@ import type { CanvasNode, ImageNodeData } from '../../../../../types';
 import { toFileUrl } from '../../../../../utils/fileUrl';
 import { getImagePreview } from '../../../../../utils/imagePreview';
 import { selectImageSource } from './imageSource';
+import { useI18n } from '../../../../../i18n';
 
 interface Props {
   node: CanvasNode;
@@ -19,6 +20,7 @@ interface Props {
  * image nodes so there is no other grip to reach for.
  */
 export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readOnly = false }: Props) => {
+  const { t } = useI18n();
   const data = node.data as ImageNodeData;
   const filePath = typeof data?.filePath === 'string' ? data.filePath : '';
   const [loadFailed, setLoadFailed] = useState(false);
@@ -90,12 +92,12 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
             <path d="M2.5 13.5l4-4 3.5 3.5 3-3 4.5 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
             <path d="M4 2l12 16" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
-          <span>Image unavailable</span>
+          <span>{t('image.unavailable')}</span>
         </div>
       ) : filePath ? (
         <div className="image-node-loading" aria-hidden="true" />
       ) : (
-        <div className="image-node-empty">No image</div>
+        <div className="image-node-empty">{t('image.empty')}</div>
       )}
     </div>
   );

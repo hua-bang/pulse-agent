@@ -1,4 +1,6 @@
 import '@xterm/xterm/css/xterm.css';
+import { useState } from 'react';
+import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 import { formatShortcutId } from '../../../../../shortcuts/registry';
 import type { CanvasNode } from '../../../../../types';
@@ -20,14 +22,30 @@ interface Props {
   readOnly?: boolean;
 }
 
-export const TerminalNodeBody = ({
+/**
+ * Restart remounts the session with a new key. The node, its position, and
+ * its edges stay; the new shell restores the saved tail like an app relaunch.
+ */
+export const TerminalNodeBody = (props: Props) => {
+  const [generation, setGeneration] = useState(0);
+  return (
+    <TerminalSession
+      key={generation}
+      {...props}
+      onRestart={() => setGeneration((value) => value + 1)}
+    />
+  );
+};
+
+const TerminalSession = ({
   node,
   getAllNodes,
   rootFolder,
   workspaceId,
   onUpdate,
   readOnly = false,
-}: Props) => {
+  onRestart,
+}: Props & { onRestart: () => void }) => {
   const { t } = useI18n();
   const runtime = useTerminalNodeRuntime({
     node,
@@ -35,7 +53,9 @@ export const TerminalNodeBody = ({
     workspaceId,
     onUpdate,
     readOnly,
+    onRestart: readOnly ? undefined : onRestart,
   });
+  const exited = !readOnly && runtime.exitCode !== null;
 
   return (
     <div className="terminal-body-wrap">
@@ -46,7 +66,21 @@ export const TerminalNodeBody = ({
           onClose={runtime.handleMentionClose}
         />
       )}
-      {!readOnly && runtime.mentionHintVisible && !runtime.pickerOpen && (
+      {exited && (
+        <div className="terminal-exit-bar" role="status">
+          <span>{t('terminal.exited', { code: runtime.exitCode })}</span>
+          <Button
+            variant="primary"
+            size="xs"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={onRestart}
+          >
+            {t('terminal.restart')}
+          </Button>
+          <kbd>↵</kbd>
+        </div>
+      )}
+      {!readOnly && runtime.mentionHintVisible && !runtime.pickerOpen && !exited && (
         <div className="terminal-mention-hint" role="status">
           <span>{t('terminal.mentionHint.prefix')}</span>
           <kbd>{formatShortcutId('terminal.mentionPicker')}</kbd>

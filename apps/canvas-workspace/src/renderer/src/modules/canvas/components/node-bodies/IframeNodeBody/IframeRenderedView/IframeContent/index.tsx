@@ -90,14 +90,14 @@ export const IframeContent = ({
               className="iframe-discarded"
               role="button"
               tabIndex={0}
-              title="Sleeping to save memory — click to wake"
+              title={t('iframe.sleeping.title')}
               onClick={actions.wakeWebview}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') actions.wakeWebview();
               }}
             >
               {view.discardSnapshot && <img className="iframe-discarded-snapshot" src={view.discardSnapshot} alt="" />}
-              <div className="iframe-discarded-chip">Sleeping — click to wake</div>
+              <div className="iframe-discarded-chip">{t('iframe.sleeping.chip')}</div>
             </div>
           )}
           {view.unloadBlocked && (
@@ -135,7 +135,7 @@ export const IframeContent = ({
           )}
         </>
       ) : view.streamingActive ? (
-        <iframe ref={refs.streamIframeRef} key="stream-shell" className="iframe-frame" srcDoc={STREAMING_SHELL} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" title="Generating..." />
+        <iframe ref={refs.streamIframeRef} key="stream-shell" className="iframe-frame" srcDoc={STREAMING_SHELL} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" title={t('iframe.generatingFrame')} />
       ) : !view.shouldMountInlineFrame ? (
         <div ref={refs.frameHostRef} className="iframe-frame iframe-frame--pending" aria-hidden="true" />
       ) : (

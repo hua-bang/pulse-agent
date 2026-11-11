@@ -60,6 +60,40 @@ describe('computeNodeResizeGeometry', () => {
   });
 });
 
+describe('computeNodeResizeGeometry with a locked aspect ratio', () => {
+  // 300 x 200 box, ratio 1.5.
+  it('keeps the ratio on a corner while Shift is held', () => {
+    // dx = +60, dy = +10: the larger change (width x1.2) wins.
+    expect(computeNodeResizeGeometry({ ...origin, edge: 'bottom-right' }, 160, 110, 1, true)).toEqual({
+      id: 'node-1', edge: 'bottom-right', x: 10, y: 20, width: 360, height: 240,
+    });
+  });
+
+  it('anchors the opposite corner when dragging the top-left corner', () => {
+    expect(computeNodeResizeGeometry({ ...origin, edge: 'top-left' }, 40, 100, 1, true)).toEqual({
+      id: 'node-1', edge: 'top-left', x: -50, y: -20, width: 360, height: 240,
+    });
+  });
+
+  it('lets an edge drive the other side', () => {
+    expect(computeNodeResizeGeometry({ ...origin, edge: 'bottom' }, 100, 140, 1, true)).toEqual({
+      id: 'node-1', edge: 'bottom', x: 10, y: 20, width: 360, height: 240,
+    });
+  });
+
+  it('respects both minimum sizes while keeping the ratio', () => {
+    expect(computeNodeResizeGeometry({ ...origin, edge: 'bottom-right' }, -1000, -1000, 1, true)).toEqual({
+      id: 'node-1', edge: 'bottom-right', x: 10, y: 20, width: 120, height: 80,
+    });
+  });
+
+  it('locks images by default and frees them with Shift', () => {
+    const image = { ...origin, edge: 'right' as const, lockAspect: true };
+    expect(computeNodeResizeGeometry(image, 160, 100, 1)).toMatchObject({ width: 360, height: 240 });
+    expect(computeNodeResizeGeometry(image, 160, 100, 1, true)).toMatchObject({ width: 360, height: 200 });
+  });
+});
+
 describe('applyNodeResizePreview', () => {
   const node = {
     id: 'node-1',

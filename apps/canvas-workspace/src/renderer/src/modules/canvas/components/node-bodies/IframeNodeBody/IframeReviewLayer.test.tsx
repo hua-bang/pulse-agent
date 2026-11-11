@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef } from '../../../../../types';
+import { I18nProvider } from '../../../../../i18n';
 import { IframeReviewLayer } from './IframeReviewLayer';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -22,7 +23,7 @@ function render(node: React.ReactNode) {
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
-    root?.render(node);
+    root?.render(<I18nProvider>{node}</I18nProvider>);
   });
 }
 

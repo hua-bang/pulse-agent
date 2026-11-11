@@ -43,19 +43,64 @@ export interface NodeResizeOrigin {
   minWidth: number;
   minHeight: number;
   edge: ResizeEdge;
+  /** Keep the start aspect ratio unless Shift is held (images). Otherwise
+   *  Shift turns the ratio lock on. */
+  lockAspect?: boolean;
 }
+
+/**
+ * Scales the start box by one factor. A corner follows the larger change; an
+ * edge drives the other side. Opposite edges stay fixed, and an edge handle
+ * keeps the perpendicular top or left edge fixed.
+ */
+const computeAspectGeometry = (
+  origin: NodeResizeOrigin,
+  freeWidth: number,
+  freeHeight: number,
+): NodeResizePreview => {
+  const { edge, startWidth, startHeight } = origin;
+  const horizontal = hasLeftEdge(edge) || hasRightEdge(edge);
+  const vertical = hasTopEdge(edge) || hasBottomEdge(edge);
+  const widthFactor = freeWidth / startWidth;
+  const heightFactor = freeHeight / startHeight;
+  const requested = horizontal && vertical
+    ? Math.max(widthFactor, heightFactor)
+    : horizontal ? widthFactor : heightFactor;
+  const factor = Math.max(
+    requested,
+    origin.minWidth / startWidth,
+    origin.minHeight / startHeight,
+  );
+  const width = Math.round(startWidth * factor);
+  const height = Math.round(startHeight * factor);
+  const x = hasLeftEdge(edge) ? origin.startNodeX + startWidth - width : origin.startNodeX;
+  const y = hasTopEdge(edge) ? origin.startNodeY + startHeight - height : origin.startNodeY;
+  return { id: origin.id, x, y, width, height, edge };
+};
 
 export const computeNodeResizeGeometry = (
   origin: NodeResizeOrigin,
   clientX: number,
   clientY: number,
   scale: number,
+  shiftKey = false,
 ): NodeResizePreview => {
   const safeScale = Math.max(scale, 0.0001);
   const dx = (clientX - origin.startPointerX) / safeScale;
   const dy = (clientY - origin.startPointerY) / safeScale;
   const rightEdge = origin.startNodeX + origin.startWidth;
   const bottomEdge = origin.startNodeY + origin.startHeight;
+
+  const keepAspect = Boolean(origin.lockAspect) !== shiftKey;
+  if (keepAspect && origin.startWidth > 0 && origin.startHeight > 0) {
+    const freeWidth = origin.startWidth
+      + (hasRightEdge(origin.edge) ? dx : 0)
+      - (hasLeftEdge(origin.edge) ? dx : 0);
+    const freeHeight = origin.startHeight
+      + (hasBottomEdge(origin.edge) ? dy : 0)
+      - (hasTopEdge(origin.edge) ? dy : 0);
+    return computeAspectGeometry(origin, freeWidth, freeHeight);
+  }
 
   let width = origin.startWidth;
   let height = origin.startHeight;
@@ -158,7 +203,8 @@ export const useNodeResize = (
         startNodeY: node?.y ?? 0,
         minWidth: minWidth ?? DEFAULT_MIN_WIDTH,
         minHeight: minHeight ?? DEFAULT_MIN_HEIGHT,
-        edge
+        edge,
+        lockAspect: node?.type === 'image',
       };
       lastMoveEvent.current = null;
       setResizingId(nodeId);
@@ -178,7 +224,7 @@ export const useNodeResize = (
     (e: React.MouseEvent | MouseEvent, commit: boolean) => {
       if (!resizing.current) return false;
       const r = resizing.current;
-      const next = computeNodeResizeGeometry(r, e.clientX, e.clientY, scale);
+      const next = computeNodeResizeGeometry(r, e.clientX, e.clientY, scale, e.shiftKey);
       setResizePreview((prev) => {
         if (
           prev &&
@@ -206,14 +252,14 @@ export const useNodeResize = (
       if (!r) return false;
       lastMoveEvent.current = e;
       if (moveFrame.current !== null) {
-        return resizeGeometryChanged(r, computeNodeResizeGeometry(r, e.clientX, e.clientY, scale));
+        return resizeGeometryChanged(r, computeNodeResizeGeometry(r, e.clientX, e.clientY, scale, e.shiftKey));
       }
       moveFrame.current = requestAnimationFrame(() => {
         moveFrame.current = null;
         const nextEvent = lastMoveEvent.current;
         if (nextEvent) flushResizeMove(nextEvent, false);
       });
-      return resizeGeometryChanged(r, computeNodeResizeGeometry(r, e.clientX, e.clientY, scale));
+      return resizeGeometryChanged(r, computeNodeResizeGeometry(r, e.clientX, e.clientY, scale, e.shiftKey));
     },
     [flushResizeMove, scale]
   );

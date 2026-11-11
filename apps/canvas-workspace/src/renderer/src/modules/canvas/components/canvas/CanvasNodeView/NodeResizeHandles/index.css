@@ -91,6 +91,24 @@
   cursor: nesw-resize;
 }
 
+/* Top corners of a header node. The node clips overflow, so the zone stays
+ * inside it; it is small enough to stay clear of the header's buttons, which
+ * sit 8px from the right edge. */
+.resize-handle--header-corner {
+  width: 8px;
+  height: 8px;
+}
+
+.resize-handle--header-corner.resize-handle--top-left {
+  top: -1px;
+  left: -1px;
+}
+
+.resize-handle--header-corner.resize-handle--top-right {
+  top: -1px;
+  right: -1px;
+}
+
 /* ---- Frame resize handles ----
  * Frames render with `overflow: visible` and a header pill that floats ABOVE
  * the body (it is not anchored to the top edge), so the hit zones can:

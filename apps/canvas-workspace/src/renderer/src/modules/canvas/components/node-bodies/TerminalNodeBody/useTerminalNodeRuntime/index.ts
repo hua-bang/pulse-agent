@@ -44,6 +44,8 @@ interface Options {
     options?: { history?: boolean },
   ) => void;
   readOnly: boolean;
+  /** Starts a fresh shell after the process exits. Enter calls it too. */
+  onRestart?: () => void;
 }
 
 export function useTerminalNodeRuntime({
@@ -52,8 +54,13 @@ export function useTerminalNodeRuntime({
   workspaceId,
   onUpdate,
   readOnly,
+  onRestart,
 }: Options) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [exitCode, setExitCode] = useState<number | null>(null);
+  const exitedRef = useRef(false);
+  const onRestartRef = useRef(onRestart);
+  onRestartRef.current = onRestart;
   const [mentionHintVisible, setMentionHintVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -168,6 +175,10 @@ export function useTerminalNodeRuntime({
     }
 
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (exitedRef.current && event.key === 'Enter' && onRestartRef.current) {
+        if (event.type === 'keydown') onRestartRef.current();
+        return false;
+      }
       if (handleTerminalShortcut(event, {
         'terminal.mentionPicker': () => setPickerOpen(true),
       })) return false;
@@ -243,6 +254,8 @@ export function useTerminalNodeRuntime({
     }
 
     const removeExit = api.onExit(sessionId, (code: number) => {
+      exitedRef.current = true;
+      setExitCode(code);
       writeTerminalOutput(
         term,
         `\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`,
@@ -415,6 +428,7 @@ export function useTerminalNodeRuntime({
 
   return {
     containerRef,
+    exitCode,
     pickerOpen,
     mentionHintVisible,
     dismissMentionHint,
