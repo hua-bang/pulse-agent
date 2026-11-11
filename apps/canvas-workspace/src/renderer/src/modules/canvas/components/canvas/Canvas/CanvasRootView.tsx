@@ -88,6 +88,7 @@ export const CanvasRootView = ({
   nodesById,
   onChatToggle,
   onFitAll,
+  onPasteHere,
   onOpenReferenceSource,
   onPinReferenceNode,
   onAddToChat,
@@ -349,6 +350,7 @@ export const CanvasRootView = ({
         moving={moving}
         scale={moving ? settledScale : transform.scale}
         onFitAll={onFitAll}
+        onPasteHere={onPasteHere}
         onSelectAll={() => {
           setSelectedNodeIds(nodes.map((node) => node.id));
           setSelectedEdgeId(null);

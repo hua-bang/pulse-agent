@@ -65,7 +65,10 @@ export const TerminalNodeBody = ({
         ref={runtime.containerRef}
         className="terminal-xterm-container"
         onMouseDown={(event) => event.stopPropagation()}
-        onWheel={(event) => event.stopPropagation()}
+        onWheel={(event) => {
+          // Plain wheel scrolls the scrollback. Ctrl/Cmd + wheel is canvas zoom.
+          if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
+        }}
       />
     </div>
   );

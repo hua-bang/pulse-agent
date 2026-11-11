@@ -221,6 +221,17 @@ export const useCanvasCoreCommands = ({
     return frame;
   }, [applyNodes, nodesRef]);
 
+  // Regular nodes paint in array order, so the last one is on top.
+  const reorderNodes = useCallback((ids: readonly string[], to: 'front' | 'back') => {
+    const idSet = new Set(ids);
+    const moved = nodesRef.current.filter(node => idSet.has(node.id));
+    if (moved.length === 0) return;
+    const rest = nodesRef.current.filter(node => !idSet.has(node.id));
+    const next = to === 'front' ? [...rest, ...moved] : [...moved, ...rest];
+    if (next.every((node, index) => node === nodesRef.current[index])) return;
+    applyNodes(next);
+  }, [applyNodes, nodesRef]);
+
   const addEdge = useCallback((edge: CanvasEdge) => {
     applyEdges([...edgesRef.current, edge]);
     return edge;
@@ -253,6 +264,7 @@ export const useCanvasCoreCommands = ({
     resizeNode,
     groupNodes,
     wrapNodesInFrame,
+    reorderNodes,
     addEdge,
     updateEdge,
     removeEdge,

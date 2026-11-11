@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react';
-import type { CanvasNode, FileNodeData } from '../../../types';
-import type { CanvasClipboard } from '../../../types/ui-interaction';
+import type { CanvasNode } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import { withContainerDescendants } from '../../../utils/frameHierarchy';
-import { nodeClipboardText } from '../../../utils/nodeLabel';
 import {
   matchShortcut,
   type CanvasShortcutId,
@@ -71,7 +69,6 @@ export const shouldHandleCanvasFindShortcut = (
 const KEYBOARD_ZOOM_STEP = 1.2;
 
 interface Options {
-  canvasId: string;
   undo: () => void;
   redo: () => void;
   nodes: CanvasNode[];
@@ -85,7 +82,10 @@ interface Options {
   setSelectedEdgeId: (id: string | null) => void;
   removeEdge: (id: string) => void | Promise<void>;
   duplicateNodes: (ids: readonly string[]) => CanvasNode[];
-  setClipboard: (clipboard: CanvasClipboard | null) => void;
+  /** Copy the selection to the canvas clipboard. See `useCanvasClipboard`. */
+  copySelection: () => void;
+  cutSelection: () => void;
+  reorderNodes: (ids: readonly string[], to: 'front' | 'back') => void;
   /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
   /** Dissolve selected group nodes while keeping their children on canvas. */
@@ -150,10 +150,9 @@ interface Options {
  * meant two independent chances to disagree about IME / lock state).
  */
 export const useCanvasKeyboard = ({
-  canvasId,
   undo, redo, nodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNodes, setClipboard, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
+  duplicateNodes, copySelection, cutSelection, reorderNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
   searchOpen, setSearchOpen,
   findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
@@ -342,38 +341,19 @@ export const useCanvasKeyboard = ({
       const created = duplicateNodes(selectedNodeIds);
       if (created.length > 0) setSelectedNodeIds(created.map((node) => node.id));
     },
-    'canvas.copy': () => {
-      const selected = withContainerDescendants(
-        nodes.filter((n) => selectedNodeIds.includes(n.id)),
-        nodes,
-      );
-      if (selected.length === 0) return;
-      // Mirror the copy into the system clipboard and remember exactly what
-      // we wrote. The paste path compares the two: if the system clipboard
-      // still holds this mirror, the node copy is the newest thing the user
-      // copied and wins; if it changed, they copied elsewhere since and that
-      // content wins instead. Without the mirror a stale canvas clipboard
-      // silently beat every later system copy, forever.
-      const markdownNodes = selected.filter((n): n is CanvasNode & { data: FileNodeData } => (
-        n.type === 'file' && typeof (n.data as FileNodeData).content === 'string'
-      ));
-      const systemText = markdownNodes.length === selected.length
-        ? markdownNodes
-          .map((node) => markdownNodes.length === 1
-            ? node.data.content
-            : `# ${node.title}\n\n${node.data.content}`)
-          .join('\n\n---\n\n')
-        : selected.map(nodeClipboardText).join('\n\n');
-      setClipboard({ sourceWorkspaceId: canvasId, nodes: selected, systemText });
-      if (navigator.clipboard?.writeText) {
-        void navigator.clipboard.writeText(systemText).catch(() => {
-          // The mirror never reached the system clipboard, so comparing
-          // against it would refuse every later paste. Drop it: without a
-          // mirror the canvas clipboard simply wins, which is the old
-          // behavior and the right fallback.
-          setClipboard({ sourceWorkspaceId: canvasId, nodes: selected });
-        });
-      }
+    // Copy does not prevent the default: the system copy still runs.
+    'canvas.copy': () => { copySelection(); },
+    'canvas.cut': (event) => {
+      event.preventDefault();
+      cutSelection();
+    },
+    'canvas.bringToFront': (event) => {
+      event.preventDefault();
+      reorderNodes(selectedNodeIds, 'front');
+    },
+    'canvas.sendToBack': (event) => {
+      event.preventDefault();
+      reorderNodes(selectedNodeIds, 'back');
     },
     'canvas.group': (event) => {
       event.preventDefault();

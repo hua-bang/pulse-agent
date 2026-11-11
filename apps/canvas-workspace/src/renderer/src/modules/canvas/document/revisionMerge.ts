@@ -38,6 +38,10 @@ export function sameDocumentContent(left: CanvasSaveData, right: CanvasSaveData)
 function mergeValue(base: Value, local: Value, remote: Value, path: string, overridden: string[]): Value {
   if (equalDocumentValue(local, base)) return remote;
   if (equalDocumentValue(remote, base) || equalDocumentValue(local, remote)) return local;
+  // A mindmap `rev` only counts edits. Both sides bump it, and neither loses.
+  if (path.endsWith('.data.rev') && typeof local === 'number' && typeof remote === 'number') {
+    return Math.max(local, remote);
+  }
   if (object(base) && object(local) && object(remote)) {
     const merged = Object.create(null) as Record<string, Value>;
     for (const key of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
@@ -46,10 +50,65 @@ function mergeValue(base: Value, local: Value, remote: Value, path: string, over
     }
     return merged;
   }
-  // Arrays are atomic fields: text/topic/order edits have no safe scalar merge.
+  if (identified(base) && identified(local) && identified(remote)) {
+    return mergeIdentified(base, local, remote, path, overridden);
+  }
+  // Other arrays are atomic fields: text and order edits have no safe scalar merge.
   overridden.push(path);
   return local;
 }
+
+type Identified = Record<string, Value> & { id: string };
+
+/** An array of objects that each have their own string `id`, such as mindmap topics. */
+const identified = (value: Value): value is Identified[] => (
+  Array.isArray(value)
+  && value.every(item => object(item) && typeof item.id === 'string')
+  && new Set(value.map(item => (item as Identified).id)).size === value.length
+);
+
+/**
+ * Three-way merge of an array of identified items. Each item merges by id,
+ * so two writers can change different items of one list. The list keeps the
+ * order of the side that changed it; items that the other side added go
+ * after their predecessor on that side.
+ */
+function mergeIdentified(
+  base: Identified[], local: Identified[], remote: Identified[], path: string, overridden: string[],
+): Identified[] {
+  const byId = (items: Identified[]) => new Map(items.map(item => [item.id, item]));
+  const bases = byId(base);
+  const locals = byId(local);
+  const remotes = byId(remote);
+  const merged = new Map<string, Identified>();
+  for (const id of new Set([...bases.keys(), ...locals.keys(), ...remotes.keys()])) {
+    const item = mergeValue(bases.get(id), locals.get(id), remotes.get(id), `${path}.${id}`, overridden);
+    if (object(item)) merged.set(id, item as Identified);
+  }
+  const ids = (items: Identified[]) => items.map(item => item.id);
+  const localChanged = !equalDocumentValue(ids(local), ids(base));
+  const [preferred, other] = localChanged ? [local, remote] : [remote, local];
+  const order = ids(preferred).filter(id => merged.has(id));
+  let previous: string | undefined;
+  for (const id of ids(other)) {
+    if (!merged.has(id)) continue;
+    if (!order.includes(id)) order.splice(previous ? order.indexOf(previous) + 1 : 0, 0, id);
+    previous = id;
+  }
+  return order.map(id => merged.get(id)!);
+}
+
+/** True when one topic id occurs twice in a mindmap tree. */
+const hasDuplicateTopic = (root: Value): boolean => {
+  const seen = new Set<string>();
+  const visit = (topic: Value): boolean => {
+    if (!object(topic) || typeof topic.id !== 'string') return false;
+    if (seen.has(topic.id)) return true;
+    seen.add(topic.id);
+    return Array.isArray(topic.children) && topic.children.some(visit);
+  };
+  return visit(root);
+};
 
 function semanticRecord<T extends CanvasNode | CanvasEdge>(value: T | undefined): Value {
   if (!value) return undefined;
@@ -71,6 +130,13 @@ function mergeEntities<T extends CanvasNode | CanvasEdge>(
       `${path}.${id}`, overridden,
     );
     if (!object(current)) continue;
+    // One writer moved a topic and the other edited it in its old place.
+    // The merge by id then holds the topic twice, so the local tree wins.
+    const localData = (locals.get(id) as { data?: Value } | undefined)?.data;
+    if (object(current.data) && object(localData) && hasDuplicateTopic(current.data.root)) {
+      current.data = { ...current.data, root: localData.root };
+      overridden.push(`${path}.${id}.data.root`);
+    }
     const timestamps = [bases.get(id)?.updatedAt, locals.get(id)?.updatedAt, remotes.get(id)?.updatedAt]
       .filter((value): value is number => typeof value === 'number');
     merged.set(id, {

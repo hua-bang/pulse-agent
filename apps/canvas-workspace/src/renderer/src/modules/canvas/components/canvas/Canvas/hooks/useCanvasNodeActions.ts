@@ -78,14 +78,18 @@ export const useCanvasNodeActions = ({
   const { t } = useI18n();
 
   const requestRemoveNodes = useCallback(
-    async (ids: string[]) => {
+    async (ids: string[], options?: { recoverable?: boolean }) => {
       const idSet = new Set(ids);
       const victims = nodesRef.current.filter((node) => idSet.has(node.id));
       if (victims.length === 0) return;
 
       // Policy (including why a lone coding-agent node still asks) lives in
       // `node-delete-confirm.ts`.
-      const request = getNodeDeleteConfirm(victims, getNodeDisplayLabel);
+      // A cut keeps the nodes on the clipboard, so a count alone does not
+      // ask. An agent still asks: its session does not come back.
+      const request = options?.recoverable && !victims.some((node) => node.type === 'agent')
+        ? null
+        : getNodeDeleteConfirm(victims, getNodeDisplayLabel);
       if (request) {
         const accepted = await confirm({
           intent: 'danger',

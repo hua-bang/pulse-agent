@@ -177,6 +177,85 @@ describe('useCanvasDocument text resize commit', () => {
     expect(hook.nodes.map((item) => item.id)).toEqual(ids);
   });
 
+  it('copies the edges between duplicated nodes, in the same undo step', () => {
+    act(() => {
+      hook.addNode('text', 400, 400);
+    });
+    const [a, b] = hook.nodes.map((item) => item.id);
+    act(() => {
+      hook.addEdge({
+        id: 'edge-ab',
+        source: { kind: 'node', nodeId: a },
+        target: { kind: 'node', nodeId: b },
+        label: 'link',
+      });
+    });
+    let copies: CanvasNode[] = [];
+    act(() => {
+      copies = hook.duplicateNodes([a, b]);
+    });
+
+    expect(hook.edges).toHaveLength(2);
+    const copy = hook.edges[1];
+    expect(copy.id).not.toBe('edge-ab');
+    expect(copy.label).toBe('link');
+    expect([copy.source, copy.target]).toEqual([
+      { kind: 'node', nodeId: copies[0].id },
+      { kind: 'node', nodeId: copies[1].id },
+    ]);
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes).toHaveLength(2);
+    expect(hook.edges.map((item) => item.id)).toEqual(['edge-ab']);
+  });
+
+  it('does not copy an edge when only one of its nodes is duplicated', () => {
+    act(() => {
+      hook.addNode('text', 400, 400);
+    });
+    const [a, b] = hook.nodes.map((item) => item.id);
+    act(() => {
+      hook.addEdge({ id: 'edge-ab', source: { kind: 'node', nodeId: a }, target: { kind: 'node', nodeId: b } });
+    });
+    act(() => {
+      hook.duplicateNodes([a]);
+    });
+    expect(hook.edges).toHaveLength(1);
+  });
+
+  it('pastes a selection centred on a target point', () => {
+    let pasted: CanvasNode[] = [];
+    act(() => {
+      pasted = hook.pasteNodes([node], { at: { x: 1000, y: 500 } });
+    });
+    expect({ x: pasted[0].x, y: pasted[0].y }).toEqual({ x: 880, y: 450 });
+  });
+
+  it('moves nodes to the front or the back of the paint order', () => {
+    act(() => {
+      hook.addNode('text', 400, 400);
+      hook.addNode('text', 800, 400);
+    });
+    const [a, b, c] = hook.nodes.map((item) => item.id);
+
+    act(() => {
+      hook.reorderNodes([a], 'front');
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual([b, c, a]);
+
+    act(() => {
+      hook.reorderNodes([a, c], 'back');
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual([c, a, b]);
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual([b, c, a]);
+  });
+
   it('preserves the loaded viewport when an embedded editor saves only node changes', async () => {
     act(() => {
       hook.updateNode('text-1', { title: 'Edited in AI Chat' });

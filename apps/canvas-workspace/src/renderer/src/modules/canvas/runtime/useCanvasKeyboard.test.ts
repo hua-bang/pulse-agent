@@ -99,7 +99,6 @@ describe('useCanvasKeyboard', () => {
     overrides: Partial<Parameters<typeof useCanvasKeyboard>[0]> = {},
   ) => {
     const options: Parameters<typeof useCanvasKeyboard>[0] = {
-      canvasId: 'canvas-1',
       undo: vi.fn(),
       redo: vi.fn(),
       nodes: [],
@@ -110,7 +109,9 @@ describe('useCanvasKeyboard', () => {
       setSelectedEdgeId: vi.fn(),
       removeEdge: vi.fn(),
       duplicateNodes: vi.fn(() => []),
-      setClipboard: vi.fn(),
+      copySelection: vi.fn(),
+      cutSelection: vi.fn(),
+      reorderNodes: vi.fn(),
       groupSelectedNodes: vi.fn(),
       ungroupSelectedNodes: vi.fn(),
       removeNodes: vi.fn(),
@@ -367,38 +368,26 @@ describe('useCanvasKeyboard', () => {
     expect(setSearchOpen).not.toHaveBeenCalled();
   });
 
-  it('mirrors a canvas copy into the system clipboard so paste can compare', () => {
-    const setClipboard = vi.fn();
+  it('routes copy, cut, and layer order to their commands', () => {
+    const copySelection = vi.fn();
+    const cutSelection = vi.fn();
+    const reorderNodes = vi.fn();
     mountKeyboard({
       nodes: [node('node-1')],
       selectedNodeIds: ['node-1'],
-      setClipboard,
+      copySelection,
+      cutSelection,
+      reorderNodes,
     });
 
     press({ key: 'c', metaKey: true });
+    press({ key: 'x', metaKey: true });
+    press({ key: ']' });
+    press({ key: '[' });
 
-    expect(setClipboard).toHaveBeenCalledWith(expect.objectContaining({
-      sourceWorkspaceId: 'canvas-1',
-      systemText: 'node-1',
-    }));
-  });
-
-  it('copies text-node prose, not placeholder titles, to the system clipboard', () => {
-    const setClipboard = vi.fn();
-    mountKeyboard({
-      nodes: [
-        { ...node('a'), title: 'Text', data: { content: '<p>First &amp; one</p><p>line two</p>' } as CanvasNode['data'] },
-        { ...node('b'), title: 'Text', data: { content: '<p>Second</p>' } as CanvasNode['data'] },
-      ],
-      selectedNodeIds: ['a', 'b'],
-      setClipboard,
-    });
-
-    press({ key: 'c', metaKey: true });
-
-    expect(setClipboard).toHaveBeenCalledWith(expect.objectContaining({
-      systemText: 'First & one\nline two\n\nSecond',
-    }));
+    expect(copySelection).toHaveBeenCalledTimes(1);
+    expect(cutSelection).toHaveBeenCalledTimes(1);
+    expect(reorderNodes.mock.calls).toEqual([[['node-1'], 'front'], [['node-1'], 'back']]);
   });
 
   it('duplicates the whole selection in one call and selects the copies', () => {

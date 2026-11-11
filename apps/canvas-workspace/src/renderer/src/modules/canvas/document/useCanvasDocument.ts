@@ -437,7 +437,9 @@ export const useCanvasDocument = (
     return true;
   }, [captureDraft, retryLoad]);
 
-  const contentCommands = useCanvasContentCommands({ canvasId, nodesRef, applyNodes });
+  const contentCommands = useCanvasContentCommands({
+    canvasId, nodesRef, edgesRef, applyNodes, applyState,
+  });
   const coreCommands = useCanvasCoreCommands({
     nodesRef,
     edgesRef,

@@ -145,4 +145,25 @@ describe('requestRemoveNodes — coding agent confirmation', () => {
     expect(confirm).toHaveBeenCalledOnce();
     expect(removeNodes).not.toHaveBeenCalled();
   });
+
+  it('does not ask for a recoverable removal (cut) of several ordinary nodes', async () => {
+    const a = node('t1', 'text');
+    const b = node('t2', 'text');
+    const { removeNodes, confirm } = render([a, b], false);
+
+    await act(async () => { await api.requestRemoveNodes([a.id, b.id], { recoverable: true }); });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(removeNodes).toHaveBeenCalledWith([a.id, b.id]);
+  });
+
+  it('still asks for a recoverable removal that holds an agent', async () => {
+    const agent = node('a1', 'agent');
+    const { removeNodes, confirm } = render([agent], false);
+
+    await act(async () => { await api.requestRemoveNodes([agent.id], { recoverable: true }); });
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(removeNodes).not.toHaveBeenCalled();
+  });
 });

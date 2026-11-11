@@ -19,6 +19,9 @@ interface Options {
    *  edit. */
   nodesRef: MutableRefObject<CanvasNode[]>;
   duplicateNodes: (ids: readonly string[]) => CanvasNode[];
+  copySelection: () => void;
+  cutSelection: () => void;
+  reorderNodes: (ids: readonly string[], to: 'front' | 'back') => void;
   /** Align and distribute move nodes without history, then record one step. */
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void;
   commitHistory: () => void;
@@ -57,6 +60,9 @@ export const useCanvasPaletteCommands = ({
   setSelectedNodeIds,
   nodesRef,
   duplicateNodes,
+  copySelection,
+  cutSelection,
+  reorderNodes,
   moveNodes,
   commitHistory,
   requestRemoveNodes,
@@ -97,6 +103,40 @@ export const useCanvasPaletteCommands = ({
           const created = duplicateNodes(selectedNodeIds);
           if (created.length > 0) setSelectedNodeIds(created.map(node => node.id));
         },
+      },
+      {
+        id: 'copy-selection',
+        group: 'edit',
+        title: t('canvas.palette.command.copy'),
+        shortcut: formatShortcutId('canvas.copy'),
+        enabled: selectionCount > 0,
+        run: copySelection,
+      },
+      {
+        id: 'cut-selection',
+        group: 'edit',
+        title: t('canvas.palette.command.cut'),
+        shortcut: formatShortcutId('canvas.cut'),
+        enabled: selectionCount > 0,
+        run: cutSelection,
+      },
+      {
+        id: 'bring-to-front',
+        group: 'edit',
+        title: t('canvas.palette.command.bringToFront'),
+        shortcut: formatShortcutId('canvas.bringToFront'),
+        aliases: ['layer', 'order', 'top'],
+        enabled: selectionCount > 0,
+        run: () => reorderNodes(selectedNodeIds, 'front'),
+      },
+      {
+        id: 'send-to-back',
+        group: 'edit',
+        title: t('canvas.palette.command.sendToBack'),
+        shortcut: formatShortcutId('canvas.sendToBack'),
+        aliases: ['layer', 'order', 'bottom'],
+        enabled: selectionCount > 0,
+        run: () => reorderNodes(selectedNodeIds, 'back'),
       },
       {
         id: 'delete-selection',
@@ -343,6 +383,9 @@ export const useCanvasPaletteCommands = ({
     setSelectedNodeIds,
     nodesRef,
     duplicateNodes,
+    copySelection,
+    cutSelection,
+    reorderNodes,
     requestRemoveNodes,
     groupSelectedNodes,
     ungroupSelectedNodes,

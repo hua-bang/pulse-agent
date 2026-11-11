@@ -1,5 +1,5 @@
 import './index.css';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type {
   ClipboardEvent,
   FocusEvent,
@@ -11,7 +11,6 @@ import type {
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../../../../../types';
 import { useI18n } from '../../../../../../i18n';
 import { FrameChildrenToggle, FrameColorPicker } from '../../../node-bodies/FrameNodeBody/FrameHeaderControls';
-import { TextColorPicker } from '../../../node-bodies/TextNodeBody/TextColorPicker';
 import {
   AddToCanvasButton,
   AddToChatButton,
@@ -25,6 +24,11 @@ import { NodeTypeBadge } from '../NodeTypeBadge';
 import { isKnowledgeNodeType } from '../../../../../../shared/knowledgeNodes';
 import { isReferenceableNode } from '../../../../../../utils/referenceNodes';
 import type { ChatDeliveryReceipt } from '../../../../../chat';
+
+// Only a text node shows the colour picker, so it loads with the first one.
+const TextColorPicker = lazy(() =>
+  import('../../../node-bodies/TextNodeBody/TextColorPicker').then((module) => ({ default: module.TextColorPicker })),
+);
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
@@ -194,7 +198,9 @@ export const CanvasNodeHeader = ({
         <FrameColorPicker node={node} onUpdate={onUpdate} />
       )}
       {node.type === 'text' && !readOnly && (
-        <TextColorPicker node={node} onUpdate={onUpdate} />
+        <Suspense fallback={null}>
+          <TextColorPicker node={node} onUpdate={onUpdate} />
+        </Suspense>
       )}
       <div className="node-header__actions">
         {handleOpenDetail ? <OpenDetailButton onClick={handleOpenDetail} /> : null}
