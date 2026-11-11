@@ -78,14 +78,17 @@ export const useCanvasClipboard = ({
     return () => document.removeEventListener('mousemove', track);
   }, []);
 
-  const copy = useCallback((): boolean => {
+  /** Returns the copied nodes: the selection and its container descendants. */
+  const copy = useCallback((cut = false): CanvasNode[] => {
     const selected = withContainerDescendants(
       nodes.filter((node) => selectedNodeIds.includes(node.id)),
       nodes,
     );
-    if (selected.length === 0) return false;
+    if (selected.length === 0) return selected;
     const systemText = clipboardText(selected);
-    const copied = { sourceWorkspaceId: canvasId, nodes: selected, edges: edgesAmong(edges, selected) };
+    const copied = {
+      sourceWorkspaceId: canvasId, nodes: selected, edges: edgesAmong(edges, selected), ...(cut ? { cut } : {}),
+    };
     setClipboard({ ...copied, systemText });
     lastPasteRef.current = null;
     if (navigator.clipboard?.writeText) {
@@ -96,12 +99,15 @@ export const useCanvasClipboard = ({
         setClipboard(copied);
       });
     }
-    return true;
+    return selected;
   }, [canvasId, edges, nodes, selectedNodeIds, setClipboard]);
 
   const cut = useCallback(() => {
-    if (copy()) void removeNodes(selectedNodeIds, { recoverable: true });
-  }, [copy, removeNodes, selectedNodeIds]);
+    // Remove what the copy took. A container's contents go with it, or a
+    // paste would make a second copy of them.
+    const copied = copy(true);
+    if (copied.length > 0) void removeNodes(copied.map((node) => node.id), { recoverable: true });
+  }, [copy, removeNodes]);
 
   /** The canvas point under the pointer, or null when the pointer is elsewhere. */
   const pointerTarget = useCallback((): Point | null => {
@@ -117,7 +123,9 @@ export const useCanvasClipboard = ({
     const mirror = clipboard.systemText ?? '';
     if (systemText && mirror && systemText.trim() !== mirror.trim()) return false;
     let created: CanvasNode[];
-    if (clipboard.sourceWorkspaceId !== canvasId) {
+    // A cut removed the source nodes, so a reference to them would be dead.
+    // A cut pastes real nodes in every workspace.
+    if (clipboard.sourceWorkspaceId !== canvasId && !clipboard.cut) {
       created = pasteReferenceNodes(clipboard);
     } else {
       const at = target ?? pointerTarget() ?? undefined;

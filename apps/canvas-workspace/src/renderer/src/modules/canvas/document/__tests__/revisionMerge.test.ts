@@ -127,6 +127,15 @@ describe('revision three-way merge', () => {
       expect(result.overridden).toEqual(['nodes.m.data.root.children.a.text']);
     });
 
+    it('keeps the local order of topics that both sides reordered, and reports it', () => {
+      const base = topic('root', [topic('a'), topic('b'), topic('c')]);
+      const { root, result } = merge(
+        base, topic('root', [topic('b'), topic('a'), topic('c')]), topic('root', [topic('a'), topic('c'), topic('b')]),
+      );
+      expect(root.children.map(child => child.id)).toEqual(['b', 'a', 'c']);
+      expect(result.overridden).toEqual(['nodes.m.data.root.children.order']);
+    });
+
     it('keeps the local tree when a merge by id would hold a topic twice', () => {
       const base = topic('root', [topic('a', [topic('t')]), topic('b')]);
       // Local renames the topic in place. Remote moves it under another parent.

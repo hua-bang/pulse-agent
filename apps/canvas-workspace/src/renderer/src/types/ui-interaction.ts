@@ -51,6 +51,8 @@ export interface CanvasNodePatchRequest {
 export interface CanvasClipboard {
   sourceWorkspaceId: string;
   nodes: CanvasNode[];
+  /** True when the copy was a cut: the source nodes no longer exist. */
+  cut?: boolean;
   /** Edges between the copied nodes. A same-workspace paste copies them too. */
   edges?: CanvasEdge[];
   /**

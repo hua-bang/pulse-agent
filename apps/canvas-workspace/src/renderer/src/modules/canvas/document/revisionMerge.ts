@@ -87,6 +87,18 @@ function mergeIdentified(
   }
   const ids = (items: Identified[]) => items.map(item => item.id);
   const localChanged = !equalDocumentValue(ids(local), ids(base));
+  // Both sides put the items that they share in a different order.
+  const shared = (items: Identified[]) => ids(items).filter(id => bases.has(id) && locals.has(id) && remotes.has(id));
+  const baseShared = shared(base);
+  const localShared = shared(local);
+  const remoteShared = shared(remote);
+  if (
+    !equalDocumentValue(localShared, baseShared)
+    && !equalDocumentValue(remoteShared, baseShared)
+    && !equalDocumentValue(localShared, remoteShared)
+  ) {
+    overridden.push(`${path}.order`);
+  }
   const [preferred, other] = localChanged ? [local, remote] : [remote, local];
   const order = ids(preferred).filter(id => merged.has(id));
   let previous: string | undefined;

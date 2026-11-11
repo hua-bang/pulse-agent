@@ -26,14 +26,16 @@ describe('useCanvasClipboard', () => {
   const setClipboard = vi.fn((next: CanvasClipboard | null) => { clipboard = next; });
   const pasteNodes = vi.fn((nodes: CanvasNode[]) => nodes.map((source) => ({ ...source, id: `${source.id}-copy` })));
   const removeNodes = vi.fn();
+  const pasteReferenceNodes = vi.fn(() => [] as CanvasNode[]);
+  let canvasId = 'canvas-1';
   const setSelectedNodeIds = vi.fn();
 
   const Probe = ({ nodes, edges, selected }: { nodes: CanvasNode[]; edges: CanvasEdge[]; selected: string[] }) => {
     api = useCanvasClipboard({
-      canvasId: 'canvas-1', clipboard, setClipboard, nodes, edges,
+      canvasId, clipboard, setClipboard, nodes, edges,
       selectedNodeIds: selected, setSelectedNodeIds, containerRef,
       screenToCanvas: (x, y) => ({ x: x * 2, y: y * 2 }),
-      pasteNodes, pasteReferenceNodes: () => [], removeNodes,
+      pasteNodes, pasteReferenceNodes, removeNodes,
     });
     return null;
   };
@@ -46,6 +48,7 @@ describe('useCanvasClipboard', () => {
 
   beforeEach(() => {
     clipboard = null;
+    canvasId = 'canvas-1';
     vi.clearAllMocks();
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -89,6 +92,34 @@ describe('useCanvasClipboard', () => {
     act(() => { api.cut(); });
     expect(clipboard?.nodes.map((item) => item.id)).toEqual(['a']);
     expect(removeNodes).toHaveBeenCalledWith(['a'], { recoverable: true });
+  });
+
+  it('cuts a container with its contents, so a paste does not duplicate them', () => {
+    const frame = { ...node('frame'), type: 'frame', width: 600, height: 400 } as CanvasNode;
+    const child = { ...node('child'), x: 40, y: 40 };
+    mount([frame, child], ['frame']);
+    act(() => { api.cut(); });
+    expect(removeNodes).toHaveBeenCalledWith(['frame', 'child'], { recoverable: true });
+  });
+
+  it('pastes real nodes, not references, when a cut moves to another workspace', () => {
+    const render = mount([node('a')], ['a']);
+    act(() => { api.cut(); });
+    canvasId = 'canvas-2';
+    render();
+    act(() => { api.paste(''); });
+    expect(pasteReferenceNodes).not.toHaveBeenCalled();
+    expect(pasteNodes).toHaveBeenCalledTimes(1);
+  });
+
+  it('pastes references when a copy moves to another workspace', () => {
+    const render = mount([node('a')], ['a']);
+    act(() => { api.copy(); });
+    canvasId = 'canvas-2';
+    render();
+    act(() => { api.paste(''); });
+    expect(pasteReferenceNodes).toHaveBeenCalledTimes(1);
+    expect(pasteNodes).not.toHaveBeenCalled();
   });
 
   it('does not cut an empty selection', () => {
