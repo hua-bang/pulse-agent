@@ -76,7 +76,13 @@ export const useDockTabIndicator = ({ scopeId, activeTabId, visible, previewTabs
     // so re-scrolling only adds the unwanted smooth slide.
     if (lastScrolledTabId.current === activeTabId) return;
     lastScrolledTabId.current = activeTabId;
-    tabRefs.current.get(activeTabId)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    const activeTab = tabRefs.current.get(activeTabId);
+    // The chat tab is `position: sticky`, so it is always in view. Chromium
+    // still scrolls a sticky element to its static spot (scrollLeft 0), so
+    // revealing it pulled the strip back and the next terminal tab slid it
+    // forward again: every chat <-> terminal switch made the strip jitter.
+    if (!activeTab || getComputedStyle(activeTab).position === 'sticky') return;
+    activeTab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
   }, [activeTabId, visible, previewTabs, terminalTabs]);
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;

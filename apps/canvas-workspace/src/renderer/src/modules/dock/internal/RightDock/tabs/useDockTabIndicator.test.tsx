@@ -6,10 +6,11 @@ import { useDockTabIndicator } from './useDockTabIndicator';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const Strip = ({ scopeId, tabIds, activeTabId }: {
+const Strip = ({ scopeId, tabIds, activeTabId, stickyTabId }: {
   scopeId: string;
   tabIds: string[];
   activeTabId: string;
+  stickyTabId?: string;
 }) => {
   const indicator = useDockTabIndicator({
     scopeId,
@@ -23,7 +24,13 @@ const Strip = ({ scopeId, tabIds, activeTabId }: {
   return (
     <div ref={indicator.tabsRef} data-testid="scroll">
       {tabIds.map(id => (
-        <button key={id} ref={element => indicator.registerTab(id, element)}>{id}</button>
+        <button
+          key={id}
+          ref={element => indicator.registerTab(id, element)}
+          style={id === stickyTabId ? { position: 'sticky', left: 0 } : undefined}
+        >
+          {id}
+        </button>
       ))}
     </div>
   );
@@ -74,5 +81,14 @@ describe('useDockTabIndicator', () => {
     expect(scrollTo).toHaveBeenCalledWith({ left: 0, behavior: 'instant' });
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'instant' }));
+  });
+
+  it('does not scroll the strip back when the sticky chat tab becomes active', () => {
+    render({ scopeId: 'ws-a', tabIds: ['chat', 't1'], activeTabId: 't1', stickyTabId: 'chat' });
+    scrollIntoView.mockClear();
+
+    render({ scopeId: 'ws-a', tabIds: ['chat', 't1'], activeTabId: 'chat', stickyTabId: 'chat' });
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });
