@@ -225,6 +225,30 @@ describe('useCanvasDocument text resize commit', () => {
     expect(hook.edges).toHaveLength(1);
   });
 
+  it('removes the edges between cut nodes, and keeps other edges as free arrows', () => {
+    act(() => {
+      hook.addNode('text', 400, 400);
+      hook.addNode('text', 800, 400);
+    });
+    const [a, b, c] = hook.nodes.map((item) => item.id);
+    act(() => {
+      hook.addEdge({ id: 'edge-ab', source: { kind: 'node', nodeId: a }, target: { kind: 'node', nodeId: b } });
+      hook.addEdge({ id: 'edge-bc', source: { kind: 'node', nodeId: b }, target: { kind: 'node', nodeId: c } });
+    });
+
+    act(() => {
+      hook.removeNodes([a, b], { withInnerEdges: true });
+    });
+
+    expect(hook.edges.map((item) => item.id)).toEqual(['edge-bc']);
+    expect(hook.edges[0].source.kind).toBe('point');
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.edges.map((item) => item.id)).toEqual(['edge-ab', 'edge-bc']);
+  });
+
   it('pastes a selection centred on a target point', () => {
     let pasted: CanvasNode[] = [];
     act(() => {

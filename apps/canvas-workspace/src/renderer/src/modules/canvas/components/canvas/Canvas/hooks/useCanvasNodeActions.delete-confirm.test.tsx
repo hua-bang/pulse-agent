@@ -154,7 +154,7 @@ describe('requestRemoveNodes — coding agent confirmation', () => {
     await act(async () => { await api.requestRemoveNodes([a.id, b.id], { recoverable: true }); });
 
     expect(confirm).not.toHaveBeenCalled();
-    expect(removeNodes).toHaveBeenCalledWith([a.id, b.id]);
+    expect(removeNodes).toHaveBeenCalledWith([a.id, b.id], { withInnerEdges: true });
   });
 
   it('still asks for a recoverable removal that holds an agent', async () => {

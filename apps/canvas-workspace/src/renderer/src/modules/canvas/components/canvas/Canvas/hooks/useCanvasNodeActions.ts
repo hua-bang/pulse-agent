@@ -27,7 +27,7 @@ interface Options {
   editingEdgeLabelId: string | null;
   setEditingEdgeLabelId: (id: string | null) => void;
   canvasId: string;
-  removeNodes: (ids: string[]) => void;
+  removeNodes: (ids: string[], options?: { withInnerEdges?: boolean }) => void;
   syncDeletedNodes: (ids: string[]) => void;
   removeEdge: (id: string) => void;
   groupNodes: (ids: string[]) => CanvasNode | null;
@@ -146,7 +146,8 @@ export const useCanvasNodeActions = ({
       }
 
       if (normalVictimIds.length > 0) {
-        removeNodes(normalVictimIds);
+        if (options?.recoverable) removeNodes(normalVictimIds, { withInnerEdges: true });
+        else removeNodes(normalVictimIds);
         for (const nodeId of normalVictimIds) removedIds.add(nodeId);
       }
 
