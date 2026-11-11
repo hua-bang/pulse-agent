@@ -113,3 +113,29 @@
 /* No horizontal padding here: FitAddon can't see padding on inner rows, so it
    overflowed the right edge and clipped the last column (see WorkspaceTerminalDock).
    The container padding is the gutter. */
+
+/* Shown after the shell exits. Restart keeps the node, its size, and edges. */
+.terminal-exit-bar {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 20px);
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.terminal-exit-bar kbd {
+  color: var(--text-muted);
+  font: inherit;
+}

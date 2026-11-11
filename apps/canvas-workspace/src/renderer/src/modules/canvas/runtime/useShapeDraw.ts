@@ -23,6 +23,17 @@ const DRAG_MIN_DISTANCE = 4;
  *  drags a tiny distance and then lets go. */
 const MIN_DIM = 40;
 
+/** Shift draws a square or circle: both sides take the longer drag delta. */
+export const constrainToSquare = (start: Point, current: Point): Point => {
+  const dx = current.x - start.x;
+  const dy = current.y - start.y;
+  const side = Math.max(Math.abs(dx), Math.abs(dy));
+  return {
+    x: start.x + (dx < 0 ? -side : side),
+    y: start.y + (dy < 0 ? -side : side),
+  };
+};
+
 interface UseShapeDrawOptions {
   activeTool: string;
   screenToCanvas: (x: number, y: number, el: HTMLElement) => Point;
@@ -56,6 +67,10 @@ export const useShapeDraw = ({
   const [draft, setDraft] = useState<ShapeDraft | null>(null);
   const draftRef = useRef<ShapeDraft | null>(null);
   draftRef.current = draft;
+  // The raw pointer of the current draft, so pressing or releasing Shift
+  // re-applies the square constraint without waiting for a mouse move.
+  const pointerRef = useRef<Point | null>(null);
+  const shiftRef = useRef(false);
 
   const kindFromTool = useCallback((): ShapeKind | null => {
     if (!activeTool.startsWith(SHAPE_TOOL_PREFIX)) return null;
@@ -67,11 +82,25 @@ export const useShapeDraw = ({
   // get stuck — matches useEdgeInteraction's pattern.
   useEffect(() => {
     if (!draft) return;
+    const applyPointer = () => {
+      const raw = pointerRef.current;
+      if (!raw) return;
+      const shift = shiftRef.current;
+      setDraft((prev) => (prev
+        ? { ...prev, current: shift ? constrainToSquare(prev.start, raw) : raw }
+        : prev));
+    };
     const handleMove = (e: MouseEvent) => {
       const el = getContainer();
       if (!el) return;
-      const cur = screenToCanvas(e.clientX, e.clientY, el);
-      setDraft((prev) => (prev ? { ...prev, current: cur } : prev));
+      pointerRef.current = screenToCanvas(e.clientX, e.clientY, el);
+      shiftRef.current = e.shiftKey;
+      applyPointer();
+    };
+    const handleShift = (e: KeyboardEvent) => {
+      if (e.key !== 'Shift' || shiftRef.current === e.shiftKey) return;
+      shiftRef.current = e.shiftKey;
+      applyPointer();
     };
     const handleUp = () => {
       const d = draftRef.current;
@@ -86,6 +115,7 @@ export const useShapeDraw = ({
     // mouseup. Let the same key continue to the canvas-level handler so it
     // can return the active shape tool to select mode in one press.
     const handleKey = (e: KeyboardEvent) => {
+      handleShift(e);
       if (e.key !== 'Escape') return;
       draftRef.current = null;
       setDraft(null);
@@ -93,10 +123,12 @@ export const useShapeDraw = ({
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
     window.addEventListener('keydown', handleKey, true);
+    window.addEventListener('keyup', handleShift, true);
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('keydown', handleKey, true);
+      window.removeEventListener('keyup', handleShift, true);
     };
     // commitDraft is stable via the closed-over deps below
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,6 +190,8 @@ export const useShapeDraw = ({
       e.preventDefault();
       e.stopPropagation();
       const start = screenToCanvas(e.clientX, e.clientY, el);
+      pointerRef.current = start;
+      shiftRef.current = e.shiftKey;
       setDraft({ kind, start, current: start });
     },
     [getContainer, kindFromTool, screenToCanvas],

@@ -19,6 +19,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import "./index.css";
 import type { CanvasNode, DynamicAppNodeData } from "../../../../../types";
+import { useI18n } from "../../../../../i18n";
 
 // The inspector only opens on demand, so it stays out of the entry chunk.
 const DynamicAppInspector = lazy(() =>
@@ -67,6 +68,7 @@ export function DynamicAppNodeBody({
   readOnly: _readOnly,
   isResizing: _isResizing,
 }: DynamicAppNodeBodyProps) {
+  const { t } = useI18n();
   // The dispatcher only routes `type === 'dynamic-app'` here, so
   // node.data narrows to DynamicAppNodeData. Be defensive about the
   // shape in case canvas.json was hand-edited.
@@ -133,7 +135,7 @@ export function DynamicAppNodeBody({
         <button
           type="button"
           className="dynamic-app-tool-btn"
-          title="Refresh — reload the iframe (does not restart the runner)"
+          title={t('dynamicApp.refresh')}
           onClick={handleRefresh}
         >
           ↻
@@ -141,7 +143,7 @@ export function DynamicAppNodeBody({
         <button
           type="button"
           className={`dynamic-app-tool-btn ${inspectorOpen ? "active" : ""}`}
-          title="Inspect: spec, payload, runner actions"
+          title={t('dynamicApp.inspect')}
           onClick={() => setInspectorOpen((v) => !v)}
         >
           ⚙

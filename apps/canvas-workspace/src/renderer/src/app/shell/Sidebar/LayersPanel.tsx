@@ -11,6 +11,7 @@ import type { LayerTreeNode } from './utils/layers';
 import { LayerItem } from './LayerItem';
 import { CloseIcon } from '../../../components/icons';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
+import { getNodeSearchText } from '../../../utils/nodeSearchText';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../utils/nodeTypeI18n';
 import { Button, EmptyState } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
@@ -89,9 +90,13 @@ export const LayersPanel = ({
     const matchesLayer = (item: LayerTreeNode) => {
       const displayLabel = getNodeDisplayLabel(item.node);
       const typeLabel = t(CANVAS_NODE_TYPE_LABEL_KEY[item.node.type]);
-      return `${displayLabel} ${typeLabel} ${item.node.type}`
-        .toLocaleLowerCase()
-        .includes(normalizedLayerQuery);
+      if (
+        `${displayLabel} ${typeLabel} ${item.node.type}`
+          .toLocaleLowerCase()
+          .includes(normalizedLayerQuery)
+      ) return true;
+      // Also match what the node holds, the same text Ctrl+F searches.
+      return getNodeSearchText(item.node).lower.includes(normalizedLayerQuery);
     };
 
     const filter = (items: LayerTreeNode[]): LayerTreeNode[] => (
@@ -152,10 +157,13 @@ export const LayersPanel = ({
       onNodeFocus(firstNodeId);
       return;
     }
-    if (event.key === 'Escape' && layerQuery) {
+    if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      setLayerQuery('');
+      // First Esc clears the query; the next one leaves the field, so canvas
+      // shortcuts stop typing into it.
+      if (layerQuery) setLayerQuery('');
+      else event.currentTarget.blur();
     }
   }, [focusLayerByIndex, layerQuery, onNodeFocus, visibleLayerIds]);
 

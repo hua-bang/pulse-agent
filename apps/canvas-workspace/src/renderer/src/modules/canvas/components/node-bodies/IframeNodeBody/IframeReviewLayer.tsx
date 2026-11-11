@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef } from '../../../../../types';
 import { Button } from '../../../../../components/ui/Button';
+import { useI18n } from '../../../../../i18n';
 
 interface IframeReviewLayerProps {
   comments: AgentContextDomReviewComment[];
@@ -64,6 +65,7 @@ export function IframeReviewLayer({
   onSubmit,
   onClear,
 }: IframeReviewLayerProps) {
+  const { t } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeComment = useMemo(
     () => comments.find((comment) => comment.id === activeId) ?? null,
@@ -80,7 +82,7 @@ export function IframeReviewLayer({
           className={`iframe-review-pin${activeId === comment.id ? ' iframe-review-pin--active' : ''}`}
           style={pinStyle(comment.selection)}
           onClick={() => setActiveId((current) => (current === comment.id ? null : comment.id))}
-          title={`Review ${index + 1}: ${comment.selection.label}`}
+          title={t('iframe.review.pin', { index: index + 1, label: comment.selection.label })}
         >
           {index + 1}
         </button>
@@ -96,8 +98,8 @@ export function IframeReviewLayer({
             rows={3}
           />
           <div className="iframe-review-popover__actions">
-            <Button type="button" variant="secondary" size="xs" onClick={() => setActiveId(null)}>Close</Button>
-            <Button type="button" variant="danger" size="xs" onClick={() => onRemoveComment(activeComment.id)}>Delete</Button>
+            <Button type="button" variant="secondary" size="xs" onClick={() => setActiveId(null)}>{t('iframe.review.close')}</Button>
+            <Button type="button" variant="danger" size="xs" onClick={() => onRemoveComment(activeComment.id)}>{t('iframe.review.delete')}</Button>
           </div>
         </div>
       )}
@@ -116,13 +118,13 @@ export function IframeReviewLayer({
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onSaveDraft();
                 if (event.key === 'Escape') onCancelDraft();
               }}
-              placeholder="Describe the change for this element"
+              placeholder={t('iframe.review.placeholder')}
               rows={3}
             />
             <div className="iframe-review-popover__actions">
-              <Button type="button" variant="secondary" size="xs" onClick={onCancelDraft}>Cancel</Button>
+              <Button type="button" variant="secondary" size="xs" onClick={onCancelDraft}>{t('iframe.review.cancel')}</Button>
               <Button type="button" variant="primary" size="xs" onClick={onSaveDraft} disabled={!draftText.trim()}>
-                Add
+                {t('iframe.review.add')}
               </Button>
             </div>
           </div>
@@ -131,10 +133,14 @@ export function IframeReviewLayer({
 
       {comments.length > 0 && (
         <div className="iframe-review-pending-bar">
-          <span>{comments.length} review comment{comments.length === 1 ? '' : 's'}</span>
-          <Button type="button" variant="danger" size="xs" onClick={onClear} disabled={sending}>Clear</Button>
+          <span>
+            {comments.length === 1
+              ? t('iframe.review.countOne')
+              : t('iframe.review.countMany', { count: comments.length })}
+          </span>
+          <Button type="button" variant="danger" size="xs" onClick={onClear} disabled={sending}>{t('iframe.review.clear')}</Button>
           <Button type="button" variant="primary" size="xs" onClick={onSubmit} disabled={!canSubmit || sending}>
-            {sending ? 'Sending...' : 'Send to Chat'}
+            {t(sending ? 'iframe.review.sending' : 'iframe.review.send')}
           </Button>
         </div>
       )}

@@ -32,6 +32,16 @@ export interface NodeDragOffset {
   dy: number;
 }
 
+/** Shift locks a drag to its dominant axis: the smaller delta drops to 0. */
+export const lockDragAxis = (
+  dx: number,
+  dy: number,
+): { dx: number; dy: number; axis: 'x' | 'y' } => (
+  Math.abs(dx) >= Math.abs(dy)
+    ? { dx, dy: 0, axis: 'x' }
+    : { dx: 0, dy, axis: 'y' }
+);
+
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void,
@@ -210,8 +220,12 @@ export const useNodeDrag = (
       if (!dragging.current) return;
       const d = dragging.current;
       if (!d.started) return;
-      const rawDx = (e.clientX - d.startX) / scale;
-      const rawDy = (e.clientY - d.startY) / scale;
+      const freeDx = (e.clientX - d.startX) / scale;
+      const freeDy = (e.clientY - d.startY) / scale;
+      // Hold Shift to move along one axis only, like Figma and Miro.
+      const lock = e.shiftKey ? lockDragAxis(freeDx, freeDy) : null;
+      const rawDx = lock ? lock.dx : freeDx;
+      const rawDy = lock ? lock.dy : freeDy;
       const baseX = d.nodeX + rawDx;
       const baseY = d.nodeY + rawDy;
 
@@ -229,23 +243,26 @@ export const useNodeDrag = (
           d.snapCandidates,
           { scale, gridSize: GRID_SIZE },
         );
-        finalX = baseX + snap.dx;
-        finalY = baseY + snap.dy;
+        // A locked axis keeps its start value; only the free axis snaps.
+        finalX = lock?.axis === 'y' ? baseX : baseX + snap.dx;
+        finalY = lock?.axis === 'x' ? baseY : baseY + snap.dy;
+        // An "x" guide is a vertical line, which aligns horizontal movement.
+        const lines = lock ? snap.lines.filter((line) => line.axis === lock.axis) : snap.lines;
         // Update guides only when they change to avoid pointless renders
         // every mousemove tick. Compare by reference-equivalent
         // serialization — guides are short arrays so this is cheap.
         setSnapLines((prev) => {
-          if (prev.length !== snap.lines.length) return snap.lines;
+          if (prev.length !== lines.length) return lines;
           for (let i = 0; i < prev.length; i++) {
             const a = prev[i];
-            const b = snap.lines[i];
+            const b = lines[i];
             if (
               a.axis !== b.axis ||
               a.position !== b.position ||
               a.start !== b.start ||
               a.end !== b.end
             ) {
-              return snap.lines;
+              return lines;
             }
           }
           return prev;

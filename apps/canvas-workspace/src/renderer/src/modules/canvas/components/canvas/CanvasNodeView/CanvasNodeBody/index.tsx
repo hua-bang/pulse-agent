@@ -7,6 +7,7 @@ import type {
 import type { ChatDeliveryReceipt } from '../../../../../chat';
 import { DynamicAppNodeBody } from '../../../node-bodies/DynamicAppNodeBody';
 import { PluginNodeBody } from '../../../node-bodies/PluginNodeBody';
+import { CanvasErrorBoundary, NodeBodyErrorFallback } from '../../CanvasErrorBoundary';
 import './index.css';
 
 const AgentNodeBody = lazy(() => import('../../../../../coding-agent/surface')
@@ -63,85 +64,92 @@ export const CanvasNodeBody = ({
   renderFullFileBody,
   readOnly,
 }: Props) => (
-  <Suspense fallback={null}>
-    {node.type === 'file' ? (
-      <FileNodeBody
-        node={node}
-        onUpdate={onUpdate}
-        workspaceId={workspaceId}
-        getAllNodes={getAllNodes}
-        readOnly={readOnly}
-        renderFullEditor={renderFullFileBody}
-      />
-    ) : node.type === 'terminal' ? (
-      <TerminalNodeBody
-        node={node}
-        getAllNodes={getAllNodes}
-        rootFolder={rootFolder}
-        workspaceId={workspaceId}
-        workspaceName={workspaceName}
-        onUpdate={onUpdate}
-        readOnly={readOnly}
-      />
-    ) : node.type === 'frame' || node.type === 'group' ? (
-      <FrameNodeBody
-        node={node}
-        getAllNodes={getAllNodes}
-        onUpdate={onUpdate}
-        onRemoveNodes={onRemoveNodes}
-        rootFolder={rootFolder}
-        workspaceId={workspaceId}
-        workspaceName={workspaceName}
-        readOnly={readOnly}
-      />
-    ) : node.type === 'text' ? (
-      <TextNodeBody
-        node={node}
-        onUpdate={onUpdate}
-        isSelected={isSelected}
-        editRequest={renameToken}
-        isResizing={isResizing}
-        onSelect={onSelect}
-        onDragStart={onDragStart}
-        readOnly={readOnly}
-      />
-    ) : node.type === 'iframe' ? (
-      <IframeNodeBody
-        node={node}
-        workspaceId={workspaceId}
-        onUpdate={onUpdate}
-        isResizing={isResizing}
-        onAddDomSelectionToChat={onAddDomSelectionToChat}
-        onSubmitDomReviewComments={onSubmitDomReviewComments}
-        readOnly={readOnly}
-      />
-    ) : node.type === 'dynamic-app' ? (
-      <DynamicAppNodeBody
-        node={node}
-        workspaceId={workspaceId}
-        onUpdate={onUpdate}
-        isResizing={isResizing}
-        readOnly={readOnly}
-      />
-    ) : node.type === 'plugin' ? (
-      <PluginNodeBody
-        node={node}
-        workspaceId={workspaceId}
-        workspaceName={workspaceName}
-        onUpdate={onUpdate}
-        isSelected={isSelected}
-        readOnly={readOnly}
-      />
-    ) : (
-      <AgentNodeBody
-        node={node}
-        getAllNodes={getAllNodes}
-        rootFolder={rootFolder}
-        workspaceId={workspaceId}
-        workspaceName={workspaceName}
-        onUpdate={onUpdate}
-        readOnly={readOnly}
-      />
-    )}
-  </Suspense>
+  // The header stays usable when the body throws or its chunk fails to load,
+  // so the node can still be moved, retried, or removed.
+  <CanvasErrorBoundary
+    scope={`node-body:${node.id}`}
+    fallback={(retry) => <NodeBodyErrorFallback onRetry={retry} />}
+  >
+    <Suspense fallback={null}>
+      {node.type === 'file' ? (
+        <FileNodeBody
+          node={node}
+          onUpdate={onUpdate}
+          workspaceId={workspaceId}
+          getAllNodes={getAllNodes}
+          readOnly={readOnly}
+          renderFullEditor={renderFullFileBody}
+        />
+      ) : node.type === 'terminal' ? (
+        <TerminalNodeBody
+          node={node}
+          getAllNodes={getAllNodes}
+          rootFolder={rootFolder}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          onUpdate={onUpdate}
+          readOnly={readOnly}
+        />
+      ) : node.type === 'frame' || node.type === 'group' ? (
+        <FrameNodeBody
+          node={node}
+          getAllNodes={getAllNodes}
+          onUpdate={onUpdate}
+          onRemoveNodes={onRemoveNodes}
+          rootFolder={rootFolder}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          readOnly={readOnly}
+        />
+      ) : node.type === 'text' ? (
+        <TextNodeBody
+          node={node}
+          onUpdate={onUpdate}
+          isSelected={isSelected}
+          editRequest={renameToken}
+          isResizing={isResizing}
+          onSelect={onSelect}
+          onDragStart={onDragStart}
+          readOnly={readOnly}
+        />
+      ) : node.type === 'iframe' ? (
+        <IframeNodeBody
+          node={node}
+          workspaceId={workspaceId}
+          onUpdate={onUpdate}
+          isResizing={isResizing}
+          onAddDomSelectionToChat={onAddDomSelectionToChat}
+          onSubmitDomReviewComments={onSubmitDomReviewComments}
+          readOnly={readOnly}
+        />
+      ) : node.type === 'dynamic-app' ? (
+        <DynamicAppNodeBody
+          node={node}
+          workspaceId={workspaceId}
+          onUpdate={onUpdate}
+          isResizing={isResizing}
+          readOnly={readOnly}
+        />
+      ) : node.type === 'plugin' ? (
+        <PluginNodeBody
+          node={node}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          onUpdate={onUpdate}
+          isSelected={isSelected}
+          readOnly={readOnly}
+        />
+      ) : (
+        <AgentNodeBody
+          node={node}
+          getAllNodes={getAllNodes}
+          rootFolder={rootFolder}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          onUpdate={onUpdate}
+          readOnly={readOnly}
+        />
+      )}
+    </Suspense>
+  </CanvasErrorBoundary>
 );
