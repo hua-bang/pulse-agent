@@ -8,6 +8,7 @@ import { WorkspaceItem } from './WorkspaceItem';
 import { WorkspaceList } from './WorkspaceList';
 import { useSidebarEditing } from './useSidebarEditing';
 import { useSidebarDrag } from './useSidebarDrag';
+import { useLayersArrival } from './useLayersArrival';
 import type { SidebarProps as Props } from './types';
 
 const LayerSection = lazy(() => import('./LayerSection').then((module) => ({ default: module.LayerSection })));
@@ -61,6 +62,7 @@ export const Sidebar = ({
   });
   const drag = useSidebarDrag({ onMoveWorkspace, onReorderWorkspace, onReorderFolder });
   const layersVisible = !collapsed && activeView === 'canvas' && activeNodes.length > 0;
+  const layersArriving = useLayersArrival(activeNodes.length > 0);
   const [layersLoaded, setLayersLoaded] = useState(layersVisible);
   // Load the canvas-only interaction surface on demand, then keep its state
   // mounted across sidebar collapse and route changes.
@@ -143,7 +145,14 @@ export const Sidebar = ({
   );
 
   return (
-    <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}${railExpanded ? ' sidebar--rail-expanded' : ''}`}>
+    <aside
+      className={[
+        'sidebar',
+        collapsed && 'sidebar--collapsed',
+        railExpanded && 'sidebar--rail-expanded',
+        layersArriving && 'sidebar--instant',
+      ].filter(Boolean).join(' ')}
+    >
       <SidebarRail
         activeView={activeView}
         panelCollapsed={collapsed}

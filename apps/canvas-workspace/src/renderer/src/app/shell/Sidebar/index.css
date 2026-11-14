@@ -29,8 +29,11 @@
 }
 
 /* Routes that hide the panel swap it at once, with the page (RightDock sets
-   the class for that frame); only the user's own toggle animates. */
-.right-dock-resizing .sidebar {
+   the class for that frame). The panel also lands at once when the canvas
+   layers arrive or go (useLayersArrival). Only the user's own toggle
+   animates. */
+.right-dock-resizing .sidebar,
+.sidebar--instant {
   transition: none;
 }
 

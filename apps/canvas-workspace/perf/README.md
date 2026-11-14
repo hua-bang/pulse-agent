@@ -172,9 +172,12 @@ starting an unrelated Chrome profile.
 `perf:report --repeat N` (default 3, min 1) drives two independent repeat
 mechanisms so timing metrics stop being single-sample noise:
 
-- **`report.mjs` boots the app N times** for the `startup` scenario — each of
-  the first N-1 boots launches fresh, reads the `[perf] startup` phase log,
-  and closes; only the Nth stays alive for the interactive scenarios below.
+- **`report.mjs` boots the app N times** for the `startup` scenario, after
+  one unsampled warm-up boot. The warm-up creates the temp HOME and runs the
+  first-run migration; the N boots reuse that HOME (`harness start --home`),
+  so they measure a returning user. Each of the first N-1 boots reads the
+  `[perf] startup` phase log and closes; only the Nth stays alive for the
+  interactive scenarios below.
   Phases are folded into a same-machine median (`mergeStartupMedians`) with
   `runs`/`raw[]` recorded per program.md §3's schema.
 - **`run-scenarios.mjs --repeat N`** re-drives

@@ -170,8 +170,8 @@
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
-      "confidence": "medium", "basis": "Heptabase/Notion 风格笔记编辑器落地后，100 节点 warm trace 连续历史样本由约 1711KB 增至 1912.5KB；指标会计入首个可见笔记按需加载的完整编辑能力，保留 950/1050 目标作为后续瘦身压力。", "asOf": "2026-07-26",
-      "gate": { "kind": "ratchet", "baseline": 1912.5, "tolerancePct": 5, "scope": "runtime" }
+      "confidence": "medium", "basis": "2026-11-14：Frame 节点改为按需加载 agent-team UI(xterm 不再进首屏)；trace 前收起 dock chat，只测画布首屏。同机 2 次有效 warm trace 均为 921.9KB(另 1 次 CDP 超时未产出)，ratchet 锚点从 1912.5 收紧到 922，已达 950 目标。之前：笔记编辑器落地后历史样本由约 1711KB 增至 1912.5KB。", "asOf": "2026-11-14",
+      "gate": { "kind": "ratchet", "baseline": 922, "tolerancePct": 5, "scope": "runtime" }
     },
     "startup.loaded_to_lcp_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,

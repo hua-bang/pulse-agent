@@ -1,12 +1,20 @@
 import "./index.css";
+import { lazy, Suspense } from "react";
 import type { CanvasNode, FrameNodeData } from "../../../../../types";
-import { AgentTeamFrame } from "../../../../agent-team/surface";
 import { NodeTypeBadge } from "../../canvas/CanvasNodeView/NodeTypeBadge";
 import { useI18n } from "../../../../../i18n";
 import { collectDirectContainerChildren } from "../../../../../utils/frameHierarchy";
 
 /** Maximum direct-child rows shown in a collapsed frame before "+N more". */
 const COLLAPSED_SUMMARY_MAX = 6;
+
+/**
+ * Only agent-team frames need the team UI, and it pulls in xterm. Load it on
+ * demand so plain frames do not fetch the terminal code at startup.
+ */
+const AgentTeamFrame = lazy(() =>
+  import("../../../../agent-team/surface").then((module) => ({ default: module.AgentTeamFrame })),
+);
 
 interface Props {
   node: CanvasNode;
@@ -32,16 +40,18 @@ export const FrameNodeBody = ({
   const data = node.data as FrameNodeData;
   if (data.agentTeamId) {
     return (
-      <AgentTeamFrame
-        node={node}
-        getAllNodes={getAllNodes}
-        onUpdate={onUpdate}
-        onRemoveNodes={onRemoveNodes}
-        rootFolder={rootFolder}
-        workspaceId={workspaceId}
-        workspaceName={workspaceName}
-        readOnly={readOnly}
-      />
+      <Suspense fallback={<div className="frame-body" />}>
+        <AgentTeamFrame
+          node={node}
+          getAllNodes={getAllNodes}
+          onUpdate={onUpdate}
+          onRemoveNodes={onRemoveNodes}
+          rootFolder={rootFolder}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          readOnly={readOnly}
+        />
+      </Suspense>
     );
   }
   if (data.childrenCollapsed) {

@@ -56,7 +56,9 @@ pnpm --filter canvas-workspace harness onboard
 ## Profiles
 
 `temp`
-: Fresh temporary `HOME`. Safe default for smoke checks.
+: Fresh temporary `HOME`. Safe default for smoke checks. `close` without
+  `--cleanup` keeps that `HOME`; `--home <dir>` boots it again as a returning
+  user. Only a harness-created temp `HOME` is accepted.
 
 `demo`
 : Stable harness-owned `HOME` under `apps/canvas-workspace/.harness/demo-home`.

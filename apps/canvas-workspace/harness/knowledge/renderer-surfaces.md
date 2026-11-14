@@ -37,7 +37,10 @@ The workbench has exactly two side regions plus a modal tier:
   (`useChatNavigation` `enterPulseAgent`). The panel next
   to the rail holds only canvas Layers, with no brand row: it hides off the
   canvas route or when the canvas has no nodes, without changing the saved
-  collapse preference. The Layers header carries the collapse button.
+  collapse preference. While the canvas nodes load, the panel stays open, so
+  a reload does not shift the canvas. Only the user's toggle slides the panel;
+  it lands at once when the canvas gains or loses its nodes
+  (`useLayersArrival`). The Layers header carries the collapse button.
   Workspace row
   actions (rename, settings, export, delete) sit in one portaled "more" menu
   so hover does not cut the name short. The Workspaces button toggles the
