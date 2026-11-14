@@ -107,7 +107,7 @@
 | `main.loop_delay_p99_ms` | 场景窗口内 monitorEventLoopDelay p99(北极星;E/J 维总汇) | ms | 同机 | warn | ✅ |
 | `main.loop_delay_max_ms` | 同窗口最大值(单次冻结上限) | ms | 同机 | warn | ✅ |
 | `main.canvas_save.write_bytes` | 单次 canvas:save 实际落盘字节(B3 修复标尺) | KB | 全局 | gate | ○ M1 |
-| `main.canvas_save.files_written` | 单次 save 写文件数(未变更应跳过) | 个 | **全局** | warn | ✅ |
+| `main.canvas_save.files_written` | 文件版 `saveCanvas`(agent 工具、首启 welcome 种子)单次写文件数(未变更应跳过)。用户保存走 SQLite,不写节点文件;回访启动无此路径,故为 diagnostic | 个 | **全局** | warn·diagnostic | ◐ 仅在出现文件版保存时采到 |
 | `main.session_persist.bytes_per_turn` | 每 agent turn 会话持久化字节(J-1 标尺,修复后应 O(增量)) | KB | 全局 | **gate** | ✅ mock turn 走真实 SessionStore |
 | `main.pty.ipc_per_sec` | 双终端流式时 pty:data IPC 条数/秒(E3 合并 flush 标尺) | 条/s | 全局 | record | ✅ 双真实 PTY 场景 |
 
