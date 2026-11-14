@@ -129,6 +129,8 @@
 
 **覆盖**:`coverage.measured/total` 只统计 `core` 定义中已产出 finite number/boolean 的唯一已知 ID;unknown/duplicate/null/NaN 均不计。`coverage.diagnostic` 单列 CDP trace 等可选证据层。无样本、不适用、CDP/heap 读取失败或 trace `dataLossOccurred` 必须表现为 unavailable/缺失并让相应 coverage 暴露,绝不能伪造为 0。
 
+**启动采样**:`perf:report` 先做一次预热 boot,只建 temp HOME、完成首启迁移,不计样本。之后 N 次 boot 复用该 HOME(`harness start --home`),测的是回访用户启动,不含首启迁移。perf 模式跳过 dev 专用的 dock 图标设置(打包版不付这笔开销)。warm renderer trace 前先收起右侧 dock:前一场景留下的 dock chat 会在重载时恢复,其 chunk 与画布图片抢先到达,使 LCP 前字节随时序跳动;trace 只测画布首屏。
+
 **记录 schema**(每次运行 append 一份到 `perf/history/<yyyy-mm-dd>-<commit>.json`):
 
 ```json

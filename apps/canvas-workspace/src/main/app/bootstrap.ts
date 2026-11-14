@@ -477,8 +477,10 @@ function configureAppChrome(
 ): void {
   // Set the macOS dock icon in dev/preview. Packaged builds should keep using
   // the bundle .icns from electron-builder so the launch and running Dock icon
-  // stay visually consistent.
-  if (process.platform === "darwin" && !app.isPackaged && iconPath && app.dock) {
+  // stay visually consistent. Perf runs skip it too: decoding the icon costs
+  // about 25 ms on the startup chain, which packaged builds never pay.
+  // app.dock exists only on macOS, so it also stands in for a platform check.
+  if (!app.isPackaged && !process.env.PULSE_CANVAS_PERF && iconPath && app.dock) {
     try {
       app.dock.setIcon(iconPath);
     } catch (error) {

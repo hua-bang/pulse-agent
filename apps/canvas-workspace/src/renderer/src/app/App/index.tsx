@@ -296,15 +296,15 @@ const AppContent = () => {
     globalMcpAppsStore.open(listing);
     setLocation(mcpAppRoutePath(listing));
   }, [setLocation]);
-  // The launcher lists workspaces itself, the chat page's session list
-  // groups by workspace, and settings has its own category column, so these
-  // routes show only the rail. The launcher and settings own the full
-  // width, so the dock hides there too (it stays mounted). The workspace
-  // tree lives in the wide rail, so the panel only shows canvas Layers.
+  // The launcher, chat page, and settings list their own items, so they show
+  // only the rail; the launcher and settings also hide the dock (it stays
+  // mounted). The workspace tree lives in the wide rail, so the panel shows
+  // canvas Layers only. It stays open while the nodes load: a reload must not shift the canvas.
   const {
     railExpanded, toggleRail: toggleRailExpanded, panelHidden: sidebarPanelHidden, width: sidebarWidth,
   } = useSidebarLayout({
-    panelRequested: !sidebarCollapsed && activeView === 'canvas' && activeNodes.length > 0,
+    panelRequested: !sidebarCollapsed && activeView === 'canvas'
+      && (activeNodes.length > 0 || workbench.allNodes[activeId] === undefined),
   });
   const [sessionListRequest, setSessionListRequest] = useState(0);
   const openAllChats = useCallback(() => {

@@ -14,7 +14,10 @@
  * close) → dashboard. Outputs perf/out/dashboard.html (humans) and
  * perf/out/report.json (agents). Exits 1 if any gate failed.
  *
- * `--repeat N` (A3, default 3): the app is launched N times — the first
+ * `--repeat N` (A3, default 3): a warm-up boot first creates the temp HOME
+ * and runs the one-time first-install work (welcome seed, SQLite activation
+ * and migration). It is not sampled. Then the app is launched N times on that
+ * same HOME, as a returning user — the first
  * N-1 boots are startup-only (launch, read the "[perf] startup" phase log,
  * close) and only the Nth stays alive for the interactive scenarios
  * (typing/resize/drag get their own in-session --repeat via run-scenarios.mjs).
@@ -144,12 +147,21 @@ if (node('scripts/perf/bundle-report.mjs').status !== 0) gatesFailed = true;
 
 // 3. Runtime scenarios via a self-managed headless harness session.
 if (!bundleOnly) {
-  const bootLabel = repeat > 1 ? `×${repeat}(前 ${repeat - 1} 次仅取 startup 样本)` : '×1';
+  const bootLabel = repeat > 1 ? `预热 + ×${repeat}(前 ${repeat - 1} 次仅取 startup 样本)` : '预热 + ×1';
   step(`启动应用(harness, headless, ${bootLabel})`);
   const startupSamples = [];
-  for (let boot = 0; boot < repeat; boot++) {
-    // PULSE_CANVAS_PERF activates the main-process loop-delay sampler + the startup summary log for this run.
-    const started = harness(['start', '--profile', 'temp', '--headless', '--force'], { PULSE_CANVAS_PERF: '1' });
+  // PULSE_CANVAS_PERF activates the main-process loop-delay sampler + the startup summary log for this run.
+  const perfEnv = { PULSE_CANVAS_PERF: '1' };
+  const warmUp = harness(['start', '--profile', 'temp', '--headless', '--force'], perfEnv);
+  const home = warmUp.status === 0 ? (await readSession().catch(() => null))?.home : undefined;
+  if (!home) {
+    runtimeLaunchFailed = true;
+  } else {
+    // Keep the HOME: every sampled boot below reuses it.
+    harness(['close']);
+  }
+  for (let boot = 0; boot < repeat && !runtimeLaunchFailed; boot++) {
+    const started = harness(['start', '--profile', 'temp', '--home', home, '--headless', '--force'], perfEnv);
     if (started.status !== 0) { runtimeLaunchFailed = true; break; }
     // eslint-disable-next-line no-await-in-loop
     const session = await readSession().catch(() => null);
@@ -157,7 +169,7 @@ if (!bundleOnly) {
     const phases = session ? await readStartupPhases(session.logFiles.stdout) : null;
     if (phases) startupSamples.push(phases);
     const isLastBoot = boot === repeat - 1;
-    if (!isLastBoot) harness(['close', '--cleanup']);
+    if (!isLastBoot) harness(['close']);
   }
   if (runtimeLaunchFailed) {
     harness(['close', '--cleanup']);

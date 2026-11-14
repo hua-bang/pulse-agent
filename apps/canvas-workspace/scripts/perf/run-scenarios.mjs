@@ -953,6 +953,16 @@ const main = async () => {
     if (only.includes('pty-stream')) scenarios['pty-stream'] = await ptyStreamScenario(cdp);
     if (only.includes('renderer-trace')) {
       try {
+        // chat-stream left the dock chat open, and a reload restores it. Its
+        // chunks then race the canvas images and swing the pre-LCP bytes by
+        // about 370 KB. The trace measures the canvas first screen, so close
+        // the dock first.
+        await evaluate(cdp, `document.querySelector('.right-dock__collapse')?.click()`);
+        // A collapsed dock slides out past the viewport's right edge.
+        await waitFor(() => evaluate(
+          cdp,
+          `(document.querySelector('.chat-panel')?.getBoundingClientRect().left ?? Infinity) >= innerWidth`,
+        ), 5_000);
         scenarios['renderer-trace'] = await captureRendererReloadTrace(cdp, {
           expectedNodes: seedNodes || 1,
           headless: !!session.headless,

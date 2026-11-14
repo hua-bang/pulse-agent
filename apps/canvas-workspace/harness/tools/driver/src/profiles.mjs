@@ -1,14 +1,31 @@
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { HARNESS_DIR, STORE_RELATIVE_DIR } from './config.mjs';
 import { HarnessError } from './errors.mjs';
 
+const TEMP_HOME_PREFIX = 'pulse-canvas-harness-home-';
+
+/**
+ * A later boot can reuse the HOME of an earlier temp session, closed without
+ * --cleanup. Then that boot starts as a returning user, not a first install.
+ * Only a harness-created temp HOME qualifies, so a typo cannot point the app
+ * at real data.
+ */
+async function reusableTempHome(home) {
+  if (typeof home !== 'string' || !basename(home).startsWith(TEMP_HOME_PREFIX)) {
+    throw new HarnessError(`--home must be a harness temp HOME (${TEMP_HOME_PREFIX}*).`);
+  }
+  if (!existsSync(home)) throw new HarnessError(`--home does not exist: ${home}`);
+  return home;
+}
+
 export async function prepareProfile(profile, opts) {
   if (profile === 'temp') {
-    const home = await fs.mkdtemp(join(tmpdir(), 'pulse-canvas-harness-home-'));
+    if (opts.home !== undefined) return { home: await reusableTempHome(opts.home), cleanupHome: true };
+    const home = await fs.mkdtemp(join(tmpdir(), TEMP_HOME_PREFIX));
     return { home, cleanupHome: true };
   }
 

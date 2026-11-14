@@ -41,6 +41,7 @@ Usage:
 Start options:
   --profile <name>              temp (default), demo, clone, or real
   --workspace <id>              workspace id for clone/real metadata
+  --home <dir>                  profile=temp: reuse a temp HOME kept by close without --cleanup
   --build                       run pnpm run build before launching
   --force                       close an existing harness session first
   --reset                       reset demo HOME before launch

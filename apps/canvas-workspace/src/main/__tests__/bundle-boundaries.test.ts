@@ -144,10 +144,10 @@ const packageName = (spec: string): string => {
   return spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
 };
 
-const collectStaticPackages = (): { packages: Set<string>; files: Set<string> } => {
+const collectStaticPackages = (startFile = entryFile): { packages: Set<string>; files: Set<string> } => {
   const seen = new Set<string>();
   const packages = new Set<string>();
-  const queue = [entryFile];
+  const queue = [startFile];
 
   while (queue.length > 0) {
     const file = queue.pop()!;
@@ -207,6 +207,16 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
   ])('%s loads the xterm base styles with its lazy chunk', (path) => {
     const entry = readFileSync(join(srcRoot, path), 'utf-8');
     expect(entry).toContain("import '@xterm/xterm/css/xterm.css';");
+  });
+
+  // Plain frames render on the first screen of most canvases. Only
+  // agent-team frames need the team UI, which pulls in xterm (about 500 KB of
+  // startup chunks), so FrameNodeBody must load it through import().
+  it('keeps the agent-team UI and xterm out of the frame body chunk', () => {
+    const frameBody = join(srcRoot, 'renderer/src/modules/canvas/components/node-bodies/FrameNodeBody/index.tsx');
+    const { packages, files } = collectStaticPackages(frameBody);
+    expect(packages.has('@xterm/xterm')).toBe(false);
+    expect([...files].some((file) => file.includes('/modules/agent-team/'))).toBe(false);
   });
 
 });
