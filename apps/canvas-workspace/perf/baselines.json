@@ -160,8 +160,8 @@
     },
     "bundle.total_js_kb": {
       "profile": "global-deterministic", "target": 5565, "warning": 5850,
-      "confidence": "high", "basis": "2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。完整 renderer JS 实测 6794KB（9/11 为 6616KB）。保留 5565 target 与 5850 warning 作为编辑器瘦身压力。2026-11-02：master 019c4de 实测 6862KB，已贴上限；侧栏插件分组（懒加载 3KB chunk、卸载入口、i18n）再增约 5KB，锚点上调到 6800（上限 6868）。2026-11-03：Agent 生成插件链路（聊天安装卡片懒加载、打开插件页事件、i18n）实测 6873KB，锚点上调到 6810（上限 6878）。", "asOf": "2026-11-11",
-      "gate": { "kind": "ratchet", "baseline": 6815, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-14：聊天拖放 PR（输入框接收系统文件与文件夹标签页条目拖入、文件树可拖出、preload getPathForFile）CI 实测总 JS 6884KB，新增约 2KB，锚点上调到 6822（上限约 6890）。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。完整 renderer JS 实测 6794KB（9/11 为 6616KB）。保留 5565 target 与 5850 warning 作为编辑器瘦身压力。2026-11-02：master 019c4de 实测 6862KB，已贴上限；侧栏插件分组（懒加载 3KB chunk、卸载入口、i18n）再增约 5KB，锚点上调到 6800（上限 6868）。2026-11-03：Agent 生成插件链路（聊天安装卡片懒加载、打开插件页事件、i18n）实测 6873KB，锚点上调到 6810（上限 6878）。", "asOf": "2026-11-14",
+      "gate": { "kind": "ratchet", "baseline": 6822, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 400, "warning": 550,

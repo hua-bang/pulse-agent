@@ -476,6 +476,7 @@ export const useChatPanelController = ({
         onSelectMention: selectMention, onMentionIndexChange: setMentionIndex,
         onInput: handleInput, onKeyDown: handleComposerKeyDown, onPaste: handlePaste,
         onAttachFiles: handleAttachFiles, onRemoveAttachment: removeAttachment,
+        onInsertFile: sessionLoading ? undefined : insertFileMention,
         onRetryAttachment: retryAttachment,
         sendDisabled: attachmentSendBlocked || busyElsewhere || Boolean(sessionError),
         interactionDisabled: busyElsewhere, runInputDisabled: runInputSubmitting,

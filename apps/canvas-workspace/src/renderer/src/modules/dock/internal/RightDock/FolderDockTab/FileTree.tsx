@@ -11,6 +11,7 @@ import {
 import { Button, Popover } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 import type { DirEntry } from '../../../../../types';
+import { writeFilePathDrag } from '../../../../../shared/dock/file-path-drag';
 import { EntryNameInput } from './EntryNameInput';
 import { FileTypeIcon } from './FileTypeIcon';
 import { useMutationMessages } from './mutation-messages';
@@ -130,6 +131,8 @@ const DirectoryRow = ({ entry, parent, ...props }: Omit<Props, 'path'> & { entry
     <div>
       <div className="folder-browser__directory-row folder-browser__entry-row">
         <Button size="xs" className="folder-browser__tree-row" aria-expanded={expanded}
+          draggable
+          onDragStart={event => writeFilePathDrag(event.dataTransfer, { path, isDirectory: true })}
           onClick={() => setExpanded(value => !value)}>
           <CaretRight size={12} className="folder-browser__caret" />
           <span>{entry.name}</span>
@@ -173,7 +176,9 @@ const FileRow = ({ entry, path, selectedPath, onSelect, onRename, onTrash, reque
   return <>
     <div className="folder-browser__entry-row">
       <Button size="xs" className="folder-browser__tree-row" aria-pressed={selectedPath === filePath}
-        title={entry.name} onClick={() => onSelect(filePath)}>
+        title={entry.name} draggable
+        onDragStart={event => writeFilePathDrag(event.dataTransfer, { path: filePath, isDirectory: false })}
+        onClick={() => onSelect(filePath)}>
         <FileTypeIcon name={entry.name} /><span className="folder-browser__file-label">{entry.name}</span>
       </Button>
       <EntryActions name={entry.name} path={filePath} directory={false} onEdit={() => setRenaming(true)}

@@ -84,6 +84,7 @@ export interface ChatViewComposer {
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
   onPaste: ClipboardEventHandler<HTMLDivElement>;
   onAttachFiles?: (files: FileList | File[]) => void;
+  onInsertFile?: (filePath: string, isDirectory?: boolean) => void;
   onRemoveAttachment?: (id: string) => void;
   onRetryAttachment?: (id: string) => void;
   sendDisabled?: boolean;

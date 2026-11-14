@@ -9,6 +9,7 @@ import { useI18n } from '../../../../i18n';
 import { CHAT_MENTION_LISTBOX_ID, chatMentionOptionId } from '../ChatMentionPopup';
 import { ChatInputAttachments } from './ChatInputAttachments';
 import { ChatRunQueue } from './ChatRunQueue';
+import { useChatFileDrop } from './useChatFileDrop';
 import type { QueuedInput } from '../../runtime/useChatRunQueue';
 import { Button } from '../../../../components/ui';
 interface ChatInputProps {
@@ -38,6 +39,8 @@ interface ChatInputProps {
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
   onPaste: ClipboardEventHandler<HTMLDivElement>;
   onAttachFiles?: (files: FileList | File[]) => void;
+  /** Inserts a dropped file or folder as a mention. */
+  onInsertFile?: (filePath: string, isDirectory?: boolean) => void;
   onRemoveAttachment?: (id: string) => void;
   onRetryAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
@@ -94,6 +97,7 @@ export const ChatInput = ({
   onKeyDown,
   onPaste,
   onAttachFiles,
+  onInsertFile,
   onRemoveAttachment,
   onRetryAttachment,
   onSend,
@@ -106,6 +110,11 @@ export const ChatInput = ({
   onMentionNavigate,
 }: ChatInputProps) => {
   const { t } = useI18n();
+  const fileDrop = useChatFileDrop({
+    disabled: interactionDisabled,
+    onAttachFiles,
+    onInsertFile,
+  });
   const mentionedNodeIds = input ? inlineMentionedNodeIds(editableRef.current) : [];
   const contextChips = (selectedContext ?? []).filter(chip => (
     chip.kind !== 'node' || !mentionedNodeIds.some(id => chip.key.endsWith(`:${id}`))
@@ -150,8 +159,11 @@ export const ChatInput = ({
         />
       )}
       <div
-        className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}
+        className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}${fileDrop.active ? ' chat-input-box--file-drop' : ''}`}
         onMouseDown={focusInputFromBox}
+        onDragOver={fileDrop.onDragOver}
+        onDragLeave={fileDrop.onDragLeave}
+        onDrop={fileDrop.onDrop}
       >
         {showContextChips && (
           <div className="chat-context-chips" aria-label={t('chat.currentContext')}>

@@ -1,4 +1,4 @@
-import type { IpcRenderer } from "electron";
+import { webUtils, type IpcRenderer } from "electron";
 import type { FileApi } from "../../shared/api/files";
 import { subscribe } from "./ipc";
 
@@ -37,6 +37,8 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
 
   openPath: (filePath) =>
     ipcRenderer.invoke("file:openPath", { filePath }),
+
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   openDialog: () => ipcRenderer.invoke("file:openDialog"),
 
