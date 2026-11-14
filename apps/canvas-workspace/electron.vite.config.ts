@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "node:url";
 import { visualizer } from "rollup-plugin-visualizer";
+import { phosphorWeightsPlugin } from "./scripts/build/phosphor-weights.mjs";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   version: string;
@@ -218,6 +219,7 @@ export default defineConfig({
     },
     plugins: [
       react(),
+      phosphorWeightsPlugin(),
       localPluginRendererAssetsPlugin(),
       entryDepStatsPlugin(),
       analyze &&

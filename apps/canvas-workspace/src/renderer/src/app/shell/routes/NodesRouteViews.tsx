@@ -1,7 +1,7 @@
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import type { KnowledgeNodeSelection } from '../../../types';
-import { PulseRouterView } from '../router';
+import { PulseRouterView, usePulseRouterContext } from '../router';
 import { NodeDetailPageLazy, NodesPageLazy } from '../AppLazyBoundaries';
 import type { NodesAiContext } from '../../../modules/workspace-nodes';
 
@@ -25,14 +25,21 @@ export const NodesRouteViews = ({
   onAskAiAboutDetail,
   onOpenGraph,
 }: Props) => {
+  const { activeKey } = usePulseRouterContext();
+  // keepAlive renders hidden children, so gate on the first visit: otherwise the
+  // Nodes chunk loads and mounts at startup, ahead of the first canvas paint.
+  const [visited, setVisited] = useState(activeKey === 'nodes');
+  if (activeKey === 'nodes' && !visited) setVisited(true);
   if (!enabled) return null;
   return (
     <>
-      <PulseRouterView name="nodes" keepAlive>
-        <Suspense fallback={null}>
-          <NodesPageLazy workspaces={workspaces} onAskAi={onAskAi} onOpenGraph={onOpenGraph} />
-        </Suspense>
-      </PulseRouterView>
+      {visited && (
+        <PulseRouterView name="nodes" keepAlive>
+          <Suspense fallback={null}>
+            <NodesPageLazy workspaces={workspaces} onAskAi={onAskAi} onOpenGraph={onOpenGraph} />
+          </Suspense>
+        </PulseRouterView>
+      )}
       <PulseRouterView name="node-detail">
         <Suspense fallback={null}>
           <NodeDetailPageLazy workspaceId={detailNode?.workspaceId ?? ''} nodeId={detailNode?.nodeId ?? null} onBack={onBack} onAskAi={onAskAiAboutDetail} />

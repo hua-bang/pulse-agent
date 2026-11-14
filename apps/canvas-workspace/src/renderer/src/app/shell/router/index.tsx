@@ -8,7 +8,7 @@ const PulseRouterContext = React.createContext<PulseRouterContextValue>({
   activeKey: undefined
 })
 
-const usePulseRouterContext = () => React.useContext(PulseRouterContext);
+export const usePulseRouterContext = () => React.useContext(PulseRouterContext);
 
 interface PulseRouterProps<T extends string> {
   activeKey: T;
