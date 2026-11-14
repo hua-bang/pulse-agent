@@ -29,7 +29,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
   } = context;
   const {
     inputPlaceholder, input, attachments, editableRef, mentionOpen, mentionItems, mentionLoading = false, mentionIndex,
-    onSelectMention, onMentionIndexChange, onInput, onKeyDown, onPaste, onAttachFiles,
+    onSelectMention, onMentionIndexChange, onInput, onKeyDown, onPaste, onAttachFiles, onInsertFile,
     onRemoveAttachment, onRetryAttachment, sendDisabled = false, interactionDisabled = false,
     runInputDisabled = false, onSubmit, onQueue, queuedInputs, steeringInputId, onSteerQueued,
     onRemoveQueued, onAbort, contextComposer = false, modelStatus, modelSelection, modelLabel,
@@ -148,6 +148,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
         onKeyDown={onKeyDown}
         onPaste={onPaste}
         onAttachFiles={onAttachFiles}
+        onInsertFile={onInsertFile}
         onRemoveAttachment={onRemoveAttachment}
         onRetryAttachment={onRetryAttachment}
         sendDisabled={sendDisabled || sessionLoading}

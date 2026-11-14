@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../../../../types';
 import { I18nProvider } from '../../../../../../i18n';
+import { FILE_PATH_DRAG_TYPE } from '../../../../../../shared/dock/file-path-drag';
 import { useCanvasFileDrop } from './useCanvasFileDrop';
 
 const notify = vi.fn();
@@ -66,6 +67,45 @@ it('turns a dropped Markdown file into one note under the pointer and names unsu
     }));
     expect(setSelectedNodeIds).toHaveBeenCalledWith(['note-1']);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining('archive.zip') }));
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    container.remove();
+  }
+});
+
+// A dock folder-tab entry carries only a path, never OS files; the canvas leaves it alone.
+it('ignores entries dragged from a dock folder tab', () => {
+  const host = document.createElement('div'); document.body.append(host);
+  const container = document.createElement('div'); document.body.append(container);
+  const addNode = vi.fn();
+  const Probe = () => {
+    useCanvasFileDrop({
+      canvasId: 'ws',
+      containerRef: { current: container },
+      loaded: true,
+      screenToCanvas: (x, y) => ({ x, y }),
+      addNode,
+      nodesRef: { current: [] },
+      setSelectedNodeIds: vi.fn(),
+    });
+    return null;
+  };
+  const root = createRoot(host);
+  try {
+    act(() => root.render(<I18nProvider><Probe /></I18nProvider>));
+    const transfer = { types: [FILE_PATH_DRAG_TYPE, 'text/plain'], files: [], dropEffect: 'none' };
+    const over = new MouseEvent('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(over, 'dataTransfer', { value: transfer });
+    act(() => container.dispatchEvent(over));
+    expect(over.defaultPrevented).toBe(false);
+    expect(container.classList.contains('canvas-container--file-drop')).toBe(false);
+
+    const drop = new MouseEvent('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: transfer });
+    act(() => container.dispatchEvent(drop));
+    expect(drop.defaultPrevented).toBe(false);
+    expect(addNode).not.toHaveBeenCalled();
   } finally {
     act(() => root.unmount());
     host.remove();

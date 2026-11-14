@@ -321,6 +321,15 @@
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.18), 0 18px 48px rgba(55, 53, 47, 0.1);
 }
 
+/* Files dragged over the composer: an accent border, focus ring, and tint. */
+.chat-input-box.chat-input-box--file-drop,
+.chat-panel .chat-input-box.chat-input-box--file-drop,
+.chat-page-body .chat-input-box.chat-input-box--file-drop {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-light) 60%, var(--surface));
+  box-shadow: var(--shadow-focus);
+}
+
 .chat-panel .chat-input,
 .chat-page-body .chat-input {
   padding: 14px 18px 10px;

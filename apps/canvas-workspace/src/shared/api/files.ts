@@ -60,6 +60,11 @@ export interface FileApi {
   openPath: (
     filePath: string,
   ) => Promise<{ ok: boolean; filePath?: string; error?: string }>;
+  /**
+   * Absolute path of a File dropped from the OS, or '' when it has none
+   * (for example an image dragged out of a web page).
+   */
+  getPathForFile?: (file: File) => string;
   openDialog: () => Promise<{
     ok: boolean;
     canceled?: boolean;

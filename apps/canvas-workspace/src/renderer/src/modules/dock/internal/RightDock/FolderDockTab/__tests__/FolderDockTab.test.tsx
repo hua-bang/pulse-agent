@@ -10,6 +10,7 @@ import { I18nProvider } from '../../../../../../i18n';
 import { FolderDockTab } from '..';
 import { syncEditorContent } from '../CodeEditor';
 import { DockStore } from '../../state/dock-store';
+import { FILE_PATH_DRAG_TYPE } from '../../../../../../shared/dock/file-path-drag';
 import type { FilePreviewResult } from '../../../../../../types';
 
 const { confirm, deliver, notify, activeTarget, listeners } = vi.hoisted(() => ({ confirm: vi.fn(), deliver: vi.fn(), notify: vi.fn(), activeTarget: vi.fn(), listeners: new Set<() => void>() }));
@@ -206,6 +207,28 @@ it('also offers the opened root directory as a conversation reference', async ()
   await render();
   await click('Add work folder to conversation');
   expect(deliver).toHaveBeenCalledWith({ kind: 'file', filePath: '/work', isDirectory: true });
+});
+
+it('drags tree files and folders out as absolute path references', async () => {
+  listDir.mockResolvedValue({ ok: true, entries: [{ name: 'source', type: 'dir' }, { name: 'a.ts', type: 'file' }] });
+  await render();
+  const rows = [...host.querySelectorAll<HTMLButtonElement>('.folder-browser__tree-row')];
+  const dragRow = (name: string) => {
+    const row = rows.find(button => button.textContent === name);
+    if (!row) throw new Error(`Missing row: ${name}`);
+    expect(row.getAttribute('draggable')).toBe('true');
+    const data = new Map<string, string>();
+    const event = new MouseEvent('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'dataTransfer', {
+      value: { effectAllowed: 'none', setData: (type: string, value: string) => data.set(type, value) },
+    });
+    act(() => { row.dispatchEvent(event); });
+    return data;
+  };
+  expect(JSON.parse(dragRow('source').get(FILE_PATH_DRAG_TYPE) ?? '')).toEqual({ path: '/work/source', isDirectory: true });
+  const file = dragRow('a.ts');
+  expect(JSON.parse(file.get(FILE_PATH_DRAG_TYPE) ?? '')).toEqual({ path: '/work/a.ts', isDirectory: false });
+  expect(file.get('text/plain')).toBe('/work/a.ts');
 });
 
 it('keeps narrow tree rows to at most two fixed action buttons and moves commands into a dock-layer menu', async () => {
