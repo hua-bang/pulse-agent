@@ -7,6 +7,7 @@ import { useCanvasKeyboard } from '../../../runtime/useCanvasKeyboard';
 import { useCanvasSearch } from '../../../runtime/useCanvasSearch';
 import { useCanvasImagePaste } from '../../../runtime/useCanvasImagePaste';
 import { useTemporaryHandTool } from '../../../runtime/useTemporaryHandTool';
+import { useCanvasZoomControls } from '../../../runtime/useCanvasZoomControls';
 import { useCanvasFocusMode } from './hooks/useCanvasFocusMode';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasContextMenu } from './hooks/useCanvasContextMenu';
@@ -97,7 +98,7 @@ export const useCanvasController = ({
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
-    screenToCanvas, zoomByStep, zoomToActualSize, getLiveTransform,
+    screenToCanvas, panBy, zoomByStep, zoomToScale, getLiveTransform,
   } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
   const {
@@ -240,18 +241,11 @@ export const useCanvasController = ({
   }, [closeContextMenu, contextMenuPoint, placeCanvasReference]);
   const feedbackCommands = useCanvasFeedbackCommands({ undo, redo, pasteReferenceNodes });
 
-  /** Keyboard zoom, anchored on the canvas viewport centre. */
-  const zoomCanvasBy = useCallback((factor: number) => {
-    zoomByStep(factor, containerRef.current);
-  }, [zoomByStep]);
-  const resetTransform = useCallback(() => {
-    zoomToActualSize(containerRef.current);
-  }, [zoomToActualSize]);
-
-  // Zoom-chip companions: reframe around everything / the selection.
-  const handleFitAll = useCallback(() => {
-    fitAllNodes(visibleNodes);
-  }, [fitAllNodes, visibleNodes]);
+  // Viewport-centred zoom shared by the keyboard and the zoom chip.
+  const zoom = useCanvasZoomControls({
+    containerRef, zoomByStep, zoomToScale, fitAllNodes, visibleNodes, selectedNodeIds,
+  });
+  const { zoomBy: zoomCanvasBy, resetZoom: resetTransform, fitAll: handleFitAll } = zoom;
 
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
@@ -267,6 +261,7 @@ export const useCanvasController = ({
     visibleNodes,
     selectedNodeIds,
     scale: transform.scale,
+    autoPan: { getViewport: () => containerRef.current, panBy },
   });
 
   const drawingGestures = useCanvasDrawingGestures({
@@ -284,12 +279,13 @@ export const useCanvasController = ({
       setEditingEdgeLabelId,
       handleMarqueeSelect,
     },
+    onConnectDropOnBlank: ctxMenu.openConnectMenu,
   });
 
   useCanvasKeyboard({
     canvasId,
     undo: feedbackCommands.undoWithFeedback, redo: feedbackCommands.redoWithFeedback,
-    nodes: visibleNodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
+    nodes: visibleNodes, getAllNodes, edges, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNodes,
     setClipboard: onClipboardChange ?? (() => undefined),
@@ -327,7 +323,7 @@ export const useCanvasController = ({
   });
 
   const pasteClipboardNodes = useCanvasClipboardPaste({
-    canvasId, clipboard, pasteNodes,
+    canvasId, clipboard, pasteNodes, containerRef, screenToCanvas,
     pasteReferenceNodes: feedbackCommands.pasteReferencesWithFeedback,
     setSelectedNodeIds,
   });
@@ -341,7 +337,10 @@ export const useCanvasController = ({
     pasteCanvasNodes: pasteClipboardNodes,
   });
 
-  useCanvasFileDrop({ canvasId, containerRef, loaded, screenToCanvas, addNode, nodesRef, setSelectedNodeIds });
+  useCanvasFileDrop({
+    canvasId, containerRef, loaded, screenToCanvas, addNode, nodesRef, setSelectedNodeIds,
+    createUrlNode: creation.createUrlNode,
+  });
 
   useCanvasExternalNodeEvents({
     addNode,
@@ -485,6 +484,7 @@ export const useCanvasController = ({
     updateEdge,
     updateNode,
     onSetRootFolder,
+    zoom,
   };
 
   return { ownsKeyboard, rootViewProps };

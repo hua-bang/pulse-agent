@@ -26,9 +26,17 @@ export type ShortcutOwner =
    * clipboard, which a keydown `preventDefault` made impossible.
    */
   | 'document'
-  | 'file-editor';
+  | 'file-editor'
+  /**
+   * `useChatShortcuts` on a mounted chat surface (dock chat, side panel, or
+   * the full chat page). Focus-scoped like `terminal`: it fires only while
+   * focus is inside that chat (or, on the full chat page, while nothing else
+   * holds focus), and it claims a handled key with `preventDefault` +
+   * `stopPropagation` so the canvas/app/dock window listeners never see it.
+   */
+  | 'chat';
 
-export type ShortcutSectionId = 'canvas' | 'view' | 'selection' | 'edit' | 'panels';
+export type ShortcutSectionId = 'canvas' | 'view' | 'selection' | 'edit' | 'panels' | 'chat';
 
 /**
  * What happens when focus sits in an `<input>` / `<textarea>` /

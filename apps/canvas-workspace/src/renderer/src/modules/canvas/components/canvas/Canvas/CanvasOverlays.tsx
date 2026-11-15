@@ -80,6 +80,7 @@ export const CanvasOverlays = ({
   onToolChange,
   onAddNode,
   onResetTransform,
+  zoom,
   paletteCommands,
   onSearchSelect,
   onCloseSearch,
@@ -146,15 +147,17 @@ export const CanvasOverlays = ({
 
       {contextMenu && (
         <Suspense fallback={null}>
+          {/* A connect-drop menu only offers node types the new edge can
+            target; canvas-wide actions would just drop the edge's end. */}
           <NodeContextMenu
             x={contextMenu.screenX}
             y={contextMenu.screenY}
             onCreate={onCreateNode}
-            canvasReferenceWorkspaces={canvasReferenceWorkspaces}
+            canvasReferenceWorkspaces={contextMenu.connectFrom ? undefined : canvasReferenceWorkspaces}
             onCreateCanvasReference={onCreateCanvasReference}
             workspaceId={workspaceId}
-            onSelectAll={nodes.length > 0 ? onSelectAll : undefined}
-            onFitAll={nodes.length > 0 ? onFitAll : undefined}
+            onSelectAll={nodes.length > 0 && !contextMenu.connectFrom ? onSelectAll : undefined}
+            onFitAll={nodes.length > 0 && !contextMenu.connectFrom ? onFitAll : undefined}
             onClose={onCloseContextMenu}
           />
         </Suspense>
@@ -251,6 +254,9 @@ export const CanvasOverlays = ({
             scale={scale}
             onReset={onResetTransform}
             onFitAll={onFitAll}
+            onZoomBy={zoom?.zoomBy}
+            onZoomTo={zoom?.zoomTo}
+            onFitSelection={zoom?.fitSelection}
           />
           {nodes.length > 0 && nextSteps.length > 0 && (
             <Suspense fallback={null}>{emptyHint}</Suspense>

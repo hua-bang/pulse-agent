@@ -5,14 +5,11 @@ import type {
   AgentTeamTaskRecord,
 } from '../../../../types';
 import type { AgentTeamGraphTask } from '../../model/workspaceModel';
+import { useI18n } from '../../../../i18n';
+import { isImeComposing } from '../../../../utils/ime';
+import { hasConcreteHumanGatePrompt } from '../../model/humanGates';
 
-export const hasConcreteHumanGatePrompt = (prompt: string): boolean => {
-  const normalized = prompt.trim().replace(/\s+/g, ' ');
-  if (!normalized) return false;
-  if (/^agent requested human input\.?$/i.test(normalized)) return false;
-  if (/^human input requested\.?$/i.test(normalized)) return false;
-  return true;
-};
+export { hasConcreteHumanGatePrompt, isHumanFacingGate } from '../../model/humanGates';
 
 interface Props {
   gate: AgentTeamHumanGateRecord;
@@ -41,40 +38,45 @@ export const HumanGateCard = ({
   onAnswer,
   onViewTask,
 }: Props) => {
+  const { t } = useI18n();
   const hasPrompt = hasConcreteHumanGatePrompt(gate.prompt);
-  const displayedPrompt = hasPrompt
-    ? gate.prompt
-    : 'This agent asked for help but did not include a concrete question.';
+  const displayedPrompt = hasPrompt ? gate.prompt : t('agentTeam.gate.missingPrompt');
+  const canAnswer = !readOnly && answer.trim().length > 0;
   const reason = gate.reason?.trim();
   const showReason = !!reason && reason !== gate.prompt && !/^agent requested human input\.?$/i.test(reason);
   return (
     <div className={`agent-team-human-gate${compact ? ' agent-team-human-gate--compact' : ''}${hasPrompt ? '' : ' agent-team-human-gate--missing-prompt'}`}>
       <div className="agent-team-human-gate__copy">
-        <span className="agent-team-detail__section-title">Needs input</span>
+        <span className="agent-team-detail__section-title">{t('agentTeam.gate.title')}</span>
         <strong>{displayedPrompt}</strong>
         <span className="agent-team-human-gate__meta">
-          {agent ? `From ${agent.name}` : 'From teammate'}
-          {task ? ` · Task: ${task.title}` : ''}
+          {agent ? t('agentTeam.gate.from', { name: agent.name }) : t('agentTeam.gate.fromTeammate')}
+          {task ? ` · ${t('agentTeam.gate.task', { title: task.title })}` : ''}
           {showReason ? ` · ${reason}` : ''}
         </span>
         {!hasPrompt && (
           <span className="agent-team-human-gate__hint">
-            No actionable question was provided. Ask the owner to clarify or send a team command with the missing decision.
+            {t('agentTeam.gate.missingHint')}
           </span>
         )}
       </div>
       <div className="agent-team-human-gate__actions">
         {graphTask && selectedTaskId !== gate.taskId && (
-          <button type="button" onClick={() => onViewTask(graphTask)}>View task</button>
+          <button type="button" onClick={() => onViewTask(graphTask)}>{t('agentTeam.gate.viewTask')}</button>
         )}
         <input
           value={answer}
           onChange={(event) => onAnswerChange(event.target.value)}
-          placeholder={hasPrompt ? 'Answer this question' : 'Optional clarification'}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || isImeComposing(event.nativeEvent)) return;
+            event.preventDefault();
+            if (canAnswer) onAnswer();
+          }}
+          placeholder={hasPrompt ? t('agentTeam.gate.answerPlaceholder') : t('agentTeam.gate.clarifyPlaceholder')}
           disabled={readOnly}
         />
-        <button type="button" onClick={onAnswer} disabled={readOnly || !answer.trim()}>
-          Answer
+        <button type="button" onClick={onAnswer} disabled={!canAnswer}>
+          {t('agentTeam.gate.answer')}
         </button>
       </div>
     </div>

@@ -151,6 +151,7 @@ export const WorkspaceSettingsDrawer = ({
       }).trim();
     if (hasUserContent) {
       const ok = await confirm({
+        intent: 'danger',
         title: t('workspaceSettings.replaceConfirmTitle'),
         description: t('workspaceSettings.replaceConfirm'),
         confirmLabel: t('workspaceSettings.generate'),

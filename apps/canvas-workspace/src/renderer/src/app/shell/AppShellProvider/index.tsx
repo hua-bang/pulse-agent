@@ -13,44 +13,64 @@ import type { ConfirmOptions, ToastInput, ToastRecord } from '../../../types/ui-
 import { useI18n } from '../../../i18n';
 import { Modal } from '../../../components/ui';
 import { AppShellPortProvider, useAppShell, type AppShellPort } from '../../../shared/appShell';
+import { OPEN_APP_COMMAND_PALETTE_EVENT } from '../../../shared/appCommands';
+import { ToastTimers, visibleToasts } from './toastTimers';
 import './index.css';
 
 const ShortcutsDialog = lazy(() =>
   import('./ShortcutsDialog').then((module) => ({ default: module.ShortcutsDialog })),
 );
+// Off the canvas route, Cmd/Ctrl+K opens the same palette with only the app
+// navigation commands (workspaces and pages).
+const CommandPalette = lazy(() =>
+  import('../../../modules/canvas/components/canvas/CommandPalette')
+    .then((module) => ({ default: module.CommandPalette })),
+);
+const NO_NODES: never[] = [];
+const NO_COMMANDS: never[] = [];
+const ignoreNode = () => undefined;
 
 export const AppShellProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useI18n();
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmOptions | null>(null);
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null);
   const toastCounterRef = useRef(0);
-  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Records by id, so a close can run the toast's `onClose` exactly once.
+  const toastRecordsRef = useRef<Map<string, ToastRecord>>(new Map());
+  const toastTimersRef = useRef<ToastTimers | null>(null);
 
-  const dismissToast = useCallback((id: string) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      toastTimersRef.current.delete(id);
-    }
+  /** Removes a toast. `onClose` runs unless the user picked an action. */
+  const closeToast = useCallback((id: string, viaAction: boolean) => {
+    toastTimersRef.current?.remove(id);
+    const record = toastRecordsRef.current.get(id);
+    toastRecordsRef.current.delete(id);
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    if (record && !viaAction) record.onClose?.();
   }, []);
 
-  const scheduleDismiss = useCallback((id: string, autoCloseMs?: number) => {
-    const existing = toastTimersRef.current.get(id);
-    if (existing) {
-      clearTimeout(existing);
-      toastTimersRef.current.delete(id);
-    }
+  if (!toastTimersRef.current) {
+    toastTimersRef.current = new ToastTimers((id) => closeToast(id, false));
+  }
+  const toastTimers = toastTimersRef.current;
 
-    if (!autoCloseMs || autoCloseMs <= 0) return;
+  const dismissToast = useCallback((id: string) => {
+    closeToast(id, false);
+  }, [closeToast]);
 
-    const timer = setTimeout(() => {
-      dismissToast(id);
-    }, autoCloseMs);
-    toastTimersRef.current.set(id, timer);
-  }, [dismissToast]);
+  const runToastAction = useCallback((id: string, onClick: () => void) => {
+    // Close before firing so action handlers that themselves open a new
+    // toast don't race against this one.
+    closeToast(id, true);
+    onClick();
+  }, [closeToast]);
+
+  // A timer runs only while its toast is visible (see toastTimers.ts).
+  useEffect(() => {
+    toastTimers.sync(visibleToasts(toasts));
+  }, [toastTimers, toasts]);
 
   const notify = useCallback((toast: ToastInput) => {
     const id = `toast-${Date.now()}-${toastCounterRef.current++}`;
@@ -61,36 +81,35 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
       ...toast,
       autoCloseMs,
     };
+    toastRecordsRef.current.set(id, record);
     setToasts((prev) => [...prev, record]);
-    scheduleDismiss(id, autoCloseMs);
     return id;
-  }, [scheduleDismiss]);
+  }, []);
 
   const updateToast = useCallback((id: string, patch: Partial<Omit<ToastRecord, 'id' | 'createdAt'>>) => {
+    const current = toastRecordsRef.current.get(id);
+    if (current) toastRecordsRef.current.set(id, { ...current, ...patch });
     setToasts((prev) => prev.map((toast) => (
       toast.id === id
         ? { ...toast, ...patch }
         : toast
     )));
+    // A new duration starts again; the sync effect restarts the timer.
     if (Object.prototype.hasOwnProperty.call(patch, 'autoCloseMs')) {
-      scheduleDismiss(id, patch.autoCloseMs);
+      toastTimers.reset(id);
     }
-  }, [scheduleDismiss]);
+  }, [toastTimers]);
 
   // Pause auto-dismiss while the pointer is over a toast so users can
-  // read it or reach its action button; the full duration restarts on
+  // read it or reach its action button; the remaining time continues on
   // mouse-leave.
   const pauseToast = useCallback((id: string) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      toastTimersRef.current.delete(id);
-    }
-  }, []);
+    toastTimers.pause(id);
+  }, [toastTimers]);
 
   const resumeToast = useCallback((toast: ToastRecord) => {
-    scheduleDismiss(toast.id, toast.autoCloseMs);
-  }, [scheduleDismiss]);
+    toastTimers.resume(toast.id);
+  }, [toastTimers]);
 
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
     if (confirmResolverRef.current) {
@@ -115,18 +134,25 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
     setShortcutsOpen(false);
   }, []);
 
+  const closeCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const open = () => setCommandPaletteOpen(true);
+    window.addEventListener(OPEN_APP_COMMAND_PALETTE_EVENT, open);
+    return () => window.removeEventListener(OPEN_APP_COMMAND_PALETTE_EVENT, open);
+  }, []);
+
   useEffect(() => () => {
     if (confirmResolverRef.current) {
       confirmResolverRef.current(false);
       confirmResolverRef.current = null;
     }
-    for (const timer of toastTimersRef.current.values()) {
-      clearTimeout(timer);
-    }
-    toastTimersRef.current.clear();
-  }, []);
+    toastTimers.clear();
+  }, [toastTimers]);
 
-  const isOverlayOpen = shortcutsOpen || Boolean(confirmState);
+  const isOverlayOpen = shortcutsOpen || commandPaletteOpen || Boolean(confirmState);
 
   const value = useMemo<AppShellPort>(() => ({
     notify,
@@ -142,7 +168,13 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppShellPortProvider value={value}>
       {children}
-      <ToastViewport toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
+      <ToastViewport
+        toasts={toasts}
+        onDismiss={dismissToast}
+        onAction={runToastAction}
+        onPause={pauseToast}
+        onResume={resumeToast}
+      />
       {confirmState && (
         <ConfirmDialog
           options={confirmState}
@@ -156,6 +188,17 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
           <ShortcutsDialog onClose={closeShortcuts} />
         </Suspense>
       )}
+      {commandPaletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            nodes={NO_NODES}
+            commands={NO_COMMANDS}
+            appCommands="list"
+            onSelectNode={ignoreNode}
+            onClose={closeCommandPalette}
+          />
+        </Suspense>
+      )}
     </AppShellPortProvider>
   );
 };
@@ -165,11 +208,13 @@ export { useAppShell };
 const ToastViewport = ({
   toasts,
   onDismiss,
+  onAction,
   onPause,
   onResume,
 }: {
   toasts: ToastRecord[];
   onDismiss: (id: string) => void;
+  onAction: (id: string, onClick: () => void) => void;
   onPause: (id: string) => void;
   onResume: (toast: ToastRecord) => void;
 }) => {
@@ -178,14 +223,19 @@ const ToastViewport = ({
   // Cap the visible stack: rapid-fire actions (e.g. bulk node operations)
   // could otherwise overflow the viewport. Older toasts stay queued and
   // surface as newer ones dismiss.
-  const visible = toasts.slice(-4);
+  const visible = visibleToasts(toasts);
 
+  // Each toast is its own live region: errors interrupt (role="alert"),
+  // everything else waits for the reader (role="status").
   return (
-    <div className="shell-toast-region" aria-live="polite" aria-atomic="true">
+    <div className="shell-toast-region">
       {visible.map((toast) => (
         <article
           key={toast.id}
           className={`shell-toast shell-toast--${toast.tone}`}
+          role={toast.tone === 'error' ? 'alert' : 'status'}
+          aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
+          aria-atomic="true"
           onMouseEnter={() => onPause(toast.id)}
           onMouseLeave={() => onResume(toast)}
         >
@@ -203,12 +253,7 @@ const ToastViewport = ({
               key={index}
               type="button"
               className="shell-toast__action"
-              onClick={() => {
-                // Dismiss before firing so action handlers that themselves
-                // open a new toast don't race against this one.
-                onDismiss(toast.id);
-                action.onClick();
-              }}
+              onClick={() => onAction(toast.id, action.onClick)}
             >
               {action.label}
             </button>

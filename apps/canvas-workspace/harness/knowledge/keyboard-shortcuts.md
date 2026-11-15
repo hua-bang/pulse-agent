@@ -157,6 +157,28 @@ collision source.
 Handlers are an exhaustive `Record<TerminalShortcutId, () => void>`, the same
 type-error guarantee the other two owners give.
 
+## Chat-scoped shortcuts: a fourth owner
+
+`owner: 'chat'` (`chat.stop` Escape, `chat.newSession` Mod+Shift+O,
+`chat.focusComposer` bare `/`) is dispatched by
+`modules/chat/components/ChatView/useChatShortcuts.ts`. Like the terminal
+owner, chat is a scope, not a route. The handler runs as a React `onKeyDown`
+on the chat root, so the composer, mention popup, and message editor see the
+key first. A claimed chord calls `preventDefault` and `stopPropagation`. A
+handler that does not apply returns false, and the key keeps its global
+meaning (Escape with no running turn still reaches `canvas.escape`).
+
+The full chat page also takes these chords while focus is on
+`document.body`, through one document listener. That listener is the one
+recorded `handRolledKeydown` exception in `ui-reuse-governance.test.ts`.
+
+ArrowUp in an empty composer recalls the previous user message
+(`ChatComposer/useComposerHistoryRecall.ts`). It is composer behavior, not a
+registry chord.
+
+Guard: `ChatView/__tests__/useChatShortcuts.test.tsx`,
+`ChatComposer/__tests__/useComposerHistoryRecall.test.tsx`.
+
 ## Matching semantics: exact on modifiers
 
 Matching is EXACT on modifiers. `matchesBinding` in `registry.ts` requires
@@ -218,10 +240,25 @@ one more guard, `isBareKeyBlockedByFocus`. A button in the right dock or the
 workspace tab bar keeps focus after a click, and a letter typed next must not
 switch the canvas tool or delete the canvas selection. Chords still pass.
 
-`canvas.toggleChatPanel` is the one canvas chord that pages without a canvas
-also advertise (the floating chat button tooltip). The canvas layer is locked
-off the canvas route, so `useAppShortcuts` handles that chord there through
-its `toggleDockChat` option instead of adding a listener.
+Two canvas chords also work on pages without a canvas. The canvas layer is
+locked off the canvas route, so `useAppShortcuts` handles them there instead
+of adding a listener. Each option returns false on the canvas route, which
+leaves the chord to the canvas layer:
+
+- `canvas.toggleChatPanel` (the floating chat button tooltip names it) uses
+  the `toggleDockChat` option.
+- `canvas.commandPalette` and `canvas.commandPaletteAlt` use the
+  `openCommandPalette` option. It opens the app palette that
+  `AppShellProvider` mounts. That palette lists only the app navigation
+  commands (pages and workspaces) from `shared/appCommands.ts`. The canvas
+  palette shows the same commands, but only when the query matches them
+  (`searchOnly`).
+
+Guard: `useAppShortcuts.test.ts`, `AppShellProvider/commandPalette.test.tsx`.
+
+`app.switchWorkspace` (Mod+1..8) follows the open-tab order, not the sidebar
+order; Mod+9 is the last tab. With no tab open it falls back to the
+workspace list. Guard: `WorkspaceTabs/openTabsStorage.test.ts`.
 
 An `'allow'` chord still reaches a focused editor first only if the editor
 claims it. Both dispatchers skip events with `defaultPrevented`, so an editor

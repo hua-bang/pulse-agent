@@ -14,8 +14,9 @@ const SECTION_TITLE_KEY: Record<ShortcutSectionId, I18nKey> = {
   selection: 'shortcuts.selection.title',
   edit: 'shortcuts.edit.title',
   panels: 'shortcuts.panels.title',
+  chat: 'shortcuts.chat.title',
 };
-const SECTION_ORDER: ShortcutSectionId[] = ['canvas', 'view', 'selection', 'edit', 'panels'];
+const SECTION_ORDER: ShortcutSectionId[] = ['canvas', 'view', 'selection', 'edit', 'panels', 'chat'];
 
 export const SHORTCUT_HELP = {
   'fileEditor.save': { section: 'edit', descriptionKey: 'folder.saveShortcut' },
@@ -60,6 +61,9 @@ export const SHORTCUT_HELP = {
   'app.reopenTab': { section: 'panels', descriptionKey: 'shortcuts.panels.reopenTab' },
   'app.shortcutsHelp': { section: 'panels', descriptionKey: 'shortcuts.panels.shortcuts' },
   'terminal.mentionPicker': { section: 'panels', descriptionKey: 'shortcuts.panels.terminalMentionPicker' },
+  'chat.stop': { section: 'chat', descriptionKey: 'shortcuts.chat.stop' },
+  'chat.newSession': { section: 'chat', descriptionKey: 'shortcuts.chat.newSession' },
+  'chat.focusComposer': { section: 'chat', descriptionKey: 'shortcuts.chat.focusComposer' },
 } satisfies Record<ShortcutId, { section: ShortcutSectionId; descriptionKey: I18nKey }>;
 
 const GESTURE_HELP: Array<{

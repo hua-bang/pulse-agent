@@ -347,7 +347,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // inventory is 17.
   // 17→16 (module-first ownership batches): one obsolete component-scoped
   // listener disappeared; existing registry and owner listeners remain.
-  handRolledKeydown: 16,
+  // 16→17 (chat shortcut owner): `useChatShortcuts` is the registry
+  // dispatcher for the new `chat` owner. Inside the chat it is a React
+  // `onKeyDown`; the one document listener serves the full chat page while
+  // nothing holds focus, and must run before the window dispatchers so its
+  // stopPropagation keeps them off the same key.
+  handRolledKeydown: 17,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as

@@ -1,4 +1,4 @@
-import type { CanvasNode } from '../types';
+import type { CanvasEdge, CanvasNode } from '../types';
 
 export type ToastTone = 'success' | 'error' | 'loading' | 'info';
 
@@ -18,6 +18,12 @@ export interface ToastInput {
   action?: ToastAction;
   /** A second button after `action`, for a toast that offers two next steps. */
   secondaryAction?: ToastAction;
+  /**
+   * Runs once when the toast leaves without the user picking an action:
+   * it expired, was closed, or was dismissed in code. A delayed delete
+   * commits here, so its Undo action stays available while the toast shows.
+   */
+  onClose?: () => void;
 }
 
 export interface ToastRecord extends ToastInput {
@@ -51,6 +57,8 @@ export interface CanvasNodePatchRequest {
 export interface CanvasClipboard {
   sourceWorkspaceId: string;
   nodes: CanvasNode[];
+  /** Edges between the copied nodes. A same-workspace paste copies them too. */
+  edges?: CanvasEdge[];
   /**
    * Exactly what the canvas copy wrote into the SYSTEM clipboard. The paste
    * path compares it against the incoming clipboard text to decide which

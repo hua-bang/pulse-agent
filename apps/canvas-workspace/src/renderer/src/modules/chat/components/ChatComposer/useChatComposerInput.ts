@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { isImeComposing } from '../../../../utils/ime';
 import { serializeEditable } from '../../mentions/mentions';
 import { insertPlainText } from '../../mentions/insertPlainText';
+import { routeOsFiles } from '../../attachments/osFileTransfer';
 import { useEditableInputControl } from './useEditableInputControl';
 import { useSkillMentionInsertion } from './useSkillMentionInsertion';
 import { useContextMentionInsertions } from './useContextMentionInsertions';
@@ -9,6 +10,7 @@ import { useMentionItems } from './useMentionItems';
 import { useMentionPopup } from './useMentionPopup';
 import { useChatComposerDraft } from './useChatComposerDraft';
 import { useChatComposerSubmission } from './useChatComposerSubmission';
+import { useComposerHistoryRecall } from './useComposerHistoryRecall';
 import type { UseChatComposerInputOptions } from './types';
 
 export function useChatComposerInput({
@@ -24,6 +26,7 @@ export function useChatComposerInput({
   getRequestContext,
   isSubmitBlocked,
   isRunning,
+  getUserMessages,
 }: UseChatComposerInputOptions) {
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const {
@@ -73,6 +76,11 @@ export function useChatComposerInput({
     resetMention,
     setAttachments,
   });
+  const handleHistoryKeyDown = useComposerHistoryRecall({
+    editableRef,
+    getUserMessages,
+    replaceInput,
+  });
 
   const handleInput = useCallback(() => {
     const element = editableRef.current;
@@ -105,6 +113,7 @@ export function useChatComposerInput({
     if (isImeComposing(event)) return;
 
     if (handleMentionKeyDown(event)) return;
+    if (handleHistoryKeyDown(event)) return;
 
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -115,6 +124,7 @@ export function useChatComposerInput({
       }
     }
   }, [
+    handleHistoryKeyDown,
     handleMentionKeyDown,
     isRunning,
     isSubmitBlocked,
@@ -122,16 +132,18 @@ export function useChatComposerInput({
     submitCurrentInputDuringRun,
   ]);
 
+  // Files copied in Finder arrive as clipboard files plus their names as
+  // text. Route them like a drop (images attach, other files become file
+  // mentions) so the name never lands in the draft as plain text.
   const handlePaste = useCallback((event: React.ClipboardEvent) => {
-    const imageFiles = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
-    if (imageFiles.length > 0) {
-      event.preventDefault();
-      handleAttachFiles(imageFiles);
-      return;
-    }
     event.preventDefault();
+    const routed = routeOsFiles(event.clipboardData, {
+      onAttachFiles: handleAttachFiles,
+      onInsertFile: insertFileMention,
+    });
+    if (routed) return;
     insertPlainText(event.clipboardData.getData('text/plain'));
-  }, [handleAttachFiles]);
+  }, [handleAttachFiles, insertFileMention]);
 
   return {
     clearInput,

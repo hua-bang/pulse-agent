@@ -79,6 +79,8 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
   /** Live marquee rectangle (canvas coordinates) while a box-select drag
    *  is in flight, null otherwise. Renders a dashed selection box. */
   marqueeRect?: MarqueeRect | null;
+  /** Nodes the marquee would select if released now. */
+  marqueeHits?: readonly MarqueeRect[];
   /** Active alignment guides for the current drag, in canvas
    *  coordinates. Empty when nothing is snapping. */
   snapLines?: SnapLine[];

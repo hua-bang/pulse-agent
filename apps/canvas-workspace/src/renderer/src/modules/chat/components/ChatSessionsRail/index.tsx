@@ -8,6 +8,7 @@ import {
 import { Button, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { ChatSessionRailItem } from './ChatSessionRailItem';
+import { useSessionContentSearch } from './useSessionContentSearch';
 import type { WorkspaceOption } from '../../../../types';
 import type { ChatSessionsRailProps, UnifiedSession } from './types';
 export type { ChatSessionsRailProps, UnifiedSession } from './types';
@@ -86,6 +87,7 @@ export const ChatSessionsRail = ({
       }));
   }, [allSessions, workspaces]);
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const contentMatches = useSessionContentSearch(searchQuery);
   const sessionGroups = useMemo(() => {
     if (!normalizedQuery) return allSessionGroups;
     return allSessionGroups.flatMap((group) => {
@@ -95,10 +97,11 @@ export const ChatSessionsRail = ({
         : group.sessions.filter((session) => (
             session.preview?.toLocaleLowerCase().includes(normalizedQuery)
             || session.date.toLocaleLowerCase().includes(normalizedQuery)
+            || contentMatches.has(session.sessionId)
           ));
       return sessions.length > 0 || groupMatches ? [{ ...group, sessions }] : [];
     });
-  }, [allSessionGroups, normalizedQuery]);
+  }, [allSessionGroups, contentMatches, normalizedQuery]);
   const activeGroupId = allSessionGroups.find((group) => group.sessions.some((session) => session.isCurrent))?.id;
   const openGroupId = activeGroupId ?? allSessionGroups[0]?.id;
   const allGroupIds = useMemo(() => allSessionGroups.map((group) => group.id), [allSessionGroups]);

@@ -93,6 +93,7 @@ export const CanvasSurface = ({
   onConnectHandleMouseDown,
   shapeDraft,
   marqueeRect,
+  marqueeHits,
   snapLines,
   focusedNodeIds,
   focusContextNodeIds,
@@ -269,7 +270,7 @@ export const CanvasSurface = ({
         <CanvasConnectHandles node={connectHandleNode} onHandleMouseDown={onConnectHandleMouseDown} />
       )}
       {shapeDraft && <ShapeDraftPreview draft={shapeDraft} scale={transform.scale} />}
-      {marqueeRect && <MarqueePreview rect={marqueeRect} scale={transform.scale} />}
+      {marqueeRect && <MarqueePreview rect={marqueeRect} scale={transform.scale} hits={marqueeHits} />}
       {snapLines && snapLines.length > 0 && (
         <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
       )}

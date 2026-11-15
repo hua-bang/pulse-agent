@@ -1,10 +1,11 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import './index.css';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from '../ChatInput';
 import { ChatMentionPopup } from '../ChatMentionPopup';
 import { ChatMessages } from '../ChatMessages';
 import { RelayBar } from './RelayBar';
+import { useChatShortcuts } from './useChatShortcuts';
 import { restoreComposerFocusAfterRender } from '../utils/focusRecovery';
 import { McpAppsProvider } from '../../../mcp-apps';
 import type { ChatViewProps } from './types';
@@ -15,13 +16,13 @@ import type { ChatViewProps } from './types';
  * useChatStream + useChatSessions + useChatComposerInput.
  */
 export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) => {
-  const { className, header, beforeHeader, banner, onResizeStart } = chrome;
+  const { className, header, beforeHeader, banner, onResizeStart, onNewSession, ownsPageFocus } = chrome;
   const {
     pendingLabel, messages, agentScope, loading, sessionLoading = false, workspaceId, rootFolder,
     streamingTools, messageTools, collapsedSections, expandedTools, pendingClarify, clarifyInput,
     clarificationAnswering = false, clarificationError = null, onClarifyInputChange,
     onAnswerClarification, relay, onStopRelay, onToggleSection, onToggleToolExpand,
-    onAddImageToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onFork, onSessionJump, conversationKey,
+    onAddImageToCanvas, onAddReplyToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onFork, onSessionJump, conversationKey,
   } = thread;
   const {
     nodes, selectedContext, onRemoveContext, onQuickAction, emptyState,
@@ -37,6 +38,16 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
   } = composer;
   const mcpAppScope = agentScope ?? { kind: 'workspace' as const, workspaceId };
   const hasMessages = messages.length > 0 || loading || sessionLoading || Boolean(pendingLabel);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const handleShortcutKeyDown = useChatShortcuts({
+    rootRef,
+    editableRef,
+    running: loading,
+    onAbort,
+    onNewSession,
+    composerDisabled: interactionDisabled || sessionLoading,
+    ownsPageFocus,
+  });
   const runRecoveryAction = useCallback(async (
     action: () => Promise<boolean | void> | boolean | void,
   ) => {
@@ -60,7 +71,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
   ), [onFork, runRecoveryAction]);
 
   return (
-    <div className={className ?? 'chat-view'}>
+    <div ref={rootRef} className={className ?? 'chat-view'} onKeyDown={handleShortcutKeyDown}>
       {onResizeStart && (
         <div className="chat-panel-resize" onMouseDown={onResizeStart} />
       )}
@@ -90,6 +101,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
             onToggleSection={onToggleSection}
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}
+            onAddReplyToCanvas={onAddReplyToCanvas}
             onNodeFocus={onNodeFocus}
             onEditUserMessage={onEditUserMessage ? handleEditUserMessage : undefined}
             onRegenerate={onRegenerate ? handleRegenerate : undefined}

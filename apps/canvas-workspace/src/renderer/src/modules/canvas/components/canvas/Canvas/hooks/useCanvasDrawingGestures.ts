@@ -2,7 +2,11 @@ import { useCallback, type RefObject } from 'react';
 import type { CanvasEdge, CanvasNode } from '../../../../../../types';
 import type { useCanvasDocumentHost } from '../../../../document/useCanvasDocumentHost';
 import { useConnectHandles } from '../../../../runtime/useConnectHandles';
-import { useEdgeInteraction, type Point } from '../../../../runtime/useEdgeInteraction';
+import {
+  useEdgeInteraction,
+  type ConnectBlankDrop,
+  type Point,
+} from '../../../../runtime/useEdgeInteraction';
 import { useMarqueeSelect } from '../../../../runtime/useMarqueeSelect';
 import { useShapeDraw } from '../../../../runtime/useShapeDraw';
 import { useCanvasEdgeHandlers } from './useCanvasEdgeHandlers';
@@ -36,6 +40,8 @@ interface Options {
     container: HTMLElement,
   ) => Point;
   selection: SelectionCommands;
+  /** Offers the create-node menu when a connect drag ends on blank canvas. */
+  onConnectDropOnBlank?: (drop: ConnectBlankDrop) => void;
 }
 
 export function useCanvasDrawingGestures({
@@ -47,6 +53,7 @@ export function useCanvasDrawingGestures({
   sortedNodes,
   screenToCanvas,
   selection,
+  onConnectDropOnBlank,
 }: Options) {
   const getContainer = useCallback(() => containerRef.current, [containerRef]);
   const edgeInteraction = useEdgeInteraction({
@@ -62,6 +69,14 @@ export function useCanvasDrawingGestures({
       selection.setSelectedEdgeId(edgeId);
       selection.setSelectedNodeIds([]);
     },
+    onConnectDropOnBlank: onConnectDropOnBlank
+      ? (drop) => {
+          // Leave connect mode now, as a committed edge does; the menu
+          // then decides between a new connected node and the loose end.
+          selection.setActiveTool('select');
+          onConnectDropOnBlank(drop);
+        }
+      : undefined,
   });
   const edgeHandlers = useCanvasEdgeHandlers({
     beginConnect: edgeInteraction.beginConnect,

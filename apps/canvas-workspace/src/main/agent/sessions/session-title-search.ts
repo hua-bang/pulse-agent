@@ -11,10 +11,16 @@
  * loads message bodies. Deep content search is the agent-side
  * `session_search` tool's job. (Extracted from service.ts for the 500-line
  * governance gate.)
+ *
+ * `searchSessionContent` is the one exception: the chat sessions rail calls
+ * it after the user pauses typing, so it may read message bodies. It only
+ * returns which sessions match; the rail keeps its own rows.
  */
 
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, workspaceNames } from './store/session-store-lookups';
 import { scanAllWorkspaceSessions } from './store/session-store-scan';
+import { readAllSessionsWithMeta } from './store/session-store-lookups';
+import { sessionPreview } from './session-preview';
 import { sessionStorageRoot } from './sqlite/backend';
 import type { SessionSearchHit } from '../types';
 
@@ -48,6 +54,43 @@ export async function searchSessionTitles(query: string, limit = 8): Promise<Ses
       isCurrent: session.isCurrent,
       messageCount: session.messageCount,
       preview,
+    });
+    if (hits.length >= limit) break;
+  }
+  return hits;
+}
+
+/**
+ * Sessions whose user or assistant messages contain `query`
+ * (case-insensitive), current sessions first, then newest.
+ */
+export async function searchSessionContent(query: string, limit = 50): Promise<SessionSearchHit[]> {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+
+  const entries = await readAllSessionsWithMeta(sessionStorageRoot());
+  entries.sort((left, right) => Number(right.isCurrent) - Number(left.isCurrent)
+    || right.sortKey - left.sortKey);
+
+  const hits: SessionSearchHit[] = [];
+  for (const { session, workspaceName, isCurrent } of entries) {
+    const messages = session.messages ?? [];
+    const matches = messages.some((message) => (
+      (message.role === 'user' || message.role === 'assistant')
+      && typeof message.content === 'string'
+      && message.content.toLowerCase().includes(normalized)
+    ));
+    if (!matches) continue;
+
+    const firstUser = messages.find((message) => message.role === 'user');
+    hits.push({
+      sessionId: session.sessionId,
+      workspaceId: session.workspaceId,
+      workspaceName,
+      date: session.startedAt?.slice(0, 10) ?? '',
+      isCurrent,
+      messageCount: messages.length,
+      preview: firstUser ? sessionPreview(firstUser.content) : '',
     });
     if (hits.length >= limit) break;
   }

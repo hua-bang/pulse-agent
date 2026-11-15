@@ -144,10 +144,11 @@ export function setupCanvasAgentSessionIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:search-sessions',
-    async (_event, payload: { query: string; limit?: number }) => {
+    async (_event, payload: { query: string; limit?: number; mode?: 'title' | 'content' }) => {
       try {
         const svc = await getCanvasAgentService();
-        const hits = await svc.searchSessions(payload.query ?? '', payload.limit);
+        const mode = payload.mode === 'content' ? 'content' : 'title';
+        const hits = await svc.searchSessions(payload.query ?? '', payload.limit, mode);
         return { ok: true, hits };
       } catch (err) {
         return { ok: false, error: String(err) };

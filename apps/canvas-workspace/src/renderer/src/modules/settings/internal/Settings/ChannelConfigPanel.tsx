@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ChannelConfigStatus } from '../../../../types';
 import { useAppShell } from '../../../../shared/appShell';
+import { useI18n } from '../../../../i18n';
 import './ChannelConfigPanel.css';
 
 /**
@@ -11,6 +12,7 @@ import './ChannelConfigPanel.css';
  * Changes require a relaunch to take effect.
  */
 export const ChannelConfigPanel = () => {
+  const { t } = useI18n();
   const { notify } = useAppShell();
   const [status, setStatus] = useState<ChannelConfigStatus | null>(null);
   const [appId, setAppId] = useState('');
@@ -50,20 +52,20 @@ export const ChannelConfigPanel = () => {
         defaultWorkspaceId,
       });
       if (!res.ok) {
-        notify({ tone: 'error', title: 'Save failed', description: res.error ?? 'Unknown error' });
+        notify({ tone: 'error', title: t('channelConfig.saveFailed'), description: res.error ?? t('channelConfig.unknownError') });
         return;
       }
       if (res.status) setStatus(res.status);
       setAppSecret('');
       setDirty(false);
       setNeedsRelaunch(true);
-      notify({ tone: 'success', title: 'Feishu Bot credentials saved', description: 'Relaunch to apply.' });
+      notify({ tone: 'success', title: t('channelConfig.saved'), description: t('channelConfig.relaunchToApply') });
     } catch (err) {
-      notify({ tone: 'error', title: 'Save failed', description: err instanceof Error ? err.message : String(err) });
+      notify({ tone: 'error', title: t('channelConfig.saveFailed'), description: err instanceof Error ? err.message : String(err) });
     } finally {
       setSaving(false);
     }
-  }, [appId, appSecret, defaultWorkspaceId, notify]);
+  }, [appId, appSecret, defaultWorkspaceId, notify, t]);
 
   const clearSecret = useCallback(async () => {
     const res = await window.canvasWorkspace.channelConfig.setFeishu({ clearSecret: true });
@@ -71,11 +73,11 @@ export const ChannelConfigPanel = () => {
       if (res.status) setStatus(res.status);
       setAppSecret('');
       setNeedsRelaunch(true);
-      notify({ tone: 'success', title: 'Secret cleared', description: 'Relaunch to apply.' });
+      notify({ tone: 'success', title: t('channelConfig.secretCleared'), description: t('channelConfig.relaunchToApply') });
     } else {
-      notify({ tone: 'error', title: 'Clear failed', description: res.error ?? 'Unknown error' });
+      notify({ tone: 'error', title: t('channelConfig.clearFailed'), description: res.error ?? t('channelConfig.unknownError') });
     }
-  }, [notify]);
+  }, [notify, t]);
 
   const relaunch = useCallback(() => {
     void window.canvasWorkspace.channelConfig.relaunch();
@@ -87,22 +89,21 @@ export const ChannelConfigPanel = () => {
   };
 
   if (loading) {
-    return <div className="channel-config-panel">Loading…</div>;
+    return <div className="channel-config-panel">{t('channelConfig.loading')}</div>;
   }
 
   const feishu = status?.feishu;
-  const secretPlaceholder = feishu?.secretPresent ? '•••••••• (saved — leave blank to keep)' : 'Enter app secret';
+  const secretPlaceholder = feishu?.secretPresent
+    ? t('channelConfig.secretSavedPlaceholder')
+    : t('channelConfig.secretPlaceholder');
 
   return (
     <div className="channel-config-panel">
-      <div className="channel-config-title">Feishu Bot credentials</div>
-      <div className="channel-config-hint">
-        Configure the Feishu app here instead of shell env vars. Stored locally; the secret is
-        encrypted. Env vars (FEISHU_APP_ID / FEISHU_APP_SECRET), if set, take precedence.
-      </div>
+      <div className="channel-config-title">{t('channelConfig.title')}</div>
+      <div className="channel-config-hint">{t('channelConfig.hint')}</div>
 
       <label className="channel-config-field">
-        <span>App ID</span>
+        <span>{t('channelConfig.appId')}</span>
         <input
           type="text"
           value={appId}
@@ -111,11 +112,11 @@ export const ChannelConfigPanel = () => {
           spellCheck={false}
           autoComplete="off"
         />
-        {feishu?.appIdFromEnv && <small className="channel-config-env">Overridden by FEISHU_APP_ID env var</small>}
+        {feishu?.appIdFromEnv && <small className="channel-config-env">{t('channelConfig.overriddenByEnv', { name: 'FEISHU_APP_ID' })}</small>}
       </label>
 
       <label className="channel-config-field">
-        <span>App Secret</span>
+        <span>{t('channelConfig.appSecret')}</span>
         <input
           type="password"
           value={appSecret}
@@ -124,47 +125,52 @@ export const ChannelConfigPanel = () => {
           spellCheck={false}
           autoComplete="off"
         />
-        {feishu?.secretFromEnv && <small className="channel-config-env">Overridden by FEISHU_APP_SECRET env var</small>}
+        {feishu?.secretFromEnv && <small className="channel-config-env">{t('channelConfig.overriddenByEnv', { name: 'FEISHU_APP_SECRET' })}</small>}
       </label>
 
       <label className="channel-config-field">
-        <span>Default workspace id <span className="channel-config-optional">(optional)</span></span>
+        <span>
+          {t('channelConfig.defaultWorkspace')}{' '}
+          <span className="channel-config-optional">{t('channelConfig.optional')}</span>
+        </span>
         <input
           type="text"
           value={defaultWorkspaceId}
-          placeholder="suggested for /bind — not auto-applied"
+          placeholder={t('channelConfig.defaultWorkspacePlaceholder')}
           onChange={onChange(setDefaultWorkspaceId)}
           spellCheck={false}
           autoComplete="off"
         />
         {feishu?.defaultWorkspaceFromEnv && (
-          <small className="channel-config-env">Overridden by CANVAS_FEISHU_DEFAULT_WORKSPACE env var</small>
+          <small className="channel-config-env">
+            {t('channelConfig.overriddenByEnv', { name: 'CANVAS_FEISHU_DEFAULT_WORKSPACE' })}
+          </small>
         )}
       </label>
 
       <div className="channel-config-actions">
         <button type="button" className="channel-config-btn channel-config-btn--primary" onClick={() => void save()} disabled={saving || !dirty}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('channelConfig.saving') : t('channelConfig.save')}
         </button>
         {feishu?.secretPresent && !feishu?.secretFromEnv && (
           <button type="button" className="channel-config-btn" onClick={() => void clearSecret()}>
-            Clear secret
+            {t('channelConfig.clearSecret')}
           </button>
         )}
       </div>
 
       {needsRelaunch && (
         <div className="channel-config-relaunch">
-          <span>Relaunch Canvas to apply.</span>
+          <span>{t('channelConfig.relaunchHint')}</span>
           <button type="button" className="channel-config-btn channel-config-btn--primary" onClick={relaunch}>
-            Relaunch now
+            {t('channelConfig.relaunchNow')}
           </button>
         </div>
       )}
 
       {status?.path && (
         <div className="channel-config-path">
-          Stored at <code>{status.path}</code>
+          {t('channelConfig.storedAt')} <code>{status.path}</code>
         </div>
       )}
     </div>

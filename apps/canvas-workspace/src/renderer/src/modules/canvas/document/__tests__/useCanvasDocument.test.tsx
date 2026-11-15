@@ -177,6 +177,66 @@ describe('useCanvasDocument text resize commit', () => {
     expect(hook.nodes.map((item) => item.id)).toEqual(ids);
   });
 
+  it('duplicates the edges between copied nodes in the same undo step', () => {
+    let second: CanvasNode | undefined;
+    act(() => {
+      second = hook.addNode('text', 400, 400);
+    });
+    act(() => {
+      hook.addEdge({
+        id: 'edge-1',
+        source: { kind: 'node', nodeId: 'text-1' },
+        target: { kind: 'node', nodeId: second!.id },
+      });
+    });
+    let copies: CanvasNode[] = [];
+    act(() => {
+      copies = hook.duplicateNodes(['text-1', second!.id]);
+    });
+    expect(hook.edges).toHaveLength(2);
+    const copy = hook.edges[1];
+    expect(copy.id).not.toBe('edge-1');
+    expect(copy.source).toEqual({ kind: 'node', nodeId: copies[0].id });
+    expect(copy.target).toEqual({ kind: 'node', nodeId: copies[1].id });
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes).toHaveLength(2);
+    expect(hook.edges.map((edge) => edge.id)).toEqual(['edge-1']);
+  });
+
+  it('adds a node and its incoming edge in one undo step', () => {
+    let created: CanvasNode | undefined;
+    act(() => {
+      created = hook.addNode('text', 400, 400, {
+        connectFrom: { kind: 'node', nodeId: 'text-1', anchor: 'auto' },
+      });
+    });
+    expect(hook.edges).toHaveLength(1);
+    expect(hook.edges[0]).toMatchObject({
+      source: { kind: 'node', nodeId: 'text-1', anchor: 'auto' },
+      target: { kind: 'node', nodeId: created!.id, anchor: 'auto' },
+    });
+
+    act(() => {
+      expect(hook.undo()).toBe(true);
+    });
+    expect(hook.nodes.map((item) => item.id)).toEqual(['text-1']);
+    expect(hook.edges).toEqual([]);
+  });
+
+  it('centres a paste in view when the copy would land off screen', () => {
+    let copies: CanvasNode[] = [];
+    act(() => {
+      copies = hook.pasteNodes([node], {
+        view: { left: 1000, top: 1000, width: 800, height: 600 },
+      });
+    });
+    expect(copies[0].x).toBe(1000 + (800 - node.width) / 2);
+    expect(copies[0].y).toBe(1000 + (600 - node.height) / 2);
+  });
+
   it('preserves the loaded viewport when an embedded editor saves only node changes', async () => {
     act(() => {
       hook.updateNode('text-1', { title: 'Edited in AI Chat' });

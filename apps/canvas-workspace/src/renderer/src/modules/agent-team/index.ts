@@ -10,3 +10,4 @@ export {
   type AgentTeamWorkspaceModel,
 } from './model/workspaceModel';
 export { useAgentTeamWorkspaceController } from './controller/useAgentTeamWorkspaceController';
+export { useTeamInputAlerts } from './controller/useTeamInputAlerts';

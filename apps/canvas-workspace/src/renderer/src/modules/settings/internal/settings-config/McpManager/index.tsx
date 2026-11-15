@@ -153,11 +153,35 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         confirmLabel: t('mcpConfig.delete'),
       });
       if (!accepted) return;
+      // Remove keeps OAuth tokens, and the listed server holds every stored
+      // field, so Undo re-creates the same server from this snapshot.
+      const snapshot = servers.find((server) => server.name === name);
       const res = await window.canvasWorkspace.canvasMcp.remove(scope, name);
-      if (res.ok && res.status) applyStatus(res.status);
-      else notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
+      if (!res.ok || !res.status) {
+        notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
+        return;
+      }
+      applyStatus(res.status);
+      if (!snapshot) return;
+      const undo = async () => {
+        const current = await window.canvasWorkspace.canvasMcp.list(scope);
+        // Never overwrite a server the user added again under the same name.
+        if (current.ok && current.status?.servers.some((server) => server.name === name)) {
+          notify({ tone: 'error', title: t('mcpConfig.restoreFailed', { name }), description: t('mcpConfig.restoreNameTaken') });
+          return;
+        }
+        const restored = await window.canvasWorkspace.canvasMcp.upsert(scope, snapshot);
+        if (restored.ok && restored.status) applyStatus(restored.status);
+        else notify({ tone: 'error', title: t('mcpConfig.restoreFailed', { name }), description: restored.error });
+      };
+      notify({
+        tone: 'success',
+        title: t('mcpConfig.deleted', { name }),
+        autoCloseMs: 8000,
+        action: { label: t('app.undoDelete'), onClick: () => { void undo(); } },
+      });
     },
-    [scope, notify, confirm, t, applyStatus],
+    [scope, servers, notify, confirm, t, applyStatus],
   );
 
   const toggleTool = useCallback(

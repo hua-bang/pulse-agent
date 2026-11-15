@@ -9,6 +9,8 @@ export interface PaletteCommand {
   aliases?: string[];
   shortcut?: string;
   enabled?: boolean;
+  /** Listed only when the query matches, not in the empty-query overview. */
+  searchOnly?: boolean;
   run: () => void;
 }
 
@@ -77,7 +79,7 @@ export const buildPaletteSections = (
   if (!normalized) {
     const sections: PaletteSection[] = GROUP_ORDER.flatMap((group) => {
       const items = enabledCommands
-        .filter((command) => command.group === group)
+        .filter((command) => command.group === group && !command.searchOnly)
         .map((command): CommandPaletteItem => ({ kind: 'command', command }));
       return items.length > 0 ? [{ id: group, items }] : [];
     });

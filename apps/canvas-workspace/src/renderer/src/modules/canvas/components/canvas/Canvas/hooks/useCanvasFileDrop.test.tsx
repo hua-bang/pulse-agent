@@ -1,14 +1,20 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../../../../../types';
 import { I18nProvider } from '../../../../../../i18n';
 import { FILE_PATH_DRAG_TYPE } from '../../../../../../shared/dock/file-path-drag';
-import { useCanvasFileDrop } from './useCanvasFileDrop';
+import { readTextDrop, useCanvasFileDrop } from './useCanvasFileDrop';
 
-const notify = vi.fn();
-vi.mock('../../../../../../shared/appShell', () => ({ useAppShell: () => ({ notify }) }));
+const notify = vi.fn(() => 'toast-1');
+const updateToast = vi.fn();
+vi.mock('../../../../../../shared/appShell', () => ({ useAppShell: () => ({ notify, updateToast }) }));
+vi.mock('../../../../runtime/canvasImageFile', () => ({
+  saveImageAsNodePatch: vi.fn(async (_canvasId: string, _file: File, title: string) => (
+    { width: 200, height: 100, title, data: {} }
+  )),
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -71,6 +77,112 @@ it('turns a dropped Markdown file into one note under the pointer and names unsu
     act(() => root.unmount());
     host.remove();
     container.remove();
+  }
+});
+
+describe('readTextDrop', () => {
+  const transfer = (data: Record<string, string>) => ({ getData: (type: string) => data[type] ?? '' });
+
+  it('reads the first link of a uri-list and skips its comments', () => {
+    expect(readTextDrop(transfer({
+      'text/uri-list': '# from browser\r\nhttps://example.com/a\r\nhttps://example.com/b',
+      'text/plain': 'Example',
+    }))).toEqual({ kind: 'url', url: 'https://example.com/a' });
+  });
+
+  it('treats URL-shaped plain text as a link and prose as text', () => {
+    expect(readTextDrop(transfer({ 'text/plain': 'example.com/docs' })))
+      .toEqual({ kind: 'url', url: 'https://example.com/docs' });
+    expect(readTextDrop(transfer({ 'text/plain': 'Ship the plan on Friday' })))
+      .toEqual({ kind: 'text', text: 'Ship the plan on Friday' });
+    expect(readTextDrop(transfer({ 'text/plain': '   ' }))).toBeNull();
+  });
+});
+
+const renderDrop = (overrides: Partial<Parameters<typeof useCanvasFileDrop>[0]> = {}) => {
+  const host = document.createElement('div'); document.body.append(host);
+  const container = document.createElement('div'); document.body.append(container);
+  let count = 0;
+  const addNode = vi.fn((type: CanvasNode['type'], x: number, y: number) => (
+    { id: `node-${++count}`, type, x, y, width: 200, height: 100, title: '', data: {} } as unknown as CanvasNode
+  ));
+  const setSelectedNodeIds = vi.fn();
+  const Probe = () => {
+    useCanvasFileDrop({
+      canvasId: 'ws',
+      containerRef: { current: container },
+      loaded: true,
+      screenToCanvas: (x, y) => ({ x, y }),
+      addNode,
+      nodesRef: { current: [] },
+      setSelectedNodeIds,
+      ...overrides,
+    });
+    return null;
+  };
+  const root = createRoot(host);
+  act(() => root.render(<I18nProvider><Probe /></I18nProvider>));
+  const cleanup = () => {
+    act(() => root.unmount());
+    host.remove();
+    container.remove();
+  };
+  return { addNode, cleanup, container, setSelectedNodeIds };
+};
+
+const textDrop = (data: Record<string, string>) => {
+  const event = new MouseEvent('drop', { clientX: 500, clientY: 300, bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { types: Object.keys(data), files: [], getData: (type: string) => data[type] ?? '' },
+  });
+  return event;
+};
+
+it('turns a dropped link into a web node centred on the pointer', () => {
+  const createUrlNode = vi.fn(() => null);
+  const { addNode, cleanup, container } = renderDrop({ createUrlNode });
+  try {
+    const drop = textDrop({ 'text/uri-list': 'https://example.com/', 'text/plain': 'https://example.com/' });
+    act(() => container.dispatchEvent(drop));
+    expect(drop.defaultPrevented).toBe(true);
+    expect(createUrlNode).toHaveBeenCalledWith('https://example.com/', { at: { x: 500, y: 300 } });
+    expect(addNode).not.toHaveBeenCalled();
+  } finally {
+    cleanup();
+  }
+});
+
+it('turns dropped plain text into a selected text node at the pointer', () => {
+  const { addNode, cleanup, container, setSelectedNodeIds } = renderDrop();
+  try {
+    act(() => container.dispatchEvent(textDrop({ 'text/plain': 'Remember the milk' })));
+    expect(addNode).toHaveBeenCalledWith('text', expect.any(Number), expect.any(Number), {
+      nodePatch: expect.objectContaining({ title: 'Remember the milk' }),
+    });
+    expect(setSelectedNodeIds).toHaveBeenCalledWith(['node-1']);
+  } finally {
+    cleanup();
+  }
+});
+
+it('reports progress while several images are added', async () => {
+  notify.mockClear();
+  updateToast.mockClear();
+  const { addNode, cleanup, container } = renderDrop();
+  try {
+    await act(async () => {
+      container.dispatchEvent(fileDrop([
+        new File(['a'], 'a.png', { type: 'image/png' }),
+        new File(['b'], 'b.png', { type: 'image/png' }),
+      ]));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(addNode).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tone: 'loading' }));
+    expect(updateToast).toHaveBeenCalledWith('toast-1', expect.objectContaining({ title: expect.stringContaining('1') }));
+    expect(updateToast).toHaveBeenLastCalledWith('toast-1', expect.objectContaining({ tone: 'success' }));
+  } finally {
+    cleanup();
   }
 });
 

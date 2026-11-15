@@ -48,3 +48,36 @@ export const pasteOffset = (
   }
   return cascade;
 };
+
+export interface CanvasRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Keep a clipboard paste visible. When the offset copy would sit fully
+ * inside `view`, keep the offset, so a paste next to its source behaves as
+ * before. Otherwise the user has panned away since the copy: centre the
+ * copy in `view` so it lands where the user is looking.
+ */
+export const pasteOffsetInView = (
+  sources: readonly CanvasNode[],
+  offset: { x: number; y: number },
+  view: CanvasRect | null | undefined,
+): { x: number; y: number } => {
+  if (!view || sources.length === 0) return offset;
+  const box = bounds(sources);
+  const left = box.left + offset.x;
+  const top = box.top + offset.y;
+  const inside = left >= view.left
+    && top >= view.top
+    && left + box.width <= view.left + view.width
+    && top + box.height <= view.top + view.height;
+  if (inside) return offset;
+  return {
+    x: Math.round(view.left + (view.width - box.width) / 2 - box.left),
+    y: Math.round(view.top + (view.height - box.height) / 2 - box.top),
+  };
+};

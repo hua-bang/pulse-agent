@@ -1,25 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
 import { recordRecentWorkspace } from '../recentWorkspaces';
-
-const OPEN_TABS_KEY = 'pulse-canvas.open-workspace-tabs';
-
-const readOpenTabs = (): string[] => {
-  try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(OPEN_TABS_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeOpenTabs = (ids: string[]): void => {
-  try {
-    window.localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(ids));
-  } catch {
-    // Tab persistence is best-effort only.
-  }
-};
+import { readOpenTabs, writeOpenTabs } from './openTabsStorage';
 
 /**
  * Which workspaces show as tabs above the canvas, in tab order. Becoming

@@ -2,13 +2,18 @@ import { useEffect } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
 import { DOCK_LINK_DRAG_TYPE } from '../../../../../../shared/dock/dock-link-drag';
+import {
+  ADD_CANVAS_NOTE_EVENT,
+  type AddCanvasNoteDetail,
+} from '../../../../../../shared/canvasNoteRequest';
+import type { AddNodeOptions } from '../../../../document/useCanvasContentCommands';
 
 interface UseCanvasExternalNodeEventsParams {
   addNode: (
     type: CanvasNode['type'],
     x: number,
     y: number,
-    options?: { nodePatch?: Partial<CanvasNode> },
+    options?: AddNodeOptions,
   ) => CanvasNode;
   canvasId: string;
   containerRef: React.RefObject<HTMLDivElement>;
@@ -159,4 +164,32 @@ export const useCanvasExternalNodeEvents = ({
       window.removeEventListener('canvas:add-workspace-node', handler);
     };
   }, [addNode, canvasId, containerRef, screenToCanvas, setSelectedNodeIds]);
+  // Chat asks for a reply to be kept as a note. Add it at the view centre,
+  // write its markdown file, and select it.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<AddCanvasNoteDetail>).detail;
+      if (!detail || detail.handled || detail.workspaceId !== canvasId) return;
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const center = screenToCanvas(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+        container,
+      );
+      const size = getNodeDefaultSize('file');
+      const node = addNode('file', center.x - size.width / 2, center.y - size.height / 2, {
+        fileName: detail.title,
+        fileContent: detail.content,
+        nodePatch: { title: detail.title, data: { content: detail.content } as CanvasNode['data'] },
+      });
+      setSelectedNodeIds([node.id]);
+      detail.handled = true;
+    };
+    window.addEventListener(ADD_CANVAS_NOTE_EVENT, handler);
+    return () => {
+      window.removeEventListener(ADD_CANVAS_NOTE_EVENT, handler);
+    };
+  }, [addNode, canvasId, containerRef, loaded, screenToCanvas, setSelectedNodeIds]);
 };

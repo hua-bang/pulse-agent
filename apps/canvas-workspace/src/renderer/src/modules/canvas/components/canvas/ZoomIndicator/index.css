@@ -46,3 +46,38 @@
   background: var(--surface-hover);
   color: var(--text);
 }
+
+/* The −/percent/+ cluster shares one pill; only its parts react to hover. */
+.zoom-indicator--stepper {
+  padding: 0 2px;
+  gap: 0;
+  cursor: default;
+}
+
+.zoom-indicator--stepper:hover {
+  background: var(--chrome-glass);
+}
+
+.zoom-indicator__step {
+  color: inherit;
+}
+
+.zoom-indicator__percent {
+  min-width: 40px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.zoom-indicator__percent:hover,
+.zoom-indicator__percent[aria-expanded='true'] {
+  color: var(--text);
+}
+
+.zoom-indicator-menu {
+  min-width: 168px;
+}

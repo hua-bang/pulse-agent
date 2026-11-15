@@ -176,6 +176,7 @@ export const SkillsLibrary = ({
 
   const removeSkill = async (skill: DisplaySkill) => {
     const accepted = await confirm({
+      intent: 'danger',
       title: t('skillsLibrary.removeTitle', { name: skill.name }),
       description: t('skillsLibrary.removeDescription'),
       confirmLabel: t('skillsLibrary.removeConfirm'),

@@ -3,6 +3,8 @@ import { useAppShell } from '../shell/AppShellProvider';
 import { useI18n } from '../../i18n';
 import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { runViewTransition } from '../../shared/viewTransition';
+import { useMenuCommands } from './useMenuCommands';
+import { useTeamInputAlerts } from '../../modules/agent-team';
 
 interface Options {
   store: ReturnType<typeof useWorkspaces>;
@@ -35,6 +37,7 @@ export const useWorkspaceActions = ({
     createFolder,
     renameFolder,
     deleteFolder,
+    restoreFolder,
   } = store;
 
   // One transition covers the workspace swap and the route change, so a tab
@@ -59,13 +62,9 @@ export const useWorkspaceActions = ({
     const workspace = workspaces.find((item) => item.id === id);
     const trimmed = name.trim();
     if (!workspace || !trimmed || workspace.name === trimmed) return;
+    // The new name shows in place; a success toast would only repeat it.
     renameWorkspace(id, trimmed);
-    notify({
-      tone: 'success',
-      title: t('app.workspaceRenamed'),
-      description: `${workspace.name} -> ${trimmed}`,
-    });
-  }, [workspaces, renameWorkspace, notify, t]);
+  }, [workspaces, renameWorkspace]);
 
   // The confirm, toast, and undo flow loads on first use, outside the
   // startup bundle.
@@ -118,12 +117,7 @@ export const useWorkspaceActions = ({
     const trimmed = name.trim();
     if (!folder || !trimmed || folder.name === trimmed) return;
     renameFolder(id, trimmed);
-    notify({
-      tone: 'success',
-      title: t('app.folderRenamed'),
-      description: `${folder.name} -> ${trimmed}`,
-    });
-  }, [folders, renameFolder, notify, t]);
+  }, [folders, renameFolder]);
 
   const removeFolder = useCallback(async (id: string) => {
     const folder = folders.find((item) => item.id === id);
@@ -135,13 +129,34 @@ export const useWorkspaceActions = ({
       confirmLabel: t('app.deleteFolderConfirm'),
     });
     if (!accepted) return;
+    // Delete only edits the manifest, so Undo restores the same snapshot.
+    const index = folders.indexOf(folder);
+    const memberIds = workspaces.filter((w) => w.folderId === id).map((w) => w.id);
     deleteFolder(id);
     notify({
       tone: 'success',
       title: t('app.folderDeleted'),
       description: t('app.folderDeletedDescription', { name: folder.name }),
+      autoCloseMs: 8000,
+      action: {
+        label: t('app.undoDelete'),
+        onClick: () => restoreFolder(folder, index, memberIds),
+      },
     });
-  }, [folders, confirm, deleteFolder, notify, t]);
+  }, [folders, workspaces, confirm, deleteFolder, restoreFolder, notify, t]);
+
+  // The native menu's New workspace runs the same create-and-open as the tab bar.
+  useMenuCommands({ createWorkspace: () => select(create('')) });
+
+  // A team question reaches the user from any route; the action opens its canvas.
+  useTeamInputAlerts({
+    notify,
+    openWorkspace: select,
+    labels: {
+      title: (teamName) => t('agentTeam.needsInputTitle', { team: teamName }),
+      open: t('agentTeam.openTeam'),
+    },
+  });
 
   return {
     select,

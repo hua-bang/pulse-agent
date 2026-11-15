@@ -24,6 +24,7 @@ import { useChatPageNewSession } from './hooks/useChatPageNewSession';
 import { useConversationCompletionNotices } from '../../sessions/useConversationCompletionNotices';
 import type { ChatViewProps } from '../ChatView/types';
 import type { ChatPageBodyProps } from './types';
+import { useAddReplyToCanvas } from '../../runtime/useAddReplyToCanvas';
 export const useChatPageBodyController = ({
   agentScope,
   contextSnapshot,
@@ -62,6 +63,7 @@ export const useChatPageBodyController = ({
   // The dock's Tab strip sits beside this page (chat tab hidden here), so the
   // control is a plain show/hide.
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const addReplyToCanvas = useAddReplyToCanvas(workspaceId);
   const workspaceLabel = workspaceId
     ? allWorkspaces.find(workspace => workspace.id === workspaceId)?.name
     : undefined;
@@ -389,6 +391,8 @@ export const useChatPageBodyController = ({
   const viewProps: ChatViewProps = {
     chrome: {
       className: 'chat-page-body',
+      onNewSession: newSessionDisabled ? undefined : newSession.handleNewSessionFromTopbar,
+      ownsPageFocus: true,
       banner: <>
         <ChatConversationStatus sessionLoadingFeedback="external"
           sessionLoading={sessionLoading}
@@ -410,7 +414,8 @@ export const useChatPageBodyController = ({
       clarificationAnswering, clarificationError, relay, onStopRelay: stopRelay, clarifyInput,
       onClarifyInputChange: setClarifyInput, onAnswerClarification: answerClarification,
       onToggleSection: toggleSection, onToggleToolExpand: toggleToolExpand,
-      onAddImageToCanvas: addImageToCanvas, onNodeFocus: handleNodeFocus,
+      onAddImageToCanvas: addImageToCanvas, onAddReplyToCanvas: addReplyToCanvas,
+      onNodeFocus: handleNodeFocus,
       conversationKey: activeSessionId ?? scopeId, onEditUserMessage: handleEditUserMessage,
       onRegenerate: handleRegenerate, onFork: forkMessage, onSessionJump: handleSessionJump,
     },

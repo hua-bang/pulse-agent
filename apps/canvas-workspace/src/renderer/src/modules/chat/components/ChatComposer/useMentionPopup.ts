@@ -10,6 +10,15 @@ import type { CanvasNode, MentionItem } from '../../../../types';
 import { createMentionChipElement, serializeEditable } from '../../mentions/mentions';
 import { sortAndCapMentionItems } from '../ChatMentionPopup/constants';
 
+/**
+ * `@` query before the caret. Words may be separated by single spaces, so
+ * multi-word node titles ("Q3 roadmap") can be mentioned; a trailing single
+ * space is allowed while the user types the next word. A leading space or two
+ * consecutive spaces end the query. The mandatory single space between words
+ * keeps the match linear (no ambiguous splits to backtrack over).
+ */
+export const AT_QUERY_PATTERN = /@((?:[^\s@/]+(?:[  ][^\s@/]+)*[  ]?)?)$/;
+
 interface Options {
   editableRef: RefObject<HTMLDivElement>;
   setInput: (value: string) => void;
@@ -78,7 +87,7 @@ export const useMentionPopup = ({
     // Trigger on @ (mentions: workspaces/nodes/files) or / (skills). We pick
     // whichever marker is closer to the cursor so typing "/foo @bar" still
     // opens the @-popup once the user is past the slash query.
-    const atMatch = textBeforeCursor.match(/@([^\s@/]*)$/);
+    const atMatch = textBeforeCursor.match(AT_QUERY_PATTERN);
     const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([^\s@/]*)$/);
     const match = atMatch && slashMatch
       ? (atMatch.index! >= slashMatch.index! ? atMatch : slashMatch)
@@ -94,16 +103,30 @@ export const useMentionPopup = ({
     const trigger: '@' | '/' = match === atMatch ? '@' : '/';
     mentionTriggerRef.current = trigger;
 
-    const query = match[1];
+    // contentEditable types some spaces as NBSP; titles use plain spaces.
+    const query = match[1].replace(/ /g, ' ');
     const isStale = () => buildSeq !== mentionBuildSeqRef.current;
-    // Refining an open popup keeps the current rows on screen until the new
-    // ones land; clearing them per keystroke made the list flash a spinner.
-    if (!mentionOpenRef.current) {
-      setMentionItems([]);
-      setMentionLoading(true);
-    }
+    // A multi-word query keeps the popup only while it still matches: once
+    // nothing matches, the space was ordinary prose, not part of a title.
+    // A closed popup does not reopen (or flash a spinner) for such a query
+    // until rows actually arrive.
+    const multiWord = trigger === '@' && query.includes(' ');
+    const deferOpen = multiWord && !mentionOpenRef.current;
     setMentionIndex(0);
-    setMentionOpen(true);
+    if (!deferOpen) {
+      // Refining an open popup keeps the current rows on screen until the new
+      // ones land; clearing them per keystroke made the list flash a spinner.
+      if (!mentionOpenRef.current) {
+        setMentionItems([]);
+        setMentionLoading(true);
+      }
+      setMentionOpen(true);
+    }
+    const showRows = (rows: MentionItem[], loading: boolean) => {
+      setMentionItems(rows);
+      setMentionLoading(loading);
+      setMentionOpen(true);
+    };
     // Start the cross-workspace session search alongside the local build,
     // but never let it hold back the local rows.
     const sessionSearch = trigger === '@' && query.trim()
@@ -111,21 +134,29 @@ export const useMentionPopup = ({
       : null;
     void buildMentionItems(query, trigger).then(async (items) => {
       if (isStale()) return;
-      setMentionItems(items);
-      // Only report loading while there is nothing to show, so "no results"
-      // never appears before the session search has answered.
-      setMentionLoading(Boolean(sessionSearch) && items.length === 0);
+      if (!multiWord || items.length > 0) {
+        // Only report loading while there is nothing to show, so "no results"
+        // never appears before the session search has answered.
+        showRows(items, Boolean(sessionSearch) && items.length === 0);
+      } else if (!sessionSearch) {
+        closeMention();
+        return;
+      }
       if (!sessionSearch) return;
       const sessions = await sessionSearch;
       if (isStale()) return;
-      if (sessions.length > 0) setMentionItems(sortAndCapMentionItems([...items, ...sessions]));
-      setMentionLoading(false);
+      const rows = sessions.length > 0 ? sortAndCapMentionItems([...items, ...sessions]) : items;
+      if (multiWord && rows.length === 0) {
+        closeMention();
+        return;
+      }
+      showRows(rows, false);
     }).catch(() => {
       if (isStale()) return;
       setMentionItems([]);
       setMentionLoading(false);
     });
-  }, [buildMentionItems, searchSessionMentionItems]);
+  }, [buildMentionItems, closeMention, searchSessionMentionItems]);
 
   // Dismiss when focus moves outside the composer/popup.
   useEffect(() => {

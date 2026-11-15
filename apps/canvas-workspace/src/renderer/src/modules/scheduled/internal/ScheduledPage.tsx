@@ -8,6 +8,7 @@ import { Button, EmptyState, PageHeader } from '../../../components/ui';
 import { localizeBuiltInTasks, restoreBuiltInTaskInput } from './formatters';
 import { TaskEditorModal } from './TaskEditorModal';
 import { TaskRow } from './TaskRow';
+import { clearPendingDelete, markPendingDelete, usePendingDeletes } from './pendingDeletes';
 import './index.css';
 
 /**
@@ -28,6 +29,8 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
   const [runningTaskIds, setRunningTaskIds] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | undefined>();
+  const pendingDeletes = usePendingDeletes();
+  const visibleTasks = tasks.filter((task) => !pendingDeletes.has(task.id));
 
   const load = useCallback(async () => {
     const response = await window.canvasWorkspace.scheduled.list();
@@ -90,15 +93,29 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
 
   const removeTask = async (task: ScheduledTask) => {
     const accepted = await confirm({
+      intent: 'danger',
       title: t('scheduled.deleteTitle', { title: task.title }),
       description: t('scheduled.deleteDescription'),
       confirmLabel: t('scheduled.deleteTask'),
     });
     if (!accepted) return;
-    const response = await window.canvasWorkspace.scheduled.remove(task.id);
-    if (!response.ok) {
-      notify({ tone: 'error', title: t('scheduled.deleteFailed'), description: response.error });
-    }
+    // Hide the row now and remove the task when the Undo toast closes.
+    markPendingDelete(task.id);
+    notify({
+      tone: 'success',
+      title: t('scheduled.deleted'),
+      description: task.title,
+      autoCloseMs: 8000,
+      action: { label: t('app.undoDelete'), onClick: () => clearPendingDelete(task.id) },
+      onClose: () => {
+        void window.canvasWorkspace.scheduled.remove(task.id).then((response) => {
+          clearPendingDelete(task.id);
+          if (!response.ok) {
+            notify({ tone: 'error', title: t('scheduled.deleteFailed'), description: response.error });
+          }
+        });
+      },
+    });
   };
 
   const openResult = (task: ScheduledTask, sessionId: string) => {
@@ -130,7 +147,7 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
         )}
       />
 
-      {!loading && tasks.length === 0 ? (
+      {!loading && visibleTasks.length === 0 ? (
         <EmptyState
           icon={<CalendarBlank size={24} />}
           title={t('scheduled.emptyTitle')}
@@ -139,7 +156,7 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
         />
       ) : (
         <ul className="scheduled-page__list">
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}

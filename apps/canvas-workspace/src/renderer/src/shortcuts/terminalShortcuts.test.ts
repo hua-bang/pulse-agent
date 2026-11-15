@@ -33,6 +33,7 @@ const mountAppShortcuts = () => {
     closeActiveTab: vi.fn(() => true),
     reopenClosedTab: vi.fn(() => true),
     toggleDockChat: vi.fn(() => false),
+    openCommandPalette: vi.fn(() => false),
   };
   const Harness = () => {
     useAppShortcuts(options);

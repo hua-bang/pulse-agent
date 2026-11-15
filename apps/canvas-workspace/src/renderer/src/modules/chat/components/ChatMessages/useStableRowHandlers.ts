@@ -4,6 +4,7 @@ interface RowHandlers {
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
+  onAddReplyToCanvas?: (content: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
   onFork?: (index: number) => Promise<boolean> | void;
@@ -25,6 +26,10 @@ export function useStableRowHandlers(handlers: RowHandlers): RowHandlers {
     (imagePath: string, title?: string) => latest.current.onAddImageToCanvas?.(imagePath, title),
     [],
   );
+  const onAddReplyToCanvas = useCallback(
+    (content: string) => latest.current.onAddReplyToCanvas?.(content),
+    [],
+  );
   const onEditUserMessage = useCallback(
     (index: number, newContent: string) => latest.current.onEditUserMessage?.(index, newContent),
     [],
@@ -41,6 +46,7 @@ export function useStableRowHandlers(handlers: RowHandlers): RowHandlers {
     onToggleSection,
     onToggleToolExpand,
     onAddImageToCanvas: handlers.onAddImageToCanvas ? onAddImageToCanvas : undefined,
+    onAddReplyToCanvas: handlers.onAddReplyToCanvas ? onAddReplyToCanvas : undefined,
     onEditUserMessage: handlers.onEditUserMessage ? onEditUserMessage : undefined,
     onFork: handlers.onFork ? onFork : undefined,
     onRegenerate: handlers.onRegenerate ? onRegenerate : undefined,

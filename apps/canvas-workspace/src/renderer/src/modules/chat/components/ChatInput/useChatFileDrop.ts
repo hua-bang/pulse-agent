@@ -1,5 +1,6 @@
 import { useState, type DragEvent } from 'react';
 import { FILE_PATH_DRAG_TYPE, readFilePathDrag } from '../../../../shared/dock/file-path-drag';
+import { routeOsFiles } from '../../attachments/osFileTransfer';
 
 interface Options {
   disabled: boolean;
@@ -7,34 +8,13 @@ interface Options {
   onInsertFile?: (filePath: string, isDirectory?: boolean) => void;
 }
 
-interface DroppedOsFile {
-  file: File;
-  isDirectory: boolean;
-}
-
 const acceptsDrag = (dataTransfer: DataTransfer): boolean => (
   dataTransfer.types.includes('Files') || dataTransfer.types.includes(FILE_PATH_DRAG_TYPE)
 );
 
-/** Directory detection must run while the drop event is still dispatching. */
-const readOsFiles = (dataTransfer: DataTransfer): DroppedOsFile[] => {
-  const items = Array.from(dataTransfer.items ?? []).filter(item => item.kind === 'file');
-  if (items.length === 0) {
-    return Array.from(dataTransfer.files).map(file => ({ file, isDirectory: false }));
-  }
-  return items.flatMap((item) => {
-    const file = item.getAsFile();
-    if (!file) return [];
-    const entry = typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null;
-    return [{ file, isDirectory: entry?.isDirectory === true }];
-  });
-};
-
 /**
- * Accepts files on the chat composer. OS images become attachments; other OS
- * files and folders, and entries dragged from a dock folder tab, become file
- * mentions. A file without a real path (for example one dragged from a web
- * page) is skipped unless it is an image.
+ * Accepts files on the chat composer. Entries dragged from a dock folder tab
+ * become file mentions; OS files follow `routeOsFiles`, which paste shares.
  */
 export const useChatFileDrop = ({ disabled, onAttachFiles, onInsertFile }: Options) => {
   const [active, setActive] = useState(false);
@@ -65,16 +45,7 @@ export const useChatFileDrop = ({ disabled, onAttachFiles, onInsertFile }: Optio
       return;
     }
 
-    const images: File[] = [];
-    for (const { file, isDirectory } of readOsFiles(event.dataTransfer)) {
-      if (!isDirectory && file.type.startsWith('image/') && onAttachFiles) {
-        images.push(file);
-        continue;
-      }
-      const filePath = window.canvasWorkspace?.file?.getPathForFile?.(file) ?? '';
-      if (filePath) onInsertFile?.(filePath, isDirectory);
-    }
-    if (images.length > 0) onAttachFiles?.(images);
+    routeOsFiles(event.dataTransfer, { onAttachFiles, onInsertFile });
   };
 
   return { active, onDragOver, onDragLeave, onDrop };

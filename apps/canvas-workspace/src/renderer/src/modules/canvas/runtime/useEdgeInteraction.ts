@@ -5,66 +5,24 @@ import {
   createDefaultEdge,
   findNodeAtCanvasPoint,
 } from '../model/edgeFactory';
+import {
+  cursorToEndpoint,
+  hasPreviewPatch,
+  isMoveInteraction,
+  movePreviewAt,
+  type EdgeInteractionState,
+  type Point,
+} from './edgeInteractionPreview';
+
+export type {
+  EdgeInteractionPreviewPatch,
+  EdgeInteractionState,
+  Point,
+} from './edgeInteractionPreview';
 
 /** Discard connect clicks that never become a deliberate drag. */
 const CONNECT_DRAG_MIN_DISTANCE = 6;
 const CONNECT_PREVIEW_EDGE_ID = 'connect-preview';
-export type Point = { x: number; y: number };
-export type EdgeInteractionPreviewPatch = Partial<
-  Pick<CanvasEdge, 'source' | 'target' | 'bend' | 'curveMode'>
->;
-
-/** The single active edge interaction used to render live previews. */
-export type EdgeInteractionState =
-  | {
-      kind: 'connect';
-      source: EdgeEndpoint;
-      /** Where the mouse currently is in canvas coords. */
-      cursor: Point;
-      /** Node under the cursor, if any — for preview highlighting. */
-      hoverNodeId: string | null;
-      /** Canvas-px distance moved, used to reject accidental clicks. */
-      distance: number;
-    }
-  | {
-      kind: 'move-end';
-      edgeId: string;
-      /** Which end of the edge is being dragged. */
-      end: 'source' | 'target';
-      /** Other endpoint, frozen so preview math stays stable. */
-      frozen: EdgeEndpoint;
-      /** Drag-start endpoint, used to detect a no-op return. */
-      original: EdgeEndpoint;
-      cursor: Point;
-      hoverNodeId: string | null;
-      /** Render-only geometry, committed once on mouseup. */
-      previewPatch: EdgeInteractionPreviewPatch;
-    }
-  | {
-      kind: 'move-bend';
-      edgeId: string;
-      /** Frozen resolved endpoints keep bend projection stable. */
-      s: Point;
-      t: Point;
-      cursor: Point;
-      /** Base bend plus cursor offset delta avoids a drag-start jump. */
-      originBend: number;
-      originOffset: number;
-      /** Automatic curves and previously adjusted smooth curves keep cubic
-       * geometry; legacy non-zero bends continue using their quadratic path. */
-      smoothBend: boolean;
-      previewPatch: EdgeInteractionPreviewPatch;
-    }
-  | {
-      kind: 'move-edge';
-      edgeId: string;
-      /** Only drag-start free points translate; bound ends stay anchored. */
-      initialSource: EdgeEndpoint;
-      initialTarget: EdgeEndpoint;
-      originCursor: Point;
-      cursor: Point;
-      previewPatch: EdgeInteractionPreviewPatch;
-    };
 
 interface UseEdgeInteractionArgs {
   /** Render-ordered list; reverse hit-testing picks the visual topmost. */
@@ -78,102 +36,18 @@ interface UseEdgeInteractionArgs {
   edges: CanvasEdge[];
   /** Called once after a connect-drag successfully commits a new edge. */
   onConnectCommitted?: (edgeId: string) => void;
+  /** A connect drag released over blank canvas. The owner may offer to
+   *  create a node there; `commitLoose` keeps the free-ended edge instead. */
+  onConnectDropOnBlank?: (drop: ConnectBlankDrop) => void;
 }
 
-/** Resolve cursor-over-node to an auto anchor; otherwise a free point. */
-const cursorToEndpoint = (
-  cursor: Point,
-  sortedNodes: CanvasNode[],
-): { endpoint: EdgeEndpoint; hoverNodeId: string | null } => {
-  const hit = findNodeAtCanvasPoint(sortedNodes, cursor.x, cursor.y);
-  if (hit) {
-    return {
-      endpoint: { kind: 'node', nodeId: hit.id, anchor: 'auto' },
-      hoverNodeId: hit.id,
-    };
-  }
-  return {
-    endpoint: { kind: 'point', x: cursor.x, y: cursor.y },
-    hoverNodeId: null,
-  };
-};
-
-type MoveInteractionState = Exclude<EdgeInteractionState, { kind: 'connect' }>;
-
-const isMoveInteraction = (
-  state: EdgeInteractionState | null,
-): state is MoveInteractionState => state != null && state.kind !== 'connect';
-
-const endpointsAreEqual = (a: EdgeEndpoint, b: EdgeEndpoint): boolean => {
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'point' && b.kind === 'point') {
-    return a.x === b.x && a.y === b.y;
-  }
-  if (a.kind === 'node' && b.kind === 'node') {
-    return a.nodeId === b.nodeId && a.anchor === b.anchor;
-  }
-  return false;
-};
-
-/** Project one coalesced pointer position into render-only edge geometry. */
-const movePreviewAt = (
-  current: MoveInteractionState,
-  pt: Point,
-  sortedNodes: CanvasNode[],
-): MoveInteractionState => {
-  if (current.kind === 'move-end') {
-    const hit = findNodeAtCanvasPoint(sortedNodes, pt.x, pt.y);
-    const endpoint: EdgeEndpoint = hit
-      ? { kind: 'node', nodeId: hit.id, anchor: 'auto' }
-      : { kind: 'point', x: pt.x, y: pt.y };
-    const previewPatch: EdgeInteractionPreviewPatch = endpointsAreEqual(endpoint, current.original)
-      ? {}
-      : current.end === 'source' ? { source: endpoint } : { target: endpoint };
-    return {
-      ...current,
-      cursor: pt,
-      hoverNodeId: hit?.id ?? null,
-      previewPatch,
-    };
-  }
-
-  if (current.kind === 'move-bend') {
-    const offset = bendFromCursor(current.s, current.t, pt);
-    const bend = current.originBend + (offset - current.originOffset);
-    const previewPatch: EdgeInteractionPreviewPatch =
-      bend === current.originBend
-        ? {}
-        : {
-            bend,
-            ...(current.smoothBend ? { curveMode: 'smooth' as const } : {}),
-          };
-    return {
-      ...current,
-      cursor: pt,
-      previewPatch,
-    };
-  }
-
-  const dx = pt.x - current.originCursor.x;
-  const dy = pt.y - current.originCursor.y;
-  const translateFree = (endpoint: EdgeEndpoint): EdgeEndpoint =>
-    endpoint.kind === 'point'
-      ? { kind: 'point', x: endpoint.x + dx, y: endpoint.y + dy }
-      : endpoint;
-  const previewPatch: EdgeInteractionPreviewPatch = {};
-  if (dx !== 0 || dy !== 0) {
-    if (current.initialSource.kind === 'point') {
-      previewPatch.source = translateFree(current.initialSource);
-    }
-    if (current.initialTarget.kind === 'point') {
-      previewPatch.target = translateFree(current.initialTarget);
-    }
-  }
-  return { ...current, cursor: pt, previewPatch };
-};
-
-const hasPreviewPatch = (patch: EdgeInteractionPreviewPatch): boolean =>
-  patch.source !== undefined || patch.target !== undefined || patch.bend !== undefined;
+export interface ConnectBlankDrop {
+  source: EdgeEndpoint;
+  /** Drop point in canvas and screen coordinates. */
+  point: Point;
+  client: Point;
+  commitLoose: () => void;
+}
 
 /**
  * Coordinates the three live edge interactions — drawing a new edge in
@@ -190,6 +64,7 @@ export const useEdgeInteraction = ({
   updateEdge,
   edges,
   onConnectCommitted,
+  onConnectDropOnBlank,
 }: UseEdgeInteractionArgs) => {
   const [state, setState] = useState<EdgeInteractionState | null>(null);
   // Mirror of state for use inside the stable window-level listeners,
@@ -273,7 +148,7 @@ export const useEdgeInteraction = ({
     });
   }, [flushPendingMove, setInteractionState, toCanvas]);
 
-  const handleUp = useCallback(() => {
+  const handleUp = useCallback((client?: Point) => {
     // Mouseup may beat the scheduled preview frame. Consume the latest
     // pointer synchronously so the final commit never lags one frame.
     const current = flushPendingMove(false);
@@ -289,11 +164,18 @@ export const useEdgeInteraction = ({
           current.source.kind === 'node' &&
           target.kind === 'node' &&
           current.source.nodeId === target.nodeId;
-        if (!isSelfDrop) {
+        const commit = () => {
           const edge = addEdge(createDefaultEdge(current.source, target));
           // Hand control back to the caller so it can exit connect mode
           // (tldraw-style: you draw one arrow, then you're back in select).
           onConnectCommitted?.(edge.id);
+        };
+        // A blank drop with a real pointer position asks the owner first;
+        // a focus-loss release has no position, so it keeps the loose end.
+        if (target.kind === 'point' && client && onConnectDropOnBlank) {
+          onConnectDropOnBlank({ source: current.source, point: current.cursor, client, commitLoose: commit });
+        } else if (!isSelfDrop) {
+          commit();
         }
       }
     } else if (hasPreviewPatch(current.previewPatch)) {
@@ -303,7 +185,7 @@ export const useEdgeInteraction = ({
     }
 
     setInteractionState(null);
-  }, [addEdge, flushPendingMove, onConnectCommitted, setInteractionState, updateEdge]);
+  }, [addEdge, flushPendingMove, onConnectCommitted, onConnectDropOnBlank, setInteractionState, updateEdge]);
 
   /** Abort the gesture (Escape): drop render-only geometry. The canonical
    *  edge was never touched, so cancellation requires no compensating write. */
@@ -321,7 +203,7 @@ export const useEdgeInteraction = ({
   useEffect(() => {
     if (!state) return;
     const onMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
-    const onUp = () => handleUp();
+    const onUp = (e: MouseEvent) => handleUp({ x: e.clientX, y: e.clientY });
     // Window focus loss never delivers the mouseup — finish the gesture
     // like the node-drag handlers do, so the edge isn't left half-dragged.
     const onBlur = () => handleUp();

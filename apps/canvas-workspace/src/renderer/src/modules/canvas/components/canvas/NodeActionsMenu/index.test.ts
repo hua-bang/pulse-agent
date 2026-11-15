@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasNode } from '../../../../../types';
 import type { PaletteCommand } from '../CommandPalette';
-import { findNodeAtPoint, selectNodeMenuCommands } from '.';
+import { findNodeAtPoint, selectNodeMenuCommands, startsMenuSection } from '.';
 
 const node = (id: string, x: number, y: number, width: number, height: number) =>
   ({ id, type: 'file', x, y, width, height, title: id, data: {} }) as unknown as CanvasNode;
@@ -32,6 +32,29 @@ describe('selectNodeMenuCommands', () => {
       'duplicate-selection',
       'delete-selection',
     ]);
+  });
+
+  it('offers align for two nodes and distribute only for three, as its own section', () => {
+    const forCount = (count: number) => [
+      command('duplicate-selection'),
+      command('align-left', count >= 2),
+      command('align-top', count >= 2),
+      command('align-distributeX', count >= 3),
+      command('delete-selection'),
+    ];
+    expect(selectNodeMenuCommands(forCount(1)).map((item) => item.id)).toEqual([
+      'duplicate-selection',
+      'delete-selection',
+    ]);
+    const two = selectNodeMenuCommands(forCount(2));
+    expect(two.map((item) => item.id)).toEqual([
+      'duplicate-selection',
+      'align-left',
+      'align-top',
+      'delete-selection',
+    ]);
+    expect(two.map((_, index) => startsMenuSection(two, index))).toEqual([false, true, false, true]);
+    expect(selectNodeMenuCommands(forCount(3)).map((item) => item.id)).toContain('align-distributeX');
   });
 
   it('leads with rename and add-to-chat when the palette offers them', () => {
