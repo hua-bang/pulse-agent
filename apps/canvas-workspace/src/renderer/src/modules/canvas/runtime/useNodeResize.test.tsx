@@ -7,6 +7,7 @@ import {
   applyNodeResizePreview,
   applyResizePreviewToNodes,
   computeNodeResizeGeometry,
+  snapNodeResizeGeometry,
   useNodeResize,
   type NodeResizeOrigin,
   type ResizeEdge,
@@ -91,6 +92,49 @@ describe('computeNodeResizeGeometry with a locked aspect ratio', () => {
     const image = { ...origin, edge: 'right' as const, lockAspect: true };
     expect(computeNodeResizeGeometry(image, 160, 100, 1)).toMatchObject({ width: 360, height: 240 });
     expect(computeNodeResizeGeometry(image, 160, 100, 1, true)).toMatchObject({ width: 360, height: 200 });
+  });
+});
+
+describe('snapNodeResizeGeometry', () => {
+  // Neighbor whose left edge sits at x=355 and top at y=300.
+  const neighbor = { id: 'n', x: 355, y: 300, width: 100, height: 100 };
+  const snapping: NodeResizeOrigin = { ...origin, snapCandidates: [neighbor] };
+
+  it('snaps the moving right edge to a nearby edge and draws a guide', () => {
+    const free = computeNodeResizeGeometry(snapping, 141, 100, 1);
+    expect(free.width).toBe(341);
+    const { preview, lines } = snapNodeResizeGeometry(snapping, free, 1);
+    expect(preview).toMatchObject({ x: 10, width: 345 });
+    expect(lines).toEqual([{ axis: 'x', position: 355, start: 20, end: 400 }]);
+  });
+
+  it('moves x with a snapped left edge so the right edge stays put', () => {
+    const left: NodeResizeOrigin = {
+      ...origin,
+      edge: 'left',
+      snapCandidates: [{ id: 'n', x: 0, y: 0, width: 47, height: 10 }],
+    };
+    const free = computeNodeResizeGeometry(left, 140, 100, 1);
+    expect(free).toMatchObject({ x: 50, width: 260 });
+    const { preview } = snapNodeResizeGeometry(left, free, 1);
+    expect(preview).toMatchObject({ x: 47, width: 263 });
+  });
+
+  it('leaves far edges, aspect-locked resizes, and minimum sizes alone', () => {
+    const far = computeNodeResizeGeometry(snapping, 120, 100, 1);
+    expect(snapNodeResizeGeometry(snapping, far, 1)).toEqual({ preview: far, lines: [] });
+
+    const locked = { ...snapping, lockAspect: true };
+    const lockedFree = computeNodeResizeGeometry(locked, 141, 100, 1);
+    expect(snapNodeResizeGeometry(locked, lockedFree, 1).lines).toEqual([]);
+
+    const tight: NodeResizeOrigin = {
+      ...origin,
+      snapCandidates: [{ id: 'n', x: 105, y: 0, width: 1000, height: 10 }],
+    };
+    const atMin = computeNodeResizeGeometry(tight, -100, 100, 1);
+    expect(atMin.width).toBe(100);
+    expect(snapNodeResizeGeometry(tight, atMin, 1)).toEqual({ preview: atMin, lines: [] });
   });
 });
 

@@ -90,6 +90,14 @@ Key invariants and their guards:
   `modules/chat/runtime/conversationStore.test.ts`, `modules/chat/runtime/useConversationRuntimeStream.test.tsx`,
   `modules/chat/runtime/useConversationRuntimeStream.shared-snapshot.test.tsx`,
   `ChatComposer/__tests__/useChatComposerController.test.tsx`.
+- Tool-section collapse is derived: assistant messages with tool calls start
+  collapsed, and the user's explicit toggles override that per conversation.
+  Do not rebuild the collapsed set from `snapshot.messages`; each streamed text
+  batch replaces that array and would undo the user's toggle. A multi-role turn
+  persists and returns one attributed assistant message per speaker
+  (`assistantMessages`); the renderer splices them in place of the live draft.
+  Guards: `useConversationRuntimeStream.test.tsx` and
+  `conversation-runtime/conversation-runner.test.ts`.
 - Session hydration is always qualified by `{ scope, sessionId }`; fetched
   messages are written to that conversation store BEFORE React adopts its
   selector. An unqualified `onMessagesLoaded(messages)` callback can capture

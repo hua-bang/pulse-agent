@@ -27,7 +27,7 @@ export interface CommandPaletteItem {
 }
 
 export type PaletteItem = NodePaletteItem | CommandPaletteItem;
-export type PaletteSectionId = PaletteCommand['group'] | 'nodes' | 'commands' | 'recent';
+export type PaletteSectionId = PaletteCommand['group'] | 'nodes' | 'commands' | 'chats' | 'recent';
 export interface PaletteSection {
   id: PaletteSectionId;
   items: PaletteItem[];
@@ -73,6 +73,7 @@ export const buildPaletteSections = (
   nodes: CanvasNode[],
   commands: PaletteCommand[],
   query: string,
+  chatCommands: PaletteCommand[] = [],
 ): PaletteSection[] => {
   const enabledCommands = commands.filter((command) => command.enabled !== false);
   const normalized = query.trim().toLowerCase();
@@ -116,5 +117,11 @@ export const buildPaletteSections = (
   return [
     ...(nodeItems.length > 0 ? [{ id: 'nodes' as const, items: nodeItems }] : []),
     ...(commandItems.length > 0 ? [{ id: 'commands' as const, items: commandItems }] : []),
+    ...(chatCommands.length > 0
+      ? [{
+        id: 'chats' as const,
+        items: chatCommands.map((command): CommandPaletteItem => ({ kind: 'command', command })),
+      }]
+      : []),
   ];
 };

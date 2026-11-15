@@ -12,6 +12,11 @@ export interface AddCanvasNoteDetail {
   workspaceId: string;
   title: string;
   content: string;
+  /**
+   * Canvas nodes the question referenced. The canvas places the note next to
+   * the first one it holds and connects them with an edge.
+   */
+  sourceNodeIds?: string[];
   /** Set by the canvas that added the note. */
   handled: boolean;
 }

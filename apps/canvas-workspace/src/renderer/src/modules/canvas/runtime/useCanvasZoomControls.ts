@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type RefObject } from 'react';
-import type { CanvasNode } from '../../../types';
+import type { CanvasNode, CanvasTransform } from '../../../types';
 
 /** Preset zoom levels offered by the zoom chip menu, as scale factors. */
 export const ZOOM_PRESETS = [0.5, 1, 2] as const;
@@ -15,6 +15,10 @@ interface Options {
   /** Nodes currently shown on the canvas. */
   visibleNodes: CanvasNode[];
   selectedNodeIds: readonly string[];
+  /** Shift the view by screen px. */
+  panBy: (dx: number, dy: number) => void;
+  /** The transform as the user sees it now, including an unsettled pan. */
+  getLiveTransform: () => CanvasTransform;
 }
 
 export interface CanvasZoomControls {
@@ -26,6 +30,10 @@ export interface CanvasZoomControls {
   fitAll: () => void;
   /** Frame the selection; undefined when nothing visible is selected. */
   fitSelection?: () => void;
+  /** Pan so a canvas point sits at the view centre; the scale stays. */
+  centerOn: (x: number, y: number) => void;
+  /** The view's size in screen px; zero before the canvas mounts. */
+  getViewportSize: () => { width: number; height: number };
 }
 
 /**
@@ -40,6 +48,8 @@ export const useCanvasZoomControls = ({
   fitAllNodes,
   visibleNodes,
   selectedNodeIds,
+  panBy,
+  getLiveTransform,
 }: Options): CanvasZoomControls => {
   const zoomBy = useCallback((factor: number) => {
     zoomByStep(factor, containerRef.current);
@@ -66,11 +76,27 @@ export const useCanvasZoomControls = ({
     fitAllNodes(selectedNodes);
   }, [fitAllNodes, selectedNodes]);
 
+  const getViewportSize = useCallback(() => ({
+    width: containerRef.current?.clientWidth ?? 0,
+    height: containerRef.current?.clientHeight ?? 0,
+  }), [containerRef]);
+
+  const centerOn = useCallback((x: number, y: number) => {
+    const { width, height } = getViewportSize();
+    const transform = getLiveTransform();
+    panBy(
+      width / 2 - x * transform.scale - transform.x,
+      height / 2 - y * transform.scale - transform.y,
+    );
+  }, [getLiveTransform, getViewportSize, panBy]);
+
   return useMemo(() => ({
     zoomBy,
     zoomTo,
     resetZoom,
     fitAll,
     fitSelection: selectedNodes.length > 0 ? fitSelection : undefined,
-  }), [fitAll, fitSelection, resetZoom, selectedNodes.length, zoomBy, zoomTo]);
+    centerOn,
+    getViewportSize,
+  }), [centerOn, fitAll, fitSelection, getViewportSize, resetZoom, selectedNodes.length, zoomBy, zoomTo]);
 };

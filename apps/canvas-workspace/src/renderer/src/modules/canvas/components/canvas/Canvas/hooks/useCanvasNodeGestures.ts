@@ -48,5 +48,13 @@ export function useCanvasNodeGestures({
   const resize = useNodeResize(commitNodeResize, scale, nodes);
   const renderOrder = useCanvasRenderOrder(visibleNodes);
 
-  return { ...drag, ...resize, ...renderOrder };
+  const { resizeSnapLines, ...resizeState } = resize;
+
+  return {
+    ...drag,
+    ...resizeState,
+    ...renderOrder,
+    // One gesture runs at a time; show the guides of the active one.
+    snapLines: resize.resizingId ? resizeSnapLines : drag.snapLines,
+  };
 }

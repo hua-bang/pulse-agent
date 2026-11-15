@@ -62,7 +62,11 @@ export function useConversationRuntimeStream({
   const [clarificationAnswering, setClarificationAnswering] = useState(false);
   const [clarificationError, setClarificationError] = useState<string | null>(null);
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
-  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
+  // Explicit section toggles, per conversation. Defaults come from the
+  // messages, so a streamed text batch never undoes what the user opened.
+  const [sectionToggles, setSectionToggles] = useState<{ owner: string; collapsed: Map<number, boolean> }>(
+    () => ({ owner: '', collapsed: new Map() }),
+  );
   const [messageTools, setMessageTools] = useState<Map<number, ToolCallStatus[]>>(new Map());
   const onTurnCompleteRef = useRef(onTurnComplete);
   onTurnCompleteRef.current = onTurnComplete;
@@ -97,12 +101,31 @@ export function useConversationRuntimeStream({
           : []
       )),
     ));
-    setCollapsedSections(new Set(
-      snapshot.messages.flatMap((message, index) => (
-        message.role === 'assistant' && message.toolCalls?.length ? [index] : []
-      )),
-    ));
   }, [snapshot.messages]);
+
+  const sectionOwner = `${key.storeId}:${key.sessionId}`;
+  const messageCount = snapshot.messages.length;
+  const collapsedSections = useMemo(() => {
+    const toggles = sectionToggles.owner === sectionOwner ? sectionToggles.collapsed : null;
+    return new Set(snapshot.messages.flatMap((message, index) => {
+      const collapsedByDefault = message.role === 'assistant' && !!message.toolCalls?.length;
+      return (toggles?.get(index) ?? collapsedByDefault) ? [index] : [];
+    }));
+  }, [sectionOwner, sectionToggles, snapshot.messages]);
+  const collapsedSectionsRef = useRef(collapsedSections);
+  collapsedSectionsRef.current = collapsedSections;
+
+  // Edit/regenerate cut the thread; a later message at a cut index starts
+  // from its default again.
+  useEffect(() => {
+    setSectionToggles((prev) => {
+      if (![...prev.collapsed.keys()].some((index) => index >= messageCount)) return prev;
+      return {
+        owner: prev.owner,
+        collapsed: new Map([...prev.collapsed].filter(([index]) => index < messageCount)),
+      };
+    });
+  }, [messageCount]);
 
   const sendMessage = useCallback(async (
     text: string,
@@ -202,13 +225,12 @@ export function useConversationRuntimeStream({
   }, [agentScope, clarifyInput, key, keyed, snapshot.clarification]);
 
   const toggleSection = useCallback((messageIndex: number) => {
-    setCollapsedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(messageIndex)) next.delete(messageIndex);
-      else next.add(messageIndex);
-      return next;
-    });
-  }, []);
+    const collapsed = !collapsedSectionsRef.current.has(messageIndex);
+    setSectionToggles(prev => ({
+      owner: sectionOwner,
+      collapsed: new Map(prev.owner === sectionOwner ? prev.collapsed : []).set(messageIndex, collapsed),
+    }));
+  }, [sectionOwner]);
   const toggleToolExpand = useCallback((toolId: number) => {
     setExpandedTools(prev => {
       const next = new Set(prev);

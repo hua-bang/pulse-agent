@@ -4,7 +4,7 @@ interface RowHandlers {
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
-  onAddReplyToCanvas?: (content: string) => void;
+  onAddReplyToCanvas?: (content: string, messageIndex: number) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
   onFork?: (index: number) => Promise<boolean> | void;
@@ -27,7 +27,7 @@ export function useStableRowHandlers(handlers: RowHandlers): RowHandlers {
     [],
   );
   const onAddReplyToCanvas = useCallback(
-    (content: string) => latest.current.onAddReplyToCanvas?.(content),
+    (content: string, messageIndex: number) => latest.current.onAddReplyToCanvas?.(content, messageIndex),
     [],
   );
   const onEditUserMessage = useCallback(

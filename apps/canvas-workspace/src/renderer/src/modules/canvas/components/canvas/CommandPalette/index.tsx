@@ -11,6 +11,7 @@ import {
   type PaletteSectionId,
 } from './model';
 import { PaletteRow } from './PaletteRow';
+import { useChatSessionCommands } from './useChatSessionCommands';
 import { useAppCommands } from '../../../../../shared/appCommands';
 
 export type { PaletteCommand } from './model';
@@ -31,6 +32,7 @@ const SECTION_LABEL_KEY: Record<PaletteSectionId, I18nKey> = {
   ...GROUP_LABEL_KEY,
   nodes: 'canvas.palette.section.nodes',
   commands: 'canvas.palette.section.commands',
+  chats: 'canvas.palette.section.chats',
   recent: 'canvas.palette.section.recentNodes',
 };
 
@@ -90,9 +92,10 @@ export const CommandPalette = ({
     })),
   ], [appCommands, commands, navigationCommands]);
 
+  const chatCommands = useChatSessionCommands(query);
   const sections = useMemo(
-    () => buildPaletteSections(nodes, allCommands, query),
-    [allCommands, nodes, query],
+    () => buildPaletteSections(nodes, allCommands, query, chatCommands),
+    [allCommands, chatCommands, nodes, query],
   );
 
   // Flat list of items in display order — what arrow-key navigation

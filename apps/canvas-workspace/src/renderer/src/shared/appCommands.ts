@@ -40,3 +40,30 @@ const snapshot = () => current;
 export const useAppCommands = (): AppNavigationCommand[] => (
   useSyncExternalStore(subscribe, snapshot, snapshot)
 );
+
+/**
+ * A stored chat session the palette asks the app to open. `storeId` is the
+ * session store the search hit came from (a workspace id, the global chat,
+ * or a scheduled task store).
+ */
+export interface OpenChatSessionRequest {
+  sessionId: string;
+  storeId: string;
+  /** Label for the owning scope, shown until the page resolves it. */
+  label: string;
+}
+
+const OPEN_CHAT_SESSION_EVENT = 'pulse:open-chat-session';
+
+export const requestOpenChatSession = (request: OpenChatSessionRequest): void => {
+  window.dispatchEvent(new CustomEvent<OpenChatSessionRequest>(OPEN_CHAT_SESSION_EVENT, { detail: request }));
+};
+
+/** Subscribe to palette requests to open a chat session; returns the unsubscribe. */
+export const onOpenChatSessionRequest = (
+  listener: (request: OpenChatSessionRequest) => void,
+): (() => void) => {
+  const handler = (event: Event) => listener((event as CustomEvent<OpenChatSessionRequest>).detail);
+  window.addEventListener(OPEN_CHAT_SESSION_EVENT, handler);
+  return () => window.removeEventListener(OPEN_CHAT_SESSION_EVENT, handler);
+};

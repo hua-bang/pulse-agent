@@ -75,7 +75,38 @@ describe('ChatMessages accessibility', () => {
     const buttons = el.querySelectorAll<HTMLButtonElement>('[aria-label="Add to canvas as a note"]');
     expect(buttons).toHaveLength(1);
     await act(async () => buttons[0].click());
-    expect(onAddReplyToCanvas).toHaveBeenCalledWith('## Plan\n\nstep');
+    expect(onAddReplyToCanvas).toHaveBeenCalledWith('## Plan\n\nstep', { sourceNodeIds: [] });
+  });
+
+  it('saves only the selected reply text and links the note to the nodes the question used', async () => {
+    const onAddReplyToCanvas = vi.fn();
+    const el = await renderMessages([
+      {
+        role: 'user',
+        content: 'question',
+        timestamp: 1,
+        contextSnapshot: {
+          scope: 'workspace',
+          scopeLabel: 'W',
+          executionMode: 'auto',
+          modelLabel: 'm',
+          capturedAt: 1,
+          selectedNodes: [{ id: 'node-a', title: 'A', type: 'text' }],
+        },
+      } as unknown as AgentChatMessage,
+      { role: 'assistant', content: 'first line\n\nsecond line', timestamp: 2 },
+    ], { onAddReplyToCanvas });
+    const paragraph = [...el.querySelectorAll('p')].find((p) => p.textContent === 'second line');
+    expect(paragraph).toBeDefined();
+    const range = document.createRange();
+    range.selectNodeContents(paragraph!);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+
+    const button = el.querySelector<HTMLButtonElement>('[aria-label="Add to canvas as a note"]');
+    await act(async () => button?.click());
+    expect(onAddReplyToCanvas).toHaveBeenCalledWith('second line', { sourceNodeIds: ['node-a'] });
+    window.getSelection()?.removeAllRanges();
   });
 
   it('hides the canvas action when the chat has no workspace canvas', async () => {

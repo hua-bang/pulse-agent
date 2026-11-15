@@ -99,3 +99,33 @@ export const findFreeSlot = (
   }
   return resolveNonStackingSlot(existing, desiredX, desiredY);
 };
+
+/** Gap between a source node and a note placed beside it. */
+const BESIDE_GAP = 80;
+
+/**
+ * Where a note that answers `sourceNodeIds` goes: to the right of the first
+ * source node on this canvas, in free space. Without one, at `center`.
+ * Returns the source node so the caller can connect the note to it.
+ */
+export const placeBesideSource = (
+  existing: readonly CanvasNode[],
+  sourceNodeIds: readonly string[] | undefined,
+  center: { x: number; y: number },
+  size: { width: number; height: number },
+): { x: number; y: number; source?: CanvasNode } => {
+  const source = sourceNodeIds
+    ?.map((id) => existing.find((node) => node.id === id))
+    .find((node): node is CanvasNode => Boolean(node));
+  if (!source) {
+    return findFreeSlot(existing, center.x - size.width / 2, center.y - size.height / 2, size.width, size.height);
+  }
+  const slot = findFreeSlot(
+    existing,
+    source.x + source.width + BESIDE_GAP,
+    source.y,
+    size.width,
+    size.height,
+  );
+  return { ...slot, source };
+};

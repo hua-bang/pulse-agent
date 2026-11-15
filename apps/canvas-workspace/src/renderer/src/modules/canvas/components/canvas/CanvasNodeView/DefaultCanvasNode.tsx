@@ -11,6 +11,7 @@ import {
 } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../../../../types';
 import { useAppShell } from '../../../../../shared/appShell';
+import { useI18n } from '../../../../../i18n';
 import { useRightDock } from '../../../../../shared/dockPort';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { CanvasNodeBody } from './CanvasNodeBody';
@@ -121,6 +122,7 @@ export const DefaultCanvasNode = ({
   wrapperStyle,
 }: DefaultCanvasNodeProps) => {
   const { notify } = useAppShell();
+  const { t } = useI18n();
   const { openLink, openNodeDetail } = useRightDock();
   const [pluginElementPickerActive, setPluginElementPickerActive] = useState(false);
 
@@ -129,8 +131,8 @@ export const DefaultCanvasNode = ({
     if (!workspaceId) {
       notify({
         tone: 'error',
-        title: 'Could not select element',
-        description: 'This workspace is not ready yet.',
+        title: t('canvas.node.dom.selectFailed'),
+        description: t('canvas.node.dom.workspaceNotReady'),
         autoCloseMs: 3200,
       });
       return;
@@ -163,7 +165,7 @@ export const DefaultCanvasNode = ({
           });
           notify({
             tone: 'success',
-            title: 'DOM selection added',
+            title: t('canvas.node.dom.selectionAdded'),
             description: result.selection.label,
             autoCloseMs: 1800,
           });
@@ -173,15 +175,15 @@ export const DefaultCanvasNode = ({
         if (!result.cancelled) {
           notify({
             tone: 'error',
-            title: 'Could not select element',
-            description: result.error ?? 'This plugin does not have an active webview yet.',
+            title: t('canvas.node.dom.selectFailed'),
+            description: result.error ?? t('canvas.node.dom.noWebview'),
             autoCloseMs: 3600,
           });
         }
       } catch (err) {
         notify({
           tone: 'error',
-          title: 'Could not select element',
+          title: t('canvas.node.dom.selectFailed'),
           description: err instanceof Error ? err.message : String(err),
           autoCloseMs: 3600,
         });
@@ -189,7 +191,7 @@ export const DefaultCanvasNode = ({
         setPluginElementPickerActive(false);
       }
     })();
-  }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
+  }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, t, workspaceId]);
 
 
   const handleOpenTab = useCallback((event: MouseEvent) => {

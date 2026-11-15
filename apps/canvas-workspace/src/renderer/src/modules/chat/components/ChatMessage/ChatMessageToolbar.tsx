@@ -81,6 +81,8 @@ export const ChatMessageToolbar = ({
           className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
           title={t('chat.addToCanvas')}
           aria-label={t('chat.addToCanvas')}
+          // Keep a text selection in the reply; the click saves only that text.
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onAddToCanvas}
         >
           <NotePencil size={12} />

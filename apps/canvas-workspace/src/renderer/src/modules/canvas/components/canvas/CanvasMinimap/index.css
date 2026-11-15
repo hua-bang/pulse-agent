@@ -1,0 +1,38 @@
+.canvas-minimap {
+  position: absolute;
+  right: 16px;
+  bottom: 56px;
+  padding: 4px;
+  border: 1px solid var(--chrome-border);
+  border-radius: var(--radius-lg);
+  background: var(--chrome-glass);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px) saturate(1.4);
+  z-index: var(--layer-canvas-chrome);
+  pointer-events: auto;
+}
+
+.canvas-minimap svg {
+  display: block;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.canvas-minimap__node {
+  fill: var(--text-secondary);
+  opacity: 0.45;
+}
+
+.canvas-minimap__frame {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+
+.canvas-minimap__view {
+  fill: var(--accent);
+  fill-opacity: 0.08;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}

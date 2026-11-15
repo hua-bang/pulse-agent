@@ -636,6 +636,8 @@ describe('ChatSessionsRail workspace tree', () => {
       testHost.querySelector<HTMLButtonElement>('[aria-label="Delete First conversation"]')?.click();
     });
     expect(onDeleteSession).not.toHaveBeenCalled();
+    // The visible cancel copy names the general action, not a rename.
+    expect(testHost.querySelector('[aria-label="Cancel deleting First conversation"]')?.textContent).toBe('Cancel');
     await act(async () => {
       testHost.querySelector<HTMLButtonElement>('[aria-label="Confirm delete First conversation"]')?.click();
       await Promise.resolve();

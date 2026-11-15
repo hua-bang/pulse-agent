@@ -3,6 +3,7 @@ import type { CanvasNode, ImageNodeData } from '../../../../../types';
 import { copyTextToClipboard } from '../../../../../utils/clipboard';
 import { toFileUrl } from '../../../../../utils/fileUrl';
 import { useAppShell } from '../../../../../shared/appShell';
+import { useI18n } from '../../../../../i18n';
 import { ImageNodeBody } from '../../node-bodies/ImageNodeBody';
 import { AddToChatButton, CloseButton, CopyImageButton, FullscreenButton, OpenDetailButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
@@ -42,43 +43,44 @@ export const ImageCanvasNode = ({
   wrapperStyle,
 }: ImageCanvasNodeProps) => {
   const { notify } = useAppShell();
+  const { t } = useI18n();
   const data = node.data as ImageNodeData;
   const imageFilePath = data.filePath;
 
   const handleCopyImage = useCallback((e: MouseEvent) => {
     e.stopPropagation();
     if (!imageFilePath) {
-      notify({ tone: 'error', title: 'No image to copy' });
+      notify({ tone: 'error', title: t('canvas.node.image.noImage') });
       return;
     }
 
     void window.canvasWorkspace.file.copyImage(imageFilePath).then((result) => {
       if (result.ok) {
-        notify({ tone: 'success', title: 'Image copied' });
+        notify({ tone: 'success', title: t('canvas.node.image.copied') });
         return;
       }
 
       void copyTextToClipboard(toFileUrl(imageFilePath)).then(() => {
         notify({
           tone: 'success',
-          title: 'Image link copied',
-          description: 'Image data could not be copied, so the file link was copied instead.',
+          title: t('canvas.node.image.linkCopied'),
+          description: t('canvas.node.image.linkCopiedDesc'),
         });
       }).catch(() => {
         notify({
           tone: 'error',
-          title: 'Unable to copy image',
-          description: result.error ?? 'The image file could not be copied.',
+          title: t('canvas.node.image.copyFailed'),
+          description: result.error ?? t('canvas.node.image.copyFailedDesc'),
         });
       });
     }).catch((err) => {
       notify({
         tone: 'error',
-        title: 'Unable to copy image',
+        title: t('canvas.node.image.copyFailed'),
         description: err instanceof Error ? err.message : String(err),
       });
     });
-  }, [imageFilePath, notify]);
+  }, [imageFilePath, notify, t]);
 
   return (
     <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>

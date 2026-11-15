@@ -42,6 +42,10 @@
   transition: background 0.1s, color 0.1s;
 }
 
+.zoom-indicator .zoom-indicator--active {
+  color: var(--accent);
+}
+
 .zoom-indicator:hover {
   background: var(--surface-hover);
   color: var(--text);
