@@ -32,6 +32,7 @@ export const SHORTCUT_HELP = {
   'canvas.zoomReset': { section: 'view', descriptionKey: 'shortcuts.view.zoomReset' },
   'canvas.fitAll': { section: 'view', descriptionKey: 'shortcuts.view.fitAll' },
   'canvas.fitSelection': { section: 'view', descriptionKey: 'shortcuts.view.fitSelection' },
+  'canvas.toggleMinimap': { section: 'view', descriptionKey: 'shortcuts.view.toggleMinimap' },
   'canvas.toolSelect': { section: 'view', descriptionKey: 'shortcuts.view.toolSelect' },
   'canvas.toolHand': { section: 'view', descriptionKey: 'shortcuts.view.toolHand' },
   'canvas.toolConnect': { section: 'view', descriptionKey: 'shortcuts.view.toolConnect' },

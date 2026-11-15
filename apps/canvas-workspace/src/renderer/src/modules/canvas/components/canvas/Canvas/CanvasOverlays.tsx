@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useMemo, useState } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import { ChatFloatingButton } from '../../../../chat/floating';
 import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
@@ -6,6 +6,7 @@ import { applyEdgeInteractionPreview } from '../CanvasEdgesLayer';
 import { EdgeLabel } from '../EdgeLabel';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
+import { toggleMinimap, useMinimapOpen } from '../../../runtime/minimapPreference';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasOverlaysProps } from './CanvasOverlays.types';
 
@@ -29,16 +30,6 @@ const EdgeStylePanel = lazy(() =>
 const CanvasMinimap = lazy(() =>
   import('../CanvasMinimap').then((module) => ({ default: module.CanvasMinimap })),
 );
-
-const MINIMAP_STORAGE_KEY = 'pulse-canvas:minimap-open';
-
-const readMinimapOpen = (): boolean => {
-  try {
-    return window.localStorage.getItem(MINIMAP_STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
 
 export const projectEdgeOverlayGeometry = (
   edges: CanvasEdge[] | undefined,
@@ -117,17 +108,7 @@ export const CanvasOverlays = ({
 }: CanvasOverlaysProps) => {
   const { t } = useI18n();
   const [nextSteps, setNextSteps] = useState<('file' | 'agent')[]>([]);
-  const [minimapOpen, setMinimapOpen] = useState(readMinimapOpen);
-  const toggleMinimap = useCallback(() => {
-    setMinimapOpen((open) => {
-      try {
-        window.localStorage.setItem(MINIMAP_STORAGE_KEY, open ? '0' : '1');
-      } catch {
-        // The choice still applies for this session.
-      }
-      return !open;
-    });
-  }, []);
+  const minimapOpen = useMinimapOpen();
   const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
   const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
   const overlayEdges = useMemo(
