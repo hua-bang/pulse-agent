@@ -189,3 +189,34 @@ export const computeSnap = (
 
   return { dx, dy, lines };
 };
+
+/**
+ * Resize-time snapping: only the edges the user moves can snap. `moving.x`
+ * is the moving left or right edge; `moving.y` is the moving top or bottom
+ * edge. Each snaps to the nearest edge or center of another box. There is
+ * no grid fallback, so a resize never jumps when no neighbor is close.
+ */
+export const computeEdgeSnap = (
+  box: { x: number; y: number; width: number; height: number },
+  moving: { x?: number; y?: number },
+  others: SnapBox[],
+  options: Omit<SnapOptions, 'gridSize'>,
+): SnapResult => {
+  const threshold = (options.thresholdPx ?? DEFAULT_THRESHOLD_PX) / Math.max(options.scale, 0.0001);
+  const bestX = moving.x === undefined
+    ? null
+    : findBestAxisSnap([{ pos: moving.x, kind: 'end' }], others, 'x', threshold);
+  const bestY = moving.y === undefined
+    ? null
+    : findBestAxisSnap([{ pos: moving.y, kind: 'end' }], others, 'y', threshold);
+  const lines: SnapLine[] = [];
+  if (bestX) {
+    const ys = [box.y, box.y + box.height, ...bestX.matchedBoxes.flatMap((b) => [b.y, b.y + b.height])];
+    lines.push({ axis: 'x', position: bestX.position, start: Math.min(...ys), end: Math.max(...ys) });
+  }
+  if (bestY) {
+    const xs = [box.x, box.x + box.width, ...bestY.matchedBoxes.flatMap((b) => [b.x, b.x + b.width])];
+    lines.push({ axis: 'y', position: bestY.position, start: Math.min(...xs), end: Math.max(...xs) });
+  }
+  return { dx: bestX?.delta ?? 0, dy: bestY?.delta ?? 0, lines };
+};

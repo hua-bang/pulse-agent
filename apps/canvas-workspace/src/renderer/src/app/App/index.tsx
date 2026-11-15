@@ -12,6 +12,7 @@ import { resolveKnowledgeChatRouteContext } from '../shell/Workbench/knowledgeCh
 import { GraphPageLazy as GraphPage } from '../../modules/workspace-nodes/surface';
 import { useKnowledgeAiContext, useNodeDetailBridges } from '../../modules/workspace-nodes';
 import { useWorkspaces } from '../workspaces/useWorkspaces';
+import { useOpenSessionInScope } from './useOpenSessionInScope';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
 import { DEFAULT_SETTINGS_SECTION, useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
@@ -28,7 +29,6 @@ import {
   useChatTargetBroker,
 } from '../../modules/chat';
 import { useChatNavigation } from '../shell/router/useChatNavigation';
-import type { AgentScope } from '../../types';
 import { APP_ROUTES, MCP_APP_VIEW, mcpAppRoutePath, resolveAppRoute, telemetryPageName, type AppActiveView as ActiveView } from './routeModel';
 import { globalMcpAppKey, globalMcpAppsStore, useGlobalMcpApps } from '../../modules/mcp-apps/global-apps';
 import type { McpAppEntrypointListing } from '../../../../shared/mcp-apps';
@@ -217,17 +217,7 @@ const AppContent = () => {
     canvasRoute: ROUTE_CANVAS,
   });
   const { dockWorkspaceId, reportChatWorkspace, activateDockWorkspace } = useChatDockWorkspace(activeView, activeId, chatEntryTarget?.scope, selectWorkspace);
-  const openSessionInOwningScope = useCallback(async (
-    scope: AgentScope,
-    sessionId: string,
-    scopeLabel: string,
-  ) => {
-    const { createChatPageSessionTarget } = await import('../../modules/chat/session');
-    const label = scope.kind === 'workspace'
-      ? workspaces.find(workspace => workspace.id === scope.workspaceId)?.name ?? scopeLabel
-      : scope.kind === 'global' ? t('chat.scope.global') : scopeLabel;
-    enterChatTarget(createChatPageSessionTarget(scope, sessionId, label));
-  }, [enterChatTarget, t, workspaces]);
+  const openSessionInOwningScope = useOpenSessionInScope({ enterChatTarget, t, workspaces });
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
     setSelectedNode(null);

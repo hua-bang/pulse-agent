@@ -130,3 +130,45 @@ describe('conversation runner failed turns', () => {
     ]);
   });
 });
+
+describe('conversation runner multi-role turns', () => {
+  it('persists and returns one attributed reply per speaker', async () => {
+    const persisted: unknown[][] = [];
+    const agent = {
+      chat: vi.fn(async (...args: unknown[]) => {
+        const appendRunMessages = args[16] as (sessionId: string, messages: unknown[]) => void;
+        appendRunMessages('session-a', [{ role: 'user', content: 'review it', timestamp: 1 }]);
+        appendRunMessages('session-a', [{
+          role: 'assistant', content: 'Draft ready.', timestamp: 2,
+          speakerRoleId: 'writer', speakerRoleName: 'Writer', speakerRoleColor: '#111111',
+        }]);
+        appendRunMessages('session-a', [{
+          role: 'assistant', content: 'Looks good.', timestamp: 3,
+          speakerRoleId: 'reviewer', speakerRoleName: 'Reviewer', speakerRoleColor: '#222222',
+        }]);
+        return {
+          response: 'Looks good.',
+          speakerRole: { id: 'reviewer', name: 'Reviewer', color: '#222222' },
+        };
+      }),
+      answerClarification: vi.fn(),
+    };
+    const runtime = new ConversationRuntime({
+      key: { storeId: 'ws-a', sessionId: 'session-a' },
+      loadMessages: async () => [],
+      persist: async (messages) => { persisted.push(messages); },
+      runTurn: createConversationRunner(agent as unknown as CanvasAgent),
+      checkpointMs: 0,
+    });
+    await runtime.open();
+
+    const result = await runtime.sendAndWait({ message: 'review it' });
+
+    const replies = [
+      { role: 'assistant', content: 'Draft ready.', speakerRoleName: 'Writer' },
+      { role: 'assistant', content: 'Looks good.', speakerRoleName: 'Reviewer' },
+    ];
+    expect(result?.assistantMessages).toMatchObject(replies);
+    expect(persisted.at(-1)).toMatchObject([{ role: 'user', content: 'review it' }, ...replies]);
+  });
+});

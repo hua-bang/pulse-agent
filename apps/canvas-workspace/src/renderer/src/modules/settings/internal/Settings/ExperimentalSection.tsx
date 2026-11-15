@@ -3,13 +3,14 @@ import type { ExperimentalFeatureDef } from '../../../../types';
 import {
   EXPERIMENTAL_FLAG_AGENT_TEAMS,
   EXPERIMENTAL_FLAG_CHANNELS,
-  EXPERIMENTAL_FLAG_PI_AGENT_HARNESS,
 } from '../../../../../../shared/experimental-features';
+import { FEATURE_COPY } from './experimentalFeatureCopy';
 import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { Button } from '../../../../components/ui';
 import { ChannelConfigPanel } from './ChannelConfigPanel';
 import './ExperimentalSection.css';
+
 
 interface ExperimentalSectionProps {
   onClose: () => void;
@@ -17,7 +18,7 @@ interface ExperimentalSectionProps {
 
 export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
   const { notify, updateToast } = useAppShell();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   // Id of the in-progress "installing tooling" toast, so the async
   // tooling-status push from main can update it in place.
   const toolingToastRef = useRef<string | null>(null);
@@ -194,11 +195,9 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         ) : (
           <ul className="experimental-section-list" aria-label={t('experimental.featuresAria')}>
             {features.map((feature) => {
-              const description = feature.id === EXPERIMENTAL_FLAG_CHANNELS
-                ? t('experimental.channelsDescription')
-                : feature.id === EXPERIMENTAL_FLAG_PI_AGENT_HARNESS
-                  ? t('experimental.piAgentDescription')
-                  : feature.description;
+              const copy = FEATURE_COPY[feature.id]?.[language];
+              const label = copy?.label ?? feature.label;
+              const description = copy?.description ?? feature.description;
               const enabled = !!values[feature.id];
               const busy = !!pending[feature.id];
               const showChannelConfig =
@@ -207,7 +206,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                 <Fragment key={feature.id}>
                 <li className="experimental-section-item">
                   <div className="experimental-section-item-body">
-                    <div className="experimental-section-item-label">{feature.label}</div>
+                    <div className="experimental-section-item-label">{label}</div>
                     <div className="experimental-section-item-desc">{description}</div>
                     <div className="experimental-section-item-meta">
                       <span>{t('experimental.defaultState', {
@@ -223,7 +222,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                       checked={enabled}
                       disabled={busy}
                       onChange={(e) => void toggle(feature.id, e.target.checked)}
-                      aria-label={t('experimental.toggleFeature', { label: feature.label })}
+                      aria-label={t('experimental.toggleFeature', { label })}
                     />
                     <span className="experimental-section-switch-track" aria-hidden>
                       <span className="experimental-section-switch-thumb" />

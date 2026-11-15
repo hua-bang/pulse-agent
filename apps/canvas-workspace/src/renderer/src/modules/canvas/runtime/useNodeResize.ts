@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasNode, TextNodeData } from "../../../types";
+import { computeEdgeSnap, type SnapBox, type SnapLine } from '../model/canvasSnapping';
 
 const DEFAULT_MIN_WIDTH = 200;
 const DEFAULT_MIN_HEIGHT = 120;
@@ -46,6 +47,8 @@ export interface NodeResizeOrigin {
   /** Keep the start aspect ratio unless Shift is held (images). Otherwise
    *  Shift turns the ratio lock on. */
   lockAspect?: boolean;
+  /** Other nodes the moving edges can snap to, frozen at gesture start. */
+  snapCandidates?: SnapBox[];
 }
 
 /**
@@ -125,6 +128,59 @@ export const computeNodeResizeGeometry = (
   return { id: origin.id, x, y, width, height, edge: origin.edge };
 };
 
+/**
+ * Snap the moving edges of a free resize to nearby node edges or centers.
+ * An aspect-locked resize does not snap, because one edge drives both
+ * sides. A snap that would break the minimum size is skipped on that axis.
+ */
+export const snapNodeResizeGeometry = (
+  origin: NodeResizeOrigin,
+  next: NodeResizePreview,
+  scale: number,
+  shiftKey = false,
+): { preview: NodeResizePreview; lines: SnapLine[] } => {
+  const candidates = origin.snapCandidates ?? [];
+  const keepAspect = Boolean(origin.lockAspect) !== shiftKey;
+  if (keepAspect || candidates.length === 0) return { preview: next, lines: [] };
+  const { edge } = origin;
+  const moving = {
+    x: hasRightEdge(edge) ? next.x + next.width : hasLeftEdge(edge) ? next.x : undefined,
+    y: hasBottomEdge(edge) ? next.y + next.height : hasTopEdge(edge) ? next.y : undefined,
+  };
+  const snap = computeEdgeSnap(next, moving, candidates, { scale });
+  let { x, y, width, height } = next;
+  let lines = snap.lines;
+  const dropAxis = (axis: 'x' | 'y') => { lines = lines.filter((line) => line.axis !== axis); };
+  if (snap.dx !== 0) {
+    const snappedWidth = hasRightEdge(edge) ? width + snap.dx : width - snap.dx;
+    if (snappedWidth >= origin.minWidth) {
+      if (hasLeftEdge(edge)) x += snap.dx;
+      width = snappedWidth;
+    } else {
+      dropAxis('x');
+    }
+  }
+  if (snap.dy !== 0) {
+    const snappedHeight = hasBottomEdge(edge) ? height + snap.dy : height - snap.dy;
+    if (snappedHeight >= origin.minHeight) {
+      if (hasTopEdge(edge)) y += snap.dy;
+      height = snappedHeight;
+    } else {
+      dropAxis('y');
+    }
+  }
+  return { preview: { ...next, x, y, width, height }, lines };
+};
+
+const sameSnapLines = (left: SnapLine[], right: SnapLine[]): boolean => (
+  left.length === right.length && left.every((line, index) => (
+    line.axis === right[index].axis &&
+    line.position === right[index].position &&
+    line.start === right[index].start &&
+    line.end === right[index].end
+  ))
+);
+
 export const applyNodeResizePreview = (
   node: CanvasNode,
   preview: NodeResizePreview | null | undefined,
@@ -178,6 +234,8 @@ export const useNodeResize = (
   const moveFrame = useRef<number | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [resizePreview, setResizePreview] = useState<NodeResizePreview | null>(null);
+  // Alignment guides for the moving edges; empty when nothing snaps.
+  const [resizeSnapLines, setResizeSnapLines] = useState<SnapLine[]>([]);
 
   const onResizeStart = useCallback(
     (
@@ -205,6 +263,15 @@ export const useNodeResize = (
         minHeight: minHeight ?? DEFAULT_MIN_HEIGHT,
         edge,
         lockAspect: node?.type === 'image',
+        snapCandidates: nodesRef.current
+          .filter((candidate) => candidate.id !== nodeId)
+          .map((candidate) => ({
+            id: candidate.id,
+            x: candidate.x,
+            y: candidate.y,
+            width: candidate.width,
+            height: candidate.height,
+          })),
       };
       lastMoveEvent.current = null;
       setResizingId(nodeId);
@@ -224,7 +291,13 @@ export const useNodeResize = (
     (e: React.MouseEvent | MouseEvent, commit: boolean) => {
       if (!resizing.current) return false;
       const r = resizing.current;
-      const next = computeNodeResizeGeometry(r, e.clientX, e.clientY, scale, e.shiftKey);
+      const free = computeNodeResizeGeometry(r, e.clientX, e.clientY, scale, e.shiftKey);
+      // Hold Cmd/Ctrl to resize without snapping, as in a drag.
+      const snapDisabled = e.metaKey || e.ctrlKey;
+      const { preview: next, lines } = snapDisabled
+        ? { preview: free, lines: [] }
+        : snapNodeResizeGeometry(r, free, scale, e.shiftKey);
+      setResizeSnapLines((prev) => (sameSnapLines(prev, lines) ? prev : lines));
       setResizePreview((prev) => {
         if (
           prev &&
@@ -278,6 +351,7 @@ export const useNodeResize = (
     resizing.current = null;
     setResizingId(null);
     setResizePreview(null);
+    setResizeSnapLines([]);
     return committed;
   }, [flushResizeMove]);
 
@@ -292,6 +366,7 @@ export const useNodeResize = (
     resizing.current = null;
     setResizingId(null);
     setResizePreview(null);
+    setResizeSnapLines([]);
   }, []);
 
   useEffect(() => {
@@ -305,6 +380,7 @@ export const useNodeResize = (
   return {
     resizingId,
     resizePreview,
+    resizeSnapLines,
     onResizeStart,
     onResizeMove,
     onResizeEnd,

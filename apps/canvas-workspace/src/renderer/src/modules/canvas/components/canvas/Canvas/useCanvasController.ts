@@ -244,6 +244,7 @@ export const useCanvasController = ({
   // Viewport-centred zoom shared by the keyboard and the zoom chip.
   const zoom = useCanvasZoomControls({
     containerRef, zoomByStep, zoomToScale, fitAllNodes, visibleNodes, selectedNodeIds,
+    panBy, getLiveTransform,
   });
   const { zoomBy: zoomCanvasBy, resetZoom: resetTransform, fitAll: handleFitAll } = zoom;
 
@@ -347,6 +348,7 @@ export const useCanvasController = ({
     canvasId,
     containerRef,
     loaded,
+    nodesRef,
     createUrlNode: creation.createUrlNode,
     screenToCanvas,
     setSelectedNodeIds,

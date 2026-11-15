@@ -132,6 +132,32 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     expect(latest?.messages.map(m => m.content)).toEqual(['A']);
   });
 
+  it('keeps an opened tool section open while a later reply streams', () => {
+    const toolReply = {
+      role: 'assistant' as const,
+      content: 'ran it',
+      timestamp: 1,
+      toolCalls: [{ id: 1, name: 'bash', args: {}, status: 'succeeded' as const }],
+    };
+    const thread = [{ role: 'user' as const, content: 'go', timestamp: 0 }, toolReply];
+    setConversationMessages(keyA, thread);
+    setConversationMessages(keyB, thread);
+
+    mount(keyA);
+    expect([...latest!.collapsedSections]).toEqual([1]);
+    act(() => latest!.toggleSection(1));
+    expect([...latest!.collapsedSections]).toEqual([]);
+
+    // Each text batch replaces the messages array.
+    act(() => setConversationMessages(keyA, [...thread, { role: 'assistant', content: 'stre', timestamp: 2 }]));
+    act(() => setConversationMessages(keyA, [...thread, { role: 'assistant', content: 'streaming', timestamp: 2 }]));
+    expect([...latest!.collapsedSections]).toEqual([]);
+
+    // Another conversation starts from its own defaults.
+    rerender(keyB);
+    expect([...latest!.collapsedSections]).toEqual([1]);
+  });
+
   it('surfaces per-conversation loading/clarification from the store', () => {
     setConversationMessages(keyA, [{ role: 'user', content: 'A', timestamp: 0 }]);
     setConversationMessages(keyB, [{ role: 'user', content: 'B', timestamp: 0 }]);
@@ -308,8 +334,23 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     act(() => callbacks.get('role-end')?.({ index: 1, total: 2 }));
     expect(latest?.relay?.speaking).toBe(2);
 
-    act(() => callbacks.get('complete')?.({ ok: true, response: 'done' }));
+    // Main returns one attributed reply per speaker; the live thread shows
+    // each of them, not only the final speaker.
+    act(() => callbacks.get('complete')?.({
+      ok: true,
+      response: 'done',
+      speakerRole: architect,
+      assistantMessages: [
+        { role: 'assistant', content: 'Needs a schema.', timestamp: 2, speakerRoleName: 'Reviewer' },
+        { role: 'assistant', content: 'done', timestamp: 3, speakerRoleName: 'Architect' },
+      ],
+    }));
     expect(latest?.relay).toBeNull();
+    expect(latest?.messages.map((message) => [message.role, message.content, message.speakerRoleName])).toEqual([
+      ['user', 'review this', undefined],
+      ['assistant', 'Needs a schema.', 'Reviewer'],
+      ['assistant', 'done', 'Architect'],
+    ]);
   });
 
   it('flushes text before tool starts and preserves order through completion', async () => {

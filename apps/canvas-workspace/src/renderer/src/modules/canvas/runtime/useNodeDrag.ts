@@ -79,6 +79,10 @@ export const useNodeDrag = (
      *  the node from `nodes` on every mousemove. */
     width: number;
     height: number;
+    /** Bounds of the whole drag set, relative to the primary node's start
+     *  position. A multi-node drag snaps this box, so any outer edge or the
+     *  group center can align, not only the primary node. */
+    snapBounds: { offsetX: number; offsetY: number; width: number; height: number };
     /** Snap candidates: every node NOT participating in the drag. Frozen
      *  at drag start so a long drag isn't paying for hit-testing against
      *  changing geometry mid-stroke. */
@@ -178,6 +182,11 @@ export const useNodeDrag = (
       const snapCandidates: SnapBox[] = currentNodes
         .filter((n) => !dragSet.has(n.id))
         .map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
+      const dragBoxes = currentNodes.filter((n) => dragSet.has(n.id));
+      const left = Math.min(node.x, ...dragBoxes.map((n) => n.x));
+      const top = Math.min(node.y, ...dragBoxes.map((n) => n.y));
+      const right = Math.max(node.x + node.width, ...dragBoxes.map((n) => n.x + n.width));
+      const bottom = Math.max(node.y + node.height, ...dragBoxes.map((n) => n.y + n.height));
 
       dragging.current = {
         id: node.id,
@@ -187,6 +196,12 @@ export const useNodeDrag = (
         nodeY: node.y,
         width: node.width,
         height: node.height,
+        snapBounds: {
+          offsetX: left - node.x,
+          offsetY: top - node.y,
+          width: right - left,
+          height: bottom - top,
+        },
         snapCandidates,
         companions,
         started: false,
@@ -257,7 +272,12 @@ export const useNodeDrag = (
 
       if (!snapDisabled) {
         const snap = computeSnap(
-          { x: baseX, y: baseY, width: d.width, height: d.height },
+          {
+            x: baseX + d.snapBounds.offsetX,
+            y: baseY + d.snapBounds.offsetY,
+            width: d.snapBounds.width,
+            height: d.snapBounds.height,
+          },
           d.snapCandidates,
           { scale, gridSize: GRID_SIZE },
         );

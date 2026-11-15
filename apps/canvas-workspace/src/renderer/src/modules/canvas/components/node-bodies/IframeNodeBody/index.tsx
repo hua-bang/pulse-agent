@@ -1,6 +1,7 @@
 import './index.css';
 import { useState } from 'react';
 import { useAppShell } from '../../../../../shared/appShell';
+import { useI18n } from '../../../../../i18n';
 import { useRightDock } from '../../../../../shared/dockPort';
 import { IframeOverviewControl } from './IframeOverviewControl';
 import { IframeEditor } from './IframeEditor';
@@ -23,6 +24,7 @@ export const IframeNodeBody = ({
 }: IframeNodeBodyProps) => {
   const { openArtifact, addDomSelectionToChat } = useRightDock();
   const { notify } = useAppShell();
+  const { t } = useI18n();
   const notifyChatDelivery = useChatDeliveryNotifier();
   const [domPickerActive, setDomPickerActive] = useState(false);
   const [reviewPickerActive, setReviewPickerActive] = useState(false);
@@ -58,8 +60,8 @@ export const IframeNodeBody = ({
       } else if (!result.cancelled) {
         notify({
           tone: 'error',
-          title: 'Could not select DOM',
-          description: result.error ?? 'The page did not return a selected element.',
+          title: t('linkDrawer.domSelectionFailed'),
+          description: result.error ?? t('linkDrawer.domSelectionMissing'),
           autoCloseMs: 3600,
         });
       }
@@ -90,8 +92,8 @@ export const IframeNodeBody = ({
       } else if (!result.cancelled) {
         notify({
           tone: 'error',
-          title: 'Could not select DOM',
-          description: result.error ?? 'The page did not return a selected element.',
+          title: t('linkDrawer.domSelectionFailed'),
+          description: result.error ?? t('linkDrawer.domSelectionMissing'),
           autoCloseMs: 3600,
         });
       }
@@ -131,8 +133,10 @@ export const IframeNodeBody = ({
       setDraftText('');
       notify({
         tone: 'success',
-        title: 'Review sent to Chat',
-        description: `${ready.length} comment${ready.length === 1 ? '' : 's'} sent as one request.`,
+        title: t('canvas.node.review.sent'),
+        description: ready.length === 1
+          ? t('canvas.node.review.sentDescOne')
+          : t('canvas.node.review.sentDescOther', { count: ready.length }),
         autoCloseMs: 1800,
       });
     } finally {

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
 import { ChatFloatingButton } from '../../../../chat/floating';
 import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
@@ -25,6 +25,20 @@ const NodeContextMenu = lazy(() =>
 const EdgeStylePanel = lazy(() =>
   import('../EdgeStylePanel').then((module) => ({ default: module.EdgeStylePanel })),
 );
+// Off by default, so most sessions never load it.
+const CanvasMinimap = lazy(() =>
+  import('../CanvasMinimap').then((module) => ({ default: module.CanvasMinimap })),
+);
+
+const MINIMAP_STORAGE_KEY = 'pulse-canvas:minimap-open';
+
+const readMinimapOpen = (): boolean => {
+  try {
+    return window.localStorage.getItem(MINIMAP_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
 
 export const projectEdgeOverlayGeometry = (
   edges: CanvasEdge[] | undefined,
@@ -103,6 +117,17 @@ export const CanvasOverlays = ({
 }: CanvasOverlaysProps) => {
   const { t } = useI18n();
   const [nextSteps, setNextSteps] = useState<('file' | 'agent')[]>([]);
+  const [minimapOpen, setMinimapOpen] = useState(readMinimapOpen);
+  const toggleMinimap = useCallback(() => {
+    setMinimapOpen((open) => {
+      try {
+        window.localStorage.setItem(MINIMAP_STORAGE_KEY, open ? '0' : '1');
+      } catch {
+        // The choice still applies for this session.
+      }
+      return !open;
+    });
+  }, []);
   const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
   const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
   const overlayEdges = useMemo(
@@ -257,6 +282,8 @@ export const CanvasOverlays = ({
             onZoomBy={zoom?.zoomBy}
             onZoomTo={zoom?.zoomTo}
             onFitSelection={zoom?.fitSelection}
+            onToggleMinimap={zoom ? toggleMinimap : undefined}
+            minimapOpen={minimapOpen}
           />
           {nodes.length > 0 && nextSteps.length > 0 && (
             <Suspense fallback={null}>{emptyHint}</Suspense>
@@ -273,6 +300,17 @@ export const CanvasOverlays = ({
           )}
         </div>
       </div>
+
+      {minimapOpen && zoom && nodes.length > 0 && (
+        <Suspense fallback={null}>
+          <CanvasMinimap
+            nodes={nodes}
+            transform={transform}
+            viewport={zoom.getViewportSize()}
+            onCenterOn={zoom.centerOn}
+          />
+        </Suspense>
+      )}
 
       {searchOpen && (
         <Suspense fallback={null}>

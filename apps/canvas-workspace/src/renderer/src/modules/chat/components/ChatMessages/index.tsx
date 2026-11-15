@@ -14,6 +14,7 @@ import { useChatMessagesController } from './useChatMessagesController';
 import { useStableRowHandlers } from './useStableRowHandlers';
 import { countLaterMessages } from '../../runtime/useConversationRecovery';
 import { useConversationCompactingSince } from '../../runtime/conversationCompaction';
+import { askedNodeIds, type AddReplyToCanvas } from '../../runtime/useAddReplyToCanvas';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -36,7 +37,7 @@ interface ChatMessagesProps {
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   /** Keep an assistant reply on the canvas as a note; absent hides the action. */
-  onAddReplyToCanvas?: (content: string) => void;
+  onAddReplyToCanvas?: AddReplyToCanvas;
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
@@ -137,7 +138,12 @@ export const ChatMessages = ({
     onToggleSection,
     onToggleToolExpand,
     onAddImageToCanvas,
-    onAddReplyToCanvas,
+    // A reply note connects to the nodes its question referenced.
+    onAddReplyToCanvas: onAddReplyToCanvas
+      ? (content: string, messageIndex: number) => onAddReplyToCanvas(content, {
+        sourceNodeIds: askedNodeIds(messages, messageIndex),
+      })
+      : undefined,
     onEditUserMessage,
     onRegenerate,
     onFork,

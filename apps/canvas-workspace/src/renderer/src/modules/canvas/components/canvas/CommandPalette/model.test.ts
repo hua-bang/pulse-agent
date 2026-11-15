@@ -61,3 +61,17 @@ describe('CommandPalette search-only commands', () => {
     expect(ids).toEqual(['workspace:w1']);
   });
 });
+
+describe('CommandPalette chat results', () => {
+  const chat: PaletteCommand = { id: 'chat:w1:s1', title: 'Plan the launch', group: 'navigate', run: vi.fn() };
+
+  it('lists chats in their own section after nodes and commands', () => {
+    const sections = buildPaletteSections([], [], 'launch', [chat]);
+    expect(sections.map((section) => section.id)).toEqual(['chats']);
+    expect(sections[0].items).toEqual([{ kind: 'command', command: chat }]);
+  });
+
+  it('leaves chats out of the empty-query overview', () => {
+    expect(buildPaletteSections([], [], '', [chat])).toEqual([]);
+  });
+});

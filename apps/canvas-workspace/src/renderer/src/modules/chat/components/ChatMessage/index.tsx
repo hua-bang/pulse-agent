@@ -17,6 +17,7 @@ import { ChatMessageToolResults } from './ChatMessageToolResults';
 import { MarkdownContent } from './MarkdownContent';
 import { ChatMessageEditor } from './ChatMessageEditor';
 import { ChatRecoveryConfirm } from './ChatRecoveryConfirm';
+import { selectedTextWithin } from '../../runtime/useAddReplyToCanvas';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -34,8 +35,11 @@ interface ChatMessageProps {
   onToggleSection: (index: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
-  /** Keep an assistant reply on the canvas as a note; absent hides the action. */
-  onAddReplyToCanvas?: (content: string) => void;
+  /**
+   * Keep an assistant reply, or the text selected in it, on the canvas as a
+   * note; absent hides the action.
+   */
+  onAddReplyToCanvas?: (content: string, messageIndex: number) => void;
   /** DOM id used by ChatAnchors to scroll this message into view. */
   anchorId?: string;
   /** Replace this user message with `newContent` and re-run the turn. */
@@ -284,7 +288,9 @@ const ChatMessageView = ({
           onRegenerate={canRegenerate ? handleRegenerate : undefined}
           onFork={onFork && message.role === 'assistant' && !loading && !isStreaming
             ? () => onFork(index) : undefined}
-          onAddToCanvas={canAddToCanvas ? () => onAddReplyToCanvas?.(message.content) : undefined}
+          onAddToCanvas={canAddToCanvas
+            ? () => onAddReplyToCanvas?.(selectedTextWithin(bodyRef.current) || message.content, index)
+            : undefined}
         />
       )}
     </div>

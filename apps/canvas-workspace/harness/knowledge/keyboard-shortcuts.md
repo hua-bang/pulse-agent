@@ -252,9 +252,13 @@ leaves the chord to the canvas layer:
   `AppShellProvider` mounts. That palette lists only the app navigation
   commands (pages and workspaces) from `shared/appCommands.ts`. The canvas
   palette shows the same commands, but only when the query matches them
-  (`searchOnly`).
+  (`searchOnly`). With a query, both palettes also list matching stored chats
+  (`CommandPalette/useChatSessionCommands.ts`). A chat result dispatches
+  `requestOpenChatSession`; `App/useOpenSessionInScope.ts` opens it in its
+  owning scope.
 
-Guard: `useAppShortcuts.test.ts`, `AppShellProvider/commandPalette.test.tsx`.
+Guard: `useAppShortcuts.test.ts`, `AppShellProvider/commandPalette.test.tsx`,
+`CommandPalette/useChatSessionCommands.test.tsx`.
 
 `app.switchWorkspace` (Mod+1..8) follows the open-tab order, not the sidebar
 order; Mod+9 is the last tab. With no tab open it falls back to the

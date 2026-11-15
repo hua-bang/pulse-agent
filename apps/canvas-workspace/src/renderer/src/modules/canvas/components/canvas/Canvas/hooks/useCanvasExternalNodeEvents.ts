@@ -7,6 +7,7 @@ import {
   type AddCanvasNoteDetail,
 } from '../../../../../../shared/canvasNoteRequest';
 import type { AddNodeOptions } from '../../../../document/useCanvasContentCommands';
+import { placeBesideSource } from './nodePlacement';
 
 interface UseCanvasExternalNodeEventsParams {
   addNode: (
@@ -19,6 +20,7 @@ interface UseCanvasExternalNodeEventsParams {
   containerRef: React.RefObject<HTMLDivElement>;
   /** The container ref is only attached once the canvas has loaded. */
   loaded: boolean;
+  nodesRef: React.MutableRefObject<CanvasNode[]>;
   createUrlNode: (
     value: string,
     options?: { at?: { x: number; y: number }; title?: string },
@@ -56,6 +58,7 @@ export const useCanvasExternalNodeEvents = ({
   canvasId,
   containerRef,
   loaded,
+  nodesRef,
   createUrlNode,
   screenToCanvas,
   setSelectedNodeIds,
@@ -164,8 +167,9 @@ export const useCanvasExternalNodeEvents = ({
       window.removeEventListener('canvas:add-workspace-node', handler);
     };
   }, [addNode, canvasId, containerRef, screenToCanvas, setSelectedNodeIds]);
-  // Chat asks for a reply to be kept as a note. Add it at the view centre,
-  // write its markdown file, and select it.
+  // Chat asks for a reply to be kept as a note. Put it beside the node the
+  // question referenced and connect them, else at the view centre; write its
+  // markdown file and select it. Node and edge are one undo step.
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<AddCanvasNoteDetail>).detail;
@@ -179,10 +183,12 @@ export const useCanvasExternalNodeEvents = ({
         container,
       );
       const size = getNodeDefaultSize('file');
-      const node = addNode('file', center.x - size.width / 2, center.y - size.height / 2, {
+      const slot = placeBesideSource(nodesRef.current, detail.sourceNodeIds, center, size);
+      const node = addNode('file', slot.x, slot.y, {
         fileName: detail.title,
         fileContent: detail.content,
         nodePatch: { title: detail.title, data: { content: detail.content } as CanvasNode['data'] },
+        connectFrom: slot.source ? { kind: 'node', nodeId: slot.source.id, anchor: 'auto' } : undefined,
       });
       setSelectedNodeIds([node.id]);
       detail.handled = true;
@@ -191,5 +197,5 @@ export const useCanvasExternalNodeEvents = ({
     return () => {
       window.removeEventListener(ADD_CANVAS_NOTE_EVENT, handler);
     };
-  }, [addNode, canvasId, containerRef, loaded, screenToCanvas, setSelectedNodeIds]);
+  }, [addNode, canvasId, containerRef, loaded, nodesRef, screenToCanvas, setSelectedNodeIds]);
 };
