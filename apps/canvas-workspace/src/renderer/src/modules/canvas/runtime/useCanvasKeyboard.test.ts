@@ -383,6 +383,26 @@ describe('useCanvasKeyboard', () => {
     }));
   });
 
+  it('keeps only the edges between copied nodes on the canvas clipboard', () => {
+    const setClipboard = vi.fn();
+    const inner = {
+      id: 'inner',
+      source: { kind: 'node' as const, nodeId: 'node-1' },
+      target: { kind: 'node' as const, nodeId: 'node-2' },
+    };
+    const outer = { ...inner, id: 'outer', target: { kind: 'node' as const, nodeId: 'node-3' } };
+    mountKeyboard({
+      nodes: [node('node-1'), node('node-2'), node('node-3')],
+      edges: [inner, outer],
+      selectedNodeIds: ['node-1', 'node-2'],
+      setClipboard,
+    });
+
+    press({ key: 'c', metaKey: true });
+
+    expect(setClipboard).toHaveBeenCalledWith(expect.objectContaining({ edges: [inner] }));
+  });
+
   it('copies text-node prose, not placeholder titles, to the system clipboard', () => {
     const setClipboard = vi.fn();
     mountKeyboard({

@@ -5,7 +5,7 @@ import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore, type AgentSessionListEntry } from './sessions/store/session-store';
 import { scheduledTaskIdFromStoreId, scopeSessionStoreId } from '../../shared/agent-chat';
 import { scheduledTaskTitles } from './scheduled/scheduled-session-names';
-import { searchSessionTitles } from './sessions/session-title-search';
+import { searchSessionContent, searchSessionTitles } from './sessions/session-title-search';
 import { appendActiveSessionGroups, scopeFromServiceKey, scopeServiceKey as scopeKey } from './sessions/active-session-groups';
 import { ScopeActivationGate } from './scope/scope-activation-gate';
 import type { CanvasToolResultEvent } from './run/engine-stream-callbacks';
@@ -376,9 +376,9 @@ export class CanvasAgentService {
     return SessionStore.readCurrentSessionId(scopeSessionStoreId(scope));
   }
 
-  /** Session-title lookup for the @-mention popup (see session-title-search.ts). */
-  async searchSessions(query: string, limit = 8): Promise<SessionSearchHit[]> {
-    return searchSessionTitles(query, limit);
+  /** Titles for the @-mention popup; message text for the rail (session-title-search.ts). */
+  async searchSessions(query: string, limit = 8, mode: 'title' | 'content' = 'title'): Promise<SessionSearchHit[]> {
+    return mode === 'content' ? searchSessionContent(query, limit) : searchSessionTitles(query, limit);
   }
 
   /**

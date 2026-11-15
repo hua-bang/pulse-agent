@@ -105,12 +105,8 @@ export const useSidebarLayers = ({
     const node = activeNodes.find((item) => item.id === renamingLayerId);
     setRenamingLayerId(null);
     if (!node || !onNodeRename || !nextTitle || node.title === nextTitle) return;
+    // The layer row shows the new title; no success toast needed.
     onNodeRename(renamingLayerId, nextTitle);
-    notify({
-      tone: 'success',
-      title: t('sidebar.layerRenamed'),
-      description: `${getNodeDisplayLabel(node)} -> ${nextTitle}`,
-    });
   };
   const handleLayerDelete = useCallback((nodeId: string) => {
     const node = activeNodes.find((item) => item.id === nodeId);

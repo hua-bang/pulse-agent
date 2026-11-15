@@ -5,6 +5,10 @@ import { useWebviewShortcutBridge } from '../../platform/browser/useWebviewShort
 import { toggleTheme } from '../../shared/theme';
 import { requestOpenAppSettings } from '../../shared/appShell';
 import { isGlobalChatLauncherVisible, useRightDock } from '../../modules/dock';
+import { readOpenTabs, workspaceIdForTabIndex } from '../shell/WorkspaceTabs/openTabsStorage';
+import { requestOpenAppCommandPalette } from '../../shared/appCommands';
+import { useI18n } from '../../i18n';
+import { useAppNavigationCommands, type AppNavigationRoutes } from './appNavigationCommands';
 
 interface Options {
   /** True while a modal/overlay owns the keyboard. */
@@ -14,7 +18,7 @@ interface Options {
   toggleSidebar: () => void;
   /** Hide or restore the sidebar and the dock together. */
   togglePanels: () => void;
-  /** Jump to the nth (1-based) workspace, if it exists. */
+  /** Jump to the nth (1-based) open tab; 9 means the last tab. */
   selectWorkspaceByIndex: (index: number) => void;
   /** Close the active workspace tab; false when no tab bar is showing. */
   closeActiveTab: () => boolean;
@@ -25,6 +29,11 @@ interface Options {
    * route, where the canvas layer owns the side-chat chord.
    */
   toggleDockChat: () => boolean;
+  /**
+   * Open the app command palette on routes without a canvas; false on the
+   * canvas route, where the canvas layer owns Cmd/Ctrl+K.
+   */
+  openCommandPalette: () => boolean;
 }
 
 /**
@@ -63,9 +72,12 @@ export const useAppShortcuts = ({
   closeActiveTab,
   reopenClosedTab,
   toggleDockChat,
+  openCommandPalette,
 }: Options) => {
   const toggleDockChatRef = useRef(toggleDockChat);
   toggleDockChatRef.current = toggleDockChat;
+  const openCommandPaletteRef = useRef(openCommandPalette);
+  openCommandPaletteRef.current = openCommandPalette;
   const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
   const overlayRef = useRef(isOverlayOpen);
   overlayRef.current = isOverlayOpen;
@@ -119,10 +131,15 @@ export const useAppShortcuts = ({
 
       const match = matchShortcut(event, 'app');
       if (!match) {
-        // The floating chat button names this chord on every page, but its
-        // canvas-layer owner is locked off the canvas route.
-        if (matchShortcut(event, 'canvas')?.id !== 'canvas.toggleChatPanel') return;
-        if (toggleDockChatRef.current()) event.preventDefault();
+        // These chords belong to the canvas layer, which is locked off the
+        // canvas route. The floating chat button names the chat chord on
+        // every page, and Cmd/Ctrl+K opens the app palette there.
+        const canvasId = matchShortcut(event, 'canvas')?.id;
+        if (canvasId === 'canvas.toggleChatPanel') {
+          if (toggleDockChatRef.current()) event.preventDefault();
+        } else if (canvasId === 'canvas.commandPalette' || canvasId === 'canvas.commandPaletteAlt') {
+          if (openCommandPaletteRef.current()) event.preventDefault();
+        }
         return;
       }
       if (match.definition.editable !== 'allow' && isEditableTarget(event.target)) return;
@@ -141,10 +158,10 @@ interface AppShortcutBindingsOptions {
   openShortcuts: () => void;
   toggleSidebar: () => void;
   togglePanels: () => void;
-  workspaces: Array<{ id: string }>;
+  workspaces: Array<{ id: string; name: string }>;
   selectWorkspace: (id: string) => void;
   setLocation: (path: string) => void;
-  routes: { canvas: string; chat: string };
+  routes: AppNavigationRoutes;
 }
 
 /** Connect app-level shortcuts, including chords forwarded from webview guests. */
@@ -160,7 +177,9 @@ export const useAppShortcutBindings = ({
   routes,
 }: AppShortcutBindingsOptions): void => {
   const dock = useRightDock();
+  const { t } = useI18n();
   useWebviewShortcutBridge();
+  useAppNavigationCommands({ workspaces, routes, selectWorkspace, setLocation, t });
   useAppShortcuts({
     isOverlayOpen,
     openShortcuts,
@@ -168,8 +187,8 @@ export const useAppShortcutBindings = ({
     toggleSidebar,
     togglePanels,
     selectWorkspaceByIndex: (index) => {
-      const workspace = workspaces[index - 1];
-      if (workspace) selectWorkspace(workspace.id);
+      const id = workspaceIdForTabIndex(index, readOpenTabs(), workspaces);
+      if (id) selectWorkspace(id);
     },
     closeActiveTab: () => {
       if (activeView !== 'canvas') return false;
@@ -184,6 +203,11 @@ export const useAppShortcutBindings = ({
     toggleDockChat: () => {
       if (!isGlobalChatLauncherVisible(activeView)) return false;
       dock.toggleChat();
+      return true;
+    },
+    openCommandPalette: () => {
+      if (activeView === 'canvas') return false;
+      requestOpenAppCommandPalette();
       return true;
     },
   });

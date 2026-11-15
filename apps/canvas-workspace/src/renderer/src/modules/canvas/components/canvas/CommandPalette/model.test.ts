@@ -40,3 +40,24 @@ describe('CommandPalette model', () => {
       .toEqual(['tagged']);
   });
 });
+
+describe('CommandPalette search-only commands', () => {
+  const commands: PaletteCommand[] = [
+    { id: 'fit', title: 'Fit all', group: 'view', run: vi.fn() },
+    { id: 'workspace:w1', title: 'Open workspace: Research', group: 'navigate', searchOnly: true, run: vi.fn() },
+  ];
+
+  it('keeps them out of the empty-query overview', () => {
+    const ids = buildPaletteSections([], commands, '')
+      .flatMap((section) => section.items)
+      .map((item) => (item.kind === 'command' ? item.command.id : item.node.id));
+    expect(ids).toEqual(['fit']);
+  });
+
+  it('lists them when the query matches', () => {
+    const ids = buildPaletteSections([], commands, 'research')
+      .flatMap((section) => section.items)
+      .map((item) => (item.kind === 'command' ? item.command.id : item.node.id));
+    expect(ids).toEqual(['workspace:w1']);
+  });
+});

@@ -14,7 +14,7 @@ import {
 } from '../../../model/workspaceModel';
 import { createAgentDetailModel } from '../../AgentDetail';
 import { useLiveAgentOutput } from '../../AgentDetail/useLiveAgentOutput';
-import { hasConcreteHumanGatePrompt } from '../../HumanGateCard';
+import { isHumanFacingGate } from '../../HumanGateCard';
 import { createAgentTeamFramePresentation } from '../presentation';
 import { useAgentTeamFrameSelection } from '../useAgentTeamFrameSelection';
 
@@ -32,10 +32,6 @@ const isTeamAgentNode = (
   node.type === 'agent'
   && (node.data as AgentNodeData).agentTeamId === teamId
   && Boolean((node.data as AgentNodeData).agentTeamAgentId)
-);
-
-const isHumanFacingGate = (gate: AgentTeamSnapshot['runtime']['humanGates'][number]) => (
-  gate.metadata?.audience !== 'lead' && hasConcreteHumanGatePrompt(gate.prompt)
 );
 
 export function useAgentTeamFrameModel({

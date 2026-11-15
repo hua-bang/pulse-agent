@@ -57,7 +57,7 @@ const getClipboardText = (event: ClipboardEvent): string => {
   return doc.body.textContent ?? '';
 };
 
-const createTextPatch = (text: string): Pick<CanvasNode, 'width' | 'height' | 'title' | 'data'> => {
+export const createTextPatch = (text: string): Pick<CanvasNode, 'width' | 'height' | 'title' | 'data'> => {
   const lines = text.split(/\r?\n/);
   const longestLine = Math.max(1, ...lines.map((line) => line.length));
   const width = Math.max(180, Math.min(520, longestLine * 8 + 32));

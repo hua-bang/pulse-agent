@@ -36,6 +36,7 @@ export {
   SHORTCUTS,
   type AppShortcutId,
   type CanvasShortcutId,
+  type ChatShortcutId,
   type ShortcutId,
   type ShortcutIdFor,
   type TerminalShortcutId,

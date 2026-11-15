@@ -293,6 +293,20 @@ export const useCanvas = (
     });
   }, [markMoving, commitTransform, applyMotion]);
 
+  /** Shift the view by screen px as a hand pan does; a node drag near the
+   *  viewport edge uses it to reveal the canvas beyond. */
+  const panBy = useCallback((dx: number, dy: number) => {
+    if (dx === 0 && dy === 0) return;
+    markMoving();
+    applyMotion('pan');
+    const prev = transformRef.current;
+    commitTransform({
+      ...prev,
+      x: safeNum(prev.x + dx),
+      y: safeNum(prev.y + dy)
+    });
+  }, [markMoving, commitTransform, applyMotion]);
+
   const handleMouseUp = useCallback(() => {
     isPanning.current = false;
     setPanning(false);
@@ -351,10 +365,15 @@ export const useCanvas = (
     zoomAtCentre((scale) => scale * factor, container);
   }, [zoomAtCentre]);
 
+  /** Go to an exact zoom (for example a 50% preset), keeping the view centre. */
+  const zoomToScale = useCallback((scale: number, container: HTMLElement | null) => {
+    zoomAtCentre(() => scale, container);
+  }, [zoomAtCentre]);
+
   /** Back to 100% without leaving the content that is on screen. */
   const zoomToActualSize = useCallback((container: HTMLElement | null) => {
-    zoomAtCentre(() => 1, container);
-  }, [zoomAtCentre]);
+    zoomToScale(1, container);
+  }, [zoomToScale]);
 
   const renderTransform = moving ? transformRef.current : transform;
   // A gesture's latest frame lives only in the ref until the idle timer
@@ -372,8 +391,10 @@ export const useCanvas = (
     handleMouseMove,
     handleMouseUp,
     screenToCanvas,
+    panBy,
     resetTransform,
     zoomByStep,
+    zoomToScale,
     zoomToActualSize,
     getLiveTransform
   };

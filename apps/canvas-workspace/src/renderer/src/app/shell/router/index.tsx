@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 
 interface PulseRouterContextValue {
   activeKey: string | undefined;
@@ -53,6 +54,10 @@ export const PulseRouterView: React.FC<PulseRouterViewProps> = (props) => {
 
   const isActive = activeKey === name;
 
+  // Each route contains its own render errors, so one broken page does not
+  // blank the whole window.
+  const content = <RouteErrorBoundary route={name}>{children}</RouteErrorBoundary>;
+
   if (keepAlive) {
     return (
       <div
@@ -62,10 +67,10 @@ export const PulseRouterView: React.FC<PulseRouterViewProps> = (props) => {
             : { display: 'none' }
         }
       >
-        {children}
+        {content}
       </div>
     );
   }
 
-  return isActive ? children : null;
+  return isActive ? content : null;
 }

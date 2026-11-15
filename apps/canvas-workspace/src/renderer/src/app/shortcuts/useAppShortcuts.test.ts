@@ -29,6 +29,7 @@ describe('useAppShortcuts', () => {
       closeActiveTab: vi.fn(() => true),
       reopenClosedTab: vi.fn(() => true),
       toggleDockChat: vi.fn(() => true),
+      openCommandPalette: vi.fn(() => true),
       ...overrides,
     };
     const Harness = () => {
@@ -77,6 +78,20 @@ describe('useAppShortcuts', () => {
     const options = mount({ toggleDockChat: vi.fn(() => false) });
     expect(press({ key: 'A', ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(false);
     expect(options.toggleDockChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the app palette with Mod+K and Ctrl+H off the canvas route', () => {
+    const options = mount();
+    expect(press({ key: 'k', metaKey: true }).defaultPrevented).toBe(true);
+    expect(press({ key: 'h', ctrlKey: true }).defaultPrevented).toBe(true);
+    expect(options.openCommandPalette).toHaveBeenCalledTimes(2);
+    expect(options.toggleDockChat).not.toHaveBeenCalled();
+  });
+
+  it('leaves Mod+K to the canvas palette on the canvas route', () => {
+    const options = mount({ openCommandPalette: vi.fn(() => false) });
+    expect(press({ key: 'k', metaKey: true }).defaultPrevented).toBe(false);
+    expect(options.openCommandPalette).toHaveBeenCalledTimes(1);
   });
 
   it('leaves Mod+W alone when no tab bar is showing', () => {

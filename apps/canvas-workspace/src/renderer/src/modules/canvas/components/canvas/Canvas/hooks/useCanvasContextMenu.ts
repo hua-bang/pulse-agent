@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import type { CanvasNode } from '../../../../../../types';
+import type { CanvasNode, EdgeEndpoint } from '../../../../../../types';
+import type { ConnectBlankDrop } from '../../../../runtime/useEdgeInteraction';
 import { getNodeDefaultSize, type CreatableCanvasNodeType } from '../../../../../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../../..';
 import { useFileNodeEditorRegistry } from '../../../../../../shared/fileNodeEditorRegistry';
@@ -10,6 +11,9 @@ interface ContextMenuState {
   screenY: number;
   canvasX: number;
   canvasY: number;
+  /** Set when a connect drag ended on blank canvas: the created node
+   *  becomes the edge's target. */
+  connectFrom?: EdgeEndpoint;
 }
 
 interface Options {
@@ -103,6 +107,32 @@ export const useCanvasContextMenu = ({
   }, [registry]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+  // A connect drop opens the create menu. Picking a type consumes the drop;
+  // any other way the menu closes keeps the loose-ended edge, as before.
+  const connectDropRef = useRef<ConnectBlankDrop | null>(null);
+  useEffect(() => {
+    const drop = connectDropRef.current;
+    if (!drop || contextMenu?.connectFrom === drop.source) return;
+    connectDropRef.current = null;
+    drop.commitLoose();
+  }, [contextMenu]);
+
+  const openConnectMenu = useCallback((drop: ConnectBlankDrop) => {
+    connectDropRef.current = drop;
+    // The mouseup that ended the drag is followed in the same task by a
+    // click, which the blank-canvas handler treats as "close the menu".
+    const swallowClick = (event: MouseEvent) => event.stopPropagation();
+    window.addEventListener('click', swallowClick, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', swallowClick, true), 0);
+    setContextMenu({
+      screenX: drop.client.x,
+      screenY: drop.client.y,
+      canvasX: drop.point.x,
+      canvasY: drop.point.y,
+      connectFrom: drop.source,
+    });
+  }, []);
+
   /** Shared post-add side effects: select, flash, and reveal the new node
    *  so every entry point (right-click, toolbar, palette, empty-canvas
    *  hint) gives the same visible confirmation. The node appearing,
@@ -153,6 +183,10 @@ export const useCanvasContextMenu = ({
       // "create here" affordances in design tools.
       let { canvasX: x, canvasY: y } = contextMenu;
       let createOptions = options;
+      if (contextMenu.connectFrom) {
+        connectDropRef.current = null;
+        createOptions = { ...options, connectFrom: contextMenu.connectFrom };
+      }
       if (container) {
         // A frame is sized to the view, and a node that would run past the
         // right or bottom edge moves back inside it. Otherwise the reveal
@@ -174,7 +208,7 @@ export const useCanvasContextMenu = ({
         x = Math.max(topLeft.x + margin, Math.min(x, bottomRight.x - margin - width));
         y = Math.max(topLeft.y + margin, Math.min(y, bottomRight.y - margin - height));
         if (type === 'frame') {
-          createOptions = { ...options, nodePatch: { ...options?.nodePatch, width, height } };
+          createOptions = { ...createOptions, nodePatch: { ...options?.nodePatch, width, height } };
         }
       }
       const slot = resolveNonStackingSlot(nodesRef.current ?? [], x, y);
@@ -238,6 +272,7 @@ export const useCanvasContextMenu = ({
     contextMenu,
     setContextMenu,
     closeContextMenu,
+    openConnectMenu,
     isBlankCanvasTarget,
     handleContextMenu,
     handleDoubleClick,

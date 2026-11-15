@@ -1,7 +1,9 @@
 import { useCallback, type MutableRefObject } from 'react';
-import type { CanvasNode, FileNodeData } from '../../../types';
+import type { CanvasEdge, CanvasNode, EdgeEndpoint, FileNodeData } from '../../../types';
+import { createDefaultEdge } from '../model/edgeFactory';
 import { createDefaultNode, genId } from '../../../utils/nodeFactory';
-import { pasteOffset } from '../model/pasteOffset';
+import { pasteOffset, pasteOffsetInView, type CanvasRect } from '../model/pasteOffset';
+import { cloneEdgesForPaste, internalEdges } from '../model/pasteEdges';
 import { withContainerDescendants } from '../../../utils/frameHierarchy';
 import { cloneNodeData } from './cloneNodeData';
 import { resizeGroupsToChildren } from '../model/resizeGroupsToChildren';
@@ -10,12 +12,24 @@ export interface AddNodeOptions {
   fileName?: string;
   fileContent?: string;
   nodePatch?: Partial<CanvasNode>;
+  /** Connect a default edge from this endpoint to the new node. The node
+   *  and the edge land in one history entry, so one undo removes both. */
+  connectFrom?: EdgeEndpoint;
+}
+
+export interface PasteOptions {
+  /** Edges to copy with the nodes; only those between pasted nodes are kept. */
+  edges?: readonly CanvasEdge[];
+  /** Visible canvas area. A paste that would land outside it is centred in it. */
+  view?: CanvasRect | null;
 }
 
 interface ContentCommandOptions {
   canvasId: string;
   nodesRef: MutableRefObject<CanvasNode[]>;
+  edgesRef: MutableRefObject<CanvasEdge[]>;
   applyNodes: (nodes: CanvasNode[], addToHistory?: boolean) => void;
+  applyState: (patch: { nodes?: CanvasNode[]; edges?: CanvasEdge[] }, addToHistory?: boolean) => void;
 }
 
 const materializeFileNode = async ({
@@ -26,7 +40,7 @@ const materializeFileNode = async ({
   nodeId,
   nodesRef,
   writeContent,
-}: ContentCommandOptions & {
+}: Pick<ContentCommandOptions, 'applyNodes' | 'canvasId' | 'nodesRef'> & {
   content: string;
   fileName?: string;
   nodeId: string;
@@ -56,7 +70,7 @@ const materializeFileNode = async ({
 };
 
 export const useCanvasContentCommands = (options: ContentCommandOptions) => {
-  const { applyNodes, canvasId, nodesRef } = options;
+  const { applyNodes, applyState, canvasId, edgesRef, nodesRef } = options;
 
   const addNode = useCallback((
     type: CanvasNode['type'],
@@ -83,14 +97,27 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
         writeContent: typeof addOptions?.fileContent === 'string',
       });
     }
-    applyNodes([...nodesRef.current, node]);
+    if (addOptions?.connectFrom) {
+      const edge = createDefaultEdge(addOptions.connectFrom, {
+        kind: 'node',
+        nodeId: node.id,
+        anchor: 'auto',
+      });
+      applyState({ nodes: [...nodesRef.current, node], edges: [...edgesRef.current, edge] });
+    } else {
+      applyNodes([...nodesRef.current, node]);
+    }
     void window.canvasWorkspace?.telemetry?.track('node_created', { type: node.type });
     return node;
-  }, [applyNodes, canvasId, nodesRef]);
+  }, [applyNodes, applyState, canvasId, edgesRef, nodesRef]);
 
-  const pasteNodes = useCallback((sources: CanvasNode[]) => {
+  const pasteNodes = useCallback((sources: CanvasNode[], pasteOptions: PasteOptions = {}) => {
     if (sources.length === 0) return [];
-    const { x: offsetX, y: offsetY } = pasteOffset(sources, nodesRef.current);
+    const { x: offsetX, y: offsetY } = pasteOffsetInView(
+      sources,
+      pasteOffset(sources, nodesRef.current),
+      pasteOptions.view,
+    );
     const idMap = new Map(sources.map(source => [source.id, genId()] as const));
     const now = Date.now();
     const pasted = sources.map((source): CanvasNode => ({
@@ -114,17 +141,25 @@ export const useCanvasContentCommands = (options: ContentCommandOptions) => {
         writeContent: true,
       });
     });
-    applyNodes(resizeGroupsToChildren([...nodesRef.current, ...pasted]));
+    // Nodes and their edges land in one history entry, so one undo removes
+    // the whole paste.
+    const edges = cloneEdgesForPaste(pasteOptions.edges ?? [], idMap, now);
+    applyState({
+      nodes: resizeGroupsToChildren([...nodesRef.current, ...pasted]),
+      ...(edges.length > 0 ? { edges: [...edgesRef.current, ...edges] } : {}),
+    });
     return pasted;
-  }, [applyNodes, canvasId, nodesRef]);
+  }, [applyNodes, applyState, canvasId, edgesRef, nodesRef]);
 
   // One history entry for the whole selection, so a single undo removes
   // every copy.
   const duplicateNodes = useCallback((ids: readonly string[]) => {
     const idSet = new Set(ids);
     const selected = nodesRef.current.filter(node => idSet.has(node.id));
-    return pasteNodes(withContainerDescendants(selected, nodesRef.current));
-  }, [nodesRef, pasteNodes]);
+    const sources = withContainerDescendants(selected, nodesRef.current);
+    const sourceIds = new Set(sources.map(node => node.id));
+    return pasteNodes(sources, { edges: internalEdges(edgesRef.current, sourceIds) });
+  }, [edgesRef, nodesRef, pasteNodes]);
 
   return { addNode, duplicateNodes, pasteNodes };
 };

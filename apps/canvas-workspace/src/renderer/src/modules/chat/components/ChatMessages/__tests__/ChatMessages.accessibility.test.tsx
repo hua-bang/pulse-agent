@@ -66,6 +66,23 @@ describe('ChatMessages accessibility', () => {
     expect(el.querySelector('[aria-label="Fork chat from here"]')).toBeNull();
   });
 
+  it('keeps a finished assistant reply on the canvas, and hides the action for user turns', async () => {
+    const onAddReplyToCanvas = vi.fn();
+    const el = await renderMessages([
+      { role: 'user', content: 'question', timestamp: 1 },
+      { role: 'assistant', content: '## Plan\n\nstep', timestamp: 2 },
+    ], { onAddReplyToCanvas });
+    const buttons = el.querySelectorAll<HTMLButtonElement>('[aria-label="Add to canvas as a note"]');
+    expect(buttons).toHaveLength(1);
+    await act(async () => buttons[0].click());
+    expect(onAddReplyToCanvas).toHaveBeenCalledWith('## Plan\n\nstep');
+  });
+
+  it('hides the canvas action when the chat has no workspace canvas', async () => {
+    const el = await renderMessages([{ role: 'assistant', content: 'reply', timestamp: 2 }]);
+    expect(el.querySelector('[aria-label="Add to canvas as a note"]')).toBeNull();
+  });
+
   it('opens an absolute local Markdown link with the system file handler', async () => {
     const openPath = vi.fn().mockResolvedValue({ ok: true });
     Object.defineProperty(window, 'canvasWorkspace', {

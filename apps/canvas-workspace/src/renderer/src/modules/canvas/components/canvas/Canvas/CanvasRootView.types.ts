@@ -9,6 +9,7 @@ import type { useCanvasNodeActions } from './hooks/useCanvasNodeActions';
 import type { useCanvasNodeGestures } from './hooks/useCanvasNodeGestures';
 import type { useCanvasPaletteCommands } from './hooks/useCanvasPaletteCommands';
 import type { useCanvasSearch } from '../../../runtime/useCanvasSearch';
+import type { CanvasZoomControls } from '../../../runtime/useCanvasZoomControls';
 import type { CanvasProps } from './types';
 import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
@@ -84,6 +85,8 @@ export type CanvasRootViewProps = Pick<
   transformLayerRef: RefObject<HTMLDivElement>;
   updateEdge: (id: string, patch: Partial<CanvasEdge>) => void;
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
+  /** Zoom chip commands: step, presets, and fit to all or the selection. */
+  zoom: CanvasZoomControls;
   onRemoveNodesLocally: (ids: string[]) => void;
   onMergeMindmapTopic: (request: MergeMindmapTopicRequest) => boolean;
   onSplitMindmapTopic: (

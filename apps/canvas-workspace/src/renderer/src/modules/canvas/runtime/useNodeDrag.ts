@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasNode } from "../../../types";
 import { collectContainerDescendants, isContainerNode } from "../../../utils/frameHierarchy";
 import { computeSnap, type SnapBox, type SnapLine } from '../model/canvasSnapping';
+import { edgePanStep } from '../model/edgePan';
 
 /** Grid spacing (canvas-px) for the fallback grid snap. Lines up with
  *  the existing background `.canvas-grid` so the snap and the visual
@@ -42,6 +43,13 @@ export const lockDragAxis = (
     : { dx: 0, dy, axis: 'y' }
 );
 
+/** Lets a drag near the viewport edge pan the canvas. */
+export interface NodeDragAutoPan {
+  getViewport: () => HTMLElement | null;
+  /** Shift the view by screen px. */
+  panBy: (dx: number, dy: number) => void;
+}
+
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void,
@@ -51,8 +59,11 @@ export const useNodeDrag = (
    *  of this set we drag the whole selection together, preserving each
    *  node's offset relative to the primary one. Empty / single-id drags
    *  fall back to the original "drag this node alone" behavior. */
-  selectedIds: string[] = []
+  selectedIds: string[] = [],
+  autoPan?: NodeDragAutoPan,
 ) => {
+  const autoPanRef = useRef(autoPan);
+  autoPanRef.current = autoPan;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
   const selectedIdsRef = useRef(selectedIds);
@@ -82,7 +93,12 @@ export const useNodeDrag = (
     /** Frozen ids that should receive the lifted dragging visual once the
      *  gesture crosses the drag threshold. */
     dragSetIds: string[];
+    /** Screen px the view panned during this drag. The pointer stays put
+     *  while the view moves, so the node delta subtracts it. */
+    panX: number;
+    panY: number;
   } | null>(null);
+  const panFrame = useRef<number | null>(null);
   const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
   const moveFrame = useRef<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -175,6 +191,8 @@ export const useNodeDrag = (
         companions,
         started: false,
         dragSetIds: Array.from(dragSet),
+        panX: 0,
+        panY: 0,
       };
       return true;
     },
@@ -220,8 +238,8 @@ export const useNodeDrag = (
       if (!dragging.current) return;
       const d = dragging.current;
       if (!d.started) return;
-      const freeDx = (e.clientX - d.startX) / scale;
-      const freeDy = (e.clientY - d.startY) / scale;
+      const freeDx = (e.clientX - d.startX - d.panX) / scale;
+      const freeDy = (e.clientY - d.startY - d.panY) / scale;
       // Hold Shift to move along one axis only, like Figma and Miro.
       const lock = e.shiftKey ? lockDragAxis(freeDx, freeDy) : null;
       const rawDx = lock ? lock.dx : freeDx;
@@ -321,10 +339,42 @@ export const useNodeDrag = (
     [moveNode, moveNodes, scale]
   );
 
+  const stopAutoPan = useCallback(() => {
+    if (panFrame.current === null) return;
+    cancelAnimationFrame(panFrame.current);
+    panFrame.current = null;
+  }, []);
+
+  // While the pointer rests near a viewport edge, pan one step per frame
+  // and move the dragged nodes with it. The loop ends when the pointer
+  // leaves the edge band; the next pointer move restarts it.
+  const runAutoPan = useCallback(() => {
+    if (panFrame.current !== null) return;
+    const step = () => {
+      panFrame.current = null;
+      const d = dragging.current;
+      const pointer = lastMoveEvent.current;
+      const viewport = autoPanRef.current?.getViewport();
+      if (!d?.started || !pointer || !viewport) return;
+      const { dx, dy } = edgePanStep(
+        { x: pointer.clientX, y: pointer.clientY },
+        viewport.getBoundingClientRect(),
+      );
+      if (dx === 0 && dy === 0) return;
+      autoPanRef.current?.panBy(dx, dy);
+      d.panX += dx;
+      d.panY += dy;
+      flushDragMove(pointer, false);
+      panFrame.current = requestAnimationFrame(step);
+    };
+    panFrame.current = requestAnimationFrame(step);
+  }, [flushDragMove]);
+
   const onDragMove = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
       if (!markDragStarted(e)) return false;
       lastMoveEvent.current = e;
+      if (autoPanRef.current) runAutoPan();
       if (moveFrame.current !== null) return true;
       moveFrame.current = requestAnimationFrame(() => {
         moveFrame.current = null;
@@ -333,10 +383,11 @@ export const useNodeDrag = (
       });
       return true;
     },
-    [flushDragMove, markDragStarted]
+    [flushDragMove, markDragStarted, runAutoPan]
   );
 
   const onDragEnd = useCallback(() => {
+    stopAutoPan();
     if (moveFrame.current !== null) {
       cancelAnimationFrame(moveFrame.current);
       moveFrame.current = null;
@@ -353,12 +404,13 @@ export const useNodeDrag = (
     setSnapLines([]);
     setDragPreview(null);
     setDragOffset(null);
-  }, [flushDragMove]);
+  }, [flushDragMove, stopAutoPan]);
 
   /** Abort the gesture (Escape): drop all ephemeral drag state without
    *  committing. Since the real nodes array is never touched mid-gesture,
    *  there is nothing to restore — the nodes were never moved. */
   const onDragCancel = useCallback(() => {
+    stopAutoPan();
     if (moveFrame.current !== null) {
       cancelAnimationFrame(moveFrame.current);
       moveFrame.current = null;
@@ -370,12 +422,15 @@ export const useNodeDrag = (
     setSnapLines([]);
     setDragPreview(null);
     setDragOffset(null);
-  }, []);
+  }, [stopAutoPan]);
 
   useEffect(() => {
     return () => {
       if (moveFrame.current !== null) {
         cancelAnimationFrame(moveFrame.current);
+      }
+      if (panFrame.current !== null) {
+        cancelAnimationFrame(panFrame.current);
       }
     };
   }, []);

@@ -34,6 +34,8 @@ interface ChatMessageProps {
   onToggleSection: (index: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
+  /** Keep an assistant reply on the canvas as a note; absent hides the action. */
+  onAddReplyToCanvas?: (content: string) => void;
   /** DOM id used by ChatAnchors to scroll this message into view. */
   anchorId?: string;
   /** Replace this user message with `newContent` and re-run the turn. */
@@ -67,6 +69,7 @@ const ChatMessageView = ({
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
+  onAddReplyToCanvas,
   anchorId,
   onEditUserMessage,
   onRegenerate,
@@ -124,6 +127,10 @@ const ChatMessageView = ({
     hasLaterTurns,
     getLaterMessageCount,
   });
+  const canAddToCanvas = Boolean(onAddReplyToCanvas)
+    && message.role === 'assistant'
+    && !isStreaming
+    && message.content.trim().length > 0;
   const showActivity = message.role === 'assistant' && isStreaming && !message.content;
   // A compaction can start after answer text, so it brings the status row back.
   const compacting = useContext(ChatCompactionContext) !== null;
@@ -277,6 +284,7 @@ const ChatMessageView = ({
           onRegenerate={canRegenerate ? handleRegenerate : undefined}
           onFork={onFork && message.role === 'assistant' && !loading && !isStreaming
             ? () => onFork(index) : undefined}
+          onAddToCanvas={canAddToCanvas ? () => onAddReplyToCanvas?.(message.content) : undefined}
         />
       )}
     </div>

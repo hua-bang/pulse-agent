@@ -39,4 +39,6 @@ export interface UseChatComposerInputOptions {
   isSubmitBlocked?: () => boolean;
   /** While a turn runs, Enter queues the draft like the Queue message button. */
   isRunning?: () => boolean;
+  /** User messages of the open conversation, oldest first, for ArrowUp recall. */
+  getUserMessages?: () => string[];
 }

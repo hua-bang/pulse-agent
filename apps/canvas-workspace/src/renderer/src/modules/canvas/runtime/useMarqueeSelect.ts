@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode } from '../../../types';
 
 type Point = { x: number; y: number };
+
+const EMPTY_HITS: CanvasNode[] = [];
 
 export type MarqueeRect = {
   x: number;
@@ -32,6 +34,28 @@ const DRAG_MIN_DISTANCE = 4;
  *  then it is still a click, so no interaction shield is mounted and the
  *  browser can deliver click / dblclick to the canvas. */
 const DRAG_START_SCREEN_DISTANCE = 3;
+
+const rectBetween = (a: Point, b: Point): MarqueeRect => ({
+  x: Math.min(a.x, b.x),
+  y: Math.min(a.y, b.y),
+  width: Math.abs(b.x - a.x),
+  height: Math.abs(b.y - a.y),
+});
+
+/**
+ * Nodes whose bounding box intersects the marquee. The intersection is
+ * inclusive on both edges, so a marquee that exactly touches a node's edge
+ * still picks it up. The live preview and the mouseup commit share it, so
+ * the highlighted nodes are exactly the ones that get selected.
+ */
+export const marqueeHits = (nodes: readonly CanvasNode[], rect: MarqueeRect): CanvasNode[] => (
+  nodes.filter((node) => (
+    node.x + node.width >= rect.x
+    && node.y + node.height >= rect.y
+    && node.x <= rect.x + rect.width
+    && node.y <= rect.y + rect.height
+  ))
+);
 
 /**
  * Drag-on-blank-canvas multi-select. Mousedown on empty canvas starts a
@@ -96,25 +120,8 @@ export const useMarqueeSelect = ({
         return;
       }
 
-      const rx = Math.min(m.start.x, m.current.x);
-      const ry = Math.min(m.start.y, m.current.y);
-      const rw = Math.abs(dx);
-      const rh = Math.abs(dy);
-      const hits: string[] = [];
-      for (const n of snapshotRef.current) {
-        const nx = n.x;
-        const ny = n.y;
-        const nw = n.width;
-        const nh = n.height;
-        // AABB intersect — inclusive on both edges so a marquee that
-        // exactly touches a node's edge still picks it up.
-        if (nx + nw < rx) continue;
-        if (ny + nh < ry) continue;
-        if (nx > rx + rw) continue;
-        if (ny > ry + rh) continue;
-        hits.push(n.id);
-      }
-      onSelect(hits, m.mods);
+      const hits = marqueeHits(snapshotRef.current, rectBetween(m.start, m.current));
+      onSelect(hits.map((node) => node.id), m.mods);
     };
     // Escape aborts the marquee without touching the selection. Capture
     // phase + stopPropagation so the canvas-level Escape handler doesn't
@@ -157,19 +164,23 @@ export const useMarqueeSelect = ({
     [enabled, getContainer, screenToCanvas, nodes]
   );
 
-  const rect: MarqueeRect | null = marquee
-    ? {
-        x: Math.min(marquee.start.x, marquee.current.x),
-        y: Math.min(marquee.start.y, marquee.current.y),
-        width: Math.abs(marquee.current.x - marquee.start.x),
-        height: Math.abs(marquee.current.y - marquee.start.y),
-      }
-    : null;
+  const rect = useMemo(
+    () => (marquee ? rectBetween(marquee.start, marquee.current) : null),
+    [marquee],
+  );
+  // Only real drags preview hits; a click stays a click. The overlay draws
+  // these as outlines, so node views do not re-render while the box moves.
+  const hits = useMemo(
+    () => (rect && marquee?.dragging ? marqueeHits(snapshotRef.current, rect) : EMPTY_HITS),
+    [marquee?.dragging, rect],
+  );
 
   return {
     /** Live rectangle in canvas coordinates while a drag is in flight,
      *  null otherwise. The Canvas surface renders this as a dashed box. */
     rect,
+    /** Nodes the marquee would select if released now. */
+    hits,
     /** Mousedown handler to attach to the blank-canvas area. Bails out
      *  when the marquee is disabled or the drag is owned by another
      *  tool / pan gesture. */

@@ -11,6 +11,7 @@ import {
   type PaletteSectionId,
 } from './model';
 import { PaletteRow } from './PaletteRow';
+import { useAppCommands } from '../../../../../shared/appCommands';
 
 export type { PaletteCommand } from './model';
 
@@ -36,6 +37,11 @@ const SECTION_LABEL_KEY: Record<PaletteSectionId, I18nKey> = {
 interface Props {
   nodes: CanvasNode[];
   commands: PaletteCommand[];
+  /**
+   * How app navigation commands (workspaces, pages) appear. `search` keeps
+   * them out of the empty-query overview; `list` shows them there too.
+   */
+  appCommands?: 'search' | 'list';
   onSelectNode: (node: CanvasNode) => void;
   onClose: () => void;
 }
@@ -55,7 +61,13 @@ interface Props {
  * an agent node, you usually want to jump to it, but if you don't we
  * still surface "Create agent" so the panel is always actionable.
  */
-export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props) => {
+export const CommandPalette = ({
+  nodes,
+  commands,
+  appCommands = 'search',
+  onSelectNode,
+  onClose,
+}: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const { index: selectedIndex, setIndex: setSelectedIndex, move, home, end, reset } = useIndexNav();
@@ -66,9 +78,21 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
     inputRef.current?.focus();
   }, []);
 
+  // Read only while the palette is open, so publishing the list never
+  // re-renders a closed canvas.
+  const navigationCommands = useAppCommands();
+  const allCommands = useMemo(() => [
+    ...commands,
+    ...navigationCommands.map((command): PaletteCommand => ({
+      ...command,
+      group: 'navigate',
+      searchOnly: appCommands === 'search',
+    })),
+  ], [appCommands, commands, navigationCommands]);
+
   const sections = useMemo(
-    () => buildPaletteSections(nodes, commands, query),
-    [commands, nodes, query],
+    () => buildPaletteSections(nodes, allCommands, query),
+    [allCommands, nodes, query],
   );
 
   // Flat list of items in display order — what arrow-key navigation
@@ -169,6 +193,9 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
   );
 
   let runningIndex = 0;
+  const placeholder = appCommands === 'list'
+    ? t('app.palette.placeholder')
+    : t('canvas.palette.placeholder');
 
   return (
     <div className="command-palette-overlay" onClick={onClose} onWheel={(e) => e.stopPropagation()}>
@@ -182,8 +209,8 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
             ref={inputRef}
             type="text"
             className="command-palette-input"
-            placeholder={t('canvas.palette.placeholder')}
-            aria-label={t('canvas.palette.placeholder')}
+            placeholder={placeholder}
+            aria-label={placeholder}
             role="combobox"
             aria-controls={flatItems.length > 0 ? resultsId : undefined}
             aria-activedescendant={activeOptionId}

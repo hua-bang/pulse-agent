@@ -203,6 +203,12 @@ Unsupported future schemas, I/O errors, and files that vanish mid-read still sto
 activation visibly. Conflicting archive copies with equal modification times also stop activation;
 the importer cannot infer which history is authoritative without a current copy.
 Cold rail/list/read paths query storage without starting tools or an Agent.
+Rail search filters by title and date at once. After a 250 ms pause it also
+asks `agent.searchSessions(query, limit, 'content')`, which scans stored
+user/assistant message text in main (`searchSessionContent` in
+`sessions/session-title-search.ts`); a late answer for an old query is dropped.
+The default `'title'` mode is unchanged. Guard: `session-title-search.test.ts`,
+`ChatSessionsRail/__tests__/ChatSessionsRail.test.tsx`.
 
 Workspace export uses a consistent Canvas+conversation snapshot and an injected
 archive codec; Canvas never imports the Agent implementation. Import generates

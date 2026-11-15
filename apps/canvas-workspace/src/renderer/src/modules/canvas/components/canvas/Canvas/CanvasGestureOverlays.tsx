@@ -21,24 +21,51 @@ import { useI18n } from '../../../../../i18n';
  * layer. The border width is divided by the zoom (same trick as
  * CanvasAlignmentGuides) so it reads as ~1px on screen at any scale.
  */
-export const MarqueePreview = ({ rect, scale }: { rect: MarqueeRect; scale: number }) => {
+export const MarqueePreview = ({
+  rect,
+  scale,
+  hits = [],
+}: {
+  rect: MarqueeRect;
+  scale: number;
+  /** Nodes the box would select now; each gets a light outline. */
+  hits?: readonly MarqueeRect[];
+}) => {
   if (rect.width <= 0 && rect.height <= 0) return null;
   const borderPx = 1 / Math.max(scale, 0.0001);
   return (
-    <div
-      className="canvas-marquee"
-      style={{
-        position: 'absolute',
-        left: rect.x,
-        top: rect.y,
-        width: Math.max(1, rect.width),
-        height: Math.max(1, rect.height),
-        border: `${borderPx}px solid #5B7CBF`,
-        background: 'rgba(91, 124, 191, 0.08)',
-        pointerEvents: 'none',
-        boxSizing: 'border-box',
-      }}
-    />
+    <>
+      {hits.map((hit, index) => (
+        <div
+          key={index}
+          className="canvas-marquee-hit"
+          style={{
+            position: 'absolute',
+            left: hit.x,
+            top: hit.y,
+            width: hit.width,
+            height: hit.height,
+            outline: `${borderPx * 2}px solid rgba(91, 124, 191, 0.6)`,
+            outlineOffset: borderPx * 2,
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+      <div
+        className="canvas-marquee"
+        style={{
+          position: 'absolute',
+          left: rect.x,
+          top: rect.y,
+          width: Math.max(1, rect.width),
+          height: Math.max(1, rect.height),
+          border: `${borderPx}px solid #5B7CBF`,
+          background: 'rgba(91, 124, 191, 0.08)',
+          pointerEvents: 'none',
+          boxSizing: 'border-box',
+        }}
+      />
+    </>
   );
 };
 

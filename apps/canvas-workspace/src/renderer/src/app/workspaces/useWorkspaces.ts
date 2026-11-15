@@ -212,6 +212,29 @@ export const useWorkspaces = () => {
     [saveManifest]
   );
 
+  /**
+   * Undo for `deleteFolder`: put the folder back at its old index and move
+   * back the workspaces it held. A workspace the user moved or deleted since
+   * then keeps its new place.
+   */
+  const restoreFolder = useCallback(
+    (folder: FolderEntry, index: number, workspaceIds: readonly string[]) => {
+      if (foldersRef.current.some((f) => f.id === folder.id)) return;
+      const members = new Set(workspaceIds);
+      const nextFolders = [...foldersRef.current];
+      nextFolders.splice(Math.min(index, nextFolders.length), 0, folder);
+      const nextWorkspaces = workspacesRef.current.map((w) =>
+        members.has(w.id) && !w.folderId ? { ...w, folderId: folder.id } : w
+      );
+      foldersRef.current = nextFolders;
+      workspacesRef.current = nextWorkspaces;
+      setFolders(nextFolders);
+      setWorkspaces(nextWorkspaces);
+      saveManifest(nextWorkspaces, undefined, nextFolders);
+    },
+    [saveManifest]
+  );
+
   const toggleFolder = useCallback(
     (id: string) => {
       setFolders((prev) => {
@@ -312,6 +335,7 @@ export const useWorkspaces = () => {
     createFolder,
     renameFolder,
     deleteFolder,
+    restoreFolder,
     toggleFolder,
     moveWorkspace,
     reorderWorkspace,

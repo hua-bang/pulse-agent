@@ -1,4 +1,6 @@
-import { BrowserWindow, nativeTheme, shell } from "electron";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { app, BrowserWindow, nativeTheme, screen, shell, type Rectangle } from "electron";
 import { APP_NAME } from "./identity";
 import { isSafeExternalUrl } from "./shell-ipc";
 import type { WriteLog } from "./logging";
@@ -11,6 +13,81 @@ export interface CreateWindowOptions {
   writeLog: WriteLog;
 }
 
+const DEFAULT_SIZE = { width: 1200, height: 800 };
+const MIN_SIZE = { width: 900, height: 600 };
+/** Part of the saved frame that must lie on a display to reuse its position. */
+const MIN_VISIBLE_PX = { width: 120, height: 40 };
+const WINDOW_STATE_FILE = "window-state.json";
+
+export interface WindowPlacement {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  maximized: boolean;
+}
+
+const isFiniteNumber = (value: unknown): value is number => (
+  typeof value === "number" && Number.isFinite(value)
+);
+
+const overlap = (a: Rectangle, b: Rectangle): { width: number; height: number } => ({
+  width: Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x),
+  height: Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y),
+});
+
+/**
+ * Turn a saved window state into safe bounds. The size is kept between the
+ * minimum and the largest display. The position is kept only when enough of
+ * the frame lies on a current display; otherwise the window is centred.
+ * Anything unreadable falls back to the 1200×800 default.
+ */
+export function resolveWindowPlacement(saved: unknown, workAreas: Rectangle[]): WindowPlacement {
+  const state = (saved && typeof saved === "object" ? saved : {}) as Record<string, unknown>;
+  const maxWidth = Math.max(MIN_SIZE.width, ...workAreas.map((area) => area.width));
+  const maxHeight = Math.max(MIN_SIZE.height, ...workAreas.map((area) => area.height));
+  const width = isFiniteNumber(state.width)
+    ? Math.round(Math.min(maxWidth, Math.max(MIN_SIZE.width, state.width)))
+    : DEFAULT_SIZE.width;
+  const height = isFiniteNumber(state.height)
+    ? Math.round(Math.min(maxHeight, Math.max(MIN_SIZE.height, state.height)))
+    : DEFAULT_SIZE.height;
+  const maximized = state.maximized === true;
+  if (!isFiniteNumber(state.x) || !isFiniteNumber(state.y)) return { width, height, maximized };
+
+  const frame = { x: Math.round(state.x), y: Math.round(state.y), width, height };
+  const visible = workAreas.some((area) => {
+    const shared = overlap(frame, area);
+    return shared.width >= MIN_VISIBLE_PX.width && shared.height >= MIN_VISIBLE_PX.height;
+  });
+  return visible ? { ...frame, maximized } : { width, height, maximized };
+}
+
+const windowStatePath = () => join(app.getPath("userData"), WINDOW_STATE_FILE);
+
+const readWindowPlacement = (): WindowPlacement => {
+  let saved: unknown = null;
+  try {
+    saved = JSON.parse(readFileSync(windowStatePath(), "utf8"));
+  } catch {
+    // First launch or an unreadable file: use the default size.
+  }
+  return resolveWindowPlacement(saved, screen.getAllDisplays().map((display) => display.workArea));
+};
+
+/** Save the restored-size bounds, so a maximized window comes back maximized
+ *  over the same normal frame. */
+const saveWindowPlacement = (win: BrowserWindow, writeLog: WriteLog) => {
+  const bounds = win.getNormalBounds();
+  const state: WindowPlacement = { ...bounds, maximized: win.isMaximized() };
+  try {
+    // Synchronous: the window is closing and an async write may never finish.
+    writeFileSync(windowStatePath(), JSON.stringify(state));
+  } catch (error) {
+    void writeLog("main", "window state save failed", String(error));
+  }
+};
+
 export function createWindow({
   preloadPath,
   webviewFindPreloadPath,
@@ -19,12 +96,14 @@ export function createWindow({
   writeLog,
 }: CreateWindowOptions): BrowserWindow {
   void writeLog("main", "preload", preloadPath);
+  const placement = readWindowPlacement();
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    ...(placement.x !== undefined && placement.y !== undefined ? { x: placement.x, y: placement.y } : {}),
+    width: placement.width,
+    height: placement.height,
     title: APP_NAME,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
     // Paint before the renderer applies its theme. Follows the OS; a manual
     // renderer theme override takes over once the page loads.
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1b1a" : "#f8f8f7",
@@ -38,6 +117,9 @@ export function createWindow({
       webviewTag: true
     }
   });
+
+  if (placement.maximized) win.maximize();
+  win.on("close", () => saveWindowPlacement(win, writeLog));
 
   // Third-party pages keep first refusal on Ctrl/Cmd+F. This isolated preload
   // observes the page's DOM cancellation/propagation result and asks the host

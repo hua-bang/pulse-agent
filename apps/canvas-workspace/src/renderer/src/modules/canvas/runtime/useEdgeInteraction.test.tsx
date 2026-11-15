@@ -88,6 +88,76 @@ describe('useEdgeInteraction move gestures', () => {
     expect(hook.previewEdge?.target).toEqual({ kind: 'node', nodeId: 'b', anchor: 'auto' });
   });
 
+  it('hands a blank-canvas connect drop to the owner, which may keep the loose end', () => {
+    const addEdge = vi.fn((edge: CanvasEdge) => edge);
+    const onConnectCommitted = vi.fn();
+    const onConnectDropOnBlank = vi.fn();
+    sortedNodes = [{ id: 'a', x: 0, y: 0, width: 100, height: 60 } as CanvasNode];
+    const DropProbe = () => {
+      hook = useEdgeInteraction({
+        sortedNodes,
+        screenToCanvas: (x, y) => ({ x, y }),
+        getContainer: () => host,
+        addEdge,
+        updateEdge,
+        commitHistory,
+        edges,
+        onConnectCommitted,
+        onConnectDropOnBlank,
+      });
+      return null;
+    };
+    act(() => root.render(<DropProbe />));
+    act(() => hook.beginConnect(50, 30));
+    move([240, 90]);
+    act(() => window.dispatchEvent(new MouseEvent('mouseup', { clientX: 240, clientY: 90 })));
+
+    expect(addEdge).not.toHaveBeenCalled();
+    expect(onConnectDropOnBlank).toHaveBeenCalledOnce();
+    const drop = onConnectDropOnBlank.mock.calls[0][0];
+    expect(drop).toMatchObject({
+      source: { kind: 'node', nodeId: 'a', anchor: 'auto' },
+      point: { x: 240, y: 90 },
+      client: { x: 240, y: 90 },
+    });
+    expect(hook.state).toBeNull();
+
+    // Dismissing the menu keeps today's free-ended edge.
+    act(() => drop.commitLoose());
+    expect(addEdge).toHaveBeenCalledOnce();
+    expect(addEdge.mock.calls[0][0].target).toEqual({ kind: 'point', x: 240, y: 90 });
+    expect(onConnectCommitted).toHaveBeenCalledOnce();
+  });
+
+  it('still binds a connect drop on another node directly', () => {
+    const addEdge = vi.fn((edge: CanvasEdge) => edge);
+    const onConnectDropOnBlank = vi.fn();
+    sortedNodes = [
+      { id: 'a', x: 0, y: 0, width: 100, height: 60 } as CanvasNode,
+      { id: 'b', x: 300, y: 0, width: 100, height: 60 } as CanvasNode,
+    ];
+    const DropProbe = () => {
+      hook = useEdgeInteraction({
+        sortedNodes,
+        screenToCanvas: (x, y) => ({ x, y }),
+        getContainer: () => host,
+        addEdge,
+        updateEdge,
+        commitHistory,
+        edges,
+        onConnectDropOnBlank,
+      });
+      return null;
+    };
+    act(() => root.render(<DropProbe />));
+    act(() => hook.beginConnect(50, 30));
+    move([350, 30]);
+    act(() => window.dispatchEvent(new MouseEvent('mouseup', { clientX: 350, clientY: 30 })));
+
+    expect(onConnectDropOnBlank).not.toHaveBeenCalled();
+    expect(addEdge.mock.calls[0][0].target).toEqual({ kind: 'node', nodeId: 'b', anchor: 'auto' });
+  });
+
   it('keeps repeated whole-edge moves ephemeral and writes the final endpoints once on mouseup', () => {
     act(() => hook.beginMoveEdge('edge-1', 10, 10));
 

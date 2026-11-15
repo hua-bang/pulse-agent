@@ -141,6 +141,11 @@ export function useChatComposerController({
   const runningRef = useRef(false);
   runningRef.current = chatStream.loading;
   const isRunning = useCallback(() => runningRef.current, []);
+  const messagesRef = useRef(chatStream.messages);
+  messagesRef.current = chatStream.messages;
+  const getUserMessages = useCallback(() => messagesRef.current
+    .filter(message => message.role === 'user')
+    .map(message => message.content), []);
 
   const prewarmTimerRef = useRef<number | undefined>(undefined);
   const prewarmedConversationRef = useRef<string | null>(null);
@@ -196,6 +201,7 @@ export function useChatComposerController({
     getRequestContext,
     isSubmitBlocked,
     isRunning,
+    getUserMessages,
   });
 
   const handleInput = useCallback(() => {

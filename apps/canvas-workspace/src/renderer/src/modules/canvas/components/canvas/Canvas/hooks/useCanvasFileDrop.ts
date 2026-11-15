@@ -4,7 +4,10 @@ import type { AddNodeOptions } from '../../../../document/useCanvasContentComman
 import { useAppShell } from '../../../../../../shared/appShell';
 import { useI18n } from '../../../../../../i18n';
 import { getNodeDefaultSize } from '../../../../../../utils/nodeFactory';
+import { normalizeReferenceUrl } from '../../../../../../shared/reference/utils';
+import { looksLikeUrl } from '../../../../../../platform/browser/address-input';
 import { saveImageAsNodePatch } from '../../../../runtime/canvasImageFile';
+import { createTextPatch } from '../../../../runtime/useCanvasImagePaste';
 import { findFreeSlot } from './nodePlacement';
 
 type NodePatch = Pick<CanvasNode, 'width' | 'height' | 'title' | 'data'>;
@@ -24,16 +27,53 @@ interface Options {
   nodesRef: React.MutableRefObject<CanvasNode[]>;
   /** Selects the dropped nodes once they exist. */
   setSelectedNodeIds: (ids: string[]) => void;
+  /** Creates (and selects) a web node centred on `at`. */
+  createUrlNode?: (url: string, options?: { at?: { x: number; y: number } }) => CanvasNode | null;
 }
 
 const DROP_TARGET_CLASS = 'canvas-container--file-drop';
 const TEXT_FILE_PATTERN = /\.(md|markdown|txt)$/i;
 /** Each extra dropped file starts this far below and right of the previous one. */
 const CASCADE_STEP = 32;
+/** A drop this large, or with several files, shows a progress toast. */
+const PROGRESS_MIN_FILES = 2;
+const PROGRESS_MIN_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Data types that browsers and other apps put on an external text or link
+ * drag. Any other type marks an in-app drag (for example a dock folder-tab
+ * entry), which belongs to its own drop target.
+ */
+const EXTERNAL_TEXT_TYPES = new Set(['text/plain', 'text/uri-list', 'text/html', 'text/x-moz-url']);
 
 const hasFiles = (event: DragEvent): boolean => (
   event.dataTransfer?.types.includes('Files') ?? false
 );
+
+const hasExternalText = (event: DragEvent): boolean => {
+  const types = Array.from(event.dataTransfer?.types ?? []);
+  return types.some((type) => type === 'text/plain' || type === 'text/uri-list')
+    && types.every((type) => EXTERNAL_TEXT_TYPES.has(type));
+};
+
+/** What a text drag should become: a web node for a link, else a text node. */
+export const readTextDrop = (
+  transfer: Pick<DataTransfer, 'getData'>,
+): { kind: 'url'; url: string } | { kind: 'text'; text: string } | null => {
+  // RFC 2483: one URI per line; lines starting with `#` are comments.
+  const uri = transfer.getData('text/uri-list')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith('#'));
+  const fromList = uri ? normalizeReferenceUrl(uri) : undefined;
+  if (fromList) return { kind: 'url', url: fromList };
+
+  const text = transfer.getData('text/plain').trim();
+  if (!text) return null;
+  // Same rule as paste: plain prose must fail the omnibox check first.
+  const url = looksLikeUrl(text) ? normalizeReferenceUrl(text) : undefined;
+  return url ? { kind: 'url', url } : { kind: 'text', text };
+};
 
 const isTextFile = (file: File): boolean => (
   TEXT_FILE_PATTERN.test(file.name) || file.type === 'text/plain' || file.type === 'text/markdown'
@@ -70,6 +110,7 @@ const createImage = async (canvasId: string, file: File): Promise<DroppedNode | 
  * Files dragged in from the OS land under the pointer: images become image
  * nodes and Markdown or text files become notes. Each file is one undo step.
  * Other file types are named in a notice instead of being dropped silently.
+ * A dragged link becomes a web node and dragged text a text node.
  */
 export const useCanvasFileDrop = ({
   canvasId,
@@ -79,8 +120,9 @@ export const useCanvasFileDrop = ({
   addNode,
   nodesRef,
   setSelectedNodeIds,
+  createUrlNode,
 }: Options) => {
-  const { notify } = useAppShell();
+  const { notify, updateToast } = useAppShell();
   const { t } = useI18n();
 
   useEffect(() => {
@@ -89,7 +131,7 @@ export const useCanvasFileDrop = ({
 
     const clearHighlight = () => container.classList.remove(DROP_TARGET_CLASS);
     const over = (event: DragEvent) => {
-      if (!hasFiles(event)) return;
+      if (!hasFiles(event) && !hasExternalText(event)) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
       container.classList.add(DROP_TARGET_CLASS);
@@ -99,9 +141,48 @@ export const useCanvasFileDrop = ({
       if (next instanceof Node && container.contains(next)) return;
       clearHighlight();
     };
+
+    const dropText = (event: DragEvent) => {
+      // A note or text editor under the pointer already took the text.
+      if (event.defaultPrevented) return;
+      const dropped = event.dataTransfer ? readTextDrop(event.dataTransfer) : null;
+      if (!dropped) return;
+      event.preventDefault();
+      event.stopPropagation();
+      clearHighlight();
+
+      const at = screenToCanvas(event.clientX, event.clientY, container);
+      if (dropped.kind === 'url' && createUrlNode) {
+        const size = getNodeDefaultSize('iframe');
+        const slot = findFreeSlot(
+          nodesRef.current,
+          at.x - size.width / 2,
+          at.y - size.height / 2,
+          size.width,
+          size.height,
+        );
+        createUrlNode(dropped.url, { at: { x: slot.x + size.width / 2, y: slot.y + size.height / 2 } });
+        return;
+      }
+      const text = dropped.kind === 'url' ? dropped.url : dropped.text;
+      const patch = createTextPatch(text);
+      const slot = findFreeSlot(
+        nodesRef.current,
+        at.x - patch.width / 2,
+        at.y - patch.height / 2,
+        patch.width,
+        patch.height,
+      );
+      const node = addNode('text', slot.x, slot.y, { nodePatch: patch });
+      setSelectedNodeIds([node.id]);
+    };
+
     const drop = (event: DragEvent) => {
       const files = Array.from(event.dataTransfer?.files ?? []);
-      if (files.length === 0) return;
+      if (files.length === 0) {
+        if (hasExternalText(event)) dropText(event);
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       clearHighlight();
@@ -116,6 +197,16 @@ export const useCanvasFileDrop = ({
           description: t('canvas.fileDropUnsupportedDescription'),
         });
       }
+
+      // Saving large images takes a moment each; show how far along it is.
+      const totalBytes = supported.reduce((sum, file) => sum + file.size, 0);
+      const showProgress = supported.length >= PROGRESS_MIN_FILES || totalBytes >= PROGRESS_MIN_BYTES;
+      const progressId = showProgress
+        ? notify({
+            tone: 'loading',
+            title: t('canvas.fileDropProgress', { done: 0, total: supported.length }),
+          })
+        : null;
 
       void (async () => {
         const created: CanvasNode[] = [];
@@ -138,6 +229,18 @@ export const useCanvasFileDrop = ({
           } catch {
             notify({ tone: 'error', title: t('canvas.fileDropFailed', { name: file.name }) });
           }
+          if (progressId) {
+            updateToast(progressId, {
+              title: t('canvas.fileDropProgress', { done: index + 1, total: supported.length }),
+            });
+          }
+        }
+        if (progressId) {
+          updateToast(progressId, {
+            tone: 'success',
+            title: t('canvas.fileDropProgressDone', { count: created.length }),
+            autoCloseMs: 2000,
+          });
         }
         if (created.length > 0) setSelectedNodeIds(created.map((node) => node.id));
       })();
@@ -152,5 +255,17 @@ export const useCanvasFileDrop = ({
       container.removeEventListener('dragleave', leave);
       container.removeEventListener('drop', drop);
     };
-  }, [addNode, canvasId, containerRef, loaded, nodesRef, notify, screenToCanvas, setSelectedNodeIds, t]);
+  }, [
+    addNode,
+    canvasId,
+    containerRef,
+    createUrlNode,
+    loaded,
+    nodesRef,
+    notify,
+    screenToCanvas,
+    setSelectedNodeIds,
+    t,
+    updateToast,
+  ]);
 };

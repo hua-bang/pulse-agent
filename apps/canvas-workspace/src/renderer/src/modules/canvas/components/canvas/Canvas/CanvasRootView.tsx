@@ -119,6 +119,7 @@ export const CanvasRootView = ({
   transformLayerRef,
   updateEdge,
   updateNode,
+  zoom,
   onMergeMindmapTopic,
   onSplitMindmapTopic,
 }: CanvasRootViewProps) => {
@@ -262,6 +263,7 @@ export const CanvasRootView = ({
         onConnectHandleMouseDown={drawingGestures.connectHandles.beginFromHandle}
         shapeDraft={drawingGestures.shapeDraft}
         marqueeRect={drawingGestures.marquee.rect}
+        marqueeHits={drawingGestures.marquee.hits}
         snapLines={nodeGestures.snapLines}
         focusedNodeIds={focus.focusedNodeIds}
         focusContextNodeIds={focus.focusContextNodeIds}
@@ -369,6 +371,7 @@ export const CanvasRootView = ({
         onToolChange={setActiveTool}
         onAddNode={ctxMenu.handleToolbarAddNode}
         onResetTransform={resetTransform}
+        zoom={zoom}
         paletteCommands={paletteCommands}
         onSearchSelect={handleNodeViewportFocus}
         onCloseSearch={() => setSearchOpen(false)}

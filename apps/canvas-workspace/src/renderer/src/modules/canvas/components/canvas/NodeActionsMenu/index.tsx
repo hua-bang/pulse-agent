@@ -1,10 +1,16 @@
 import '../NodeContextMenu/index.css';
 import './index.css';
+import { Fragment } from 'react';
 import { Button } from '../../../../../components/ui';
 import { Popover } from '../../../../../components/ui/Popover';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasNode } from '../../../../../types';
 import type { PaletteCommand } from '../CommandPalette';
+import { ALIGN_MODES } from '../../../model/alignNodes';
+
+/** Align/distribute palette commands. Their `enabled` flag already needs
+ *  two selected nodes (three to distribute), so the menu inherits it. */
+const ALIGN_COMMAND_IDS = new Set(ALIGN_MODES.map((mode) => `align-${mode}`));
 
 /** Palette commands that act on the selection, in menu order. */
 const NODE_MENU_COMMAND_IDS = [
@@ -14,10 +20,17 @@ const NODE_MENU_COMMAND_IDS = [
   'group-selection',
   'ungroup-selection',
   'wrap-selection-in-frame',
+  ...ALIGN_COMMAND_IDS,
   'pin-reference',
   'toggle-focus-mode',
   'delete-selection',
 ];
+
+/** True where the menu draws a separator before `index`: around the align block. */
+export const startsMenuSection = (items: readonly PaletteCommand[], index: number): boolean => {
+  if (index === 0) return false;
+  return ALIGN_COMMAND_IDS.has(items[index].id) !== ALIGN_COMMAND_IDS.has(items[index - 1].id);
+};
 
 /** The commands the node menu shows, taken from the Cmd+K palette list. */
 export const selectNodeMenuCommands = (commands: readonly PaletteCommand[]): PaletteCommand[] => (
@@ -63,22 +76,24 @@ export const NodeActionsMenu = ({ x, y, commands, onClose }: Props) => {
   return (
     <Popover x={x} y={y} onClose={onClose} className="context-menu node-actions-menu">
       <div className="context-menu-title">{t('canvas.nodeActionsMenu.title')}</div>
-      {items.map((command) => (
-        <Button
-          key={command.id}
-          size="sm"
-          role="menuitem"
-          className={`context-menu-item${command.id === 'delete-selection' ? ' context-menu-item--danger' : ''}`}
-          onClick={() => {
-            onClose();
-            command.run();
-          }}
-        >
-          <span className="context-menu-label">
-            <strong>{command.title}</strong>
-          </span>
-          {command.shortcut && <kbd className="node-actions-menu__shortcut">{command.shortcut}</kbd>}
-        </Button>
+      {items.map((command, index) => (
+        <Fragment key={command.id}>
+          {startsMenuSection(items, index) && <div className="context-menu-separator" role="separator" />}
+          <Button
+            size="sm"
+            role="menuitem"
+            className={`context-menu-item${command.id === 'delete-selection' ? ' context-menu-item--danger' : ''}`}
+            onClick={() => {
+              onClose();
+              command.run();
+            }}
+          >
+            <span className="context-menu-label">
+              <strong>{command.title}</strong>
+            </span>
+            {command.shortcut && <kbd className="node-actions-menu__shortcut">{command.shortcut}</kbd>}
+          </Button>
+        </Fragment>
       ))}
     </Popover>
   );

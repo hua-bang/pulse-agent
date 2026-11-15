@@ -539,6 +539,46 @@ describe('ChatSessionsRail workspace tree', () => {
     expect(host.textContent).not.toContain('Second conversation');
   });
 
+  it('adds sessions whose message text matches after the user pauses typing', async () => {
+    vi.useFakeTimers();
+    const searchSessions = vi.fn(async () => ({
+      ok: true,
+      hits: [{ sessionId: 'session-a' }],
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = { agent: { searchSessions } };
+    try {
+      host = document.createElement('div');
+      document.body.appendChild(host);
+      root = createRoot(host);
+      await act(async () => {
+        root?.render(
+          <I18nProvider>
+            <ChatSessionsRail allSessions={sessions} onNewSession={vi.fn()} onSelectSession={vi.fn()} />
+          </I18nProvider>,
+        );
+      });
+
+      const search = host.querySelector<HTMLInputElement>('input[type="search"]');
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'kubernetes');
+        search!.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      });
+      expect(host.textContent).not.toContain('First conversation');
+      expect(searchSessions).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      expect(searchSessions).toHaveBeenCalledWith('kubernetes', 200, 'content');
+      expect(host.textContent).toContain('First conversation');
+      expect(host.textContent).not.toContain('Second conversation');
+    } finally {
+      vi.useRealTimers();
+      delete (window as unknown as { canvasWorkspace?: unknown }).canvasWorkspace;
+    }
+  });
+
   it('offers pin, rename, and confirmed delete only when callbacks are provided', async () => {
     host = document.createElement('div');
     document.body.appendChild(host);

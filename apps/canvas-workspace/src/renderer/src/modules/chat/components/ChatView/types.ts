@@ -26,6 +26,10 @@ export interface ChatViewChrome {
   beforeHeader?: ReactNode;
   banner?: ReactNode;
   onResizeStart?: (event: ReactMouseEvent) => void;
+  /** `chat.newSession` shortcut; absent while starting a chat is blocked. */
+  onNewSession?: () => void;
+  /** Full chat page: chat shortcuts also act while nothing holds focus. */
+  ownsPageFocus?: boolean;
 }
 
 export interface ChatViewThread {
@@ -51,6 +55,8 @@ export interface ChatViewThread {
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
+  /** Keep an assistant reply on the canvas as a note; absent hides the action. */
+  onAddReplyToCanvas?: (content: string) => void;
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;

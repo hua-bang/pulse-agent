@@ -35,6 +35,8 @@ interface ChatMessagesProps {
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
+  /** Keep an assistant reply on the canvas as a note; absent hides the action. */
+  onAddReplyToCanvas?: (content: string) => void;
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
@@ -98,6 +100,7 @@ export const ChatMessages = ({
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
+  onAddReplyToCanvas,
   onNodeFocus,
   onEditUserMessage,
   onRegenerate,
@@ -134,6 +137,7 @@ export const ChatMessages = ({
     onToggleSection,
     onToggleToolExpand,
     onAddImageToCanvas,
+    onAddReplyToCanvas,
     onEditUserMessage,
     onRegenerate,
     onFork,
@@ -215,6 +219,7 @@ export const ChatMessages = ({
                   onToggleSection={rowHandlers.onToggleSection}
                   onToggleToolExpand={rowHandlers.onToggleToolExpand}
                   onAddImageToCanvas={rowHandlers.onAddImageToCanvas}
+                  onAddReplyToCanvas={rowHandlers.onAddReplyToCanvas}
                   anchorId={buildAnchorElementId(workspaceId, index)}
                   onEditUserMessage={rowHandlers.onEditUserMessage}
                   onRegenerate={rowHandlers.onRegenerate}

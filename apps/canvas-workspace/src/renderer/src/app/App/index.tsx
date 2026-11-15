@@ -273,7 +273,7 @@ const AppContent = () => {
 
   useAppShortcutBindings({
     activeView, isOverlayOpen, openShortcuts, toggleSidebar: handleSidebarToggle, togglePanels: handlePanelsToggle,
-    workspaces, selectWorkspace: workspaceActions.select, setLocation, routes: { canvas: ROUTE_CANVAS, chat: ROUTE_CHAT },
+    workspaces, selectWorkspace: workspaceActions.select, setLocation, routes: APP_ROUTES,
   });
 
   const getWorkspaceRootFolder = useCallback((workspaceId: string) => workspaces.find((ws) => ws.id === workspaceId)?.rootFolder, [workspaces]);

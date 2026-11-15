@@ -1,4 +1,4 @@
-import { GitBranch } from '@phosphor-icons/react';
+import { GitBranch, NotePencil } from '@phosphor-icons/react';
 import { PencilIcon, RefreshIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
@@ -14,6 +14,8 @@ interface Props {
   onEdit?: () => void;
   onRegenerate?: () => void;
   onFork?: () => Promise<boolean> | void;
+  /** Keep this reply on the canvas as a note. */
+  onAddToCanvas?: () => void;
 }
 
 export const ChatMessageToolbar = ({
@@ -26,9 +28,11 @@ export const ChatMessageToolbar = ({
   onEdit,
   onRegenerate,
   onFork,
+  onAddToCanvas,
 }: Props) => {
   const { t } = useI18n();
-  if (!showCopy && !onEdit && !onRegenerate && !onFork && (isStreaming || !relativeTime)) return null;
+  const hasAction = showCopy || onEdit || onRegenerate || onFork || onAddToCanvas;
+  if (!hasAction && (isStreaming || !relativeTime)) return null;
   return (
     <div className="chat-message-toolbar">
       {!isStreaming && relativeTime && (
@@ -68,6 +72,18 @@ export const ChatMessageToolbar = ({
           onClick={() => void onFork()}
         >
           <GitBranch size={12} />
+        </Button>
+      )}
+      {onAddToCanvas && (
+        <Button
+          variant="icon"
+          size="sm"
+          className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
+          title={t('chat.addToCanvas')}
+          aria-label={t('chat.addToCanvas')}
+          onClick={onAddToCanvas}
+        >
+          <NotePencil size={12} />
         </Button>
       )}
       {showCopy && <CopyMessageButton content={content} />}

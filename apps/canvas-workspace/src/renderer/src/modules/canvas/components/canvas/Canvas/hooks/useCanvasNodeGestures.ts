@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { CanvasNode } from '../../../../../../types';
 import type { useCanvasDocumentHost } from '../../../../document/useCanvasDocumentHost';
-import { useNodeDrag } from '../../../../runtime/useNodeDrag';
+import { useNodeDrag, type NodeDragAutoPan } from '../../../../runtime/useNodeDrag';
 import { useNodeResize } from '../../../../runtime/useNodeResize';
 import { useCanvasRenderOrder } from './useCanvasRenderOrder';
 
@@ -16,6 +16,8 @@ interface Options {
   visibleNodes: CanvasNode[];
   selectedNodeIds: string[];
   scale: number;
+  /** Pans the view while a drag rests near its edge. */
+  autoPan?: NodeDragAutoPan;
 }
 
 export function useCanvasNodeGestures({
@@ -24,6 +26,7 @@ export function useCanvasNodeGestures({
   visibleNodes,
   selectedNodeIds,
   scale,
+  autoPan,
 }: Options) {
   const drag = useNodeDrag(
     document.moveNode,
@@ -31,6 +34,7 @@ export function useCanvasNodeGestures({
     scale,
     nodes,
     selectedNodeIds,
+    autoPan,
   );
   const commitNodeResize = useCallback((
     id: string,

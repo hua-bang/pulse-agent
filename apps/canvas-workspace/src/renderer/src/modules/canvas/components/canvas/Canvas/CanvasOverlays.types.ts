@@ -1,10 +1,11 @@
 import type React from 'react';
-import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../../../../types';
+import type { CanvasEdge, CanvasNode, CanvasTransform, EdgeEndpoint } from '../../../../../types';
 import type { CreatableCanvasNodeType } from '../../../../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../..';
 import type { PaletteCommand } from '../CommandPalette';
 import type { EdgeInteractionState } from '../../../runtime/useEdgeInteraction';
 import type { UseCanvasSearchReturn } from '../../../runtime/useCanvasSearch';
+import type { CanvasZoomControls } from '../../../runtime/useCanvasZoomControls';
 import type { WorkspaceEntry } from '../../../../../shared/workspaces';
 
 interface AddNodeUiOptions extends AddNodeOptions {
@@ -19,6 +20,8 @@ export interface CanvasOverlaysProps {
     screenY: number;
     canvasX: number;
     canvasY: number;
+    /** Present when the menu creates a node for a dropped connect drag. */
+    connectFrom?: EdgeEndpoint;
   } | null;
   searchOpen: boolean;
   activeTool: string;
@@ -47,6 +50,8 @@ export interface CanvasOverlaysProps {
   onToolChange: (tool: string) => void;
   onAddNode: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
   onResetTransform: () => void;
+  /** Zoom chip step, preset, and fit commands. */
+  zoom?: CanvasZoomControls;
   /** Commands shown in the Cmd+K palette alongside node search results.
    *  Built by the parent so each entry can capture the latest tool /
    *  selection / chat state when fired. */

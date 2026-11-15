@@ -27,6 +27,7 @@ import { ChatConversationStatus } from '../ChatConversationStatus';
 import { useChatPanelContext } from './hooks/useChatPanelContext';
 import { useChatPanelSessionNavigation } from './hooks/useChatPanelSessionNavigation';
 import { submitQuickAction } from '../ChatComposer/submitQuickAction';
+import { useAddReplyToCanvas } from '../../runtime/useAddReplyToCanvas';
 export const useChatPanelController = ({
   workspaceId,
   agentScope: agentScopeProp,
@@ -72,6 +73,7 @@ export const useChatPanelController = ({
     [agentScopeProp, workspaceId],
   );
   const scopeWorkspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const addReplyToCanvas = useAddReplyToCanvas(scopeWorkspaceId);
   const scopeId = scopeSessionStoreId(agentScope);
   const scopeLabel = chatTargetLabel
     ?? (agentScope.kind === 'global'
@@ -408,6 +410,7 @@ export const useChatPanelController = ({
     chrome: {
         className: 'chat-panel',
         onResizeStart,
+        onNewSession: loading || sessionLoading || busyElsewhere ? undefined : () => void handleNewSessionFromMenu(),
         header: <ChatHeader
           sessionMenuOpen={sessionMenuOpen}
           sessionMenuRef={sessionMenuRef}
@@ -457,7 +460,7 @@ export const useChatPanelController = ({
         clarificationAnswering, clarificationError, relay, onStopRelay: stopRelay, clarifyInput,
         onClarifyInputChange: setClarifyInput, onAnswerClarification: answerClarification,
         onToggleSection: toggleSection, onToggleToolExpand: toggleToolExpand,
-        onAddImageToCanvas: addImageToCanvas, onNodeFocus, conversationKey: activeSessionId ?? scopeId,
+        onAddImageToCanvas: addImageToCanvas, onAddReplyToCanvas: addReplyToCanvas, onNodeFocus, conversationKey: activeSessionId ?? scopeId,
         onEditUserMessage: handleEditUserMessage, onRegenerate: handleRegenerate, onFork: forkMessage,
         onSessionJump: handleSessionJump,
     },

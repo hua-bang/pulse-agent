@@ -17,7 +17,7 @@ interface ExperimentalSectionProps {
 
 export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
   const { notify, updateToast } = useAppShell();
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   // Id of the in-progress "installing tooling" toast, so the async
   // tooling-status push from main can update it in place.
   const toolingToastRef = useRef<string | null>(null);
@@ -195,13 +195,9 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
           <ul className="experimental-section-list" aria-label={t('experimental.featuresAria')}>
             {features.map((feature) => {
               const description = feature.id === EXPERIMENTAL_FLAG_CHANNELS
-                ? language === 'zh'
-                  ? '在飞书中与画布 AI 对话并执行任务。启用后需配置机器人凭据，消息将通过飞书传输。'
-                  : 'Chat with your canvas AI and run tasks from Feishu. Requires bot credentials; messages are sent through Feishu.'
+                ? t('experimental.channelsDescription')
                 : feature.id === EXPERIMENTAL_FLAG_PI_AGENT_HARNESS
-                  ? language === 'zh'
-                    ? '使用 Pi 运行默认助手，保留画布工具、模型设置和对话历史。默认关闭，使用 Engine。'
-                    : 'Run the default assistant with Pi, keeping Canvas tools, model settings, and chat history. Off by default; Engine remains the default runtime.'
+                  ? t('experimental.piAgentDescription')
                   : feature.description;
               const enabled = !!values[feature.id];
               const busy = !!pending[feature.id];

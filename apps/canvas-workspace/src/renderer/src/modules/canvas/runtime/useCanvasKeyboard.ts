@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type { CanvasNode, FileNodeData } from '../../../types';
+import type { CanvasEdge, CanvasNode, FileNodeData } from '../../../types';
 import type { CanvasClipboard } from '../../../types/ui-interaction';
 import { isImeComposing } from '../../../utils/ime';
 import { withContainerDescendants } from '../../../utils/frameHierarchy';
 import { nodeClipboardText } from '../../../utils/nodeLabel';
+import { internalEdges } from '../model/pasteEdges';
 import {
   matchShortcut,
   type CanvasShortcutId,
@@ -77,6 +78,8 @@ interface Options {
   nodes: CanvasNode[];
   /** Every node of the document, including those hidden by a collapsed frame. */
   getAllNodes: () => CanvasNode[];
+  /** Document edges; a copy keeps the ones between copied nodes. */
+  edges?: CanvasEdge[];
   selectedNodeIds: string[];
   setSelectedNodeIds: (ids: string[]) => void;
   /** Currently selected edge (if any). Delete/Backspace removes it; Esc
@@ -151,7 +154,7 @@ interface Options {
  */
 export const useCanvasKeyboard = ({
   canvasId,
-  undo, redo, nodes, getAllNodes, selectedNodeIds, setSelectedNodeIds,
+  undo, redo, nodes, getAllNodes, edges = [], selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
   duplicateNodes, setClipboard, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
@@ -364,14 +367,15 @@ export const useCanvasKeyboard = ({
             : `# ${node.title}\n\n${node.data.content}`)
           .join('\n\n---\n\n')
         : selected.map(nodeClipboardText).join('\n\n');
-      setClipboard({ sourceWorkspaceId: canvasId, nodes: selected, systemText });
+      const copiedEdges = internalEdges(edges, new Set(selected.map((n) => n.id)));
+      setClipboard({ sourceWorkspaceId: canvasId, nodes: selected, edges: copiedEdges, systemText });
       if (navigator.clipboard?.writeText) {
         void navigator.clipboard.writeText(systemText).catch(() => {
           // The mirror never reached the system clipboard, so comparing
           // against it would refuse every later paste. Drop it: without a
           // mirror the canvas clipboard simply wins, which is the old
           // behavior and the right fallback.
-          setClipboard({ sourceWorkspaceId: canvasId, nodes: selected });
+          setClipboard({ sourceWorkspaceId: canvasId, nodes: selected, edges: copiedEdges });
         });
       }
     },

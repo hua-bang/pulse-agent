@@ -187,8 +187,8 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   listAllSessions: (workspaceNames) =>
     ipcRenderer.invoke("canvas-agent:all-sessions", { workspaceNames }),
 
-  searchSessions: (query, limit) =>
-    ipcRenderer.invoke("canvas-agent:search-sessions", { query, limit }),
+  searchSessions: (query, limit, mode) =>
+    ipcRenderer.invoke("canvas-agent:search-sessions", { query, limit, mode }),
 
   getCurrentSession: (scopeRef) =>
     ipcRenderer.invoke("canvas-agent:current-session", scopeRef),

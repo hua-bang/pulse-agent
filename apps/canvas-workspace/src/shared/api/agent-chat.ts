@@ -415,10 +415,15 @@ export interface AgentApi {
   listAllSessions: (
     workspaceNames: Record<string, string>,
   ) => Promise<{ ok: boolean; groups?: CrossWorkspaceSessionGroup[]; error?: string }>;
-  /** Keyword search over stored session message content (for the @-mention popup). */
+  /**
+   * Keyword search over stored sessions. `title` (default) reads only list
+   * metadata, for the @-mention popup; `content` also reads message text,
+   * for the sessions rail.
+   */
   searchSessions: (
     query: string,
     limit?: number,
+    mode?: 'title' | 'content',
   ) => Promise<{ ok: boolean; hits?: SessionSearchHit[]; error?: string }>;
   /** Current session id for a scope (live agent, falling back to disk). */
   getCurrentSession: (

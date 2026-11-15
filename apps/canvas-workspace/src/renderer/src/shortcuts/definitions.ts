@@ -301,6 +301,30 @@ export const SHORTCUTS = {
     editable: 'allow',
   },
 
+  // ---- Chat-scoped -------------------------------------------------------
+  // Only live while focus is inside a chat surface (see `useChatShortcuts`),
+  // so they may share a key with a global binding: the chat claims it first.
+  'chat.stop': {
+    owner: 'chat',
+    // Escape is claimed ONLY while a turn runs and no popup/editor inside
+    // the chat used it first; otherwise it falls through to canvas.escape
+    // and the dock Escape policy. Mod+. is the macOS "cancel" convention.
+    bindings: [{ key: 'Escape' }, { key: '.', mod: true }],
+    editable: 'allow',
+  },
+  'chat.newSession': {
+    owner: 'chat',
+    // No menu role, canvas, app, or dock binding uses Mod+Shift+O.
+    bindings: [{ key: 'o', mod: true, shift: true }],
+    editable: 'allow',
+  },
+  'chat.focusComposer': {
+    owner: 'chat',
+    // Bare "/" (Slack/GitHub convention). Blocked in editable fields, so
+    // typing "/" in the composer still opens the skill popup.
+    bindings: [{ key: '/' }],
+  },
+
   'app.shortcutsHelp': {
     owner: 'app',
     bindings: [{ key: '?', shift: true, display: '?' }, { key: '/', shift: true, hidden: true }],
@@ -322,3 +346,4 @@ export type ShortcutIdFor<O extends ShortcutOwner> = {
 export type CanvasShortcutId = ShortcutIdFor<'canvas'>;
 export type AppShortcutId = ShortcutIdFor<'app'>;
 export type TerminalShortcutId = ShortcutIdFor<'terminal'>;
+export type ChatShortcutId = ShortcutIdFor<'chat'>;

@@ -1,4 +1,6 @@
-import { app, Menu, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
+import { APP_MENU_COMMAND_CHANNEL, type AppMenuCommand } from "../../shared/app-info";
+import { getLiveCanvasWindow } from "./window-manager";
 
 /**
  * Replaces Electron's default application menu.
@@ -25,25 +27,132 @@ import { app, Menu, type MenuItemConstructorOptions } from "electron";
  * `reload` / `forceReload` stay behind the dev build: reloading the window
  * tears down every live terminal PTY and webview guest, which is a developer
  * action, not something a stray Cmd+R should do to real work.
+ *
+ * App commands (Settings, New workspace, panels, help) send an
+ * `AppMenuCommand` to the window, and the renderer runs its existing handler.
+ * Only Settings has an accelerator: CmdOrCtrl+, runs the same handler as the
+ * renderer's `app.openSettings`. The other items deliberately have none. The
+ * renderer registry owns their chords, and a menu accelerator would take the
+ * key before the renderer's focus and overlay guards (for example `?` while
+ * typing, or Mod+Shift+D in the note editor).
  */
 const CLOSE_WINDOW_ACCELERATOR = "Shift+CmdOrCtrl+W";
+const SETTINGS_ACCELERATOR = "CmdOrCtrl+,";
 
-export function configureApplicationMenu(): void {
-  const isMac = process.platform === "darwin";
-  const isDev = !app.isPackaged;
+export type MenuLabelKey =
+  | "file"
+  | "edit"
+  | "view"
+  | "window"
+  | "help"
+  | "settings"
+  | "newWorkspace"
+  | "commandPalette"
+  | "toggleSidebar"
+  | "togglePanels"
+  | "toggleChatPage"
+  | "keyboardShortcuts";
 
-  const template: MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: "appMenu" } as MenuItemConstructorOptions] : []),
+type MenuLabels = Record<MenuLabelKey, string>;
+
+const EN_LABELS: MenuLabels = {
+  file: "File",
+  edit: "Edit",
+  view: "View",
+  window: "Window",
+  help: "Help",
+  settings: "Settings…",
+  newWorkspace: "New Workspace",
+  commandPalette: "Command Palette…",
+  toggleSidebar: "Toggle Sidebar",
+  togglePanels: "Toggle All Panels",
+  toggleChatPage: "Toggle Chat Page",
+  keyboardShortcuts: "Keyboard Shortcuts",
+};
+
+const ZH_LABELS: MenuLabels = {
+  file: "文件",
+  edit: "编辑",
+  view: "视图",
+  window: "窗口",
+  help: "帮助",
+  settings: "设置…",
+  newWorkspace: "新建工作区",
+  commandPalette: "命令面板…",
+  toggleSidebar: "切换侧边栏",
+  togglePanels: "切换全部面板",
+  toggleChatPage: "切换聊天页",
+  keyboardShortcuts: "键盘快捷键",
+};
+
+/**
+ * Main has no copy of the renderer's language setting, so the menu follows
+ * the OS locale, like the other main-process dialogs (`unload-prompt.ts`).
+ */
+export function menuLabels(locale: string): MenuLabels {
+  return locale.toLowerCase().startsWith("zh") ? ZH_LABELS : EN_LABELS;
+}
+
+function sendMenuCommand(command: AppMenuCommand): void {
+  const focused = BrowserWindow.getFocusedWindow();
+  const win = focused && !focused.isDestroyed() ? focused : getLiveCanvasWindow();
+  win?.webContents.send(APP_MENU_COMMAND_CHANNEL, command);
+}
+
+function commandItem(
+  label: string,
+  command: AppMenuCommand,
+  accelerator?: string,
+): MenuItemConstructorOptions {
+  return {
+    label,
+    ...(accelerator ? { accelerator } : {}),
+    click: () => sendMenuCommand(command),
+  };
+}
+
+export function buildApplicationMenuTemplate(options: {
+  isMac: boolean;
+  isDev: boolean;
+  labels: MenuLabels;
+}): MenuItemConstructorOptions[] {
+  const { isMac, isDev, labels } = options;
+  const settingsItem = commandItem(labels.settings, "open-settings", SETTINGS_ACCELERATOR);
+
+  return [
+    ...(isMac
+      ? [{
+        label: app.name,
+        submenu: [
+          { role: "about" },
+          { type: "separator" },
+          settingsItem,
+          { type: "separator" },
+          { role: "services" },
+          { type: "separator" },
+          { role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { role: "quit" },
+        ],
+      } as MenuItemConstructorOptions]
+      : []),
     {
-      label: "File",
+      label: labels.file,
       submenu: [
+        commandItem(labels.newWorkspace, "new-workspace"),
+        { type: "separator" },
+        ...(isMac
+          ? []
+          : [settingsItem, { type: "separator" } as MenuItemConstructorOptions]),
         isMac
           ? { role: "close", accelerator: CLOSE_WINDOW_ACCELERATOR }
           : { role: "quit" },
       ],
     },
     {
-      label: "Edit",
+      label: labels.edit,
       submenu: [
         { role: "cut" },
         { role: "copy" },
@@ -57,8 +166,14 @@ export function configureApplicationMenu(): void {
       ],
     },
     {
-      label: "View",
+      label: labels.view,
       submenu: [
+        commandItem(labels.commandPalette, "command-palette"),
+        { type: "separator" },
+        commandItem(labels.toggleSidebar, "toggle-sidebar"),
+        commandItem(labels.togglePanels, "toggle-panels"),
+        commandItem(labels.toggleChatPage, "toggle-chat-page"),
+        { type: "separator" },
         ...(isDev
           ? ([
             { role: "reload" },
@@ -72,7 +187,7 @@ export function configureApplicationMenu(): void {
       ],
     },
     {
-      label: "Window",
+      label: labels.window,
       // The `window` role gives macOS its open-window list.
       role: "window",
       submenu: isMac
@@ -87,7 +202,21 @@ export function configureApplicationMenu(): void {
           { role: "close", accelerator: CLOSE_WINDOW_ACCELERATOR },
         ],
     },
+    {
+      label: labels.help,
+      role: "help",
+      submenu: [
+        commandItem(labels.keyboardShortcuts, "shortcuts-help"),
+      ],
+    },
   ];
+}
 
+export function configureApplicationMenu(): void {
+  const template = buildApplicationMenuTemplate({
+    isMac: process.platform === "darwin",
+    isDev: !app.isPackaged,
+    labels: menuLabels(app.getLocale()),
+  });
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
