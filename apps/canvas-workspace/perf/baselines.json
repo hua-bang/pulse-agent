@@ -140,18 +140,18 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口实测 753KB（10/4 为 736KB，主要增长来自 MCP App 全局侧栏一批 PR 约 7KB、新外壳、知识入口与 Heptabase 式连线各约 2KB）。保留 680 target 作为常驻聊天壳瘦身压力。", "asOf": "2026-11-11",
-      "gate": { "kind": "ratchet", "baseline": 666, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口实测 753KB（10/4 为 736KB，主要增长来自 MCP App 全局侧栏一批 PR 约 7KB、新外壳、知识入口与 Heptabase 式连线各约 2KB）。保留 680 target 作为常驻聊天壳瘦身压力。", "asOf": "2026-11-15",
+      "gate": { "kind": "ratchet", "baseline": 691, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 gzip 225→197KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口 gzip 实测 223KB。保留 target 185 与 warning 210 作为瘦身压力。", "asOf": "2026-11-11",
-      "gate": { "kind": "ratchet", "baseline": 199, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 gzip 225→197KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口 gzip 实测 223KB。保留 target 185 与 warning 210 作为瘦身压力。", "asOf": "2026-11-15",
+      "gate": { "kind": "ratchet", "baseline": 206, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），启动 JS 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。启动静态闭包实测 753KB，与入口相同（启动闭包只有入口一个 JS）。保留 650 target 作为启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-11-11",
-      "gate": { "kind": "ratchet", "baseline": 666, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），启动 JS 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。启动静态闭包实测 753KB，与入口相同（启动闭包只有入口一个 JS）。保留 650 target 作为启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-11-15",
+      "gate": { "kind": "ratchet", "baseline": 691, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
@@ -165,8 +165,8 @@
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 400, "warning": 550,
-      "confidence": "high", "basis": "2026-10-31：Canvas Agent 服务（engine、工具、会话存储）改为首次 agent 调用时动态加载，main 入口 726→394KB，ratchet 锚点同步收紧到实测值。target 400 / warning 550 防止 agent 代码重新进入启动入口。", "asOf": "2026-10-31",
-      "gate": { "kind": "ratchet", "baseline": 394, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-10-31：Canvas Agent 服务（engine、工具、会话存储）改为首次 agent 调用时动态加载，main 入口 726→394KB，ratchet 锚点同步收紧到实测值。target 400 / warning 550 防止 agent 代码重新进入启动入口。", "asOf": "2026-11-15",
+      "gate": { "kind": "ratchet", "baseline": 400, "tolerancePct": 1, "scope": "bundle" }
     },
     "startup.loaded_to_canvas_kb": {
       "profile": "local-darwin-arm64-n100-r3-warm-trace", "target": 950, "warning": 1050,
