@@ -5,6 +5,7 @@ import { isImeComposing } from '../../../utils/ime';
 import { withContainerDescendants } from '../../../utils/frameHierarchy';
 import { nodeClipboardText } from '../../../utils/nodeLabel';
 import { internalEdges } from '../model/pasteEdges';
+import { toggleMinimap } from './minimapPreference';
 import {
   matchShortcut,
   type CanvasShortcutId,
@@ -305,6 +306,10 @@ export const useCanvasKeyboard = ({
     'canvas.fitAll': (event) => {
       event.preventDefault();
       if (!fullscreenActive) fitNodes(nodes);
+    },
+    'canvas.toggleMinimap': (event) => {
+      event.preventDefault();
+      if (!fullscreenActive) toggleMinimap();
     },
     'canvas.refresh': (event) => {
       event.preventDefault();

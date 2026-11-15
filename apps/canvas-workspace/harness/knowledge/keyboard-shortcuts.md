@@ -253,7 +253,10 @@ leaves the chord to the canvas layer:
   commands (pages and workspaces) from `shared/appCommands.ts`. The canvas
   palette shows the same commands, but only when the query matches them
   (`searchOnly`). With a query, both palettes also list matching stored chats
-  (`CommandPalette/useChatSessionCommands.ts`). A chat result dispatches
+  (`CommandPalette/useChatSessionCommands.ts`). Title matches come first,
+  after a 150 ms pause. Matches in message text follow after a 400 ms pause,
+  because content search reads every stored session. The list has one entry
+  per chat and at most six entries. A chat result dispatches
   `requestOpenChatSession`; `App/useOpenSessionInScope.ts` opens it in its
   owning scope.
 

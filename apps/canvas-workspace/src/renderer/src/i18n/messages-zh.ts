@@ -243,6 +243,7 @@ export const zhMessages: MessageCatalog = {
   'shortcuts.view.zoomOut': '缩小画布。',
   'shortcuts.view.zoomReset': '将画布缩放重置为 100%。',
   'shortcuts.view.fitAll': '缩放至显示全部节点。',
+  'shortcuts.view.toggleMinimap': '显示或隐藏小地图。',
   'shortcuts.view.fitSelection': '缩放至显示当前选择。',
   'shortcuts.view.toolSelect': '切换到选择工具。',
   'shortcuts.view.toolHand': '切换到抓手（平移）工具。',
