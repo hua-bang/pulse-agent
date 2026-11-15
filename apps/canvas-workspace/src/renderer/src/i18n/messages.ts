@@ -254,6 +254,7 @@ export const enMessages = {
   'shortcuts.view.zoomOut': 'Zoom the canvas out.',
   'shortcuts.view.zoomReset': 'Reset the canvas zoom to 100%.',
   'shortcuts.view.fitAll': 'Fit every node in view.',
+  'shortcuts.view.toggleMinimap': 'Show or hide the minimap.',
   'shortcuts.view.fitSelection': 'Fit the current selection in view.',
   'shortcuts.view.toolSelect': 'Switch to the select tool.',
   'shortcuts.view.toolHand': 'Switch to the hand (pan) tool.',

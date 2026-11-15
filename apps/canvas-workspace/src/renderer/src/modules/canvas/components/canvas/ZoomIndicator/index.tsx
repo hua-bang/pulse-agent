@@ -6,6 +6,7 @@ import { Button } from '../../../../../components/ui';
 import { Popover } from '../../../../../components/ui/Popover';
 import { PlusIcon } from '../../../../../components/icons';
 import { ZOOM_BUTTON_STEP, ZOOM_PRESETS } from '../../../runtime/useCanvasZoomControls';
+import { formatShortcutId } from '../../../../../shortcuts/registry';
 
 interface Props {
   scale: number;
@@ -91,7 +92,7 @@ export const ZoomIndicator = ({
             onClick={onToggleMinimap}
             aria-pressed={minimapOpen}
             aria-label={t('canvas.minimap.toggle')}
-            title={t('canvas.minimap.toggle')}
+            title={`${t('canvas.minimap.toggle')} (${formatShortcutId('canvas.toggleMinimap')})`}
           >
             <MinimapGlyph />
           </Button>

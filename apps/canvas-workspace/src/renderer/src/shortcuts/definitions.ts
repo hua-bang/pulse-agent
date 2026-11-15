@@ -101,6 +101,10 @@ export const SHORTCUTS = {
     bindings: [{ key: '2', shift: true }],
     requiresSelection: true,
   },
+  'canvas.toggleMinimap': {
+    owner: 'canvas',
+    bindings: [{ key: 'm' }],
+  },
   'canvas.toolSelect': {
     owner: 'canvas',
     bindings: [{ key: 'v' }],
