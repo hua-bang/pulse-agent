@@ -120,7 +120,7 @@ every route that has a dock chat tab and no chat chrome of its own, canvas
 being the one exception. Deriving it (rather than an independent route list)
 stopped the Scheduled page from being hand-excluded with no way to reach the
 agent — guarded by
-`src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-chat-availability.test.ts`.
+`src/renderer/src/shared/dock/dock-chat-availability.test.ts`.
 
 ## Session-store vocabulary
 
@@ -206,4 +206,4 @@ Bound tests:
 - `src/renderer/src/modules/scheduled/internal/__tests__/ScheduledPage.test.tsx`
 - `src/main/agent/__tests__/service-history.test.ts` — scheduled-scope
   coverage, alongside its main subject
-- `src/renderer/src/modules/dock/internal/RightDock/__tests__/dock-chat-availability.test.ts`
+- `src/renderer/src/shared/dock/dock-chat-availability.test.ts`

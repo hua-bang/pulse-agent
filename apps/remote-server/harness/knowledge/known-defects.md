@@ -31,7 +31,7 @@ secret/PII leak — to any reachable client. See `security-posture.md §3`.
 ## 3. Clarification consumes the user's next message even if it is a command — MED
 
 While a clarification is pending, the next inbound text is submitted as the
-answer and the message returns `null` (feishu `adapter.ts:220-236`;
+answer and the message returns `null` (feishu `src/adapters/feishu/adapter.ts:220-236`;
 same shape in discord/telegram). A user typing `/stop` mid-clarification has
 it swallowed as the answer instead of executed — the run they wanted to
 stop keeps going.
@@ -39,9 +39,9 @@ stop keeps going.
 ## 4. Discord slash-command runs cannot be cancelled by the `❌` reaction — MED
 
 The cancel token is registered only on the channel/gateway path
-(`adapters/discord/adapter.ts:300-302`), not the interaction path
+(`src/adapters/discord/adapter.ts:300-302`), not the interaction path
 (`:262-273`); the reaction handler silently no-ops for interaction runs
-(`gateway.ts:427-429`). Only `/stop` cancels a slash-command run. A user who
+(`src/adapters/discord/gateway.ts:427-429`). Only `/stop` cancels a slash-command run. A user who
 reacts `❌` expecting cancellation gets none.
 
 ## 5. Mid-run session commands orphan or redirect the in-flight run — MED
@@ -61,7 +61,7 @@ reacts `❌` expecting cancellation gets none.
 ## 6. `TelegramAdapter` throws at module load if `TELEGRAM_BOT_TOKEN` unset — MED (latent)
 
 `export const telegramAdapter = new TelegramAdapter()`
-(`adapters/telegram/adapter.ts:145`) runs the constructor, which calls
+(`src/adapters/telegram/adapter.ts:145`) runs the constructor, which calls
 `createTelegramClient()` that throws when the token is missing
 (`:22-24`). Un-commenting `telegramRouter` in `server.ts` to mount Telegram
 would crash the import on any box without the token set. Latent only because
@@ -72,7 +72,7 @@ Telegram is currently unmounted.
 - `INTERNAL_API_SECRET` compared with `===`, not `timingSafeEqual`
   (`internal.ts:430-435`) — mitigated by loopback-only exposure.
 - Discord ED25519 verify has no timestamp-staleness check
-  (`adapter.ts:110-138`) — replay bounded only by Discord's signing window.
+  (`src/adapters/discord/adapter.ts:110-138`) — replay bounded only by Discord's signing window.
 - Dead code: `truncateForNotify()` (`internal.ts:658`) is never called.
 - Stray `console.log('modelType', modelType)` in every non-ACP turn's hot
   path (`agent-runner.ts:382`).
@@ -83,12 +83,12 @@ Telegram is currently unmounted.
 
 ## Resolved (do not re-report)
 
-- **ProxyAgent cache-key bug — FIXED** (`core/proxy.ts:21-24`, commit
+- **ProxyAgent cache-key bug — FIXED** (`src/adapters/discord/proxy.ts:21-24`, commit
   `7e27500`). The cache once stored the normalized URL but compared the raw
   env value, so it never hit and built a new agent per download. Now keyed
-  by the raw env value with an explaining comment. Root `AGENTS.md §6`
+  by the raw env value with an explaining comment. `harness/validate/README.md`
   records the incident; regression coverage is indirect via
-  `core/attachments.test.ts`. This is the "orphaned tests" precedent — do
+  `src/core/attachments.test.ts`. This is the "orphaned tests" precedent — do
   not confuse the fixed bug with an open one.
 
 ## Test coverage reality

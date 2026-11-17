@@ -4,31 +4,63 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { discoverWorkspaces, inspectCommand, readValidation } from './validation-data.mjs';
+import { discoverWorkspaces, inspectCommand, matchesAny, readValidation } from './validation-data.mjs';
 import { inspectDocumentReferences, markdownFiles } from './document-references.mjs';
 
 const ABSENCE_SIGNAL = /not exist|nonexistent|absent|if present|optional|opt-in|only when|only for|only after|only if|future|later|do not|deleted|retired|removed|runtime/i;
+
+function walkOwnerFiles(rootDir, subDir = '') {
+  const absolute = path.join(rootDir, subDir);
+  if (!fs.existsSync(absolute)) return [];
+  const files = [];
+  for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+    if (['node_modules', '.git', '.harness', 'dist', 'build'].includes(entry.name)) continue;
+    const relative = subDir ? path.posix.join(subDir, entry.name) : entry.name;
+    if (entry.isDirectory()) files.push(...walkOwnerFiles(rootDir, relative));
+    else files.push(relative);
+  }
+  return files;
+}
 
 export function inspectHarness(repoRoot, { deepDocs = false } = {}) {
   const gaps = [], uninspectedCommands = [];
   let workspaces = [];
   const read = (relative) => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
   const exists = (relative) => fs.existsSync(path.join(repoRoot, relative));
+  const walkCache = new Map();
+  const hasMatchingPath = (baseDir, pattern) => {
+    if (!/[*?[\]{}]/.test(pattern)) return exists(path.posix.join(baseDir, pattern));
+    const prefix = [];
+    for (const segment of pattern.split('/')) {
+      if (/[*?[\]{}]/.test(segment)) break;
+      prefix.push(segment);
+    }
+    const subDir = prefix.join('/');
+    const key = baseDir + '::' + subDir;
+    if (!walkCache.has(key)) walkCache.set(key, walkOwnerFiles(path.join(repoRoot, baseDir), subDir));
+    return walkCache.get(key).some((file) => matchesAny(file, [pattern]));
+  };
   try {
     workspaces = discoverWorkspaces(repoRoot);
   } catch (error) {
     gaps.push(error.message);
   }
   const commands = new Map();
-  function checkValidation(relative) {
+  function checkValidation(relative, baseDir = '.') {
     try {
       const data = readValidation(repoRoot, relative);
       const rules = [...data.pathRules, ...Object.entries(data.escalationRules ?? {})
         .map(([name, rule]) => ({ name, ...rule }))];
       for (const rule of rules) {
+        const source = relative + ' · ' + rule.name;
+        for (const pattern of rule.paths ?? []) {
+          if (!hasMatchingPath(baseDir, pattern)) {
+            gaps.push(source + ': unmatched rule path ' + pattern);
+          }
+        }
         for (const command of ['quick', 'required', 'release'].flatMap((tier) => rule[tier] ?? [])) {
           if (!commands.has(command)) commands.set(command, []);
-          commands.get(command).push(relative + ' · ' + rule.name);
+          commands.get(command).push(source);
         }
       }
     } catch (error) {
@@ -42,7 +74,7 @@ export function inspectHarness(repoRoot, { deepDocs = false } = {}) {
       for (const match of line.matchAll(/`([^`]+)`/g)) {
         const token = match[1].replace(/\/$/, '');
         if (/[<>{}*?$|\s]/.test(token)) continue;
-        if (!/^(packages|apps|harness|scripts|docs|\.github|\.pulse-coder)\/[A-Za-z0-9._/-]+$/.test(token)) continue;
+        if (!/^(packages|apps|harness|scripts|docs|src|deploy|\.github|\.pulse-coder)\/[A-Za-z0-9._/-]+$/.test(token)) continue;
         if (!bases.some((base) => exists(path.posix.join(base, token)))) {
           gaps.push(relative + ': dangling path reference ' + token);
         }
@@ -57,10 +89,10 @@ export function inspectHarness(repoRoot, { deepDocs = false } = {}) {
     if (exists(agents)) entryCoverage += 1;
     else gaps.push(agents + ': missing workspace entry');
     if (exists(validation)) validationCoverage += 1;
-    checkValidation(validation);
+    checkValidation(validation, workspace.dir);
     checkRoutingLinks(agents, [workspace.dir, '.']);
   }
-  checkValidation('harness/validate/validation.yaml');
+  checkValidation('harness/validate/validation.yaml', '.');
   const docs = ['AGENTS.md'];
   if (exists('harness')) {
     for (const file of fs.readdirSync(path.join(repoRoot, 'harness'), { recursive: true })) {

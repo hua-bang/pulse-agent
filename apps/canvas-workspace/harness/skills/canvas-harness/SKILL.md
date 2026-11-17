@@ -132,6 +132,6 @@ pnpm --filter canvas-workspace harness close --cleanup
 - Treat visible content as product state. If the screenshot shows an old onboarding or different workspace, first check whether the current branch or built output actually contains the expected product change.
 - If `dist/` is missing or stale, rebuild or start with `--build`.
 - If a session is already running, use `--force` to replace it or `close --cleanup` to stop it.
-- `start` returns after React replaces the boot splash and first-paint content settles (lazy node bodies, file previews, chat history, webview loads; `src/readiness.mjs`). Settling is best effort: after 15s it warns with what is still pending instead of failing.
+- `start` returns after React replaces the boot splash and first-paint content settles (lazy node bodies, file previews, chat history, webview loads; `harness/tools/driver/src/readiness.mjs`). Settling is best effort: after 15s it warns with what is still pending instead of failing.
 - Relative `--output` / `--ca-cert` paths resolve from where you ran pnpm (`INIT_CWD`), not the app directory.
 - Do not leave temporary sessions running after a verification task.

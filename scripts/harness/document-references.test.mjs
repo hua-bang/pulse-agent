@@ -41,12 +41,20 @@ describe('deep document diagnostics', () => {
   it('checks explicit source citations and reference-style links', () => {
     const root = createFixture();
     writeFixture(root, doc, [
-      'TICKsrc/index.ts:9TICK and TICKsrc/deleted.ts:27-29TICK',
+      'TICKsrc/index.ts:9TICK and TICKsrc/deleted.ts:27-29TICK and TICKsrc/moved.tsTICK',
       '[missing-ref]: ../../src/absent.ts',
     ].join('\n').replaceAll('TICK', String.fromCharCode(96)));
     const warnings = inspectHarness(root, { deepDocs: true }).docWarnings;
-    expect(warnings.map((warning) => warning.kind)).toEqual(['missing-source-citation', 'missing-markdown-target']);
-    expect(warnings[0].reference).toBe('src/deleted.ts');
+    expect(warnings.map((warning) => warning.kind)).toEqual([
+      'missing-source-citation',
+      'missing-source-citation',
+      'missing-markdown-target',
+    ]);
+    expect(warnings.map((warning) => warning.reference)).toEqual([
+      'src/deleted.ts',
+      'src/moved.ts',
+      '../../src/absent.ts',
+    ]);
   });
 
   it('does not hide tracked source under a normally generated runtime directory', () => {

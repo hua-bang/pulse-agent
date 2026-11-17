@@ -379,7 +379,7 @@ open alongside the host find bar.
    a web app treating Escape as "close my modal"); it then sends the chord to
    the host over the `iframe:shortcut` IPC channel
    (`WEBVIEW_SHORTCUT_CHANNEL`).
-3. `src/renderer/src/hooks/useWebviewShortcutBridge.ts` — receives that IPC
+3. `src/renderer/src/platform/browser/useWebviewShortcutBridge.ts` — receives that IPC
    payload and re-dispatches it as an ordinary `window` `keydown`
    (`new KeyboardEvent('keydown', { …, bubbles: true, cancelable: true })`)
    rather than calling a handler directly. Re-dispatching (instead of calling
@@ -440,39 +440,7 @@ itself (Claude Code's jump-to-previous-message) cannot see it there.
 
 ## Bound checks
 
-Bound checks: the `keyboard-shortcuts` rule in `harness/validate/validation.yaml`.
-That rule's own comment states the split of responsibility explicitly:
-keyboard shortcuts are a cross-layer contract — bindings in
-`shortcuts/registry`, the canvas + app handler tables, the lazy help overlay
-and palette labels derived from them, the webview forwarding whitelist in
-`shared/`, and the terminal key arbitration. Typecheck already catches a
-documented-but-unimplemented shortcut (the handler tables are exhaustive by
-type); the suites bound by this rule cover the runtime halves instead —
-exact-modifier matching, auto-repeat, Escape ownership, and clipboard
-recency.
-
-The rule's `paths` cover: `src/renderer/src/shortcuts/**`,
-`src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts`,
-`src/renderer/src/app/shortcuts/useAppShortcuts.ts`,
-`src/renderer/src/hooks/useWebviewShortcutBridge.ts`,
-`src/renderer/src/utils/keyboardShortcut.ts`,
-`src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx`,
-`src/shared/webview-shortcuts.ts`,
-`src/main/webview/shortcut-forwarding.ts`, `src/main/app/menu.ts`,
-`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminal.ts`,
-`src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalFocus.ts`, and the four
-xterm surfaces that dispatch terminal-owned shortcuts
-(`AgentNodeBody/useAgentNodeController.ts`, `TerminalNodeBody/index.tsx`,
-`WorkspaceTerminalDock/index.tsx`, `NodeMentionPicker/index.tsx`).
-
-Its `quick` step and its `required` step both run:
-
-```
-pnpm --filter canvas-workspace exec vitest run src/renderer/src/shortcuts src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.test.ts src/renderer/src/app/shortcuts/useAppShortcuts.test.ts src/main/webview/__tests__/shortcut-forwarding.test.ts src/renderer/src/modules/coding-agent/components/AgentNodeBody/utils/terminalKeys.test.ts
-```
-
-`required` additionally runs `pnpm --filter canvas-workspace typecheck`
-first.
+Bound checks live in the `keyboard-shortcuts` rule in `harness/validate/validation.yaml` (SSOT for bound paths and `quick`/`required` commands). Keyboard shortcuts are a cross-layer contract — bindings in `shortcuts/registry`, the canvas + app handler tables, the lazy help overlay and palette labels derived from them, the webview forwarding whitelist in `shared/`, and the terminal key arbitration. Typecheck catches a documented-but-unimplemented shortcut (the handler tables are exhaustive by type); the suites bound by `keyboard-shortcuts` cover the runtime halves — exact-modifier matching, auto-repeat, Escape ownership, clipboard recency, and terminal key arbitration.
 
 ## Evidence
 

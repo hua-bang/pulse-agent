@@ -3,7 +3,7 @@
 Formerly the standalone `packages/langfuse-plugin` workspace; folded into
 plugin-kit as the `pulse-coder-plugin-kit/langfuse` subpath export
 (`createLangfusePlugin`). Sole consumer: `apps/remote-server`
-(`src/core/langfuse.ts`). Single-file module (`index.ts`), no specs.
+(`apps/remote-server/src/core/langfuse.ts`). Single-file module (`index.ts`), no specs.
 
 ## Positioning
 

@@ -63,4 +63,16 @@ describe('harness structural checks', () => {
     const gaps = inspectHarness(root).gaps.join('\n');
     expect(gaps).toContain('dangling path reference harness/missing.md');
   });
+
+  it('flags validation rule paths that match no files under the owner', () => {
+    const root = createFixture();
+    writeFixture(
+      root,
+      'packages/example/harness/validate/validation.yaml',
+      validationYaml(['node scripts/check.cjs'], ['src/nonexistent/**']),
+    );
+    const gaps = inspectHarness(root).gaps.join('\n');
+    expect(gaps).toContain('fixture: unmatched rule path src/nonexistent/**');
+  });
 });
+

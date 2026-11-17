@@ -128,7 +128,7 @@ pathRules:
       - src/renderer/src/shortcuts/**
       - src/renderer/src/modules/canvas/runtime/useCanvasKeyboard.ts
       - src/renderer/src/app/shortcuts/useAppShortcuts.ts
-      - src/renderer/src/hooks/useWebviewShortcutBridge.ts
+      - src/renderer/src/platform/browser/useWebviewShortcutBridge.ts
       - src/renderer/src/utils/keyboardShortcut.ts
       - src/renderer/src/app/shell/AppShellProvider/ShortcutsDialog.tsx
       - src/shared/webview-shortcuts.ts
@@ -193,7 +193,7 @@ pathRules:
       - src/renderer/src/modules/mcp-apps/**
       - src/shared/mcp-apps.ts
       - src/shared/mcp-app-context.ts
-      - src/main/agent/mcp-app*.ts
+      - src/main/agent/mcp-apps/**
     quick:
       - pnpm --filter canvas-workspace exec vitest run src/renderer/src/modules/mcp-apps
     required:

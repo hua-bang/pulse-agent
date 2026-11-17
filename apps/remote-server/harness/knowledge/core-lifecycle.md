@@ -45,7 +45,7 @@ lifecycle diagram is accurate for Discord, stale for Feishu.
    `run.streamId === streamId` (`active-run-store.ts:27-36`), so a slow
    aborted run's `finally` cannot clear a newer run started after `/stop`.
 3. **Cancellation.** Each `ActiveRun` owns an `AbortController`
-   (`types.ts:100-105`) threaded into `engine.run`/`runAcp`. Two abort
+   (`src/core/types.ts:100-105`) threaded into `engine.run`/`runAcp`. Two abort
    sources: `/stop` and aliases (allowed while running via
    `command-defs.ts` `COMMANDS_ALLOWED_WHILE_RUNNING`) →
    `abortAndClearActiveRun`; and Discord `❌` reaction → reverse index

@@ -98,9 +98,9 @@ registered by the MCP plugin default to true, except MCP App tools (those with a
 | `packages/cli` | `PulseAgent`, `Context`, `TaskListService` (via `getService`), `ClarificationRequest`, `generateTextAI` | src (root paths alias); no typecheck script |
 | `packages/agent-teams` | `Engine` (own instance per teammate), `Context`, `ILogger`, `LoopOptions`, `generateTextAI`; derives `EngineOptions` from the constructor signature | **dist** — clears `paths` to `{}`; the only dist canary |
 | `packages/acp` | `ClarificationRequest` (type-only) | src |
-| `packages/plugin-kit` | `EnginePlugin`, `EnginePluginContext`, `SystemPromptOption`, `Tool`, `ToolExecutionContext`, `OnCompactedEvent`; its `src/memory` module adds `OnCompactedInput`, its `src/langfuse` module adds `Context` | src |
+| `packages/plugin-kit` | `EnginePlugin`, `EnginePluginContext`, `SystemPromptOption`, `Tool`, `ToolExecutionContext`, `OnCompactedEvent`; its `packages/plugin-kit/src/memory` module adds `OnCompactedInput`, its `packages/plugin-kit/src/langfuse` module adds `Context` | src |
 | `apps/remote-server` | `Engine`, `Context`, `ClarificationRequest`, `Tool`, `ToolExecutionContext`, `buildProvider`, `CompactionEvent`, `LLMProviderFactory`; `./built-in`: all built-in plugins + `SubAgentPlugin`, hand-assembled with `disableBuiltInPlugins: true` | package exports (dist); no typecheck script |
-| `apps/canvas-workspace` | `Engine`, `EngineToolSession`, `GenerateImageTool`, `buildProvider`, `LLMProviderFactory`, `ModelType`; `./built-in`: `createSkillsPlugin`, `createMcpPlugin`, `mcpAuth`, OAuth types (hand-assembled, skills+MCP only) | hand-written shim `src/main/agent/engine.d.ts` for the base module (loose `any` types); `./built-in` relies on real dist types |
+| `apps/canvas-workspace` | `Engine`, `EngineToolSession`, `GenerateImageTool`, `buildProvider`, `LLMProviderFactory`, `ModelType`; `./built-in`: `createSkillsPlugin`, `createMcpPlugin`, `mcpAuth`, OAuth types (hand-assembled, skills+MCP only) | hand-written shim `apps/canvas-workspace/src/main/agent/engine.d.ts` for the base module (loose `any` types); `./built-in` relies on real dist types |
 
 Consumer hazards:
 

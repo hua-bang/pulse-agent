@@ -316,6 +316,14 @@ unfinished import. A missing marker for an active database is recovered from
 database authority; an ambiguous database is an error, never permission to
 overwrite it from old JSON.
 
+### Implementation Contracts
+
+- **Workspace resolution (`src/commands/options.ts`, `src/core/workspace-resolution.ts`):** New commands must resolve their target workspace via `getWorkspaceCommandOptions`, never by reading `opts.workspace` directly. Local commands require a readable canvas in the selected backend (SQL workspaces need no `canvas.json`); runtime-mediated (`agent`/`team`/`runtime`) and `restore` commands pass `{ requireReadableCanvas: false }`.
+- **Error formatting (`src/output.ts`, `src/cli.ts`):** `errorOutput` emits `{ ok, error, code }` JSON on stderr under `--format json` (set once by the `cli.ts` `preAction` hook via `setActiveFormat`). Core `Result` failures carry an optional `code` forwarded by the command layer; keep `code` values stable and pass a `code` at new error sites.
+- **Node type unions (`src/core/types.ts`, `src/core/nodes.ts`):** `CreatableNodeType` (`file`, `terminal`, `frame`, `group`, `agent`, `mindmap`) defines what `node create` accepts; `KnownNodeType` adds the read set (`text`, `iframe`, `image`, `shape`, `reference`, `dynamic-app`, `plugin`); `NodeType = KnownNodeType | (string & {})` keeps unknown future app node types readable as opaque nodes. `reference` and `plugin` nodes are authored through Canvas host/plugin tools, not `node create`.
+- **Runtime capability client (`src/core/runtime-capabilities.ts`):** Non-exiting client returning a structured `RuntimeClientResult` so external agent hosts treat a missing or disabled Canvas runtime as a tool result rather than a process exit.
+- **Layout & batch apply (`src/core/layout.ts`, `src/core/apply.ts`):** Frame containment is geometric (smallest frame holding a node's center). `apply` validates a complete plan before mutation; SQLite commits graph changes and file intents together, then recovers files.
+
 ## Agent Integration Flow
 
 1. Agent spawns inside a canvas agent node → `$PULSE_CANVAS_WORKSPACE_ID` is set
