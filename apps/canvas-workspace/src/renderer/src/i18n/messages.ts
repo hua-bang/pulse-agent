@@ -403,7 +403,7 @@ export const enMessages = {
   'canvas.demo.mapTopicA': 'Audience',
   'canvas.demo.mapTopicB': 'Channels',
   'canvas.demo.mapTopicC': 'Hooks',
-  'canvas.toolbar.toggleChat': 'Toggle AI Chat (Cmd/Ctrl+Shift+A)',
+  'canvas.toolbar.toggleChat': 'Toggle AI Chat',
   'canvas.toolbar.toggleReference': 'Toggle Library panel',
   'canvas.toolbar.select': 'Select',
   'canvas.toolbar.pan': 'Pan',

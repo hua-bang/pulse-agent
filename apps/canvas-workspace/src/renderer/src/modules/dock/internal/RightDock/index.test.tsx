@@ -321,7 +321,8 @@ describe('RightDock Escape ownership', () => {
 
   it('falls back to the Pulse AI launcher when no external focus owner exists', async () => {
     const launcher = document.createElement('button');
-    launcher.setAttribute('aria-label', 'Toggle AI Chat (Cmd/Ctrl+Shift+A)');
+    const { formatShortcutId } = await import('../../../../shortcuts/registry');
+    launcher.setAttribute('aria-label', `Toggle AI Chat (${formatShortcutId('canvas.toggleChatPanel')})`);
     document.body.appendChild(launcher);
     const host = await renderDock();
     const collapse = host.querySelector<HTMLButtonElement>(

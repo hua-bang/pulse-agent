@@ -148,5 +148,12 @@ describe('shortcut registry', () => {
         .toBe(usesAppleShortcuts() ? '⇧↑' : 'Shift+↑');
       expect(formatBinding({ key: '', display: 'Scroll' })).toBe('Scroll');
     });
+
+    it('keeps canvas.toolbar.toggleChat free of hardcoded shortcut strings', async () => {
+      const { enMessages } = await import('../i18n/messages');
+      const { zhMessages } = await import('../i18n/messages-zh');
+      expect(enMessages['canvas.toolbar.toggleChat']).not.toMatch(/Cmd|Ctrl|Shift/i);
+      expect(zhMessages['canvas.toolbar.toggleChat']).not.toMatch(/Cmd|Ctrl|Shift/i);
+    });
   });
 });

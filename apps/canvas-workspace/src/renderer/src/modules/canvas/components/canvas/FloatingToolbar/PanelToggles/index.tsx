@@ -1,5 +1,6 @@
 import { AppLogoIcon, BookmarkIcon } from '../../../../../../components/icons';
 import { useI18n } from '../../../../../../i18n';
+import { formatShortcutId } from '../../../../../../shortcuts/registry';
 
 interface Props {
   chatPanelOpen?: boolean;
@@ -48,7 +49,7 @@ export const PanelToggles = ({
       {onChatToggle && (
         <Toggle
           active={chatPanelOpen}
-          label={t('canvas.toolbar.toggleChat')}
+          label={`${t('canvas.toolbar.toggleChat')} (${formatShortcutId('canvas.toggleChatPanel')})`}
           onToggle={onChatToggle}
         >
           <AppLogoIcon size={18} />

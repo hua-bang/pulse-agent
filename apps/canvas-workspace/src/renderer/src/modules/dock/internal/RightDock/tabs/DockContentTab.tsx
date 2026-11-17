@@ -81,6 +81,7 @@ export const DockContentTab = ({
         className={`right-dock__tab right-dock__tab--with-close${visual.focused ? ' right-dock__tab--active' : ''}`}
         data-focused={visual.focused}
         data-split-visible={visual.splitVisible}
+        data-preview={tab.kind === 'node-detail' && tab.preview ? 'true' : undefined}
         // A shrunken tab shows little of its title, so the tooltip carries the
         // address a web tab is actually pointing at.
         title={`${visual.splitPart ? `${t(visual.splitPart === 'right' ? 'rightDock.rightPane' : 'rightDock.leftPane')} · ` : ''}${tab.title}${tab.kind === 'link' && tab.url ? `\n${tab.url}` : ''}`}
