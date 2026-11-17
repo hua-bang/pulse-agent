@@ -7,10 +7,10 @@ The goal state machine lives in **plugin-kit** (`packages/plugin-kit/src/goal/ru
 
 | Layer | Responsibility | Where |
 |---|---|---|
-| Store | `FileGoalPluginService`, file-backed per-session goal | plugin-kit `src/goal/service.ts` |
-| Plugin | `goal_set/status/clear/complete` tools; prompt-FREE by design | plugin-kit `src/goal/integration.ts` |
+| Store | `FileGoalPluginService`, file-backed per-session goal | `packages/plugin-kit/src/goal/service.ts` |
+| Plugin | `goal_set/status/clear/complete` tools; prompt-FREE by design | `packages/plugin-kit/src/goal/integration.ts` |
 | Message builders | Codex-style USER messages (never system) | plugin-kit `buildGoalContinuationMessage` / `buildGoalObjectiveUpdatedMessage` |
-| State machine | auto-continue, verify, user-confirm gate, maxRounds, re-arm | plugin-kit `src/goal/runner.ts` |
+| State machine | auto-continue, verify, user-confirm gate, maxRounds, re-arm | `packages/plugin-kit/src/goal/runner.ts` |
 | Host IO | `runOnce` (one agent round), `confirm`, `verify` | CLI `src/ink/controller-run.ts` (`startGoalLoop`), `controller-goal.ts` |
 
 ## Cache safety (why goal never touches the system prompt)

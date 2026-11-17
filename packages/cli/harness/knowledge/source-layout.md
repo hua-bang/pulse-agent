@@ -62,7 +62,7 @@ them, keep the context field list in sync with what the body references.
   `pulse-canvas runtime` is the fallback for hosts without those tools. Both
   entries share `@pulse-coder/canvas-cli/core`; do not fork transport policy.
 
-- `run_js` registration imports `src/tools/sandbox/index.js`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync. The executor↔runner IPC wire types live in `src/tools/sandbox/protocol.ts`, shared by both sides.
+- `run_js` registration imports `src/tools/sandbox/index.ts`; `src/tools/sandbox/runner.ts` is never imported — it is the fork target `resolveRunnerPath()` locates next to the built bundle (`dist/runner.cjs`), so keep the tsup `runner` entry in sync. The executor↔runner IPC wire types live in `src/tools/sandbox/protocol.ts`, shared by both sides.
 
 ## Entry reference
 

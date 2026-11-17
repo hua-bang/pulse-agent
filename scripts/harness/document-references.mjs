@@ -90,6 +90,9 @@ export function inspectDocumentReferences(repoRoot, documentPath, workspace = '.
     for (const match of line.matchAll(/`([^`]+\.(?:tsx?|[cm]?js|jsx|md):\d+(?:-\d+)?(?::\d+)?)`/g)) {
       inspect(match[1], '', line, index + 1, true);
     }
+    for (const match of line.matchAll(/`((?:packages|apps|src)\/[A-Za-z0-9._/-]+\.(?:tsx?|[cm]?js|jsx|md|json|yaml|yml|css|py|sh))`/g)) {
+      inspect(match[1], '', line, index + 1, true);
+    }
   });
   return warnings;
 }

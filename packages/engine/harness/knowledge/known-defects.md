@@ -12,7 +12,7 @@ Severity reflects whether the defect is reachable on a real path today (**live**
 ## LATENT
 
 ### `onResponse` is invoked fire-and-forget
-`src/core/loop.ts:667` calls `options?.onResponse?.(messages)` without `await`, and the type is `(messages) => void` (`:199`). Every host today mutates synchronously — remote-server `agent-runner.ts:402-406` and canvas both just `push`/reassign `context.messages` — so there is no live race. The defect is the contract: a host that does async persistence inside `onResponse` (a natural thing to want) would have the loop advance before the write settles, with no back-pressure. Fix is a decision-lite bug (await the callback and widen the type to `=> void | Promise<void>`), but it is only worth doing when/if a host needs async there — recorded so the next author does not assume the callback is awaited.
+`src/core/loop.ts:667` calls `options?.onResponse?.(messages)` without `await`, and the type is `(messages) => void` (`:199`). Every host today mutates synchronously — remote-server `apps/remote-server/src/core/agent-runner.ts:402-406` and canvas both just `push`/reassign `context.messages` — so there is no live race. The defect is the contract: a host that does async persistence inside `onResponse` (a natural thing to want) would have the loop advance before the write settles, with no back-pressure. Fix is a decision-lite bug (await the callback and widen the type to `=> void | Promise<void>`), but it is only worth doing when/if a host needs async there — recorded so the next author does not assume the callback is awaited.
 
 ---
 

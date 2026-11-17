@@ -175,10 +175,9 @@ Per `src/main/agent/ipc.ts`'s channel doc comment:
 ## Agent@agent handoff policy (P2, opt-in)
 
 The library-level switch `allowRoleHandoff` (type `AgentRoleLibrarySettings`)
-lives in `roles.json`'s `settings`, edited from Settings → the **Chat
-Roles** section (`RolesSection` in `src/renderer/src/modules/settings/internal/RolesSettings/index.tsx`,
-Settings section id `chat-roles`) through `agent-roles:settings-get` /
-`agent-roles:settings-save`. Default is OFF
+lives in `roles.json`'s `settings`, routed from Settings section id
+`chat-roles` (`src/renderer/src/modules/settings/internal/Settings/index.tsx`)
+through `agent-roles:settings-get` / `agent-roles:settings-save`. Default is OFF
 (`DEFAULT_AGENT_ROLE_SETTINGS = { allowRoleHandoff: false }`); role writes
 preserve the setting, since `roles-store.ts`'s `writeRoles` always reads the
 current `settings` before writing the roles array back out.
@@ -209,10 +208,10 @@ libraryRoles, pendingIds, capacity })`:
   relay ends it early."
 
 Auto-appended queue entries carry `namedBy` (the name of the role whose
-reply @-mentioned them in). `RelayBar.tsx` renders those steps with a
+reply @-mentioned them in). `RelayBar/index.tsx` renders those steps with a
 dashed underline —
 `.chat-relay-step--handoff { text-decoration: underline dashed; }` in
-`src/renderer/src/modules/chat/components/ChatView/index.css` — and a tooltip using the
+`src/renderer/src/modules/chat/components/ChatView/RelayBar/index.css` — and a tooltip using the
 `roles.relayNamedBy` i18n key ("由 {name} 点名" in the zh locale, "Brought
 in by {name}" in en). Because a handoff can turn what started as a
 single-role turn into a relay mid-turn, the RelayBar can appear AFTER the
@@ -244,9 +243,9 @@ the handoff scan is gated on `handoffEnabled && role && !relayStop.stopped
   message, including its speaker snapshot and terminal status. This keeps
   renderer state conversation-owned instead of recreating the deleted legacy
   per-segment compensation path.
-- Progress strip: `src/renderer/src/modules/chat/components/ChatView/RelayBar.tsx`.
-- Settings editor: `src/renderer/src/modules/settings/internal/RolesSettings/index.tsx`,
-  behind the Settings **Chat Roles** (`chat-roles`) section.
+- Progress strip: `src/renderer/src/modules/chat/components/ChatView/RelayBar/index.tsx`.
+- Settings routing: `src/renderer/src/modules/settings/internal/Settings/index.tsx`
+  routes the `chat-roles` section target to the Chat settings page.
 
 Role accents everywhere come from ONE renderer cache,
 `src/renderer/src/modules/chat/mentions/roleMentionItems.ts`: it caches the
@@ -256,8 +255,8 @@ cache still answers the `@` keystroke at once while the refresh publishes
 new colors), exposed to components as
 `useRoleColors()` (and `useRoleNameColors()` for the plain-text `@Name`
 form an agent writes when handing off), and invalidated immediately by
-Settings save/delete (`invalidateRoleMentionItems()`, called from
-`useAgentRoles`'s `save`/`remove` in `RolesSettings.tsx`). Chips recolor by
+role-library mutations (`invalidateRoleMentionItems()`, triggered via
+`notifyRoleLibraryChanged()` in `src/renderer/src/shared/roleLibraryEvents.ts`). Chips recolor by
 overriding the `--role-accent`, `--role-accent-icon`, `--role-accent-soft`
 CSS custom properties INLINE per chip in
 `src/renderer/src/modules/chat/mentions/mentions.ts`, so an unknown or

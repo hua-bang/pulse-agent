@@ -82,7 +82,7 @@ real `CanvasNodeView` so a knowledge node reuses the exact same node body
 components the canvas itself uses, rather than a parallel read-only
 renderer:
 
-- `src/renderer/src/modules/workspace-nodes/internal/NodeCanvasPreview.tsx` adapts
+- `src/renderer/src/modules/workspace-nodes/internal/NodeCanvasPreview/index.tsx` adapts
   record → `CanvasNode` (constructs a `CanvasNode`-shaped object from the
   record's `id`/`type`/`title`/`data`/`properties`/`links`/`updatedAt`, plus
   a measured `width`/`height` from a `ResizeObserver`) and renders it via
@@ -90,7 +90,7 @@ renderer:
 - Layout fields (`x`/`y`/`width`/`height`/ref) live only in this preview —
   any patch targeting those fields is dropped before it reaches the
   workspace-node store; only `title`, `data`, `properties`, and `links` are
-  writable (`WritablePatch` in `NodeCanvasPreview.tsx`).
+  writable (`WritablePatch` in `NodeCanvasPreview/index.tsx`).
 
 ## `nodeDetailDescriptor.ts`: the surface SSOT
 
@@ -140,7 +140,7 @@ Policy per type:
   keyboard pan, and an explicit center action — see the `mindmapPan`
   handlers (`onPointerDown`/`onPointerMove`/`onPointerUp`/
   `onPointerCancel`/`onLostPointerCapture`/`onKeyDown`, and the center
-  `Button`) wired in `NodeCanvasPreview.tsx` via
+  `Button`) wired in `NodeCanvasPreview/index.tsx` via
   `src/renderer/src/modules/workspace-nodes/internal/useMindmapDetailPan.ts`.
 
 ## Save failures: the adapter must never reject into a node body
@@ -158,14 +158,14 @@ failure actively discarded exactly the edit that had failed to save (the one
 thing the user cannot retype from the UI).
 
 The fix, in `commitPatch` / `retryFailedSave` / `discardFailedSave`
-(`src/renderer/src/modules/workspace-nodes/internal/NodeCanvasPreview.tsx`):
+(`src/renderer/src/modules/workspace-nodes/internal/NodeCanvasPreview/index.tsx`):
 
 - a failed record write HOLDS the optimistic content on screen (it is never
   reverted to the last-known-good record);
 - external change events are refused/ignored while a failure is held
   (`updatePendingRef` / `failedPatchRef` gate the record-sync effect);
 - the panel shows a retry/discard banner
-  (`src/renderer/src/modules/workspace-nodes/internal/NodeCanvasSaveError.tsx`);
+  (`src/renderer/src/modules/workspace-nodes/internal/NodeCanvasSaveError/index.tsx`);
 - a further failure while one is already pending is merged into the same
   pending patch via `mergePatches`, so retry replays every unsaved change,
   not just the last keystroke.
@@ -230,7 +230,7 @@ an open overlay, or an IME composition), and calls `onBack()`.
 `src/renderer/src/hooks/useEscapeClose.ts` (`useEscapeClose`) is different by
 design: it listens on `document` in the CAPTURE phase and calls
 `stopPropagation()` — it backs the tag picker in
-`src/renderer/src/modules/workspace-nodes/internal/NodeTagEditor.tsx`. Capture-phase
+`src/renderer/src/modules/workspace-nodes/internal/NodeTagEditor/index.tsx`. Capture-phase
 listeners run before any bubble-phase listener sees the event at all, so if
 the page's own Escape subscriber were also capture-phase, it would win that
 race and eat the Escape before it ever reached the tag picker's

@@ -1099,7 +1099,7 @@ Primary regression suites live in:
 - `src/main/agent/run/active-chat-registry.test.ts`
 - `src/main/agent/run/prepared-chat.test.ts`
 - `src/main/agent/run/chat-protocol.test.ts`
-- `src/main/agent/chat-session-cas.test.ts`
+- `packages/storage/src/sqlite/conversations.test.ts`
 - `src/main/agent/__tests__/service-session-mutation.test.ts`
 - `src/main/agent/run/clarification-registry.test.ts`
 - `src/main/agent/__tests__/session-store.test.ts`
