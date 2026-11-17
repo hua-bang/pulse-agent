@@ -8,6 +8,7 @@ import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
 import { toggleMinimap, useMinimapOpen } from '../../../runtime/minimapPreference';
 import { useI18n } from '../../../../../i18n';
+import { formatShortcutId } from '../../../../../shortcuts/registry';
 import type { CanvasOverlaysProps } from './CanvasOverlays.types';
 
 const CanvasEmptyHint = lazy(() =>
@@ -271,14 +272,17 @@ export const CanvasOverlays = ({
           )}
         </div>
         <div className="canvas-bottom-chrome__right">
-          {onChatToggle && (
-            <ChatFloatingButton
-              active={chatPanelOpen}
-              onClick={onChatToggle}
-              title={t('canvas.toolbar.toggleChat')}
-              ariaLabel={t('canvas.toolbar.toggleChat')}
-            />
-          )}
+          {onChatToggle && (() => {
+            const chatToggleLabel = `${t('canvas.toolbar.toggleChat')} (${formatShortcutId('canvas.toggleChatPanel')})`;
+            return (
+              <ChatFloatingButton
+                active={chatPanelOpen}
+                onClick={onChatToggle}
+                title={chatToggleLabel}
+                ariaLabel={chatToggleLabel}
+              />
+            );
+          })()}
         </div>
       </div>
 

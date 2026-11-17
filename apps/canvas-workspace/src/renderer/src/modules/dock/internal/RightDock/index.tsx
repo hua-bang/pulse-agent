@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useDragResize } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
+import { formatShortcutId } from '../../../../shortcuts/registry';
 import { CHAT_TAB_ID } from './state/dock-store';
 import { useDockContext, useRightDockState } from './context';
 import type { RightDockProps } from './state/dock-types';
@@ -234,7 +235,10 @@ export const RightDock = ({
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
   const tabMenuTab = tabMenu ? state.tabs.find((tab) => tab.id === tabMenu.tabId) : undefined;
   const focusActiveTarget = useCallback(() => focusActiveDockTarget(store), [store]);
-  useDockExternalFocus(dockRef, t('canvas.toolbar.toggleChat'));
+  useDockExternalFocus(
+    dockRef,
+    `${t('canvas.toolbar.toggleChat')} (${formatShortcutId('canvas.toggleChatPanel')})`,
+  );
   const collapseFromUser = useCallback(() => {
     store.collapse();
     focusActiveDockTarget(store);

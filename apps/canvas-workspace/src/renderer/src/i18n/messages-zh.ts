@@ -392,7 +392,7 @@ export const zhMessages: MessageCatalog = {
   'canvas.demo.mapTopicA': '目标用户',
   'canvas.demo.mapTopicB': '触达渠道',
   'canvas.demo.mapTopicC': '核心卖点',
-  'canvas.toolbar.toggleChat': '切换 AI 聊天（Cmd/Ctrl+Shift+A）',
+  'canvas.toolbar.toggleChat': '切换 AI 聊天',
   'canvas.toolbar.toggleReference': '切换 Library 面板',
   'canvas.toolbar.select': '选择',
   'canvas.toolbar.pan': '平移',

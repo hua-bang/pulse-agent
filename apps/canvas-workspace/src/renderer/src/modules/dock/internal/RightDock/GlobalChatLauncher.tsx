@@ -1,4 +1,5 @@
 import { useI18n } from '../../../../i18n';
+import { formatShortcutId } from '../../../../shortcuts/registry';
 import { ChatFloatingButton } from '../../../chat/floating';
 import { useRightDock, useRightDockState } from '.';
 import { isDockChatVisible } from './state/dock-visibility';
@@ -15,13 +16,15 @@ export const GlobalChatLauncher = ({ visible }: GlobalChatLauncherProps) => {
 
   if (!visible) return null;
 
+  const label = `${t('canvas.toolbar.toggleChat')} (${formatShortcutId('canvas.toggleChatPanel')})`;
+
   return (
     <ChatFloatingButton
       active={isDockChatVisible(state)}
       className="app-global-chat-launcher"
       onClick={dock.toggleChat}
-      title={t('canvas.toolbar.toggleChat')}
-      ariaLabel={t('canvas.toolbar.toggleChat')}
+      title={label}
+      ariaLabel={label}
     />
   );
 };

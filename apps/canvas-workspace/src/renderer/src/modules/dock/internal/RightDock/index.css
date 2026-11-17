@@ -515,6 +515,10 @@
   line-height: 1;
 }
 
+.right-dock__tab[data-preview="true"] .right-dock__tab-title {
+  font-style: italic;
+}
+
 .right-dock__tab-pin {
   flex: none;
   color: var(--text-muted);
