@@ -7,6 +7,8 @@ import {
   type ShortcutSectionId,
 } from '../../../shortcuts/registry';
 import { Modal } from '../../../components/ui';
+import './shell-dialog.css';
+import './ShortcutsDialog.css';
 
 const SECTION_TITLE_KEY: Record<ShortcutSectionId, I18nKey> = {
   canvas: 'shortcuts.canvas.title',

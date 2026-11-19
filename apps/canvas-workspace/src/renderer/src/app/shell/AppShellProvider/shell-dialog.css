@@ -1,0 +1,88 @@
+/* The centered dialog shell (backdrop, card, sizing, entrance animation)
+ * lives in components/ui/Modal. The Confirm + Shortcuts dialogs render
+ * their inner markup below (.shell-dialog__*) as Modal children. */
+
+.shell-dialog__header {
+  padding: 18px 20px 10px;
+}
+
+.shell-dialog__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(var(--shade-rgb), 0.04);
+}
+
+.shell-dialog__eyebrow--danger {
+  color: var(--error);
+  background: rgba(192, 57, 43, 0.1);
+}
+
+.shell-dialog__title {
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.shell-dialog__description {
+  padding: 0 20px 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.shell-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 20px;
+  border-top: 1px solid rgba(var(--shade-rgb), 0.06);
+}
+
+.shell-dialog__button {
+  min-width: 92px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.shell-dialog__button:hover {
+  background: var(--surface-hover);
+}
+
+.shell-dialog__button:active {
+  transform: translateY(1px);
+}
+
+.shell-dialog__button--danger {
+  border-color: rgba(192, 57, 43, 0.2);
+  background: var(--error);
+  color: #ffffff;
+}
+
+.shell-dialog__button--danger:hover {
+  background: #b33628;
+}
+
+.shell-dialog__button--primary {
+  border-color: rgba(35, 131, 226, 0.2);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.shell-dialog__button--primary:hover {
+  background: #1d73c8;
+}

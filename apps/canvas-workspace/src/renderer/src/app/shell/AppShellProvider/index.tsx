@@ -11,12 +11,14 @@ import {
 import { DEFAULT_TOAST_DURATION_MS } from '../../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../../types/ui-interaction';
 import { useI18n } from '../../../i18n';
-import { Modal } from '../../../components/ui';
 import { AppShellPortProvider, useAppShell, type AppShellPort } from '../../../shared/appShell';
 import { OPEN_APP_COMMAND_PALETTE_EVENT } from '../../../shared/appCommands';
 import { ToastTimers, visibleToasts } from './toastTimers';
 import './index.css';
 
+const ConfirmDialog = lazy(() =>
+  import('./ConfirmDialog').then((module) => ({ default: module.ConfirmDialog })),
+);
 const ShortcutsDialog = lazy(() =>
   import('./ShortcutsDialog').then((module) => ({ default: module.ShortcutsDialog })),
 );
@@ -31,7 +33,6 @@ const NO_COMMANDS: never[] = [];
 const ignoreNode = () => undefined;
 
 export const AppShellProvider = ({ children }: { children: ReactNode }) => {
-  const { t } = useI18n();
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -176,12 +177,13 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
         onResume={resumeToast}
       />
       {confirmState && (
-        <ConfirmDialog
-          options={confirmState}
-          onCancel={() => closeConfirm(false)}
-          onConfirm={() => closeConfirm(true)}
-          t={t}
-        />
+        <Suspense fallback={null}>
+          <ConfirmDialog
+            options={confirmState}
+            onCancel={() => closeConfirm(false)}
+            onConfirm={() => closeConfirm(true)}
+          />
+        </Suspense>
       )}
       {shortcutsOpen && (
         <Suspense fallback={null}>
@@ -306,55 +308,5 @@ const ToastIcon = ({ tone }: { tone: ToastRecord['tone'] }) => {
       <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
       <path d="M7 6.1v3M7 4.1h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
-  );
-};
-
-const ConfirmDialog = ({
-  options,
-  onCancel,
-  onConfirm,
-  t,
-}: {
-  options: ConfirmOptions;
-  onCancel: () => void;
-  onConfirm: () => void;
-  t: ReturnType<typeof useI18n>['t'];
-}) => {
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
-  const intent = options.intent ?? 'default';
-
-  // Focus a button on open so Enter answers; Esc is handled by the Modal
-  // shell (useEscapeClose). A destructive dialog focuses Cancel: it often
-  // opens from Delete or Enter, and a repeated key must not confirm it.
-  useEffect(() => {
-    (intent === 'danger' ? cancelRef : confirmRef).current?.focus();
-  }, [intent]);
-
-  return (
-    <Modal open onClose={onCancel} width={520} labelledBy="shell-confirm-title">
-      <div className="shell-dialog__header">
-        <div className={`shell-dialog__eyebrow${intent === 'danger' ? ' shell-dialog__eyebrow--danger' : ''}`}>
-          {intent === 'danger' ? t('shell.confirmDestructive') : t('shell.confirmAction')}
-        </div>
-        <h2 className="shell-dialog__title" id="shell-confirm-title">{options.title}</h2>
-      </div>
-      {options.description && (
-        <div className="shell-dialog__description">{options.description}</div>
-      )}
-      <div className="shell-dialog__footer">
-        <button ref={cancelRef} type="button" className="shell-dialog__button" onClick={onCancel}>
-          {options.cancelLabel ?? t('shell.cancel')}
-        </button>
-        <button
-          ref={confirmRef}
-          type="button"
-          className={`shell-dialog__button${intent === 'danger' ? ' shell-dialog__button--danger' : ' shell-dialog__button--primary'}`}
-          onClick={onConfirm}
-        >
-          {options.confirmLabel ?? t('shell.continue')}
-        </button>
-      </div>
-    </Modal>
   );
 };
