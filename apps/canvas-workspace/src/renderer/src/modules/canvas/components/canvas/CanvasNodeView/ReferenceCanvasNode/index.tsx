@@ -6,6 +6,7 @@ import { OpenSourceButton, AddToChatButton, FullscreenButton, FocusButton } from
 import { NodeResizeHandles } from '../NodeResizeHandles';
 import { NodeTypeBadge } from '../NodeTypeBadge';
 import type { ReferenceSourceRenderer, ResizeHandlerFactory } from '../types';
+import { isCanvasPanGesture } from '../utils';
 import type { ResolvedReference } from '../../../../../../shared/reference/types';
 
 // Whole-canvas references are rare, so their preview loads on first use.
@@ -70,10 +71,12 @@ export const ReferenceCanvasNode = ({
   const canOpenSource = canvasRef ? resolved?.workspaceName !== undefined : Boolean(sourceNode);
 
   return (
-    <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
+    <div className={classes} data-node-id={node.id} style={wrapperStyle} onClick={handleNodeClick}>
       <div
         className="node-header"
-        onMouseDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => {
+          if (!isCanvasPanGesture(e)) e.stopPropagation();
+        }}
       >
         <NodeTypeBadge type="reference" />
         <span

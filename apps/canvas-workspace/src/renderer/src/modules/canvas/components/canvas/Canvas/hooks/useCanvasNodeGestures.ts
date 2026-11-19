@@ -35,6 +35,7 @@ export function useCanvasNodeGestures({
     nodes,
     selectedNodeIds,
     autoPan,
+    visibleNodes,
   );
   const commitNodeResize = useCallback((
     id: string,
@@ -45,7 +46,7 @@ export function useCanvasNodeGestures({
   ) => {
     document.resizeNode(id, width, height, x, y, { disableTextAutoSize: true });
   }, [document.resizeNode]);
-  const resize = useNodeResize(commitNodeResize, scale, nodes);
+  const resize = useNodeResize(commitNodeResize, scale, nodes, visibleNodes);
   const renderOrder = useCanvasRenderOrder(visibleNodes);
 
   const { resizeSnapLines, ...resizeState } = resize;

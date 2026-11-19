@@ -6,7 +6,7 @@ import type {
   CanvasAgentMessage,
   CanvasAgentSession,
 } from '../../types';
-import { sessionPreview } from '../session-preview';
+import { sessionPreviewForMessage } from '../session-preview';
 import {
   listedSessionMetadata,
   patchSessionMetadata,
@@ -256,7 +256,7 @@ export class SessionStore {
       date: current.startedAt.slice(0, 10),
       updatedAt: sessionUpdatedAt(current, await archiveSortKey(this.currentPath, '')),
       messageCount: current.messages.length,
-      preview: firstUserMessage ? sessionPreview(firstUserMessage.content) : '',
+      preview: sessionPreviewForMessage(firstUserMessage),
       ...listedSessionMetadata(metadata, current.sessionId),
       isCurrent: true,
     }, ...archived.map((session) => ({ ...session, isCurrent: false }))];

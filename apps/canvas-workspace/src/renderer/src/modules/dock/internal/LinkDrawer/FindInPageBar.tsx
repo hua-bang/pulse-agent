@@ -22,27 +22,28 @@ export const FindInPageBar = ({ query, matches, barRef, onQueryChange, onStep, o
   const { t } = useI18n();
   const hasQuery = query.trim().length > 0;
 
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      // Claim it here: the dock's window-level Escape would otherwise act on
-      // the tab itself while the user is only trying to dismiss this bar.
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-      return;
-    }
+  const onContainerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape') return;
+    // Claim it here: the dock's window-level Escape would otherwise act on
+    // the tab itself while the user is only trying to dismiss this bar.
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+  };
+
+  const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
     onStep(!event.shiftKey);
   };
 
   return (
-    <div className="link-drawer__find" role="search" ref={barRef}>
+    <div className="link-drawer__find" role="search" ref={barRef} onKeyDown={onContainerKeyDown}>
       <TextField
         className="link-drawer__find-input"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
-        onKeyDown={onKeyDown}
+        onKeyDown={onInputKeyDown}
         placeholder={t('linkDrawer.find.placeholder')}
         aria-label={t('linkDrawer.find.placeholder')}
         spellCheck={false}

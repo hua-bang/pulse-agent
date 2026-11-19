@@ -52,7 +52,17 @@ export const CanvasMinimap = ({ nodes, transform, viewport, onCenterOn }: Props)
   };
 
   return (
-    <div className="canvas-minimap" onMouseDown={(event) => event.stopPropagation()}>
+    <div
+      className="canvas-minimap"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onWheel={(event) => event.stopPropagation()}
+    >
       <svg
         ref={svgRef}
         role="img"

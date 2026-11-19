@@ -12,6 +12,7 @@ import {
 } from '../../../../../shared/agent-chat';
 import { useI18n } from '../../../i18n';
 import { useConversationSnapshots } from '../runtime/conversationStore';
+import { messageSessionTitleSource } from '../components/utils/sessionTitle';
 
 interface Options {
   agentScope: AgentScope;
@@ -24,6 +25,7 @@ interface Options {
 const liveSessionInfo = (
   snapshot: ReturnType<typeof useConversationSnapshots>[number],
   isCurrent: boolean,
+  imageFallback: string,
 ) => {
   const firstUser = snapshot.messages.find(message => message.role === 'user');
   if (snapshot.status !== 'running' || !firstUser) return null;
@@ -37,7 +39,7 @@ const liveSessionInfo = (
     date: new Date(timestamp).toISOString().slice(0, 10),
     updatedAt: timestamp,
     messageCount: snapshot.messages.length,
-    preview: firstUser.content,
+    preview: messageSessionTitleSource(firstUser, imageFallback) ?? '',
     isCurrent,
     pinned: false,
   } satisfies AgentSessionInfo;
@@ -78,7 +80,11 @@ export function useLiveSessionLists({
     const other: OtherWorkspaceSession[] = [];
     const workspaceNames = new Map((allWorkspaces ?? []).map(workspace => [workspace.id, workspace.name]));
     for (const snapshot of conversationSnapshots) {
-      const currentRow = liveSessionInfo(snapshot, snapshot.key.sessionId === activeSessionId);
+      const currentRow = liveSessionInfo(
+        snapshot,
+        snapshot.key.sessionId === activeSessionId,
+        t('chat.imageFallback'),
+      );
       if (!currentRow) continue;
       if (snapshot.key.storeId === currentStoreId) {
         current.push(currentRow);

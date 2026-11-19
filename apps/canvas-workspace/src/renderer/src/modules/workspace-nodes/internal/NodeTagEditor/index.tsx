@@ -327,9 +327,9 @@ export const NodeTagEditor = ({
               <div className="node-tag-editor__empty">{t('workspaceNodes.noTagsYet')}</div>
             )}
           </div>
-          {error && <div className="node-tag-editor__error">{error}</div>}
         </div>
       )}
+      {error && <div className="node-tag-editor__error" role="alert">{error}</div>}
     </div>
   );
 };

@@ -446,4 +446,76 @@ describe('useConversationRuntimeStream (keyed mode)', () => {
     expect(await staleSend?.('second turn')).toBe(false);
     expect(conversationChat).not.toHaveBeenCalled();
   });
+
+  it('isolates clarifyInput and expandedTools across conversations and sets relay.stopping optimistically', async () => {
+    const callbacks = new Map<string, (payload: any) => void>();
+    const listen = (name: string) => (_sessionId: string, callback: (payload: any) => void) => {
+      callbacks.set(name, callback);
+      return () => undefined;
+    };
+    let resolveStop: ((value: { ok: boolean }) => void) | undefined;
+    const conversationStopRelay = vi.fn(() => new Promise<{ ok: boolean }>((resolve) => {
+      resolveStop = resolve;
+    }));
+    (window as unknown as { canvasWorkspace: unknown }).canvasWorkspace = {
+      agent: {
+        onTextDelta: listen('text'),
+        onToolCall: listen('call'),
+        onToolResult: listen('result'),
+        onToolInputStart: listen('start'),
+        onToolInputDelta: listen('delta'),
+        onToolInputEnd: listen('end'),
+        onCompaction: listen('compaction'),
+        onClarifyRequest: listen('clarify'),
+        onChatComplete: listen('complete'),
+        onRoleTurnStart: listen('role-start'),
+        onRoleTurnEnd: listen('role-end'),
+        conversationChat: vi.fn(async () => ({ ok: true, sessionId: 'session-a' })),
+        conversationStopRelay,
+      },
+    };
+
+    mount(keyA);
+    act(() => {
+      latest!.setClarifyInput('Draft for A');
+      latest!.toggleToolExpand(42);
+    });
+    expect(latest?.clarifyInput).toBe('Draft for A');
+    expect(latest?.expandedTools.has(42)).toBe(true);
+
+    rerender(keyB);
+    expect(latest?.clarifyInput).toBe('');
+    expect(latest?.expandedTools.has(42)).toBe(false);
+
+    rerender(keyA);
+    expect(latest?.clarifyInput).toBe('Draft for A');
+    expect(latest?.expandedTools.has(42)).toBe(true);
+
+    await act(async () => {
+      void latest!.sendMessage('start relay');
+    });
+    act(() => {
+      callbacks.get('role-start')?.({ index: 0, total: 3, queue: [] });
+    });
+    expect(latest?.relay).toEqual({ speaking: 0, total: 3, queue: [] });
+
+    // Relay is scoped to conversation A and does not leak into conversation B.
+    rerender(keyB);
+    expect(latest?.relay).toBeNull();
+    rerender(keyA);
+    expect(latest?.relay).toEqual({ speaking: 0, total: 3, queue: [] });
+
+    // stopRelay sets stopping: true immediately before IPC resolves, and rolls back if !ok.
+    let stopPromise: Promise<boolean> | undefined;
+    act(() => {
+      stopPromise = latest!.stopRelay();
+    });
+    expect(latest?.relay?.stopping).toBe(true);
+
+    await act(async () => {
+      resolveStop?.({ ok: false });
+      expect(await stopPromise).toBe(false);
+    });
+    expect(latest?.relay?.stopping).toBe(false);
+  });
 });

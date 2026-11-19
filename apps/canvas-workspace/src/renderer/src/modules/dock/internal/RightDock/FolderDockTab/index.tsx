@@ -113,7 +113,7 @@ export const FolderDockTab = ({ tab, store, active }: Props) => {
     const existing = editor.get(scope);
     if (isFileDirty(existing) || existing.saving) return;
     let current = true;
-    setPreview({ path, loading: true });
+    setPreview(prev => (prev?.path === path ? prev : { path, loading: true }));
     const load = async (): Promise<Preview> => {
       if (isImage(path)) {
         const result = await getImagePreview(path, 1600);
@@ -242,7 +242,7 @@ export const FolderDockTab = ({ tab, store, active }: Props) => {
     }}>
       <header className="folder-browser__toolbar">
         <nav ref={pathRef} className="folder-browser__path" aria-label={t('folder.path')} title={path || tab.folderPath}>
-          <Button size="xs" className="folder-browser__root" onClick={() => store.selectFolderFile(tab.id)}>{tab.title}</Button>
+          <Button size="xs" className="folder-browser__root" onClick={() => editing.guard(() => store.selectFolderFile(tab.id))}>{tab.title}</Button>
           {segments.map((segment, index) => <span className="folder-browser__segment" key={index}>
             <CaretRight size={12} />
             {index === segments.length - 1 && <FileTypeIcon name={segment} />}
@@ -263,7 +263,14 @@ export const FolderDockTab = ({ tab, store, active }: Props) => {
           aria-pressed={treeVisible} onClick={() => setTreeVisible(value => !value)}><SidebarSimple size={16} /></Button>
       </header>
       {current?.upgradeRequired && <div className="folder-browser__hint" role="status">{t('folder.restartRequired')}</div>}
-      {draft && editState.error && <div className="folder-browser__hint" role="alert">{editState.error}</div>}
+      {draft && editState.error && (
+        <div className="folder-browser__hint folder-browser__hint--alert" role="alert">
+          <span>{editState.error}</span>
+          <Button size="xs" onClick={() => { editor.discard(scope); setRevision(value => value + 1); }}>
+            {t('folder.reloadFromDisk')}
+          </Button>
+        </div>
+      )}
       <div className="folder-browser__body">
         <section className="folder-browser__preview">
           {path && isMarkdown(path) && <div className="folder-browser__mode">

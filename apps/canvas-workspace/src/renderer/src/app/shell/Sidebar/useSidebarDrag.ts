@@ -13,11 +13,13 @@ export const useSidebarDrag = ({ onMoveWorkspace, onReorderWorkspace, onReorderF
 
   // Workspace drag
   const handleWsDragStart = (e: DragEvent, wsId: string) => {
+    e.stopPropagation();
     e.dataTransfer.setData(WS_DRAG, wsId);
     e.dataTransfer.effectAllowed = 'move';
     (e.currentTarget as HTMLElement).classList.add('sidebar-dragging');
   };
   const handleWsDragEnd = (e: DragEvent) => {
+    e.stopPropagation();
     (e.currentTarget as HTMLElement).classList.remove('sidebar-dragging');
     setDropTarget(null);
     setWsDropBeforeId(null);

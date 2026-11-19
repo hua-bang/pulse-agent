@@ -460,7 +460,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // :root.dark redefines (ink/shade/surface channel triplets, status tints,
   // nearest ink tiers for Notion-era greys). The count keeps the literals
   // that must not follow the theme (web-page and switch-thumb white).
-  hardcodedColorLiterals: 1060,
+  // 1060→1056 (UI/UX interaction optimization): replaced hardcoded colors in
+  // ui/Button, ui/Modal, Sidebar, and Canvas overlays with semantic tokens.
+  hardcodedColorLiterals: 1056,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

@@ -159,6 +159,13 @@ export const ChatSessionRailItem = ({
         className="chat-page-rail-item-confirm"
         role="group"
         aria-label={t('chat.deleteSession', { title })}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            changeMode('idle');
+          }
+        }}
       >
         <span>{t('chat.deleteSessionPrompt')}</span>
         <Button
@@ -167,6 +174,7 @@ export const ChatSessionRailItem = ({
           onClick={() => changeMode('idle')}
           disabled={busy || disabled}
           aria-label={t('chat.cancelDeleteSession', { title })}
+          autoFocus
         >
           {t('shell.cancel')}
         </Button>

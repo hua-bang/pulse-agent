@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
 import { AgentSection } from './AgentSection';
 
-vi.mock('../../../../shared/appShell', () => ({ useAppShell: () => ({ notify: vi.fn() }) }));
+vi.mock('../../../../shared/appShell', () => ({ useAppShell: () => ({ notify: vi.fn(), confirm: vi.fn(async () => true) }) }));
 vi.mock('./AgentShellPathCard', () => ({ default: () => null }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let cleanup: (() => void) | undefined;

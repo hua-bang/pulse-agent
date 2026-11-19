@@ -68,6 +68,7 @@ export const Select = ({
 }: SelectProps) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const autoId = useId();
   const listboxId = `${id ?? autoId}-listbox`;
   const selected = options.find((opt) => opt.value === value);
@@ -77,11 +78,18 @@ export const Select = ({
   const pick = (next: string) => {
     setOpen(false);
     if (next !== value) onChange(next);
+    triggerRef.current?.focus();
+  };
+
+  const closeFromEscape = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
   };
 
   return (
     <div ref={rootRef} className={`ui-select${open ? ' ui-select--open' : ''}${className ? ` ${className}` : ''}`}>
       <button
+        ref={triggerRef}
         type="button"
         id={id}
         className="ui-select__trigger"
@@ -117,7 +125,7 @@ export const Select = ({
           ariaLabel={ariaLabel}
           placement={menuPlacement}
           onPick={pick}
-          onClose={() => setOpen(false)}
+          onClose={closeFromEscape}
         />
       )}
     </div>

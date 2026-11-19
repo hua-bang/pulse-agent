@@ -76,3 +76,14 @@
   background: rgba(var(--ink-rgb), 0.07);
   color: var(--ink);
 }
+
+.ui-drawer-close:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-drawer {
+    animation: none;
+  }
+}

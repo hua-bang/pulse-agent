@@ -1,12 +1,37 @@
 import { useEffect, useRef } from 'react';
 import { isImeComposing } from '../utils/ime';
 
+type EscapeEntry = {
+  close: () => void;
+};
+
+const escapeStack: EscapeEntry[] = [];
+let listenerAttached = false;
+
+const handleDocumentEscape = (e: KeyboardEvent) => {
+  if (e.key !== 'Escape' || isImeComposing(e) || escapeStack.length === 0) return;
+  const top = escapeStack[escapeStack.length - 1];
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  top.close();
+};
+
+const syncDocumentListener = () => {
+  if (escapeStack.length > 0 && !listenerAttached) {
+    document.addEventListener('keydown', handleDocumentEscape, true);
+    listenerAttached = true;
+  } else if (escapeStack.length === 0 && listenerAttached) {
+    document.removeEventListener('keydown', handleDocumentEscape, true);
+    listenerAttached = false;
+  }
+};
+
 /**
- * Escape-closes a popover/menu while it's open. Listens on `document` in the
- * capture phase and stops propagation, so the press is consumed by the
- * topmost open popover instead of also reaching window-level shortcut
- * handlers (canvas deselect, drawer close, …). IME-composition Escapes are
- * ignored — those dismiss the candidate window, not the popover.
+ * Escape-closes a popover/menu/dialog while it's open. Uses a LIFO stack on a
+ * single capture-phase `document` listener so Escape is consumed strictly by
+ * the topmost open overlay (e.g. a Select inside a Modal closes the Select
+ * without closing the Modal) and never reaches window-level shortcut handlers.
+ * IME-composition Escapes are ignored — those dismiss the candidate window.
  */
 export const useEscapeClose = (active: boolean, onClose: () => void) => {
   const onCloseRef = useRef(onClose);
@@ -14,12 +39,15 @@ export const useEscapeClose = (active: boolean, onClose: () => void) => {
 
   useEffect(() => {
     if (!active) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || isImeComposing(e)) return;
-      e.stopPropagation();
-      onCloseRef.current();
+    const entry: EscapeEntry = {
+      close: () => onCloseRef.current(),
     };
-    document.addEventListener('keydown', handler, true);
-    return () => document.removeEventListener('keydown', handler, true);
+    escapeStack.push(entry);
+    syncDocumentListener();
+    return () => {
+      const idx = escapeStack.lastIndexOf(entry);
+      if (idx !== -1) escapeStack.splice(idx, 1);
+      syncDocumentListener();
+    };
   }, [active]);
 };

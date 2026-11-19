@@ -4,6 +4,7 @@ import { ShapeNodeBody } from '../../node-bodies/ShapeNodeBody';
 import { AddToChatButton, CloseButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
+import { isCanvasPanGesture } from './utils';
 
 // The style picker only mounts on a selected shape, so it stays out of the
 // entry chunk.
@@ -40,8 +41,13 @@ export const ShapeCanvasNode = ({
   readOnly,
   wrapperStyle,
 }: ShapeCanvasNodeProps) => (
-  <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
-    <div className="node-body node-body--shape" onMouseDown={(e) => e.stopPropagation()}>
+  <div className={classes} data-node-id={node.id} style={wrapperStyle} onClick={handleNodeClick}>
+    <div
+      className="node-body node-body--shape"
+      onMouseDown={(e) => {
+        if (!isCanvasPanGesture(e)) e.stopPropagation();
+      }}
+    >
       <ShapeNodeBody
         node={node}
         isSelected={isSelected}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../../../types';
 import { useI18n, type I18nKey } from '../../../../i18n';
+import { useAppShell } from '../../../../shared/appShell';
 import { Button, TextField } from '../../../../components/ui';
 import '../ModelSettings/index.css';
 import './index.css';
@@ -109,6 +110,7 @@ export const ReplyStyleSection = ({
   onReset,
 }: ReplyStyleSectionProps) => {
   const { t } = useI18n();
+  const { confirm } = useAppShell();
   const [preset, setPreset] = useState<PromptPreset>(DEFAULT_PRESET);
   const [customPrompt, setCustomPrompt] = useState('');
   const [saving, setSaving] = useState(false);
@@ -153,6 +155,13 @@ export const ReplyStyleSection = ({
   }, [customPrompt, onSave, preset]);
 
   const reset = useCallback(async () => {
+    const accepted = await confirm({
+      intent: 'danger',
+      title: t('prompt.resetConfirmTitle'),
+      description: t('prompt.resetConfirmDescription'),
+      confirmLabel: t('prompt.resetDefault'),
+    });
+    if (!accepted) return;
     setSaving(true);
     setLocalError(undefined);
     try {
@@ -166,7 +175,7 @@ export const ReplyStyleSection = ({
     } finally {
       setSaving(false);
     }
-  }, [onReset]);
+  }, [confirm, onReset, t]);
 
   return (
     <>
@@ -179,7 +188,7 @@ export const ReplyStyleSection = ({
         </div>
 
         {(localError || error) && (
-          <div className="chat-model-settings-error">{localError || error}</div>
+          <div className="chat-model-settings-error" role="alert">{localError || error}</div>
         )}
 
         <div className="chat-model-field">

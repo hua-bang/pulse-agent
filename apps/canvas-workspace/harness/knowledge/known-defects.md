@@ -11,14 +11,15 @@ test and delete its entry.
 
 Fixed with regression tests and removed from this list: failed-turn
 persistence, renderer reattach, tool-first input progress (see
-`chat-sessions.md`, Turn recovery), and, on 2026-11-15, multi-role turns that
+`chat-sessions.md`, Turn recovery), on 2026-11-15, multi-role turns that
 kept only the final speaker, streaming text that reset opened tool sections,
-and the delete-session confirmation's cancel copy. Scope-shared drafts,
-image-only conversation titles, and clarification-input labelling also need UX
-review; scope-shared drafts currently have explicit scope-draft test coverage,
+and the delete-session confirmation's cancel copy, and, on 2026-11-19,
+image-only conversation titles (`session-preview.test.ts`) and
+clarification-input labelling (`ChatMessages.accessibility.test.tsx`).
+Scope-shared drafts currently have explicit scope-draft test coverage,
 so a move to per-conversation drafts is a product decision rather than a
 claimed regression. Broad Canvas acceptance was green during this audit; it does not
-prove these missing interaction paths.
+prove all manual runtime interaction paths.
 
 ### External file edits: preserve the replacement synchronization path
 

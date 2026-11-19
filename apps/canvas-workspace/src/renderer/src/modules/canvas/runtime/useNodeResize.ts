@@ -221,13 +221,16 @@ const resizeGeometryChanged = (origin: NodeResizeOrigin, next: NodeResizePreview
 export const useNodeResize = (
   resizeNode: (id: string, width: number, height: number, x?: number, y?: number) => void,
   scale: number,
-  nodes: CanvasNode[]
+  nodes: CanvasNode[],
+  snapNodes?: CanvasNode[],
 ) => {
   // Latest nodes snapshot, read at gesture start to capture the node's
   // pre-resize origin (x/y). Kept in a ref so the start/move callbacks stay
   // stable and don't re-render the memoized node views on every nodes change.
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+  const snapNodesRef = useRef(snapNodes ?? nodes);
+  snapNodesRef.current = snapNodes ?? nodes;
 
   const resizing = useRef<NodeResizeOrigin | null>(null);
   const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
@@ -263,7 +266,7 @@ export const useNodeResize = (
         minHeight: minHeight ?? DEFAULT_MIN_HEIGHT,
         edge,
         lockAspect: node?.type === 'image',
-        snapCandidates: nodesRef.current
+        snapCandidates: snapNodesRef.current
           .filter((candidate) => candidate.id !== nodeId)
           .map((candidate) => ({
             id: candidate.id,

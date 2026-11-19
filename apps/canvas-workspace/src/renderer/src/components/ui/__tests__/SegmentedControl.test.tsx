@@ -78,4 +78,56 @@ describe('SegmentedControl', () => {
     const buttons = Array.from(host?.querySelectorAll('button') ?? []) as HTMLButtonElement[];
     expect(buttons.every((btn) => btn.type === 'button')).toBe(true);
   });
+
+  it('supports Arrow/Home/End keyboard navigation with roving tabIndex', () => {
+    const threeOptions = [
+      { id: 'one', label: 'One' },
+      { id: 'two', label: 'Two' },
+      { id: 'three', label: 'Three' },
+    ];
+    const onChange = vi.fn();
+    let current = 'one';
+    const renderValue = (val: string) => {
+      current = val;
+      act(() => {
+        root?.render(
+          <SegmentedControl
+            options={threeOptions}
+            value={val}
+            onChange={(next) => {
+              onChange(next);
+              renderValue(next);
+            }}
+            ariaLabel="Step"
+          />,
+        );
+      });
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    renderValue(current);
+
+    const getButtons = () => Array.from(host?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? []);
+    expect(getButtons().map((btn) => btn.tabIndex)).toEqual([0, -1, -1]);
+
+    act(() => {
+      getButtons()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    });
+    expect(onChange).toHaveBeenLastCalledWith('two');
+    expect(document.activeElement).toBe(getButtons()[1]);
+    expect(getButtons().map((btn) => btn.tabIndex)).toEqual([-1, 0, -1]);
+
+    act(() => {
+      getButtons()[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+    });
+    expect(onChange).toHaveBeenLastCalledWith('three');
+    expect(document.activeElement).toBe(getButtons()[2]);
+
+    act(() => {
+      getButtons()[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }));
+    });
+    expect(onChange).toHaveBeenLastCalledWith('one');
+    expect(document.activeElement).toBe(getButtons()[0]);
+  });
 });

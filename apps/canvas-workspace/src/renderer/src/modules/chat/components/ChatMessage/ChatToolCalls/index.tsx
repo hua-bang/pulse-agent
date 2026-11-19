@@ -130,9 +130,7 @@ export const ChatToolCalls = ({
         </button>
       )}
       {displayTools.map(({ tool, status }) => {
-        const canToggle = status !== 'running'
-          && status !== 'queued'
-          && !!(tool.result || tool.error || tool.args !== undefined);
+        const canToggle = !!(tool.result || tool.error || tool.args !== undefined || tool.partialInput);
         const expanded = expandedTools.has(tool.id);
         const description = formatCodemodeSummary(tool, t) ?? formatToolDescription(tool);
         const label = description ?? formatToolLabel(tool.name, status, t);

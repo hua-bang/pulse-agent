@@ -40,6 +40,7 @@ export const useCanvasEdgeHandlers = ({
       e: React.MouseEvent,
       ctx: { s: { x: number; y: number }; t: { x: number; y: number } },
     ) => {
+      if (e.button !== 0) return;
       if (handle === 'bend') beginMoveBend(edgeId, ctx.s, ctx.t, e.clientX, e.clientY);
       else beginMoveEnd(edgeId, handle, e.clientX, e.clientY);
     },

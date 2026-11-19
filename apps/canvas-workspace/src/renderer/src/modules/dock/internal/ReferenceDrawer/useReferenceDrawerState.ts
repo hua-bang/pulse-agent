@@ -11,6 +11,7 @@ import type { CanvasNode } from '../../../../types';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { useClickOutside } from '../../../../hooks/useClickOutside';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
+import { acquireInteractionShield } from '../../../../utils/interactionShield';
 import { getNodeDisplayLabel } from '../../../../utils/nodeLabel';
 import { isReferenceableNode } from '../../../../utils/referenceNodes';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../../../utils/nodeTypeI18n';
@@ -68,6 +69,12 @@ export const useReferenceDrawerState = ({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const pickerRef = useRef<HTMLDivElement>(null);
   const urlEditorRef = useRef<HTMLDivElement>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -104,11 +111,14 @@ export const useReferenceDrawerState = ({
   );
 
   const handleResizeStart = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    resizeCleanupRef.current?.();
 
     const startX = e.clientX;
     const startWidth = drawerWidth;
+    const releaseShield = acquireInteractionShield();
     setIsResizing(true);
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -116,18 +126,25 @@ export const useReferenceDrawerState = ({
       setDrawerWidth(Math.min(MAX_REFERENCE_DRAWER_WIDTH, Math.max(MIN_REFERENCE_DRAWER_WIDTH, nextWidth)));
     };
 
-    const handleMouseUp = () => {
+    const cleanup = () => {
       setIsResizing(false);
       document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mouseup', cleanup);
+      window.removeEventListener('blur', cleanup);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      releaseShield();
+      if (resizeCleanupRef.current === cleanup) {
+        resizeCleanupRef.current = null;
+      }
     };
 
+    resizeCleanupRef.current = cleanup;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mouseup', cleanup);
+    window.addEventListener('blur', cleanup);
   }, [drawerWidth]);
 
   const workspaceNameById = useMemo(() => {

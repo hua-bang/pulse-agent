@@ -17,7 +17,7 @@ import { sortAndCapMentionItems } from '../ChatMentionPopup/constants';
  * consecutive spaces end the query. The mandatory single space between words
  * keeps the match linear (no ambiguous splits to backtrack over).
  */
-export const AT_QUERY_PATTERN = /@((?:[^\s@/]+(?:[  ][^\s@/]+)*[  ]?)?)$/;
+export const AT_QUERY_PATTERN = /(?:^|[\s\u00a0])@((?:[^\s@/]+(?:[  ][^\s@/]+)*[  ]?)?)$/;
 
 interface Options {
   editableRef: RefObject<HTMLDivElement>;

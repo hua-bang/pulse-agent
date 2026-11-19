@@ -78,7 +78,7 @@ export const useAppShortcuts = ({
   toggleDockChatRef.current = toggleDockChat;
   const openCommandPaletteRef = useRef(openCommandPalette);
   openCommandPaletteRef.current = openCommandPalette;
-  const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent) => void>>(null as never);
+  const handlersRef = useRef<Record<AppShortcutId, (event: KeyboardEvent, bindingKey: string) => void>>(null as never);
   const overlayRef = useRef(isOverlayOpen);
   overlayRef.current = isOverlayOpen;
 
@@ -107,8 +107,8 @@ export const useAppShortcuts = ({
       event.preventDefault();
       requestOpenAppSettings();
     },
-    'app.switchWorkspace': (event) => {
-      const index = Number.parseInt(event.key, 10);
+    'app.switchWorkspace': (event, bindingKey) => {
+      const index = Number.parseInt(bindingKey, 10);
       if (!Number.isFinite(index)) return;
       event.preventDefault();
       selectWorkspaceByIndex(index);
@@ -144,7 +144,7 @@ export const useAppShortcuts = ({
       }
       if (match.definition.editable !== 'allow' && isEditableTarget(event.target)) return;
 
-      handlersRef.current[match.id as AppShortcutId](event);
+      handlersRef.current[match.id as AppShortcutId](event, match.binding.key);
     };
 
     window.addEventListener('keydown', handler);
@@ -196,7 +196,7 @@ export const useAppShortcutBindings = ({
       return true;
     },
     reopenClosedTab: () => {
-      if (activeView !== 'canvas') return false;
+      if (activeView !== 'canvas' && activeView !== 'home') return false;
       window.dispatchEvent(new Event(REOPEN_CLOSED_TAB_EVENT));
       return true;
     },

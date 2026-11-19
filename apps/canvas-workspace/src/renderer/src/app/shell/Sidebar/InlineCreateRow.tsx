@@ -37,8 +37,15 @@ export const InlineCreateRow = ({
           onBlur={() => (value.trim() ? onCommit() : onCancel())}
           onKeyDown={(e) => {
             if (isImeComposing(e)) return;
-            if (e.key === 'Enter') onCommit();
-            if (e.key === 'Escape') onCancel();
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation();
+              onCommit();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }
           }}
         />
       </div>

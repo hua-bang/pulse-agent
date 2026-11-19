@@ -1,6 +1,7 @@
 import type { CanvasNode, EdgeArrowCap } from '../../../../types';
 import type { Point } from '../../runtime/useEdgeInteraction';
 import { DEFAULT_EDGE_STROKE } from '../../../../../../shared/canvas';
+import { isCanvasPanGesture } from './CanvasNodeView/utils';
 
 export const SELECTION_COLOR = '#2a7fff';
 export const HANDLE_RADIUS = 5;
@@ -116,6 +117,7 @@ export const EdgeHandles = ({
         vectorEffect="non-scaling-stroke"
         style={handleStyle}
         onMouseDown={(e) => {
+          if (isCanvasPanGesture(e) || e.button !== 0) return;
           e.stopPropagation();
           onHandleMouseDown('source', e);
         }}
@@ -130,6 +132,7 @@ export const EdgeHandles = ({
         vectorEffect="non-scaling-stroke"
         style={handleStyle}
         onMouseDown={(e) => {
+          if (isCanvasPanGesture(e) || e.button !== 0) return;
           e.stopPropagation();
           // The bend drag puts a shield over the canvas, so the second
           // click never reaches this circle as a dblclick. Read the click
@@ -153,6 +156,7 @@ export const EdgeHandles = ({
         vectorEffect="non-scaling-stroke"
         style={handleStyle}
         onMouseDown={(e) => {
+          if (isCanvasPanGesture(e) || e.button !== 0) return;
           e.stopPropagation();
           onHandleMouseDown('target', e);
         }}

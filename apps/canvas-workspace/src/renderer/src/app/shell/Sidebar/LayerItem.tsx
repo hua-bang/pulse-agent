@@ -122,8 +122,15 @@ export const LayerItem = ({
             onBlur={onRenameCommit}
             onKeyDown={(event) => {
               if (isImeComposing(event)) return;
-              if (event.key === 'Enter') onRenameCommit();
-              if (event.key === 'Escape') onRenameCancel();
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                onRenameCommit();
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                onRenameCancel();
+              }
             }}
             onMouseDown={(event) => event.stopPropagation()}
             aria-label={t('sidebar.layerRenameInput')}

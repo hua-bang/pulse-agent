@@ -31,6 +31,7 @@ export const PaletteRow = ({ item, index, selected, showGroup = true, onActivate
     className,
     id: `command-palette-option-${index}`,
     role: 'option',
+    tabIndex: -1,
     'aria-selected': selected,
     'data-palette-index': index,
     onMouseDown: (event: MouseEvent) => event.preventDefault(),

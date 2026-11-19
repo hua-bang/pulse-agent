@@ -129,6 +129,10 @@ export const ChatInput = ({
   );
   const hasSendableContent = Boolean(input.trim() || readyAttachments.length > 0);
   const canSend = hasSendableContent && !sendDisabled && !attachmentSendBlocked;
+  const canQueue = Boolean(canSend && !runInputDisabled && attachments.length === 0);
+  const queueButtonLabel = attachments.length > 0
+    ? t('chat.queueAttachmentsUnsupported')
+    : t('chat.queueMessage');
   // The box is about twice the height of the editable line; a click on its
   // padding or empty toolbar row should still place the caret.
   const focusInputFromBox = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -251,8 +255,15 @@ export const ChatInput = ({
                 aria-label={t('chat.addContext')}
                 disabled={interactionDisabled}
                 onClick={() => {
-                  editableRef.current?.focus();
-                  document.execCommand('insertText', false, '@');
+                  const editable = editableRef.current;
+                  if (!editable) return;
+                  editable.focus();
+                  const selection = window.getSelection();
+                  const before = selection?.anchorNode?.nodeType === Node.TEXT_NODE
+                    ? (selection.anchorNode.textContent ?? '').slice(0, selection.anchorOffset)
+                    : (editable.textContent ?? '');
+                  const needsSpace = before.length > 0 && !/[\s\u00a0]$/.test(before);
+                  document.execCommand('insertText', false, needsSpace ? ' @' : '@');
                   onInput();
                 }}
               >
@@ -302,11 +313,11 @@ export const ChatInput = ({
               {onQueue && <Button
                 variant="icon"
                 size="md"
-                className={`chat-send-btn${canSend ? ' chat-send-btn--active' : ''}`}
+                className={`chat-send-btn${canQueue ? ' chat-send-btn--active' : ''}`}
                 onClick={() => void onQueue()}
-                disabled={runInputDisabled || !canSend || attachments.length > 0}
-                title={t('chat.queueMessage')}
-                aria-label={t('chat.queueMessage')}
+                disabled={!canQueue}
+                title={queueButtonLabel}
+                aria-label={queueButtonLabel}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 13V4.5M8 4.5l-3.5 3.5M8 4.5l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -334,7 +345,16 @@ export const ChatInput = ({
             </>) : (
               <button
                 className={`chat-send-btn${canSend ? ' chat-send-btn--active' : ''}`}
-                onClick={() => void onSend()}
+                onClick={async (event) => {
+                  const trigger = event.currentTarget;
+                  const sent = await onSend();
+                  if (
+                    sent
+                    && (document.activeElement === trigger || document.activeElement === document.body)
+                  ) {
+                    editableRef.current?.focus();
+                  }
+                }}
                 disabled={!canSend}
                 title={t('chat.sendMessage')}
                 aria-label={t('chat.sendMessage')}

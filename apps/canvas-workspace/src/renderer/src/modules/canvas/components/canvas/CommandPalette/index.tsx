@@ -3,7 +3,9 @@ import './index.css';
 import type { CanvasNode } from '../../../../../types';
 import { isImeComposing } from '../../../../../utils/ime';
 import { useI18n, type I18nKey } from '../../../../../i18n';
-import { useIndexNav } from '../../../../../components/ui';
+import { useFocusTrap, useIndexNav } from '../../../../../components/ui';
+import { useEscapeClose } from '../../../../../hooks/useEscapeClose';
+import { matchShortcut } from '../../../../../shortcuts/registry';
 import {
   buildPaletteSections,
   type PaletteCommand,
@@ -11,7 +13,7 @@ import {
   type PaletteSectionId,
 } from './model';
 import { PaletteRow } from './PaletteRow';
-import { useChatSessionCommands } from './useChatSessionCommands';
+import { useChatSessionSearch } from './useChatSessionCommands';
 import { useAppCommands } from '../../../../../shared/appCommands';
 
 export type { PaletteCommand } from './model';
@@ -73,8 +75,12 @@ export const CommandPalette = ({
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const { index: selectedIndex, setIndex: setSelectedIndex, move, home, end, reset } = useIndexNav();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  useEscapeClose(true, onClose);
+  useFocusTrap(true, dialogRef);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -92,7 +98,7 @@ export const CommandPalette = ({
     })),
   ], [appCommands, commands, navigationCommands]);
 
-  const chatCommands = useChatSessionCommands(query);
+  const { commands: chatCommands, searching: searchingChats } = useChatSessionSearch(query);
   const sections = useMemo(
     () => buildPaletteSections(nodes, allCommands, query, chatCommands),
     [allCommands, chatCommands, nodes, query],
@@ -139,6 +145,12 @@ export const CommandPalette = ({
       // candidate), and the arrow keys (navigate candidates) — don't run
       // a command or close the palette mid-composition.
       if (isImeComposing(e)) return;
+      const shortcutId = matchShortcut(e.nativeEvent, 'canvas')?.id;
+      if (shortcutId === 'canvas.commandPalette' || shortcutId === 'canvas.commandPaletteAlt') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -156,6 +168,7 @@ export const CommandPalette = ({
         return;
       }
       if (e.key === 'Enter' && flatItems[selectedIndex]) {
+        e.preventDefault();
         runItem(flatItems[selectedIndex]);
         return;
       }
@@ -190,9 +203,14 @@ export const CommandPalette = ({
       if (e.key === 'End') {
         e.preventDefault();
         end(flatItems.length);
+        return;
+      }
+      if (e.key === 'Enter' && flatItems[selectedIndex]) {
+        e.preventDefault();
+        runItem(flatItems[selectedIndex]);
       }
     },
-    [flatItems.length, onClose, move, home, end],
+    [flatItems, selectedIndex, runItem, onClose, move, home, end],
   );
 
   let runningIndex = 0;
@@ -201,8 +219,24 @@ export const CommandPalette = ({
     : t('canvas.palette.placeholder');
 
   return (
-    <div className="command-palette-overlay" onClick={onClose} onWheel={(e) => e.stopPropagation()}>
-      <div className="command-palette" role="dialog" aria-modal="true" aria-label={t('canvas.palette.label')} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="command-palette-overlay"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+      onWheel={(e) => e.stopPropagation()}
+    >
+      <div
+        ref={dialogRef}
+        className="command-palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('canvas.palette.label')}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="command-palette-input-wrapper">
           <svg className="command-palette-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -234,7 +268,9 @@ export const CommandPalette = ({
           onKeyDown={handleResultsKeyDown}
         >
           {flatItems.length === 0 ? (
-            <div className="command-palette-empty">{t('canvas.palette.noMatches')}</div>
+            <div className="command-palette-empty">
+              {searchingChats ? t('canvas.palette.searching') : t('canvas.palette.noMatches')}
+            </div>
           ) : (
             sections.map((section) => (
               <div key={section.id} className="command-palette-section">

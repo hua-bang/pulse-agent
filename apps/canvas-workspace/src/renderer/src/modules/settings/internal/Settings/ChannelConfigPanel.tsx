@@ -13,7 +13,7 @@ import './ChannelConfigPanel.css';
  */
 export const ChannelConfigPanel = () => {
   const { t } = useI18n();
-  const { notify } = useAppShell();
+  const { confirm, notify } = useAppShell();
   const [status, setStatus] = useState<ChannelConfigStatus | null>(null);
   const [appId, setAppId] = useState('');
   const [appSecret, setAppSecret] = useState('');
@@ -68,6 +68,13 @@ export const ChannelConfigPanel = () => {
   }, [appId, appSecret, defaultWorkspaceId, notify, t]);
 
   const clearSecret = useCallback(async () => {
+    const accepted = await confirm({
+      intent: 'danger',
+      title: t('channelConfig.clearSecretConfirmTitle'),
+      description: t('channelConfig.clearSecretConfirmDescription'),
+      confirmLabel: t('channelConfig.clearSecret'),
+    });
+    if (!accepted) return;
     const res = await window.canvasWorkspace.channelConfig.setFeishu({ clearSecret: true });
     if (res.ok) {
       if (res.status) setStatus(res.status);
@@ -77,7 +84,7 @@ export const ChannelConfigPanel = () => {
     } else {
       notify({ tone: 'error', title: t('channelConfig.clearFailed'), description: res.error ?? t('channelConfig.unknownError') });
     }
-  }, [notify, t]);
+  }, [confirm, notify, t]);
 
   const relaunch = useCallback(() => {
     void window.canvasWorkspace.channelConfig.relaunch();

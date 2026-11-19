@@ -94,7 +94,7 @@ export const useAnchorRectPosition = <T extends HTMLElement>({
     left = Math.min(left, viewportWidth - panelWidth - viewportMargin);
     left = Math.max(left, viewportMargin);
 
-    setPos({ left, top });
+    setPos((prev) => (prev && prev.left === left && prev.top === top ? prev : { left, top }));
   }, [anchorRef, placement, align, gap, viewportMargin]);
 
   useLayoutEffect(() => {

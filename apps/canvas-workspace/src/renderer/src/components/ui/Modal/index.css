@@ -21,7 +21,7 @@
 
 .ui-modal {
   max-width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: rgba(var(--surface-rgb), 0.96);
   box-shadow: 0 24px 72px rgba(28, 29, 32, 0.18);
@@ -55,5 +55,11 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-modal {
+    animation: none;
   }
 }

@@ -8,6 +8,7 @@ import { ImageNodeBody } from '../../node-bodies/ImageNodeBody';
 import { AddToChatButton, CloseButton, CopyImageButton, FullscreenButton, OpenDetailButton } from './NodeButtons';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
+import { isCanvasPanGesture } from './utils';
 
 interface ImageCanvasNodeProps {
   classes: string;
@@ -83,8 +84,13 @@ export const ImageCanvasNode = ({
   }, [imageFilePath, notify, t]);
 
   return (
-    <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
-      <div className="node-body node-body--image" onMouseDown={(e) => e.stopPropagation()}>
+    <div className={classes} data-node-id={node.id} style={wrapperStyle} onClick={handleNodeClick}>
+      <div
+        className="node-body node-body--image"
+        onMouseDown={(e) => {
+          if (!isCanvasPanGesture(e)) e.stopPropagation();
+        }}
+      >
         <ImageNodeBody
           node={node}
           isFullscreen={isFullscreen}

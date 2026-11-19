@@ -26,6 +26,7 @@ interface Props {
   onContextMenu: (id: string, x: number, y: number) => void;
   onDragStart: (event: DragEvent<HTMLElement>, id: string) => void;
   onDragOver: (event: DragEvent<HTMLElement>, id: string) => void;
+  onDragLeave: (event: DragEvent<HTMLElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>, id: string) => void;
   onDragEnd: () => void;
 }
@@ -41,6 +42,7 @@ export const DockContentTab = ({
   onContextMenu,
   onDragStart,
   onDragOver,
+  onDragLeave,
   onDrop,
   onDragEnd,
 }: Props) => {
@@ -67,6 +69,7 @@ export const DockContentTab = ({
       data-split-visible={visual.splitVisible}
       data-split-part={visual.splitPart}
       onDragOver={(event) => onDragOver(event, tab.id)}
+      onDragLeave={onDragLeave}
       onDrop={(event) => onDrop(event, tab.id)}
     >
       <button

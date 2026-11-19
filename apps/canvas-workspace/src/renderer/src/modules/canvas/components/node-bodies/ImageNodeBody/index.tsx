@@ -5,6 +5,7 @@ import { toFileUrl } from '../../../../../utils/fileUrl';
 import { getImagePreview } from '../../../../../utils/imagePreview';
 import { selectImageSource } from './imageSource';
 import { useI18n } from '../../../../../i18n';
+import { isCanvasPanGesture } from '../../canvas/CanvasNodeView/utils';
 
 interface Props {
   node: CanvasNode;
@@ -57,11 +58,14 @@ export const ImageNodeBody = ({ node, isFullscreen, onSelect, onDragStart, readO
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (isCanvasPanGesture(e)) return;
       if (readOnly) {
         e.stopPropagation();
         return;
       }
-      onSelect(node.id);
+      if (e.button === 0 && !(e.shiftKey || e.metaKey || e.ctrlKey)) {
+        onSelect(node.id);
+      }
       onDragStart(e, node);
     },
     [node, onSelect, onDragStart, readOnly],

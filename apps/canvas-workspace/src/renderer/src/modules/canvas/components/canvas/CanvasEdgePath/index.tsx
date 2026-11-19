@@ -3,6 +3,7 @@ import type { CanvasEdge, EdgeStroke } from '../../../../../types';
 import { resolveEdgePathGeometry } from '../../../model/edgeFactory';
 import type { Point } from '../../../runtime/useEdgeInteraction';
 import { capId, EdgeHandles, edgePaint, SELECTION_COLOR } from '../CanvasEdgesLayerParts';
+import { isCanvasPanGesture } from '../CanvasNodeView/utils';
 
 interface Props {
   edge: CanvasEdge;
@@ -75,6 +76,7 @@ export const CanvasEdgePath = ({
         vectorEffect="non-scaling-stroke"
         style={{ pointerEvents: 'stroke', cursor: 'grab' }}
         onMouseDown={(event) => {
+          if (isCanvasPanGesture(event) || event.button !== 0) return;
           event.stopPropagation();
           onSelectEdge?.(edge.id);
           onBodyMouseDown?.(edge.id, event);

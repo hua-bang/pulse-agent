@@ -130,7 +130,7 @@ export const useCanvasNodeViewModel = ({
 
   const handleHeaderMouseDown = useCallback(
     (e: MouseEvent) => {
-      if (readOnly) return;
+      if (readOnly || isCanvasPanGesture(e)) return;
       const hasMods = e.shiftKey || e.metaKey || e.ctrlKey;
       if (!isSelected && !hasMods) onSelect(node.id);
       onDragStart(e, node);
@@ -142,6 +142,7 @@ export const useCanvasNodeViewModel = ({
     (e: MouseEvent) => {
       e.stopPropagation();
       if (readOnly) return;
+      if (e.currentTarget?.closest?.('.canvas-container--hand')) return;
       onSelect(node.id, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
     },
     [onSelect, node.id, readOnly],
@@ -326,6 +327,7 @@ export const useCanvasNodeViewModel = ({
 
   const makeResizeHandler = useCallback(
     (edge: ResizeEdge) => (e: MouseEvent) => {
+      if (isCanvasPanGesture(e)) return;
       if (node.type === 'text') {
         onResizeStart(e, node.id, node.width, node.height, edge, 40, 28);
         return;

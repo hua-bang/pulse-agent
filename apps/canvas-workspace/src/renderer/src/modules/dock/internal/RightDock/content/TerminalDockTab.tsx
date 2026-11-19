@@ -17,6 +17,7 @@ interface TerminalDockTabProps {
   onRename: (id: string, title: string) => void;
   onDragStart: (event: DragEvent<HTMLElement>, id: string) => void;
   onDragOver: (event: DragEvent<HTMLElement>, id: string) => void;
+  onDragLeave?: (event: DragEvent<HTMLElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>, id: string) => void;
   onDragEnd: () => void;
 }
@@ -31,6 +32,7 @@ export const TerminalDockTab = ({
   onRename,
   onDragStart,
   onDragOver,
+  onDragLeave,
   onDrop,
   onDragEnd,
 }: TerminalDockTabProps) => {
@@ -92,6 +94,7 @@ export const TerminalDockTab = ({
       data-split-visible={visual.splitVisible}
       data-split-part={visual.splitPart}
       onDragOver={(event) => onDragOver(event, tab.id)}
+      onDragLeave={onDragLeave}
       onDrop={(event) => onDrop(event, tab.id)}
     >
       <button

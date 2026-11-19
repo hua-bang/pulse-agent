@@ -285,6 +285,17 @@ export const PluginsManager = () => {
 
   const savePluginConfig = useCallback(
     async (pluginId: string, key: string, value: string) => {
+      if (!value.trim()) {
+        const plugin = status?.plugins.find((entry) => entry.id === pluginId);
+        const field = plugin?.configStatus?.find((entry) => entry.key === key);
+        const accepted = await confirm({
+          intent: 'danger',
+          title: t('pluginConfig.configClearConfirmTitle', { field: field?.label ?? key }),
+          description: t('pluginConfig.configClearConfirmDescription'),
+          confirmLabel: t('pluginConfig.configClear'),
+        });
+        if (!accepted) return;
+      }
       setSaving(true);
       try {
         const res = await window.canvasWorkspace.canvasPlugins.setConfig(pluginId, key, value);
@@ -297,7 +308,7 @@ export const PluginsManager = () => {
         setSaving(false);
       }
     },
-    [handleStatusResult, t],
+    [confirm, handleStatusResult, status?.plugins, t],
   );
 
   const plugins = status?.plugins ?? [];

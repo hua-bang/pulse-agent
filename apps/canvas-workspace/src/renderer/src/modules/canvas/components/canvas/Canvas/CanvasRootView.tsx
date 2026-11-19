@@ -145,13 +145,15 @@ export const CanvasRootView = ({
       && document.activeElement instanceof HTMLElement
       && document.activeElement.isContentEditable
       && document.activeElement.contains(target);
-    if (!(target instanceof HTMLElement) || !target.closest('.canvas-node') || editing || !container) {
+    const nodeElement = target instanceof HTMLElement ? target.closest('.canvas-node') : null;
+    if (!nodeElement || editing || !container) {
       ctxMenu.handleContextMenu(e);
       return;
     }
     e.preventDefault();
+    const domNodeId = nodeElement.getAttribute('data-node-id');
     const rect = container.getBoundingClientRect();
-    const node = findNodeAtPoint(nodes, {
+    const node = (domNodeId ? nodesById.get(domNodeId) : undefined) ?? findNodeAtPoint(nodes, {
       x: (e.clientX - rect.left - transform.x) / transform.scale,
       y: (e.clientY - rect.top - transform.y) / transform.scale,
     });

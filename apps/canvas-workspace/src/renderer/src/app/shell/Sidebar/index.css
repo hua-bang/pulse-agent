@@ -141,14 +141,27 @@
 
 .sidebar-item-more.ui-btn {
   flex-shrink: 0;
-  display: none;
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
   color: var(--text-muted);
 }
 
 .sidebar-item-row:hover .sidebar-item-more.ui-btn,
+.sidebar-item-row:focus-within .sidebar-item-more.ui-btn,
 .sidebar-item-more--open.ui-btn,
 .sidebar-item-more.ui-btn:focus-visible {
-  display: inline-flex;
+  width: auto;
+  min-width: revert;
+  padding: revert;
+  border-width: revert;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-item-menu {
@@ -713,14 +726,17 @@
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  display: none;
+  display: flex;
   align-items: center;
   gap: 1px;
-  pointer-events: auto;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.sidebar-folder-header:hover .sidebar-folder-actions {
-  display: flex;
+.sidebar-folder-header:hover .sidebar-folder-actions,
+.sidebar-folder-header:focus-within .sidebar-folder-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-folder-action {

@@ -27,5 +27,6 @@ export type { SwatchRowOption } from './SwatchRow';
 export { EmptyState } from './EmptyState';
 export { useDragResize } from './hooks/useDragResize';
 export type { DragResizeOptions, DragResizeHandlers } from './hooks/useDragResize';
+export { useFocusTrap } from './hooks/useFocusTrap';
 export { useIndexNav, clampIndexMove, indexNavHome, indexNavEnd } from './hooks/useIndexNav';
 export type { ClampIndexOptions, UseIndexNavOptions, UseIndexNavResult } from './hooks/useIndexNav';

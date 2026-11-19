@@ -280,6 +280,49 @@ it('refreshes the file tree and a clean selected file while the Folder tab is ac
   expect(host.querySelector('textarea')?.value).toBe('const value = 2;\n');
 });
 
+it('keeps rendered preview visible without flashing Loading during background auto-refresh', async () => {
+  let refresh: TimerHandler | undefined;
+  vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler) => {
+    refresh = handler;
+    return 1;
+  }) as typeof window.setInterval);
+  preview.mockResolvedValue({ ok: true, kind: 'text', content: 'legacy read-only body' });
+  await render();
+  expect(host.querySelector('.folder-browser__code')?.textContent).toContain('legacy read-only body');
+
+  let resolveNext: (value: FilePreviewResult) => void = () => undefined;
+  preview.mockReturnValue(new Promise<FilePreviewResult>((resolve) => { resolveNext = resolve; }));
+
+  await act(async () => {
+    if (typeof refresh === 'function') refresh();
+  });
+  expect(host.querySelector('.folder-browser__code')?.textContent).toContain('legacy read-only body');
+  expect(host.textContent).not.toContain('Loading…');
+
+  await act(async () => {
+    resolveNext({ ok: true, kind: 'text', content: 'updated body' } as FilePreviewResult);
+    await Promise.resolve();
+  });
+  expect(host.querySelector('.folder-browser__code')?.textContent).toContain('updated body');
+});
+
+it('lets the user discard and reload from disk directly from the conflict alert banner', async () => {
+  await render();
+  act(() => store.folderEditor.edit('workspace', 'local draft'));
+  savePreview.mockResolvedValue({ ok: false, conflict: true, error: 'changed externally' });
+  await click('Save');
+  expect(host.querySelector('[role=alert]')?.textContent).toContain('changed outside');
+
+  preview.mockResolvedValue({ ok: true, kind: 'text', version: 'v3', content: 'disk version' });
+  await click('Discard & reload');
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(host.querySelector('textarea')?.value).toBe('disk version');
+  expect(host.querySelector('[role=alert]')).toBeNull();
+});
+
 it('creates files and folders from the opened root with an inline name field', async () => {
   await render(null);
   await click('Create in work');

@@ -84,8 +84,15 @@ export const FolderItem = ({
             onBlur={onRenameCommit}
             onKeyDown={(e) => {
               if (isImeComposing(e)) return;
-              if (e.key === 'Enter') onRenameCommit();
-              if (e.key === 'Escape') onRenameCancel();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                onRenameCommit();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                onRenameCancel();
+              }
             }}
           />
         ) : (

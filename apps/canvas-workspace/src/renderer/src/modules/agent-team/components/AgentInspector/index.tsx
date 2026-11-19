@@ -1,5 +1,6 @@
 import './index.css';
 import { SegmentedControl } from '../../../../components/ui';
+import { useEscapeClose } from '../../../../hooks/useEscapeClose';
 import { AGENT_REGISTRY } from '../../../../config/agentRegistry';
 import type { AgentTeamArtifactRecord } from '../../../../types';
 import { AgentIcon } from '../../../coding-agent/icon';
@@ -33,8 +34,16 @@ export const AgentInspector = ({
   onSelectArtifact,
 }: Props) => {
   const { agent, tasks, artifacts, agentNode, activityLines, workspaceLabel } = detail;
+  useEscapeClose(true, onClose);
   return (
-    <div className="agent-team-agent-inspector" role="dialog" aria-label="Agent detail">
+    <div
+      className="agent-team-agent-inspector"
+      role="dialog"
+      aria-label="Agent detail"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="agent-team-agent-inspector__panel">
         <div className="agent-team-agent-inspector__head">
           <div>

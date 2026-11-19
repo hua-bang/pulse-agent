@@ -36,6 +36,7 @@ interface Options {
   onDragCancel: () => void;
   onResizeCancel: () => void;
   resizingId: string | null;
+  resizeEdge?: ResizeEdge | null;
   onResizeStart: (
     e: React.MouseEvent,
     nodeId: string,
@@ -61,9 +62,16 @@ const isEdgeDragging = (state: EdgeInteractionState | null) =>
   || state?.kind === 'move-bend'
   || state?.kind === 'move-edge';
 
-const CANVAS_CHROME_SELECTOR = '.canvas-bottom-chrome, .canvas-fullscreen-chip';
+const CANVAS_CHROME_SELECTOR = '.canvas-bottom-chrome, .canvas-fullscreen-chip, .canvas-minimap';
 /** Canvas areas whose presses leave focus where the canvas put it. */
-const CANVAS_FOCUS_KEEPERS = '.canvas-node, .node-ask-bar';
+const CANVAS_FOCUS_KEEPERS = '.canvas-node, .node-ask-bar, .edge-label-input, .canvas-search-bar, .command-palette, .edge-style-panel';
+
+const resizeCursorClassForEdge = (edge?: ResizeEdge | null): string => {
+  if (edge === 'left' || edge === 'right') return ' canvas-container--resizing canvas-container--resizing-ew';
+  if (edge === 'top' || edge === 'bottom') return ' canvas-container--resizing canvas-container--resizing-ns';
+  if (edge === 'top-right' || edge === 'bottom-left') return ' canvas-container--resizing canvas-container--resizing-nesw';
+  return ' canvas-container--resizing';
+};
 
 export const getCanvasInteractionShieldState = ({
   activeTool,
@@ -119,6 +127,7 @@ export const useCanvasMouseHandlers = ({
   onDragCancel,
   onResizeCancel,
   resizingId,
+  resizeEdge,
   onResizeStart,
   onResizeMove,
   onResizeEnd,
@@ -169,6 +178,7 @@ export const useCanvasMouseHandlers = ({
       if (target.closest('.canvas-node')) return;
       if (target.closest('.canvas-fullscreen-chip')) return;
       if (target.closest('.canvas-bottom-chrome')) return;
+      if (target.closest('.canvas-minimap')) return;
       // Clicking inside the edges SVG (either a hit-proxy or a handle)
       // lands on a child of .canvas-edges. Those children stopPropagate
       // their own onMouseDown, but the click event can still arrive
@@ -385,7 +395,7 @@ export const useCanvasMouseHandlers = ({
   const cursorClass = activeTool === 'hand'
     ? ' canvas-container--hand'
     : shapeToolActive ? ' canvas-container--shape'
-      : resizingId ? ' canvas-container--resizing'
+      : resizingId ? resizeCursorClassForEdge(resizeEdge)
         : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
           : '';
 

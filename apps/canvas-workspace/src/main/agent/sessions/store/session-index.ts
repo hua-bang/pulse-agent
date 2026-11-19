@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { basename, join, relative, sep } from 'path';
 import type { CanvasAgentSession } from '../../types';
-import { sessionPreview } from '../session-preview';
+import { sessionPreviewForMessage } from '../session-preview';
 import {
   listedSessionMetadata,
   readSessionFileIndex,
@@ -68,7 +68,7 @@ function fileIndexEntry(session: CanvasAgentSession, inventory: InventoryEntry):
     date: session.startedAt?.slice(0, 10) || legacyDate,
     updatedAt: sessionUpdatedAt(session, inventory.mtimeMs),
     messageCount: session.messages.length,
-    preview: firstUser ? sessionPreview(firstUser.content) : '',
+    preview: sessionPreviewForMessage(firstUser),
     mtimeMs: inventory.mtimeMs,
     size: inventory.size,
   };

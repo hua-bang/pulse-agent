@@ -17,7 +17,7 @@ interface ExperimentalSectionProps {
 }
 
 export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
-  const { notify, updateToast } = useAppShell();
+  const { confirm, notify, updateToast } = useAppShell();
   const { t, language } = useI18n();
   // Id of the in-progress "installing tooling" toast, so the async
   // tooling-status push from main can update it in place.
@@ -130,6 +130,13 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
   );
 
   const resetAll = useCallback(async () => {
+    const accepted = await confirm({
+      intent: 'danger',
+      title: t('experimental.resetConfirmTitle'),
+      description: t('experimental.resetConfirmDescription'),
+      confirmLabel: t('experimental.resetAll'),
+    });
+    if (!accepted) return;
     const res = await window.canvasWorkspace.experimental.reset();
     if (res.ok) {
       if (res.values) setValues(res.values);
@@ -146,7 +153,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         description: res.error ?? t('experimental.unknownError'),
       });
     }
-  }, [notify, t]);
+  }, [confirm, notify, t]);
 
   const reload = useCallback(async () => {
     setReloading(true);
@@ -184,7 +191,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
           </div>
         )}
 
-        {error && <div className="experimental-section-error">{error}</div>}
+        {error && <div className="experimental-section-error" role="alert">{error}</div>}
 
         {loading ? (
           <div className="experimental-section-empty">{t('experimental.loading')}</div>
