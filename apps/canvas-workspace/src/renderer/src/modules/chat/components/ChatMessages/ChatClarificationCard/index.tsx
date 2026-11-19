@@ -33,6 +33,7 @@ export const ChatClarificationCard = ({
 }: ChatClarificationCardProps) => {
   const { t } = useI18n();
   const errorId = useId();
+  const questionId = useId();
   const approval = pendingClarify.kind === 'approval';
   const defaultAction = pendingClarify.defaultAnswer?.trim().toLowerCase() === 'yes'
     ? t('chat.approve')
@@ -63,7 +64,7 @@ export const ChatClarificationCard = ({
           <div className="chat-clarify-label">
             {t(approval ? 'chat.approvalRequired' : 'chat.needsClarification')}
           </div>
-          <div className="chat-clarify-question">{question}</div>
+          <div id={questionId} className="chat-clarify-question">{question}</div>
           {summary && (
             <div className="chat-clarify-context">
               {`${summary.title} · ${typeKey ? t(typeKey) : summary.type}${summary.urlHost ? ` · ${summary.urlHost}` : ''}`}
@@ -143,6 +144,7 @@ export const ChatClarificationCard = ({
               }}
               placeholder={t('chat.typeAnswer')}
               disabled={answering || disabled}
+              aria-labelledby={questionId}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
             />

@@ -22,7 +22,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
     streamingTools, messageTools, collapsedSections, expandedTools, pendingClarify, clarifyInput,
     clarificationAnswering = false, clarificationError = null, onClarifyInputChange,
     onAnswerClarification, relay, onStopRelay, onToggleSection, onToggleToolExpand,
-    onAddImageToCanvas, onAddReplyToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onFork, onSessionJump, conversationKey,
+    onAddImageToCanvas, onAddReplyToCanvas, onNodeFocus, onEditUserMessage, onRegenerate, onFork, onSessionJump, conversationKey, anchorSurface,
   } = thread;
   const {
     nodes, selectedContext, onRemoveContext, onQuickAction, emptyState,
@@ -109,6 +109,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
             onSessionJump={onSessionJump}
             pendingLabel={pendingLabel}
             conversationKey={conversationKey}
+            anchorSurface={anchorSurface}
           />
         </McpAppsProvider>
       ) : emptyState !== undefined ? emptyState : (

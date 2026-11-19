@@ -140,7 +140,7 @@ describe('Select', () => {
     expect(document.activeElement).toBe(gamma);
   });
 
-  it('closes on Escape', () => {
+  it('closes on Escape and restores focus to the trigger', () => {
     render(<Select value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Choose" />);
     const trigger = host?.querySelector('.ui-select__trigger') as HTMLButtonElement;
     openMenu(trigger);
@@ -150,6 +150,7 @@ describe('Select', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     });
     expect(host?.querySelector('.ui-select__menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('shows the placeholder when value matches no option', () => {

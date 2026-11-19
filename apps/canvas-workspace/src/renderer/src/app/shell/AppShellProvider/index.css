@@ -217,6 +217,13 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  outline: none;
+}
+
+.shell-shortcuts:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: -2px;
+  border-radius: var(--radius-md);
 }
 
 .shell-shortcuts__intro {

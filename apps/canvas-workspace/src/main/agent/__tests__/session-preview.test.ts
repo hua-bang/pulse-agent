@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionPreview } from '../sessions/session-preview';
+import { sessionPreview, sessionPreviewForMessage } from '../sessions/session-preview';
 
 describe('sessionPreview', () => {
   it('preserves a complete leading DOM marker while truncating only the prose', () => {
@@ -14,5 +14,22 @@ describe('sessionPreview', () => {
 
     expect(sessionPreview(`总结下 ${marker} 的重点`, 8)).toBe(`总结下 ${marker}`);
     expect(sessionPreview(`总结下这个文档里的需求 ${marker}`, 6)).toBe('总结下这个文');
+  });
+
+  it('derives a readable fallback preview for image-only user messages', () => {
+    expect(sessionPreviewForMessage({
+      content: '   ',
+      attachments: [{ fileName: 'wireframe.png' }],
+    })).toBe('wireframe.png');
+
+    expect(sessionPreviewForMessage({
+      content: '',
+      attachments: [{ fileName: 'screen-1.png' }, { fileName: 'screen-2.png' }],
+    })).toBe('screen-1.png (+1)');
+
+    expect(sessionPreviewForMessage({
+      content: '',
+      attachments: [{}],
+    })).toBe('Image');
   });
 });

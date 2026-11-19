@@ -52,6 +52,8 @@ interface ChatMessagesProps {
   sessionLoading?: boolean;
   /** Stable session identity used to retain this conversation's reading position. */
   conversationKey?: string;
+  /** Optional surface qualifier ('page' | 'dock') so anchor DOM IDs stay unique. */
+  anchorSurface?: string;
 }
 
 const LoadingPlaceholder = ({ label, startedAt }: { label?: string; startedAt?: number }) => (
@@ -110,6 +112,7 @@ export const ChatMessages = ({
   pendingLabel,
   sessionLoading = false,
   conversationKey,
+  anchorSurface,
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const {
@@ -211,7 +214,7 @@ export const ChatMessages = ({
               const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
               return (
                 <ChatMessage
-                  key={index}
+                  key={conversationKey ? `${conversationKey}:${index}` : index}
                   index={index}
                   message={message}
                   isStreaming={isStreaming}
@@ -226,7 +229,7 @@ export const ChatMessages = ({
                   onToggleToolExpand={rowHandlers.onToggleToolExpand}
                   onAddImageToCanvas={rowHandlers.onAddImageToCanvas}
                   onAddReplyToCanvas={rowHandlers.onAddReplyToCanvas}
-                  anchorId={buildAnchorElementId(workspaceId, index)}
+                  anchorId={buildAnchorElementId(workspaceId, index, anchorSurface)}
                   onEditUserMessage={rowHandlers.onEditUserMessage}
                   onRegenerate={rowHandlers.onRegenerate}
                   onFork={rowHandlers.onFork}

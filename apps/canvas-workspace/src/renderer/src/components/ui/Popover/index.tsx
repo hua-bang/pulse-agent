@@ -273,11 +273,14 @@ export const Popover = (props: Props) => {
       delayedCheck = setTimeout(closeIfHidden, 320);
     };
     const observer = new MutationObserver(checkVisibility);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      subtree: true,
-      attributeFilter: ['class', 'style', 'data-expanded'],
-    });
+    let target: HTMLElement | null = anchor;
+    while (target) {
+      observer.observe(target, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-expanded'],
+      });
+      target = target.parentElement;
+    }
     checkVisibility();
     return () => {
       observer.disconnect();

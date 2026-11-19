@@ -49,3 +49,16 @@ export function sessionTitleText(value: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/** Derive a session title source from a user message, falling back to image attachment labels. */
+export function messageSessionTitleSource(
+  message: { content: string; attachments?: Array<{ fileName?: string }> } | undefined,
+  imageFallback: string,
+): string | undefined {
+  if (!message) return undefined;
+  const trimmed = message.content.trim();
+  if (trimmed) return trimmed;
+  if (!message.attachments?.length) return undefined;
+  const base = message.attachments[0]?.fileName?.trim() || imageFallback;
+  return message.attachments.length > 1 ? `${base} (+${message.attachments.length - 1})` : base;
+}

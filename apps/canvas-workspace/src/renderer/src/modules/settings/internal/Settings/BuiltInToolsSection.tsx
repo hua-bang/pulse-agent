@@ -21,7 +21,7 @@ interface CredentialDraft {
 type Drafts = Partial<Record<BuiltInToolCredentialId, CredentialDraft>>;
 
 export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
-  const { notify } = useAppShell();
+  const { confirm, notify } = useAppShell();
   const { t } = useI18n();
   const [status, setStatus] = useState<BuiltInToolsConfigStatus | null>(null);
   const [drafts, setDrafts] = useState<Drafts>({});
@@ -105,6 +105,13 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
   }, [drafts, notify, t]);
 
   const clear = useCallback(async (credential: BuiltInToolCredentialStatus) => {
+    const accepted = await confirm({
+      intent: 'danger',
+      title: t('toolsConfig.clearConfirmTitle', { name: credential.name }),
+      description: t('toolsConfig.clearConfirmDescription', { name: credential.name }),
+      confirmLabel: t('toolsConfig.clearStored'),
+    });
+    if (!accepted) return;
     setClearingId(credential.id);
     setError(null);
     try {
@@ -126,7 +133,7 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
     } finally {
       setClearingId(null);
     }
-  }, [notify, t]);
+  }, [confirm, notify, t]);
 
   const configuredCount = useMemo(
     () => status?.credentials.filter((credential) => credential.apiKeyPresent).length ?? 0,
@@ -153,7 +160,7 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
           )}
         </div>
 
-        {error && <div className="built-in-tools-error">{error}</div>}
+        {error && <div className="built-in-tools-error" role="alert">{error}</div>}
 
         {loading && (
           <div className="built-in-tools-loading">{t('toolsConfig.loading')}</div>

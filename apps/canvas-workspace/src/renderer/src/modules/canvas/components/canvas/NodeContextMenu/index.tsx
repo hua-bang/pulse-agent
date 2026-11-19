@@ -22,6 +22,7 @@ interface Props {
   /** Canvas-wide actions shown under the create items. */
   onSelectAll?: () => void;
   onFitAll?: () => void;
+  hideTerminal?: boolean;
   onClose: () => void;
 }
 
@@ -70,6 +71,7 @@ export const NodeContextMenu = ({
   onExportImage,
   onSelectAll,
   onFitAll,
+  hideTerminal = false,
   onClose,
 }: Props) => {
   const { t } = useI18n();
@@ -104,22 +106,24 @@ export const NodeContextMenu = ({
           <CreateMenuItem type="file" title={t('canvas.menu.note')} description={t('canvas.menu.noteDesc')} onCreate={onCreate} />
           <CreateMenuItem type="frame" title={t('canvas.menu.frame')} description={t('canvas.menu.frameDesc')} onCreate={onCreate} />
           <CreateMenuItem type="iframe" title={t('canvas.menu.web')} description={t('canvas.menu.webDesc')} onCreate={onCreate} />
-          <button
-            className="context-menu-item"
-            role="menuitem"
-            onClick={() => {
-              dock.openTerminal();
-              onClose();
-            }}
-          >
-            <span className="context-menu-icon context-menu-icon--terminal">
-              <ContextMenuIcon kind="terminal" />
-            </span>
-            <span className="context-menu-label">
-              <strong>{t('canvas.menu.terminal')}</strong>
-              <small>{t('canvas.menu.terminalDesc')}</small>
-            </span>
-          </button>
+          {!hideTerminal && (
+            <button
+              className="context-menu-item"
+              role="menuitem"
+              onClick={() => {
+                dock.openTerminal();
+                onClose();
+              }}
+            >
+              <span className="context-menu-icon context-menu-icon--terminal">
+                <ContextMenuIcon kind="terminal" />
+              </span>
+              <span className="context-menu-label">
+                <strong>{t('canvas.menu.terminal')}</strong>
+                <small>{t('canvas.menu.terminalDesc')}</small>
+              </span>
+            </button>
+          )}
           <CreateMenuItem type="agent" title={t('canvas.menu.agent')} description={t('canvas.menu.agentDesc')} onCreate={onCreate} />
           <CreateMenuItem type="mindmap" title={t('canvas.menu.mindmap')} description={t('canvas.menu.mindmapDesc')} onCreate={onCreate} />
           {canvasReferenceWorkspaces && onCreateCanvasReference && (

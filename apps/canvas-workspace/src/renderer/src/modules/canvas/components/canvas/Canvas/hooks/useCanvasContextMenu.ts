@@ -149,7 +149,7 @@ export const useCanvasContextMenu = ({
   const isBlankCanvasTarget = useCallback((target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
     return !target.closest(
-      '.canvas-node, .canvas-empty-hint, .canvas-fullscreen-chip, .canvas-bottom-chrome, .floating-toolbar, .zoom-indicator, .context-menu, .canvas-edges, .canvas-connect-overlay, .canvas-shape-overlay, .edge-style-panel',
+      '.canvas-node, .canvas-empty-hint, .canvas-fullscreen-chip, .canvas-bottom-chrome, .canvas-minimap, .floating-toolbar, .zoom-indicator, .context-menu, .canvas-edges, .canvas-connect-overlay, .canvas-shape-overlay, .edge-style-panel',
     );
   }, []);
 

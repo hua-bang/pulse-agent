@@ -26,6 +26,7 @@ export const ChatMessageEditor = ({
     <div className="chat-message-edit">
       <textarea
         className="chat-message-edit-input"
+        aria-label={t('chat.recovery.editAction')}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}

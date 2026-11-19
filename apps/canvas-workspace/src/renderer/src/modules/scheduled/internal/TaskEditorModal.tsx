@@ -89,8 +89,19 @@ export const TaskEditorModal = ({ open, task, onClose, onSave }: Props) => {
     setConfirmDiscard(false);
   }, [open, task]);
 
+  const initialCadence = cadenceValueOf(task?.schedule);
+  const initialTimeOfDay = task?.schedule.kind === 'daily' || task?.schedule.kind === 'weekly'
+    ? task.schedule.timeOfDay
+    : DEFAULT_TIME_OF_DAY;
+  const initialWeekday = task?.schedule.kind === 'weekly'
+    ? task.schedule.weekday
+    : DEFAULT_WEEKDAY;
+  const scheduleDirty = cadence !== initialCadence
+    || ((cadence === 'daily' || cadence === 'weekly') && timeOfDay !== initialTimeOfDay)
+    || (cadence === 'weekly' && weekday !== initialWeekday);
   const dirty = title.trim() !== (task?.title ?? '').trim()
-    || prompt.trim() !== (task?.prompt ?? '').trim();
+    || prompt.trim() !== (task?.prompt ?? '').trim()
+    || scheduleDirty;
 
   // Esc and a backdrop press are easy to hit by accident, so they never
   // drop typed text silently: the first one asks, a second one discards.

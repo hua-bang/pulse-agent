@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import type {
   AgentChatMessage,
   AgentRequestContext,
@@ -9,7 +9,7 @@ import type {
   ToolCallStatus,
   WorkspaceOption,
 } from '../../../types';
-import type { ConversationKey } from '../../../../../shared/conversation-runtime';
+import { conversationKeyId, type ConversationKey } from '../../../../../shared/conversation-runtime';
 import {
   readConversationSnapshot,
   setConversationClarification,
@@ -45,6 +45,20 @@ export interface UseConversationRuntimeStreamOptions {
 const toPending = (c: PendingClarification | null): PendingClarification | null => c;
 
 const EMPTY_KEY: ConversationKey = { storeId: '', sessionId: '' };
+const EMPTY_MESSAGE_TOOLS = new Map<number, ToolCallStatus[]>();
+const EMPTY_EXPANDED_TOOLS = new Set<number>();
+
+interface ClarifyState {
+  input: string;
+  answering: boolean;
+  error: string | null;
+}
+
+const EMPTY_CLARIFY: ClarifyState = { input: '', answering: false, error: null };
+
+const resolveUpdater = <T,>(updater: SetStateAction<T>, current: T): T => (
+  typeof updater === 'function' ? (updater as (prev: T) => T)(current) : updater
+);
 
 /** Conversation-keyed stream backed by the shared renderer conversation store. */
 export function useConversationRuntimeStream({
@@ -57,32 +71,78 @@ export function useConversationRuntimeStream({
 }: UseConversationRuntimeStreamOptions) {
   const key = conversationKey ?? EMPTY_KEY;
   const keyed = conversationKey !== undefined;
+  const ownerId = conversationKeyId(key);
   const snapshot = useConversationSnapshot(key);
-  const [clarifyInput, setClarifyInput] = useState('');
-  const [clarificationAnswering, setClarificationAnswering] = useState(false);
-  const [clarificationError, setClarificationError] = useState<string | null>(null);
-  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+  const [clarifyByOwner, setClarifyByOwner] = useState<Map<string, ClarifyState>>(() => new Map());
+  const [expandedToolsByOwner, setExpandedToolsByOwner] = useState<Map<string, Set<number>>>(() => new Map());
   // Explicit section toggles, per conversation. Defaults come from the
   // messages, so a streamed text batch never undoes what the user opened.
   const [sectionToggles, setSectionToggles] = useState<{ owner: string; collapsed: Map<number, boolean> }>(
     () => ({ owner: '', collapsed: new Map() }),
   );
-  const [messageTools, setMessageTools] = useState<Map<number, ToolCallStatus[]>>(new Map());
+  const [messageToolsByOwner, setMessageToolsByOwner] = useState<Map<string, Map<number, ToolCallStatus[]>>>(
+    () => new Map(),
+  );
+  const [relayByOwner, setRelayByOwner] = useState<Map<string, RelayProgress>>(() => new Map());
   const onTurnCompleteRef = useRef(onTurnComplete);
   onTurnCompleteRef.current = onTurnComplete;
   const onSessionChangedRef = useRef(onSessionChanged);
   onSessionChangedRef.current = onSessionChanged;
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const toolIdCounter = useRef(0);
-  const [relay, setRelay] = useState<RelayProgress | null>(null);
   useConversationVisibility(key, keyed && visible);
+
+  const updateMessageToolsForOwner = useCallback((
+    targetOwnerId: string,
+    updater: SetStateAction<Map<number, ToolCallStatus[]>>,
+  ) => {
+    setMessageToolsByOwner(prev => {
+      const current = prev.get(targetOwnerId) ?? EMPTY_MESSAGE_TOOLS;
+      const nextValue = resolveUpdater(updater, current);
+      if (nextValue === current) return prev;
+      const next = new Map(prev);
+      if (nextValue.size === 0) next.delete(targetOwnerId);
+      else next.set(targetOwnerId, nextValue);
+      return next;
+    });
+  }, []);
+
+  const updateRelayForOwner = useCallback((
+    targetOwnerId: string,
+    updater: SetStateAction<RelayProgress | null>,
+  ) => {
+    setRelayByOwner(prev => {
+      const current = prev.get(targetOwnerId) ?? null;
+      const nextValue = resolveUpdater(updater, current);
+      if (nextValue === current) return prev;
+      const next = new Map(prev);
+      if (nextValue === null) next.delete(targetOwnerId);
+      else next.set(targetOwnerId, nextValue);
+      return next;
+    });
+  }, []);
+
+  const updateClarifyForOwner = useCallback((
+    targetOwnerId: string,
+    patch: Partial<ClarifyState>,
+  ) => {
+    setClarifyByOwner(prev => {
+      const current = prev.get(targetOwnerId) ?? EMPTY_CLARIFY;
+      const nextState: ClarifyState = { ...current, ...patch };
+      const next = new Map(prev);
+      if (!nextState.input && !nextState.answering && !nextState.error) next.delete(targetOwnerId);
+      else next.set(targetOwnerId, nextState);
+      return next;
+    });
+  }, []);
+
   const observerHooks = useMemo<TurnObserverHooks>(() => ({
     toolIdCounter,
-    setMessageTools,
-    setRelay,
+    setMessageTools: updateMessageToolsForOwner,
+    setRelay: updateRelayForOwner,
     onTurnComplete: () => onTurnCompleteRef.current?.(),
     onSessionChanged: (error) => onSessionChangedRef.current?.(error),
-  }), []);
+  }), [updateMessageToolsForOwner, updateRelayForOwner]);
 
   // A turn can outlive this renderer's stream (reload, another window). When
   // a conversation opens, reconnect to a turn main is still running.
@@ -94,16 +154,29 @@ export function useConversationRuntimeStream({
   }, [key.sessionId, key.storeId, keyed, observerHooks]);
 
   useEffect(() => {
-    setMessageTools(new Map(
+    const nextTools = new Map(
       snapshot.messages.flatMap((message, index) => (
         message.role === 'assistant' && message.toolCalls?.length
           ? [[index, message.toolCalls]] as Array<[number, ToolCallStatus[]]>
           : []
       )),
-    ));
-  }, [snapshot.messages]);
+    );
+    updateMessageToolsForOwner(ownerId, nextTools);
+  }, [ownerId, snapshot.messages, updateMessageToolsForOwner]);
 
-  const sectionOwner = `${key.storeId}:${key.sessionId}`;
+  const clarifyState = clarifyByOwner.get(ownerId) ?? EMPTY_CLARIFY;
+  const clarifyInput = clarifyState.input;
+  const clarificationAnswering = clarifyState.answering;
+  const clarificationError = clarifyState.error;
+  const expandedTools = expandedToolsByOwner.get(ownerId) ?? EMPTY_EXPANDED_TOOLS;
+  const messageTools = messageToolsByOwner.get(ownerId) ?? EMPTY_MESSAGE_TOOLS;
+  const relay = relayByOwner.get(ownerId) ?? null;
+
+  const setClarifyInput = useCallback((value: string) => {
+    updateClarifyForOwner(ownerId, { input: value });
+  }, [ownerId, updateClarifyForOwner]);
+
+  const sectionOwner = ownerId;
   const messageCount = snapshot.messages.length;
   const collapsedSections = useMemo(() => {
     const toggles = sectionToggles.owner === sectionOwner ? sectionToggles.collapsed : null;
@@ -119,13 +192,14 @@ export function useConversationRuntimeStream({
   // from its default again.
   useEffect(() => {
     setSectionToggles((prev) => {
+      if (prev.owner !== sectionOwner) return prev;
       if (![...prev.collapsed.keys()].some((index) => index >= messageCount)) return prev;
       return {
         owner: prev.owner,
         collapsed: new Map([...prev.collapsed].filter(([index]) => index < messageCount)),
       };
     });
-  }, [messageCount]);
+  }, [messageCount, sectionOwner]);
 
   const sendMessage = useCallback(async (
     text: string,
@@ -203,26 +277,30 @@ export function useConversationRuntimeStream({
   const answerClarification = useCallback(async (answerOverride?: string): Promise<void> => {
     const pending = snapshot.clarification;
     if (!pending || !keyed) return;
+    const targetOwnerId = ownerId;
     const answer = (answerOverride ?? clarifyInput).trim();
     if (!answer) return;
-    setClarificationError(null);
-    setClarificationAnswering(true);
+    updateClarifyForOwner(targetOwnerId, { error: null, answering: true });
     try {
       const result = await window.canvasWorkspace.agent.conversationClarifyAnswer(
         agentScope, key.sessionId, pending.id, answer,
       );
       if (!result.ok) {
-        setClarificationError(result.error ?? 'Failed to deliver clarification answer');
+        updateClarifyForOwner(targetOwnerId, {
+          error: result.error ?? 'Failed to deliver clarification answer',
+        });
         return;
       }
       setConversationClarification(key, null);
-      setClarifyInput('');
+      updateClarifyForOwner(targetOwnerId, { input: '', error: null });
     } catch (error) {
-      setClarificationError(error instanceof Error ? error.message : String(error));
+      updateClarifyForOwner(targetOwnerId, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
-      setClarificationAnswering(false);
+      updateClarifyForOwner(targetOwnerId, { answering: false });
     }
-  }, [agentScope, clarifyInput, key, keyed, snapshot.clarification]);
+  }, [agentScope, clarifyInput, key, keyed, ownerId, snapshot.clarification, updateClarifyForOwner]);
 
   const toggleSection = useCallback((messageIndex: number) => {
     const collapsed = !collapsedSectionsRef.current.has(messageIndex);
@@ -232,13 +310,17 @@ export function useConversationRuntimeStream({
     }));
   }, [sectionOwner]);
   const toggleToolExpand = useCallback((toolId: number) => {
-    setExpandedTools(prev => {
-      const next = new Set(prev);
-      if (next.has(toolId)) next.delete(toolId);
-      else next.add(toolId);
+    setExpandedToolsByOwner(prev => {
+      const current = prev.get(ownerId) ?? EMPTY_EXPANDED_TOOLS;
+      const nextSet = new Set(current);
+      if (nextSet.has(toolId)) nextSet.delete(toolId);
+      else nextSet.add(toolId);
+      const next = new Map(prev);
+      if (nextSet.size === 0) next.delete(ownerId);
+      else next.set(ownerId, nextSet);
       return next;
     });
-  }, []);
+  }, [ownerId]);
 
   // ChatPanel-compatible extras (multi-role relay, image insert, branching,
   // run queue). In the conversation-runtime architecture these are thin
@@ -246,9 +328,19 @@ export function useConversationRuntimeStream({
   // selector, and a lost stream reattaches through main's snapshot.
   const stopRelay = useCallback(async (): Promise<boolean> => {
     if (!keyed || snapshot.status !== 'running') return false;
-    const result = await window.canvasWorkspace.agent.conversationStopRelay(agentScope, key.sessionId);
-    return result.ok;
-  }, [agentScope, key.sessionId, keyed, snapshot.status]);
+    const targetOwnerId = ownerId;
+    updateRelayForOwner(targetOwnerId, current => (current ? { ...current, stopping: true } : current));
+    try {
+      const result = await window.canvasWorkspace.agent.conversationStopRelay(agentScope, key.sessionId);
+      if (!result.ok) {
+        updateRelayForOwner(targetOwnerId, current => (current ? { ...current, stopping: false } : current));
+      }
+      return result.ok;
+    } catch {
+      updateRelayForOwner(targetOwnerId, current => (current ? { ...current, stopping: false } : current));
+      return false;
+    }
+  }, [agentScope, key.sessionId, keyed, ownerId, snapshot.status, updateRelayForOwner]);
 
   const addImageToCanvas = useCallback(async (imagePath: string, title?: string): Promise<void> => {
     if (agentScope.kind !== 'workspace') return;

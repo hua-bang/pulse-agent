@@ -87,7 +87,7 @@ export const ChatSessionsRail = ({
       }));
   }, [allSessions, workspaces]);
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-  const contentMatches = useSessionContentSearch(searchQuery);
+  const { ids: contentMatches, searching: contentSearching } = useSessionContentSearch(searchQuery);
   const sessionGroups = useMemo(() => {
     if (!normalizedQuery) return allSessionGroups;
     return allSessionGroups.flatMap((group) => {
@@ -178,7 +178,14 @@ export const ChatSessionsRail = ({
         ) : allSessionGroups.length === 0 ? (
           <div className="chat-page-rail-empty" role="status">{t('chat.noPreviousChats')}</div>
         ) : sessionGroups.length === 0 ? (
-          <div className="chat-page-rail-empty" role="status">{t('chat.noMatchingSessions')}</div>
+          contentSearching ? (
+            <div className="chat-page-rail-loading" role="status">
+              <SpinnerIcon size={14} className="chat-spin" />
+              <span>{t('chat.searchingSessions')}</span>
+            </div>
+          ) : (
+            <div className="chat-page-rail-empty" role="status">{t('chat.noMatchingSessions')}</div>
+          )
         ) : (
           sessionGroups.map((group, groupIndex) => {
             const listId = `${railId}-sessions-${groupIndex}`;

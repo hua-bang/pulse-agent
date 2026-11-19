@@ -9,7 +9,7 @@ import { scopeSessionStoreId } from '../../../../../../../shared/agent-chat';
 
 const flashAnchor = (scopeId: string, messageIndex: number, delay = 0) => {
   window.setTimeout(() => {
-    const element = document.getElementById(buildAnchorElementId(scopeId, messageIndex));
+    const element = document.getElementById(buildAnchorElementId(scopeId, messageIndex, 'page'));
     if (!element) return;
     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     element.classList.add('chat-message--anchor-flash');

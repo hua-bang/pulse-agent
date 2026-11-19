@@ -25,6 +25,7 @@ import { useConversationCompletionNotices } from '../../sessions/useConversation
 import type { ChatViewProps } from '../ChatView/types';
 import type { ChatPageBodyProps } from './types';
 import { useAddReplyToCanvas } from '../../runtime/useAddReplyToCanvas';
+import { messageSessionTitleSource } from '../utils/sessionTitle';
 export const useChatPageBodyController = ({
   agentScope,
   contextSnapshot,
@@ -416,7 +417,8 @@ export const useChatPageBodyController = ({
       onToggleSection: toggleSection, onToggleToolExpand: toggleToolExpand,
       onAddImageToCanvas: addImageToCanvas, onAddReplyToCanvas: addReplyToCanvas,
       onNodeFocus: handleNodeFocus,
-      conversationKey: activeSessionId ?? scopeId, onEditUserMessage: handleEditUserMessage,
+      conversationKey: activeSessionId ?? scopeId, anchorSurface: 'page',
+      onEditUserMessage: handleEditUserMessage,
       onRegenerate: handleRegenerate, onFork: forkMessage, onSessionJump: handleSessionJump,
     },
     context: {
@@ -455,7 +457,7 @@ export const useChatPageBodyController = ({
     topbar: {
       fixedTitle: fixedChat?.title,
       sessionTitleSource: sessionRail.allSessions.find(session => session.isCurrent)?.preview
-        ?? messages.find(message => message.role === 'user')?.content,
+        || messageSessionTitleSource(messages.find(message => message.role === 'user'), t('chat.imageFallback')),
       workspaceLabel: chatDestinationLabel,
       railCollapsed,
       onToggleRail,

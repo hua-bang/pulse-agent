@@ -19,6 +19,7 @@ const STARTERS: I18nKey[] = [
 const NO_NODES: CanvasNode[] = [];
 
 interface Props {
+  active?: boolean;
   workspaces: WorkspaceEntry[];
   /** Node snapshots this window already holds, keyed by workspace id. */
   loadedNodes: Record<string, CanvasNode[]>;
@@ -38,12 +39,13 @@ interface Props {
  * `@` mentions workspaces, roles, apps and cards: the scoped workspace's
  * cards first, then every other workspace's cards with their workspace name.
  */
-export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRequest, onAsk }: Props) => {
+export const LauncherComposer = ({ active = true, workspaces, loadedNodes, onWorkspaceContextRequest, onAsk }: Props) => {
   const { t } = useI18n();
   const [scopeValue, setScopeValue] = useState(GLOBAL_SCOPE);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const workspace = workspaces.find((item) => item.id === scopeValue);
+  const resolvedScopeValue = workspace ? scopeValue : GLOBAL_SCOPE;
   const scope = useMemo<AgentScope>(() => (workspace
     ? { kind: 'workspace', workspaceId: workspace.id }
     : { kind: 'global' }), [workspace?.id]);
@@ -111,8 +113,8 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
   };
 
   useEffect(() => {
-    field.editableRef.current?.focus();
-  }, [field.editableRef]);
+    if (active) field.editableRef.current?.focus();
+  }, [active, field.editableRef]);
 
   const activeIndex = field.mentionLoading || field.mentionItems.length === 0 ? -1 : field.mentionIndex;
 
@@ -149,8 +151,9 @@ export const LauncherComposer = ({ workspaces, loadedNodes, onWorkspaceContextRe
         <div className="launcher__ask-bar">
           <Select
             className="launcher__scope"
-            value={scopeValue}
+            value={resolvedScopeValue}
             options={options}
+            disabled={sending}
             onChange={(value) => { if (!sendingRef.current) setScopeValue(value); }}
             ariaLabel={t('launcher.scopeLabel')}
           />

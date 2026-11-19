@@ -18,6 +18,8 @@ interface Found {
   query: string;
   title: SessionSearchHit[];
   content: SessionSearchHit[];
+  titleDone: boolean;
+  contentDone: boolean;
 }
 
 const hitKey = (hit: SessionSearchHit): string => `${hit.workspaceId}:${hit.sessionId}`;
@@ -49,32 +51,37 @@ const mergeHits = (found: Found): PaletteCommand[] => {
 };
 
 /**
- * Stored chats that match `query`, as palette commands that open the chat
- * in its owning scope. Title, preview, and workspace-name matches come
- * first; matches in message text follow after a longer pause. A late
- * answer for an old query is dropped.
+ * Stored chats that match `query`, plus whether debounced title/content
+ * searches for `query` are still pending.
  */
-export const useChatSessionCommands = (query: string): PaletteCommand[] => {
+export const useChatSessionSearch = (query: string): { commands: PaletteCommand[]; searching: boolean } => {
   const [found, setFound] = useState<Found | null>(null);
   const trimmed = query.trim();
 
   useEffect(() => {
     if (!trimmed) return undefined;
     let cancelled = false;
+    const markSettled = (mode: SearchMode, hits?: SessionSearchHit[]) => {
+      if (cancelled) return;
+      setFound((previous) => {
+        const base = previous && previous.query === trimmed
+          ? previous
+          : { query: trimmed, title: [], content: [], titleDone: false, contentDone: false };
+        return {
+          ...base,
+          ...(hits ? { [mode]: hits } : {}),
+          ...(mode === 'title' ? { titleDone: true } : { contentDone: true }),
+        };
+      });
+    };
     const search = (mode: SearchMode) => {
       void window.canvasWorkspace.agent.searchSessions(trimmed, SEARCH_LIMIT, mode)
         .then((result) => {
-          if (cancelled || !result.ok) return;
-          const hits = result.hits ?? [];
-          setFound((previous) => {
-            const base = previous && previous.query === trimmed
-              ? previous
-              : { query: trimmed, title: [], content: [] };
-            return { ...base, [mode]: hits };
-          });
+          markSettled(mode, result.ok ? (result.hits ?? []) : undefined);
         })
         .catch(() => {
           // Chat results are an extra; nodes and commands still work.
+          markSettled(mode);
         });
     };
     const titleTimer = window.setTimeout(() => search('title'), TITLE_DELAY_MS);
@@ -86,8 +93,20 @@ export const useChatSessionCommands = (query: string): PaletteCommand[] => {
     };
   }, [trimmed]);
 
-  return useMemo(
+  const commands = useMemo(
     () => (found && found.query === trimmed ? mergeHits(found) : NO_COMMANDS),
     [found, trimmed],
   );
+  const searching = Boolean(trimmed) && !(found?.query === trimmed && found.titleDone && found.contentDone);
+
+  return { commands, searching };
 };
+
+/**
+ * Stored chats that match `query`, as palette commands that open the chat
+ * in its owning scope. Title, preview, and workspace-name matches come
+ * first; matches in message text follow after a longer pause. A late
+ * answer for an old query is dropped.
+ */
+export const useChatSessionCommands = (query: string): PaletteCommand[] =>
+  useChatSessionSearch(query).commands;

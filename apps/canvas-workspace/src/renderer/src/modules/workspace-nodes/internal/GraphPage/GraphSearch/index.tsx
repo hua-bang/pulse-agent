@@ -64,9 +64,14 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
     const handler = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === 'f') {
+        if (event.defaultPrevented) return;
+        const target = event.target instanceof Element ? event.target : document.activeElement;
+        if (target?.closest('.right-dock')) return;
         event.preventDefault();
         setOpen(true);
       } else if (event.key === 'Escape' && open) {
+        event.preventDefault();
+        event.stopPropagation();
         dismiss();
       }
     };
@@ -132,6 +137,8 @@ export const GraphSearch = ({ nodes, tags, showTags, onPick }: Props) => {
               onKeyDown={(event) => {
                 if (isImeComposing(event)) return;
                 if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
                   dismiss();
                   return;
                 }

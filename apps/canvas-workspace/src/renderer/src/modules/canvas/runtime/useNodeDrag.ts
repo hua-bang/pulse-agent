@@ -61,11 +61,14 @@ export const useNodeDrag = (
    *  fall back to the original "drag this node alone" behavior. */
   selectedIds: string[] = [],
   autoPan?: NodeDragAutoPan,
+  snapNodes?: CanvasNode[],
 ) => {
   const autoPanRef = useRef(autoPan);
   autoPanRef.current = autoPan;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+  const snapNodesRef = useRef(snapNodes ?? nodes);
+  snapNodesRef.current = snapNodes ?? nodes;
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
   const dragging = useRef<{
@@ -179,7 +182,7 @@ export const useNodeDrag = (
       // Snap candidates exclude the primary and every companion — we
       // don't want a dragged group to snap to itself.
       const dragSet = new Set([node.id, ...companions.map((c) => c.id)]);
-      const snapCandidates: SnapBox[] = currentNodes
+      const snapCandidates: SnapBox[] = snapNodesRef.current
         .filter((n) => !dragSet.has(n.id))
         .map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
       const dragBoxes = currentNodes.filter((n) => dragSet.has(n.id));

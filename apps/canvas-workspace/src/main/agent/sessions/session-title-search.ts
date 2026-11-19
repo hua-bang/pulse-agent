@@ -20,7 +20,7 @@
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, workspaceNames } from './store/session-store-lookups';
 import { scanAllWorkspaceSessions } from './store/session-store-scan';
 import { readAllSessionsWithMeta } from './store/session-store-lookups';
-import { sessionPreview } from './session-preview';
+import { sessionPreviewForMessage } from './session-preview';
 import { sessionStorageRoot } from './sqlite/backend';
 import type { SessionSearchHit } from '../types';
 
@@ -90,7 +90,7 @@ export async function searchSessionContent(query: string, limit = 50): Promise<S
       date: session.startedAt?.slice(0, 10) ?? '',
       isCurrent,
       messageCount: messages.length,
-      preview: firstUser ? sessionPreview(firstUser.content) : '',
+      preview: sessionPreviewForMessage(firstUser),
     });
     if (hits.length >= limit) break;
   }

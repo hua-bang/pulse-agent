@@ -7,6 +7,7 @@ import type { Point } from './useEdgeInteraction';
 /** Screen px around the hovered node that keep its handles visible, so the
  *  pointer can travel from the node body to a handle outside its border. */
 const HOVER_SLOP_SCREEN_PX = 24;
+const CONNECT_HANDLE_BLOCKED_SELECTOR = '.canvas-bottom-chrome, .node-ask-bar, .canvas-minimap, .edge-style-panel';
 
 interface UseConnectHandlesArgs {
   /** False while another tool or gesture owns the pointer. */
@@ -45,16 +46,23 @@ export const useConnectHandles = ({
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
     const container = getContainer();
     // A pressed button means another gesture (pan, drag, marquee) is live.
-    if (!enabled || !container || event.buttons !== 0) {
+    if (
+      !enabled
+      || !container
+      || event.buttons !== 0
+      || (event.target instanceof Element && event.target.closest(CONNECT_HANDLE_BLOCKED_SELECTOR))
+    ) {
       setHoverNodeId(null);
       return;
     }
     const pt = screenToCanvas(event.clientX, event.clientY, container);
     const slop = screenToCanvas(event.clientX + HOVER_SLOP_SCREEN_PX, event.clientY, container).x - pt.x;
+    const directHit = findNodeAtCanvasPoint(sortedNodes, pt.x, pt.y);
     setHoverNodeId((current) => {
+      if (directHit) return directHit.id;
       const hovered = current ? sortedNodes.find((node) => node.id === current) : undefined;
       if (hovered && containsWithSlop(hovered, pt, slop)) return current;
-      return findNodeAtCanvasPoint(sortedNodes, pt.x, pt.y)?.id ?? null;
+      return null;
     });
   }, [enabled, getContainer, screenToCanvas, sortedNodes]);
 

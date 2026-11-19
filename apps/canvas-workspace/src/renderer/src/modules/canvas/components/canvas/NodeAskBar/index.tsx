@@ -60,8 +60,7 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
   const barRef = useRef<HTMLFormElement>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [placeAbove, setPlaceAbove] = useState(false);
-  const [aboveLeft, setAboveLeft] = useState(0);
+  const [layout, setLayout] = useState<{ placeAbove: boolean; left: number; top: number } | null>(null);
   const [expanded, setExpanded] = useState(false);
   const label = getNodeDisplayLabel(node);
   const left = node.x * transform.scale + transform.x;
@@ -74,28 +73,44 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
     setExpanded(false);
   }, [node.id]);
 
-  // Flip above the card when the bar would fall off the bottom of the canvas.
+  // Flip above the card when the bar would fall off the bottom of the canvas,
+  // and clamp both horizontal and vertical coordinates inside the host bounds.
   useLayoutEffect(() => {
     const bar = barRef.current;
     const host = bar?.offsetParent as HTMLElement | null;
     if (!bar || !host) return;
     const height = bar.offsetHeight;
+    const width = bar.offsetWidth;
+    const hasWidth = host.clientWidth > 0;
+    const hasHeight = host.clientHeight > 0;
     // Above the card, align to its right edge (the left side of that row
     // holds frame titles and their tools), but stay inside the canvas.
-    const width = bar.offsetWidth;
     const maxLeft = Math.max(VIEWPORT_GAP, host.clientWidth - width - VIEWPORT_GAP);
-    const nextAboveLeft = Math.min(Math.max(right - width, VIEWPORT_GAP), maxLeft);
+    const nextAboveLeft = hasWidth ? Math.min(Math.max(right - width, VIEWPORT_GAP), maxLeft) : right - width;
+    const nextBelowLeft = hasWidth ? Math.min(Math.max(left, VIEWPORT_GAP), maxLeft) : left;
     const fitsAbove = aboveBottom - height > 0;
     // Also flip when the bar would sit on the card below and the row above
     // is clear, so it does not cover a neighbour's text.
     const coversBelow = coversCard(nodes, node, transform, {
-      left, top: belowTop, right: left + width, bottom: belowTop + height,
+      left: nextBelowLeft, top: belowTop, right: nextBelowLeft + width, bottom: belowTop + height,
     });
     const coversAbove = coversCard(nodes, node, transform, {
       left: nextAboveLeft, top: aboveBottom - height, right: nextAboveLeft + width, bottom: aboveBottom,
     });
-    setPlaceAbove(fitsAbove && (belowTop + height > host.clientHeight || (coversBelow && !coversAbove)));
-    setAboveLeft(nextAboveLeft);
+    const nextPlaceAbove = fitsAbove && (
+      (hasHeight && belowTop + height > host.clientHeight) || (coversBelow && !coversAbove)
+    );
+    const maxBelowTop = Math.max(VIEWPORT_GAP, host.clientHeight - height - VIEWPORT_GAP);
+    const nextBelowTop = hasHeight ? Math.min(Math.max(belowTop, VIEWPORT_GAP), maxBelowTop) : belowTop;
+    const minAboveTop = height + VIEWPORT_GAP;
+    const nextAboveTop = hasHeight
+      ? Math.min(Math.max(aboveBottom, minAboveTop), Math.max(minAboveTop, host.clientHeight - VIEWPORT_GAP))
+      : aboveBottom;
+    setLayout({
+      placeAbove: nextPlaceAbove,
+      left: nextPlaceAbove ? nextAboveLeft : nextBelowLeft,
+      top: nextPlaceAbove ? nextAboveTop : nextBelowTop,
+    });
   }, [aboveBottom, belowTop, expanded, left, node, nodes, right, transform]);
 
   const handleBlur = (event: FocusEvent<HTMLFormElement>) => {
@@ -143,8 +158,10 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
     <form
       ref={barRef}
       className={`node-ask-bar${expanded ? ' node-ask-bar--expanded' : ''}`}
-      style={placeAbove
-        ? { left: aboveLeft, top: aboveBottom, transform: 'translateY(-100%)' }
+      style={layout
+        ? (layout.placeAbove
+          ? { left: layout.left, top: layout.top, transform: 'translateY(-100%)' }
+          : { left: layout.left, top: layout.top })
         : { left, top: belowTop }}
       aria-label={t('canvas.askBar.label', { title: label })}
       onSubmit={(event) => { void handleSubmit(event); }}

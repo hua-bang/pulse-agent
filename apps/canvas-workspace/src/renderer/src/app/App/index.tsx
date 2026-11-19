@@ -360,7 +360,7 @@ const AppContent = () => {
                   onCreate={() => workspaceActions.select(workspaceActions.create(''))}
                   onRename={workspaceActions.rename}
                   onOpenLauncher={() => setLocation(ROUTE_HOME)}
-                  panelCollapsed={sidebarCollapsed}
+                  panelCollapsed={sidebarCollapsed && (activeNodes.length > 0 || workbench.allNodes[activeId] === undefined)}
                   onTogglePanel={handleSidebarToggle}
                 />
               </Suspense>

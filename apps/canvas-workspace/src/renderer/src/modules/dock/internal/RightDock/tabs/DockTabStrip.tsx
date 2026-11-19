@@ -150,6 +150,7 @@ export const DockTabStrip = ({
                 onRename={(id, title) => store.renameTerminal(id, title)}
                 onDragStart={tabDrag.onDragStart}
                 onDragOver={tabDrag.onDragOver}
+                onDragLeave={tabDrag.onDragLeave}
                 onDrop={tabDrag.onDrop}
                 onDragEnd={tabDrag.clear}
               />
@@ -173,6 +174,7 @@ export const DockTabStrip = ({
             onContextMenu={(tabId, x, y) => setTabMenu({ tabId, x, y })}
             onDragStart={tabDrag.onDragStart}
             onDragOver={tabDrag.onDragOver}
+            onDragLeave={tabDrag.onDragLeave}
             onDrop={tabDrag.onDrop}
             onDragEnd={tabDrag.clear}
           />
@@ -209,7 +211,6 @@ export const DockTabStrip = ({
           type="button"
           className="right-dock__collapse"
           aria-label={t('rightDock.collapseTitle')}
-          title={t('rightDock.collapse')}
           onClick={collapseFromUser}
         >
           ⇥

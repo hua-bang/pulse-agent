@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, type CSSProperties, type MouseEvent } from 'r
 import type { CanvasNode } from '../../../../../types';
 import type { MergeMindmapTopicRequest } from '../../../mindmap/transfer';
 import { AddToChatButton, CloseButton, FocusButton, FullscreenButton, OpenDetailButton } from './NodeButtons';
+import { isCanvasPanGesture } from './utils';
 
 // Loads with the first mind map on a canvas, like the other node bodies.
 const MindmapNodeBody = lazy(() =>
@@ -74,6 +75,7 @@ export const MindmapCanvasNode = ({
   return (
     <div
       className={classes}
+      data-node-id={node.id}
       style={wrapperStyle}
       onClick={handleNodeClick}
       onContextMenu={(e) => {
@@ -84,7 +86,7 @@ export const MindmapCanvasNode = ({
         setMindmapMenu({ x: e.clientX, y: e.clientY });
       }}
       onMouseDown={(e) => {
-        if (readOnly || isFullscreen) return;
+        if (readOnly || isFullscreen || isCanvasPanGesture(e)) return;
         const hasMods = e.shiftKey || e.metaKey || e.ctrlKey;
         if (!isSelected && !hasMods) onSelect(node.id);
         onDragStart(e, node);

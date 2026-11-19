@@ -5,6 +5,7 @@ import { useTextNodeSize } from '../TextNodeBody/useTextNodeSize';
 import { resolveTextNodeColor } from '../TextNodeBody/colorPresets';
 import { renderTextPreview } from './textPreview';
 import { DeferredEditorBoundary, useDeferredEditorInput } from '../useDeferredEditorInput';
+import { isCanvasPanGesture } from '../../canvas/CanvasNodeView/utils';
 import '../TextNodeBody/index.css';
 
 interface Props {
@@ -56,11 +57,14 @@ export const TextNodeBodyLazy = (props: Props) => {
       ref={wrapperRef}
       className="text-node-body"
       onMouseDown={(event) => {
+        if (isCanvasPanGesture(event)) return;
         if (readOnly) {
           event.stopPropagation();
           return;
         }
-        props.onSelect(props.node.id);
+        if (event.button === 0 && !(event.shiftKey || event.metaKey || event.ctrlKey)) {
+          props.onSelect(props.node.id);
+        }
         props.onDragStart(event, props.node);
       }}
       onDoubleClick={(event) => {

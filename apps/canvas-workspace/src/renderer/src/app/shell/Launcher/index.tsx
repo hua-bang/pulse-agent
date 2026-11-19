@@ -96,6 +96,7 @@ export const Launcher = ({
       <div className="launcher__inner">
         <h1 className="launcher__title">{t('launcher.title')}</h1>
         <LauncherComposer
+          active={active}
           workspaces={workspaces}
           loadedNodes={loadedNodes}
           onWorkspaceContextRequest={onWorkspaceContextRequest}

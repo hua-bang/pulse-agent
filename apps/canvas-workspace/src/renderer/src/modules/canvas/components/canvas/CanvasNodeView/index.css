@@ -338,6 +338,8 @@
 .canvas-node--fullscreen .group-count-label,
 .canvas-node--fullscreen .node-status-label,
 .canvas-node--fullscreen .node-close--floating,
-.canvas-node--fullscreen .node-fullscreen--floating {
+.canvas-node--fullscreen .node-fullscreen--floating,
+.canvas-node--fullscreen .node-copy-image,
+.canvas-node--fullscreen .node-copy-image--floating {
   display: none !important;
 }

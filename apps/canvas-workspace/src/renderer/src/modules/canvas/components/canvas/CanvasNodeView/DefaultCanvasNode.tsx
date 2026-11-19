@@ -258,7 +258,7 @@ export const DefaultCanvasNode = ({
 
   if (frameTitleOnly) {
     return (
-      <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
+      <div className={nodeClasses} data-node-id={node.id} style={wrapperStyle} onClick={handleNodeClick}>
         {header}
       </div>
     );
@@ -267,6 +267,7 @@ export const DefaultCanvasNode = ({
   return (
     <div
       className={nodeClasses}
+      data-node-id={node.id}
       style={wrapperStyle}
       onClick={handleNodeClick}
       onMouseDown={node.type === 'group' ? handleNodeBodyMouseDown : undefined}

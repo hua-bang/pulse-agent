@@ -2,6 +2,7 @@ import { useI18n } from '../../../../i18n';
 import { ListLinesIcon, SteerIcon, TrashIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui';
 import type { QueuedInput } from '../../runtime/useChatRunQueue';
+import { SessionTitle } from '../SessionTitle';
 
 interface Props {
   inputs: QueuedInput[];
@@ -19,7 +20,7 @@ export const ChatRunQueue = ({ inputs, steeringInputId, onSteer, onRemove }: Pro
       {inputs.map(input => (
         <div className="chat-run-queue-row" key={input.id}>
           <span className="chat-run-queue-icon" aria-hidden="true"><ListLinesIcon size={13} /></span>
-          <span className="chat-run-queue-text">{input.text}</span>
+          <span className="chat-run-queue-text"><SessionTitle value={input.text} /></span>
           <div className="chat-run-queue-actions">
             <Button
               variant="secondary"

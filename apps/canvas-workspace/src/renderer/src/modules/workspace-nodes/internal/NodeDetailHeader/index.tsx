@@ -181,12 +181,12 @@ export const NodeDetailHeader = ({
         >
           <div className="node-detail-panel__inspector-actions" role="toolbar" aria-label={t('workspaceNodes.detailActions')}>
             {onOpenPage && (
-              <Button size="xs" onClick={onOpenPage}>
+              <Button size="xs" onClick={() => { setInspectorOpen(false); onOpenPage(); }}>
                 <ListLinesIcon size={13} />
                 <span>{t('workspaceNodes.goToDetail')}</span>
               </Button>
             )}
-            <Button size="xs" onClick={() => dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id })}>
+            <Button size="xs" onClick={() => { setInspectorOpen(false); dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id }); }}>
               <TargetGlyph />
               <span>{t('workspaceNodes.openOnCanvas')}</span>
             </Button>

@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { ConversationSnapshot, EntityRecord, JsonObject } from '@pulse-coder/storage';
 import { StorageError } from '@pulse-coder/storage';
 import type { CanvasAgentMessage, CanvasAgentSession } from '../../types';
-import { sessionPreview } from '../session-preview';
+import { sessionPreviewForMessage } from '../session-preview';
 import { sessionUpdatedAt, type AgentSessionListEntry } from '../session-file-summary';
 
 type IdentifiedMessage = CanvasAgentMessage & { id?: string };
@@ -66,7 +66,7 @@ export function encodeSessionMetadata(
     ...display,
     session: header,
     messageCount: messages.length,
-    preview: firstUser ? sessionPreview(firstUser.content) : '',
+    preview: sessionPreviewForMessage(firstUser),
     date: session.startedAt.slice(0, 10),
     updatedAt: sessionUpdatedAt(session, sortKey),
     ...(sortKey ? { sortKey } : {}),

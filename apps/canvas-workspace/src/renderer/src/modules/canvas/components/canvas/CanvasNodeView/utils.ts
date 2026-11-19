@@ -4,7 +4,7 @@ import type { CanvasNode, FileNodeData, FrameNodeData, GroupNodeData, TextNodeDa
 import type { NodeDragOffset } from '../../../runtime/useNodeDrag';
 
 export function isCanvasPanGesture(e: MouseEvent): boolean {
-  const handToolActive = e.currentTarget.closest('.canvas-container--hand') != null;
+  const handToolActive = e.currentTarget?.closest?.('.canvas-container--hand') != null;
   return e.button === 1 || (e.button === 0 && (e.altKey || handToolActive));
 }
 

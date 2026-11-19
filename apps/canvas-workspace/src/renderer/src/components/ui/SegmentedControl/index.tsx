@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import './index.css';
 
 export interface SegmentedControlOption {
@@ -38,24 +38,52 @@ export const SegmentedControl = ({
   ariaLabel,
   className,
 }: Props) => {
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isTab = ariaPattern === 'tab';
   const groupRole = isTab ? 'tablist' : 'radiogroup';
   const optionRole = isTab ? 'tab' : 'radio';
   const classes = ['ui-segmented', className].filter(Boolean).join(' ');
+  const activeIndex = options.findIndex((option) => option.id === value);
+  const focusableIndex = activeIndex >= 0 ? activeIndex : 0;
+
+  const handleKeyDown = (index: number, event: KeyboardEvent<HTMLButtonElement>) => {
+    if (options.length <= 1) return;
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (index + 1) % options.length;
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (index - 1 + options.length) % options.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = options.length - 1;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextOption = options[nextIndex];
+    if (!nextOption) return;
+    if (nextOption.id !== value) onChange(nextOption.id);
+    buttonRefs.current[nextIndex]?.focus();
+  };
 
   return (
     <div className={classes} role={groupRole} aria-label={ariaLabel}>
-      {options.map((option) => {
+      {options.map((option, index) => {
         const active = option.id === value;
         const optionProps = isTab ? { 'aria-selected': active } : { 'aria-checked': active };
         return (
           <button
             key={option.id}
+            ref={(el) => {
+              buttonRefs.current[index] = el;
+            }}
             type="button"
             role={optionRole}
+            tabIndex={index === focusableIndex ? 0 : -1}
             className={`ui-segmented__option${active ? ' ui-segmented__option--active' : ''}`}
             title={option.title}
             onClick={() => onChange(option.id)}
+            onKeyDown={(event) => handleKeyDown(index, event)}
             {...optionProps}
           >
             {option.label}

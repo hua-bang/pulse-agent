@@ -27,6 +27,7 @@
 .folder-browser__file-icon--image { color: var(--accent-image); }
 .folder-browser__file-icon--muted { color: var(--text-secondary); }
 .folder-browser__hint { padding: 16px; color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.folder-browser__hint--alert { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--danger); }
 .folder-browser__mode { display: flex; justify-content: flex-end; padding: 8px 12px; }
 .folder-browser__markdown { padding: 16px 24px 32px; }
 .folder-browser__code { display: flex; min-width: max-content; padding: 12px 16px 24px 0; }

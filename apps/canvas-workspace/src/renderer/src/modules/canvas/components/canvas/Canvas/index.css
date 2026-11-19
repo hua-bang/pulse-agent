@@ -34,6 +34,18 @@
   cursor: nwse-resize;
 }
 
+.canvas-container--resizing-ew {
+  cursor: ew-resize;
+}
+
+.canvas-container--resizing-ns {
+  cursor: ns-resize;
+}
+
+.canvas-container--resizing-nesw {
+  cursor: nesw-resize;
+}
+
 .canvas-container--iframe-shielding .iframe-frame-wrapper::after {
   content: "";
   position: absolute;

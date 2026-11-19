@@ -17,7 +17,7 @@ interface AgentSectionProps {
 }
 
 export const AgentSection = ({ onClose }: AgentSectionProps) => {
-  const { notify } = useAppShell();
+  const { confirm, notify } = useAppShell();
   const { t } = useI18n();
   const [status, setStatus] = useState<SkillsStatusResult | null>(null);
   const [lastResults, setLastResults] = useState<SkillTargetResult[] | null>(null);
@@ -85,6 +85,13 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
   }, [loadStatus, notify, t]);
 
   const cleanupLegacy = useCallback(async () => {
+    const accepted = await confirm({
+      intent: 'danger',
+      title: t('agent.removeLegacyConfirmTitle'),
+      description: t('agent.removeLegacyConfirmDescription'),
+      confirmLabel: t('agent.removeLegacyDirs'),
+    });
+    if (!accepted) return;
     setCleaningLegacy(true);
     try {
       const result = await window.canvasWorkspace.skills.cleanupLegacy();
@@ -115,7 +122,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     } finally {
       setCleaningLegacy(false);
     }
-  }, [loadStatus, notify, t]);
+  }, [confirm, loadStatus, notify, t]);
 
   const changePolicy = useCallback(async (value: string) => {
     if (value !== 'follow-app' && value !== 'ask' && value !== 'pinned') return;
@@ -177,7 +184,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
           <p className="agent-section-connection-status" data-state={checking ? 'checking' : allInstalled ? 'ready' : status?.version ? 'repair' : 'inactive'} role="status">{checking ? t('agent.checking') : !status ? t('agent.checkFailed') : allInstalled
             ? t('agent.ready') : status.version ? t('agent.needsRepair') : t('agent.notInstalled')}</p>
           {!checking && (error || (status?.version && !allInstalled)) && (
-            <div className="agent-section-error">
+            <div className="agent-section-error" role="alert">
               {error ? t('agent.repairFailedHint') : !status?.cliInstalled ? t('agent.launcherRepairHint') : t('agent.skillsRepairHint')}
             </div>
           )}

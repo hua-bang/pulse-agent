@@ -84,6 +84,7 @@ const WorkspaceFlyout = ({
       x={(rect?.right ?? 0) + 8}
       y={(rect?.top ?? 0) - 4}
       autoFocus={false}
+      keyboardNavigation={false}
       ariaLabel={t('sidebar.workspaces')}
       className="sidebar-item-menu sidebar-flyout"
       onClose={close}

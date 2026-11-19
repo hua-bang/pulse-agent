@@ -133,7 +133,7 @@ export const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
         <h2 className="shell-dialog__title" id="shell-shortcuts-title">{t('shell.shortcutsTitle')}</h2>
       </div>
       <div className="shell-shortcuts__intro">{t('shell.shortcutsIntro')}</div>
-      <div className="shell-shortcuts">
+      <div className="shell-shortcuts" tabIndex={0}>
         <div className="shell-shortcuts__grid">
           {SHORTCUT_SECTIONS.map((section) => (
             <section key={section.titleKey} className="shell-shortcuts__section">

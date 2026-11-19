@@ -25,13 +25,24 @@ export const ChatRecoveryConfirm = ({
   const { t } = useI18n();
   const message = t('chat.recovery.regenerateRemovesLater', { count });
   return (
-    <div className="chat-recovery-confirm" role="group" aria-label={message}>
+    <div
+      className="chat-recovery-confirm"
+      role="group"
+      aria-label={message}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
       <span className="chat-recovery-confirm__icon" aria-hidden="true">
         <WarningCircle size={14} weight="fill" />
       </span>
       <span className="chat-recovery-confirm__message">{message}</span>
       <div className="chat-recovery-confirm__actions">
-        <Button variant="secondary" size="xs" onClick={onCancel}>
+        <Button variant="secondary" size="xs" onClick={onCancel} autoFocus>
           {t('chat.recovery.cancel')}
         </Button>
         {onFork && (
@@ -39,7 +50,7 @@ export const ChatRecoveryConfirm = ({
             {t('chat.recovery.forkInstead')}
           </Button>
         )}
-        <Button variant="danger" size="xs" onClick={onConfirm} autoFocus>
+        <Button variant="danger" size="xs" onClick={onConfirm}>
           {t('chat.recovery.confirmRemove')}
         </Button>
       </div>

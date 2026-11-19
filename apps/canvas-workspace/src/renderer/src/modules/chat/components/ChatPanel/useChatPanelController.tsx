@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } fr
 import { ChatAnchors } from '../ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import { SessionTitle } from '../SessionTitle';
-import { sessionTitleText } from '../utils/sessionTitle';
+import { messageSessionTitleSource, sessionTitleText } from '../utils/sessionTitle';
 import './index.css';
 import type { ChatViewProps } from '../ChatView/types';
 import { SessionBackBar } from '../SessionBackBar';
@@ -219,8 +219,10 @@ export const useChatPanelController = ({
   });
   requestContextRef.current = requestContext;
 
-  const firstUserMessage = useMemo(() => sessions.find(session => session.sessionId === activeSessionId)?.title
-    || messages.find(message => message.role === 'user')?.content.trim(), [activeSessionId, messages, sessions]);
+  const firstUserMessage = useMemo(() => (
+    sessions.find(session => session.sessionId === activeSessionId)?.title
+    || messageSessionTitleSource(messages.find(message => message.role === 'user'), t('chat.imageFallback'))
+  ), [activeSessionId, messages, sessions, t]);
 
   const sessionTitle = useMemo(() => {
     if (!firstUserMessage) return t('chat.newAiChat');
@@ -460,7 +462,8 @@ export const useChatPanelController = ({
         clarificationAnswering, clarificationError, relay, onStopRelay: stopRelay, clarifyInput,
         onClarifyInputChange: setClarifyInput, onAnswerClarification: answerClarification,
         onToggleSection: toggleSection, onToggleToolExpand: toggleToolExpand,
-        onAddImageToCanvas: addImageToCanvas, onAddReplyToCanvas: addReplyToCanvas, onNodeFocus, conversationKey: activeSessionId ?? scopeId,
+        onAddImageToCanvas: addImageToCanvas, onAddReplyToCanvas: addReplyToCanvas, onNodeFocus,
+        conversationKey: activeSessionId ?? scopeId, anchorSurface: 'dock',
         onEditUserMessage: handleEditUserMessage, onRegenerate: handleRegenerate, onFork: forkMessage,
         onSessionJump: handleSessionJump,
     },

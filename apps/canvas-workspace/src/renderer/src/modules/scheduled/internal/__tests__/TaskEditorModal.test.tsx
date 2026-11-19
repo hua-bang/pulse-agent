@@ -69,6 +69,46 @@ describe('TaskEditorModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('asks before Esc discards schedule-only changes on an existing task', async () => {
+    const onClose = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        <I18nProvider>
+          <AppShellProvider>
+            <TaskEditorModal
+              open
+              task={{
+                id: 'daily-brief',
+                title: 'Daily brief',
+                prompt: 'Summarize updates.',
+                schedule: { kind: 'daily', timeOfDay: '09:00' },
+                enabled: true,
+                source: 'user',
+                createdAt: 1,
+                updatedAt: 1,
+                nextRunAt: 2,
+                runCount: 0,
+                status: 'idle',
+              }}
+              onClose={onClose}
+              onSave={vi.fn(async () => true)}
+            />
+          </AppShellProvider>
+        </I18nProvider>,
+      );
+    });
+
+    await pickOption('Hour', '10');
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector('.scheduled-editor__discard')).not.toBeNull();
+  });
+
   it('uses AI to draft editable instructions from the task name', async () => {
     const polishScheduledPrompt = vi.fn(async () => ({
       ok: true,

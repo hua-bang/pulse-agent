@@ -63,6 +63,8 @@ export interface ChatViewThread {
   onFork?: (index: number) => Promise<boolean> | void;
   onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
   conversationKey?: string;
+  /** Optional surface qualifier ('page' | 'dock') so anchor DOM IDs stay unique across surfaces. */
+  anchorSurface?: string;
 }
 
 export interface ChatViewContext {

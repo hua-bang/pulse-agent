@@ -163,6 +163,7 @@ export const CanvasOverlays = ({
             canvasReferenceWorkspaces={contextMenu.connectFrom ? undefined : canvasReferenceWorkspaces}
             onCreateCanvasReference={onCreateCanvasReference}
             workspaceId={workspaceId}
+            hideTerminal={Boolean(contextMenu.connectFrom)}
             onSelectAll={nodes.length > 0 && !contextMenu.connectFrom ? onSelectAll : undefined}
             onFitAll={nodes.length > 0 && !contextMenu.connectFrom ? onFitAll : undefined}
             onClose={onCloseContextMenu}

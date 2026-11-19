@@ -9,6 +9,7 @@ import { resolveTextNodeColor } from "./colorPresets";
 import type { CanvasNode, TextNodeData } from "../../../../../types";
 import { isImeComposing } from "../../../../../utils/ime";
 import { useI18n } from "../../../../../i18n";
+import { isCanvasPanGesture } from "../../canvas/CanvasNodeView/utils";
 
 interface Props {
   node: CanvasNode;
@@ -182,6 +183,7 @@ export const TextNodeBody = ({
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (isCanvasPanGesture(e)) return;
       if (readOnly) {
         e.stopPropagation();
         return;
@@ -192,10 +194,12 @@ export const TextNodeBody = ({
         e.stopPropagation();
         return;
       }
-      onSelect(node.id);
+      if (e.button === 0 && !isSelected && !(e.shiftKey || e.metaKey || e.ctrlKey)) {
+        onSelect(node.id);
+      }
       onDragStart(e, node);
     },
-    [editing, node, onSelect, onDragStart, readOnly]
+    [editing, isSelected, node, onSelect, onDragStart, readOnly]
   );
 
   const handleDoubleClick = useCallback(

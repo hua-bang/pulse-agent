@@ -386,7 +386,7 @@ export const useCanvasController = ({
     onDragEnd: nodeGestures.onDragEnd,
     onDragCancel: nodeGestures.onDragCancel,
     onResizeCancel: nodeGestures.onResizeCancel,
-    resizingId: nodeGestures.resizingId,
+    resizingId: nodeGestures.resizingId, resizeEdge: nodeGestures.resizePreview?.edge ?? null,
     onResizeStart: nodeGestures.onResizeStart,
     onResizeMove: nodeGestures.onResizeMove,
     onResizeEnd: nodeGestures.onResizeEnd,

@@ -158,6 +158,12 @@ export const WorkspaceTabs = ({
         className="workspace-tabs__list"
         aria-label={t('workspaceTabs.label')}
         data-frozen={frozenWidth !== null || undefined}
+        onWheel={(event) => {
+          if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
+          const list = listRef.current;
+          if (!list || list.scrollWidth <= list.clientWidth) return;
+          list.scrollLeft += event.deltaY;
+        }}
         style={{
           '--tab-count': tabs.length,
           ...(frozenWidth !== null ? { '--tab-frozen-width': `${frozenWidth}px` } : {}),
@@ -169,6 +175,9 @@ export const WorkspaceTabs = ({
             <div
               key={workspace.id}
               className={`workspace-tabs__tab${active ? ' workspace-tabs__tab--active' : ''}`}
+              onMouseDown={(event) => {
+                if (event.button === 1) event.preventDefault();
+              }}
               onAuxClick={(event) => handleAuxClick(event, workspace.id)}
               onContextMenu={(event) => openTabMenu(event, workspace.id)}
             >
@@ -185,8 +194,15 @@ export const WorkspaceTabs = ({
                     onBlur={commitRename}
                     onKeyDown={(event) => {
                       if (isImeComposing(event)) return;
-                      if (event.key === 'Enter') commitRename();
-                      if (event.key === 'Escape') setRenamingId(null);
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        commitRename();
+                      } else if (event.key === 'Escape') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setRenamingId(null);
+                      }
                     }}
                   />
                 </div>
@@ -223,7 +239,10 @@ export const WorkspaceTabs = ({
         variant="icon"
         size="sm"
         className="workspace-tabs__new"
-        onClick={() => setPickerOpen((open) => !open)}
+        onClick={() => {
+          setFrozenWidth(null);
+          setPickerOpen((open) => !open);
+        }}
         title={t('workspaceTabs.open')}
         aria-label={t('workspaceTabs.open')}
         aria-haspopup="menu"

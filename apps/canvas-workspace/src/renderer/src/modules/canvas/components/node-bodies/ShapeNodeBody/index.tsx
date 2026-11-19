@@ -3,6 +3,7 @@ import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../../../../types';
 import { ShapePrimitive } from '../../../model/shapeGeometry';
 import { isImeComposing } from '../../../../../utils/ime';
+import { isCanvasPanGesture } from '../../canvas/CanvasNodeView/utils';
 
 interface Props {
   node: CanvasNode;
@@ -38,15 +39,18 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (isCanvasPanGesture(e)) return;
       if (readOnly) {
         e.stopPropagation();
         return;
       }
       if (editing) return;
-      onSelect(node.id);
+      if (e.button === 0 && !isSelected && !(e.shiftKey || e.metaKey || e.ctrlKey)) {
+        onSelect(node.id);
+      }
       onDragStart(e, node);
     },
-    [editing, node, onSelect, onDragStart, readOnly],
+    [editing, isSelected, node, onSelect, onDragStart, readOnly],
   );
 
   const handleDoubleClick = useCallback(

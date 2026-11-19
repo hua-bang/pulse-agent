@@ -238,6 +238,10 @@ const ToastViewport = ({
           aria-atomic="true"
           onMouseEnter={() => onPause(toast.id)}
           onMouseLeave={() => onResume(toast)}
+          onFocus={() => onPause(toast.id)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onResume(toast);
+          }}
         >
           <span className="shell-toast__icon" aria-hidden="true">
             <ToastIcon tone={toast.tone} />

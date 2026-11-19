@@ -39,7 +39,7 @@ const isEditableElement = (active: ActiveElementLike | null): boolean => !!activ
 /** Pause after the last nudge keyup that ends one undo step. */
 const NUDGE_COMMIT_DELAY_MS = 800;
 
-const BARE_KEY_EXCLUDED_SURFACE_SELECTOR = '.right-dock, .workspace-tabs';
+const BARE_KEY_EXCLUDED_SURFACE_SELECTOR = '.right-dock, .workspace-tabs, .sidebar';
 
 export const isBareKeyBlockedByFocus = (
   binding: KeyBinding,
@@ -207,7 +207,7 @@ export const useCanvasKeyboard = ({
   };
 
   const nudge = (event: KeyboardEvent, step: number) => {
-    if (selectedNodeIds.length === 0) return;
+    if (fullscreenActive || selectedNodeIds.length === 0) return;
     event.preventDefault();
     const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
     const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
@@ -322,26 +322,40 @@ export const useCanvasKeyboard = ({
       event.preventDefault();
       if (!fullscreenActive) fitNodes(selected);
     },
-    'canvas.toolSelect': (event) => { event.preventDefault(); setActiveTool('select'); },
-    'canvas.toolHand': (event) => { event.preventDefault(); setActiveTool('hand'); },
-    'canvas.toolConnect': (event) => { event.preventDefault(); setActiveTool('connect'); },
+    'canvas.toolSelect': (event) => {
+      if (fullscreenActive) return;
+      event.preventDefault();
+      setActiveTool('select');
+    },
+    'canvas.toolHand': (event) => {
+      if (fullscreenActive) return;
+      event.preventDefault();
+      setActiveTool('hand');
+    },
+    'canvas.toolConnect': (event) => {
+      if (fullscreenActive) return;
+      event.preventDefault();
+      setActiveTool('connect');
+    },
 
     // A held arrow key keeps moving on auto-repeat. A run of presses or
     // holds less than NUDGE_COMMIT_DELAY_MS apart is one undo step.
     'canvas.nudge': (event) => nudge(event, 1),
     'canvas.nudgeCoarse': (event) => nudge(event, 10),
     'canvas.renameSelection': (event) => {
-      if (selectedNodeIds.length !== 1) return;
+      if (fullscreenActive || selectedNodeIds.length !== 1) return;
       event.preventDefault();
       renameNode(selectedNodeIds[0]);
     },
 
     'canvas.selectAll': (event) => {
+      if (fullscreenActive) return;
       event.preventDefault();
       setSelectedNodeIds(nodes.map((n) => n.id));
       setSelectedEdgeId(null);
     },
     'canvas.duplicate': (event) => {
+      if (fullscreenActive) return;
       event.preventDefault();
       if (selectedNodeIds.length === 0) return;
       // Duplicate every selected node and keep the new copies as the active
@@ -351,9 +365,10 @@ export const useCanvasKeyboard = ({
       if (created.length > 0) setSelectedNodeIds(created.map((node) => node.id));
     },
     'canvas.copy': () => {
+      const allNodes = getAllNodes();
       const selected = withContainerDescendants(
-        nodes.filter((n) => selectedNodeIds.includes(n.id)),
-        nodes,
+        allNodes.filter((n) => selectedNodeIds.includes(n.id)),
+        allNodes,
       );
       if (selected.length === 0) return;
       // Mirror the copy into the system clipboard and remember exactly what
@@ -385,14 +400,17 @@ export const useCanvasKeyboard = ({
       }
     },
     'canvas.group': (event) => {
+      if (fullscreenActive) return;
       event.preventDefault();
       if (selectedNodeIds.length > 0) groupSelectedNodes();
     },
     'canvas.ungroup': (event) => {
+      if (fullscreenActive) return;
       event.preventDefault();
       if (selectedNodeIds.length > 0) ungroupSelectedNodes();
     },
     'canvas.delete': (event) => {
+      if (fullscreenActive) return;
       if (selectedEdgeId) {
         event.preventDefault();
         void removeEdge(selectedEdgeId);

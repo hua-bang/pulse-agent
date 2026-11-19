@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
+import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 import type { PromptProfileStatus } from '../../../../types';
 import { ReplyStyleSection } from '.';
 
@@ -27,12 +28,14 @@ const render = (onSave: (next: unknown) => Promise<void>) => {
   act(() => {
     root?.render(
       <I18nProvider>
-        <ReplyStyleSection
-          profile={profile}
-          onClose={vi.fn()}
-          onSave={onSave}
-          onReset={vi.fn(async () => {})}
-        />
+        <AppShellProvider>
+          <ReplyStyleSection
+            profile={profile}
+            onClose={vi.fn()}
+            onSave={onSave}
+            onReset={vi.fn(async () => {})}
+          />
+        </AppShellProvider>
       </I18nProvider>,
     );
   });

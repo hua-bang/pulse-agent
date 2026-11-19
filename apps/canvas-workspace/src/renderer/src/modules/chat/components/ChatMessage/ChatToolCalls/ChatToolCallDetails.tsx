@@ -109,7 +109,7 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
   const errorText = approvalErrorText(tool, t);
   const sessionRefs = parseSessionRefs(tool);
   const codemode = parseCodemodeResult(tool);
-  const hasDetails = Boolean(tool.result || tool.error || tool.args !== undefined);
+  const hasDetails = Boolean(tool.result || tool.error || tool.args !== undefined || tool.partialInput);
   const [shouldRenderDetails, setShouldRenderDetails] = useState(() => expanded);
 
   useEffect(() => {
@@ -171,12 +171,12 @@ export const ChatToolCallDetails = ({ tool, expanded }: Props) => {
           <div className="chat-tool-call-result-reveal__inner">
             <div className="chat-tool-call-result">
               {codemode ? <CodemodeToolSections tool={tool} view={codemode} /> : null}
-              {!codemode && tool.args !== undefined && (
+              {!codemode && (tool.args !== undefined || tool.partialInput) && (
                 <div className="chat-tool-call-section">
                   <div className="chat-tool-call-section-label">
                     {tool.name} · {t('chat.toolCalls.input')}
                   </div>
-                  <pre>{formatArgs(tool.args)}</pre>
+                  <pre>{tool.args !== undefined ? formatArgs(tool.args) : tool.partialInput}</pre>
                 </div>
               )}
               {!codemode && tool.result && (

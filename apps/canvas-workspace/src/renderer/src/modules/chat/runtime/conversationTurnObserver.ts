@@ -1,5 +1,5 @@
 import { contentText, finishContentBlocks } from '../../../../../shared/chat-content-blocks';
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import type { MutableRefObject, SetStateAction } from 'react';
 import type {
   AgentChatMessage,
   AgentScope,
@@ -30,8 +30,8 @@ import { setConversationCompacting } from './conversationCompaction';
 /** Surface state a turn observer updates besides the shared conversation store. */
 export interface TurnObserverHooks {
   toolIdCounter: MutableRefObject<number>;
-  setMessageTools: Dispatch<SetStateAction<Map<number, ToolCallStatus[]>>>;
-  setRelay: Dispatch<SetStateAction<RelayProgress | null>>;
+  setMessageTools: (ownerId: string, updater: SetStateAction<Map<number, ToolCallStatus[]>>) => void;
+  setRelay: (ownerId: string, updater: SetStateAction<RelayProgress | null>) => void;
   onTurnComplete?: () => void;
   onSessionChanged?: (error: string) => void | Promise<void>;
 }
@@ -103,7 +103,7 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
     setConversationStreamingTools(key, [...segmentTools]);
     if (assistantIndex >= 0) {
       const index = assistantIndex;
-      hooks.setMessageTools(prev => new Map(prev).set(index, [...segmentTools]));
+      hooks.setMessageTools(id, prev => new Map(prev).set(index, [...segmentTools]));
     }
   };
 
@@ -129,6 +129,7 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
       const error = completeResult.error ?? 'Conversation changed';
       setConversationError(key, error);
       setConversationLoading(key, false);
+      hooks.setRelay(id, null);
       recordConversationCompletion(key, 'failed', completeResult.runId ?? options.completionId, options.title);
       dispose();
       if (completeResult.code === 'CHAT_SESSION_CHANGED') void hooks.onSessionChanged?.(error);
@@ -175,7 +176,7 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
     if (completeResult.assistantMessages?.length) {
       const firstIndex = assistantIndex;
       current.splice(firstIndex, 1, ...completeResult.assistantMessages);
-      hooks.setMessageTools(previous => {
+      hooks.setMessageTools(id, previous => {
         const next = new Map(previous);
         completeResult.assistantMessages!.forEach((message, offset) => {
           next.set(firstIndex + offset, message.toolCalls ?? []);
@@ -187,7 +188,7 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
     setConversationLoading(key, false);
     setConversationStreamingTools(key, []);
     setConversationClarification(key, null);
-    hooks.setRelay(null);
+    hooks.setRelay(id, null);
     recordConversationCompletion(
       key,
       completeResult.stopped ? 'stopped' : completeResult.ok ? 'done' : 'failed',
@@ -287,14 +288,15 @@ export function observeConversationTurn(options: TurnObserverOptions, hooks: Tur
     })),
     agent.onChatComplete(sessionId, live(complete)),
     agent.onRoleTurnStart(sessionId, live(event => {
-      hooks.setRelay({
+      hooks.setRelay(id, current => ({
         speaking: event.index,
         total: event.total,
         queue: event.queue ?? [],
-      });
+        ...(current?.stopping ? { stopping: true } : {}),
+      }));
     })),
     agent.onRoleTurnEnd(sessionId, live(event => {
-      hooks.setRelay(current => current ? {
+      hooks.setRelay(id, current => current ? {
         ...current,
         speaking: Math.max(current.speaking, event.index + 1),
       } : current);

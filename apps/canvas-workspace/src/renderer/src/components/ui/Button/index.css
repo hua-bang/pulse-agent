@@ -98,12 +98,12 @@
 .ui-btn--danger {
   border: 1px solid rgba(var(--ink-rgb), 0.12);
   background: var(--surface);
-  color: rgba(180, 47, 47, 0.85);
+  color: var(--error);
 }
 
 .ui-btn--danger:hover:not(:disabled) {
-  background: rgba(180, 47, 47, 0.05);
-  border-color: rgba(180, 47, 47, 0.3);
+  background: var(--tint-danger);
+  border-color: var(--tint-danger-border);
 }
 
 .ui-btn:disabled {

@@ -274,7 +274,7 @@ export const ModelsSection = ({
                 )}
               </div>
 
-              {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
+              {(localError || error) && <div className="chat-model-settings-error" role="alert">{localError || error}</div>}
 
               {activeProviderId === 'new' && (
                 <div className="chat-model-preset-grid" aria-label={t('models.presetsAria')}>

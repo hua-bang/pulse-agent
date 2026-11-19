@@ -64,6 +64,14 @@ export const FileNodeBodyLazy = (props: Props) => {
     setEditorLoaded(true);
   }, [pendingInput.begin, readOnly]);
   const handlePreviewClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (
+      event.shiftKey
+      || event.metaKey
+      || event.ctrlKey
+      || event.currentTarget.closest('.canvas-container--hand') != null
+    ) {
+      return;
+    }
     const target = event.target as HTMLElement;
     // The shared Markdown renderer owns code-copy controls; using one is not
     // an edit gesture and must not remove the button under the pointer.

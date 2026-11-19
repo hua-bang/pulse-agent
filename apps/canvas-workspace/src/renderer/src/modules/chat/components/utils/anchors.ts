@@ -31,7 +31,8 @@ export const buildChatAnchors = (messages: AgentChatMessage[]): ChatAnchor[] => 
   const anchors: ChatAnchor[] = [];
   messages.forEach((message, index) => {
     if (message.role !== 'user') return;
-    const label = cleanAnchorLabel(message.content || '');
+    const label = cleanAnchorLabel(message.content || '')
+      || cleanAnchorLabel(message.attachments?.[0]?.fileName ?? '');
     anchors.push({
       index,
       label: label || `Turn ${anchors.length + 1}`,
@@ -41,5 +42,6 @@ export const buildChatAnchors = (messages: AgentChatMessage[]): ChatAnchor[] => 
 };
 
 /** DOM id used by ChatMessage so anchors can scroll into view. */
-export const buildAnchorElementId = (workspaceId: string, index: number): string =>
-  `chat-anchor-${workspaceId}-${index}`;
+export const buildAnchorElementId = (workspaceId: string, index: number, surface?: string): string => (
+  surface ? `chat-anchor-${surface}-${workspaceId}-${index}` : `chat-anchor-${workspaceId}-${index}`
+);

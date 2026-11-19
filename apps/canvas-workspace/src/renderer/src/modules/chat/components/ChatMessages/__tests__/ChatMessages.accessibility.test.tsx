@@ -637,7 +637,10 @@ describe('ChatMessages accessibility', () => {
     expect(card?.getAttribute('aria-live')).toBe('polite');
     expect(card?.getAttribute('aria-busy')).toBe('true');
 
+    const question = el.querySelector<HTMLElement>('.chat-clarify-question');
     const input = el.querySelector<HTMLInputElement>('.chat-clarify-input');
+    expect(question?.id).toBeTruthy();
+    expect(input?.getAttribute('aria-labelledby')).toBe(question?.id);
     expect(input?.autofocus).toBe(false);
     expect(input?.disabled).toBe(true);
     expect(input?.getAttribute('aria-invalid')).toBe('true');

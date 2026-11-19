@@ -33,6 +33,13 @@ export const useDockTabDrag = (store: DockStore) => {
     }
     event.currentTarget.dataset.dropPosition = position;
   };
+  const onDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (dropTargetRef.current !== event.currentTarget) return;
+    const related = event.relatedTarget as Node | null;
+    if (related && event.currentTarget.contains(related)) return;
+    dropTargetRef.current.removeAttribute('data-drop-position');
+    dropTargetRef.current = null;
+  };
   const onDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     const sourceId = draggedIdRef.current;
     if (!sourceId || sourceId === targetId || isTerminalTabId(sourceId) !== isTerminalTabId(targetId)) {
@@ -44,5 +51,5 @@ export const useDockTabDrag = (store: DockStore) => {
     store.reorderTab(sourceId, targetId, event.clientX < rect.left + rect.width / 2 ? 'before' : 'after');
     clear();
   };
-  return { clear, onDragStart, onDragOver, onDrop };
+  return { clear, onDragStart, onDragOver, onDragLeave, onDrop };
 };

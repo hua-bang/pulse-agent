@@ -210,7 +210,7 @@ export const WorkspaceSettingsDrawer = ({
       width={640}
     >
       <div className="workspace-settings-body">
-        {error && <div className="workspace-settings-error">{error}</div>}
+        {error && <div className="workspace-settings-error" role="alert">{error}</div>}
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.identity')}</div>

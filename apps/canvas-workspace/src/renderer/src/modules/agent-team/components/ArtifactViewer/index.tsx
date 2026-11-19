@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import './index.css';
+import { useEscapeClose } from '../../../../hooks/useEscapeClose';
 import type { AgentTeamArtifactRecord, FileApi } from '../../../../types';
 import { agentArtifactLabel } from '../AgentDetail';
 
@@ -32,6 +33,7 @@ const artifactFilePath = (artifact: AgentTeamArtifactRecord): string | undefined
 
 export const ArtifactViewer = ({ artifact, taskTitle, agentName, readFile, onClose }: Props) => {
   const [preview, setPreview] = useState<ArtifactPreview | null>(null);
+  useEscapeClose(true, onClose);
 
   useEffect(() => {
     const path = artifactFilePath(artifact);
@@ -54,7 +56,14 @@ export const ArtifactViewer = ({ artifact, taskTitle, agentName, readFile, onClo
   }, [artifact, readFile]);
 
   return (
-    <div className="agent-team-artifact-viewer" role="dialog" aria-label="Artifact viewer">
+    <div
+      className="agent-team-artifact-viewer"
+      role="dialog"
+      aria-label="Artifact viewer"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="agent-team-artifact-viewer__panel">
         <div className="agent-team-artifact-viewer__header">
           <div><span className="agent-team-detail__section-title">{artifact.kind}</span><strong>{agentArtifactLabel(artifact)}</strong></div>
