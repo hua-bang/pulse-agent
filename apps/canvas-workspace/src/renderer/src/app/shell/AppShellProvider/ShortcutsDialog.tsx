@@ -1,4 +1,5 @@
 import { useI18n } from '../../../i18n';
+import './ShortcutsDialog.css';
 import type { I18nKey } from '../../../i18n';
 import {
   SHORTCUTS,

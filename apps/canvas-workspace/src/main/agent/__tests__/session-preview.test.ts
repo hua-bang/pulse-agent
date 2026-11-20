@@ -29,7 +29,17 @@ describe('sessionPreview', () => {
 
     expect(sessionPreviewForMessage({
       content: '',
+      attachments: [{ path: 'notes/brief.pdf' }],
+    })).toBe('brief.pdf');
+
+    expect(sessionPreviewForMessage({
+      content: '',
       attachments: [{}],
-    })).toBe('Image');
+    })).toBe('');
+
+    expect(sessionPreviewForMessage({
+      content: '',
+      attachments: [{}, { fileName: 'notes.pdf' }],
+    })).toBe('');
   });
 });

@@ -4,9 +4,9 @@ import { Fragment } from 'react';
 import { Button } from '../../../../../components/ui';
 import { Popover } from '../../../../../components/ui/Popover';
 import { useI18n } from '../../../../../i18n';
-import type { CanvasNode } from '../../../../../types';
 import type { PaletteCommand } from '../CommandPalette';
 import { ALIGN_MODES } from '../../../model/alignNodes';
+export { findNodeAtPoint } from './findNodeAtPoint';
 
 /** Align/distribute palette commands. Their `enabled` flag already needs
  *  two selected nodes (three to distribute), so the menu inherits it. */
@@ -38,23 +38,6 @@ export const selectNodeMenuCommands = (commands: readonly PaletteCommand[]): Pal
     .map((id) => commands.find((command) => command.id === id))
     .filter((command): command is PaletteCommand => !!command && command.enabled !== false)
 );
-
-/**
- * The node under a canvas point. Containers sit behind their children, so
- * the smallest node that holds the point is the one the user sees on top.
- */
-export const findNodeAtPoint = (
-  nodes: readonly CanvasNode[],
-  point: { x: number; y: number },
-): CanvasNode | undefined => {
-  let hit: CanvasNode | undefined;
-  for (const node of nodes) {
-    const inside = point.x >= node.x && point.x <= node.x + node.width
-      && point.y >= node.y && point.y <= node.y + node.height;
-    if (inside && (!hit || node.width * node.height < hit.width * hit.height)) hit = node;
-  }
-  return hit;
-};
 
 interface Props {
   x: number;
