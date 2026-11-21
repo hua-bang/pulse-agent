@@ -11,12 +11,12 @@ const decision = (action: string): PageDecision => ({ action, confidence: 0.9, g
 const input = { nodeId: 'link:1', goal: 'Search for Pulse', maxSteps: 5, timeoutMs: 10_000 };
 function fixture() {
   return {
-    observe: vi.fn<Parameters<PageRunPorts['observe']>, ReturnType<PageRunPorts['observe']>>().mockResolvedValue(page()),
-    isFresh: vi.fn<Parameters<PageRunPorts['isFresh']>, ReturnType<PageRunPorts['isFresh']>>().mockResolvedValue(true),
-    decide: vi.fn<Parameters<PageRunPorts['decide']>, ReturnType<PageRunPorts['decide']>>().mockResolvedValue(decision('done')),
-    text: vi.fn<Parameters<PageRunPorts['text']>, ReturnType<PageRunPorts['text']>>().mockResolvedValue('Pulse'),
-    approve: vi.fn<Parameters<PageRunPorts['approve']>, ReturnType<PageRunPorts['approve']>>().mockResolvedValue(true),
-    execute: vi.fn<Parameters<PageRunPorts['execute']>, ReturnType<PageRunPorts['execute']>>().mockResolvedValue(undefined),
+    observe: vi.fn<PageRunPorts['observe']>().mockResolvedValue(page()),
+    isFresh: vi.fn<PageRunPorts['isFresh']>().mockResolvedValue(true),
+    decide: vi.fn<PageRunPorts['decide']>().mockResolvedValue(decision('done')),
+    text: vi.fn<PageRunPorts['text']>().mockResolvedValue('Pulse'),
+    approve: vi.fn<PageRunPorts['approve']>().mockResolvedValue(true),
+    execute: vi.fn<PageRunPorts['execute']>().mockResolvedValue(undefined),
   };
 }
 afterEach(() => { vi.useRealTimers(); });

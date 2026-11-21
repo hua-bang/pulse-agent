@@ -25,12 +25,18 @@ const originalConsole = {
   info: console.info,
   debug: console.debug,
 };
+const originalStdinIsTTYDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
 
 afterEach(() => {
   agentMock.run = undefined;
   console.log = originalConsole.log;
   console.info = originalConsole.info;
   console.debug = originalConsole.debug;
+  if (originalStdinIsTTYDescriptor) {
+    Object.defineProperty(process.stdin, 'isTTY', originalStdinIsTTYDescriptor);
+  } else {
+    delete (process.stdin as { isTTY?: boolean }).isTTY;
+  }
   vi.restoreAllMocks();
 });
 
@@ -57,6 +63,7 @@ describe('runPrintMode message history', () => {
       messagesAfterResponse = [...context.messages];
       return 'done';
     };
+    Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const exitCode = await runPrintMode('fix the bug');
@@ -77,6 +84,7 @@ describe('runPrintMode message history', () => {
       messagesAfterCompaction = context.messages;
       return 'done';
     };
+    Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const exitCode = await runPrintMode('fix the bug');

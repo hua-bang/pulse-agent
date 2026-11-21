@@ -1,14 +1,18 @@
+import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
-// Chromium is pre-installed in this container at a fixed path
-// (PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers) but its revision doesn't
-// match what this pinned @playwright/test version auto-probes for
-// (confirmed empirically: bare `chromium.launch()` looks for
-// chromium_headless_shell-1228, the installed revision is -1194) — so every
-// launch must go through this explicit executablePath rather than relying
-// on Playwright's own revision resolution. NEVER run `playwright install`
-// here (see apps/canvas-workspace/harness/tools/ui-showcase/README.md).
-const CHROMIUM_EXECUTABLE = '/opt/pw-browsers/chromium';
+// Prefer an explicit override or the container-preinstalled Chromium when
+// present (its revision can differ from what Playwright auto-probes for).
+// On standard Linux CI runners where neither exists, fall back to Playwright's
+// own installed browser.
+const resolveChromiumExecutable = (): string | undefined => {
+  const fromEnv = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim();
+  if (fromEnv) return fromEnv;
+  const containerChromium = '/opt/pw-browsers/chromium';
+  return existsSync(containerChromium) ? containerChromium : undefined;
+};
+
+const CHROMIUM_EXECUTABLE = resolveChromiumExecutable();
 
 const PORT = 4319;
 
@@ -51,9 +55,9 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         viewport: { width: 1200, height: 900 },
         deviceScaleFactor: 1,
-        launchOptions: {
-          executablePath: CHROMIUM_EXECUTABLE,
-        },
+        ...(CHROMIUM_EXECUTABLE
+          ? { launchOptions: { executablePath: CHROMIUM_EXECUTABLE } }
+          : {}),
       },
     },
   ],

@@ -41,11 +41,21 @@ pathRules:
       - pnpm-workspace.yaml
       - tsconfig.json
       - pnpm-lock.yaml
+      - .nvmrc
     required:
+      - pnpm run lint
       - pnpm run build
       - pnpm test
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
+
+  - name: repo-lint-config
+    paths:
+      - biome.json
+      - .editorconfig
+      - .github/workflows/quality.yml
+    required:
+      - pnpm run lint
 
   - name: performance-policy
     paths:

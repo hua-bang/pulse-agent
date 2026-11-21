@@ -15,6 +15,7 @@
     "typecheck:renderer": "tsc --noEmit -p tsconfig.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "deadcode": "knip",
     "harness": "node ./harness/tools/driver/cli.mjs",
     "harness:up": "node ./harness/tools/driver/quickstart.mjs up",
@@ -206,6 +207,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^3.2.7",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "electron": "^30.0.0",
@@ -225,9 +227,9 @@
     "rollup-plugin-visualizer": "^7.0.1",
     "terser": "5.49.0",
     "tiptap-markdown": "^0.9.0",
-    "typescript": "^5.6.3",
+    "typescript": "^5.9.3",
     "vite": "^5.4.21",
-    "vitest": "^1.0.0",
+    "vitest": "^3.2.7",
     "wouter": "^3.9.0"
   }
 }

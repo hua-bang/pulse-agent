@@ -15,7 +15,7 @@ import { DOCK_TAB_LIMIT, IDLE_TAB_MS } from '../tabs/dock-tab-cleanup';
 
 let root: Root | null = null;
 let store: DockStore | null = null;
-const notify = vi.fn<[ToastInput], string>(() => 'toast');
+const notify = vi.fn<(toast: ToastInput) => string>(() => 'toast');
 const appShell = { notify } as unknown as AppShellPort;
 
 // Mirrors App: RightDock enters the workspace before the toast bridge subscribes.

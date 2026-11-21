@@ -28,7 +28,7 @@ const node: CanvasNode = {
 let root: Root;
 let host: HTMLDivElement;
 let read: ReturnType<typeof vi.fn>;
-let onUpdate = vi.fn<[string, Partial<CanvasNode>], Promise<void>>();
+let onUpdate = vi.fn<(id: string, patch: Partial<CanvasNode>) => Promise<void>>();
 let changed: (path: string) => void;
 let registry: ReturnType<typeof useFileNodeEditorRegistry>;
 let previousApi: typeof window.canvasWorkspace;
@@ -50,7 +50,7 @@ beforeEach(() => {
   openLink.mockReset();
   handoff.mockReset();
   read = vi.fn().mockResolvedValue({ ok: true, content: '# Heading', version: 'v1' });
-  onUpdate = vi.fn<[string, Partial<CanvasNode>], Promise<void>>().mockResolvedValue(undefined);
+  onUpdate = vi.fn<(id: string, patch: Partial<CanvasNode>) => Promise<void>>().mockResolvedValue(undefined);
   previousApi = window.canvasWorkspace;
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,

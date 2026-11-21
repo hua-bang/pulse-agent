@@ -194,4 +194,10 @@ worktrees/
 # whole dir is transient either way).
 apps/canvas-workspace/test-results/
 
+# Agent runtime task prompts written into working directories
+.canvas-agent-task.md
+
+# Test coverage output
+coverage/
+
 tsup.config.bundled_*.mjs

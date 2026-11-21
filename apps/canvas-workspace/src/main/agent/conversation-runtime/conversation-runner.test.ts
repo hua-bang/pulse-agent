@@ -10,7 +10,7 @@ function setup() {
   // Preserve CanvasAgent.chat's real notification-only contract: the engine
   // waits in its own registry, not on the callback's returned promise.
   const agent = {
-    chat: vi.fn<Parameters<CanvasAgent['chat']>, ReturnType<CanvasAgent['chat']>>(async (
+    chat: vi.fn<CanvasAgent['chat']>(async (
       message, _text, _call, _result, _workspaces, notify,
       _context, _attachments, _start, _delta, _end, _roleStart, _roleEnd, signal,
     ) => {

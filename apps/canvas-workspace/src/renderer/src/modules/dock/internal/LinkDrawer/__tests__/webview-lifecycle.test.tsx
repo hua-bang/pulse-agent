@@ -14,10 +14,7 @@ import {
 
 const iframeApi = {
   setFrameRate: vi.fn(async () => ({ ok: true })),
-  setLifecycle: vi.fn<
-    Parameters<IframeApi['setLifecycle']>,
-    ReturnType<IframeApi['setLifecycle']>
-  >(
+  setLifecycle: vi.fn<IframeApi['setLifecycle']>(
     async (_workspaceId, _tabId, _webContentsId, state) => ({ ok: true, state }),
   ),
   onDiscarded: vi.fn(),
