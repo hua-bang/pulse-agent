@@ -28,13 +28,13 @@ type ThreadResult = {
 
 function makeAgentMocks() {
   return {
-    getHistory: vi.fn<[unknown], Promise<ThreadResult>>(async () => ({ ok: true, messages: [] })),
-    loadSession: vi.fn<[unknown, string], Promise<ThreadResult>>(async () => ({ ok: true, messages: [] })),
-    loadCrossWorkspaceSession: vi.fn<[string, string, string], Promise<ThreadResult>>(
+    getHistory: vi.fn<(scope: unknown) => Promise<ThreadResult>>(async () => ({ ok: true, messages: [] })),
+    loadSession: vi.fn<(scope: unknown, sessionId: string) => Promise<ThreadResult>>(async () => ({ ok: true, messages: [] })),
+    loadCrossWorkspaceSession: vi.fn<(workspaceId: string, scopeKey: string, sessionId: string) => Promise<ThreadResult>>(
       async () => ({ ok: true, messages: [] }),
     ),
-    newSession: vi.fn<[unknown], Promise<{ ok: boolean }>>(async () => ({ ok: true })),
-    branchSession: vi.fn<[unknown, number, string], Promise<ThreadResult>>(async () => ({ ok: true, activeSessionId: 'branch', messages: [] })),
+    newSession: vi.fn<(scope: unknown) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
+    branchSession: vi.fn<(scope: unknown, index: number, sessionId: string) => Promise<ThreadResult>>(async () => ({ ok: true, activeSessionId: 'branch', messages: [] })),
     renameSession: vi.fn(async () => ({ ok: true, activeSessionId: 'session-current' })),
     setSessionPinned: vi.fn(async () => ({ ok: true, activeSessionId: 'session-current' })),
     deleteSession: vi.fn(async () => ({
@@ -42,7 +42,7 @@ function makeAgentMocks() {
       activeSessionId: 'session-next',
       messages: [],
     })),
-    listSessions: vi.fn<[], Promise<{ ok: boolean; sessions: AgentSessionInfo[] }>>(
+    listSessions: vi.fn<() => Promise<{ ok: boolean; sessions: AgentSessionInfo[] }>>(
       async () => ({ ok: true, sessions: [] }),
     ),
     listAllSessions: vi.fn(async (): Promise<{ ok: boolean; groups: any[] }> => ({ ok: true, groups: [] })),

@@ -239,7 +239,7 @@ All changes are reversible code/config/document edits with no user-data migratio
 | Semantic contradiction/test-effectiveness automation | A repeated failure class has a narrow, testable rule and calibrated false positives. |
 | Existing ambiguous source citations | Qualify shorthand when editing the owning Knowledge file; deep diagnostics remain separate from structural failures. |
 | More harness services, dashboards, or generic routing tools | Existing scripts/indexes cannot carry a recurring task with acceptable complexity. |
-| Node pinning, lint/format toolchain, additional governance mandates | Reproducible compatibility or maintenance problems justify their separate scope. |
+| Additional governance mandates beyond Biome lint and existing Canvas guards | Reproducible maintenance problems justify their separate scope (Node pinning via `.nvmrc`/`engines` and Biome lint/format config are now in place). |
 
 ## Completed foundation
 

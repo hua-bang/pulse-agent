@@ -48,7 +48,7 @@ async function mount(options: {
 describe('useChatRunQueue', () => {
   it('survives owner remount and retries until ordinary send accepts it', async () => {
     vi.useFakeTimers();
-    await mount({ loading: true, sendMessage: vi.fn(async () => 'accepted') });
+    await mount({ loading: true, sendMessage: vi.fn(async () => 'accepted' as const) });
     await act(async () => {
       await latest?.submitRunInput('follow-up', 'next', { scope: 'selected_nodes' });
     });
@@ -86,7 +86,7 @@ describe('useChatRunQueue', () => {
   it('consumes a terminally failed send instead of retrying it forever', async () => {
     vi.useFakeTimers();
     const scopeKey = 'terminal-failure-scope';
-    await mount({ scopeKey, loading: true, sendMessage: vi.fn(async () => 'accepted') });
+    await mount({ scopeKey, loading: true, sendMessage: vi.fn(async () => 'accepted' as const) });
     await act(async () => { await latest?.submitRunInput('follow-up', 'fails once'); });
     act(() => root?.unmount());
     root = null;
@@ -103,7 +103,7 @@ describe('useChatRunQueue', () => {
     await mount({
       scopeKey: 'queue-actions-scope',
       loading: true,
-      sendMessage: vi.fn(async () => 'accepted'),
+      sendMessage: vi.fn(async () => 'accepted' as const),
       abort,
     });
     await act(async () => {

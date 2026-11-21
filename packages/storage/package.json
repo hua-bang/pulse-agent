@@ -54,8 +54,8 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^25.0.10",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
     "better-sqlite3": "12.11.1"
   },
   "peerDependencies": {

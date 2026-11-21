@@ -12,13 +12,13 @@ function fixture(end = 50) {
       height: 100, width: 600, scrollHeight: end * 85 + 100, atTop: position === 0, atBottom: position === end }],
   });
   const ports = {
-    observe: vi.fn<Parameters<NonNullable<PageRunPorts['observe']>>, ReturnType<NonNullable<PageRunPorts['observe']>>>().mockImplementation(async () => snapshot()),
-    decide: vi.fn<Parameters<NonNullable<PageRunPorts['decide']>>, ReturnType<NonNullable<PageRunPorts['decide']>>>().mockResolvedValue({ action: 'scroll_down_main', confidence: 0.99,
+    observe: vi.fn<NonNullable<PageRunPorts['observe']>>().mockImplementation(async () => snapshot()),
+    decide: vi.fn<NonNullable<PageRunPorts['decide']>>().mockResolvedValue({ action: 'scroll_down_main', confidence: 0.99,
       goalDone: 0, stuck: 0, model: 'fixture', inputTokens: 10, outputTokens: 1 }),
-    isFresh: vi.fn<Parameters<NonNullable<PageRunPorts['isFresh']>>, ReturnType<NonNullable<PageRunPorts['isFresh']>>>().mockResolvedValue(true),
-    approve: vi.fn<Parameters<NonNullable<PageRunPorts['approve']>>, ReturnType<NonNullable<PageRunPorts['approve']>>>().mockResolvedValue(true),
-    execute: vi.fn<Parameters<NonNullable<PageRunPorts['execute']>>, ReturnType<NonNullable<PageRunPorts['execute']>>>().mockImplementation(async () => { position = Math.min(end, position + 1); }),
-    text: vi.fn<Parameters<NonNullable<PageRunPorts['text']>>, ReturnType<NonNullable<PageRunPorts['text']>>>(), settle: vi.fn<Parameters<NonNullable<PageRunPorts['settle']>>, ReturnType<NonNullable<PageRunPorts['settle']>>>().mockResolvedValue(undefined),
+    isFresh: vi.fn<NonNullable<PageRunPorts['isFresh']>>().mockResolvedValue(true),
+    approve: vi.fn<NonNullable<PageRunPorts['approve']>>().mockResolvedValue(true),
+    execute: vi.fn<NonNullable<PageRunPorts['execute']>>().mockImplementation(async () => { position = Math.min(end, position + 1); }),
+    text: vi.fn<NonNullable<PageRunPorts['text']>>(), settle: vi.fn<NonNullable<PageRunPorts['settle']>>().mockResolvedValue(undefined),
   };
   return { ports, snapshot, setEnd: (value: number) => { end = value; } };
 }

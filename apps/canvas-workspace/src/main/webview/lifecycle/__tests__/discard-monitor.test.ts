@@ -108,7 +108,7 @@ const runSweep = async (): Promise<() => void> => {
   return stop;
 };
 
-let logSpy: MockInstance<Parameters<typeof console.log>, void>;
+let logSpy: MockInstance<typeof console.log>;
 
 beforeEach(() => {
   vi.useFakeTimers();

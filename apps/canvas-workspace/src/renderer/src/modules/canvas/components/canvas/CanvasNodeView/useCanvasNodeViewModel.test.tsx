@@ -18,7 +18,7 @@ describe('useCanvasNodeViewModel', () => {
   let onParentKeyDown: ReturnType<typeof vi.fn>;
   let onParentPaste: ReturnType<typeof vi.fn>;
   let execCommand: (commandId: string, showUI?: boolean, value?: string) => boolean;
-  let onAddToChat: Mock<[string], Promise<ChatDeliveryReceipt>>;
+  let onAddToChat: Mock<(id: string) => Promise<ChatDeliveryReceipt>>;
   let onResizeStart: ReturnType<typeof vi.fn>;
   let onUpdate: ReturnType<typeof vi.fn>;
   let renameToken: number | undefined;

@@ -1,9 +1,9 @@
 name: Quality
 
-# Typecheck, dead-code check and unit tests for every PR. The Canvas suite
-# also runs the governance tests (import boundaries, shared contracts, file
-# size and flat-directory limits, test locality, UI reuse), so this workflow
-# is what turns those rules into merge checks.
+# Fast repo-wide Biome lint, core package tests, and full Canvas quality gates
+# (typecheck, dead-code check, renderer module structure, contract snapshot,
+# harness tool typechecks, build, unit + governance tests, and Linux visual
+# regression) on every PR.
 
 on:
   workflow_dispatch:
@@ -19,6 +19,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install lint dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Lint repository with Biome
+        run: pnpm run lint
+
   core:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -31,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       # The engine grep tool shells out to ripgrep, which the runner image lacks.
@@ -60,7 +81,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       # The engine grep tool shells out to ripgrep, which the runner image lacks.
@@ -81,9 +102,66 @@ jobs:
       - name: Typecheck Canvas
         run: pnpm --filter canvas-workspace typecheck
 
+      - name: Typecheck Canvas harness tools
+        run: |
+          pnpm --filter canvas-workspace exec tsc --noEmit -p harness/tools/ui-showcase/tsconfig.json
+          pnpm --filter canvas-workspace exec tsc --noEmit -p harness/tools/feishu-replay/tsconfig.json
+
       # knip fails on unused files, exports and types in Canvas.
       - name: Check Canvas dead code
         run: pnpm --filter canvas-workspace deadcode
 
-      - name: Test Canvas
-        run: pnpm --filter canvas-workspace test
+      - name: Check Canvas renderer structure
+        run: node apps/canvas-workspace/harness/skills/check-renderer-structure/scripts/check-renderer-structure.mjs --strict
+
+      - name: Check Canvas registry contracts
+        run: node apps/canvas-workspace/harness/tools/describe-canvas.mjs
+
+      - name: Build Canvas
+        run: pnpm --filter canvas-workspace build
+
+      - name: Test Canvas with coverage
+        run: pnpm --filter canvas-workspace test:coverage
+
+      - name: Run Feishu replay test
+        run: pnpm --filter canvas-workspace exec vitest run harness/tools/feishu-replay/replay.test.ts
+
+      - name: Upload Canvas coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canvas-coverage-summary
+          path: apps/canvas-workspace/coverage/coverage-summary.json
+          if-no-files-found: warn
+
+  canvas-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter canvas-workspace exec playwright install --with-deps chromium
+
+      - name: Run Canvas UI showcase visual regression
+        run: pnpm --filter canvas-workspace visual
+
+      - name: Upload visual diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canvas-visual-diff
+          path: apps/canvas-workspace/test-results/
+          if-no-files-found: ignore

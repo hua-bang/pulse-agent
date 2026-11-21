@@ -153,6 +153,7 @@ export function DynamicAppNodeBody({
         <iframe
           key={iframeKey}
           className="dynamic-app-iframe"
+          title={node.title || "Dynamic App"}
           src={effectiveUrl}
           sandbox="allow-scripts allow-same-origin allow-forms"
         />

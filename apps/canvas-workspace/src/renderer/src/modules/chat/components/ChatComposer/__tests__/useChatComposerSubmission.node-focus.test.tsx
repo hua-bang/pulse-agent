@@ -13,8 +13,8 @@ const mentioned = { id: 'app-node', title: 'Bits & Bolts', type: 'plugin' as con
 
 async function withSubmission(chips: string, verify: (
   hook: ReturnType<typeof useChatComposerSubmission>,
-  submit: Mock<[string, AgentRequestContext?], Promise<boolean>>,
-  duringRun: Mock<[ChatRunInputMode, string, AgentRequestContext?], Promise<boolean>>,
+  submit: Mock<(text: string, context?: AgentRequestContext) => Promise<boolean>>,
+  duringRun: Mock<(mode: ChatRunInputMode, text: string, context?: AgentRequestContext) => Promise<boolean>>,
 ) => Promise<void>) {
   const editable = document.createElement('div');
   editable.innerHTML = chips;
