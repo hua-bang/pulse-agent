@@ -127,9 +127,50 @@ describe('Codemode isolated runtime', () => {
     expect(stuck.error).toContain('without a pending tool call');
   });
 
+  it('bounds a large drawing preview without failing or replaying its completed mutation', async () => {
+    const executeTool = vi.fn(async () => ({ revision: 4, svg: '<svg>' + '🙂'.repeat(20000) + '</svg>' }));
+    const result = await run('const drawing = await tools.query({}); text(drawing); return drawing.revision;', { executeTool });
+    expect(result).toMatchObject({ ok: true, value: 4, outputTruncated: true });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(result.calls[0].status).toBe('succeeded');
+    expect(result.output.join('')).toContain('Codemode output truncated');
+    expect(result.output.reduce((count, text) => count + text.length, 0) + JSON.stringify(result.value).length)
+      .toBeLessThanOrEqual(30000);
+    expect(Array.from(result.output.join('')).some(character => character.length === 1
+      && character.charCodeAt(0) >= 0xD800 && character.charCodeAt(0) <= 0xDFFF)).toBe(false);
+  });
+
+  it('continues after the text budget is full and keeps a structured return value', async () => {
+    const executeTool = vi.fn(async () => ({ revision: 4 }));
+    const result = await run(`
+      text('before');
+      for (let i = 0; i < 1000; i++) text('x'.repeat(1000));
+      return await tools.query({});
+    `, { executeTool });
+    expect(result).toMatchObject({ ok: true, value: { revision: 4 }, outputTruncated: true });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(result.output.reduce((count, text) => count + text.length, 0) + JSON.stringify(result.value).length)
+      .toBeLessThanOrEqual(30000);
+  });
+
+  it('marks dropped text when previous writes exactly fill the budget', async () => {
+    for (const size of [29995, 30000]) {
+      const result = await run(`text('x'.repeat(${size})); text('tail'.repeat(10));`);
+      expect(result).toMatchObject({ ok: true, outputTruncated: true });
+      expect(result.output.join('')).toContain('Codemode output truncated');
+      expect(result.output.join('').length).toBeLessThanOrEqual(30000);
+    }
+  });
+
+  it('still reports script errors after clipping an oversized preview', async () => {
+    const result = await run('text("x".repeat(40000)); throw new Error("after preview");');
+    expect(result).toMatchObject({ ok: false, outputTruncated: true });
+    expect(result.error).toContain('after preview');
+  });
+
   it('enforces source, output, call and result limits', async () => {
     expect((await run(' '.repeat(65537))).error).toContain('source limit');
-    expect((await run('text("x".repeat(30001));')).ok).toBe(false);
+    expect(await run('text("x".repeat(30001));')).toMatchObject({ ok: true, outputTruncated: true });
     expect((await run('return "x".repeat(30001);')).ok).toBe(false);
     expect((await run('for (let i=0;i<101;i++) await tools.query({});')).ok).toBe(false);
     const oversized = await run('await tools.query({});', { executeTool: async () => 'x'.repeat(2 * 1024 * 1024) });
@@ -173,6 +214,37 @@ describe('Codemode isolated runtime', () => {
       expect(result.calls).toHaveLength(1);
       expect(executeTool).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it('permits bounded bulk patches with a host budget and still rejects larger UTF-8 requests', async () => {
+    const executeTool = vi.fn(async () => 'saved');
+    const defaultResult = await run('return await tools.query({elements: "中".repeat(40000)});', { executeTool });
+    expect(defaultResult.error).toContain('argument limit');
+    expect(executeTool).not.toHaveBeenCalled();
+    const result = await run('return await tools.query({elements: "中".repeat(40000)});', {
+      executeTool, maxToolArgumentBytes: 512 * 1024,
+    });
+    expect(result).toMatchObject({ ok: true, value: 'saved' });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    executeTool.mockClear();
+    const tooLarge = await run('await tools.query({elements: "中".repeat(180000)});', {
+      executeTool, maxToolArgumentBytes: 512 * 1024,
+    });
+    expect(tooLarge.error).toContain('argument limit');
+    expect(executeTool).not.toHaveBeenCalled();
+    await expect(run('', { maxToolArgumentBytes: 1024 * 1024 + 1 })).rejects.toThrow('queue budget');
+    await expect(run('', { maxToolArgumentBytes: 0 })).rejects.toThrow('Invalid Codemode');
+  });
+
+  it('keeps the total queue bounded with larger individual argument budgets', async () => {
+    const executeTool = vi.fn(async () => new Promise(() => {}));
+    const result = await run(`
+      tools.query({});
+      for (let i = 0; i < 3; i++) tools.query({payload: 'x'.repeat(500000)}).catch(error => text(error.message));
+    `, { executeTool, maxToolArgumentBytes: 512 * 1024 });
+    expect(result.ok).toBe(true);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(result.calls.some(call => call.error?.includes('queue limit'))).toBe(true);
   });
 
   it('bounds queued arguments even when the first authorized tool never settles', async () => {
