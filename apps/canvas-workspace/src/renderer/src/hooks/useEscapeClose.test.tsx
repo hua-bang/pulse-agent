@@ -38,6 +38,38 @@ function StackedLayers({ onOuterClose, onInnerClose }: { onOuterClose: () => voi
   );
 }
 
+function ChildLayer({ onClose }: { onClose: () => void }) {
+  const [open, setOpen] = useState(true);
+  useEscapeClose(open, () => {
+    setOpen(false);
+    onClose();
+  });
+  return open ? <span data-layer="child" /> : null;
+}
+
+function ParentLayer({
+  onParentClose,
+  onChildClose,
+  childStartsOpen,
+}: {
+  onParentClose: () => void;
+  onChildClose: () => void;
+  childStartsOpen: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+  const [childOpen, setChildOpen] = useState(childStartsOpen);
+  useEscapeClose(open, () => {
+    setOpen(false);
+    onParentClose();
+  });
+  return (
+    <div data-layer="parent">
+      {childOpen ? <ChildLayer onClose={() => { setChildOpen(false); onChildClose(); }} /> : null}
+      <button type="button" onClick={() => setChildOpen(true)}>open-child</button>
+    </div>
+  );
+}
+
 describe('useEscapeClose', () => {
   it('closes stacked overlays in LIFO order, one layer per Escape press', () => {
     const onOuterClose = vi.fn();
@@ -59,5 +91,51 @@ describe('useEscapeClose', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     });
     expect(onOuterClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the child before the parent when both mount in the same commit', () => {
+    const onParentClose = vi.fn();
+    const onChildClose = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <ParentLayer onParentClose={onParentClose} onChildClose={onChildClose} childStartsOpen />,
+      );
+    });
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onChildClose).toHaveBeenCalledTimes(1);
+    expect(onParentClose).not.toHaveBeenCalled();
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onParentClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts a child that opens later above a parent that is already open', () => {
+    const onParentClose = vi.fn();
+    const onChildClose = vi.fn();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <ParentLayer onParentClose={onParentClose} onChildClose={onChildClose} childStartsOpen={false} />,
+      );
+    });
+    act(() => {
+      host?.querySelector('button')?.click();
+    });
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onChildClose).toHaveBeenCalledTimes(1);
+    expect(onParentClose).not.toHaveBeenCalled();
   });
 });

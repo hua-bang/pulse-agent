@@ -24,9 +24,11 @@ export interface SessionPreviewAttachment {
 }
 
 /**
- * Derive a session preview from the first user message. Falls back to the
- * first attached image name (or a generic image label) when the user sent
- * images with no text so image-only chats remain distinguishable in history.
+ * Derive a session preview from the first user message. When the text is
+ * empty, use the first attachment's file name so the chat stays recognizable.
+ * An attachment with no name contributes no label: this helper does not pick
+ * user-facing copy. The renderer chooses a localized label when it still has
+ * the message (`messageSessionTitleSource`).
  */
 export function sessionPreviewForMessage(
   message: { content: string; attachments?: SessionPreviewAttachment[] } | undefined,
@@ -37,9 +39,10 @@ export function sessionPreviewForMessage(
   const attachments = message.attachments;
   if (!attachments?.length) return '';
   const firstName = attachments[0]?.fileName?.trim()
-    || attachments[0]?.path?.split(/[\\/]/).pop()?.trim();
-  const base = firstName || 'Image';
-  const label = attachments.length > 1 ? `${base} (+${attachments.length - 1})` : base;
+    || attachments[0]?.path?.split(/[\\/]/).pop()?.trim()
+    || '';
+  if (!firstName) return '';
+  const label = attachments.length > 1 ? `${firstName} (+${attachments.length - 1})` : firstName;
   return label.length > proseMaxLength ? label.slice(0, proseMaxLength) : label;
 }
 

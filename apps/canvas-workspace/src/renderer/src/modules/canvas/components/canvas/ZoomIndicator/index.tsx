@@ -1,12 +1,14 @@
 import './index.css';
-import '../NodeContextMenu/index.css';
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { useI18n } from '../../../../../i18n';
 import { Button } from '../../../../../components/ui';
-import { Popover } from '../../../../../components/ui/Popover';
 import { PlusIcon } from '../../../../../components/icons';
 import { ZOOM_BUTTON_STEP, ZOOM_PRESETS } from '../../../runtime/useCanvasZoomControls';
 import { formatShortcutId } from '../../../../../shortcuts/registry';
+import type { ZoomPresetMenuItem } from './ZoomPresetMenu';
+
+const ZoomPresetMenu = lazy(() => import('./ZoomPresetMenu')
+  .then((module) => ({ default: module.ZoomPresetMenu })));
 
 interface Props {
   scale: number;
@@ -49,12 +51,6 @@ const MinusGlyph = () => (
   </svg>
 );
 
-interface MenuItem {
-  key: string;
-  label: string;
-  run: () => void;
-}
-
 export const ZoomIndicator = ({
   scale,
   onReset,
@@ -70,7 +66,7 @@ export const ZoomIndicator = ({
   const percentRef = useRef<HTMLButtonElement>(null);
   const pct = Math.round(scale * 100);
 
-  const menuItems: MenuItem[] = [];
+  const menuItems: ZoomPresetMenuItem[] = [];
   if (onZoomTo) {
     for (const preset of ZOOM_PRESETS) {
       menuItems.push({ key: `preset-${preset}`, label: `${preset * 100}%`, run: () => onZoomTo(preset) });
@@ -144,31 +140,14 @@ export const ZoomIndicator = ({
         )}
       </div>
       {menuOpen && (
-        <Popover
-          anchorRef={percentRef}
-          placement="top"
-          align="end"
-          ariaLabel={t('canvas.zoom.menuTitle')}
-          className="context-menu zoom-indicator-menu"
-          onClose={() => setMenuOpen(false)}
-        >
-          {menuItems.map((item) => (
-            <Button
-              key={item.key}
-              size="sm"
-              role="menuitem"
-              className="context-menu-item"
-              onClick={() => {
-                setMenuOpen(false);
-                item.run();
-              }}
-            >
-              <span className="context-menu-label">
-                <strong>{item.label}</strong>
-              </span>
-            </Button>
-          ))}
-        </Popover>
+        <Suspense fallback={null}>
+          <ZoomPresetMenu
+            anchorRef={percentRef}
+            ariaLabel={t('canvas.zoom.menuTitle')}
+            items={menuItems}
+            onClose={() => setMenuOpen(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

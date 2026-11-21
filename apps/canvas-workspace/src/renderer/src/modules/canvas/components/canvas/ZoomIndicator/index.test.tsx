@@ -32,7 +32,18 @@ describe('ZoomIndicator', () => {
   const menuLabels = () => Array.from(document.querySelectorAll('.zoom-indicator-menu [role="menuitem"]'))
     .map((item) => item.textContent?.trim());
 
-  it('steps zoom with −/+ and picks a preset from the percentage menu', () => {
+  /** The preset menu is a lazy chunk; wait until that chunk paints. */
+  const openPresetMenu = async (label: string) => {
+    act(() => button(label).click());
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (document.querySelector('.zoom-indicator-menu')) return;
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    }
+  };
+
+  it('steps zoom with −/+ and picks a preset from the percentage menu', async () => {
     const onZoomBy = vi.fn();
     const onZoomTo = vi.fn();
     const onReset = vi.fn();
@@ -47,7 +58,7 @@ describe('ZoomIndicator', () => {
     expect(onZoomBy).toHaveBeenNthCalledWith(1, 1.2);
     expect(onZoomBy.mock.calls[1][0]).toBeCloseTo(1 / 1.2);
 
-    act(() => button('80%').click());
+    await openPresetMenu('80%');
     expect(onReset).not.toHaveBeenCalled();
     // No selection: the menu leaves out "Zoom to selection".
     expect(menuLabels()).toEqual(['50%', '100%', '200%', 'Zoom to fit']);
@@ -57,14 +68,14 @@ describe('ZoomIndicator', () => {
     expect(document.querySelector('.zoom-indicator-menu')).toBeNull();
   });
 
-  it('offers zoom to selection when there is one', () => {
+  it('offers zoom to selection when there is one', async () => {
     const onFitSelection = vi.fn();
     act(() => root.render(
       <I18nProvider>
         <ZoomIndicator scale={1} onReset={vi.fn()} onZoomTo={vi.fn()} onFitSelection={onFitSelection} />
       </I18nProvider>,
     ));
-    act(() => button('100%').click());
+    await openPresetMenu('100%');
     act(() => button('Zoom to selection').click());
     expect(onFitSelection).toHaveBeenCalledOnce();
   });

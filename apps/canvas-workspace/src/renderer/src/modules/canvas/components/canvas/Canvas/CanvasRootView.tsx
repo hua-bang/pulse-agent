@@ -2,8 +2,7 @@ import { lazy, Suspense, useCallback, useState } from 'react';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
-import { EdgeContextMenu } from '../EdgeContextMenu';
-import { findNodeAtPoint, NodeActionsMenu } from '../NodeActionsMenu';
+import { findNodeAtPoint } from '../NodeActionsMenu/findNodeAtPoint';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import { AppLogoIcon, SpinnerIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
@@ -50,6 +49,11 @@ export const CanvasLoadState = ({
 // Loaded on the first single selection, so it stays out of the startup bundle.
 const NodeAskBar = lazy(() => import('../NodeAskBar')
   .then((module) => ({ default: module.NodeAskBar })));
+// Right-click menus, same as the create menu: not part of the first paint.
+const EdgeContextMenu = lazy(() => import('../EdgeContextMenu')
+  .then((module) => ({ default: module.EdgeContextMenu })));
+const NodeActionsMenu = lazy(() => import('../NodeActionsMenu')
+  .then((module) => ({ default: module.NodeActionsMenu })));
 
 export const CanvasRootView = ({
   actions,
@@ -304,27 +308,31 @@ export const CanvasRootView = ({
       />
 
       {edgeMenu && (
-        <EdgeContextMenu
-          x={edgeMenu.x}
-          y={edgeMenu.y}
-          edgeId={edgeMenu.edgeId}
-          onEditLabel={(id) => drawingGestures.edgeHandlers.handleEdgeBodyDoubleClick(id)}
-          onEditStyle={(id) => {
-            setSelectedEdgeId(id);
-            setSelectedNodeIds([]);
-          }}
-          onDelete={(id) => { void actions.requestRemoveEdge(id); }}
-          onClose={() => setEdgeMenu(null)}
-        />
+        <Suspense fallback={null}>
+          <EdgeContextMenu
+            x={edgeMenu.x}
+            y={edgeMenu.y}
+            edgeId={edgeMenu.edgeId}
+            onEditLabel={(id) => drawingGestures.edgeHandlers.handleEdgeBodyDoubleClick(id)}
+            onEditStyle={(id) => {
+              setSelectedEdgeId(id);
+              setSelectedNodeIds([]);
+            }}
+            onDelete={(id) => { void actions.requestRemoveEdge(id); }}
+            onClose={() => setEdgeMenu(null)}
+          />
+        </Suspense>
       )}
 
       {nodeMenu && (
-        <NodeActionsMenu
-          x={nodeMenu.x}
-          y={nodeMenu.y}
-          commands={paletteCommands}
-          onClose={() => setNodeMenu(null)}
-        />
+        <Suspense fallback={null}>
+          <NodeActionsMenu
+            x={nodeMenu.x}
+            y={nodeMenu.y}
+            commands={paletteCommands}
+            onClose={() => setNodeMenu(null)}
+          />
+        </Suspense>
       )}
 
       {focus.fullscreenNodeId && (
