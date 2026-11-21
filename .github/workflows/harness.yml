@@ -19,8 +19,11 @@ on:
       - pnpm-workspace.yaml
       - pnpm-lock.yaml
       - .gitignore
+      - .nvmrc
+      - biome.json
       - .github/workflows/harness.yml
       - .github/workflows/perf.yml
+      - .github/workflows/quality.yml
   push:
     branches: [master]
     paths:
@@ -39,8 +42,11 @@ on:
       - pnpm-workspace.yaml
       - pnpm-lock.yaml
       - .gitignore
+      - .nvmrc
+      - biome.json
       - .github/workflows/harness.yml
       - .github/workflows/perf.yml
+      - .github/workflows/quality.yml
 
 permissions:
   contents: read
@@ -60,7 +66,7 @@ jobs:
           version: 10.28.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install validation dependencies

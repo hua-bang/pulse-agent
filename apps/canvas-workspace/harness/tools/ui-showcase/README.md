@@ -42,18 +42,12 @@ deterministic result (no HMR client, no dev-only module-graph timing).
 (Linux-only baselines) and would break `test` on any non-Linux contributor
 machine. Keep it opt-in.
 
-## Why chromium needs an explicit path
+## Chromium resolution
 
-This container pre-installs Chromium at `/opt/pw-browsers/chromium`
-(`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`), but the pinned
-`@playwright/test` version's own revision-probing looks for a different
-build id than what's actually installed (confirmed empirically — a bare
-`chromium.launch()` fails looking for `chromium_headless_shell-1228`; the
-installed revision is `-1194`). `playwright.config.ts` works around this
-with an explicit `launchOptions.executablePath` rather than relying on
-Playwright's auto-resolution. **Never run `playwright install`** — it will
-try to download a browser this container has no network path for; the
-pinned build already works once you point at it explicitly.
+`playwright.config.ts` resolves Chromium in this order:
+1. `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` environment variable (if set).
+2. `/opt/pw-browsers/chromium` (if present in pre-baked offline containers where Playwright's auto-probed revision differs from the installed build).
+3. Playwright's default installed Chromium (used on standard Linux CI runners via `playwright install --with-deps chromium` in `.github/workflows/quality.yml`).
 
 ## Determinism
 

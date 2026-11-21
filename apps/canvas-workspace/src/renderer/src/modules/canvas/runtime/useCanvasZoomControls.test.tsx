@@ -11,7 +11,7 @@ describe('useCanvasZoomControls centerOn', () => {
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
     Object.defineProperty(container, 'clientHeight', { value: 600 });
-    const panBy = vi.fn<[number, number], void>();
+    const panBy = vi.fn<(dx: number, dy: number) => void>();
     let controls!: CanvasZoomControls;
     const Probe = () => {
       controls = useCanvasZoomControls({

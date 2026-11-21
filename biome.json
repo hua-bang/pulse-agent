@@ -1,0 +1,136 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "master"
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/release",
+      "!**/coverage",
+      "!**/.harness",
+      "!apps/devtools-web",
+      "!apps/canvas-workspace/download-site",
+      "!apps/canvas-workspace/perf/out",
+      "!apps/canvas-workspace/resources",
+      "!apps/canvas-workspace/src/plugins/mock-node",
+      "!apps/remote-server/generated",
+      "!examples"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "noAriaHiddenOnFocusable": "off",
+        "noAutofocus": "off",
+        "noLabelWithoutControl": "off",
+        "noNoninteractiveElementToInteractiveRole": "off",
+        "noNoninteractiveTabindex": "off",
+        "noRedundantRoles": "off",
+        "noStaticElementInteractions": "off",
+        "noSvgWithoutTitle": "off",
+        "useAriaActivedescendantWithTabindex": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useButtonType": "off",
+        "useFocusableInteractive": "off",
+        "useHtmlLang": "off",
+        "useKeyWithClickEvents": "off",
+        "useSemanticElements": "off"
+      },
+      "complexity": {
+        "noBannedTypes": "off",
+        "noCommaOperator": "off",
+        "noImportantStyles": "off",
+        "noUselessContinue": "off",
+        "noUselessEscapeInRegex": "off",
+        "noUselessFragments": "off",
+        "noUselessSwitchCase": "off",
+        "noUselessThisAlias": "off",
+        "useArrowFunction": "off",
+        "useLiteralKeys": "off",
+        "useMathMinMax": "off",
+        "useOptionalChain": "off",
+        "useRegexLiterals": "off"
+      },
+      "correctness": {
+        "noComponentHookFactories": "off",
+        "noEmptyCharacterClassInRegex": "off",
+        "noSwitchDeclarations": "off",
+        "noUnknownTypeSelector": "off",
+        "noUnsafeFinally": "off",
+        "noUnsafeOptionalChaining": "off",
+        "noUnusedFunctionParameters": "off",
+        "noUnusedImports": "off",
+        "noUnusedPrivateClassMembers": "off",
+        "noUnusedVariables": "off",
+        "noVoidTypeReturn": "off",
+        "useExhaustiveDependencies": "off",
+        "useHookAtTopLevel": "off",
+        "useParseIntRadix": "off",
+        "usePlaywrightValidDescribeCallback": "off"
+      },
+      "performance": {
+        "useDomNodeTextContent": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off",
+        "noGlobalEval": "off"
+      },
+      "style": {
+        "noDescendingSpecificity": "off",
+        "noNonNullAssertion": "off",
+        "useConst": "off",
+        "useExponentiationOperator": "off",
+        "useImportType": "off",
+        "useNodejsImportProtocol": "off",
+        "useShorthandFunctionType": "off",
+        "useTemplate": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off",
+        "noAssignInExpressions": "off",
+        "noConfusingVoidType": "off",
+        "noControlCharactersInRegex": "off",
+        "noExplicitAny": "off",
+        "noGlobalIsFinite": "off",
+        "noGlobalIsNan": "off",
+        "noImplicitAnyLet": "off",
+        "noMisleadingCharacterClass": "off",
+        "noPrototypeBuiltins": "off",
+        "noShadowRestrictedNames": "off",
+        "noTemplateCurlyInString": "off",
+        "noThenProperty": "off",
+        "noUselessEscapeInString": "off",
+        "useIterableCallbackReturn": "off"
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  }
+}

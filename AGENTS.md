@@ -36,10 +36,10 @@ Read `harness/README.md`, the affected workspace AGENTS, and local validation. F
 
 ## 2. Hard boundaries (real values)
 
-- Use pnpm pinned by root package.json, never npm/yarn. Node is unpinned.
+- Use pnpm pinned by root package.json, never npm/yarn. Node is pinned to major 22 in `.nvmrc` (`engines.node >=22.0.0`).
 - Keep TypeScript strict. Canvas tsconfigs are independent. Match each package's module format and scripts.
 - Root `tsconfig.json` owns aliases; do not invent them. Other internal dependencies use `workspace:*`.
-- No lint/format tool is configured. Match local style: two spaces, semicolons, single quotes.
+- Biome (`biome.json`) and `.editorconfig` enforce repo-wide lint (`pnpm run lint`) and formatting style (two spaces, semicolons, single quotes, LF).
 - Never satisfy file/component line limits by merging statements, JSX, or props onto fewer lines, or removing useful spacing/comments. Keep readable formatting; reduce size through cohesive responsibility boundaries, not line-count-only fragmentation.
 - Read workspace validation for test/build and coverage limitations. Passing tests do not prove untested modules.
 
@@ -53,7 +53,7 @@ Before code/review: owning AGENTS + local validation. Before contract changes: a
 
 After creating or entering a linked git worktree, run `pnpm bootstrap:worktree` before build/test. It keeps each worktree's `node_modules` layout local while reusing the shared pnpm store, and refuses dependency links that resolve into another checkout.
 
-Performance, harness-integrity, and quality CI are defined. Quality runs core package tests and Canvas typecheck, dead-code check, and tests on every PR; other bound workspace acceptance still runs manually, and the integrity workflow only checks harness code/data and plans commands. See `harness/validate/README.md`. Qualify further enforcement before enabling it.
+Performance, harness-integrity, and quality CI are defined. Quality runs repo-wide Biome lint, core package tests, and Canvas typecheck, harness tool typechecks, dead-code check, renderer structure check, contract snapshot, build, tests with coverage, Feishu replay, and Linux UI showcase visual checks on every PR; other bound workspace acceptance still runs manually, and the integrity workflow only checks harness code/data and plans commands. See `harness/validate/README.md`. Qualify further enforcement before enabling it.
 
 Repo protocols live in harness/skills; product skills in .pulse-coder/skills. Use existing protocols; add one only for stable recurring work.
 

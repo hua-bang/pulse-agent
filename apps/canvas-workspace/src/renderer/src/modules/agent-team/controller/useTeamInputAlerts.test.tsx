@@ -12,7 +12,7 @@ type UpdateListener = (event: { workspaceId: string; nodeIds: string[]; source: 
 
 let root: Root | null = null;
 let listener: UpdateListener | null = null;
-const notify = vi.fn<[ToastInput], void>();
+const notify = vi.fn<(toast: ToastInput) => void>();
 const openWorkspace = vi.fn();
 const list = vi.fn();
 

@@ -12,7 +12,7 @@ describe('useCanvasImagePaste text and URL clipboard', () => {
   let host: HTMLDivElement;
   let root: Root;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  type AnyMock = Mock<any[], any>;
+  type AnyMock = Mock<(...args: any[]) => any>;
   let addNode: AnyMock;
   let onPasteUrl: AnyMock;
   let resolveSlot: AnyMock;

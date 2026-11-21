@@ -201,13 +201,12 @@
 }
 
 .agent-team-frame--briefing .agent-team-command--lead button {
-  height: 38px;
+  height: 36px;
   min-width: 140px;
   border-radius: var(--radius-lg);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.02em;
-  height: 36px;
 }
 .agent-team-command__label {
   color: var(--text-secondary);

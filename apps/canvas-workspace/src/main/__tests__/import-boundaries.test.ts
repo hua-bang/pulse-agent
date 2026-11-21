@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import * as ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = process.cwd();
 const SRC_ROOT = join(REPO_ROOT, 'src');
@@ -43,9 +43,14 @@ const NODE_BUILTINS = new Set([
 ]);
 
 describe('import boundaries', () => {
-  it('keeps shared, renderer, main, and preload imports inside their allowed layers', () => {
+  let resolved: ResolvedImport[] = [];
+
+  beforeAll(() => {
     const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
-    const resolved = imports.flatMap(resolveImport);
+    resolved = imports.flatMap(resolveImport);
+  }, 30_000);
+
+  it('keeps shared, renderer, main, and preload imports inside their allowed layers', () => {
     const violations = resolved.flatMap((imported) => {
       const violation = checkBoundary(imported);
       return violation ? [violation] : [];
@@ -57,16 +62,12 @@ describe('import boundaries', () => {
   });
 
   it('keeps protected main domains below the app composition root', () => {
-    const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
-    const resolved = imports.flatMap(resolveImport);
     const violations = resolved.flatMap(checkMainDomainBoundary);
 
     expect(violations).toEqual([]);
   });
 
   it('keeps the main domain dependency graph acyclic', () => {
-    const imports = findSourceFiles(SRC_ROOT).flatMap(readImports);
-    const resolved = imports.flatMap(resolveImport);
     const graph = buildMainDomainGraph(resolved);
     const cyclicEdges = Array.from(graph.entries()).flatMap(([source, targets]) =>
       Array.from(targets)

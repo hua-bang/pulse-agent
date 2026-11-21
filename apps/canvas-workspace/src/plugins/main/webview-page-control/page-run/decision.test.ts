@@ -42,7 +42,7 @@ describe('Jev browser decision contract', () => {
   });
 
   it('passes cancellation to the transport without exposing key or response body in errors', async () => {
-    const fetcher = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>().mockResolvedValue(new Response('server secret body', { status: 401 }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('server secret body', { status: 401 }));
     const ask = createJevDecision('private-test-key', fetcher);
     await expect(ask('Read', page, [], [], new AbortController().signal)).rejects.toThrow('HTTP 401');
     expect(fetcher.mock.calls[0][1]).toMatchObject({ redirect: 'error', signal: expect.any(AbortSignal) });
@@ -83,7 +83,7 @@ describe('Jev request size and failure diagnostics', () => {
   });
 
   it('rejects a goal that cannot fit before sending anything to the provider', async () => {
-    const fetcher = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>();
+    const fetcher = vi.fn<typeof fetch>();
     await expect(createJevDecision('test-key', fetcher)(
       '大'.repeat(12_000), page, [], [], new AbortController().signal,
     )).rejects.toMatchObject({ code: 'jev_request_too_large' });
@@ -91,7 +91,7 @@ describe('Jev request size and failure diagnostics', () => {
   });
 
   it('preserves a provider error code and request ID without echoing secrets or page content', async () => {
-    const fetcher = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>().mockResolvedValue(new Response(
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(
       JSON.stringify({ detail: { error_type: 'max_tokens_exceeded', message: 'private-test-key private page text' } }),
       { status: 400, headers: { 'x-request-id': 'req-123' } },
     ));
@@ -111,7 +111,7 @@ describe('Jev request size and failure diagnostics', () => {
       start(controller) { controller.enqueue(new TextEncoder().encode('private-test-key'.repeat(1_000))); },
       cancel() { cancelled = true; },
     });
-    const fetcher = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>().mockResolvedValue(new Response(stream, { status: 500 }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, { status: 500 }));
     const error = await createJevDecision('private-test-key', fetcher)(
       'Read', page, [], [], new AbortController().signal,
     ).catch(error => error);
