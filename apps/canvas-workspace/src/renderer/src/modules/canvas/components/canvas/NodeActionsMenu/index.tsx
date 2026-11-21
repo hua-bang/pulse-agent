@@ -57,7 +57,7 @@ export const NodeActionsMenu = ({ x, y, commands, onClose }: Props) => {
   if (items.length === 0) return null;
 
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu node-actions-menu">
+    <Popover x={x} y={y} onClose={onClose} closeOnCanvasMotion className="context-menu node-actions-menu">
       <div className="context-menu-title">{t('canvas.nodeActionsMenu.title')}</div>
       {items.map((command, index) => (
         <Fragment key={command.id}>

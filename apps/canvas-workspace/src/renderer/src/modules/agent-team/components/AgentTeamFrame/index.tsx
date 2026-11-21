@@ -180,7 +180,9 @@ export const AgentTeamFrame = ({
     <div
       className={`agent-team-frame agent-team-frame--${phase}`}
       onMouseDown={(event) => event.stopPropagation()}
-      onWheel={(event) => event.stopPropagation()}
+      onWheel={(event) => {
+        if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
+      }}
     >
       <TeamHeader
         view={{

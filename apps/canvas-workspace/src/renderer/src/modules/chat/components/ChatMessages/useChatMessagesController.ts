@@ -66,6 +66,7 @@ export const useChatMessagesController = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
+  const prevScrollTopRef = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
   const [tabNavigationFeedback, setTabNavigationFeedback] = useState<{
     message: string;
@@ -98,8 +99,17 @@ export const useChatMessagesController = ({
   const handleScroll = useCallback(() => {
     const element = containerRef.current;
     if (!element) return;
-    if (conversationKey) rememberConversationScroll(conversationKey, element.scrollTop);
-    const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+    const scrollTop = element.scrollTop;
+    const scrolledUp = scrollTop < prevScrollTopRef.current - 1;
+    prevScrollTopRef.current = scrollTop;
+    if (conversationKey) rememberConversationScroll(conversationKey, scrollTop);
+    const distance = element.scrollHeight - scrollTop - element.clientHeight;
+    if (scrolledUp && distance > 2) {
+      autoScrollUntilRef.current = 0;
+      pinnedRef.current = false;
+      setAtBottom(false);
+      return;
+    }
     const pinned = distance < PIN_THRESHOLD_PX;
     if (!pinned && performance.now() < autoScrollUntilRef.current) return;
     pinnedRef.current = pinned;

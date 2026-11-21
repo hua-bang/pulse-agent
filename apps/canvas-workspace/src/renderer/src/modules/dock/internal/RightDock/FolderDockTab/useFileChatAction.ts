@@ -15,7 +15,12 @@ const waitForTarget = (broker: ChatTargetBroker, scopeId: string, signal: AbortS
       resolve(ready);
     };
     const abort = () => finish(false);
-    const check = () => { if (broker.getActiveTarget()?.scopeId === scopeId) finish(true); };
+    const check = () => {
+      const target = broker.getActiveTarget();
+      if (target && (target.scopeId === scopeId || (target.surface === 'dock' && target.scopeId === '__global__'))) {
+        finish(true);
+      }
+    };
     const timer = setTimeout(() => finish(false), 5000);
     unsubscribe = broker.subscribe(check);
     signal.addEventListener('abort', abort, { once: true });

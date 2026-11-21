@@ -227,19 +227,28 @@ export const useCanvas = (
   // `{ passive: false }` wheel listener that does the preventDefault.
   const handleWheel = useCallback((e: React.WheelEvent) => {
     markMoving();
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const scaleDelta = e.deltaMode === 1
+      ? 16
+      : e.deltaMode === 2
+        ? Math.max(rect.height, 400)
+        : 1;
+    const rawDx = e.deltaX * scaleDelta;
+    const rawDy = e.deltaY * scaleDelta;
+
     if (e.ctrlKey || e.metaKey) {
       e.stopPropagation();
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const clampedDelta = Math.max(-50, Math.min(50, e.deltaY));
+      const clampedDelta = Math.max(-50, Math.min(50, rawDy));
       // deltaY > 0 shrinks the scale (zoom out) — the band where every live
       // embed still rasters. Set the signal BEFORE commitTransform's rAF so
       // the static-ization CSS lands the frame before the transform scales
       // (the two-phase ordering the follow-up plan calls for).
       applyMotion(clampedDelta > 0 ? 'zoom-out' : 'zoom-in');
       const prev = transformRef.current;
-      const factor = 1 - clampedDelta * ZOOM_SENSITIVITY;
+      const factor = Math.exp(-clampedDelta * ZOOM_SENSITIVITY);
       const newScale = clampScale(prev.scale * factor);
       const ratio = newScale / prev.scale;
       commitTransform({
@@ -250,8 +259,8 @@ export const useCanvas = (
     } else {
       applyMotion('pan');
       const prev = transformRef.current;
-      const dx = e.deltaX;
-      const dy = e.deltaY;
+      const dx = e.shiftKey && rawDx === 0 ? rawDy : rawDx;
+      const dy = e.shiftKey && rawDx === 0 ? 0 : rawDy;
       commitTransform({
         ...prev,
         x: safeNum(prev.x - dx),
@@ -278,11 +287,11 @@ export const useCanvas = (
     [isHandTool, markMoving, applyMotion]
   );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const applyPanMove = useCallback((clientX: number, clientY: number) => {
     if (!isPanning.current) return;
-    const dx = e.clientX - lastMouse.current.x;
-    const dy = e.clientY - lastMouse.current.y;
-    lastMouse.current = { x: e.clientX, y: e.clientY };
+    const dx = clientX - lastMouse.current.x;
+    const dy = clientY - lastMouse.current.y;
+    lastMouse.current = { x: clientX, y: clientY };
     markMoving();
     applyMotion('pan');
     const prev = transformRef.current;
@@ -292,6 +301,10 @@ export const useCanvas = (
       y: safeNum(prev.y + dy)
     });
   }, [markMoving, commitTransform, applyMotion]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    applyPanMove(e.clientX, e.clientY);
+  }, [applyPanMove]);
 
   /** Shift the view by screen px as a hand pan does; a node drag near the
    *  viewport edge uses it to reveal the canvas beyond. */
@@ -311,6 +324,20 @@ export const useCanvas = (
     isPanning.current = false;
     setPanning(false);
   }, []);
+
+  useEffect(() => {
+    if (!panning) return undefined;
+    const onWindowMove = (e: MouseEvent) => applyPanMove(e.clientX, e.clientY);
+    const onWindowUp = () => handleMouseUp();
+    window.addEventListener('mousemove', onWindowMove);
+    window.addEventListener('mouseup', onWindowUp);
+    window.addEventListener('blur', onWindowUp);
+    return () => {
+      window.removeEventListener('mousemove', onWindowMove);
+      window.removeEventListener('mouseup', onWindowUp);
+      window.removeEventListener('blur', onWindowUp);
+    };
+  }, [panning, applyPanMove, handleMouseUp]);
 
   // Identity-stable: reads the live transform from a ref. Every consumer
   // calls this inside event handlers (never at render time), so reading

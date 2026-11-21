@@ -210,4 +210,17 @@ describe('file editor byte-version persistence', () => {
     await act(async () => { await state.persistToFile('pending draft', '/tmp/imported.md'); });
     expect(write).not.toHaveBeenCalled();
   });
+
+  it('allows explicit force overwrite to resolve an external file conflict', async () => {
+    read.mockResolvedValueOnce({ ok: true, content: 'base', version: 'v1' });
+    await render();
+    write.mockResolvedValueOnce({ ok: false, conflict: true, error: 'External change' });
+    await act(async () => { await state.persistToFile('my local edit', '/tmp/note.md'); });
+    expect(state.conflicted).toBe(true);
+
+    write.mockResolvedValueOnce({ ok: true, version: 'v3' });
+    await act(async () => { await state.persistToFile('my local edit', '/tmp/note.md', { force: true }); });
+    expect(write).toHaveBeenLastCalledWith('/tmp/note.md', 'my local edit');
+    expect(state.conflicted).toBe(false);
+  });
 });

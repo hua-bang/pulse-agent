@@ -147,7 +147,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border: 1px solid #e3c577;
+  border: 1px solid var(--tint-warning-border);
   border-radius: var(--radius-md);
   background: var(--tint-warning);
   color: var(--text-warning);

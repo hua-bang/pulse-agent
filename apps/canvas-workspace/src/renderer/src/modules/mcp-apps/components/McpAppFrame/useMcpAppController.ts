@@ -16,6 +16,7 @@ import type {
 import type { AgentChatMcpApp, AgentScope } from '../../../../types';
 import { serializeMcpAppToolArguments, type McpAppNodeContextTarget } from '../../../../../../shared/mcp-apps';
 import { useRightDock, useRightDockMcpAppHost, useRightDockState } from '../../../../shared/dockPort';
+import { onThemeChange } from '../../../../shared/theme';
 import { mcpAppTabId } from '../../../../shared/dock/dock-tab-ids';
 import { isDockTabPresented } from '../../../../shared/dock/dock-split-state';
 import { useMcpAppApproval } from './useMcpAppApproval';
@@ -62,6 +63,7 @@ export interface McpAppController {
   height: number;
   iframeRef: RefObject<HTMLIFrameElement>;
   inlineHostRef: RefObject<HTMLDivElement>;
+  reload: () => void;
   resource?: McpAppResource;
   returnInline: () => void;
   surfaceRef: RefObject<HTMLDivElement>;
@@ -201,8 +203,10 @@ export const useMcpAppController = ({
   const restoreInlineFocusRef = useRef(false);
   const [resource, setResource] = useState<McpAppResource>();
   const [error, setError] = useState<string>();
+  const [reloadToken, setReloadToken] = useState(0);
   const [height, setHeight] = useState(320);
   const [displayMode, setDisplayMode] = useState<McpAppDisplayMode>('inline');
+  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
   const approval = useMcpAppApproval(Boolean(error));
   const { enabled: contextEnabled, publish: publishContext } = useMcpAppContext(nodeContextTarget, contextSink, app.result, error);
   const dock = useRightDock();
@@ -283,13 +287,18 @@ export const useMcpAppController = ({
     const target = displayMode === 'fullscreen' ? dockHost : inlineHostRef.current;
     if (!bridge) return;
     const context = () => mcpAppHostContext(displayMode, target, embeddedMode, hostContextExtras);
-    bridge.setHostContext(context());
-    if (!target || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => {
-      bridge.setHostContext(context());
-    });
+    const syncContext = () => bridge.setHostContext(context());
+    syncContext();
+    const unsubscribeTheme = onThemeChange(syncContext);
+    if (!target || typeof ResizeObserver === 'undefined') {
+      return unsubscribeTheme;
+    }
+    const observer = new ResizeObserver(syncContext);
     observer.observe(target);
-    return () => observer.disconnect();
+    return () => {
+      unsubscribeTheme();
+      observer.disconnect();
+    };
   }, [displayMode, dockHost, embeddedMode, hostContextExtras]);
 
   useEffect(() => {
@@ -318,9 +327,13 @@ export const useMcpAppController = ({
           return;
         }
         setResource({ html: nextHtml, csp: buildMcpAppCsp(content._meta) });
+      })
+      .catch((readError) => {
+        if (cancelled) return;
+        setError(readError instanceof Error ? readError.message : 'Failed to read MCP App resource');
       });
     return () => { cancelled = true; };
-  }, [app.resourceUri, app.serverName, scope]);
+  }, [app.resourceUri, app.serverName, scope, reloadToken]);
 
   useEffect(() => () => {
     const bridge = bridgeRef.current;
@@ -471,6 +484,7 @@ export const useMcpAppController = ({
     height,
     iframeRef,
     inlineHostRef,
+    reload,
     resource,
     returnInline,
     surfaceRef,

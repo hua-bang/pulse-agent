@@ -23,7 +23,7 @@ export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDele
   const { t } = useI18n();
 
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu">
+    <Popover x={x} y={y} onClose={onClose} closeOnCanvasMotion className="context-menu">
       <div className="context-menu-title">{t('canvas.edgeMenu.title')}</div>
       <button
         className="context-menu-item" role="menuitem"

@@ -265,7 +265,10 @@ export const useChatPageBodyController = ({
     insertText: busyElsewhere || sessionLoading ? undefined : insertText,
     startSkillChat: handleTargetSkillChat,
     submitDomReview: submitDomReviewComments,
-    submitPrompt,
+    submitPrompt:
+      busyElsewhere || sessionLoading || loading || activeSessionId !== conversationSessionId
+        ? undefined
+        : submitPrompt,
     focus: focusInput,
   });
 

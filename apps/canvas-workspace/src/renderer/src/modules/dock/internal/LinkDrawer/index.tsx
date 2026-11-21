@@ -314,7 +314,6 @@ export const LinkTabView = ({
           onFocus={onActivate}
           onSubmit={addressBar.onSubmit}
           onMouseEnter={addressBar.cancelScheduledSuggestClose}
-          onMouseLeave={addressBar.scheduleSuggestClose}
         >
           <TextField
             className="link-drawer__url"

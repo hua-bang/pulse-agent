@@ -6,6 +6,7 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { useI18n } from '../../../../i18n';
 import { Button, TextField } from '../../../../components/ui';
+import { isImeComposing } from '../../../../utils/ime';
 import type { FindMatches } from './useFindInPage';
 
 interface Props {
@@ -23,7 +24,7 @@ export const FindInPageBar = ({ query, matches, barRef, onQueryChange, onStep, o
   const hasQuery = query.trim().length > 0;
 
   const onContainerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Escape') return;
+    if (isImeComposing(event.nativeEvent) || event.key !== 'Escape') return;
     // Claim it here: the dock's window-level Escape would otherwise act on
     // the tab itself while the user is only trying to dismiss this bar.
     event.preventDefault();
@@ -32,7 +33,7 @@ export const FindInPageBar = ({ query, matches, barRef, onQueryChange, onStep, o
   };
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Enter') return;
+    if (isImeComposing(event.nativeEvent) || event.key !== 'Enter') return;
     event.preventDefault();
     onStep(!event.shiftKey);
   };

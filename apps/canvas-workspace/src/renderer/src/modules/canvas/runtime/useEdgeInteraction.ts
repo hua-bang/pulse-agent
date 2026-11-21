@@ -200,8 +200,10 @@ export const useEdgeInteraction = ({
   // live. Using window (not the canvas container) means the drag keeps
   // tracking when the cursor slips off the canvas — matches the
   // existing node-drag behaviour.
+  const isActive = Boolean(state);
+
   useEffect(() => {
-    if (!state) return;
+    if (!isActive) return;
     const onMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
     const onUp = (e: MouseEvent) => handleUp({ x: e.clientX, y: e.clientY });
     // Window focus loss never delivers the mouseup — finish the gesture
@@ -225,7 +227,7 @@ export const useEdgeInteraction = ({
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [state, handleMove, handleUp, handleCancel]);
+  }, [isActive, handleMove, handleUp, handleCancel]);
 
   useEffect(() => () => cancelPendingMove(), [cancelPendingMove]);
 

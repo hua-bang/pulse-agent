@@ -131,10 +131,16 @@ export const CanvasSurface = ({
 }: CanvasSurfaceProps) => {
   // Startup metric: first canvas render (idempotent, Map lookup after that).
   markOnce('canvas:first-render');
-  const edgeNodes = useMemo(
-    () => applyResizePreviewToNodes(nodes, resizePreview),
-    [nodes, resizePreview],
-  );
+  const edgeNodes = useMemo(() => {
+    const resized = applyResizePreviewToNodes(nodes, resizePreview);
+    if (!dragOffset || (dragOffset.dx === 0 && dragOffset.dy === 0)) return resized;
+    if (draggingIds.size === 0 && !draggingId) return resized;
+    return resized.map((node) => (
+      draggingIds.has(node.id) || draggingId === node.id
+        ? { ...node, x: node.x + dragOffset.dx, y: node.y + dragOffset.dy }
+        : node
+    ));
+  }, [nodes, resizePreview, dragOffset, draggingIds, draggingId]);
   const connectHandleNode = !readOnly && !fullscreenNodeId && connectHandleNodeId && onConnectHandleMouseDown
     ? edgeNodes.find((node) => node.id === connectHandleNodeId) ?? null
     : null;
