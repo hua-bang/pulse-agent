@@ -5,6 +5,7 @@ type EscapeEntry = {
   close: () => void;
   /** Render order. A higher value is the visually inner overlay. */
   order: number;
+  shouldIgnore?: (e: KeyboardEvent) => boolean;
 };
 
 const escapeStack: EscapeEntry[] = [];
@@ -20,6 +21,7 @@ const insertEscapeEntry = (entry: EscapeEntry) => {
 const handleDocumentEscape = (e: KeyboardEvent) => {
   if (e.key !== 'Escape' || isImeComposing(e) || escapeStack.length === 0) return;
   const top = escapeStack[escapeStack.length - 1];
+  if (top.shouldIgnore?.(e)) return;
   e.stopPropagation();
   e.stopImmediatePropagation();
   top.close();
@@ -49,18 +51,25 @@ const syncDocumentListener = () => {
  * portaled menu is not a DOM descendant of the Modal, so containment cannot
  * decide this.
  */
-export const useEscapeClose = (active: boolean, onClose: () => void) => {
+export const useEscapeClose = (
+  active: boolean,
+  onClose: () => void,
+  options?: { shouldIgnore?: (e: KeyboardEvent) => boolean },
+) => {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const orderRef = useRef(0);
   if (!active) orderRef.current = 0;
   else if (orderRef.current === 0) orderRef.current = ++nextEscapeOrder;
+  const shouldIgnoreRef = useRef(options?.shouldIgnore);
+  shouldIgnoreRef.current = options?.shouldIgnore;
 
   useEffect(() => {
     if (!active) return;
     const entry: EscapeEntry = {
       close: () => onCloseRef.current(),
       order: orderRef.current,
+      shouldIgnore: (e) => shouldIgnoreRef.current?.(e) ?? false,
     };
     insertEscapeEntry(entry);
     syncDocumentListener();

@@ -82,7 +82,7 @@ export const NodeContextMenu = ({
   ].filter((action) => action.run);
 
   return (
-    <Popover x={x} y={y} onClose={onClose} className="context-menu">
+    <Popover x={x} y={y} onClose={onClose} closeOnCanvasMotion className="context-menu">
       {mode === "mindmap" ? (
         <>
           <div className="context-menu-title">{t('canvas.menu.mindmapTitle')}</div>

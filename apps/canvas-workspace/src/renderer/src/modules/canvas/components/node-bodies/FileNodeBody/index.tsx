@@ -122,7 +122,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   });
   reloadEditorRef.current = reloadContent;
 
-  const retrySave = useCallback(async () => {
+  const retrySave = useCallback(async (force = false) => {
     if (!editor) return;
     const markdown = getMarkdown(editor);
     const filePath = dataRef.current.filePath;
@@ -131,7 +131,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     setStatusTone('saving');
     setStatusText(t('noteToolbar.saving'));
     if (filePath) {
-      await persistToFile(markdown, filePath);
+      await persistToFile(markdown, filePath, { force });
       return;
     }
     try {
@@ -249,7 +249,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
             </span>
           )}
           <span>{statusText}</span>
-          {statusTone === 'error' && (
+          {statusTone === 'error' && !conflicted && (
             <Button
               size="xs"
               className="note-save-status__retry"

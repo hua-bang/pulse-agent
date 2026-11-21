@@ -26,10 +26,6 @@ interface UseMarqueeSelectOptions {
   onSelect: (ids: string[], mods: { shift: boolean; meta: boolean }) => void;
 }
 
-/** Diagonal distance (canvas-px) below which a drag is treated as an
- *  accidental click and discarded. Same threshold as useShapeDraw. */
-const DRAG_MIN_DISTANCE = 4;
-
 /** Screen-pixel travel after which the gesture counts as a real drag. Until
  *  then it is still a click, so no interaction shield is mounted and the
  *  browser can deliver click / dblclick to the canvas. */
@@ -89,8 +85,10 @@ export const useMarqueeSelect = ({
   // shouldn't change which nodes get selected.
   const snapshotRef = useRef<CanvasNode[]>([]);
 
+  const isMarqueeActive = Boolean(marquee);
+
   useEffect(() => {
-    if (!marquee) return;
+    if (!isMarqueeActive) return;
     const handleMove = (e: MouseEvent) => {
       const el = getContainer();
       if (!el) return;
@@ -109,10 +107,7 @@ export const useMarqueeSelect = ({
       setMarquee(null);
       if (!m) return;
 
-      const dx = m.current.x - m.start.x;
-      const dy = m.current.y - m.start.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < DRAG_MIN_DISTANCE) {
+      if (!m.dragging) {
         // Treat as a click — emit empty hit set so the caller can clear
         // selection on plain click, while shift/meta-click leaves it
         // alone. The caller distinguishes via the mods we hand back.
@@ -139,7 +134,7 @@ export const useMarqueeSelect = ({
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('keydown', handleKey, true);
     };
-  }, [marquee, getContainer, screenToCanvas, onSelect]);
+  }, [isMarqueeActive, getContainer, screenToCanvas, onSelect]);
 
   const begin = useCallback(
     (e: React.MouseEvent) => {

@@ -51,7 +51,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 700px) {
+@container (max-width: 700px) {
   .workspace-nodes-selection-bar {
     bottom: 12px;
     max-width: calc(100% - 24px);
@@ -121,7 +121,7 @@
   color: var(--error);
 }
 
-@media (max-width: 700px) {
+@container (max-width: 700px) {
   .workspace-nodes-page__top {
     padding: 22px 20px 0;
   }
@@ -139,7 +139,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@container (max-width: 420px) {
   .workspace-nodes-page__top,
   .workspace-nodes-page__scroll {
     padding-right: 14px;

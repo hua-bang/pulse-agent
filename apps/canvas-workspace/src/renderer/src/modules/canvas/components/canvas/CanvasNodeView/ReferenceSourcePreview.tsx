@@ -60,10 +60,11 @@ export const ReferenceSourcePreview = ({
     workspaceName={workspaceLabel}
     isDragging={false}
     isResizing={false}
-    // The outer reference card owns selection and drag affordances. Treat the
-    // inner preview as unselected content so iframe/webview selection chrome
-    // does not enable hover-time pointer behavior inside the embedded page.
-    isSelected={false}
+    // The outer reference card owns selection and drag affordances. Keep
+    // iframe/webview previews unselected so hover-time pointer behavior stays
+    // gated, while forwarding selection to editable native nodes (Text, Shape,
+    // Mindmap) so double-click editing does not immediately exit.
+    isSelected={sourceNode.type === 'iframe' ? false : isSelected}
     isHighlighted={false}
     onDragStart={() => undefined}
     onResizeStart={() => undefined}

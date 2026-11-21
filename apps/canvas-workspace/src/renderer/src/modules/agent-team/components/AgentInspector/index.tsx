@@ -34,7 +34,11 @@ export const AgentInspector = ({
   onSelectArtifact,
 }: Props) => {
   const { agent, tasks, artifacts, agentNode, activityLines, workspaceLabel } = detail;
-  useEscapeClose(true, onClose);
+  useEscapeClose(true, onClose, {
+    shouldIgnore: (event) => (
+      event.target instanceof Element && Boolean(event.target.closest('.xterm'))
+    ),
+  });
   return (
     <div
       className="agent-team-agent-inspector"
@@ -143,7 +147,7 @@ export const AgentInspector = ({
               </div>
             ) : agentNode && terminal ? (
               <div className="agent-team-agent-inspector__terminal-body">
-                <AgentNodeBody node={agentNode} {...terminal} terminalMode="mirror" />
+                <AgentNodeBody key={agentNode.id} node={agentNode} {...terminal} terminalMode="mirror" />
               </div>
             ) : (
               <div className="agent-team-agent-inspector__terminal-empty">

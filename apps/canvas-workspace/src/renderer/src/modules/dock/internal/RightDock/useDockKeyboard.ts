@@ -101,7 +101,8 @@ export const useDockKeyboard = ({
         return;
       }
       if (activeTabId === CHAT_TAB_ID) return;
-      if (tabs.find((tab) => tab.id === activeTabId)?.kind === 'link') {
+      const activeTabKind = tabs.find((tab) => tab.id === activeTabId)?.kind;
+      if (activeTabKind === 'link' || activeTabKind === 'folder') {
         onCollapse();
         return;
       }

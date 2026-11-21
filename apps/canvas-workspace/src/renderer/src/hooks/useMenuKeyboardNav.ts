@@ -58,6 +58,16 @@ export const useMenuKeyboardNav = (
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
         return;
       }
+      if (e.key === 'Home' || e.key === 'End') {
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLInputElement
+          || active instanceof HTMLTextAreaElement
+          || (active instanceof HTMLElement && active.isContentEditable)
+        ) {
+          return;
+        }
+      }
       if (scope === 'within') {
         const target = e.target as Node | null;
         if (!target || !ref.current?.contains(target)) return;

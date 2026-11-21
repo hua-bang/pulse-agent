@@ -48,6 +48,7 @@ export function createAgentTeamFramePresentation({
   const lead = agents.find((agent) => agent.role === 'lead');
   const teamStatus = runtime?.team.status ?? 'planning';
   const isCompletedTeam = teamStatus === 'completed';
+  const isFailedTeam = teamStatus === 'failed';
   const isCheckpoint = teamStatus === 'round_checkpoint';
   const checkpointRound = runtime?.checkpointRound;
   const teamTitle = runtime?.team.name ?? data.agentTeamName ?? nodeTitle;
@@ -62,13 +63,15 @@ export function createAgentTeamFramePresentation({
     ? 'Briefing'
     : isCompletedTeam
       ? 'Completed'
-      : isCheckpoint
-        ? `Round ${checkpointRound ?? ''} Checkpoint`
-        : phase === 'plan_review'
-          ? 'Plan Review'
-          : phase === 'starting'
-            ? 'Starting Agents'
-            : 'Executing';
+      : isFailedTeam
+        ? 'Failed'
+        : isCheckpoint
+          ? `Round ${checkpointRound ?? ''} Checkpoint`
+          : phase === 'plan_review'
+            ? 'Plan Review'
+            : phase === 'starting'
+              ? 'Starting Agents'
+              : 'Executing';
   const graphTitle = phase === 'plan_review'
     ? 'Proposed task graph'
     : phase === 'starting'
@@ -88,7 +91,7 @@ export function createAgentTeamFramePresentation({
     isCompletedTeam,
     isCheckpoint,
     checkpointRound,
-    shouldShowLeadCommandSlot: phase === 'briefing' || phase === 'plan_review' || isCompletedTeam,
+    shouldShowLeadCommandSlot: phase === 'briefing' || phase === 'plan_review' || isCompletedTeam || isFailedTeam,
     teamTitle,
     teamCwd,
     phaseTitle,

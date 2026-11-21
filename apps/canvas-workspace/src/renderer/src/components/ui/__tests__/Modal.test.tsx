@@ -173,4 +173,46 @@ describe('Modal', () => {
     });
     expect(document.activeElement).toBe(last);
   });
+
+  it('skips tabindex=-1 and hidden buttons when cycling Tab focus', () => {
+    render(
+      <Modal open onClose={vi.fn()} labelledBy="filtered-title">
+        <h2 id="filtered-title">Filtered trap</h2>
+        <input data-testid="only-input" />
+        <button type="button" tabIndex={-1} data-testid="roving-item">Row</button>
+        <button type="button" hidden data-testid="hidden-btn">Hidden</button>
+      </Modal>,
+    );
+    const input = document.querySelector('[data-testid="only-input"]') as HTMLElement;
+    input.focus();
+    const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => {
+      document.dispatchEvent(tabEvent);
+    });
+    expect(tabEvent.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('traps Tab inside the topmost nested modal via LIFO stack', () => {
+    render(
+      <>
+        <Modal open onClose={vi.fn()} labelledBy="outer-title">
+          <h2 id="outer-title">Outer</h2>
+          <button type="button" data-testid="outer-btn">Outer</button>
+        </Modal>
+        <Modal open onClose={vi.fn()} labelledBy="inner-title">
+          <h2 id="inner-title">Inner</h2>
+          <button type="button" data-testid="inner-first">Inner 1</button>
+          <button type="button" data-testid="inner-last">Inner 2</button>
+        </Modal>
+      </>,
+    );
+    const innerFirst = document.querySelector('[data-testid="inner-first"]') as HTMLElement;
+    const innerLast = document.querySelector('[data-testid="inner-last"]') as HTMLElement;
+    innerLast.focus();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    });
+    expect(document.activeElement).toBe(innerFirst);
+  });
 });

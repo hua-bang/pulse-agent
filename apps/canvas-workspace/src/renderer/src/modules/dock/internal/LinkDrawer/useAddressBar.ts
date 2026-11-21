@@ -18,6 +18,7 @@ import {
 import { resolveAddressInput } from '../../../../platform/browser/address-input';
 import { useAddressSuggestions, type AddressSuggestion } from './AddressSuggestions';
 import { useClickOutside } from '../../../../hooks/useClickOutside';
+import { isImeComposing } from '../../../../utils/ime';
 import { useGuestInteractionShield } from '../../../../platform/browser/useGuestInteractionShield';
 import { clampIndexMove } from '../../../../components/ui';
 import { cancelDockPageFocusRequest } from '../RightDock/links/dock-browser-commands';
@@ -142,6 +143,7 @@ export const useAddressBar = ({
   }, [address, commit]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(event.nativeEvent)) return;
     if (event.key === 'Escape') {
       // Swallow it — the RightDock window listener would otherwise act on it.
       event.preventDefault();

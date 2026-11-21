@@ -77,8 +77,11 @@ export const AgentTerminal = ({
             ref={containerRef}
             className="agent-xterm-container"
             onMouseDown={(e) => e.stopPropagation()}
-            // Scrolling terminal output must not also pan the canvas underneath.
-            onWheel={(e) => e.stopPropagation()}
+            // Scrolling terminal output must not also pan the canvas underneath,
+            // while pinch / Ctrl+wheel still zooms the canvas.
+            onWheel={(e) => {
+              if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
+            }}
           />
           {loading && (
             <div

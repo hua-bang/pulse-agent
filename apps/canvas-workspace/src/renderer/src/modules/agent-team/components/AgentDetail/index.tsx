@@ -114,7 +114,7 @@ export const AgentDetail = ({
           </div>
         ) : agentNode && terminal ? (
           <div className="agent-team-agent-detail__inline-terminal">
-            <AgentNodeBody node={agentNode} {...terminal} terminalMode="mirror" />
+            <AgentNodeBody key={agentNode.id} node={agentNode} {...terminal} terminalMode="mirror" />
           </div>
         ) : (
           <div className="agent-team-detail__muted agent-team-detail__empty">No runtime node yet. Approve &amp; run the plan to stream the terminal.</div>

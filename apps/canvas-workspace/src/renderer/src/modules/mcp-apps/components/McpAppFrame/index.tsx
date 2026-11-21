@@ -15,7 +15,14 @@ export const McpAppFrame = (props: McpAppFrameProps) => {
   const { t } = useI18n();
 
   if (controller.error) {
-    return <div className="chat-mcp-app chat-mcp-app--error">{controller.error}</div>;
+    return (
+      <div className="chat-mcp-app chat-mcp-app--error">
+        <span>{controller.error}</span>
+        <Button size="xs" variant="secondary" onClick={controller.reload}>
+          {t('chat.retry')}
+        </Button>
+      </div>
+    );
   }
   if (!controller.resource) {
     return <div className="chat-mcp-app chat-mcp-app--loading">Loading MCP App…</div>;

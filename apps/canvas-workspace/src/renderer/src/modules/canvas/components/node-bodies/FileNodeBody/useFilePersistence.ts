@@ -135,24 +135,29 @@ export function useFilePersistence(options: Options) {
     return pending;
   }, [current, fail, options.readOnly, session]);
 
-  const persistToFile = useCallback(async (markdown: string, filePath: string) => {
+  const persistToFile = useCallback(async (markdown: string, filePath: string, writeOptions?: { force?: boolean }) => {
     if (options.readOnly || filePath !== session.filePath || !filePath) return;
     const api = window.canvasWorkspace?.file;
     if (!api?.write) { fail(); return; }
+    const force = writeOptions?.force === true;
     session.dirty = true;
     const saveSequence = ++session.saveSequence;
     const editSequence = session.editSequence;
     session.queued += 1;
     const operation = session.queue.catch(() => undefined).then(async () => {
-      if (session.conflict) { fail(true); return; }
-      if ((!session.baseline || (session.versioned && !session.baseline.version)) && !await refresh()) return;
+      if (session.conflict && !force) { fail(true); return; }
+      if (force) {
+        session.conflict = false;
+        setConflicted(false);
+      }
+      if (!force && (!session.baseline || (session.versioned && !session.baseline.version)) && !await refresh()) return;
       // A read started before this write must not later restore its old body
       // or replace the acknowledged version, even if it finishes last.
       session.readSequence += 1;
       session.reading = undefined;
       session.writing = true;
       try {
-        const version = session.baseline?.version;
+        const version = force ? undefined : session.baseline?.version;
         const result = version === undefined
           ? await api.write(filePath, markdown)
           : await api.write(filePath, markdown, version);

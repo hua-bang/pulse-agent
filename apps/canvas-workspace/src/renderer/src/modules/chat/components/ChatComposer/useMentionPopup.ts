@@ -227,7 +227,13 @@ export const useMentionPopup = ({
       closeMention();
       return true;
     }
-    if (mentionItems.length === 0) return false;
+    if (mentionItems.length === 0) {
+      if (mentionLoading && (event.key === 'Enter' || event.key === 'Tab')) {
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    }
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setMentionIndex(index => (index + 1) % mentionItems.length);
@@ -244,7 +250,7 @@ export const useMentionPopup = ({
       return true;
     }
     return false;
-  }, [closeMention, mentionIndex, mentionItems, mentionOpen, selectMention]);
+  }, [closeMention, mentionIndex, mentionItems, mentionLoading, mentionOpen, selectMention]);
 
   return {
     detectMention,

@@ -52,7 +52,8 @@
   --accent-muted: rgba(80, 120, 220, 0.16);
   --accent-soft: rgba(59, 130, 246, 0.1);
   --accent-soft-strong: rgba(59, 130, 246, 0.22);
-  --border-subtle: rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(var(--ink-rgb), 0.1);
+  --danger: var(--error);
   /* Pure white per the Heptabase reference — cards pop off the tinted
    * frame washes; the warm cream paper read as one more beige layer. */
   --note-paper: #ffffff;
@@ -70,10 +71,10 @@
   --note-search-active-bg: rgba(255, 149, 0, 0.65);
   --note-scroll-thumb: rgba(55, 53, 47, 0.12);
   --note-scroll-thumb-hover: rgba(55, 53, 47, 0.22);
-  --surface-1: rgba(0, 0, 0, 0.2);
-  --surface-2: rgba(255, 255, 255, 0.03);
   --surface-alt: rgba(0, 0, 0, 0.05);
   --surface-subtle: rgba(0, 0, 0, 0.02);
+  --surface-1: var(--surface-alt);
+  --surface-2: var(--surface-subtle);
   --link-text: #365f91;
   --link-text-hover: #244775;
   --accent: #2383e2;

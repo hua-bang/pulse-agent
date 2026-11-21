@@ -88,7 +88,7 @@ export const ChatInputAttachments = ({
                   type="button"
                   className="chat-attachment-remove"
                   onClick={() => onRemoveAttachment?.(attachment.id)}
-                  disabled={interactionDisabled || status === 'uploading'}
+                  disabled={interactionDisabled}
                   aria-label={t('chat.removeImage', { name: attachmentLabel })}
                 >
                   ×

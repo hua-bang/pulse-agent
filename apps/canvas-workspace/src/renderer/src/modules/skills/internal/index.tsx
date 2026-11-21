@@ -205,7 +205,11 @@ export const SkillsLibrary = ({
     dock.closeSkill(target, skill.originalName ?? skill.name);
     dock.closeSkill(target, skill.name);
     setScopeView(target.level);
-    await load();
+    if (target.level === 'workspace' && globalPerspective) {
+      setLibraryContext({ kind: 'workspace', workspaceId: target.workspaceId });
+    } else {
+      await load();
+    }
     notify({ tone: 'success', title: t('skillsLibrary.created', { name: skill.name }) });
     return true;
   };

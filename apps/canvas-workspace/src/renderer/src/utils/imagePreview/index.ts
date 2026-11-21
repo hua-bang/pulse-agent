@@ -19,12 +19,29 @@ const waiting = new Map<number, (reply: WorkerReply) => void>();
 // One render at a time bounds peak memory to a single full-size bitmap.
 let renderQueue: Promise<unknown> = Promise.resolve();
 
+const resetWorker = (reason: string): void => {
+  const broken = worker;
+  worker = null;
+  broken?.terminate();
+  const pending = Array.from(waiting.entries());
+  waiting.clear();
+  for (const [id, resolve] of pending) {
+    resolve({ id, error: reason });
+  }
+};
+
 const previewWorker = (): Worker => {
   if (!worker) {
     worker = new Worker(new URL('./preview.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (event: MessageEvent<WorkerReply>) => {
       waiting.get(event.data.id)?.(event.data);
       waiting.delete(event.data.id);
+    };
+    worker.onerror = () => {
+      resetWorker('Image preview worker crashed');
+    };
+    worker.onmessageerror = () => {
+      resetWorker('Image preview worker message error');
     };
   }
   return worker;

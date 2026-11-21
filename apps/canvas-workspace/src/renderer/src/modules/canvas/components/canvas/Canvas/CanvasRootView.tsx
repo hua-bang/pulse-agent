@@ -227,7 +227,6 @@ export const CanvasRootView = ({
       onMouseUp={mouse.handleMouseUp}
       onMouseLeave={() => {
         drawingGestures.connectHandles.handleMouseLeave();
-        if (!mouse.isDraggingRef.current && !mouse.isEdgeDragging()) mouse.handleMouseUp();
       }}
       onDragStart={(e) => e.preventDefault()}
       onDoubleClick={ctxMenu.handleDoubleClick}
