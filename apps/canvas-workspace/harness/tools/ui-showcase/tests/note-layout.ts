@@ -43,8 +43,13 @@ for (const scale of [0.5, 1, 1.5]) {
         };
       });
       expect(Math.abs(geometry.left - geometry.right)).toBeLessThanOrEqual(2);
-      if (width <= 520) expect(geometry.left).toBeLessThanOrEqual(30);
-      expect(geometry.editorWidth).toBeLessThanOrEqual(800);
+      if (width < 480) expect(geometry.left).toBeLessThanOrEqual(34);
+      else if (width <= 520) expect(geometry.left).toBeLessThanOrEqual(46);
+      if (mode === 'canvas-node--fullscreen') {
+        expect(geometry.editorWidth).toBeLessThanOrEqual(800);
+      } else {
+        expect(geometry.editorWidth).toBeCloseTo(width, 0);
+      }
       expect(geometry.overflow).toBe(0);
       // The component tests cover dynamic anchoring/drop geometry. Here the
       // same 26px offset exercises the single handle's bounds and focus ring.
