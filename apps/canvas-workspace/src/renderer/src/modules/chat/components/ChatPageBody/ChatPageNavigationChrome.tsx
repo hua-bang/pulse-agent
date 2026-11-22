@@ -91,7 +91,6 @@ export const ChatPageTopbar = ({
         const canvasTitle = `${workspaceLabel} — ${t('workspaceNodes.openOnCanvas')}`;
         return onOpenCanvas ? (
           <Button
-            variant="ghost"
             size="xs"
             className="chat-page-topbar-workspace"
             onClick={onOpenCanvas}
