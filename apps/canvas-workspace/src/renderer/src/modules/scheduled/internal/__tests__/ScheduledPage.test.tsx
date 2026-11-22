@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n';
 import { AppShellProvider } from '../../../../app/shell/AppShellProvider';
 
-const dock = vi.hoisted(() => ({ openScheduledChat: vi.fn() }));
+const dock = vi.hoisted(() => ({ openScheduledChat: vi.fn(), openArtifact: vi.fn() }));
 vi.mock('../../../../shared/dockPort', () => ({ useRightDock: () => dock }));
 
 import { ScheduledPage } from '../ScheduledPage';
@@ -29,6 +29,7 @@ afterEach(() => {
   root = null;
   host = null;
   dock.openScheduledChat.mockReset();
+  dock.openArtifact.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -279,5 +280,47 @@ describe('ScheduledPage', () => {
 
     expect(onAskAi).toHaveBeenCalledWith(expect.objectContaining({ id: 'daily-brief', title: 'Daily brief' }));
     expect(dock.openScheduledChat).not.toHaveBeenCalled();
+  });
+
+  it('renders built-in daily and weekly digests as cards with direct View report action', async () => {
+    Object.defineProperty(window, 'canvasWorkspace', {
+      configurable: true,
+      value: {
+        scheduled: {
+          list: vi.fn(async () => ({
+            ok: true,
+            tasks: [
+              {
+                id: 'daily-summary',
+                title: 'Daily summary',
+                prompt: 'Review the last 24 hours of Canvas activity (sessions and canvas changes) and prepare a daily summary.',
+                schedule: { kind: 'daily', timeOfDay: '21:00' },
+                enabled: true,
+                source: 'daily-summary',
+                createdAt: 1,
+                updatedAt: 1,
+                nextRunAt: Date.now() + 60_000,
+                lastAttemptAt: 10,
+                lastSuccessAt: 10,
+                lastSessionId: 'sess-daily',
+                lastArtifactId: 'art-daily',
+                runCount: 1,
+                status: 'idle',
+              },
+            ],
+          })),
+          onChanged: vi.fn(() => () => undefined),
+        },
+      },
+    });
+    await mount();
+
+    const card = host?.querySelector<HTMLElement>('[data-task-id="daily-summary"]');
+    expect(card?.classList.contains('scheduled-digest__card')).toBe(true);
+    const viewReport = [...(card?.querySelectorAll('button') ?? [])]
+      .find((btn) => btn.textContent?.includes('View report'));
+    expect(viewReport).toBeDefined();
+    act(() => viewReport?.click());
+    expect(dock.openArtifact).toHaveBeenCalledWith('__global_chat__', 'art-daily');
   });
 });

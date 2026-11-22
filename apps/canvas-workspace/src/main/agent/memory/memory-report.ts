@@ -166,7 +166,7 @@ export async function generateMemoryReport(options: MemoryReportOptions = {}): P
 const REPORTS_KEEP = 12;
 
 /** Runtime capabilities every report artifact declares (adopt-in-page UX). */
-const REPORT_CAPABILITIES = ['memory.adopt', 'skill.save'];
+export const REPORT_CAPABILITIES = ['memory.adopt', 'skill.save'];
 
 /**
  * Fixed style kit distilled from the app's design tokens (renderer
@@ -175,7 +175,7 @@ const REPORT_CAPABILITIES = ['memory.adopt', 'skill.save'];
  * model to embed this verbatim and compose with its classes, so report
  * visuals match the workspace instead of drifting per generation.
  */
-const REPORT_STYLE_KIT = `<style>
+export const REPORT_STYLE_KIT = `<style>
 :root{--bg:#f8f8f7;--surface:#fff;--border:#e8e5e0;--text:#37352f;--text-secondary:#787774;--text-muted:#b4b0a8;--accent:#2383e2;--accent-light:rgba(35,131,226,.08);--accent-border:rgba(35,131,226,.45);--success:#1f7a4d;--error:#c0392b;--radius:8px;--radius-sm:6px;--shadow-card:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05)}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font:14px/1.7 "SF Mono","Fira Code","Cascadia Code",Menlo,monospace;margin:0 auto;padding:32px 40px;max-width:860px}
@@ -201,7 +201,7 @@ export function memoryReportsDir(): string {
 }
 
 /** Models often wrap HTML in a ```html fence despite instructions — unwrap it. */
-function stripCodeFence(text: string): string {
+export function stripCodeFence(text: string): string {
   const match = text.trim().match(/^```(?:html)?\s*\n([\s\S]*?)\n```\s*$/);
   return match ? match[1] : text;
 }
@@ -211,7 +211,7 @@ function stripCodeFence(text: string): string {
  * ends without a final document — publishing that as the report artifact is
  * worse than failing. Accept only something that looks like an HTML document.
  */
-function looksLikeHtmlDocument(text: string): boolean {
+export function looksLikeHtmlDocument(text: string): boolean {
   return /<!doctype\s+html|<html[\s>]/i.test(text);
 }
 

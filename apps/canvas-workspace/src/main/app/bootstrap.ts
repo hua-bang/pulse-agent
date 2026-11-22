@@ -243,7 +243,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     ]);
     const scheduled = getScheduledTaskService();
     setAgentScheduledPort(scheduled);
-    await scheduled.ensureMemoryReportTask();
+    await Promise.all([scheduled.ensureDailySummaryTask(), scheduled.ensureMemoryReportTask()]);
     setupScheduledTaskIpc();
     scheduled.start();
     const runScheduledCatchUp = () => { void scheduled.runDueTasks(); };

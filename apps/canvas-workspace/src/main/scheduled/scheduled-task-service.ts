@@ -11,7 +11,11 @@ import type {
   ScheduledTaskPatch,
 } from '../../shared/scheduled';
 import {
+  DAILY_SUMMARY_PROMPT,
+  DAILY_SUMMARY_TASK_ID,
+  DAILY_SUMMARY_TITLE,
   MEMORY_REPORT_PROMPT,
+  MEMORY_REPORT_TASK_ID,
   MEMORY_REPORT_TITLE,
   computeNextRunAt,
   normalizeSchedule,
@@ -26,6 +30,8 @@ interface ScheduledTaskState {
 type PersistedTask = ScheduledTask & { intervalMinutes?: number };
 
 const WEEK_MINUTES = 7 * 24 * 60;
+/** Daily 21:00 local for the built-in daily summary. */
+const DAILY_SUMMARY_SCHEDULE: ScheduledSchedule = { kind: 'daily', timeOfDay: '21:00' };
 /** Monday 09:00 local. Weekday numbering matches `Date#getDay()`. */
 const MEMORY_REPORT_SCHEDULE: ScheduledSchedule = { kind: 'weekly', weekday: 1, timeOfDay: '09:00' };
 const DEFAULT_INITIAL_DELAY_MS = 45_000;
@@ -123,17 +129,45 @@ export class ScheduledTaskService {
    * that already has the task keeps its stored schedule untouched.
    */
   async ensureMemoryReportTask(): Promise<ScheduledTask> {
-    const existing = await this.getTask('memory-report');
+    const existing = await this.getTask(MEMORY_REPORT_TASK_ID);
     if (existing) return existing;
     const createdAt = this.now();
     const schedule = MEMORY_REPORT_SCHEDULE;
     const task: ScheduledTask = {
-      id: 'memory-report',
+      id: MEMORY_REPORT_TASK_ID,
       title: MEMORY_REPORT_TITLE,
       prompt: MEMORY_REPORT_PROMPT,
       schedule,
       enabled: false,
       source: 'memory-report',
+      createdAt,
+      updatedAt: createdAt,
+      nextRunAt: computeNextRunAt(schedule, createdAt),
+      runCount: 0,
+      status: 'idle',
+    };
+    await this.mutate((state) => {
+      if (!state.tasks.some((candidate) => candidate.id === task.id)) state.tasks.push(task);
+    });
+    return (await this.getTask(task.id))!;
+  }
+
+  /**
+   * Seeds the built-in daily summary at 21:00 local time. Seeding is one-shot
+   * so existing installs preserve any user edits to cadence or enabled state.
+   */
+  async ensureDailySummaryTask(): Promise<ScheduledTask> {
+    const existing = await this.getTask(DAILY_SUMMARY_TASK_ID);
+    if (existing) return existing;
+    const createdAt = this.now();
+    const schedule = DAILY_SUMMARY_SCHEDULE;
+    const task: ScheduledTask = {
+      id: DAILY_SUMMARY_TASK_ID,
+      title: DAILY_SUMMARY_TITLE,
+      prompt: DAILY_SUMMARY_PROMPT,
+      schedule,
+      enabled: false,
+      source: 'daily-summary',
       createdAt,
       updatedAt: createdAt,
       nextRunAt: computeNextRunAt(schedule, createdAt),
@@ -289,9 +323,15 @@ export class ScheduledTaskService {
       await this.mutate((state) => {
         const current = state.tasks.find((candidate) => candidate.id === task.id);
         if (!current) return;
-        current.lastSuccessAt = attemptedAt;
         current.lastError = undefined;
+        if (result?.skipped) {
+          current.lastSkippedAt = attemptedAt;
+          return;
+        }
+        current.lastSuccessAt = attemptedAt;
+        current.lastSkippedAt = undefined;
         if (result?.sessionId) current.lastSessionId = result.sessionId;
+        if (result?.artifactId) current.lastArtifactId = result.artifactId;
       });
     } catch (error) {
       await this.mutate((state) => {

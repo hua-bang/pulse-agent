@@ -117,4 +117,40 @@ describe('useScheduledRunToasts', () => {
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0].textContent).toContain('model unavailable');
   });
+
+  it('stays silent when a scheduled digest skips due to no new activity', async () => {
+    const emit = await mount(vi.fn());
+
+    emit({
+      taskId: 'daily-summary',
+      title: 'Daily summary',
+      ok: true,
+      skipped: true,
+      trigger: 'schedule',
+    });
+
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it('shows View report and activity summary when a digest produces an artifact', async () => {
+    const onOpenRun = vi.fn();
+    const emit = await mount(onOpenRun);
+
+    emit({
+      taskId: 'daily-summary',
+      title: 'Daily summary',
+      ok: true,
+      sessionId: 'sess-digest',
+      artifactId: 'art-digest',
+      summary: '2 workspaces · 3 sessions · 4 canvas changes',
+      trigger: 'schedule',
+    });
+
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0].textContent).toContain('2 workspaces · 3 sessions · 4 canvas changes');
+    const action = document.querySelector<HTMLButtonElement>('.shell-toast__action');
+    expect(action?.textContent).toContain('View report');
+    await act(async () => { action?.click(); });
+    expect(onOpenRun).toHaveBeenCalledWith(expect.objectContaining({ artifactId: 'art-digest' }));
+  });
 });
