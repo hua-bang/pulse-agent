@@ -1,15 +1,14 @@
 import {
-  CalendarDots,
-  ChatCircleText,
+  ArrowSquareOut,
+  CalendarBlank,
   CheckCircle,
+  ClockClockwise,
   FileText,
-  MoonStars,
   Pause,
   PencilSimple,
   Play,
   Sparkle,
   SpinnerGap,
-  SunHorizon,
   WarningCircle,
 } from '@phosphor-icons/react';
 import type { ScheduledTask } from '../../../../../shared/scheduled';
@@ -62,7 +61,7 @@ const DigestStatus = ({ task, running }: { task: ScheduledTask; running: boolean
   if (task.lastSkippedAt && (!task.lastSuccessAt || task.lastSkippedAt >= task.lastSuccessAt)) {
     return (
       <span className="scheduled-digest__status scheduled-digest__status--skipped">
-        <MoonStars size={13} />
+        <ClockClockwise size={13} />
         {t('scheduled.lastSkipped', { time: timeLabel(task.lastSkippedAt, t('scheduled.never')) })}
       </span>
     );
@@ -121,7 +120,7 @@ export const DigestCards = ({
               <div className="scheduled-digest__top">
                 <div className="scheduled-digest__title-wrap">
                   <span className="scheduled-digest__icon" aria-hidden="true">
-                    {isDaily ? <SunHorizon size={17} /> : <CalendarDots size={17} />}
+                    {isDaily ? <ClockClockwise size={17} /> : <CalendarBlank size={17} />}
                   </span>
                   <div className="scheduled-digest__title-group">
                     <div className="scheduled-digest__title-row">
@@ -172,7 +171,7 @@ export const DigestCards = ({
                     size="xs"
                     onClick={() => onOpenSession(task, sessionId)}
                   >
-                    <ChatCircleText size={13} />
+                    <ArrowSquareOut size={13} />
                     {t('scheduled.openChat')}
                   </Button>
                 )}

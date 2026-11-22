@@ -396,7 +396,7 @@
   margin: 0;
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -413,9 +413,9 @@
   gap: 14px;
   padding: 16px 18px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
-  background: var(--surface-elevated, var(--surface));
-  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.04));
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .scheduled-digest__card--paused {
@@ -444,8 +444,8 @@
   width: 30px;
   height: 30px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--bg, var(--surface));
+  border-radius: var(--radius-sm);
+  background: var(--bg);
   color: var(--accent);
 }
 
@@ -503,7 +503,7 @@
 
 .scheduled-digest__status--failed,
 .scheduled-digest__status--failed > svg {
-  color: var(--danger, #c0392b);
+  color: var(--danger);
 }
 
 .scheduled-digest__status--skipped {
