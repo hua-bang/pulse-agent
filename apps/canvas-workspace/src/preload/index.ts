@@ -29,6 +29,7 @@ import {
   createExperimentalApi,
   createModelApi,
   createPromptProfileApi,
+  createRemoteVpsApi,
   createSkillsApi,
   createTelemetryApi
 } from "./bridge/settings";
@@ -98,7 +99,8 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   dock: createDockApi(ipcRenderer),
   history: createHistoryApi(ipcRenderer),
   web: createWebApi(ipcRenderer),
-  telemetry: createTelemetryApi(ipcRenderer)
+  telemetry: createTelemetryApi(ipcRenderer),
+  remoteVps: createRemoteVpsApi(ipcRenderer)
 };
 
 contextBridge.exposeInMainWorld("canvasWorkspace", canvasWorkspace);

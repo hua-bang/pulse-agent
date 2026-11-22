@@ -26,6 +26,8 @@ export interface RemoteVpsWorkspaceConfig {
   storage?: 'vps' | 'local';
   /** Where PTY terminals and external CLI agents run (default: `'vps'`). */
   runtime?: 'vps' | 'local';
+  /** Automatically push and start `vps-daemon` over SSH if the remote health check fails. */
+  autoBootstrap?: boolean;
 }
 
 interface RemoteConfigFile {

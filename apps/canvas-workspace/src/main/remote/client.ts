@@ -29,20 +29,51 @@ export async function resolveRemoteTargetFromConfig(
   workspaceId: string,
   config: RemoteVpsWorkspaceConfig,
 ): Promise<ResolvedRemoteTarget> {
-  const token = resolveRemoteToken(config);
-  const endpoint =
-    config.endpoint?.trim() ||
-    (await ensureSshTunnel({
-      sshHost: config.sshHost!,
-      sshPort: config.sshPort,
-      remotePort: config.remotePort,
-    }));
+  let token = config.tokenEnv ? process.env[config.tokenEnv]?.trim() : config.token?.trim();
+  let endpoint = config.endpoint?.trim();
 
+  if (!endpoint && config.sshHost) {
+    const openTunnel = () =>
+      ensureSshTunnel({
+        sshHost: config.sshHost!,
+        sshPort: config.sshPort,
+        remotePort: config.remotePort,
+      });
+
+    if (config.autoBootstrap && !token) {
+      const { bootstrapRemoteVpsDaemon } = await import('./ssh-bootstrap');
+      const boot = await bootstrapRemoteVpsDaemon({
+        sshHost: config.sshHost,
+        sshPort: config.sshPort,
+        remotePort: config.remotePort,
+        workDir: config.cwd,
+      });
+      token = boot.token;
+      endpoint = await openTunnel();
+    } else {
+      try {
+        endpoint = await openTunnel();
+      } catch (tunnelError) {
+        if (!config.autoBootstrap) throw tunnelError;
+        const { bootstrapRemoteVpsDaemon } = await import('./ssh-bootstrap');
+        const boot = await bootstrapRemoteVpsDaemon({
+          sshHost: config.sshHost,
+          sshPort: config.sshPort,
+          remotePort: config.remotePort,
+          workDir: config.cwd,
+        });
+        token = token || boot.token;
+        endpoint = await openTunnel();
+      }
+    }
+  }
+
+  const finalToken = token || resolveRemoteToken(config);
   return {
     workspaceId,
     remoteWorkspaceId: config.remoteWorkspaceId?.trim() || workspaceId,
-    endpoint: endpoint.replace(/\/+$/, ''),
-    token,
+    endpoint: (endpoint ?? '').replace(/\/+$/, ''),
+    token: finalToken,
     cwd: config.cwd,
   };
 }

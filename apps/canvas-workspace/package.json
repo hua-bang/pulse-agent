@@ -23,7 +23,7 @@
     "visual": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts",
     "visual:update": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts --update-snapshots",
     "prepare:workspace-runtime": "pnpm --filter @pulse-coder/storage build && pnpm --filter pulse-coder-engine build && pnpm --filter pulse-coder-agent-teams build",
-    "prepare:agent-tooling": "pnpm --filter @pulse-coder/storage build && pnpm --filter @pulse-coder/canvas-cli build && node scripts/setup/prepare-sqlite-native.mjs",
+    "prepare:agent-tooling": "pnpm --filter @pulse-coder/storage build && pnpm --filter @pulse-coder/canvas-cli build && pnpm --filter @pulse-coder/vps-daemon build && node scripts/setup/prepare-sqlite-native.mjs",
     "prepare:package": "pnpm run prepare:workspace-runtime && pnpm run prepare:agent-tooling",
     "package": "pnpm run prepare:package && electron-vite build && electron-builder",
     "package:mac": "pnpm run prepare:package && electron-vite build && electron-builder --mac",
@@ -100,6 +100,13 @@
       {
         "from": "../../packages/canvas-cli/package.json",
         "to": "agent-tooling/canvas-cli-package.json"
+      },
+      {
+        "from": "../vps-daemon/dist",
+        "to": "vps-daemon",
+        "filter": [
+          "index.cjs"
+        ]
       }
     ],
     "extraMetadata": {

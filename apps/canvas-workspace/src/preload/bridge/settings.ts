@@ -12,6 +12,7 @@ import type { ChannelConfigApi } from "../../shared/api/channel-config";
 import type { DialogApi } from "../../shared/api/files";
 import type { ExperimentalApi } from "../../shared/api/experimental";
 import type { TelemetryApi } from "../../shared/api/telemetry";
+import type { RemoteVpsApi } from "../../shared/api/remote-vps";
 import type { ToolingInstallStatus } from "../../shared/experimental-features";
 
 export const createDialogApi = (ipcRenderer: IpcRenderer): DialogApi => ({
@@ -192,4 +193,17 @@ export const createTelemetryApi = (ipcRenderer: IpcRenderer): TelemetryApi => ({
   track: (event, props) => ipcRenderer.invoke("telemetry:track", { event, props }),
   status: () => ipcRenderer.invoke("telemetry:status"),
   setEnabled: (enabled) => ipcRenderer.invoke("telemetry:set-enabled", { enabled })
+});
+
+export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
+  listSshHosts: () => ipcRenderer.invoke("remote-vps:listSshHosts"),
+  getConfig: (workspaceId) => ipcRenderer.invoke("remote-vps:getConfig", { workspaceId }),
+  saveConfig: (workspaceId, config) =>
+    ipcRenderer.invoke("remote-vps:saveConfig", { workspaceId, config }),
+  removeConfig: (workspaceId) =>
+    ipcRenderer.invoke("remote-vps:removeConfig", { workspaceId }),
+  testAndBootstrap: (workspaceId, config) =>
+    ipcRenderer.invoke("remote-vps:testAndBootstrap", { workspaceId, config }),
+  migrateLocal: (workspaceId, config) =>
+    ipcRenderer.invoke("remote-vps:migrateLocal", { workspaceId, config })
 });
