@@ -53,4 +53,13 @@ export interface RemoteVpsApi {
     workspaceId: string,
     config: RemoteVpsWorkspaceConfigDto,
   ) => Promise<RemoteVpsMigrateResult>;
+  readWorkspaceDoc: (
+    workspaceId: string,
+    cwd?: string,
+  ) => Promise<{ ok: boolean; exists?: boolean; content?: string | null; path?: string; error?: string }>;
+  writeWorkspaceDoc: (
+    workspaceId: string,
+    content: string,
+    cwd?: string,
+  ) => Promise<{ ok: boolean; path?: string; error?: string }>;
 }

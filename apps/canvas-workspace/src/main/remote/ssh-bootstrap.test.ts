@@ -87,6 +87,7 @@ describe('ssh-bootstrap', () => {
       remotePort: 4770,
       cwd: '/home/dev/app',
       daemonBundlePath: bundlePath,
+      skipToolingSync: true,
       sshRunner: fakeRunner,
     });
 
@@ -130,6 +131,7 @@ describe('ssh-bootstrap', () => {
     const res = await bootstrapRemoteVpsDaemon({
       sshHost: 'dev@my-cn-vps',
       daemonBundlePath: bundlePath,
+      skipToolingSync: true,
       sshRunner: fakeRunner,
     });
 
@@ -138,5 +140,50 @@ describe('ssh-bootstrap', () => {
     expect(res.restarted).toBe(false);
     expect(res.token).toBe('existing-token-xyz');
     expect(calls).toHaveLength(2);
+  });
+
+  it('syncs pulse-canvas CLI and skills to remote VPS with valid POSIX shell scripts', async () => {
+    const { syncRemoteCanvasTooling } = await import('./ssh-tooling');
+    const dir = await mkdtemp(join(tmpdir(), 'pulse-tooling-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const cliPath = join(dir, 'index.cjs');
+    const skillPath = join(dir, 'SKILL.md');
+    await writeFile(cliPath, 'console.log("canvas-cli");\n', 'utf8');
+    await writeFile(skillPath, '---\nname: canvas\n---\nUse pulse-canvas.', 'utf8');
+
+    const scripts: string[] = [];
+    let uploadedCli = false;
+    const fakeRunner: SshRunner = async ({ remoteCommand, stdin }) => {
+      if (remoteCommand === 'sh -s' && typeof stdin === 'string') {
+        assertValidPosixShell(stdin);
+        scripts.push(stdin);
+        if (stdin.includes('canvas-cli.sha') && stdin.includes('BIN=')) {
+          return { code: 0, stdout: '\nmissing\n', stderr: '' };
+        }
+        return { code: 0, stdout: '', stderr: '' };
+      }
+      if (remoteCommand.includes('canvas-cli/index.cjs.tmp')) {
+        assertValidPosixShell(remoteCommand);
+        uploadedCli = Buffer.isBuffer(stdin) && stdin.length > 0;
+        return { code: 0, stdout: '', stderr: '' };
+      }
+      return { code: 1, stdout: '', stderr: `unexpected: ${remoteCommand}` };
+    };
+
+    const synced = await syncRemoteCanvasTooling({
+      sshHost: 'dev@my-cn-vps',
+      sshPort: 22,
+      remoteDir: '$HOME/.pulse-vps-daemon',
+      dataDir: '$HOME/.pulse-coder/canvas',
+      run: fakeRunner,
+      cliBundlePath: cliPath,
+      skillDocPath: skillPath,
+    });
+
+    expect(synced).toBe(true);
+    expect(uploadedCli).toBe(true);
+    expect(scripts).toHaveLength(2);
+    expect(scripts[1]).toContain('PULSE_CANVAS_DATA_DIR');
+    expect(scripts[1]).toContain('.codex/skills');
   });
 });

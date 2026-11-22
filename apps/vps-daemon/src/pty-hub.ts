@@ -84,6 +84,7 @@ export class PtyHub {
   constructor(
     private readonly defaultCwd: string = homedir(),
     spawner?: PtySpawner,
+    private readonly dataDir?: string,
   ) {
     this.spawner = spawner ?? defaultPtySpawner;
   }
@@ -119,6 +120,13 @@ export class PtyHub {
       for (const [k, v] of Object.entries(payload.env)) {
         if (typeof v === 'string') baseEnv[k] = v;
       }
+    }
+    const vpsBinDir = `${homedir()}/.pulse-vps-daemon/bin`;
+    if (existsSync(vpsBinDir)) {
+      baseEnv.PATH = baseEnv.PATH ? `${vpsBinDir}:${baseEnv.PATH}` : vpsBinDir;
+    }
+    if (this.dataDir && !baseEnv.PULSE_CANVAS_DATA_DIR) {
+      baseEnv.PULSE_CANVAS_DATA_DIR = this.dataDir;
     }
     if (!baseEnv.LANG) baseEnv.LANG = 'en_US.UTF-8';
 

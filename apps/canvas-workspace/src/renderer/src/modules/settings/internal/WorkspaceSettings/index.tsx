@@ -14,7 +14,8 @@
  * chat turn (see canvas-agent/canvas-agent.ts).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { Drawer, Button, TextField, FieldRow } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
@@ -58,28 +59,68 @@ export const WorkspaceSettingsDrawer = ({
   const [agentsDoc, setAgentsDoc] = useState('');
   const [agentsDocLoaded, setAgentsDocLoaded] = useState(false);
   const [agentsDocExists, setAgentsDocExists] = useState(false);
+  const [remoteVps, setRemoteVps] = useState<RemoteVpsWorkspaceConfigDto | null>(null);
+  const [remoteVpsReady, setRemoteVpsReady] = useState(false);
+  const [remoteDocPath, setRemoteDocPath] = useState<string | null>(null);
   const [savingDoc, setSavingDoc] = useState(false);
   const [error, setError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
   const [intent, setIntent] = useState('');
   const [generating, setGenerating] = useState(false);
-  const initializedRef = useRef(false);
 
-  // Reload state whenever the drawer (re)opens for a workspace.
+  const handleRemoteVpsChange = useCallback((cfg: RemoteVpsWorkspaceConfigDto | null) => {
+    setRemoteVps(cfg);
+    setRemoteVpsReady(true);
+  }, []);
+
+  // Reset basic draft fields when opening or switching workspace.
   useEffect(() => {
     if (!open || !workspace) {
-      initializedRef.current = false;
+      setRemoteVps(null);
+      setRemoteVpsReady(false);
+      setRemoteDocPath(null);
       return;
     }
-    if (initializedRef.current) return;
-    initializedRef.current = true;
     setNameDraft(workspace.name);
     setError(undefined);
     setSavedHint(false);
-    setAgentsDocLoaded(false);
     setIntent('');
     setGenerating(false);
+    setRemoteVpsReady(!window.canvasWorkspace?.remoteVps);
+  }, [open, workspace]);
 
+  // Load pulse-workspace.md from either VPS (when bound) or local rootFolder.
+  useEffect(() => {
+    if (!open || !workspace || !remoteVpsReady) return;
+    let cancelled = false;
+    setAgentsDocLoaded(false);
+    const fallbackTemplate = buildWorkspaceDocTemplate(workspace.name, {
+      goal: t('workspaceSettings.goalPlaceholder'),
+      status: t('workspaceSettings.statusPlaceholder'),
+      notes: t('workspaceSettings.notesPlaceholder'),
+    });
+
+    if (remoteVps) {
+      void window.canvasWorkspace?.remoteVps
+        .readWorkspaceDoc(workspace.id, remoteVps.cwd)
+        .then((res) => {
+          if (cancelled) return;
+          setRemoteDocPath(res?.path ?? null);
+          if (res?.ok && res.exists && typeof res.content === 'string') {
+            setAgentsDoc(res.content);
+            setAgentsDocExists(true);
+          } else {
+            setAgentsDoc(fallbackTemplate);
+            setAgentsDocExists(false);
+          }
+          setAgentsDocLoaded(true);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setRemoteDocPath(null);
     if (!workspace.rootFolder) {
       setAgentsDoc('');
       setAgentsDocExists(false);
@@ -89,20 +130,20 @@ export const WorkspaceSettingsDrawer = ({
 
     const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
     void window.canvasWorkspace?.file.read(filePath).then((res) => {
+      if (cancelled) return;
       if (res.ok && typeof res.content === 'string') {
         setAgentsDoc(res.content);
         setAgentsDocExists(true);
       } else {
-        setAgentsDoc(buildWorkspaceDocTemplate(workspace.name, {
-          goal: t('workspaceSettings.goalPlaceholder'),
-          status: t('workspaceSettings.statusPlaceholder'),
-          notes: t('workspaceSettings.notesPlaceholder'),
-        }));
+        setAgentsDoc(fallbackTemplate);
         setAgentsDocExists(false);
       }
       setAgentsDocLoaded(true);
     });
-  }, [open, workspace, t]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workspace, remoteVps, remoteVpsReady, t]);
 
   const handleNameBlur = useCallback(() => {
     if (!workspace) return;
@@ -116,20 +157,24 @@ export const WorkspaceSettingsDrawer = ({
     const res = await window.canvasWorkspace?.dialog.openFolder();
     if (!res?.ok || !res.folderPath) return;
     onSetRootFolder(workspace.id, res.folderPath);
-    // Trigger pulse-workspace.md reload from the new location.
-    initializedRef.current = false;
   }, [onSetRootFolder, workspace]);
 
+  const hasActiveRoot = Boolean(remoteVps || workspace?.rootFolder);
+
   const handleSaveDoc = useCallback(async () => {
-    if (!workspace?.rootFolder) return;
+    if (!workspace || !hasActiveRoot) return;
     setSavingDoc(true);
     setError(undefined);
     try {
-      const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
-      const res = await window.canvasWorkspace?.file.write(filePath, agentsDoc);
+      const res = remoteVps
+        ? await window.canvasWorkspace?.remoteVps.writeWorkspaceDoc(workspace.id, agentsDoc, remoteVps.cwd)
+        : await window.canvasWorkspace?.file.write(joinPath(workspace.rootFolder!, WORKSPACE_DOC_FILENAME), agentsDoc);
       if (!res?.ok) {
         setError(res?.error ?? t('workspaceSettings.saveFailed', { fileName: WORKSPACE_DOC_FILENAME }));
         return;
+      }
+      if (remoteVps && 'path' in res && typeof res.path === 'string') {
+        setRemoteDocPath(res.path);
       }
       setAgentsDocExists(true);
       setSavedHint(true);
@@ -137,7 +182,7 @@ export const WorkspaceSettingsDrawer = ({
     } finally {
       setSavingDoc(false);
     }
-  }, [agentsDoc, workspace, t]);
+  }, [agentsDoc, hasActiveRoot, remoteVps, workspace, t]);
 
   const handleGenerate = useCallback(async () => {
     if (!workspace) return;
@@ -229,26 +274,39 @@ export const WorkspaceSettingsDrawer = ({
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.environment')}</div>
-          <FieldRow label={t('workspaceSettings.rootFolder')} hint={t('workspaceSettings.rootFolderHint')}>
-            <div className="workspace-settings-folder-row">
-              <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
-                {workspace.rootFolder ?? <em>{t('workspaceSettings.notSet')}</em>}
+          {remoteVps ? (
+            <FieldRow
+              label={t('workspaceSettings.rootFolder')}
+              hint="已由远端 VPS 托管；如需修改远端目录，请在下方「远端 VPS → 管理配置」中调整。"
+            >
+              <div className="workspace-settings-folder-row">
+                <div className="workspace-settings-folder-path" title={remoteVps.cwd || '~'}>
+                  VPS: {remoteVps.cwd?.trim() || '~'}
+                </div>
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => void handlePickFolder()}
-              >
-                {workspace.rootFolder ? t('workspaceSettings.changeFolder') : t('workspaceSettings.setFolder')}
-              </Button>
-            </div>
-          </FieldRow>
+            </FieldRow>
+          ) : (
+            <FieldRow label={t('workspaceSettings.rootFolder')} hint={t('workspaceSettings.rootFolderHint')}>
+              <div className="workspace-settings-folder-row">
+                <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
+                  {workspace.rootFolder ?? <em>{t('workspaceSettings.notSet')}</em>}
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => void handlePickFolder()}
+                >
+                  {workspace.rootFolder ? t('workspaceSettings.changeFolder') : t('workspaceSettings.setFolder')}
+                </Button>
+              </div>
+            </FieldRow>
+          )}
         </section>
 
-        <RemoteVpsCard workspaceId={workspace.id} />
+        <RemoteVpsCard workspaceId={workspace.id} onConfigChange={handleRemoteVpsChange} />
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.intentState')}</div>
-          {!workspace.rootFolder ? (
+          {!hasActiveRoot ? (
             <div className="workspace-settings-empty">
               {t('workspaceSettings.setRootFirst')}
             </div>
@@ -289,7 +347,12 @@ export const WorkspaceSettingsDrawer = ({
               />
               <div className="workspace-settings-field-hint">
                 {agentsDocExists ? t('workspaceSettings.savedAt') : t('workspaceSettings.willCreateAt')}{' '}
-                <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · {t('workspaceSettings.injectedHint')}
+                <code>
+                  {remoteVps
+                    ? `VPS:${remoteDocPath ?? joinPath(remoteVps.cwd?.trim() || '~', WORKSPACE_DOC_FILENAME)}`
+                    : joinPath(workspace.rootFolder!, WORKSPACE_DOC_FILENAME)}
+                </code>{' '}
+                · {t('workspaceSettings.injectedHint')}
               </div>
             </>
           )}
@@ -307,7 +370,7 @@ export const WorkspaceSettingsDrawer = ({
         </Button>
         <Button
           variant="primary"
-          disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
+          disabled={!hasActiveRoot || savingDoc || !agentsDocLoaded}
           onClick={() => void handleSaveDoc()}
         >
           {savingDoc ? t('workspaceSettings.saving') : savedHint ? t('workspaceSettings.saved') : t('workspaceSettings.saveDoc')}

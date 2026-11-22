@@ -127,4 +127,64 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
       }
     },
   );
+
+  ipcMain.handle(
+    'remote-vps:readWorkspaceDoc',
+    async (_event, payload: { workspaceId: string; cwd?: string }) => {
+      try {
+        const { resolveRemoteWorkspaceTarget } = await import('./client');
+        const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'any');
+        if (!target) return { ok: false, error: 'Workspace is not bound to a VPS.' };
+        const dir = payload.cwd?.trim() || target.cwd || '';
+        const qs = dir ? `?cwd=${encodeURIComponent(dir)}` : '';
+        const res = await fetch(`${target.endpoint}/v1/workspace-doc${qs}`, {
+          headers: { Authorization: `Bearer ${target.token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const body = (await res.json()) as {
+          ok?: boolean;
+          exists?: boolean;
+          content?: string | null;
+          path?: string;
+          error?: string;
+        };
+        if (!res.ok || !body.ok) {
+          return { ok: false, error: body.error || `HTTP ${res.status}` };
+        }
+        return { ok: true, exists: body.exists, content: body.content ?? null, path: body.path };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'remote-vps:writeWorkspaceDoc',
+    async (_event, payload: { workspaceId: string; content: string; cwd?: string }) => {
+      try {
+        const { resolveRemoteWorkspaceTarget } = await import('./client');
+        const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'any');
+        if (!target) return { ok: false, error: 'Workspace is not bound to a VPS.' };
+        const res = await fetch(`${target.endpoint}/v1/workspace-doc`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${target.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            cwd: payload.cwd?.trim() || target.cwd,
+            content: payload.content,
+          }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        const body = (await res.json()) as { ok?: boolean; path?: string; error?: string };
+        if (!res.ok || !body.ok) {
+          return { ok: false, error: body.error || `HTTP ${res.status}` };
+        }
+        return { ok: true, path: body.path };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  );
 }
