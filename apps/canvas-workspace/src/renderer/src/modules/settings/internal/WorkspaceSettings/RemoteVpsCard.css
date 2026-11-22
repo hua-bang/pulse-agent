@@ -67,3 +67,14 @@
   gap: 8px;
   padding-top: 4px;
 }
+
+.remote-vps-cwd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remote-vps-cwd-input {
+  flex: 1;
+  min-width: 0;
+}

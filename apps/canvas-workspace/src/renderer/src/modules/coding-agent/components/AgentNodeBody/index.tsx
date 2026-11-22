@@ -1,6 +1,6 @@
 import './index.css';
 import '@xterm/xterm/css/xterm.css';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NodeMentionPicker } from '../../../node-mentions';
 import { AgentPicker } from './AgentPicker';
 import { AgentRestart } from './AgentRestart';
@@ -11,6 +11,7 @@ import type { AgentNodeBodyProps } from './types';
 import { resolveCodingAgentView as detectAgentView } from '../../session/sessionLifecycle';
 import { useAgentNodeController } from './useAgentNodeController';
 import { useWorkspaceActive } from '../../../../shared/workspaceActivity';
+import { RemoteFolderPickerModal } from '../../../../shared/remote/RemoteFolderPickerModal';
 import { count } from '../../../../perf/counters';
 
 export { detectAgentView };
@@ -97,7 +98,55 @@ export const AgentNodeBody = ({
     forceTeamWarmup,
   });
   const [leadSnapshot, setLeadSnapshot] = useState<AgentTeamSnapshot | null>(null);
+  const [remoteVpsBound, setRemoteVpsBound] = useState(false);
+  const [remoteVpsCwd, setRemoteVpsCwd] = useState<string | undefined>(undefined);
+  const [remoteFolderPickerOpen, setRemoteFolderPickerOpen] = useState(false);
   const workspaceActive = useWorkspaceActive();
+
+  useEffect(() => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!workspaceId || !api) {
+      setRemoteVpsBound(false);
+      setRemoteVpsCwd(undefined);
+      return;
+    }
+    let cancelled = false;
+    void api.getConfig(workspaceId).then((res) => {
+      if (cancelled) return;
+      if (res.ok && res.config) {
+        setRemoteVpsBound(true);
+        setRemoteVpsCwd(res.config.cwd?.trim() || undefined);
+      } else {
+        setRemoteVpsBound(false);
+        setRemoteVpsCwd(undefined);
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      setRemoteVpsBound(false);
+      setRemoteVpsCwd(undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const handlePickFolder = useCallback(async () => {
+    if (readOnly || terminalMode === 'mirror') return;
+    if (workspaceId && window.canvasWorkspace?.remoteVps) {
+      if (remoteVpsBound) {
+        setRemoteFolderPickerOpen(true);
+        return;
+      }
+      const res = await window.canvasWorkspace.remoteVps.getConfig(workspaceId);
+      if (res.ok && res.config) {
+        setRemoteVpsBound(true);
+        setRemoteVpsCwd(res.config.cwd?.trim() || undefined);
+        setRemoteFolderPickerOpen(true);
+        return;
+      }
+    }
+    await controller.handlePickFolder();
+  }, [readOnly, terminalMode, workspaceId, remoteVpsBound, controller]);
   const isTeamLead = controller.data.agentTeamRole === 'lead';
   const leadRecentActions = useMemo(() => summarizeTeamLeadActions(leadSnapshot), [leadSnapshot]);
   const leadTeamStatus = agentTeamStatus ?? leadSnapshot?.runtime.team.status;
@@ -191,25 +240,36 @@ export const AgentNodeBody = ({
 
   if (controller.viewMode === 'setup') {
     return (
-      <AgentPicker
-        selectedAgent={controller.selectedAgent}
-        cwdInput={controller.cwdInput}
-        promptInput={controller.promptInput}
-        dangerousMode={controller.dangerousMode}
-        rootFolder={rootFolder}
-        recentCwds={controller.recentCwds}
-        launchErrorCommand={controller.launchErrorCommand}
-        variant={isTeamLead ? 'team-lead' : 'default'}
-        teamLeadBriefSlot={isTeamLead ? teamLeadBriefSlot : undefined}
-        mentionNodes={controller.visibleNodes}
-        onBack={controller.fromRestart ? controller.handleBackToRestart : undefined}
-        onAgentChange={controller.setSelectedAgent}
-        onCwdChange={controller.setCwdInput}
-        onPromptChange={controller.setPromptInput}
-        onDangerousModeChange={controller.setDangerousMode}
-        onPickFolder={controller.handlePickFolder}
-        onLaunch={controller.handleLaunch}
-      />
+      <>
+        <AgentPicker
+          selectedAgent={controller.selectedAgent}
+          cwdInput={controller.cwdInput}
+          promptInput={controller.promptInput}
+          dangerousMode={controller.dangerousMode}
+          rootFolder={remoteVpsCwd || rootFolder}
+          recentCwds={controller.recentCwds}
+          launchErrorCommand={controller.launchErrorCommand}
+          variant={isTeamLead ? 'team-lead' : 'default'}
+          teamLeadBriefSlot={isTeamLead ? teamLeadBriefSlot : undefined}
+          mentionNodes={controller.visibleNodes}
+          onBack={controller.fromRestart ? controller.handleBackToRestart : undefined}
+          onAgentChange={controller.setSelectedAgent}
+          onCwdChange={controller.setCwdInput}
+          onPromptChange={controller.setPromptInput}
+          onDangerousModeChange={controller.setDangerousMode}
+          onPickFolder={() => { void handlePickFolder(); }}
+          onLaunch={controller.handleLaunch}
+        />
+        {workspaceId && (
+          <RemoteFolderPickerModal
+            open={remoteFolderPickerOpen}
+            workspaceId={workspaceId}
+            initialPath={controller.cwdInput.trim() || remoteVpsCwd || '~'}
+            onSelect={(folderPath) => controller.setCwdInput(folderPath)}
+            onClose={() => setRemoteFolderPickerOpen(false)}
+          />
+        )}
+      </>
     );
   }
 

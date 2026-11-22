@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
+import { RemoteFolderPickerModal } from '../../../../shared/remote/RemoteFolderPickerModal';
 import './RemoteVpsCard.css';
 
 interface Props {
   workspaceId: string;
+  externalCwd?: string;
   onConfigChange?: (config: RemoteVpsWorkspaceConfigDto | null) => void;
 }
 
 type ConnMode = 'ssh' | 'direct';
 type ScopeMode = 'full' | 'runtime-only';
 
-export const RemoteVpsCard = ({ workspaceId, onConfigChange }: Props) => {
+export const RemoteVpsCard = ({ workspaceId, externalCwd, onConfigChange }: Props) => {
   const [loaded, setLoaded] = useState(false);
   const [bound, setBound] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [sshHosts, setSshHosts] = useState<string[]>([]);
 
   const [connMode, setConnMode] = useState<ConnMode>('ssh');
@@ -24,6 +27,12 @@ export const RemoteVpsCard = ({ workspaceId, onConfigChange }: Props) => {
   const [remotePort, setRemotePort] = useState('4770');
   const [token, setToken] = useState('');
   const [cwd, setCwd] = useState('');
+
+  useEffect(() => {
+    if (typeof externalCwd === 'string') {
+      setCwd(externalCwd);
+    }
+  }, [externalCwd]);
 
   const [busy, setBusy] = useState<'test' | 'save' | 'migrate' | 'remove' | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -312,11 +321,21 @@ export const RemoteVpsCard = ({ workspaceId, onConfigChange }: Props) => {
             label="工作区根目录 (Root folder)"
             hint="VPS 上的项目根目录，用于终端、Coding Agent 以及 pulse-workspace.md。"
           >
-            <TextField
-              value={cwd}
-              onChange={(e) => setCwd(e.target.value)}
-              placeholder="/home/dev/projects/my-app"
-            />
+            <div className="remote-vps-cwd-row">
+              <TextField
+                className="remote-vps-cwd-input"
+                value={cwd}
+                onChange={(e) => setCwd(e.target.value)}
+                placeholder="/home/dev/projects/my-app"
+              />
+              <Button
+                variant="secondary"
+                disabled={!canSubmit || busy !== null}
+                onClick={() => setFolderPickerOpen(true)}
+              >
+                选择文件夹
+              </Button>
+            </div>
           </FieldRow>
 
           {statusMsg && (
@@ -355,12 +374,20 @@ export const RemoteVpsCard = ({ workspaceId, onConfigChange }: Props) => {
                 disabled={busy !== null}
                 onClick={() => void handleRemove()}
               >
-                {busy === 'remove' ? '解除中…' : '解除绑定'}
+                {busy === 'remove' ? '解绑中…' : '解除绑定'}
               </Button>
             )}
           </div>
         </div>
       )}
+      <RemoteFolderPickerModal
+        open={folderPickerOpen}
+        workspaceId={workspaceId}
+        initialPath={cwd.trim() || '~'}
+        config={canSubmit ? buildDraftConfig() : undefined}
+        onSelect={(folderPath) => setCwd(folderPath)}
+        onClose={() => setFolderPickerOpen(false)}
+      />
     </section>
   );
 };

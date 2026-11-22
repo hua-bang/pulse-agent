@@ -33,6 +33,21 @@ export interface RemoteVpsMigrateResult {
   error?: string;
 }
 
+export interface RemoteVpsDirEntry {
+  name: string;
+  path: string;
+  hidden: boolean;
+}
+
+export interface RemoteVpsListDirsResult {
+  ok: boolean;
+  path?: string;
+  parent?: string | null;
+  home?: string;
+  entries?: RemoteVpsDirEntry[];
+  error?: string;
+}
+
 export interface RemoteVpsApi {
   listSshHosts: () => Promise<{ ok: boolean; hosts: string[] }>;
   getConfig: (
@@ -62,4 +77,9 @@ export interface RemoteVpsApi {
     content: string,
     cwd?: string,
   ) => Promise<{ ok: boolean; path?: string; error?: string }>;
+  listDirs: (
+    workspaceId: string,
+    dirPath?: string,
+    options?: { showHidden?: boolean; config?: RemoteVpsWorkspaceConfigDto },
+  ) => Promise<RemoteVpsListDirsResult>;
 }

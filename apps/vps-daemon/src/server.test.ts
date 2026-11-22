@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -162,7 +162,7 @@ describe('vps-daemon end-to-end', () => {
   });
 
   it('keeps PTY sessions alive across detach/reattach and streams exec-jsonl output', async () => {
-    const { daemon, token } = await boot();
+    const { daemon, token, root: dir } = await boot();
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
     const spawnRes = await fetch(`${daemon.url}/v1/pty/spawn`, {
@@ -226,5 +226,30 @@ describe('vps-daemon end-to-end', () => {
     const docReadJson = await docRead.json() as { ok: boolean; exists: boolean; content: string };
     expect(docReadJson.exists).toBe(true);
     expect(docReadJson.content).toBe('# Remote Goal\nShip it');
+
+    // Directory listing via /v1/fs/list-dirs.
+    await mkdir(join(dir, 'projects'), { recursive: true });
+    await mkdir(join(dir, '.secret-dir'), { recursive: true });
+    const listRes = await fetch(`${daemon.url}/v1/fs/list-dirs?path=${encodeURIComponent(dir)}`, { headers });
+    const listJson = await listRes.json() as {
+      ok: boolean;
+      path: string;
+      parent: string | null;
+      entries: Array<{ name: string; path: string; hidden: boolean }>;
+    };
+    expect(listJson.ok).toBe(true);
+    expect(listJson.path).toBe(dir);
+    expect(listJson.entries.map((entry) => entry.name)).toContain('projects');
+    expect(listJson.entries.map((entry) => entry.name)).not.toContain('.secret-dir');
+
+    const listHiddenRes = await fetch(
+      `${daemon.url}/v1/fs/list-dirs?path=${encodeURIComponent(dir)}&showHidden=1`,
+      { headers },
+    );
+    const listHiddenJson = await listHiddenRes.json() as {
+      ok: boolean;
+      entries: Array<{ name: string }>;
+    };
+    expect(listHiddenJson.entries.map((entry) => entry.name)).toContain('.secret-dir');
   });
 });
