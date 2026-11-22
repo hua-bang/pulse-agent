@@ -90,15 +90,16 @@ export const ChatPageTopbar = ({
         );
         const canvasTitle = `${workspaceLabel} — ${t('workspaceNodes.openOnCanvas')}`;
         return onOpenCanvas ? (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="xs"
             className="chat-page-topbar-workspace"
             onClick={onOpenCanvas}
             title={canvasTitle}
             aria-label={canvasTitle}
           >
             {chip}
-          </button>
+          </Button>
         ) : (
           <div className="chat-page-topbar-workspace" title={workspaceLabel}>
             {chip}
