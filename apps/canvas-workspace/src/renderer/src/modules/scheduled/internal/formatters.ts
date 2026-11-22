@@ -1,10 +1,13 @@
 import {
+  DAILY_SUMMARY_PROMPT,
+  DAILY_SUMMARY_TASK_ID,
+  DAILY_SUMMARY_TITLE,
   MEMORY_REPORT_PROMPT,
+  MEMORY_REPORT_TASK_ID,
   MEMORY_REPORT_TITLE,
   type ScheduledRunFinished,
   type ScheduledSchedule,
   type ScheduledTask,
-  type ScheduledWeekday,
 } from '../../../../../shared/scheduled';
 import type { useI18n } from '../../../i18n';
 
@@ -62,26 +65,46 @@ export const timeLabel = (value: number | undefined, fallback: string): string =
   }).format(value);
 };
 
+const BUILT_IN_COPY = {
+  'daily-summary': {
+    id: DAILY_SUMMARY_TASK_ID,
+    title: DAILY_SUMMARY_TITLE,
+    prompt: DAILY_SUMMARY_PROMPT,
+    titleKey: 'scheduled.dailySummary.title' as const,
+    promptKey: 'scheduled.dailySummary.prompt' as const,
+  },
+  'memory-report': {
+    id: MEMORY_REPORT_TASK_ID,
+    title: MEMORY_REPORT_TITLE,
+    prompt: MEMORY_REPORT_PROMPT,
+    titleKey: 'scheduled.memoryReport.title' as const,
+    promptKey: 'scheduled.memoryReport.prompt' as const,
+  },
+};
+
 /**
- * Main seeds the built-in report in English because it does not know the UI
+ * Main seeds built-in reports in English because it does not know the UI
  * language. Show the translation until the user edits the text; a saved edit
  * becomes the stored value and is shown as typed.
  */
 export const localizeBuiltInTasks = (tasks: ScheduledTask[], t: Translate): ScheduledTask[] =>
   tasks.map((task) => {
-    if (task.source !== 'memory-report') return task;
+    const spec = task.source === 'user' ? undefined : BUILT_IN_COPY[task.source];
+    if (!spec) return task;
     return {
       ...task,
-      title: task.title === MEMORY_REPORT_TITLE ? t('scheduled.memoryReport.title') : task.title,
-      prompt: task.prompt === MEMORY_REPORT_PROMPT ? t('scheduled.memoryReport.prompt') : task.prompt,
+      title: task.title === spec.title ? t(spec.titleKey) : task.title,
+      prompt: task.prompt === spec.prompt ? t(spec.promptKey) : task.prompt,
     };
   });
 
 /** Run notices carry the stored title, so they need the same translation. */
-export const localizeRunTitle = (run: ScheduledRunFinished, t: Translate): string =>
-  run.taskId === 'memory-report' && run.title === MEMORY_REPORT_TITLE
-    ? t('scheduled.memoryReport.title')
-    : run.title;
+export const localizeRunTitle = (run: ScheduledRunFinished, t: Translate): string => {
+  for (const spec of Object.values(BUILT_IN_COPY)) {
+    if (run.taskId === spec.id && run.title === spec.title) return t(spec.titleKey);
+  }
+  return run.title;
+};
 
 /**
  * The editor shows the translated built-in text and submits every field. Map
@@ -93,10 +116,11 @@ export const restoreBuiltInTaskInput = <T extends { title?: string; prompt?: str
   input: T,
   t: Translate,
 ): T => {
-  if (task.source !== 'memory-report') return input;
+  const spec = task.source === 'user' ? undefined : BUILT_IN_COPY[task.source];
+  if (!spec) return input;
   return {
     ...input,
-    ...(input.title === t('scheduled.memoryReport.title') ? { title: MEMORY_REPORT_TITLE } : {}),
-    ...(input.prompt === t('scheduled.memoryReport.prompt') ? { prompt: MEMORY_REPORT_PROMPT } : {}),
+    ...(input.title === t(spec.titleKey) ? { title: spec.title } : {}),
+    ...(input.prompt === t(spec.promptKey) ? { prompt: spec.prompt } : {}),
   };
 };

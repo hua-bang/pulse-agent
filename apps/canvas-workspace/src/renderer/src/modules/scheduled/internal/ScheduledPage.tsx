@@ -1,24 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarBlank, Plus } from '@phosphor-icons/react';
-import type { ScheduledTask, ScheduledTaskInput } from '../../../../../shared/scheduled';
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../shared/agent-chat';
+import {
+  isBuiltInDigestSource,
+  type ScheduledTask,
+  type ScheduledTaskInput,
+} from '../../../../../shared/scheduled';
 import { useI18n } from '../../../i18n';
 import { useAppShell } from '../../../shared/appShell';
 import { useRightDock } from '../../../shared/dockPort';
 import { Button, EmptyState, PageHeader } from '../../../components/ui';
 import { localizeBuiltInTasks, restoreBuiltInTaskInput } from './formatters';
+import { DigestCards } from './DigestCards';
 import { TaskEditorModal } from './TaskEditorModal';
 import { TaskRow } from './TaskRow';
 import { clearPendingDelete, markPendingDelete, usePendingDeletes } from './pendingDeletes';
 import './index.css';
 
 /**
- * The Scheduled list. A run's conversation opens in the dock beside it, so
- * the list stays in view while the user reads or follows up on a result.
+ * The Scheduled list. Built-in daily/weekly workspace digests sit at the top
+ * as dedicated cards with direct report-artifact access; custom tasks live in
+ * the list below.
  */
 interface Props {
   /** Ask the side chat about one task; it arrives as a context chip. */
   onAskAi?: (task: ScheduledTask) => void;
 }
+
+const digestSortRank = (task: ScheduledTask): number =>
+  task.source === 'daily-summary' ? 0 : 1;
 
 export const ScheduledPage = ({ onAskAi }: Props) => {
   const { t } = useI18n();
@@ -31,6 +41,10 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
   const [editingTask, setEditingTask] = useState<ScheduledTask | undefined>();
   const pendingDeletes = usePendingDeletes();
   const visibleTasks = tasks.filter((task) => !pendingDeletes.has(task.id));
+  const digestTasks = visibleTasks
+    .filter((task) => isBuiltInDigestSource(task.source))
+    .sort((a, b) => digestSortRank(a) - digestSortRank(b));
+  const customTasks = visibleTasks.filter((task) => !isBuiltInDigestSource(task.source));
 
   const load = useCallback(async () => {
     const response = await window.canvasWorkspace.scheduled.list();
@@ -122,6 +136,10 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
     dock.openScheduledChat(task.id, sessionId);
   };
 
+  const openReport = (artifactId: string) => {
+    dock.openArtifact(GLOBAL_CHAT_STORE_ID, artifactId);
+  };
+
   const openCreate = () => {
     setEditingTask(undefined);
     setEditorOpen(true);
@@ -155,21 +173,42 @@ export const ScheduledPage = ({ onAskAi }: Props) => {
           action={<Button variant="primary" onClick={openCreate}>{t('scheduled.createTask')}</Button>}
         />
       ) : (
-        <ul className="scheduled-page__list">
-          {visibleTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              starting={runningTaskIds.has(task.id)}
-              onToggle={(target) => void toggleTask(target)}
-              onRunNow={(target) => void runNow(target)}
-              onEdit={openEdit}
-              onDelete={(target) => void removeTask(target)}
-              onOpenResult={openResult}
-              onAskAi={onAskAi}
-            />
-          ))}
-        </ul>
+        <>
+          <DigestCards
+            tasks={digestTasks}
+            runningTaskIds={runningTaskIds}
+            onToggle={(target) => void toggleTask(target)}
+            onRunNow={(target) => void runNow(target)}
+            onEdit={openEdit}
+            onOpenReport={openReport}
+            onOpenSession={openResult}
+            onAskAi={onAskAi}
+          />
+          {customTasks.length > 0 && (
+            <section className="scheduled-page__custom">
+              {digestTasks.length > 0 && (
+                <div className="scheduled-digest__heading">
+                  <h2>{t('scheduled.digest.customTasksTitle')}</h2>
+                </div>
+              )}
+              <ul className="scheduled-page__list">
+                {customTasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    starting={runningTaskIds.has(task.id)}
+                    onToggle={(target) => void toggleTask(target)}
+                    onRunNow={(target) => void runNow(target)}
+                    onEdit={openEdit}
+                    onDelete={(target) => void removeTask(target)}
+                    onOpenResult={openResult}
+                    onAskAi={onAskAi}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
 
       <TaskEditorModal

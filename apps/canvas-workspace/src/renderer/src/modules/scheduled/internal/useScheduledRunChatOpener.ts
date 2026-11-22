@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { GLOBAL_CHAT_STORE_ID } from '../../../../../shared/agent-chat';
 import type { ScheduledRunFinished } from '../../../../../shared/scheduled';
 import type { AgentScope } from '../../../types';
 import { useRightDock } from '../../../shared/dockPort';
@@ -20,11 +21,10 @@ interface Options {
 }
 
 /**
- * Wires the scheduled-run completion toast to the exact conversation that
- * produced it. Where the dock has a chat tab, the run opens there beside the
- * current page; on full-page chat routes it opens in full-page Pulse AI by
- * session id. A failure before session setup has no run id and opens the
- * task's current conversation (see `resolveScheduledChatTarget`).
+ * Wires the scheduled-run completion toast to the exact artifact or
+ * conversation that produced it. Built-in digests that produce an HTML report
+ * artifact open directly in the Dock artifact viewer; regular scheduled runs
+ * open their exact conversation session.
  */
 export const useScheduledRunChatOpener = ({
   activeView,
@@ -34,11 +34,22 @@ export const useScheduledRunChatOpener = ({
   const dock = useRightDock();
   const [, setLocation] = useLocation();
   useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((run) => {
+    if (run.skipped) return;
     // Refresh is a no-op unless this task is already visible in the Dock. It
     // keeps Run now live without pulling a background task into view.
     dock.refreshScheduledChat(run.taskId);
+    // When a manual digest run finishes with a rendered report artifact, open
+    // the clean report view right away so the user doesn't have to dig raw HTML
+    // out of the chat transcript.
+    if (run.trigger === 'manual' && run.ok && run.artifactId) {
+      dock.openArtifact(GLOBAL_CHAT_STORE_ID, run.artifactId);
+    }
   }), [dock]);
   useScheduledRunToasts(useCallback((run: ScheduledRunFinished) => {
+    if (run.ok && run.artifactId) {
+      dock.openArtifact(GLOBAL_CHAT_STORE_ID, run.artifactId);
+      return;
+    }
     const target = resolveScheduledChatTarget({
       activeView,
       taskId: run.taskId,

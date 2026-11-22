@@ -396,4 +396,46 @@ describe('ScheduledTaskService', () => {
     expect(task).toMatchObject({ id: 'legacy', schedule: { kind: 'interval', intervalMinutes: 360 } });
     expect(task).not.toHaveProperty('intervalMinutes');
   });
+
+  it('seeds the built-in daily summary idempotently and tracks artifactId and skipped runs', async () => {
+    let now = new Date(2026, 10, 21, 10, 0).getTime();
+    let mode: 'report' | 'skip' = 'report';
+    const execute = vi.fn(async () => (
+      mode === 'report'
+        ? { sessionId: 'sess-1', artifactId: 'art-1' }
+        : { skipped: true }
+    ));
+    const service = new ScheduledTaskService({ statePath, now: () => now, execute });
+
+    const first = await service.ensureDailySummaryTask();
+    const second = await service.ensureDailySummaryTask();
+    expect(first.id).toBe('daily-summary');
+    expect(second.id).toBe('daily-summary');
+    expect(first.enabled).toBe(false);
+    expect(first.schedule).toEqual({ kind: 'daily', timeOfDay: '21:00' });
+
+    await service.updateTask('daily-summary', { enabled: true });
+    now = new Date(2026, 10, 21, 21, 5).getTime();
+    await service.runDueTasks(now);
+
+    const afterRun = await service.getTask('daily-summary');
+    expect(afterRun).toMatchObject({
+      lastSuccessAt: now,
+      lastSessionId: 'sess-1',
+      lastArtifactId: 'art-1',
+    });
+    expect(afterRun?.lastSkippedAt).toBeUndefined();
+
+    // Next day has no activity: skipped run records lastSkippedAt without erasing lastArtifactId.
+    mode = 'skip';
+    const nextDay = new Date(2026, 10, 22, 21, 5).getTime();
+    await service.runDueTasks(nextDay);
+
+    expect(await service.getTask('daily-summary')).toMatchObject({
+      lastSuccessAt: now,
+      lastSessionId: 'sess-1',
+      lastArtifactId: 'art-1',
+      lastSkippedAt: nextDay,
+    });
+  });
 });

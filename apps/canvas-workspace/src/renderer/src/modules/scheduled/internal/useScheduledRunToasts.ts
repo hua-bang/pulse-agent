@@ -26,17 +26,19 @@ export const useScheduledRunToasts = (
   openRef.current = onOpenRun;
 
   useEffect(() => window.canvasWorkspace.scheduled.onRunFinished((stored) => {
+    if (stored.skipped) return;
     const run = { ...stored, title: localizeRunTitle(stored, t) };
     // Run now already opens the exact task conversation before it starts.
     // A second success toast would point away from the result being watched.
     if (run.trigger === 'manual' && run.ok) return;
+    const hasReport = run.ok && Boolean(run.artifactId);
     notify({
       tone: run.ok ? 'success' : 'error',
       title: run.ok ? t('scheduled.runFinished', { title: run.title }) : t('scheduled.runFailed'),
-      description: run.ok ? undefined : run.error,
+      description: run.ok ? run.summary : run.error,
       autoCloseMs: 0,
       action: {
-        label: t('scheduled.openChat'),
+        label: hasReport ? t('scheduled.openReport') : t('scheduled.openChat'),
         onClick: () => openRef.current(run),
       },
     });

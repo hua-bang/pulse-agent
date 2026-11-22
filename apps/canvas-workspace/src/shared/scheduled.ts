@@ -18,12 +18,22 @@ export type ScheduledSchedule =
   | { kind: 'daily'; timeOfDay: string }
   | { kind: 'weekly'; weekday: ScheduledWeekday; timeOfDay: string };
 
-export type ScheduledTaskSource = 'user' | 'memory-report';
+export type ScheduledTaskSource = 'user' | 'memory-report' | 'daily-summary';
 
-/** Seeded copy of the built-in report. The renderer shows a translation
+export const DAILY_SUMMARY_TASK_ID = 'daily-summary';
+export const MEMORY_REPORT_TASK_ID = 'memory-report';
+
+/** Seeded copy of the built-in reports. The renderer shows a translation
  *  while the stored text still equals these values. */
+export const DAILY_SUMMARY_TITLE = 'Daily summary';
+export const DAILY_SUMMARY_PROMPT =
+  'Review the last 24 hours of Canvas activity (sessions and canvas changes) and prepare a daily summary.';
 export const MEMORY_REPORT_TITLE = 'Memory report';
 export const MEMORY_REPORT_PROMPT = 'Review the last 7 days of Canvas activity and prepare a memory report.';
+
+export const isBuiltInDigestSource = (source: ScheduledTaskSource): boolean =>
+  source === 'daily-summary' || source === 'memory-report';
+
 export type ScheduledTaskRunStatus = 'idle' | 'running';
 export type ScheduledRunTrigger = 'manual' | 'schedule';
 
@@ -50,8 +60,10 @@ export interface ScheduledTask {
   nextRunAt: number;
   lastAttemptAt?: number;
   lastSuccessAt?: number;
+  lastSkippedAt?: number;
   lastError?: string;
   lastSessionId?: string;
+  lastArtifactId?: string;
   runCount: number;
   status: ScheduledTaskRunStatus;
 }
@@ -72,6 +84,9 @@ export interface ScheduledTaskPatch {
 
 export interface ScheduledTaskExecutionResult {
   sessionId?: string;
+  artifactId?: string;
+  skipped?: boolean;
+  summary?: string;
 }
 
 export interface ScheduledTaskExecutionContext {
@@ -88,6 +103,12 @@ export interface ScheduledRunFinished {
   error?: string;
   /** Exact conversation produced by this attempt, when session setup succeeded. */
   sessionId?: string;
+  /** Global-scope report artifact produced by a built-in digest run, if any. */
+  artifactId?: string;
+  /** True when a scheduled digest run silently skipped because there was no activity. */
+  skipped?: boolean;
+  /** Short factual summary shown in the completion toast. */
+  summary?: string;
   trigger: ScheduledRunTrigger;
 }
 
