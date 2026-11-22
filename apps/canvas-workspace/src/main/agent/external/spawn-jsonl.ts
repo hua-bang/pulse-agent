@@ -7,8 +7,8 @@
 
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { resolveRemoteWorkspaceTarget } from '../../remote/client';
-import { runRemoteJsonlCli } from '../../remote/runtime-client';
+import { homedir } from 'os';
+import { join } from 'path';
 
 export const EXTERNAL_SEGMENT_TIMEOUT_MS = 10 * 60_000;
 
@@ -31,9 +31,12 @@ export interface JsonlCliExit {
 }
 
 export async function runJsonlCli(run: JsonlCliRun): Promise<JsonlCliExit> {
-  if (run.workspaceId) {
+  const remoteCfgPath = process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(homedir(), '.pulse-coder', 'canvas', 'remote-workspaces.json');
+  if (run.workspaceId && existsSync(remoteCfgPath)) {
+    const { resolveRemoteWorkspaceTarget } = await import('../../remote/client');
     const remote = await resolveRemoteWorkspaceTarget(run.workspaceId);
     if (remote) {
+      const { runRemoteJsonlCli } = await import('../../remote/runtime-client');
       return await runRemoteJsonlCli(remote, {
         command: run.command,
         args: run.args,

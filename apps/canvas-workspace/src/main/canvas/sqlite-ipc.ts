@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { isStorageError } from '@pulse-coder/storage';
 import type { LegacyCanvas } from '@pulse-coder/storage/canvas';
 import { BrowserWindow } from 'electron';
@@ -5,13 +7,16 @@ import { getCanvasBackend, getLocalCanvasStorage } from './persistence/backend';
 import { MANIFEST_ID, STORE_DIR } from './persistence/paths';
 import { observeSqliteChanges, type SqliteChangeObserver } from './sync/sqlite-watcher';
 import { watchWorkspaceMarkdown, stopMarkdownIndexWatchers, stopWorkspaceMarkdown } from './sync/markdown-index';
-import {
-  closeAllRemoteConnections,
-  ensureRemoteChangeSubscription,
-  getRemoteCanvasBackend,
-} from '../remote/client';
 
 let observerPromise: Promise<SqliteChangeObserver> | null = null;
+let remoteClientLoaded = false;
+
+const hasRemoteConfig = () => existsSync(process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(STORE_DIR, 'remote-workspaces.json'));
+
+async function loadRemoteClient() {
+  remoteClientLoaded = true;
+  return await import('../remote/client');
+}
 
 function broadcastCanvasChange(payload: {
   workspaceId: string;
@@ -55,10 +60,11 @@ async function ensureObserver() {
 }
 
 export async function loadSqliteCanvas(id: string, prepare?: () => Promise<void>) {
-  if (id !== MANIFEST_ID) {
-    const remote = await getRemoteCanvasBackend(id);
+  if (id !== MANIFEST_ID && hasRemoteConfig()) {
+    const remoteClient = await loadRemoteClient();
+    const remote = await remoteClient.getRemoteCanvasBackend(id);
     if (remote) {
-      ensureRemoteChangeSubscription(remote.target, (change) => {
+      remoteClient.ensureRemoteChangeSubscription(remote.target, (change) => {
         if (change.domain !== 'canvas') return;
         broadcastCanvasChange({
           workspaceId: change.scopeId,
@@ -102,19 +108,22 @@ export async function saveSqliteCanvas(id: string, input: unknown) {
   if (!input || typeof input !== 'object' || !Array.isArray((input as LegacyCanvas).nodes)) {
     return { ok: false, code: 'invalid_argument', error: 'Canvas nodes must be an array' };
   }
-  const remote = await getRemoteCanvasBackend(id);
-  if (remote) {
-    try {
-      const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, input as LegacyCanvas, { allowEmpty: true });
-      return { ok: true, ...receipt };
-    } catch (error) {
-      const code = isStorageError(error) ? error.code : 'storage_unavailable';
-      return {
-        ok: false,
-        code,
-        error: String(error),
-        ...(code === 'revision_conflict' ? { data: await remote.backend.readCanvas(remote.target.remoteWorkspaceId) } : {}),
-      };
+  if (hasRemoteConfig()) {
+    const remoteClient = await loadRemoteClient();
+    const remote = await remoteClient.getRemoteCanvasBackend(id);
+    if (remote) {
+      try {
+        const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, input as LegacyCanvas, { allowEmpty: true });
+        return { ok: true, ...receipt };
+      } catch (error) {
+        const code = isStorageError(error) ? error.code : 'storage_unavailable';
+        return {
+          ok: false,
+          code,
+          error: String(error),
+          ...(code === 'revision_conflict' ? { data: await remote.backend.readCanvas(remote.target.remoteWorkspaceId) } : {}),
+        };
+      }
     }
   }
   const backend = await getCanvasBackend(STORE_DIR);
@@ -138,7 +147,9 @@ export async function saveSqliteCanvas(id: string, input: unknown) {
 
 export function stopSqliteCanvasObserver(): void {
   stopMarkdownIndexWatchers();
-  void closeAllRemoteConnections().catch(() => undefined);
+  if (remoteClientLoaded) {
+    void import('../remote/client').then(m => m.closeAllRemoteConnections()).catch(() => undefined);
+  }
   const pending = observerPromise;
   observerPromise = null;
   if (pending) void pending.then(observer => observer.stop()).catch(() => undefined);

@@ -9,7 +9,7 @@ import { delimiter, dirname, join, resolve } from "path";
 import { PtySessionLeaseRegistry } from "./session-lease";
 import { commonPosixBinDirs, mergePath } from "../shell-path";
 import { withUtf8Locale } from "./pty-locale";
-import { trySpawnRemotePty, type RemotePtyAdapter } from "../remote/pty-bridge";
+import type { RemotePtyAdapter } from "../remote/pty-bridge";
 
 /** Session output held in memory; readers of terminal nodes prefer it to saved text. */
 export { readSessionOutput } from "./session-output";
@@ -250,7 +250,10 @@ export const setupPtyIpc = () => {
           spawnEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
           canvasEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
         }
-        const remoteSpawn = await trySpawnRemotePty({ id, cols, rows, cwd, workspaceId, env: canvasEnv });
+        const hasRemoteCfg = existsSync(process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(homedir(), ".pulse-coder", "canvas", "remote-workspaces.json"));
+        const remoteSpawn = workspaceId && hasRemoteCfg
+          ? await (await import("../remote/pty-bridge")).trySpawnRemotePty({ id, cols, rows, cwd, workspaceId, env: canvasEnv })
+          : null;
         let proc: pty.IPty | RemotePtyAdapter;
         let reusedRemote = false;
         if (remoteSpawn) {
