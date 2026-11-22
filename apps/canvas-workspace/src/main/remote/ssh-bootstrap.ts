@@ -184,16 +184,18 @@ export async function bootstrapRemoteVpsDaemon(
 
   // 1. Probe remote Node, existing bundle hash, native deps, and health.
   const probeScript = [
+    'set -e',
     `mkdir -p "${remoteDir}"`,
     'NODE_V=$(node -v 2>/dev/null || true)',
     `HASH=$(cat "${remoteDir}/bundle.sha" 2>/dev/null || true)`,
     `DEPS=$(test -d "${remoteDir}/node_modules/better-sqlite3" && test -d "${remoteDir}/node_modules/node-pty" && echo ok || echo missing)`,
     `HEALTH=$(curl -sf "http://127.0.0.1:${remotePort}/health" >/dev/null 2>&1 && echo up || echo down)`,
     'printf "%s\\n%s\\n%s\\n%s\\n" "$NODE_V" "$HASH" "$DEPS" "$HEALTH"',
-  ].join(' && ');
+    '',
+  ].join('\n');
 
   const probeOut = assertOk(
-    await run({ sshHost: options.sshHost, sshPort, remoteCommand: `sh -c '${probeScript}'` }),
+    await run({ sshHost: options.sshHost, sshPort, remoteCommand: 'sh -s', stdin: probeScript }),
     'probe',
   );
   const [nodeVersion = '', remoteHash = '', depsState = 'missing', healthState = 'down'] =
@@ -208,13 +210,13 @@ export async function bootstrapRemoteVpsDaemon(
   let installedDeps = false;
   let restarted = false;
 
-  // 2. Push the 28 KB standalone index.cjs bundle over SSH stdin when missing or outdated.
+  // 2. Push the standalone index.cjs bundle over SSH stdin when missing or outdated.
   if (remoteHash.trim() !== bundleHash) {
     assertOk(
       await run({
         sshHost: options.sshHost,
         sshPort,
-        remoteCommand: `sh -c 'mkdir -p "${remoteDir}" && cat > "${remoteDir}/index.cjs.tmp" && mv "${remoteDir}/index.cjs.tmp" "${remoteDir}/index.cjs" && printf "%s" "${bundleHash}" > "${remoteDir}/bundle.sha"'`,
+        remoteCommand: `mkdir -p "${remoteDir}" && cat > "${remoteDir}/index.cjs.tmp" && mv "${remoteDir}/index.cjs.tmp" "${remoteDir}/index.cjs" && printf "%s" "${bundleHash}" > "${remoteDir}/bundle.sha"`,
         stdin: bundleBytes,
       }),
       'upload-bundle',
@@ -225,49 +227,73 @@ export async function bootstrapRemoteVpsDaemon(
   // 3. Install native deps (better-sqlite3, node-pty) once on the VPS architecture.
   if (depsState.trim() !== 'ok') {
     const installScript = [
+      'set -e',
       `cd "${remoteDir}"`,
-      `test -f package.json || printf '{"name":"pulse-vps-runtime","private":true}\\n' > package.json`,
+      `printf '{"name":"pulse-vps-runtime","private":true}\\n' > package.json`,
       'npm install --omit=dev --no-audit --no-fund better-sqlite3@12.11.1 node-pty@1.1.0',
-    ].join(' && ');
-    assertOk(
-      await run({
-        sshHost: options.sshHost,
-        sshPort,
-        remoteCommand: `sh -c '${installScript}'`,
-        timeoutMs: 300_000,
-      }),
-      'install-native-deps',
-    );
+      '',
+    ].join('\n');
+    const installResult = await run({
+      sshHost: options.sshHost,
+      sshPort,
+      remoteCommand: 'sh -s',
+      stdin: installScript,
+      timeoutMs: 300_000,
+    });
+    if (installResult.code !== 0) {
+      const detail = (installResult.stderr || installResult.stdout).trim();
+      const hint = /not found:\s*(make|g\+\+|cc)/i.test(detail)
+        ? ' (Hint: install build tools on your VPS, e.g. `apt-get update && apt-get install -y build-essential`)'
+        : '';
+      throw new Error(
+        `VPS bootstrap failed at "install-native-deps" (exit ${installResult.code})${hint}: ${detail}`,
+      );
+    }
     installedDeps = true;
   }
 
   // 4. Ensure a 600-permission random Bearer token exists on the VPS.
   const tokenScript = [
+    'set -e',
     `TOKEN_FILE="${remoteDir}/token"`,
-    `if [ ! -s "$TOKEN_FILE" ]; then node -e "process.stdout.write(require('crypto').randomBytes(24).toString('hex'))" > "$TOKEN_FILE" && chmod 600 "$TOKEN_FILE"; fi`,
+    'if [ ! -s "$TOKEN_FILE" ]; then',
+    '  node -e "process.stdout.write(require(\'crypto\').randomBytes(24).toString(\'hex\'))" > "$TOKEN_FILE"',
+    '  chmod 600 "$TOKEN_FILE"',
+    'fi',
     'cat "$TOKEN_FILE"',
-  ].join('; ');
+    '',
+  ].join('\n');
   const token = assertOk(
-    await run({ sshHost: options.sshHost, sshPort, remoteCommand: `sh -c '${tokenScript}'` }),
+    await run({ sshHost: options.sshHost, sshPort, remoteCommand: 'sh -s', stdin: tokenScript }),
     'ensure-token',
   );
 
   // 5. Start or restart the daemon on 127.0.0.1:<remotePort> if newly uploaded or not running.
   if (uploaded || installedDeps || healthState.trim() !== 'up') {
     const startScript = [
+      'set -e',
       `cd "${remoteDir}"`,
-      `if [ -f daemon.pid ]; then kill "$(cat daemon.pid)" 2>/dev/null || true; sleep 0.3; fi`,
-      `TOKEN="$(cat token)"`,
+      'if [ -f daemon.pid ]; then',
+      '  kill "$(cat daemon.pid)" 2>/dev/null || true',
+      '  sleep 0.3',
+      'fi',
+      'TOKEN="$(cat token)"',
       `PULSE_VPS_HOST="127.0.0.1" PULSE_VPS_PORT="${remotePort}" PULSE_VPS_TOKEN="$TOKEN" PULSE_VPS_DATA_DIR="${dataDir}" PULSE_VPS_WORKDIR="${workDir}" nohup node index.cjs > daemon.log 2>&1 < /dev/null &`,
       'echo $! > daemon.pid',
-      `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do curl -sf "http://127.0.0.1:${remotePort}/health" >/dev/null 2>&1 && exit 0; sleep 0.3; done`,
-      'tail -n 30 daemon.log >&2; exit 1',
-    ].join('; ');
+      'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do',
+      `  if curl -sf "http://127.0.0.1:${remotePort}/health" >/dev/null 2>&1; then exit 0; fi`,
+      '  sleep 0.3',
+      'done',
+      'tail -n 30 daemon.log >&2',
+      'exit 1',
+      '',
+    ].join('\n');
     assertOk(
       await run({
         sshHost: options.sshHost,
         sshPort,
-        remoteCommand: `sh -c '${startScript}'`,
+        remoteCommand: 'sh -s',
+        stdin: startScript,
         timeoutMs: 30_000,
       }),
       'start-daemon',

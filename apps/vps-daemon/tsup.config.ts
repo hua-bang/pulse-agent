@@ -9,6 +9,7 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   platform: 'node',
+  noExternal: [/^@pulse-coder\/storage/],
   external: ['better-sqlite3', 'node-pty'],
   outExtension({ format }) {
     return {
