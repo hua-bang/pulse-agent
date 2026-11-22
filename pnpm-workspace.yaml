@@ -3,3 +3,4 @@ packages:
   - "apps/remote-server"
   - "apps/canvas-workspace"
   - "apps/telemetry-gateway"
+  - "apps/vps-daemon"

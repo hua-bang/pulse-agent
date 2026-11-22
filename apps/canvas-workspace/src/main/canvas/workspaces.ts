@@ -134,5 +134,9 @@ export async function listWorkspaces(root: string = STORE_DIR): Promise<Workspac
   for (const id of await filterWorkspaceIds(root, await listWorkspaceDirIds(root))) {
     if (!byId.has(id)) byId.set(id, { id, name: id });
   }
+  const { listConfiguredRemoteWorkspaceIds } = await import('../remote/config');
+  for (const id of listConfiguredRemoteWorkspaceIds(root)) {
+    if (!byId.has(id)) byId.set(id, { id, name: `${id} (VPS)` });
+  }
   return { activeId, workspaces: Array.from(byId.values()) };
 }

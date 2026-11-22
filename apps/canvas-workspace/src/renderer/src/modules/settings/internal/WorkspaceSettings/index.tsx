@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { Drawer, Button, TextField, FieldRow } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
+import { RemoteVpsCard } from './RemoteVpsCard';
 import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';
@@ -242,6 +243,8 @@ export const WorkspaceSettingsDrawer = ({
             </div>
           </FieldRow>
         </section>
+
+        <RemoteVpsCard workspaceId={workspace.id} />
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.intentState')}</div>

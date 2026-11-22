@@ -42,6 +42,13 @@ export async function startStorage(writeLog: WriteLog): Promise<boolean> {
     // Lazy chunk: keeps recovery out of the main bundle; it logs and never blocks startup.
     await import('../canvas/persistence/recovery/import-recovery')
       .then(module => module.recoverImportsAtStartup(STORE_DIR, store, writeLog)).catch(() => undefined);
+    await import('../remote/ipc').then(async ({ setupRemoteVpsIpc }) => {
+      const { getWorkspaceDir } = await import('../canvas/persistence/paths');
+      setupRemoteVpsIpc({
+        getLocalStorage: () => getLocalCanvasStorage(STORE_DIR),
+        getLocalWorkspaceDir: (workspaceId) => getWorkspaceDir(workspaceId),
+      });
+    }).catch(() => undefined);
     return true;
   } catch (error) {
     await writeLog('storage', 'Storage upgrade failed', String(error));

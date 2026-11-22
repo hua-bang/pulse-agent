@@ -54,6 +54,7 @@ src/main/
   generation/         # html-generator + ipc
   models/             # provider/model config, resolution, secret storage + IPC
   runtime/            # control-server, capability-http, capabilities/
+  remote/             # VPS workspace config, SSH tunnel, remote storage/files/PTY/exec-jsonl clients
   plugin-market/      # package readers, config + IPC, install/remove service
   settings/           # experimental-ipc,
                       # built-in-tools-config/-ipc, plugin-manifest-icons

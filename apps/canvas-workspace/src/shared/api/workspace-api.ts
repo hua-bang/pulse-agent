@@ -36,6 +36,7 @@ import type { LlmApi } from './llm';
 import type { ShellApi } from './shell';
 import type { TelemetryApi } from './telemetry';
 import type { WebApi } from './web';
+import type { RemoteVpsApi } from './remote-vps';
 
 export interface PluginBridge {
   invoke<T = unknown>(
@@ -257,4 +258,5 @@ export interface CanvasWorkspaceApi {
   plugin: PluginBridge;
   pluginMarket: PluginMarketApi;
   telemetry: TelemetryApi;
+  remoteVps: RemoteVpsApi;
 }
