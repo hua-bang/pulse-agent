@@ -87,6 +87,7 @@ describe('ssh-bootstrap', () => {
       remotePort: 4770,
       cwd: '/home/dev/app',
       daemonBundlePath: bundlePath,
+      skipToolingSync: true,
       sshRunner: fakeRunner,
     });
 
@@ -130,6 +131,7 @@ describe('ssh-bootstrap', () => {
     const res = await bootstrapRemoteVpsDaemon({
       sshHost: 'dev@my-cn-vps',
       daemonBundlePath: bundlePath,
+      skipToolingSync: true,
       sshRunner: fakeRunner,
     });
 
