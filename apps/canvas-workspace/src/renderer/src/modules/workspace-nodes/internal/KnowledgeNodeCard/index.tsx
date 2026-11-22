@@ -20,14 +20,23 @@ interface Props {
   aiChatLabel: string;
   selectForAiLabel: string;
   deselectForAiLabel: string;
+  openOnCanvasLabel?: string;
   openLabel: string;
   selected: boolean;
   contextSelected?: boolean;
   onOpen: (trigger: HTMLButtonElement) => void;
+  onOpenOnCanvas?: () => void;
   onToggleContextSelection?: () => void;
   onAskAi?: () => void;
   onSummarize?: () => void;
 }
+
+const TargetGlyph = () => (
+  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <circle cx="7" cy="7" r="2.1" stroke="currentColor" strokeWidth="1.3" />
+    <path d="M7 1.6v2.1M7 10.3v2.1M1.6 7h2.1M10.3 7h2.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+);
 
 const isPreviewKind = (type: string): type is PreviewKind => (
   type === 'file'
@@ -50,16 +59,18 @@ export const KnowledgeNodeCard = ({
   aiChatLabel,
   selectForAiLabel,
   deselectForAiLabel,
+  openOnCanvasLabel,
   openLabel,
   selected,
   contextSelected = false,
   onOpen,
+  onOpenOnCanvas,
   onToggleContextSelection,
   onAskAi,
   onSummarize,
 }: Props) => {
   const kind: KnowledgeCardKind = isPreviewKind(node.type) ? node.type : 'generic';
-  const hasActions = Boolean(onToggleContextSelection || onAskAi || onSummarize);
+  const hasActions = Boolean(onToggleContextSelection || onOpenOnCanvas || onAskAi || onSummarize);
 
   return (
     <CardShell
@@ -81,6 +92,18 @@ export const KnowledgeNodeCard = ({
               onClick={onToggleContextSelection}
             >
               <CheckIcon size={13} />
+            </Button>
+          )}
+          {onOpenOnCanvas && openOnCanvasLabel && (
+            <Button
+              variant="icon"
+              size="xs"
+              className="knowledge-node-card__action knowledge-node-card__action--locate"
+              aria-label={openOnCanvasLabel}
+              title={openOnCanvasLabel}
+              onClick={onOpenOnCanvas}
+            >
+              <TargetGlyph />
             </Button>
           )}
           {onSummarize && (

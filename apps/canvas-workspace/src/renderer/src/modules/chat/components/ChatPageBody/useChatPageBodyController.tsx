@@ -462,6 +462,7 @@ export const useChatPageBodyController = ({
       sessionTitleSource: sessionRail.allSessions.find(session => session.isCurrent)?.preview
         || messageSessionTitleSource(messages.find(message => message.role === 'user'), t('chat.imageFallback')),
       workspaceLabel: chatDestinationLabel,
+      onOpenCanvas: !fixedChat && agentScope.kind === 'workspace' ? onExit : undefined,
       railCollapsed,
       onToggleRail,
       anchors,

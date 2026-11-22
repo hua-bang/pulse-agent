@@ -26,35 +26,60 @@ const lastAskedNodeIds = new Map<string, string>();
 interface Props {
   /** Workspace whose chat receives the question. */
   workspaceId: string;
-  node: CanvasNode;
+  /** Single selected node (backward-compatible shorthand for selectedNodes). */
+  node?: CanvasNode;
+  /** One or more selected nodes; frames expand to their enclosed cards. */
+  selectedNodes?: CanvasNode[];
   /** Other cards on the canvas; the bar avoids covering their text. */
   nodes?: CanvasNode[];
   transform: CanvasTransform;
   onAsk: (prompt: ChatPromptSubmission) => Promise<ChatDeliveryReceipt>;
 }
 
-/**
- * Small "ask about this card" control under the single selected node. It
- * starts as a compact chip so a selected card is not covered by an input;
- * pressing it opens the input, and leaving an empty input folds it again.
- * The question starts a new workspace chat scoped to that node; the answer
- * shows in the dock chat, not here.
- */
-/** True when a card (not a container) other than `self` meets the screen rect. */
+const isInsideFrame = (candidate: CanvasNode, frame: CanvasNode): boolean => {
+  if (candidate.id === frame.id || candidate.type === 'frame' || candidate.type === 'group') return false;
+  const cx = candidate.x + candidate.width / 2;
+  const cy = candidate.y + candidate.height / 2;
+  return cx >= frame.x && cx <= frame.x + frame.width && cy >= frame.y && cy <= frame.y + frame.height;
+};
+
+/** Expand selected frames into their enclosed cards while preserving order and deduplicating. */
+const resolveAskTargets = (selection: CanvasNode[], allNodes: CanvasNode[]): CanvasNode[] => {
+  const seen = new Set<string>();
+  const resolved: CanvasNode[] = [];
+  const push = (item: CanvasNode) => {
+    if (seen.has(item.id)) return;
+    seen.add(item.id);
+    resolved.push(item);
+  };
+  for (const item of selection) {
+    if (item.type === 'frame') {
+      const enclosed = allNodes.filter((candidate) => isInsideFrame(candidate, item));
+      if (enclosed.length > 0) {
+        enclosed.forEach(push);
+        continue;
+      }
+    }
+    push(item);
+  }
+  return resolved;
+};
+
+/** True when a card (not a container) outside `excludedIds` meets the screen rect. */
 const coversCard = (
   nodes: CanvasNode[],
-  self: CanvasNode,
+  excludedIds: Set<string>,
   transform: CanvasTransform,
   rect: { left: number; top: number; right: number; bottom: number },
 ) => nodes.some((other) => {
-  if (other.id === self.id || other.type === 'frame' || other.type === 'group') return false;
+  if (excludedIds.has(other.id) || other.type === 'frame' || other.type === 'group') return false;
   const left = other.x * transform.scale + transform.x;
   const top = other.y * transform.scale + transform.y;
   return rect.left < left + other.width * transform.scale && rect.right > left
     && rect.top < top + other.height * transform.scale && rect.bottom > top;
 });
 
-export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: Props) => {
+export const NodeAskBar = ({ workspaceId, node, selectedNodes, nodes = [], transform, onAsk }: Props) => {
   const { t } = useI18n();
   const notifyChatDelivery = useChatDeliveryNotifier();
   const barRef = useRef<HTMLFormElement>(null);
@@ -62,39 +87,54 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
   const [sending, setSending] = useState(false);
   const [layout, setLayout] = useState<{ placeAbove: boolean; left: number; top: number } | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const label = getNodeDisplayLabel(node);
-  const left = node.x * transform.scale + transform.x;
-  const right = (node.x + node.width) * transform.scale + transform.x;
-  const belowTop = (node.y + node.height) * transform.scale + transform.y + NODE_GAP;
-  const aboveBottom = node.y * transform.scale + transform.y - NODE_GAP;
+
+  const selection = selectedNodes && selectedNodes.length > 0 ? selectedNodes : (node ? [node] : []);
+  const targets = resolveAskTargets(selection, nodes);
+  const selectionKey = targets.map((item) => item.id).sort().join(',');
+
+  const bounds = selection.reduce(
+    (acc, item) => ({
+      minX: Math.min(acc.minX, item.x),
+      minY: Math.min(acc.minY, item.y),
+      maxX: Math.max(acc.maxX, item.x + item.width),
+      maxY: Math.max(acc.maxY, item.y + item.height),
+    }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+  );
+
+  const primaryNode = targets[0] ?? selection[0];
+  const label = targets.length > 1
+    ? `${getNodeDisplayLabel(primaryNode)} (+${targets.length - 1})`
+    : (primaryNode ? getNodeDisplayLabel(primaryNode) : '');
+  const left = bounds.minX * transform.scale + transform.x;
+  const right = bounds.maxX * transform.scale + transform.x;
+  const belowTop = bounds.maxY * transform.scale + transform.y + NODE_GAP;
+  const aboveBottom = bounds.minY * transform.scale + transform.y - NODE_GAP;
 
   useEffect(() => {
     setText('');
     setExpanded(false);
-  }, [node.id]);
+  }, [selectionKey]);
 
-  // Flip above the card when the bar would fall off the bottom of the canvas,
+  // Flip above the selection when the bar would fall off the bottom of the canvas,
   // and clamp both horizontal and vertical coordinates inside the host bounds.
   useLayoutEffect(() => {
     const bar = barRef.current;
     const host = bar?.offsetParent as HTMLElement | null;
-    if (!bar || !host) return;
+    if (!bar || !host || selection.length === 0) return;
+    const excludedIds = new Set([...selection.map((item) => item.id), ...targets.map((item) => item.id)]);
     const height = bar.offsetHeight;
     const width = bar.offsetWidth;
     const hasWidth = host.clientWidth > 0;
     const hasHeight = host.clientHeight > 0;
-    // Above the card, align to its right edge (the left side of that row
-    // holds frame titles and their tools), but stay inside the canvas.
     const maxLeft = Math.max(VIEWPORT_GAP, host.clientWidth - width - VIEWPORT_GAP);
     const nextAboveLeft = hasWidth ? Math.min(Math.max(right - width, VIEWPORT_GAP), maxLeft) : right - width;
     const nextBelowLeft = hasWidth ? Math.min(Math.max(left, VIEWPORT_GAP), maxLeft) : left;
     const fitsAbove = aboveBottom - height > 0;
-    // Also flip when the bar would sit on the card below and the row above
-    // is clear, so it does not cover a neighbour's text.
-    const coversBelow = coversCard(nodes, node, transform, {
+    const coversBelow = coversCard(nodes, excludedIds, transform, {
       left: nextBelowLeft, top: belowTop, right: nextBelowLeft + width, bottom: belowTop + height,
     });
-    const coversAbove = coversCard(nodes, node, transform, {
+    const coversAbove = coversCard(nodes, excludedIds, transform, {
       left: nextAboveLeft, top: aboveBottom - height, right: nextAboveLeft + width, bottom: aboveBottom,
     });
     const nextPlaceAbove = fitsAbove && (
@@ -111,7 +151,9 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
       left: nextPlaceAbove ? nextAboveLeft : nextBelowLeft,
       top: nextPlaceAbove ? nextAboveTop : nextBelowTop,
     });
-  }, [aboveBottom, belowTop, expanded, left, node, nodes, right, transform]);
+  }, [aboveBottom, belowTop, expanded, left, nodes, right, selectionKey, transform]);
+
+  if (selection.length === 0 || targets.length === 0) return null;
 
   const handleBlur = (event: FocusEvent<HTMLFormElement>) => {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
@@ -133,11 +175,12 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
     try {
       const receipt = await onAsk({
         text: question,
-        nodes: [{ id: node.id, title: label, type: node.type }],
-        ...(lastAskedNodeIds.get(workspaceId) === node.id ? {} : { newSession: true }),
+        nodes: targets.map((item) => ({ id: item.id, title: getNodeDisplayLabel(item), type: item.type })),
+        ...(lastAskedNodeIds.get(workspaceId) === selectionKey ? {} : { newSession: true }),
       });
-      if (receipt.status === 'delivered' || receipt.status === 'queued') lastAskedNodeIds.set(workspaceId, node.id);
-      // A delivered question is visible in the chat itself; only report problems.
+      if (receipt.status === 'delivered' || receipt.status === 'queued') {
+        lastAskedNodeIds.set(workspaceId, selectionKey);
+      }
       if (receipt.status !== 'delivered') notifyChatDelivery(receipt, label);
       if (receipt.status === 'delivered' || receipt.status === 'queued') {
         setText('');
@@ -153,6 +196,10 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
       setSending(false);
     }
   };
+
+  const chipText = targets.length > 1
+    ? `${t('launcher.askSubmit')} (${targets.length})`
+    : t('launcher.askSubmit');
 
   return (
     <form
@@ -182,7 +229,7 @@ export const NodeAskBar = ({ workspaceId, node, nodes = [], transform, onAsk }: 
           aria-label={t('canvas.askBar.label', { title: label })}
         >
           <SparklesIcon size={13} className="node-ask-bar__icon" />
-          <span>{t('launcher.askSubmit')}</span>
+          <span>{chipText}</span>
         </Button>
       ) : (
         <>

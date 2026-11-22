@@ -273,11 +273,11 @@ export const CanvasOverlays = ({
           )}
         </div>
         <div className="canvas-bottom-chrome__right">
-          {onChatToggle && (() => {
+          {onChatToggle && !chatPanelOpen && (() => {
             const chatToggleLabel = `${t('canvas.toolbar.toggleChat')} (${formatShortcutId('canvas.toggleChatPanel')})`;
             return (
               <ChatFloatingButton
-                active={chatPanelOpen}
+                active={false}
                 onClick={onChatToggle}
                 title={chatToggleLabel}
                 ariaLabel={chatToggleLabel}

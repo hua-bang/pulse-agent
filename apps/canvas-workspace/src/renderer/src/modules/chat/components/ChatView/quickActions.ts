@@ -1,7 +1,7 @@
 import type { I18nKey } from '../../../../i18n';
 
 export interface QuickAction {
-  key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'organize_selection';
+  key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'summarize_selection' | 'organize_selection';
   label: string;
   labelKey?: I18nKey;
   prompt: string;
@@ -56,6 +56,14 @@ export const QUICK_ACTIONS: LocalizedCanvasQuickAction[] = [
     labelKey: 'chat.quick.createMindmap',
     prompt: 'Create a mindmap based on the current canvas.',
     promptKey: 'chat.quick.createMindmapPrompt',
+  },
+  {
+    key: 'summarize_selection',
+    label: 'Summarize selection',
+    labelKey: 'chat.quick.summarizeSelection',
+    prompt: 'Compare and summarize the currently selected cards, highlighting key takeaways and next steps.',
+    promptKey: 'chat.quick.summarizeSelectionPrompt',
+    requiresSelection: true,
   },
   {
     key: 'organize_selection',

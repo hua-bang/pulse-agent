@@ -55,4 +55,22 @@ describe('ChatEmptyState scope semantics', () => {
       'review_recent_work',
     );
   });
+
+  it('shows selection-aware greeting and prioritizes selection actions on canvas', () => {
+    const onQuickAction = vi.fn();
+    const rendered = renderEmptyState({ variant: 'canvas', selectedCount: 2, onQuickAction });
+
+    expect(rendered.textContent).toContain('What should the agent do with these 2 selected cards?');
+    const buttons = Array.from(rendered.querySelectorAll<HTMLButtonElement>('.chat-quick-action'));
+    expect(buttons[0]?.textContent).toContain('Summarize selection');
+    expect(buttons[1]?.textContent).toContain('Organize selection');
+
+    act(() => {
+      buttons[0]?.click();
+    });
+    expect(onQuickAction).toHaveBeenCalledWith(
+      'Compare and summarize the currently selected cards, highlighting key takeaways and next steps.',
+      'summarize_selection',
+    );
+  });
 });
