@@ -31,6 +31,8 @@ export interface BootstrapVpsDaemonOptions {
   workDir?: string;
   /** Override local path to `index.cjs` (defaults to bundled/workspace build). */
   daemonBundlePath?: string;
+  /** Override local path to `canvas-cli/index.cjs` (optional). */
+  cliBundlePath?: string;
   /** Injectable SSH runner for tests. */
   sshRunner?: SshRunner;
 }
@@ -300,6 +302,16 @@ export async function bootstrapRemoteVpsDaemon(
     );
     restarted = true;
   }
+
+  const { syncRemoteCanvasTooling } = await import('./ssh-tooling');
+  await syncRemoteCanvasTooling({
+    sshHost: options.sshHost,
+    sshPort,
+    remoteDir,
+    dataDir,
+    run,
+    ...(options.daemonBundlePath ? { cliBundlePath: options.cliBundlePath } : {}),
+  }).catch(() => undefined);
 
   return { token, remotePort, bundleHash, uploaded, installedDeps, restarted };
 }

@@ -60,7 +60,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const files = createLocalWorkspaceFiles();
   const broadcaster = new ChangeBroadcaster(storage, options.pollIntervalMs ?? 500);
   await broadcaster.start();
-  const ptyHub = new PtyHub(workDir, options.ptySpawner);
+  const ptyHub = new PtyHub(workDir, options.ptySpawner, dataDir);
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
