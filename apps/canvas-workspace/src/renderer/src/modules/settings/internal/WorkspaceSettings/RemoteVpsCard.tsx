@@ -241,29 +241,26 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
 
           {connMode === 'ssh' ? (
             <>
-              <FieldRow label="SSH 主机" hint="填 user@ip 或直接从本机 ~/.ssh/config 选取。">
-                <div className="remote-vps-inline">
+              <FieldRow label="SSH 主机" hint="填 user@ip 或点击下方本机 ~/.ssh/config 别名快速填入。">
+                <div className="remote-vps-stack">
                   <TextField
                     value={sshHost}
                     onChange={(e) => setSshHost(e.target.value)}
                     placeholder="dev@your-vps 或 ~/.ssh/config 别名"
                   />
                   {sshHosts.length > 0 && (
-                    <select
-                      className="remote-vps-select"
-                      value={sshHosts.includes(sshHost) ? sshHost : ''}
-                      onChange={(e) => {
-                        if (e.target.value) setSshHost(e.target.value);
-                      }}
-                      aria-label="选择 SSH 配置主机"
-                    >
-                      <option value="">~/.ssh/config</option>
+                    <div className="remote-vps-host-chips">
                       {sshHosts.map((host) => (
-                        <option key={host} value={host}>
+                        <Button
+                          key={host}
+                          variant={sshHost === host ? 'primary' : 'secondary'}
+                          size="sm"
+                          onClick={() => setSshHost(host)}
+                        >
                           {host}
-                        </option>
+                        </Button>
                       ))}
-                    </select>
+                    </div>
                   )}
                 </div>
               </FieldRow>
