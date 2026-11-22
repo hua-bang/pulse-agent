@@ -9,11 +9,14 @@ import { delimiter, dirname, join, resolve } from "path";
 import { PtySessionLeaseRegistry } from "./session-lease";
 import { commonPosixBinDirs, mergePath } from "../shell-path";
 import { withUtf8Locale } from "./pty-locale";
+import { trySpawnRemotePty, type RemotePtyAdapter } from "../remote/pty-bridge";
 
 /** Session output held in memory; readers of terminal nodes prefer it to saved text. */
 export { readSessionOutput } from "./session-output";
 
-const sessions = new Map<string, pty.IPty>();
+const sessions = new Map<string, pty.IPty | RemotePtyAdapter>();
+const isRemotePty = (proc: pty.IPty | RemotePtyAdapter): proc is RemotePtyAdapter =>
+  "isRemote" in proc && proc.isRemote === true;
 const sessionLeases = new PtySessionLeaseRegistry();
 const nodeRequire = createRequire(import.meta.url);
 
@@ -213,7 +216,7 @@ const getCwd = async (pid: number): Promise<string | null> => {
 export const setupPtyIpc = () => {
   ipcMain.handle(
     "pty:spawn",
-    (
+    async (
       _event,
       payload: {
         id: string;
@@ -234,8 +237,6 @@ export const setupPtyIpc = () => {
       intentionalShutdown = false;
 
       try {
-        const shell = defaultShell();
-        ensureNodePtySpawnHelperExecutable();
         const spawnEnv: Record<string, string> = buildPtyEnv();
         const canvasEnv: Record<string, string> = {};
         for (const [key, value] of Object.entries(payload.env ?? {})) {
@@ -249,14 +250,28 @@ export const setupPtyIpc = () => {
           spawnEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
           canvasEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
         }
-        const proc = pty.spawn(shell, [], {
-          name: "xterm-256color",
-          cols,
-          rows,
-          // A restored tab's saved folder may be gone; start in home instead of failing.
-          cwd: cwd && existsSync(cwd) ? cwd : homedir(),
-          env: spawnEnv
-        });
+        const remoteSpawn = await trySpawnRemotePty({ id, cols, rows, cwd, workspaceId, env: canvasEnv });
+        let proc: pty.IPty | RemotePtyAdapter;
+        let reusedRemote = false;
+        if (remoteSpawn) {
+          if (!remoteSpawn.ok) {
+            sessionLeases.release(id, leaseId);
+            return { ok: false, error: remoteSpawn.error };
+          }
+          proc = remoteSpawn.adapter;
+          reusedRemote = remoteSpawn.reused;
+        } else {
+          const shell = defaultShell();
+          ensureNodePtySpawnHelperExecutable();
+          proc = pty.spawn(shell, [], {
+            name: "xterm-256color",
+            cols,
+            rows,
+            // A restored tab's saved folder may be gone; start in home instead of failing.
+            cwd: cwd && existsSync(cwd) ? cwd : homedir(),
+            env: spawnEnv
+          });
+        }
 
         sessions.set(id, proc);
         const info: PtySessionInfo = { id, workspaceId, env: canvasEnv };
@@ -286,7 +301,7 @@ export const setupPtyIpc = () => {
           notifyObservers((observer) => observer.onExit?.(info, exitCode));
         });
 
-        return { ok: true, pid: proc.pid, leaseId };
+        return { ok: true, pid: proc.pid, reused: reusedRemote, leaseId };
       } catch (err) {
         sessionLeases.release(id, leaseId);
         return { ok: false, error: String(err) };
@@ -297,7 +312,7 @@ export const setupPtyIpc = () => {
   ipcMain.handle("pty:getCwd", async (_event, payload: { id: string }) => {
     const proc = sessions.get(payload.id);
     if (!proc) return { ok: false, error: "session not found" };
-    const cwd = await getCwd(proc.pid);
+    const cwd = isRemotePty(proc) ? await proc.getCwd() : await getCwd(proc.pid);
     return { ok: true, cwd };
   });
 
@@ -345,7 +360,8 @@ export const killAllPty = () => {
   intentionalShutdown = true;
   for (const [id, proc] of sessions) {
     try {
-      proc.kill();
+      if (isRemotePty(proc)) proc.detach();
+      else proc.kill();
     } catch {
       // ignore
     }

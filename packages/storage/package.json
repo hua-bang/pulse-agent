@@ -40,6 +40,11 @@
       "types": "./dist/local-conversations.d.ts",
       "import": "./dist/local-conversations.js",
       "require": "./dist/local-conversations.cjs"
+    },
+    "./remote": {
+      "types": "./dist/remote.d.ts",
+      "import": "./dist/remote.js",
+      "require": "./dist/remote.cjs"
     }
   },
   "files": [

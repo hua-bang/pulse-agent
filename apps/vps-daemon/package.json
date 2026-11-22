@@ -1,0 +1,27 @@
+{
+  "name": "@pulse-coder/vps-daemon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight VPS storage and runtime daemon for remote Pulse Canvas workspaces",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.cjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pulse-coder/storage": "workspace:*",
+    "better-sqlite3": "12.11.1",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "tsup": "^8.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

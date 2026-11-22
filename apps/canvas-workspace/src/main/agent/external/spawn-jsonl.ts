@@ -7,6 +7,8 @@
 
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
+import { resolveRemoteWorkspaceTarget } from '../../remote/client';
+import { runRemoteJsonlCli } from '../../remote/runtime-client';
 
 export const EXTERNAL_SEGMENT_TIMEOUT_MS = 10 * 60_000;
 
@@ -14,6 +16,8 @@ export interface JsonlCliRun {
   command: string;
   args: string[];
   cwd: string;
+  /** Optional workspace id; when bound to a VPS workspace, executes remotely on the VPS daemon. */
+  workspaceId?: string;
   /** Written to stdin, then stdin is closed. */
   prompt: string;
   abortSignal: AbortSignal;
@@ -27,6 +31,20 @@ export interface JsonlCliExit {
 }
 
 export async function runJsonlCli(run: JsonlCliRun): Promise<JsonlCliExit> {
+  if (run.workspaceId) {
+    const remote = await resolveRemoteWorkspaceTarget(run.workspaceId);
+    if (remote) {
+      return await runRemoteJsonlCli(remote, {
+        command: run.command,
+        args: run.args,
+        cwd: run.cwd,
+        prompt: run.prompt,
+        abortSignal: run.abortSignal,
+        timeoutMs: run.timeoutMs,
+        onLine: run.onLine,
+      });
+    }
+  }
   // A missing cwd makes spawn fail with a misleading ENOENT on the COMMAND;
   // surface the actual misconfiguration instead.
   if (!existsSync(run.cwd)) {

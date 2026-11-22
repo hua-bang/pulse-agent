@@ -317,6 +317,34 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@25.0.10)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
 
+  apps/vps-daemon:
+    dependencies:
+      '@pulse-coder/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      better-sqlite3:
+        specifier: 12.11.1
+        version: 12.11.1
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.10
+        version: 25.0.10
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@25.0.10)(happy-dom@20.10.6)(sass@1.51.0)(terser@5.49.0)
+
   packages/acp:
     dependencies:
       pulse-coder-engine:
