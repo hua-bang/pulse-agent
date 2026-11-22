@@ -2,9 +2,9 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import type {
   RemoteVpsDirEntry,
   RemoteVpsWorkspaceConfigDto,
-} from '../../../../shared/api/remote-vps';
-import { Button, Modal, TextField } from '../../components/ui';
-import './RemoteFolderPickerModal.css';
+} from '../../../../../../shared/api/remote-vps';
+import { Button, Modal, TextField } from '../../../../components/ui';
+import './index.css';
 
 export interface RemoteFolderPickerModalProps {
   open: boolean;

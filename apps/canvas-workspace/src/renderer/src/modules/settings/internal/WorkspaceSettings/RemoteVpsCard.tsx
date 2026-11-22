@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
-import { RemoteFolderPickerModal } from '../../../../shared/remote/RemoteFolderPickerModal';
+import { RemoteFolderPickerModal } from '../../components/RemoteFolderPickerModal';
 import './RemoteVpsCard.css';
 
 interface Props {

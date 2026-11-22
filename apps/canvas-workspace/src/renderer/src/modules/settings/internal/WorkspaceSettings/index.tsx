@@ -20,7 +20,7 @@ import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { Drawer, Button, TextField, FieldRow } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
 import { RemoteVpsCard } from './RemoteVpsCard';
-import { RemoteFolderPickerModal } from '../../../../shared/remote/RemoteFolderPickerModal';
+import { RemoteFolderPickerModal } from '../../components/RemoteFolderPickerModal';
 import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';

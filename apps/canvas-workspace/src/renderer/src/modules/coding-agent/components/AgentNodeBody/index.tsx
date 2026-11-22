@@ -11,7 +11,7 @@ import type { AgentNodeBodyProps } from './types';
 import { resolveCodingAgentView as detectAgentView } from '../../session/sessionLifecycle';
 import { useAgentNodeController } from './useAgentNodeController';
 import { useWorkspaceActive } from '../../../../shared/workspaceActivity';
-import { RemoteFolderPickerModal } from '../../../../shared/remote/RemoteFolderPickerModal';
+import { RemoteFolderPickerModal } from '../../../settings';
 import { count } from '../../../../perf/counters';
 
 export { detectAgentView };
