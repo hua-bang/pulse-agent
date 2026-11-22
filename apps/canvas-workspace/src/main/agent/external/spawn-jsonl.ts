@@ -34,7 +34,7 @@ export async function runJsonlCli(run: JsonlCliRun): Promise<JsonlCliExit> {
   const remoteCfgPath = process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(homedir(), '.pulse-coder', 'canvas', 'remote-workspaces.json');
   if (run.workspaceId && existsSync(remoteCfgPath)) {
     const { resolveRemoteWorkspaceTarget } = await import('../../remote/client');
-    const remote = await resolveRemoteWorkspaceTarget(run.workspaceId);
+    const remote = await resolveRemoteWorkspaceTarget(run.workspaceId, 'runtime');
     if (remote) {
       const { runRemoteJsonlCli } = await import('../../remote/runtime-client');
       return await runRemoteJsonlCli(remote, {

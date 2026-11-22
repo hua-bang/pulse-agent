@@ -5,7 +5,13 @@ import {
   openRemoteStorage,
   subscribeRemoteChanges,
 } from '@pulse-coder/storage/remote';
-import { getRemoteWorkspaceConfig, resolveRemoteToken } from './config';
+import {
+  getRemoteWorkspaceConfig,
+  isRemoteRuntimeEnabled,
+  isRemoteStorageEnabled,
+  resolveRemoteToken,
+  type RemoteVpsWorkspaceConfig,
+} from './config';
 import { closeAllSshTunnels, ensureSshTunnel } from './ssh-tunnel';
 
 export interface ResolvedRemoteTarget {
@@ -19,12 +25,10 @@ export interface ResolvedRemoteTarget {
 const storagePool = new Map<string, Promise<PulseStorage>>();
 const changeSubscriptions = new Map<string, () => void>();
 
-export async function resolveRemoteWorkspaceTarget(
+export async function resolveRemoteTargetFromConfig(
   workspaceId: string,
-): Promise<ResolvedRemoteTarget | null> {
-  const config = getRemoteWorkspaceConfig(workspaceId);
-  if (!config) return null;
-
+  config: RemoteVpsWorkspaceConfig,
+): Promise<ResolvedRemoteTarget> {
   const token = resolveRemoteToken(config);
   const endpoint =
     config.endpoint?.trim() ||
@@ -43,11 +47,22 @@ export async function resolveRemoteWorkspaceTarget(
   };
 }
 
+export async function resolveRemoteWorkspaceTarget(
+  workspaceId: string,
+  capability: 'storage' | 'runtime' | 'any' = 'any',
+): Promise<ResolvedRemoteTarget | null> {
+  const config = getRemoteWorkspaceConfig(workspaceId);
+  if (!config) return null;
+  if (capability === 'storage' && !isRemoteStorageEnabled(config)) return null;
+  if (capability === 'runtime' && !isRemoteRuntimeEnabled(config)) return null;
+  return await resolveRemoteTargetFromConfig(workspaceId, config);
+}
+
 export async function getRemotePulseStorage(workspaceId: string): Promise<{
   storage: PulseStorage;
   target: ResolvedRemoteTarget;
 } | null> {
-  const target = await resolveRemoteWorkspaceTarget(workspaceId);
+  const target = await resolveRemoteWorkspaceTarget(workspaceId, 'storage');
   if (!target) return null;
 
   const poolKey = `${target.endpoint}::${target.token}`;

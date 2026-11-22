@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const DEFAULT_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -22,6 +22,10 @@ export interface RemoteVpsWorkspaceConfig {
   remoteWorkspaceId?: string;
   /** Default working directory on the VPS for terminals and external agents. */
   cwd?: string;
+  /** Where Canvas/Conversation/File storage lives (default: `'vps'`). Set `'local'` to keep existing local data. */
+  storage?: 'vps' | 'local';
+  /** Where PTY terminals and external CLI agents run (default: `'vps'`). */
+  runtime?: 'vps' | 'local';
 }
 
 interface RemoteConfigFile {
@@ -34,6 +38,15 @@ function configFilePath(storeDir = DEFAULT_STORE_DIR): string {
   return process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(storeDir, REMOTE_CONFIG_FILENAME);
 }
 
+function readConfigFile(storeDir = DEFAULT_STORE_DIR): RemoteConfigFile {
+  try {
+    const parsed = JSON.parse(readFileSync(configFilePath(storeDir), 'utf8')) as RemoteConfigFile;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Load the remote VPS workspace config for a given workspaceId, or `null` for local workspaces.
  * Reads fresh from disk (small JSON file) so edits take effect without restarting the app.
@@ -43,16 +56,55 @@ export function getRemoteWorkspaceConfig(
   storeDir = DEFAULT_STORE_DIR,
 ): RemoteVpsWorkspaceConfig | null {
   if (!workspaceId) return null;
-  let parsed: RemoteConfigFile;
-  try {
-    parsed = JSON.parse(readFileSync(configFilePath(storeDir), 'utf8')) as RemoteConfigFile;
-  } catch {
-    return null;
-  }
+  const parsed = readConfigFile(storeDir);
   const entry = parsed?.workspaces?.[workspaceId];
   if (!entry || entry.kind !== 'vps') return null;
   if (!entry.endpoint && !entry.sshHost) return null;
   return entry;
+}
+
+export function isRemoteStorageEnabled(config: RemoteVpsWorkspaceConfig): boolean {
+  return (config.storage ?? 'vps') === 'vps';
+}
+
+export function isRemoteRuntimeEnabled(config: RemoteVpsWorkspaceConfig): boolean {
+  return (config.runtime ?? 'vps') === 'vps';
+}
+
+export function saveRemoteWorkspaceConfig(
+  workspaceId: string,
+  config: RemoteVpsWorkspaceConfig,
+  storeDir = DEFAULT_STORE_DIR,
+): void {
+  const filePath = configFilePath(storeDir);
+  const current = readConfigFile(storeDir);
+  const next: RemoteConfigFile = {
+    ...current,
+    workspaces: {
+      ...(current.workspaces ?? {}),
+      [workspaceId]: config,
+    },
+  };
+  mkdirSync(dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  writeFileSync(tmpPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  renameSync(tmpPath, filePath);
+}
+
+export function removeRemoteWorkspaceConfig(
+  workspaceId: string,
+  storeDir = DEFAULT_STORE_DIR,
+): boolean {
+  const filePath = configFilePath(storeDir);
+  const current = readConfigFile(storeDir);
+  if (!current.workspaces || !(workspaceId in current.workspaces)) return false;
+  const { [workspaceId]: _removed, ...rest } = current.workspaces;
+  const next: RemoteConfigFile = { ...current, workspaces: rest };
+  mkdirSync(dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  writeFileSync(tmpPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  renameSync(tmpPath, filePath);
+  return true;
 }
 
 export function resolveRemoteToken(config: RemoteVpsWorkspaceConfig): string {
@@ -65,13 +117,9 @@ export function resolveRemoteToken(config: RemoteVpsWorkspaceConfig): string {
 }
 
 export function listConfiguredRemoteWorkspaceIds(storeDir = DEFAULT_STORE_DIR): string[] {
-  try {
-    const parsed = JSON.parse(readFileSync(configFilePath(storeDir), 'utf8')) as RemoteConfigFile;
-    if (!parsed?.workspaces || typeof parsed.workspaces !== 'object') return [];
-    return Object.entries(parsed.workspaces)
-      .filter(([, cfg]) => cfg && cfg.kind === 'vps' && (cfg.endpoint || cfg.sshHost))
-      .map(([id]) => id);
-  } catch {
-    return [];
-  }
+  const parsed = readConfigFile(storeDir);
+  if (!parsed?.workspaces || typeof parsed.workspaces !== 'object') return [];
+  return Object.entries(parsed.workspaces)
+    .filter(([, cfg]) => cfg && cfg.kind === 'vps' && (cfg.endpoint || cfg.sshHost))
+    .map(([id]) => id);
 }

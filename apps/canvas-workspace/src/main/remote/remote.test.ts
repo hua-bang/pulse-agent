@@ -204,4 +204,141 @@ describe('remote VPS workspace client', () => {
     expect(exit.code).toBe(0);
     expect(lines).toEqual(['{"type":"done"}']);
   });
+
+  it('supports runtime-only VPS mode for existing local workspaces and full migration via migrateLocalWorkspaceToVps', async () => {
+    const { saveRemoteWorkspaceConfig, removeRemoteWorkspaceConfig } = await import('./config');
+    const { migrateLocalWorkspaceToVps } = await import('./migrate');
+    const { mkdir } = await import('node:fs/promises');
+
+    const importedBundles: unknown[] = [];
+    const uploadedUris: string[] = [];
+    const token = 'migrate-secret-777';
+
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, code: 'unauthorized', message: 'bad token' }));
+        return;
+      }
+      if (url.pathname === '/v1/meta') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({ ok: true, generation: 'gen-mig', version: '0.1.0', capabilities: [] }),
+        );
+        return;
+      }
+      if (url.pathname === '/v1/files' && req.method === 'PUT') {
+        uploadedUris.push(url.searchParams.get('uri') ?? '');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({ ok: true, uri: url.searchParams.get('uri'), version: 'sha256:123' }),
+        );
+        return;
+      }
+      if (url.pathname === '/v1/storage/rpc') {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(Buffer.from(c));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          method: string;
+          args: unknown[];
+        };
+        if (body.method === 'workspaces.importBundle') {
+          importedBundles.push(body.args[0]);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              ok: true,
+              result: {
+                generation: 'gen-mig',
+                revision: 1,
+                changeCursor: '1',
+                conversationState: { scope: null, sessions: [] },
+              },
+            }),
+          );
+          return;
+        }
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const addr = server.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+    const endpoint = `http://127.0.0.1:${port}`;
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+
+    const dir = await mkdtemp(join(tmpdir(), 'pulse-mig-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    process.env.PULSE_CANVAS_REMOTE_CONFIG = join(dir, 'remote-workspaces.json');
+
+    // Mode B: keep storage local while routing runtime (PTY / CLI) to VPS.
+    saveRemoteWorkspaceConfig('legacy-ws', {
+      kind: 'vps',
+      endpoint,
+      token,
+      storage: 'local',
+      runtime: 'vps',
+      cwd: '/srv/legacy',
+    });
+    expect(await getRemoteCanvasBackend('legacy-ws')).toBeNull();
+    expect((await resolveRemoteWorkspaceTarget('legacy-ws', 'runtime'))?.cwd).toBe('/srv/legacy');
+    expect(removeRemoteWorkspaceConfig('legacy-ws')).toBe(true);
+
+    // Mode A: migrate an existing local workspace bundle + markdown note to VPS.
+    const wsDir = join(dir, 'ws-files');
+    await mkdir(join(wsDir, 'notes'), { recursive: true });
+    await writeFile(join(wsDir, 'notes', 'intro.md'), '# Migrated Note', 'utf8');
+
+    const fakeLocalStorage = {
+      workspaces: {
+        async readBundle(workspaceId: string) {
+          return {
+            canvas: {
+              generation: 'local-gen',
+              workspaceId,
+              revision: 4,
+              metadata: { title: 'Legacy Local' },
+              nodes: [{ id: 'n1', type: 'note', title: 'Old Note' }],
+              placements: [{ id: 'n1', nodeId: 'n1', x: 10, y: 20 }],
+              edges: [],
+            },
+            conversationScope: {
+              generation: 'local-gen',
+              scopeId: workspaceId,
+              revision: 1,
+              currentSessionId: 's1',
+              metadata: {},
+            },
+            conversations: [
+              {
+                generation: 'local-gen',
+                scopeId: workspaceId,
+                sessionId: 's1',
+                revision: 2,
+                metadata: { title: 'History' },
+                messages: [{ id: 'm1', role: 'user', text: 'hello' }],
+              },
+            ],
+            conversationState: { scope: null, sessions: [] },
+          };
+        },
+      },
+    } as unknown as Parameters<typeof migrateLocalWorkspaceToVps>[0]['localStorage'];
+
+    const migRes = await migrateLocalWorkspaceToVps({
+      workspaceId: 'legacy-ws',
+      config: { kind: 'vps', endpoint, token, cwd: '/srv/legacy' },
+      localStorage: fakeLocalStorage,
+      localWorkspaceDir: wsDir,
+    });
+
+    expect(migRes.canvasRevision).toBe(1);
+    expect(migRes.conversationCount).toBe(1);
+    expect(migRes.uploadedFiles).toBe(1);
+    expect(uploadedUris).toEqual(['pulse-remote:///legacy-ws/notes/intro.md']);
+    expect(importedBundles).toHaveLength(1);
+    expect(getRemoteWorkspaceConfig('legacy-ws')?.storage).toBe('vps');
+  });
 });

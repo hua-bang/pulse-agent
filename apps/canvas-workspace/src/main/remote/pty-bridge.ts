@@ -28,7 +28,7 @@ export async function trySpawnRemotePty(payload: {
   { ok: true; adapter: RemotePtyAdapter; reused: boolean } | { ok: false; error: string } | null
 > {
   if (!payload.workspaceId) return null;
-  const target = await resolveRemoteWorkspaceTarget(payload.workspaceId);
+  const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'runtime');
   if (!target) return null;
 
   const dataListeners = new Set<(data: string) => void>();
