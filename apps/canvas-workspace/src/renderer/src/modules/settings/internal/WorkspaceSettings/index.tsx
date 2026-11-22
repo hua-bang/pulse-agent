@@ -20,6 +20,7 @@ import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { Drawer, Button, TextField, FieldRow } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
 import { RemoteVpsCard } from './RemoteVpsCard';
+import { RemoteFolderPickerModal } from '../../../../shared/remote/RemoteFolderPickerModal';
 import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
 import { isImeComposing } from '../../../../utils/ime';
@@ -67,11 +68,23 @@ export const WorkspaceSettingsDrawer = ({
   const [savedHint, setSavedHint] = useState(false);
   const [intent, setIntent] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [remoteFolderPickerOpen, setRemoteFolderPickerOpen] = useState(false);
 
   const handleRemoteVpsChange = useCallback((cfg: RemoteVpsWorkspaceConfigDto | null) => {
     setRemoteVps(cfg);
     setRemoteVpsReady(true);
   }, []);
+
+  const handleRemoteFolderSelect = useCallback(async (folderPath: string) => {
+    if (!workspace || !remoteVps) return;
+    const nextConfig: RemoteVpsWorkspaceConfigDto = { ...remoteVps, cwd: folderPath };
+    const res = await window.canvasWorkspace?.remoteVps.saveConfig(workspace.id, nextConfig);
+    if (!res?.ok) {
+      setError(res?.error ?? 'Failed to update remote folder.');
+      return;
+    }
+    setRemoteVps(nextConfig);
+  }, [remoteVps, workspace]);
 
   // Reset basic draft fields when opening or switching workspace.
   useEffect(() => {
@@ -277,12 +290,18 @@ export const WorkspaceSettingsDrawer = ({
           {remoteVps ? (
             <FieldRow
               label={t('workspaceSettings.rootFolder')}
-              hint="已由远端 VPS 托管；如需修改远端目录，请在下方「远端 VPS → 管理配置」中调整。"
+              hint="已由远端 VPS 托管；点击右侧按钮可直接浏览并切换 VPS 上的项目目录。"
             >
               <div className="workspace-settings-folder-row">
                 <div className="workspace-settings-folder-path" title={remoteVps.cwd || '~'}>
                   VPS: {remoteVps.cwd?.trim() || '~'}
                 </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => setRemoteFolderPickerOpen(true)}
+                >
+                  {t('workspaceSettings.changeFolder')}
+                </Button>
               </div>
             </FieldRow>
           ) : (
@@ -302,7 +321,11 @@ export const WorkspaceSettingsDrawer = ({
           )}
         </section>
 
-        <RemoteVpsCard workspaceId={workspace.id} onConfigChange={handleRemoteVpsChange} />
+        <RemoteVpsCard
+          workspaceId={workspace.id}
+          externalCwd={remoteVps?.cwd}
+          onConfigChange={handleRemoteVpsChange}
+        />
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.intentState')}</div>
@@ -376,6 +399,15 @@ export const WorkspaceSettingsDrawer = ({
           {savingDoc ? t('workspaceSettings.saving') : savedHint ? t('workspaceSettings.saved') : t('workspaceSettings.saveDoc')}
         </Button>
       </div>
+      {remoteVps && (
+        <RemoteFolderPickerModal
+          open={remoteFolderPickerOpen}
+          workspaceId={workspace.id}
+          initialPath={remoteVps.cwd || '~'}
+          onSelect={(folderPath) => { void handleRemoteFolderSelect(folderPath); }}
+          onClose={() => setRemoteFolderPickerOpen(false)}
+        />
+      )}
     </Drawer>
   );
 };

@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
-import { join, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { readJsonBody, sendJson, verifyBearerToken } from './auth.js';
@@ -84,7 +85,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         ok: true,
         generation: storage.generation,
         version: DAEMON_VERSION,
-        capabilities: ['storage-rpc', 'workspace-files', 'sse-events', 'pty', 'exec-jsonl'],
+        capabilities: ['storage-rpc', 'workspace-files', 'sse-events', 'pty', 'exec-jsonl', 'fs-list-dirs'],
       });
       return;
     }
@@ -101,6 +102,54 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
 
     if (req.method === 'GET' && url.pathname === '/v1/events') {
       await broadcaster.subscribe(req, res, url);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/v1/fs/list-dirs') {
+      try {
+        const home = homedir();
+        const rawPath = url.searchParams.get('path')?.trim() || '';
+        const showHidden = url.searchParams.get('showHidden') === '1';
+        const expanded = !rawPath || rawPath === '~'
+          ? workDir || home
+          : rawPath.startsWith('~/')
+            ? join(home, rawPath.slice(2))
+            : rawPath;
+        const targetDir = resolve(expanded);
+        const dirents = await readdir(targetDir, { withFileTypes: true });
+        const entries: Array<{ name: string; path: string; hidden: boolean }> = [];
+        for (const dirent of dirents) {
+          const hidden = dirent.name.startsWith('.');
+          if (!showHidden && hidden) continue;
+          const entryPath = join(targetDir, dirent.name);
+          let isDir = dirent.isDirectory();
+          if (!isDir && dirent.isSymbolicLink()) {
+            try {
+              const info = await stat(entryPath);
+              isDir = info.isDirectory();
+            } catch {
+              isDir = false;
+            }
+          }
+          if (isDir) {
+            entries.push({ name: dirent.name, path: entryPath, hidden });
+          }
+        }
+        entries.sort((a, b) => a.name.localeCompare(b.name));
+        const parentDir = dirname(targetDir);
+        sendJson(res, 200, {
+          ok: true,
+          path: targetDir,
+          parent: parentDir !== targetDir ? parentDir : null,
+          home,
+          entries,
+        });
+      } catch (err) {
+        sendJson(res, 400, {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       return;
     }
 

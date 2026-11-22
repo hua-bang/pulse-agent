@@ -209,5 +209,12 @@ export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
   readWorkspaceDoc: (workspaceId, cwd) =>
     ipcRenderer.invoke("remote-vps:readWorkspaceDoc", { workspaceId, cwd }),
   writeWorkspaceDoc: (workspaceId, content, cwd) =>
-    ipcRenderer.invoke("remote-vps:writeWorkspaceDoc", { workspaceId, content, cwd })
+    ipcRenderer.invoke("remote-vps:writeWorkspaceDoc", { workspaceId, content, cwd }),
+  listDirs: (workspaceId, dirPath, options) =>
+    ipcRenderer.invoke("remote-vps:listDirs", {
+      workspaceId,
+      dirPath,
+      showHidden: options?.showHidden,
+      config: options?.config,
+    })
 });
