@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +11,11 @@ import {
   parseSshConfigHosts,
   type SshRunner,
 } from './ssh-bootstrap';
+
+function assertValidPosixShell(script: string): void {
+  if (process.platform === 'win32') return;
+  execFileSync('/bin/sh', ['-n'], { input: script, stdio: ['pipe', 'pipe', 'pipe'] });
+}
 
 describe('ssh-bootstrap', () => {
   const cleanups: Array<() => Promise<void>> = [];
@@ -40,32 +47,36 @@ describe('ssh-bootstrap', () => {
     expect(parseSshConfigHosts(cfgPath)).toEqual(['my-cn-vps', 'dev-box']);
   });
 
-  it('uploads bundle, installs deps, generates token, and starts daemon on fresh VPS', async () => {
+  it('uploads bundle, installs deps, generates token, and starts daemon with valid POSIX shell scripts', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'pulse-boot-'));
     cleanups.push(() => rm(dir, { recursive: true, force: true }));
     const bundlePath = join(dir, 'index.cjs');
     await writeFile(bundlePath, 'console.log("vps-daemon");\n', 'utf8');
     process.env.PULSE_CANVAS_REMOTE_CONFIG = join(dir, 'remote-workspaces.json');
 
-    const commands: string[] = [];
+    const scripts: string[] = [];
     let uploadedBytes = 0;
 
     const fakeRunner: SshRunner = async ({ remoteCommand, stdin }) => {
-      commands.push(remoteCommand);
-      if (remoteCommand.includes('NODE_V=')) {
-        return { code: 0, stdout: 'v22.14.0\n\nmissing\ndown\n', stderr: '' };
+      if (remoteCommand === 'sh -s' && typeof stdin === 'string') {
+        assertValidPosixShell(stdin);
+        scripts.push(stdin);
+        if (stdin.includes('NODE_V=')) {
+          return { code: 0, stdout: 'v22.14.0\n\nmissing\ndown\n', stderr: '' };
+        }
+        if (stdin.includes('npm install')) {
+          return { code: 0, stdout: 'added 2 packages', stderr: '' };
+        }
+        if (stdin.includes('TOKEN_FILE=')) {
+          return { code: 0, stdout: 'generated-token-abc123\n', stderr: '' };
+        }
+        if (stdin.includes('nohup node index.cjs')) {
+          return { code: 0, stdout: '', stderr: '' };
+        }
       }
       if (remoteCommand.includes('index.cjs.tmp')) {
+        assertValidPosixShell(remoteCommand);
         uploadedBytes = Buffer.isBuffer(stdin) ? stdin.length : 0;
-        return { code: 0, stdout: '', stderr: '' };
-      }
-      if (remoteCommand.includes('npm install')) {
-        return { code: 0, stdout: 'added 2 packages', stderr: '' };
-      }
-      if (remoteCommand.includes('TOKEN_FILE=')) {
-        return { code: 0, stdout: 'generated-token-abc123\n', stderr: '' };
-      }
-      if (remoteCommand.includes('nohup node index.cjs')) {
         return { code: 0, stdout: '', stderr: '' };
       }
       return { code: 1, stdout: '', stderr: `unexpected command: ${remoteCommand}` };
@@ -84,7 +95,7 @@ describe('ssh-bootstrap', () => {
     expect(bootstrap.restarted).toBe(true);
     expect(bootstrap.token).toBe('generated-token-abc123');
     expect(uploadedBytes).toBeGreaterThan(0);
-    expect(commands).toHaveLength(5);
+    expect(scripts).toHaveLength(4);
 
     expect(config.sshHost).toBe('dev@my-cn-vps');
     expect(getRemoteWorkspaceConfig('cn-vps-ws')?.token).toBe('generated-token-abc123');
@@ -96,20 +107,22 @@ describe('ssh-bootstrap', () => {
     const bundlePath = join(dir, 'index.cjs');
     await writeFile(bundlePath, 'console.log("same");\n', 'utf8');
 
-    const { createHash } = await import('node:crypto');
     const expectedHash = createHash('sha256')
       .update(Buffer.from('console.log("same");\n'))
       .digest('hex')
       .slice(0, 16);
 
-    const commands: string[] = [];
-    const fakeRunner: SshRunner = async ({ remoteCommand }) => {
-      commands.push(remoteCommand);
-      if (remoteCommand.includes('NODE_V=')) {
-        return { code: 0, stdout: `v22.14.0\n${expectedHash}\nok\nup\n`, stderr: '' };
-      }
-      if (remoteCommand.includes('TOKEN_FILE=')) {
-        return { code: 0, stdout: 'existing-token-xyz\n', stderr: '' };
+    const calls: string[] = [];
+    const fakeRunner: SshRunner = async ({ remoteCommand, stdin }) => {
+      if (remoteCommand === 'sh -s' && typeof stdin === 'string') {
+        assertValidPosixShell(stdin);
+        calls.push(stdin);
+        if (stdin.includes('NODE_V=')) {
+          return { code: 0, stdout: `v22.14.0\n${expectedHash}\nok\nup\n`, stderr: '' };
+        }
+        if (stdin.includes('TOKEN_FILE=')) {
+          return { code: 0, stdout: 'existing-token-xyz\n', stderr: '' };
+        }
       }
       return { code: 1, stdout: '', stderr: `should not run: ${remoteCommand}` };
     };
@@ -124,6 +137,6 @@ describe('ssh-bootstrap', () => {
     expect(res.installedDeps).toBe(false);
     expect(res.restarted).toBe(false);
     expect(res.token).toBe('existing-token-xyz');
-    expect(commands).toHaveLength(2);
+    expect(calls).toHaveLength(2);
   });
 });
