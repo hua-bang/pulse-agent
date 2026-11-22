@@ -208,5 +208,23 @@ describe('vps-daemon end-to-end', () => {
     expect(sseText).toContain('event: line');
     expect(sseText).toContain('\\"type\\":\\"msg\\"');
     expect(sseText).toContain('event: exit');
+
+    // Workspace doc (pulse-workspace.md) round-trip.
+    const docMissing = await fetch(`${daemon.url}/v1/workspace-doc`, { headers });
+    const docMissingJson = await docMissing.json() as { ok: boolean; exists: boolean; content: string | null };
+    expect(docMissingJson.ok).toBe(true);
+    expect(docMissingJson.exists).toBe(false);
+
+    const docWrite = await fetch(`${daemon.url}/v1/workspace-doc`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ content: '# Remote Goal\nShip it' }),
+    });
+    expect(docWrite.status).toBe(200);
+
+    const docRead = await fetch(`${daemon.url}/v1/workspace-doc`, { headers });
+    const docReadJson = await docRead.json() as { ok: boolean; exists: boolean; content: string };
+    expect(docReadJson.exists).toBe(true);
+    expect(docReadJson.content).toBe('# Remote Goal\nShip it');
   });
 });

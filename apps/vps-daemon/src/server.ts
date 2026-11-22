@@ -1,9 +1,9 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
-import { sendJson, verifyBearerToken } from './auth.js';
+import { readJsonBody, sendJson, verifyBearerToken } from './auth.js';
 import { handleExecJsonl } from './exec-jsonl.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
@@ -102,6 +102,42 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     if (req.method === 'GET' && url.pathname === '/v1/events') {
       await broadcaster.subscribe(req, res, url);
       return;
+    }
+
+    if (url.pathname === '/v1/workspace-doc') {
+      if (req.method === 'GET') {
+        const dir = resolve(url.searchParams.get('cwd')?.trim() || workDir);
+        const docPath = join(dir, 'pulse-workspace.md');
+        try {
+          const content = await readFile(docPath, 'utf8');
+          sendJson(res, 200, { ok: true, exists: true, content, path: docPath });
+        } catch (err) {
+          const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : '';
+          if (code === 'ENOENT') {
+            sendJson(res, 200, { ok: true, exists: false, content: null, path: docPath });
+          } else {
+            sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+          }
+        }
+        return;
+      }
+      if (req.method === 'PUT') {
+        try {
+          const body = await readJsonBody<{ cwd?: string; content?: string }>(req);
+          if (typeof body.content !== 'string') {
+            sendJson(res, 400, { ok: false, error: 'Missing content string' });
+            return;
+          }
+          const dir = resolve(body.cwd?.trim() || workDir);
+          await mkdir(dir, { recursive: true });
+          const docPath = join(dir, 'pulse-workspace.md');
+          await writeFile(docPath, body.content, 'utf8');
+          sendJson(res, 200, { ok: true, path: docPath });
+        } catch (err) {
+          sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+        return;
+      }
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/exec-jsonl') {

@@ -1493,7 +1493,7 @@ export const enMessages = {
   'workspaceSettings.close': 'Close',
   'workspaceSettings.saving': 'Saving...',
   'workspaceSettings.saved': 'Saved',
-  'workspaceSettings.saveDoc': 'Save pulse-workspace.md',
+  'workspaceSettings.saveDoc': 'Save',
 
   'workspaceNodes.nodes.kicker': 'Library',
   'workspaceNodes.nodes.title': 'Knowledge',

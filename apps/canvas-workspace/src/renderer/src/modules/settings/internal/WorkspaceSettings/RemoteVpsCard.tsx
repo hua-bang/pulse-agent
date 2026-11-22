@@ -5,12 +5,13 @@ import './RemoteVpsCard.css';
 
 interface Props {
   workspaceId: string;
+  onConfigChange?: (config: RemoteVpsWorkspaceConfigDto | null) => void;
 }
 
 type ConnMode = 'ssh' | 'direct';
 type ScopeMode = 'full' | 'runtime-only';
 
-export const RemoteVpsCard = ({ workspaceId }: Props) => {
+export const RemoteVpsCard = ({ workspaceId, onConfigChange }: Props) => {
   const [loaded, setLoaded] = useState(false);
   const [bound, setBound] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -31,6 +32,7 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
     const api = window.canvasWorkspace?.remoteVps;
     if (!api) {
       setLoaded(true);
+      onConfigChange?.(null);
       return;
     }
     setLoaded(false);
@@ -39,9 +41,10 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
       ([cfgRes, hostsRes]) => {
         setSshHosts(hostsRes.ok ? hostsRes.hosts : []);
         const cfg = cfgRes.ok ? cfgRes.config : null;
+        onConfigChange?.(cfg);
         if (cfg) {
           setBound(true);
-          setExpanded(true);
+          setExpanded(false);
           setConnMode(cfg.endpoint ? 'direct' : 'ssh');
           setScopeMode(cfg.storage === 'local' ? 'runtime-only' : 'full');
           setSshHost(cfg.sshHost ?? '');
@@ -63,7 +66,7 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
         setLoaded(true);
       },
     );
-  }, [workspaceId]);
+  }, [workspaceId, onConfigChange]);
 
   const buildDraftConfig = useCallback((): RemoteVpsWorkspaceConfigDto => {
     const parsedPort = Number.parseInt(remotePort, 10);
@@ -121,17 +124,19 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
     setBusy('save');
     setStatusMsg(null);
     try {
-      const res = await api.saveConfig(workspaceId, buildDraftConfig());
+      const draft = buildDraftConfig();
+      const res = await api.saveConfig(workspaceId, draft);
       if (!res.ok) {
         setStatusMsg({ kind: 'err', text: res.error || '保存失败' });
         return;
       }
       setBound(true);
+      onConfigChange?.(draft);
       setStatusMsg({ kind: 'ok', text: 'VPS 配置已保存，重新打开工作区或新建终端即生效。' });
     } finally {
       setBusy(null);
     }
-  }, [buildDraftConfig, canSubmit, workspaceId]);
+  }, [buildDraftConfig, canSubmit, onConfigChange, workspaceId]);
 
   const handleMigrate = useCallback(async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -158,6 +163,7 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
       }
       setBound(true);
       setScopeMode('full');
+      onConfigChange?.(resolvedDraft);
       setStatusMsg({
         kind: 'ok',
         text: `迁移完成：已上传 ${res.uploadedFiles ?? 0} 个文件、${res.conversationCount ?? 0} 个会话（本机原数据已保留备份）。`,
@@ -165,7 +171,7 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
     } finally {
       setBusy(null);
     }
-  }, [buildDraftConfig, canSubmit, token, workspaceId]);
+  }, [buildDraftConfig, canSubmit, onConfigChange, token, workspaceId]);
 
   const handleRemove = useCallback(async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -179,11 +185,12 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
         return;
       }
       setBound(false);
+      onConfigChange?.(null);
       setStatusMsg({ kind: 'ok', text: '已解除 VPS 绑定，恢复为本机工作区。' });
     } finally {
       setBusy(null);
     }
-  }, [workspaceId]);
+  }, [onConfigChange, workspaceId]);
 
   if (!loaded || !window.canvasWorkspace?.remoteVps) return null;
 
@@ -302,8 +309,8 @@ export const RemoteVpsCard = ({ workspaceId }: Props) => {
           </FieldRow>
 
           <FieldRow
-            label="远端代码目录 (cwd)"
-            hint="VPS 终端与 Claude Code / Codex 启动时的默认目录。"
+            label="工作区根目录 (Root folder)"
+            hint="VPS 上的项目根目录，用于终端、Coding Agent 以及 pulse-workspace.md。"
           >
             <TextField
               value={cwd}

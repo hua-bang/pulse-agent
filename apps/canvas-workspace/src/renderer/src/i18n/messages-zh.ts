@@ -1477,7 +1477,7 @@ export const zhMessages: MessageCatalog = {
   'workspaceSettings.close': '关闭',
   'workspaceSettings.saving': '保存中...',
   'workspaceSettings.saved': '已保存',
-  'workspaceSettings.saveDoc': '保存 pulse-workspace.md',
+  'workspaceSettings.saveDoc': '保存',
 
   'workspaceNodes.nodes.kicker': '资料库',
   'workspaceNodes.nodes.title': '知识',
