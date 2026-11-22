@@ -17,9 +17,10 @@ let host: HTMLDivElement | null = null;
 let latest: Hook | null = null;
 const onSubmit = vi.fn(async () => true);
 
-const Probe = ({ agentScope }: { agentScope: AgentScope }) => {
+const Probe = ({ agentScope, sessionId }: { agentScope: AgentScope; sessionId?: string }) => {
   latest = useChatComposerInput({
     agentScope,
+    sessionId,
     onSubmit,
   });
   return <div ref={latest.editableRef} contentEditable />;
@@ -35,7 +36,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const renderScope = async (scope: AgentScope) => {
+const renderScope = async (scope: AgentScope, sessionId?: string) => {
   if (!host) {
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -44,7 +45,7 @@ const renderScope = async (scope: AgentScope) => {
   await act(async () => {
     root?.render(
       <I18nProvider>
-        <Probe agentScope={scope} />
+        <Probe agentScope={scope} sessionId={sessionId} />
       </I18nProvider>,
     );
   });
@@ -102,6 +103,21 @@ describe('scope-keyed composer state', () => {
     await renderScope({ kind: 'global' });
     expect(latest?.input).toBe('global draft');
     expect(latest?.editableRef.current?.textContent).toBe('global draft');
+  });
+
+  it('keeps drafts isolated per session within the same scope', async () => {
+    const scope: AgentScope = { kind: 'workspace', workspaceId: 'workspace-a' };
+    await renderScope(scope, 'session-1');
+    act(() => latest?.replaceInput('draft for session 1'));
+    expect(latest?.input).toBe('draft for session 1');
+
+    await renderScope(scope, 'session-2');
+    expect(latest?.input).toBe('');
+    act(() => latest?.replaceInput('draft for session 2'));
+    expect(latest?.input).toBe('draft for session 2');
+
+    await renderScope(scope, 'session-1');
+    expect(latest?.input).toBe('draft for session 1');
   });
 
   it('keeps attachments isolated per scope and accepts images in global chat', async () => {

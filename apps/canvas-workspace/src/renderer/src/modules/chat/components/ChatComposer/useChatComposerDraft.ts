@@ -13,30 +13,31 @@ import {
 } from '../../composer/chatComposerDraftStore';
 import { useChatAttachments } from '../../attachments/useChatAttachments';
 
-export const useChatComposerDraft = (agentScope: AgentScope) => {
+export const useChatComposerDraft = (agentScope: AgentScope, sessionId?: string) => {
   const scopeId = scopeSessionStoreId(agentScope);
+  const draftKey = sessionId ? `${scopeId}::${sessionId}` : scopeId;
   const editableRef = useRef<HTMLDivElement>(null);
   const subscribeDraft = useCallback(
-    (listener: () => void) => subscribeChatComposerDraft(scopeId, listener),
-    [scopeId],
+    (listener: () => void) => subscribeChatComposerDraft(draftKey, listener),
+    [draftKey],
   );
-  const readDraft = useCallback(() => getChatComposerDraft(scopeId), [scopeId]);
+  const readDraft = useCallback(() => getChatComposerDraft(draftKey), [draftKey]);
   const draft = useSyncExternalStore(subscribeDraft, readDraft, readDraft);
   const setInput = useCallback((value: string) => {
-    updateChatComposerDraft(scopeId, previous => ({
+    updateChatComposerDraft(draftKey, previous => ({
       ...previous,
       input: value,
       html: editableRef.current?.innerHTML ?? previous.html,
     }));
-  }, [scopeId]);
+  }, [draftKey]);
   const setAttachments = useCallback((
     value: ChatImageAttachment[] | ((previous: ChatImageAttachment[]) => ChatImageAttachment[]),
   ) => {
-    updateChatComposerDraft(scopeId, previous => ({
+    updateChatComposerDraft(draftKey, previous => ({
       ...previous,
       attachments: typeof value === 'function' ? value(previous.attachments) : value,
     }));
-  }, [scopeId]);
+  }, [draftKey]);
   const attachmentController = useChatAttachments({
     scopeId,
     attachments: draft.attachments,
@@ -46,7 +47,7 @@ export const useChatComposerDraft = (agentScope: AgentScope) => {
   useLayoutEffect(() => {
     const element = editableRef.current;
     if (element && element.innerHTML !== draft.html) element.innerHTML = draft.html;
-  }, [draft.html, scopeId]);
+  }, [draft.html, draftKey]);
 
   return {
     attachmentController,

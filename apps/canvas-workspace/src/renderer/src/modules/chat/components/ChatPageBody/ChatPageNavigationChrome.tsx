@@ -28,6 +28,8 @@ interface ChatPageTopbarProps {
   fixedTitle?: string;
   sessionTitleSource?: string;
   workspaceLabel?: string;
+  /** Jump directly from full-screen chat into the workspace canvas. */
+  onOpenCanvas?: () => void;
   railCollapsed: boolean;
   onToggleRail: () => void;
   anchors: ChatAnchor[];
@@ -42,6 +44,7 @@ export const ChatPageTopbar = ({
   fixedTitle,
   sessionTitleSource,
   workspaceLabel,
+  onOpenCanvas,
   railCollapsed,
   onToggleRail,
   anchors,
@@ -78,12 +81,30 @@ export const ChatPageTopbar = ({
           </strong>
         </>
       )}
-      {!fixedTitle && workspaceLabel && (
-        <div className="chat-page-topbar-workspace" title={workspaceLabel}>
-          <WorkspaceIcon size={14} />
-          <span>{workspaceLabel}</span>
-        </div>
-      )}
+      {!fixedTitle && workspaceLabel && (() => {
+        const chip = (
+          <>
+            <WorkspaceIcon size={14} />
+            <span>{workspaceLabel}</span>
+          </>
+        );
+        const canvasTitle = `${workspaceLabel} — ${t('workspaceNodes.openOnCanvas')}`;
+        return onOpenCanvas ? (
+          <Button
+            size="xs"
+            className="chat-page-topbar-workspace"
+            onClick={onOpenCanvas}
+            title={canvasTitle}
+            aria-label={canvasTitle}
+          >
+            {chip}
+          </Button>
+        ) : (
+          <div className="chat-page-topbar-workspace" title={workspaceLabel}>
+            {chip}
+          </div>
+        );
+      })()}
       <div className="chat-page-topbar-spacer" />
       <ChatAnchors anchors={anchors} onJump={onJumpAnchor} />
       {!fixedTitle && (

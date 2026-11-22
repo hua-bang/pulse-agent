@@ -20,6 +20,8 @@ export interface SelectedContextChip {
 export interface UseChatComposerInputOptions {
   allWorkspaces?: WorkspaceOption[];
   agentScope: AgentScope;
+  /** Active conversation session id; isolates drafts per session when present. */
+  sessionId?: string;
   nodes?: CanvasNode[];
   rootFolder?: string;
   knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;

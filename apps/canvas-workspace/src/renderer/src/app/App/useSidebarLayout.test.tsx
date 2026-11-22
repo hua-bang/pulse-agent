@@ -72,9 +72,17 @@ describe('useSidebarLayout rail in a narrow window', () => {
     act(() => root.render(<Probe />));
   });
 
+  const setDockInset = async (px: number) => {
+    await act(async () => {
+      document.documentElement.style.setProperty('--right-dock-inset', `${px}px`);
+      await Promise.resolve();
+    });
+  };
+
   afterEach(() => {
     act(() => root.unmount());
     host.remove();
+    document.documentElement.style.removeProperty('--right-dock-inset');
   });
 
   it('shows the icon rail while narrow and keeps the saved preference', () => {
@@ -87,6 +95,41 @@ describe('useSidebarLayout rail in a narrow window', () => {
     resize(1400);
     expect(layout.railExpanded).toBe(true);
     resize(900);
+    expect(layout.railExpanded).toBe(false);
+  });
+
+  it('auto-collapses the rail when an open dock crowds a 1200px window and restores on close', async () => {
+    resize(1200);
+    expect(layout.railExpanded).toBe(true);
+
+    await setDockInset(480);
+    expect(layout.railExpanded).toBe(false);
+    expect(layout.panelHidden).toBe(true);
+    expect(layout.width).toBe(48);
+
+    // User can still expand the rail temporarily while the dock is open.
+    act(() => layout.toggleRail());
+    expect(layout.railExpanded).toBe(true);
+
+    // Closing the dock restores the saved expanded preference.
+    await setDockInset(0);
+    expect(layout.railExpanded).toBe(true);
+    expect(layout.panelHidden).toBe(false);
+  });
+
+  it('keeps the expanded rail beside an open dock on wide windows and respects manual collapse', async () => {
+    resize(1440);
+    await setDockInset(480);
+    expect(layout.railExpanded).toBe(true);
+
+    await setDockInset(0);
+    act(() => layout.toggleRail());
+    expect(layout.railExpanded).toBe(false);
+
+    resize(1200);
+    await setDockInset(480);
+    expect(layout.railExpanded).toBe(false);
+    await setDockInset(0);
     expect(layout.railExpanded).toBe(false);
   });
 });

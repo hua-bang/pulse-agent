@@ -191,6 +191,7 @@ export function useChatComposerController({
   const mentions = useChatComposerInput({
     allWorkspaces,
     agentScope,
+    sessionId: conversationSessionId ?? undefined,
     nodes,
     rootFolder,
     knowledgeTags,

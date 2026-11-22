@@ -14,13 +14,14 @@ export const GlobalChatLauncher = ({ visible }: GlobalChatLauncherProps) => {
   const dock = useRightDock();
   const state = useRightDockState();
 
-  if (!visible) return null;
+  const chatVisible = isDockChatVisible(state);
+  if (!visible || chatVisible) return null;
 
   const label = `${t('canvas.toolbar.toggleChat')} (${formatShortcutId('canvas.toggleChatPanel')})`;
 
   return (
     <ChatFloatingButton
-      active={isDockChatVisible(state)}
+      active={false}
       className="app-global-chat-launcher"
       onClick={dock.toggleChat}
       title={label}

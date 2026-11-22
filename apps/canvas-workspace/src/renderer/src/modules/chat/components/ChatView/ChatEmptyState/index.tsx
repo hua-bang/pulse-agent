@@ -85,17 +85,23 @@ export const ChatEmptyState = ({
 }: ChatEmptyStateProps) => {
   const { t } = useI18n();
   const { greetingKey, quickActions } = EMPTY_STATE_CONTENT[variant];
+  const hasCanvasSelection = variant === 'canvas' && selectedCount > 0;
+  const visibleActions = quickActions
+    .filter(action => !action.requiresSelection || selectedCount > 0)
+    .sort((a, b) => Number(Boolean(b.requiresSelection)) - Number(Boolean(a.requiresSelection)));
+  const greeting = hasCanvasSelection
+    ? t('chat.emptySelectionGreeting', { count: selectedCount })
+    : t(greetingKey);
   return (
     <div className="chat-empty-state">
       <div className="chat-empty-icon">
         <AppLogoIcon size={36} />
       </div>
       <div className="chat-empty-greeting">
-        {t(greetingKey)}
+        {greeting}
       </div>
       <div className="chat-quick-actions">
-        {quickActions
-          .filter(action => !action.requiresSelection || selectedCount > 0).map(action => (
+        {visibleActions.map(action => (
           <button
             key={action.key}
             className="chat-quick-action"

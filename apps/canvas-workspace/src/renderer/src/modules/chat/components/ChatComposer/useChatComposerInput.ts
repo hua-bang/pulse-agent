@@ -16,6 +16,7 @@ import type { UseChatComposerInputOptions } from './types';
 export function useChatComposerInput({
   allWorkspaces,
   agentScope,
+  sessionId,
   nodes,
   rootFolder,
   knowledgeTags,
@@ -37,7 +38,7 @@ export function useChatComposerInput({
     scopeId,
     setAttachments,
     setInput,
-  } = useChatComposerDraft(agentScope);
+  } = useChatComposerDraft(agentScope, sessionId);
   const handleAttachFiles = useCallback((files: FileList | File[]) => {
     chatAttachments.handleAttachFiles(files);
   }, [chatAttachments.handleAttachFiles]);

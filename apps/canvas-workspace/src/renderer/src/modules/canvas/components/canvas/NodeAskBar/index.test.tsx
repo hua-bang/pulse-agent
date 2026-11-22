@@ -185,4 +185,56 @@ describe('NodeAskBar', () => {
 
     expect(onCanvasMouseDown).not.toHaveBeenCalled();
   });
+
+  it('supports multi-selection and expands a selected frame to its enclosed cards', async () => {
+    const secondNode: CanvasNode = {
+      ...node,
+      id: 'node-2',
+      title: 'Notes',
+      x: 340,
+      y: 40,
+      width: 180,
+      height: 120,
+    };
+    const frameNode: CanvasNode = {
+      id: 'frame-1',
+      type: 'frame',
+      title: 'Sprint Plan',
+      x: 60,
+      y: 10,
+      width: 500,
+      height: 220,
+      data: { label: 'Sprint Plan', backgroundColor: 'transparent' },
+    };
+    const onAsk = vi.fn(async () => ({ status: 'delivered' as const, target }));
+
+    act(() => root.render(
+      <I18nProvider>
+        <NodeAskBar
+          workspaceId="ws-multi"
+          selectedNodes={[frameNode]}
+          nodes={[frameNode, node, secondNode]}
+          transform={{ x: 0, y: 0, scale: 1 }}
+          onAsk={onAsk}
+        />
+      </I18nProvider>,
+    ));
+
+    expect(host.querySelector('.node-ask-bar__chip')?.textContent).toContain('(2)');
+    const form = host.querySelector('form') as HTMLFormElement;
+    const input = open();
+    type(input, 'Compare both cards');
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    expect(onAsk).toHaveBeenCalledWith({
+      text: 'Compare both cards',
+      nodes: [
+        { id: 'node-1', title: 'Research', type: 'text' },
+        { id: 'node-2', title: 'Notes', type: 'text' },
+      ],
+      newSession: true,
+    });
+  });
 });

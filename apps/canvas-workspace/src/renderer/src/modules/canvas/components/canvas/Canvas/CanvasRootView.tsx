@@ -172,16 +172,18 @@ export const CanvasRootView = ({
   const gestureActive = Boolean(nodeGestures.draggingId)
     || nodeGestures.draggingIds.size > 0
     || Boolean(nodeGestures.resizingId);
-  const askNode = onAskAboutNodes
-    && selectedNodeIds.length === 1
+  const askNodes = onAskAboutNodes
+    && selectedNodeIds.length >= 1
     && activeTool === 'select'
     && !moving
     && !gestureActive
     && !focus.fullscreenNodeId
     && !ctxMenu.contextMenu
     && !nodeMenu
-    ? nodesById.get(selectedNodeIds[0])
-    : undefined;
+    ? selectedNodeIds
+      .map((id) => nodesById.get(id))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    : [];
 
   // In fullscreen the chip's chat button brings the node along as context,
   // reporting delivery the same way the node header's chat button does.
@@ -401,11 +403,11 @@ export const CanvasRootView = ({
         onCancelEditEdgeLabel={drawingGestures.edgeHandlers.handleCancelEditEdgeLabel}
       />
 
-      {askNode && onAskAboutNodes && (
+      {askNodes.length > 0 && onAskAboutNodes && (
         <Suspense fallback={null}>
           <NodeAskBar
             workspaceId={canvasId}
-            node={askNode}
+            selectedNodes={askNodes}
             nodes={nodes}
             transform={transform}
             onAsk={onAskAboutNodes}

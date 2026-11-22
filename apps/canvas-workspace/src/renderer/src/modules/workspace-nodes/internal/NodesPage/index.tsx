@@ -5,7 +5,7 @@ import { RefreshIcon, SparklesIcon } from '../../../../components/icons';
 import { Button } from '../../../../components/ui/Button';
 import { PageHeader } from '../../../../components/ui/PageHeader';
 import { useI18n } from '../../../../i18n';
-import { dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
+import { dispatchFocusNodeOnCanvas, dispatchOpenNodePage } from '../../../../utils/openNodeBridge';
 import { KnowledgeNodeCard } from '../KnowledgeNodeCard';
 import { KnowledgeViewTabs } from '../KnowledgeViewTabs';
 import { NodeFilters } from '../NodeFilters';
@@ -72,10 +72,14 @@ export const NodesPage = ({ workspaces, onAskAi, onOpenGraph }: NodesPageProps) 
         aiChatLabel={t('workspaceNodes.aiChat')}
         selectForAiLabel={t('workspaceNodes.selectForAi')}
         deselectForAiLabel={t('workspaceNodes.deselectForAi')}
+        openOnCanvasLabel={t('workspaceNodes.openOnCanvas')}
         openLabel={t('workspaceNodes.openNodeTab', { title })}
         selected={controller.isNodeSelected(node)}
         contextSelected={contextSelected}
         onOpen={() => dispatchOpenNodePage({ workspaceId, nodeId: node.id })}
+        onOpenOnCanvas={node.onCanvas !== false
+          ? () => dispatchFocusNodeOnCanvas({ workspaceId, nodeId: node.id })
+          : undefined}
         onToggleContextSelection={isKnowledgeNodeType(node.type) && onAskAi
           ? () => controller.toggleAiSelection(node)
           : undefined}

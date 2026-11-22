@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STRIPPED_PHOSPHOR_WEIGHTS, stripPhosphorWeights } from './phosphor-weights.mjs';
+import { BOLD_PHOSPHOR_ICONS, STRIPPED_PHOSPHOR_WEIGHTS, stripPhosphorWeights } from './phosphor-weights.mjs';
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const rendererRoot = join(appRoot, 'src/renderer');
@@ -26,12 +26,18 @@ describe('phosphor weight strip', () => {
     const files = readdirSync(defsDir).filter((name) => name.endsWith('.es.js'));
     expect(files.length).toBeGreaterThan(1000);
     for (const name of files) {
-      const stripped = stripPhosphorWeights(readFileSync(join(defsDir, name), 'utf8'));
+      const iconName = name.replace(/\.es\.js$/, '');
+      const stripped = stripPhosphorWeights(readFileSync(join(defsDir, name), 'utf8'), iconName);
       expect(stripped, name).not.toBeNull();
       for (const weight of STRIPPED_PHOSPHOR_WEIGHTS) {
         expect(stripped, name).not.toContain(`"${weight}",`);
       }
-      for (const weight of ['regular', 'bold', 'fill', 'duotone']) {
+      if (BOLD_PHOSPHOR_ICONS.has(iconName)) {
+        expect(stripped, name).toContain('"bold",');
+      } else {
+        expect(stripped, name).not.toContain('"bold",');
+      }
+      for (const weight of ['regular', 'fill', 'duotone']) {
         expect(stripped, name).toContain(`"${weight}",`);
       }
     }
@@ -50,6 +56,18 @@ describe('phosphor weight strip', () => {
         || new RegExp(`['"\`]${weight}['"\`]\\s+as\\s+IconWeight`).test(source)
       ));
     });
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps bold weight usage within BOLD_PHOSPHOR_ICONS', () => {
+    const offenders = [];
+    for (const file of sourceFiles(rendererRoot)) {
+      const source = readFileSync(file, 'utf8');
+      if (!source.includes('@phosphor-icons/react')) continue;
+      for (const match of source.matchAll(/<([A-Z][A-Za-z0-9]*)\b[^>]*\bweight\s*=\s*\{?\s*['"`]bold['"`]/g)) {
+        if (!BOLD_PHOSPHOR_ICONS.has(match[1])) offenders.push(`${file}: ${match[1]}`);
+      }
+    }
     expect(offenders).toEqual([]);
   });
 });
