@@ -220,32 +220,11 @@
   justify-self: auto;
 }
 
-/* Dock/sidebar widths reduce the canvas independently of the window. When the
- * right slot is empty (Dock open, floating launcher hidden), reclaim the
- * mirrored third column before wrapping so a 1200px window with an open Dock
- * keeps the bottom chrome on a single row. */
+/* When the right slot is empty (Dock open, floating launcher hidden), reclaim
+ * the mirrored third column between 581px and 680px so 1200px stays single-row. */
 @container (max-width: 680px) {
   .canvas-bottom-chrome:has(> .canvas-bottom-chrome__right:empty) {
     grid-template-columns: auto minmax(0, 1fr) 0px;
-  }
-
-  .canvas-bottom-chrome:has(> .canvas-bottom-chrome__right:empty) > .floating-toolbar {
-    grid-column: 2;
-    justify-self: center;
-  }
-
-  .canvas-bottom-chrome:has(> .canvas-bottom-chrome__right:not(:empty)) > .floating-toolbar {
-    grid-column: 1 / -1;
-    min-width: 0;
-    max-width: 100cqw;
-    box-sizing: border-box;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .canvas-bottom-chrome:has(> .canvas-bottom-chrome__right:not(:empty)):has(> .floating-toolbar) > .canvas-bottom-chrome__left,
-  .canvas-bottom-chrome:has(> .canvas-bottom-chrome__right:not(:empty)):has(> .floating-toolbar) > .canvas-bottom-chrome__right {
-    grid-row: 2;
   }
 }
 

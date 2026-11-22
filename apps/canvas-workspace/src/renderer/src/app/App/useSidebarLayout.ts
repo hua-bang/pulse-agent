@@ -56,12 +56,6 @@ export const useDockSqueezesPanel = (railWidth: number, panelWidth: number): boo
   return dockInset > 0 && windowWidth - railWidth - panelWidth - dockInset < MIN_CANVAS_WIDTH;
 };
 
-/** True while the window is narrower than `NARROW_WINDOW_WIDTH`. */
-export const useNarrowWindow = (): boolean => {
-  const { windowWidth } = useViewportMetrics();
-  return windowWidth > 0 && windowWidth < NARROW_WINDOW_WIDTH;
-};
-
 interface SidebarLayoutInput {
   /** The route and the user's own collapse setting want the side panel. */
   panelRequested: boolean;
