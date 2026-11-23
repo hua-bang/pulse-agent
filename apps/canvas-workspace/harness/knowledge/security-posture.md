@@ -29,6 +29,12 @@ host actually does and does not gate. Facts verified against source
   — `lark-cli`, `ntn` and friends — but it is arbitrary process execution at
   main-process privilege, and scheduled runs reach it with nobody watching on
   a prompt that may have been shaped by injected web/page content.
+- **`document_read` has the same file reach as `read`.** It is a
+  workspace-free Canvas tool in every scope (`src/main/agent/tools/files/document-read.ts`)
+  that turns any user-readable absolute or `~/` path into text: Office files
+  through `src/main/files/documents/` (its own XML reader, which never expands
+  custom entities), other UTF-8 files as-is, 50 MiB cap, nonblocking open.
+  Its name classifies it as a read, so Ask mode does not gate it.
 - **A second command-execution path exists besides `bash`:**
   `canvas_create_terminal_node` (`src/main/agent/tools/terminals.ts:16`)
   accepts a `command` input that auto-executes once the PTY shell is ready.

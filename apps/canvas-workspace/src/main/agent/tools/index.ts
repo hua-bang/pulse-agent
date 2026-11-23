@@ -7,6 +7,7 @@ import { createSearchTools } from './search';
 import { createGroupTools } from './canvas/groups';
 import { createWorkspaceNodeTools } from './canvas/workspace-nodes';
 import { createKnowledgeTools } from './knowledge';
+import { createDocumentTools } from './files/document-read';
 import { createTaggingTools } from './canvas/tagging';
 import { createAgentTools } from './agents';
 import { createTerminalTools } from './terminals';
@@ -220,6 +221,7 @@ export function createGlobalCanvasTools(
     // and stay eager — global chat must see them up front to read local
     // workspaces / tags / nodes instead of reaching for an external MCP server.
     ...createKnowledgeTools(),
+    ...createDocumentTools(),
     // Chat-session history (检索/总结). Inherently cross-workspace (workspaceId
     // is optional), so not wrapped with requireWorkspaceId.
     ...createSessionTools(),
@@ -267,6 +269,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createGroupTools(workspaceId),
     ...createWorkspaceNodeTools(workspaceId),
     ...createKnowledgeTools(),
+    ...createDocumentTools(),
     ...createTaggingTools(),
     ...createAgentTools(workspaceId),
     ...createTerminalTools(workspaceId),
