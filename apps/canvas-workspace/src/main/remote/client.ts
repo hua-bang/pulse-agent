@@ -9,6 +9,7 @@ import {
   getRemoteWorkspaceConfig,
   isRemoteRuntimeEnabled,
   isRemoteStorageEnabled,
+  listConfiguredRemoteWorkspaceIds,
   resolveRemoteToken,
   type RemoteVpsWorkspaceConfig,
 } from './config';
@@ -217,6 +218,66 @@ export async function saveRemoteCanvas(
       return { ok: false as const, code, error: String(error), data: current };
     }
     return { ok: false as const, code, error: String(error) };
+  }
+}
+
+function matchRemoteWorkspaceFile(filePath: string): { workspaceId: string; relPath: string } | null {
+  const normalized = filePath.replace(/\\/g, '/');
+  for (const workspaceId of listConfiguredRemoteWorkspaceIds()) {
+    const marker = `/${workspaceId}/`;
+    const idx = normalized.indexOf(marker);
+    if (idx < 0) continue;
+    const relPath = normalized.slice(idx + marker.length).replace(/^\/+/, '');
+    if (relPath && !relPath.includes('..')) {
+      return { workspaceId, relPath };
+    }
+  }
+  return null;
+}
+
+export async function tryReadRemoteTextFile(
+  filePath: string,
+): Promise<{ ok: true; content: string; version: string } | { ok: false; error: string } | null> {
+  const matched = matchRemoteWorkspaceFile(filePath);
+  if (!matched) return null;
+  const remote = await getRemoteWorkspaceFiles(matched.workspaceId);
+  if (!remote) return null;
+  try {
+    const uri = `pulse-remote:///${remote.target.remoteWorkspaceId}/${matched.relPath}`;
+    const read = await remote.files.readText(uri);
+    if (!read) return { ok: false, error: `ENOENT: no such file or directory, open '${filePath}'` };
+    return { ok: true, content: read.content, version: read.version };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function tryWriteRemoteTextFile(request: {
+  filePath: string;
+  content: string;
+  expectedVersion?: string;
+}): Promise<{ ok: true; version: string } | { ok: false; conflict?: boolean; error: string } | null> {
+  const matched = matchRemoteWorkspaceFile(request.filePath);
+  if (!matched) return null;
+  const remote = await getRemoteWorkspaceFiles(matched.workspaceId);
+  if (!remote) return null;
+  try {
+    const uri = `pulse-remote:///${remote.target.remoteWorkspaceId}/${matched.relPath}`;
+    const receipt = await remote.files.write(
+      uri,
+      request.content,
+      request.expectedVersion === undefined ? {} : { expectedVersion: request.expectedVersion },
+    );
+    return { ok: true, version: receipt.version };
+  } catch (error) {
+    if (isStorageError(error) && error.code === 'revision_conflict') {
+      return {
+        ok: false,
+        conflict: true,
+        error: 'File changed outside this editor. Reload before saving.',
+      };
+    }
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
