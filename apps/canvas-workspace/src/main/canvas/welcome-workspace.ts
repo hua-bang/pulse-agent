@@ -1,12 +1,8 @@
-import { join } from 'path';
 import { app } from 'electron';
-import { STORE_DIR, atomicWriteJson, readCanvasFull } from './storage';
+import { STORE_DIR, readCanvasFull } from './storage';
 import { saveCanvas } from './service';
-import {
-  WORKSPACES_MANIFEST_FILENAME,
-  listWorkspaces,
-  hasTrashedWorkspaces,
-} from './workspaces';
+import { listWorkspaces, hasTrashedWorkspaces } from './workspaces';
+import { updateWorkspaceManifestDocument } from './persistence/workspace-manifest';
 
 export const WELCOME_WORKSPACE_ID = 'default';
 export const WELCOME_WORKSPACE_NAME = 'Pulse Canvas';
@@ -39,19 +35,13 @@ export interface WelcomeWorkspaceSeedResult {
 }
 
 const writeWelcomeManifest = async (root: string, seededAt: string): Promise<void> => {
-  await atomicWriteJson(
-    join(root, WORKSPACES_MANIFEST_FILENAME),
-    JSON.stringify(
-      {
-        workspaces: [{ id: WELCOME_WORKSPACE_ID, name: WELCOME_WORKSPACE_NAME }],
-        folders: [],
-        activeId: WELCOME_WORKSPACE_ID,
-        welcomeSeededAt: seededAt,
-      },
-      null,
-      2,
-    ),
-  );
+  // First run: replace the (empty) manifest. Active stores commit it to storage.
+  await updateWorkspaceManifestDocument(root, () => ({
+    workspaces: [{ id: WELCOME_WORKSPACE_ID, name: WELCOME_WORKSPACE_NAME }],
+    folders: [],
+    activeId: WELCOME_WORKSPACE_ID,
+    welcomeSeededAt: seededAt,
+  }));
 };
 
 /**

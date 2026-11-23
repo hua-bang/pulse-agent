@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import type { EntityRecord, PulseStorage } from '@pulse-coder/storage';
+import type { EntityRecord, WorkspaceBundleReceipt } from '@pulse-coder/storage';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import {
   materializeCanvasSnapshot,
@@ -12,6 +12,7 @@ import { isSafeRelativePath, type WorkspaceExportFile } from '../transfer/worksp
 import { assertSafeNodeId } from '../nodes/store';
 import { workspaceFiles } from '../../files/workspace-files';
 import { atomicWriteJson } from './atomic-json';
+import { updateWorkspaceManifestDocument } from './workspace-manifest';
 import { getLocalCanvasStorage, resolveStorageNativeBinding } from './backend';
 import { stripDataFromNode } from './write-v2';
 import type { CanvasNode } from './schema';
@@ -193,43 +194,30 @@ export async function stageSqliteWorkspaceImport(input: {
   return prepared;
 }
 
-export class WorkspaceImportRecoveryError extends Error {
-  constructor(readonly recoveryPath: string, readonly failures: unknown[]) {
-    super(`Workspace import needs recovery. Imported files and its recovery record were retained at ${recoveryPath}.`);
-    this.name = 'WorkspaceImportRecoveryError';
-  }
-}
-
-/** Compensate a failed manifest publication without deleting any later concurrent edits. */
+/**
+ * Commit the imported bundle and its manifest entry in one transaction. A
+ * failure commits neither; the `prepared` journal then lets startup recovery
+ * set the files aside. A crash after the commit leaves only the journal, which
+ * recovery removes.
+ */
 export async function commitSqliteWorkspaceImport(
-  storage: PulseStorage,
+  root: string,
   snapshot: PreparedLegacyCanvasImport,
   workspaceDir: string,
-  publishManifest: () => Promise<void>,
+  register: (manifest: Record<string, unknown>) => Record<string, unknown>,
   sessions?: Pick<PreparedCanvasSessionImport, 'currentSessionId' | 'conversations'>,
 ): Promise<LegacyCanvas> {
-  const journalPath = join(workspaceDir, IMPORT_JOURNAL);
-  const journal = JSON.parse(await fs.readFile(journalPath, 'utf8')) as Record<string, unknown>;
-  const receipt = await storage.workspaces.importBundle({
-    canvas: snapshot,
-    expectedGeneration: storage.generation,
-    ...(sessions ? { currentSessionId: sessions.currentSessionId, conversations: sessions.conversations } : {}),
+  let receipt: WorkspaceBundleReceipt | undefined;
+  await updateWorkspaceManifestDocument(root, register, async (storage, manifest) => {
+    receipt = await storage.workspaces.importBundle({
+      canvas: snapshot,
+      expectedGeneration: storage.generation,
+      ...(sessions ? { currentSessionId: sessions.currentSessionId, conversations: sessions.conversations } : {}),
+      manifest,
+    });
   });
-  try {
-    await atomicWriteJson(journalPath, JSON.stringify({
-      ...journal, phase: 'database-committed', revision: receipt.revision,
-      generation: receipt.generation, conversationState: receipt.conversationState,
-    }, null, 2));
-    await publishManifest();
-  } catch (error) {
-    try {
-      await storage.workspaces.removeBundle(snapshot.workspaceId, receipt.revision, receipt.generation, receipt.conversationState);
-    } catch (rollbackError) {
-      throw new WorkspaceImportRecoveryError(workspaceDir, [error, rollbackError]);
-    }
-    throw error;
-  }
-  await fs.unlink(journalPath).catch(error => {
+  if (!receipt) throw new Error('Workspace import did not commit');
+  await fs.unlink(join(workspaceDir, IMPORT_JOURNAL)).catch(error => {
     console.warn(`[workspace-import] Imported workspace is registered; recovery record cleanup failed: ${String(error)}`);
   });
   return materializeCanvasSnapshot({ ...snapshot, revision: receipt.revision, generation: receipt.generation });

@@ -1,5 +1,6 @@
 import type { CanvasSnapshot, CommitReceipt, ConversationSnapshot, JsonObject, Page, PageRequest } from './contracts.js';
 import type { ConversationScopeSnapshot } from './conversation-scopes.js';
+import type { WorkspaceManifestCommit } from './workspace-manifest.js';
 
 export interface WorkspaceConversationState {
   scope: { revision: number; generation: string } | null;
@@ -18,6 +19,8 @@ export interface WorkspaceBundleImport {
   expectedGeneration?: string;
   currentSessionId?: string | null;
   conversations?: readonly Pick<ConversationSnapshot, 'sessionId' | 'metadata' | 'messages'>[];
+  /** Publish the workspace's manifest entry in the same transaction. */
+  manifest?: WorkspaceManifestCommit;
 }
 
 export interface WorkspaceBundleReceipt extends CommitReceipt {
@@ -40,6 +43,8 @@ export interface TrashWorkspaceInput {
   generation: string;
   expectedConversations: WorkspaceConversationState;
   metadata?: JsonObject;
+  /** Remove the workspace's manifest entry in the same transaction. */
+  manifest?: WorkspaceManifestCommit;
 }
 
 export interface WorkspaceRepository {
@@ -48,12 +53,11 @@ export interface WorkspaceRepository {
   trashBundle(input: TrashWorkspaceInput): Promise<WorkspaceTrashRecord>;
   getTrashed(workspaceId: string): Promise<WorkspaceTrashRecord | null>;
   listTrashed(request?: PageRequest): Promise<Page<WorkspaceTrashRecord>>;
-  restoreBundle(workspaceId: string, expectedRevision: number, generation: string): Promise<CommitReceipt>;
-  /** Permanent compensation for an unpublished import; user deletion uses trashBundle. */
-  removeBundle(
+  /** `manifest` republishes the workspace's entry in the same transaction. */
+  restoreBundle(
     workspaceId: string,
-    expectedCanvasRevision: number,
+    expectedRevision: number,
     generation: string,
-    expectedConversations?: WorkspaceConversationState,
+    manifest?: WorkspaceManifestCommit,
   ): Promise<CommitReceipt>;
 }

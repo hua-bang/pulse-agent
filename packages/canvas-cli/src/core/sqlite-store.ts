@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { resolve } from 'path';
-import type { PulseStorage } from '@pulse-coder/storage';
 import { StorageError } from '@pulse-coder/storage';
 import { createCanvasCompatibilityStore } from '@pulse-coder/storage/canvas';
 import { openLocalStorage } from '@pulse-coder/storage/local';
@@ -56,7 +55,7 @@ async function openCanvasStorage(root: string): Promise<{ storage: SqliteStorage
 /** No migration or native loading for legacy roots; active roots never fall back. */
 export async function withSqliteCanvas<T>(
   storeDir: string | undefined,
-  operation: (storage: PulseStorage, canvas: CompatibilityStore) => Promise<T>,
+  operation: (storage: SqliteStorage, canvas: CompatibilityStore) => Promise<T>,
 ): Promise<SqliteStoreResult<T>> {
   const { storage, shared } = await openCanvasStorage(localStoreRoot(storeDir));
   if (!storage) return { active: false };

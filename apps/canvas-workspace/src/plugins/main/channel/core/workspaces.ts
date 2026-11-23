@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import { readWorkspaceManifestDocument } from '../../../../main/canvas/persistence/workspace-manifest';
 
 // Canvas persists each workspace under ~/.pulse-coder/canvas/<workspaceId>/
 // with a canvas.json at its root. The main process has no workspace *name*
@@ -22,13 +23,12 @@ interface WorkspaceManifest {
   activeId?: string;
 }
 
-// Friendly names + the UI's active workspace live in a manifest alongside the
-// per-workspace directories. Read it to label workspaces by name (the dirs
-// themselves are random ids).
+// Friendly names + the UI's active workspace live in the workspace manifest
+// (the database after Canvas activation, otherwise the legacy file). Read it to
+// label workspaces by name (the dirs themselves are random ids).
 async function readManifest(): Promise<WorkspaceManifest> {
   try {
-    const raw = await fs.readFile(join(STORE_DIR, '__workspaces__.json'), 'utf-8');
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const parsed = await readWorkspaceManifestDocument(STORE_DIR);
     const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
     return { workspaces, activeId: parsed.activeId as string | undefined };
   } catch {

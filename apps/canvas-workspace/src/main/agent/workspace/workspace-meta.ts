@@ -14,9 +14,9 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { readWorkspaceManifestDocument } from '../../canvas/persistence/workspace-manifest';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
-const MANIFEST_PATH = join(STORE_DIR, '__workspaces__.json');
 
 export const WORKSPACE_DOC_FILENAME = 'pulse-workspace.md';
 
@@ -26,10 +26,6 @@ interface ManifestWorkspace {
   rootFolder?: string;
 }
 
-interface Manifest {
-  workspaces?: ManifestWorkspace[];
-}
-
 export interface WorkspaceMeta {
   rootFolder?: string;
   name?: string;
@@ -37,9 +33,10 @@ export interface WorkspaceMeta {
 
 export async function readWorkspaceMeta(workspaceId: string): Promise<WorkspaceMeta> {
   try {
-    const raw = await fs.readFile(MANIFEST_PATH, 'utf-8');
-    const manifest = JSON.parse(raw) as Manifest;
-    const entry = manifest.workspaces?.find((w) => w.id === workspaceId);
+    // The database after Canvas activation, otherwise the legacy file.
+    const manifest = await readWorkspaceManifestDocument(STORE_DIR);
+    const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces as ManifestWorkspace[] : [];
+    const entry = workspaces.find((w) => w?.id === workspaceId);
     if (!entry) return {};
     return { rootFolder: entry.rootFolder, name: entry.name };
   } catch {

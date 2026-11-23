@@ -1,9 +1,15 @@
 import { promises as fs } from 'fs';
 import { join, dirname, basename, resolve, relative, isAbsolute } from 'path';
 import { RevisionConflictError, StorageError } from '@pulse-coder/storage';
-import type { FileWriteInput, WorkspaceTrashRecord } from '@pulse-coder/storage';
-import type { LegacyCanvas } from '@pulse-coder/storage/canvas';
-import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
+import type { FileWriteInput, JsonObject, WorkspaceManifestCommit, WorkspaceTrashRecord } from '@pulse-coder/storage';
+import { prepareLegacyCanvasImport, type LegacyCanvas } from '@pulse-coder/storage/canvas';
+import {
+  readLocalWorkspaceManifest,
+  updateLocalWorkspaceManifest,
+  withLegacyCanvasWrite,
+  type LocalWorkspaceManifestOptions,
+} from '@pulse-coder/storage/local';
+import type { SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { DEFAULT_STORE_DIR, AGENTS_MD_TEMPLATE } from './constants';
 import type { CanvasNode, CanvasEdge, CanvasSaveData, WorkspaceManifest, Result } from './types';
 import {
@@ -232,65 +238,128 @@ export async function atomicWriteCanvasJson(
   await fs.rename(tmpPath, finalPath);
 }
 
-export async function loadWorkspaceManifest(storeDir?: string): Promise<WorkspaceManifest> {
+function normalizeManifest(parsed: Record<string, unknown>): WorkspaceManifest {
+  // Support both Electron format ("workspaces") and legacy CLI format ("entries")
+  const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
+  return { ...parsed, workspaces, activeId: parsed.activeId as string | undefined };
+}
+
+const isMissingFile = (error: unknown): boolean => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
+
+/**
+ * The legacy store's manifest, and the source of the one-time import into
+ * storage. `strict` (the import) fails instead of returning an empty list when
+ * a file exists but cannot be read: an import is permanent and rewrites the file.
+ */
+async function readManifestFile(storeDir?: string, strict = false): Promise<WorkspaceManifest> {
   const path = manifestPath(storeDir);
   const backupPath = `${path}.bak`;
-  let manifest: WorkspaceManifest;
   try {
-    const raw = await fs.readFile(path, 'utf-8');
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    // Support both Electron format ("workspaces") and legacy CLI format ("entries")
-    const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
-    manifest = { ...parsed, workspaces, activeId: parsed.activeId as string | undefined };
+    return normalizeManifest(JSON.parse(await fs.readFile(path, 'utf-8')) as Record<string, unknown>);
   } catch (primaryErr) {
     try {
-      const raw = await fs.readFile(backupPath, 'utf-8');
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
+      const manifest = normalizeManifest(JSON.parse(await fs.readFile(backupPath, 'utf-8')) as Record<string, unknown>);
       console.warn(
         `[canvas-cli] workspace manifest unreadable (${String(primaryErr)}); recovered from __workspaces__.json.bak`,
       );
-      manifest = { ...parsed, workspaces, activeId: parsed.activeId as string | undefined };
-    } catch {
-      manifest = { workspaces: [] };
+      return manifest;
+    } catch (backupErr) {
+      if (strict && !(isMissingFile(primaryErr) && isMissingFile(backupErr))) {
+        throw new StorageError('corrupt_data',
+          `The workspace manifest and its backup are unreadable; repair ${path} before continuing: ${String(primaryErr)}`,
+          { cause: primaryErr });
+      }
+      return { workspaces: [] };
     }
   }
-  // SQL is authoritative even if a crash left the old manifest on disk.
-  // Keep backend failures outside the JSON fallback: they must fail closed.
-  const sqlite = await withSqliteCanvas(storeDir, async storage => {
-    const deleted = new Set<string>();
-    let cursor: string | undefined;
-    do {
-      const page = await storage.workspaces.listTrashed({ cursor, limit: 500 });
-      for (const item of page.items) deleted.add(item.workspaceId);
-      cursor = page.nextCursor;
-    } while (cursor !== undefined);
-    return deleted;
-  });
-  if (sqlite.active) {
-    manifest.workspaces = manifest.workspaces.filter(entry => !sqlite.value.has(entry.id));
-    if (manifest.activeId && sqlite.value.has(manifest.activeId)) {
-      manifest.activeId = manifest.workspaces[0]?.id;
-    }
+}
+
+async function listTrashedIds(storage: SqliteStorage): Promise<Set<string>> {
+  const deleted = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = await storage.workspaces.listTrashed({ cursor, limit: 500 });
+    for (const item of page.items) deleted.add(item.workspaceId);
+    cursor = page.nextCursor;
+  } while (cursor !== undefined);
+  return deleted;
+}
+
+/** Trash is authoritative for visibility until create/delete/restore share one transaction. */
+function hideTrashed(manifest: WorkspaceManifest, deleted: Set<string>): WorkspaceManifest {
+  manifest.workspaces = manifest.workspaces.filter(entry => !deleted.has(entry.id));
+  if (manifest.activeId && deleted.has(manifest.activeId)) {
+    manifest.activeId = manifest.workspaces[0]?.id;
   }
   return manifest;
 }
 
+/** Drop `undefined` fields the way the JSON file writer always did. */
+function toJsonObject(manifest: WorkspaceManifest): JsonObject {
+  return JSON.parse(JSON.stringify(manifest)) as JsonObject;
+}
+
+function manifestStorageOptions(
+  storeDir: string | undefined,
+  storage: SqliteStorage,
+  deleted: Set<string>,
+): LocalWorkspaceManifestOptions {
+  return {
+    root: localStoreRoot(storeDir),
+    storage,
+    resolveNativeBinding: resolveSqliteNativeBinding,
+    // Imported once; afterwards the file is retained legacy data and is not read or written.
+    loadLegacyManifest: async () => toJsonObject(hideTrashed(await readManifestFile(storeDir, true), deleted)),
+  };
+}
+
+export async function loadWorkspaceManifest(storeDir?: string): Promise<WorkspaceManifest> {
+  // Backend failures stay outside the JSON fallback: they must fail closed.
+  const sqlite = await withSqliteCanvas(storeDir, async storage => {
+    const deleted = await listTrashedIds(storage);
+    const snapshot = await readLocalWorkspaceManifest(manifestStorageOptions(storeDir, storage, deleted));
+    return hideTrashed(normalizeManifest(snapshot.manifest), deleted);
+  });
+  if (sqlite.active) return sqlite.value;
+  return readManifestFile(storeDir);
+}
+
 export async function saveWorkspaceManifest(manifest: WorkspaceManifest, storeDir?: string): Promise<void> {
-  await withLegacyCanvasWrite(localStoreRoot(storeDir), () => withManifestLock(storeDir, async () => {
-    const dir = resolveDir(storeDir);
-    await fs.mkdir(dir, { recursive: true });
-    await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(manifest, null, 2));
-  }), { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding });
+  await updateWorkspaceManifest(storeDir, () => manifest);
+}
+
+/**
+ * A workspace change that commits together with its manifest entry. On SQLite,
+ * `sqlite` runs one bundle transaction that also commits `manifest`. On a legacy
+ * store, `legacy` runs before the manifest file is written; without it the change
+ * requires SQLite.
+ */
+interface ManifestBundleChange {
+  sqlite: (storage: SqliteStorage, manifest: WorkspaceManifestCommit) => Promise<unknown>;
+  legacy?: () => Promise<void>;
 }
 
 async function updateWorkspaceManifest(
   storeDir: string | undefined,
   updater: (manifest: WorkspaceManifest) => WorkspaceManifest | void,
+  bundle?: ManifestBundleChange,
 ): Promise<WorkspaceManifest> {
   return withLegacyCanvasWrite(localStoreRoot(storeDir), () => withManifestLock(storeDir, async () => {
-    const manifest = await loadWorkspaceManifest(storeDir);
+    const sqlite = await withSqliteCanvas(storeDir, async storage => {
+      const deleted = await listTrashedIds(storage);
+      const options = manifestStorageOptions(storeDir, storage, deleted);
+      const snapshot = await updateLocalWorkspaceManifest(options, current => {
+        const manifest = hideTrashed(normalizeManifest(current), deleted);
+        return toJsonObject(updater(manifest) ?? manifest);
+      }, bundle && (input => bundle.sqlite(storage, input)));
+      return normalizeManifest(snapshot.manifest);
+    });
+    if (sqlite.active) return sqlite.value;
+    if (bundle && !bundle.legacy) throw legacyTrashUnavailable();
+    await bundle?.legacy?.();
+    const manifest = await readManifestFile(storeDir);
     const next = updater(manifest) ?? manifest;
+    await fs.mkdir(resolveDir(storeDir), { recursive: true });
     await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(next, null, 2));
     return next;
   }), { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding });
@@ -776,7 +845,6 @@ export async function createWorkspace(
   storeDir?: string,
 ): Promise<Result<{ id: string }>> {
   let createdDir: string | null = null;
-  let created: { revision: number; generation: string } | null = null;
   const id = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
     await ensureWorkspaceDir(id, storeDir);
@@ -788,14 +856,6 @@ export async function createWorkspace(
       transform: { x: 0, y: 0, scale: 1 },
       savedAt: new Date().toISOString(),
     };
-    // Brand-new workspace: the canvas file shouldn't exist yet, but opt in
-    // explicitly so the wipe guard is never tripped by this bootstrap step.
-    await saveCanvas(id, emptyCanvas, storeDir, { allowEmpty: true });
-    const sqlite = await withSqliteCanvas(storeDir, storage => storage.canvas.read(id));
-    if (sqlite.active && sqlite.value) {
-      created = { revision: sqlite.value.revision, generation: sqlite.value.generation };
-    }
-
     await updateWorkspaceManifest(storeDir, (manifest) => {
       const workspaces = manifest.workspaces ?? [];
       if (!workspaces.some(entry => entry.id === id)) {
@@ -803,27 +863,19 @@ export async function createWorkspace(
       }
       manifest.workspaces = workspaces;
       return manifest;
+    }, {
+      // One transaction: a failed creation leaves neither a canvas row nor an entry.
+      sqlite: (storage, manifest) => storage.workspaces.importBundle({
+        canvas: prepareLegacyCanvasImport(id, emptyCanvas),
+        expectedGeneration: storage.generation,
+        manifest,
+      }),
+      // Brand-new workspace: opt in explicitly so the wipe guard is never tripped.
+      legacy: () => saveLegacyCanvas(id, emptyCanvas, storeDir, { allowEmpty: true }),
     });
 
     return { ok: true, data: { id } };
   } catch (err) {
-    let compensationError: unknown;
-    if (created) {
-      // SQL listing is authoritative: an unpublished row must not outlive the failed creation.
-      const receipt = created;
-      await withSqliteCanvas(storeDir, async storage => {
-        const bundle = await storage.workspaces.readBundle(id);
-        if (bundle) {
-          await storage.workspaces.removeBundle(id, receipt.revision, receipt.generation, bundle.conversationState);
-        }
-      }).catch(error => { compensationError = error; });
-    }
-    if (compensationError) {
-      return {
-        ok: false,
-        error: `${String(err)}; the unpublished workspace ${id} was changed and was kept: ${String(compensationError)}`,
-      };
-    }
     if (createdDir) {
       await fs.rm(createdDir, { recursive: true, force: true }).catch(() => undefined);
     }
@@ -842,24 +894,27 @@ export async function deleteWorkspace(
         if (await storage.workspaces.getTrashed(workspaceId)) return;
         const current = await storage.workspaces.readBundle(workspaceId);
         if (!current) throw new StorageError('not_found', `Workspace not found: ${workspaceId}`);
-        const manifest = await loadWorkspaceManifest(storeDir);
-        const entry = manifest.workspaces.find(item => item.id === workspaceId);
-        await storage.workspaces.trashBundle({
-          workspaceId,
-          expectedCanvasRevision: current.canvas.revision,
-          generation: current.canvas.generation,
-          expectedConversations: current.conversationState,
-          metadata: { ...(entry ?? { id: workspaceId, name: workspaceId }) },
+        let entry: WorkspaceManifest['workspaces'][number] | undefined;
+        // The trash record and the entry removal commit in one transaction.
+        await updateWorkspaceManifest(storeDir, (manifest) => {
+          entry = manifest.workspaces.find(item => item.id === workspaceId);
+          manifest.workspaces = (manifest.workspaces ?? []).filter(e => e.id !== workspaceId);
+          if (manifest.activeId === workspaceId) {
+            manifest.activeId = manifest.workspaces[0]?.id;
+          }
+          return manifest;
+        }, {
+          sqlite: (db, manifest) => db.workspaces.trashBundle({
+            workspaceId,
+            expectedCanvasRevision: current.canvas.revision,
+            generation: current.canvas.generation,
+            expectedConversations: current.conversationState,
+            metadata: { ...(entry ?? { id: workspaceId, name: workspaceId }) },
+            manifest,
+          }),
         });
       });
       if (!sqlite.active) throw legacyTrashUnavailable();
-      await updateWorkspaceManifest(storeDir, (manifest) => {
-        manifest.workspaces = (manifest.workspaces ?? []).filter(e => e.id !== workspaceId);
-        if (manifest.activeId === workspaceId) {
-          manifest.activeId = manifest.workspaces[0]?.id;
-        }
-        return manifest;
-      });
       // Keep Markdown, attachments, legacy source files, and SQL history in place.
     }, { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding }));
 
@@ -896,8 +951,7 @@ export async function restoreWorkspace(workspaceId: string, storeDir?: string): 
       const sqlite = await withSqliteCanvas(storeDir, async storage => {
         const record = await storage.workspaces.getTrashed(workspaceId);
         if (!record) throw new StorageError('not_found', `Deleted workspace not found: ${workspaceId}`);
-        // Publish the name before restoring SQL visibility. A failed publication
-        // leaves the workspace in trash; reads hide this entry until SQL commits.
+        // The entry and the restored bundle commit in one transaction.
         await updateWorkspaceManifest(storeDir, manifest => {
           manifest.workspaces = manifest.workspaces.filter(entry => entry.id !== workspaceId);
           manifest.workspaces.push({
@@ -907,8 +961,9 @@ export async function restoreWorkspace(workspaceId: string, storeDir?: string): 
           });
           if (!manifest.activeId) manifest.activeId = workspaceId;
           return manifest;
+        }, {
+          sqlite: (db, manifest) => db.workspaces.restoreBundle(workspaceId, record.revision, record.generation, manifest),
         });
-        await storage.workspaces.restoreBundle(workspaceId, record.revision, record.generation);
       });
       if (!sqlite.active) throw legacyTrashUnavailable();
     }, { allowActive: true, resolveNativeBinding: resolveSqliteNativeBinding }));

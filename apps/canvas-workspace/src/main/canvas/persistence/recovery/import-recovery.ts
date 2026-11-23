@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import type { PulseStorage } from '@pulse-coder/storage';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { isSafeNodeId } from '../../nodes/store';
-import { atomicWriteJson, readJsonWithRecovery } from '../atomic-json';
 import { resolveStorageNativeBinding } from '../backend';
 import { IMPORT_JOURNAL } from '../sqlite-workspace';
+import { updateWorkspaceManifestDocument } from '../workspace-manifest';
 
 export type ImportRecoveryOutcome =
   /** SQL had the workspace but the manifest did not: the entry was published. */
@@ -32,21 +32,19 @@ function parseJournal(text: string, directoryName: string): ImportJournal | stri
 }
 
 async function publishManifestEntry(root: string, journal: ImportJournal): Promise<boolean> {
-  const manifestPath = join(root, '__workspaces__.json');
-  const read = await readJsonWithRecovery(manifestPath);
-  if (read.kind === 'unrecoverable') throw read.err;
-  const manifest = read.kind === 'ok' && read.data && typeof read.data === 'object' && !Array.isArray(read.data)
-    ? read.data as { workspaces?: Array<{ id: string; name: string }>; folders?: unknown[] }
-    : {};
-  const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : [];
-  if (workspaces.some(entry => entry?.id === journal.workspaceId)) return false;
-  // Keep the user's current selection: startup recovery is not a new import action.
-  await atomicWriteJson(manifestPath, JSON.stringify({
-    ...manifest,
-    workspaces: [...workspaces, { id: journal.workspaceId, name: journal.workspaceName }],
-    folders: Array.isArray(manifest.folders) ? manifest.folders : [],
-  }, null, 2), { rollingBackup: true });
-  return true;
+  let published = false;
+  await updateWorkspaceManifestDocument(root, manifest => {
+    const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : [];
+    if (workspaces.some(entry => entry?.id === journal.workspaceId)) return manifest;
+    published = true;
+    // Keep the user's current selection: startup recovery is not a new import action.
+    return {
+      ...manifest,
+      workspaces: [...workspaces, { id: journal.workspaceId, name: journal.workspaceName }],
+      folders: Array.isArray(manifest.folders) ? manifest.folders : [],
+    };
+  });
+  return published;
 }
 
 async function recoverOne(root: string, storage: PulseStorage, workspaceId: string, text: string): Promise<ImportRecoveryResult> {

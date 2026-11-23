@@ -8,6 +8,7 @@ import { activateLocalConversationStorage } from '@pulse-coder/storage/local-con
 import { closeCanvasStorage, getLocalCanvasStorage } from './backend';
 import { setCanvasSessionArchivePort, type CanvasSessionArchivePort } from './session-archive-port';
 import { restoreTrashedWorkspace, trashWorkspace, saveWorkspaceManifest } from './workspace-trash';
+import { readWorkspaceManifestDocument, updateWorkspaceManifestDocument } from './workspace-manifest';
 import { filterWorkspaceManifest, listWorkspaces, readWorkspaceManifest } from '../workspaces';
 import { ensureWelcomeWorkspaceSeeded } from '../welcome-workspace';
 
@@ -78,22 +79,40 @@ describe('App workspace soft deletion', () => {
     expect(restored.conversationScope?.currentSessionId).toBe('session');
   });
 
-  it('filters stale manifest entries and retained directories, including a prepublished CLI restore entry', async () => {
+  it('removes the entry in the trash commit and still hides a stale entry for a trashed id', async () => {
     await activate();
     await mkdir(join(root, 'work'), { recursive: true });
     const raw = { workspaces: [entry, other], folders: [], activeId: 'work' };
     await writeManifest(raw);
     await trashWorkspace(root, 'work');
     expect((await listWorkspaces(root)).workspaces.map(row => row.id)).toEqual(['other']);
+    expect(await readWorkspaceManifestDocument(root)).toMatchObject({ workspaces: [other], activeId: 'other' });
     expect(await filterWorkspaceManifest(root, raw)).toMatchObject({ workspaces: [other], activeId: 'other' });
-    await writeManifest(raw); // CLI publishes display metadata before SQL restore.
+    // Older data can still list a trashed id; reads hide it until the restore commit.
+    await updateWorkspaceManifestDocument(root, () => raw);
     expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other']);
-    const deleted = (await storage!.workspaces.getTrashed('work'))!;
-    await storage!.workspaces.restoreBundle('work', deleted.revision, deleted.generation);
-    expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['work', 'other']);
+    await restoreTrashedWorkspace(root, 'work');
+    expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other', 'work']);
     expect((await filterWorkspaceManifest(root, raw)).workspaces[0]).not.toHaveProperty('folderId');
     await saveWorkspaceManifest(root, { workspaces: [other], folders: [], activeId: 'other' });
     expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['other', 'work']);
+  });
+
+  it('trashes nothing and keeps the entry when the trash commit meets a newer manifest', async () => {
+    await activate();
+    await writeManifest({ workspaces: [entry, other], folders: [], activeId: 'work' });
+    const connection = (await getLocalCanvasStorage(root))!;
+    const original = connection.workspaces.trashBundle.bind(connection.workspaces);
+    vi.spyOn(connection.workspaces, 'trashBundle').mockImplementationOnce(async input => {
+      const current = (await connection.workspaceManifest.read())!;
+      await connection.workspaceManifest.commit({ expectedRevision: current.revision, manifest: current.manifest });
+      return original(input);
+    });
+    await expect(trashWorkspace(root, 'work')).rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(await storage!.workspaces.getTrashed('work')).toBeNull();
+    expect((await readWorkspaceManifest(root)).workspaces.map(row => row.id)).toEqual(['work', 'other']);
+    await trashWorkspace(root, 'work');
+    expect(await storage!.workspaces.getTrashed('work')).not.toBeNull();
   });
 
   it('registers a new manifest entry in SQLite before its first canvas save', async () => {
