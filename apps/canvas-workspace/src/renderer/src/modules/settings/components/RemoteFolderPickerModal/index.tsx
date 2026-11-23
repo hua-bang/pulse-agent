@@ -5,6 +5,7 @@ import type {
 } from '../../../../../../shared/api/remote-vps';
 import { Button, Modal, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
+import { remoteFolderCopy, remoteVpsCopy } from './copy';
 import './index.css';
 
 export interface RemoteFolderPickerModalProps {
@@ -42,7 +43,9 @@ export const RemoteFolderPickerModal = ({
   onSelect,
   onClose,
 }: RemoteFolderPickerModalProps) => {
-  const { t } = useI18n();
+  const { language } = useI18n();
+  const copy = remoteFolderCopy(language);
+  const vpsCopy = remoteVpsCopy(language);
   const titleId = useId();
   const [currentPath, setCurrentPath] = useState(initialPath || '~');
   const [pathInput, setPathInput] = useState(initialPath || '~');
@@ -59,7 +62,7 @@ export const RemoteFolderPickerModal = ({
     async (targetPath: string, includeHidden: boolean) => {
       const api = window.canvasWorkspace?.remoteVps;
       if (!api) {
-        setError(t('remoteFolder.unavailable'));
+        setError(copy.unavailable);
         return;
       }
       setLoading(true);
@@ -71,10 +74,10 @@ export const RemoteFolderPickerModal = ({
           config,
         });
         if (!res.ok) {
-          const raw = res.error || t('remoteFolder.loadFailed');
+          const raw = res.error || copy.loadFailed;
           if (raw.includes('Route not found')) {
             setOldDaemon(true);
-            setError(t('remoteFolder.oldDaemonError'));
+            setError(copy.oldDaemonError);
           } else {
             setError(raw);
           }
@@ -92,7 +95,7 @@ export const RemoteFolderPickerModal = ({
         setLoading(false);
       }
     },
-    [workspaceId, config, t],
+    [workspaceId, config, copy],
   );
 
   const handleUpgradeDaemon = useCallback(async () => {
@@ -102,12 +105,12 @@ export const RemoteFolderPickerModal = ({
     try {
       const activeConfig = config ?? (await api.getConfig(workspaceId)).config;
       if (!activeConfig) {
-        setError(t('remoteFolder.loadFailed'));
+        setError(copy.loadFailed);
         return;
       }
       const res = await api.testAndBootstrap(workspaceId, activeConfig);
       if (!res.ok) {
-        setError(res.error || t('remoteVps.connectFailed'));
+        setError(res.error || vpsCopy.connectFailed);
         return;
       }
       if (res.token && res.token !== activeConfig.token) {
@@ -119,7 +122,7 @@ export const RemoteFolderPickerModal = ({
     } finally {
       setUpgrading(false);
     }
-  }, [config, workspaceId, currentPath, showHidden, loadDir, t]);
+  }, [config, workspaceId, currentPath, showHidden, loadDir, copy, vpsCopy]);
 
   useEffect(() => {
     if (!open) return;
@@ -144,10 +147,10 @@ export const RemoteFolderPickerModal = ({
     <Modal open={open} onClose={onClose} width={520} labelledBy={titleId} className="vps-folder-modal">
       <div className="vps-folder-modal-header">
         <div>
-          <span className="vps-folder-modal-eyebrow">{t('remoteFolder.eyebrow')}</span>
-          <h2 id={titleId} className="vps-folder-modal-title">{t('remoteFolder.title')}</h2>
+          <span className="vps-folder-modal-eyebrow">{copy.eyebrow}</span>
+          <h2 id={titleId} className="vps-folder-modal-title">{copy.title}</h2>
         </div>
-        <Button variant="icon" onClick={onClose} aria-label={t('remoteFolder.close')}>
+        <Button variant="icon" onClick={onClose} aria-label={copy.close}>
           <CloseIcon />
         </Button>
       </div>
@@ -165,23 +168,23 @@ export const RemoteFolderPickerModal = ({
           }}
           placeholder="/root/projects"
           spellCheck={false}
-          aria-label={t('remoteFolder.pathLabel')}
+          aria-label={copy.pathLabel}
         />
         <Button
           variant="secondary"
           size="sm"
           onClick={() => parentPath && handleNavigate(parentPath)}
           disabled={!parentPath || loading}
-          title={t('remoteFolder.upTitle')}
+          title={copy.upTitle}
         >
-          {t('remoteFolder.up')}
+          {copy.up}
         </Button>
         <Button
           variant="secondary"
           size="sm"
           onClick={() => handleNavigate(homePath || '~')}
           disabled={loading}
-          title={t('remoteFolder.homeTitle')}
+          title={copy.homeTitle}
         >
           ~
         </Button>
@@ -190,9 +193,9 @@ export const RemoteFolderPickerModal = ({
           size="sm"
           onClick={() => handleNavigate(currentPath)}
           disabled={loading}
-          title={t('remoteFolder.refresh')}
+          title={copy.refresh}
         >
-          {t('remoteFolder.refresh')}
+          {copy.refresh}
         </Button>
       </div>
 
@@ -208,15 +211,15 @@ export const RemoteFolderPickerModal = ({
                   disabled={upgrading}
                   onClick={() => { void handleUpgradeDaemon(); }}
                 >
-                  {upgrading ? t('remoteFolder.upgradingDaemon') : t('remoteFolder.upgradeDaemon')}
+                  {upgrading ? copy.upgradingDaemon : copy.upgradeDaemon}
                 </Button>
               </div>
             )}
           </div>
         ) : loading && entries.length === 0 ? (
-          <div className="vps-folder-modal-empty">{t('remoteFolder.loading')}</div>
+          <div className="vps-folder-modal-empty">{copy.loading}</div>
         ) : entries.length === 0 ? (
-          <div className="vps-folder-modal-empty">{t('remoteFolder.empty')}</div>
+          <div className="vps-folder-modal-empty">{copy.empty}</div>
         ) : (
           <div className="vps-folder-modal-list">
             {entries.map((entry) => (
@@ -241,12 +244,12 @@ export const RemoteFolderPickerModal = ({
           size="sm"
           onClick={() => setShowHidden((prev) => !prev)}
         >
-          {showHidden ? t('remoteFolder.hideHidden') : t('remoteFolder.showHidden')}
+          {showHidden ? copy.hideHidden : copy.showHidden}
         </Button>
         <div className="vps-folder-modal-actions">
-          <Button variant="secondary" onClick={onClose}>{t('remoteFolder.cancel')}</Button>
+          <Button variant="secondary" onClick={onClose}>{copy.cancel}</Button>
           <Button variant="primary" onClick={handleConfirm} disabled={loading || !currentPath}>
-            {t('remoteFolder.selectCurrent')}
+            {copy.selectCurrent}
           </Button>
         </div>
       </div>

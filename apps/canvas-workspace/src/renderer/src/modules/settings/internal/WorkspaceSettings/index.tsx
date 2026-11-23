@@ -14,17 +14,25 @@
  * chat turn (see canvas-agent/canvas-agent.ts).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
 import type { WorkspaceEntry } from '../../../../shared/workspaces';
 import { Drawer, Button, TextField, FieldRow, SegmentedControl } from '../../../../components/ui';
 import { McpManager } from '../settings-config/McpManager';
-import { RemoteVpsCard } from './RemoteVpsCard';
-import { RemoteFolderPickerModal } from '../../components/RemoteFolderPickerModal';
 import { useAppShell } from '../../../../shared/appShell';
 import { useI18n } from '../../../../i18n';
+import { remoteVpsCopy } from '../../components/RemoteFolderPickerModal/copy';
 import { isImeComposing } from '../../../../utils/ime';
 import './index.css';
+
+const RemoteVpsCard = lazy(() =>
+  import('./RemoteVpsCard').then((mod) => ({ default: mod.RemoteVpsCard })),
+);
+const RemoteFolderPickerModal = lazy(() =>
+  import('../../components/RemoteFolderPickerModal').then((mod) => ({
+    default: mod.RemoteFolderPickerModal,
+  })),
+);
 
 interface Props {
   workspace: WorkspaceEntry | null;
@@ -52,7 +60,8 @@ export const WorkspaceSettingsDrawer = ({
   onRename,
   onSetRootFolder,
 }: Props) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const vpsCopy = remoteVpsCopy(language);
   const { confirm } = useAppShell();
   const open = workspace !== null;
 
@@ -81,12 +90,12 @@ export const WorkspaceSettingsDrawer = ({
     if (!workspace) return;
     const res = await window.canvasWorkspace?.remoteVps.removeConfig(workspace.id);
     if (!res?.ok) {
-      setError(res?.error ?? t('remoteVps.unbindFailed'));
+      setError(res?.error ?? vpsCopy.unbindFailed);
       return;
     }
     setRemoteVps(null);
     setEnvMode('local');
-  }, [workspace, t]);
+  }, [workspace, vpsCopy]);
 
   const handleRemoteFolderSelect = useCallback(async (folderPath: string) => {
     if (!workspace || !remoteVps) return;
@@ -326,13 +335,13 @@ export const WorkspaceSettingsDrawer = ({
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.environment')}</div>
           {window.canvasWorkspace?.remoteVps && (
-            <FieldRow label={t('remoteVps.envMode')}>
+            <FieldRow label={vpsCopy.envMode}>
               <SegmentedControl
                 value={envMode}
                 onChange={(id) => setEnvMode(id as 'local' | 'vps')}
                 options={[
-                  { id: 'local', label: t('remoteVps.envLocal') },
-                  { id: 'vps', label: t('remoteVps.envVps') },
+                  { id: 'local', label: vpsCopy.envLocal },
+                  { id: 'vps', label: vpsCopy.envVps },
                 ]}
               />
             </FieldRow>
@@ -340,15 +349,17 @@ export const WorkspaceSettingsDrawer = ({
 
           {envMode === 'vps' && window.canvasWorkspace?.remoteVps ? (
             <>
-              <RemoteVpsCard
-                workspaceId={workspace.id}
-                currentConfig={remoteVps}
-                onConfigChange={handleRemoteVpsChange}
-              />
+              <Suspense fallback={null}>
+                <RemoteVpsCard
+                  workspaceId={workspace.id}
+                  currentConfig={remoteVps}
+                  onConfigChange={handleRemoteVpsChange}
+                />
+              </Suspense>
               {remoteVps && (
                 <FieldRow
                   label={t('workspaceSettings.rootFolder')}
-                  hint={t('remoteVps.rootFolderHint')}
+                  hint={vpsCopy.rootFolderHint}
                 >
                   <div className="workspace-settings-folder-row">
                     <div className="workspace-settings-folder-path" title={remoteVps.cwd || '~'}>
@@ -367,12 +378,10 @@ export const WorkspaceSettingsDrawer = ({
           ) : remoteVps ? (
             <div className="workspace-settings-vps-notice">
               <span>
-                {t('remoteVps.switchBackLocalNotice', {
-                  host: remoteVps.sshHost || remoteVps.endpoint || 'VPS',
-                })}
+                {vpsCopy.switchBackLocalNotice(remoteVps.sshHost || remoteVps.endpoint || 'VPS')}
               </span>
               <Button variant="secondary" size="sm" onClick={() => void handleDisconnectToLocal()}>
-                {t('remoteVps.switchBackLocalAction')}
+                {vpsCopy.switchBackLocalAction}
               </Button>
             </div>
           ) : (
@@ -464,14 +473,16 @@ export const WorkspaceSettingsDrawer = ({
           {savingDoc ? t('workspaceSettings.saving') : savedHint ? t('workspaceSettings.saved') : t('workspaceSettings.saveDoc')}
         </Button>
       </div>
-      {remoteVps && (
-        <RemoteFolderPickerModal
-          open={remoteFolderPickerOpen}
-          workspaceId={workspace.id}
-          initialPath={remoteVps.cwd || '~'}
-          onSelect={(folderPath) => { void handleRemoteFolderSelect(folderPath); }}
-          onClose={() => setRemoteFolderPickerOpen(false)}
-        />
+      {remoteVps && remoteFolderPickerOpen && (
+        <Suspense fallback={null}>
+          <RemoteFolderPickerModal
+            open={remoteFolderPickerOpen}
+            workspaceId={workspace.id}
+            initialPath={remoteVps.cwd || '~'}
+            onSelect={(folderPath) => { void handleRemoteFolderSelect(folderPath); }}
+            onClose={() => setRemoteFolderPickerOpen(false)}
+          />
+        </Suspense>
       )}
     </Drawer>
   );

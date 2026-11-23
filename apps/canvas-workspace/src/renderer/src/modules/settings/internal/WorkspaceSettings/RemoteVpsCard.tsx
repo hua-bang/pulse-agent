@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
+import { remoteVpsCopy } from '../../components/RemoteFolderPickerModal/copy';
 import './RemoteVpsCard.css';
 
 interface Props {
@@ -14,7 +15,8 @@ type ConnMode = 'ssh' | 'direct';
 type ScopeMode = 'full' | 'runtime-only';
 
 export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Props) => {
-  const { t } = useI18n();
+  const { language } = useI18n();
+  const copy = remoteVpsCopy(language);
   const [expanded, setExpanded] = useState(!currentConfig);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sshHosts, setSshHosts] = useState<string[]>([]);
@@ -100,7 +102,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       const draft = buildDraftConfig();
       const testRes = await api.testAndBootstrap(workspaceId, draft);
       if (!testRes.ok) {
-        setStatusMsg({ kind: 'err', text: testRes.error || t('remoteVps.connectFailed') });
+        setStatusMsg({ kind: 'err', text: testRes.error || copy.connectFailed });
         return;
       }
       const resolvedConfig: RemoteVpsWorkspaceConfigDto = {
@@ -111,15 +113,15 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
 
       const saveRes = await api.saveConfig(workspaceId, resolvedConfig);
       if (!saveRes.ok) {
-        setStatusMsg({ kind: 'err', text: saveRes.error || t('remoteVps.connectFailed') });
+        setStatusMsg({ kind: 'err', text: saveRes.error || copy.connectFailed });
         return;
       }
       onConfigChange(resolvedConfig);
       setStatusMsg({
         kind: 'ok',
         text: testRes.uploaded
-          ? t('remoteVps.connectedUploaded', { version: testRes.version ?? '0.1.0' })
-          : t('remoteVps.connectedOk', { version: testRes.version ?? '0.1.0' }),
+          ? copy.connectedUploaded(testRes.version ?? '0.1.0')
+          : copy.connectedOk(testRes.version ?? '0.1.0'),
       });
     } finally {
       setBusy(null);
@@ -135,7 +137,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       const draft = buildDraftConfig();
       const testRes = await api.testAndBootstrap(workspaceId, draft);
       if (!testRes.ok) {
-        setStatusMsg({ kind: 'err', text: testRes.error || t('remoteVps.migrateFailed') });
+        setStatusMsg({ kind: 'err', text: testRes.error || copy.migrateFailed });
         return;
       }
       const resolvedDraft: RemoteVpsWorkspaceConfigDto = {
@@ -147,17 +149,14 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
 
       const migRes = await api.migrateLocal(workspaceId, resolvedDraft);
       if (!migRes.ok) {
-        setStatusMsg({ kind: 'err', text: migRes.error || t('remoteVps.migrateFailed') });
+        setStatusMsg({ kind: 'err', text: migRes.error || copy.migrateFailed });
         return;
       }
       await api.saveConfig(workspaceId, resolvedDraft);
       onConfigChange(resolvedDraft);
       setStatusMsg({
         kind: 'ok',
-        text: t('remoteVps.migratedOk', {
-          conversations: String(migRes.conversationCount ?? 0),
-          files: String(migRes.uploadedFiles ?? 0),
-        }),
+        text: copy.migratedOk(migRes.conversationCount ?? 0, migRes.uploadedFiles ?? 0),
       });
     } finally {
       setBusy(null);
@@ -172,11 +171,11 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
     try {
       const res = await api.removeConfig(workspaceId);
       if (!res.ok) {
-        setStatusMsg({ kind: 'err', text: res.error || t('remoteVps.unbindFailed') });
+        setStatusMsg({ kind: 'err', text: res.error || copy.unbindFailed });
         return;
       }
       onConfigChange(null);
-      setStatusMsg({ kind: 'ok', text: t('remoteVps.unboundOk') });
+      setStatusMsg({ kind: 'ok', text: copy.unboundOk });
     } finally {
       setBusy(null);
     }
@@ -192,13 +191,11 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
             <span className="remote-vps-dot" aria-hidden="true" />
             <span className="remote-vps-host" title={hostSummary}>{hostSummary}</span>
             <span className="remote-vps-badge is-bound">
-              {currentConfig?.storage === 'local'
-                ? t('remoteVps.boundRuntime')
-                : t('remoteVps.boundFull')}
+              {currentConfig?.storage === 'local' ? copy.boundRuntime : copy.boundFull}
             </span>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setExpanded((prev) => !prev)}>
-            {expanded ? t('remoteVps.collapse') : t('remoteVps.manageConnection')}
+            {expanded ? copy.collapse : copy.manageConnection}
           </Button>
         </div>
       )}
@@ -206,11 +203,11 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       {expanded && (
         <div className="remote-vps-body">
           {connMode === 'ssh' ? (
-            <FieldRow label={t('remoteVps.sshHost')} hint={t('remoteVps.sshHostHint')}>
+            <FieldRow label={copy.sshHost} hint={copy.sshHostHint}>
               <TextField
                 value={sshHost}
                 onChange={(e) => setSshHost(e.target.value)}
-                placeholder={t('remoteVps.sshHostPlaceholder')}
+                placeholder={copy.sshHostPlaceholder}
               />
               {sshHosts.length > 0 && (
                 <div className="remote-vps-host-chips">
@@ -228,7 +225,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
               )}
             </FieldRow>
           ) : (
-            <FieldRow label={t('remoteVps.endpoint')} hint={t('remoteVps.endpointHint')}>
+            <FieldRow label={copy.endpoint} hint={copy.endpointHint}>
               <TextField
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
@@ -243,39 +240,39 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
               size="sm"
               onClick={() => setShowAdvanced((prev) => !prev)}
             >
-              {showAdvanced ? t('remoteVps.advancedHide') : t('remoteVps.advancedShow')}
+              {showAdvanced ? copy.advancedHide : copy.advancedShow}
             </Button>
           </div>
 
           {showAdvanced && (
             <div className="remote-vps-advanced">
               <FieldRow
-                label={t('remoteVps.connMode')}
-                hint={connMode === 'ssh' ? t('remoteVps.connSshHint') : t('remoteVps.connDirectHint')}
+                label={copy.connMode}
+                hint={connMode === 'ssh' ? copy.connSshHint : copy.connDirectHint}
               >
                 <SegmentedControl
                   value={connMode}
                   onChange={(id) => setConnMode(id as ConnMode)}
                   options={[
-                    { id: 'ssh', label: t('remoteVps.connSsh') },
-                    { id: 'direct', label: t('remoteVps.connDirect') },
+                    { id: 'ssh', label: copy.connSsh },
+                    { id: 'direct', label: copy.connDirect },
                   ]}
                 />
               </FieldRow>
 
-              <FieldRow label={t('remoteVps.scopeMode')} hint={t('remoteVps.scopeHint')}>
+              <FieldRow label={copy.scopeMode} hint={copy.scopeHint}>
                 <SegmentedControl
                   value={scopeMode}
                   onChange={(id) => setScopeMode(id as ScopeMode)}
                   options={[
-                    { id: 'full', label: t('remoteVps.scopeFull') },
-                    { id: 'runtime-only', label: t('remoteVps.scopeRuntime') },
+                    { id: 'full', label: copy.scopeFull },
+                    { id: 'runtime-only', label: copy.scopeRuntime },
                   ]}
                 />
               </FieldRow>
 
               {connMode === 'ssh' && (
-                <FieldRow label={t('remoteVps.remotePort')} hint={t('remoteVps.remotePortHint')}>
+                <FieldRow label={copy.remotePort} hint={copy.remotePortHint}>
                   <TextField
                     value={remotePort}
                     onChange={(e) => setRemotePort(e.target.value)}
@@ -285,17 +282,15 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
               )}
 
               <FieldRow
-                label={t('remoteVps.token')}
-                hint={connMode === 'ssh' ? t('remoteVps.tokenHintSsh') : t('remoteVps.tokenHintDirect')}
+                label={copy.token}
+                hint={connMode === 'ssh' ? copy.tokenHintSsh : copy.tokenHintDirect}
               >
                 <TextField
                   type="password"
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   placeholder={
-                    connMode === 'ssh'
-                      ? t('remoteVps.tokenPlaceholderSsh')
-                      : t('remoteVps.tokenPlaceholderDirect')
+                    connMode === 'ssh' ? copy.tokenPlaceholderSsh : copy.tokenPlaceholderDirect
                   }
                 />
               </FieldRow>
@@ -315,10 +310,10 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
               onClick={() => void handleConnectAndSave()}
             >
               {busy === 'connect'
-                ? t('remoteVps.connecting')
+                ? copy.connecting
                 : bound
-                  ? t('remoteVps.reconnectAndSave')
-                  : t('remoteVps.connectAndEnable')}
+                  ? copy.reconnectAndSave
+                  : copy.connectAndEnable}
             </Button>
             {bound && scopeMode === 'full' && (
               <Button
@@ -326,7 +321,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
                 disabled={!canSubmit || busy !== null}
                 onClick={() => void handleMigrate()}
               >
-                {busy === 'migrate' ? t('remoteVps.migrating') : t('remoteVps.migrateLocal')}
+                {busy === 'migrate' ? copy.migrating : copy.migrateLocal}
               </Button>
             )}
             {bound && (
@@ -335,7 +330,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
                 disabled={busy !== null}
                 onClick={() => void handleRemove()}
               >
-                {busy === 'remove' ? t('remoteVps.unbinding') : t('remoteVps.unbind')}
+                {busy === 'remove' ? copy.unbinding : copy.unbind}
               </Button>
             )}
           </div>

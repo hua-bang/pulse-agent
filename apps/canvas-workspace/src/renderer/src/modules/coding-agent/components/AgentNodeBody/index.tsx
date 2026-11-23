@@ -1,6 +1,6 @@
 import './index.css';
 import '@xterm/xterm/css/xterm.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { NodeMentionPicker } from '../../../node-mentions';
 import { AgentPicker } from './AgentPicker';
 import { AgentRestart } from './AgentRestart';
@@ -11,8 +11,11 @@ import type { AgentNodeBodyProps } from './types';
 import { resolveCodingAgentView as detectAgentView } from '../../session/sessionLifecycle';
 import { useAgentNodeController } from './useAgentNodeController';
 import { useWorkspaceActive } from '../../../../shared/workspaceActivity';
-import { RemoteFolderPickerModal } from '../../../settings';
 import { count } from '../../../../perf/counters';
+
+const RemoteFolderPickerModal = lazy(() =>
+  import('../../../settings').then((mod) => ({ default: mod.RemoteFolderPickerModal })),
+);
 
 export { detectAgentView };
 
@@ -261,14 +264,16 @@ export const AgentNodeBody = ({
           onPickFolder={() => { void handlePickFolder(); }}
           onLaunch={controller.handleLaunch}
         />
-        {workspaceId && (
-          <RemoteFolderPickerModal
-            open={remoteFolderPickerOpen}
-            workspaceId={workspaceId}
-            initialPath={controller.cwdInput.trim() || remoteVpsCwd || '~'}
-            onSelect={(folderPath) => controller.setCwdInput(folderPath)}
-            onClose={() => setRemoteFolderPickerOpen(false)}
-          />
+        {workspaceId && remoteFolderPickerOpen && (
+          <Suspense fallback={null}>
+            <RemoteFolderPickerModal
+              open={remoteFolderPickerOpen}
+              workspaceId={workspaceId}
+              initialPath={controller.cwdInput.trim() || remoteVpsCwd || '~'}
+              onSelect={(folderPath) => controller.setCwdInput(folderPath)}
+              onClose={() => setRemoteFolderPickerOpen(false)}
+            />
+          </Suspense>
         )}
       </>
     );
