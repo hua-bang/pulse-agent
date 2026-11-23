@@ -1,8 +1,13 @@
-import { isAbsolute, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, join, resolve } from 'node:path';
 import { isStorageError } from '@pulse-coder/storage';
 import type { FileReadResult, FileSaveRequest, FileSaveResult, FileWriteRequest } from '../../shared/files';
 import { FILE_PREVIEW_MAX_BYTES } from './file-preview';
 import { workspaceFiles } from './workspace-files';
+
+const hasRemoteConfig = () =>
+  existsSync(process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(homedir(), '.pulse-coder', 'canvas', 'remote-workspaces.json'));
 
 const conflict = (): FileSaveResult => ({
   ok: false, conflict: true, error: 'File changed outside this editor. Reload before saving.',
@@ -13,6 +18,10 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 export async function readTextFile(filePath: string): Promise<FileReadResult> {
   try {
     if (typeof filePath !== 'string' || !filePath) throw new Error('Expected a file path');
+    if (hasRemoteConfig()) {
+      const remote = await (await import('../remote/client')).tryReadRemoteTextFile(filePath);
+      if (remote) return remote;
+    }
     const read = await workspaceFiles.readText(workspaceFiles.uriForPath(resolve(filePath)));
     if (!read) throw new Error(`ENOENT: no such file or directory, open '${filePath}'`);
     return { ok: true, content: read.content, version: read.version };
@@ -28,6 +37,10 @@ async function saveFile(request: FileWriteRequest): Promise<FileSaveResult> {
     return { ok: false, error: 'Invalid file save request' };
   }
   try {
+    if (hasRemoteConfig()) {
+      const remote = await (await import('../remote/client')).tryWriteRemoteTextFile(request);
+      if (remote) return remote;
+    }
     // The repository serializes writes per real file, so ordinary notes and
     // preview edits of the same file share one compare-and-swap lane.
     const receipt = await workspaceFiles.write(

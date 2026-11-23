@@ -59,6 +59,7 @@ export async function syncRemoteCanvasTooling(options: SyncRemoteToolingOptions)
       : null;
 
   const hash = createHash('sha256')
+    .update('wrapper-v2:')
     .update(cliBytes)
     .update(rawSkill ?? '')
     .digest('hex')
@@ -95,12 +96,13 @@ export async function syncRemoteCanvasTooling(options: SyncRemoteToolingOptions)
   const skillBase64 = rawSkill ? Buffer.from(rawSkill, 'utf8').toString('base64') : '';
   const installScript = [
     'set -e',
+    'NODE_BIN="$(command -v node)"',
     `mkdir -p "${options.remoteDir}/bin"`,
-    `cat > "${options.remoteDir}/bin/pulse-canvas" << 'PULSE_WRAPPER_EOF'`,
+    `cat > "${options.remoteDir}/bin/pulse-canvas" << PULSE_WRAPPER_EOF`,
     '#!/bin/sh',
-    `export NODE_PATH="${options.remoteDir}/node_modules\${NODE_PATH:+:\$NODE_PATH}"`,
-    `export PULSE_CANVAS_DATA_DIR="\${PULSE_CANVAS_DATA_DIR:-${options.dataDir}}"`,
-    `exec node "${options.remoteDir}/canvas-cli/index.cjs" "$@"`,
+    `export NODE_PATH="${options.remoteDir}/node_modules\\\${NODE_PATH:+:\\\$NODE_PATH}"`,
+    `export PULSE_CANVAS_DATA_DIR="\\\${PULSE_CANVAS_DATA_DIR:-${options.dataDir}}"`,
+    `exec "\${NODE_BIN}" "${options.remoteDir}/canvas-cli/index.cjs" "\\$@"`,
     'PULSE_WRAPPER_EOF',
     `chmod +x "${options.remoteDir}/bin/pulse-canvas"`,
     `ln -sf "${options.remoteDir}/bin/pulse-canvas" "${options.remoteDir}/bin/canvas-cli"`,
