@@ -14,6 +14,7 @@ import {
   type RemoteVpsWorkspaceConfig,
 } from './config';
 import { closeAllSshTunnels, ensureSshTunnel } from './ssh-tunnel';
+import { startRemoteCapabilityRelay } from './capability-relay';
 
 export interface ResolvedRemoteTarget {
   workspaceId: string;
@@ -25,6 +26,7 @@ export interface ResolvedRemoteTarget {
 
 const storagePool = new Map<string, Promise<PulseStorage>>();
 const changeSubscriptions = new Map<string, () => void>();
+const relaySubscriptions = new Map<string, () => void>();
 
 export async function resolveRemoteTargetFromConfig(
   workspaceId: string,
@@ -170,6 +172,12 @@ type BroadcastCanvasChange = (payload: {
   revision: number;
 }) => void;
 
+function ensureRemoteCapabilityRelay(target: ResolvedRemoteTarget): void {
+  const subKey = `${target.endpoint}::${target.remoteWorkspaceId}`;
+  if (relaySubscriptions.has(subKey)) return;
+  relaySubscriptions.set(subKey, startRemoteCapabilityRelay(target));
+}
+
 function subscribeRemoteCanvas(target: ResolvedRemoteTarget, broadcast: BroadcastCanvasChange): void {
   ensureRemoteChangeSubscription(target, (change) => {
     if (change.domain !== 'canvas') return;
@@ -182,6 +190,7 @@ function subscribeRemoteCanvas(target: ResolvedRemoteTarget, broadcast: Broadcas
       revision: change.revision,
     });
   });
+  ensureRemoteCapabilityRelay(target);
 }
 
 export async function loadRemoteCanvas(id: string, broadcast: BroadcastCanvasChange) {
@@ -290,6 +299,15 @@ export async function closeAllRemoteConnections(): Promise<void> {
     }
   }
   changeSubscriptions.clear();
+
+  for (const stop of relaySubscriptions.values()) {
+    try {
+      stop();
+    } catch {
+      /* ignore */
+    }
+  }
+  relaySubscriptions.clear();
 
   const stores = [...storagePool.values()];
   storagePool.clear();

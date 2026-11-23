@@ -28,6 +28,8 @@ export interface RemoteVpsWorkspaceConfig {
   runtime?: 'vps' | 'local';
   /** Automatically push and start `vps-daemon` over SSH if the remote health check fails. */
   autoBootstrap?: boolean;
+  /** Granted role when joined via a share invite code. */
+  shareRole?: 'viewer' | 'editor' | 'collaborator';
 }
 
 interface RemoteConfigFile {

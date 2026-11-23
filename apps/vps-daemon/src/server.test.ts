@@ -252,4 +252,249 @@ describe('vps-daemon end-to-end', () => {
     };
     expect(listHiddenJson.entries.map((entry) => entry.name)).toContain('.secret-dir');
   });
+
+  it('enforces scoped share roles (viewer, editor, collaborator) and supports revocation', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Seed workspace ws-shared.
+    const adminRemote = await openRemoteStorage({ endpoint: daemon.url, token });
+    await adminRemote.canvas.commit({
+      workspaceId: 'ws-shared',
+      expectedRevision: null,
+      nodes: { put: [{ id: 'n1', type: 'note', title: 'Shared Note' }] },
+    });
+    await adminRemote.close();
+
+    // Mint viewer, editor, and collaborator tokens.
+    const mint = async (role: 'viewer' | 'editor' | 'collaborator') => {
+      const res = await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-shared', role, label: role }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ok: boolean; share: { id: string; token: string; role: string } };
+      return body.share;
+    };
+    const viewer = await mint('viewer');
+    const editor = await mint('editor');
+    const collab = await mint('collaborator');
+
+    const viewerHeaders = { Authorization: `Bearer ${viewer.token}`, 'Content-Type': 'application/json' };
+    const editorHeaders = { Authorization: `Bearer ${editor.token}`, 'Content-Type': 'application/json' };
+    const collabHeaders = { Authorization: `Bearer ${collab.token}`, 'Content-Type': 'application/json' };
+
+    // Viewer can read ws-shared canvas, but cannot read another workspace, write canvas, spawn PTY, or manage shares.
+    const vRead = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ method: 'canvas.read', args: ['ws-shared'] }),
+    });
+    expect(vRead.status).toBe(200);
+
+    const vCrossWs = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ method: 'canvas.read', args: ['ws-other'] }),
+    });
+    expect(vCrossWs.status).toBe(403);
+
+    const vWrite = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ method: 'canvas.commit', args: [{ workspaceId: 'ws-shared', expectedRevision: 1 }] }),
+    });
+    expect(vWrite.status).toBe(403);
+
+    const vPty = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ id: 'p1' }),
+    });
+    expect(vPty.status).toBe(403);
+
+    // Editor can commit to ws-shared, but cannot spawn PTY or run exec-jsonl.
+    const eWrite = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: editorHeaders,
+      body: JSON.stringify({
+        method: 'canvas.commit',
+        args: [{ workspaceId: 'ws-shared', expectedRevision: 1, nodes: { put: [{ id: 'n2', type: 'text' }] } }],
+      }),
+    });
+    expect(eWrite.status).toBe(200);
+
+    const ePty = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers: editorHeaders,
+      body: JSON.stringify({ id: 'p2' }),
+    });
+    expect(ePty.status).toBe(403);
+
+    // Collaborator can spawn PTY, but cannot manage shares.
+    const cPty = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers: collabHeaders,
+      body: JSON.stringify({ id: 'p3' }),
+    });
+    expect(cPty.status).toBe(200);
+
+    const cShares = await fetch(`${daemon.url}/v1/shares`, { headers: collabHeaders });
+    expect(cShares.status).toBe(403);
+
+    // Revoking viewer token immediately invalidates it.
+    const delRes = await fetch(`${daemon.url}/v1/shares/${viewer.id}`, {
+      method: 'DELETE',
+      headers: adminHeaders,
+    });
+    expect(delRes.status).toBe(200);
+
+    const afterRevoke = await fetch(`${daemon.url}/v1/meta`, { headers: viewerHeaders });
+    expect(afterRevoke.status).toBe(401);
+  });
+
+  it('executes remote builtin tools (bash/read/write/edit/ls/grep) and enforces runtime role', async () => {
+    const { daemon, token, root } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const workRoot = join(root, 'proj');
+
+    const callTool = async (
+      headers: Record<string, string>,
+      tool: string,
+      input: Record<string, unknown>,
+    ) => {
+      const res = await fetch(`${daemon.url}/v1/tools/exec`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ tool, input, cwd: workRoot }),
+      });
+      return { status: res.status, body: (await res.json()) as { ok: boolean; result?: any; error?: string } };
+    };
+
+    const writeRes = await callTool(adminHeaders, 'write', { filePath: 'hello.txt', content: 'hello world\nsecond line\n' });
+    expect(writeRes.status).toBe(200);
+    expect(writeRes.body.result).toMatchObject({ success: true, created: true });
+
+    const editRes = await callTool(adminHeaders, 'edit', { filePath: 'hello.txt', oldString: 'world', newString: 'vps' });
+    expect(editRes.status).toBe(200);
+    expect(editRes.body.result).toMatchObject({ success: true, replacements: 1 });
+
+    const readRes = await callTool(adminHeaders, 'read', { filePath: 'hello.txt' });
+    expect(readRes.status).toBe(200);
+    expect(readRes.body.result.content).toContain('hello vps');
+
+    const lsRes = await callTool(adminHeaders, 'ls', {});
+    expect(lsRes.status).toBe(200);
+    expect(lsRes.body.result.files).toContain('hello.txt');
+
+    const grepRes = await callTool(adminHeaders, 'grep', { pattern: 'hello vps', outputMode: 'content' });
+    expect(grepRes.status).toBe(200);
+    expect(grepRes.body.result.output).toContain('hello vps');
+
+    const bashRes = await callTool(adminHeaders, 'bash', { command: 'pwd && cat hello.txt' });
+    expect(bashRes.status).toBe(200);
+    expect(bashRes.body.result.exitCode).toBe(0);
+    expect(bashRes.body.result.output).toContain('hello vps');
+
+    // Editor role must be rejected from /v1/tools/exec (403).
+    const shareRes = await fetch(`${daemon.url}/v1/shares`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-shared', role: 'editor', label: 'editor-only' }),
+    });
+    const shareBody = (await shareRes.json()) as { share: { token: string } };
+    const editorHeaders = { Authorization: `Bearer ${shareBody.share.token}`, 'Content-Type': 'application/json' };
+    const denied = await callTool(editorHeaders, 'bash', { command: 'echo nope' });
+    expect(denied.status).toBe(403);
+  });
+
+  it('relays capability list and call requests to connected desktop SSE clients', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Without a connected desktop client, capability calls report runtime_unreachable.
+    const offline = await fetch(`${daemon.url}/v1/runtime/capabilities/call`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-relay', name: 'browser.page.read', input: {} }),
+    });
+    expect(offline.status).toBe(200);
+    expect(await offline.json()).toMatchObject({
+      ok: false,
+      error: { code: 'runtime_unreachable' },
+    });
+
+    // Connect a simulated desktop client to the outbound SSE relay.
+    const ac = new AbortController();
+    const sseRes = await fetch(`${daemon.url}/v1/runtime/relay/events?workspaceId=ws-relay`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: ac.signal,
+    });
+    expect(sseRes.status).toBe(200);
+    const reader = sseRes.body!.getReader();
+    const decoder = new TextDecoder();
+
+    const pumpPromise = (async () => {
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx = buf.indexOf('\n\n');
+        while (idx !== -1) {
+          const frame = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const evLine = frame.split('\n').find((l) => l.startsWith('event:'));
+          const dataLine = frame.split('\n').find((l) => l.startsWith('data:'));
+          if (evLine && dataLine) {
+            const ev = evLine.slice(6).trim();
+            const payload = JSON.parse(dataLine.slice(5).trim()) as { id: string; name?: string };
+            if (ev === 'capability_list') {
+              await fetch(`${daemon.url}/v1/runtime/relay/respond`, {
+                method: 'POST',
+                headers: adminHeaders,
+                body: JSON.stringify({ id: payload.id, ok: true, value: [{ name: 'browser.page.read', risk: 'read' }] }),
+              });
+            } else if (ev === 'capability_call') {
+              await fetch(`${daemon.url}/v1/runtime/relay/respond`, {
+                method: 'POST',
+                headers: adminHeaders,
+                body: JSON.stringify({ id: payload.id, ok: true, value: { title: 'Notion Calendar', text: 'Standup 10:00' } }),
+              });
+            }
+          }
+          idx = buf.indexOf('\n\n');
+        }
+      }
+    })().catch(() => undefined);
+
+    // Wait briefly for SSE registration to settle.
+    await new Promise((r) => setTimeout(r, 40));
+
+    const listRes = await fetch(`${daemon.url}/v1/runtime/capabilities/list`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-relay' }),
+    });
+    expect(listRes.status).toBe(200);
+    expect(await listRes.json()).toEqual({
+      ok: true,
+      capabilities: [{ name: 'browser.page.read', risk: 'read' }],
+    });
+
+    const callRes = await fetch(`${daemon.url}/v1/runtime/capabilities/call`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-relay', name: 'browser.page.read', input: { nodeId: 'iframe-1' } }),
+    });
+    expect(callRes.status).toBe(200);
+    expect(await callRes.json()).toEqual({
+      ok: true,
+      value: { title: 'Notion Calendar', text: 'Standup 10:00' },
+    });
+
+    ac.abort();
+    await pumpPromise;
+  });
 });

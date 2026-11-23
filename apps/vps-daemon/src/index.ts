@@ -15,7 +15,14 @@ async function main() {
     process.env.PULSE_VPS_DATA_DIR?.trim() || join(homedir(), '.pulse-coder', 'canvas');
   const workDir = process.env.PULSE_VPS_WORKDIR?.trim() || homedir();
 
-  const daemon = await startVpsDaemon({ host, port, token, dataDir, workDir });
+  const daemon = await startVpsDaemon({
+    host,
+    port,
+    token,
+    dataDir,
+    workDir,
+    writeRuntimeDescriptor: true,
+  });
   console.log(`[vps-daemon] listening on ${daemon.url}`);
   console.log(`[vps-daemon] dataDir=${dataDir} workDir=${workDir}`);
 

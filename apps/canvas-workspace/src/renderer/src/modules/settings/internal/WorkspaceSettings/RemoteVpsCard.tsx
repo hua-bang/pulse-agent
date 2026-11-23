@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
-import { remoteVpsCopy } from '../../components/RemoteFolderPickerModal/copy';
+import { remoteShareCopy, remoteVpsCopy } from '../../components/RemoteFolderPickerModal/copy';
+import { RemoteVpsSharePanel } from './RemoteVpsSharePanel';
 import './RemoteVpsCard.css';
 
 interface Props {
@@ -13,11 +14,16 @@ interface Props {
 
 type ConnMode = 'ssh' | 'direct';
 type ScopeMode = 'full' | 'runtime-only';
+type SetupMode = 'own' | 'invite';
 
 export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Props) => {
   const { language } = useI18n();
   const copy = remoteVpsCopy(language);
+  const shareCopy = remoteShareCopy(language);
   const [expanded, setExpanded] = useState(!currentConfig);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [setupMode, setSetupMode] = useState<SetupMode>('own');
+  const [inviteCode, setInviteCode] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sshHosts, setSshHosts] = useState<string[]>([]);
 
@@ -28,10 +34,11 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
   const [remotePort, setRemotePort] = useState('4770');
   const [token, setToken] = useState('');
 
-  const [busy, setBusy] = useState<'connect' | 'migrate' | 'remove' | null>(null);
+  const [busy, setBusy] = useState<'connect' | 'migrate' | 'remove' | 'join' | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const bound = Boolean(currentConfig);
+  const isSharedGuest = Boolean(currentConfig?.shareRole);
 
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -47,6 +54,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
 
   useEffect(() => {
     setStatusMsg(null);
+    setShareOpen(false);
     if (currentConfig) {
       setExpanded(false);
       setConnMode(currentConfig.endpoint ? 'direct' : 'ssh');
@@ -57,6 +65,8 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       setToken(currentConfig.token ?? '');
     } else {
       setExpanded(true);
+      setSetupMode('own');
+      setInviteCode('');
       setConnMode('ssh');
       setScopeMode('full');
       setSshHost('');
@@ -92,6 +102,25 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
     connMode === 'ssh'
       ? sshHost.trim().length > 0
       : endpoint.trim().length > 0 && token.trim().length > 0;
+
+  const handleJoinInvite = async () => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api || !inviteCode.trim()) return;
+    setBusy('join');
+    setStatusMsg(null);
+    try {
+      const res = await api.joinShare(workspaceId, inviteCode.trim());
+      if (!res.ok || !res.config) {
+        setStatusMsg({ kind: 'err', text: res.error || shareCopy.joinFailed });
+        return;
+      }
+      onConfigChange(res.config);
+      setInviteCode('');
+      setStatusMsg({ kind: 'ok', text: shareCopy.joinedOk(res.role ?? 'viewer') });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const handleConnectAndSave = async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -191,16 +220,91 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
             <span className="remote-vps-dot" aria-hidden="true" />
             <span className="remote-vps-host" title={hostSummary}>{hostSummary}</span>
             <span className="remote-vps-badge is-bound">
-              {currentConfig?.storage === 'local' ? copy.boundRuntime : copy.boundFull}
+              {currentConfig?.shareRole
+                ? shareCopy.sharedBadge(currentConfig.shareRole)
+                : currentConfig?.storage === 'local'
+                  ? copy.boundRuntime
+                  : copy.boundFull}
             </span>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setExpanded((prev) => !prev)}>
-            {expanded ? copy.collapse : copy.manageConnection}
-          </Button>
+          <div className="remote-vps-summary-actions">
+            {!isSharedGuest && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setShareOpen((prev) => !prev);
+                  setExpanded(false);
+                }}
+              >
+                {shareOpen ? shareCopy.shareHide : shareCopy.shareButton}
+              </Button>
+            )}
+            {isSharedGuest ? (
+              <Button variant="secondary" size="sm" disabled={busy !== null} onClick={() => void handleRemove()}>
+                {busy === 'remove' ? copy.unbinding : copy.unbind}
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setExpanded((prev) => !prev);
+                  setShareOpen(false);
+                }}
+              >
+                {expanded ? copy.collapse : copy.manageConnection}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
-      {expanded && (
+      {bound && shareOpen && !isSharedGuest && (
+        <RemoteVpsSharePanel
+          workspaceId={workspaceId}
+          defaultEndpoint={currentConfig?.endpoint}
+        />
+      )}
+
+      {expanded && !bound && (
+        <SegmentedControl
+          value={setupMode}
+          onChange={(id) => setSetupMode(id as SetupMode)}
+          options={[
+            { id: 'own', label: shareCopy.connectOwnTab },
+            { id: 'invite', label: shareCopy.joinInviteTab },
+          ]}
+        />
+      )}
+
+      {expanded && !bound && setupMode === 'invite' && (
+        <div className="remote-vps-body">
+          <FieldRow label={shareCopy.inviteCodeLabel} hint={shareCopy.inviteCodeHint}>
+            <TextField
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder={shareCopy.inviteCodePlaceholder}
+            />
+          </FieldRow>
+          {statusMsg && (
+            <div className={`remote-vps-status ${statusMsg.kind === 'err' ? 'is-error' : 'is-ok'}`}>
+              {statusMsg.text}
+            </div>
+          )}
+          <div className="remote-vps-actions">
+            <Button
+              variant="primary"
+              disabled={!inviteCode.trim() || busy !== null}
+              onClick={() => void handleJoinInvite()}
+            >
+              {busy === 'join' ? shareCopy.joining : shareCopy.joinAction}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {expanded && (bound || setupMode === 'own') && (
         <div className="remote-vps-body">
           {connMode === 'ssh' ? (
             <FieldRow label={copy.sshHost} hint={copy.sshHostHint}>

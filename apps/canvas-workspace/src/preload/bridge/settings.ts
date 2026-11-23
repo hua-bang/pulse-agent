@@ -216,5 +216,13 @@ export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
       dirPath,
       showHidden: options?.showHidden,
       config: options?.config,
-    })
+    }),
+  listShares: (workspaceId) =>
+    ipcRenderer.invoke("remote-vps:listShares", { workspaceId }),
+  createShare: (workspaceId, options) =>
+    ipcRenderer.invoke("remote-vps:createShare", { workspaceId, ...options }),
+  revokeShare: (workspaceId, shareId) =>
+    ipcRenderer.invoke("remote-vps:revokeShare", { workspaceId, shareId }),
+  joinShare: (workspaceId, inviteCode) =>
+    ipcRenderer.invoke("remote-vps:joinShare", { workspaceId, inviteCode })
 });

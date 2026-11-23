@@ -1,13 +1,21 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
-import { readJsonBody, sendJson, verifyBearerToken } from './auth.js';
+import { readJsonBody, sendJson } from './auth.js';
+import { CapabilityRelay, type RelayResponsePayload } from './capability-relay.js';
 import { handleExecJsonl } from './exec-jsonl.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
+import {
+  canUseRuntime,
+  canWriteWorkspace,
+  isValidShareRole,
+  ShareTokenStore,
+} from './shares.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
+import { handleToolExecRequest } from './tools-rpc.js';
 
 export interface VpsDaemonOptions {
   host?: string;
@@ -17,6 +25,7 @@ export interface VpsDaemonOptions {
   workDir?: string;
   pollIntervalMs?: number;
   ptySpawner?: PtySpawner;
+  writeRuntimeDescriptor?: boolean;
 }
 
 export interface RunningVpsDaemon {
@@ -33,7 +42,8 @@ const DATABASE_FILE = '__storage__.sqlite';
 
 /**
  * Start a lightweight VPS daemon exposing `@pulse-coder/storage`, `WorkspaceFiles`,
- * SSE change streaming, persistent PTY sessions, and streaming JSONL CLI execution.
+ * SSE change streaming, persistent PTY sessions, streaming JSONL CLI execution,
+ * and scoped workspace share tokens.
  */
 export async function startVpsDaemon(options: VpsDaemonOptions): Promise<RunningVpsDaemon> {
   if (!options.token.trim()) {
@@ -58,10 +68,14 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
   }
 
+  const shareStore = new ShareTokenStore(dataDir);
+  await shareStore.load();
+
   const files = createLocalWorkspaceFiles();
   const broadcaster = new ChangeBroadcaster(storage, options.pollIntervalMs ?? 500);
   await broadcaster.start();
   const ptyHub = new PtyHub(workDir, options.ptySpawner, dataDir);
+  const capabilityRelay = new CapabilityRelay();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
@@ -71,7 +85,8 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
       return;
     }
 
-    if (!verifyBearerToken(req, options.token)) {
+    const principal = shareStore.authenticate(req, options.token);
+    if (!principal) {
       sendJson(res, 401, {
         ok: false,
         code: 'unauthorized',
@@ -85,27 +100,86 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         ok: true,
         generation: storage.generation,
         version: DAEMON_VERSION,
-        capabilities: ['storage-rpc', 'workspace-files', 'sse-events', 'pty', 'exec-jsonl', 'fs-list-dirs'],
+        role: principal.kind === 'admin' ? 'admin' : principal.share.role,
+        ...(principal.kind === 'share' ? { workspaceId: principal.share.workspaceId } : {}),
+        capabilities: [
+          'storage-rpc',
+          'workspace-files',
+          'sse-events',
+          'pty',
+          'exec-jsonl',
+          'fs-list-dirs',
+          'shares',
+        ],
       });
       return;
     }
 
+    if (url.pathname === '/v1/shares' || url.pathname.startsWith('/v1/shares/')) {
+      if (principal.kind !== 'admin') {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Admin token required for share management' });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/shares') {
+        const wsId = url.searchParams.get('workspaceId')?.trim() || undefined;
+        sendJson(res, 200, { ok: true, shares: shareStore.list(wsId) });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/shares') {
+        try {
+          const body = await readJsonBody<{
+            workspaceId?: string;
+            role?: string;
+            label?: string;
+            expiresInHours?: number;
+          }>(req);
+          if (!body.workspaceId?.trim() || !isValidShareRole(body.role)) {
+            sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'workspaceId and valid role are required' });
+            return;
+          }
+          const share = await shareStore.create({
+            workspaceId: body.workspaceId,
+            role: body.role,
+            label: body.label,
+            expiresInHours: body.expiresInHours,
+          });
+          sendJson(res, 200, { ok: true, share });
+        } catch (err) {
+          sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+        return;
+      }
+      if (req.method === 'DELETE' && url.pathname.startsWith('/v1/shares/')) {
+        const shareId = decodeURIComponent(url.pathname.slice('/v1/shares/'.length));
+        const revoked = await shareStore.revoke(shareId);
+        sendJson(res, 200, { ok: true, revoked });
+        return;
+      }
+    }
+
     if (req.method === 'POST' && url.pathname === '/v1/storage/rpc') {
-      await handleStorageRpc(req, res, storage, () => broadcaster.wake());
+      await handleStorageRpc(req, res, storage, principal, () => broadcaster.wake());
       return;
     }
 
     if (url.pathname === '/v1/files') {
-      await handleFileRequest(req, res, url, dataDir, files);
+      await handleFileRequest(req, res, url, dataDir, files, principal);
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/events') {
+      if (principal.kind === 'share') {
+        url.searchParams.set('scopeId', principal.share.workspaceId);
+      }
       await broadcaster.subscribe(req, res, url);
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/fs/list-dirs') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to browse remote directories' });
+        return;
+      }
       try {
         const home = homedir();
         const rawPath = url.searchParams.get('path')?.trim() || '';
@@ -171,6 +245,10 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         return;
       }
       if (req.method === 'PUT') {
+        if (!canWriteWorkspace(principal)) {
+          sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Editor or collaborator role required to edit pulse-workspace.md' });
+          return;
+        }
         try {
           const body = await readJsonBody<{ cwd?: string; content?: string }>(req);
           if (typeof body.content !== 'string') {
@@ -190,12 +268,87 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/exec-jsonl') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to execute remote commands' });
+        return;
+      }
       await handleExecJsonl(req, res, workDir);
       return;
     }
 
-    if (await ptyHub.handleHttp(req, res, url)) {
+    if (req.method === 'POST' && url.pathname === '/v1/tools/exec') {
+      await handleToolExecRequest(req, res, principal, readJsonBody, sendJson);
       return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/v1/runtime/relay/events') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required for capability relay' });
+        return;
+      }
+      const requestedWorkspaceId = url.searchParams.get('workspaceId')?.trim() || '';
+      const tokenWorkspaceId = principal.kind === 'share' ? principal.share.workspaceId : '';
+      const scopedWorkspaceId = tokenWorkspaceId || requestedWorkspaceId;
+      if (!scopedWorkspaceId || (tokenWorkspaceId && requestedWorkspaceId && requestedWorkspaceId !== tokenWorkspaceId)) {
+        sendJson(res, 400, { ok: false, code: 'invalid_request', message: 'workspaceId is required and must match token scope' });
+        return;
+      }
+      capabilityRelay.subscribe(req, res, scopedWorkspaceId);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/runtime/relay/respond') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required for capability relay' });
+        return;
+      }
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === 'string' ? body.id : '';
+      const payload: RelayResponsePayload = {
+        ok: body.ok === true,
+        ...(body.value !== undefined ? { value: body.value } : {}),
+        ...(body.error && typeof body.error === 'object' ? { error: body.error as RelayResponsePayload['error'] } : {}),
+      };
+      capabilityRelay.respond(id, payload);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/runtime/capabilities/list') {
+      if (principal.kind !== 'admin') {
+        sendJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'Admin token required' } });
+        return;
+      }
+      const body = (await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+      const workspaceId = typeof body.workspaceId === 'string' ? body.workspaceId : undefined;
+      const result = await capabilityRelay.listCapabilities(workspaceId);
+      sendJson(res, result.ok ? 200 : 503, result);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/runtime/capabilities/call') {
+      if (principal.kind !== 'admin') {
+        sendJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'Admin token required' } });
+        return;
+      }
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const result = await capabilityRelay.callCapability({
+        workspaceId: typeof body.workspaceId === 'string' ? body.workspaceId : '',
+        name: typeof body.name === 'string' ? body.name : '',
+        input: body.input,
+      });
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (url.pathname.startsWith('/v1/pty/')) {
+      if (req.method !== 'GET' && !canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to control remote terminals' });
+        return;
+      }
+      if (await ptyHub.handleHttp(req, res, url)) {
+        return;
+      }
     }
 
     sendJson(res, 404, {
@@ -216,6 +369,30 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const address = server.address();
   const boundPort = typeof address === 'object' && address ? address.port : port;
   const boundUrl = `http://${host}:${boundPort}`;
+  const runtimeFile = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
+
+  if (options.writeRuntimeDescriptor) {
+    try {
+      await mkdir(dirname(runtimeFile), { recursive: true });
+      const runtimeHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+      await writeFile(
+        runtimeFile,
+        JSON.stringify(
+          {
+            pid: process.pid,
+            baseUrl: `http://${runtimeHost}:${boundPort}/v1/runtime`,
+            secret: options.token,
+            createdAt: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+        { encoding: 'utf8', mode: 0o600 },
+      );
+    } catch {
+      // Non-fatal: storage and terminal endpoints remain usable even if runtime file cannot be written.
+    }
+  }
 
   return {
     server,
@@ -225,7 +402,19 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     port: boundPort,
     async close() {
       broadcaster.stop();
+      capabilityRelay.closeAll();
       ptyHub.closeAll();
+      if (options.writeRuntimeDescriptor) {
+        try {
+          const raw = await readFile(runtimeFile, 'utf8');
+          const parsed = JSON.parse(raw) as { pid?: number };
+          if (parsed.pid === process.pid) {
+            await unlink(runtimeFile);
+          }
+        } catch {
+          // Ignore missing or already-replaced runtime descriptor.
+        }
+      }
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
       await storage.close();
     },
