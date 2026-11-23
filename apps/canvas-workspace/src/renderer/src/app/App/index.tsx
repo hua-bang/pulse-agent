@@ -362,6 +362,8 @@ const AppContent = () => {
                   onOpenLauncher={() => setLocation(ROUTE_HOME)}
                   panelCollapsed={sidebarCollapsed && (activeNodes.length > 0 || workbench.allNodes[activeId] === undefined)}
                   onTogglePanel={handleSidebarToggle}
+                  onOpenSettings={openWorkspaceSettings}
+                  onJoinWorkspace={(id, name) => workspaceActions.select(workspaceActions.create(name, undefined, id))}
                 />
               </Suspense>
               {/* The Library drawer and the canvas sit side by side under the tabs. */}

@@ -20,6 +20,23 @@
   color: var(--text-secondary);
 }
 
+.workspace-tabs__share {
+  flex: none;
+  margin-left: auto;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.workspace-tabs__share-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+  flex-shrink: 0;
+}
+
 .workspace-tabs__list {
   min-width: 0;
   display: flex;

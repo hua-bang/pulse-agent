@@ -6,6 +6,7 @@ import type {
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { remoteShareCopy } from '../../components/RemoteFolderPickerModal/copy';
+import './RemoteVpsCard.css';
 
 interface Props {
   workspaceId: string;
