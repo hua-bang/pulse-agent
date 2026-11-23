@@ -22,6 +22,7 @@ on:
       - .nvmrc
       - biome.json
       - .github/workflows/harness.yml
+      - .github/workflows/quality.yml
       - .github/workflows/perf.yml
       - .github/workflows/quality.yml
   push:
@@ -45,6 +46,7 @@ on:
       - .nvmrc
       - biome.json
       - .github/workflows/harness.yml
+      - .github/workflows/quality.yml
       - .github/workflows/perf.yml
       - .github/workflows/quality.yml
 
