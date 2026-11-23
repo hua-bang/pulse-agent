@@ -4,7 +4,7 @@
   margin-top: 10px;
   max-width: 100%;
   border: 1px solid rgba(var(--ink-rgb), 0.09);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: linear-gradient(180deg, var(--bg), var(--bg-canvas));
   box-shadow: 0 8px 24px rgba(55, 53, 47, 0.04);
   overflow: hidden;
@@ -31,7 +31,7 @@
 .chat-debug-dot {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #3f8f6b;
   box-shadow: 0 0 0 3px rgba(63, 143, 107, 0.12);
   flex-shrink: 0;
@@ -45,7 +45,7 @@
 
 .chat-debug-pill {
   border: 1px solid rgba(var(--ink-rgb), 0.08);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px 7px;
   background: rgba(var(--surface-rgb), 0.65);
   white-space: nowrap;
@@ -223,7 +223,7 @@
 .chat-debug-status {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #b4b4b0;
 }
 
