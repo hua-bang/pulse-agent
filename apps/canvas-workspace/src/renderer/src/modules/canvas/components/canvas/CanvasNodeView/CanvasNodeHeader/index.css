@@ -350,7 +350,7 @@
   transform: none;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;

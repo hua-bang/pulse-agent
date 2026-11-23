@@ -292,7 +292,7 @@
 .text-node-body pre code {
   padding: 0;
   background: transparent;
-  border-radius: 0;
+  border-radius: var(--radius-none);
 }
 
 .text-node-body blockquote {
