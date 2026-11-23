@@ -91,7 +91,7 @@ export const CanvasShareModal = ({
         setJoinError(res.error || shareCopy.joinFailed);
         return;
       }
-      const displayName = joinName.trim() || copy.joinNamePlaceholder;
+      const displayName = joinName.trim() || res.workspaceName || copy.joinFallbackName;
       setInviteCode('');
       setJoinName('');
       onJoinedNewWorkspace?.(targetId, displayName);
@@ -207,6 +207,7 @@ export const CanvasShareModal = ({
                 </div>
                 <RemoteVpsSharePanel
                   workspaceId={workspaceId}
+                  workspaceName={workspaceName}
                   defaultEndpoint={config.endpoint}
                   detectedTailscaleUrl={liveStatus?.tailscaleUrl}
                 />

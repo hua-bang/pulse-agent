@@ -53,6 +53,7 @@ export interface RemoteVpsStatusResult {
 
 export interface RemoteVpsMigrateResult {
   ok: boolean;
+  migrated?: boolean;
   remoteWorkspaceId?: string;
   canvasRevision?: number;
   conversationCount?: number;
@@ -95,6 +96,7 @@ export interface RemoteVpsApi {
   migrateLocal: (
     workspaceId: string,
     config: RemoteVpsWorkspaceConfigDto,
+    options?: { onlyIfRemoteEmpty?: boolean },
   ) => Promise<RemoteVpsMigrateResult>;
   readWorkspaceDoc: (
     workspaceId: string,
@@ -120,6 +122,7 @@ export interface RemoteVpsApi {
       label?: string;
       expiresInHours?: number;
       publicEndpoint?: string;
+      workspaceName?: string;
     },
   ) => Promise<{
     ok: boolean;
@@ -138,6 +141,7 @@ export interface RemoteVpsApi {
     ok: boolean;
     config?: RemoteVpsWorkspaceConfigDto;
     role?: RemoteVpsShareRole;
+    workspaceName?: string;
     error?: string;
   }>;
 }

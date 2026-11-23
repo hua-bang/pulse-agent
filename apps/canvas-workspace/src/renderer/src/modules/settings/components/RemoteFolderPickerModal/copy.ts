@@ -190,6 +190,8 @@ const SHARE_EN = {
   relayHint: 'Allow VPS CLI (pulse-canvas) to read open iframe pages over outbound SSE (read-only allowlist).',
   relayOn: 'Enabled',
   relayOff: 'Disabled',
+  loopbackEndpointError:
+    'Please enter a reachable Tailscale or HTTPS URL above so teammates can connect (your SSH tunnel is local-only).',
 };
 
 const SHARE_ZH: typeof SHARE_EN = {
@@ -198,8 +200,8 @@ const SHARE_ZH: typeof SHARE_EN = {
   connectOwnTab: '连接我的 VPS',
   joinInviteTab: '邀请码加入',
   inviteCodeLabel: '共享邀请码',
-  inviteCodePlaceholder: '粘贴 pulse-share://v1/...',
-  inviteCodeHint: '粘贴他人发来的邀请码，无需配置 SSH 即可直接接入对方的远端 VPS 空间。',
+  inviteCodePlaceholder: '粘贴 pulse-share://v1/...（支持直接粘贴整段聊天消息）',
+  inviteCodeHint: '粘贴他人发来的邀请码或整段消息，无需配置 SSH 即可直接接入共享画布。',
   joinAction: '加入共享空间',
   joining: '加入中…',
   joinedOk: (role: string) => `已加入共享空间（权限：${role}），重新打开工作区即可同步。`,
@@ -212,8 +214,8 @@ const SHARE_ZH: typeof SHARE_EN = {
   roleHintEditor: '可共同编辑画布与 Note，但无法操作远端终端或执行命令。',
   roleHintCollaborator: '支持画布协同编辑 + 共享远端终端与 Coding Agent。',
   endpointLabel: '对方可访问的服务地址',
-  endpointPlaceholder: '例如 Tailscale IP http://100.x.y.z:4770 或 HTTPS 域名',
-  endpointHint: '对方客户端连接用的地址（优先推荐 Tailscale）；SSH 隧道模式下建议填写。',
+  endpointPlaceholder: '例如 https://vps.tailnet.ts.net 或 http://100.x.y.z:4770',
+  endpointHint: '对方客户端连接用的地址（优先推荐 Tailscale）；SSH 隧道模式下必填。',
   expiryLabel: '有效期',
   expiry24h: '24 小时',
   expiry7d: '7 天',
@@ -238,6 +240,8 @@ const SHARE_ZH: typeof SHARE_EN = {
   relayHint: '允许 VPS 上的 pulse-canvas 通过正向 SSE 只读访问本地已打开的 iframe 网页内容。',
   relayOn: '开启',
   relayOff: '关闭',
+  loopbackEndpointError:
+    '请先在上方填写对方可访问的 Tailscale 或 HTTPS 地址（SSH 隧道仅你本机可达，无法直接分享给他人）。',
 };
 
 const CANVAS_SHARE_EN = {
@@ -256,8 +260,9 @@ const CANVAS_SHARE_EN = {
   leaveShared: 'Leave Shared Canvas',
   leaving: 'Leaving…',
   joinNameLabel: 'Canvas name (optional)',
-  joinNamePlaceholder: 'Shared Canvas',
-  joinOneStepHint: 'Paste an invite code to open the shared canvas as a new workspace — no SSH setup needed.',
+  joinNamePlaceholder: 'Leave blank to use shared canvas name',
+  joinFallbackName: 'Shared Canvas',
+  joinOneStepHint: 'Paste an invite code (or full chat message) to open the shared canvas — no SSH setup needed.',
   joinAndOpen: 'Join & Open Canvas',
 };
 
@@ -277,8 +282,9 @@ const CANVAS_SHARE_ZH: typeof CANVAS_SHARE_EN = {
   leaveShared: '退出共享画布',
   leaving: '退出中…',
   joinNameLabel: '本地显示名称（可选）',
-  joinNamePlaceholder: '共享画布',
-  joinOneStepHint: '粘贴他人发来的邀请码，直接创建并打开该共享画布，无需配置 SSH。',
+  joinNamePlaceholder: '留空则自动使用原画布名称',
+  joinFallbackName: '共享画布',
+  joinOneStepHint: '粘贴邀请码（支持直接粘贴整段微信/飞书消息），直接创建并打开该共享画布。',
   joinAndOpen: '加入并打开画布',
 };
 

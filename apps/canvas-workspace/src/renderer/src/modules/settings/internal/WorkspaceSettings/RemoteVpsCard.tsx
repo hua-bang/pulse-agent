@@ -139,10 +139,23 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       };
       if (testRes.token) setToken(testRes.token);
 
-      const saveRes = await api.saveConfig(workspaceId, resolvedConfig);
-      if (!saveRes.ok) {
-        setStatusMsg({ kind: 'err', text: saveRes.error || copy.connectFailed });
-        return;
+      if (!bound && resolvedConfig.storage === 'vps') {
+        const autoMig = await api.migrateLocal(workspaceId, resolvedConfig, {
+          onlyIfRemoteEmpty: true,
+        });
+        if (!autoMig.ok) {
+          const saveRes = await api.saveConfig(workspaceId, resolvedConfig);
+          if (!saveRes.ok) {
+            setStatusMsg({ kind: 'err', text: saveRes.error || copy.connectFailed });
+            return;
+          }
+        }
+      } else {
+        const saveRes = await api.saveConfig(workspaceId, resolvedConfig);
+        if (!saveRes.ok) {
+          setStatusMsg({ kind: 'err', text: saveRes.error || copy.connectFailed });
+          return;
+        }
       }
       onConfigChange(resolvedConfig);
       setStatusMsg({

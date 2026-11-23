@@ -10,13 +10,19 @@ import './RemoteVpsCard.css';
 
 interface Props {
   workspaceId: string;
+  workspaceName?: string;
   defaultEndpoint?: string;
   detectedTailscaleUrl?: string;
 }
 
 type ExpiryKey = '24h' | '7d' | 'never';
 
-export const RemoteVpsSharePanel = ({ workspaceId, defaultEndpoint, detectedTailscaleUrl }: Props) => {
+export const RemoteVpsSharePanel = ({
+  workspaceId,
+  workspaceName,
+  defaultEndpoint,
+  detectedTailscaleUrl,
+}: Props) => {
   const { language } = useI18n();
   const copy = remoteShareCopy(language);
 
@@ -64,13 +70,17 @@ export const RemoteVpsSharePanel = ({ workspaceId, defaultEndpoint, detectedTail
         role,
         expiresInHours,
         publicEndpoint: publicEndpoint.trim() || undefined,
+        workspaceName,
       });
       if (!res.ok || !res.inviteCode) {
         const raw = res.error || 'Failed to create share';
-        setStatusMsg({
-          kind: 'err',
-          text: raw.includes('Route not found') ? copy.oldDaemonShareError : raw,
-        });
+        const friendly =
+          raw === 'LOOPBACK_SHARE_ENDPOINT'
+            ? copy.loopbackEndpointError
+            : raw.includes('Route not found')
+              ? copy.oldDaemonShareError
+              : raw;
+        setStatusMsg({ kind: 'err', text: friendly });
         return;
       }
       setLatestInvite(res.inviteCode);
