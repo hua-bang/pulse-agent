@@ -1,10 +1,11 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { readJsonBody, sendJson } from './auth.js';
+import { CapabilityRelay, type RelayResponsePayload } from './capability-relay.js';
 import { handleExecJsonl } from './exec-jsonl.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
 import {
@@ -24,6 +25,7 @@ export interface VpsDaemonOptions {
   workDir?: string;
   pollIntervalMs?: number;
   ptySpawner?: PtySpawner;
+  writeRuntimeDescriptor?: boolean;
 }
 
 export interface RunningVpsDaemon {
@@ -73,6 +75,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const broadcaster = new ChangeBroadcaster(storage, options.pollIntervalMs ?? 500);
   await broadcaster.start();
   const ptyHub = new PtyHub(workDir, options.ptySpawner, dataDir);
+  const capabilityRelay = new CapabilityRelay();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
@@ -278,6 +281,66 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/v1/runtime/relay/events') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required for capability relay' });
+        return;
+      }
+      const requestedWorkspaceId = url.searchParams.get('workspaceId')?.trim() || '';
+      const tokenWorkspaceId = principal.kind === 'share' ? principal.share.workspaceId : '';
+      const scopedWorkspaceId = tokenWorkspaceId || requestedWorkspaceId;
+      if (!scopedWorkspaceId || (tokenWorkspaceId && requestedWorkspaceId && requestedWorkspaceId !== tokenWorkspaceId)) {
+        sendJson(res, 400, { ok: false, code: 'invalid_request', message: 'workspaceId is required and must match token scope' });
+        return;
+      }
+      capabilityRelay.subscribe(req, res, scopedWorkspaceId);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/runtime/relay/respond') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required for capability relay' });
+        return;
+      }
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === 'string' ? body.id : '';
+      const payload: RelayResponsePayload = {
+        ok: body.ok === true,
+        ...(body.value !== undefined ? { value: body.value } : {}),
+        ...(body.error && typeof body.error === 'object' ? { error: body.error as RelayResponsePayload['error'] } : {}),
+      };
+      capabilityRelay.respond(id, payload);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/runtime/capabilities/list') {
+      if (principal.kind !== 'admin') {
+        sendJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'Admin token required' } });
+        return;
+      }
+      const body = (await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+      const workspaceId = typeof body.workspaceId === 'string' ? body.workspaceId : undefined;
+      const result = await capabilityRelay.listCapabilities(workspaceId);
+      sendJson(res, result.ok ? 200 : 503, result);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/runtime/capabilities/call') {
+      if (principal.kind !== 'admin') {
+        sendJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'Admin token required' } });
+        return;
+      }
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const result = await capabilityRelay.callCapability({
+        workspaceId: typeof body.workspaceId === 'string' ? body.workspaceId : '',
+        name: typeof body.name === 'string' ? body.name : '',
+        input: body.input,
+      });
+      sendJson(res, 200, result);
+      return;
+    }
+
     if (url.pathname.startsWith('/v1/pty/')) {
       if (req.method !== 'GET' && !canUseRuntime(principal)) {
         sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to control remote terminals' });
@@ -306,6 +369,30 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const address = server.address();
   const boundPort = typeof address === 'object' && address ? address.port : port;
   const boundUrl = `http://${host}:${boundPort}`;
+  const runtimeFile = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
+
+  if (options.writeRuntimeDescriptor) {
+    try {
+      await mkdir(dirname(runtimeFile), { recursive: true });
+      const runtimeHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+      await writeFile(
+        runtimeFile,
+        JSON.stringify(
+          {
+            pid: process.pid,
+            baseUrl: `http://${runtimeHost}:${boundPort}/v1/runtime`,
+            secret: options.token,
+            createdAt: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+        { encoding: 'utf8', mode: 0o600 },
+      );
+    } catch {
+      // Non-fatal: storage and terminal endpoints remain usable even if runtime file cannot be written.
+    }
+  }
 
   return {
     server,
@@ -315,7 +402,19 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     port: boundPort,
     async close() {
       broadcaster.stop();
+      capabilityRelay.closeAll();
       ptyHub.closeAll();
+      if (options.writeRuntimeDescriptor) {
+        try {
+          const raw = await readFile(runtimeFile, 'utf8');
+          const parsed = JSON.parse(raw) as { pid?: number };
+          if (parsed.pid === process.pid) {
+            await unlink(runtimeFile);
+          }
+        } catch {
+          // Ignore missing or already-replaced runtime descriptor.
+        }
+      }
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
       await storage.close();
     },

@@ -524,4 +524,154 @@ describe('remote VPS workspace client', () => {
       { tool: 'read', input: { filePath: 'README.md' }, cwd: '/root/project/app' },
     ]);
   }, 15_000);
+
+  it('relays allowlisted read-only capabilities and blocks unsafe or cross-workspace calls', async () => {
+    const { startRemoteCapabilityRelay } = await import('./capability-relay');
+    const { CapabilityRuntime } = await import('../runtime/capabilities/runtime');
+    const { z } = await import('zod');
+
+    const token = 'relay-client-secret';
+    const responses = new Map<string, { ok: boolean; value?: unknown; error?: { code: string; message: string } }>();
+    let sseResRef: import('node:http').ServerResponse | null = null;
+    const calledWorkspaces: string[] = [];
+
+    const mockRuntime = new CapabilityRuntime([
+      {
+        name: 'browser.page.read',
+        description: 'Read page',
+        risk: 'read',
+        inputSchema: z.object({ nodeId: z.string() }),
+        execute: async (input, ctx) => {
+          calledWorkspaces.push(ctx.workspaceId);
+          return { nodeId: input.nodeId, text: 'Agenda from Notion' };
+        },
+      },
+      {
+        name: 'host.renderer.eval',
+        description: 'Unsafe eval',
+        risk: 'unsafe',
+        inputSchema: z.object({ code: z.string() }),
+        execute: async () => ({ evaled: true }),
+      },
+    ]);
+
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/runtime/relay/events') {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        res.write(': connected\n\n');
+        sseResRef = res;
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/runtime/relay/respond') {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(Buffer.from(c));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          id: string;
+          ok: boolean;
+          value?: unknown;
+          error?: { code: string; message: string };
+        };
+        responses.set(body.id, { ok: body.ok, value: body.value, error: body.error });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
+    cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
+    const addr = server.address();
+    const endpoint = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+
+    const stop = startRemoteCapabilityRelay(
+      {
+        workspaceId: 'local-ws-1',
+        remoteWorkspaceId: 'remote-ws-1',
+        endpoint,
+        token,
+      },
+      {
+        resolveExecutor: () => ({
+          list: () => mockRuntime.list({ kind: 'pulse-cli' }),
+          call: (name, input, workspaceId) =>
+            mockRuntime.call(name, input, { workspaceId, actor: { kind: 'pulse-cli' } }),
+        }),
+      },
+    );
+    cleanups.push(async () => stop());
+
+    const waitFor = async (predicate: () => boolean) => {
+      const deadline = Date.now() + 3_000;
+      while (!predicate() && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    };
+
+    await waitFor(() => sseResRef !== null);
+    expect(sseResRef).not.toBeNull();
+
+    // 1. capability_list filters out unsafe host.renderer.eval
+    sseResRef!.write(`event: capability_list\ndata: ${JSON.stringify({ id: 'req-list' })}\n\n`);
+    await waitFor(() => responses.has('req-list'));
+    expect(responses.get('req-list')).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({ name: 'browser.page.read' })],
+    });
+    expect((responses.get('req-list')?.value as Array<{ name: string }>).map((c) => c.name)).toEqual([
+      'browser.page.read',
+    ]);
+
+    // 2. Allowed read capability translates remoteWorkspaceId -> localWorkspaceId
+    sseResRef!.write(
+      `event: capability_call\ndata: ${JSON.stringify({
+        id: 'req-read',
+        workspaceId: 'remote-ws-1',
+        name: 'browser.page.read',
+        input: { nodeId: 'iframe-notion' },
+      })}\n\n`,
+    );
+    await waitFor(() => responses.has('req-read'));
+    expect(responses.get('req-read')).toEqual({
+      ok: true,
+      value: { nodeId: 'iframe-notion', text: 'Agenda from Notion' },
+    });
+    expect(calledWorkspaces).toEqual(['local-ws-1']);
+
+    // 3. Unsafe capability is rejected with capability_forbidden
+    sseResRef!.write(
+      `event: capability_call\ndata: ${JSON.stringify({
+        id: 'req-unsafe',
+        workspaceId: 'remote-ws-1',
+        name: 'host.renderer.eval',
+        input: { code: '1+1' },
+      })}\n\n`,
+    );
+    await waitFor(() => responses.has('req-unsafe'));
+    expect(responses.get('req-unsafe')).toMatchObject({
+      ok: false,
+      error: { code: 'capability_forbidden' },
+    });
+
+    // 4. Cross-workspace call is rejected with capability_forbidden
+    sseResRef!.write(
+      `event: capability_call\ndata: ${JSON.stringify({
+        id: 'req-cross',
+        workspaceId: 'other-ws',
+        name: 'browser.page.read',
+        input: { nodeId: 'iframe-other' },
+      })}\n\n`,
+    );
+    await waitFor(() => responses.has('req-cross'));
+    expect(responses.get('req-cross')).toMatchObject({
+      ok: false,
+      error: { code: 'capability_forbidden' },
+    });
+  });
 });

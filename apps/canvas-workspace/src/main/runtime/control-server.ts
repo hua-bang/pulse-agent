@@ -143,6 +143,14 @@ export async function startRuntimeControlServer(): Promise<RuntimeControlHandle>
     }
   }
 
+  const { setRemoteCapabilityExecutor } = await import('../remote/capability-port');
+  const { getCanvasCapabilityRuntime } = await import('./capabilities');
+  setRemoteCapabilityExecutor({
+    list: () => getCanvasCapabilityRuntime().list({ kind: 'pulse-cli' }),
+    call: (name, input, workspaceId) =>
+      getCanvasCapabilityRuntime().call(name, input, { workspaceId, actor: { kind: 'pulse-cli' } }),
+  });
+
   await cleanupStaleRuntimeFile();
 
   const secret = randomBytes(32).toString('hex');

@@ -408,4 +408,93 @@ describe('vps-daemon end-to-end', () => {
     const denied = await callTool(editorHeaders, 'bash', { command: 'echo nope' });
     expect(denied.status).toBe(403);
   });
+
+  it('relays capability list and call requests to connected desktop SSE clients', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Without a connected desktop client, capability calls report runtime_unreachable.
+    const offline = await fetch(`${daemon.url}/v1/runtime/capabilities/call`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-relay', name: 'browser.page.read', input: {} }),
+    });
+    expect(offline.status).toBe(200);
+    expect(await offline.json()).toMatchObject({
+      ok: false,
+      error: { code: 'runtime_unreachable' },
+    });
+
+    // Connect a simulated desktop client to the outbound SSE relay.
+    const ac = new AbortController();
+    const sseRes = await fetch(`${daemon.url}/v1/runtime/relay/events?workspaceId=ws-relay`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: ac.signal,
+    });
+    expect(sseRes.status).toBe(200);
+    const reader = sseRes.body!.getReader();
+    const decoder = new TextDecoder();
+
+    const pumpPromise = (async () => {
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx = buf.indexOf('\n\n');
+        while (idx !== -1) {
+          const frame = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const evLine = frame.split('\n').find((l) => l.startsWith('event:'));
+          const dataLine = frame.split('\n').find((l) => l.startsWith('data:'));
+          if (evLine && dataLine) {
+            const ev = evLine.slice(6).trim();
+            const payload = JSON.parse(dataLine.slice(5).trim()) as { id: string; name?: string };
+            if (ev === 'capability_list') {
+              await fetch(`${daemon.url}/v1/runtime/relay/respond`, {
+                method: 'POST',
+                headers: adminHeaders,
+                body: JSON.stringify({ id: payload.id, ok: true, value: [{ name: 'browser.page.read', risk: 'read' }] }),
+              });
+            } else if (ev === 'capability_call') {
+              await fetch(`${daemon.url}/v1/runtime/relay/respond`, {
+                method: 'POST',
+                headers: adminHeaders,
+                body: JSON.stringify({ id: payload.id, ok: true, value: { title: 'Notion Calendar', text: 'Standup 10:00' } }),
+              });
+            }
+          }
+          idx = buf.indexOf('\n\n');
+        }
+      }
+    })().catch(() => undefined);
+
+    // Wait briefly for SSE registration to settle.
+    await new Promise((r) => setTimeout(r, 40));
+
+    const listRes = await fetch(`${daemon.url}/v1/runtime/capabilities/list`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-relay' }),
+    });
+    expect(listRes.status).toBe(200);
+    expect(await listRes.json()).toEqual({
+      ok: true,
+      capabilities: [{ name: 'browser.page.read', risk: 'read' }],
+    });
+
+    const callRes = await fetch(`${daemon.url}/v1/runtime/capabilities/call`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-relay', name: 'browser.page.read', input: { nodeId: 'iframe-1' } }),
+    });
+    expect(callRes.status).toBe(200);
+    expect(await callRes.json()).toEqual({
+      ok: true,
+      value: { title: 'Notion Calendar', text: 'Standup 10:00' },
+    });
+
+    ac.abort();
+    await pumpPromise;
+  });
 });

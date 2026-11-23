@@ -270,7 +270,7 @@ async function runGrep(
     const res = await execFileAsync('rg', args, { maxBuffer: MAX_OUTPUT_BYTES });
     raw = res.stdout;
   } catch (err) {
-    const e = err as NodeJS.ErrnoException & { stdout?: string; code?: number | string };
+    const e = err as { code?: number | string; stdout?: string };
     if (e.code === 1) {
       return { output: '', matches: 0 };
     }
