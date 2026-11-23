@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process';
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { readJsonBody, sendJson } from './auth.js';
@@ -13,9 +15,12 @@ import {
   canWriteWorkspace,
   isValidShareRole,
   ShareTokenStore,
+  type AuthPrincipal,
 } from './shares.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
 import { handleToolExecRequest } from './tools-rpc.js';
+
+const execFileAsync = promisify(execFile);
 
 export interface VpsDaemonOptions {
   host?: string;
@@ -26,6 +31,7 @@ export interface VpsDaemonOptions {
   pollIntervalMs?: number;
   ptySpawner?: PtySpawner;
   writeRuntimeDescriptor?: boolean;
+  bundleHash?: string;
 }
 
 export interface RunningVpsDaemon {
@@ -37,8 +43,41 @@ export interface RunningVpsDaemon {
   close(): Promise<void>;
 }
 
-const DAEMON_VERSION = '0.1.0';
+const DAEMON_VERSION = '0.2.0';
 const DATABASE_FILE = '__storage__.sqlite';
+
+function isPathWithin(baseDir: string, candidateDir: string): boolean {
+  const rel = relative(resolve(baseDir), resolve(candidateDir));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+function logShareAudit(principal: AuthPrincipal, action: string, detail?: string): void {
+  if (principal.kind !== 'share') return;
+  const suffix = detail ? ` ${detail}` : '';
+  console.log(
+    `[vps-audit] shareId=${principal.share.id} role=${principal.share.role} workspaceId=${principal.share.workspaceId} action=${action}${suffix}`,
+  );
+}
+
+let cachedTailscale: { value: string | null; checkedAt: number } | null = null;
+
+async function detectTailscaleUrl(): Promise<string | null> {
+  const now = Date.now();
+  if (cachedTailscale && now - cachedTailscale.checkedAt < 60_000) {
+    return cachedTailscale.value;
+  }
+  try {
+    const { stdout } = await execFileAsync('tailscale', ['status', '--json'], { timeout: 1_500 });
+    const parsed = JSON.parse(stdout) as { Self?: { DNSName?: string; Online?: boolean } };
+    const dnsName = parsed.Self?.DNSName?.trim().replace(/\.$/, '');
+    const url = dnsName ? `https://${dnsName}` : null;
+    cachedTailscale = { value: url, checkedAt: now };
+    return url;
+  } catch {
+    cachedTailscale = { value: null, checkedAt: now };
+    return null;
+  }
+}
 
 /**
  * Start a lightweight VPS daemon exposing `@pulse-coder/storage`, `WorkspaceFiles`,
@@ -53,6 +92,11 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const port = options.port ?? 4770;
   const dataDir = resolve(options.dataDir);
   const workDir = resolve(options.workDir ?? dataDir);
+  const bundleHash =
+    options.bundleHash?.trim() ||
+    process.env.PULSE_VPS_BUNDLE_HASH?.trim() ||
+    (await readFile(join(process.cwd(), 'bundle.sha'), 'utf8').catch(() => '')).trim() ||
+    undefined;
 
   await mkdir(dataDir, { recursive: true });
   await mkdir(workDir, { recursive: true });
@@ -72,7 +116,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   await shareStore.load();
 
   const files = createLocalWorkspaceFiles();
-  const broadcaster = new ChangeBroadcaster(storage, options.pollIntervalMs ?? 500);
+  const broadcaster = new ChangeBroadcaster(storage, options.pollIntervalMs ?? 1_500);
   await broadcaster.start();
   const ptyHub = new PtyHub(workDir, options.ptySpawner, dataDir);
   const capabilityRelay = new CapabilityRelay();
@@ -81,7 +125,11 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      sendJson(res, 200, { ok: true, version: DAEMON_VERSION });
+      sendJson(res, 200, {
+        ok: true,
+        version: DAEMON_VERSION,
+        ...(bundleHash ? { bundleHash } : {}),
+      });
       return;
     }
 
@@ -96,10 +144,13 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/meta') {
+      const tailscaleUrl = principal.kind === 'admin' ? await detectTailscaleUrl() : null;
       sendJson(res, 200, {
         ok: true,
         generation: storage.generation,
         version: DAEMON_VERSION,
+        ...(bundleHash ? { bundleHash } : {}),
+        ...(tailscaleUrl ? { tailscaleUrl } : {}),
         role: principal.kind === 'admin' ? 'admin' : principal.share.role,
         ...(principal.kind === 'share' ? { workspaceId: principal.share.workspaceId } : {}),
         capabilities: [
@@ -110,6 +161,8 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
           'exec-jsonl',
           'fs-list-dirs',
           'shares',
+          'tools-exec',
+          'capability-relay',
         ],
       });
       return;
@@ -230,6 +283,10 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     if (url.pathname === '/v1/workspace-doc') {
       if (req.method === 'GET') {
         const dir = resolve(url.searchParams.get('cwd')?.trim() || workDir);
+        if (principal.kind === 'share' && !isPathWithin(workDir, dir)) {
+          sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Share token cannot read workspace doc outside workDir' });
+          return;
+        }
         const docPath = join(dir, 'pulse-workspace.md');
         try {
           const content = await readFile(docPath, 'utf8');
@@ -256,6 +313,10 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
             return;
           }
           const dir = resolve(body.cwd?.trim() || workDir);
+          if (principal.kind === 'share' && !isPathWithin(workDir, dir)) {
+            sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Share token cannot write workspace doc outside workDir' });
+            return;
+          }
           await mkdir(dir, { recursive: true });
           const docPath = join(dir, 'pulse-workspace.md');
           await writeFile(docPath, body.content, 'utf8');
@@ -272,11 +333,13 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to execute remote commands' });
         return;
       }
+      logShareAudit(principal, 'exec-jsonl');
       await handleExecJsonl(req, res, workDir);
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/tools/exec') {
+      logShareAudit(principal, 'tools-exec');
       await handleToolExecRequest(req, res, principal, readJsonBody, sendJson);
       return;
     }
@@ -345,6 +408,9 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
       if (req.method !== 'GET' && !canUseRuntime(principal)) {
         sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to control remote terminals' });
         return;
+      }
+      if (req.method !== 'GET' && (url.pathname.endsWith('/spawn') || url.pathname.endsWith('/kill'))) {
+        logShareAudit(principal, 'pty', `${req.method} ${url.pathname}`);
       }
       if (await ptyHub.handleHttp(req, res, url)) {
         return;

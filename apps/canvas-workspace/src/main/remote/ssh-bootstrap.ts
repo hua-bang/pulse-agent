@@ -98,6 +98,11 @@ export function resolveBundledVpsDaemonPath(): string {
   return found;
 }
 
+export function computeBundledVpsDaemonHash(bundlePath = resolveBundledVpsDaemonPath()): string {
+  const bundleBytes = readFileSync(bundlePath);
+  return createHash('sha256').update(bundleBytes).digest('hex').slice(0, 16);
+}
+
 export const defaultSshRunner: SshRunner = async ({
   sshHost,
   sshPort,
@@ -110,6 +115,16 @@ export const defaultSshRunner: SshRunner = async ({
     'BatchMode=yes',
     '-o',
     'ConnectTimeout=10',
+    ...(process.platform !== 'win32'
+      ? [
+          '-o',
+          'ControlMaster=auto',
+          '-o',
+          'ControlPersist=60',
+          '-o',
+          'ControlPath=/tmp/pulse-ssh-%C',
+        ]
+      : []),
     '-p',
     String(sshPort),
     sshHost,
@@ -282,7 +297,7 @@ export async function bootstrapRemoteVpsDaemon(
       '  sleep 0.3',
       'fi',
       'TOKEN="$(cat token)"',
-      `PULSE_VPS_HOST="127.0.0.1" PULSE_VPS_PORT="${remotePort}" PULSE_VPS_TOKEN="$TOKEN" PULSE_VPS_DATA_DIR="${dataDir}" PULSE_VPS_WORKDIR="${workDir}" nohup node index.cjs > daemon.log 2>&1 < /dev/null &`,
+      `PULSE_VPS_HOST="127.0.0.1" PULSE_VPS_PORT="${remotePort}" PULSE_VPS_TOKEN="$TOKEN" PULSE_VPS_DATA_DIR="${dataDir}" PULSE_VPS_WORKDIR="${workDir}" PULSE_VPS_BUNDLE_HASH="${bundleHash}" nohup node index.cjs > daemon.log 2>&1 < /dev/null &`,
       'echo $! > daemon.pid',
       'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do',
       `  if curl -sf "http://127.0.0.1:${remotePort}/health" >/dev/null 2>&1; then exit 0; fi`,

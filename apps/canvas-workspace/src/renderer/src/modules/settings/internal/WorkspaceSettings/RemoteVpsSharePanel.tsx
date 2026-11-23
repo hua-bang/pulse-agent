@@ -10,21 +10,28 @@ import { remoteShareCopy } from '../../components/RemoteFolderPickerModal/copy';
 interface Props {
   workspaceId: string;
   defaultEndpoint?: string;
+  detectedTailscaleUrl?: string;
 }
 
 type ExpiryKey = '24h' | '7d' | 'never';
 
-export const RemoteVpsSharePanel = ({ workspaceId, defaultEndpoint }: Props) => {
+export const RemoteVpsSharePanel = ({ workspaceId, defaultEndpoint, detectedTailscaleUrl }: Props) => {
   const { language } = useI18n();
   const copy = remoteShareCopy(language);
 
   const [role, setRole] = useState<RemoteVpsShareRole>('editor');
   const [expiry, setExpiry] = useState<ExpiryKey>('7d');
-  const [publicEndpoint, setPublicEndpoint] = useState(defaultEndpoint ?? '');
+  const [publicEndpoint, setPublicEndpoint] = useState(defaultEndpoint || detectedTailscaleUrl || '');
   const [shares, setShares] = useState<RemoteVpsShareSummary[]>([]);
   const [latestInvite, setLatestInvite] = useState<string | null>(null);
   const [busy, setBusy] = useState<'create' | string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!publicEndpoint && detectedTailscaleUrl) {
+      setPublicEndpoint(detectedTailscaleUrl);
+    }
+  }, [detectedTailscaleUrl, publicEndpoint]);
 
   const loadShares = useCallback(async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -116,7 +123,10 @@ export const RemoteVpsSharePanel = ({ workspaceId, defaultEndpoint }: Props) => 
         />
       </FieldRow>
 
-      <FieldRow label={copy.endpointLabel} hint={copy.endpointHint}>
+      <FieldRow
+        label={copy.endpointLabel}
+        hint={detectedTailscaleUrl ? copy.tailscaleDetectedHint(detectedTailscaleUrl) : copy.endpointHint}
+      >
         <TextField
           value={publicEndpoint}
           onChange={(e) => setPublicEndpoint(e.target.value)}
@@ -185,6 +195,59 @@ export const RemoteVpsSharePanel = ({ workspaceId, defaultEndpoint }: Props) => 
             </div>
           ))
         )}
+      </div>
+    </div>
+  );
+};
+
+interface JoinFormProps {
+  workspaceId: string;
+  onJoined: (config: import('../../../../../../shared/api/remote-vps').RemoteVpsWorkspaceConfigDto, msg: string) => void;
+}
+
+export const RemoteVpsJoinForm = ({ workspaceId, onJoined }: JoinFormProps) => {
+  const { language } = useI18n();
+  const copy = remoteShareCopy(language);
+  const [inviteCode, setInviteCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const handleJoin = async () => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api || !inviteCode.trim()) return;
+    setJoining(true);
+    setErrorText(null);
+    try {
+      const res = await api.joinShare(workspaceId, inviteCode.trim());
+      if (!res.ok || !res.config) {
+        setErrorText(res.error || copy.joinFailed);
+        return;
+      }
+      setInviteCode('');
+      onJoined(res.config, copy.joinedOk(res.role ?? 'viewer'));
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  return (
+    <div className="remote-vps-body">
+      <FieldRow label={copy.inviteCodeLabel} hint={copy.inviteCodeHint}>
+        <TextField
+          value={inviteCode}
+          onChange={(e) => setInviteCode(e.target.value)}
+          placeholder={copy.inviteCodePlaceholder}
+        />
+      </FieldRow>
+      {errorText && <div className="remote-vps-status is-error">{errorText}</div>}
+      <div className="remote-vps-actions">
+        <Button
+          variant="primary"
+          disabled={!inviteCode.trim() || joining}
+          onClick={() => void handleJoin()}
+        >
+          {joining ? copy.joining : copy.joinAction}
+        </Button>
       </div>
     </div>
   );

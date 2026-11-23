@@ -9,6 +9,24 @@ interface ActiveTunnel {
 }
 
 const activeTunnels = new Map<string, Promise<ActiveTunnel>>();
+const tunnelExitListeners = new Set<(endpoint: string) => void>();
+
+export function onSshTunnelExit(listener: (endpoint: string) => void): () => void {
+  tunnelExitListeners.add(listener);
+  return () => {
+    tunnelExitListeners.delete(listener);
+  };
+}
+
+function notifyTunnelExit(endpoint: string): void {
+  for (const listener of tunnelExitListeners) {
+    try {
+      listener(endpoint);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 async function allocateFreeLocalPort(): Promise<number> {
   return await new Promise((resolve, reject) => {
@@ -107,6 +125,7 @@ export async function ensureSshTunnel(options: {
       if (activeTunnels.get(key) === pending) {
         activeTunnels.delete(key);
       }
+      notifyTunnelExit(endpoint);
     });
 
     try {

@@ -198,6 +198,7 @@ export const createTelemetryApi = (ipcRenderer: IpcRenderer): TelemetryApi => ({
 export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
   listSshHosts: () => ipcRenderer.invoke("remote-vps:listSshHosts"),
   getConfig: (workspaceId) => ipcRenderer.invoke("remote-vps:getConfig", { workspaceId }),
+  getStatus: (workspaceId) => ipcRenderer.invoke("remote-vps:getStatus", { workspaceId }),
   saveConfig: (workspaceId, config) =>
     ipcRenderer.invoke("remote-vps:saveConfig", { workspaceId, config }),
   removeConfig: (workspaceId) =>

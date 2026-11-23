@@ -162,3 +162,20 @@
   gap: 8px;
   min-width: 0;
 }
+
+.remote-vps-dot.is-offline {
+  background: var(--error);
+}
+
+.remote-vps-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink);
+}

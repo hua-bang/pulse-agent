@@ -674,4 +674,79 @@ describe('remote VPS workspace client', () => {
       error: { code: 'capability_forbidden' },
     });
   });
+
+  it('writes remote-workspaces.json with 0600 mode and delivers rapid PTY keystrokes in order', async () => {
+    const { statSync } = await import('node:fs');
+    const { saveRemoteWorkspaceConfig } = await import('./config');
+    const { connectRemotePty } = await import('./runtime-client');
+
+    const token = 'pty-order-secret';
+    const receivedWrites: string[] = [];
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      if (url.pathname === '/v1/pty/spawn') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, pid: 1234, reused: false }));
+        return;
+      }
+      if (url.pathname.endsWith('/stream')) {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        res.write(': connected\n\n');
+        return;
+      }
+      if (url.pathname.endsWith('/write')) {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(Buffer.from(c));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { data: string };
+        receivedWrites.push(body.data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
+    cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
+    const addr = server.address();
+    const endpoint = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+
+    const cfgDir = await mkdtemp(join(tmpdir(), 'pulse-remote-mode-'));
+    cleanups.push(async () => rm(cfgDir, { recursive: true, force: true }));
+    const prevEnv = process.env.PULSE_CANVAS_REMOTE_CONFIG;
+    delete process.env.PULSE_CANVAS_REMOTE_CONFIG;
+    try {
+      saveRemoteWorkspaceConfig(
+        'ws-mode-test',
+        { kind: 'vps', endpoint, token, allowCapabilityRelay: false },
+        cfgDir,
+      );
+      expect(statSync(join(cfgDir, 'remote-workspaces.json')).mode & 0o777).toBe(0o600);
+    } finally {
+      if (prevEnv !== undefined) process.env.PULSE_CANVAS_REMOTE_CONFIG = prevEnv;
+    }
+
+    const conn = await connectRemotePty(
+      { workspaceId: 'ws-mode-test', remoteWorkspaceId: 'ws-mode-test', endpoint, token },
+      { id: 'order-1', cols: 80, rows: 24 },
+      { onData: () => {}, onExit: () => {} },
+    );
+    expect(conn.ok).toBe(true);
+    if (conn.ok) {
+      conn.handle.write('e');
+      conn.handle.write('c');
+      conn.handle.write('h');
+      conn.handle.write('o');
+      conn.handle.write(' hi\n');
+      await new Promise((r) => setTimeout(r, 80));
+      expect(receivedWrites.join('')).toBe('echo hi\n');
+      expect(receivedWrites.length).toBeLessThanOrEqual(2);
+      conn.handle.detach();
+    }
+  });
 });
