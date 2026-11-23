@@ -13,7 +13,7 @@ import {
   resolveRemoteToken,
   type RemoteVpsWorkspaceConfig,
 } from './config';
-import { closeAllSshTunnels, ensureSshTunnel } from './ssh-tunnel';
+import { closeAllSshTunnels, ensureSshTunnel, onSshTunnelExit } from './ssh-tunnel';
 import { startRemoteCapabilityRelay } from './capability-relay';
 
 export interface ResolvedRemoteTarget {
@@ -22,11 +22,46 @@ export interface ResolvedRemoteTarget {
   endpoint: string;
   token: string;
   cwd?: string;
+  allowCapabilityRelay?: boolean;
 }
 
 const storagePool = new Map<string, Promise<PulseStorage>>();
 const changeSubscriptions = new Map<string, () => void>();
 const relaySubscriptions = new Map<string, () => void>();
+
+function invalidateEndpointCaches(deadEndpoint: string): void {
+  const prefix = `${deadEndpoint}::`;
+  for (const [key, pending] of storagePool) {
+    if (key.startsWith(prefix)) {
+      storagePool.delete(key);
+      void pending.then((store) => store.close().catch(() => undefined)).catch(() => undefined);
+    }
+  }
+  for (const [key, stop] of changeSubscriptions) {
+    if (key.startsWith(prefix)) {
+      changeSubscriptions.delete(key);
+      try {
+        stop();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  for (const [key, stop] of relaySubscriptions) {
+    if (key.startsWith(prefix)) {
+      relaySubscriptions.delete(key);
+      try {
+        stop();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+onSshTunnelExit((deadEndpoint) => {
+  invalidateEndpointCaches(deadEndpoint);
+});
 
 export async function resolveRemoteTargetFromConfig(
   workspaceId: string,
@@ -78,6 +113,7 @@ export async function resolveRemoteTargetFromConfig(
     endpoint: (endpoint ?? '').replace(/\/+$/, ''),
     token: finalToken,
     cwd: config.cwd,
+    allowCapabilityRelay: config.allowCapabilityRelay,
   };
 }
 
@@ -174,6 +210,18 @@ type BroadcastCanvasChange = (payload: {
 
 function ensureRemoteCapabilityRelay(target: ResolvedRemoteTarget): void {
   const subKey = `${target.endpoint}::${target.remoteWorkspaceId}`;
+  if (target.allowCapabilityRelay === false) {
+    const existing = relaySubscriptions.get(subKey);
+    if (existing) {
+      relaySubscriptions.delete(subKey);
+      try {
+        existing();
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
   if (relaySubscriptions.has(subKey)) return;
   relaySubscriptions.set(subKey, startRemoteCapabilityRelay(target));
 }

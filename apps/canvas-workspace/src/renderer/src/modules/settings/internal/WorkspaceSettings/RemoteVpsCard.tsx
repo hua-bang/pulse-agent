@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { RemoteVpsWorkspaceConfigDto } from '../../../../../../shared/api/remote-vps';
+import type {
+  RemoteVpsStatusResult,
+  RemoteVpsWorkspaceConfigDto,
+} from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { remoteShareCopy, remoteVpsCopy } from '../../components/RemoteFolderPickerModal/copy';
-import { RemoteVpsSharePanel } from './RemoteVpsSharePanel';
+import { RemoteVpsJoinForm, RemoteVpsSharePanel } from './RemoteVpsSharePanel';
 import './RemoteVpsCard.css';
 
 interface Props {
@@ -23,9 +26,9 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
   const [expanded, setExpanded] = useState(!currentConfig);
   const [shareOpen, setShareOpen] = useState(false);
   const [setupMode, setSetupMode] = useState<SetupMode>('own');
-  const [inviteCode, setInviteCode] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sshHosts, setSshHosts] = useState<string[]>([]);
+  const [liveStatus, setLiveStatus] = useState<RemoteVpsStatusResult | null>(null);
 
   const [connMode, setConnMode] = useState<ConnMode>('ssh');
   const [scopeMode, setScopeMode] = useState<ScopeMode>('full');
@@ -33,8 +36,9 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
   const [endpoint, setEndpoint] = useState('');
   const [remotePort, setRemotePort] = useState('4770');
   const [token, setToken] = useState('');
+  const [allowRelay, setAllowRelay] = useState(true);
 
-  const [busy, setBusy] = useState<'connect' | 'migrate' | 'remove' | 'join' | null>(null);
+  const [busy, setBusy] = useState<'connect' | 'migrate' | 'remove' | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const bound = Boolean(currentConfig);
@@ -55,6 +59,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
   useEffect(() => {
     setStatusMsg(null);
     setShareOpen(false);
+    setLiveStatus(null);
     if (currentConfig) {
       setExpanded(false);
       setConnMode(currentConfig.endpoint ? 'direct' : 'ssh');
@@ -63,17 +68,29 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       setEndpoint(currentConfig.endpoint ?? '');
       setRemotePort(String(currentConfig.remotePort ?? 4770));
       setToken(currentConfig.token ?? '');
+      setAllowRelay(currentConfig.allowCapabilityRelay !== false);
+      const api = window.canvasWorkspace?.remoteVps;
+      if (api) {
+        let cancelled = false;
+        void api.getStatus(workspaceId).then((res) => {
+          if (!cancelled) setLiveStatus(res);
+        });
+        return () => {
+          cancelled = true;
+        };
+      }
     } else {
       setExpanded(true);
       setSetupMode('own');
-      setInviteCode('');
       setConnMode('ssh');
       setScopeMode('full');
       setSshHost('');
       setEndpoint('');
       setRemotePort('4770');
       setToken('');
+      setAllowRelay(true);
     }
+    return undefined;
   }, [currentConfig, workspaceId]);
 
   const buildDraftConfig = useCallback((): RemoteVpsWorkspaceConfigDto => {
@@ -95,32 +112,14 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       cwd: currentConfig?.cwd?.trim() || undefined,
       storage: scopeMode === 'full' ? 'vps' : 'local',
       runtime: 'vps',
+      allowCapabilityRelay: allowRelay,
     };
-  }, [connMode, sshHost, remotePort, endpoint, token, scopeMode, currentConfig, workspaceId]);
+  }, [connMode, sshHost, remotePort, endpoint, token, scopeMode, allowRelay, currentConfig, workspaceId]);
 
   const canSubmit =
     connMode === 'ssh'
       ? sshHost.trim().length > 0
       : endpoint.trim().length > 0 && token.trim().length > 0;
-
-  const handleJoinInvite = async () => {
-    const api = window.canvasWorkspace?.remoteVps;
-    if (!api || !inviteCode.trim()) return;
-    setBusy('join');
-    setStatusMsg(null);
-    try {
-      const res = await api.joinShare(workspaceId, inviteCode.trim());
-      if (!res.ok || !res.config) {
-        setStatusMsg({ kind: 'err', text: res.error || shareCopy.joinFailed });
-        return;
-      }
-      onConfigChange(res.config);
-      setInviteCode('');
-      setStatusMsg({ kind: 'ok', text: shareCopy.joinedOk(res.role ?? 'viewer') });
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const handleConnectAndSave = async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -217,14 +216,19 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       {bound && (
         <div className="remote-vps-summary">
           <div className="remote-vps-summary-left">
-            <span className="remote-vps-dot" aria-hidden="true" />
+            <span
+              className={`remote-vps-dot${liveStatus && !liveStatus.connected ? ' is-offline' : ''}`}
+              aria-hidden="true"
+            />
             <span className="remote-vps-host" title={hostSummary}>{hostSummary}</span>
             <span className="remote-vps-badge is-bound">
-              {currentConfig?.shareRole
-                ? shareCopy.sharedBadge(currentConfig.shareRole)
-                : currentConfig?.storage === 'local'
-                  ? copy.boundRuntime
-                  : copy.boundFull}
+              {liveStatus && !liveStatus.connected
+                ? shareCopy.offlineBadge
+                : currentConfig?.shareRole
+                  ? shareCopy.sharedBadge(currentConfig.shareRole)
+                  : currentConfig?.storage === 'local'
+                    ? copy.boundRuntime
+                    : copy.boundFull}
             </span>
           </div>
           <div className="remote-vps-summary-actions">
@@ -260,10 +264,24 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
         </div>
       )}
 
+      {bound && currentConfig?.shareRole === 'viewer' && (
+        <div className="remote-vps-banner">{shareCopy.viewerReadOnlyNotice}</div>
+      )}
+
+      {bound && liveStatus?.outdatedDaemon && !isSharedGuest && Boolean(currentConfig?.sshHost) && (
+        <div className="remote-vps-banner">
+          <span>{shareCopy.outdatedBanner}</span>
+          <Button variant="secondary" size="sm" disabled={busy !== null} onClick={() => void handleConnectAndSave()}>
+            {busy === 'connect' ? shareCopy.upgrading : shareCopy.upgradeNow}
+          </Button>
+        </div>
+      )}
+
       {bound && shareOpen && !isSharedGuest && (
         <RemoteVpsSharePanel
           workspaceId={workspaceId}
           defaultEndpoint={currentConfig?.endpoint}
+          detectedTailscaleUrl={liveStatus?.tailscaleUrl}
         />
       )}
 
@@ -279,29 +297,13 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       )}
 
       {expanded && !bound && setupMode === 'invite' && (
-        <div className="remote-vps-body">
-          <FieldRow label={shareCopy.inviteCodeLabel} hint={shareCopy.inviteCodeHint}>
-            <TextField
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder={shareCopy.inviteCodePlaceholder}
-            />
-          </FieldRow>
-          {statusMsg && (
-            <div className={`remote-vps-status ${statusMsg.kind === 'err' ? 'is-error' : 'is-ok'}`}>
-              {statusMsg.text}
-            </div>
-          )}
-          <div className="remote-vps-actions">
-            <Button
-              variant="primary"
-              disabled={!inviteCode.trim() || busy !== null}
-              onClick={() => void handleJoinInvite()}
-            >
-              {busy === 'join' ? shareCopy.joining : shareCopy.joinAction}
-            </Button>
-          </div>
-        </div>
+        <RemoteVpsJoinForm
+          workspaceId={workspaceId}
+          onJoined={(cfg, msg) => {
+            onConfigChange(cfg);
+            setStatusMsg({ kind: 'ok', text: msg });
+          }}
+        />
       )}
 
       {expanded && (bound || setupMode === 'own') && (
@@ -396,6 +398,17 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
                   placeholder={
                     connMode === 'ssh' ? copy.tokenPlaceholderSsh : copy.tokenPlaceholderDirect
                   }
+                />
+              </FieldRow>
+
+              <FieldRow label={shareCopy.relayLabel} hint={shareCopy.relayHint}>
+                <SegmentedControl
+                  value={allowRelay ? 'on' : 'off'}
+                  onChange={(id) => setAllowRelay(id === 'on')}
+                  options={[
+                    { id: 'on', label: shareCopy.relayOn },
+                    { id: 'off', label: shareCopy.relayOff },
+                  ]}
                 />
               </FieldRow>
             </div>

@@ -180,6 +180,16 @@ const SHARE_EN = {
   revoking: 'Revoking…',
   sharedBadge: (role: string) => `Shared · ${role}`,
   oldDaemonShareError: 'Remote VPS daemon is outdated. Click Connection → Reconnect & Save to upgrade it first.',
+  outdatedBanner: 'A newer VPS daemon is available (with latest sharing, tool exec, and SSE relay features).',
+  upgradeNow: 'Upgrade Daemon',
+  upgrading: 'Upgrading…',
+  offlineBadge: 'Offline',
+  viewerReadOnlyNotice: 'Read-only guest mode: you can view canvas, notes, and live terminal output, but edits are disabled.',
+  tailscaleDetectedHint: (url: string) => `Detected Tailscale address: ${url} (recommended for zero-port private sharing).`,
+  relayLabel: 'Read-only webview relay',
+  relayHint: 'Allow VPS CLI (pulse-canvas) to read open iframe pages over outbound SSE (read-only allowlist).',
+  relayOn: 'Enabled',
+  relayOff: 'Disabled',
 };
 
 const SHARE_ZH: typeof SHARE_EN = {
@@ -203,7 +213,7 @@ const SHARE_ZH: typeof SHARE_EN = {
   roleHintCollaborator: '支持画布协同编辑 + 共享远端终端与 Coding Agent。',
   endpointLabel: '对方可访问的服务地址',
   endpointPlaceholder: '例如 Tailscale IP http://100.x.y.z:4770 或 HTTPS 域名',
-  endpointHint: '对方客户端连接用的地址（Tailscale / 公网 HTTPS）；SSH 隧道模式下建议填写。',
+  endpointHint: '对方客户端连接用的地址（优先推荐 Tailscale）；SSH 隧道模式下建议填写。',
   expiryLabel: '有效期',
   expiry24h: '24 小时',
   expiry7d: '7 天',
@@ -218,6 +228,16 @@ const SHARE_ZH: typeof SHARE_EN = {
   revoking: '撤销中…',
   sharedBadge: (role: string) => `共享加入 · ${role}`,
   oldDaemonShareError: '远端 VPS daemon 版本较旧，请先点「管理连接 → 重新连接并保存」升级 daemon。',
+  outdatedBanner: '检测到远端 VPS daemon 有新版本（含共享、Agent 远端工具与 SSE 中继）。',
+  upgradeNow: '一键升级 Daemon',
+  upgrading: '升级中…',
+  offlineBadge: '未连接',
+  viewerReadOnlyNotice: '当前为只读访客模式：可浏览画布、Note 与终端输出，无法修改或执行命令。',
+  tailscaleDetectedHint: (url: string) => `已自动识别 Tailscale 地址：${url}（推荐，无需暴露公网端口）。`,
+  relayLabel: '网页只读中继（SSE）',
+  relayHint: '允许 VPS 上的 pulse-canvas 通过正向 SSE 只读访问本地已打开的 iframe 网页内容。',
+  relayOn: '开启',
+  relayOff: '关闭',
 };
 
 export const remoteVpsCopy = (language: string) => (language === 'zh' ? VPS_ZH : VPS_EN);

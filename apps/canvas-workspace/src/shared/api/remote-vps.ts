@@ -14,6 +14,7 @@ export interface RemoteVpsWorkspaceConfigDto {
   runtime?: 'vps' | 'local';
   autoBootstrap?: boolean;
   shareRole?: RemoteVpsShareRole;
+  allowCapabilityRelay?: boolean;
 }
 
 export interface RemoteVpsShareSummary {
@@ -30,10 +31,23 @@ export interface RemoteVpsTestResult {
   ok: boolean;
   version?: string;
   generation?: string;
+  bundleHash?: string;
+  tailscaleUrl?: string;
   uploaded?: boolean;
   installedDeps?: boolean;
   restarted?: boolean;
   token?: string;
+  error?: string;
+}
+
+export interface RemoteVpsStatusResult {
+  ok: boolean;
+  connected: boolean;
+  version?: string;
+  bundleHash?: string;
+  outdatedDaemon?: boolean;
+  tailscaleUrl?: string;
+  role?: string;
   error?: string;
 }
 
@@ -66,6 +80,7 @@ export interface RemoteVpsApi {
   getConfig: (
     workspaceId: string,
   ) => Promise<{ ok: boolean; config: RemoteVpsWorkspaceConfigDto | null }>;
+  getStatus: (workspaceId: string) => Promise<RemoteVpsStatusResult>;
   saveConfig: (
     workspaceId: string,
     config: RemoteVpsWorkspaceConfigDto,

@@ -30,6 +30,8 @@ export interface RemoteVpsWorkspaceConfig {
   autoBootstrap?: boolean;
   /** Granted role when joined via a share invite code. */
   shareRole?: 'viewer' | 'editor' | 'collaborator';
+  /** Allow remote VPS CLI to invoke read-only desktop capabilities over SSE relay (default: true). */
+  allowCapabilityRelay?: boolean;
 }
 
 interface RemoteConfigFile {
@@ -91,7 +93,7 @@ export function saveRemoteWorkspaceConfig(
   };
   mkdirSync(dirname(filePath), { recursive: true });
   const tmpPath = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(tmpPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  writeFileSync(tmpPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   renameSync(tmpPath, filePath);
 }
 
@@ -106,7 +108,7 @@ export function removeRemoteWorkspaceConfig(
   const next: RemoteConfigFile = { ...current, workspaces: rest };
   mkdirSync(dirname(filePath), { recursive: true });
   const tmpPath = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(tmpPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  writeFileSync(tmpPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   renameSync(tmpPath, filePath);
   return true;
 }

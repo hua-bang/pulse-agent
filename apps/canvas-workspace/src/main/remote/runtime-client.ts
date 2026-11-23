@@ -60,66 +60,122 @@ export async function connectRemotePty(
   }
 
   const encodedId = encodeURIComponent(payload.id);
-  const streamController = new AbortController();
+  let streamController: AbortController | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let detached = false;
+  let exited = false;
+  let firstConnect = true;
+  let reconnectDelayMs = 1_000;
 
   const consumeStream = async () => {
-    try {
-      const res = await fetch(`${target.endpoint}/v1/pty/${encodedId}/stream?scrollback=1`, {
-        method: 'GET',
-        headers: { ...authHeaders(target.token), Accept: 'text/event-stream' },
-        signal: streamController.signal,
-      });
-      if (!res.ok || !res.body) return;
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-
-      while (!detached) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let boundary = buffer.indexOf('\n\n');
-        while (boundary >= 0) {
-          const block = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
-          let eventName = 'message';
-          let dataLine = '';
-          for (const line of block.split('\n')) {
-            if (line.startsWith('event:')) eventName = line.slice(6).trim();
-            else if (line.startsWith('data:')) dataLine += line.slice(5).trim();
-          }
-          if (dataLine) {
-            try {
-              const parsed = JSON.parse(dataLine) as { data?: string; exitCode?: number };
-              if (eventName === 'data' && typeof parsed.data === 'string') {
-                callbacks.onData(parsed.data);
-              } else if (eventName === 'exit') {
-                callbacks.onExit(parsed.exitCode ?? 0);
-                return;
-              }
-            } catch {
-              // Ignore keepalive or malformed frame.
-            }
-          }
-          boundary = buffer.indexOf('\n\n');
+    while (!detached && !exited) {
+      streamController = new AbortController();
+      const scrollbackParam = firstConnect ? '1' : '0';
+      firstConnect = false;
+      try {
+        const res = await fetch(
+          `${target.endpoint}/v1/pty/${encodedId}/stream?scrollback=${scrollbackParam}`,
+          {
+            method: 'GET',
+            headers: { ...authHeaders(target.token), Accept: 'text/event-stream' },
+            signal: streamController.signal,
+          },
+        );
+        if (res.status === 404 || res.status === 401 || res.status === 403) {
+          return;
         }
+        if (!res.ok || !res.body) {
+          throw new Error(`PTY stream HTTP ${res.status}`);
+        }
+        reconnectDelayMs = 1_000;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (!detached && !exited) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let boundary = buffer.indexOf('\n\n');
+          while (boundary >= 0) {
+            const block = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+            let eventName = 'message';
+            let dataLine = '';
+            for (const line of block.split('\n')) {
+              if (line.startsWith('event:')) eventName = line.slice(6).trim();
+              else if (line.startsWith('data:')) dataLine += line.slice(5).trim();
+            }
+            if (dataLine) {
+              try {
+                const parsed = JSON.parse(dataLine) as { data?: string; exitCode?: number };
+                if (eventName === 'data' && typeof parsed.data === 'string') {
+                  callbacks.onData(parsed.data);
+                } else if (eventName === 'exit') {
+                  exited = true;
+                  callbacks.onExit(parsed.exitCode ?? 0);
+                  return;
+                }
+              } catch {
+                // Ignore keepalive or malformed frame.
+              }
+            }
+            boundary = buffer.indexOf('\n\n');
+          }
+        }
+      } catch {
+        // Transient drop: retry with bounded backoff unless detached or exited.
       }
-    } catch {
-      // Transient drop or explicit detach: VPS process stays alive for reattach.
+      if (detached || exited) return;
+      await new Promise<void>((resolveWait) => {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          resolveWait();
+        }, reconnectDelayMs);
+        reconnectTimer.unref?.();
+      });
+      reconnectDelayMs = Math.min(reconnectDelayMs * 2, 5_000);
     }
   };
   void consumeStream();
+
+  // Ordered micro-batched write queue so rapid typing never arrives out-of-order.
+  let pendingWrite = '';
+  let writeFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  let writeInFlight: Promise<void> = Promise.resolve();
+
+  const flushWrites = () => {
+    writeFlushTimer = null;
+    if (!pendingWrite || detached || exited) return;
+    const batch = pendingWrite;
+    pendingWrite = '';
+    writeInFlight = writeInFlight
+      .then(async () => {
+        if (detached || exited) return;
+        await fetch(`${target.endpoint}/v1/pty/${encodedId}/write`, {
+          method: 'POST',
+          headers: authHeaders(target.token, true),
+          body: JSON.stringify({ data: batch }),
+        });
+      })
+      .catch(() => undefined);
+  };
 
   const handle: RemotePtyHandle = {
     id: payload.id,
     pid: spawnJson.pid,
     write(data: string) {
-      void fetch(`${target.endpoint}/v1/pty/${encodedId}/write`, {
-        method: 'POST',
-        headers: authHeaders(target.token, true),
-        body: JSON.stringify({ data }),
-      }).catch(() => undefined);
+      if (!data || detached || exited) return;
+      pendingWrite += data;
+      if (pendingWrite.length >= 256 || data.includes('\r') || data.includes('\n')) {
+        if (writeFlushTimer) {
+          clearTimeout(writeFlushTimer);
+          writeFlushTimer = null;
+        }
+        flushWrites();
+      } else if (!writeFlushTimer) {
+        writeFlushTimer = setTimeout(flushWrites, 8);
+      }
     },
     resize(cols: number, rows: number) {
       void fetch(`${target.endpoint}/v1/pty/${encodedId}/resize`, {
@@ -130,7 +186,10 @@ export async function connectRemotePty(
     },
     kill() {
       detached = true;
-      streamController.abort();
+      exited = true;
+      if (writeFlushTimer) clearTimeout(writeFlushTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      streamController?.abort();
       void fetch(`${target.endpoint}/v1/pty/${encodedId}/kill`, {
         method: 'POST',
         headers: authHeaders(target.token, true),
@@ -155,7 +214,9 @@ export async function connectRemotePty(
     },
     detach() {
       detached = true;
-      streamController.abort();
+      if (writeFlushTimer) clearTimeout(writeFlushTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      streamController?.abort();
     },
   };
 

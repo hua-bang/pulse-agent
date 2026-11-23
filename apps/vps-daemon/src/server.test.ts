@@ -497,4 +497,64 @@ describe('vps-daemon end-to-end', () => {
     ac.abort();
     await pumpPromise;
   });
+
+  it('exposes bundleHash on /health & /v1/meta and confines /v1/workspace-doc for share tokens', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pulse-vps-hardening-'));
+    const token = 'hardening-secret-token';
+    const { spawner } = createFakePtySpawner();
+    const daemon = await startVpsDaemon({
+      host: '127.0.0.1',
+      port: 0,
+      token,
+      dataDir: root,
+      workDir: root,
+      bundleHash: 'deadbeef12345678',
+      pollIntervalMs: 50,
+      ptySpawner: spawner,
+    });
+    cleanups.push(async () => {
+      await daemon.close();
+      await rm(root, { recursive: true, force: true });
+    });
+
+    const healthRes = await fetch(`${daemon.url}/health`);
+    expect(await healthRes.json()).toMatchObject({ ok: true, bundleHash: 'deadbeef12345678' });
+
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const metaRes = await fetch(`${daemon.url}/v1/meta`, { headers: adminHeaders });
+    expect(await metaRes.json()).toMatchObject({
+      ok: true,
+      bundleHash: 'deadbeef12345678',
+      capabilities: expect.arrayContaining(['tools-exec', 'capability-relay']),
+    });
+
+    const shareRes = await fetch(`${daemon.url}/v1/shares`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-confined', role: 'editor', label: 'ed' }),
+    });
+    const shareBody = (await shareRes.json()) as { share: { token: string } };
+    const editorHeaders = { Authorization: `Bearer ${shareBody.share.token}`, 'Content-Type': 'application/json' };
+
+    // Writing inside workDir succeeds.
+    const okWrite = await fetch(`${daemon.url}/v1/workspace-doc`, {
+      method: 'PUT',
+      headers: editorHeaders,
+      body: JSON.stringify({ cwd: join(root, 'sub'), content: '# OK' }),
+    });
+    expect(okWrite.status).toBe(200);
+
+    // Reading or writing outside workDir is blocked (403).
+    const badRead = await fetch(`${daemon.url}/v1/workspace-doc?cwd=${encodeURIComponent('/tmp')}`, {
+      headers: editorHeaders,
+    });
+    expect(badRead.status).toBe(403);
+
+    const badWrite = await fetch(`${daemon.url}/v1/workspace-doc`, {
+      method: 'PUT',
+      headers: editorHeaders,
+      body: JSON.stringify({ cwd: '/tmp', content: '# Escape' }),
+    });
+    expect(badWrite.status).toBe(403);
+  });
 });

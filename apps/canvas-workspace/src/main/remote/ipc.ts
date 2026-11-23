@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import type {
   RemoteVpsMigrateResult,
+  RemoteVpsStatusResult,
   RemoteVpsTestResult,
   RemoteVpsWorkspaceConfigDto,
 } from '../../shared/api/remote-vps';
@@ -25,6 +26,68 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
     const { getRemoteWorkspaceConfig } = await import('./config');
     return { ok: true, config: getRemoteWorkspaceConfig(payload.workspaceId) };
   });
+
+  ipcMain.handle(
+    'remote-vps:getStatus',
+    async (_event, payload: { workspaceId: string }): Promise<RemoteVpsStatusResult> => {
+      try {
+        const { resolveRemoteWorkspaceTarget } = await import('./client');
+        const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'any');
+        if (!target) {
+          return { ok: true, connected: false };
+        }
+        const res = await fetch(`${target.endpoint}/v1/meta`, {
+          headers: { Authorization: `Bearer ${target.token}` },
+          signal: AbortSignal.timeout(5_000),
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          version?: string;
+          bundleHash?: string;
+          tailscaleUrl?: string;
+          role?: string;
+          capabilities?: string[];
+          message?: string;
+        };
+        if (!res.ok || !body.ok) {
+          return {
+            ok: false,
+            connected: false,
+            error: body.message || `HTTP ${res.status}`,
+          };
+        }
+        let outdatedDaemon = false;
+        try {
+          const { computeBundledVpsDaemonHash } = await import('./ssh-bootstrap');
+          const localHash = computeBundledVpsDaemonHash();
+          if (body.bundleHash) {
+            outdatedDaemon = body.bundleHash !== localHash;
+          } else if (Array.isArray(body.capabilities)) {
+            outdatedDaemon =
+              !body.capabilities.includes('tools-exec') ||
+              !body.capabilities.includes('capability-relay');
+          }
+        } catch {
+          // Dev checkout without compiled vps-daemon bundle: skip hash check.
+        }
+        return {
+          ok: true,
+          connected: true,
+          version: body.version,
+          bundleHash: body.bundleHash,
+          outdatedDaemon,
+          tailscaleUrl: body.tailscaleUrl,
+          role: body.role,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          connected: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  );
 
   ipcMain.handle(
     'remote-vps:saveConfig',
@@ -85,6 +148,8 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
           ok?: boolean;
           version?: string;
           generation?: string;
+          bundleHash?: string;
+          tailscaleUrl?: string;
           message?: string;
         };
         if (!res.ok || !body.ok) {
@@ -94,6 +159,8 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
           ok: true,
           version: body.version,
           generation: body.generation,
+          bundleHash: body.bundleHash,
+          tailscaleUrl: body.tailscaleUrl,
           token: target.token,
           ...bootMeta,
         };
