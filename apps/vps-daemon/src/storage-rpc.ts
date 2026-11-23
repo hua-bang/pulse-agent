@@ -9,6 +9,12 @@ import {
 } from '@pulse-coder/storage';
 import type { StorageRpcRequest } from '@pulse-coder/storage/remote';
 import { readJsonBody, resolveRemoteFilePath, sendJson } from './auth.js';
+import {
+  canWriteWorkspace,
+  isRemoteFileUriAllowed,
+  isRpcCallAllowed,
+  type AuthPrincipal,
+} from './shares.js';
 
 function statusForStorageError(code: string): number {
   switch (code) {
@@ -122,6 +128,7 @@ export async function handleStorageRpc(
   req: IncomingMessage,
   res: ServerResponse,
   storage: PulseStorage,
+  principal: AuthPrincipal,
   onMutation?: () => void,
 ): Promise<void> {
   try {
@@ -131,6 +138,14 @@ export async function handleStorageRpc(
         ok: false,
         code: 'invalid_argument',
         message: 'RPC body must contain method and args[]',
+      });
+      return;
+    }
+    if (!isRpcCallAllowed(principal, body.method, body.args)) {
+      sendJson(res, 403, {
+        ok: false,
+        code: 'forbidden',
+        message: `Insufficient permissions for storage RPC method: ${body.method}`,
       });
       return;
     }
@@ -154,8 +169,25 @@ export async function handleFileRequest(
   url: URL,
   dataDir: string,
   files: WorkspaceFiles,
+  principal: AuthPrincipal,
 ): Promise<void> {
   const remoteUri = url.searchParams.get('uri') ?? '';
+  if (!isRemoteFileUriAllowed(principal, remoteUri)) {
+    sendJson(res, 403, {
+      ok: false,
+      code: 'forbidden',
+      message: 'Share token cannot access files outside its workspace',
+    });
+    return;
+  }
+  if ((req.method === 'PUT' || req.method === 'DELETE') && !canWriteWorkspace(principal)) {
+    sendJson(res, 403, {
+      ok: false,
+      code: 'forbidden',
+      message: 'Viewer token has read-only file access',
+    });
+    return;
+  }
   const resolved = resolveRemoteFilePath(dataDir, remoteUri);
   if (!resolved) {
     sendJson(res, 400, {

@@ -1,3 +1,5 @@
+export type RemoteVpsShareRole = 'viewer' | 'editor' | 'collaborator';
+
 export interface RemoteVpsWorkspaceConfigDto {
   kind: 'vps';
   endpoint?: string;
@@ -11,6 +13,17 @@ export interface RemoteVpsWorkspaceConfigDto {
   storage?: 'vps' | 'local';
   runtime?: 'vps' | 'local';
   autoBootstrap?: boolean;
+  shareRole?: RemoteVpsShareRole;
+}
+
+export interface RemoteVpsShareSummary {
+  id: string;
+  workspaceId: string;
+  role: RemoteVpsShareRole;
+  label?: string;
+  createdAt: number;
+  expiresAt?: number;
+  tokenPreview: string;
 }
 
 export interface RemoteVpsTestResult {
@@ -82,4 +95,34 @@ export interface RemoteVpsApi {
     dirPath?: string,
     options?: { showHidden?: boolean; config?: RemoteVpsWorkspaceConfigDto },
   ) => Promise<RemoteVpsListDirsResult>;
+  listShares: (
+    workspaceId: string,
+  ) => Promise<{ ok: boolean; shares?: RemoteVpsShareSummary[]; error?: string }>;
+  createShare: (
+    workspaceId: string,
+    options: {
+      role: RemoteVpsShareRole;
+      label?: string;
+      expiresInHours?: number;
+      publicEndpoint?: string;
+    },
+  ) => Promise<{
+    ok: boolean;
+    inviteCode?: string;
+    share?: RemoteVpsShareSummary & { token: string };
+    error?: string;
+  }>;
+  revokeShare: (
+    workspaceId: string,
+    shareId: string,
+  ) => Promise<{ ok: boolean; revoked?: boolean; error?: string }>;
+  joinShare: (
+    workspaceId: string,
+    inviteCode: string,
+  ) => Promise<{
+    ok: boolean;
+    config?: RemoteVpsWorkspaceConfigDto;
+    role?: RemoteVpsShareRole;
+    error?: string;
+  }>;
 }

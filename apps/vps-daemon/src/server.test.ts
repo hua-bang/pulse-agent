@@ -252,4 +252,105 @@ describe('vps-daemon end-to-end', () => {
     };
     expect(listHiddenJson.entries.map((entry) => entry.name)).toContain('.secret-dir');
   });
+
+  it('enforces scoped share roles (viewer, editor, collaborator) and supports revocation', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Seed workspace ws-shared.
+    const adminRemote = await openRemoteStorage({ endpoint: daemon.url, token });
+    await adminRemote.canvas.commit({
+      workspaceId: 'ws-shared',
+      expectedRevision: null,
+      nodes: { put: [{ id: 'n1', type: 'note', title: 'Shared Note' }] },
+    });
+    await adminRemote.close();
+
+    // Mint viewer, editor, and collaborator tokens.
+    const mint = async (role: 'viewer' | 'editor' | 'collaborator') => {
+      const res = await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-shared', role, label: role }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ok: boolean; share: { id: string; token: string; role: string } };
+      return body.share;
+    };
+    const viewer = await mint('viewer');
+    const editor = await mint('editor');
+    const collab = await mint('collaborator');
+
+    const viewerHeaders = { Authorization: `Bearer ${viewer.token}`, 'Content-Type': 'application/json' };
+    const editorHeaders = { Authorization: `Bearer ${editor.token}`, 'Content-Type': 'application/json' };
+    const collabHeaders = { Authorization: `Bearer ${collab.token}`, 'Content-Type': 'application/json' };
+
+    // Viewer can read ws-shared canvas, but cannot read another workspace, write canvas, spawn PTY, or manage shares.
+    const vRead = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ method: 'canvas.read', args: ['ws-shared'] }),
+    });
+    expect(vRead.status).toBe(200);
+
+    const vCrossWs = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ method: 'canvas.read', args: ['ws-other'] }),
+    });
+    expect(vCrossWs.status).toBe(403);
+
+    const vWrite = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ method: 'canvas.commit', args: [{ workspaceId: 'ws-shared', expectedRevision: 1 }] }),
+    });
+    expect(vWrite.status).toBe(403);
+
+    const vPty = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ id: 'p1' }),
+    });
+    expect(vPty.status).toBe(403);
+
+    // Editor can commit to ws-shared, but cannot spawn PTY or run exec-jsonl.
+    const eWrite = await fetch(`${daemon.url}/v1/storage/rpc`, {
+      method: 'POST',
+      headers: editorHeaders,
+      body: JSON.stringify({
+        method: 'canvas.commit',
+        args: [{ workspaceId: 'ws-shared', expectedRevision: 1, nodes: { put: [{ id: 'n2', type: 'text' }] } }],
+      }),
+    });
+    expect(eWrite.status).toBe(200);
+
+    const ePty = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers: editorHeaders,
+      body: JSON.stringify({ id: 'p2' }),
+    });
+    expect(ePty.status).toBe(403);
+
+    // Collaborator can spawn PTY, but cannot manage shares.
+    const cPty = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers: collabHeaders,
+      body: JSON.stringify({ id: 'p3' }),
+    });
+    expect(cPty.status).toBe(200);
+
+    const cShares = await fetch(`${daemon.url}/v1/shares`, { headers: collabHeaders });
+    expect(cShares.status).toBe(403);
+
+    // Revoking viewer token immediately invalidates it.
+    const delRes = await fetch(`${daemon.url}/v1/shares/${viewer.id}`, {
+      method: 'DELETE',
+      headers: adminHeaders,
+    });
+    expect(delRes.status).toBe(200);
+
+    const afterRevoke = await fetch(`${daemon.url}/v1/meta`, { headers: viewerHeaders });
+    expect(afterRevoke.status).toBe(401);
+  });
 });

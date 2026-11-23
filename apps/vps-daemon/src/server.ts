@@ -4,9 +4,15 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
-import { readJsonBody, sendJson, verifyBearerToken } from './auth.js';
+import { readJsonBody, sendJson } from './auth.js';
 import { handleExecJsonl } from './exec-jsonl.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
+import {
+  canUseRuntime,
+  canWriteWorkspace,
+  isValidShareRole,
+  ShareTokenStore,
+} from './shares.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
 
 export interface VpsDaemonOptions {
@@ -33,7 +39,8 @@ const DATABASE_FILE = '__storage__.sqlite';
 
 /**
  * Start a lightweight VPS daemon exposing `@pulse-coder/storage`, `WorkspaceFiles`,
- * SSE change streaming, persistent PTY sessions, and streaming JSONL CLI execution.
+ * SSE change streaming, persistent PTY sessions, streaming JSONL CLI execution,
+ * and scoped workspace share tokens.
  */
 export async function startVpsDaemon(options: VpsDaemonOptions): Promise<RunningVpsDaemon> {
   if (!options.token.trim()) {
@@ -58,6 +65,9 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
   }
 
+  const shareStore = new ShareTokenStore(dataDir);
+  await shareStore.load();
+
   const files = createLocalWorkspaceFiles();
   const broadcaster = new ChangeBroadcaster(storage, options.pollIntervalMs ?? 500);
   await broadcaster.start();
@@ -71,7 +81,8 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
       return;
     }
 
-    if (!verifyBearerToken(req, options.token)) {
+    const principal = shareStore.authenticate(req, options.token);
+    if (!principal) {
       sendJson(res, 401, {
         ok: false,
         code: 'unauthorized',
@@ -85,27 +96,86 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         ok: true,
         generation: storage.generation,
         version: DAEMON_VERSION,
-        capabilities: ['storage-rpc', 'workspace-files', 'sse-events', 'pty', 'exec-jsonl', 'fs-list-dirs'],
+        role: principal.kind === 'admin' ? 'admin' : principal.share.role,
+        ...(principal.kind === 'share' ? { workspaceId: principal.share.workspaceId } : {}),
+        capabilities: [
+          'storage-rpc',
+          'workspace-files',
+          'sse-events',
+          'pty',
+          'exec-jsonl',
+          'fs-list-dirs',
+          'shares',
+        ],
       });
       return;
     }
 
+    if (url.pathname === '/v1/shares' || url.pathname.startsWith('/v1/shares/')) {
+      if (principal.kind !== 'admin') {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Admin token required for share management' });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/shares') {
+        const wsId = url.searchParams.get('workspaceId')?.trim() || undefined;
+        sendJson(res, 200, { ok: true, shares: shareStore.list(wsId) });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/shares') {
+        try {
+          const body = await readJsonBody<{
+            workspaceId?: string;
+            role?: string;
+            label?: string;
+            expiresInHours?: number;
+          }>(req);
+          if (!body.workspaceId?.trim() || !isValidShareRole(body.role)) {
+            sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'workspaceId and valid role are required' });
+            return;
+          }
+          const share = await shareStore.create({
+            workspaceId: body.workspaceId,
+            role: body.role,
+            label: body.label,
+            expiresInHours: body.expiresInHours,
+          });
+          sendJson(res, 200, { ok: true, share });
+        } catch (err) {
+          sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+        return;
+      }
+      if (req.method === 'DELETE' && url.pathname.startsWith('/v1/shares/')) {
+        const shareId = decodeURIComponent(url.pathname.slice('/v1/shares/'.length));
+        const revoked = await shareStore.revoke(shareId);
+        sendJson(res, 200, { ok: true, revoked });
+        return;
+      }
+    }
+
     if (req.method === 'POST' && url.pathname === '/v1/storage/rpc') {
-      await handleStorageRpc(req, res, storage, () => broadcaster.wake());
+      await handleStorageRpc(req, res, storage, principal, () => broadcaster.wake());
       return;
     }
 
     if (url.pathname === '/v1/files') {
-      await handleFileRequest(req, res, url, dataDir, files);
+      await handleFileRequest(req, res, url, dataDir, files, principal);
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/events') {
+      if (principal.kind === 'share') {
+        url.searchParams.set('scopeId', principal.share.workspaceId);
+      }
       await broadcaster.subscribe(req, res, url);
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/fs/list-dirs') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to browse remote directories' });
+        return;
+      }
       try {
         const home = homedir();
         const rawPath = url.searchParams.get('path')?.trim() || '';
@@ -171,6 +241,10 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         return;
       }
       if (req.method === 'PUT') {
+        if (!canWriteWorkspace(principal)) {
+          sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Editor or collaborator role required to edit pulse-workspace.md' });
+          return;
+        }
         try {
           const body = await readJsonBody<{ cwd?: string; content?: string }>(req);
           if (typeof body.content !== 'string') {
@@ -190,12 +264,22 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/exec-jsonl') {
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to execute remote commands' });
+        return;
+      }
       await handleExecJsonl(req, res, workDir);
       return;
     }
 
-    if (await ptyHub.handleHttp(req, res, url)) {
-      return;
+    if (url.pathname.startsWith('/v1/pty/')) {
+      if (req.method !== 'GET' && !canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to control remote terminals' });
+        return;
+      }
+      if (await ptyHub.handleHttp(req, res, url)) {
+        return;
+      }
     }
 
     sendJson(res, 404, {

@@ -106,3 +106,59 @@
   gap: 8px;
   padding-top: 2px;
 }
+
+.remote-vps-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.remote-vps-invite-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remote-vps-invite-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.remote-vps-share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.remote-vps-share-list-title {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--ink) 65%, transparent);
+}
+
+.remote-vps-share-empty {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--ink) 50%, transparent);
+}
+
+.remote-vps-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.remote-vps-share-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
