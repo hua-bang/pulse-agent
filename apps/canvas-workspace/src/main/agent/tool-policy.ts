@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { BuiltinToolsMap } from 'pulse-coder-engine';
 
 import type { AgentScope } from './types';
@@ -5,6 +7,7 @@ import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import type { CanvasTool, CanvasToolExecutionContext } from './tools';
 import { createApprovalNodePreview, describeApprovalNode } from './approval-node-preview';
 import { isCliCanvasNodeCreation } from './policy/cli-node-creation';
+import { STORE_DIR } from '../canvas/persistence/paths';
 import { SESSION_APPROVAL_ANSWER, type ApprovalCopyKey } from '../../shared/agent-chat';
 
 /** Registry timeout token. It must not match a user approval or rejection. */
@@ -367,12 +370,35 @@ function createBuiltInTools(names: readonly string[]): EngineToolMap {
  * item 4 tracks the engine-wide decision), so Canvas never exposes it.
  */
 const EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES = new Set(['deferred_demo']);
+const REMOTE_EXEC_TOOL_NAMES = new Set(['bash', 'read', 'write', 'edit', 'ls', 'grep']);
 
-function createWorkspaceBuiltInTools(): EngineToolMap {
+function withRemoteWorkspaceRouting(
+  workspaceId: string,
+  name: string,
+  tool: EngineToolMap[string],
+): EngineToolMap[string] {
+  if (!workspaceId || !REMOTE_EXEC_TOOL_NAMES.has(name) || typeof tool?.execute !== 'function') {
+    return tool;
+  }
+  return {
+    ...tool,
+    execute: async (input: Record<string, unknown>, context?: { abortSignal?: AbortSignal }) => {
+      const cfg = process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(STORE_DIR, 'remote-workspaces.json');
+      if (existsSync(cfg)) {
+        const { tryExecuteRemoteBuiltinTool } = await import('../remote/agent-tools');
+        const remote = await tryExecuteRemoteBuiltinTool(workspaceId, name, input ?? {}, context?.abortSignal);
+        if (remote.handled) return remote.result;
+      }
+      return tool.execute(input, context);
+    },
+  };
+}
+
+function createWorkspaceBuiltInTools(workspaceId: string): EngineToolMap {
   return Object.fromEntries(
     Object.entries(BuiltinToolsMap)
       .filter(([name]) => !EXCLUDED_WORKSPACE_BUILTIN_TOOL_NAMES.has(name))
-      .map(([name, tool]) => [name, withCanvasLoading(name, tool)]),
+      .map(([name, tool]) => [name, withRemoteWorkspaceRouting(workspaceId, name, withCanvasLoading(name, tool))]),
   );
 }
 
@@ -385,7 +411,7 @@ function createWorkspaceBuiltInTools(): EngineToolMap {
 export function createCanvasAgentToolPolicy(scope: AgentScope): CanvasAgentToolPolicy {
   if (scope.kind === 'workspace') {
     return {
-      builtInTools: createWorkspaceBuiltInTools(),
+      builtInTools: createWorkspaceBuiltInTools(scope.workspaceId),
       canvasTools: createCanvasTools(scope.workspaceId),
     };
   }

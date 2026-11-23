@@ -353,4 +353,59 @@ describe('vps-daemon end-to-end', () => {
     const afterRevoke = await fetch(`${daemon.url}/v1/meta`, { headers: viewerHeaders });
     expect(afterRevoke.status).toBe(401);
   });
+
+  it('executes remote builtin tools (bash/read/write/edit/ls/grep) and enforces runtime role', async () => {
+    const { daemon, token, root } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const workRoot = join(root, 'proj');
+
+    const callTool = async (
+      headers: Record<string, string>,
+      tool: string,
+      input: Record<string, unknown>,
+    ) => {
+      const res = await fetch(`${daemon.url}/v1/tools/exec`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ tool, input, cwd: workRoot }),
+      });
+      return { status: res.status, body: (await res.json()) as { ok: boolean; result?: any; error?: string } };
+    };
+
+    const writeRes = await callTool(adminHeaders, 'write', { filePath: 'hello.txt', content: 'hello world\nsecond line\n' });
+    expect(writeRes.status).toBe(200);
+    expect(writeRes.body.result).toMatchObject({ success: true, created: true });
+
+    const editRes = await callTool(adminHeaders, 'edit', { filePath: 'hello.txt', oldString: 'world', newString: 'vps' });
+    expect(editRes.status).toBe(200);
+    expect(editRes.body.result).toMatchObject({ success: true, replacements: 1 });
+
+    const readRes = await callTool(adminHeaders, 'read', { filePath: 'hello.txt' });
+    expect(readRes.status).toBe(200);
+    expect(readRes.body.result.content).toContain('hello vps');
+
+    const lsRes = await callTool(adminHeaders, 'ls', {});
+    expect(lsRes.status).toBe(200);
+    expect(lsRes.body.result.files).toContain('hello.txt');
+
+    const grepRes = await callTool(adminHeaders, 'grep', { pattern: 'hello vps', outputMode: 'content' });
+    expect(grepRes.status).toBe(200);
+    expect(grepRes.body.result.output).toContain('hello vps');
+
+    const bashRes = await callTool(adminHeaders, 'bash', { command: 'pwd && cat hello.txt' });
+    expect(bashRes.status).toBe(200);
+    expect(bashRes.body.result.exitCode).toBe(0);
+    expect(bashRes.body.result.output).toContain('hello vps');
+
+    // Editor role must be rejected from /v1/tools/exec (403).
+    const shareRes = await fetch(`${daemon.url}/v1/shares`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-shared', role: 'editor', label: 'editor-only' }),
+    });
+    const shareBody = (await shareRes.json()) as { share: { token: string } };
+    const editorHeaders = { Authorization: `Bearer ${shareBody.share.token}`, 'Content-Type': 'application/json' };
+    const denied = await callTool(editorHeaders, 'bash', { command: 'echo nope' });
+    expect(denied.status).toBe(403);
+  });
 });

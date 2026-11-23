@@ -14,6 +14,7 @@ import {
   ShareTokenStore,
 } from './shares.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
+import { handleToolExecRequest } from './tools-rpc.js';
 
 export interface VpsDaemonOptions {
   host?: string;
@@ -269,6 +270,11 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         return;
       }
       await handleExecJsonl(req, res, workDir);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/tools/exec') {
+      await handleToolExecRequest(req, res, principal, readJsonBody, sendJson);
       return;
     }
 

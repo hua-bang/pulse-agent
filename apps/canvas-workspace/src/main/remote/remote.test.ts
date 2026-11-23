@@ -463,4 +463,65 @@ describe('remote VPS workspace client', () => {
     const node = await resolved!.backend.readNode(resolved!.workspaceId, 'node-vps-1');
     expect((node as { title?: string } | null)?.title).toBe('Notion Calendar');
   });
+
+  it('routes built-in Agent bash/read/write tools to VPS /v1/tools/exec when runtime=vps', async () => {
+    const { saveRemoteWorkspaceConfig } = await import('./config');
+    const { createCanvasAgentToolPolicy } = await import('../agent/tool-policy');
+
+    const token = 'tools-exec-secret';
+    const seenCalls: Array<{ tool: string; input: Record<string, unknown>; cwd?: string }> = [];
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
+        return;
+      }
+      if (url.pathname === '/v1/tools/exec' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(Buffer.from(c));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          tool: string;
+          input: Record<string, unknown>;
+          cwd?: string;
+        };
+        seenCalls.push(body);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            result: body.tool === 'bash' ? { output: 'vps-host\n', exitCode: 0 } : { content: 'remote-file', totalLines: 1 },
+          }),
+        );
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
+    cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
+    const addr = server.address();
+    const endpoint = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+
+    saveRemoteWorkspaceConfig('ws-vps-tools', {
+      kind: 'vps',
+      endpoint,
+      token,
+      cwd: '/root/project/app',
+      storage: 'vps',
+      runtime: 'vps',
+    });
+
+    const policy = createCanvasAgentToolPolicy({ kind: 'workspace', workspaceId: 'ws-vps-tools' });
+    const bashOut = await policy.builtInTools.bash.execute({ command: 'hostname' });
+    expect(bashOut).toEqual({ output: 'vps-host\n', exitCode: 0 });
+
+    const readOut = await policy.builtInTools.read.execute({ filePath: 'README.md' });
+    expect(readOut).toEqual({ content: 'remote-file', totalLines: 1 });
+
+    expect(seenCalls).toEqual([
+      { tool: 'bash', input: { command: 'hostname' }, cwd: '/root/project/app' },
+      { tool: 'read', input: { filePath: 'README.md' }, cwd: '/root/project/app' },
+    ]);
+  }, 15_000);
 });
