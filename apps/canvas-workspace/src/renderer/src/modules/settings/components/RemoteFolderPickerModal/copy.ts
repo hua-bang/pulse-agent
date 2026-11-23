@@ -187,7 +187,7 @@ const SHARE_EN = {
   viewerReadOnlyNotice: 'Read-only guest mode: you can view canvas, notes, and live terminal output, but edits are disabled.',
   tailscaleDetectedHint: (url: string) => `Detected Tailscale address: ${url} (recommended for zero-port private sharing).`,
   relayLabel: 'Read-only webview relay',
-  relayHint: 'Allow VPS CLI (`pulse-canvas`) to read open iframe pages over outbound SSE (read-only allowlist).',
+  relayHint: 'Allow VPS CLI (pulse-canvas) to read open iframe pages over outbound SSE (read-only allowlist).',
   relayOn: 'Enabled',
   relayOff: 'Disabled',
 };

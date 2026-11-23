@@ -120,9 +120,13 @@
   gap: 8px;
 }
 
-.remote-vps-invite-input {
+.remote-vps-invite-box > :first-child {
   flex: 1;
   min-width: 0;
+}
+
+.remote-vps-invite-input {
+  width: 100%;
   font-family: var(--font-mono);
   font-size: 11.5px;
 }
