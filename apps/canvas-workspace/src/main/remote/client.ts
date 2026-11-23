@@ -1,5 +1,5 @@
-import type { PulseStorage, StorageChange, WorkspaceFiles } from '@pulse-coder/storage';
-import { createCanvasCompatibilityStore } from '@pulse-coder/storage/canvas';
+import { isStorageError, type PulseStorage, type StorageChange, type WorkspaceFiles } from '@pulse-coder/storage';
+import { createCanvasCompatibilityStore, type LegacyCanvas } from '@pulse-coder/storage/canvas';
 import {
   createRemoteWorkspaceFiles,
   openRemoteStorage,
@@ -158,6 +158,66 @@ export function ensureRemoteChangeSubscription(
     },
   );
   changeSubscriptions.set(subKey, stop);
+}
+
+type BroadcastCanvasChange = (payload: {
+  workspaceId: string;
+  nodeIds: string[];
+  edgeIds: string[];
+  kind: 'update' | 'delete';
+  source: string;
+  revision: number;
+}) => void;
+
+function subscribeRemoteCanvas(target: ResolvedRemoteTarget, broadcast: BroadcastCanvasChange): void {
+  ensureRemoteChangeSubscription(target, (change) => {
+    if (change.domain !== 'canvas') return;
+    broadcast({
+      workspaceId: change.scopeId,
+      nodeIds: change.changedIds,
+      edgeIds: change.changedIds,
+      kind: change.kind === 'removed' ? 'delete' : 'update',
+      source: 'remote-vps',
+      revision: change.revision,
+    });
+  });
+}
+
+export async function loadRemoteCanvas(id: string, broadcast: BroadcastCanvasChange) {
+  const remote = await getRemoteCanvasBackend(id);
+  if (!remote) return null;
+  subscribeRemoteCanvas(remote.target, broadcast);
+  return { ok: true as const, data: await remote.backend.readCanvas(remote.target.remoteWorkspaceId) };
+}
+
+export async function saveRemoteCanvas(
+  id: string,
+  input: LegacyCanvas,
+  broadcast: BroadcastCanvasChange,
+) {
+  const remote = await getRemoteCanvasBackend(id);
+  if (!remote) return null;
+  subscribeRemoteCanvas(remote.target, broadcast);
+  try {
+    const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, input, {
+      allowEmpty: true,
+    });
+    return { ok: true as const, ...receipt };
+  } catch (error) {
+    const code = isStorageError(error) ? error.code : 'storage_unavailable';
+    if (code === 'revision_conflict') {
+      const current = await remote.backend.readCanvas(remote.target.remoteWorkspaceId);
+      if (!current) {
+        const { revision: _r, storageGeneration: _g, ...initial } = input;
+        const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, initial, {
+          allowEmpty: true,
+        });
+        return { ok: true as const, ...receipt };
+      }
+      return { ok: false as const, code, error: String(error), data: current };
+    }
+    return { ok: false as const, code, error: String(error) };
+  }
 }
 
 export async function closeAllRemoteConnections(): Promise<void> {

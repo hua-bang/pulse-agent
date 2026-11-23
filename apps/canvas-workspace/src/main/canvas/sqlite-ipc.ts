@@ -61,22 +61,8 @@ async function ensureObserver() {
 
 export async function loadSqliteCanvas(id: string, prepare?: () => Promise<void>) {
   if (id !== MANIFEST_ID && hasRemoteConfig()) {
-    const remoteClient = await loadRemoteClient();
-    const remote = await remoteClient.getRemoteCanvasBackend(id);
-    if (remote) {
-      remoteClient.ensureRemoteChangeSubscription(remote.target, (change) => {
-        if (change.domain !== 'canvas') return;
-        broadcastCanvasChange({
-          workspaceId: change.scopeId,
-          nodeIds: change.changedIds,
-          edgeIds: change.changedIds,
-          kind: change.kind === 'removed' ? 'delete' : 'update',
-          source: 'remote-vps',
-          revision: change.revision,
-        });
-      });
-      return { ok: true, data: await remote.backend.readCanvas(remote.target.remoteWorkspaceId) };
-    }
+    const remote = await (await loadRemoteClient()).loadRemoteCanvas(id, broadcastCanvasChange);
+    if (remote) return remote;
   }
   const backend = await getCanvasBackend(STORE_DIR);
   if (!backend) return null;
@@ -109,22 +95,8 @@ export async function saveSqliteCanvas(id: string, input: unknown) {
     return { ok: false, code: 'invalid_argument', error: 'Canvas nodes must be an array' };
   }
   if (hasRemoteConfig()) {
-    const remoteClient = await loadRemoteClient();
-    const remote = await remoteClient.getRemoteCanvasBackend(id);
-    if (remote) {
-      try {
-        const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, input as LegacyCanvas, { allowEmpty: true });
-        return { ok: true, ...receipt };
-      } catch (error) {
-        const code = isStorageError(error) ? error.code : 'storage_unavailable';
-        return {
-          ok: false,
-          code,
-          error: String(error),
-          ...(code === 'revision_conflict' ? { data: await remote.backend.readCanvas(remote.target.remoteWorkspaceId) } : {}),
-        };
-      }
-    }
+    const remote = await (await loadRemoteClient()).saveRemoteCanvas(id, input as LegacyCanvas, broadcastCanvasChange);
+    if (remote) return remote;
   }
   const backend = await getCanvasBackend(STORE_DIR);
   if (!backend) return null;
