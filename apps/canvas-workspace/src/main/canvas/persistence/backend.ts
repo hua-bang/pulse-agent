@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import type { SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { createCanvasCompatibilityStore } from '@pulse-coder/storage/canvas';
 import { openLocalStorage, readLocalStorageStatus } from '@pulse-coder/storage/local';
+import { STORE_DIR } from './paths';
 
 const connections = new Map<string, Promise<SqliteStorage | null>>();
 
@@ -41,6 +42,22 @@ export async function getCanvasBackend(root: string) {
   const store = await getLocalCanvasStorage(root);
   if (!store || !(await store.localActivation.read()).some(row => row.domain === 'canvas' && row.state === 'active')) return null;
   return createCanvasCompatibilityStore(store.canvas);
+}
+
+export async function resolveCanvasBackend(workspaceId: string, root: string) {
+  if (
+    workspaceId &&
+    resolve(root) === resolve(STORE_DIR) &&
+    existsSync(process.env.PULSE_CANVAS_REMOTE_CONFIG?.trim() || join(STORE_DIR, 'remote-workspaces.json'))
+  ) {
+    const { getRemoteCanvasBackend } = await import('../../remote/client');
+    const remote = await getRemoteCanvasBackend(workspaceId);
+    if (remote) {
+      return { backend: remote.backend, workspaceId: remote.target.remoteWorkspaceId };
+    }
+  }
+  const backend = await getCanvasBackend(root);
+  return backend ? { backend, workspaceId } : null;
 }
 
 export async function closeCanvasStorage(): Promise<void> {

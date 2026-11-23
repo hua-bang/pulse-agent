@@ -14,7 +14,7 @@
 import { ipcMain } from 'electron';
 import type { CanvasSummary, CanvasSummaryBox } from '../../shared/canvas';
 import { DEFAULT_NOTE_TITLES, DEFAULT_TEXT_NODE_TITLES } from '../../shared/canvas-node-defaults';
-import { getCanvasBackend } from './persistence/backend';
+import { resolveCanvasBackend } from './persistence/backend';
 import { readJsonWithRecovery } from './persistence/atomic-json';
 import { MANIFEST_ID, STORE_DIR, getCanvasJsonPath } from './persistence/paths';
 import { isSafeNodeId } from './nodes/store';
@@ -90,8 +90,8 @@ export const summarizeCanvasData = (data: unknown): CanvasSummary | null => {
 };
 
 const readStoredCanvas = async (id: string, root: string): Promise<unknown> => {
-  const backend = await getCanvasBackend(root);
-  if (backend) return backend.readCanvas(id);
+  const resolved = await resolveCanvasBackend(id, root);
+  if (resolved) return resolved.backend.readCanvas(resolved.workspaceId);
   // v2 canvas.json is layout-only, so this skips every per-node file.
   const result = await readJsonWithRecovery(getCanvasJsonPath(id, root));
   if (result.kind === 'unrecoverable') throw result.err;

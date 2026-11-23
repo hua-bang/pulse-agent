@@ -7,12 +7,14 @@ import {
   getRemoteWorkspaceConfig,
   listConfiguredRemoteWorkspaceIds,
   resolveRemoteToken,
+  saveRemoteWorkspaceConfig,
 } from './config';
 import {
   closeAllRemoteConnections,
   getRemoteCanvasBackend,
   getRemoteWorkspaceFiles,
   resolveRemoteWorkspaceTarget,
+  saveRemoteCanvas,
 } from './client';
 import { connectRemotePty, runRemoteJsonlCli } from './runtime-client';
 
@@ -340,5 +342,125 @@ describe('remote VPS workspace client', () => {
     expect(uploadedUris).toEqual(['pulse-remote:///legacy-ws/notes/intro.md']);
     expect(importedBundles).toHaveLength(1);
     expect(getRemoteWorkspaceConfig('legacy-ws')?.storage).toBe('vps');
+  });
+
+  it('routes resolveCanvasBackend to VPS and initializes empty VPS canvas on stale local revision', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pulse-remote-resolve-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const cfgPath = join(dir, 'remote-workspaces.json');
+    process.env.PULSE_CANVAS_REMOTE_CONFIG = cfgPath;
+    const token = 'resolve-secret';
+    let savedCanvas: {
+      generation: string;
+      workspaceId: string;
+      revision: number;
+      metadata: Record<string, unknown>;
+      nodes: Array<Record<string, unknown>>;
+      placements: Array<Record<string, unknown>>;
+      edges: Array<Record<string, unknown>>;
+    } | null = null;
+
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (url.pathname === '/v1/meta') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, generation: 'gen-vps-1', version: '0.1.0', capabilities: [] }));
+        return;
+      }
+      if (url.pathname === '/v1/events') {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        res.end();
+        return;
+      }
+      if (url.pathname === '/v1/storage/rpc') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        const rpc = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          method: string;
+          args?: unknown[];
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        if (rpc.method === 'canvas.read') {
+          res.end(JSON.stringify({ ok: true, result: savedCanvas }));
+          return;
+        }
+        if (rpc.method === 'canvas.readNode') {
+          const nodeId = rpc.args?.[1] as string | undefined;
+          const node = savedCanvas?.nodes.find((item) => item.id === nodeId) ?? null;
+          res.end(JSON.stringify({ ok: true, result: node }));
+          return;
+        }
+        if (rpc.method === 'canvas.commit') {
+          const input = (rpc.args?.[0] ?? {}) as {
+            expectedRevision?: number | null;
+            nodes?: { put?: Array<Record<string, unknown>> };
+            placements?: { put?: Array<Record<string, unknown>> };
+          };
+          if (savedCanvas === null && input.expectedRevision !== null && input.expectedRevision !== undefined) {
+            res.end(JSON.stringify({ ok: false, code: 'revision_conflict', message: 'conflict' }));
+            return;
+          }
+          savedCanvas = {
+            generation: 'gen-vps-1',
+            workspaceId: 'ws-vps-agent',
+            revision: (savedCanvas?.revision ?? 0) + 1,
+            metadata: {},
+            nodes: input.nodes?.put ?? [],
+            placements: input.placements?.put ?? [],
+            edges: [],
+          };
+          res.end(
+            JSON.stringify({
+              ok: true,
+              result: {
+                workspaceId: 'ws-vps-agent',
+                revision: savedCanvas.revision,
+                generation: 'gen-vps-1',
+              },
+            }),
+          );
+          return;
+        }
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
+    cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
+    const addr = server.address();
+    const endpoint = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+
+    saveRemoteWorkspaceConfig('ws-vps-agent', {
+      kind: 'vps',
+      endpoint,
+      token,
+      remoteWorkspaceId: 'ws-vps-agent',
+      storage: 'vps',
+      runtime: 'vps',
+    });
+
+    // First save after switching from local carries stale local revision & generation.
+    const saveRes = await saveRemoteCanvas(
+      'ws-vps-agent',
+      {
+        revision: 12,
+        storageGeneration: 'local-gen-old',
+        nodes: [{ id: 'node-vps-1', type: 'web', title: 'Notion Calendar', x: 0, y: 0 }],
+        edges: [],
+      },
+      () => {},
+    );
+    expect(saveRes).toMatchObject({ ok: true, revision: 1, storageGeneration: 'gen-vps-1' });
+
+    // Agent storage helpers resolve to VPS and read the saved node.
+    const { STORE_DIR } = await import('../canvas/persistence/paths');
+    const { resolveCanvasBackend } = await import('../canvas/persistence/backend');
+    const resolved = await resolveCanvasBackend('ws-vps-agent', STORE_DIR);
+    expect(resolved).not.toBeNull();
+    const canvas = await resolved!.backend.readCanvas(resolved!.workspaceId);
+    expect(canvas?.nodes).toHaveLength(1);
+    expect((canvas?.nodes?.[0] as { id?: string })?.id).toBe('node-vps-1');
+    const node = await resolved!.backend.readNode(resolved!.workspaceId, 'node-vps-1');
+    expect((node as { title?: string } | null)?.title).toBe('Notion Calendar');
   });
 });

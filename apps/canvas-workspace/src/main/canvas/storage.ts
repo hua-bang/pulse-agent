@@ -1,4 +1,4 @@
-import { getCanvasBackend, resolveStorageNativeBinding } from './persistence/backend';
+import { resolveCanvasBackend, resolveStorageNativeBinding } from './persistence/backend';
 import { withLegacyCanvasWrite } from '@pulse-coder/storage/local';
 import { writeCanvasFullV2, isLayoutOnlyReferenceNode, stripDataFromNode } from './persistence/write-v2';
 /**
@@ -189,10 +189,12 @@ export async function readCanvasFull(
   workspaceId: string,
   root: string = STORE_DIR,
 ): Promise<ReadCanvasResult> {
-  const backend = await getCanvasBackend(root);
-  if (backend && workspaceId !== MANIFEST_ID) {
-    const data = await backend.readCanvas(workspaceId);
-    return { data: data as CanvasSaveData | null, recoveredFromBackup: false, schemaVersion: data ? 2 : null };
+  if (workspaceId !== MANIFEST_ID) {
+    const resolved = await resolveCanvasBackend(workspaceId, root);
+    if (resolved) {
+      const data = await resolved.backend.readCanvas(resolved.workspaceId);
+      return { data: data as CanvasSaveData | null, recoveredFromBackup: false, schemaVersion: data ? 2 : null };
+    }
   }
   await recoverInterruptedMigration(workspaceId, root);
 
@@ -295,10 +297,12 @@ export async function writeCanvasFull(
   data: CanvasSaveData,
   root: string = STORE_DIR,
 ): Promise<void> {
-  const backend = await getCanvasBackend(root);
-  if (backend && workspaceId !== MANIFEST_ID) {
-    await backend.writeCanvas(workspaceId, data, { allowEmpty: true });
-    return;
+  if (workspaceId !== MANIFEST_ID) {
+    const resolved = await resolveCanvasBackend(workspaceId, root);
+    if (resolved) {
+      await resolved.backend.writeCanvas(resolved.workspaceId, data, { allowEmpty: true });
+      return;
+    }
   }
   return withLegacyCanvasWrite(root, () => writeLegacyCanvasFull(workspaceId, data, root), {
     resolveNativeBinding: resolveStorageNativeBinding,
