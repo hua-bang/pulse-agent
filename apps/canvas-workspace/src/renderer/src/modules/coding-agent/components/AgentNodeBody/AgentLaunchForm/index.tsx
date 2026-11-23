@@ -15,6 +15,7 @@ interface Props {
   promptInput: string;
   dangerousMode: boolean;
   rootFolder?: string;
+  isRemoteVps?: boolean;
   recentCwds: string[];
   variant?: 'default' | 'team-lead';
   availabilitySlot?: ReactNode;
@@ -58,6 +59,7 @@ export const AgentLaunchForm = ({
   promptInput,
   dangerousMode,
   rootFolder,
+  isRemoteVps,
   recentCwds,
   variant = 'default',
   availabilitySlot,
@@ -99,7 +101,11 @@ export const AgentLaunchForm = ({
       ) : (
         <>
           <div className="agent-field">
-            <div className="agent-field-label"><FolderGlyph /><span>{copy.workingDirectory}</span></div>
+            <div className="agent-field-label">
+              <FolderGlyph />
+              <span>{copy.workingDirectory}</span>
+              {isRemoteVps && <span className="agent-field-badge">VPS</span>}
+            </div>
             <div className="agent-dir-field">
               <input
                 type="text"

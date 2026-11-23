@@ -247,6 +247,7 @@ export const AgentNodeBody = ({
           promptInput={controller.promptInput}
           dangerousMode={controller.dangerousMode}
           rootFolder={remoteVpsCwd || rootFolder}
+          isRemoteVps={remoteVpsBound}
           recentCwds={controller.recentCwds}
           launchErrorCommand={controller.launchErrorCommand}
           variant={isTeamLead ? 'team-lead' : 'default'}

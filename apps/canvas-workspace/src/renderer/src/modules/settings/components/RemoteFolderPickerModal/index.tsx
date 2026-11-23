@@ -4,6 +4,7 @@ import type {
   RemoteVpsWorkspaceConfigDto,
 } from '../../../../../../shared/api/remote-vps';
 import { Button, Modal, TextField } from '../../../../components/ui';
+import { useI18n } from '../../../../i18n';
 import './index.css';
 
 export interface RemoteFolderPickerModalProps {
@@ -41,6 +42,7 @@ export const RemoteFolderPickerModal = ({
   onSelect,
   onClose,
 }: RemoteFolderPickerModalProps) => {
+  const { t } = useI18n();
   const titleId = useId();
   const [currentPath, setCurrentPath] = useState(initialPath || '~');
   const [pathInput, setPathInput] = useState(initialPath || '~');
@@ -49,29 +51,33 @@ export const RemoteFolderPickerModal = ({
   const [entries, setEntries] = useState<RemoteVpsDirEntry[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const [oldDaemon, setOldDaemon] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadDir = useCallback(
     async (targetPath: string, includeHidden: boolean) => {
       const api = window.canvasWorkspace?.remoteVps;
       if (!api) {
-        setError('当前环境不支持远端目录浏览。');
+        setError(t('remoteFolder.unavailable'));
         return;
       }
       setLoading(true);
       setError(null);
+      setOldDaemon(false);
       try {
         const res = await api.listDirs(workspaceId, targetPath, {
           showHidden: includeHidden,
           config,
         });
         if (!res.ok) {
-          const raw = res.error || '无法读取远端目录';
-          setError(
-            raw.includes('Route not found')
-              ? '远端 VPS daemon 版本较旧，请先在设置中点击「推送并测试连接」自动升级。'
-              : raw,
-          );
+          const raw = res.error || t('remoteFolder.loadFailed');
+          if (raw.includes('Route not found')) {
+            setOldDaemon(true);
+            setError(t('remoteFolder.oldDaemonError'));
+          } else {
+            setError(raw);
+          }
           return;
         }
         const resolved = res.path || targetPath;
@@ -86,8 +92,34 @@ export const RemoteFolderPickerModal = ({
         setLoading(false);
       }
     },
-    [workspaceId, config],
+    [workspaceId, config, t],
   );
+
+  const handleUpgradeDaemon = useCallback(async () => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api) return;
+    setUpgrading(true);
+    try {
+      const activeConfig = config ?? (await api.getConfig(workspaceId)).config;
+      if (!activeConfig) {
+        setError(t('remoteFolder.loadFailed'));
+        return;
+      }
+      const res = await api.testAndBootstrap(workspaceId, activeConfig);
+      if (!res.ok) {
+        setError(res.error || t('remoteVps.connectFailed'));
+        return;
+      }
+      if (res.token && res.token !== activeConfig.token) {
+        await api.saveConfig(workspaceId, { ...activeConfig, token: res.token });
+      }
+      await loadDir(currentPath, showHidden);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUpgrading(false);
+    }
+  }, [config, workspaceId, currentPath, showHidden, loadDir, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -112,10 +144,10 @@ export const RemoteFolderPickerModal = ({
     <Modal open={open} onClose={onClose} width={520} labelledBy={titleId} className="vps-folder-modal">
       <div className="vps-folder-modal-header">
         <div>
-          <span className="vps-folder-modal-eyebrow">REMOTE VPS</span>
-          <h2 id={titleId} className="vps-folder-modal-title">选择远端文件夹</h2>
+          <span className="vps-folder-modal-eyebrow">{t('remoteFolder.eyebrow')}</span>
+          <h2 id={titleId} className="vps-folder-modal-title">{t('remoteFolder.title')}</h2>
         </div>
-        <Button variant="icon" onClick={onClose} aria-label="关闭">
+        <Button variant="icon" onClick={onClose} aria-label={t('remoteFolder.close')}>
           <CloseIcon />
         </Button>
       </div>
@@ -133,23 +165,23 @@ export const RemoteFolderPickerModal = ({
           }}
           placeholder="/root/projects"
           spellCheck={false}
-          aria-label="远端路径"
+          aria-label={t('remoteFolder.pathLabel')}
         />
         <Button
           variant="secondary"
           size="sm"
           onClick={() => parentPath && handleNavigate(parentPath)}
           disabled={!parentPath || loading}
-          title="上一级目录"
+          title={t('remoteFolder.upTitle')}
         >
-          上级
+          {t('remoteFolder.up')}
         </Button>
         <Button
           variant="secondary"
           size="sm"
           onClick={() => handleNavigate(homePath || '~')}
           disabled={loading}
-          title="主目录"
+          title={t('remoteFolder.homeTitle')}
         >
           ~
         </Button>
@@ -158,19 +190,33 @@ export const RemoteFolderPickerModal = ({
           size="sm"
           onClick={() => handleNavigate(currentPath)}
           disabled={loading}
-          title="刷新"
+          title={t('remoteFolder.refresh')}
         >
-          刷新
+          {t('remoteFolder.refresh')}
         </Button>
       </div>
 
       <div className="vps-folder-modal-body">
         {error ? (
-          <div className="vps-folder-modal-error">{error}</div>
+          <div className="vps-folder-modal-error">
+            <div>{error}</div>
+            {oldDaemon && (
+              <div className="vps-folder-modal-upgrade">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={upgrading}
+                  onClick={() => { void handleUpgradeDaemon(); }}
+                >
+                  {upgrading ? t('remoteFolder.upgradingDaemon') : t('remoteFolder.upgradeDaemon')}
+                </Button>
+              </div>
+            )}
+          </div>
         ) : loading && entries.length === 0 ? (
-          <div className="vps-folder-modal-empty">正在读取远端目录…</div>
+          <div className="vps-folder-modal-empty">{t('remoteFolder.loading')}</div>
         ) : entries.length === 0 ? (
-          <div className="vps-folder-modal-empty">该目录下没有子文件夹</div>
+          <div className="vps-folder-modal-empty">{t('remoteFolder.empty')}</div>
         ) : (
           <div className="vps-folder-modal-list">
             {entries.map((entry) => (
@@ -195,12 +241,12 @@ export const RemoteFolderPickerModal = ({
           size="sm"
           onClick={() => setShowHidden((prev) => !prev)}
         >
-          {showHidden ? '隐藏点目录' : '显示隐藏目录'}
+          {showHidden ? t('remoteFolder.hideHidden') : t('remoteFolder.showHidden')}
         </Button>
         <div className="vps-folder-modal-actions">
-          <Button variant="secondary" onClick={onClose}>取消</Button>
+          <Button variant="secondary" onClick={onClose}>{t('remoteFolder.cancel')}</Button>
           <Button variant="primary" onClick={handleConfirm} disabled={loading || !currentPath}>
-            选择此文件夹
+            {t('remoteFolder.selectCurrent')}
           </Button>
         </div>
       </div>

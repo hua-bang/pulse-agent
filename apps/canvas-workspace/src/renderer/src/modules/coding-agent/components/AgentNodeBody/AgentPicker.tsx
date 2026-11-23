@@ -10,6 +10,7 @@ interface AgentPickerProps {
   promptInput: string;
   dangerousMode: boolean;
   rootFolder?: string;
+  isRemoteVps?: boolean;
   recentCwds: string[];
   variant?: 'default' | 'team-lead';
   launchErrorCommand?: string | null;
@@ -30,6 +31,7 @@ export const AgentPicker = ({
   promptInput,
   dangerousMode,
   rootFolder,
+  isRemoteVps,
   recentCwds,
   variant = 'default',
   launchErrorCommand,
@@ -60,6 +62,7 @@ export const AgentPicker = ({
           promptInput={promptInput}
           dangerousMode={dangerousMode}
           rootFolder={rootFolder}
+          isRemoteVps={isRemoteVps}
           recentCwds={recentCwds}
           variant={variant}
           teamLeadBriefSlot={teamLeadBriefSlot}

@@ -116,6 +116,10 @@
   line-height: 1.5;
 }
 
+.vps-folder-modal-upgrade {
+  margin-top: 10px;
+}
+
 .vps-folder-modal-footer {
   display: flex;
   align-items: center;
