@@ -19,6 +19,17 @@
   flex-shrink: 0;
 }
 
+.agent-field-badge {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--success);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
 .agent-team-lead-setup-summary {
   display: grid;
   gap: 8px;

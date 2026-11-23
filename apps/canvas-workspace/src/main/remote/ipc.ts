@@ -187,4 +187,60 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
       }
     },
   );
+
+  ipcMain.handle(
+    'remote-vps:listDirs',
+    async (
+      _event,
+      payload: {
+        workspaceId: string;
+        dirPath?: string;
+        showHidden?: boolean;
+        config?: RemoteVpsWorkspaceConfigDto;
+      },
+    ) => {
+      try {
+        const { resolveRemoteTargetFromConfig, resolveRemoteWorkspaceTarget } = await import(
+          './client'
+        );
+        const target = payload.config
+          ? await resolveRemoteTargetFromConfig(payload.workspaceId, payload.config)
+          : await resolveRemoteWorkspaceTarget(payload.workspaceId, 'any');
+        if (!target) return { ok: false, error: 'Workspace is not bound to a VPS.' };
+        const params = new URLSearchParams();
+        const dir = payload.dirPath?.trim() || target.cwd || '';
+        if (dir) params.set('path', dir);
+        if (payload.showHidden) params.set('showHidden', '1');
+        const qs = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(`${target.endpoint}/v1/fs/list-dirs${qs}`, {
+          headers: { Authorization: `Bearer ${target.token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const body = (await res.json()) as {
+          ok?: boolean;
+          path?: string;
+          parent?: string | null;
+          home?: string;
+          entries?: Array<{ name: string; path: string; hidden: boolean }>;
+          error?: string;
+          message?: string;
+        };
+        if (!res.ok || !body.ok) {
+          return {
+            ok: false,
+            error: body.error || body.message || `HTTP ${res.status}`,
+          };
+        }
+        return {
+          ok: true,
+          path: body.path,
+          parent: body.parent ?? null,
+          home: body.home,
+          entries: body.entries ?? [],
+        };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  );
 }

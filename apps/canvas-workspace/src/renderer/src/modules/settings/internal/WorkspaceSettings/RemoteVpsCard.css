@@ -1,54 +1,93 @@
-.remote-vps-header {
+.remote-vps-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.remote-vps-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.remote-vps-summary-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.remote-vps-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+}
+
+.remote-vps-host {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .remote-vps-badge {
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: var(--radius-md);
+  flex-shrink: 0;
   font-size: 11px;
-  font-weight: 500;
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
 }
 
 .remote-vps-badge.is-bound {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
+  border-color: var(--success);
   color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 .remote-vps-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 10px;
   padding: 12px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
-}
-
-.remote-vps-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 .remote-vps-host-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-top: 6px;
+}
+
+.remote-vps-advanced-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.remote-vps-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .remote-vps-status {
+  font-size: 12px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .remote-vps-status.is-ok {
@@ -65,5 +104,5 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding-top: 4px;
+  padding-top: 2px;
 }
