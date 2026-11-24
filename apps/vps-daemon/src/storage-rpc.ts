@@ -1,6 +1,6 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, realpath } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { dirname } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import {
   isStorageError,
   type PulseStorage,
@@ -8,13 +8,53 @@ import {
   type WorkspaceFiles,
 } from '@pulse-coder/storage';
 import type { StorageRpcRequest } from '@pulse-coder/storage/remote';
-import { readJsonBody, resolveRemoteFilePath, sendJson } from './auth.js';
+import { isPathWithin, readJsonBody, resolveRemoteFilePath, sendJson } from './auth.js';
 import {
   canWriteWorkspace,
   isRemoteFileUriAllowed,
   isRpcCallAllowed,
   type AuthPrincipal,
 } from './shares.js';
+
+class ForbiddenRpcError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ForbiddenRpcError';
+  }
+}
+
+async function isTargetWithinRealScope(
+  dataDir: string,
+  scopeRoot: string,
+  targetPath: string,
+): Promise<boolean> {
+  const realDataDir = await realpath(dataDir).catch(() => resolve(dataDir));
+  const resolvedScope = resolve(scopeRoot);
+  let realScope: string;
+  let scopeExists = true;
+  try {
+    realScope = await realpath(resolvedScope);
+    if (!isPathWithin(realDataDir, realScope)) return false;
+  } catch {
+    scopeExists = false;
+    realScope = resolvedScope;
+  }
+
+  let cursor = resolve(targetPath);
+  while (true) {
+    try {
+      const realCursor = await realpath(cursor);
+      if (scopeExists && isPathWithin(resolvedScope, cursor)) {
+        return isPathWithin(realScope, realCursor);
+      }
+      return isPathWithin(realDataDir, realCursor);
+    } catch {
+      const parent = dirname(cursor);
+      if (parent === cursor) return false;
+      cursor = parent;
+    }
+  }
+}
 
 function statusForStorageError(code: string): number {
   switch (code) {
@@ -33,6 +73,14 @@ function statusForStorageError(code: string): number {
 }
 
 function sendStorageError(res: ServerResponse, error: unknown): void {
+  if (error instanceof ForbiddenRpcError) {
+    sendJson(res, 403, {
+      ok: false,
+      code: 'forbidden',
+      message: error.message,
+    });
+    return;
+  }
   if (isStorageError(error)) {
     sendJson(res, statusForStorageError(error.code), {
       ok: false,
@@ -50,6 +98,7 @@ function sendStorageError(res: ServerResponse, error: unknown): void {
 
 async function dispatchRpc(
   storage: PulseStorage,
+  principal: AuthPrincipal,
   method: string,
   args: unknown[],
 ): Promise<unknown> {
@@ -99,15 +148,43 @@ async function dispatchRpc(
     case 'conversationScopes.commit':
       return storage.conversationScopes.commit(a[0]);
 
-    case 'fileWrites.get':
-      return storage.fileWrites.get(a[0]);
-    case 'fileWrites.list':
+    case 'fileWrites.get': {
+      const record = await storage.fileWrites.get(a[0]);
+      if (principal.kind === 'share' && record && record.workspaceId !== principal.share.workspaceId) {
+        throw new ForbiddenRpcError('Share token cannot access fileWrites outside its workspace');
+      }
+      return record;
+    }
+    case 'fileWrites.list': {
+      if (principal.kind === 'share') {
+        const request =
+          a[0] && typeof a[0] === 'object'
+            ? { ...a[0], workspaceId: principal.share.workspaceId }
+            : { workspaceId: principal.share.workspaceId };
+        return storage.fileWrites.list(request);
+      }
       return storage.fileWrites.list(a[0]);
-    case 'fileWrites.settle':
+    }
+    case 'fileWrites.settle': {
+      if (principal.kind === 'share') {
+        const existing = await storage.fileWrites.get(a[0]);
+        if (existing && existing.workspaceId !== principal.share.workspaceId) {
+          throw new ForbiddenRpcError('Share token cannot settle fileWrites outside its workspace');
+        }
+      }
       return storage.fileWrites.settle(a[0], a[1]);
+    }
 
-    case 'changes.read':
-      return storage.changes.read(a[0]);
+    case 'changes.read': {
+      const page = await storage.changes.read(a[0]);
+      if (principal.kind === 'share') {
+        return {
+          ...page,
+          items: page.items.filter((item) => item.scopeId === principal.share.workspaceId),
+        };
+      }
+      return page;
+    }
     case 'changes.latestCursor':
       return storage.changes.latestCursor();
 
@@ -149,7 +226,7 @@ export async function handleStorageRpc(
       });
       return;
     }
-    const result = await dispatchRpc(storage, body.method, body.args);
+    const result = await dispatchRpc(storage, principal, body.method, body.args);
     if (
       body.method.endsWith('.commit') ||
       body.method.endsWith('.remove') ||
@@ -172,7 +249,7 @@ export async function handleFileRequest(
   principal: AuthPrincipal,
 ): Promise<void> {
   const remoteUri = url.searchParams.get('uri') ?? '';
-  if (!isRemoteFileUriAllowed(principal, remoteUri)) {
+  if (!isRemoteFileUriAllowed(principal, remoteUri, dataDir)) {
     sendJson(res, 403, {
       ok: false,
       code: 'forbidden',
@@ -196,6 +273,17 @@ export async function handleFileRequest(
       message: `Invalid remote file URI: ${remoteUri}`,
     });
     return;
+  }
+  if (principal.kind === 'share') {
+    const wsRoot = join(dataDir, principal.share.workspaceId);
+    if (!(await isTargetWithinRealScope(dataDir, wsRoot, resolved))) {
+      sendJson(res, 403, {
+        ok: false,
+        code: 'forbidden',
+        message: 'Share token cannot access files outside its workspace',
+      });
+      return;
+    }
   }
   const localUri = files.uriForPath(resolved);
 

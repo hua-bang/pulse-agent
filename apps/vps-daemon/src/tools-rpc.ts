@@ -246,6 +246,7 @@ async function runLs(
 async function runGrep(
   input: Record<string, unknown>,
   baseDir: string,
+  signal: AbortSignal,
 ): Promise<{ output: string; matches?: number }> {
   const pattern = typeof input.pattern === 'string' ? input.pattern : '';
   if (!pattern) throw new Error('pattern is required');
@@ -267,7 +268,7 @@ async function runGrep(
 
   let raw = '';
   try {
-    const res = await execFileAsync('rg', args, { maxBuffer: MAX_OUTPUT_BYTES });
+    const res = await execFileAsync('rg', args, { maxBuffer: MAX_OUTPUT_BYTES, signal });
     raw = res.stdout;
   } catch (err) {
     const e = err as { code?: number | string; stdout?: string };
@@ -285,7 +286,7 @@ async function runGrep(
         searchPath,
       ];
       try {
-        const res = await execFileAsync('grep', grepArgs, { maxBuffer: MAX_OUTPUT_BYTES });
+        const res = await execFileAsync('grep', grepArgs, { maxBuffer: MAX_OUTPUT_BYTES, signal });
         raw = res.stdout;
       } catch (grepErr) {
         const ge = grepErr as { code?: number };
@@ -326,10 +327,11 @@ export async function handleToolExecRequest(
       : homedir();
 
   const controller = new AbortController();
-  const onClose = (): void => {
-    if (!res.writableEnded) controller.abort();
+  const onAbort = (): void => {
+    if (!res.writableFinished) controller.abort();
   };
-  req.once('close', onClose);
+  res.once('close', onAbort);
+  req.once('aborted', onAbort);
 
   try {
     let result: unknown;
@@ -350,16 +352,21 @@ export async function handleToolExecRequest(
         result = await runLs(input, baseDir);
         break;
       case 'grep':
-        result = await runGrep(input, baseDir);
+        result = await runGrep(input, baseDir, controller.signal);
         break;
       default:
         sendJson(res, 400, { ok: false, error: `unsupported tool: ${String(tool)}` });
         return;
     }
-    sendJson(res, 200, { ok: true, result });
+    if (!res.writableEnded) {
+      sendJson(res, 200, { ok: true, result });
+    }
   } catch (err) {
-    sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+    if (!res.writableEnded) {
+      sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
   } finally {
-    req.off('close', onClose);
+    res.off('close', onAbort);
+    req.off('aborted', onAbort);
   }
 }

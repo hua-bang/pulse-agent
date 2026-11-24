@@ -1,6 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
+
+export function isPathWithin(baseDir: string, candidatePath: string): boolean {
+  const rel = relative(resolve(baseDir), resolve(candidatePath));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
 
 export function verifyBearerToken(req: IncomingMessage, expectedToken: string): boolean {
   const header = req.headers.authorization;
@@ -16,16 +21,16 @@ const REMOTE_URI_PREFIX = 'pulse-remote://';
 
 /**
  * Resolve a `pulse-remote://<rel>` URI strictly inside `rootDir`.
- * Rejects path traversal (`..`), absolute escapes, or non-matching prefixes.
+ * Rejects path traversal (`..`), absolute escapes, backslashes, or non-matching prefixes.
  */
 export function resolveRemoteFilePath(rootDir: string, uri: string): string | null {
   if (!uri.startsWith(REMOTE_URI_PREFIX)) return null;
   const raw = uri.slice(REMOTE_URI_PREFIX.length).replace(/^\/+/, '');
-  if (!raw || raw.includes('\0')) return null;
+  if (!raw || raw.includes('\0') || raw.includes('\\')) return null;
   const root = resolve(rootDir);
   const full = resolve(root, raw);
   const rel = relative(root, full);
-  if (!rel || rel.startsWith('..') || rel.includes('../') || rel.includes('..\\')) {
+  if (!rel || rel.startsWith('..') || isAbsolute(rel) || rel.includes('../') || rel.includes('..\\')) {
     return null;
   }
   return full;

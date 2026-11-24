@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir, platform } from 'node:os';
 import { readlink } from 'node:fs/promises';
 import { readJsonBody, sendJson } from './auth.js';
+import type { AuthPrincipal } from './shares.js';
 
 export interface ManagedPtyProcess {
   readonly pid: number;
@@ -24,6 +25,7 @@ export type PtySpawner = (options: {
 
 interface PtySessionRecord {
   id: string;
+  workspaceId?: string;
   proc: ManagedPtyProcess;
   scrollback: string;
   subscribers: Set<ServerResponse>;
@@ -89,18 +91,50 @@ export class PtyHub {
     this.spawner = spawner ?? defaultPtySpawner;
   }
 
-  async spawnOrReuse(payload: {
-    id: string;
-    cols?: number;
-    rows?: number;
-    cwd?: string;
-    env?: Record<string, string | undefined>;
-  }): Promise<{ ok: true; pid: number; reused: boolean } | { ok: false; error: string }> {
+  private canAccessSession(id: string, principal: AuthPrincipal): boolean {
+    if (principal.kind === 'admin') return true;
+    const existing = this.sessions.get(id);
+    if (!existing) return true;
+    return existing.workspaceId === principal.share.workspaceId;
+  }
+
+  async spawnOrReuse(
+    payload: {
+      id: string;
+      workspaceId?: string;
+      cols?: number;
+      rows?: number;
+      cwd?: string;
+      env?: Record<string, string | undefined>;
+    },
+    principal: AuthPrincipal = { kind: 'admin' },
+  ): Promise<
+    | { ok: true; pid: number; reused: boolean }
+    | { ok: false; error: string; forbidden?: boolean }
+  > {
     const id = payload.id?.trim();
     if (!id) return { ok: false, error: 'Missing PTY session id' };
 
+    const requestedWs = payload.workspaceId?.trim() || undefined;
+    if (principal.kind === 'share' && requestedWs && requestedWs !== principal.share.workspaceId) {
+      return {
+        ok: false,
+        forbidden: true,
+        error: 'Share token cannot spawn PTY for another workspace',
+      };
+    }
+    const effectiveWorkspaceId =
+      principal.kind === 'share' ? principal.share.workspaceId : requestedWs;
+
     const existing = this.sessions.get(id);
     if (existing && !existing.exited) {
+      if (principal.kind === 'share' && existing.workspaceId !== principal.share.workspaceId) {
+        return {
+          ok: false,
+          forbidden: true,
+          error: 'Share token cannot access PTY session outside its workspace',
+        };
+      }
       if (payload.cols && payload.rows) {
         try {
           existing.proc.resize(payload.cols, payload.rows);
@@ -140,6 +174,7 @@ export class PtyHub {
       });
       const record: PtySessionRecord = {
         id,
+        ...(effectiveWorkspaceId ? { workspaceId: effectiveWorkspaceId } : {}),
         proc,
         scrollback: '',
         subscribers: new Set(),
@@ -295,7 +330,12 @@ export class PtyHub {
     }
   }
 
-  async handleHttp(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
+  async handleHttp(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    principal: AuthPrincipal = { kind: 'admin' },
+  ): Promise<boolean> {
     const pathname = url.pathname;
 
     if (req.method === 'GET' && pathname === '/v1/runtime/check-command') {
@@ -307,13 +347,15 @@ export class PtyHub {
     if (req.method === 'POST' && pathname === '/v1/pty/spawn') {
       const body = await readJsonBody<{
         id: string;
+        workspaceId?: string;
         cols?: number;
         rows?: number;
         cwd?: string;
         env?: Record<string, string | undefined>;
       }>(req);
-      const result = await this.spawnOrReuse(body);
-      sendJson(res, result.ok ? 200 : 400, result);
+      const result = await this.spawnOrReuse(body, principal);
+      const status = result.ok ? 200 : result.forbidden ? 403 : 400;
+      sendJson(res, status, result);
       return true;
     }
 
@@ -324,6 +366,15 @@ export class PtyHub {
 
     const sessionId = decodeURIComponent(ptyMatch[1]);
     const action = ptyMatch[2];
+
+    if (!this.canAccessSession(sessionId, principal)) {
+      sendJson(res, 403, {
+        ok: false,
+        code: 'forbidden',
+        error: 'Share token cannot access PTY session outside its workspace',
+      });
+      return true;
+    }
 
     if (req.method === 'GET' && action === 'stream') {
       const includeScrollback = url.searchParams.get('scrollback') !== '0';
