@@ -1,7 +1,8 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
+import { resolveRemoteFilePath } from './auth.js';
 
 export type ShareRole = 'viewer' | 'editor' | 'collaborator';
 
@@ -63,6 +64,16 @@ export function isValidShareRole(role: unknown): role is ShareRole {
   return typeof role === 'string' && VALID_ROLES.has(role as ShareRole);
 }
 
+export function isSafeWorkspaceId(workspaceId: unknown): workspaceId is string {
+  if (typeof workspaceId !== 'string') return false;
+  const trimmed = workspaceId.trim();
+  if (!trimmed || trimmed === '.' || trimmed === '..') return false;
+  if (trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('\0') || trimmed.includes('..')) {
+    return false;
+  }
+  return true;
+}
+
 function toSummary(record: ShareTokenRecord): ShareTokenSummary {
   const preview =
     record.token.length > 12
@@ -98,7 +109,7 @@ export class ShareTokenStore {
             typeof item === 'object' &&
             typeof (item as ShareTokenRecord).id === 'string' &&
             typeof (item as ShareTokenRecord).token === 'string' &&
-            typeof (item as ShareTokenRecord).workspaceId === 'string' &&
+            isSafeWorkspaceId((item as ShareTokenRecord).workspaceId) &&
             isValidShareRole((item as ShareTokenRecord).role),
         );
       }
@@ -146,11 +157,15 @@ export class ShareTokenStore {
     label?: string;
     expiresInHours?: number;
   }): Promise<ShareTokenRecord> {
+    const workspaceId = input.workspaceId.trim();
+    if (!isSafeWorkspaceId(workspaceId)) {
+      throw new Error('Invalid workspaceId');
+    }
     const now = Date.now();
     const record: ShareTokenRecord = {
       id: `sh_${randomBytes(6).toString('hex')}`,
       token: `pst_${randomBytes(24).toString('hex')}`,
-      workspaceId: input.workspaceId.trim(),
+      workspaceId,
       role: input.role,
       ...(input.label?.trim() ? { label: input.label.trim() } : {}),
       createdAt: now,
@@ -182,11 +197,18 @@ export function canUseRuntime(principal: AuthPrincipal): boolean {
   return principal.share.role === 'collaborator';
 }
 
-export function isRemoteFileUriAllowed(principal: AuthPrincipal, uri: string): boolean {
+export function isRemoteFileUriAllowed(
+  principal: AuthPrincipal,
+  uri: string,
+  dataDir = '/',
+): boolean {
   if (principal.kind === 'admin') return true;
-  const raw = uri.replace(/^pulse-remote:\/\/+/, '');
-  const prefix = `${principal.share.workspaceId}/`;
-  return raw.startsWith(prefix);
+  if (!isSafeWorkspaceId(principal.share.workspaceId)) return false;
+  const resolved = resolveRemoteFilePath(dataDir, uri);
+  if (!resolved) return false;
+  const wsRoot = resolve(dataDir, principal.share.workspaceId);
+  const rel = relative(wsRoot, resolved);
+  return Boolean(rel) && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
 export function isRpcCallAllowed(
@@ -217,9 +239,20 @@ export function isRpcCallAllowed(
   if (method === 'conversations.commit' || method === 'conversationScopes.commit') {
     return Boolean(first && typeof first === 'object' && (first as { scopeId?: string }).scopeId === targetWs);
   }
+  if (method === 'fileWrites.list') {
+    if (first === undefined || first === null) return true;
+    if (typeof first !== 'object') return false;
+    const workspaceId = (first as { workspaceId?: unknown }).workspaceId;
+    return workspaceId === undefined || workspaceId === targetWs;
+  }
+  if (method === 'fileWrites.get' || method === 'fileWrites.settle') {
+    return typeof first === 'string' && first.length > 0;
+  }
   if (method === 'changes.read') {
-    const scopeId = first && typeof first === 'object' ? (first as { scopeId?: string }).scopeId : undefined;
-    return !scopeId || scopeId === targetWs;
+    if (first === undefined || first === null) return true;
+    if (typeof first !== 'object') return false;
+    const scopeId = (first as { scopeId?: unknown }).scopeId;
+    return scopeId === undefined || scopeId === targetWs;
   }
   return true;
 }

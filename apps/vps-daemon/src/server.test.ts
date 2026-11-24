@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -556,5 +557,332 @@ describe('vps-daemon end-to-end', () => {
       body: JSON.stringify({ cwd: '/tmp', content: '# Escape' }),
     });
     expect(badWrite.status).toBe(403);
+  });
+
+  it('blocks /v1/files path traversal and symlink escape for share tokens', async () => {
+    const { daemon, token, root } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    await mkdir(join(root, 'ws-shared'), { recursive: true });
+    await mkdir(join(root, 'ws-other'), { recursive: true });
+    await writeFile(join(root, 'ws-shared', 'note.md'), 'shared ok', 'utf8');
+    await writeFile(join(root, 'ws-other', 'memory.json'), '{"secret":"other-ws"}', 'utf8');
+    await symlink(join(root, 'ws-other', 'memory.json'), join(root, 'ws-shared', 'escape.json'));
+
+    const mint = async (role: 'viewer' | 'editor') => {
+      const res = await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-shared', role }),
+      });
+      return ((await res.json()) as { share: { token: string } }).share.token;
+    };
+    const viewerHeaders = { Authorization: `Bearer ${await mint('viewer')}` };
+    const editorHeaders = {
+      Authorization: `Bearer ${await mint('editor')}`,
+      'Content-Type': 'application/json',
+    };
+
+    // In-scope read succeeds.
+    const okRead = await fetch(
+      `${daemon.url}/v1/files?uri=${encodeURIComponent('pulse-remote:///ws-shared/note.md')}`,
+      { headers: viewerHeaders },
+    );
+    expect(okRead.status).toBe(200);
+
+    // Path traversal to sibling workspace, share-tokens.json, SQLite DB, backslash, and symlink must all be 403.
+    const traversalUris = [
+      'pulse-remote:///ws-shared/../ws-other/memory.json',
+      'pulse-remote:///ws-shared/../share-tokens.json',
+      'pulse-remote:///ws-shared/../__storage__.sqlite',
+      'pulse-remote:///ws-shared/sub/../../ws-other/memory.json',
+      'pulse-remote:///ws-shared\\..\\ws-other\\memory.json',
+      'pulse-remote:///ws-shared/escape.json',
+    ];
+    for (const uri of traversalUris) {
+      const readRes = await fetch(`${daemon.url}/v1/files?uri=${encodeURIComponent(uri)}`, {
+        headers: viewerHeaders,
+      });
+      expect(readRes.status, `GET ${uri}`).toBe(403);
+
+      const writeRes = await fetch(`${daemon.url}/v1/files?uri=${encodeURIComponent(uri)}`, {
+        method: 'PUT',
+        headers: editorHeaders,
+        body: JSON.stringify({ base64: Buffer.from('pwned').toString('base64') }),
+      });
+      expect(writeRes.status, `PUT ${uri}`).toBe(403);
+
+      const delRes = await fetch(`${daemon.url}/v1/files?uri=${encodeURIComponent(uri)}`, {
+        method: 'DELETE',
+        headers: editorHeaders,
+      });
+      expect(delRes.status, `DELETE ${uri}`).toBe(403);
+    }
+
+    // Creating a share token with traversal workspaceId must fail with 400.
+    const badShare = await fetch(`${daemon.url}/v1/shares`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: '../ws-other', role: 'viewer' }),
+    });
+    expect(badShare.status).toBe(400);
+  });
+
+  it('isolates fileWrites.* and changes.read RPCs per workspace for share tokens', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const adminRemote = await openRemoteStorage({ endpoint: daemon.url, token });
+
+    const makeFileWrite = (id: string, uri: string) => {
+      const content = `secret-${id}`;
+      return {
+        id,
+        nodeId: `node-${id}`,
+        uri,
+        baseVersion: null,
+        targetVersion: `sha256:${createHash('sha256').update(content).digest('hex')}`,
+        baseContent: null,
+        content,
+      };
+    };
+
+    const sharedFw = makeFileWrite('fw-shared', 'pulse-remote:///ws-shared/a.md');
+    const otherFw = makeFileWrite('fw-other', 'pulse-remote:///ws-other/b.md');
+
+    await adminRemote.canvas.commit({
+      workspaceId: 'ws-shared',
+      expectedRevision: null,
+      nodes: {
+        put: [{ id: sharedFw.nodeId, type: 'file', data: { filePath: 'a.md', content: sharedFw.content } }],
+      },
+      fileWrites: [sharedFw],
+    });
+    await adminRemote.canvas.commit({
+      workspaceId: 'ws-other',
+      expectedRevision: null,
+      nodes: {
+        put: [{ id: otherFw.nodeId, type: 'file', data: { filePath: 'b.md', content: otherFw.content } }],
+      },
+      fileWrites: [otherFw],
+    });
+    await adminRemote.close();
+
+    const mint = async (role: 'viewer' | 'editor') => {
+      const res = await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-shared', role }),
+      });
+      return ((await res.json()) as { share: { token: string } }).share.token;
+    };
+    const viewerHeaders = {
+      Authorization: `Bearer ${await mint('viewer')}`,
+      'Content-Type': 'application/json',
+    };
+    const editorHeaders = {
+      Authorization: `Bearer ${await mint('editor')}`,
+      'Content-Type': 'application/json',
+    };
+
+    const rpc = async (headers: Record<string, string>, method: string, args: unknown[]) => {
+      const res = await fetch(`${daemon.url}/v1/storage/rpc`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ method, args }),
+      });
+      return { status: res.status, body: (await res.json()) as { ok: boolean; result?: any } };
+    };
+
+    // fileWrites.list without workspaceId only returns ws-shared items.
+    const fwList = await rpc(editorHeaders, 'fileWrites.list', [{}]);
+    expect(fwList.status).toBe(200);
+    expect(fwList.body.result.items.map((item: { id: string }) => item.id)).toEqual(['fw-shared']);
+
+    // fileWrites.list targeting ws-other is forbidden.
+    const fwListOther = await rpc(editorHeaders, 'fileWrites.list', [{ workspaceId: 'ws-other' }]);
+    expect(fwListOther.status).toBe(403);
+
+    // fileWrites.get / settle allow ws-shared but forbid ws-other.
+    expect((await rpc(editorHeaders, 'fileWrites.get', ['fw-shared'])).status).toBe(200);
+    expect((await rpc(editorHeaders, 'fileWrites.get', ['fw-other'])).status).toBe(403);
+    expect(
+      (await rpc(editorHeaders, 'fileWrites.settle', ['fw-other', { status: 'applied' }])).status,
+    ).toBe(403);
+    expect(
+      (await rpc(editorHeaders, 'fileWrites.settle', ['fw-shared', { status: 'applied' }])).status,
+    ).toBe(200);
+
+    // changes.read without scopeId filters results strictly to ws-shared.
+    const changes = await rpc(viewerHeaders, 'changes.read', [{ limit: 100 }]);
+    expect(changes.status).toBe(200);
+    const items = changes.body.result.items as StorageChange[];
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((item) => item.scopeId === 'ws-shared')).toBe(true);
+
+    // changes.read explicitly targeting ws-other is forbidden.
+    const changesOther = await rpc(viewerHeaders, 'changes.read', [{ scopeId: 'ws-other' }]);
+    expect(changesOther.status).toBe(403);
+  });
+
+  it('enforces role and workspace isolation on all /v1/pty/* routes', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Admin spawns sessions for ws-shared, ws-other, and an unscoped admin session.
+    for (const [id, workspaceId] of [
+      ['pty-shared', 'ws-shared'],
+      ['pty-other', 'ws-other'],
+      ['pty-admin', undefined],
+    ] as const) {
+      const res = await fetch(`${daemon.url}/v1/pty/spawn`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ id, ...(workspaceId ? { workspaceId } : {}) }),
+      });
+      expect(res.status).toBe(200);
+    }
+
+    const mint = async (role: 'viewer' | 'editor' | 'collaborator') => {
+      const res = await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-shared', role }),
+      });
+      return ((await res.json()) as { share: { token: string } }).share.token;
+    };
+    const viewerHeaders = { Authorization: `Bearer ${await mint('viewer')}` };
+    const editorHeaders = { Authorization: `Bearer ${await mint('editor')}` };
+    const collabHeaders = {
+      Authorization: `Bearer ${await mint('collaborator')}`,
+      'Content-Type': 'application/json',
+    };
+
+    // Viewer and editor cannot read PTY GET routes.
+    for (const headers of [viewerHeaders, editorHeaders]) {
+      expect((await fetch(`${daemon.url}/v1/pty/pty-shared/scrollback`, { headers })).status).toBe(403);
+      expect((await fetch(`${daemon.url}/v1/pty/pty-shared/cwd`, { headers })).status).toBe(403);
+      expect((await fetch(`${daemon.url}/v1/pty/pty-shared/stream`, { headers })).status).toBe(403);
+    }
+
+    // Collaborator can access ws-shared PTY.
+    expect((await fetch(`${daemon.url}/v1/pty/pty-shared/scrollback`, { headers: collabHeaders })).status).toBe(200);
+    expect(
+      (
+        await fetch(`${daemon.url}/v1/pty/pty-shared/write`, {
+          method: 'POST',
+          headers: collabHeaders,
+          body: JSON.stringify({ data: 'ok\n' }),
+        })
+      ).status,
+    ).toBe(200);
+
+    // Collaborator cannot access ws-other or unscoped admin PTY sessions.
+    for (const foreignId of ['pty-other', 'pty-admin']) {
+      expect(
+        (await fetch(`${daemon.url}/v1/pty/${foreignId}/scrollback`, { headers: collabHeaders })).status,
+      ).toBe(403);
+      expect(
+        (await fetch(`${daemon.url}/v1/pty/${foreignId}/cwd`, { headers: collabHeaders })).status,
+      ).toBe(403);
+      expect(
+        (await fetch(`${daemon.url}/v1/pty/${foreignId}/stream`, { headers: collabHeaders })).status,
+      ).toBe(403);
+      expect(
+        (
+          await fetch(`${daemon.url}/v1/pty/${foreignId}/write`, {
+            method: 'POST',
+            headers: collabHeaders,
+            body: JSON.stringify({ data: 'hijack\n' }),
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await fetch(`${daemon.url}/v1/pty/${foreignId}/kill`, {
+            method: 'POST',
+            headers: collabHeaders,
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await fetch(`${daemon.url}/v1/pty/spawn`, {
+            method: 'POST',
+            headers: collabHeaders,
+            body: JSON.stringify({ id: foreignId }),
+          })
+        ).status,
+      ).toBe(403);
+    }
+
+    // Collaborator cannot spawn a session claiming another workspaceId.
+    expect(
+      (
+        await fetch(`${daemon.url}/v1/pty/spawn`, {
+          method: 'POST',
+          headers: collabHeaders,
+          body: JSON.stringify({ id: 'pty-forged', workspaceId: 'ws-other' }),
+        })
+      ).status,
+    ).toBe(403);
+  });
+
+  it('kills running /v1/tools/exec bash child process when the HTTP client aborts', async () => {
+    const { daemon, token, root } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const pidFile = join(root, 'child.pid');
+    const ac = new AbortController();
+
+    const execPromise = fetch(`${daemon.url}/v1/tools/exec`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        tool: 'bash',
+        cwd: root,
+        input: { command: `echo $$ > "${pidFile}" && exec sleep 30` },
+      }),
+      signal: ac.signal,
+    }).catch(() => undefined);
+
+    // Wait until the spawned bash writes its PID.
+    let childPid = 0;
+    const startWait = Date.now();
+    while (Date.now() - startWait < 3_000) {
+      try {
+        const raw = (await readFile(pidFile, 'utf8')).trim();
+        if (/^\d+$/.test(raw)) {
+          childPid = Number(raw);
+          break;
+        }
+      } catch {
+        // Not written yet.
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    expect(childPid).toBeGreaterThan(0);
+
+    // Abort the HTTP request and ensure the remote process terminates promptly.
+    ac.abort();
+    await execPromise;
+
+    let alive = true;
+    const killWait = Date.now();
+    while (Date.now() - killWait < 4_000) {
+      try {
+        process.kill(childPid, 0);
+        await new Promise((r) => setTimeout(r, 50));
+      } catch {
+        alive = false;
+        break;
+      }
+    }
+    if (alive) {
+      try {
+        process.kill(childPid, 'SIGKILL');
+      } catch {
+        /* ignore */
+      }
+    }
+    expect(alive).toBe(false);
   });
 });

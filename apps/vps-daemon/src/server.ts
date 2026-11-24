@@ -2,17 +2,18 @@ import { execFile } from 'node:child_process';
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-files';
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
-import { readJsonBody, sendJson } from './auth.js';
+import { isPathWithin, readJsonBody, sendJson } from './auth.js';
 import { CapabilityRelay, type RelayResponsePayload } from './capability-relay.js';
 import { handleExecJsonl } from './exec-jsonl.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
 import {
   canUseRuntime,
   canWriteWorkspace,
+  isSafeWorkspaceId,
   isValidShareRole,
   ShareTokenStore,
   type AuthPrincipal,
@@ -45,11 +46,6 @@ export interface RunningVpsDaemon {
 
 const DAEMON_VERSION = '0.2.0';
 const DATABASE_FILE = '__storage__.sqlite';
-
-function isPathWithin(baseDir: string, candidateDir: string): boolean {
-  const rel = relative(resolve(baseDir), resolve(candidateDir));
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
 
 function logShareAudit(principal: AuthPrincipal, action: string, detail?: string): void {
   if (principal.kind !== 'share') return;
@@ -186,8 +182,8 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
             label?: string;
             expiresInHours?: number;
           }>(req);
-          if (!body.workspaceId?.trim() || !isValidShareRole(body.role)) {
-            sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'workspaceId and valid role are required' });
+          if (!isSafeWorkspaceId(body.workspaceId) || !isValidShareRole(body.role)) {
+            sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId and role are required' });
             return;
           }
           const share = await shareStore.create({
@@ -405,14 +401,14 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
 
     if (url.pathname.startsWith('/v1/pty/')) {
-      if (req.method !== 'GET' && !canUseRuntime(principal)) {
-        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to control remote terminals' });
+      if (!canUseRuntime(principal)) {
+        sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Collaborator or admin role required to access remote terminals' });
         return;
       }
       if (req.method !== 'GET' && (url.pathname.endsWith('/spawn') || url.pathname.endsWith('/kill'))) {
         logShareAudit(principal, 'pty', `${req.method} ${url.pathname}`);
       }
-      if (await ptyHub.handleHttp(req, res, url)) {
+      if (await ptyHub.handleHttp(req, res, url, principal)) {
         return;
       }
     }

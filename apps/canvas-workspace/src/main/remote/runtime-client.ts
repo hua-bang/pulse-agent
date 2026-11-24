@@ -43,6 +43,7 @@ export async function connectRemotePty(
     headers: authHeaders(target.token, true),
     body: JSON.stringify({
       id: payload.id,
+      workspaceId: target.remoteWorkspaceId,
       cols: payload.cols,
       rows: payload.rows,
       cwd: payload.cwd || target.cwd,
