@@ -861,4 +861,90 @@ describe('remote VPS workspace client', () => {
     expect(migRes).toMatchObject({ migrated: false, canvasRevision: 5 });
     expect(commitHits).toBe(0);
   });
+
+  it('matches cross-machine remoteWorkspaceId paths and round-trips binary images, workspace JSON files, and remote workspace-doc', async () => {
+    const { saveRemoteWorkspaceConfig, matchRemoteWorkspaceFile } = await import('./config');
+    const {
+      tryWriteRemoteBinaryFile,
+      tryReadRemoteBinaryFile,
+      writeRemoteWorkspaceText,
+      readRemoteWorkspaceText,
+      readRemoteWorkspaceDocById,
+    } = await import('./workspace-files');
+
+    const storedFiles = new Map<string, string>();
+    const token = 'sync-secret-999';
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, code: 'unauthorized' }));
+        return;
+      }
+      if (url.pathname === '/v1/files' && req.method === 'PUT') {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(Buffer.from(c));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { base64: string };
+        const uri = url.searchParams.get('uri') ?? '';
+        storedFiles.set(uri, body.base64);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, uri, version: 'sha256:abc' }));
+        return;
+      }
+      if (url.pathname === '/v1/files' && req.method === 'GET') {
+        const uri = url.searchParams.get('uri') ?? '';
+        const base64 = storedFiles.get(uri);
+        if (!base64) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, code: 'not_found', message: 'not found' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, uri, version: 'sha256:abc', base64 }));
+        return;
+      }
+      if (url.pathname === '/v1/workspace-doc' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, exists: true, content: '# Remote Workspace Doc' }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
+    cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
+    const addr = server.address();
+    const endpoint = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+
+    saveRemoteWorkspaceConfig('ws-guest-local', {
+      kind: 'vps',
+      endpoint,
+      token,
+      remoteWorkspaceId: 'ws-owner-origin',
+      cwd: '/srv/pulse-app',
+      storage: 'vps',
+      runtime: 'vps',
+      allowCapabilityRelay: false,
+    });
+
+    // Cross-machine path carrying owner's remoteWorkspaceId must match guest's local workspace config.
+    const crossPath = '/Users/macA/.pulse-coder/canvas/ws-owner-origin/images/arch.png';
+    expect(matchRemoteWorkspaceFile(crossPath)).toEqual({
+      workspaceId: 'ws-guest-local',
+      relPath: 'images/arch.png',
+    });
+
+    const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(await tryWriteRemoteBinaryFile(crossPath, pngBytes)).toBe(true);
+    const readImg = await tryReadRemoteBinaryFile(crossPath);
+    expect(readImg?.mimeType).toBe('image/png');
+    expect(Array.from(readImg?.bytes ?? [])).toEqual(Array.from(pngBytes));
+
+    expect(await writeRemoteWorkspaceText('ws-guest-local', 'references.json', '{"version":1,"references":[]}')).toBe(true);
+    const readRef = await readRemoteWorkspaceText('ws-guest-local', 'references.json');
+    expect(readRef).toEqual({ exists: true, content: '{"version":1,"references":[]}' });
+
+    const doc = await readRemoteWorkspaceDocById('ws-guest-local');
+    expect(doc).toBe('# Remote Workspace Doc');
+  });
 });

@@ -302,6 +302,21 @@ function summarizeEdge(edge: CanvasEdge, nodesById: Map<string, CanvasNode>): Ed
  * Build a lightweight workspace summary. This is cheap and always injected
  * into the Canvas Agent's system prompt so it "knows what's on the canvas".
  */
+async function resolvePromptCanvasDir(workspaceId: string): Promise<string> {
+  try {
+    const { getRemoteWorkspaceConfig } = await import('../../remote/config');
+    const cfg = getRemoteWorkspaceConfig(workspaceId);
+    if (cfg && (cfg.storage === 'vps' || cfg.runtime === 'vps')) {
+      const host = cfg.sshHost || cfg.endpoint || 'remote-vps';
+      const remotePath = cfg.cwd?.trim() || `~/.pulse-coder/canvas/${cfg.remoteWorkspaceId}`;
+      return `${remotePath} (remote VPS: ${host})`;
+    }
+  } catch {
+    // Fall back to local path if remote config cannot be read.
+  }
+  return join(STORE_DIR, workspaceId);
+}
+
 export async function buildWorkspaceSummary(workspaceId: string): Promise<WorkspaceSummary | null> {
   const canvas = await loadCanvasJson(workspaceId);
   if (!canvas) return null;
@@ -309,7 +324,7 @@ export async function buildWorkspaceSummary(workspaceId: string): Promise<Worksp
   const manifest = await loadManifest();
   const entry = manifest.workspaces.find(e => e.id === workspaceId);
   const workspaceName = entry?.name ?? workspaceId;
-  const canvasDir = join(STORE_DIR, workspaceId);
+  const canvasDir = await resolvePromptCanvasDir(workspaceId);
 
   const nodesById = new Map(canvas.nodes.map((n) => [n.id, n]));
   const edges = Array.isArray(canvas.edges) ? canvas.edges : [];
@@ -565,7 +580,7 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
   const manifest = await loadManifest();
   const entry = manifest.workspaces.find(e => e.id === workspaceId);
   const workspaceName = entry?.name ?? workspaceId;
-  const canvasDir = join(STORE_DIR, workspaceId);
+  const canvasDir = await resolvePromptCanvasDir(workspaceId);
 
   const nodes: DetailedNodeContext[] = [];
 
@@ -573,10 +588,16 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
     nodes.push(await populateNodeDetail(node, workspaceId));
   }
 
-  // Read AGENTS.md if present
+  // Read AGENTS.md if present (prefer remote VPS when workspace is hosted on VPS)
   let agentsMd: string | undefined;
   try {
-    agentsMd = (await readWorkspaceText(join(canvasDir, 'AGENTS.md'))) ?? undefined;
+    const { readRemoteWorkspaceText } = await import('../../remote/workspace-files');
+    const remoteAgents = await readRemoteWorkspaceText(workspaceId, 'AGENTS.md');
+    if (remoteAgents) {
+      agentsMd = remoteAgents.exists ? remoteAgents.content : undefined;
+    } else {
+      agentsMd = (await readWorkspaceText(join(STORE_DIR, workspaceId, 'AGENTS.md'))) ?? undefined;
+    }
   } catch {
     // not present
   }

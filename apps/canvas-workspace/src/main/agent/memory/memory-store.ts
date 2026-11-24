@@ -69,14 +69,25 @@ function normalizeContent(value: string): string {
   return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-async function readFileEntries(path: string): Promise<MemoryEntry[]> {
+function parseMemoryEntries(raw: string): MemoryEntry[] {
   try {
-    const raw = await fs.readFile(path, 'utf-8');
     const parsed = JSON.parse(raw) as MemoryFile;
     if (!Array.isArray(parsed.entries)) return [];
     return parsed.entries.filter(
       (e): e is MemoryEntry => Boolean(e) && typeof e.id === 'string' && typeof e.content === 'string',
     );
+  } catch {
+    return [];
+  }
+}
+
+async function readFileEntries(path: string, scope?: MemoryScope): Promise<MemoryEntry[]> {
+  if (scope?.kind === 'workspace') {
+    const remote = await (await import('../../remote/workspace-files')).tryReadRemoteWorkspaceMemory(scope.workspaceId);
+    if (remote) return remote.exists ? parseMemoryEntries(remote.content) : [];
+  }
+  try {
+    return parseMemoryEntries(await fs.readFile(path, 'utf-8'));
   } catch {
     return [];
   }
@@ -94,18 +105,21 @@ function withFileQueue<T>(path: string, task: () => Promise<T>): Promise<T> {
   return next;
 }
 
-async function writeFileEntries(path: string, entries: MemoryEntry[]): Promise<void> {
+async function writeFileEntries(path: string, entries: MemoryEntry[], scope?: MemoryScope): Promise<void> {
+  const body = JSON.stringify({ version: 1, entries } satisfies MemoryFile, null, 2);
+  if (scope?.kind === 'workspace' && await (await import('../../remote/workspace-files')).tryWriteRemoteWorkspaceMemory(scope.workspaceId, body)) {
+    return;
+  }
   await fs.mkdir(dirname(path), { recursive: true });
-  const payload: MemoryFile = { version: 1, entries };
   const tmp = `${path}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf-8');
+  await fs.writeFile(tmp, body, 'utf-8');
   await fs.rename(tmp, path);
 }
 
 export async function listMemory(scope: MemoryScope): Promise<MemoryEntry[]> {
   const path = memoryFilePath(scope);
   await writeQueues.get(path)?.catch(() => undefined);
-  return readFileEntries(path);
+  return readFileEntries(path, scope);
 }
 
 export interface SaveMemoryResult {
@@ -131,7 +145,7 @@ export async function saveMemory(
 
   const path = memoryFilePath(scope);
   return withFileQueue(path, async () => {
-    const entries = await readFileEntries(path);
+    const entries = await readFileEntries(path, scope);
     const normalized = normalizeContent(trimmed);
     const existing = entries.find((e) => normalizeContent(e.content) === normalized);
     const now = Date.now();
@@ -140,7 +154,7 @@ export async function saveMemory(
       existing.content = trimmed;
       existing.kind = kind;
       existing.updatedAt = now;
-      await writeFileEntries(path, entries);
+      await writeFileEntries(path, entries, scope);
       return { entry: existing, updated: true };
     }
 
@@ -158,7 +172,7 @@ export async function saveMemory(
       updatedAt: now,
     };
     entries.push(entry);
-    await writeFileEntries(path, entries);
+    await writeFileEntries(path, entries, scope);
     return { entry, updated: false };
   });
 }
@@ -180,12 +194,12 @@ export async function forgetMemory(
 ): Promise<ForgetMemoryResult> {
   const path = memoryFilePath(scope);
   return withFileQueue(path, async () => {
-    const entries = await readFileEntries(path);
+    const entries = await readFileEntries(path, scope);
 
     if (selector.id) {
       const removed = entries.filter((e) => e.id === selector.id);
       if (removed.length === 0) return { removed: [] };
-      await writeFileEntries(path, entries.filter((e) => e.id !== selector.id));
+      await writeFileEntries(path, entries.filter((e) => e.id !== selector.id), scope);
       return { removed };
     }
 
@@ -195,7 +209,7 @@ export async function forgetMemory(
     if (matches.length === 0) return { removed: [] };
     if (matches.length > 1) return { removed: [], ambiguous: matches };
 
-    await writeFileEntries(path, entries.filter((e) => e.id !== matches[0].id));
+    await writeFileEntries(path, entries.filter((e) => e.id !== matches[0].id), scope);
     return { removed: matches };
   });
 }

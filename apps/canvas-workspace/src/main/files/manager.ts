@@ -17,7 +17,6 @@ import { createEntry, renameEntry, trashEntry } from './file-operations';
 import { workspaceFiles } from './workspace-files';
 import { readFilePreview } from './file-preview';
 import { lookupImagePreview, storeImagePreview } from './image-preview';
-import { deleteSavedImage, saveBase64Image } from './image-save';
 
 const IGNORED_DIRS = new Set([
   'node_modules', '.git', '.DS_Store', 'dist', '.next', '.nuxt', '__pycache__', '.venv',
@@ -117,6 +116,7 @@ export const setupFileManagerIpc = () => {
         }
         const filePath = join(notesDir, fileName);
         await workspaceFiles.write(workspaceFiles.uriForPath(filePath), "");
+        await (await import("../remote/workspace-files")).tryMirrorLocalPathToRemote(filePath);
         return { ok: true, filePath, fileName };
       } catch (err) {
         return { ok: false, error: String(err) };
@@ -258,12 +258,14 @@ export const setupFileManagerIpc = () => {
     async (_event, payload: { workspaceId?: string; data: string; ext?: string }) => {
       try {
         const wsId = payload.workspaceId ?? "default";
+        const { saveBase64Image } = await import('./image-save');
         const { filePath, fileName } = await saveBase64Image({
           storeDir: STORE_DIR,
           workspaceId: wsId,
           data: payload.data,
           ext: payload.ext,
         });
+        await (await import("../remote/workspace-files")).tryMirrorLocalPathToRemote(filePath);
         return { ok: true, filePath, fileName };
       } catch (err) {
         return { ok: false, error: String(err) };
@@ -274,6 +276,7 @@ export const setupFileManagerIpc = () => {
     'file:delete-saved-image',
     async (_event, payload: { workspaceId?: string; filePath: string }) => {
       try {
+        const { deleteSavedImage } = await import('./image-save');
         await deleteSavedImage({
           storeDir: STORE_DIR,
           workspaceId: payload.workspaceId ?? 'default',

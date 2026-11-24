@@ -55,6 +55,14 @@ export class SessionStore {
     if (this.sqlite) return this.sqlite;
     if (this.sqliteOpening) return this.sqliteOpening;
     const opening = (async () => {
+      if (this.scope.kind === 'workspace') {
+        const remote = await (await import('../../../remote/workspace-files')).getRemoteConversationStorage(this.workspaceId).catch(() => null);
+        if (remote) {
+          const backend = new SqliteSessionStore(remote.storage, remote.scopeId, this.scope);
+          await backend.restoreCurrentSession();
+          return (this.sqlite = backend);
+        }
+      }
       const storage = await getSqliteSessionStorage(this.root);
       if (!storage) return null;
       await this.persistQueue;

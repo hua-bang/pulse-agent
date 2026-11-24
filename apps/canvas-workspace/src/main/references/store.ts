@@ -43,7 +43,14 @@ async function atomicWrite(finalPath: string, body: string): Promise<void> {
 export async function listReferences(workspaceId: string): Promise<ReferenceEntry[]> {
   let raw: string;
   try {
-    raw = await fs.readFile(referencesPath(workspaceId), 'utf-8');
+    const { readRemoteWorkspaceText } = await import('../remote/workspace-files');
+    const remote = await readRemoteWorkspaceText(workspaceId, 'references.json');
+    if (remote) {
+      if (!remote.exists) return [];
+      raw = remote.content;
+    } else {
+      raw = await fs.readFile(referencesPath(workspaceId), 'utf-8');
+    }
   } catch (err) {
     if (isEnoent(err)) return [];
     throw err;
@@ -59,5 +66,14 @@ export async function listReferences(workspaceId: string): Promise<ReferenceEntr
 
 export async function saveReferences(workspaceId: string, references: ReferenceEntry[]): Promise<void> {
   const file: ReferencesFile = { version: FILE_VERSION, references };
-  await atomicWrite(referencesPath(workspaceId), JSON.stringify(file, null, 2));
+  const body = JSON.stringify(file, null, 2);
+  try {
+    const { writeRemoteWorkspaceText } = await import('../remote/workspace-files');
+    if (await writeRemoteWorkspaceText(workspaceId, 'references.json', body)) {
+      return;
+    }
+  } catch {
+    // Fall back to local disk when remote write is unavailable.
+  }
+  await atomicWrite(referencesPath(workspaceId), body);
 }

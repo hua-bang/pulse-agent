@@ -383,27 +383,47 @@ export class ScheduledTaskService {
     }, delay);
   }
 
+  private useRemoteSync(): boolean {
+    return this.statePath === defaultStatePath() && !process.env.PULSE_CANVAS_SCHEDULED_TASKS_PATH;
+  }
+
   private async readState(): Promise<ScheduledTaskState> {
+    let tasks: ScheduledTask[] = [];
     try {
       const raw = await fs.readFile(this.statePath, 'utf-8');
       const parsed = JSON.parse(raw) as { tasks?: PersistedTask[] };
-      return {
-        version: 1,
-        tasks: Array.isArray(parsed.tasks) ? parsed.tasks.map(migratePersistedTask) : [],
-      };
+      tasks = Array.isArray(parsed.tasks) ? parsed.tasks.map(migratePersistedTask) : [];
     } catch {
-      return { version: 1, tasks: [] };
+      tasks = [];
     }
+    if (this.useRemoteSync()) {
+      try {
+        const { readMergedRemoteScheduledTasks } = await import('../remote/workspace-files');
+        tasks = await readMergedRemoteScheduledTasks(tasks, (raw) => migratePersistedTask(raw as PersistedTask));
+      } catch {
+        // Fall back to local state when VPS is unreachable.
+      }
+    }
+    return { version: 1, tasks };
   }
 
   private mutate(change: (state: ScheduledTaskState) => void): Promise<void> {
     const next = this.queue.then(async () => {
       const state = await this.readState();
       change(state);
+      const serialized = JSON.stringify(state, null, 2);
       await fs.mkdir(dirname(this.statePath), { recursive: true });
       const tmp = `${this.statePath}.tmp-${process.pid}-${randomUUID()}`;
-      await fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf-8');
+      await fs.writeFile(tmp, serialized, 'utf-8');
       await fs.rename(tmp, this.statePath);
+      if (this.useRemoteSync()) {
+        try {
+          const { mirrorRemoteScheduledTasks } = await import('../remote/workspace-files');
+          await mirrorRemoteScheduledTasks(serialized);
+        } catch {
+          // Best-effort remote mirror; local write already succeeded.
+        }
+      }
       this.onChange?.(state.tasks.map((task) => ({ ...task, status: this.running.has(task.id) ? 'running' : 'idle' })));
       this.scheduleDueTimer(state.tasks);
     });

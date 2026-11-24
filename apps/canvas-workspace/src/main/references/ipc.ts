@@ -8,11 +8,11 @@
 
 import { ipcMain } from 'electron';
 import type { ReferenceEntry } from '../../shared/references';
-import { listReferences, saveReferences } from './store';
 
 export function setupReferenceIpc(): void {
   ipcMain.handle('reference:list', async (_event, payload: { workspaceId: string }) => {
     try {
+      const { listReferences } = await import('./store');
       const references = await listReferences(payload.workspaceId);
       return { ok: true, references };
     } catch (err) {
@@ -25,6 +25,7 @@ export function setupReferenceIpc(): void {
     references: ReferenceEntry[];
   }) => {
     try {
+      const { saveReferences } = await import('./store');
       await saveReferences(payload.workspaceId, payload.references ?? []);
       return { ok: true };
     } catch (err) {

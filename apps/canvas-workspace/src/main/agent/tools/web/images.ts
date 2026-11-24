@@ -120,6 +120,12 @@ ${outline}`;
           outputFormat: requestedFormat,
           imageApiMode: input.imageApiMode as 'images' | 'responses' | 'responses_stream' | 'auto' | undefined,
         });
+        try {
+          const { tryWriteRemoteBinaryFile } = await import('../../../remote/workspace-files');
+          await tryWriteRemoteBinaryFile(generated.outputPath, await fs.readFile(generated.outputPath));
+        } catch {
+          // Best-effort remote mirror.
+        }
 
         return JSON.stringify({
           ok: true,
@@ -181,6 +187,12 @@ ${outline}`;
           outputFormat: input.outputFormat as 'png' | 'jpeg' | 'webp' | undefined,
           imageApiMode: input.imageApiMode as 'images' | 'responses' | 'responses_stream' | 'auto' | undefined,
         });
+        try {
+          const { tryWriteRemoteBinaryFile } = await import('../../../remote/workspace-files');
+          await tryWriteRemoteBinaryFile(result.outputPath, await fs.readFile(result.outputPath));
+        } catch {
+          // Best-effort remote mirror.
+        }
 
         return JSON.stringify({
           ok: true,
