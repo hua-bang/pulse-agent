@@ -1,4 +1,4 @@
-import type { ResolvedRemoteTarget } from './client';
+import type { ResolvedRemoteTarget } from '../client';
 import { getRemoteCapabilityExecutor, type RemoteCapabilityExecutor } from './capability-port';
 
 /**

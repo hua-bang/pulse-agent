@@ -13,9 +13,12 @@ export interface MigrateWorkspaceToVpsOptions {
   localWorkspaceDir?: string;
   /** Optional custom store directory for saving `remote-workspaces.json`. */
   storeDir?: string;
+  /** Skip importing if the remote workspace already has canvas nodes or local workspace has nothing to migrate. */
+  onlyIfRemoteEmpty?: boolean;
 }
 
 export interface MigrateWorkspaceToVpsResult {
+  migrated: boolean;
   remoteWorkspaceId: string;
   canvasRevision: number;
   conversationCount: number;
@@ -53,7 +56,33 @@ export async function migrateLocalWorkspaceToVps(
   options: MigrateWorkspaceToVpsOptions,
 ): Promise<MigrateWorkspaceToVpsResult> {
   const bundle = await options.localStorage.workspaces.readBundle(options.workspaceId);
-  if (!bundle) {
+  const localFiles = options.localWorkspaceDir ? await collectFiles(options.localWorkspaceDir) : [];
+
+  if (options.onlyIfRemoteEmpty) {
+    const hasLocalData =
+      Boolean(bundle && (bundle.canvas.nodes.length > 0 || bundle.conversations.length > 0)) ||
+      localFiles.length > 0;
+    if (!hasLocalData || !bundle) {
+      const targetId = options.config.remoteWorkspaceId?.trim() || options.workspaceId;
+      saveRemoteWorkspaceConfig(
+        options.workspaceId,
+        {
+          ...options.config,
+          remoteWorkspaceId: targetId,
+          storage: options.config.storage ?? 'vps',
+          runtime: options.config.runtime ?? 'vps',
+        },
+        options.storeDir,
+      );
+      return {
+        migrated: false,
+        remoteWorkspaceId: targetId,
+        canvasRevision: 0,
+        conversationCount: 0,
+        uploadedFiles: 0,
+      };
+    }
+  } else if (!bundle) {
     throw new Error(`Local workspace "${options.workspaceId}" was not found in local storage.`);
   }
 
@@ -65,9 +94,31 @@ export async function migrateLocalWorkspaceToVps(
   });
 
   try {
+    if (options.onlyIfRemoteEmpty) {
+      const existingRemote = await remoteStorage.canvas.read(target.remoteWorkspaceId);
+      if (existingRemote && existingRemote.nodes.length > 0) {
+        saveRemoteWorkspaceConfig(
+          options.workspaceId,
+          {
+            ...options.config,
+            remoteWorkspaceId: target.remoteWorkspaceId,
+            storage: options.config.storage ?? 'vps',
+            runtime: options.config.runtime ?? 'vps',
+          },
+          options.storeDir,
+        );
+        return {
+          migrated: false,
+          remoteWorkspaceId: target.remoteWorkspaceId,
+          canvasRevision: existingRemote.revision,
+          conversationCount: 0,
+          uploadedFiles: 0,
+        };
+      }
+    }
+
     let uploadedFiles = 0;
     if (options.localWorkspaceDir) {
-      const localFiles = await collectFiles(options.localWorkspaceDir);
       for (const filePath of localFiles) {
         const relPosix = relative(options.localWorkspaceDir, filePath).split(sep).join('/');
         const remoteUri = remoteFiles.uriForPath(`${target.remoteWorkspaceId}/${relPosix}`);
@@ -80,13 +131,13 @@ export async function migrateLocalWorkspaceToVps(
     const receipt = await remoteStorage.workspaces.importBundle({
       canvas: {
         workspaceId: target.remoteWorkspaceId,
-        metadata: bundle.canvas.metadata,
-        nodes: bundle.canvas.nodes,
-        placements: bundle.canvas.placements,
-        edges: bundle.canvas.edges,
+        metadata: bundle!.canvas.metadata,
+        nodes: bundle!.canvas.nodes,
+        placements: bundle!.canvas.placements,
+        edges: bundle!.canvas.edges,
       },
-      currentSessionId: bundle.conversationScope?.currentSessionId ?? null,
-      conversations: bundle.conversations.map((conv) => ({
+      currentSessionId: bundle!.conversationScope?.currentSessionId ?? null,
+      conversations: bundle!.conversations.map((conv) => ({
         sessionId: conv.sessionId,
         metadata: conv.metadata,
         messages: conv.messages,
@@ -105,9 +156,10 @@ export async function migrateLocalWorkspaceToVps(
     );
 
     return {
+      migrated: true,
       remoteWorkspaceId: target.remoteWorkspaceId,
       canvasRevision: receipt.revision,
-      conversationCount: bundle.conversations.length,
+      conversationCount: bundle!.conversations.length,
       uploadedFiles,
     };
   } finally {

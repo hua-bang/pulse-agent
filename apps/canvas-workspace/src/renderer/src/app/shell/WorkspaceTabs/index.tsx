@@ -12,6 +12,9 @@ import './index.css';
 
 // Loads on the first right-click, outside the startup bundle.
 const WorkspaceTabMenu = lazy(() => import('./WorkspaceTabMenu').then((m) => ({ default: m.WorkspaceTabMenu })));
+const CanvasShareModal = lazy(() =>
+  import('../../../modules/settings/workspace').then((m) => ({ default: m.CanvasShareModal })),
+);
 
 interface Props {
   workspaces: WorkspaceEntry[];
@@ -24,6 +27,8 @@ interface Props {
   /** Whether the workspace panel beside the rail is closed. */
   panelCollapsed: boolean;
   onTogglePanel: () => void;
+  onOpenSettings?: (workspaceId: string) => void;
+  onJoinWorkspace?: (workspaceId: string, name: string) => void;
 }
 
 /** Open workspaces as tabs above the canvas, like browser tabs. */
@@ -36,11 +41,15 @@ export const WorkspaceTabs = ({
   onOpenLauncher,
   panelCollapsed,
   onTogglePanel,
+  onOpenSettings,
+  onJoinWorkspace,
 }: Props) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const newButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [remoteBadge, setRemoteBadge] = useState<{ hosted: boolean; shareRole?: string }>({ hosted: false });
   const menuAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [menuTabId, setMenuTabId] = useState<string | null>(null);
   // Like Chrome: closing a tab keeps the others at their width until the
@@ -55,6 +64,27 @@ export const WorkspaceTabs = ({
     const workspace = byId.get(id);
     return workspace ? [workspace] : [];
   });
+  const activeWorkspace = byId.get(activeId);
+
+  useEffect(() => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api || !activeId) {
+      setRemoteBadge({ hosted: false });
+      return;
+    }
+    let cancelled = false;
+    void api.getConfig(activeId).then((res) => {
+      if (cancelled) return;
+      if (res.ok && res.config) {
+        setRemoteBadge({ hosted: true, shareRole: res.config.shareRole });
+      } else {
+        setRemoteBadge({ hosted: false });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, shareOpen]);
 
   // Tabs keep their width when the dock opens, so the active one can sit past
   // the visible edge of the list. Keep it in view on switch and on resize.
@@ -250,6 +280,23 @@ export const WorkspaceTabs = ({
       >
         <PlusIcon size={13} />
       </Button>
+      {onOpenSettings && activeId && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="workspace-tabs__share"
+          onClick={() => setShareOpen(true)}
+        >
+          {remoteBadge.hosted && <span className="workspace-tabs__share-dot" aria-hidden="true" />}
+          <span>
+            {remoteBadge.shareRole
+              ? `${language === 'zh' ? '共享' : 'Shared'} · ${remoteBadge.shareRole}`
+              : language === 'zh'
+                ? '共享'
+                : 'Share'}
+          </span>
+        </Button>
+      )}
       {menuTab && (
         <Suspense fallback={null}>
           <WorkspaceTabMenu
@@ -278,6 +325,18 @@ export const WorkspaceTabs = ({
           onOpenLauncher={onOpenLauncher}
           onClose={() => setPickerOpen(false)}
         />
+      )}
+      {shareOpen && (
+        <Suspense fallback={null}>
+          <CanvasShareModal
+            open={shareOpen}
+            workspaceId={activeId}
+            workspaceName={activeWorkspace?.name ?? ''}
+            onClose={() => setShareOpen(false)}
+            onOpenWorkspaceSettings={onOpenSettings}
+            onJoinedNewWorkspace={onJoinWorkspace}
+          />
+        </Suspense>
       )}
     </div>
   );

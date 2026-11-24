@@ -50,9 +50,9 @@ export const useWorkspaceActions = ({
     });
   }, [canvasRoute, ensureWorkspaceNodesLoaded, selectWorkspace, setLocation]);
 
-  const create = useCallback((name: string, folderId?: string) => {
+  const create = useCallback((name: string, folderId?: string, presetId?: string) => {
     const displayName = name.trim() || t('app.untitledWorkspace');
-    const id = createWorkspace(name, folderId);
+    const id = createWorkspace(name, folderId, presetId);
     void window.canvasWorkspace?.telemetry?.track('workspace_created', { source: 'new' });
     notify({ tone: 'success', title: t('app.workspaceCreated'), description: displayName });
     return id;

@@ -111,8 +111,8 @@ export const useWorkspaces = () => {
   );
 
   const createWorkspace = useCallback(
-    (name: string, folderId?: string) => {
-      const id = `ws-${Date.now()}`;
+    (name: string, folderId?: string, presetId?: string) => {
+      const id = presetId?.trim() || `ws-${Date.now()}`;
       const entry: WorkspaceEntry = {
         id,
         name: name.trim() || 'Untitled',

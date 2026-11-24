@@ -14,7 +14,7 @@ import {
   type RemoteVpsWorkspaceConfig,
 } from './config';
 import { closeAllSshTunnels, ensureSshTunnel, onSshTunnelExit } from './ssh-tunnel';
-import { startRemoteCapabilityRelay } from './capability-relay';
+import { startRemoteCapabilityRelay } from './relay/capability-relay';
 
 export interface ResolvedRemoteTarget {
   workspaceId: string;
@@ -256,6 +256,13 @@ export async function saveRemoteCanvas(
   const remote = await getRemoteCanvasBackend(id);
   if (!remote) return null;
   subscribeRemoteCanvas(remote.target, broadcast);
+  if (getRemoteWorkspaceConfig(id)?.shareRole === 'viewer') {
+    return {
+      ok: true as const,
+      revision: input.revision ?? 0,
+      storageGeneration: input.storageGeneration ?? '',
+    };
+  }
   try {
     const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, input, {
       allowEmpty: true,
@@ -318,6 +325,9 @@ export async function tryWriteRemoteTextFile(request: {
   if (!matched) return null;
   const remote = await getRemoteWorkspaceFiles(matched.workspaceId);
   if (!remote) return null;
+  if (getRemoteWorkspaceConfig(matched.workspaceId)?.shareRole === 'viewer') {
+    return { ok: true, version: request.expectedVersion ?? 'viewer-readonly' };
+  }
   try {
     const uri = `pulse-remote:///${remote.target.remoteWorkspaceId}/${matched.relPath}`;
     const receipt = await remote.files.write(

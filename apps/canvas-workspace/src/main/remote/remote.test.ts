@@ -526,7 +526,7 @@ describe('remote VPS workspace client', () => {
   }, 15_000);
 
   it('relays allowlisted read-only capabilities and blocks unsafe or cross-workspace calls', async () => {
-    const { startRemoteCapabilityRelay } = await import('./capability-relay');
+    const { startRemoteCapabilityRelay } = await import('./relay/capability-relay');
     const { CapabilityRuntime } = await import('../runtime/capabilities/runtime');
     const { z } = await import('zod');
 
@@ -748,5 +748,117 @@ describe('remote VPS workspace client', () => {
       expect(receivedWrites.length).toBeLessThanOrEqual(2);
       conn.handle.detach();
     }
+  });
+
+  it('suppresses viewer save 403s and skips overwriting populated remote workspaces when onlyIfRemoteEmpty=true', async () => {
+    const { saveRemoteWorkspaceConfig } = await import('./config');
+    const { saveRemoteCanvas, tryWriteRemoteTextFile } = await import('./client');
+    const { migrateLocalWorkspaceToVps } = await import('./migrate');
+
+    const token = 'viewer-guard-secret';
+    let commitHits = 0;
+    let filePutHits = 0;
+
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      if (url.pathname === '/v1/meta') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, generation: 'gen-v', version: '0.2.0', capabilities: [] }));
+        return;
+      }
+      if (url.pathname === '/v1/events' || url.pathname === '/v1/runtime/relay/events') {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        res.write(': connected\n\n');
+        return;
+      }
+      if (url.pathname === '/v1/files' && req.method === 'PUT') {
+        filePutHits += 1;
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'forbidden' }));
+        return;
+      }
+      if (url.pathname === '/v1/storage/rpc') {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(Buffer.from(c));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { method: string };
+        if (body.method === 'canvas.commit' || body.method === 'workspaces.importBundle') {
+          commitHits += 1;
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'forbidden' }));
+          return;
+        }
+        if (body.method === 'canvas.read') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              ok: true,
+              result: {
+                workspaceId: 'ws-existing-remote',
+                revision: 5,
+                nodes: [{ id: 'existing-1', type: 'note', title: 'Remote Node' }],
+                placements: [],
+                edges: [],
+              },
+            }),
+          );
+          return;
+        }
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
+    cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
+    const addr = server.address();
+    const endpoint = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+
+    saveRemoteWorkspaceConfig('ws-viewer-1', {
+      kind: 'vps',
+      endpoint,
+      token,
+      shareRole: 'viewer',
+      allowCapabilityRelay: false,
+    });
+
+    const saveRes = await saveRemoteCanvas('ws-viewer-1', { revision: 3, nodes: [], edges: [] }, () => {});
+    expect(saveRes).toMatchObject({ ok: true, revision: 3 });
+    const noteRes = await tryWriteRemoteTextFile({
+      filePath: '/home/user/.pulse-coder/canvas/ws-viewer-1/notes/n1.md',
+      content: 'edited by viewer',
+    });
+    expect(noteRes).toMatchObject({ ok: true });
+    expect(commitHits).toBe(0);
+    expect(filePutHits).toBe(0);
+
+    // onlyIfRemoteEmpty=true must NOT overwrite an already-populated remote workspace.
+    const fakeLocalStorage = {
+      workspaces: {
+        readBundle: async () => ({
+          canvas: {
+            workspaceId: 'ws-existing-remote',
+            metadata: {},
+            nodes: [{ id: 'local-1', type: 'note', title: 'Local Node' }],
+            placements: [],
+            edges: [],
+          },
+          conversations: [],
+          conversationScope: null,
+        }),
+      },
+    } as unknown as import('@pulse-coder/storage').PulseStorage;
+
+    const migRes = await migrateLocalWorkspaceToVps({
+      workspaceId: 'ws-existing-remote',
+      config: { kind: 'vps', endpoint, token, allowCapabilityRelay: false },
+      localStorage: fakeLocalStorage,
+      onlyIfRemoteEmpty: true,
+    });
+    expect(migRes).toMatchObject({ migrated: false, canvasRevision: 5 });
+    expect(commitHits).toBe(0);
   });
 });

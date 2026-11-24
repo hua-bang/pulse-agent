@@ -143,7 +143,7 @@ export async function startRuntimeControlServer(): Promise<RuntimeControlHandle>
     }
   }
 
-  const { setRemoteCapabilityExecutor } = await import('../remote/capability-port');
+  const { setRemoteCapabilityExecutor } = await import('../remote/relay/capability-port');
   const { getCanvasCapabilityRuntime } = await import('./capabilities');
   setRemoteCapabilityExecutor({
     list: () => getCanvasCapabilityRuntime().list({ kind: 'pulse-cli' }),

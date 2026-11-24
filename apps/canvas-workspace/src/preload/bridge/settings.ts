@@ -205,8 +205,12 @@ export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
     ipcRenderer.invoke("remote-vps:removeConfig", { workspaceId }),
   testAndBootstrap: (workspaceId, config) =>
     ipcRenderer.invoke("remote-vps:testAndBootstrap", { workspaceId, config }),
-  migrateLocal: (workspaceId, config) =>
-    ipcRenderer.invoke("remote-vps:migrateLocal", { workspaceId, config }),
+  migrateLocal: (workspaceId, config, options) =>
+    ipcRenderer.invoke("remote-vps:migrateLocal", {
+      workspaceId,
+      config,
+      onlyIfRemoteEmpty: options?.onlyIfRemoteEmpty,
+    }),
   readWorkspaceDoc: (workspaceId, cwd) =>
     ipcRenderer.invoke("remote-vps:readWorkspaceDoc", { workspaceId, cwd }),
   writeWorkspaceDoc: (workspaceId, content, cwd) =>
