@@ -141,12 +141,17 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
 
     if (req.method === 'GET' && url.pathname === '/v1/meta') {
       const tailscaleUrl = principal.kind === 'admin' ? await detectTailscaleUrl() : null;
+      const metaWorkspaceId =
+        principal.kind === 'share'
+          ? principal.share.workspaceId
+          : url.searchParams.get('workspaceId')?.trim() || undefined;
       sendJson(res, 200, {
         ok: true,
         generation: storage.generation,
         version: DAEMON_VERSION,
         ...(bundleHash ? { bundleHash } : {}),
         ...(tailscaleUrl ? { tailscaleUrl } : {}),
+        onlineClients: broadcaster.countSubscribers(metaWorkspaceId),
         role: principal.kind === 'admin' ? 'admin' : principal.share.role,
         ...(principal.kind === 'share' ? { workspaceId: principal.share.workspaceId } : {}),
         capabilities: [
@@ -158,6 +163,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
           'fs-list-dirs',
           'shares',
           'tools-exec',
+          'tools-exec-stream',
           'capability-relay',
         ],
       });
@@ -278,7 +284,8 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
 
     if (url.pathname === '/v1/workspace-doc') {
       if (req.method === 'GET') {
-        const dir = resolve(url.searchParams.get('cwd')?.trim() || workDir);
+        const rawDir = url.searchParams.get('cwd')?.trim() || url.searchParams.get('workDir')?.trim() || '';
+        const dir = resolve(rawDir || workDir);
         if (principal.kind === 'share' && !isPathWithin(workDir, dir)) {
           sendJson(res, 403, { ok: false, code: 'forbidden', message: 'Share token cannot read workspace doc outside workDir' });
           return;

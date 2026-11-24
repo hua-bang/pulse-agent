@@ -392,6 +392,15 @@ export class ChangeBroadcaster {
     void this.poll();
   }
 
+  countSubscribers(scopeId?: string): number {
+    if (!scopeId) return this.subscribers.size;
+    let count = 0;
+    for (const sub of this.subscribers) {
+      if (!sub.scopeId || sub.scopeId === scopeId) count += 1;
+    }
+    return count;
+  }
+
   async subscribe(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const scopeId = url.searchParams.get('scopeId') || undefined;
     const requestedCursor = url.searchParams.get('cursor') || undefined;

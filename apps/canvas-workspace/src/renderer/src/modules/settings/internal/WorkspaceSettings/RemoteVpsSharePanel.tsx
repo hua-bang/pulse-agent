@@ -27,12 +27,24 @@ export const RemoteVpsSharePanel = ({
   const copy = remoteShareCopy(language);
 
   const [role, setRole] = useState<RemoteVpsShareRole>('editor');
+  const [label, setLabel] = useState('');
   const [expiry, setExpiry] = useState<ExpiryKey>('7d');
   const [publicEndpoint, setPublicEndpoint] = useState(defaultEndpoint || detectedTailscaleUrl || '');
   const [shares, setShares] = useState<RemoteVpsShareSummary[]>([]);
   const [latestInvite, setLatestInvite] = useState<string | null>(null);
   const [busy, setBusy] = useState<'create' | string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const formatRelativeAgo = (ts: number): string => {
+    const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (diffSec < 60) return language === 'zh' ? '刚刚' : 'just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return language === 'zh' ? `${diffMin} 分钟前` : `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return language === 'zh' ? `${diffHr} 小时前` : `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    return language === 'zh' ? `${diffDay} 天前` : `${diffDay}d ago`;
+  };
 
   useEffect(() => {
     if (!publicEndpoint && detectedTailscaleUrl) {
@@ -68,6 +80,7 @@ export const RemoteVpsSharePanel = ({
       const expiresInHours = expiry === '24h' ? 24 : expiry === '7d' ? 24 * 7 : undefined;
       const res = await api.createShare(workspaceId, {
         role,
+        label: label.trim() || undefined,
         expiresInHours,
         publicEndpoint: publicEndpoint.trim() || undefined,
         workspaceName,
@@ -83,6 +96,7 @@ export const RemoteVpsSharePanel = ({
         setStatusMsg({ kind: 'err', text: friendly });
         return;
       }
+      setLabel('');
       setLatestInvite(res.inviteCode);
       try {
         await navigator.clipboard.writeText(res.inviteCode);
@@ -145,6 +159,14 @@ export const RemoteVpsSharePanel = ({
         />
       </FieldRow>
 
+      <FieldRow label={copy.labelInputLabel}>
+        <TextField
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={copy.labelInputPlaceholder}
+        />
+      </FieldRow>
+
       <FieldRow label={copy.expiryLabel}>
         <SegmentedControl
           value={expiry}
@@ -193,7 +215,11 @@ export const RemoteVpsSharePanel = ({
             <div key={item.id} className="remote-vps-share-row">
               <div className="remote-vps-share-meta">
                 <span className="remote-vps-badge">{item.role}</span>
+                {item.label && <span className="remote-vps-host">{item.label}</span>}
                 <span className="remote-vps-host">{item.tokenPreview}</span>
+                <span className="remote-vps-host">
+                  {item.lastUsedAt ? copy.lastActive(formatRelativeAgo(item.lastUsedAt)) : copy.neverUsed}
+                </span>
               </div>
               <Button
                 variant="secondary"

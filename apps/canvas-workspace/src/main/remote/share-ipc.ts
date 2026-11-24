@@ -162,11 +162,20 @@ export function setupRemoteVpsShareIpc(): void {
           return { ok: false, error: 'Invite code is missing endpoint, workspaceId, or token.' };
         }
         const endpoint = decoded.endpoint.replace(/\/+$/, '');
-        const res = await fetch(`${endpoint}/v1/meta`, {
-          headers: { Authorization: `Bearer ${decoded.token}` },
-          signal: AbortSignal.timeout(10_000),
-        });
-        const meta = (await res.json()) as {
+        let res: Response;
+        try {
+          res = await fetch(`${endpoint}/v1/meta`, {
+            headers: { Authorization: `Bearer ${decoded.token}` },
+            signal: AbortSignal.timeout(10_000),
+          });
+        } catch (netError) {
+          const raw = netError instanceof Error ? netError.message : String(netError);
+          return {
+            ok: false,
+            error: `Cannot reach ${endpoint} (${raw}). Check that Tailscale/VPN is connected and the remote VPS daemon is running.`,
+          };
+        }
+        const meta = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           role?: 'viewer' | 'editor' | 'collaborator' | 'admin';
           workspaceId?: string;

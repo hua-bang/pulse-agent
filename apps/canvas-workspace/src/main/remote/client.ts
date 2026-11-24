@@ -28,6 +28,43 @@ export interface ResolvedRemoteTarget {
 const storagePool = new Map<string, Promise<PulseStorage>>();
 const changeSubscriptions = new Map<string, () => void>();
 const relaySubscriptions = new Map<string, () => void>();
+const activeCanvasSubscriptions = new Map<
+  string,
+  { endpoint: string; broadcast: BroadcastCanvasChange }
+>();
+const reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function cancelReconnect(workspaceId: string): void {
+  const timer = reconnectTimers.get(workspaceId);
+  if (timer) {
+    clearTimeout(timer);
+    reconnectTimers.delete(workspaceId);
+  }
+}
+
+function scheduleRemoteReconnect(workspaceId: string, delayMs = 2_000): void {
+  if (reconnectTimers.has(workspaceId)) return;
+  const sub = activeCanvasSubscriptions.get(workspaceId);
+  if (!sub) return;
+  const timer = setTimeout(async () => {
+    reconnectTimers.delete(workspaceId);
+    const current = activeCanvasSubscriptions.get(workspaceId);
+    if (!current) return;
+    try {
+      const target = await resolveRemoteWorkspaceTarget(workspaceId, 'storage');
+      if (!target) {
+        activeCanvasSubscriptions.delete(workspaceId);
+        return;
+      }
+      subscribeRemoteCanvas(target, current.broadcast);
+    } catch {
+      const nextDelay = Math.min(delayMs * 2, 30_000);
+      scheduleRemoteReconnect(workspaceId, nextDelay);
+    }
+  }, delayMs);
+  timer.unref?.();
+  reconnectTimers.set(workspaceId, timer);
+}
 
 function invalidateEndpointCaches(deadEndpoint: string): void {
   const prefix = `${deadEndpoint}::`;
@@ -61,6 +98,11 @@ function invalidateEndpointCaches(deadEndpoint: string): void {
 
 onSshTunnelExit((deadEndpoint) => {
   invalidateEndpointCaches(deadEndpoint);
+  for (const [workspaceId, sub] of activeCanvasSubscriptions) {
+    if (sub.endpoint === deadEndpoint) {
+      scheduleRemoteReconnect(workspaceId);
+    }
+  }
 });
 
 export async function resolveRemoteTargetFromConfig(
@@ -227,6 +269,11 @@ function ensureRemoteCapabilityRelay(target: ResolvedRemoteTarget): void {
 }
 
 function subscribeRemoteCanvas(target: ResolvedRemoteTarget, broadcast: BroadcastCanvasChange): void {
+  cancelReconnect(target.workspaceId);
+  activeCanvasSubscriptions.set(target.workspaceId, {
+    endpoint: target.endpoint,
+    broadcast,
+  });
   ensureRemoteChangeSubscription(target, (change) => {
     if (change.domain !== 'canvas') return;
     broadcast({
@@ -336,6 +383,12 @@ export async function tryWriteRemoteTextFile(request: {
 }
 
 export async function closeAllRemoteConnections(): Promise<void> {
+  for (const timer of reconnectTimers.values()) {
+    clearTimeout(timer);
+  }
+  reconnectTimers.clear();
+  activeCanvasSubscriptions.clear();
+
   for (const stop of changeSubscriptions.values()) {
     try {
       stop();
