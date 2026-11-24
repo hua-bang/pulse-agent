@@ -45,6 +45,12 @@ async function writePng(
   const png = image.toPNG();
   const outputPath = join(dir, `${label}-${Date.now()}.png`);
   await fs.writeFile(outputPath, png);
+  try {
+    const { tryWriteRemoteBinaryFile } = await import('../../../remote/workspace-files');
+    await tryWriteRemoteBinaryFile(outputPath, png);
+  } catch {
+    // Best-effort remote mirror.
+  }
   return { outputPath, width, height, bytes: png.length };
 }
 

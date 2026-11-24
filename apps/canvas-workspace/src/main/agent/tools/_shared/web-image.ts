@@ -54,6 +54,12 @@ export async function downloadWebImage(workspaceId: string, rawUrl: string): Pro
   await fs.mkdir(imagesDir, { recursive: true });
   const filePath = join(imagesDir, `web-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`);
   await fs.writeFile(filePath, buffer);
+  try {
+    const { tryWriteRemoteBinaryFile } = await import('../../../remote/workspace-files');
+    await tryWriteRemoteBinaryFile(filePath, buffer);
+  } catch {
+    // Best-effort remote mirror.
+  }
 
   const size = readImageSize(buffer);
   return { filePath, bytes: buffer.length, ...(size ? { size } : {}) };

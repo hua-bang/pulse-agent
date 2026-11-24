@@ -238,6 +238,12 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
           const noteFile = join(STORE_DIR, workspaceId, 'notes', `${safeTitle}-${nodeId}.md`);
           await writeWorkspaceText(noteFile, content);
+          try {
+            const { tryWriteRemoteTextFile } = await import('../../../remote/client');
+            await tryWriteRemoteTextFile({ filePath: noteFile, content });
+          } catch {
+            // Best-effort remote mirror.
+          }
           nodeData.filePath = noteFile;
           nodeData.saved = true;
           nodeData.modified = false;

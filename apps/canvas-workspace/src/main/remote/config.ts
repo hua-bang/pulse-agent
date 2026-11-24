@@ -129,3 +129,33 @@ export function listConfiguredRemoteWorkspaceIds(storeDir = DEFAULT_STORE_DIR): 
     .filter(([, cfg]) => cfg && cfg.kind === 'vps' && (cfg.endpoint || cfg.sshHost))
     .map(([id]) => id);
 }
+
+/**
+ * Match a local-style canvas file path against configured remote workspaces.
+ * Matches BOTH the local `workspaceId` and the `remoteWorkspaceId` so files
+ * created on another machine or joined via invite still route to the VPS.
+ */
+export function matchRemoteWorkspaceFile(
+  filePath: string,
+  storeDir = DEFAULT_STORE_DIR,
+): { workspaceId: string; relPath: string } | null {
+  const normalized = filePath.replace(/\\/g, '/');
+  for (const workspaceId of listConfiguredRemoteWorkspaceIds(storeDir)) {
+    const cfg = getRemoteWorkspaceConfig(workspaceId, storeDir);
+    const candidates = [workspaceId];
+    if (cfg?.remoteWorkspaceId && cfg.remoteWorkspaceId !== workspaceId) {
+      candidates.push(cfg.remoteWorkspaceId);
+    }
+    for (const candidate of candidates) {
+      const marker = `/${candidate}/`;
+      const idx = normalized.indexOf(marker);
+      if (idx < 0) continue;
+      const relPath = normalized.slice(idx + marker.length).replace(/^\/+/, '');
+      if (relPath && !relPath.includes('..')) {
+        return { workspaceId, relPath };
+      }
+    }
+  }
+  return null;
+}
+

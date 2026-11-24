@@ -78,6 +78,8 @@ export function registerPulseCanvasProtocol(writeLog: WriteLog): void {
       if (normalized.includes("..")) {
         return new Response("Forbidden", { status: 403 });
       }
+      const remoteRes = await (await import("../../remote/workspace-files")).tryServeRemoteProtocolFile(normalized);
+      if (remoteRes) return remoteRes;
       // Defer existence checks to fetch; it returns the right status code.
       return net.fetch(pathToFileURL(normalized).toString());
     } catch (error) {

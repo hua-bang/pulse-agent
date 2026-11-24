@@ -9,7 +9,7 @@ import {
   getRemoteWorkspaceConfig,
   isRemoteRuntimeEnabled,
   isRemoteStorageEnabled,
-  listConfiguredRemoteWorkspaceIds,
+  matchRemoteWorkspaceFile,
   resolveRemoteToken,
   type RemoteVpsWorkspaceConfig,
 } from './config';
@@ -285,19 +285,6 @@ export async function saveRemoteCanvas(
   }
 }
 
-function matchRemoteWorkspaceFile(filePath: string): { workspaceId: string; relPath: string } | null {
-  const normalized = filePath.replace(/\\/g, '/');
-  for (const workspaceId of listConfiguredRemoteWorkspaceIds()) {
-    const marker = `/${workspaceId}/`;
-    const idx = normalized.indexOf(marker);
-    if (idx < 0) continue;
-    const relPath = normalized.slice(idx + marker.length).replace(/^\/+/, '');
-    if (relPath && !relPath.includes('..')) {
-      return { workspaceId, relPath };
-    }
-  }
-  return null;
-}
 
 export async function tryReadRemoteTextFile(
   filePath: string,
