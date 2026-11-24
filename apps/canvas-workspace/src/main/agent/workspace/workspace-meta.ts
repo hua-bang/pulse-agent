@@ -58,6 +58,25 @@ export async function readWorkspaceDoc(rootFolder: string | undefined): Promise<
   }
 }
 
+export async function loadWorkspaceEnvironmentContext(workspaceId: string): Promise<{
+  rootFolder?: string;
+  section: string;
+}> {
+  const meta = await readWorkspaceMeta(workspaceId);
+  const { getRemoteWorkspaceConfig } = await import('../../remote/config');
+  const remoteCfg = getRemoteWorkspaceConfig(workspaceId);
+  const isVps = Boolean(remoteCfg && (remoteCfg.storage === 'vps' || remoteCfg.runtime === 'vps'));
+  const rootFolder = isVps ? (remoteCfg?.cwd?.trim() || meta.rootFolder) : meta.rootFolder;
+  let workspaceDoc: string | null = null;
+  if (isVps) {
+    const { readRemoteWorkspaceDocById } = await import('../../remote/workspace-files');
+    workspaceDoc = await readRemoteWorkspaceDocById(workspaceId);
+  } else {
+    workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
+  }
+  return { rootFolder, section: formatWorkspaceContextSection(rootFolder, workspaceDoc) };
+}
+
 /**
  * Workspace environment + `pulse-workspace.md` section of the system prompt.
  * Lives beside the meta/doc readers it formats (moved out of canvas-agent.ts,

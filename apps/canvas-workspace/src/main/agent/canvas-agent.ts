@@ -31,9 +31,7 @@ import {
 import { GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './sessions/store/session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile/prompt-profile';
 import {
-  formatWorkspaceContextSection,
-  readWorkspaceDoc,
-  readWorkspaceMeta,
+  loadWorkspaceEnvironmentContext,
   WORKSPACE_DOC_FILENAME,
 } from './workspace/workspace-meta';
 import { buildMemoryPromptSection } from './memory/memory-store';
@@ -452,19 +450,9 @@ export class CanvasAgent {
     let workspaceRootFolder: string | undefined;
     if (workspaceId) {
       try {
-        const meta = await readWorkspaceMeta(workspaceId);
-        const { getRemoteWorkspaceConfig } = await import('../remote/config');
-        const remoteCfg = getRemoteWorkspaceConfig(workspaceId);
-        const isVps = Boolean(remoteCfg && (remoteCfg.storage === 'vps' || remoteCfg.runtime === 'vps'));
-        workspaceRootFolder = isVps ? (remoteCfg?.cwd?.trim() || meta.rootFolder) : meta.rootFolder;
-        let workspaceDoc: string | null = null;
-        if (isVps) {
-          const { readRemoteWorkspaceDocById } = await import('../remote/workspace-files');
-          workspaceDoc = await readRemoteWorkspaceDocById(workspaceId);
-        } else {
-          workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
-        }
-        workspaceDocSection = formatWorkspaceContextSection(workspaceRootFolder, workspaceDoc);
+        const env = await loadWorkspaceEnvironmentContext(workspaceId);
+        workspaceRootFolder = env.rootFolder;
+        workspaceDocSection = env.section;
       } catch (err) {
         console.warn(`[canvas-agent] Failed to load workspace environment / ${WORKSPACE_DOC_FILENAME}:`, err);
       }
