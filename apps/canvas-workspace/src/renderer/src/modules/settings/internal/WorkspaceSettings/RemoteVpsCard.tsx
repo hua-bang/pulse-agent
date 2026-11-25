@@ -6,7 +6,6 @@ import type {
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
 import { remoteShareCopy, remoteVpsCopy } from '../../components/RemoteFolderPickerModal/copy';
-import { RemoteVpsJoinForm, RemoteVpsSharePanel } from './RemoteVpsSharePanel';
 import './RemoteVpsCard.css';
 
 interface Props {
@@ -15,25 +14,23 @@ interface Props {
   onConfigChange: (config: RemoteVpsWorkspaceConfigDto | null) => void;
 }
 
-type ConnMode = 'ssh' | 'direct';
 type ScopeMode = 'full' | 'runtime-only';
-type SetupMode = 'own' | 'invite';
+
+function isDirectUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
 
 export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Props) => {
   const { language } = useI18n();
   const copy = remoteVpsCopy(language);
   const shareCopy = remoteShareCopy(language);
   const [expanded, setExpanded] = useState(!currentConfig);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [setupMode, setSetupMode] = useState<SetupMode>('own');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sshHosts, setSshHosts] = useState<string[]>([]);
   const [liveStatus, setLiveStatus] = useState<RemoteVpsStatusResult | null>(null);
 
-  const [connMode, setConnMode] = useState<ConnMode>('ssh');
+  const [targetInput, setTargetInput] = useState('');
   const [scopeMode, setScopeMode] = useState<ScopeMode>('full');
-  const [sshHost, setSshHost] = useState('');
-  const [endpoint, setEndpoint] = useState('');
   const [remotePort, setRemotePort] = useState('4770');
   const [token, setToken] = useState('');
   const [allowRelay, setAllowRelay] = useState(true);
@@ -43,6 +40,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
 
   const bound = Boolean(currentConfig);
   const isSharedGuest = Boolean(currentConfig?.shareRole);
+  const directMode = isDirectUrl(targetInput);
 
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -58,14 +56,11 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
 
   useEffect(() => {
     setStatusMsg(null);
-    setShareOpen(false);
     setLiveStatus(null);
     if (currentConfig) {
       setExpanded(false);
-      setConnMode(currentConfig.endpoint ? 'direct' : 'ssh');
+      setTargetInput(currentConfig.endpoint || currentConfig.sshHost || '');
       setScopeMode(currentConfig.storage === 'local' ? 'runtime-only' : 'full');
-      setSshHost(currentConfig.sshHost ?? '');
-      setEndpoint(currentConfig.endpoint ?? '');
       setRemotePort(String(currentConfig.remotePort ?? 4770));
       setToken(currentConfig.token ?? '');
       setAllowRelay(currentConfig.allowCapabilityRelay !== false);
@@ -81,11 +76,8 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       }
     } else {
       setExpanded(true);
-      setSetupMode('own');
-      setConnMode('ssh');
+      setTargetInput('');
       setScopeMode('full');
-      setSshHost('');
-      setEndpoint('');
       setRemotePort('4770');
       setToken('');
       setAllowRelay(true);
@@ -94,18 +86,19 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
   }, [currentConfig, workspaceId]);
 
   const buildDraftConfig = useCallback((): RemoteVpsWorkspaceConfigDto => {
+    const trimmed = targetInput.trim();
     const portNum = Number.parseInt(remotePort, 10);
     return {
       kind: 'vps',
-      ...(connMode === 'ssh'
+      ...(isDirectUrl(trimmed)
         ? {
-            sshHost: sshHost.trim(),
-            remotePort: Number.isFinite(portNum) && portNum > 0 ? portNum : 4770,
-            autoBootstrap: true,
+            endpoint: trimmed.replace(/\/+$/, ''),
+            autoBootstrap: false,
           }
         : {
-            endpoint: endpoint.trim().replace(/\/+$/, ''),
-            autoBootstrap: false,
+            sshHost: trimmed,
+            remotePort: Number.isFinite(portNum) && portNum > 0 ? portNum : 4770,
+            autoBootstrap: true,
           }),
       token: token.trim() || undefined,
       remoteWorkspaceId: currentConfig?.remoteWorkspaceId || workspaceId,
@@ -114,12 +107,11 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
       runtime: 'vps',
       allowCapabilityRelay: allowRelay,
     };
-  }, [connMode, sshHost, remotePort, endpoint, token, scopeMode, allowRelay, currentConfig, workspaceId]);
+  }, [targetInput, remotePort, token, scopeMode, allowRelay, currentConfig, workspaceId]);
 
-  const canSubmit =
-    connMode === 'ssh'
-      ? sshHost.trim().length > 0
-      : endpoint.trim().length > 0 && token.trim().length > 0;
+  const canSubmit = directMode
+    ? targetInput.trim().length > 0 && token.trim().length > 0
+    : targetInput.trim().length > 0;
 
   const handleConnectAndSave = async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -245,18 +237,6 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
             </span>
           </div>
           <div className="remote-vps-summary-actions">
-            {!isSharedGuest && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setShareOpen((prev) => !prev);
-                  setExpanded(false);
-                }}
-              >
-                {shareOpen ? shareCopy.shareHide : shareCopy.shareButton}
-              </Button>
-            )}
             {isSharedGuest ? (
               <Button variant="secondary" size="sm" disabled={busy !== null} onClick={() => void handleRemove()}>
                 {busy === 'remove' ? copy.unbinding : copy.unbind}
@@ -265,10 +245,7 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  setExpanded((prev) => !prev);
-                  setShareOpen(false);
-                }}
+                onClick={() => setExpanded((prev) => !prev)}
               >
                 {expanded ? copy.collapse : copy.manageConnection}
               </Button>
@@ -290,65 +267,37 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
         </div>
       )}
 
-      {bound && shareOpen && !isSharedGuest && (
-        <RemoteVpsSharePanel
-          workspaceId={workspaceId}
-          defaultEndpoint={currentConfig?.endpoint}
-          detectedTailscaleUrl={liveStatus?.tailscaleUrl}
-        />
-      )}
-
-      {expanded && !bound && (
-        <SegmentedControl
-          value={setupMode}
-          onChange={(id) => setSetupMode(id as SetupMode)}
-          options={[
-            { id: 'own', label: shareCopy.connectOwnTab },
-            { id: 'invite', label: shareCopy.joinInviteTab },
-          ]}
-        />
-      )}
-
-      {expanded && !bound && setupMode === 'invite' && (
-        <RemoteVpsJoinForm
-          workspaceId={workspaceId}
-          onJoined={(cfg, msg) => {
-            onConfigChange(cfg);
-            setStatusMsg({ kind: 'ok', text: msg });
-          }}
-        />
-      )}
-
-      {expanded && (bound || setupMode === 'own') && (
+      {expanded && !isSharedGuest && (
         <div className="remote-vps-body">
-          {connMode === 'ssh' ? (
-            <FieldRow label={copy.sshHost} hint={copy.sshHostHint}>
+          <FieldRow label={copy.sshHost} hint={copy.sshHostHint}>
+            <TextField
+              value={targetInput}
+              onChange={(e) => setTargetInput(e.target.value)}
+              placeholder={copy.sshHostPlaceholder}
+            />
+            {!directMode && sshHosts.length > 0 && (
+              <div className="remote-vps-host-chips">
+                {sshHosts.slice(0, 8).map((host) => (
+                  <Button
+                    key={host}
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setTargetInput(host)}
+                  >
+                    {host}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </FieldRow>
+
+          {directMode && (
+            <FieldRow label={copy.token} hint={copy.tokenHintDirect}>
               <TextField
-                value={sshHost}
-                onChange={(e) => setSshHost(e.target.value)}
-                placeholder={copy.sshHostPlaceholder}
-              />
-              {sshHosts.length > 0 && (
-                <div className="remote-vps-host-chips">
-                  {sshHosts.slice(0, 8).map((host) => (
-                    <Button
-                      key={host}
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setSshHost(host)}
-                    >
-                      {host}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </FieldRow>
-          ) : (
-            <FieldRow label={copy.endpoint} hint={copy.endpointHint}>
-              <TextField
-                value={endpoint}
-                onChange={(e) => setEndpoint(e.target.value)}
-                placeholder="http://100.x.y.z:4770"
+                type="password"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder={copy.tokenPlaceholderDirect}
               />
             </FieldRow>
           )}
@@ -365,20 +314,6 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
 
           {showAdvanced && (
             <div className="remote-vps-advanced">
-              <FieldRow
-                label={copy.connMode}
-                hint={connMode === 'ssh' ? copy.connSshHint : copy.connDirectHint}
-              >
-                <SegmentedControl
-                  value={connMode}
-                  onChange={(id) => setConnMode(id as ConnMode)}
-                  options={[
-                    { id: 'ssh', label: copy.connSsh },
-                    { id: 'direct', label: copy.connDirect },
-                  ]}
-                />
-              </FieldRow>
-
               <FieldRow label={copy.scopeMode} hint={copy.scopeHint}>
                 <SegmentedControl
                   value={scopeMode}
@@ -390,29 +325,26 @@ export const RemoteVpsCard = ({ workspaceId, currentConfig, onConfigChange }: Pr
                 />
               </FieldRow>
 
-              {connMode === 'ssh' && (
-                <FieldRow label={copy.remotePort} hint={copy.remotePortHint}>
-                  <TextField
-                    value={remotePort}
-                    onChange={(e) => setRemotePort(e.target.value)}
-                    placeholder="4770"
-                  />
-                </FieldRow>
-              )}
+              {!directMode && (
+                <>
+                  <FieldRow label={copy.remotePort} hint={copy.remotePortHint}>
+                    <TextField
+                      value={remotePort}
+                      onChange={(e) => setRemotePort(e.target.value)}
+                      placeholder="4770"
+                    />
+                  </FieldRow>
 
-              <FieldRow
-                label={copy.token}
-                hint={connMode === 'ssh' ? copy.tokenHintSsh : copy.tokenHintDirect}
-              >
-                <TextField
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder={
-                    connMode === 'ssh' ? copy.tokenPlaceholderSsh : copy.tokenPlaceholderDirect
-                  }
-                />
-              </FieldRow>
+                  <FieldRow label={copy.token} hint={copy.tokenHintSsh}>
+                    <TextField
+                      type="password"
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                      placeholder={copy.tokenPlaceholderSsh}
+                    />
+                  </FieldRow>
+                </>
+              )}
 
               <FieldRow label={shareCopy.relayLabel} hint={shareCopy.relayHint}>
                 <SegmentedControl

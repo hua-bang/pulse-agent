@@ -43,10 +43,12 @@ export const CanvasShareModal = ({
   const [config, setConfig] = useState<RemoteVpsWorkspaceConfigDto | null>(null);
   const [liveStatus, setLiveStatus] = useState<RemoteVpsStatusResult | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [sshHosts, setSshHosts] = useState<string[]>([]);
+  const [quickHostingHost, setQuickHostingHost] = useState<string | null>(null);
+  const [quickHostError, setQuickHostError] = useState<string | null>(null);
 
   // One-step Join Shared Canvas form state.
   const [inviteCode, setInviteCode] = useState('');
-  const [joinName, setJoinName] = useState('');
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export const CanvasShareModal = ({
     if (!open) return;
     setTab(initialTab);
     setJoinError(null);
+    setQuickHostError(null);
     const api = window.canvasWorkspace?.remoteVps;
     if (!api || !workspaceId) {
       setConfig(null);
@@ -72,12 +75,65 @@ export const CanvasShareModal = ({
         if (!cancelled) setLiveStatus(status);
       } else {
         setLiveStatus(null);
+        const hostsRes = await api.listSshHosts().catch(() => ({ ok: false, hosts: [] as string[] }));
+        if (!cancelled && hostsRes.ok) setSshHosts(hostsRes.hosts);
       }
     });
     return () => {
       cancelled = true;
     };
   }, [open, workspaceId, initialTab]);
+
+  // Auto-detect a pulse-share invite code already on the clipboard when opening Join tab.
+  useEffect(() => {
+    if (!open || tab !== 'join' || inviteCode.trim()) return;
+    let cancelled = false;
+    void navigator.clipboard
+      ?.readText?.()
+      .then((text) => {
+        if (!cancelled && /pulse-share:\/\/v1\/[A-Za-z0-9_-]+/.test(text)) {
+          setInviteCode(text.trim());
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tab, inviteCode]);
+
+  const handleQuickHost = async (host: string) => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api) return;
+    setQuickHostingHost(host);
+    setQuickHostError(null);
+    try {
+      const draft: RemoteVpsWorkspaceConfigDto = {
+        kind: 'vps',
+        sshHost: host,
+        remotePort: 4770,
+        autoBootstrap: true,
+        remoteWorkspaceId: workspaceId,
+        storage: 'vps',
+        runtime: 'vps',
+        allowCapabilityRelay: true,
+      };
+      const testRes = await api.testAndBootstrap(workspaceId, draft);
+      if (!testRes.ok) {
+        setQuickHostError(testRes.error || 'Failed to connect to VPS');
+        return;
+      }
+      const resolved: RemoteVpsWorkspaceConfigDto = { ...draft, token: testRes.token };
+      const mig = await api.migrateLocal(workspaceId, resolved, { onlyIfRemoteEmpty: true });
+      if (!mig.ok) {
+        await api.saveConfig(workspaceId, resolved);
+      }
+      setConfig(resolved);
+      const status = await api.getStatus(workspaceId);
+      setLiveStatus(status);
+    } finally {
+      setQuickHostingHost(null);
+    }
+  };
 
   const handleJoinOneStep = async () => {
     const api = window.canvasWorkspace?.remoteVps;
@@ -91,9 +147,8 @@ export const CanvasShareModal = ({
         setJoinError(res.error || shareCopy.joinFailed);
         return;
       }
-      const displayName = joinName.trim() || res.workspaceName || copy.joinFallbackName;
+      const displayName = res.workspaceName || copy.joinFallbackName;
       setInviteCode('');
-      setJoinName('');
       onJoinedNewWorkspace?.(targetId, displayName);
       onClose();
     } finally {
@@ -176,9 +231,32 @@ export const CanvasShareModal = ({
               <div className="canvas-share-modal__local-card">
                 <div className="canvas-share-modal__local-title">{copy.localOnlyTitle}</div>
                 <p className="canvas-share-modal__local-body">{copy.localOnlyBody}</p>
+                {sshHosts.length > 0 && (
+                  <div className="remote-vps-host-chips">
+                    {sshHosts.slice(0, 6).map((host) => (
+                      <Button
+                        key={host}
+                        variant="primary"
+                        size="sm"
+                        disabled={quickHostingHost !== null}
+                        onClick={() => void handleQuickHost(host)}
+                      >
+                        {quickHostingHost === host
+                          ? language === 'zh'
+                            ? `托管到 ${host}…`
+                            : `Hosting on ${host}…`
+                          : language === 'zh'
+                            ? `一键托管到 ${host}`
+                            : `Host on ${host}`}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                {quickHostError && <div className="remote-vps-status is-error">{quickHostError}</div>}
                 <div className="remote-vps-actions">
                   <Button
-                    variant="primary"
+                    variant={sshHosts.length > 0 ? 'secondary' : 'primary'}
+                    disabled={quickHostingHost !== null}
                     onClick={() => {
                       onClose();
                       onOpenWorkspaceSettings?.(workspaceId);
@@ -264,13 +342,6 @@ export const CanvasShareModal = ({
                 )}
               </div>
             )}
-            <FieldRow label={copy.joinNameLabel}>
-              <TextField
-                value={joinName}
-                onChange={(e) => setJoinName(e.target.value)}
-                placeholder={invitePreview?.name || copy.joinNamePlaceholder}
-              />
-            </FieldRow>
             {joinError && <div className="remote-vps-status is-error">{joinError}</div>}
             <div className="remote-vps-actions">
               <Button

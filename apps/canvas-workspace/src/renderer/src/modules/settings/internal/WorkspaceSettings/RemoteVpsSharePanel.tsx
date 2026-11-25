@@ -30,10 +30,13 @@ export const RemoteVpsSharePanel = ({
   const [label, setLabel] = useState('');
   const [expiry, setExpiry] = useState<ExpiryKey>('7d');
   const [publicEndpoint, setPublicEndpoint] = useState(defaultEndpoint || detectedTailscaleUrl || '');
+  const [showOptions, setShowOptions] = useState(false);
   const [shares, setShares] = useState<RemoteVpsShareSummary[]>([]);
   const [latestInvite, setLatestInvite] = useState<string | null>(null);
   const [busy, setBusy] = useState<'create' | string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const hasAutoEndpoint = Boolean(publicEndpoint.trim());
 
   const formatRelativeAgo = (ts: number): string => {
     const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
@@ -93,6 +96,7 @@ export const RemoteVpsSharePanel = ({
             : raw.includes('Route not found')
               ? copy.oldDaemonShareError
               : raw;
+        if (raw === 'LOOPBACK_SHARE_ENDPOINT') setShowOptions(true);
         setStatusMsg({ kind: 'err', text: friendly });
         return;
       }
@@ -134,6 +138,14 @@ export const RemoteVpsSharePanel = ({
         ? copy.roleHintEditor
         : copy.roleHintCollaborator;
 
+  const moreOptionsLabel = showOptions
+    ? language === 'zh'
+      ? '收起选项'
+      : 'Hide options'
+    : language === 'zh'
+      ? '更多选项（备注 / 有效期 / 地址）'
+      : 'More options (note / expiry / URL)';
+
   return (
     <div className="remote-vps-body">
       <FieldRow label={copy.roleLabel} hint={roleHint}>
@@ -148,42 +160,66 @@ export const RemoteVpsSharePanel = ({
         />
       </FieldRow>
 
-      <FieldRow
-        label={copy.endpointLabel}
-        hint={detectedTailscaleUrl ? copy.tailscaleDetectedHint(detectedTailscaleUrl) : copy.endpointHint}
-      >
-        <TextField
-          value={publicEndpoint}
-          onChange={(e) => setPublicEndpoint(e.target.value)}
-          placeholder={copy.endpointPlaceholder}
-        />
-      </FieldRow>
-
-      <FieldRow label={copy.labelInputLabel}>
-        <TextField
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder={copy.labelInputPlaceholder}
-        />
-      </FieldRow>
-
-      <FieldRow label={copy.expiryLabel}>
-        <SegmentedControl
-          value={expiry}
-          onChange={(id) => setExpiry(id as ExpiryKey)}
-          options={[
-            { id: '24h', label: copy.expiry24h },
-            { id: '7d', label: copy.expiry7d },
-            { id: 'never', label: copy.expiryNever },
-          ]}
-        />
-      </FieldRow>
+      {!hasAutoEndpoint && (
+        <FieldRow
+          label={copy.endpointLabel}
+          hint={detectedTailscaleUrl ? copy.tailscaleDetectedHint(detectedTailscaleUrl) : copy.endpointHint}
+        >
+          <TextField
+            value={publicEndpoint}
+            onChange={(e) => setPublicEndpoint(e.target.value)}
+            placeholder={copy.endpointPlaceholder}
+          />
+        </FieldRow>
+      )}
 
       <div className="remote-vps-actions">
-        <Button variant="secondary" disabled={busy !== null} onClick={() => void handleCreate()}>
+        <Button variant="primary" disabled={busy !== null} onClick={() => void handleCreate()}>
           {busy === 'create' ? copy.creating : copy.createAction}
         </Button>
+        <Button variant="secondary" size="sm" onClick={() => setShowOptions((prev) => !prev)}>
+          {moreOptionsLabel}
+        </Button>
       </div>
+
+      {showOptions && (
+        <div className="remote-vps-advanced">
+          {hasAutoEndpoint && (
+            <FieldRow
+              label={copy.endpointLabel}
+              hint={
+                detectedTailscaleUrl
+                  ? copy.tailscaleDetectedHint(detectedTailscaleUrl)
+                  : copy.endpointHint
+              }
+            >
+              <TextField
+                value={publicEndpoint}
+                onChange={(e) => setPublicEndpoint(e.target.value)}
+                placeholder={copy.endpointPlaceholder}
+              />
+            </FieldRow>
+          )}
+          <FieldRow label={copy.labelInputLabel}>
+            <TextField
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={copy.labelInputPlaceholder}
+            />
+          </FieldRow>
+          <FieldRow label={copy.expiryLabel}>
+            <SegmentedControl
+              value={expiry}
+              onChange={(id) => setExpiry(id as ExpiryKey)}
+              options={[
+                { id: '24h', label: copy.expiry24h },
+                { id: '7d', label: copy.expiry7d },
+                { id: 'never', label: copy.expiryNever },
+              ]}
+            />
+          </FieldRow>
+        </div>
+      )}
 
       {latestInvite && (
         <div className="remote-vps-invite-box">
@@ -232,59 +268,6 @@ export const RemoteVpsSharePanel = ({
             </div>
           ))
         )}
-      </div>
-    </div>
-  );
-};
-
-interface JoinFormProps {
-  workspaceId: string;
-  onJoined: (config: import('../../../../../../shared/api/remote-vps').RemoteVpsWorkspaceConfigDto, msg: string) => void;
-}
-
-export const RemoteVpsJoinForm = ({ workspaceId, onJoined }: JoinFormProps) => {
-  const { language } = useI18n();
-  const copy = remoteShareCopy(language);
-  const [inviteCode, setInviteCode] = useState('');
-  const [joining, setJoining] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
-
-  const handleJoin = async () => {
-    const api = window.canvasWorkspace?.remoteVps;
-    if (!api || !inviteCode.trim()) return;
-    setJoining(true);
-    setErrorText(null);
-    try {
-      const res = await api.joinShare(workspaceId, inviteCode.trim());
-      if (!res.ok || !res.config) {
-        setErrorText(res.error || copy.joinFailed);
-        return;
-      }
-      setInviteCode('');
-      onJoined(res.config, copy.joinedOk(res.role ?? 'viewer'));
-    } finally {
-      setJoining(false);
-    }
-  };
-
-  return (
-    <div className="remote-vps-body">
-      <FieldRow label={copy.inviteCodeLabel} hint={copy.inviteCodeHint}>
-        <TextField
-          value={inviteCode}
-          onChange={(e) => setInviteCode(e.target.value)}
-          placeholder={copy.inviteCodePlaceholder}
-        />
-      </FieldRow>
-      {errorText && <div className="remote-vps-status is-error">{errorText}</div>}
-      <div className="remote-vps-actions">
-        <Button
-          variant="primary"
-          disabled={!inviteCode.trim() || joining}
-          onClick={() => void handleJoin()}
-        >
-          {joining ? copy.joining : copy.joinAction}
-        </Button>
       </div>
     </div>
   );
