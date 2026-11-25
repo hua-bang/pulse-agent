@@ -38,6 +38,7 @@ const READ_ONLY_RPC_METHODS = new Set([
   'canvas.read',
   'canvas.readNode',
   'canvas.listNodes',
+  'workspaces.getTrashed',
   'conversations.read',
   'conversations.list',
   'conversationScopes.read',
@@ -239,6 +240,7 @@ export function isRpcCallAllowed(
     method === 'canvas.read' ||
     method === 'canvas.readNode' ||
     method === 'canvas.listNodes' ||
+    method === 'workspaces.getTrashed' ||
     method === 'conversations.read' ||
     method === 'conversations.list' ||
     method === 'conversationScopes.read'

@@ -19,6 +19,7 @@ interface FileSession {
   dirty: boolean;
   conflict: boolean;
   versioned: boolean;
+  missing: boolean;
   baseline?: { content: string; version?: string };
   editSequence: number;
   saveSequence: number;
@@ -34,6 +35,9 @@ const hasDraft = (data: FileNodeData): boolean => Boolean(
   data.modified || ((data.fileWriteIntentId || data.fileWriteStatus) && data.fileWriteStatus !== 'applied'),
 );
 
+const isMissingFileError = (error?: string): boolean =>
+  typeof error === 'string' && /^ENOENT\b/i.test(error.trim());
+
 /** A byte-version baseline belongs to one node/file lifetime, never to a render. */
 export function useFilePersistence(options: Options) {
   const latest = useRef(options);
@@ -48,7 +52,7 @@ export function useFilePersistence(options: Options) {
     holder.current = {
       nodeId: options.nodeId, filePath: options.data.filePath,
       initialContent: materializingDraft ? previous.initialContent : options.data.content ?? '',
-      active: true, dirty: hasDraft(options.data) || materializingDraft, conflict: false, versioned: false,
+      active: true, dirty: hasDraft(options.data) || materializingDraft, conflict: false, versioned: false, missing: false,
       editSequence: materializingDraft ? previous.editSequence : 0, saveSequence: 0, readSequence: 0,
       queue: Promise.resolve(), queued: 0, writing: false, refreshAfterWrite: false,
     };
@@ -91,9 +95,14 @@ export function useFilePersistence(options: Options) {
         if (!current() || readSequence !== session.readSequence) return false;
         if (!result.ok || typeof result.content !== 'string'
           || (session.versioned && !result.version)) {
+          if (!discard && !session.versioned && isMissingFileError(result.error)) {
+            session.missing = true;
+            return false;
+          }
           fail();
           return false;
         }
+        session.missing = false;
         const sameBase = result.content === baseContent
           && (!baseVersion || result.version === baseVersion);
         if ((discard && editSequence !== session.editSequence)
@@ -150,7 +159,10 @@ export function useFilePersistence(options: Options) {
         session.conflict = false;
         setConflicted(false);
       }
-      if (!force && (!session.baseline || (session.versioned && !session.baseline.version)) && !await refresh()) return;
+      if (!force && (!session.baseline || (session.versioned && !session.baseline.version))) {
+        const refreshed = await refresh();
+        if (!refreshed && !(session.missing && !session.versioned)) return;
+      }
       // A read started before this write must not later restore its old body
       // or replace the acknowledged version, even if it finishes last.
       session.readSequence += 1;
@@ -164,6 +176,7 @@ export function useFilePersistence(options: Options) {
         if (!result.ok) { fail(result.conflict); return; }
         // Even an outdated UI acknowledgement advances the actual file baseline
         // for the next queued write; it must not clear the newer editor draft.
+        session.missing = false;
         session.baseline = { content: markdown, version: result.version };
         session.versioned ||= typeof result.version === 'string';
         if (!current() || saveSequence !== session.saveSequence || editSequence !== session.editSequence) return;
