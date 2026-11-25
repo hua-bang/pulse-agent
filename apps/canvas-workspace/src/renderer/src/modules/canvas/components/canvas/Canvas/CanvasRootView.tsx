@@ -1,13 +1,16 @@
 import { lazy, Suspense, useCallback, useState } from 'react';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
-import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { findNodeAtPoint } from '../NodeActionsMenu/findNodeAtPoint';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import { AppLogoIcon, SpinnerIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
+
+const CanvasFullscreenChip = lazy(() =>
+  import('./CanvasFullscreenChip').then((module) => ({ default: module.CanvasFullscreenChip })),
+);
 
 /** Loading spinner, or a read failure with a reload that calls load again. */
 export const CanvasLoadState = ({
@@ -333,15 +336,17 @@ export const CanvasRootView = ({
       )}
 
       {focus.fullscreenNodeId && (
-        <CanvasFullscreenChip
-          referenceDrawerOpen={referenceDrawerOpen}
-          onReferenceToggle={onReferenceToggle}
-          chatPanelOpen={chatPanelOpen}
-          onChatOpen={addFullscreenNodeToChat ?? onChatOpen}
-          onPrevNode={focus.canStepFullscreen ? () => focus.stepFullscreen(-1) : undefined}
-          onNextNode={focus.canStepFullscreen ? () => focus.stepFullscreen(1) : undefined}
-          onExitFullscreen={focus.exitFullscreen}
-        />
+        <Suspense fallback={null}>
+          <CanvasFullscreenChip
+            referenceDrawerOpen={referenceDrawerOpen}
+            onReferenceToggle={onReferenceToggle}
+            chatPanelOpen={chatPanelOpen}
+            onChatOpen={addFullscreenNodeToChat ?? onChatOpen}
+            onPrevNode={focus.canStepFullscreen ? () => focus.stepFullscreen(-1) : undefined}
+            onNextNode={focus.canStepFullscreen ? () => focus.stepFullscreen(1) : undefined}
+            onExitFullscreen={focus.exitFullscreen}
+          />
+        </Suspense>
       )}
 
       {mouse.interactionShieldActive && (

@@ -548,14 +548,17 @@
 /* Reuse Canvas presentation states; narrow focus windows keep card density. */
 @container (min-width: 561px) {
   :is(.canvas-node--focus-mode-focused, .canvas-node--fullscreen) .note-tiptap-editor .ProseMirror {
-    max-width: 860px;
-    margin-inline: auto;
-    padding: 40px 40px 96px;
+    padding: 32px 40px 96px;
     font-size: 16px;
     line-height: 1.8;
     --note-heading-1: 1.75em;
     --note-heading-2: 1.375em;
     --note-paragraph-gap: 0.85em;
+  }
+
+  .canvas-node--fullscreen .note-tiptap-editor .ProseMirror {
+    max-width: 780px;
+    margin-inline: auto;
   }
 }
 
