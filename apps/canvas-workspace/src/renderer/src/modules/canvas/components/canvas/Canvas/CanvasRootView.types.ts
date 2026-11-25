@@ -43,6 +43,7 @@ export type CanvasRootViewProps = Pick<
   edges: CanvasEdge[];
   editingEdgeLabelId: string | null;
   externallyEditedIds: Set<string>;
+  remotelyEditedIds?: Set<string>;
   findNodesById: Map<string, CanvasNode>;
   focus: ReturnType<typeof useCanvasFocusMode>;
   getAllNodes: () => CanvasNode[];

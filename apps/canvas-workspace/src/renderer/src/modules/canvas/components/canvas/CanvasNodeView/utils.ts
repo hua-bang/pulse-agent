@@ -26,6 +26,7 @@ export const noteRepeatsTitle = (node: CanvasNode): boolean => {
 export const getNodeClasses = ({
   embedded,
   isAgentEdited,
+  isRemoteEdited,
   isDragging,
   isFullscreen,
   isHighlighted,
@@ -37,6 +38,7 @@ export const getNodeClasses = ({
 }: {
   embedded: boolean;
   isAgentEdited?: boolean;
+  isRemoteEdited?: boolean;
   isDragging: boolean;
   isFullscreen: boolean;
   isHighlighted: boolean;
@@ -54,6 +56,7 @@ export const getNodeClasses = ({
   isSelected && 'canvas-node--selected',
   isHighlighted && 'canvas-node--highlighted',
   isAgentEdited && 'canvas-node--agent-edited',
+  isRemoteEdited && 'canvas-node--remote-edited',
   readOnly && 'canvas-node--readonly',
   embedded && 'canvas-node--embedded',
   textAutoSize && 'canvas-node--text-auto',

@@ -412,6 +412,19 @@ describe('useCanvasDocument text resize commit', () => {
   it('still flags a node another writer changed', async () => {
     await deliverExternal(remote({ x: 999 }));
     expect([...hook.externallyEditedIds]).toEqual(['text-1']);
+    expect(hook.remotelyEditedIds.size).toBe(0);
+  });
+
+  it('tracks remote-vps updates in remotelyEditedIds instead of agent-only edits', async () => {
+    load.mockResolvedValueOnce({ ok: true, data: remote({ x: 888 }) });
+    await act(async () => {
+      await externalUpdate({ workspaceId: selectedCanvas, nodeIds: ['text-1'], source: 'remote-vps' });
+    });
+    expect([...hook.externallyEditedIds]).toEqual(['text-1']);
+    expect([...hook.remotelyEditedIds]).toEqual(['text-1']);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(hook.externallyEditedIds.size).toBe(0);
+    expect(hook.remotelyEditedIds.size).toBe(0);
   });
 
   it('merges a rejected save with fresh data and retries once with the actual revision', async () => {

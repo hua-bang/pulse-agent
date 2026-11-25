@@ -145,6 +145,7 @@ export const useCanvasDocument = (
    * highlight. Entries expire after ~2.5s.
    */
   const [externallyEditedIds, setExternallyEditedIds] = useState<Set<string>>(() => new Set());
+  const [remotelyEditedIds, setRemotelyEditedIds] = useState<Set<string>>(() => new Set());
   const externalClearTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Listen for canvas-cli writes bubbled up from the main process via the
@@ -222,9 +223,18 @@ export const useCanvasDocument = (
       // Mark the affected nodes as externally-edited for 2.5s so the Canvas
       // component can render a transient highlight.
       if (editedIds.length) {
+        const isRemote = event.source === 'remote-vps';
         setExternallyEditedIds((prev) => {
           const next = new Set(prev);
           for (const id of editedIds) next.add(id);
+          return next;
+        });
+        setRemotelyEditedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of editedIds) {
+            if (isRemote) next.add(id);
+            else next.delete(id);
+          }
           return next;
         });
       }
@@ -233,6 +243,12 @@ export const useCanvasDocument = (
         if (existing) clearTimeout(existing);
         const t = setTimeout(() => {
           setExternallyEditedIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          setRemotelyEditedIds((prev) => {
             if (!prev.has(id)) return prev;
             const next = new Set(prev);
             next.delete(id);
@@ -460,6 +476,7 @@ export const useCanvasDocument = (
     loaded,
     loadFailed,
     externallyEditedIds,
+    remotelyEditedIds,
     mergeMindmapTopic,
     splitMindmapTopic,
     setTransformForSave,

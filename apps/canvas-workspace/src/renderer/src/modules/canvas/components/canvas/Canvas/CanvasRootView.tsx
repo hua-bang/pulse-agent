@@ -73,6 +73,7 @@ export const CanvasRootView = ({
   edges,
   editingEdgeLabelId,
   externallyEditedIds,
+  remotelyEditedIds,
   findNodesById,
   focus,
   getAllNodes,
@@ -266,6 +267,7 @@ export const CanvasRootView = ({
         highlightedId={highlightedId}
         renameSignal={renameSignal}
         externallyEditedIds={externallyEditedIds}
+        remotelyEditedIds={remotelyEditedIds}
         edgeInteractionState={drawingGestures.edgeInteractionState}
         edgePreview={drawingGestures.edgePreview}
         connectHandleNodeId={drawingGestures.connectHandles.hoverNodeId}

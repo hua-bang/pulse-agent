@@ -63,6 +63,7 @@ export const useCanvasNodeViewModel = ({
   dragOffset,
   getAllNodes,
   isAgentEdited,
+  isRemoteEdited,
   isDragging,
   isFullscreen,
   isHighlighted,
@@ -93,6 +94,7 @@ export const useCanvasNodeViewModel = ({
   CanvasNodeViewProps,
   | 'getAllNodes'
   | 'isAgentEdited'
+  | 'isRemoteEdited'
   | 'isDragging'
   | 'isHighlighted'
   | 'isResizing'
@@ -353,6 +355,7 @@ export const useCanvasNodeViewModel = ({
     classes: getNodeClasses({
       embedded,
       isAgentEdited,
+      isRemoteEdited,
       isDragging,
       isFullscreen,
       isHighlighted,

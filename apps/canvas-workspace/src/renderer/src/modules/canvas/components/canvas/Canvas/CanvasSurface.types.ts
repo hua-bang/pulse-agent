@@ -64,6 +64,7 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
   /** Node targeted by the Enter / F2 rename shortcut, with a bump token. */
   renameSignal?: { nodeId: string; token: number } | null;
   externallyEditedIds: Set<string>;
+  remotelyEditedIds?: Set<string>;
   /** Live edge interaction state — passed straight to the edges layer so it
    *  can render the preview / highlight the hover target. */
   edgeInteractionState: EdgeInteractionState | null;
