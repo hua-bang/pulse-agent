@@ -38,7 +38,6 @@ describe('useCanvasNodeViewModel', () => {
   const Probe = () => {
     viewModel = useCanvasNodeViewModel({
       embedded: false,
-      focusState: 'neutral',
       isFullscreen: false,
       readOnly: false,
       isDragging: false,
@@ -297,7 +296,7 @@ describe('useCanvasNodeViewModel group body', () => {
     let model: ReturnType<typeof useCanvasNodeViewModel> | undefined;
     const Probe = () => {
       model = useCanvasNodeViewModel({
-        embedded: false, focusState: 'neutral', isFullscreen: false, readOnly: false,
+        embedded: false, isFullscreen: false, readOnly: false,
         isDragging: false, isHighlighted: false, isResizing: false, isSelected: false,
         node: group, onDragStart, onFocus: vi.fn(), onRemove: vi.fn(),
         onResizeStart: vi.fn(), onSelect, onUpdate: vi.fn(),

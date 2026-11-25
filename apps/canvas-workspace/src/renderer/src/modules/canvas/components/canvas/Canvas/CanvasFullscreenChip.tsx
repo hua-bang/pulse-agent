@@ -1,4 +1,5 @@
 import { AppLogoIcon } from '../../../../../components/icons';
+import { Button } from '../../../../../components/ui/Button';
 import { useI18n } from '../../../../../i18n';
 
 interface Props {
@@ -9,14 +10,16 @@ interface Props {
   onReferenceToggle?: () => void;
   chatPanelOpen?: boolean;
   onChatOpen?: () => void;
+  onPrevNode?: () => void;
+  onNextNode?: () => void;
   onExitFullscreen: () => void;
 }
 
 /**
  * Fullscreen-only chip. Becomes the single control surface for
- * fullscreen mode — Reference / Chat toggles plus the exit button — so
- * the user has one stable spot to reach all the relevant actions and
- * we don't have to fight the node header for top-right real estate.
+ * immersive focus / fullscreen mode — prev/next node stepping, Reference /
+ * Chat toggles, plus the exit button — so the user has one stable spot to
+ * reach all the relevant actions without fighting the node header.
  * The node's own fullscreen toggle is hidden while this is shown (see
  * CanvasNodeView CSS).
  */
@@ -25,6 +28,8 @@ export const CanvasFullscreenChip = ({
   onReferenceToggle,
   chatPanelOpen,
   onChatOpen,
+  onPrevNode,
+  onNextNode,
   onExitFullscreen,
 }: Props) => {
   const { t } = useI18n();
@@ -35,10 +40,40 @@ export const CanvasFullscreenChip = ({
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      {onPrevNode && onNextNode && (
+        <>
+          <Button
+            variant="icon"
+            size="sm"
+            className="canvas-fullscreen-chip__btn"
+            onClick={onPrevNode}
+            title={t('canvas.fullscreen.prevNode')}
+            aria-label={t('canvas.fullscreen.prevNode')}
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Button>
+          <Button
+            variant="icon"
+            size="sm"
+            className="canvas-fullscreen-chip__btn"
+            onClick={onNextNode}
+            title={t('canvas.fullscreen.nextNode')}
+            aria-label={t('canvas.fullscreen.nextNode')}
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Button>
+          <div className="canvas-fullscreen-chip__divider" />
+        </>
+      )}
       {onReferenceToggle && (
-        <button
+        <Button
+          variant="icon"
+          size="sm"
           className={`canvas-fullscreen-chip__btn${referenceDrawerOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
-          type="button"
           onClick={onReferenceToggle}
           title={t('canvas.toolbar.toggleReference')}
           aria-label={t('canvas.toolbar.toggleReference')}
@@ -47,23 +82,25 @@ export const CanvasFullscreenChip = ({
             <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
             <path d="M6 6h6M6 9h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
-        </button>
+        </Button>
       )}
       {onChatOpen && (
-        <button
+        <Button
+          variant="icon"
+          size="sm"
           className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
-          type="button"
           onClick={onChatOpen}
           title={t('canvas.empty.openAiChat')}
           aria-label={t('canvas.empty.openAiChat')}
         >
           <AppLogoIcon size={16} />
-        </button>
+        </Button>
       )}
       <div className="canvas-fullscreen-chip__divider" />
-      <button
+      <Button
+        variant="icon"
+        size="sm"
         className="canvas-fullscreen-chip__btn"
-        type="button"
         onClick={onExitFullscreen}
         title={t('canvas.fullscreen.exit')}
         aria-label={t('canvas.fullscreen.exit')}
@@ -71,7 +108,7 @@ export const CanvasFullscreenChip = ({
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M7 1v3a1 1 0 01-1 1H3M9 1v3a1 1 0 001 1h3M7 15v-3a1 1 0 00-1-1H3M9 15v-3a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-      </button>
+      </Button>
     </div>
   );
 };

@@ -113,7 +113,7 @@
      (0.55 / 0.62). Kept deliberately light: the focused card carries its own
      shadow, so the dim only has to break the tie, and a heavier veil made
      the workbench feel modal when it is not. */
-  --canvas-focus-dim: rgba(15, 18, 30, 0.3);
+  --canvas-focus-dim: rgba(15, 18, 30, 0.56);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   /* Softer, wider card elevation: layers read by lift, not by outline. */
   --shadow-card: 0 1px 2px rgba(20, 20, 18, 0.04), 0 8px 24px rgba(20, 20, 18, 0.06);
@@ -288,7 +288,7 @@
   --tint-warning: rgba(231, 164, 86, 0.16);
   --tint-warning-border: rgba(231, 164, 86, 0.4);
   --overlay-backdrop: rgba(0, 0, 0, 0.5);
-  --canvas-focus-dim: rgba(0, 0, 0, 0.5);
+  --canvas-focus-dim: rgba(0, 0, 0, 0.68);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.3);
   --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.4);

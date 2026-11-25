@@ -460,16 +460,17 @@ describe('useCanvasKeyboard', () => {
       expect(fitNodes).toHaveBeenNthCalledWith(2, [nodes[1]]);
     });
 
-    it('keeps the camera pinned while a node is fullscreen', () => {
+    it('keeps zoom/fit pinned while allowing F exit and Ctrl+Tab stepping in fullscreen', () => {
       const zoomBy = vi.fn();
       const resetZoom = vi.fn();
       const fitNodes = vi.fn();
       const handleFocusNode = vi.fn();
       const onToggleFocusMode = vi.fn();
+      const onStepFullscreen = vi.fn();
       const nodes = [node('node-1'), node('node-2')];
       mountKeyboard({
         nodes, selectedNodeIds: ['node-1'], zoomBy, resetZoom, fitNodes, handleFocusNode,
-        canToggleFocusMode: true, onToggleFocusMode, fullscreenActive: true,
+        canToggleFocusMode: true, onToggleFocusMode, onStepFullscreen, fullscreenActive: true,
       });
 
       const zoomIn = press({ key: '=', metaKey: true });
@@ -478,15 +479,18 @@ describe('useCanvasKeyboard', () => {
       press({ key: '1', shiftKey: true });
       press({ key: '2', shiftKey: true });
       press({ key: 'Tab', ctrlKey: true });
+      press({ key: 'Tab', ctrlKey: true, shiftKey: true });
       press({ key: 'f' });
 
-      // The keys stay consumed, so the window does not zoom the whole page.
+      // Zoom/fit keys stay consumed so the window does not zoom the whole page.
       expect(zoomIn.defaultPrevented).toBe(true);
       expect(zoomBy).not.toHaveBeenCalled();
       expect(resetZoom).not.toHaveBeenCalled();
       expect(fitNodes).not.toHaveBeenCalled();
       expect(handleFocusNode).not.toHaveBeenCalled();
-      expect(onToggleFocusMode).not.toHaveBeenCalled();
+      expect(onStepFullscreen).toHaveBeenNthCalledWith(1, 1);
+      expect(onStepFullscreen).toHaveBeenNthCalledWith(2, -1);
+      expect(onToggleFocusMode).toHaveBeenCalledTimes(1);
     });
 
     it.each([

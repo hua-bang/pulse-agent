@@ -193,22 +193,6 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 16%, transparent);
 }
 
-.canvas-node--group.canvas-node--focus-mode-focused,
-.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: color-mix(in srgb, var(--group-color, #A594E0) 6%, transparent);
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--group-color, var(--tint-info-border)) 75%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 40%, transparent);
-  opacity: 1;
-}
-
-/* Iframes inside dimmed nodes keep loading content but shouldn't capture
- * scroll/clicks — otherwise the user trying to navigate the canvas can
- * accidentally scroll a dimmed Feishu/web doc behind the focused card. */
-.canvas-node--focus-mode-dimmed .iframe-frame {
-  pointer-events: none;
-}
-
 /* `content-visibility: auto` (CanvasNodeView/index.css) implies paint
  * containment, which clips the pill header above the box and the ::before
  * grab margin. Lift it whenever the header can show. */

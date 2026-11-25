@@ -114,7 +114,7 @@ export const MindmapCanvasNode = ({
         {supportsFullscreen ? (
           <FullscreenButton isFullscreen={isFullscreen} onClick={handleToggleFullscreen} />
         ) : null}
-        {handleFocus ? (
+        {handleFocus && (!supportsFullscreen || focusAction) ? (
           <FocusButton
             ariaLabel={focusAction?.ariaLabel}
             title={focusAction?.title}

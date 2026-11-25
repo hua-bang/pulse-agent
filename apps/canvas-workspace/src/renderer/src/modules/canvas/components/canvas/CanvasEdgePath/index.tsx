@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from 'react';
+import type { MouseEvent } from 'react';
 import type { CanvasEdge, EdgeStroke } from '../../../../../types';
 import { resolveEdgePathGeometry } from '../../../model/edgeFactory';
 import type { Point } from '../../../runtime/useEdgeInteraction';
@@ -9,9 +9,6 @@ interface Props {
   edge: CanvasEdge;
   geometry: ReturnType<typeof resolveEdgePathGeometry>;
   selected: boolean;
-  focusedNodeIds?: Set<string>;
-  focusContextNodeIds?: Set<string>;
-  focusModeEnabled: boolean;
   onSelectEdge?: (id: string | null) => void;
   onHandleMouseDown?: (
     edgeId: string,
@@ -26,8 +23,6 @@ interface Props {
 }
 
 const HIT_PROXY_WIDTH = 16;
-const FOCUS_DIMMED_EDGE_OPACITY = 0.12;
-const FOCUS_CONTEXT_EDGE_OPACITY = 0.45;
 
 const strokeDasharray = (style: EdgeStroke['style']): string | undefined => {
   if (style === 'dashed') return '6 4';
@@ -39,9 +34,6 @@ export const CanvasEdgePath = ({
   edge,
   geometry,
   selected,
-  focusedNodeIds,
-  focusContextNodeIds,
-  focusModeEnabled,
   onSelectEdge,
   onHandleMouseDown,
   onBodyMouseDown,
@@ -52,22 +44,9 @@ export const CanvasEdgePath = ({
   const { sourcePoint: source, targetPoint: target, d, midpoint } = geometry;
   const head = edge.arrowHead ?? 'triangle';
   const tail = edge.arrowTail ?? 'none';
-  const sourceFocused = edge.source.kind === 'node'
-    && focusedNodeIds?.has(edge.source.nodeId);
-  const targetFocused = edge.target.kind === 'node'
-    && focusedNodeIds?.has(edge.target.nodeId);
-  const sourceInContext = edge.source.kind === 'node'
-    && focusContextNodeIds?.has(edge.source.nodeId);
-  const targetInContext = edge.target.kind === 'node'
-    && focusContextNodeIds?.has(edge.target.nodeId);
-  const focused = !focusModeEnabled || selected || sourceFocused || targetFocused;
-  const inContext = !focused && sourceInContext && targetInContext;
-  const focusStyle: CSSProperties | undefined = focusModeEnabled && !focused
-    ? { opacity: inContext ? FOCUS_CONTEXT_EDGE_OPACITY : FOCUS_DIMMED_EDGE_OPACITY }
-    : undefined;
 
   return (
-    <g style={focusStyle}>
+    <g>
       <path
         d={d}
         fill="none"

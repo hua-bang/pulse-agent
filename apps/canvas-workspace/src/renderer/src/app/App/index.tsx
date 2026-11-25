@@ -88,6 +88,7 @@ const AppContent = () => {
   const chatTargetBroker = useChatTargetBroker();
   const activeChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, handleSidebarToggle] = useSidebarCollapsed();
+  const [canvasFullscreenActive, setCanvasFullscreenActive] = useState(false);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
@@ -302,13 +303,15 @@ const AppContent = () => {
     setSessionListRequest((count) => count + 1);
   }, [enterChatView]);
   useNodeDetailBridges({ activeWorkspaceId: activeId, enabled: NODES_ENABLED, pageNode: detailNode, enterNodePage: dock.enterNodePage, openNodePage, focusNodeOnCanvas });
+  const focusCompactSidebar = activeView === 'canvas' && canvasFullscreenActive;
+
   return (
     <div className="app">
       <div className="app-body">
         <Sidebar
-          collapsed={sidebarPanelHidden}
+          collapsed={sidebarPanelHidden || focusCompactSidebar}
           onToggle={handleSidebarToggle}
-          railExpanded={railExpanded}
+          railExpanded={railExpanded && !focusCompactSidebar}
           onToggleRail={toggleRailExpanded}
           workspaces={workspaces}
           folders={folders}
@@ -382,6 +385,7 @@ const AppContent = () => {
                   onOpenWorkspaceSettings={openWorkspaceSettings}
                   onOpenSessionInScope={openSessionInOwningScope}
                   onSetActiveRootFolder={workspaceActions.setActiveRootFolder}
+                  onFullscreenChange={setCanvasFullscreenActive}
                 />
               </div>
             </div>

@@ -33,7 +33,6 @@ export interface CanvasNodeViewProps {
   renameToken?: number;
   isHighlighted: boolean;
   isAgentEdited?: boolean;
-  focusState?: 'focused' | 'context' | 'dimmed' | 'neutral';
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: MouseEvent,

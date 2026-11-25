@@ -170,6 +170,12 @@
   -webkit-user-select: text;
 }
 
+.canvas-node--fullscreen .text-node-body .ProseMirror {
+  max-width: 860px;
+  margin-inline: auto;
+  padding: 40px 40px 96px;
+}
+
 .text-node-body--editing {
   /* Subtle inset ring so the user can tell they're editing even when the
    * background is transparent. */

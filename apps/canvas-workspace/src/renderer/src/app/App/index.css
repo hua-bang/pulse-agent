@@ -20,6 +20,18 @@
   transition: margin-right 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Immersive focus mode: hide top tab bar while Sidebar collapses to its
+ * slim 48px icon rail; tighten stage inset to 6px when RightDock is open
+ * so focused node + Dock form a clean split workspace. */
+.app:has(.canvas-host[data-active="on"] .canvas-container[data-fullscreen="on"]) .workspace-tabs,
+.app:has(.canvas-host[data-active="on"] .canvas-container[data-fullscreen="on"]) .canvas-route__tabs-placeholder {
+  display: none;
+}
+
+.app:has(.right-dock[data-expanded="true"]) .canvas-container[data-fullscreen="on"] {
+  --canvas-fullscreen-inset: 6px;
+}
+
 /* Page switches run as view transitions (shared/viewTransition.ts): the old
    page cross-fades into the new one, so no blank frame shows between them.
    The sidebar and the route view get their own groups only while a

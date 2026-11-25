@@ -9,6 +9,7 @@ import { useCanvasImagePaste } from '../../../runtime/useCanvasImagePaste';
 import { useTemporaryHandTool } from '../../../runtime/useTemporaryHandTool';
 import { useCanvasZoomControls } from '../../../runtime/useCanvasZoomControls';
 import { useCanvasFocusMode } from './hooks/useCanvasFocusMode';
+import { useChatDockReveal } from './useChatDockReveal';
 import { useCanvasSelection } from './hooks/useCanvasSelection';
 import { useCanvasContextMenu } from './hooks/useCanvasContextMenu';
 import { useCanvasNodeActions } from './hooks/useCanvasNodeActions';
@@ -76,6 +77,7 @@ export const useCanvasController = ({
   nodePatchRequest,
   onNodePatchComplete,
   onSetRootFolder,
+  onFullscreenChange,
 }: CanvasProps) => {
   const { confirm, notify, updateToast, openShortcuts, isOverlayOpen } = useAppShell();
   const { t } = useI18n();
@@ -146,25 +148,16 @@ export const useCanvasController = ({
   } = useCanvasSelection({ nodesRef });
   useEmptyTextCleanup({ selectedNodeIds, nodesRef, removeNodes });
 
-  const addReferenceToChat = useCallback(async (nodeId: string) => {
-    const receipt = await onAddToChat?.(nodeId);
-    const node = nodesRef.current.find((item) => item.id === nodeId);
-    if (node && (receipt?.status === 'delivered' || receipt?.status === 'queued')) {
-      revealNode(node, getLiveTransform);
-    }
-    return receipt ?? { status: 'unavailable' as const, target: null };
-  }, [getLiveTransform, onAddToChat, revealNode]);
-
-  // Opening the chat dock narrows the canvas; keep a lone selected node,
-  // usually the one about to be discussed, from ending up under the dock.
-  const chatWasOpenRef = useRef(chatPanelOpen);
-  useEffect(() => {
-    const opened = chatPanelOpen && !chatWasOpenRef.current;
-    chatWasOpenRef.current = chatPanelOpen;
-    const node = opened && selectedNodeIds.length === 1
-      ? nodesRef.current.find((item) => item.id === selectedNodeIds[0]) : undefined;
-    if (node) void revealNode(node, getLiveTransform);
-  }, [chatPanelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fullscreenNodeIdRef = useRef<string | null>(null);
+  const { addReferenceToChat } = useChatDockReveal({
+    nodesRef,
+    selectedNodeIds,
+    chatPanelOpen,
+    fullscreenNodeIdRef,
+    getLiveTransform,
+    revealNode,
+    onAddToChat,
+  });
 
   const creation = useCanvasCreationActions({
     surface: { canvasId, canvasName, rootFolder, containerRef, screenToCanvas },
@@ -190,6 +183,12 @@ export const useCanvasController = ({
     nodes: visibleNodes, nodesById: visibleNodesById, nodesRef, selectedNodeIds, handleFocusNode,
     getLiveTransform, animateTransform, setSelectedNodeIds, setSelectedEdgeId, setHighlightedId,
   });
+  fullscreenNodeIdRef.current = focus.fullscreenNodeId;
+
+  useEffect(() => {
+    if (!isActive) return;
+    onFullscreenChange?.(focus.fullscreenNodeId !== null);
+  }, [focus.fullscreenNodeId, isActive, onFullscreenChange]);
 
   const revealAddedNode = useCallback(
     (node: CanvasNode) => { void revealNode(node, getLiveTransform); },
@@ -309,13 +308,12 @@ export const useCanvasController = ({
     fitNodes: fitAllNodes,
     refreshCanvas: reloadCanvas,
     renameNode,
-    focusModeEnabled: focus.focusModeActive,
     canToggleFocusMode: focus.focusModeAvailable,
     onToggleFocusMode: focus.toggleFocusMode,
-    onExitFocusMode: focus.exitFocusMode,
     onToggleChatPanel: onChatToggle,
     onToggleReferenceDrawer: onReferenceToggle,
     fullscreenActive: focus.fullscreenNodeId != null,
+    onStepFullscreen: focus.stepFullscreen,
     onExitFullscreen: focus.exitFullscreen,
     // Hidden canvases stay mounted to preserve their UI state across
     // workspace switches; gate global keyboard shortcuts so only the

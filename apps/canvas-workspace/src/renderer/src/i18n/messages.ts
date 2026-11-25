@@ -1231,7 +1231,10 @@ export const enMessages = {
   'canvas.zoom.toFit': 'Zoom to fit',
   'canvas.zoom.toSelection': 'Zoom to selection',
 
-  'canvas.fullscreen.exit': 'Exit fullscreen (Esc)',
+  'canvas.fullscreen.exit': 'Exit focus (Esc)',
+  'canvas.fullscreen.backToCanvas': 'Back to canvas',
+  'canvas.fullscreen.prevNode': 'Previous node (Ctrl+Shift+Tab)',
+  'canvas.fullscreen.nextNode': 'Next node (Ctrl+Tab)',
   'canvas.gesture.movingOne': 'Moving',
   'canvas.gesture.movingMany': 'Moving {count}',
   'canvas.gesture.resizing': 'Resizing',

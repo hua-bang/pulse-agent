@@ -555,6 +555,11 @@
     --note-heading-2: 1.375em;
     --note-paragraph-gap: 0.85em;
   }
+
+  .canvas-node--fullscreen .note-tiptap-editor .ProseMirror {
+    max-width: 780px;
+    margin-inline: auto;
+  }
 }
 
 @container (max-width: 400px) {

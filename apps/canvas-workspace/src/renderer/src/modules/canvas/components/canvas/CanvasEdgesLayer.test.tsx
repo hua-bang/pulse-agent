@@ -87,11 +87,6 @@ describe('canvasEdgesLayerPropsAreEqual', () => {
     };
     expect(canvasEdgesLayerPropsAreEqual(baseProps, next)).toBe(false);
   });
-
-  it('detects a focus-mode toggle', () => {
-    const next: CanvasEdgesLayerProps = { ...baseProps, focusModeEnabled: true };
-    expect(canvasEdgesLayerPropsAreEqual(baseProps, next)).toBe(false);
-  });
 });
 
 describe('edge interaction preview projection', () => {

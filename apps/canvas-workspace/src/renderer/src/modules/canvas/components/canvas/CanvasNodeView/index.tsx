@@ -27,7 +27,6 @@ const CanvasNodeViewComponent = ({
   renameToken,
   isHighlighted,
   isAgentEdited,
-  focusState = 'neutral',
   focusAction,
   onDragStart,
   onResizeStart,
@@ -59,7 +58,6 @@ const CanvasNodeViewComponent = ({
 }: CanvasNodeViewProps) => {
   const viewModel = useCanvasNodeViewModel({
     embedded,
-    focusState,
     getAllNodes,
     isAgentEdited,
     isDragging,
@@ -217,6 +215,7 @@ const CanvasNodeViewComponent = ({
       classes={`${viewModel.classes}${frameDepth ? ' canvas-node--nested-frame' : ''}`}
       handleOpenDetail={handleOpenDetail}
       fullscreenButton={fullscreenButton}
+      handleExitFullscreen={isFullscreen ? viewModel.handleToggleFullscreen : undefined}
       focusAction={focusAction}
       getAllNodes={getAllNodes}
       containerDescendantCount={viewModel.containerDescendantCount}
@@ -277,7 +276,6 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
-  prev.focusState === next.focusState &&
   prev.focusAction === next.focusAction &&
   prev.isFullscreen === next.isFullscreen &&
   prev.onToggleFullscreen === next.onToggleFullscreen &&
