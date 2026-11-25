@@ -904,13 +904,27 @@ describe('remote VPS workspace client', () => {
         return;
       }
       if (url.pathname === '/v1/workspace-doc' && req.method === 'GET') {
+        lastDocCwd = url.searchParams.get('cwd');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, exists: true, content: '# Remote Workspace Doc' }));
         return;
       }
+      if (url.pathname === '/v1/tools/exec' && req.method === 'POST') {
+        if (req.headers.accept?.includes('text/event-stream')) {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8' });
+          res.write(`event: chunk\ndata: ${JSON.stringify({ stream: 'stdout', text: 'step 1\n' })}\n\n`);
+          res.write(`event: chunk\ndata: ${JSON.stringify({ stream: 'stderr', text: 'warn 1\n' })}\n\n`);
+          res.write(
+            `event: result\ndata: ${JSON.stringify({ ok: true, result: { output: 'step 1\nwarn 1\n', exitCode: 0 } })}\n\n`,
+          );
+          res.end();
+          return;
+        }
+      }
       res.writeHead(404);
       res.end();
     });
+    let lastDocCwd: string | null = null;
     await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', () => resolveListen()));
     cleanups.push(() => new Promise<void>((resolveClose) => server.close(() => resolveClose())));
     const addr = server.address();
@@ -946,5 +960,25 @@ describe('remote VPS workspace client', () => {
 
     const doc = await readRemoteWorkspaceDocById('ws-guest-local');
     expect(doc).toBe('# Remote Workspace Doc');
+    expect(lastDocCwd).toBe('/srv/pulse-app');
+
+    // Streaming bash tool execution consumes SSE chunks before returning final result.
+    const { tryExecuteRemoteBuiltinTool } = await import('./agent-tools');
+    const chunks: Array<{ stream: string; text: string }> = [];
+    const streamed = await tryExecuteRemoteBuiltinTool(
+      'ws-guest-local',
+      'bash',
+      { command: 'echo hi' },
+      undefined,
+      (text, stream) => chunks.push({ stream, text }),
+    );
+    expect(streamed).toEqual({
+      handled: true,
+      result: { output: 'step 1\nwarn 1\n', exitCode: 0 },
+    });
+    expect(chunks).toEqual([
+      { stream: 'stdout', text: 'step 1\n' },
+      { stream: 'stderr', text: 'warn 1\n' },
+    ]);
   });
 });

@@ -14,6 +14,7 @@ export interface ShareTokenRecord {
   label?: string;
   createdAt: number;
   expiresAt?: number;
+  lastUsedAt?: number;
 }
 
 export interface ShareTokenSummary {
@@ -23,6 +24,7 @@ export interface ShareTokenSummary {
   label?: string;
   createdAt: number;
   expiresAt?: number;
+  lastUsedAt?: number;
   tokenPreview: string;
 }
 
@@ -86,13 +88,17 @@ function toSummary(record: ShareTokenRecord): ShareTokenSummary {
     label: record.label,
     createdAt: record.createdAt,
     expiresAt: record.expiresAt,
+    lastUsedAt: record.lastUsedAt,
     tokenPreview: preview,
   };
 }
 
+const LAST_USED_PERSIST_INTERVAL_MS = 60_000;
+
 export class ShareTokenStore {
   private readonly filePath: string;
   private records: ShareTokenRecord[] = [];
+  private lastPersistedUsageAt = 0;
 
   constructor(dataDir: string) {
     this.filePath = join(dataDir, 'share-tokens.json');
@@ -139,6 +145,12 @@ export class ShareTokenStore {
     for (const record of this.records) {
       if (this.isExpired(record)) continue;
       if (safeEqual(provided, record.token)) {
+        const now = Date.now();
+        record.lastUsedAt = now;
+        if (now - this.lastPersistedUsageAt > LAST_USED_PERSIST_INTERVAL_MS) {
+          this.lastPersistedUsageAt = now;
+          void this.persist().catch(() => undefined);
+        }
         return { kind: 'share', share: record };
       }
     }

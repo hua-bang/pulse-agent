@@ -25,18 +25,71 @@ function inferMimeType(filePath: string): string {
   return MIME_BY_EXT[extname(filePath).toLowerCase()] ?? 'application/octet-stream';
 }
 
+const REMOTE_BINARY_CACHE_MAX_ITEMS = 64;
+const REMOTE_BINARY_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+const REMOTE_BINARY_CACHE_TTL_MS = 5 * 60_000;
+
+interface CachedBinaryFile {
+  bytes: Uint8Array;
+  mimeType: string;
+  cachedAt: number;
+}
+
+const remoteBinaryCache = new Map<string, CachedBinaryFile>();
+let remoteBinaryCacheBytes = 0;
+
+function readCachedBinary(key: string): { bytes: Uint8Array; mimeType: string } | null {
+  const entry = remoteBinaryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > REMOTE_BINARY_CACHE_TTL_MS) {
+    remoteBinaryCache.delete(key);
+    remoteBinaryCacheBytes -= entry.bytes.byteLength;
+    return null;
+  }
+  // Refresh LRU order.
+  remoteBinaryCache.delete(key);
+  remoteBinaryCache.set(key, entry);
+  return { bytes: entry.bytes, mimeType: entry.mimeType };
+}
+
+function writeCachedBinary(key: string, bytes: Uint8Array, mimeType: string): void {
+  if (bytes.byteLength > REMOTE_BINARY_CACHE_MAX_BYTES / 2) return;
+  const existing = remoteBinaryCache.get(key);
+  if (existing) {
+    remoteBinaryCacheBytes -= existing.bytes.byteLength;
+    remoteBinaryCache.delete(key);
+  }
+  while (
+    remoteBinaryCache.size >= REMOTE_BINARY_CACHE_MAX_ITEMS ||
+    remoteBinaryCacheBytes + bytes.byteLength > REMOTE_BINARY_CACHE_MAX_BYTES
+  ) {
+    const oldestKey = remoteBinaryCache.keys().next().value;
+    if (!oldestKey) break;
+    const oldest = remoteBinaryCache.get(oldestKey);
+    remoteBinaryCache.delete(oldestKey);
+    if (oldest) remoteBinaryCacheBytes -= oldest.bytes.byteLength;
+  }
+  remoteBinaryCache.set(key, { bytes, mimeType, cachedAt: Date.now() });
+  remoteBinaryCacheBytes += bytes.byteLength;
+}
+
 export async function tryReadRemoteBinaryFile(
   filePath: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   const matched = matchRemoteWorkspaceFile(filePath);
   if (!matched) return null;
+  const cacheKey = `${matched.workspaceId}::${matched.relPath}`;
+  const cached = readCachedBinary(cacheKey);
+  if (cached) return cached;
   const remote = await getRemoteWorkspaceFiles(matched.workspaceId);
   if (!remote) return null;
   try {
     const uri = `pulse-remote:///${remote.target.remoteWorkspaceId}/${matched.relPath}`;
     const read = await remote.files.readBytes(uri);
     if (!read) return null;
-    return { bytes: read.bytes, mimeType: inferMimeType(filePath) };
+    const mimeType = inferMimeType(filePath);
+    writeCachedBinary(cacheKey, read.bytes, mimeType);
+    return { bytes: read.bytes, mimeType };
   } catch {
     return null;
   }
@@ -54,6 +107,7 @@ export async function tryWriteRemoteBinaryFile(
   try {
     const uri = `pulse-remote:///${remote.target.remoteWorkspaceId}/${matched.relPath}`;
     await remote.files.write(uri, bytes);
+    writeCachedBinary(`${matched.workspaceId}::${matched.relPath}`, bytes, inferMimeType(filePath));
     return true;
   } catch (error) {
     console.warn(`[remote-workspace] failed to upload binary file ${matched.relPath}:`, error);
@@ -107,8 +161,8 @@ export async function readRemoteWorkspaceDocById(workspaceId: string): Promise<s
   if (!cfg || (cfg.storage !== 'vps' && cfg.runtime !== 'vps')) return null;
   const target = await resolveRemoteWorkspaceTarget(workspaceId);
   if (!target) return null;
-  const workDir = cfg.cwd?.trim();
-  const qs = workDir ? `?workDir=${encodeURIComponent(workDir)}` : '';
+  const dir = cfg.cwd?.trim();
+  const qs = dir ? `?cwd=${encodeURIComponent(dir)}` : '';
   try {
     const res = await fetch(`${target.endpoint}/v1/workspace-doc${qs}`, {
       headers: { Authorization: `Bearer ${target.token}` },
@@ -147,7 +201,8 @@ async function resolveRemoteScheduledWorkspaceId(): Promise<string | null> {
   const { listConfiguredRemoteWorkspaceIds } = await import('./config');
   for (const wsId of listConfiguredRemoteWorkspaceIds()) {
     const cfg = getRemoteWorkspaceConfig(wsId);
-    if (cfg && cfg.storage === 'vps' && cfg.shareRole !== 'viewer') {
+    // Only mirror global scheduled tasks to self-owned VPS workspaces, never guest shared workspaces.
+    if (cfg && cfg.storage === 'vps' && !cfg.shareRole) {
       return wsId;
     }
   }

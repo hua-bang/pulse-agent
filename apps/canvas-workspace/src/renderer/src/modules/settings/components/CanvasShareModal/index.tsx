@@ -120,6 +120,30 @@ export const CanvasShareModal = ({
 
   const hostSummary = config?.sshHost || config?.endpoint || '';
 
+  const invitePreview = (() => {
+    const match = /pulse-share:\/\/v1\/([A-Za-z0-9_-]+)/.exec(inviteCode);
+    if (!match) return null;
+    try {
+      const base64 = match[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      const binary = atob(padded);
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      const decoded = JSON.parse(new TextDecoder().decode(bytes)) as {
+        endpoint?: string;
+        role?: string;
+        name?: string;
+      };
+      if (!decoded.endpoint) return null;
+      return {
+        name: decoded.name?.trim() || copy.joinFallbackName,
+        role: decoded.role || 'viewer',
+        endpoint: decoded.endpoint,
+      };
+    } catch {
+      return null;
+    }
+  })();
+
   return (
     <Modal open={open} onClose={onClose} width={540} labelledBy={titleId} className="canvas-share-modal">
       <div className="canvas-share-modal__header">
@@ -192,7 +216,13 @@ export const CanvasShareModal = ({
                       className={`canvas-share-modal__dot${liveStatus && !liveStatus.connected ? ' is-offline' : ''}`}
                       aria-hidden="true"
                     />
-                    <span>{copy.hostedOn(hostSummary)}</span>
+                    <span>
+                      {copy.hostedOn(hostSummary)}
+                      {liveStatus?.connected &&
+                        typeof liveStatus.onlineClients === 'number' &&
+                        liveStatus.onlineClients > 0 &&
+                        ` · ${copy.onlineCount(liveStatus.onlineClients)}`}
+                    </span>
                   </div>
                   <Button
                     variant="secondary"
@@ -225,11 +255,20 @@ export const CanvasShareModal = ({
                 placeholder={shareCopy.inviteCodePlaceholder}
               />
             </FieldRow>
+            {invitePreview && (
+              <div className="remote-vps-status is-ok">
+                {copy.invitePreviewSummary(
+                  invitePreview.name,
+                  invitePreview.role,
+                  invitePreview.endpoint,
+                )}
+              </div>
+            )}
             <FieldRow label={copy.joinNameLabel}>
               <TextField
                 value={joinName}
                 onChange={(e) => setJoinName(e.target.value)}
-                placeholder={copy.joinNamePlaceholder}
+                placeholder={invitePreview?.name || copy.joinNamePlaceholder}
               />
             </FieldRow>
             {joinError && <div className="remote-vps-status is-error">{joinError}</div>}

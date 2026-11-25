@@ -34,6 +34,7 @@ async function runBash(
   input: Record<string, unknown>,
   baseDir: string,
   signal: AbortSignal,
+  onChunk?: (stream: 'stdout' | 'stderr', text: string) => void,
 ): Promise<{ output: string; error?: string; exitCode: number }> {
   const command = typeof input.command === 'string' ? input.command : '';
   if (!command.trim()) {
@@ -69,6 +70,9 @@ async function runBash(
     let killTimer: ReturnType<typeof setTimeout> | null = null;
 
     const collect = (chunk: Buffer, isStderr: boolean): void => {
+      if (onChunk) {
+        onChunk(isStderr ? 'stderr' : 'stdout', chunk.toString('utf-8'));
+      }
       if (isStderr) {
         if (stderrBytes >= MAX_OUTPUT_BYTES) return;
         stderrChunks.push(chunk);
@@ -333,11 +337,39 @@ export async function handleToolExecRequest(
   res.once('close', onAbort);
   req.once('aborted', onAbort);
 
+  const wantsStream =
+    tool === 'bash' &&
+    typeof req.headers.accept === 'string' &&
+    req.headers.accept.includes('text/event-stream');
+
+  if (wantsStream) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+  }
+
+  const writeSse = (event: string, data: unknown): void => {
+    if (res.writableEnded || res.destroyed) return;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      /* client disconnected */
+    }
+  };
+
   try {
     let result: unknown;
     switch (tool) {
       case 'bash':
-        result = await runBash(input, baseDir, controller.signal);
+        result = await runBash(
+          input,
+          baseDir,
+          controller.signal,
+          wantsStream ? (stream, text) => writeSse('chunk', { stream, text }) : undefined,
+        );
         break;
       case 'read':
         result = await runRead(input, baseDir);
@@ -359,11 +391,22 @@ export async function handleToolExecRequest(
         return;
     }
     if (!res.writableEnded) {
-      sendJson(res, 200, { ok: true, result });
+      if (wantsStream) {
+        writeSse('result', { ok: true, result });
+        res.end();
+      } else {
+        sendJson(res, 200, { ok: true, result });
+      }
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     if (!res.writableEnded) {
-      sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      if (wantsStream) {
+        writeSse('error', { ok: false, error: message });
+        res.end();
+      } else {
+        sendJson(res, 500, { ok: false, error: message });
+      }
     }
   } finally {
     res.off('close', onAbort);

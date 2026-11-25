@@ -37,7 +37,8 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
         if (!target) {
           return { ok: true, connected: false };
         }
-        const res = await fetch(`${target.endpoint}/v1/meta`, {
+        const metaQs = `?workspaceId=${encodeURIComponent(target.remoteWorkspaceId)}`;
+        const res = await fetch(`${target.endpoint}/v1/meta${metaQs}`, {
           headers: { Authorization: `Bearer ${target.token}` },
           signal: AbortSignal.timeout(5_000),
         });
@@ -46,6 +47,7 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
           version?: string;
           bundleHash?: string;
           tailscaleUrl?: string;
+          onlineClients?: number;
           role?: string;
           capabilities?: string[];
           message?: string;
@@ -78,6 +80,7 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
           bundleHash: body.bundleHash,
           outdatedDaemon,
           tailscaleUrl: body.tailscaleUrl,
+          ...(typeof body.onlineClients === 'number' ? { onlineClients: body.onlineClients } : {}),
           role: body.role,
         };
       } catch (error) {

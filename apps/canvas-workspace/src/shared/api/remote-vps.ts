@@ -24,6 +24,7 @@ export interface RemoteVpsShareSummary {
   label?: string;
   createdAt: number;
   expiresAt?: number;
+  lastUsedAt?: number;
   tokenPreview: string;
 }
 
@@ -47,6 +48,7 @@ export interface RemoteVpsStatusResult {
   bundleHash?: string;
   outdatedDaemon?: boolean;
   tailscaleUrl?: string;
+  onlineClients?: number;
   role?: string;
   error?: string;
 }

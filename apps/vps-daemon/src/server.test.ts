@@ -885,4 +885,76 @@ describe('vps-daemon end-to-end', () => {
     }
     expect(alive).toBe(false);
   });
+
+  it('streams /v1/tools/exec bash chunks over SSE, tracks share lastUsedAt, and reports onlineClients', async () => {
+    const { daemon, token, root } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Stream bash tool output via Accept: text/event-stream.
+    const streamRes = await fetch(`${daemon.url}/v1/tools/exec`, {
+      method: 'POST',
+      headers: { ...adminHeaders, Accept: 'text/event-stream' },
+      body: JSON.stringify({
+        tool: 'bash',
+        cwd: root,
+        input: { command: 'echo chunk-one && echo chunk-err >&2' },
+      }),
+    });
+    expect(streamRes.status).toBe(200);
+    expect(streamRes.headers.get('content-type')).toContain('text/event-stream');
+    const ssePayload = await streamRes.text();
+    expect(ssePayload).toContain('event: chunk');
+    expect(ssePayload).toContain('chunk-one');
+    expect(ssePayload).toContain('chunk-err');
+    expect(ssePayload).toContain('event: result');
+
+    // Share token usage updates lastUsedAt in GET /v1/shares.
+    const shareRes = await fetch(`${daemon.url}/v1/shares`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-live-meta', role: 'viewer', label: 'Alex' }),
+    });
+    const shareBody = (await shareRes.json()) as { share: { id: string; token: string } };
+    const beforeList = (await (await fetch(`${daemon.url}/v1/shares?workspaceId=ws-live-meta`, { headers: adminHeaders })).json()) as {
+      shares: Array<{ id: string; label?: string; lastUsedAt?: number }>;
+    };
+    expect(beforeList.shares[0].label).toBe('Alex');
+    expect(beforeList.shares[0].lastUsedAt).toBeUndefined();
+
+    // Open an SSE events connection as viewer and verify onlineClients + lastUsedAt.
+    const ac = new AbortController();
+    const evRes = await fetch(`${daemon.url}/v1/events`, {
+      headers: { Authorization: `Bearer ${shareBody.share.token}` },
+      signal: ac.signal,
+    });
+    expect(evRes.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 40));
+
+    const metaRes = await fetch(`${daemon.url}/v1/meta?workspaceId=ws-live-meta`, {
+      headers: adminHeaders,
+    });
+    const metaJson = (await metaRes.json()) as { ok: boolean; onlineClients: number };
+    expect(metaJson.onlineClients).toBeGreaterThanOrEqual(1);
+
+    const afterList = (await (await fetch(`${daemon.url}/v1/shares?workspaceId=ws-live-meta`, { headers: adminHeaders })).json()) as {
+      shares: Array<{ id: string; lastUsedAt?: number }>;
+    };
+    expect(typeof afterList.shares[0].lastUsedAt).toBe('number');
+    ac.abort();
+
+    // Legacy workDir query param works alongside cwd on GET /v1/workspace-doc.
+    await mkdir(join(root, 'proj-doc'), { recursive: true });
+    await writeFile(join(root, 'proj-doc', 'pulse-workspace.md'), '# Project Doc', 'utf8');
+    const docViaCwd = await fetch(
+      `${daemon.url}/v1/workspace-doc?cwd=${encodeURIComponent(join(root, 'proj-doc'))}`,
+      { headers: adminHeaders },
+    );
+    expect((await docViaCwd.json()) as { content: string }).toMatchObject({ content: '# Project Doc' });
+
+    const docViaWorkDir = await fetch(
+      `${daemon.url}/v1/workspace-doc?workDir=${encodeURIComponent(join(root, 'proj-doc'))}`,
+      { headers: adminHeaders },
+    );
+    expect((await docViaWorkDir.json()) as { content: string }).toMatchObject({ content: '# Project Doc' });
+  });
 });
