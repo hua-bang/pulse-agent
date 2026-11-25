@@ -167,6 +167,39 @@
   }
 }
 
+/* Transient ring shown right after a remote collaborator updates a node via VPS sync. */
+.canvas-node--remote-edited {
+  animation: nodeRemoteEdit 2.5s ease-out;
+}
+
+.canvas-node--remote-edited::before {
+  content: "synced";
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #0ea5e9;
+  background: rgba(var(--surface-rgb), 0.92);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 1px 3px rgba(14, 165, 233, 0.25);
+  pointer-events: none;
+  animation: agentLabelFade 2.5s ease-out forwards;
+}
+
+@keyframes nodeRemoteEdit {
+  0% {
+    box-shadow: var(--shadow-card), 0 0 0 3px rgba(14, 165, 233, 0.8), 0 0 24px rgba(14, 165, 233, 0.35);
+  }
+
+  100% {
+    box-shadow: var(--shadow-card);
+  }
+}
+
 @keyframes agentLabelFade {
   0% {
     opacity: 0;

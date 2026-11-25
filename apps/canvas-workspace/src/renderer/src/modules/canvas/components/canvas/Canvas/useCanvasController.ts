@@ -108,7 +108,7 @@ export const useCanvasController = ({
   } = useCanvasFit(containerRef, setTransform);
 
   const {
-    nodes, edges, loaded, loadFailed, externallyEditedIds,
+    nodes, edges, loaded, loadFailed, externallyEditedIds, remotelyEditedIds,
     addNode, updateNode, removeNodes,
     syncDeletedNodes,
     moveNode, moveNodes, resizeNode,
@@ -428,6 +428,7 @@ export const useCanvasController = ({
     edges: visibleEdges,
     editingEdgeLabelId,
     externallyEditedIds,
+    remotelyEditedIds,
     findNodesById: visibleNodesById,
     focus,
     getAllNodes,

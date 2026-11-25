@@ -27,6 +27,7 @@ const CanvasNodeViewComponent = ({
   renameToken,
   isHighlighted,
   isAgentEdited,
+  isRemoteEdited,
   focusAction,
   onDragStart,
   onResizeStart,
@@ -60,6 +61,7 @@ const CanvasNodeViewComponent = ({
     embedded,
     getAllNodes,
     isAgentEdited,
+    isRemoteEdited,
     isDragging,
     dragOffset,
     isFullscreen,
@@ -276,6 +278,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.renameToken === next.renameToken &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
+  prev.isRemoteEdited === next.isRemoteEdited &&
   prev.focusAction === next.focusAction &&
   prev.isFullscreen === next.isFullscreen &&
   prev.onToggleFullscreen === next.onToggleFullscreen &&

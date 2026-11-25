@@ -104,6 +104,7 @@ export const CanvasSurface = ({
   highlightedId,
   renameSignal,
   externallyEditedIds,
+  remotelyEditedIds,
   edgeInteractionState,
   edgePreview,
   connectHandleNodeId = null,
@@ -196,7 +197,8 @@ export const CanvasSurface = ({
           inMultiSelection={selectedNodeIdSet.size > 1 && selectedNodeIdSet.has(node.id)}
           isHighlighted={highlightedId === node.id}
           renameToken={renameSignal?.nodeId === node.id ? renameSignal.token : 0}
-          isAgentEdited={externallyEditedIds.has(node.id)}
+          isAgentEdited={externallyEditedIds.has(node.id) && !remotelyEditedIds?.has(node.id)}
+          isRemoteEdited={remotelyEditedIds?.has(node.id) ?? false}
           onDragStart={onDragStart}
           onResizeStart={onResizeStart}
           onUpdate={onUpdate}

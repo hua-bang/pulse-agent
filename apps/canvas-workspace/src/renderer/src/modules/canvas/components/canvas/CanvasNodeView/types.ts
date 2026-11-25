@@ -33,6 +33,7 @@ export interface CanvasNodeViewProps {
   renameToken?: number;
   isHighlighted: boolean;
   isAgentEdited?: boolean;
+  isRemoteEdited?: boolean;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: MouseEvent,
