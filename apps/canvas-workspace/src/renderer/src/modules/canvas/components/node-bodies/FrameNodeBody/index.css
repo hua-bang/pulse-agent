@@ -25,7 +25,6 @@
 }
 
 .canvas-node--frame.canvas-node--nested-frame:not(.canvas-node--selected,
-  .canvas-node--focus-mode-focused,
   .canvas-node--frame-title-overlay,
   .canvas-node--fullscreen) {
   outline: calc(1px / var(--canvas-scale, 1)) solid var(--frame-nested-outline);
@@ -35,7 +34,6 @@
 /* Hover darkens the hairline instead of adding the root frame's 2px border
  * inside it, which would draw a second edge. */
 .canvas-node--frame.canvas-node--nested-frame:hover:not(.canvas-node--selected,
-  .canvas-node--focus-mode-focused,
   .canvas-node--frame-title-overlay,
   .canvas-node--fullscreen) {
   border-color: transparent;
@@ -68,19 +66,9 @@
   box-shadow: none;
 }
 
-.canvas-node--frame.canvas-node--focus-mode-focused,
-.canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: var(--surface);
-  border-style: solid;
-  border-color: var(--accent);
-  box-shadow: none;
-}
-
 .canvas-node--frame.canvas-node--frame-title-overlay,
 .canvas-node--frame.canvas-node--frame-title-overlay:hover,
-.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--selected,
-.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--focus-mode-focused,
-.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--focus-mode-focused.canvas-node--selected {
+.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--selected {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
@@ -499,8 +487,7 @@
   color: var(--text-secondary);
 }
 
-.canvas-node--frame.canvas-node--selected .node-header,
-.canvas-node--frame.canvas-node--focus-mode-focused .node-header {
+.canvas-node--frame.canvas-node--selected .node-header {
   color: var(--accent);
 }
 

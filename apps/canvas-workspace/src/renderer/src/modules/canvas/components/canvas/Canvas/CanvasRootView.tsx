@@ -218,10 +218,10 @@ export const CanvasRootView = ({
     <div
       ref={containerRef}
       className={`canvas-container${mouse.cursorClass}${mouse.iframeShieldClass}`}
-      // Fullscreen pins the camera to its node; wheel pan/zoom would slide
-      // the stretched box off the viewport.
+      // Fullscreen pins the camera to its node; wheel or root pan/marquee
+      // gestures must not slide the stage or mutate the saved viewport.
       onWheel={focus.fullscreenNodeId ? undefined : handleWheel}
-      onMouseDown={mouse.handleRootMouseDown}
+      onMouseDown={focus.fullscreenNodeId ? undefined : mouse.handleRootMouseDown}
       onMouseMove={(e) => {
         mouse.handleMouseMove(e);
         drawingGestures.connectHandles.handleMouseMove(e);
@@ -235,7 +235,6 @@ export const CanvasRootView = ({
       onContextMenu={handleRootContextMenu}
       onClick={mouse.handleCanvasClick}
       data-canvas-id={canvasId}
-      data-focus-mode={focus.focusModeActive ? 'on' : undefined}
       data-fullscreen={focus.fullscreenNodeId ? 'on' : undefined}
       data-moving={moving ? 'on' : undefined}
     >
@@ -272,9 +271,6 @@ export const CanvasRootView = ({
         marqueeRect={drawingGestures.marquee.rect}
         marqueeHits={drawingGestures.marquee.hits}
         snapLines={nodeGestures.snapLines}
-        focusedNodeIds={focus.focusedNodeIds}
-        focusContextNodeIds={focus.focusContextNodeIds}
-        focusModeEnabled={focus.focusModeActive}
         onDragStart={mouse.handleSurfaceDragStart}
         onResizeStart={mouse.handleSurfaceResizeStart}
         onUpdate={updateNode}
@@ -342,6 +338,8 @@ export const CanvasRootView = ({
           onReferenceToggle={onReferenceToggle}
           chatPanelOpen={chatPanelOpen}
           onChatOpen={addFullscreenNodeToChat ?? onChatOpen}
+          onPrevNode={focus.canStepFullscreen ? () => focus.stepFullscreen(-1) : undefined}
+          onNextNode={focus.canStepFullscreen ? () => focus.stepFullscreen(1) : undefined}
           onExitFullscreen={focus.exitFullscreen}
         />
       )}

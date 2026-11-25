@@ -59,4 +59,5 @@ export interface CanvasProps {
   onNodePatchComplete?: (requestId: number) => void;
   onSetRootFolder?: () => void;
   onCreateDemoCanvas?: () => void;
+  onFullscreenChange?: (active: boolean) => void;
 }

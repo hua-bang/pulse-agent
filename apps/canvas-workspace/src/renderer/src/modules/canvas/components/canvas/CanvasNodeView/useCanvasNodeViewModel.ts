@@ -61,7 +61,6 @@ const insertTextAtSelection = (target: HTMLSpanElement, value: string): void => 
 export const useCanvasNodeViewModel = ({
   embedded,
   dragOffset,
-  focusState,
   getAllNodes,
   isAgentEdited,
   isDragging,
@@ -88,7 +87,6 @@ export const useCanvasNodeViewModel = ({
 }: Pick<
   Required<CanvasNodeViewProps>,
   | 'embedded'
-  | 'focusState'
   | 'isFullscreen'
   | 'readOnly'
 > & Pick<
@@ -354,7 +352,6 @@ export const useCanvasNodeViewModel = ({
   return {
     classes: getNodeClasses({
       embedded,
-      focusState,
       isAgentEdited,
       isDragging,
       isFullscreen,

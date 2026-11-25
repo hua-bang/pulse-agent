@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getCanvasTransformClassName,
   getCanvasTransformTransition,
+  resolveSurfaceTransform,
 } from './CanvasSurface';
 import { OVERVIEW_SCALE_THRESHOLD } from '../../../runtime/useCanvas';
 
@@ -69,5 +70,26 @@ describe('getCanvasTransformClassName', () => {
     expect(getCanvasTransformClassName(false, false, OVERVIEW_SCALE_THRESHOLD)).not.toContain(
       'canvas-transform--overview',
     );
+  });
+});
+
+describe('resolveSurfaceTransform', () => {
+  it('passes through the canvas transform when not fullscreen', () => {
+    const t = { x: 120, y: -40, scale: 0.7 };
+    expect(resolveSurfaceTransform(t, [], null)).toEqual({ transform: t, pinned: false });
+  });
+
+  it('pins the surface transform to (-node.x, -node.y, 1) and tracks live node moves', () => {
+    const t = { x: 120, y: -40, scale: 0.5 };
+    const node = { id: 'n1', x: 320, y: 180 } as never;
+    expect(resolveSurfaceTransform(t, [node], 'n1')).toEqual({
+      transform: { x: -320, y: -180, scale: 1 },
+      pinned: true,
+    });
+    const moved = { id: 'n1', x: 640, y: -50 } as never;
+    expect(resolveSurfaceTransform(t, [moved], 'n1')).toEqual({
+      transform: { x: -640, y: 50, scale: 1 },
+      pinned: true,
+    });
   });
 });

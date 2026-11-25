@@ -96,6 +96,38 @@
   object-fit: contain;
 }
 
+.node-header__back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  padding: 0 8px 0 5px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.node-header__back-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.node-header__back-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-header__breadcrumb-sep {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
 .node-title {
   flex: 1;
   font-family: var(--font-ui);

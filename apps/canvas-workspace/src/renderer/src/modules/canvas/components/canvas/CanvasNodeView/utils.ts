@@ -25,7 +25,6 @@ export const noteRepeatsTitle = (node: CanvasNode): boolean => {
 
 export const getNodeClasses = ({
   embedded,
-  focusState,
   isAgentEdited,
   isDragging,
   isFullscreen,
@@ -37,7 +36,6 @@ export const getNodeClasses = ({
   textAutoSize,
 }: {
   embedded: boolean;
-  focusState: 'focused' | 'context' | 'dimmed' | 'neutral';
   isAgentEdited?: boolean;
   isDragging: boolean;
   isFullscreen: boolean;
@@ -56,9 +54,6 @@ export const getNodeClasses = ({
   isSelected && 'canvas-node--selected',
   isHighlighted && 'canvas-node--highlighted',
   isAgentEdited && 'canvas-node--agent-edited',
-  focusState === 'focused' && 'canvas-node--focus-mode-focused',
-  focusState === 'context' && 'canvas-node--focus-mode-context',
-  focusState === 'dimmed' && 'canvas-node--focus-mode-dimmed',
   readOnly && 'canvas-node--readonly',
   embedded && 'canvas-node--embedded',
   textAutoSize && 'canvas-node--text-auto',

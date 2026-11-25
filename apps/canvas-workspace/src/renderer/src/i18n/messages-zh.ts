@@ -1217,7 +1217,10 @@ export const zhMessages: MessageCatalog = {
   'canvas.zoom.toFit': '缩放至适合',
   'canvas.zoom.toSelection': '缩放至所选内容',
 
-  'canvas.fullscreen.exit': '退出全屏（Esc）',
+  'canvas.fullscreen.exit': '退出专注（Esc）',
+  'canvas.fullscreen.backToCanvas': '返回画布',
+  'canvas.fullscreen.prevNode': '上一个节点（Ctrl+Shift+Tab）',
+  'canvas.fullscreen.nextNode': '下一个节点（Ctrl+Tab）',
   'canvas.gesture.movingOne': '移动中',
   'canvas.gesture.movingMany': '移动 {count} 个',
   'canvas.gesture.resizing': '调整尺寸',

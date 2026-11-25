@@ -63,6 +63,23 @@ export const getCanvasTransformClassName = (
   `${settledScale < 0.6 ? ' canvas-transform--small' : ''}` +
   `${settledScale < OVERVIEW_SCALE_THRESHOLD ? ' canvas-transform--overview' : ''}`;
 
+/**
+ * While a node is in immersive focus / fullscreen, lock the rendered surface
+ * transform directly to `(-node.x, -node.y, 1)` on every render frame.
+ * That makes `-node.x + node.x === 0` an invariant even if the node moves
+ * (AI layout, mindmap auto-resize, sync) or anything touches the canvas camera.
+ */
+export const resolveSurfaceTransform = (
+  transform: { x: number; y: number; scale: number },
+  nodes: readonly CanvasNode[],
+  fullscreenNodeId: string | null | undefined,
+): { transform: { x: number; y: number; scale: number }; pinned: boolean } => {
+  if (!fullscreenNodeId) return { transform, pinned: false };
+  const node = nodes.find((item) => item.id === fullscreenNodeId);
+  if (!node) return { transform, pinned: false };
+  return { transform: { x: -node.x, y: -node.y, scale: 1 }, pinned: true };
+};
+
 
 export const CanvasSurface = ({
   transform,
@@ -95,9 +112,6 @@ export const CanvasSurface = ({
   marqueeRect,
   marqueeHits,
   snapLines,
-  focusedNodeIds,
-  focusContextNodeIds,
-  focusModeEnabled = false,
   readOnly = false,
   onDragStart,
   onResizeStart,
@@ -183,11 +197,6 @@ export const CanvasSurface = ({
           isHighlighted={highlightedId === node.id}
           renameToken={renameSignal?.nodeId === node.id ? renameSignal.token : 0}
           isAgentEdited={externallyEditedIds.has(node.id)}
-          focusState={!focusModeEnabled
-            ? 'neutral'
-            : focusedNodeIds?.has(node.id) ? 'focused'
-              : focusContextNodeIds?.has(node.id) ? 'context'
-                : 'dimmed'}
           onDragStart={onDragStart}
           onResizeStart={onResizeStart}
           onUpdate={onUpdate}
@@ -217,27 +226,25 @@ export const CanvasSurface = ({
     );
   };
 
+  const { transform: effectiveTransform, pinned: fullscreenPinned } = resolveSurfaceTransform(
+    transform,
+    nodes,
+    fullscreenNodeId,
+  );
+
   return (
     <div
       ref={transformLayerRef}
-      className={getCanvasTransformClassName(moving, animating, settledScale)}
+      className={getCanvasTransformClassName(moving, animating, fullscreenPinned ? 1 : settledScale)}
       style={{
-        transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-        '--canvas-scale': settledScale,
-        transition: getCanvasTransformTransition(animating, moving),
+        transform: `translate(${effectiveTransform.x}px, ${effectiveTransform.y}px) scale(${effectiveTransform.scale})`,
+        '--canvas-scale': fullscreenPinned ? 1 : settledScale,
+        transition: fullscreenPinned ? 'none' : getCanvasTransformTransition(animating, moving),
       } as React.CSSProperties}
     >
-      {/* Focus-mode backdrop: a giant translucent dark rectangle that
-          lives INSIDE the transform so it scales/pans with the canvas
-          and we never have to fight `.canvas-transform`'s stacking
-          context. Sized large enough to cover any reasonable zoom/pan
-          combination so the user never sees its edge. Without this, the
-          per-node dim opacity competes with a bright white canvas
-          background and the focused node fails to pop. */}
-      {focusModeEnabled && <div className="canvas-focus-backdrop" />}
       {/* Fullscreen backdrop. Sits between the other nodes and the
-          fullscreen node, dimming everything behind. Click anywhere on the
-          backdrop to exit. */}
+          fullscreen node, dimming and blurring everything behind. Click
+          anywhere on the backdrop to exit. */}
       {fullscreenNodeId && (
         <div
           className="canvas-fullscreen-backdrop"
@@ -260,9 +267,6 @@ export const CanvasSurface = ({
         onSelectEdge={onSelectEdge}
         interactionState={edgeInteractionState}
         previewEdge={edgePreview}
-        focusedNodeIds={focusedNodeIds}
-        focusContextNodeIds={focusContextNodeIds}
-        focusModeEnabled={focusModeEnabled}
         onHandleMouseDown={onEdgeHandleMouseDown}
         onBodyMouseDown={onEdgeBodyMouseDown}
         onBodyDoubleClick={onEdgeBodyDoubleClick}

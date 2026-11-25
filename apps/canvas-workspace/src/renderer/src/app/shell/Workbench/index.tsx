@@ -42,6 +42,7 @@ interface WorkbenchProps {
   onOpenWorkspaceSettings: (workspaceId: string) => void;
   onOpenSessionInScope?: (scope: AgentScope, sessionId: string, scopeLabel: string) => void;
   onSetActiveRootFolder: () => void;
+  onFullscreenChange?: (active: boolean) => void;
 }
 export const Workbench: React.FC<WorkbenchProps> = ({
   activeWorkspaceId,
@@ -57,6 +58,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   onOpenWorkspaceSettings,
   onOpenSessionInScope,
   onSetActiveRootFolder,
+  onFullscreenChange,
 }) => {
   const {
     allNodes,
@@ -197,6 +199,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               <div
                 key={ws.id}
                 className="canvas-host"
+                data-active={isActive ? 'on' : undefined}
                 style={isActive ? undefined : { display: 'none' }}
               >
                 <div className="canvas-host__main">
@@ -233,6 +236,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     createCanvasReferenceNode={referenceOperations.createCanvasReferenceNode}
                     clipboard={referenceOperations.canvasClipboard}
                     onClipboardChange={referenceOperations.setCanvasClipboard}
+                    onFullscreenChange={isActive ? onFullscreenChange : undefined}
                     onPasteReferences={referenceOperations.pasteReferencesIntoCanvas}
                     nodePatchRequest={referenceOperations.nodePatchRequest?.workspaceId === ws.id ? referenceOperations.nodePatchRequest : undefined}
                     onNodePatchComplete={referenceOperations.completeNodePatch}

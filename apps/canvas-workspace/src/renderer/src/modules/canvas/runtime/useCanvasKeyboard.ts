@@ -129,13 +129,12 @@ interface Options {
   refreshCanvas?: () => void | Promise<unknown>;
   /** Start inline title editing on a node (Enter / F2 on the selection). */
   renameNode: (nodeId: string) => void;
-  focusModeEnabled?: boolean;
   canToggleFocusMode?: boolean;
   onToggleFocusMode?: () => void;
-  onExitFocusMode?: () => void;
   onToggleChatPanel?: () => void;
   onToggleReferenceDrawer?: () => void;
   fullscreenActive?: boolean;
+  onStepFullscreen?: (direction: 1 | -1) => void;
   onExitFullscreen?: () => void;
   keyboardLocked?: boolean;
 }
@@ -165,13 +164,12 @@ export const useCanvasKeyboard = ({
   setHighlightedId, handleFocusNode,
   activeTool, setActiveTool,
   zoomBy, resetZoom, fitNodes, refreshCanvas, renameNode,
-  focusModeEnabled = false,
   canToggleFocusMode = false,
   onToggleFocusMode,
-  onExitFocusMode,
   onToggleChatPanel,
   onToggleReferenceDrawer,
   fullscreenActive = false,
+  onStepFullscreen,
   onExitFullscreen,
   keyboardLocked = false,
 }: Options) => {
@@ -200,10 +198,7 @@ export const useCanvasKeyboard = ({
     setSelectedNodeIds([nextNode.id]);
     setSelectedEdgeId(null);
     setHighlightedId(nextNode.id);
-    // In focus mode the dedicated reframe effect handles the zoom with
-    // tighter padding/maxScale; calling handleFocusNode here too would
-    // produce a double reframe at different scales.
-    if (!focusModeEnabled) handleFocusNode(nextNode);
+    handleFocusNode(nextNode);
   };
 
   const nudge = (event: KeyboardEvent, step: number) => {
@@ -235,11 +230,9 @@ export const useCanvasKeyboard = ({
     if (findOpen) { closeFindBar(); consume(); return; }
     if (searchOpen) { setSearchOpen(false); consume(); return; }
     if (contextMenu) { setContextMenu(null); consume(); return; }
-    // Fullscreen takes priority over focus-mode so Esc reliably shrinks the
-    // overlay back to its canvas slot before doing anything else with
+    // Immersive focus / fullscreen shrinks back to the canvas before clearing
     // selection state.
     if (fullscreenActive) { onExitFullscreen?.(); consume(); return; }
-    if (focusModeEnabled) { onExitFocusMode?.(); consume(); return; }
     if (activeTool === 'connect' || activeTool === 'hand' || activeTool.startsWith('shape-')) {
       setActiveTool('select');
       consume();
@@ -276,18 +269,17 @@ export const useCanvasKeyboard = ({
       if (event.shiftKey) findPrev();
       else findNext();
     },
-    // Fullscreen pins the camera to its node: the stretched box only fills
-    // the viewport at that exact camera, so keys that move the camera do
-    // nothing until fullscreen ends.
     'canvas.cycleNodes': (event) => {
       event.preventDefault();
-      if (fullscreenActive) return;
+      if (fullscreenActive) {
+        onStepFullscreen?.(event.shiftKey ? -1 : 1);
+        return;
+      }
       cycleSelection(event.shiftKey);
     },
     'canvas.focusMode': (event) => {
-      if (!focusModeEnabled && !canToggleFocusMode) return;
+      if (!fullscreenActive && !canToggleFocusMode) return;
       event.preventDefault();
-      if (fullscreenActive) return;
       onToggleFocusMode?.();
     },
 

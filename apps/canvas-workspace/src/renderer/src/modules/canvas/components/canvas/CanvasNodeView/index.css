@@ -84,46 +84,6 @@
   z-index: 100;
 }
 
-/* Focus mode (Heptabase-style): the focused node is centered + reframed
- * by the viewport, so the "emphasis" job here is purely a soft ring +
- * mild shadow lift — no aggressive halo. Context nodes stay at full
- * opacity so neighbors / container children remain readable. Dimmed
- * nodes drop to ~18% opacity (no blur, no white overlay) — they remain
- * clickable so the user can "click a peripheral card to refocus on it"
- * exactly like Heptabase. */
-.canvas-node--focus-mode-focused {
-  z-index: 80;
-  opacity: 1;
-  border-color: rgba(71, 85, 105, 0.34);
-  /* Keep the focused node legible against the dim backdrop without the
-   * saturated purple halo competing with the content. */
-  box-shadow: var(--shadow-card-hover), 0 0 0 1.5px rgba(71, 85, 105, 0.38), 0 12px 34px rgba(15, 23, 42, 0.18);
-}
-
-.canvas-node--focus-mode-context {
-  opacity: 1;
-}
-
-.canvas-node--focus-mode-focused.canvas-node--frame,
-.canvas-node--focus-mode-focused.canvas-node--group {
-  z-index: 0;
-}
-
-.canvas-node--focus-mode-focused.canvas-node--frame {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #7c5cff) 55%, transparent);
-}
-
-.canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 65%, transparent);
-}
-
-.canvas-node--focus-mode-focused.canvas-node--group {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 55%, transparent);
-}
-
-.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 65%, transparent);
-}
 /* Overview zoom: below scale 0.6 a 1px border renders sub-pixel and the card
  * shadows blur away, so card-chromed nodes melt into the background — the
  * "white on white" overview wash. Counter-scale a hairline ring so the edge
@@ -147,16 +107,6 @@
 .node-body {
   flex: 1;
   overflow: hidden;
-}
-.canvas-node--focus-mode-dimmed {
-  /* Pushed down to 0.12 so frame title chips and small colored badges
-   * stop registering as "still present" against the dark backdrop —
-   * users explicitly asked for "only one bright card, everything else
-   * faded". Still leaves enough opacity for the user to see roughly
-   * where peripheral cards sit and to click them to refocus. */
-  opacity: 0.12;
-  box-shadow: none;
-  transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 /* Mindmap topics fill the node right up to its padding, so actions
@@ -299,23 +249,25 @@
  * iframe / editor / terminal mounted across the toggle with no reload. */
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
-  width: calc(100% - 2 * var(--canvas-fullscreen-inset, 32px)) !important;
-  height: calc(100% - 2 * var(--canvas-fullscreen-inset, 32px)) !important;
-  translate: var(--canvas-fullscreen-inset, 32px) var(--canvas-fullscreen-inset, 32px);
+  width: calc(100% - 2 * var(--canvas-fullscreen-inset, 10px)) !important;
+  height: calc(100% - 2 * var(--canvas-fullscreen-inset, 10px)) !important;
+  translate: var(--canvas-fullscreen-inset, 10px) var(--canvas-fullscreen-inset, 10px);
   /* Above the backdrop (z-index 50) so dimming covers other nodes
    * while this one stays crisp. */
   z-index: 60;
-  border-radius: var(--radius-xs);
-  border-color: rgba(var(--shade-rgb), 0.08);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* Fullscreen disables drag-by-header and resize handles, so the header
  * cursor + handles should reflect that. The only chrome the user needs
- * is the exit-fullscreen button; everything else (close, focus, ref,
- * time, color pickers) hides so the bar stays clean. */
+ * is the floating chip; everything else (close, focus, ref, time, color
+ * pickers) hides so the bar stays clean. */
 .canvas-node--fullscreen .node-header {
   cursor: default;
+  min-height: 42px;
+  padding: 0 18px;
 }
 
 /* In fullscreen, the floating chip (see Canvas/index.tsx) is the

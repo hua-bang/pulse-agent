@@ -84,9 +84,6 @@ export interface CanvasSurfaceProps extends MindmapTransferHandlers {
   /** Active alignment guides for the current drag, in canvas
    *  coordinates. Empty when nothing is snapping. */
   snapLines?: SnapLine[];
-  focusedNodeIds?: Set<string>;
-  focusContextNodeIds?: Set<string>;
-  focusModeEnabled?: boolean;
   /** Non-interactive render for the read-only dock preview (default false). */
   readOnly?: boolean;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;

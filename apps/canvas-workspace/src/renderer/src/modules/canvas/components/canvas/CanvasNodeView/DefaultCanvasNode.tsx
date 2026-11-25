@@ -27,6 +27,7 @@ const OVERVIEW_WEB_CARD_SELECTOR =
 interface DefaultCanvasNodeProps {
   classes: string;
   fullscreenButton: ReactNode;
+  handleExitFullscreen?: (e: MouseEvent) => void;
   focusAction?: {
     ariaLabel: string;
     title: string;
@@ -78,6 +79,7 @@ interface DefaultCanvasNodeProps {
 export const DefaultCanvasNode = ({
   classes,
   fullscreenButton,
+  handleExitFullscreen,
   focusAction,
   getAllNodes,
   containerDescendantCount,
@@ -225,6 +227,8 @@ export const DefaultCanvasNode = ({
   const header = (
     <CanvasNodeHeader
       fullscreenButton={fullscreenButton}
+      handleExitFullscreen={handleExitFullscreen}
+      workspaceName={workspaceName}
       focusAction={focusAction}
       containerDescendantCount={containerDescendantCount}
       handleClose={handleClose}

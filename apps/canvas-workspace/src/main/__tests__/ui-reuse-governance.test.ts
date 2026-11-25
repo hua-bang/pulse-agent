@@ -136,7 +136,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 255→251: workspace row actions moved into a ui/Button "more" menu.
   // 250→249: the model provider rail renders its rows through one tab
   // component, and the env-key panel uses ui/Button.
-  rawButtonTags: 249,
+  rawButtonTags: 246,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -462,7 +462,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // that must not follow the theme (web-page and switch-thumb white).
   // 1060→1056 (UI/UX interaction optimization): replaced hardcoded colors in
   // ui/Button, ui/Modal, Sidebar, and Canvas overlays with semantic tokens.
-  hardcodedColorLiterals: 1055,
+  hardcodedColorLiterals: 1044,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -533,7 +533,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 135→133: minimal frames use outlines without selection shadows.
   // 133→130 (dead-code cleanup): knip found unused pickers, settings
   // panels and icons, which were deleted.
-  shadowLiterals: 130,
+  shadowLiterals: 124,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
@@ -542,7 +542,7 @@ const RATCHET_BASELINE: Record<string, number> = {
   // scale for cross-surface stacking order.
   // 25→23 (batch-A): the 2 color-picker popovers' raw z-index:20 now come
   // from ui/DropdownShell's var(--layer-canvas-chrome-raised).
-  zIndexHighRaw: 23,
+  zIndexHighRaw: 22,
 
   // --- batch-A new counters (measured post-migration) ---
   // CSS rule-block openers outside ui/ matching the `*-section-(title|desc|

@@ -24,10 +24,13 @@ import {
 import { NodeTypeBadge } from '../NodeTypeBadge';
 import { isKnowledgeNodeType } from '../../../../../../shared/knowledgeNodes';
 import { isReferenceableNode } from '../../../../../../utils/referenceNodes';
+import { Button } from '../../../../../../components/ui/Button';
 import type { ChatDeliveryReceipt } from '../../../../../chat';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
+  handleExitFullscreen?: (e: MouseEvent) => void;
+  workspaceName?: string;
   focusAction?: {
     ariaLabel: string;
     title: string;
@@ -89,6 +92,8 @@ const NodeLeadingGlyph = ({ node, faviconUrl }: { node: CanvasNode; faviconUrl?:
 
 export const CanvasNodeHeader = ({
   fullscreenButton,
+  handleExitFullscreen,
+  workspaceName,
   focusAction,
   containerDescendantCount,
   handleClose,
@@ -131,6 +136,25 @@ export const CanvasNodeHeader = ({
       className="node-header"
       onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
     >
+      {isFullscreen && handleExitFullscreen ? (
+        <>
+          <Button
+            variant="secondary"
+            size="xs"
+            className="node-header__back-btn"
+            onClick={handleExitFullscreen}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={t('canvas.fullscreen.exit')}
+            aria-label={t('canvas.fullscreen.exit')}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="node-header__back-label">{workspaceName || t('canvas.fullscreen.backToCanvas')}</span>
+          </Button>
+          <span className="node-header__breadcrumb-sep" aria-hidden="true">/</span>
+        </>
+      ) : null}
       <NodeLeadingGlyph node={node} faviconUrl={faviconUrl} />
       <span
         ref={titleRef}
@@ -218,11 +242,13 @@ export const CanvasNodeHeader = ({
           />
         ) : null}
         {fullscreenButton}
-        <FocusButton
-          ariaLabel={focusAction?.ariaLabel ?? t('workspaceNodes.focusNode', { title: node.title })}
-          onClick={handleFocus}
-          title={focusAction?.title ?? t('workspaceNodes.focusNode', { title: node.title })}
-        />
+        {(!fullscreenButton || focusAction) ? (
+          <FocusButton
+            ariaLabel={focusAction?.ariaLabel ?? t('workspaceNodes.focusNode', { title: node.title })}
+            onClick={handleFocus}
+            title={focusAction?.title ?? t('workspaceNodes.focusNode', { title: node.title })}
+          />
+        ) : null}
         {readOnly ? null : (
           <CloseButton
             ariaLabel={t('workspaceNodes.removeNode', { title: node.title })}

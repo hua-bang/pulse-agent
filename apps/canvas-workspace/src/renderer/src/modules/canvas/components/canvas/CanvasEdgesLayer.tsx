@@ -18,9 +18,6 @@ export interface CanvasEdgesLayerProps {
   interactionState?: EdgeInteractionState | null;
   /** Draft edge for the connect gesture; rendered with committed geometry. */
   previewEdge?: CanvasEdge | null;
-  focusedNodeIds?: Set<string>;
-  focusContextNodeIds?: Set<string>;
-  focusModeEnabled?: boolean;
   onHandleMouseDown?: (
     edgeId: string,
     handle: 'source' | 'target' | 'bend',
@@ -79,9 +76,6 @@ const CanvasEdgesLayerComponent = ({
   onSelectEdge,
   interactionState,
   previewEdge,
-  focusedNodeIds,
-  focusContextNodeIds,
-  focusModeEnabled = false,
   onHandleMouseDown,
   onBodyMouseDown,
   onBodyDoubleClick,
@@ -133,9 +127,6 @@ const CanvasEdgesLayerComponent = ({
           edge={edge}
           geometry={geometry}
           selected={edge.id === selectedEdgeId}
-          focusedNodeIds={focusedNodeIds}
-          focusContextNodeIds={focusContextNodeIds}
-          focusModeEnabled={focusModeEnabled}
           onSelectEdge={onSelectEdge}
           onHandleMouseDown={onHandleMouseDown}
           onBodyMouseDown={onBodyMouseDown}
@@ -167,9 +158,6 @@ export const canvasEdgesLayerPropsAreEqual = (
   && previous.selectedEdgeId === next.selectedEdgeId
   && previous.interactionState === next.interactionState
   && previous.previewEdge === next.previewEdge
-  && previous.focusedNodeIds === next.focusedNodeIds
-  && previous.focusContextNodeIds === next.focusContextNodeIds
-  && previous.focusModeEnabled === next.focusModeEnabled
 );
 
 export const CanvasEdgesLayer = memo(
