@@ -223,4 +223,26 @@ describe('file editor byte-version persistence', () => {
     expect(write).toHaveBeenLastCalledWith('/tmp/note.md', 'my local edit');
     expect(state.conflicted).toBe(false);
   });
+
+  it('does not show Save failed on mount when a shared note backing file is missing (ENOENT) and allows creating it on save', async () => {
+    read.mockResolvedValue({ ok: false, error: "ENOENT: no such file or directory, open '/tmp/missing.md'" });
+    options = { ...options, nodeId: 'shared-note', data: { filePath: '/tmp/missing.md', content: 'from canvas' } };
+    await render();
+    expect(options.onStatus).not.toHaveBeenCalledWith('error', expect.anything());
+
+    write.mockResolvedValueOnce({ ok: true, version: 'created-v1' });
+    await act(async () => { await state.persistToFile('edited body', '/tmp/missing.md'); });
+    expect(write).toHaveBeenCalledWith('/tmp/missing.md', 'edited body');
+    expect(options.onStatus).toHaveBeenLastCalledWith('saved');
+  });
+
+  it('still fails closed on non-ENOENT read errors before writing', async () => {
+    read.mockResolvedValue({ ok: false, error: 'EACCES: permission denied' });
+    options = { ...options, nodeId: 'unreadable-note', data: { filePath: '/tmp/locked.md', content: 'base' } };
+    await render();
+    expect(options.onStatus).toHaveBeenCalledWith('error', false);
+
+    await act(async () => { await state.persistToFile('attempted edit', '/tmp/locked.md'); });
+    expect(write).not.toHaveBeenCalled();
+  });
 });

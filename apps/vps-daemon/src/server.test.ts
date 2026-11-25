@@ -722,6 +722,15 @@ describe('vps-daemon end-to-end', () => {
     // changes.read explicitly targeting ws-other is forbidden.
     const changesOther = await rpc(viewerHeaders, 'changes.read', [{ scopeId: 'ws-other' }]);
     expect(changesOther.status).toBe(403);
+
+    // workspaces.getTrashed is allowed for ws-shared (needed by Pulse Agent session loading)
+    // and forbidden for ws-other.
+    const trashedShared = await rpc(viewerHeaders, 'workspaces.getTrashed', ['ws-shared']);
+    expect(trashedShared.status).toBe(200);
+    expect(trashedShared.body.result).toBeNull();
+    expect((await rpc(editorHeaders, 'workspaces.getTrashed', ['ws-shared'])).status).toBe(200);
+    expect((await rpc(viewerHeaders, 'workspaces.getTrashed', ['ws-other'])).status).toBe(403);
+    expect((await rpc(editorHeaders, 'workspaces.getTrashed', ['ws-other'])).status).toBe(403);
   });
 
   it('enforces role and workspace isolation on all /v1/pty/* routes', async () => {
