@@ -25,6 +25,7 @@ interface DeferredSettingsProps {
   onRenameWorkspace: (id: string, name: string) => void;
   onSetRootFolder: (id: string, rootFolder: string) => void;
   joinSharedOpen?: boolean;
+  joinInviteCode?: string;
   onCloseJoinShared?: () => void;
   onJoinedNewWorkspace?: (workspaceId: string, name: string) => void;
 }
@@ -37,6 +38,7 @@ export const DeferredSettings = ({
   onRenameWorkspace,
   onSetRootFolder,
   joinSharedOpen = false,
+  joinInviteCode,
   onCloseJoinShared,
   onJoinedNewWorkspace,
 }: DeferredSettingsProps) => (
@@ -55,6 +57,7 @@ export const DeferredSettings = ({
       <Suspense fallback={null}>
         <JoinSharedCanvasModal
           open={joinSharedOpen}
+          initialInviteCode={joinInviteCode}
           onClose={onCloseJoinShared}
           onJoinedNewWorkspace={onJoinedNewWorkspace}
         />

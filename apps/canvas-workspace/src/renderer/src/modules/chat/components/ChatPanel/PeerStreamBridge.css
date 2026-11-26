@@ -1,0 +1,44 @@
+.chat-peer-stream {
+  margin: 6px 12px 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--tint-info);
+  border: 1px solid var(--tint-info-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-peer-stream__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.chat-peer-stream__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.chat-peer-stream__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.chat-peer-stream__preview {
+  max-height: 110px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

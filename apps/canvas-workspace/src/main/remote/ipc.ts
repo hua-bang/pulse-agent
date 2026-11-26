@@ -5,7 +5,6 @@ import type {
   RemoteVpsTestResult,
   RemoteVpsWorkspaceConfigDto,
 } from '../../shared/api/remote-vps';
-import { setupRemoteVpsShareIpc } from './share-ipc';
 
 export interface RemoteVpsIpcDeps {
   getLocalStorage: () => Promise<import('@pulse-coder/storage').PulseStorage | null>;
@@ -325,5 +324,5 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
     },
   );
 
-  setupRemoteVpsShareIpc();
+  void import('./share-ipc').then(({ setupRemoteVpsShareIpc }) => setupRemoteVpsShareIpc());
 }

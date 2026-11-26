@@ -973,4 +973,76 @@ describe('vps-daemon end-to-end', () => {
     );
     expect((await docViaWorkDir.json()) as { content: string }).toMatchObject({ content: '# Project Doc' });
   });
+
+  it('tracks workspace-scoped presence peers with activeNodeId, viewport, and clean removal', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const shareRes = await fetch(`${daemon.url}/v1/shares`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ workspaceId: 'ws-presence', role: 'editor', label: 'Alex' }),
+    });
+    const { share } = (await shareRes.json()) as { share: { token: string } };
+    const shareHeaders = { Authorization: `Bearer ${share.token}`, 'Content-Type': 'application/json' };
+
+    // Admin publishes presence on ws-presence.
+    const ownerUpsert = await fetch(`${daemon.url}/v1/presence`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        workspaceId: 'ws-presence',
+        clientId: 'owner-1',
+        name: 'Huabang',
+        activeNodeId: 'node-a',
+        viewport: { x: 100, y: 200, scale: 1.2 },
+      }),
+    });
+    expect(ownerUpsert.status).toBe(200);
+
+    // Scoped share guest publishes presence without needing to supply name (falls back to share label).
+    const guestUpsert = await fetch(`${daemon.url}/v1/presence`, {
+      method: 'POST',
+      headers: shareHeaders,
+      body: JSON.stringify({
+        clientId: 'guest-1',
+        activeNodeId: 'node-b',
+      }),
+    });
+    expect(guestUpsert.status).toBe(200);
+    const guestJson = (await guestUpsert.json()) as {
+      ok: boolean;
+      peers: Array<{ clientId: string; name: string; role: string; activeNodeId?: string; viewport?: { x: number; y: number; scale: number } }>;
+    };
+    expect(guestJson.ok).toBe(true);
+    expect(guestJson.peers).toHaveLength(2);
+    expect(guestJson.peers.find((p) => p.clientId === 'guest-1')).toMatchObject({
+      name: 'Alex',
+      role: 'editor',
+      activeNodeId: 'node-b',
+    });
+    expect(guestJson.peers.find((p) => p.clientId === 'owner-1')).toMatchObject({
+      name: 'Huabang',
+      role: 'admin',
+      activeNodeId: 'node-a',
+      viewport: { x: 100, y: 200, scale: 1.2 },
+    });
+
+    // Cross-workspace presence access with scoped share token is rejected.
+    const crossWs = await fetch(`${daemon.url}/v1/presence?workspaceId=ws-other`, {
+      headers: shareHeaders,
+    });
+    expect(crossWs.status).toBe(400);
+
+    // Guest leaves cleanly.
+    const leaveRes = await fetch(`${daemon.url}/v1/presence/guest-1`, {
+      method: 'DELETE',
+      headers: shareHeaders,
+    });
+    expect(leaveRes.status).toBe(200);
+
+    const afterLeave = (await (
+      await fetch(`${daemon.url}/v1/presence?workspaceId=ws-presence`, { headers: adminHeaders })
+    ).json()) as { ok: boolean; peers: Array<{ clientId: string }> };
+    expect(afterLeave.peers.map((p) => p.clientId)).toEqual(['owner-1']);
+  });
 });

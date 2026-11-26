@@ -131,7 +131,7 @@ const AppContent = () => {
   });
   const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
   const {
-    settingsWorkspaceId, workspaceSettingsLoaded, joinSharedOpen,
+    settingsWorkspaceId, workspaceSettingsLoaded, joinSharedOpen, pendingJoinInvite,
     openWorkspaceSettings, closeWorkspaceSettings, openJoinShared, closeJoinShared,
   } = useWorkspaceSettingsSheet();
 
@@ -472,6 +472,7 @@ const AppContent = () => {
         onRenameWorkspace={renameWorkspace}
         onSetRootFolder={setRootFolder}
         joinSharedOpen={joinSharedOpen}
+        joinInviteCode={pendingJoinInvite}
         onCloseJoinShared={closeJoinShared}
         onJoinedNewWorkspace={(id, name) => workspaceActions.select(workspaceActions.create(name, undefined, id))}
       />

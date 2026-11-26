@@ -83,6 +83,7 @@ export const useWorkspaceSettingsSheet = () => {
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [joinSharedOpen, setJoinSharedOpen] = useState(false);
+  const [pendingJoinInvite, setPendingJoinInvite] = useState<string | undefined>(undefined);
 
   const openWorkspaceSettings = useCallback((workspaceId: string) => {
     setWorkspaceSettingsLoaded(true);
@@ -94,17 +95,36 @@ export const useWorkspaceSettingsSheet = () => {
   }, []);
 
   const openJoinShared = window.canvasWorkspace?.remoteVps
-    ? () => setJoinSharedOpen(true)
+    ? () => {
+        setPendingJoinInvite(undefined);
+        setJoinSharedOpen(true);
+      }
     : undefined;
 
   const closeJoinShared = useCallback(() => {
     setJoinSharedOpen(false);
+    setPendingJoinInvite(undefined);
+  }, []);
+
+  useEffect(() => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api?.onJoinDeepLink) return;
+    const handleInvite = (inviteCode: string) => {
+      setPendingJoinInvite(inviteCode);
+      setJoinSharedOpen(true);
+    };
+    const unsubscribe = api.onJoinDeepLink(handleInvite);
+    void api.consumePendingJoinLinks?.().then((codes) => {
+      if (codes.length > 0) handleInvite(codes[codes.length - 1]);
+    });
+    return unsubscribe;
   }, []);
 
   return {
     settingsWorkspaceId,
     workspaceSettingsLoaded,
     joinSharedOpen,
+    pendingJoinInvite,
     openWorkspaceSettings,
     closeWorkspaceSettings,
     openJoinShared,

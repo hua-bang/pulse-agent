@@ -25,6 +25,8 @@ export interface CanvasOverlaysProps {
   } | null;
   searchOpen: boolean;
   activeTool: string;
+  /** True for read-only shared viewers; hides creation toolbar and create menu. */
+  readOnly?: boolean;
   /** True while pan/zoom is in flight. Transform-sensitive overlays are
    *  parked so the gesture path does not recompute screen-space DOM. */
   moving?: boolean;

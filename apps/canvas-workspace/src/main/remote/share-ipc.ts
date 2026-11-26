@@ -1,8 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { ipcMain } from 'electron';
 import type {
+  RemoteVpsPresencePeer,
   RemoteVpsShareSummary,
   RemoteVpsWorkspaceConfigDto,
 } from '../../shared/api/remote-vps';
+import { consumePendingJoinLinks } from '../default-browser/deep-link';
+
+const PROCESS_CLIENT_ID = `c_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+
+function markSelf(peers: RemoteVpsPresencePeer[]): RemoteVpsPresencePeer[] {
+  return peers.map((peer) => (peer.clientId === PROCESS_CLIENT_ID ? { ...peer, self: true } : peer));
+}
 
 export function setupRemoteVpsShareIpc(): void {
   ipcMain.handle('remote-vps:listShares', async (_event, payload: { workspaceId: string }) => {
@@ -214,4 +223,111 @@ export function setupRemoteVpsShareIpc(): void {
       }
     },
   );
+
+  ipcMain.handle(
+    'remote-vps:getPresence',
+    async (_event, payload: { workspaceId: string }): Promise<{ ok: boolean; peers: RemoteVpsPresencePeer[] }> => {
+      try {
+        const { resolveRemoteWorkspaceTarget } = await import('./client');
+        const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'storage');
+        if (!target) return { ok: true, peers: [] };
+        const res = await fetch(
+          `${target.endpoint}/v1/presence?workspaceId=${encodeURIComponent(target.remoteWorkspaceId)}`,
+          {
+            headers: { Authorization: `Bearer ${target.token}` },
+            signal: AbortSignal.timeout(4_000),
+          },
+        );
+        if (!res.ok) return { ok: true, peers: [] };
+        const body = (await res.json()) as { ok?: boolean; peers?: RemoteVpsPresencePeer[] };
+        return { ok: true, peers: markSelf(Array.isArray(body.peers) ? body.peers : []) };
+      } catch {
+        return { ok: false, peers: [] };
+      }
+    },
+  );
+
+  const lastPresenceByWorkspace = new Map<
+    string,
+    {
+      activeNodeId?: string | null;
+      viewport?: { x: number; y: number; scale: number } | null;
+      chatStream?: { conversationId: string; text: string } | null;
+    }
+  >();
+
+  ipcMain.handle(
+    'remote-vps:updatePresence',
+    async (
+      _event,
+      payload: {
+        workspaceId: string;
+        activeNodeId?: string | null;
+        viewport?: { x: number; y: number; scale: number } | null;
+        chatStream?: { conversationId: string; text: string } | null;
+      },
+    ): Promise<{ ok: boolean; peers: RemoteVpsPresencePeer[] }> => {
+      try {
+        const [{ resolveRemoteWorkspaceTarget }, { resolveRemoteWorkspaceSenderName }] = await Promise.all([
+          import('./client'),
+          import('./config'),
+        ]);
+        const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'storage');
+        if (!target) return { ok: true, peers: [] };
+        const prev = lastPresenceByWorkspace.get(payload.workspaceId) ?? {};
+        const merged = {
+          activeNodeId: payload.activeNodeId !== undefined ? payload.activeNodeId : prev.activeNodeId ?? null,
+          viewport: payload.viewport !== undefined ? payload.viewport : prev.viewport ?? null,
+          chatStream: payload.chatStream !== undefined ? payload.chatStream : prev.chatStream ?? null,
+        };
+        lastPresenceByWorkspace.set(payload.workspaceId, merged);
+        const name = resolveRemoteWorkspaceSenderName(payload.workspaceId);
+        const res = await fetch(`${target.endpoint}/v1/presence`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${target.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            workspaceId: target.remoteWorkspaceId,
+            clientId: PROCESS_CLIENT_ID,
+            ...(name ? { name } : {}),
+            ...merged,
+          }),
+          signal: AbortSignal.timeout(4_000),
+        });
+        if (!res.ok) return { ok: true, peers: [] };
+        const body = (await res.json()) as { ok?: boolean; peers?: RemoteVpsPresencePeer[] };
+        return { ok: true, peers: markSelf(Array.isArray(body.peers) ? body.peers : []) };
+      } catch {
+        return { ok: false, peers: [] };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'remote-vps:leavePresence',
+    async (_event, payload: { workspaceId: string }): Promise<{ ok: boolean }> => {
+      try {
+        const { resolveRemoteWorkspaceTarget } = await import('./client');
+        const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'storage');
+        if (!target) return { ok: true };
+        await fetch(
+          `${target.endpoint}/v1/presence/${encodeURIComponent(PROCESS_CLIENT_ID)}?workspaceId=${encodeURIComponent(target.remoteWorkspaceId)}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${target.token}` },
+            signal: AbortSignal.timeout(3_000),
+          },
+        );
+        return { ok: true };
+      } catch {
+        return { ok: false };
+      }
+    },
+  );
+
+  ipcMain.handle('remote-vps:consumePendingJoinLinks', async (): Promise<string[]> => {
+    return consumePendingJoinLinks();
+  });
 }
