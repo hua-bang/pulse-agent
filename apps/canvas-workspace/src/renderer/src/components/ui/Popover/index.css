@@ -1,0 +1,113 @@
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  padding: 4px;
+  animation: menuAppear 0.12s ease;
+}
+
+/* A menu anchored inside the right dock portals to body, so it lands in a
+   lower stacking context than the dock itself (--layer-dock) and is painted
+   behind the very panel it describes. Confirmed on a real run: the page
+   context menu was in the DOM, correctly positioned, and invisible. */
+.context-menu--in-dock {
+  z-index: var(--layer-dock-menu);
+}
+
+.context-menu-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 6px 10px 4px;
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.context-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  /* Explicit because menu rows built on ui/Button inherit its centred
+     content; a menu whose labels float in the middle of the row reads as a
+     dialog, not a menu. No-op for the raw-button menus. */
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.08s;
+}
+
+/* Rows built on ui/Button (MCP app entries) inherit its fixed height, zero
+   vertical padding, and nowrap, so their two-line labels touched the next
+   row. Restore the menu row metrics. */
+.context-menu .context-menu-item {
+  height: auto;
+  padding: 7px 10px;
+  white-space: normal;
+}
+
+.context-menu-item:hover,
+.context-menu-item[aria-expanded='true'] {
+  background: var(--accent-light);
+}
+
+.context-menu-item:focus-visible {
+  outline: none;
+  background: var(--accent-light);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.context-menu-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  background: rgba(96, 125, 139, 0.1);
+  color: var(--text-info);
+}
+
+.context-menu-icon svg {
+  display: block;
+}
+
+.context-menu-label {
+  display: flex;
+  flex-direction: column;
+}
+
+.context-menu-label strong {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.context-menu-label small {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.context-menu-item--danger .context-menu-label strong {
+  color: #d3382c;
+}
+
+.context-menu-item--danger:hover {
+  background: rgba(211, 56, 44, 0.08);
+}

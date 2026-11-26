@@ -8,6 +8,7 @@ import {
   getCanvasMotion,
   subscribeCanvasMotion,
 } from '../../../shared/canvasMotion';
+import './index.css';
 
 // A stable "no anchor" ref so useAnchorRectPosition can be called
 // UNCONDITIONALLY below (rules-of-hooks — Popover supports two anchoring
@@ -198,11 +199,12 @@ export const Popover = (props: Props) => {
   const ref = rectAnchored ? rectAnchor.ref : pointAnchor.ref;
   const style: CSSProperties = rectAnchored
     ? {
+        position: 'fixed',
         left: rectAnchor.pos?.left ?? -9999,
         top: rectAnchor.pos?.top ?? -9999,
         visibility: rectAnchor.pos ? undefined : 'hidden',
       }
-    : { left: pointAnchor.pos.left, top: pointAnchor.pos.top };
+    : { position: 'fixed', left: pointAnchor.pos.left, top: pointAnchor.pos.top };
 
   const closeFromEscape = () => onClose('escape');
   const closeFromOutside = () => onClose('outside');

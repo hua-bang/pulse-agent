@@ -602,6 +602,7 @@ describe('Popover — rect anchor mode (anchorRef)', () => {
       </Popover>,
     );
     const el = document.querySelector('.test-popover') as HTMLElement;
+    expect(el.style.position).toBe('fixed');
     expect(el.style.left).toBe('-9999px');
     expect(el.style.top).toBe('-9999px');
     expect(el.style.visibility).toBe('hidden');
