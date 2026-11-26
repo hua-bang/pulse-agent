@@ -62,7 +62,7 @@ export const useChatPanelController = ({
   sessionRefreshKey,
   requestedSessionId,
   onOpenSessionInScope,
-}: ChatPanelProps): ChatViewProps => {
+}: ChatPanelProps): ChatViewProps & { onPeerStreamFinished: () => void } => {
   const { t } = useI18n();
   const { notify } = useAppShell();
   const executionMode = 'auto' as const;
@@ -493,5 +493,6 @@ export const useChatPanelController = ({
         modelLabel: canvasModels.selectedLabel, onSelectModel: canvasModels.selectModel,
         onOpenModelSettings: openModelSettingsFromSwitcher, contextComposer: true,
     },
+    onPeerStreamFinished: () => void (activeSessionId ? handleLoadSession(activeSessionId) : retrySession()),
   };
 };

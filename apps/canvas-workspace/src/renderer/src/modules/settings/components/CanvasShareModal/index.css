@@ -8,8 +8,9 @@
 .canvas-share-popover {
   position: fixed;
   z-index: var(--layer-dock-menu);
-  width: min(410px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 24px));
   max-height: min(600px, calc(100vh - 64px));
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -17,6 +18,21 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-float);
+}
+
+.canvas-share-popover .ui-segmented {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.canvas-share-modal__outdated {
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--tint-info-border);
+  background: var(--tint-info);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .canvas-share-modal__header {
@@ -54,7 +70,9 @@
 .canvas-share-modal__body {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;

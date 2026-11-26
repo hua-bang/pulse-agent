@@ -321,6 +321,9 @@ export const CanvasShareModal = ({
                 {copy.connectionSettings}
               </Button>
             </div>
+            {liveStatus?.outdatedDaemon && (
+              <div className="canvas-share-modal__outdated">{shareCopy.outdatedBanner}</div>
+            )}
             <RemoteVpsSharePanel
               workspaceId={workspaceId}
               workspaceName={workspaceName}
