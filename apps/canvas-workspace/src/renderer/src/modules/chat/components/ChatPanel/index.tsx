@@ -5,7 +5,7 @@ import type { ChatPanelProps } from './types';
 import { useChatPanelController } from './useChatPanelController';
 
 export const ChatPanel = (props: ChatPanelProps) => {
-  const viewProps = useChatPanelController(props);
+  const { onPeerStreamFinished, ...viewProps } = useChatPanelController(props);
   const { workspaceId, conversationKey, messages, loading } = viewProps.thread;
   return (
     <ChatView
@@ -21,6 +21,7 @@ export const ChatPanel = (props: ChatPanelProps) => {
               messages={messages}
               loading={loading}
               onNewBranch={viewProps.chrome.onNewSession}
+              onPeerStreamFinished={onPeerStreamFinished}
             />
           </>
         ),

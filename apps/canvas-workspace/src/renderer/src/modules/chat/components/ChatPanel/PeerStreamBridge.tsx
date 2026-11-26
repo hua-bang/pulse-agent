@@ -11,12 +11,16 @@ interface Props {
   messages: readonly AgentChatMessage[];
   loading: boolean;
   onNewBranch?: () => void;
+  onPeerStreamFinished?: () => void;
 }
 
 /**
  * Syncs live AI streaming state over VPS presence:
- * - Outbound: throttles this client's active assistant reply preview while streaming.
- * - Inbound: displays a live preview + polite "New branch" action when a teammate is streaming.
+ * - Outbound: immediately notifies peers when a turn starts (including tool execution)
+ *   and ticks a steady 1.2s interval reading the latest streaming text from a ref
+ *   (avoiding debounce starvation during fast token streams).
+ * - Inbound: displays a live preview + polite "New branch" action when a teammate is
+ *   streaming, and triggers a session reload when the teammate's turn finishes.
  */
 export const PeerStreamBridge = ({
   workspaceId,
@@ -24,22 +28,25 @@ export const PeerStreamBridge = ({
   messages,
   loading,
   onNewBranch,
+  onPeerStreamFinished,
 }: Props) => {
   const { t } = useI18n();
   const peers = useRemotePeers(workspaceId);
-  const lastSentRef = useRef<string | null>(null);
+  const sentActiveRef = useRef(false);
   const lastAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant'
     ? messages[messages.length - 1].content
     : '';
+  const latestTextRef = useRef(lastAssistant);
+  latestTextRef.current = lastAssistant;
 
-  // Outbound: broadcast active streaming preview every ~1.2s and clear once idle.
+  // Outbound: fire immediately on turn start, tick every 1.2s without resetting on tokens, clear on idle.
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
     if (!api?.updatePresence || !workspaceId || !conversationId) return;
 
     if (!loading) {
-      if (lastSentRef.current !== null) {
-        lastSentRef.current = null;
+      if (sentActiveRef.current) {
+        sentActiveRef.current = false;
         void api.updatePresence(workspaceId, { chatStream: null }).then((res) => {
           if (res.ok) setRemotePeers(workspaceId, res.peers);
         }).catch(() => undefined);
@@ -47,25 +54,39 @@ export const PeerStreamBridge = ({
       return;
     }
 
-    const preview = lastAssistant.slice(-2400);
-    const signature = `${conversationId}:${preview.length}`;
-    if (lastSentRef.current === signature) return;
-
-    const timer = window.setTimeout(() => {
-      lastSentRef.current = signature;
+    let cancelled = false;
+    const push = () => {
+      sentActiveRef.current = true;
+      const preview = latestTextRef.current.slice(-2400);
       void api.updatePresence?.(workspaceId, {
         chatStream: { conversationId, text: preview },
       }).then((res) => {
-        if (res.ok) setRemotePeers(workspaceId, res.peers);
+        if (!cancelled && res.ok) setRemotePeers(workspaceId, res.peers);
       }).catch(() => undefined);
-    }, 1_100);
+    };
 
-    return () => window.clearTimeout(timer);
-  }, [workspaceId, conversationId, loading, lastAssistant]);
+    push();
+    const timer = window.setInterval(push, 1_200);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [workspaceId, conversationId, loading]);
 
   const streamingPeer = peers.find(
-    (peer) => peer.chatStream && peer.chatStream.conversationId === conversationId,
+    (peer) => peer.chatStream && (!conversationId || peer.chatStream.conversationId === conversationId),
   );
+
+  // Inbound: reload the conversation from VPS storage once a teammate's stream completes.
+  const wasPeerStreamingRef = useRef(false);
+  useEffect(() => {
+    const active = Boolean(streamingPeer?.chatStream);
+    if (wasPeerStreamingRef.current && !active) {
+      onPeerStreamFinished?.();
+    }
+    wasPeerStreamingRef.current = active;
+  }, [streamingPeer?.chatStream, onPeerStreamFinished]);
+
   if (!streamingPeer?.chatStream) return null;
 
   return (
