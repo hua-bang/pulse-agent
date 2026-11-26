@@ -7,6 +7,7 @@ export interface ChatRoomActiveTurn {
   clientId: string;
   senderName: string;
   conversationId: string;
+  prompt?: string;
   text: string;
   toolName?: string;
   startedAt: number;
@@ -114,6 +115,7 @@ export class ChatRoomHub {
         clientId: input.clientId,
         senderName: input.senderName,
         conversationId,
+        prompt: input.message.slice(0, MAX_MESSAGE_CHARS),
         text: '',
         startedAt: now,
         updatedAt: now,
@@ -159,10 +161,12 @@ export class ChatRoomHub {
       nextItem = room.queue.shift();
     }
 
+    const prompt = nextItem?.message ?? (room.activeTurn?.clientId === input.clientId ? room.activeTurn.prompt : undefined);
     room.activeTurn = {
       clientId: input.clientId,
       senderName: input.senderName,
       conversationId,
+      ...(prompt ? { prompt } : {}),
       text: room.activeTurn?.clientId === input.clientId ? room.activeTurn.text : '',
       toolName: room.activeTurn?.clientId === input.clientId ? room.activeTurn.toolName : undefined,
       startedAt: room.activeTurn?.clientId === input.clientId ? room.activeTurn.startedAt : now,
@@ -183,10 +187,12 @@ export class ChatRoomHub {
     if (room.activeTurn && room.activeTurn.clientId !== input.clientId) {
       return this.snapshot(workspaceId, conversationId, room);
     }
+    const prompt = room.activeTurn?.prompt;
     room.activeTurn = {
       clientId: input.clientId,
       senderName: input.senderName,
       conversationId,
+      ...(prompt ? { prompt } : {}),
       text: input.text.slice(-MAX_STREAM_PREVIEW_CHARS),
       ...(input.toolName ? { toolName: input.toolName.slice(0, 128) } : {}),
       startedAt: room.activeTurn?.startedAt ?? now,

@@ -95,7 +95,9 @@ export const PeerStreamBridge = ({
 
   const peerRoomTurn = roomActiveTurn && !roomActiveTurn.self ? roomActiveTurn : null;
   const activeName = peerRoomTurn?.senderName ?? streamingPeer?.name;
-  const activeText = peerRoomTurn ? peerRoomTurn.text : streamingPeer?.chatStream?.text;
+  // When peerRoomTurn is active, the live reply renders inline in the message thread;
+  // only show the top preview box for legacy presence fallback (older daemons).
+  const legacyPreviewText = peerRoomTurn ? '' : (streamingPeer?.chatStream?.text ?? '');
   const showActive = Boolean(peerRoomTurn || streamingPeer?.chatStream);
   const showQueue = roomQueue.length > 0;
 
@@ -116,8 +118,8 @@ export const PeerStreamBridge = ({
               </Button>
             )}
           </div>
-          {activeText && (
-            <div className="chat-peer-stream__preview">{activeText}</div>
+          {legacyPreviewText && (
+            <div className="chat-peer-stream__preview">{legacyPreviewText}</div>
           )}
         </>
       )}

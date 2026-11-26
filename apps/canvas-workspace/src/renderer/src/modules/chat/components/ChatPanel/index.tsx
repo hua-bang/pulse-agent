@@ -25,6 +25,10 @@ export const ChatPanel = (props: ChatPanelProps) => {
   return (
     <ChatView
       {...viewProps}
+      thread={{
+        ...viewProps.thread,
+        messages: sharedRoom.displayMessages,
+      }}
       composer={{
         ...viewProps.composer,
         onSubmit: sharedRoom.onSubmit,

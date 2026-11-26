@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEventHandler } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
 import type {
   RemoteVpsChatRoomActiveTurn,
   RemoteVpsChatRoomQueuedItem,
@@ -25,6 +25,7 @@ interface UseSharedChatRoomOptions {
 export interface SharedChatRoomState {
   activeTurn: RemoteVpsChatRoomActiveTurn | null;
   queue: RemoteVpsChatRoomQueuedItem[];
+  displayMessages: AgentChatMessage[];
   cancelQueued: (itemId: string) => void;
   onSubmit: () => Promise<boolean>;
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
@@ -240,10 +241,33 @@ export function useSharedChatRoom({
     [conversationId, workspaceId],
   );
 
+  const displayMessages = useMemo<AgentChatMessage[]>(() => {
+    if (!isRemote || !activeTurn || activeTurn.self) {
+      return messages as AgentChatMessage[];
+    }
+    const next = [...messages];
+    const last = next[next.length - 1];
+    if (activeTurn.prompt && !(last?.role === 'user' && last.content === activeTurn.prompt)) {
+      next.push({
+        role: 'user',
+        senderName: activeTurn.senderName,
+        content: activeTurn.prompt,
+        timestamp: activeTurn.startedAt,
+      });
+    }
+    next.push({
+      role: 'assistant',
+      content: activeTurn.text || '…',
+      timestamp: activeTurn.updatedAt,
+    });
+    return next;
+  }, [activeTurn, isRemote, messages]);
+
   if (!isRemote) {
     return {
       activeTurn: null,
       queue: [],
+      displayMessages: messages as AgentChatMessage[],
       cancelQueued,
       onSubmit,
       onKeyDown,
@@ -253,6 +277,7 @@ export function useSharedChatRoom({
   return {
     activeTurn,
     queue,
+    displayMessages,
     cancelQueued,
     onSubmit: wrappedOnSubmit,
     onKeyDown: wrappedOnKeyDown,

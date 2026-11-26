@@ -94,6 +94,7 @@ export interface RemoteVpsChatRoomActiveTurn {
   clientId: string;
   senderName: string;
   conversationId: string;
+  prompt?: string;
   text: string;
   toolName?: string;
   startedAt: number;
