@@ -27,6 +27,7 @@ const HTTP_SCHEMES = new Set(['http:', 'https:']);
 // URLs captured before a renderer could receive them (cold start). Drained by
 // the renderer on mount via `consumePendingLinks`.
 const pendingLinks: string[] = [];
+const pendingJoinLinks: string[] = [];
 
 function isInboundHttpUrl(raw: string): boolean {
   try {
@@ -36,10 +37,26 @@ function isInboundHttpUrl(raw: string): boolean {
   }
 }
 
-/** First http/https token in a process argv list, or null. */
+/** Extract an invite code from `pulse-canvas://join?code=...` or `pulse-share://v1/...`. */
+export function extractJoinInviteFromUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('pulse-share://v1/')) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'pulse-canvas:' && parsed.hostname === 'join') {
+      const code = parsed.searchParams.get('code')?.trim();
+      if (code) return code.startsWith('pulse-share://v1/') ? code : `pulse-share://v1/${code}`;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** First http/https or join deep-link token in a process argv list, or null. */
 export function findHttpUrlInArgv(argv: readonly string[]): string | null {
   for (const arg of argv) {
-    if (isInboundHttpUrl(arg)) return arg;
+    if (isInboundHttpUrl(arg) || extractJoinInviteFromUrl(arg)) return arg;
   }
   return null;
 }
@@ -51,11 +68,24 @@ function focusMainWindow(win: BrowserWindow): void {
 }
 
 /**
- * Route an inbound URL into the app. If a renderer is loaded, push it over
- * `link:open` (warm path — RightDock is already subscribed). Otherwise queue
- * it for the renderer to drain once it mounts (cold path).
+ * Route an inbound URL into the app. Join deep links go to `remote-vps:join-link`;
+ * http/https URLs go to `link:open`. If no renderer is ready yet, queue for cold-start drain.
  */
 export function routeInboundUrl(url: string, writeLog?: WriteLog): void {
+  const joinInvite = extractJoinInviteFromUrl(url);
+  if (joinInvite) {
+    void writeLog?.('remote-vps', 'inbound join deep link', joinInvite.slice(0, 48));
+    const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+    if (win && !win.webContents.isLoading()) {
+      focusMainWindow(win);
+      win.webContents.send('remote-vps:join-link', { inviteCode: joinInvite });
+      return;
+    }
+    pendingJoinLinks.push(joinInvite);
+    if (win) focusMainWindow(win);
+    return;
+  }
+
   if (!isInboundHttpUrl(url)) return;
   void writeLog?.('default-browser', 'inbound url', url);
 
@@ -77,6 +107,11 @@ export function consumePendingLinks(): string[] {
   return pendingLinks.splice(0, pendingLinks.length);
 }
 
+/** Return and clear queued cold-start join invite codes. */
+export function consumePendingJoinLinks(): string[] {
+  return pendingJoinLinks.splice(0, pendingJoinLinks.length);
+}
+
 /**
  * Acquire the single-instance lock and wire the OS deep-link listeners.
  * Returns false when another instance already holds the lock — the caller must
@@ -87,6 +122,15 @@ export function setupDeepLinkEarly(writeLog: WriteLog): boolean {
   if (!gotLock) {
     app.quit();
     return false;
+  }
+
+  // Register custom scheme for one-click `pulse-canvas://join?code=...` links.
+  try {
+    if (app.isPackaged) {
+      app.setAsDefaultProtocolClient('pulse-canvas');
+    }
+  } catch {
+    /* ignore protocol registration failures on unsupported shells */
   }
 
   // Windows/Linux: a second launch (e.g. a clicked link) is funneled here.
@@ -104,8 +148,14 @@ export function setupDeepLinkEarly(writeLog: WriteLog): boolean {
   // Windows/Linux cold start: the launching URL rides in on argv.
   const initial = findHttpUrlInArgv(process.argv);
   if (initial) {
-    pendingLinks.push(initial);
-    void writeLog('default-browser', 'cold-start url', initial);
+    const joinInvite = extractJoinInviteFromUrl(initial);
+    if (joinInvite) {
+      pendingJoinLinks.push(joinInvite);
+      void writeLog('remote-vps', 'cold-start join deep link', joinInvite.slice(0, 48));
+    } else {
+      pendingLinks.push(initial);
+      void writeLog('default-browser', 'cold-start url', initial);
+    }
   }
 
   return true;

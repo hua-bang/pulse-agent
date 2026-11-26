@@ -229,5 +229,20 @@ export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
   revokeShare: (workspaceId, shareId) =>
     ipcRenderer.invoke("remote-vps:revokeShare", { workspaceId, shareId }),
   joinShare: (workspaceId, inviteCode) =>
-    ipcRenderer.invoke("remote-vps:joinShare", { workspaceId, inviteCode })
+    ipcRenderer.invoke("remote-vps:joinShare", { workspaceId, inviteCode }),
+  getPresence: (workspaceId) =>
+    ipcRenderer.invoke("remote-vps:getPresence", { workspaceId }),
+  updatePresence: (workspaceId, state) =>
+    ipcRenderer.invoke("remote-vps:updatePresence", { workspaceId, ...state }),
+  leavePresence: (workspaceId) =>
+    ipcRenderer.invoke("remote-vps:leavePresence", { workspaceId }),
+  onJoinDeepLink: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: { inviteCode?: string }) => {
+      if (payload?.inviteCode) callback(payload.inviteCode);
+    };
+    ipcRenderer.on("remote-vps:join-link", listener);
+    return () => ipcRenderer.removeListener("remote-vps:join-link", listener);
+  },
+  consumePendingJoinLinks: () =>
+    ipcRenderer.invoke("remote-vps:consumePendingJoinLinks")
 });

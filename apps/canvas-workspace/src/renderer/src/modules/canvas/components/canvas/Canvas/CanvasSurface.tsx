@@ -15,6 +15,7 @@ import { CanvasErrorBoundary, NodeErrorFallback } from '../CanvasErrorBoundary';
 import { CanvasNodeView } from '../CanvasNodeView';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
 import { CanvasGestureHud, MarqueePreview, ShapeDraftPreview } from './CanvasGestureOverlays';
+import { CanvasPeerHalos } from './CanvasPresenceOverlay';
 import type { CanvasSurfaceProps } from './CanvasSurface.types';
 
 const FIT_TRANSITION =
@@ -293,6 +294,7 @@ export const CanvasSurface = ({
           scale={transform.scale}
         />
       )}
+      <CanvasPeerHalos workspaceId={canvasId} nodes={nodes} />
     </div>
   );
 };

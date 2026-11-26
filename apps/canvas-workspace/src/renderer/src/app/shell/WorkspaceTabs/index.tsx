@@ -8,6 +8,8 @@ import { CLOSE_ACTIVE_TAB_EVENT, REOPEN_CLOSED_TAB_EVENT } from '../../shortcuts
 import { isImeComposing } from '../../../utils/ime';
 import { useOpenWorkspaceTabs } from './useOpenWorkspaceTabs';
 import { WorkspacePicker } from './WorkspacePicker';
+import { PresenceAvatars } from './PresenceAvatars';
+import { setRemotePeers, setWorkspaceViewerReadOnly } from '../../../shared/remotePresence';
 import './index.css';
 
 // Loads on the first right-click, outside the startup bundle.
@@ -88,8 +90,11 @@ export const WorkspaceTabs = ({
       const cfg = res.ok ? res.config : null;
       if (!cfg || cfg.storage === 'local') {
         setRemoteBadge({ hosted: false, connected: true });
+        setWorkspaceViewerReadOnly(activeId, false);
+        setRemotePeers(activeId, []);
         return;
       }
+      setWorkspaceViewerReadOnly(activeId, cfg.shareRole === 'viewer');
       setRemoteBadge((prev) => ({
         hosted: true,
         connected: prev.hosted ? prev.connected : true,
@@ -109,6 +114,23 @@ export const WorkspaceTabs = ({
       cancelled = true;
     };
   }, [activeId, shareOpen]);
+
+  useEffect(() => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!api?.getPresence || !activeId || !remoteBadge.hosted) return;
+    let cancelled = false;
+    const poll = () => {
+      void api.getPresence?.(activeId).then((res) => {
+        if (!cancelled && res.ok) setRemotePeers(activeId, res.peers);
+      }).catch(() => undefined);
+    };
+    poll();
+    const timer = window.setInterval(poll, 4_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeId, remoteBadge.hosted]);
 
   // Tabs keep their width when the dock opens, so the active one can sit past
   // the visible edge of the list. Keep it in view on switch and on resize.
@@ -304,6 +326,9 @@ export const WorkspaceTabs = ({
       >
         <PlusIcon size={13} />
       </Button>
+      {onOpenSettings && activeId && remoteBadge.hosted && (
+        <PresenceAvatars workspaceId={activeId} />
+      )}
       {onOpenSettings && activeId && remoteBadge.hosted && (
         <Button
           ref={shareButtonRef}

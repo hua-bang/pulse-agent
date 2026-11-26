@@ -1,11 +1,13 @@
 import { lazy, Suspense, useCallback, useState } from 'react';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
+import { CanvasPresenceOverlay } from './CanvasPresenceOverlay';
 import { findNodeAtPoint } from '../NodeActionsMenu/findNodeAtPoint';
 import { useChatDeliveryNotifier } from '../../../../chat/delivery';
 import { AppLogoIcon, SpinnerIcon } from '../../../../../components/icons';
 import { Button } from '../../../../../components/ui';
 import { useI18n } from '../../../../../i18n';
+import { useWorkspaceViewerReadOnly } from '../../../../../shared/remotePresence';
 import type { CanvasRootViewProps } from './CanvasRootView.types';
 
 const CanvasFullscreenChip = lazy(() =>
@@ -132,6 +134,7 @@ export const CanvasRootView = ({
   onSplitMindmapTopic,
 }: CanvasRootViewProps) => {
   const { t } = useI18n();
+  const viewerReadOnly = useWorkspaceViewerReadOnly(canvasId);
 
   // Right-click menu on a connection. Selecting the edge first keeps the
   // style panel / Delete-key behavior consistent with the menu actions.
@@ -268,6 +271,7 @@ export const CanvasRootView = ({
         renameSignal={renameSignal}
         externallyEditedIds={externallyEditedIds}
         remotelyEditedIds={remotelyEditedIds}
+        readOnly={viewerReadOnly}
         edgeInteractionState={drawingGestures.edgeInteractionState}
         edgePreview={drawingGestures.edgePreview}
         connectHandleNodeId={drawingGestures.connectHandles.hoverNodeId}
@@ -358,12 +362,22 @@ export const CanvasRootView = ({
         />
       )}
 
+      <CanvasPresenceOverlay
+        canvasId={canvasId}
+        selectedNodeId={selectedNodeIds[0] ?? null}
+        transform={transform}
+        moving={moving}
+        nodesById={nodesById}
+        onFollowNode={handleNodeViewportFocus}
+      />
+
       <CanvasOverlays
         nodes={nodes}
         edgeInteractionState={drawingGestures.edgeInteractionState}
-        contextMenu={ctxMenu.contextMenu}
+        contextMenu={viewerReadOnly ? null : ctxMenu.contextMenu}
         searchOpen={searchOpen}
         activeTool={activeTool}
+        readOnly={viewerReadOnly}
         moving={moving}
         scale={moving ? settledScale : transform.scale}
         onFitAll={onFitAll}

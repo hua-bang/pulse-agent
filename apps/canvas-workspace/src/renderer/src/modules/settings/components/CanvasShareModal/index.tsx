@@ -13,16 +13,18 @@ import './index.css';
 interface JoinSharedCanvasModalProps {
   open: boolean;
   onClose: () => void;
+  initialInviteCode?: string;
   onJoinedNewWorkspace?: (workspaceId: string, name: string) => void;
 }
 
 /**
  * Dedicated one-step dialog for joining a teammate's shared canvas via invite code.
- * Accessible from Sidebar "+", WorkspaceTabs "+", and Launcher without requiring an open canvas.
+ * Accessible from Sidebar "+", WorkspaceTabs "+", Launcher, and `pulse-canvas://join` deep links.
  */
 export const JoinSharedCanvasModal = ({
   open,
   onClose,
+  initialInviteCode,
   onJoinedNewWorkspace,
 }: JoinSharedCanvasModalProps) => {
   const { language } = useI18n();
@@ -30,13 +32,17 @@ export const JoinSharedCanvasModal = ({
   const shareCopy = remoteShareCopy(language);
   const titleId = useId();
 
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(initialInviteCode ?? '');
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setJoinError(null);
+    if (initialInviteCode?.trim()) {
+      setInviteCode(initialInviteCode.trim());
+      return;
+    }
     if (inviteCode.trim()) return;
     let cancelled = false;
     void navigator.clipboard

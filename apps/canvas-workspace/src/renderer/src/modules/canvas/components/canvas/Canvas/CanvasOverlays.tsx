@@ -66,6 +66,7 @@ export const CanvasOverlays = ({
   contextMenu,
   searchOpen,
   activeTool,
+  readOnly = false,
   moving = false,
   scale,
   onFitAll,
@@ -249,14 +250,16 @@ export const CanvasOverlays = ({
       >
         {/* Selection toolbar hidden for now (product call on 2026-07-27);
           selection-related props above stay wired for a future re-enable. */}
-        <FloatingToolbar
-          activeTool={activeTool}
-          onToolChange={onToolChange}
-          onAddNode={onAddNode}
-          onCreateAgentTeam={onCreateAgentTeam}
-          referenceDrawerOpen={referenceDrawerOpen}
-          onReferenceToggle={onReferenceToggle}
-        />
+        {!readOnly && (
+          <FloatingToolbar
+            activeTool={activeTool}
+            onToolChange={onToolChange}
+            onAddNode={onAddNode}
+            onCreateAgentTeam={onCreateAgentTeam}
+            referenceDrawerOpen={referenceDrawerOpen}
+            onReferenceToggle={onReferenceToggle}
+          />
+        )}
         <div className="canvas-bottom-chrome__left">
           <ZoomIndicator
             scale={scale}

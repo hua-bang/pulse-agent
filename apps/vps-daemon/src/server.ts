@@ -9,6 +9,7 @@ import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqli
 import { isPathWithin, readJsonBody, sendJson } from './auth.js';
 import { CapabilityRelay, type RelayResponsePayload } from './capability-relay.js';
 import { handleExecJsonl } from './exec-jsonl.js';
+import { PresenceHub, type PresenceViewport } from './presence.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
 import {
   canUseRuntime,
@@ -116,6 +117,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   await broadcaster.start();
   const ptyHub = new PtyHub(workDir, options.ptySpawner, dataDir);
   const capabilityRelay = new CapabilityRelay();
+  const presenceHub = new PresenceHub();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
@@ -166,9 +168,75 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
           'tools-exec',
           'tools-exec-stream',
           'capability-relay',
+          'presence',
         ],
       });
       return;
+    }
+
+    if (url.pathname === '/v1/presence' || url.pathname.startsWith('/v1/presence/')) {
+      const tokenWs = principal.kind === 'share' ? principal.share.workspaceId : '';
+      const queryWs = url.searchParams.get('workspaceId')?.trim() || '';
+      if (req.method === 'GET' && url.pathname === '/v1/presence') {
+        const wsId = tokenWs || queryWs;
+        if (!isSafeWorkspaceId(wsId) || (tokenWs && queryWs && queryWs !== tokenWs)) {
+          sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId is required' });
+          return;
+        }
+        sendJson(res, 200, { ok: true, peers: presenceHub.list(wsId) });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/presence') {
+        try {
+          const body = await readJsonBody<{
+            workspaceId?: string;
+            clientId?: string;
+            name?: string;
+            activeNodeId?: string | null;
+            viewport?: PresenceViewport | null;
+          }>(req);
+          const bodyWs = typeof body.workspaceId === 'string' ? body.workspaceId.trim() : '';
+          const wsId = tokenWs || bodyWs;
+          const clientId = typeof body.clientId === 'string' ? body.clientId.trim().slice(0, 64) : '';
+          if (!isSafeWorkspaceId(wsId) || (tokenWs && bodyWs && bodyWs !== tokenWs) || !clientId) {
+            sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId and clientId are required' });
+            return;
+          }
+          const rawName = typeof body.name === 'string' ? body.name.trim().slice(0, 64) : '';
+          const fallbackName = principal.kind === 'share' ? principal.share.label || 'Guest' : 'Owner';
+          const activeNodeId = typeof body.activeNodeId === 'string' && body.activeNodeId.trim()
+            ? body.activeNodeId.trim().slice(0, 128)
+            : undefined;
+          const vp = body.viewport;
+          const viewport =
+            vp && typeof vp.x === 'number' && typeof vp.y === 'number' && typeof vp.scale === 'number'
+              && Number.isFinite(vp.x) && Number.isFinite(vp.y) && Number.isFinite(vp.scale)
+              ? { x: vp.x, y: vp.y, scale: vp.scale }
+              : undefined;
+          const peers = presenceHub.upsert(wsId, {
+            clientId,
+            name: rawName || fallbackName,
+            role: principal.kind === 'admin' ? 'admin' : principal.share.role,
+            activeNodeId,
+            viewport,
+          });
+          sendJson(res, 200, { ok: true, peers });
+        } catch (err) {
+          sendJson(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+        return;
+      }
+      if (req.method === 'DELETE' && url.pathname.startsWith('/v1/presence/')) {
+        const wsId = tokenWs || queryWs;
+        const clientId = decodeURIComponent(url.pathname.slice('/v1/presence/'.length)).trim();
+        if (!isSafeWorkspaceId(wsId) || (tokenWs && queryWs && queryWs !== tokenWs) || !clientId) {
+          sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId and clientId are required' });
+          return;
+        }
+        presenceHub.remove(wsId, clientId);
+        sendJson(res, 200, { ok: true });
+        return;
+      }
     }
 
     if (url.pathname === '/v1/shares' || url.pathname.startsWith('/v1/shares/')) {

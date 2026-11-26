@@ -79,6 +79,16 @@ export interface RemoteVpsListDirsResult {
   error?: string;
 }
 
+export interface RemoteVpsPresencePeer {
+  clientId: string;
+  name: string;
+  role: string;
+  activeNodeId?: string;
+  viewport?: { x: number; y: number; scale: number };
+  updatedAt: number;
+  self?: boolean;
+}
+
 export interface RemoteVpsApi {
   listSshHosts: () => Promise<{ ok: boolean; hosts: string[] }>;
   getConfig: (
@@ -147,4 +157,17 @@ export interface RemoteVpsApi {
     workspaceName?: string;
     error?: string;
   }>;
+  getPresence?: (
+    workspaceId: string,
+  ) => Promise<{ ok: boolean; peers: RemoteVpsPresencePeer[] }>;
+  updatePresence?: (
+    workspaceId: string,
+    state: {
+      activeNodeId?: string | null;
+      viewport?: { x: number; y: number; scale: number } | null;
+    },
+  ) => Promise<{ ok: boolean; peers: RemoteVpsPresencePeer[] }>;
+  leavePresence?: (workspaceId: string) => Promise<{ ok: boolean }>;
+  onJoinDeepLink?: (callback: (inviteCode: string) => void) => () => void;
+  consumePendingJoinLinks?: () => Promise<string[]>;
 }
