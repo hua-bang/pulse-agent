@@ -140,28 +140,28 @@
 
     "bundle.entry_raw_kb": {
       "profile": "global-deterministic", "target": 680, "warning": 780,
-      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口实测 753KB（10/4 为 736KB，主要增长来自 MCP App 全局侧栏一批 PR 约 7KB、新外壳、知识入口与 Heptabase 式连线各约 2KB）。保留 680 target 作为常驻聊天壳瘦身压力。", "asOf": "2026-11-15",
-      "gate": { "kind": "ratchet", "baseline": 691, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-26：共享画布发送者标识、Share/Join 交互解耦与 Popover 共享 .context-menu 样式修复（PR #1263），CI 实测入口 699KB / gzip 209KB / 启动 CSS 124KB / 总 JS 6863KB（master bd182e91 已贴上限 697KB / 208KB / 122KB / 6859KB）。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。", "asOf": "2026-11-26",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
       "profile": "global-deterministic", "target": 185, "warning": 210,
-      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），入口 gzip 225→197KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。入口 gzip 实测 223KB。保留 target 185 与 warning 210 作为瘦身压力。", "asOf": "2026-11-15",
-      "gate": { "kind": "ratchet", "baseline": 206, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-26：PR #1263 CI 实测入口 gzip 209KB（master bd182e91 实测 208KB），锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-15：PR #1236 CI 实测 206KB。", "asOf": "2026-11-26",
+      "gate": { "kind": "ratchet", "baseline": 209, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.startup_js_raw_kb": {
       "profile": "global-deterministic", "target": 650, "warning": 680,
-      "confidence": "high", "basis": "2026-11-15：画布/聊天/外壳交互改进 PR #1236 CI 实测入口 691KB / gzip 206KB / main 400KB。与 master 逐模块对比，入口约 +25KB 分散在 20 多个小模块（英文文案 +4KB、缩放预设菜单、URL/文本拖入、连线预览、toast 计时器、团队提醒、路由错误边界、全局命令与原生菜单命令各 1–3KB），可懒加载部分合计仅约 2.5KB 且会增加首次交互延迟或让错误兜底依赖加载，故不拆；main +6KB 来自原生菜单命令、窗口位置记忆和会话正文搜索。锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-31：中文文案拆为按需加载的 messages-zh chunk（英文仍在入口作回退），启动 JS 760→661KB，ratchet 锚点收紧到实测值。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。启动静态闭包实测 753KB，与入口相同（启动闭包只有入口一个 JS）。保留 650 target 作为启动 catalogue 与全局 controller 瘦身压力。", "asOf": "2026-11-15",
-      "gate": { "kind": "ratchet", "baseline": 691, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-26：PR #1263 CI 实测启动 JS 699KB（与入口一致；master bd182e91 实测 697KB），锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-15：PR #1236 CI 实测 691KB。", "asOf": "2026-11-26",
+      "gate": { "kind": "ratchet", "baseline": 699, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.startup_css_raw_kb": {
       "profile": "global-deterministic", "target": 115, "warning": 130,
-      "confidence": "high", "basis": "2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。启动 CSS 实测 116KB。2026-10-21 暗色主题上调到 121KB：:root.dark token 集约 2.8KB，组件样式改用 var() 后无法再被压缩为短 hex（约 2KB）。", "asOf": "2026-10-21",
-      "gate": { "kind": "ratchet", "baseline": 121, "tolerancePct": 1, "scope": "bundle" }
+      "confidence": "high", "basis": "2026-11-26：PR #1263 将共享 .context-menu 样式从懒加载的 NodeContextMenu 移入 ui/Popover，修复未右键画布前 DockTabSwitcher 等 7 处菜单丢失定位与样式掉到页面左下角的问题，启动 CSS 122→124KB，锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-10-21 暗色主题上调到 121KB。", "asOf": "2026-11-26",
+      "gate": { "kind": "ratchet", "baseline": 124, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
-      "profile": "global-deterministic", "target": 6791, "warning": 6890,
-      "confidence": "high", "basis": "2026-11-14：目标重设。Phosphor 图标构建时去掉未使用的 thin/light 字重（守卫测试禁止源码使用），总 JS 6885→6791KB，锚点收紧到实测值。剩余体积来自编辑器、Mermaid、图谱等按需能力，不削能力就到不了 5565，目标改为实测值，warning 取原 Gate 上限 6890。之前：2026-11-14：聊天拖放 PR（输入框接收系统文件与文件夹标签页条目拖入、文件树可拖出、preload getPathForFile）CI 实测总 JS 6884KB，新增约 2KB，锚点上调到 6822（上限约 6890）。之前：2026-11-11：画布健壮性 PR（节点与画布根错误边界、Shift 约束、扩大搜索、节点英文文案进目录）实测入口 672KB / gzip 200KB / 总 JS 6882KB。增长主要来自英文文案目录（按设计英文回退在入口，约 2KB）和入口里的错误边界与搜索取文本，锚点上调到实测值附近。之前：2026-10-21 基线重整：按 master 7ea6378 实测重置 ratchet 锚点，容差统一为 1% 累计增长预算；超出时先瘦身，确需上调由维护者加 perf-baseline 标签批准。完整 renderer JS 实测 6794KB（9/11 为 6616KB）。保留 5565 target 与 5850 warning 作为编辑器瘦身压力。2026-11-02：master 019c4de 实测 6862KB，已贴上限；侧栏插件分组（懒加载 3KB chunk、卸载入口、i18n）再增约 5KB，锚点上调到 6800（上限 6868）。2026-11-03：Agent 生成插件链路（聊天安装卡片懒加载、打开插件页事件、i18n）实测 6873KB，锚点上调到 6810（上限 6878）。", "asOf": "2026-11-14",
-      "gate": { "kind": "ratchet", "baseline": 6791, "tolerancePct": 1, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 6863, "warning": 6950,
+      "confidence": "high", "basis": "2026-11-26：PR #1263（共享会话发送者标识 + 独立 JoinSharedCanvasModal 与 Share 锚定浮层），总 JS 6859→6863KB，锚点上调到实测值，经 perf-baseline 标签批准。之前：2026-11-14 Phosphor 字重瘦身后收紧到 6791KB。", "asOf": "2026-11-26",
+      "gate": { "kind": "ratchet", "baseline": 6863, "tolerancePct": 1, "scope": "bundle" }
     },
     "bundle.main_raw_kb": {
       "profile": "global-deterministic", "target": 400, "warning": 550,

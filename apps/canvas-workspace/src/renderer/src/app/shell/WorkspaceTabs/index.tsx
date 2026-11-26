@@ -28,7 +28,9 @@ interface Props {
   panelCollapsed: boolean;
   onTogglePanel: () => void;
   onOpenSettings?: (workspaceId: string) => void;
-  onJoinWorkspace?: (workspaceId: string, name: string) => void;
+  onExportWorkspace?: (workspaceId: string) => void;
+  onDeleteWorkspace?: (workspaceId: string) => void;
+  onRequestJoinShared?: () => void;
 }
 
 /** Open workspaces as tabs above the canvas, like browser tabs. */
@@ -42,14 +44,22 @@ export const WorkspaceTabs = ({
   panelCollapsed,
   onTogglePanel,
   onOpenSettings,
-  onJoinWorkspace,
+  onExportWorkspace,
+  onDeleteWorkspace,
+  onRequestJoinShared,
 }: Props) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const newButtonRef = useRef<HTMLButtonElement>(null);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [remoteBadge, setRemoteBadge] = useState<{ hosted: boolean; shareRole?: string }>({ hosted: false });
+  const [remoteBadge, setRemoteBadge] = useState<{
+    hosted: boolean;
+    connected: boolean;
+    shareRole?: string;
+    onlineClients?: number;
+  }>({ hosted: false, connected: true });
   const menuAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [menuTabId, setMenuTabId] = useState<string | null>(null);
   // Like Chrome: closing a tab keeps the others at their width until the
@@ -69,17 +79,31 @@ export const WorkspaceTabs = ({
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
     if (!api || !activeId) {
-      setRemoteBadge({ hosted: false });
+      setRemoteBadge({ hosted: false, connected: true });
       return;
     }
     let cancelled = false;
-    void api.getConfig(activeId).then((res) => {
+    void api.getConfig(activeId).then(async (res) => {
       if (cancelled) return;
-      if (res.ok && res.config) {
-        setRemoteBadge({ hosted: true, shareRole: res.config.shareRole });
-      } else {
-        setRemoteBadge({ hosted: false });
+      const cfg = res.ok ? res.config : null;
+      if (!cfg || cfg.storage === 'local') {
+        setRemoteBadge({ hosted: false, connected: true });
+        return;
       }
+      setRemoteBadge((prev) => ({
+        hosted: true,
+        connected: prev.hosted ? prev.connected : true,
+        shareRole: cfg.shareRole,
+        onlineClients: prev.hosted ? prev.onlineClients : undefined,
+      }));
+      const status = await api.getStatus(activeId).catch(() => null);
+      if (cancelled || !status) return;
+      setRemoteBadge({
+        hosted: true,
+        connected: status.connected,
+        shareRole: cfg.shareRole,
+        onlineClients: status.onlineClients,
+      });
     });
     return () => {
       cancelled = true;
@@ -280,20 +304,32 @@ export const WorkspaceTabs = ({
       >
         <PlusIcon size={13} />
       </Button>
-      {onOpenSettings && activeId && (
+      {onOpenSettings && activeId && remoteBadge.hosted && (
         <Button
+          ref={shareButtonRef}
           variant="secondary"
           size="sm"
           className="workspace-tabs__share"
-          onClick={() => setShareOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={shareOpen}
+          onClick={() => setShareOpen((prev) => !prev)}
         >
-          {remoteBadge.hosted && <span className="workspace-tabs__share-dot" aria-hidden="true" />}
+          <span
+            className={`workspace-tabs__share-dot${!remoteBadge.connected ? ' workspace-tabs__share-dot--offline' : ''}`}
+            aria-hidden="true"
+          />
           <span>
-            {remoteBadge.shareRole
-              ? `${language === 'zh' ? '共享' : 'Shared'} · ${remoteBadge.shareRole}`
-              : language === 'zh'
-                ? '共享'
-                : 'Share'}
+            {!remoteBadge.connected
+              ? t('workspaceTabs.sharedOffline')
+              : remoteBadge.shareRole
+                ? remoteBadge.shareRole === 'viewer'
+                  ? t('workspaceTabs.sharedReadOnly')
+                  : remoteBadge.onlineClients && remoteBadge.onlineClients > 1
+                    ? t('workspaceTabs.sharedOnline', { count: remoteBadge.onlineClients })
+                    : t('workspaceTabs.shared')
+                : remoteBadge.onlineClients && remoteBadge.onlineClients > 1
+                  ? t('workspaceTabs.shareOnline', { count: remoteBadge.onlineClients })
+                  : t('workspaceTabs.share')}
           </span>
         </Button>
       )}
@@ -322,6 +358,7 @@ export const WorkspaceTabs = ({
           activeId={activeId}
           onSelect={onSelect}
           onCreate={onCreate}
+          onJoinShared={onRequestJoinShared}
           onOpenLauncher={onOpenLauncher}
           onClose={() => setPickerOpen(false)}
         />
@@ -330,11 +367,19 @@ export const WorkspaceTabs = ({
         <Suspense fallback={null}>
           <CanvasShareModal
             open={shareOpen}
+            anchorRef={shareButtonRef}
             workspaceId={activeId}
             workspaceName={activeWorkspace?.name ?? ''}
             onClose={() => setShareOpen(false)}
             onOpenWorkspaceSettings={onOpenSettings}
-            onJoinedNewWorkspace={onJoinWorkspace}
+            onExportWorkspace={onExportWorkspace}
+            onLeftSharedWorkspace={(leftId) => {
+              if (onDeleteWorkspace && workspaces.length > 1) {
+                onDeleteWorkspace(leftId);
+              } else {
+                onClose(leftId);
+              }
+            }}
           />
         </Suspense>
       )}

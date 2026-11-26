@@ -14,6 +14,7 @@ import type { ConversationTurnExternal } from './conversation-runtime';
 import type { ConversationSendInput, ConversationSnapshot } from '../../../shared/conversation-runtime';
 import { ConversationRuntimeRegistry } from './conversation-runtime-registry';
 import { createConversationRunner } from './conversation-runner';
+import { resolveRemoteWorkspaceSenderName } from '../../remote/config';
 
 /** Structural store surface the service drives (injectable for tests). */
 export interface ConversationStoreAdapter {
@@ -98,6 +99,8 @@ export class ConversationRuntimeService {
             await storeAdapter.loadMessages(conversationKey.sessionId) ?? []
           ),
           persist: (messages) => storeAdapter.persist(conversationKey.sessionId, messages),
+          resolveSenderName: () =>
+            scope.kind === 'workspace' ? resolveRemoteWorkspaceSenderName(scope.workspaceId) : undefined,
           runTurn,
           withTurnLease: async (operation) => {
             const guarded = async () => {

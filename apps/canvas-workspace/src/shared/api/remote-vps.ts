@@ -14,6 +14,7 @@ export interface RemoteVpsWorkspaceConfigDto {
   runtime?: 'vps' | 'local';
   autoBootstrap?: boolean;
   shareRole?: RemoteVpsShareRole;
+  shareLabel?: string;
   allowCapabilityRelay?: boolean;
 }
 

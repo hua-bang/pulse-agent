@@ -945,6 +945,13 @@ describe('vps-daemon end-to-end', () => {
     const metaJson = (await metaRes.json()) as { ok: boolean; onlineClients: number };
     expect(metaJson.onlineClients).toBeGreaterThanOrEqual(1);
 
+    const shareMetaRes = await fetch(`${daemon.url}/v1/meta`, {
+      headers: { Authorization: `Bearer ${shareBody.share.token}` },
+    });
+    const shareMetaJson = (await shareMetaRes.json()) as { ok: boolean; shareLabel?: string };
+    expect(shareMetaJson.ok).toBe(true);
+    expect(shareMetaJson.shareLabel).toBe('Alex');
+
     const afterList = (await (await fetch(`${daemon.url}/v1/shares?workspaceId=ws-live-meta`, { headers: adminHeaders })).json()) as {
       shares: Array<{ id: string; lastUsedAt?: number }>;
     };

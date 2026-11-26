@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent, type RefObject } from 'react';
 import type { WorkspaceEntry } from '../../../shared/workspaces';
-import { AppLogoIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
+import { AppLogoIcon, NodeGraphIcon, PlusIcon, WorkspaceIcon } from '../../../components/icons';
 import { Button, Popover, TextField } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { readRecentWorkspaceIds } from '../recentWorkspaces';
@@ -11,6 +11,7 @@ interface Props {
   activeId: string;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onJoinShared?: () => void;
   onOpenLauncher: () => void;
   onClose: () => void;
 }
@@ -30,7 +31,7 @@ const byRecency = (workspaces: WorkspaceEntry[]): WorkspaceEntry[] => {
 
 /**
  * The tab bar's "+" menu: filter and open any workspace in a tab, create a
- * new one, or go to the launcher.
+ * new one, join a shared canvas, or go to the launcher.
  */
 export const WorkspacePicker = ({
   anchorRef,
@@ -38,6 +39,7 @@ export const WorkspacePicker = ({
   activeId,
   onSelect,
   onCreate,
+  onJoinShared,
   onOpenLauncher,
   onClose,
 }: Props) => {
@@ -106,6 +108,12 @@ export const WorkspacePicker = ({
         <PlusIcon size={13} />
         <span className="workspace-picker__name">{t('launcher.newWorkspace')}</span>
       </Button>
+      {onJoinShared && (
+        <Button size="sm" role="menuitem" className="workspace-picker__item" onClick={() => choose(onJoinShared)}>
+          <NodeGraphIcon size={13} />
+          <span className="workspace-picker__name">{t('sidebar.joinSharedCanvas')}</span>
+        </Button>
+      )}
       <Button size="sm" role="menuitem" className="workspace-picker__item" onClick={() => choose(onOpenLauncher)}>
         <AppLogoIcon size={13} className="workspace-picker__logo" />
         <span className="workspace-picker__name">{t('sidebar.aiChat')}</span>

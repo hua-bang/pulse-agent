@@ -74,3 +74,92 @@ export const useSettingsNavigation = ({ location, activeView, setLocation }: Set
 
   return { openAppSettings, closeAppSettings };
 };
+
+/**
+ * Owns the lazy workspace settings drawer state and the standalone
+ * "Join Shared Canvas" dialog trigger across Sidebar, WorkspaceTabs, and Launcher.
+ */
+export const useWorkspaceSettingsSheet = () => {
+  const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
+  const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
+  const [joinSharedOpen, setJoinSharedOpen] = useState(false);
+
+  const openWorkspaceSettings = useCallback((workspaceId: string) => {
+    setWorkspaceSettingsLoaded(true);
+    setSettingsWorkspaceId(workspaceId);
+  }, []);
+
+  const closeWorkspaceSettings = useCallback(() => {
+    setSettingsWorkspaceId(null);
+  }, []);
+
+  const openJoinShared = window.canvasWorkspace?.remoteVps
+    ? () => setJoinSharedOpen(true)
+    : undefined;
+
+  const closeJoinShared = useCallback(() => {
+    setJoinSharedOpen(false);
+  }, []);
+
+  return {
+    settingsWorkspaceId,
+    workspaceSettingsLoaded,
+    joinSharedOpen,
+    openWorkspaceSettings,
+    closeWorkspaceSettings,
+    openJoinShared,
+    closeJoinShared,
+  };
+};
+
+interface CanvasQueryNavigationOptions {
+  routePath: string;
+  routeQuery: string;
+  routeParams: URLSearchParams;
+  redirectToCanvas: boolean;
+  canvasRoute: string;
+  activeId: string;
+  hasWorkspace: (workspaceId: string) => boolean;
+  selectWorkspace: (workspaceId: string) => void;
+  requestNodeFocus: (workspaceId: string, nodeId: string) => void;
+  setLocation: (path: string) => void;
+}
+
+/**
+ * Handles `?workspaceId=&nodeId=` deep links onto the canvas route and bounces
+ * disabled experimental routes back to the canvas.
+ */
+export const useCanvasQueryNavigation = ({
+  routePath,
+  routeQuery,
+  routeParams,
+  redirectToCanvas,
+  canvasRoute,
+  activeId,
+  hasWorkspace,
+  selectWorkspace,
+  requestNodeFocus,
+  setLocation,
+}: CanvasQueryNavigationOptions) => {
+  useEffect(() => {
+    if (!routeQuery || routePath !== canvasRoute) return;
+
+    const targetWorkspaceId = routeParams.get('workspaceId') ?? activeId;
+    const targetNodeId = routeParams.get('nodeId');
+    if (!targetWorkspaceId || !hasWorkspace(targetWorkspaceId)) return;
+
+    if (activeId !== targetWorkspaceId) {
+      selectWorkspace(targetWorkspaceId);
+    }
+    if (targetNodeId) {
+      requestNodeFocus(targetWorkspaceId, targetNodeId);
+    }
+    setLocation(canvasRoute);
+  }, [routePath, routeQuery, routeParams, canvasRoute, activeId, hasWorkspace, selectWorkspace, requestNodeFocus, setLocation]);
+
+  useEffect(() => {
+    if (redirectToCanvas) setLocation(canvasRoute);
+  }, [redirectToCanvas, canvasRoute, setLocation]);
+};
+
+

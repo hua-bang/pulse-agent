@@ -30,6 +30,7 @@ interface Props {
   onOpenWorkspace: (id: string) => void;
   /** Creates and opens a workspace named in the New workspace dialog. */
   onCreateWorkspace: (name: string, folderId?: string) => void;
+  onJoinSharedWorkspace?: () => void;
   /** Shows every workspace in the sidebar; absent when it is already shown. */
   onOpenAllWorkspaces?: () => void;
   /** False while the kept-alive launcher is hidden behind another route. */
@@ -51,6 +52,7 @@ export const Launcher = ({
   onOpenAllChats,
   onOpenWorkspace,
   onCreateWorkspace,
+  onJoinSharedWorkspace,
   onOpenAllWorkspaces,
   active = true,
 }: Props) => {
@@ -107,6 +109,7 @@ export const Launcher = ({
           summaries={summaries}
           onOpenWorkspace={onOpenWorkspace}
           onCreateWorkspace={() => setCreating(true)}
+          onJoinSharedWorkspace={onJoinSharedWorkspace}
           onOpenAll={onOpenAllWorkspaces}
         />
         <RecentChats chats={recentChats} active={active} onOpenChat={openChat} onOpenAll={onOpenAllChats} />

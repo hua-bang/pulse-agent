@@ -158,11 +158,16 @@ export const useWorkspaceActions = ({
     },
   });
 
+  const leaveShared = useCallback((id: string) => {
+    deleteWorkspace(id);
+  }, [deleteWorkspace]);
+
   return {
     select,
     create,
     rename,
     remove,
+    leaveShared,
     exportWorkspace,
     importWorkspace: importWorkspaceWithFeedback,
     setActiveRootFolder,

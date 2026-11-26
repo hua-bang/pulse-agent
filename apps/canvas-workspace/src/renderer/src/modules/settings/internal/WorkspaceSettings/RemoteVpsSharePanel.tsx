@@ -5,7 +5,7 @@ import type {
 } from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
-import { remoteShareCopy } from '../../components/RemoteFolderPickerModal/copy';
+import { canvasShareCopy, remoteShareCopy } from '../../components/RemoteFolderPickerModal/copy';
 import './RemoteVpsCard.css';
 
 interface Props {
@@ -25,6 +25,7 @@ export const RemoteVpsSharePanel = ({
 }: Props) => {
   const { language } = useI18n();
   const copy = remoteShareCopy(language);
+  const shareModalCopy = canvasShareCopy(language);
 
   const [role, setRole] = useState<RemoteVpsShareRole>('editor');
   const [label, setLabel] = useState('');
@@ -143,8 +144,8 @@ export const RemoteVpsSharePanel = ({
       ? '收起选项'
       : 'Hide options'
     : language === 'zh'
-      ? '更多选项（备注 / 有效期 / 地址）'
-      : 'More options (note / expiry / URL)';
+      ? '有效期与地址'
+      : 'Expiry & URL';
 
   return (
     <div className="remote-vps-body">
@@ -157,6 +158,14 @@ export const RemoteVpsSharePanel = ({
             { id: 'editor', label: copy.roleEditor },
             { id: 'collaborator', label: copy.roleCollaborator },
           ]}
+        />
+      </FieldRow>
+
+      <FieldRow label={copy.labelInputLabel}>
+        <TextField
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={copy.labelInputPlaceholder}
         />
       </FieldRow>
 
@@ -200,13 +209,6 @@ export const RemoteVpsSharePanel = ({
               />
             </FieldRow>
           )}
-          <FieldRow label={copy.labelInputLabel}>
-            <TextField
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={copy.labelInputPlaceholder}
-            />
-          </FieldRow>
           <FieldRow label={copy.expiryLabel}>
             <SegmentedControl
               value={expiry}
@@ -250,7 +252,7 @@ export const RemoteVpsSharePanel = ({
           shares.map((item) => (
             <div key={item.id} className="remote-vps-share-row">
               <div className="remote-vps-share-meta">
-                <span className="remote-vps-badge">{item.role}</span>
+                <span className="remote-vps-badge">{shareModalCopy.roleShort(item.role)}</span>
                 {item.label && <span className="remote-vps-host">{item.label}</span>}
                 <span className="remote-vps-host">{item.tokenPreview}</span>
                 <span className="remote-vps-host">
