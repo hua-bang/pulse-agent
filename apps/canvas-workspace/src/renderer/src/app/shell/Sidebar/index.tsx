@@ -29,6 +29,7 @@ export const Sidebar = ({
   onOpenSettings,
   onOpenAppSettings,
   onImport,
+  onJoinShared,
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
@@ -106,6 +107,14 @@ export const Sidebar = ({
       onNewWorkspace={() => editing.startCreate('workspace')}
       onNewFolder={() => editing.startCreate('folder')}
       onImportWorkspace={editing.importWorkspace}
+      onJoinSharedWorkspace={
+        onJoinShared
+          ? () => {
+              editing.setShowAddMenu(false);
+              onJoinShared();
+            }
+          : undefined
+      }
     />
   );
 

@@ -154,6 +154,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         onlineClients: broadcaster.countSubscribers(metaWorkspaceId),
         role: principal.kind === 'admin' ? 'admin' : principal.share.role,
         ...(principal.kind === 'share' ? { workspaceId: principal.share.workspaceId } : {}),
+        ...(principal.kind === 'share' && principal.share.label ? { shareLabel: principal.share.label } : {}),
         capabilities: [
           'storage-rpc',
           'workspace-files',

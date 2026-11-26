@@ -1,5 +1,5 @@
 import type { WorkspaceEntry } from '../../../shared/workspaces';
-import { PlusIcon } from '../../../components/icons';
+import { NodeGraphIcon, PlusIcon } from '../../../components/icons';
 import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import type { WorkspaceSummary } from './useLauncherData';
@@ -10,6 +10,7 @@ interface Props {
   summaries: Record<string, WorkspaceSummary>;
   onOpenWorkspace: (id: string) => void;
   onCreateWorkspace: () => void;
+  onJoinSharedWorkspace?: () => void;
   /** Shows the full workspace tree; absent when it is already on screen. */
   onOpenAll?: () => void;
 }
@@ -19,8 +20,15 @@ interface Props {
  * (real titles, colored by card type) and its card count. "View all" shows
  * the full workspace tree, folders included.
  */
-export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCreateWorkspace, onOpenAll }: Props) => {
-  const { t } = useI18n();
+export const RecentWorkspaces = ({
+  workspaces,
+  summaries,
+  onOpenWorkspace,
+  onCreateWorkspace,
+  onJoinSharedWorkspace,
+  onOpenAll,
+}: Props) => {
+  const { t, language } = useI18n();
   const describe = (summary: WorkspaceSummary | undefined) => {
     if (!summary) return '';
     if (summary.nodeCount === 0) return t('launcher.workspaceEmpty');
@@ -77,6 +85,14 @@ export const RecentWorkspaces = ({ workspaces, summaries, onOpenWorkspace, onCre
           <PlusIcon size={16} />
           <span className="launcher__card-name">{t('launcher.newWorkspace')}</span>
         </Button>
+        {onJoinSharedWorkspace && (
+          <Button variant="secondary" className="launcher__card launcher__card--new" onClick={onJoinSharedWorkspace}>
+            <NodeGraphIcon size={16} />
+            <span className="launcher__card-name">
+              {language === 'zh' ? '加入共享画布' : 'Join Shared Canvas'}
+            </span>
+          </Button>
+        )}
       </div>
     </section>
   );

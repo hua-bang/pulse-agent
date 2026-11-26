@@ -5,7 +5,9 @@ import {
   WorkspaceIcon,
   FolderIcon,
   ImportIcon,
+  NodeGraphIcon,
 } from '../../../components/icons';
+import { Button } from '../../../components/ui';
 import { useI18n } from '../../../i18n';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 
@@ -17,6 +19,7 @@ interface SidebarHeaderProps {
   onNewWorkspace: () => void;
   onNewFolder: () => void;
   onImportWorkspace: () => void;
+  onJoinSharedWorkspace?: () => void;
 }
 
 /** Workspaces title with the add menu, over the wide rail's tree. */
@@ -28,8 +31,9 @@ export const SidebarHeader = ({
   onNewWorkspace,
   onNewFolder,
   onImportWorkspace,
+  onJoinSharedWorkspace,
 }: SidebarHeaderProps) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -111,6 +115,17 @@ export const SidebarHeader = ({
               <ImportIcon size={14} />
               <span>{t('sidebar.importWorkspace')}</span>
             </button>
+            {onJoinSharedWorkspace && (
+              <Button
+                size="sm"
+                className="sidebar-add-menu-item"
+                role="menuitem"
+                onClick={onJoinSharedWorkspace}
+              >
+                <NodeGraphIcon size={14} />
+                <span>{language === 'zh' ? '加入共享画布…' : 'Join Shared Canvas…'}</span>
+              </Button>
+            )}
           </div>
         )}
       </div>

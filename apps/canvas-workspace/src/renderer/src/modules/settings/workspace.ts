@@ -1,2 +1,3 @@
 export { WorkspaceSettingsDrawer } from './internal/WorkspaceSettings';
-export { CanvasShareModal } from './components/CanvasShareModal';
+export { CanvasShareModal, JoinSharedCanvasModal } from './components/CanvasShareModal';
+

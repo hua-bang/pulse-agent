@@ -453,4 +453,17 @@ describe('ordered reply persistence', () => {
     await reopened.open();
     expect(reopened.getSnapshot().messages).toEqual(deps.stored);
   });
+
+  it('stamps senderName on user messages when resolveSenderName returns a label', async () => {
+    const deps = makeDeps(keyA, makeRunner());
+    deps.resolveSenderName = () => 'Alex';
+    const runtime = new ConversationRuntime(deps);
+    await runtime.open();
+    await runtime.sendAndWait({ message: 'hi from shared workspace' });
+    expect(deps.stored[0]).toMatchObject({
+      role: 'user',
+      content: 'hi from shared workspace',
+      senderName: 'Alex',
+    });
+  });
 });

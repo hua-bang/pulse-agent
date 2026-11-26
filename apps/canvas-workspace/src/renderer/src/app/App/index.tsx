@@ -15,7 +15,7 @@ import { useWorkspaces } from '../workspaces/useWorkspaces';
 import { useOpenSessionInScope } from './useOpenSessionInScope';
 import { useAppShortcutBindings } from '../shortcuts/useAppShortcuts';
 import { usePanelsToggle } from '../shortcuts/usePanelsToggle';
-import { DEFAULT_SETTINGS_SECTION, useSettingsNavigation, useSidebarCollapsed } from './useShellNavigation';
+import { DEFAULT_SETTINGS_SECTION, useCanvasQueryNavigation, useSettingsNavigation, useSidebarCollapsed, useWorkspaceSettingsSheet } from './useShellNavigation';
 import { PulseRouter, PulseRouterView } from '../shell/router';
 import { EXPERIMENTAL_FLAG_WORKSPACE_GRAPH, EXPERIMENTAL_FLAG_WORKSPACE_NODES } from '../../../../shared/experimental-features';
 import { I18nProvider, useI18n } from '../../i18n';
@@ -89,8 +89,6 @@ const AppContent = () => {
   const activeChatTarget = useActiveChatTarget();
   const [sidebarCollapsed, handleSidebarToggle] = useSidebarCollapsed();
   const [canvasFullscreenActive, setCanvasFullscreenActive] = useState(false);
-  const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
-  const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeSelection | null>(null);
   const [skillsLibraryGlobal, setSkillsLibraryGlobal] = useState(false);
   const [scheduledChatTasks, setScheduledChatTasks] = useState<AgentContextScheduledTaskRef[]>();
@@ -132,10 +130,10 @@ const AppContent = () => {
     scheduledTasks: scheduledChatTasks,
   });
   const { openAppSettings, closeAppSettings } = useSettingsNavigation({ location, activeView, setLocation });
-  const openWorkspaceSettings = useCallback((workspaceId: string) => {
-    setWorkspaceSettingsLoaded(true);
-    setSettingsWorkspaceId(workspaceId);
-  }, []);
+  const {
+    settingsWorkspaceId, workspaceSettingsLoaded, joinSharedOpen,
+    openWorkspaceSettings, closeWorkspaceSettings, openJoinShared, closeJoinShared,
+  } = useWorkspaceSettingsSheet();
 
   const workspaceStore = useWorkspaces();
   const {
@@ -165,34 +163,23 @@ const AppContent = () => {
   } = workbench;
   const activeSelectedNodeIds = selectedNodeIdsByWorkspace[activeId] ?? EMPTY_SELECTED_NODE_IDS;
 
-  useEffect(() => {
-    if (!routeQuery || routePath !== ROUTE_CANVAS) return;
-
-    const targetWorkspaceId = routeParams.get('workspaceId') ?? activeId;
-    const targetNodeId = routeParams.get('nodeId');
-    if (!targetWorkspaceId) return;
-    if (!workspaces.some((workspace) => workspace.id === targetWorkspaceId)) return;
-
-    if (activeId !== targetWorkspaceId) {
-      selectWorkspace(targetWorkspaceId);
-    }
-    if (targetNodeId) {
-      requestNodeFocus(targetWorkspaceId, targetNodeId);
-    }
-    setLocation(ROUTE_CANVAS);
-  }, [routePath, routeQuery, routeParams, activeId, workspaces, selectWorkspace, requestNodeFocus, setLocation]);
-
-  // If the user reached a disabled experimental route (typically via a
-  // bookmarked URL after toggling the flag off), bounce them back to the
-  // canvas instead of leaving them on a blank view.
-  useEffect(() => {
-    if (redirectToCanvas) setLocation(ROUTE_CANVAS);
-  }, [redirectToCanvas, setLocation]);
-
   const hasWorkspace = useCallback(
     (workspaceId: string) => workspaces.some((workspace) => workspace.id === workspaceId),
     [workspaces],
   );
+
+  useCanvasQueryNavigation({
+    routePath,
+    routeQuery,
+    routeParams,
+    redirectToCanvas,
+    canvasRoute: ROUTE_CANVAS,
+    activeId,
+    hasWorkspace,
+    selectWorkspace,
+    requestNodeFocus,
+    setLocation,
+  });
   const {
     enterChatTarget,
     enterChatView,
@@ -324,6 +311,7 @@ const AppContent = () => {
           onOpenSettings={openWorkspaceSettings}
           onOpenAppSettings={() => openAppSettings(DEFAULT_SETTINGS_SECTION)}
           onImport={workspaceActions.importWorkspace}
+          onJoinShared={openJoinShared}
           onCreateFolder={workspaceActions.createFolder}
           onRenameFolder={workspaceActions.renameFolder}
           onDeleteFolder={workspaceActions.removeFolder}
@@ -366,7 +354,9 @@ const AppContent = () => {
                   panelCollapsed={sidebarCollapsed && (activeNodes.length > 0 || workbench.allNodes[activeId] === undefined)}
                   onTogglePanel={handleSidebarToggle}
                   onOpenSettings={openWorkspaceSettings}
-                  onJoinWorkspace={(id, name) => workspaceActions.select(workspaceActions.create(name, undefined, id))}
+                  onExportWorkspace={workspaceActions.exportWorkspace}
+                  onDeleteWorkspace={workspaceActions.leaveShared}
+                  onRequestJoinShared={openJoinShared}
                 />
               </Suspense>
               {/* The Library drawer and the canvas sit side by side under the tabs. */}
@@ -430,6 +420,7 @@ const AppContent = () => {
             onOpenAllChats={openAllChats}
             onOpenWorkspace={workspaceActions.select}
             onCreateWorkspace={(name, folderId) => workspaceActions.select(workspaceActions.create(name, folderId))}
+            onJoinSharedWorkspace={openJoinShared}
             onOpenAllWorkspaces={railExpanded ? undefined : toggleRailExpanded}
           />
           <SettingsRouteView section={(routeParams.get('section') ?? 'models') as SettingsSection} onClose={closeAppSettings} />
@@ -477,9 +468,12 @@ const AppContent = () => {
         workspaceLoaded={workspaceSettingsLoaded}
         workspaceId={settingsWorkspaceId}
         workspaces={workspaces}
-        onCloseWorkspace={() => setSettingsWorkspaceId(null)}
+        onCloseWorkspace={closeWorkspaceSettings}
         onRenameWorkspace={renameWorkspace}
         onSetRootFolder={setRootFolder}
+        joinSharedOpen={joinSharedOpen}
+        onCloseJoinShared={closeJoinShared}
+        onJoinedNewWorkspace={(id, name) => workspaceActions.select(workspaceActions.create(name, undefined, id))}
       />
     </div>
   );

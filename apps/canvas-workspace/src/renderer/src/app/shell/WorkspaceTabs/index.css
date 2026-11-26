@@ -37,6 +37,10 @@
   flex-shrink: 0;
 }
 
+.workspace-tabs__share-dot--offline {
+  background: var(--error);
+}
+
 .workspace-tabs__list {
   min-width: 0;
   display: flex;
@@ -49,13 +53,13 @@
 /* Like Chrome: tabs share one width and shrink together when the bar is
    crowded; past the floor the list scrolls. The width counts the dock's
    inset as bar space, so it does not change when a workspace with the dock
-   open replaces one without it; the list scrolls instead. 104px is the bar's
-   padding, buttons, and gaps. */
+   open replaces one without it; the list scrolls instead. 184px covers the
+   bar's padding, buttons (including Share), and gaps. */
 .workspace-tabs__tab {
   flex: none;
   width: clamp(
     120px,
-    calc((100cqw + var(--right-dock-inset, 0px) - 104px) / var(--tab-count, 1) - 2px),
+    calc((100cqw + var(--right-dock-inset, 0px) - 184px) / var(--tab-count, 1) - 2px),
     200px
   );
   height: 30px;

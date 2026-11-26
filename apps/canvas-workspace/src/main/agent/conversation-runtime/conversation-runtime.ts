@@ -87,6 +87,8 @@ export interface ConversationRuntimeDeps {
   withTurnLease?: (operation: () => Promise<TurnRunnerResult>) => Promise<TurnRunnerResult>;
   /** Execute one turn against the shared Engine. */
   runTurn: (ctx: TurnRunnerContext) => Promise<TurnRunnerResult>;
+  /** Optional sender display label for user messages (used in shared VPS workspaces). */
+  resolveSenderName?: () => string | undefined;
   /** Draft checkpoint interval; 0 disables checkpoints. */
   checkpointMs?: number;
 }
@@ -285,10 +287,12 @@ export class ConversationRuntime {
       beforeRecovery = [...this.messages];
       this.messages.length = input.truncateAt;
     }
+    const senderName = this.deps.resolveSenderName?.()?.trim() || undefined;
     this.messages.push({
       role: 'user',
       content: input.message,
       timestamp: Date.now(),
+      ...(senderName ? { senderName } : {}),
       attachments: input.attachments?.length ? input.attachments : undefined,
       contextSnapshot: input.requestContext?.contextSnapshot,
       mcpAppContext: input.requestContext?.mcpAppContext,

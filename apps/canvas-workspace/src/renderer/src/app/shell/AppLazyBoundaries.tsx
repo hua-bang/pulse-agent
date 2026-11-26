@@ -13,6 +13,10 @@ const WorkspaceSettingsDrawer = lazy(() =>
   import('../../modules/settings/workspace').then((module) => ({ default: module.WorkspaceSettingsDrawer })),
 );
 
+const JoinSharedCanvasModal = lazy(() =>
+  import('../../modules/settings/workspace').then((module) => ({ default: module.JoinSharedCanvasModal })),
+);
+
 interface DeferredSettingsProps {
   workspaceLoaded: boolean;
   workspaceId: string | null;
@@ -20,6 +24,9 @@ interface DeferredSettingsProps {
   onCloseWorkspace: () => void;
   onRenameWorkspace: (id: string, name: string) => void;
   onSetRootFolder: (id: string, rootFolder: string) => void;
+  joinSharedOpen?: boolean;
+  onCloseJoinShared?: () => void;
+  onJoinedNewWorkspace?: (workspaceId: string, name: string) => void;
 }
 
 export const DeferredSettings = ({
@@ -29,6 +36,9 @@ export const DeferredSettings = ({
   onCloseWorkspace,
   onRenameWorkspace,
   onSetRootFolder,
+  joinSharedOpen = false,
+  onCloseJoinShared,
+  onJoinedNewWorkspace,
 }: DeferredSettingsProps) => (
   <>
     {workspaceLoaded && (
@@ -38,6 +48,15 @@ export const DeferredSettings = ({
           onClose={onCloseWorkspace}
           onRename={onRenameWorkspace}
           onSetRootFolder={onSetRootFolder}
+        />
+      </Suspense>
+    )}
+    {joinSharedOpen && onCloseJoinShared && (
+      <Suspense fallback={null}>
+        <JoinSharedCanvasModal
+          open={joinSharedOpen}
+          onClose={onCloseJoinShared}
+          onJoinedNewWorkspace={onJoinedNewWorkspace}
         />
       </Suspense>
     )}

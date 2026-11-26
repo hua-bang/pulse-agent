@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 
 const DEFAULT_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
@@ -30,6 +30,8 @@ export interface RemoteVpsWorkspaceConfig {
   autoBootstrap?: boolean;
   /** Granted role when joined via a share invite code. */
   shareRole?: 'viewer' | 'editor' | 'collaborator';
+  /** Optional share invite label returned by the VPS daemon (e.g. teammate name). */
+  shareLabel?: string;
   /** Allow remote VPS CLI to invoke read-only desktop capabilities over SSE relay (default: true). */
   allowCapabilityRelay?: boolean;
 }
@@ -158,4 +160,28 @@ export function matchRemoteWorkspaceFile(
   }
   return null;
 }
+
+/**
+ * Resolve a lightweight sender display label for user chat messages in a VPS-backed
+ * workspace. Returns `undefined` for local workspaces so local chats remain unlabeled.
+ */
+export function resolveRemoteWorkspaceSenderName(
+  workspaceId: string,
+  storeDir = DEFAULT_STORE_DIR,
+): string | undefined {
+  const cfg = getRemoteWorkspaceConfig(workspaceId, storeDir);
+  if (!cfg || cfg.storage !== 'vps') return undefined;
+  const label = cfg.shareLabel?.trim();
+  if (label) return label;
+  try {
+    const username = userInfo().username?.trim();
+    if (username) return username;
+  } catch {
+    // Some containerized/sandboxed environments lack passwd entries.
+  }
+  const envUser = (process.env.USER || process.env.USERNAME || '').trim();
+  if (envUser) return envUser;
+  return cfg.shareRole ?? 'Owner';
+}
+
 

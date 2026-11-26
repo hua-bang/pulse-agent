@@ -22,6 +22,7 @@ export interface SidebarProps {
   /** Opens the global Settings page (gear at the bottom of the app rail). */
   onOpenAppSettings: () => void;
   onImport: () => void;
+  onJoinShared?: () => void;
   onCreateFolder: (name: string) => void;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;

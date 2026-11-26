@@ -3,10 +3,28 @@ import type { AgentContextScheduledTasks } from './scheduled';
 import type { AgentContextSkills } from './settings-config';
 export type { AgentContextMcpAppSnapshot } from './mcp-app-context';
 import type { CanvasNode } from './canvas';
-import type { AgentTraceEvent } from './agent-observability';
+import type {
+  AgentDebugRunSummary,
+  AgentDebugTrace,
+  AgentDebugTraceContextRead,
+  AgentDebugTraceMessageSnapshot,
+  AgentDebugTraceNodeRef,
+  AgentDebugTracePerformance,
+  AgentDebugTraceToolCall,
+} from './agent-observability';
 import type { ApprovalCopyKey, ApprovalNodeSummary } from './canvas-node-defaults';
 
-export type { ApprovalCopyKey, ApprovalNodeSummary };
+export type {
+  AgentDebugRunSummary,
+  AgentDebugTrace,
+  AgentDebugTraceContextRead,
+  AgentDebugTraceMessageSnapshot,
+  AgentDebugTraceNodeRef,
+  AgentDebugTracePerformance,
+  AgentDebugTraceToolCall,
+  ApprovalCopyKey,
+  ApprovalNodeSummary,
+};
 
 export interface ChatImageAttachment {
   id: string;
@@ -117,133 +135,6 @@ export interface AgentChatMcpApp {
   result?: unknown;
 }
 
-export interface AgentDebugTraceNodeRef {
-  id: string;
-  title: string;
-  type: string;
-  workspaceId?: string;
-  workspaceName?: string;
-  contentChars?: number;
-  source?: 'selected' | 'read_node' | 'read_context';
-}
-
-export interface AgentDebugTraceContextRead {
-  workspaceId?: string;
-  workspaceName?: string;
-  detail?: string;
-  nodeCount?: number;
-  resultChars?: number;
-}
-
-export interface AgentDebugTraceToolCall {
-  name: string;
-  toolCallId?: string;
-  status: 'running' | 'done' | 'error';
-  argsPreview?: string;
-  resultSummary?: string;
-  startedAt?: number;
-  finishedAt?: number;
-  durationMs?: number;
-  readNodes?: AgentDebugTraceNodeRef[];
-  contextRead?: AgentDebugTraceContextRead;
-}
-
-export interface AgentDebugTraceMessageSnapshot {
-  systemPrompt: string;
-  systemPromptChars: number;
-  messagesJson: string;
-  messagesChars: number;
-  messageCount: number;
-  limitChars: number;
-  truncated?: boolean;
-}
-
-export interface AgentDebugTracePerformance {
-  requestStartedAt: number;
-  laneEnteredAt: number;
-  scopeReadyAt: number;
-  contextReadyAt: number;
-  modelStartedAt?: number;
-  firstEventAt?: number;
-  firstEventType?: 'text' | 'tool-input' | 'tool-call' | 'tool-result';
-  firstTextAt?: number;
-  runtimeCompletedAt?: number;
-  completedAt?: number;
-  queueMs?: number;
-  scopeActivationMs?: number;
-  contextPreparationMs?: number;
-  modelStartDelayMs?: number;
-  timeToFirstEventMs?: number;
-  timeToFirstTextMs?: number;
-  runtimeMs?: number;
-  responseProcessingMs?: number;
-  totalMs?: number;
-}
-
-export interface AgentDebugTrace {
-  sessionId: string;
-  runId: string;
-  turnId: string;
-  createdAt: number;
-  startedAt: number;
-  finishedAt?: number;
-  durationMs?: number;
-  debugUrl?: string;
-  request: {
-    userPromptPreview: string;
-    attachmentCount: number;
-    executionMode?: 'auto' | 'ask';
-    scope?: 'current_canvas' | 'selected_nodes';
-    quickAction?: string;
-    selectedNodes: AgentDebugTraceNodeRef[];
-    mentionedCanvases: Array<{ id: string; name: string }>;
-    workspace?: {
-      id: string;
-      name: string;
-      nodeCount: number;
-    };
-  };
-  prompt: {
-    systemPromptPreview: string;
-    systemPromptChars: number;
-    currentCanvasSummaryPreview?: string;
-    currentCanvasSummaryChars?: number;
-  };
-  messageSnapshot?: AgentDebugTraceMessageSnapshot;
-  model?: {
-    provider?: string;
-    model?: string;
-    modelType?: string;
-  };
-  runtime?: {
-    id: string;
-  };
-  performance?: AgentDebugTracePerformance;
-  toolCalls: AgentDebugTraceToolCall[];
-  readNodes: AgentDebugTraceNodeRef[];
-  contextReads: AgentDebugTraceContextRead[];
-  observabilityEvents?: AgentTraceEvent[];
-  truncated?: boolean;
-}
-
-export interface AgentDebugRunSummary {
-  workspaceId: string;
-  workspaceName: string;
-  sessionId: string;
-  runId: string;
-  turnId: string;
-  messageIndex: number;
-  startedAt: number;
-  durationMs?: number;
-  userPromptPreview: string;
-  assistantPreview: string;
-  toolCount: number;
-  readNodeCount: number;
-  modelLabel?: string;
-  runtimeId?: string;
-  isCurrent: boolean;
-}
-
 export interface AgentDebugRunDetail extends AgentDebugRunSummary {
   userMessage?: AgentChatMessage;
   assistantMessage?: AgentChatMessage;
@@ -278,6 +169,8 @@ export interface AgentChatMessage extends AgentContextMcpApps {
   failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown' | 'interrupted';
   /** Whether retry/regenerate is a meaningful recovery action. */
   retryable?: boolean;
+  /** Optional sender display label for user messages in shared VPS workspaces. */
+  senderName?: string;
   /** Exact lightweight context used for this user turn. */
   contextSnapshot?: AgentTurnContextSnapshot;
 }

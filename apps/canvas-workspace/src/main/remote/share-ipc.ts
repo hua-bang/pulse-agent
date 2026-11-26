@@ -179,6 +179,7 @@ export function setupRemoteVpsShareIpc(): void {
           ok?: boolean;
           role?: 'viewer' | 'editor' | 'collaborator' | 'admin';
           workspaceId?: string;
+          shareLabel?: string;
           message?: string;
         };
         if (!res.ok || !meta.ok) {
@@ -188,6 +189,7 @@ export function setupRemoteVpsShareIpc(): void {
           meta.role === 'viewer' || meta.role === 'editor' || meta.role === 'collaborator'
             ? meta.role
             : decoded.role ?? 'viewer';
+        const shareLabel = meta.shareLabel?.trim() || undefined;
         const config: RemoteVpsWorkspaceConfigDto = {
           kind: 'vps',
           endpoint,
@@ -197,6 +199,7 @@ export function setupRemoteVpsShareIpc(): void {
           runtime: grantedRole === 'collaborator' ? 'vps' : 'local',
           autoBootstrap: false,
           shareRole: grantedRole,
+          ...(shareLabel ? { shareLabel } : {}),
         };
         const { saveRemoteWorkspaceConfig } = await import('./config');
         saveRemoteWorkspaceConfig(payload.workspaceId, config);

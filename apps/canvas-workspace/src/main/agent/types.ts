@@ -189,6 +189,7 @@ export interface CanvasAgentMessage {
   errorDetails?: string;
   failureKind?: 'auth' | 'busy' | 'context' | 'network' | 'request' | 'unknown' | 'interrupted';
   retryable?: boolean;
+  senderName?: string;
   contextSnapshot?: import('../../shared/agent-chat').AgentTurnContextSnapshot;
 }
 

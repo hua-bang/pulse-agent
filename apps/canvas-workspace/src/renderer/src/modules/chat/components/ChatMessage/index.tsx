@@ -181,6 +181,9 @@ const ChatMessageView = ({
       </div>
     )}
     <div className="chat-message-body">
+      {message.role === 'user' && message.senderName && (
+        <span className="chat-message-sender">{message.senderName}</span>
+      )}
       {message.role === 'assistant' && message.speakerRoleName && (
         <span
           className="chat-message-speaker"
