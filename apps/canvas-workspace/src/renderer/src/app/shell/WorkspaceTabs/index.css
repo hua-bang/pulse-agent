@@ -306,20 +306,32 @@
   z-index: 3;
 }
 
-.workspace-tabs__peer-avatar--accent.ui-btn {
+.workspace-tabs__peer-avatar--accent.ui-btn,
+.workspace-tabs__peer-avatar--accent.ui-btn:hover,
+.workspace-tabs__peer-avatar--accent.ui-btn:focus-visible {
   background: var(--accent);
+  color: var(--surface);
 }
 
-.workspace-tabs__peer-avatar--term.ui-btn {
+.workspace-tabs__peer-avatar--term.ui-btn,
+.workspace-tabs__peer-avatar--term.ui-btn:hover,
+.workspace-tabs__peer-avatar--term.ui-btn:focus-visible {
   background: var(--accent-term);
+  color: var(--surface);
 }
 
-.workspace-tabs__peer-avatar--frame.ui-btn {
+.workspace-tabs__peer-avatar--frame.ui-btn,
+.workspace-tabs__peer-avatar--frame.ui-btn:hover,
+.workspace-tabs__peer-avatar--frame.ui-btn:focus-visible {
   background: var(--accent-frame);
+  color: var(--surface);
 }
 
-.workspace-tabs__peer-avatar--file.ui-btn {
+.workspace-tabs__peer-avatar--file.ui-btn,
+.workspace-tabs__peer-avatar--file.ui-btn:hover,
+.workspace-tabs__peer-avatar--file.ui-btn:focus-visible {
   background: var(--accent-file);
+  color: var(--surface);
 }
 
 .workspace-tabs__peer-overflow {
