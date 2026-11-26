@@ -323,7 +323,7 @@ export class ConversationRuntime {
     try {
       result = await this.deps.runTurn({
         performanceTiming: external?.performanceTiming,
-        message: input.message,
+        message: senderName ? `[${senderName}]: ${input.message}` : input.message,
         history: this.messages.slice(0, -1),
         signal: this.controller!.signal,
         expectedSessionId: this.key.sessionId,

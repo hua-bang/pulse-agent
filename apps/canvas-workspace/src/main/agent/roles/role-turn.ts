@@ -286,12 +286,15 @@ export function sessionMessageToModelMessage(message: CanvasAgentMessage): Model
   // messages persisted before the impersonation guard existed carry them, and
   // replaying them verbatim teaches the model to imitate the pattern. The one
   // canonical label is then prepended, same as the live path.
+  const userContent = stripRoleMentionMarkers(base);
   const content = message.role === 'assistant'
     ? labelAssistantContent(
         message.speakerRoleName ? stripSpeakerSelfLabels(base, message.speakerRoleName) : base,
         message.speakerRoleName,
       )
-    : stripRoleMentionMarkers(base);
+    : message.senderName
+      ? `[${message.senderName}]: ${userContent}`
+      : userContent;
   const evidence = message.role === 'assistant' ? formatHistoricalTools(message.toolCalls) : '';
   return { role: message.role, content: content + evidence } as ModelMessage;
 }

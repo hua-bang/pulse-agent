@@ -8,6 +8,7 @@ import { createLocalWorkspaceFiles } from '@pulse-coder/storage/local-workspace-
 import { openSqliteStorage, type SqliteStorage } from '@pulse-coder/storage/sqlite';
 import { isPathWithin, readJsonBody, sendJson } from './auth.js';
 import { CapabilityRelay, type RelayResponsePayload } from './capability-relay.js';
+import { ChatRoomHub, handleChatRoomRequest } from './chat-room.js';
 import { handleExecJsonl } from './exec-jsonl.js';
 import { PresenceHub, type PresenceViewport } from './presence.js';
 import { PtyHub, type PtySpawner } from './pty-hub.js';
@@ -118,6 +119,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const ptyHub = new PtyHub(workDir, options.ptySpawner, dataDir);
   const capabilityRelay = new CapabilityRelay();
   const presenceHub = new PresenceHub();
+  const chatRoomHub = new ChatRoomHub();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
@@ -169,8 +171,13 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
           'tools-exec-stream',
           'capability-relay',
           'presence',
+          'chat-room',
         ],
       });
+      return;
+    }
+
+    if (await handleChatRoomRequest(req, res, url, principal, chatRoomHub)) {
       return;
     }
 
@@ -547,6 +554,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     port: boundPort,
     async close() {
       broadcaster.stop();
+      chatRoomHub.stop();
       capabilityRelay.closeAll();
       ptyHub.closeAll();
       if (options.writeRuntimeDescriptor) {

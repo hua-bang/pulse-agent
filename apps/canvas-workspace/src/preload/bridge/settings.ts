@@ -244,5 +244,28 @@ export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
     return () => ipcRenderer.removeListener("remote-vps:join-link", listener);
   },
   consumePendingJoinLinks: () =>
-    ipcRenderer.invoke("remote-vps:consumePendingJoinLinks")
+    ipcRenderer.invoke("remote-vps:consumePendingJoinLinks"),
+  getChatRoomState: (workspaceId, conversationId) =>
+    ipcRenderer.invoke("remote-vps:chatRoomState", { workspaceId, conversationId }),
+  enqueueChatRoom: (workspaceId, conversationId, message) =>
+    ipcRenderer.invoke("remote-vps:chatRoomEnqueue", { workspaceId, conversationId, message }),
+  claimChatRoom: (workspaceId, conversationId, options) =>
+    ipcRenderer.invoke("remote-vps:chatRoomClaim", { workspaceId, conversationId, ...options }),
+  streamChatRoom: (workspaceId, conversationId, text, toolName) =>
+    ipcRenderer.invoke("remote-vps:chatRoomStream", { workspaceId, conversationId, text, toolName }),
+  releaseChatRoom: (workspaceId, conversationId) =>
+    ipcRenderer.invoke("remote-vps:chatRoomRelease", { workspaceId, conversationId }),
+  cancelChatRoomQueued: (workspaceId, conversationId, itemId) =>
+    ipcRenderer.invoke("remote-vps:chatRoomCancel", { workspaceId, conversationId, itemId }),
+  subscribeChatRoom: (workspaceId) =>
+    ipcRenderer.invoke("remote-vps:chatRoomSubscribe", { workspaceId }),
+  unsubscribeChatRoom: (workspaceId) =>
+    ipcRenderer.invoke("remote-vps:chatRoomUnsubscribe", { workspaceId }),
+  onChatRoomEvent: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: any) => {
+      if (payload?.workspaceId && payload?.conversationId) callback(payload);
+    };
+    ipcRenderer.on("remote-vps:chat-room-event", listener);
+    return () => ipcRenderer.removeListener("remote-vps:chat-room-event", listener);
+  },
 });
