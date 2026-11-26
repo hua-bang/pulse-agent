@@ -257,9 +257,6 @@ const CANVAS_SHARE_EN = {
   title: 'Share & collaborate',
   joinTitle: 'Join Shared Canvas',
   close: 'Close',
-  tabShare: 'Share this Canvas',
-  tabJoin: 'Join Shared Canvas',
-  joinMenuEntry: 'Join Shared Canvas…',
   localOnlyTitle: 'This canvas is currently stored locally',
   localOnlyBody:
     'Live sharing requires a remote host (such as your VPS over Tailscale) so teammates can connect without touching your computer.',
@@ -271,15 +268,10 @@ const CANVAS_SHARE_EN = {
   onlineCount: (n: number) => `${n} online`,
   roleShort: (role: string): string =>
     role === 'viewer' ? 'View-only' : role === 'editor' ? 'Editor' : 'Collaborator',
-  topBarSharedGuest: (role: string): string =>
-    role === 'viewer' ? 'Shared · View-only' : 'Shared',
-  topBarOffline: 'Offline',
   guestRoleTitle: (role: string) =>
     `Joined as ${role === 'viewer' ? 'Viewer (read-only)' : role === 'editor' ? 'Editor' : 'Collaborator'}`,
   leaveShared: 'Leave Shared Canvas',
   leaving: 'Leaving…',
-  joinNameLabel: 'Canvas name (optional)',
-  joinNamePlaceholder: 'Leave blank to use shared canvas name',
   joinFallbackName: 'Shared Canvas',
   joinOneStepHint: 'Paste an invite code (or full chat message) to open the shared canvas — no SSH setup needed.',
   joinAndOpen: 'Join & Open Canvas',
@@ -292,9 +284,6 @@ const CANVAS_SHARE_ZH: typeof CANVAS_SHARE_EN = {
   title: '分享与协作',
   joinTitle: '加入共享画布',
   close: '关闭',
-  tabShare: '分享当前画布',
-  tabJoin: '加入共享画布',
-  joinMenuEntry: '加入共享画布…',
   localOnlyTitle: '当前画布仅保存在本机',
   localOnlyBody:
     '实时协同共享需要为画布开启远端托管（例如绑定你的 VPS + Tailscale），之后即可一键生成带权限控制的邀请码。',
@@ -304,17 +293,12 @@ const CANVAS_SHARE_ZH: typeof CANVAS_SHARE_EN = {
   loadingStatus: '正在检查画布托管状态…',
   hostedOn: (host: string) => `托管节点：${host}`,
   onlineCount: (n: number) => `${n} 人在线`,
-  roleShort: (role: string) =>
+  roleShort: (role: string): string =>
     role === 'viewer' ? '只读' : role === 'editor' ? '画布协作' : '画布+终端',
-  topBarSharedGuest: (role: string) =>
-    role === 'viewer' ? '共享 · 只读' : '协作中',
-  topBarOffline: '共享 · 离线',
   guestRoleTitle: (role: string) =>
     `当前以「${role === 'viewer' ? '只读围观' : role === 'editor' ? '画布协作' : '画布 + 终端'}」身份协作`,
   leaveShared: '退出共享画布',
   leaving: '退出中…',
-  joinNameLabel: '本地显示名称（可选）',
-  joinNamePlaceholder: '留空则自动使用原画布名称',
   joinFallbackName: '共享画布',
   joinOneStepHint: '粘贴邀请码（支持直接粘贴整段微信/飞书消息），直接创建并打开该共享画布。',
   joinAndOpen: '加入并打开画布',

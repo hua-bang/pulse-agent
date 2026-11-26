@@ -7,7 +7,7 @@ import {
   ImportIcon,
   NodeGraphIcon,
 } from '../../../components/icons';
-import { Button } from '../../../components/ui';
+import { Button } from '../../../components/ui/Button';
 import { useI18n } from '../../../i18n';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 
@@ -33,7 +33,7 @@ export const SidebarHeader = ({
   onImportWorkspace,
   onJoinSharedWorkspace,
 }: SidebarHeaderProps) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +123,7 @@ export const SidebarHeader = ({
                 onClick={onJoinSharedWorkspace}
               >
                 <NodeGraphIcon size={14} />
-                <span>{language === 'zh' ? '加入共享画布…' : 'Join Shared Canvas…'}</span>
+                <span>{t('sidebar.joinSharedCanvas')}</span>
               </Button>
             )}
           </div>

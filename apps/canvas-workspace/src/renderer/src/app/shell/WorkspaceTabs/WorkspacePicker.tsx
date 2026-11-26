@@ -43,7 +43,7 @@ export const WorkspacePicker = ({
   onOpenLauncher,
   onClose,
 }: Props) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const ordered = useMemo(() => byRecency(workspaces), [workspaces]);
   const needle = query.trim().toLowerCase();
@@ -111,9 +111,7 @@ export const WorkspacePicker = ({
       {onJoinShared && (
         <Button size="sm" role="menuitem" className="workspace-picker__item" onClick={() => choose(onJoinShared)}>
           <NodeGraphIcon size={13} />
-          <span className="workspace-picker__name">
-            {language === 'zh' ? '加入共享画布…' : 'Join Shared Canvas…'}
-          </span>
+          <span className="workspace-picker__name">{t('sidebar.joinSharedCanvas')}</span>
         </Button>
       )}
       <Button size="sm" role="menuitem" className="workspace-picker__item" onClick={() => choose(onOpenLauncher)}>

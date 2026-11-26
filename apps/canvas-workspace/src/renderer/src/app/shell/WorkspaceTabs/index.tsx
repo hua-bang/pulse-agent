@@ -48,7 +48,7 @@ export const WorkspaceTabs = ({
   onDeleteWorkspace,
   onRequestJoinShared,
 }: Props) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const newButtonRef = useRef<HTMLButtonElement>(null);
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLElement>(null);
@@ -304,7 +304,7 @@ export const WorkspaceTabs = ({
       >
         <PlusIcon size={13} />
       </Button>
-      {onOpenSettings && activeId && (
+      {onOpenSettings && activeId && remoteBadge.hosted && (
         <Button
           ref={shareButtonRef}
           variant="secondary"
@@ -314,40 +314,22 @@ export const WorkspaceTabs = ({
           aria-expanded={shareOpen}
           onClick={() => setShareOpen((prev) => !prev)}
         >
-          {remoteBadge.hosted && (
-            <span
-              className={`workspace-tabs__share-dot${!remoteBadge.connected ? ' workspace-tabs__share-dot--offline' : ''}`}
-              aria-hidden="true"
-            />
-          )}
+          <span
+            className={`workspace-tabs__share-dot${!remoteBadge.connected ? ' workspace-tabs__share-dot--offline' : ''}`}
+            aria-hidden="true"
+          />
           <span>
-            {!remoteBadge.hosted
-              ? language === 'zh'
-                ? '共享'
-                : 'Share'
-              : !remoteBadge.connected
-                ? language === 'zh'
-                  ? '共享 · 离线'
-                  : 'Shared · Offline'
-                : remoteBadge.shareRole
-                  ? remoteBadge.shareRole === 'viewer'
-                    ? language === 'zh'
-                      ? '共享 · 只读'
-                      : 'Shared · View-only'
-                    : remoteBadge.onlineClients && remoteBadge.onlineClients > 1
-                      ? language === 'zh'
-                        ? `协作中 · ${remoteBadge.onlineClients}`
-                        : `Shared · ${remoteBadge.onlineClients}`
-                      : language === 'zh'
-                        ? '协作中'
-                        : 'Shared'
+            {!remoteBadge.connected
+              ? t('workspaceTabs.sharedOffline')
+              : remoteBadge.shareRole
+                ? remoteBadge.shareRole === 'viewer'
+                  ? t('workspaceTabs.sharedReadOnly')
                   : remoteBadge.onlineClients && remoteBadge.onlineClients > 1
-                    ? language === 'zh'
-                      ? `共享 · ${remoteBadge.onlineClients} 人在线`
-                      : `Share · ${remoteBadge.onlineClients} online`
-                    : language === 'zh'
-                      ? '共享'
-                      : 'Share'}
+                    ? t('workspaceTabs.sharedOnline', { count: remoteBadge.onlineClients })
+                    : t('workspaceTabs.shared')
+                : remoteBadge.onlineClients && remoteBadge.onlineClients > 1
+                  ? t('workspaceTabs.shareOnline', { count: remoteBadge.onlineClients })
+                  : t('workspaceTabs.share')}
           </span>
         </Button>
       )}

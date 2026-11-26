@@ -28,7 +28,7 @@ export const RecentWorkspaces = ({
   onJoinSharedWorkspace,
   onOpenAll,
 }: Props) => {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const describe = (summary: WorkspaceSummary | undefined) => {
     if (!summary) return '';
     if (summary.nodeCount === 0) return t('launcher.workspaceEmpty');
@@ -88,9 +88,7 @@ export const RecentWorkspaces = ({
         {onJoinSharedWorkspace && (
           <Button variant="secondary" className="launcher__card launcher__card--new" onClick={onJoinSharedWorkspace}>
             <NodeGraphIcon size={16} />
-            <span className="launcher__card-name">
-              {language === 'zh' ? '加入共享画布' : 'Join Shared Canvas'}
-            </span>
+            <span className="launcher__card-name">{t('launcher.joinSharedCanvas')}</span>
           </Button>
         )}
       </div>
