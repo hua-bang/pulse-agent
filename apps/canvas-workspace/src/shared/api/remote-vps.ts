@@ -85,6 +85,7 @@ export interface RemoteVpsPresencePeer {
   role: string;
   activeNodeId?: string;
   viewport?: { x: number; y: number; scale: number };
+  chatStream?: { conversationId: string; text: string };
   updatedAt: number;
   self?: boolean;
 }
@@ -165,6 +166,7 @@ export interface RemoteVpsApi {
     state: {
       activeNodeId?: string | null;
       viewport?: { x: number; y: number; scale: number } | null;
+      chatStream?: { conversationId: string; text: string } | null;
     },
   ) => Promise<{ ok: boolean; peers: RemoteVpsPresencePeer[] }>;
   leavePresence?: (workspaceId: string) => Promise<{ ok: boolean }>;

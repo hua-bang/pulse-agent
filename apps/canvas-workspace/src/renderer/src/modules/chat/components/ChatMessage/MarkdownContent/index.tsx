@@ -1,4 +1,5 @@
-import { useEffect, useState, type MouseEventHandler, type RefObject } from 'react';
+import { useEffect, useState, type MouseEvent, type MouseEventHandler, type RefObject } from 'react';
+import { dispatchFocusNodeOnCanvas, parseNodeLinkHref } from '../../../../../utils/openNodeBridge';
 import { ChatImageLightbox, type LightboxImage } from '../../ChatImageLightbox';
 import './index.css';
 
@@ -20,6 +21,24 @@ export const MarkdownContent = ({
 }: Props) => {
   const [preview, setPreview] = useState<{ images: LightboxImage[]; index: number } | null>(null);
 
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest('a[href]') : null;
+    const href = target?.getAttribute('href');
+    if (href) {
+      const parsed = parseNodeLinkHref(href);
+      if (parsed) {
+        event.preventDefault();
+        event.stopPropagation();
+        dispatchFocusNodeOnCanvas({
+          workspaceId: parsed.workspaceId ?? '',
+          nodeId: parsed.nodeId,
+        });
+        return;
+      }
+    }
+    onClick?.(event);
+  };
+
   useEffect(() => {
     const body = bodyRef.current;
     if (!imagePreview || !body) return;
@@ -29,7 +48,7 @@ export const MarkdownContent = ({
       image.setAttribute('role', 'button');
       image.setAttribute('aria-haspopup', 'dialog');
     }
-    const openImage = (event: MouseEvent | KeyboardEvent) => {
+    const openImage = (event: globalThis.MouseEvent | KeyboardEvent) => {
       if (!(event.target instanceof HTMLImageElement)) return;
       if (event instanceof KeyboardEvent && event.key !== 'Enter' && event.key !== ' ') return;
       const index = images.indexOf(event.target);
@@ -56,7 +75,7 @@ export const MarkdownContent = ({
         className={className
           ?? `chat-message-content chat-md${imagePreview ? ' chat-md--image-preview' : ''}`}
         dangerouslySetInnerHTML={{ __html: html }}
-        onClick={onClick}
+        onClick={handleClick}
       />
       {preview && (
         <ChatImageLightbox

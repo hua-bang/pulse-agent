@@ -194,6 +194,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
             name?: string;
             activeNodeId?: string | null;
             viewport?: PresenceViewport | null;
+            chatStream?: { conversationId?: string; text?: string } | null;
           }>(req);
           const bodyWs = typeof body.workspaceId === 'string' ? body.workspaceId.trim() : '';
           const wsId = tokenWs || bodyWs;
@@ -213,12 +214,18 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
               && Number.isFinite(vp.x) && Number.isFinite(vp.y) && Number.isFinite(vp.scale)
               ? { x: vp.x, y: vp.y, scale: vp.scale }
               : undefined;
+          const cs = body.chatStream;
+          const chatStream =
+            cs && typeof cs.conversationId === 'string' && cs.conversationId.trim() && typeof cs.text === 'string'
+              ? { conversationId: cs.conversationId.trim().slice(0, 128), text: cs.text.slice(0, 4000) }
+              : undefined;
           const peers = presenceHub.upsert(wsId, {
             clientId,
             name: rawName || fallbackName,
             role: principal.kind === 'admin' ? 'admin' : principal.share.role,
             activeNodeId,
             viewport,
+            chatStream,
           });
           sendJson(res, 200, { ok: true, peers });
         } catch (err) {

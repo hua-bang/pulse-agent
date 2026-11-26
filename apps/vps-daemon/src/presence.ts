@@ -6,12 +6,18 @@ export interface PresenceViewport {
   scale: number;
 }
 
+export interface PresenceChatStream {
+  conversationId: string;
+  text: string;
+}
+
 export interface PresencePeer {
   clientId: string;
   name: string;
   role: PresenceRole;
   activeNodeId?: string;
   viewport?: PresenceViewport;
+  chatStream?: PresenceChatStream;
   updatedAt: number;
 }
 
@@ -21,6 +27,7 @@ export interface PresenceUpsertInput {
   role: PresenceRole;
   activeNodeId?: string;
   viewport?: PresenceViewport;
+  chatStream?: PresenceChatStream;
 }
 
 const DEFAULT_TTL_MS = 35_000;
@@ -43,6 +50,7 @@ export class PresenceHub {
       role: input.role,
       ...(input.activeNodeId ? { activeNodeId: input.activeNodeId } : {}),
       ...(input.viewport ? { viewport: input.viewport } : {}),
+      ...(input.chatStream ? { chatStream: input.chatStream } : {}),
       updatedAt: now,
     };
     peers.set(input.clientId, peer);

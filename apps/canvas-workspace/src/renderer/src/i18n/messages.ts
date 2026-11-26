@@ -295,6 +295,8 @@ export const enMessages = {
   'presence.viewerReadOnly': 'View-only reading mode',
   'presence.copyDeepLink': 'Copy join link',
   'presence.deepLinkCopied': 'Join link copied',
+  'presence.peerStreaming': '{name} is chatting with Agent…',
+  'presence.newBranch': 'New branch',
   'launcher.title': 'What would you like to move forward?',
   'launcher.askLabel': 'Ask Pulse Agent',
   'launcher.askPlaceholder': 'Ask anything, or start from an idea…',

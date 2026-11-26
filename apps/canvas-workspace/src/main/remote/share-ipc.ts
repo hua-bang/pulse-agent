@@ -247,6 +247,15 @@ export function setupRemoteVpsShareIpc(): void {
     },
   );
 
+  const lastPresenceByWorkspace = new Map<
+    string,
+    {
+      activeNodeId?: string | null;
+      viewport?: { x: number; y: number; scale: number } | null;
+      chatStream?: { conversationId: string; text: string } | null;
+    }
+  >();
+
   ipcMain.handle(
     'remote-vps:updatePresence',
     async (
@@ -255,6 +264,7 @@ export function setupRemoteVpsShareIpc(): void {
         workspaceId: string;
         activeNodeId?: string | null;
         viewport?: { x: number; y: number; scale: number } | null;
+        chatStream?: { conversationId: string; text: string } | null;
       },
     ): Promise<{ ok: boolean; peers: RemoteVpsPresencePeer[] }> => {
       try {
@@ -264,6 +274,13 @@ export function setupRemoteVpsShareIpc(): void {
         ]);
         const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'storage');
         if (!target) return { ok: true, peers: [] };
+        const prev = lastPresenceByWorkspace.get(payload.workspaceId) ?? {};
+        const merged = {
+          activeNodeId: payload.activeNodeId !== undefined ? payload.activeNodeId : prev.activeNodeId ?? null,
+          viewport: payload.viewport !== undefined ? payload.viewport : prev.viewport ?? null,
+          chatStream: payload.chatStream !== undefined ? payload.chatStream : prev.chatStream ?? null,
+        };
+        lastPresenceByWorkspace.set(payload.workspaceId, merged);
         const name = resolveRemoteWorkspaceSenderName(payload.workspaceId);
         const res = await fetch(`${target.endpoint}/v1/presence`, {
           method: 'POST',
@@ -275,8 +292,7 @@ export function setupRemoteVpsShareIpc(): void {
             workspaceId: target.remoteWorkspaceId,
             clientId: PROCESS_CLIENT_ID,
             ...(name ? { name } : {}),
-            activeNodeId: payload.activeNodeId ?? null,
-            viewport: payload.viewport ?? null,
+            ...merged,
           }),
           signal: AbortSignal.timeout(4_000),
         });
