@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useEffect } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../../../modules/canvas/surface';
 import { FileNodeEditorRegistryProvider } from '../../../shared/fileNodeEditorRegistry';
@@ -85,6 +85,27 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
   const terminalDockOpen = isDockTerminalVisible(dockState);
   const { mountedWorkspaceIds, evictWorkspace } = useMountedWorkspaceIds(activeWorkspaceId, workspaces, dockState.terminalTabsByWorkspace);
+  // On mobile H5 (<= 768px), only mount the heavy Canvas tree while on the Canvas tab so iOS Safari
+  // does not OOM/Jetsam-crash from mounting dozens of editors behind the Cards/Chat overlay.
+  const [mobileCanvasAllowed, setMobileCanvasAllowed] = useState(() => {
+    if (!__PULSE_WEB_HOST__ || typeof window === 'undefined' || window.innerWidth > 768) return true;
+    return document.documentElement.dataset.pulseH5Tab === 'canvas';
+  });
+  useEffect(() => {
+    if (!__PULSE_WEB_HOST__ || typeof window === 'undefined') return;
+    const sync = () => {
+      setMobileCanvasAllowed(
+        window.innerWidth > 768 || document.documentElement.dataset.pulseH5Tab === 'canvas',
+      );
+    };
+    sync();
+    window.addEventListener('pulse-h5-tab-change', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('pulse-h5-tab-change', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, []);
   // Publish the live-mounted set so the dock never previews an already-live canvas.
   useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
   useEvictAndPreview({ mountedWorkspaceIds, evictWorkspace, terminalTabsByWorkspace: dockState.terminalTabsByWorkspace, openCanvasPreview: dock.openCanvasPreview });
@@ -203,45 +224,47 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 style={isActive ? undefined : { display: 'none' }}
               >
                 <div className="canvas-host__main">
-                  <Canvas
-                    canvasId={ws.id}
-                    canvasName={ws.name}
-                    rootFolder={ws.rootFolder}
-                    isActive={canvasHostActive && isActive}
-                    onNodesChange={handleNodesChange}
-                    onSelectionChange={handleSelectionChange}
-                    focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}
-                    onFocusComplete={clearFocusRequest}
-                    deleteNodeId={ws.id === deleteRequest?.workspaceId ? deleteRequest.nodeId : undefined}
-                    onDeleteComplete={clearDeleteRequest}
-                    renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
-                    onRenameComplete={clearRenameRequest}
-                    chatPanelOpen={chatPanelOpen}
-                    onChatOpen={dock.openChat}
-                    onChatToggle={dock.toggleChat}
-                    referenceDrawerOpen={referenceDrawerOpen}
-                    onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
-                    onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
-                    onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
-                    onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
-                    onSubmitDomReviewComments={(comments) => handleSubmitDomReviewComments(ws.id, comments)}
-                    onAskAboutNodes={(prompt) => handleSubmitPrompt(ws.id, prompt)}
-                    resolveReferenceNode={referenceOperations.resolveReferenceNode}
-                    onOpenReferenceSource={referenceOperations.handleOpenReferenceSource}
-                    onUpdateReferenceSource={referenceOperations.updateReferenceSourceNode}
-                    referencePlacementRequest={isActive ? referenceOperations.referencePlacementRequest : null}
-                    onReferencePlacementComplete={referenceOperations.consumeReferencePlacementRequest}
-                    createReferenceNode={referenceOperations.createReferenceNodeFromEntry}
-                    referenceWorkspaces={workspaces}
-                    createCanvasReferenceNode={referenceOperations.createCanvasReferenceNode}
-                    clipboard={referenceOperations.canvasClipboard}
-                    onClipboardChange={referenceOperations.setCanvasClipboard}
-                    onFullscreenChange={isActive ? onFullscreenChange : undefined}
-                    onPasteReferences={referenceOperations.pasteReferencesIntoCanvas}
-                    nodePatchRequest={referenceOperations.nodePatchRequest?.workspaceId === ws.id ? referenceOperations.nodePatchRequest : undefined}
-                    onNodePatchComplete={referenceOperations.completeNodePatch}
-                    onSetRootFolder={onSetActiveRootFolder}
-                  />
+                  {mobileCanvasAllowed && (
+                    <Canvas
+                      canvasId={ws.id}
+                      canvasName={ws.name}
+                      rootFolder={ws.rootFolder}
+                      isActive={canvasHostActive && isActive}
+                      onNodesChange={handleNodesChange}
+                      onSelectionChange={handleSelectionChange}
+                      focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}
+                      onFocusComplete={clearFocusRequest}
+                      deleteNodeId={ws.id === deleteRequest?.workspaceId ? deleteRequest.nodeId : undefined}
+                      onDeleteComplete={clearDeleteRequest}
+                      renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
+                      onRenameComplete={clearRenameRequest}
+                      chatPanelOpen={chatPanelOpen}
+                      onChatOpen={dock.openChat}
+                      onChatToggle={dock.toggleChat}
+                      referenceDrawerOpen={referenceDrawerOpen}
+                      onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
+                      onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
+                      onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
+                      onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
+                      onSubmitDomReviewComments={(comments) => handleSubmitDomReviewComments(ws.id, comments)}
+                      onAskAboutNodes={(prompt) => handleSubmitPrompt(ws.id, prompt)}
+                      resolveReferenceNode={referenceOperations.resolveReferenceNode}
+                      onOpenReferenceSource={referenceOperations.handleOpenReferenceSource}
+                      onUpdateReferenceSource={referenceOperations.updateReferenceSourceNode}
+                      referencePlacementRequest={isActive ? referenceOperations.referencePlacementRequest : null}
+                      onReferencePlacementComplete={referenceOperations.consumeReferencePlacementRequest}
+                      createReferenceNode={referenceOperations.createReferenceNodeFromEntry}
+                      referenceWorkspaces={workspaces}
+                      createCanvasReferenceNode={referenceOperations.createCanvasReferenceNode}
+                      clipboard={referenceOperations.canvasClipboard}
+                      onClipboardChange={referenceOperations.setCanvasClipboard}
+                      onFullscreenChange={isActive ? onFullscreenChange : undefined}
+                      onPasteReferences={referenceOperations.pasteReferencesIntoCanvas}
+                      nodePatchRequest={referenceOperations.nodePatchRequest?.workspaceId === ws.id ? referenceOperations.nodePatchRequest : undefined}
+                      onNodePatchComplete={referenceOperations.completeNodePatch}
+                      onSetRootFolder={onSetActiveRootFolder}
+                    />
+                  )}
                 </div>
               </div>
             );

@@ -444,6 +444,58 @@ export function createVpsAgentController(options: {
         return true;
       }
 
+      if (req.method === 'POST' && url.pathname === '/v1/agent/models') {
+        if (!canUseRuntime(principal)) {
+          sendJson(res, 403, { ok: false, error: 'forbidden' });
+          return true;
+        }
+        try {
+          const body = await readJsonBody<AgentLlmOverride>(req);
+          const cfg = resolveAgentLlmConfig(body);
+          if (!cfg) {
+            sendJson(res, 400, { ok: false, error: 'API Key is required to fetch models.' });
+            return true;
+          }
+          const modelsUrl =
+            cfg.provider === 'anthropic'
+              ? cfg.baseUrl.endsWith('/v1/models')
+                ? cfg.baseUrl
+                : `${cfg.baseUrl}/v1/models`
+              : cfg.baseUrl.endsWith('/models')
+                ? cfg.baseUrl
+                : `${cfg.baseUrl}/models`;
+          const headers: Record<string, string> =
+            cfg.provider === 'anthropic'
+              ? { 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01' }
+              : { Authorization: `Bearer ${cfg.apiKey}` };
+          const upstream = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(10_000) });
+          if (!upstream.ok) {
+            const text = await upstream.text().catch(() => '');
+            sendJson(res, 502, {
+              ok: false,
+              error: `Upstream HTTP ${upstream.status}: ${text.slice(0, 200)}`,
+            });
+            return true;
+          }
+          const json = (await upstream.json()) as {
+            data?: Array<{ id?: string; display_name?: string }>;
+            models?: Array<{ id?: string; name?: string }>;
+          };
+          const rawList = Array.isArray(json.data)
+            ? json.data.map((m) => m.id).filter((id): id is string => typeof id === 'string' && Boolean(id))
+            : Array.isArray(json.models)
+              ? json.models
+                  .map((m) => m.id || m.name)
+                  .filter((id): id is string => typeof id === 'string' && Boolean(id))
+              : [];
+          const models = Array.from(new Set(rawList)).sort((a, b) => a.localeCompare(b));
+          sendJson(res, 200, { ok: true, models });
+        } catch (err) {
+          sendJson(res, 502, { ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+        return true;
+      }
+
       if (req.method === 'GET' && url.pathname === '/v1/agent/skills') {
         const skills = await listVpsSkills(workDir);
         sendJson(res, 200, { ok: true, skills });

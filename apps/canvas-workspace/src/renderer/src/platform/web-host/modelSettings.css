@@ -77,3 +77,36 @@
   min-width: 112px;
   padding: 0 18px;
 }
+
+.pulse-web-model-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pulse-web-model-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pulse-web-model-fetch {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pulse-web-model-fetch:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.pulse-web-model-fetch:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
