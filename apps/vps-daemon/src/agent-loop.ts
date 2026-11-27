@@ -8,7 +8,13 @@ import {
   summarizeCanvasForPrompt,
   type CanvasAgentToolName,
 } from './agent-canvas-tools.js';
-import { resolveAgentLlmConfig, streamLlmTurn, type LlmMessage } from './agent-llm.js';
+import {
+  resolveAgentLlmConfig,
+  saveAgentLlmConfigToEnvFile,
+  streamLlmTurn,
+  type AgentLlmOverride,
+  type LlmMessage,
+} from './agent-llm.js';
 import { listVpsSkills, loadVpsSkill } from './agent-skills.js';
 import { VPS_AGENT_TOOLS } from './agent-tools-schema.js';
 import type { ChatRoomHub } from './chat-room.js';
@@ -143,17 +149,6 @@ export function createVpsAgentController(options: {
       return;
     }
 
-    const llmConfig = resolveAgentLlmConfig();
-    if (!llmConfig) {
-      sendJson(res, 503, {
-        ok: false,
-        code: 'agent_not_configured',
-        message:
-          'VPS Agent is not configured. Set PULSE_AGENT_API_KEY (or OPENAI_API_KEY / ANTHROPIC_API_KEY) in VPS env or ~/.pulse-vps-daemon/.env.',
-      });
-      return;
-    }
-
     let body: {
       workspaceId?: string;
       sessionId?: string;
@@ -161,11 +156,22 @@ export function createVpsAgentController(options: {
       senderName?: string;
       clientId?: string;
       runId?: string;
+      llm?: AgentLlmOverride;
     };
     try {
       body = await readJsonBody(req);
     } catch (err) {
       sendJson(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+
+    const llmConfig = resolveAgentLlmConfig(body.llm);
+    if (!llmConfig) {
+      sendJson(res, 503, {
+        ok: false,
+        code: 'agent_not_configured',
+        message: 'VPS Agent 尚未配置模型，请点击右上角「模型设置」填写 API Key 和模型。',
+      });
       return;
     }
 
@@ -412,9 +418,29 @@ export function createVpsAgentController(options: {
         sendJson(res, 200, {
           ok: true,
           configured: Boolean(cfg),
-          ...(cfg ? { provider: cfg.provider, model: cfg.model } : {}),
+          ...(cfg ? { provider: cfg.provider, model: cfg.model, baseUrl: cfg.baseUrl } : {}),
           skillsCount: skills.length,
         });
+        return true;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/v1/agent/config') {
+        if (principal.kind !== 'admin') {
+          sendJson(res, 403, { ok: false, error: 'Admin token required to save VPS-wide model config.' });
+          return true;
+        }
+        try {
+          const body = await readJsonBody<AgentLlmOverride>(req);
+          saveAgentLlmConfigToEnvFile(body);
+          const cfg = resolveAgentLlmConfig();
+          sendJson(res, 200, {
+            ok: true,
+            configured: Boolean(cfg),
+            ...(cfg ? { provider: cfg.provider, model: cfg.model, baseUrl: cfg.baseUrl } : {}),
+          });
+        } catch (err) {
+          sendJson(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
         return true;
       }
 

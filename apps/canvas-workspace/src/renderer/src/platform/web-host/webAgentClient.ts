@@ -1,5 +1,6 @@
 import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import type { AgentScope } from '../../../../shared/agent-chat';
+import { openWebModelSettingsModal, readStoredWebLlmConfig } from './modelSettings';
 import type { WebHostAuthSession } from './types';
 
 type AgentApi = CanvasWorkspaceApi['agent'];
@@ -207,6 +208,7 @@ export function createWebAgentRuntime(
       const controller = new AbortController();
       activeControllers.set(sessionId, controller);
 
+      const llm = readStoredWebLlmConfig();
       try {
         const res = await fetch(`${session.endpoint}/v1/agent/chat`, {
           method: 'POST',
@@ -218,12 +220,20 @@ export function createWebAgentRuntime(
             senderName: session.senderName,
             clientId: session.clientId,
             ...(trace?.runId ? { runId: trace.runId } : {}),
+            ...(llm ? { llm } : {}),
           }),
           signal: controller.signal,
         });
         if (!res.ok) {
           activeControllers.delete(sessionId);
-          const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+          const body = (await res.json().catch(() => ({}))) as {
+            code?: string;
+            message?: string;
+            error?: string;
+          };
+          if (body.code === 'agent_not_configured') {
+            openWebModelSettingsModal(session);
+          }
           return {
             ok: false,
             error: body.message || body.error || `VPS Agent returned HTTP ${res.status}`,

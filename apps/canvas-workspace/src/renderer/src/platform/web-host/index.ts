@@ -2,6 +2,7 @@ import './mobile.css';
 import { resolveWebHostSession } from './authGate';
 import { createWebWorkspaceApi } from './createWebWorkspaceApi';
 import { mountMobileWebShell } from './mobileShell';
+import { mountWebModelSettingsTrigger } from './modelSettings';
 import { installMobileTouchBridge } from './touchBridge';
 
 /**
@@ -15,4 +16,5 @@ export async function bootstrapWebHost(root: HTMLElement): Promise<void> {
   const api = createWebWorkspaceApi(session);
   (window as unknown as { canvasWorkspace: typeof api }).canvasWorkspace = api;
   mountMobileWebShell(api, session);
+  mountWebModelSettingsTrigger(session);
 }
