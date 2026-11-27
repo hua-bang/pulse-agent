@@ -21,7 +21,7 @@ interface UseSharedChatRoomOptions {
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
   sendMessage: (message: string) => Promise<boolean> | boolean | void;
   clearInput: () => void;
-  reloadSession: () => void;
+  reloadSession: (sessionId?: string) => void;
 }
 
 export interface SharedChatRoomState {
@@ -169,7 +169,7 @@ export function useSharedChatRoom({
       setQueue(event.queue);
       if (event.typingPeers !== undefined) setTypingPeers(event.typingPeers);
       if (event.turnEnded) {
-        if (!event.endedBySelf && !loadingRef.current) reloadSessionRef.current();
+        if (!event.endedBySelf && !loadingRef.current) reloadSessionRef.current(event.conversationId);
         if (!event.activeTurn && event.queue[0]?.self) {
           tryClaimNext(event.queue);
         }

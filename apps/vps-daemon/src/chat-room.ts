@@ -212,7 +212,7 @@ export class ChatRoomHub {
   updateStream(
     workspaceId: string,
     conversationId: string,
-    input: { clientId: string; senderName: string; text: string; toolName?: string; leaseEpoch?: number },
+    input: { clientId: string; senderName: string; text: string; prompt?: string; toolName?: string; leaseEpoch?: number },
     now = Date.now(),
   ): { stale?: boolean; snapshot: ChatRoomSnapshot } {
     const room = this.getOrCreate(workspaceId, conversationId, now);
@@ -226,7 +226,7 @@ export class ChatRoomHub {
       return { stale: true, snapshot: this.snapshot(workspaceId, conversationId, room) };
     }
     const leaseEpoch = room.activeTurn?.leaseEpoch ?? ++room.epochSeq;
-    const prompt = room.activeTurn?.prompt;
+    const prompt = room.activeTurn?.prompt ?? (input.prompt ? input.prompt.slice(0, MAX_MESSAGE_CHARS) : undefined);
     room.activeTurn = {
       clientId: input.clientId,
       senderName: input.senderName,

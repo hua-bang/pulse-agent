@@ -95,9 +95,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   useEffect(() => {
     if (!isWebHost || typeof window === 'undefined') return;
     const sync = () => {
-      setMobileCanvasAllowed(
-        window.innerWidth > 768 || document.documentElement.dataset.pulseH5Tab === 'canvas',
-      );
+      const mobile = window.innerWidth <= 768;
+      const tab = document.documentElement.dataset.pulseH5Tab;
+      setMobileCanvasAllowed(!mobile || tab === 'canvas');
+      if (mobile) {
+        if (tab === 'chat') dock.openChat();
+        else dock.collapse();
+      }
     };
     sync();
     window.addEventListener('pulse-h5-tab-change', sync);
@@ -106,7 +110,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       window.removeEventListener('pulse-h5-tab-change', sync);
       window.removeEventListener('resize', sync);
     };
-  }, [isWebHost]);
+  }, [dock, isWebHost]);
   // Publish the live-mounted set so the dock never previews an already-live canvas.
   useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
   useEvictAndPreview({ mountedWorkspaceIds, evictWorkspace, terminalTabsByWorkspace: dockState.terminalTabsByWorkspace, openCanvasPreview: dock.openCanvasPreview });

@@ -284,6 +284,7 @@ export function createVpsAgentController(options: {
       chatRoomHub.updateStream(workspaceId, sessionId, {
         clientId,
         senderName,
+        prompt: userText,
         text: fullAssistantText,
         toolName,
       });

@@ -46,10 +46,15 @@ describe('useSharedChatRoom streaming deduplication', () => {
     host.remove();
   });
 
-  function Harness(props: { messages: AgentChatMessage[]; loading: boolean }) {
+  function Harness(props: {
+    messages: AgentChatMessage[];
+    loading: boolean;
+    conversationId?: string;
+    reloadSession?: (sessionId?: string) => void;
+  }) {
     latest = useSharedChatRoom({
       workspaceId: 'ws-1',
-      conversationId: 'sess-1',
+      conversationId: props.conversationId ?? 'sess-1',
       messages: props.messages,
       loading: props.loading,
       input: '',
@@ -58,7 +63,7 @@ describe('useSharedChatRoom streaming deduplication', () => {
       onKeyDown: () => {},
       sendMessage: () => {},
       clearInput: () => {},
-      reloadSession: () => {},
+      reloadSession: props.reloadSession ?? (() => {}),
     });
     return null;
   }
@@ -108,6 +113,39 @@ describe('useSharedChatRoom streaming deduplication', () => {
     expect(latest?.displayMessages).toHaveLength(2);
     expect(latest?.displayMessages[0].content).toBe('hi');
     expect(latest?.displayMessages[1].content).toBe('updated stream');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('forwards peer sessionId to reloadSession when turnEnded fires on New AI chat', async () => {
+    const root = createRoot(host);
+    const reloadSession = vi.fn();
+
+    await act(async () => {
+      root.render(
+        createElement(
+          I18nProvider,
+          null,
+          createElement(Harness, { messages: [], loading: false, conversationId: 'ws-1', reloadSession }),
+        ),
+      );
+      await Promise.resolve();
+    });
+
+    act(() => {
+      emitEvent?.({
+        workspaceId: 'ws-1',
+        conversationId: 'sess-new-42',
+        activeTurn: null,
+        queue: [],
+        turnEnded: true,
+        endedBySelf: false,
+      });
+    });
+
+    expect(reloadSession).toHaveBeenCalledWith('sess-new-42');
 
     await act(async () => {
       root.unmount();
