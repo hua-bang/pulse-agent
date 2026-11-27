@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseInviteInput } from './authGate';
 import { createWebWorkspaceApi } from './createWebWorkspaceApi';
 import type { WebHostAuthSession } from './types';
 
@@ -113,5 +114,21 @@ describe('createWebWorkspaceApi', () => {
     const allowed = await api.shell.openExternal('https://example.com');
     expect(allowed.ok).toBe(true);
     expect(openSpy).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer');
+  });
+
+  it('decodes native pulse-share://v1/<base64url> invite codes and ?invite= URLs', () => {
+    const payload = {
+      v: 1,
+      endpoint: 'https://my-vps.ts.net',
+      workspaceId: 'ws-demo',
+      token: 'sh_secret_123',
+      role: 'collaborator',
+    };
+    const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    const fromChat = parseInviteInput(`快加入我的画布：pulse-share://v1/${encoded} 试试看`);
+    expect(fromChat).toEqual({ endpoint: 'https://my-vps.ts.net', token: 'sh_secret_123' });
+
+    const fromWebUrl = parseInviteInput(`https://pulse-canvas-web.pages.dev/?invite=${encoded}`);
+    expect(fromWebUrl).toEqual({ endpoint: 'https://my-vps.ts.net', token: 'sh_secret_123' });
   });
 });

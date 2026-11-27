@@ -20,11 +20,44 @@ function parseRole(raw: unknown): 'admin' | RemoteVpsShareRole {
   return 'admin';
 }
 
-function parseInviteInput(raw: string): { endpoint?: string; token: string } {
+function decodeBase64UrlJson(encoded: string): Record<string, unknown> | null {
+  try {
+    const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+    const binary = atob(normalized + pad);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const text = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseInviteInput(raw: string): { endpoint?: string; token: string } {
   const trimmed = raw.trim();
+  // Match Pulse Canvas native share invite code (supports pasting an entire chat message).
+  const shareMatch = /pulse-share:\/\/v1\/([A-Za-z0-9_-]+)/.exec(trimmed);
+  if (shareMatch) {
+    const payload = decodeBase64UrlJson(shareMatch[1]);
+    const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+    const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
+    if (token) {
+      return { token, ...(endpoint ? { endpoint } : {}) };
+    }
+  }
   if (trimmed.startsWith('pulse://') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     try {
       const parsed = new URL(trimmed);
+      const invite = parsed.searchParams.get('invite')?.trim();
+      if (invite) {
+        const payload = decodeBase64UrlJson(invite);
+        const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+        const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
+        if (token) {
+          return { token, ...(endpoint ? { endpoint } : {}) };
+        }
+      }
       const token = parsed.searchParams.get('token')?.trim();
       const endpoint = parsed.searchParams.get('endpoint')?.trim();
       if (token) {
@@ -41,22 +74,36 @@ function readCredentialsFromUrl(): WebHostStoredCredentials | null {
   try {
     const url = new URL(window.location.href);
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-    const token = (url.searchParams.get('token') ?? hashParams.get('token') ?? '').trim();
-    if (!token) return null;
-    const endpoint = (url.searchParams.get('endpoint') ?? hashParams.get('endpoint') ?? '').trim();
+    const inviteParam = (url.searchParams.get('invite') ?? hashParams.get('invite') ?? '').trim();
     const senderName = (url.searchParams.get('name') ?? hashParams.get('name') ?? '').trim();
 
-    // Strip credentials from the address bar immediately so they do not linger in history/screenshots.
-    url.searchParams.delete('token');
-    url.searchParams.delete('endpoint');
-    url.searchParams.delete('name');
-    if (hashParams.has('token') || hashParams.has('endpoint') || hashParams.has('name')) {
-      hashParams.delete('token');
-      hashParams.delete('endpoint');
-      hashParams.delete('name');
-      const nextHash = hashParams.toString();
-      url.hash = nextHash ? `#${nextHash}` : '';
+    let token = (url.searchParams.get('token') ?? hashParams.get('token') ?? '').trim();
+    let endpoint = (url.searchParams.get('endpoint') ?? hashParams.get('endpoint') ?? '').trim();
+
+    if (inviteParam) {
+      const decoded = inviteParam.includes('pulse-share://v1/')
+        ? parseInviteInput(inviteParam)
+        : (() => {
+            const payload = decodeBase64UrlJson(inviteParam);
+            const t = typeof payload?.token === 'string' ? payload.token.trim() : '';
+            const ep = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
+            return t ? { token: t, ...(ep ? { endpoint: ep } : {}) } : null;
+          })();
+      if (decoded?.token) {
+        token = decoded.token;
+        if (decoded.endpoint) endpoint = decoded.endpoint;
+      }
     }
+
+    if (!token) return null;
+
+    // Strip credentials from the address bar immediately so they do not linger in history/screenshots.
+    for (const key of ['token', 'endpoint', 'invite', 'name']) {
+      url.searchParams.delete(key);
+      hashParams.delete(key);
+    }
+    const nextHash = hashParams.toString();
+    url.hash = nextHash ? `#${nextHash}` : '';
     window.history.replaceState(null, '', url.toString());
     return { endpoint, token, ...(senderName ? { senderName } : {}) };
   } catch {
@@ -155,8 +202,8 @@ function mountAuthGate(
             </div>
           </div>
           <label class="pulse-web-auth-row">
-            <span>VPS Token or Share Link</span>
-            <input id="pulse-web-token" type="password" autocomplete="off" required placeholder="Paste PULSE_VPS_TOKEN or share invite link..." value="" />
+            <span>Share Invite Code or VPS Token</span>
+            <input id="pulse-web-token" type="password" autocomplete="off" required placeholder="Paste pulse-share://v1/... or PULSE_VPS_TOKEN" value="" />
           </label>
           <label class="pulse-web-auth-row">
             <span>Display Name (optional)</span>
