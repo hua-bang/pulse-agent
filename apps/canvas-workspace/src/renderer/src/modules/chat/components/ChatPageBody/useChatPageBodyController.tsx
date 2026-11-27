@@ -473,5 +473,10 @@ export const useChatPageBodyController = ({
       onToggleDockTabs: handleToggleDockTabs,
     },
     viewProps,
+    chatRoom: {
+      reloadSession: () => void (activeSessionId ? handleLoadSession(activeSessionId) : retrySession()),
+      sendMessage: (message: string) => sendMessage(message, requestContext),
+      clearInput,
+    },
   };
 };

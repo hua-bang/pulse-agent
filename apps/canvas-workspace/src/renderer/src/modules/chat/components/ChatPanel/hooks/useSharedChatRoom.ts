@@ -58,6 +58,10 @@ export function useSharedChatRoom({
 
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
+  const reloadSessionRef = useRef(reloadSession);
+  reloadSessionRef.current = reloadSession;
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
   const claimingRef = useRef(false);
   const heldTurnRef = useRef(false);
 
@@ -71,7 +75,7 @@ export function useSharedChatRoom({
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
     if (!api?.getConfig || !workspaceId) {
-      setIsRemote(false);
+      setIsRemote((prev) => (prev ? false : prev));
       return;
     }
     let cancelled = false;
@@ -99,21 +103,21 @@ export function useSharedChatRoom({
           heldTurnRef.current = true;
           if (res.activeTurn !== undefined) setActiveTurn(res.activeTurn);
           if (res.queue) setQueue(res.queue);
-          void sendMessage(res.nextItem.message);
+          void sendMessageRef.current(res.nextItem.message);
         }).catch(() => {
           claimingRef.current = false;
         });
       }, 250);
     },
-    [conversationId, sendMessage, workspaceId],
+    [conversationId, workspaceId],
   );
 
   // Subscribe to VPS chat-room SSE stream and load initial room state.
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
     if (!isRemote || !workspaceId || !conversationId || !api?.subscribeChatRoom || !api?.onChatRoomEvent) {
-      setActiveTurn(null);
-      setQueue([]);
+      setActiveTurn((prev) => (prev === null ? prev : null));
+      setQueue((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     let cancelled = false;
@@ -138,7 +142,7 @@ export function useSharedChatRoom({
       setActiveTurn(event.activeTurn);
       setQueue(event.queue);
       if (event.turnEnded) {
-        if (!loadingRef.current) reloadSession();
+        if (!loadingRef.current) reloadSessionRef.current();
         if (!event.activeTurn && event.queue[0]?.self) {
           tryClaimNext(event.queue);
         }
@@ -150,7 +154,7 @@ export function useSharedChatRoom({
       unsubscribe();
       void api.unsubscribeChatRoom?.(workspaceId);
     };
-  }, [conversationId, isRemote, reloadSession, tryClaimNext, workspaceId]);
+  }, [conversationId, isRemote, tryClaimNext, workspaceId]);
 
   // Outbound ~150ms streaming frames while this client is running + release on completion.
   useEffect(() => {
