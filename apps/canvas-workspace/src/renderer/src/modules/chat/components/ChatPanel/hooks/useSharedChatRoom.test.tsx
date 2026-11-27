@@ -128,11 +128,34 @@ describe('useSharedChatRoom streaming deduplication', () => {
         createElement(
           I18nProvider,
           null,
-          createElement(Harness, { messages: [], loading: false, conversationId: 'ws-1', reloadSession }),
+          createElement(Harness, { messages: [], loading: false, conversationId: 'draft-local-1', reloadSession }),
         ),
       );
       await Promise.resolve();
     });
+
+    act(() => {
+      emitEvent?.({
+        workspaceId: 'ws-1',
+        conversationId: 'sess-new-42',
+        activeTurn: {
+          clientId: 'other-mac',
+          senderName: 'Mac',
+          conversationId: 'sess-new-42',
+          prompt: 'hello from Mac',
+          text: 'streaming reply',
+          startedAt: 1,
+          updatedAt: 2,
+          self: false,
+        },
+        queue: [],
+      });
+    });
+
+    // Empty draft session (messages=[]) shows peer's live prompt + streaming assistant bubble.
+    expect(latest?.displayMessages).toHaveLength(2);
+    expect(latest?.displayMessages[0].content).toBe('hello from Mac');
+    expect(latest?.displayMessages[1].content).toBe('streaming reply');
 
     act(() => {
       emitEvent?.({

@@ -297,6 +297,16 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     },
   });
 
+  const draftSessionByScope = new Map<string, string>();
+  const getOrMintDraftSession = (scopeId: string): string => {
+    let id = draftSessionByScope.get(scopeId);
+    if (!id) {
+      id = `vps-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      draftSessionByScope.set(scopeId, id);
+    }
+    return id;
+  };
+
   const agent = createNoopNamespace<CanvasWorkspaceApi['agent']>({
     mcpApps: createNoopNamespace<CanvasWorkspaceApi['agent']['mcpApps']>({
       listEntrypoints: async () => ({ ok: true, entrypoints: [] }),
@@ -348,16 +358,12 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     getCurrentSession: async (scopeRef) => {
       try {
         const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
-        if (session.workspaceId && scopeId !== session.workspaceId) {
-          return { ok: true, sessionId: null };
-        }
+        if (session.workspaceId && scopeId !== session.workspaceId) return { ok: true, sessionId: null };
         const storage = await getStorage();
         const scope = await storage.conversationScopes.read(scopeId);
-        if (scope?.currentSessionId) {
-          return { ok: true, sessionId: scope.currentSessionId };
-        }
+        if (scope?.currentSessionId) return { ok: true, sessionId: scope.currentSessionId };
         const page = await storage.conversations.list(scopeId, { limit: 1 });
-        return { ok: true, sessionId: page.items[0]?.sessionId ?? null };
+        return { ok: true, sessionId: page.items[0]?.sessionId ?? getOrMintDraftSession(scopeId) };
       } catch (err) {
         return { ok: false, sessionId: null, error: err instanceof Error ? err.message : String(err) };
       }
@@ -375,7 +381,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
           const page = await storage.conversations.list(scopeId, { limit: 1 });
           activeId = page.items[0]?.sessionId ?? null;
         }
-        if (!activeId) return { ok: true, messages: [], activeSessionId: null };
+        if (!activeId) return { ok: true, messages: [], activeSessionId: getOrMintDraftSession(scopeId) };
         const conv = await storage.conversations.read(scopeId, activeId);
         return {
           ok: true,

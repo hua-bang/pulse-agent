@@ -75,6 +75,8 @@ export function useSharedChatRoom({
 
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const reloadSessionRef = useRef(reloadSession);
   reloadSessionRef.current = reloadSession;
   const sendMessageRef = useRef(sendMessage);
@@ -162,9 +164,13 @@ export function useSharedChatRoom({
     const unsubscribe = api.onChatRoomEvent((event) => {
       if (cancelled) return;
       // Match exact conversationId, or accept any workspace turn when this client is on an empty
-      // "New AI chat" screen (`conversationId === workspaceId`) so peers see live host streaming.
+      // draft chat (conversationId === workspaceId or messages.length === 0) so peers see live streaming.
       if (event.workspaceId !== workspaceId) return;
-      if (event.conversationId !== conversationId && conversationId !== workspaceId) return;
+      if (
+        event.conversationId !== conversationId
+        && conversationId !== workspaceId
+        && messagesRef.current.length > 0
+      ) return;
       setActiveTurn(event.activeTurn);
       setQueue(event.queue);
       if (event.typingPeers !== undefined) setTypingPeers(event.typingPeers);
