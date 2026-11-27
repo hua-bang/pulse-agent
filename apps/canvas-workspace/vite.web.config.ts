@@ -9,6 +9,7 @@ export default defineConfig({
   base: '/',
   define: {
     __PULSE_CANVAS_AGENT_OBSERVABILITY__: JSON.stringify(false),
+    __PULSE_WEB_HOST__: JSON.stringify(true),
   },
   server: {
     host: '127.0.0.1',

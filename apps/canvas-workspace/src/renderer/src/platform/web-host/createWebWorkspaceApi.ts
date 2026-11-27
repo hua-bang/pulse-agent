@@ -11,6 +11,7 @@ import { createWebRemoteVpsApi } from './chatRoomClient';
 import { scopeIdFromRef, toRemoteFileUri } from './remotePaths';
 import { WEB_HOST_ACTIVE_WS_KEY, type WebHostAuthSession } from './types';
 import { createWebAgentRuntime } from './webAgentClient';
+import { createWebPtyClient } from './webPtyClient';
 
 const MANIFEST_ID = '__workspaces__';
 
@@ -418,7 +419,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     },
     appInfo: createNoopNamespace<CanvasWorkspaceApi['appInfo']>(),
     pluginFlags: {},
-    pty: createNoopNamespace<CanvasWorkspaceApi['pty']>(),
+    pty: createWebPtyClient(session, () => currentWorkspaceId),
     store,
     workspaceNodes: createNoopNamespace<CanvasWorkspaceApi['workspaceNodes']>({
       list: async () => ({ ok: true, nodes: [], tags: [] }),

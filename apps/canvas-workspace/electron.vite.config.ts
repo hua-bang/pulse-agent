@@ -202,6 +202,7 @@ export default defineConfig({
     root: "src/renderer",
     define: {
       __PULSE_CANVAS_AGENT_OBSERVABILITY__: JSON.stringify(agentObservability),
+      __PULSE_WEB_HOST__: JSON.stringify(false),
     },
     build: {
       outDir: "dist/renderer",

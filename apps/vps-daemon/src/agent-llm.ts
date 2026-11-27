@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
 import type { AgentToolSchema } from './agent-tools-schema.js';
 
 export type AgentLlmProvider = 'openai' | 'anthropic';
@@ -10,6 +10,13 @@ export interface AgentLlmConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+}
+
+export interface AgentLlmOverride {
+  provider?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }
 
 export interface LlmToolCall {
@@ -27,6 +34,10 @@ export type LlmMessage =
 export interface LlmStreamResult {
   text: string;
   toolCalls: LlmToolCall[];
+}
+
+function defaultEnvFilePath(): string {
+  return join(homedir(), '.pulse-vps-daemon', '.env');
 }
 
 function readDotEnvFile(filePath: string): Record<string, string> {
@@ -49,12 +60,42 @@ function readDotEnvFile(filePath: string): Record<string, string> {
   }
 }
 
-export function resolveAgentLlmConfig(): AgentLlmConfig | null {
-  const fileEnv = readDotEnvFile(join(homedir(), '.pulse-vps-daemon', '.env'));
+export function saveAgentLlmConfigToEnvFile(
+  input: AgentLlmOverride,
+  envFilePath = defaultEnvFilePath(),
+): void {
+  const existing = readDotEnvFile(envFilePath);
+  const next = { ...existing };
+  if (input.provider === 'openai' || input.provider === 'anthropic') {
+    next.PULSE_AGENT_PROVIDER = input.provider;
+  }
+  if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
+    next.PULSE_AGENT_API_KEY = input.apiKey.trim();
+  }
+  if (typeof input.baseUrl === 'string') {
+    if (input.baseUrl.trim()) next.PULSE_AGENT_BASE_URL = input.baseUrl.trim();
+    else delete next.PULSE_AGENT_BASE_URL;
+  }
+  if (typeof input.model === 'string') {
+    if (input.model.trim()) next.PULSE_AGENT_MODEL = input.model.trim();
+    else delete next.PULSE_AGENT_MODEL;
+  }
+  mkdirSync(dirname(envFilePath), { recursive: true });
+  const lines = Object.entries(next).map(([k, v]) => `${k}=${v.replace(/[\r\n]/g, '')}`);
+  writeFileSync(envFilePath, `${lines.join('\n')}\n`, { encoding: 'utf-8', mode: 0o600 });
+}
+
+export function resolveAgentLlmConfig(override?: AgentLlmOverride): AgentLlmConfig | null {
+  const fileEnv = readDotEnvFile(defaultEnvFilePath());
   const get = (key: string): string => (process.env[key] ?? fileEnv[key] ?? '').trim();
 
-  const explicitProvider = get('PULSE_AGENT_PROVIDER').toLowerCase();
-  const pulseKey = get('PULSE_AGENT_API_KEY');
+  const ovProvider = typeof override?.provider === 'string' ? override.provider.trim().toLowerCase() : '';
+  const ovKey = typeof override?.apiKey === 'string' ? override.apiKey.trim() : '';
+  const ovBase = typeof override?.baseUrl === 'string' ? override.baseUrl.trim() : '';
+  const ovModel = typeof override?.model === 'string' ? override.model.trim() : '';
+
+  const explicitProvider = ovProvider || get('PULSE_AGENT_PROVIDER').toLowerCase();
+  const pulseKey = ovKey || get('PULSE_AGENT_API_KEY');
   const anthropicKey = get('ANTHROPIC_API_KEY');
   const openaiKey = get('OPENAI_API_KEY');
 
@@ -63,7 +104,10 @@ export function resolveAgentLlmConfig(): AgentLlmConfig | null {
     provider = explicitProvider;
   } else if (!pulseKey && anthropicKey && !openaiKey) {
     provider = 'anthropic';
-  } else if (get('PULSE_AGENT_BASE_URL').includes('anthropic') || get('PULSE_AGENT_MODEL').startsWith('claude')) {
+  } else if (
+    (ovBase || get('PULSE_AGENT_BASE_URL')).includes('anthropic') ||
+    (ovModel || get('PULSE_AGENT_MODEL')).startsWith('claude')
+  ) {
     provider = 'anthropic';
   } else {
     provider = 'openai';
@@ -74,12 +118,14 @@ export function resolveAgentLlmConfig(): AgentLlmConfig | null {
 
   const defaultBase = provider === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.openai.com/v1';
   const baseUrl = (
+    ovBase ||
     get('PULSE_AGENT_BASE_URL') ||
     (provider === 'anthropic' ? get('ANTHROPIC_BASE_URL') : get('OPENAI_BASE_URL')) ||
     defaultBase
   ).replace(/\/+$/, '');
 
   const model =
+    ovModel ||
     get('PULSE_AGENT_MODEL') ||
     (provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4.1');
 

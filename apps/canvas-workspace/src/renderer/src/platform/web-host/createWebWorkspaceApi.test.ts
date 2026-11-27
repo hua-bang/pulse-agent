@@ -249,4 +249,45 @@ describe('createWebWorkspaceApi', () => {
     expect(results).toEqual(['canvas_create_node:succeeded']);
     expect(completed).toMatchObject({ ok: true, response: 'Hello world' });
   });
+
+  it('connects Web PTY spawn/stream/write/exit to /v1/pty/* and blocks viewer role', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/v1/pty/spawn')) {
+        return new Response(JSON.stringify({ ok: true, pid: 1234, reused: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/v1/pty/term-1/stream')) {
+        const sse = 'event: data\ndata: {"data":"$ ls\\r\\n"}\n\nevent: exit\ndata: {"exitCode":0}\n\n';
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sse));
+            controller.close();
+          },
+        });
+        return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const viewerApi = createWebWorkspaceApi(createSession({ role: 'viewer', workspaceId: 'ws-1' }));
+    const blocked = await viewerApi.pty.spawn('term-1', 80, 24);
+    expect(blocked.ok).toBe(false);
+
+    const api = createWebWorkspaceApi(createSession({ role: 'collaborator', workspaceId: 'ws-1' }));
+    const chunks: string[] = [];
+    const exitPromise = new Promise<number>((resolve) => {
+      api.pty.onExit('term-1', resolve);
+    });
+    api.pty.onData('term-1', (d) => chunks.push(d));
+
+    const spawned = await api.pty.spawn('term-1', 80, 24);
+    expect(spawned).toEqual({ ok: true, pid: 1234, reused: false });
+    const exitCode = await exitPromise;
+    expect(exitCode).toBe(0);
+    expect(chunks.join('')).toContain('$ ls');
+  });
 });
