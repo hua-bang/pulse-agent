@@ -154,17 +154,17 @@ function mountAuthGate(
               <p class="pulse-web-auth-subtitle">Connect to your VPS daemon to browse workspaces and join the shared chat room.</p>
             </div>
           </div>
-          <label class="pulse-web-auth-field">
+          <label class="pulse-web-auth-row">
             <span>VPS Token or Share Link</span>
             <input id="pulse-web-token" type="password" autocomplete="off" required placeholder="Paste PULSE_VPS_TOKEN or share invite link..." value="" />
           </label>
-          <label class="pulse-web-auth-field">
+          <label class="pulse-web-auth-row">
             <span>Display Name (optional)</span>
             <input id="pulse-web-name" type="text" autocomplete="name" placeholder="e.g. Jasper (Mobile)" value="" />
           </label>
           <details class="pulse-web-auth-advanced" ${defaultEndpoint ? 'open' : ''}>
             <summary>Advanced: Custom VPS Endpoint</summary>
-            <label class="pulse-web-auth-field">
+            <label class="pulse-web-auth-row">
               <span>Endpoint URL (blank = current origin)</span>
               <input id="pulse-web-endpoint" type="url" placeholder="${window.location.origin}" value="" />
             </label>
