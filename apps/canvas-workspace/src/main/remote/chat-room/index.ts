@@ -94,7 +94,10 @@ async function runSseLoop(workspaceId: string, selfId: string, abort: AbortContr
           for (const line of chunk.split('\n')) {
             if (!line.startsWith('data:')) continue;
             try {
-              const parsed = JSON.parse(line.slice(5).trim()) as RemoteVpsChatRoomEvent & { type?: string };
+              const parsed = JSON.parse(line.slice(5).trim()) as RemoteVpsChatRoomEvent & {
+                type?: string;
+                endedByClientId?: string;
+              };
               if (parsed.type === 'chat-room' && parsed.conversationId) {
                 broadcastEvent({
                   workspaceId,
@@ -102,6 +105,7 @@ async function runSseLoop(workspaceId: string, selfId: string, abort: AbortContr
                   activeTurn: markSelfTurn(parsed.activeTurn, selfId),
                   queue: markSelfQueue(parsed.queue, selfId),
                   ...(parsed.turnEnded ? { turnEnded: true } : {}),
+                  ...(parsed.endedByClientId ? { endedBySelf: parsed.endedByClientId === selfId } : {}),
                 });
               }
             } catch {

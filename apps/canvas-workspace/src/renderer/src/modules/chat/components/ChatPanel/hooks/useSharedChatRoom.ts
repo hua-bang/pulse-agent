@@ -23,6 +23,7 @@ interface UseSharedChatRoomOptions {
 }
 
 export interface SharedChatRoomState {
+  chatRoomActive: boolean;
   activeTurn: RemoteVpsChatRoomActiveTurn | null;
   queue: RemoteVpsChatRoomQueuedItem[];
   displayMessages: AgentChatMessage[];
@@ -142,7 +143,7 @@ export function useSharedChatRoom({
       setActiveTurn(event.activeTurn);
       setQueue(event.queue);
       if (event.turnEnded) {
-        if (!loadingRef.current) reloadSessionRef.current();
+        if (!event.endedBySelf && !loadingRef.current) reloadSessionRef.current();
         if (!event.activeTurn && event.queue[0]?.self) {
           tryClaimNext(event.queue);
         }
@@ -156,7 +157,7 @@ export function useSharedChatRoom({
     };
   }, [conversationId, isRemote, tryClaimNext, workspaceId]);
 
-  // Outbound ~150ms streaming frames while this client is running + release on completion.
+  // Outbound ~150ms streaming frames while this client is running + release on completion/unmount.
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
     if (!isRemote || !supported || !workspaceId || !conversationId || !api?.streamChatRoom) return;
@@ -207,7 +208,20 @@ export function useSharedChatRoom({
     if (res.queue) setQueue(res.queue);
     if (res.claimed) {
       heldTurnRef.current = true;
-      return await onSubmit();
+      try {
+        const ok = await onSubmit();
+        if (!ok && !loadingRef.current) {
+          heldTurnRef.current = false;
+          void api.releaseChatRoom?.(workspaceId, conversationId).catch(() => undefined);
+        }
+        return ok;
+      } catch (error) {
+        if (!loadingRef.current) {
+          heldTurnRef.current = false;
+          void api.releaseChatRoom?.(workspaceId, conversationId).catch(() => undefined);
+        }
+        throw error;
+      }
     }
     clearInput();
     return true;
@@ -269,6 +283,7 @@ export function useSharedChatRoom({
 
   if (!isRemote) {
     return {
+      chatRoomActive: false,
       activeTurn: null,
       queue: [],
       displayMessages: messages as AgentChatMessage[],
@@ -279,6 +294,7 @@ export function useSharedChatRoom({
   }
 
   return {
+    chatRoomActive: supported,
     activeTurn,
     queue,
     displayMessages,

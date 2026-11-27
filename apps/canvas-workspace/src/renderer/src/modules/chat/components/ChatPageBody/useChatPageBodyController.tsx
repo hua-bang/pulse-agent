@@ -474,7 +474,7 @@ export const useChatPageBodyController = ({
     },
     viewProps,
     chatRoom: {
-      reloadSession: () => void (activeSessionId ? handleLoadSession(activeSessionId) : retrySession()),
+      reloadSession: () => void (activeSessionId ? handleLoadSession(activeSessionId, undefined, true) : retrySession()),
       sendMessage: (message: string) => sendMessage(message, requestContext),
       clearInput,
     },

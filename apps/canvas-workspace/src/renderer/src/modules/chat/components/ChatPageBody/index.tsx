@@ -54,6 +54,7 @@ export const ChatPageBody = (props: ChatPageBodyProps) => {
                   conversationId={conversationKey ?? ''}
                   messages={messages}
                   loading={loading}
+                  chatRoomActive={sharedRoom.chatRoomActive}
                   roomActiveTurn={sharedRoom.activeTurn}
                   roomQueue={sharedRoom.queue}
                   onCancelQueued={sharedRoom.cancelQueued}
