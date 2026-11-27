@@ -354,31 +354,45 @@ export function useSharedChatRoom({
 
   const displayMessages = useMemo<AgentChatMessage[]>(() => {
     if (!isRemote) return messages as AgentChatMessage[];
-    const hasPeerTurn = Boolean(activeTurn && !activeTurn.self);
+    // Never overlay a peer streaming bubble while this client is already streaming locally.
+    const hasPeerTurn = Boolean(!loading && activeTurn && !activeTurn.self);
     if (!hasPeerTurn && queue.length === 0) {
       return messages as AgentChatMessage[];
     }
     const next = [...messages];
     if (hasPeerTurn && activeTurn) {
       const last = next[next.length - 1];
-      if (activeTurn.prompt && !(last?.role === 'user' && last.content === activeTurn.prompt)) {
-        next.push({
-          role: 'user',
-          senderName: activeTurn.senderName,
-          content: activeTurn.prompt,
-          timestamp: activeTurn.startedAt,
-        });
-      }
-      next.push({
+      const prev = next.length >= 2 ? next[next.length - 2] : undefined;
+      const peerAssistant: AgentChatMessage = {
         role: 'assistant',
         content: activeTurn.text || (activeTurn.toolName ? '' : '…'),
         ...(activeTurn.toolName
           ? { toolCalls: [{ id: 1, name: activeTurn.toolName, status: 'running' as const }] }
           : {}),
         timestamp: activeTurn.updatedAt,
-      });
+      };
+      if (
+        last?.role === 'assistant'
+        && activeTurn.prompt
+        && prev?.role === 'user'
+        && prev.content === activeTurn.prompt
+      ) {
+        next[next.length - 1] = peerAssistant;
+      } else {
+        if (activeTurn.prompt && !(last?.role === 'user' && last.content === activeTurn.prompt)) {
+          next.push({
+            role: 'user',
+            senderName: activeTurn.senderName,
+            content: activeTurn.prompt,
+            timestamp: activeTurn.startedAt,
+          });
+        }
+        next.push(peerAssistant);
+      }
     }
     for (const item of queue) {
+      const alreadyLast = next[next.length - 1];
+      if (alreadyLast?.role === 'user' && alreadyLast.content === item.message) continue;
       next.push({
         role: 'user',
         senderName: item.senderName,
@@ -387,7 +401,7 @@ export function useSharedChatRoom({
       });
     }
     return next;
-  }, [activeTurn, isRemote, messages, queue]);
+  }, [activeTurn, isRemote, loading, messages, queue]);
 
   if (!isRemote) {
     return {
