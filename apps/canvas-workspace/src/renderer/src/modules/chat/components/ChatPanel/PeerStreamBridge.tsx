@@ -1,8 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type {
-  RemoteVpsChatRoomActiveTurn,
-  RemoteVpsChatRoomQueuedItem,
-} from '../../../../../../shared/api/remote-vps';
+import type { RemoteVpsChatRoomActiveTurn } from '../../../../../../shared/api/remote-vps';
 import type { AgentChatMessage } from '../../../../types';
 import { Button } from '../../../../components/ui/Button';
 import { useI18n } from '../../../../i18n';
@@ -16,15 +13,14 @@ interface Props {
   loading: boolean;
   chatRoomActive?: boolean;
   roomActiveTurn?: RemoteVpsChatRoomActiveTurn | null;
-  roomQueue?: readonly RemoteVpsChatRoomQueuedItem[];
-  onCancelQueued?: (itemId: string) => void;
   onNewBranch?: () => void;
   onPeerStreamFinished?: () => void;
 }
 
 /**
- * Syncs live AI streaming state over VPS presence (legacy fallback for older daemons)
- * and renders the compact shared FIFO queue strip when teammates have queued messages.
+ * Legacy VPS presence chat-stream fallback for older daemons without `/v1/chat-room`.
+ * When `chatRoomActive` is true, live replies and queued turns render inline in the
+ * message thread with zero extra chrome.
  */
 export const PeerStreamBridge = ({
   workspaceId,
@@ -33,8 +29,6 @@ export const PeerStreamBridge = ({
   loading,
   chatRoomActive = false,
   roomActiveTurn,
-  roomQueue = [],
-  onCancelQueued,
   onNewBranch,
   onPeerStreamFinished,
 }: Props) => {
@@ -98,52 +92,25 @@ export const PeerStreamBridge = ({
     wasPeerStreamingRef.current = active;
   }, [chatRoomActive, streamingPeer?.chatStream, onPeerStreamFinished]);
 
-  // In chat-room mode, live teammate replies render inline inside the message thread,
-  // so the top strip is only shown when there are queued messages (no redundant blue bar).
-  const showLegacyActive = !chatRoomActive && Boolean(streamingPeer?.chatStream && !roomActiveTurn?.self);
-  const showQueue = roomQueue.length > 0;
-
-  if (!showLegacyActive && !showQueue) return null;
+  // In chat-room mode, both live teammate replies and queued messages render inline
+  // inside the message thread, so PeerStreamBridge renders nothing (legacy fallback only).
+  if (chatRoomActive || !streamingPeer?.chatStream || roomActiveTurn?.self) return null;
 
   return (
     <div className="chat-peer-stream" role="status" aria-live="polite">
-      {showLegacyActive && streamingPeer?.name && (
-        <>
-          <div className="chat-peer-stream__header">
-            <span className="chat-peer-stream__status">
-              <span className="chat-peer-stream__dot" aria-hidden="true" />
-              <span>{t('presence.peerStreaming', { name: streamingPeer.name })}</span>
-            </span>
-            {onNewBranch && (
-              <Button size="sm" variant="secondary" onClick={onNewBranch}>
-                {t('presence.newBranch')}
-              </Button>
-            )}
-          </div>
-          {streamingPeer.chatStream?.text && (
-            <div className="chat-peer-stream__preview">{streamingPeer.chatStream.text}</div>
-          )}
-        </>
-      )}
-      {showQueue && (
-        <div className="chat-peer-stream__queue">
-          <div className="chat-peer-stream__queue-title">
-            {t('chatRoom.queuedLabel', { count: String(roomQueue.length) })}
-          </div>
-          {roomQueue.map((item, idx) => (
-            <div key={item.id} className="chat-peer-stream__queue-item">
-              <span className="chat-peer-stream__queue-sender">
-                #{idx + 1} {item.senderName}
-              </span>
-              <span className="chat-peer-stream__queue-text">{item.message}</span>
-              {item.self && onCancelQueued && (
-                <Button size="sm" variant="secondary" onClick={() => onCancelQueued(item.id)}>
-                  {t('chatRoom.cancelQueued')}
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="chat-peer-stream__header">
+        <span className="chat-peer-stream__status">
+          <span className="chat-peer-stream__dot" aria-hidden="true" />
+          <span>{t('presence.peerStreaming', { name: streamingPeer.name })}</span>
+        </span>
+        {onNewBranch && (
+          <Button size="sm" variant="secondary" onClick={onNewBranch}>
+            {t('presence.newBranch')}
+          </Button>
+        )}
+      </div>
+      {streamingPeer.chatStream.text && (
+        <div className="chat-peer-stream__preview">{streamingPeer.chatStream.text}</div>
       )}
     </div>
   );

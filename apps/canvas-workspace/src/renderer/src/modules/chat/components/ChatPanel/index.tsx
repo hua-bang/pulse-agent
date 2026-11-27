@@ -47,8 +47,6 @@ export const ChatPanel = (props: ChatPanelProps) => {
               loading={loading}
               chatRoomActive={sharedRoom.chatRoomActive}
               roomActiveTurn={sharedRoom.activeTurn}
-              roomQueue={sharedRoom.queue}
-              onCancelQueued={sharedRoom.cancelQueued}
               onNewBranch={viewProps.chrome.onNewSession}
               onPeerStreamFinished={chatRoom.reloadSession}
             />

@@ -275,29 +275,41 @@ export function useSharedChatRoom({
   );
 
   const displayMessages = useMemo<AgentChatMessage[]>(() => {
-    if (!isRemote || !activeTurn || activeTurn.self) {
+    if (!isRemote) return messages as AgentChatMessage[];
+    const hasPeerTurn = Boolean(activeTurn && !activeTurn.self);
+    if (!hasPeerTurn && queue.length === 0) {
       return messages as AgentChatMessage[];
     }
     const next = [...messages];
-    const last = next[next.length - 1];
-    if (activeTurn.prompt && !(last?.role === 'user' && last.content === activeTurn.prompt)) {
+    if (hasPeerTurn && activeTurn) {
+      const last = next[next.length - 1];
+      if (activeTurn.prompt && !(last?.role === 'user' && last.content === activeTurn.prompt)) {
+        next.push({
+          role: 'user',
+          senderName: activeTurn.senderName,
+          content: activeTurn.prompt,
+          timestamp: activeTurn.startedAt,
+        });
+      }
       next.push({
-        role: 'user',
-        senderName: activeTurn.senderName,
-        content: activeTurn.prompt,
-        timestamp: activeTurn.startedAt,
+        role: 'assistant',
+        content: activeTurn.text || (activeTurn.toolName ? '' : '…'),
+        ...(activeTurn.toolName
+          ? { toolCalls: [{ id: 1, name: activeTurn.toolName, status: 'running' as const }] }
+          : {}),
+        timestamp: activeTurn.updatedAt,
       });
     }
-    next.push({
-      role: 'assistant',
-      content: activeTurn.text || (activeTurn.toolName ? '' : '…'),
-      ...(activeTurn.toolName
-        ? { toolCalls: [{ id: 1, name: activeTurn.toolName, status: 'running' as const }] }
-        : {}),
-      timestamp: activeTurn.updatedAt,
-    });
+    for (const item of queue) {
+      next.push({
+        role: 'user',
+        senderName: item.senderName,
+        content: item.message,
+        timestamp: item.createdAt,
+      });
+    }
     return next;
-  }, [activeTurn, isRemote, messages]);
+  }, [activeTurn, isRemote, messages, queue]);
 
   if (!isRemote) {
     return {
