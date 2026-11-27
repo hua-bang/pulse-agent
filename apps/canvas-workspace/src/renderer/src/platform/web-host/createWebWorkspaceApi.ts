@@ -210,7 +210,22 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
         const receipt = await canvasStore.writeCanvas(id, data as LegacyCanvas, { allowEmpty: true });
         return { ok: true, ...receipt };
       } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+        const code =
+          err && typeof err === 'object' && 'code' in err && typeof (err as { code?: unknown }).code === 'string'
+            ? (err as { code: string }).code
+            : 'storage_unavailable';
+        const latest =
+          code === 'revision_conflict'
+            ? ((await getCanvasStore()
+                .then((s) => s.readCanvas(id))
+                .catch(() => null)) as CanvasSaveData | null)
+            : undefined;
+        return {
+          ok: false,
+          code,
+          error: err instanceof Error ? err.message : String(err),
+          ...(latest !== undefined ? { data: latest } : {}),
+        };
       }
     },
     summaries: async (ids) => {

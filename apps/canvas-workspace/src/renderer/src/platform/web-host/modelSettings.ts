@@ -54,7 +54,10 @@ export function openWebModelSettingsModal(session: WebHostAuthSession): void {
         baseUrl: 'Base URL（可选）',
         baseUrlPlaceholder: 'https://api.openai.com/v1',
         model: '模型名称',
-        modelPlaceholder: '例如：gpt-4.1 / claude-sonnet-4-20250514 / deepseek-chat',
+        modelPlaceholder: '输入或点击右侧「拉取模型」选择',
+        fetchModels: '拉取模型',
+        fetchingModels: '拉取中...',
+        pickModel: '选择已拉取的模型…',
         syncVps: '同步保存到 VPS（所有设备免重复配置）',
         save: '保存配置',
         saving: '保存中...',
@@ -72,7 +75,10 @@ export function openWebModelSettingsModal(session: WebHostAuthSession): void {
         baseUrl: 'Base URL (optional)',
         baseUrlPlaceholder: 'https://api.openai.com/v1',
         model: 'Model ID',
-        modelPlaceholder: 'e.g. gpt-4.1 / claude-sonnet-4-20250514',
+        modelPlaceholder: 'Type or click Fetch Models',
+        fetchModels: 'Fetch Models',
+        fetchingModels: 'Fetching...',
+        pickModel: 'Select a fetched model…',
         syncVps: 'Also save to VPS (shared across all devices)',
         save: 'Save Model',
         saving: 'Saving...',
@@ -112,7 +118,11 @@ export function openWebModelSettingsModal(session: WebHostAuthSession): void {
         </label>
         <label class="pulse-web-auth-row">
           <span>${copy.model}</span>
-          <input id="pulse-web-model-id" type="text" autocomplete="off" placeholder="${copy.modelPlaceholder}" />
+          <div class="pulse-web-model-input-row">
+            <input id="pulse-web-model-id" type="text" autocomplete="off" placeholder="${copy.modelPlaceholder}" />
+            <button id="pulse-web-model-fetch" type="button" class="pulse-web-model-fetch">${copy.fetchModels}</button>
+          </div>
+          <select id="pulse-web-model-picker" class="pulse-web-model-select" hidden></select>
         </label>
         ${
           isAdmin
@@ -135,6 +145,8 @@ export function openWebModelSettingsModal(session: WebHostAuthSession): void {
   const keyEl = backdrop.querySelector<HTMLInputElement>('#pulse-web-model-key')!;
   const baseEl = backdrop.querySelector<HTMLInputElement>('#pulse-web-model-base')!;
   const modelEl = backdrop.querySelector<HTMLInputElement>('#pulse-web-model-id')!;
+  const fetchBtn = backdrop.querySelector<HTMLButtonElement>('#pulse-web-model-fetch')!;
+  const pickerEl = backdrop.querySelector<HTMLSelectElement>('#pulse-web-model-picker')!;
   const syncEl = backdrop.querySelector<HTMLInputElement>('#pulse-web-model-sync');
   const errorEl = backdrop.querySelector<HTMLParagraphElement>('#pulse-web-model-error')!;
   const cancelBtn = backdrop.querySelector<HTMLButtonElement>('#pulse-web-model-cancel')!;
@@ -144,6 +156,62 @@ export function openWebModelSettingsModal(session: WebHostAuthSession): void {
   keyEl.value = stored?.apiKey ?? '';
   baseEl.value = stored?.baseUrl ?? '';
   modelEl.value = stored?.model ?? '';
+
+  pickerEl.addEventListener('change', () => {
+    if (pickerEl.value) modelEl.value = pickerEl.value;
+  });
+
+  fetchBtn.addEventListener('click', async () => {
+    errorEl.hidden = true;
+    fetchBtn.disabled = true;
+    fetchBtn.textContent = copy.fetchingModels;
+    try {
+      const res = await fetch(`${session.endpoint}/v1/agent/models`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: providerEl.value === 'anthropic' ? 'anthropic' : 'openai',
+          apiKey: keyEl.value.trim(),
+          baseUrl: baseEl.value.trim(),
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        models?: string[];
+        error?: string;
+      };
+      if (!res.ok || !body.ok || !Array.isArray(body.models)) {
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      pickerEl.innerHTML = '';
+      const placeholderOpt = document.createElement('option');
+      placeholderOpt.value = '';
+      placeholderOpt.textContent = `${copy.pickModel} (${body.models.length})`;
+      pickerEl.appendChild(placeholderOpt);
+      for (const m of body.models) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        pickerEl.appendChild(opt);
+      }
+      pickerEl.hidden = false;
+      if (modelEl.value && body.models.includes(modelEl.value)) {
+        pickerEl.value = modelEl.value;
+      } else if (!modelEl.value && body.models.length > 0) {
+        modelEl.value = body.models[0];
+        pickerEl.value = body.models[0];
+      }
+    } catch (err) {
+      errorEl.textContent = err instanceof Error ? err.message : String(err);
+      errorEl.hidden = false;
+    } finally {
+      fetchBtn.disabled = false;
+      fetchBtn.textContent = copy.fetchModels;
+    }
+  });
 
   // Pre-fill non-secret VPS status if local values are empty.
   void fetch(`${session.endpoint}/v1/agent/status`, {

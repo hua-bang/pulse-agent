@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { saveRemoteWorkspaceConfig, type RemoteVpsWorkspaceConfig } from './config';
 
 export interface SshExecResult {
@@ -98,9 +98,72 @@ export function resolveBundledVpsDaemonPath(): string {
   return found;
 }
 
+const DEFAULT_DAEMON_MANIFEST_URL = 'https://pulse-canvas-web.pages.dev/daemon/latest.json';
+const DAEMON_OTA_CACHE_PATH = join(homedir(), '.pulse-coder', 'cache', 'vps-daemon', 'index.cjs');
+
 export function computeBundledVpsDaemonHash(bundlePath = resolveBundledVpsDaemonPath()): string {
   const bundleBytes = readFileSync(bundlePath);
   return createHash('sha256').update(bundleBytes).digest('hex').slice(0, 16);
+}
+
+/**
+ * Resolve the latest `vps-daemon/index.cjs` bytes: checks the Cloudflare Pages OTA manifest
+ * (with SHA-256 verification and local cache) and falls back cleanly to the bundled copy when
+ * offline or when `explicitBundlePath` is provided.
+ */
+async function resolveLatestVpsDaemonBundle(explicitBundlePath?: string): Promise<{
+  bundleBytes: Buffer;
+  bundleHash: string;
+}> {
+  if (explicitBundlePath) {
+    const bundleBytes = readFileSync(explicitBundlePath);
+    const bundleHash = createHash('sha256').update(bundleBytes).digest('hex').slice(0, 16);
+    return { bundleBytes, bundleHash };
+  }
+
+  const bundledBytes = readFileSync(resolveBundledVpsDaemonPath());
+  const bundledSha = createHash('sha256').update(bundledBytes).digest('hex');
+
+  const manifestUrl = process.env.PULSE_VPS_DAEMON_MANIFEST_URL?.trim() || DEFAULT_DAEMON_MANIFEST_URL;
+  const allowCustomOrigin = Boolean(process.env.PULSE_VPS_DAEMON_MANIFEST_URL?.trim());
+  try {
+    const manifestRes = await fetch(manifestUrl, { signal: AbortSignal.timeout(3_000) });
+    if (manifestRes.ok) {
+      const manifest = (await manifestRes.json()) as { sha256?: string; url?: string };
+      const expectedSha = typeof manifest.sha256 === 'string' ? manifest.sha256.trim().toLowerCase() : '';
+      const downloadUrl = typeof manifest.url === 'string' ? manifest.url.trim() : '';
+      if (/^[a-f0-9]{64}$/.test(expectedSha) && expectedSha !== bundledSha) {
+        if (existsSync(DAEMON_OTA_CACHE_PATH)) {
+          const cached = readFileSync(DAEMON_OTA_CACHE_PATH);
+          if (createHash('sha256').update(cached).digest('hex') === expectedSha) {
+            return { bundleBytes: cached, bundleHash: expectedSha.slice(0, 16) };
+          }
+        }
+        const trustedUrl =
+          allowCustomOrigin || downloadUrl.startsWith('https://pulse-canvas-web.pages.dev/daemon/');
+        if (downloadUrl && trustedUrl) {
+          const binRes = await fetch(downloadUrl, { signal: AbortSignal.timeout(10_000) });
+          if (binRes.ok) {
+            const downloaded = Buffer.from(await binRes.arrayBuffer());
+            const actualSha = createHash('sha256').update(downloaded).digest('hex');
+            if (actualSha === expectedSha) {
+              try {
+                mkdirSync(dirname(DAEMON_OTA_CACHE_PATH), { recursive: true });
+                writeFileSync(DAEMON_OTA_CACHE_PATH, downloaded);
+              } catch {
+                // Non-fatal: proceed even if cache write fails.
+              }
+              return { bundleBytes: downloaded, bundleHash: expectedSha.slice(0, 16) };
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Offline or unreachable: fall back to bundled copy.
+  }
+
+  return { bundleBytes: bundledBytes, bundleHash: bundledSha.slice(0, 16) };
 }
 
 export const defaultSshRunner: SshRunner = async ({
@@ -197,9 +260,7 @@ export async function bootstrapRemoteVpsDaemon(
   const workDir = options.workDir ?? '$HOME';
   const run = options.sshRunner ?? defaultSshRunner;
 
-  const bundlePath = options.daemonBundlePath ?? resolveBundledVpsDaemonPath();
-  const bundleBytes = readFileSync(bundlePath);
-  const bundleHash = createHash('sha256').update(bundleBytes).digest('hex').slice(0, 16);
+  const { bundleBytes, bundleHash } = await resolveLatestVpsDaemonBundle(options.daemonBundlePath);
 
   // 1. Probe remote Node, existing bundle hash, native deps, and health.
   const probeScript = [

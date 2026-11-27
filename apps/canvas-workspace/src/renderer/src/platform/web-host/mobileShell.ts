@@ -115,6 +115,7 @@ export function mountMobileWebShell(api: CanvasWorkspaceApi, session: WebHostAut
 
   const syncModeDataset = () => {
     document.documentElement.dataset.pulseH5Tab = activeTab;
+    window.dispatchEvent(new CustomEvent('pulse-h5-tab-change', { detail: activeTab }));
   };
 
   async function refreshWorkspaces(): Promise<void> {
