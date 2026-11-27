@@ -22,11 +22,17 @@ export interface ChatRoomQueuedItem {
   createdAt: number;
 }
 
+export interface ChatRoomTypingPeer {
+  clientId: string;
+  senderName: string;
+}
+
 export interface ChatRoomSnapshot {
   workspaceId: string;
   conversationId: string;
   activeTurn: ChatRoomActiveTurn | null;
   queue: ChatRoomQueuedItem[];
+  typingPeers?: ChatRoomTypingPeer[];
   turnEnded?: boolean;
   endedByClientId?: string;
 }
@@ -34,6 +40,7 @@ export interface ChatRoomSnapshot {
 interface RoomState {
   activeTurn: ChatRoomActiveTurn | null;
   queue: ChatRoomQueuedItem[];
+  typing: Map<string, { senderName: string; updatedAt: number }>;
 }
 
 interface RoomSubscriber {
@@ -42,6 +49,7 @@ interface RoomSubscriber {
 }
 
 const LEASE_TTL_MS = 20_000;
+const TYPING_TTL_MS = 3_500;
 const MAX_QUEUE_PER_CONVERSATION = 50;
 const MAX_MESSAGE_CHARS = 16_000;
 const MAX_STREAM_PREVIEW_CHARS = 8_000;
@@ -63,11 +71,14 @@ export class ChatRoomHub {
     const k = this.key(workspaceId, conversationId);
     let room = this.rooms.get(k);
     if (!room) {
-      room = { activeTurn: null, queue: [] };
+      room = { activeTurn: null, queue: [], typing: new Map() };
       this.rooms.set(k, room);
     }
     if (room.activeTurn && now - room.activeTurn.updatedAt > LEASE_TTL_MS) {
       room.activeTurn = null;
+    }
+    for (const [cid, entry] of room.typing) {
+      if (now - entry.updatedAt > TYPING_TTL_MS) room.typing.delete(cid);
     }
     return room;
   }
@@ -78,11 +89,16 @@ export class ChatRoomHub {
     room: RoomState,
     endedByClientId?: string,
   ): ChatRoomSnapshot {
+    const typingPeers: ChatRoomTypingPeer[] = [];
+    for (const [clientId, entry] of room.typing) {
+      typingPeers.push({ clientId, senderName: entry.senderName });
+    }
     return {
       workspaceId,
       conversationId,
       activeTurn: room.activeTurn ? { ...room.activeTurn } : null,
       queue: room.queue.map((item) => ({ ...item })),
+      ...(typingPeers.length > 0 ? { typingPeers } : {}),
       ...(endedByClientId ? { turnEnded: true, endedByClientId } : {}),
     };
   }
@@ -236,6 +252,31 @@ export class ChatRoomHub {
     const snap = this.snapshot(workspaceId, conversationId, room);
     this.broadcast(snap);
     return { removed: true, snapshot: snap };
+  }
+
+  setTyping(
+    workspaceId: string,
+    conversationId: string,
+    input: { clientId: string; senderName: string; active: boolean },
+    now = Date.now(),
+  ): ChatRoomSnapshot {
+    const room = this.getOrCreate(workspaceId, conversationId, now);
+    if (input.active) {
+      room.typing.set(input.clientId, { senderName: input.senderName, updatedAt: now });
+    } else {
+      room.typing.delete(input.clientId);
+    }
+    const snap = this.snapshot(workspaceId, conversationId, room);
+    this.broadcast(snap);
+    return snap;
+  }
+
+  notifyNote(workspaceId: string, conversationId: string, clientId: string, now = Date.now()): ChatRoomSnapshot {
+    const room = this.getOrCreate(workspaceId, conversationId, now);
+    room.typing.delete(clientId);
+    const snap = this.snapshot(workspaceId, conversationId, room, clientId);
+    this.broadcast(snap);
+    return snap;
   }
 
   subscribe(req: IncomingMessage, res: ServerResponse, workspaceId: string): void {
@@ -406,6 +447,19 @@ export async function handleChatRoomRequest(
       }
       const result = hub.cancelQueued(wsId, convId, itemId, clientId, principal.kind === 'admin');
       sendJson(res, 200, { ok: true, ...result });
+      return true;
+    }
+
+    if (url.pathname === '/v1/chat-room/typing') {
+      const active = Boolean((body as { active?: boolean }).active);
+      const snapshot = hub.setTyping(wsId, convId, { clientId, senderName, active });
+      sendJson(res, 200, { ok: true, snapshot });
+      return true;
+    }
+
+    if (url.pathname === '/v1/chat-room/note') {
+      const snapshot = hub.notifyNote(wsId, convId, clientId);
+      sendJson(res, 200, { ok: true, snapshot });
       return true;
     }
 

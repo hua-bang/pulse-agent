@@ -5,6 +5,7 @@ import type {
 } from '../../../../../../../shared/api/remote-vps';
 import type { AgentChatMessage, ToolCallStatus } from '../../../../../types';
 import { useAppShell } from '../../../../../shared/appShell';
+import { setSelfSenderName } from '../../../../../shared/remotePresence';
 import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
 
@@ -27,6 +28,9 @@ export interface SharedChatRoomState {
   chatRoomActive: boolean;
   activeTurn: RemoteVpsChatRoomActiveTurn | null;
   queue: RemoteVpsChatRoomQueuedItem[];
+  typingPeers: string[];
+  noteOnly: boolean;
+  toggleNoteOnly: () => void;
   displayMessages: AgentChatMessage[];
   cancelQueued: (itemId: string) => void;
   onSubmit: () => Promise<boolean>;
@@ -66,6 +70,8 @@ export function useSharedChatRoom({
   const [supported, setSupported] = useState(true);
   const [activeTurn, setActiveTurn] = useState<RemoteVpsChatRoomActiveTurn | null>(null);
   const [queue, setQueue] = useState<RemoteVpsChatRoomQueuedItem[]>([]);
+  const [typingPeers, setTypingPeers] = useState<string[]>([]);
+  const [noteOnly, setNoteOnly] = useState(false);
 
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
@@ -131,6 +137,7 @@ export function useSharedChatRoom({
     if (!isRemote || !workspaceId || !conversationId || !api?.subscribeChatRoom || !api?.onChatRoomEvent) {
       setActiveTurn((prev) => (prev === null ? prev : null));
       setQueue((prev) => (prev.length === 0 ? prev : []));
+      setTypingPeers((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     let cancelled = false;
@@ -139,6 +146,7 @@ export function useSharedChatRoom({
     void api.subscribeChatRoom(workspaceId);
     void api.getChatRoomState?.(workspaceId, conversationId).then((res) => {
       if (cancelled || !res) return;
+      if (res.selfName) setSelfSenderName(workspaceId, res.selfName);
       if (res.fallback) {
         setSupported(false);
         return;
@@ -154,6 +162,7 @@ export function useSharedChatRoom({
       if (event.workspaceId !== workspaceId || event.conversationId !== conversationId) return;
       setActiveTurn(event.activeTurn);
       setQueue(event.queue);
+      if (event.typingPeers !== undefined) setTypingPeers(event.typingPeers);
       if (event.turnEnded) {
         if (!event.endedBySelf && !loadingRef.current) reloadSessionRef.current();
         if (!event.activeTurn && event.queue[0]?.self) {
@@ -168,6 +177,35 @@ export function useSharedChatRoom({
       void api.unsubscribeChatRoom?.(workspaceId);
     };
   }, [conversationId, isRemote, tryClaimNext, workspaceId]);
+
+  // Throttled typing indicator while drafting a message on a shared workspace.
+  const lastTypingPingRef = useRef(0);
+  const wasTypingRef = useRef(false);
+  useEffect(() => {
+    const api = window.canvasWorkspace?.remoteVps;
+    if (!isRemote || !supported || !workspaceId || !conversationId || !api?.setChatRoomTyping) return;
+    const active = Boolean(input.trim());
+    if (!active) {
+      if (wasTypingRef.current) {
+        wasTypingRef.current = false;
+        void api.setChatRoomTyping(workspaceId, conversationId, false).catch(() => undefined);
+      }
+      return;
+    }
+    const now = Date.now();
+    if (!wasTypingRef.current || now - lastTypingPingRef.current >= 2_000) {
+      wasTypingRef.current = true;
+      lastTypingPingRef.current = now;
+      void api.setChatRoomTyping(workspaceId, conversationId, true).catch(() => undefined);
+    }
+    const idleTimer = window.setTimeout(() => {
+      if (wasTypingRef.current) {
+        wasTypingRef.current = false;
+        void api.setChatRoomTyping?.(workspaceId, conversationId, false).catch(() => undefined);
+      }
+    }, 3_200);
+    return () => window.clearTimeout(idleTimer);
+  }, [conversationId, input, isRemote, supported, workspaceId]);
 
   // Outbound ~150ms streaming frames while this client is running + release on completion/unmount.
   useEffect(() => {
@@ -205,10 +243,34 @@ export function useSharedChatRoom({
     };
   }, [conversationId, isRemote, loading, supported, workspaceId]);
 
+  const toggleNoteOnly = useCallback(() => {
+    setNoteOnly((prev) => !prev);
+  }, []);
+
   const wrappedOnSubmit = useCallback(async () => {
     const api = window.canvasWorkspace?.remoteVps;
     const trimmed = input.trim();
-    if (!isRemote || !supported || !workspaceId || !conversationId || !api?.enqueueChatRoom || !trimmed || loading) {
+    if (!isRemote || !supported || !workspaceId || !conversationId || !trimmed) {
+      return await onSubmit();
+    }
+    if (wasTypingRef.current) {
+      wasTypingRef.current = false;
+      void api?.setChatRoomTyping?.(workspaceId, conversationId, false).catch(() => undefined);
+    }
+    if (noteOnly && api?.sendChatRoomNote) {
+      const res = await api.sendChatRoomNote(workspaceId, conversationId, trimmed);
+      if (res.forbidden) {
+        notify({ tone: 'info', title: t('chatRoom.viewerReadOnly'), autoCloseMs: 2600 });
+        return false;
+      }
+      if (res.ok) {
+        clearInput();
+        reloadSessionRef.current();
+        return true;
+      }
+      return false;
+    }
+    if (!api?.enqueueChatRoom || loading) {
       return await onSubmit();
     }
     const res = await api.enqueueChatRoom(workspaceId, conversationId, trimmed);
@@ -240,7 +302,7 @@ export function useSharedChatRoom({
     }
     clearInput();
     return true;
-  }, [clearInput, conversationId, input, isRemote, loading, notify, onSubmit, supported, t, workspaceId]);
+  }, [clearInput, conversationId, input, isRemote, loading, noteOnly, notify, onSubmit, supported, t, workspaceId]);
 
   const wrappedOnKeyDown = useCallback<KeyboardEventHandler<HTMLDivElement>>(
     (event) => {
@@ -249,7 +311,7 @@ export function useSharedChatRoom({
         && supported
         && workspaceId
         && conversationId
-        && !loading
+        && (noteOnly || !loading)
         && !mentionOpen
         && input.trim()
         && event.key === 'Enter'
@@ -262,7 +324,7 @@ export function useSharedChatRoom({
       }
       onKeyDown(event);
     },
-    [conversationId, input, isRemote, loading, mentionOpen, onKeyDown, supported, workspaceId, wrappedOnSubmit],
+    [conversationId, input, isRemote, loading, mentionOpen, noteOnly, onKeyDown, supported, workspaceId, wrappedOnSubmit],
   );
 
   const cancelQueued = useCallback(
@@ -316,6 +378,9 @@ export function useSharedChatRoom({
       chatRoomActive: false,
       activeTurn: null,
       queue: [],
+      typingPeers: [],
+      noteOnly: false,
+      toggleNoteOnly,
       displayMessages: messages as AgentChatMessage[],
       cancelQueued,
       onSubmit,
@@ -327,6 +392,9 @@ export function useSharedChatRoom({
     chatRoomActive: supported,
     activeTurn,
     queue,
+    typingPeers,
+    noteOnly,
+    toggleNoteOnly,
     displayMessages,
     cancelQueued,
     onSubmit: wrappedOnSubmit,

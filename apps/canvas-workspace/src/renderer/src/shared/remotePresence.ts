@@ -6,6 +6,7 @@ const EMPTY_PEERS: readonly RemoteVpsPresencePeer[] = [];
 const peersByWorkspace = new Map<string, readonly RemoteVpsPresencePeer[]>();
 const followingByWorkspace = new Map<string, string | null>();
 const viewerReadOnlyByWorkspace = new Map<string, boolean>();
+const selfSenderNameByWorkspace = new Map<string, string>();
 const listeners = new Set<() => void>();
 
 const emit = () => {
@@ -67,6 +68,22 @@ export function useWorkspaceViewerReadOnly(workspaceId: string | null | undefine
     subscribe,
     () => (workspaceId ? viewerReadOnlyByWorkspace.get(workspaceId) ?? false : false),
     () => false,
+  );
+}
+
+export function setSelfSenderName(workspaceId: string, name: string | undefined): void {
+  const trimmed = name?.trim() ?? '';
+  if ((selfSenderNameByWorkspace.get(workspaceId) ?? '') === trimmed) return;
+  if (trimmed) selfSenderNameByWorkspace.set(workspaceId, trimmed);
+  else selfSenderNameByWorkspace.delete(workspaceId);
+  emit();
+}
+
+export function useSelfSenderName(workspaceId: string | null | undefined): string | undefined {
+  return useSyncExternalStore(
+    subscribe,
+    () => (workspaceId ? selfSenderNameByWorkspace.get(workspaceId) : undefined),
+    () => undefined,
   );
 }
 

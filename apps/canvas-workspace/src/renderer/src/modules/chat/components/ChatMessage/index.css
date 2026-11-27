@@ -321,6 +321,31 @@
   flex-shrink: 0;
 }
 
+/* Teammate user messages in shared workspaces align left like group chat. */
+.chat-message-user.chat-message-peer {
+  flex-direction: row;
+}
+
+.chat-message-user.chat-message-peer .chat-message-body {
+  align-items: flex-start;
+}
+
+.chat-message-user.chat-message-peer .chat-message-sender {
+  align-self: flex-start;
+}
+
+.chat-message-user.chat-message-peer .chat-message-toolbar {
+  left: 0;
+  right: auto;
+}
+
+.chat-message-user.chat-message-peer .chat-message-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-right-radius: var(--radius-xl);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
 /* Speaker badge above a role's reply. Inline color/background come from the
    message's speakerRoleColor snapshot; these are the neutral fallbacks. */
 .chat-message-speaker {

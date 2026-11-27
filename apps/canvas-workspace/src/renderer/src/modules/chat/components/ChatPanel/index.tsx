@@ -1,6 +1,7 @@
 import './index.css';
 import { ChatView } from '../ChatView';
 import { PeerStreamBridge } from './PeerStreamBridge';
+import { SharedChatRoomBar } from './SharedChatRoomBar';
 import { useSharedChatRoom } from './hooks/useSharedChatRoom';
 import type { ChatPanelProps } from './types';
 import { useChatPanelController } from './useChatPanelController';
@@ -37,6 +38,14 @@ export const ChatPanel = (props: ChatPanelProps) => {
       }}
       chrome={{
         ...viewProps.chrome,
+        composerAccessory: (
+          <SharedChatRoomBar
+            active={sharedRoom.chatRoomActive}
+            typingPeers={sharedRoom.typingPeers}
+            noteOnly={sharedRoom.noteOnly}
+            onToggleNoteOnly={sharedRoom.toggleNoteOnly}
+          />
+        ),
         banner: (
           <>
             {viewProps.chrome.banner}

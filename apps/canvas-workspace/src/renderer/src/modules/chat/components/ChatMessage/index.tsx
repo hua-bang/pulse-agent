@@ -18,7 +18,7 @@ import { MarkdownContent } from './MarkdownContent';
 import { ChatMessageEditor } from './ChatMessageEditor';
 import { ChatRecoveryConfirm } from './ChatRecoveryConfirm';
 import { selectedTextWithin } from '../../runtime/useAddReplyToCanvas';
-import { peerToneForName } from '../../../../shared/remotePresence';
+import { peerToneForName, useSelfSenderName } from '../../../../shared/remotePresence';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -163,9 +163,16 @@ const ChatMessageView = ({
       onAddImageToCanvas={onAddImageToCanvas}
     />
   );
+  const selfSenderName = useSelfSenderName(workspaceId);
+  const isPeerUser = message.role === 'user'
+    && Boolean(
+      message.senderName
+      && selfSenderName
+      && message.senderName.trim().toLowerCase() !== selfSenderName.trim().toLowerCase(),
+    );
   return (
     <div
-      className={`chat-message chat-message-${message.role}`}
+      className={`chat-message chat-message-${message.role}${isPeerUser ? ' chat-message-peer' : ''}`}
       id={anchorId}
       role="article"
       aria-label={speakerLabel}

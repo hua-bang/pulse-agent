@@ -1,6 +1,7 @@
 import './index.css';
 import { ChatView } from '../ChatView';
 import { PeerStreamBridge } from '../ChatPanel/PeerStreamBridge';
+import { SharedChatRoomBar } from '../ChatPanel/SharedChatRoomBar';
 import { useSharedChatRoom } from '../ChatPanel/hooks/useSharedChatRoom';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import type { ChatPageBodyProps } from './types';
@@ -47,6 +48,14 @@ export const ChatPageBody = (props: ChatPageBodyProps) => {
           }}
           chrome={{
             ...viewProps.chrome,
+            composerAccessory: (
+              <SharedChatRoomBar
+                active={sharedRoom.chatRoomActive}
+                typingPeers={sharedRoom.typingPeers}
+                noteOnly={sharedRoom.noteOnly}
+                onToggleNoteOnly={sharedRoom.toggleNoteOnly}
+              />
+            ),
             banner: (
               <>
                 {viewProps.chrome.banner}
