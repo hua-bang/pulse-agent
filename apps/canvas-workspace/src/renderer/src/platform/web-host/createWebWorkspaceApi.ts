@@ -414,7 +414,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
   return {
     version: session.version ?? 'web',
     runtimeConfig: {
-      perfMode: false,
+      perfMode: typeof window !== 'undefined' && window.innerWidth <= 768,
       webviewInitialLoadConcurrency: 0,
     },
     appInfo: createNoopNamespace<CanvasWorkspaceApi['appInfo']>(),

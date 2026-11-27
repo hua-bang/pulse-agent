@@ -1,4 +1,5 @@
 import './mobile.css';
+import './iosStability.css';
 import { resolveWebHostSession } from './authGate';
 import { createWebWorkspaceApi } from './createWebWorkspaceApi';
 import { mountMobileWebShell } from './mobileShell';
