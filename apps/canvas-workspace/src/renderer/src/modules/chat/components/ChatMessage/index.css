@@ -292,36 +292,39 @@
   color: var(--role-accent-icon);
 }
 
-.chat-message-sender {
-  --sender-tone: var(--accent-frame);
-  display: inline-flex;
+.chat-message-peer-avatar {
+  --peer-tone: var(--accent-frame);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--peer-tone);
+  color: var(--surface);
+  display: flex;
   align-items: center;
-  gap: 5px;
-  align-self: flex-end;
+  justify-content: center;
   font-size: 11px;
   font-weight: 500;
-  line-height: 1.4;
-  margin: 0 2px 3px;
-  padding: 1px 8px 1px 6px;
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  background: var(--surface-alt);
-}
-
-.chat-message-sender--accent { --sender-tone: var(--accent); }
-.chat-message-sender--term { --sender-tone: var(--accent-term); }
-.chat-message-sender--frame { --sender-tone: var(--accent-frame); }
-.chat-message-sender--file { --sender-tone: var(--accent-file); }
-
-.chat-message-sender__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--sender-tone);
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
-/* Teammate user messages in shared workspaces align left like group chat. */
+.chat-message-peer-avatar--accent { --peer-tone: var(--accent); }
+.chat-message-peer-avatar--term { --peer-tone: var(--accent-term); }
+.chat-message-peer-avatar--frame { --peer-tone: var(--accent-frame); }
+.chat-message-peer-avatar--file { --peer-tone: var(--accent-file); }
+
+.chat-message-sender {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 0 0 -2px 2px;
+  color: var(--text-secondary);
+}
+
+/* Teammate user messages in shared workspaces align left with the 26px avatar column. */
 .chat-message-user.chat-message-peer {
   flex-direction: row;
 }
@@ -330,20 +333,15 @@
   align-items: flex-start;
 }
 
-.chat-message-user.chat-message-peer .chat-message-sender {
-  align-self: flex-start;
-}
-
 .chat-message-user.chat-message-peer .chat-message-toolbar {
   left: 0;
   right: auto;
 }
 
 .chat-message-user.chat-message-peer .chat-message-content {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--surface-alt);
   border-bottom-right-radius: var(--radius-xl);
-  border-bottom-left-radius: var(--radius-sm);
+  border-top-left-radius: var(--radius-sm);
 }
 
 /* Speaker badge above a role's reply. Inline color/background come from the

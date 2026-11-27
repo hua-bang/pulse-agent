@@ -52,6 +52,8 @@ interface ChatInputProps {
   onAbort: () => Promise<boolean>;
   /** Focus/navigate to a clicked mention chip's target (node or workspace). */
   onMentionNavigate?: (chip: HTMLElement) => void;
+  /** Optional compact strip rendered inside `.chat-input-container` right above the input box. */
+  composerAccessory?: ReactNode;
 }
 
 /** Node chips already mentioned inline in the draft, which would show the
@@ -108,6 +110,7 @@ export const ChatInput = ({
   onRemoveQueued,
   onAbort,
   onMentionNavigate,
+  composerAccessory,
 }: ChatInputProps) => {
   const { t } = useI18n();
   const fileDrop = useChatFileDrop({
@@ -162,6 +165,7 @@ export const ChatInput = ({
           onRemove={onRemoveQueued}
         />
       )}
+      {composerAccessory}
       <div
         className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}${fileDrop.active ? ' chat-input-box--file-drop' : ''}`}
         onMouseDown={focusInputFromBox}
