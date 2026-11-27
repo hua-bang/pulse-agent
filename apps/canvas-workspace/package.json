@@ -6,8 +6,10 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "pnpm run prepare:agent-tooling && electron-vite dev",
+    "dev:web": "vite --config vite.web.config.ts",
     "dev:temp-home": "pnpm run prepare:agent-tooling && sh -c 'SANDBOX_HOME=\"$(mktemp -d \"${TMPDIR:-/tmp}/pulse-canvas-dev-home.XXXXXX\")\" && echo \"Using HOME=$SANDBOX_HOME\" && HOME=\"$SANDBOX_HOME\" electron-vite dev'",
     "build": "electron-vite build",
+    "build:web": "vite build --config vite.web.config.ts",
     "preview": "pnpm run prepare:agent-tooling && electron-vite preview",
     "rebuild": "node scripts/setup/rebuild-native.mjs",
     "postinstall": "node scripts/setup/rebuild-native.mjs",

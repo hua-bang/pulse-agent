@@ -22,6 +22,7 @@ import {
   ShareTokenStore,
   type AuthPrincipal,
 } from './shares.js';
+import { handleStaticWebRequest } from './static-web.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
 import { handleToolExecRequest } from './tools-rpc.js';
 
@@ -33,6 +34,10 @@ export interface VpsDaemonOptions {
   token: string;
   dataDir: string;
   workDir?: string;
+  /** Optional directory of prebuilt Pulse Canvas Web/H5 static assets to serve at `/`. */
+  webDir?: string;
+  /** Optional allowed CORS origins (e.g. `['https://app.example.com']` or `['*']`) for standalone hosted Web/H5 frontends. */
+  corsOrigins?: string[];
   pollIntervalMs?: number;
   ptySpawner?: PtySpawner;
   writeRuntimeDescriptor?: boolean;
@@ -92,6 +97,10 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const port = options.port ?? 4770;
   const dataDir = resolve(options.dataDir);
   const workDir = resolve(options.workDir ?? dataDir);
+  const webDir = options.webDir?.trim() ? resolve(options.webDir) : null;
+  const allowedCorsOrigins = new Set(
+    (options.corsOrigins ?? []).map((origin) => origin.trim()).filter(Boolean),
+  );
   const bundleHash =
     options.bundleHash?.trim() ||
     process.env.PULSE_VPS_BUNDLE_HASH?.trim() ||
@@ -126,12 +135,37 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
 
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+    const corsRestricted = allowedCorsOrigins.size > 0;
+    const corsAllowed =
+      Boolean(origin) && (!corsRestricted || allowedCorsOrigins.has('*') || allowedCorsOrigins.has(origin));
+    if (corsAllowed) {
+      res.setHeader(
+        'Access-Control-Allow-Origin',
+        !corsRestricted || allowedCorsOrigins.has('*') ? '*' : origin,
+      );
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept');
+      res.setHeader('Access-Control-Max-Age', '600');
+    }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/health') {
       sendJson(res, 200, {
         ok: true,
         version: DAEMON_VERSION,
         ...(bundleHash ? { bundleHash } : {}),
+        ...(webDir ? { webUi: true } : {}),
       });
+      return;
+    }
+
+    if (webDir && (await handleStaticWebRequest(req, res, url, webDir))) {
       return;
     }
 

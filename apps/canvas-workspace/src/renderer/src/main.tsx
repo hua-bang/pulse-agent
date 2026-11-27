@@ -47,7 +47,13 @@ const aroundNav: AroundNavHandler = (navigate, to, options) => {
 
 // A non-English catalog is a separate chunk. Load it before the first render
 // so the first frame is already in the user's language.
-void loadMessages(getInitialLanguage())
+const ensureHostBridge =
+  typeof window !== "undefined" && !window.canvasWorkspace
+    ? import("./platform/web-host").then((mod) => mod.bootstrapWebHost(root))
+    : Promise.resolve();
+
+void ensureHostBridge
+  .then(() => loadMessages(getInitialLanguage()))
   .catch((err) => console.error('[i18n] failed to load the initial language', err))
   .then(() => {
     markOnce("renderer:render-called");

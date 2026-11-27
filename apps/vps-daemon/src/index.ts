@@ -14,6 +14,10 @@ async function main() {
   const dataDir =
     process.env.PULSE_VPS_DATA_DIR?.trim() || join(homedir(), '.pulse-coder', 'canvas');
   const workDir = process.env.PULSE_VPS_WORKDIR?.trim() || homedir();
+  const webDir = process.env.PULSE_VPS_WEB_DIR?.trim() || undefined;
+  const corsOrigins = process.env.PULSE_VPS_CORS_ORIGIN?.split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   const daemon = await startVpsDaemon({
     host,
@@ -21,10 +25,12 @@ async function main() {
     token,
     dataDir,
     workDir,
+    webDir,
+    ...(corsOrigins && corsOrigins.length > 0 ? { corsOrigins } : {}),
     writeRuntimeDescriptor: true,
   });
   console.log(`[vps-daemon] listening on ${daemon.url}`);
-  console.log(`[vps-daemon] dataDir=${dataDir} workDir=${workDir}`);
+  console.log(`[vps-daemon] dataDir=${dataDir} workDir=${workDir}${webDir ? ` webDir=${webDir}` : ''}`);
 
   const shutdown = async (signal: string) => {
     console.log(`[vps-daemon] received ${signal}, shutting down...`);

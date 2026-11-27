@@ -1,0 +1,15 @@
+{
+  "name": "Pulse Canvas",
+  "short_name": "Pulse",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f8f7",
+  "theme_color": "#f8f8f7",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
