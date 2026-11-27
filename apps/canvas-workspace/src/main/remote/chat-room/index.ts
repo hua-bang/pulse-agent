@@ -7,12 +7,21 @@ import type {
 } from '../../../shared/api/remote-vps';
 
 const activeStreams = new Map<string, { refCount: number; abort: AbortController }>();
+const activeLeaseEpochByKey = new Map<string, number>();
+
+function leaseKey(workspaceId: string, conversationId: string): string {
+  return `${workspaceId}::${conversationId}`;
+}
+
+function isSelfClientId(clientId: string | undefined, selfId: string): boolean {
+  return Boolean(clientId && (clientId === selfId || clientId.endsWith(`:${selfId}`)));
+}
 
 function markSelfTurn(
   turn: RemoteVpsChatRoomActiveTurn | null | undefined,
   selfId: string,
 ): RemoteVpsChatRoomActiveTurn | null {
-  return turn ? { ...turn, self: turn.clientId === selfId } : null;
+  return turn ? { ...turn, self: isSelfClientId(turn.clientId, selfId) } : null;
 }
 
 function markSelfQueue(
@@ -20,7 +29,7 @@ function markSelfQueue(
   selfId: string,
 ): RemoteVpsChatRoomQueuedItem[] {
   return Array.isArray(queue)
-    ? queue.map((item) => ({ ...item, self: item.clientId === selfId }))
+    ? queue.map((item) => ({ ...item, self: isSelfClientId(item.clientId, selfId) }))
     : [];
 }
 
@@ -102,7 +111,9 @@ async function runSseLoop(workspaceId: string, selfId: string, abort: AbortContr
               };
               if (parsed.type === 'chat-room' && parsed.conversationId) {
                 const typingPeers = Array.isArray(parsed.typingPeers)
-                  ? parsed.typingPeers.filter((p) => p.clientId !== selfId).map((p) => p.senderName)
+                  ? parsed.typingPeers
+                      .filter((p) => !isSelfClientId(p.clientId, selfId))
+                      .map((p) => p.senderName)
                   : [];
                 broadcastEvent({
                   workspaceId,
@@ -111,7 +122,9 @@ async function runSseLoop(workspaceId: string, selfId: string, abort: AbortContr
                   queue: markSelfQueue(parsed.queue, selfId),
                   typingPeers,
                   ...(parsed.turnEnded ? { turnEnded: true } : {}),
-                  ...(parsed.endedByClientId ? { endedBySelf: parsed.endedByClientId === selfId } : {}),
+                  ...(parsed.endedByClientId
+                    ? { endedBySelf: isSelfClientId(parsed.endedByClientId, selfId) }
+                    : {}),
                 });
               }
             } catch {
@@ -170,11 +183,15 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
         if (!res || res.status === 404) return { ok: true, fallback: true };
         if (res.status === 403) return { ok: false, forbidden: true };
         if (res.status >= 400) return { ok: false, fallback: true };
+        const claimed = Boolean(res.body.claimed);
+        if (claimed && typeof res.body.leaseEpoch === 'number') {
+          activeLeaseEpochByKey.set(leaseKey(p.workspaceId, p.conversationId), res.body.leaseEpoch);
+        }
         return {
           ok: true,
-          claimed: Boolean(res.body.claimed),
+          claimed,
           queuedItem: res.body.queuedItem
-            ? { ...res.body.queuedItem, self: res.body.queuedItem.clientId === selfClientId }
+            ? { ...res.body.queuedItem, self: isSelfClientId(res.body.queuedItem.clientId, selfClientId) }
             : undefined,
           activeTurn: markSelfTurn(res.body.snapshot?.activeTurn, selfClientId),
           queue: markSelfQueue(res.body.snapshot?.queue, selfClientId),
@@ -194,11 +211,15 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
           popNext: Boolean(p.popNext),
         });
         if (!res || res.status >= 400) return { ok: false, claimed: false };
+        const claimed = Boolean(res.body.claimed);
+        if (claimed && typeof res.body.leaseEpoch === 'number') {
+          activeLeaseEpochByKey.set(leaseKey(p.workspaceId, p.conversationId), res.body.leaseEpoch);
+        }
         return {
           ok: true,
-          claimed: Boolean(res.body.claimed),
+          claimed,
           nextItem: res.body.nextItem
-            ? { ...res.body.nextItem, self: res.body.nextItem.clientId === selfClientId }
+            ? { ...res.body.nextItem, self: isSelfClientId(res.body.nextItem.clientId, selfClientId) }
             : undefined,
           activeTurn: markSelfTurn(res.body.snapshot?.activeTurn, selfClientId),
           queue: markSelfQueue(res.body.snapshot?.queue, selfClientId),
@@ -213,11 +234,18 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
     'remote-vps:chatRoomStream',
     async (_e, p: { workspaceId: string; conversationId: string; text: string; toolName?: string }) => {
       try {
+        const key = leaseKey(p.workspaceId, p.conversationId);
+        const leaseEpoch = activeLeaseEpochByKey.get(key);
         const res = await postChatRoom(p.workspaceId, 'stream', selfClientId, {
           conversationId: p.conversationId,
           text: p.text,
           ...(p.toolName ? { toolName: p.toolName } : {}),
+          ...(leaseEpoch !== undefined ? { leaseEpoch } : {}),
         });
+        if (res?.status === 409) {
+          activeLeaseEpochByKey.delete(key);
+          return { ok: false, staleLease: true };
+        }
         return { ok: Boolean(res && res.status < 400) };
       } catch {
         return { ok: false };
@@ -228,9 +256,13 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
   ipcMain.handle(
     'remote-vps:chatRoomRelease',
     async (_e, p: { workspaceId: string; conversationId: string }) => {
+      const key = leaseKey(p.workspaceId, p.conversationId);
+      const leaseEpoch = activeLeaseEpochByKey.get(key);
+      activeLeaseEpochByKey.delete(key);
       try {
         const res = await postChatRoom(p.workspaceId, 'release', selfClientId, {
           conversationId: p.conversationId,
+          ...(leaseEpoch !== undefined ? { leaseEpoch } : {}),
         });
         return { ok: Boolean(res && res.status < 400) };
       } catch {

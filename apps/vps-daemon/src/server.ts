@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -17,6 +17,8 @@ import {
   canWriteWorkspace,
   isSafeWorkspaceId,
   isValidShareRole,
+  resolvePrincipalName,
+  scopeClientId,
   ShareTokenStore,
   type AuthPrincipal,
 } from './shares.js';
@@ -210,8 +212,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
             sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId and clientId are required' });
             return;
           }
-          const rawName = typeof body.name === 'string' ? body.name.trim().slice(0, 64) : '';
-          const fallbackName = principal.kind === 'share' ? principal.share.label || 'Guest' : 'Owner';
+          const rawName = typeof body.name === 'string' ? body.name : undefined;
           const activeNodeId = typeof body.activeNodeId === 'string' && body.activeNodeId.trim()
             ? body.activeNodeId.trim().slice(0, 128)
             : undefined;
@@ -227,8 +228,8 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
               ? { conversationId: cs.conversationId.trim().slice(0, 128), text: cs.text.slice(0, 4000) }
               : undefined;
           const peers = presenceHub.upsert(wsId, {
-            clientId,
-            name: rawName || fallbackName,
+            clientId: scopeClientId(principal, clientId),
+            name: resolvePrincipalName(principal, rawName),
             role: principal.kind === 'admin' ? 'admin' : principal.share.role,
             activeNodeId,
             viewport,
@@ -242,12 +243,12 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
       }
       if (req.method === 'DELETE' && url.pathname.startsWith('/v1/presence/')) {
         const wsId = tokenWs || queryWs;
-        const clientId = decodeURIComponent(url.pathname.slice('/v1/presence/'.length)).trim();
-        if (!isSafeWorkspaceId(wsId) || (tokenWs && queryWs && queryWs !== tokenWs) || !clientId) {
+        const rawClientId = decodeURIComponent(url.pathname.slice('/v1/presence/'.length)).trim();
+        if (!isSafeWorkspaceId(wsId) || (tokenWs && queryWs && queryWs !== tokenWs) || !rawClientId) {
           sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId and clientId are required' });
           return;
         }
-        presenceHub.remove(wsId, clientId);
+        presenceHub.remove(wsId, scopeClientId(principal, rawClientId));
         sendJson(res, 200, { ok: true });
         return;
       }
@@ -325,9 +326,23 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         const expanded = !rawPath || rawPath === '~'
           ? workDir || home
           : rawPath.startsWith('~/')
-            ? join(home, rawPath.slice(2))
+            ? join(principal.kind === 'share' ? workDir : home, rawPath.slice(2))
             : rawPath;
         const targetDir = resolve(expanded);
+        if (principal.kind === 'share') {
+          const [realWorkDir, realTargetDir] = await Promise.all([
+            realpath(workDir).catch(() => workDir),
+            realpath(targetDir).catch(() => targetDir),
+          ]);
+          if (!isPathWithin(workDir, targetDir) || !isPathWithin(realWorkDir, realTargetDir)) {
+            sendJson(res, 403, {
+              ok: false,
+              code: 'forbidden',
+              message: 'Share token cannot browse directories outside workDir',
+            });
+            return;
+          }
+        }
         const dirents = await readdir(targetDir, { withFileTypes: true });
         const entries: Array<{ name: string; path: string; hidden: boolean }> = [];
         for (const dirent of dirents) {
@@ -349,11 +364,12 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         }
         entries.sort((a, b) => a.name.localeCompare(b.name));
         const parentDir = dirname(targetDir);
+        const allowParent = parentDir !== targetDir && (principal.kind === 'admin' || isPathWithin(workDir, parentDir));
         sendJson(res, 200, {
           ok: true,
           path: targetDir,
-          parent: parentDir !== targetDir ? parentDir : null,
-          home,
+          parent: allowParent ? parentDir : null,
+          home: principal.kind === 'share' ? workDir : home,
           entries,
         });
       } catch (err) {

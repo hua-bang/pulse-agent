@@ -63,6 +63,30 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
+/**
+ * Namespace client-supplied `clientId` under the authenticated principal so no
+ * share guest can spoof, release, cancel, or delete another principal's state.
+ */
+export function scopeClientId(principal: AuthPrincipal, rawClientId: string): string {
+  const clean = rawClientId.trim().slice(0, 64);
+  return principal.kind === 'admin'
+    ? `admin:${clean}`
+    : `share:${principal.share.id}:${clean}`;
+}
+
+/**
+ * Bind display name to the authenticated principal: share tokens with a label
+ * cannot impersonate another teammate by supplying an arbitrary name.
+ */
+export function resolvePrincipalName(principal: AuthPrincipal, rawName?: string): string {
+  const supplied = typeof rawName === 'string' ? rawName.trim().slice(0, 64) : '';
+  if (principal.kind === 'share') {
+    const label = principal.share.label?.trim().slice(0, 64);
+    return label || supplied || 'Guest';
+  }
+  return supplied || 'Owner';
+}
+
 export function isValidShareRole(role: unknown): role is ShareRole {
   return typeof role === 'string' && VALID_ROLES.has(role as ShareRole);
 }

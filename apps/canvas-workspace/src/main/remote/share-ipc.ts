@@ -9,8 +9,12 @@ import { consumePendingJoinLinks } from '../default-browser/deep-link';
 
 const PROCESS_CLIENT_ID = `c_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 
+function isSelfClientId(clientId: string): boolean {
+  return clientId === PROCESS_CLIENT_ID || clientId.endsWith(`:${PROCESS_CLIENT_ID}`);
+}
+
 function markSelf(peers: RemoteVpsPresencePeer[]): RemoteVpsPresencePeer[] {
-  return peers.map((peer) => (peer.clientId === PROCESS_CLIENT_ID ? { ...peer, self: true } : peer));
+  return peers.map((peer) => (isSelfClientId(peer.clientId) ? { ...peer, self: true } : peer));
 }
 
 export function setupRemoteVpsShareIpc(): void {
