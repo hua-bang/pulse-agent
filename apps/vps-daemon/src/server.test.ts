@@ -982,7 +982,7 @@ describe('vps-daemon end-to-end', () => {
       headers: adminHeaders,
       body: JSON.stringify({ workspaceId: 'ws-presence', role: 'editor', label: 'Alex' }),
     });
-    const { share } = (await shareRes.json()) as { share: { token: string } };
+    const { share } = (await shareRes.json()) as { share: { id: string; token: string } };
     const shareHeaders = { Authorization: `Bearer ${share.token}`, 'Content-Type': 'application/json' };
 
     // Admin publishes presence on ws-presence.
@@ -999,12 +999,13 @@ describe('vps-daemon end-to-end', () => {
     });
     expect(ownerUpsert.status).toBe(200);
 
-    // Scoped share guest publishes presence without needing to supply name (falls back to share label).
+    // Scoped share guest publishes presence; server locks name to share label even if client sends a fake name.
     const guestUpsert = await fetch(`${daemon.url}/v1/presence`, {
       method: 'POST',
       headers: shareHeaders,
       body: JSON.stringify({
         clientId: 'guest-1',
+        name: 'FakeAdmin',
         activeNodeId: 'node-b',
       }),
     });
@@ -1015,17 +1016,28 @@ describe('vps-daemon end-to-end', () => {
     };
     expect(guestJson.ok).toBe(true);
     expect(guestJson.peers).toHaveLength(2);
-    expect(guestJson.peers.find((p) => p.clientId === 'guest-1')).toMatchObject({
+    expect(guestJson.peers.find((p) => p.clientId === `share:${share.id}:guest-1`)).toMatchObject({
       name: 'Alex',
       role: 'editor',
       activeNodeId: 'node-b',
     });
-    expect(guestJson.peers.find((p) => p.clientId === 'owner-1')).toMatchObject({
+    expect(guestJson.peers.find((p) => p.clientId === 'admin:owner-1')).toMatchObject({
       name: 'Huabang',
       role: 'admin',
       activeNodeId: 'node-a',
       viewport: { x: 100, y: 200, scale: 1.2 },
     });
+
+    // Share guest cannot kick the owner by forging owner-1 in DELETE /v1/presence/:id.
+    const kickAttempt = await fetch(`${daemon.url}/v1/presence/owner-1`, {
+      method: 'DELETE',
+      headers: shareHeaders,
+    });
+    expect(kickAttempt.status).toBe(200);
+    const afterKickAttempt = (await (
+      await fetch(`${daemon.url}/v1/presence?workspaceId=ws-presence`, { headers: adminHeaders })
+    ).json()) as { ok: boolean; peers: Array<{ clientId: string }> };
+    expect(afterKickAttempt.peers.map((p) => p.clientId)).toContain('admin:owner-1');
 
     // Cross-workspace presence access with scoped share token is rejected.
     const crossWs = await fetch(`${daemon.url}/v1/presence?workspaceId=ws-other`, {
@@ -1043,10 +1055,10 @@ describe('vps-daemon end-to-end', () => {
     const afterLeave = (await (
       await fetch(`${daemon.url}/v1/presence?workspaceId=ws-presence`, { headers: adminHeaders })
     ).json()) as { ok: boolean; peers: Array<{ clientId: string }> };
-    expect(afterLeave.peers.map((p) => p.clientId)).toEqual(['owner-1']);
+    expect(afterLeave.peers.map((p) => p.clientId)).toEqual(['admin:owner-1']);
   });
 
-  it('coordinates shared chat-room turns, FIFO queue, stream updates, and viewer 403', async () => {
+  it('coordinates shared chat-room turns, FIFO queue, fencing tokens, anti-spoofing, and viewer 403', async () => {
     const { daemon, token } = await boot();
     const adminHeaders = {
       Authorization: `Bearer ${token}`,
@@ -1059,14 +1071,14 @@ describe('vps-daemon end-to-end', () => {
         headers: adminHeaders,
         body: JSON.stringify({ workspaceId: 'ws-room', role: 'editor', label: 'Bob' }),
       })
-    ).json()) as { ok: boolean; share: { token: string } };
+    ).json()) as { ok: boolean; share: { id: string; token: string } };
     const viewerShare = (await (
       await fetch(`${daemon.url}/v1/shares`, {
         method: 'POST',
         headers: adminHeaders,
         body: JSON.stringify({ workspaceId: 'ws-room', role: 'viewer', label: 'Eve' }),
       })
-    ).json()) as { ok: boolean; share: { token: string } };
+    ).json()) as { ok: boolean; share: { id: string; token: string } };
 
     const editorHeaders = {
       Authorization: `Bearer ${editorShare.share.token}`,
@@ -1085,7 +1097,7 @@ describe('vps-daemon end-to-end', () => {
     });
     expect(viewerRes.status).toBe(403);
 
-    // Owner enqueues when idle -> immediately claims activeTurn.
+    // Owner enqueues when idle -> immediately claims activeTurn with monotonic leaseEpoch.
     const first = (await (
       await fetch(`${daemon.url}/v1/chat-room/enqueue`, {
         method: 'POST',
@@ -1098,16 +1110,40 @@ describe('vps-daemon end-to-end', () => {
           message: 'first question',
         }),
       })
-    ).json()) as { ok: boolean; claimed: boolean; snapshot: { activeTurn: { clientId: string; senderName: string } | null; queue: unknown[] } };
+    ).json()) as {
+      ok: boolean;
+      claimed: boolean;
+      leaseEpoch?: number;
+      snapshot: { activeTurn: { clientId: string; senderName: string; leaseEpoch: number } | null; queue: unknown[] };
+    };
     expect(first.ok).toBe(true);
     expect(first.claimed).toBe(true);
+    expect(first.leaseEpoch).toBe(1);
     expect(first.snapshot.activeTurn).toMatchObject({
-      clientId: 'alice-1',
+      clientId: 'admin:alice-1',
       senderName: 'Alice',
       prompt: 'first question',
+      leaseEpoch: 1,
     });
 
-    // Bob enqueues while Alice holds the turn -> queued in FIFO order.
+    // Bob cannot spoof Alice's clientId to hijack/release Alice's active turn.
+    const spoofRelease = await fetch(`${daemon.url}/v1/chat-room/release`, {
+      method: 'POST',
+      headers: editorHeaders,
+      body: JSON.stringify({
+        conversationId: 'conv-1',
+        clientId: 'alice-1',
+      }),
+    });
+    expect(spoofRelease.status).toBe(409);
+    const afterSpoofState = (await (
+      await fetch(`${daemon.url}/v1/chat-room/state?workspaceId=ws-room&conversationId=conv-1`, {
+        headers: adminHeaders,
+      })
+    ).json()) as { activeTurn: { clientId: string } | null };
+    expect(afterSpoofState.activeTurn?.clientId).toBe('admin:alice-1');
+
+    // Bob enqueues while Alice holds the turn -> queued in FIFO order, senderName locked to share label 'Bob'.
     const second = (await (
       await fetch(`${daemon.url}/v1/chat-room/enqueue`, {
         method: 'POST',
@@ -1115,6 +1151,7 @@ describe('vps-daemon end-to-end', () => {
         body: JSON.stringify({
           conversationId: 'conv-1',
           clientId: 'bob-1',
+          senderName: 'Impostor',
           message: 'follow up from Bob',
         }),
       })
@@ -1124,7 +1161,21 @@ describe('vps-daemon end-to-end', () => {
     expect(second.queuedItem.senderName).toBe('Bob');
     expect(second.snapshot.queue).toHaveLength(1);
 
-    // Alice streams text updates.
+    // Stale leaseEpoch on /stream is rejected with 409 stale_lease.
+    const staleStream = await fetch(`${daemon.url}/v1/chat-room/stream`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        workspaceId: 'ws-room',
+        conversationId: 'conv-1',
+        clientId: 'alice-1',
+        text: 'stale write',
+        leaseEpoch: 999,
+      }),
+    });
+    expect(staleStream.status).toBe(409);
+
+    // Alice streams text updates with valid leaseEpoch.
     const streamed = (await (
       await fetch(`${daemon.url}/v1/chat-room/stream`, {
         method: 'POST',
@@ -1135,12 +1186,26 @@ describe('vps-daemon end-to-end', () => {
           clientId: 'alice-1',
           senderName: 'Alice',
           text: 'Working on it...',
+          leaseEpoch: first.leaseEpoch,
         }),
       })
     ).json()) as { ok: boolean; snapshot: { activeTurn: { text: string } | null } };
     expect(streamed.snapshot.activeTurn?.text).toBe('Working on it...');
 
-    // Alice releases turn -> Bob claims and pops his queued message.
+    // Stale leaseEpoch on /release is rejected with 409 stale_lease without clearing Alice's turn.
+    const staleRelease = await fetch(`${daemon.url}/v1/chat-room/release`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        workspaceId: 'ws-room',
+        conversationId: 'conv-1',
+        clientId: 'alice-1',
+        leaseEpoch: 999,
+      }),
+    });
+    expect(staleRelease.status).toBe(409);
+
+    // Alice releases turn with matching leaseEpoch -> Bob claims and pops his queued message with leaseEpoch 2.
     const released = (await (
       await fetch(`${daemon.url}/v1/chat-room/release`, {
         method: 'POST',
@@ -1149,6 +1214,7 @@ describe('vps-daemon end-to-end', () => {
           workspaceId: 'ws-room',
           conversationId: 'conv-1',
           clientId: 'alice-1',
+          leaseEpoch: first.leaseEpoch,
         }),
       })
     ).json()) as { ok: boolean; snapshot: { activeTurn: unknown; turnEnded?: boolean; queue: unknown[] } };
@@ -1166,10 +1232,56 @@ describe('vps-daemon end-to-end', () => {
           popNext: true,
         }),
       })
-    ).json()) as { ok: boolean; claimed: boolean; nextItem?: { message: string }; snapshot: { queue: unknown[] } };
+    ).json()) as { ok: boolean; claimed: boolean; leaseEpoch?: number; nextItem?: { message: string }; snapshot: { queue: unknown[] } };
     expect(bobClaim.claimed).toBe(true);
+    expect(bobClaim.leaseEpoch).toBe(2);
     expect(bobClaim.nextItem?.message).toBe('follow up from Bob');
     expect(bobClaim.snapshot.queue).toHaveLength(0);
   });
+
+  it('confines GET /v1/fs/list-dirs within workDir and blocks symlink escape for share tokens', async () => {
+    const { daemon, token, root } = await boot();
+    const adminHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    const subDir = join(root, 'inside-sub');
+    const outsideDir = await mkdtemp(join(tmpdir(), 'pulse-vps-outside-'));
+    cleanups.push(async () => {
+      await rm(outsideDir, { recursive: true, force: true });
+    });
+    await mkdir(subDir, { recursive: true });
+    await symlink(outsideDir, join(root, 'escape-link'));
+
+    const collabShare = (await (
+      await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-fs', role: 'collaborator', label: 'Collab' }),
+      })
+    ).json()) as { share: { token: string } };
+    const collabHeaders = { Authorization: `Bearer ${collabShare.share.token}` };
+
+    // Listing workDir itself succeeds, clamps parent to null, and sets home to workDir.
+    const rootRes = await fetch(`${daemon.url}/v1/fs/list-dirs`, { headers: collabHeaders });
+    expect(rootRes.status).toBe(200);
+    const rootBody = (await rootRes.json()) as { ok: boolean; path: string; parent: string | null; home: string };
+    expect(rootBody.ok).toBe(true);
+    expect(rootBody.parent).toBeNull();
+    expect(rootBody.home).toBe(rootBody.path);
+
+    // Listing a subdirectory inside workDir succeeds and returns workDir as parent.
+    const subRes = await fetch(`${daemon.url}/v1/fs/list-dirs?path=${encodeURIComponent(subDir)}`, {
+      headers: collabHeaders,
+    });
+    expect(subRes.status).toBe(200);
+
+    // Listing outside workDir (/, /tmp, outsideDir, or symlink escape) is blocked with 403.
+    for (const forbidden of ['/', outsideDir, join(root, 'escape-link')]) {
+      const res = await fetch(`${daemon.url}/v1/fs/list-dirs?path=${encodeURIComponent(forbidden)}`, {
+        headers: collabHeaders,
+      });
+      expect(res.status, `GET /v1/fs/list-dirs?path=${forbidden}`).toBe(403);
+    }
+  });
 });
+
 

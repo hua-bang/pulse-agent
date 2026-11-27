@@ -1,12 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readJsonBody, sendJson } from './auth.js';
-import { isSafeWorkspaceId, type AuthPrincipal } from './shares.js';
+import {
+  isSafeWorkspaceId,
+  resolvePrincipalName,
+  scopeClientId,
+  type AuthPrincipal,
+} from './shares.js';
 
 export interface ChatRoomActiveTurn {
   clientId: string;
   senderName: string;
   conversationId: string;
+  /** Monotonic fencing token incremented on every new turn grant. */
+  leaseEpoch: number;
   prompt?: string;
   text: string;
   toolName?: string;
@@ -41,6 +48,7 @@ interface RoomState {
   activeTurn: ChatRoomActiveTurn | null;
   queue: ChatRoomQueuedItem[];
   typing: Map<string, { senderName: string; updatedAt: number }>;
+  epochSeq: number;
 }
 
 interface RoomSubscriber {
@@ -56,12 +64,13 @@ const MAX_STREAM_PREVIEW_CHARS = 8_000;
 
 /**
  * In-memory coordinator for multi-human x single-agent shared conversations.
- * Serializes turns per (workspaceId, conversationId) via a renewable lease + FIFO
- * queue and fans out state/stream frames immediately over SSE.
+ * Serializes turns per (workspaceId, conversationId) via a renewable lease with
+ * monotonic fencing tokens (`leaseEpoch`) + FIFO queue and fans out SSE frames.
  */
 export class ChatRoomHub {
   private readonly rooms = new Map<string, RoomState>();
   private readonly subscribers = new Set<RoomSubscriber>();
+  private eventSeq = 0;
 
   private key(workspaceId: string, conversationId: string): string {
     return `${workspaceId}::${conversationId}`;
@@ -71,7 +80,7 @@ export class ChatRoomHub {
     const k = this.key(workspaceId, conversationId);
     let room = this.rooms.get(k);
     if (!room) {
-      room = { activeTurn: null, queue: [], typing: new Map() };
+      room = { activeTurn: null, queue: [], typing: new Map(), epochSeq: 0 };
       this.rooms.set(k, room);
     }
     if (room.activeTurn && now - room.activeTurn.updatedAt > LEASE_TTL_MS) {
@@ -104,7 +113,8 @@ export class ChatRoomHub {
   }
 
   private broadcast(snapshot: ChatRoomSnapshot): void {
-    const frame = `data: ${JSON.stringify({ type: 'chat-room', ...snapshot })}\n\n`;
+    const id = ++this.eventSeq;
+    const frame = `id: ${id}\ndata: ${JSON.stringify({ type: 'chat-room', ...snapshot })}\n\n`;
     for (const sub of this.subscribers) {
       if (sub.workspaceId !== snapshot.workspaceId) continue;
       try {
@@ -125,13 +135,15 @@ export class ChatRoomHub {
     conversationId: string,
     input: { clientId: string; senderName: string; message: string },
     now = Date.now(),
-  ): { claimed: boolean; queuedItem?: ChatRoomQueuedItem; snapshot: ChatRoomSnapshot } {
+  ): { claimed: boolean; leaseEpoch?: number; queuedItem?: ChatRoomQueuedItem; snapshot: ChatRoomSnapshot } {
     const room = this.getOrCreate(workspaceId, conversationId, now);
     if (!room.activeTurn && room.queue.length === 0) {
+      const leaseEpoch = ++room.epochSeq;
       room.activeTurn = {
         clientId: input.clientId,
         senderName: input.senderName,
         conversationId,
+        leaseEpoch,
         prompt: input.message.slice(0, MAX_MESSAGE_CHARS),
         text: '',
         startedAt: now,
@@ -139,7 +151,7 @@ export class ChatRoomHub {
       };
       const snap = this.snapshot(workspaceId, conversationId, room);
       this.broadcast(snap);
-      return { claimed: true, snapshot: snap };
+      return { claimed: true, leaseEpoch, snapshot: snap };
     }
 
     const item: ChatRoomQueuedItem = {
@@ -163,7 +175,7 @@ export class ChatRoomHub {
     conversationId: string,
     input: { clientId: string; senderName: string; popNext?: boolean },
     now = Date.now(),
-  ): { claimed: boolean; nextItem?: ChatRoomQueuedItem; snapshot: ChatRoomSnapshot } {
+  ): { claimed: boolean; leaseEpoch?: number; nextItem?: ChatRoomQueuedItem; snapshot: ChatRoomSnapshot } {
     const room = this.getOrCreate(workspaceId, conversationId, now);
     if (room.activeTurn && room.activeTurn.clientId !== input.clientId) {
       return { claimed: false, snapshot: this.snapshot(workspaceId, conversationId, room) };
@@ -178,37 +190,48 @@ export class ChatRoomHub {
       nextItem = room.queue.shift();
     }
 
-    const prompt = nextItem?.message ?? (room.activeTurn?.clientId === input.clientId ? room.activeTurn.prompt : undefined);
+    const sameHolder = room.activeTurn?.clientId === input.clientId;
+    const leaseEpoch = sameHolder && !nextItem ? room.activeTurn!.leaseEpoch : ++room.epochSeq;
+    const prompt = nextItem?.message ?? (sameHolder ? room.activeTurn!.prompt : undefined);
     room.activeTurn = {
       clientId: input.clientId,
       senderName: input.senderName,
       conversationId,
+      leaseEpoch,
       ...(prompt ? { prompt } : {}),
-      text: room.activeTurn?.clientId === input.clientId ? room.activeTurn.text : '',
-      toolName: room.activeTurn?.clientId === input.clientId ? room.activeTurn.toolName : undefined,
-      startedAt: room.activeTurn?.clientId === input.clientId ? room.activeTurn.startedAt : now,
+      text: sameHolder && !nextItem ? room.activeTurn!.text : '',
+      toolName: sameHolder && !nextItem ? room.activeTurn!.toolName : undefined,
+      startedAt: sameHolder && !nextItem ? room.activeTurn!.startedAt : now,
       updatedAt: now,
     };
     const snap = this.snapshot(workspaceId, conversationId, room);
     this.broadcast(snap);
-    return { claimed: true, ...(nextItem ? { nextItem } : {}), snapshot: snap };
+    return { claimed: true, leaseEpoch, ...(nextItem ? { nextItem } : {}), snapshot: snap };
   }
 
   updateStream(
     workspaceId: string,
     conversationId: string,
-    input: { clientId: string; senderName: string; text: string; toolName?: string },
+    input: { clientId: string; senderName: string; text: string; toolName?: string; leaseEpoch?: number },
     now = Date.now(),
-  ): ChatRoomSnapshot {
+  ): { stale?: boolean; snapshot: ChatRoomSnapshot } {
     const room = this.getOrCreate(workspaceId, conversationId, now);
     if (room.activeTurn && room.activeTurn.clientId !== input.clientId) {
-      return this.snapshot(workspaceId, conversationId, room);
+      return { stale: true, snapshot: this.snapshot(workspaceId, conversationId, room) };
     }
+    if (
+      input.leaseEpoch !== undefined
+      && (!room.activeTurn || room.activeTurn.leaseEpoch !== input.leaseEpoch)
+    ) {
+      return { stale: true, snapshot: this.snapshot(workspaceId, conversationId, room) };
+    }
+    const leaseEpoch = room.activeTurn?.leaseEpoch ?? ++room.epochSeq;
     const prompt = room.activeTurn?.prompt;
     room.activeTurn = {
       clientId: input.clientId,
       senderName: input.senderName,
       conversationId,
+      leaseEpoch,
       ...(prompt ? { prompt } : {}),
       text: input.text.slice(-MAX_STREAM_PREVIEW_CHARS),
       ...(input.toolName ? { toolName: input.toolName.slice(0, 128) } : {}),
@@ -217,20 +240,28 @@ export class ChatRoomHub {
     };
     const snap = this.snapshot(workspaceId, conversationId, room);
     this.broadcast(snap);
-    return snap;
+    return { snapshot: snap };
   }
 
-  release(workspaceId: string, conversationId: string, clientId: string, now = Date.now()): ChatRoomSnapshot {
+  release(
+    workspaceId: string,
+    conversationId: string,
+    clientId: string,
+    leaseEpoch?: number,
+    now = Date.now(),
+  ): { stale?: boolean; snapshot: ChatRoomSnapshot } {
     const room = this.getOrCreate(workspaceId, conversationId, now);
     const owned = room.activeTurn?.clientId === clientId;
-    if (owned) {
-      room.activeTurn = null;
+    if (!owned) {
+      return { stale: true, snapshot: this.snapshot(workspaceId, conversationId, room) };
     }
-    const snap = this.snapshot(workspaceId, conversationId, room, owned ? clientId : undefined);
-    if (owned) {
-      this.broadcast(snap);
+    if (leaseEpoch !== undefined && room.activeTurn!.leaseEpoch !== leaseEpoch) {
+      return { stale: true, snapshot: this.snapshot(workspaceId, conversationId, room) };
     }
-    return snap;
+    room.activeTurn = null;
+    const snap = this.snapshot(workspaceId, conversationId, room, clientId);
+    this.broadcast(snap);
+    return { snapshot: snap };
   }
 
   cancelQueued(
@@ -389,20 +420,24 @@ export async function handleChatRoomRequest(
       message?: string;
       text?: string;
       toolName?: string;
+      leaseEpoch?: number;
       popNext?: boolean;
       itemId?: string;
+      active?: boolean;
     }>(req);
 
     const wsId = resolveWs(body.workspaceId);
     const convId = typeof body.conversationId === 'string' ? body.conversationId.trim().slice(0, 128) : '';
-    const clientId = typeof body.clientId === 'string' ? body.clientId.trim().slice(0, 64) : '';
-    if (!wsId || !convId || !clientId) {
+    const rawClientId = typeof body.clientId === 'string' ? body.clientId.trim().slice(0, 64) : '';
+    if (!wsId || !convId || !rawClientId) {
       sendJson(res, 400, { ok: false, code: 'invalid_argument', message: 'valid workspaceId, conversationId, and clientId are required' });
       return true;
     }
-    const fallbackName = principal.kind === 'share' ? principal.share.label || 'Guest' : 'Owner';
-    const senderName =
-      (typeof body.senderName === 'string' ? body.senderName.trim().slice(0, 64) : '') || fallbackName;
+    const clientId = scopeClientId(principal, rawClientId);
+    const senderName = resolvePrincipalName(principal, body.senderName);
+    const leaseEpoch = typeof body.leaseEpoch === 'number' && Number.isInteger(body.leaseEpoch)
+      ? body.leaseEpoch
+      : undefined;
 
     if (url.pathname === '/v1/chat-room/enqueue') {
       const message = typeof body.message === 'string' ? body.message.trim() : '';
@@ -428,14 +463,22 @@ export async function handleChatRoomRequest(
     if (url.pathname === '/v1/chat-room/stream') {
       const text = typeof body.text === 'string' ? body.text : '';
       const toolName = typeof body.toolName === 'string' ? body.toolName : undefined;
-      const snapshot = hub.updateStream(wsId, convId, { clientId, senderName, text, toolName });
-      sendJson(res, 200, { ok: true, snapshot });
+      const result = hub.updateStream(wsId, convId, { clientId, senderName, text, toolName, leaseEpoch });
+      if (result.stale) {
+        sendJson(res, 409, { ok: false, code: 'stale_lease', snapshot: result.snapshot });
+        return true;
+      }
+      sendJson(res, 200, { ok: true, snapshot: result.snapshot });
       return true;
     }
 
     if (url.pathname === '/v1/chat-room/release') {
-      const snapshot = hub.release(wsId, convId, clientId);
-      sendJson(res, 200, { ok: true, snapshot });
+      const result = hub.release(wsId, convId, clientId, leaseEpoch);
+      if (result.stale) {
+        sendJson(res, 409, { ok: false, code: 'stale_lease', snapshot: result.snapshot });
+        return true;
+      }
+      sendJson(res, 200, { ok: true, snapshot: result.snapshot });
       return true;
     }
 
@@ -451,7 +494,7 @@ export async function handleChatRoomRequest(
     }
 
     if (url.pathname === '/v1/chat-room/typing') {
-      const active = Boolean((body as { active?: boolean }).active);
+      const active = Boolean(body.active);
       const snapshot = hub.setTyping(wsId, convId, { clientId, senderName, active });
       sendJson(res, 200, { ok: true, snapshot });
       return true;
