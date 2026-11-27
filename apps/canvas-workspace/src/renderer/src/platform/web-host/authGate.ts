@@ -223,13 +223,12 @@ function mountAuthGate(
       ? {
           eyebrow: 'PULSE CANVAS · WEB',
           title: '连接到远程工作区',
-          subtitle:
-            '支持直接粘贴桌面端「Share」复制的 pulse-canvas://join?... 链接、pulse-share://v1/... 邀请码，或 VPS 管理员 Token。',
-          tokenLabel: '共享链接 / 邀请码 / VPS Token',
-          tokenPlaceholder: '粘贴 pulse-canvas://join?... 或 pulse-share://v1/...',
+          subtitle: '支持直接粘贴桌面端「Share」生成的 pulse-share://v1/... 邀请码，或 VPS 管理员 Token。',
+          tokenLabel: '共享邀请码 / VPS Token',
+          tokenPlaceholder: '粘贴 pulse-share://v1/... 或 PULSE_VPS_TOKEN',
           nameLabel: '协作昵称（可选）',
           namePlaceholder: '例如：Jasper（手机）',
-          advanced: '自定义 VPS 地址（使用共享链接时无需填写）',
+          advanced: '自定义 VPS 地址（使用邀请码时无需填写）',
           endpointLabel: 'VPS 地址（留空默认当前域名）',
           submit: '进入工作区',
           connecting: '连接中...',
@@ -237,10 +236,9 @@ function mountAuthGate(
       : {
           eyebrow: 'PULSE CANVAS · WEB',
           title: 'Connect to Workspace',
-          subtitle:
-            'Paste a pulse-canvas://join?... share link, a pulse-share://v1/... invite code, or your VPS admin token.',
-          tokenLabel: 'Share Link / Invite Code / VPS Token',
-          tokenPlaceholder: 'Paste pulse-canvas://join?... or pulse-share://v1/...',
+          subtitle: 'Paste a pulse-share://v1/... invite code from desktop Share, or your VPS admin token.',
+          tokenLabel: 'Invite Code or VPS Token',
+          tokenPlaceholder: 'Paste pulse-share://v1/... or PULSE_VPS_TOKEN',
           nameLabel: 'Display Name (optional)',
           namePlaceholder: 'e.g. Jasper (Mobile)',
           advanced: 'Custom VPS Endpoint (optional for invite codes)',

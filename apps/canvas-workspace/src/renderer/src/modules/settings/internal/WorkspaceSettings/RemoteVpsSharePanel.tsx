@@ -5,7 +5,6 @@ import type {
 } from '../../../../../../shared/api/remote-vps';
 import { Button, FieldRow, SegmentedControl, TextField } from '../../../../components/ui';
 import { useI18n } from '../../../../i18n';
-import { buildJoinDeepLink } from '../../../../shared/remotePresence';
 import { canvasShareCopy, remoteShareCopy } from '../../components/RemoteFolderPickerModal/copy';
 import './RemoteVpsCard.css';
 
@@ -24,7 +23,7 @@ export const RemoteVpsSharePanel = ({
   defaultEndpoint,
   detectedTailscaleUrl,
 }: Props) => {
-  const { language, t } = useI18n();
+  const { language } = useI18n();
   const copy = remoteShareCopy(language);
   const shareModalCopy = canvasShareCopy(language);
 
@@ -231,17 +230,8 @@ export const RemoteVpsSharePanel = ({
             variant="primary"
             size="sm"
             onClick={() => {
-              void navigator.clipboard.writeText(buildJoinDeepLink(latestInvite)).catch(() => undefined);
-              setStatusMsg({ kind: 'ok', text: t('presence.deepLinkCopied') });
-            }}
-          >
-            {t('presence.copyDeepLink')}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
               void navigator.clipboard.writeText(latestInvite).catch(() => undefined);
+              setStatusMsg({ kind: 'ok', text: copy.copiedOk });
             }}
           >
             {copy.copyAgain}
