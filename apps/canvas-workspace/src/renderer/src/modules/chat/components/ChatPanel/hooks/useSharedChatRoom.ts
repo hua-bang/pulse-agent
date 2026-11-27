@@ -81,6 +81,7 @@ export function useSharedChatRoom({
   sendMessageRef.current = sendMessage;
   const claimingRef = useRef(false);
   const heldTurnRef = useRef(false);
+  const claimedConvIdRef = useRef<string | null>(null);
 
   const lastAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant'
     ? messages[messages.length - 1].content
@@ -120,6 +121,7 @@ export function useSharedChatRoom({
           claimingRef.current = false;
           if (!res?.ok || !res.claimed || !res.nextItem) return;
           heldTurnRef.current = true;
+          claimedConvIdRef.current = conversationId;
           if (res.activeTurn !== undefined) setActiveTurn(res.activeTurn);
           if (res.queue) setQueue(res.queue);
           void sendMessageRef.current(res.nextItem.message);
@@ -159,7 +161,10 @@ export function useSharedChatRoom({
 
     const unsubscribe = api.onChatRoomEvent((event) => {
       if (cancelled) return;
-      if (event.workspaceId !== workspaceId || event.conversationId !== conversationId) return;
+      // Match exact conversationId, or accept any workspace turn when this client is on an empty
+      // "New AI chat" screen (`conversationId === workspaceId`) so peers see live host streaming.
+      if (event.workspaceId !== workspaceId) return;
+      if (event.conversationId !== conversationId && conversationId !== workspaceId) return;
       setActiveTurn(event.activeTurn);
       setQueue(event.queue);
       if (event.typingPeers !== undefined) setTypingPeers(event.typingPeers);
@@ -214,13 +219,21 @@ export function useSharedChatRoom({
 
     if (!loading) {
       if (heldTurnRef.current) {
+        const releaseConvId = claimedConvIdRef.current ?? conversationId;
         heldTurnRef.current = false;
-        void api.releaseChatRoom?.(workspaceId, conversationId).catch(() => undefined);
+        claimedConvIdRef.current = null;
+        void api.releaseChatRoom?.(workspaceId, releaseConvId).catch(() => undefined);
       }
       return;
     }
 
+    // If a new sessionId was created mid-turn (workspaceId -> sessionId), release the placeholder lease.
+    if (claimedConvIdRef.current && claimedConvIdRef.current !== conversationId) {
+      const prevConvId = claimedConvIdRef.current;
+      void api.releaseChatRoom?.(workspaceId, prevConvId).catch(() => undefined);
+    }
     heldTurnRef.current = true;
+    claimedConvIdRef.current = conversationId;
     let lastSent = '';
     let lastTool: string | undefined;
     let lastPushAt = 0;
@@ -285,16 +298,19 @@ export function useSharedChatRoom({
     if (res.queue) setQueue(res.queue);
     if (res.claimed) {
       heldTurnRef.current = true;
+      claimedConvIdRef.current = conversationId;
       try {
         const ok = await onSubmit();
         if (!ok && !loadingRef.current) {
           heldTurnRef.current = false;
+          claimedConvIdRef.current = null;
           void api.releaseChatRoom?.(workspaceId, conversationId).catch(() => undefined);
         }
         return ok;
       } catch (error) {
         if (!loadingRef.current) {
           heldTurnRef.current = false;
+          claimedConvIdRef.current = null;
           void api.releaseChatRoom?.(workspaceId, conversationId).catch(() => undefined);
         }
         throw error;
