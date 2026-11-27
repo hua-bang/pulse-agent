@@ -46,12 +46,34 @@ export function parseInviteInput(raw: string): { endpoint?: string; token: strin
       return { token, ...(endpoint ? { endpoint } : {}) };
     }
   }
-  if (trimmed.startsWith('pulse://') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  // Match desktop one-click deep link `pulse-canvas://join?code=<base64url>` (even inside chat text).
+  const deepLinkMatch = /pulse-canvas:\/\/join\?[^\s]*\bcode=([A-Za-z0-9_%=-]+)/.exec(trimmed);
+  if (deepLinkMatch) {
+    let rawCode = deepLinkMatch[1];
+    try {
+      rawCode = decodeURIComponent(rawCode);
+    } catch {
+      // Keep raw capture if percent-decoding fails.
+    }
+    const payload = decodeBase64UrlJson(rawCode.replace(/^pulse-share:\/\/v1\//, ''));
+    const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+    const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
+    if (token) {
+      return { token, ...(endpoint ? { endpoint } : {}) };
+    }
+  }
+  if (
+    trimmed.startsWith('pulse://') ||
+    trimmed.startsWith('pulse-canvas://') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://')
+  ) {
     try {
       const parsed = new URL(trimmed);
-      const invite = parsed.searchParams.get('invite')?.trim();
+      const invite = (parsed.searchParams.get('invite') ?? parsed.searchParams.get('code') ?? '').trim();
       if (invite) {
-        const payload = decodeBase64UrlJson(invite);
+        const stripped = invite.replace(/^pulse-share:\/\/v1\//, '');
+        const payload = decodeBase64UrlJson(stripped);
         const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
         const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
         if (token) {
@@ -74,7 +96,13 @@ function readCredentialsFromUrl(): WebHostStoredCredentials | null {
   try {
     const url = new URL(window.location.href);
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-    const inviteParam = (url.searchParams.get('invite') ?? hashParams.get('invite') ?? '').trim();
+    const inviteParam = (
+      url.searchParams.get('invite') ??
+      url.searchParams.get('code') ??
+      hashParams.get('invite') ??
+      hashParams.get('code') ??
+      ''
+    ).trim();
     const senderName = (url.searchParams.get('name') ?? hashParams.get('name') ?? '').trim();
 
     let token = (url.searchParams.get('token') ?? hashParams.get('token') ?? '').trim();
@@ -98,7 +126,7 @@ function readCredentialsFromUrl(): WebHostStoredCredentials | null {
     if (!token) return null;
 
     // Strip credentials from the address bar immediately so they do not linger in history/screenshots.
-    for (const key of ['token', 'endpoint', 'invite', 'name']) {
+    for (const key of ['token', 'endpoint', 'invite', 'code', 'name']) {
       url.searchParams.delete(key);
       hashParams.delete(key);
     }
@@ -195,12 +223,13 @@ function mountAuthGate(
       ? {
           eyebrow: 'PULSE CANVAS · WEB',
           title: '连接到远程工作区',
-          subtitle: '支持直接粘贴桌面端「Share」生成的 pulse-share://v1/... 邀请码，或 VPS 管理员 Token。',
-          tokenLabel: '共享邀请码 / VPS Token',
-          tokenPlaceholder: '粘贴 pulse-share://v1/... 或 PULSE_VPS_TOKEN',
+          subtitle:
+            '支持直接粘贴桌面端「Share」复制的 pulse-canvas://join?... 链接、pulse-share://v1/... 邀请码，或 VPS 管理员 Token。',
+          tokenLabel: '共享链接 / 邀请码 / VPS Token',
+          tokenPlaceholder: '粘贴 pulse-canvas://join?... 或 pulse-share://v1/...',
           nameLabel: '协作昵称（可选）',
           namePlaceholder: '例如：Jasper（手机）',
-          advanced: '自定义 VPS 地址（使用邀请码时无需填写）',
+          advanced: '自定义 VPS 地址（使用共享链接时无需填写）',
           endpointLabel: 'VPS 地址（留空默认当前域名）',
           submit: '进入工作区',
           connecting: '连接中...',
@@ -208,9 +237,10 @@ function mountAuthGate(
       : {
           eyebrow: 'PULSE CANVAS · WEB',
           title: 'Connect to Workspace',
-          subtitle: 'Paste a pulse-share://v1/... invite code from desktop Share, or your VPS admin token.',
-          tokenLabel: 'Invite Code or VPS Token',
-          tokenPlaceholder: 'Paste pulse-share://v1/... or PULSE_VPS_TOKEN',
+          subtitle:
+            'Paste a pulse-canvas://join?... share link, a pulse-share://v1/... invite code, or your VPS admin token.',
+          tokenLabel: 'Share Link / Invite Code / VPS Token',
+          tokenPlaceholder: 'Paste pulse-canvas://join?... or pulse-share://v1/...',
           nameLabel: 'Display Name (optional)',
           namePlaceholder: 'e.g. Jasper (Mobile)',
           advanced: 'Custom VPS Endpoint (optional for invite codes)',
