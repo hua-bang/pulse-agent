@@ -3,7 +3,7 @@ import type {
   RemoteVpsChatRoomActiveTurn,
   RemoteVpsChatRoomQueuedItem,
 } from '../../../../../../../shared/api/remote-vps';
-import type { AgentChatMessage } from '../../../../../types';
+import type { AgentChatMessage, ToolCallStatus } from '../../../../../types';
 import { useAppShell } from '../../../../../shared/appShell';
 import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
@@ -12,6 +12,7 @@ interface UseSharedChatRoomOptions {
   workspaceId: string;
   conversationId: string;
   messages: readonly AgentChatMessage[];
+  streamingTools?: readonly ToolCallStatus[];
   loading: boolean;
   input: string;
   mentionOpen: boolean;
@@ -32,6 +33,14 @@ export interface SharedChatRoomState {
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
 }
 
+function findRunningToolName(tools?: readonly ToolCallStatus[]): string | undefined {
+  if (!tools || tools.length === 0) return undefined;
+  for (let i = tools.length - 1; i >= 0; i -= 1) {
+    if (tools[i].status === 'running' && tools[i].name) return tools[i].name;
+  }
+  return undefined;
+}
+
 /**
  * Coordinates multi-human x single-agent turns on shared remote VPS workspaces.
  * For local (non-remote) canvases this hook is a complete no-op and returns
@@ -41,6 +50,7 @@ export function useSharedChatRoom({
   workspaceId,
   conversationId,
   messages,
+  streamingTools,
   loading,
   input,
   mentionOpen,
@@ -71,6 +81,8 @@ export function useSharedChatRoom({
     : '';
   const latestTextRef = useRef(lastAssistant);
   latestTextRef.current = lastAssistant;
+  const latestToolRef = useRef<string | undefined>(undefined);
+  latestToolRef.current = findRunningToolName(streamingTools);
 
   // Detect whether this workspace is backed by a remote VPS. Local canvases stay false (no-op).
   useEffect(() => {
@@ -172,15 +184,18 @@ export function useSharedChatRoom({
 
     heldTurnRef.current = true;
     let lastSent = '';
+    let lastTool: string | undefined;
     let lastPushAt = 0;
 
     const push = (force = false) => {
       const preview = latestTextRef.current.slice(-4000);
+      const toolName = latestToolRef.current;
       const now = Date.now();
-      if (!force && preview === lastSent && now - lastPushAt < 8_000) return;
+      if (!force && preview === lastSent && toolName === lastTool && now - lastPushAt < 8_000) return;
       lastSent = preview;
+      lastTool = toolName;
       lastPushAt = now;
-      void api.streamChatRoom?.(workspaceId, conversationId, preview).catch(() => undefined);
+      void api.streamChatRoom?.(workspaceId, conversationId, preview, toolName).catch(() => undefined);
     };
 
     push(true);
@@ -275,7 +290,10 @@ export function useSharedChatRoom({
     }
     next.push({
       role: 'assistant',
-      content: activeTurn.text || '…',
+      content: activeTurn.text || (activeTurn.toolName ? '' : '…'),
+      ...(activeTurn.toolName
+        ? { toolCalls: [{ id: 1, name: activeTurn.toolName, status: 'running' as const }] }
+        : {}),
       timestamp: activeTurn.updatedAt,
     });
     return next;

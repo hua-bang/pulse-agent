@@ -293,17 +293,32 @@
 }
 
 .chat-message-sender {
+  --sender-tone: var(--accent-frame);
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   align-self: flex-end;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
   margin: 0 2px 3px;
-  padding: 1px 8px;
+  padding: 1px 8px 1px 6px;
   border-radius: var(--radius-pill);
   color: var(--text-secondary);
   background: var(--surface-alt);
+}
+
+.chat-message-sender--accent { --sender-tone: var(--accent); }
+.chat-message-sender--term { --sender-tone: var(--accent-term); }
+.chat-message-sender--frame { --sender-tone: var(--accent-frame); }
+.chat-message-sender--file { --sender-tone: var(--accent-file); }
+
+.chat-message-sender__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--sender-tone);
+  flex-shrink: 0;
 }
 
 /* Speaker badge above a role's reply. Inline color/background come from the

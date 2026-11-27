@@ -7,11 +7,12 @@ import { useChatPanelController } from './useChatPanelController';
 
 export const ChatPanel = (props: ChatPanelProps) => {
   const { chatRoom, ...viewProps } = useChatPanelController(props);
-  const { workspaceId, conversationKey, messages, loading } = viewProps.thread;
+  const { workspaceId, conversationKey, messages, loading, streamingTools } = viewProps.thread;
   const sharedRoom = useSharedChatRoom({
     workspaceId,
     conversationId: conversationKey ?? '',
     messages,
+    streamingTools,
     loading,
     input: viewProps.composer.input,
     mentionOpen: viewProps.composer.mentionOpen,

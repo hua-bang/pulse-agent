@@ -1,6 +1,7 @@
 import { Button } from '../../../components/ui/Button';
 import { useI18n } from '../../../i18n';
 import {
+  peerToneForName,
   startFollowingPeer,
   stopFollowingPeer,
   useFollowingPeerId,
@@ -9,21 +10,6 @@ import {
 
 interface Props {
   workspaceId: string;
-}
-
-const TONE_CLASSES = [
-  'workspace-tabs__peer-avatar--accent',
-  'workspace-tabs__peer-avatar--term',
-  'workspace-tabs__peer-avatar--frame',
-  'workspace-tabs__peer-avatar--file',
-] as const;
-
-function peerToneClass(clientId: string): string {
-  let hash = 0;
-  for (let i = 0; i < clientId.length; i += 1) {
-    hash = (hash * 31 + clientId.charCodeAt(i)) >>> 0;
-  }
-  return TONE_CLASSES[hash % TONE_CLASSES.length];
 }
 
 function peerInitial(name: string): string {
@@ -53,7 +39,7 @@ export const PresenceAvatars = ({ workspaceId }: Props) => {
             key={peer.clientId}
             variant="icon"
             size="sm"
-            className={`workspace-tabs__peer-avatar ${peerToneClass(peer.clientId)}${isFollowing ? ' is-following' : ''}`}
+            className={`workspace-tabs__peer-avatar workspace-tabs__peer-avatar--${peerToneForName(peer.name)}${isFollowing ? ' is-following' : ''}`}
             title={label}
             aria-label={label}
             aria-pressed={isFollowing}

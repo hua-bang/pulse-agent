@@ -3,6 +3,7 @@ import type { CanvasNode, CanvasTransform } from '../../../../../types';
 import { Button } from '../../../../../components/ui/Button';
 import { useI18n } from '../../../../../i18n';
 import {
+  peerToneForName,
   setRemotePeers,
   stopFollowingPeer,
   useFollowingPeerId,
@@ -145,7 +146,7 @@ export const CanvasPeerHalos = ({ workspaceId, nodes }: HalosProps) => {
         return (
           <div
             key={`peer-halo:${node.id}`}
-            className="canvas-peer-halo"
+            className={`canvas-peer-halo canvas-peer-halo--${peerToneForName(names[0])}`}
             style={{
               left: node.x - 3,
               top: node.y - 3,

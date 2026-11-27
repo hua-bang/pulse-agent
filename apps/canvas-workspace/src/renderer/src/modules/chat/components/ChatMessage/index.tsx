@@ -18,6 +18,7 @@ import { MarkdownContent } from './MarkdownContent';
 import { ChatMessageEditor } from './ChatMessageEditor';
 import { ChatRecoveryConfirm } from './ChatRecoveryConfirm';
 import { selectedTextWithin } from '../../runtime/useAddReplyToCanvas';
+import { peerToneForName } from '../../../../shared/remotePresence';
 
 interface ChatMessageProps {
   message: AgentChatMessage;
@@ -182,7 +183,10 @@ const ChatMessageView = ({
     )}
     <div className="chat-message-body">
       {message.role === 'user' && message.senderName && (
-        <span className="chat-message-sender">{message.senderName}</span>
+        <span className={`chat-message-sender chat-message-sender--${peerToneForName(message.senderName)}`}>
+          <span className="chat-message-sender__dot" aria-hidden="true" />
+          {message.senderName}
+        </span>
       )}
       {message.role === 'assistant' && message.speakerRoleName && (
         <span

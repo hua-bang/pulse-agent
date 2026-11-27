@@ -75,3 +75,17 @@ export function buildJoinDeepLink(inviteCode: string): string {
   const stripped = inviteCode.trim().replace(/^pulse-share:\/\/v1\//, '');
   return `pulse-canvas://join?code=${encodeURIComponent(stripped)}`;
 }
+
+export type PeerTone = 'accent' | 'term' | 'frame' | 'file';
+
+const PEER_TONES: readonly PeerTone[] = ['accent', 'term', 'frame', 'file'];
+
+/** Deterministic design-token tone shared by top-bar avatars, canvas halos, and chat sender badges. */
+export function peerToneForName(name: string): PeerTone {
+  const normalized = name.trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0;
+  }
+  return PEER_TONES[hash % PEER_TONES.length];
+}

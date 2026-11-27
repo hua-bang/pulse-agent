@@ -11,11 +11,12 @@ export type { ChatPageBodyProps } from './types';
 export const ChatPageBody = (props: ChatPageBodyProps) => {
   const controller = useChatPageBodyController(props);
   const { viewProps, chatRoom } = controller;
-  const { workspaceId, conversationKey, messages, loading } = viewProps.thread;
+  const { workspaceId, conversationKey, messages, loading, streamingTools } = viewProps.thread;
   const sharedRoom = useSharedChatRoom({
     workspaceId,
     conversationId: conversationKey ?? '',
     messages,
+    streamingTools,
     loading,
     input: viewProps.composer.input,
     mentionOpen: viewProps.composer.mentionOpen,

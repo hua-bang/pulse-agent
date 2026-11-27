@@ -44,13 +44,19 @@
 }
 
 .canvas-peer-halo {
+  --peer-tone: var(--accent-frame);
   position: absolute;
   border-radius: var(--radius-lg);
-  border: 2px solid var(--accent-frame);
+  border: 2px solid var(--peer-tone);
   box-shadow: var(--shadow-focus);
   pointer-events: none;
   z-index: 6;
 }
+
+.canvas-peer-halo--accent { --peer-tone: var(--accent); }
+.canvas-peer-halo--term { --peer-tone: var(--accent-term); }
+.canvas-peer-halo--frame { --peer-tone: var(--accent-frame); }
+.canvas-peer-halo--file { --peer-tone: var(--accent-file); }
 
 .canvas-peer-halo__tag {
   position: absolute;
@@ -58,7 +64,7 @@
   right: 0;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
-  background: var(--accent-frame);
+  background: var(--peer-tone);
   color: var(--surface);
   font-size: 11px;
   font-weight: 500;
