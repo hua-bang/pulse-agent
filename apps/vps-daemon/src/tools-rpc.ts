@@ -310,6 +310,31 @@ async function runGrep(
   return { output: truncateOutput(lines.join('\n')), matches: lines.length };
 }
 
+export async function executeRemoteBuiltinTool(
+  tool: RemoteBuiltinToolName,
+  input: Record<string, unknown>,
+  baseDir: string,
+  signal: AbortSignal,
+  onChunk?: (stream: 'stdout' | 'stderr', text: string) => void,
+): Promise<unknown> {
+  switch (tool) {
+    case 'bash':
+      return await runBash(input, baseDir, signal, onChunk);
+    case 'read':
+      return await runRead(input, baseDir);
+    case 'write':
+      return await runWrite(input, baseDir);
+    case 'edit':
+      return await runEdit(input, baseDir);
+    case 'ls':
+      return await runLs(input, baseDir);
+    case 'grep':
+      return await runGrep(input, baseDir, signal);
+    default:
+      throw new Error(`unsupported tool: ${String(tool)}`);
+  }
+}
+
 export async function handleToolExecRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -361,35 +386,18 @@ export async function handleToolExecRequest(
   };
 
   try {
-    let result: unknown;
-    switch (tool) {
-      case 'bash':
-        result = await runBash(
-          input,
-          baseDir,
-          controller.signal,
-          wantsStream ? (stream, text) => writeSse('chunk', { stream, text }) : undefined,
-        );
-        break;
-      case 'read':
-        result = await runRead(input, baseDir);
-        break;
-      case 'write':
-        result = await runWrite(input, baseDir);
-        break;
-      case 'edit':
-        result = await runEdit(input, baseDir);
-        break;
-      case 'ls':
-        result = await runLs(input, baseDir);
-        break;
-      case 'grep':
-        result = await runGrep(input, baseDir, controller.signal);
-        break;
-      default:
-        sendJson(res, 400, { ok: false, error: `unsupported tool: ${String(tool)}` });
-        return;
+    const validTools: readonly RemoteBuiltinToolName[] = ['bash', 'read', 'write', 'edit', 'ls', 'grep'];
+    if (!validTools.includes(tool)) {
+      sendJson(res, 400, { ok: false, error: `unsupported tool: ${String(tool)}` });
+      return;
     }
+    const result = await executeRemoteBuiltinTool(
+      tool,
+      input,
+      baseDir,
+      controller.signal,
+      wantsStream ? (stream, text) => writeSse('chunk', { stream, text }) : undefined,
+    );
     if (!res.writableEnded) {
       if (wantsStream) {
         writeSse('result', { ok: true, result });

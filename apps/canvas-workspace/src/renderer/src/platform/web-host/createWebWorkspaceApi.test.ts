@@ -195,4 +195,58 @@ describe('createWebWorkspaceApi', () => {
     expect(rpcCalls[0]).toEqual({ method: 'conversationScopes.read', args: ['ws-1'] });
     expect(rpcCalls[1]).toEqual({ method: 'conversations.read', args: ['ws-1', 'sess-1'] });
   });
+
+  it('streams /v1/agent/chat SSE events into onTextDelta, onToolCall, onToolResult, and onChatComplete', async () => {
+    const ssePayload = [
+      'event: text_delta\ndata: {"delta":"Hello "}\n\n',
+      'event: tool_call\ndata: {"toolCallId":"tc-1","name":"canvas_create_node","args":{"title":"Plan"}}\n\n',
+      'event: tool_result\ndata: {"toolCallId":"tc-1","name":"canvas_create_node","status":"succeeded","result":"{\\"ok\\":true}"}\n\n',
+      'event: text_delta\ndata: {"delta":"world"}\n\n',
+      'event: complete\ndata: {"ok":true,"response":"Hello world","runId":"r1"}\n\n',
+    ].join('');
+
+    const fetchMock = vi.fn(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(ssePayload));
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const api = createWebWorkspaceApi(createSession({ workspaceId: 'ws-1' }));
+    const deltas: string[] = [];
+    const tools: string[] = [];
+    const results: string[] = [];
+    let completed: { ok: boolean; response?: string } | null = null;
+
+    api.agent.onTextDelta('sess-stream', (d) => deltas.push(d));
+    api.agent.onToolCall('sess-stream', (t) => tools.push(t.name));
+    api.agent.onToolResult('sess-stream', (r) => results.push(`${r.name}:${r.status}`));
+    const donePromise = new Promise<void>((resolve) => {
+      api.agent.onChatComplete('sess-stream', (res) => {
+        completed = res;
+        resolve();
+      });
+    });
+
+    const started = await api.agent.conversationChat(
+      { kind: 'workspace', workspaceId: 'ws-1' },
+      'sess-stream',
+      'Make a plan',
+      [],
+      undefined,
+      undefined,
+      undefined,
+      { runId: 'r1', submittedAt: 1 },
+    );
+    expect(started.ok).toBe(true);
+    await donePromise;
+    expect(deltas.join('')).toBe('Hello world');
+    expect(tools).toEqual(['canvas_create_node']);
+    expect(results).toEqual(['canvas_create_node:succeeded']);
+    expect(completed).toMatchObject({ ok: true, response: 'Hello world' });
+  });
 });

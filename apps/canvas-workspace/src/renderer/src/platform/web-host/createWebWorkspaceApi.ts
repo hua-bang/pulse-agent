@@ -10,6 +10,7 @@ import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import { createWebRemoteVpsApi } from './chatRoomClient';
 import { scopeIdFromRef, toRemoteFileUri } from './remotePaths';
 import { WEB_HOST_ACTIVE_WS_KEY, type WebHostAuthSession } from './types';
+import { createWebAgentRuntime } from './webAgentClient';
 
 const MANIFEST_ID = '__workspaces__';
 
@@ -304,7 +305,6 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     getStatus: async () => ({ ok: true, active: false, messageCount: 0 }),
     getScopeRunStatus: async () => ({ ok: true, active: false }),
     getScopeRunningSessions: async () => ({ ok: true, conversationSessionIds: [] }),
-    listSkills: async () => ({ ok: true, skills: [] }),
     listSessions: async (scopeRef) => {
       try {
         const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
@@ -394,14 +394,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
       }
     },
     conversationAttach: async () => ({ ok: true, running: false }),
-    conversationChat: async () => ({
-      ok: false,
-      error: 'Direct LLM execution requires an online desktop host or VPS headless runner (Phase 2).',
-    }),
-    prepareChat: async () => ({
-      ok: false,
-      error: 'Direct LLM execution requires an online desktop host or VPS headless runner (Phase 2).',
-    }),
+    ...createWebAgentRuntime(session, () => currentWorkspaceId),
     warmScope: () => {},
     activate: async () => ({ ok: true }),
     deactivate: async () => ({ ok: true }),
