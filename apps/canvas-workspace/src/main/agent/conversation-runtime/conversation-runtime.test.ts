@@ -466,4 +466,30 @@ describe('ordered reply persistence', () => {
       senderName: 'Alex',
     });
   });
+
+  it('reloads latest stored messages before writing a new turn in shared workspaces so teammate turns are never overwritten', async () => {
+    const deps = makeDeps(keyA, makeRunner());
+    deps.resolveSenderName = () => 'jasperhu';
+    const runtime = new ConversationRuntime(deps);
+    await runtime.open();
+    await runtime.sendAndWait({ message: 'good morning' });
+    expect(deps.stored.map((m) => m.content)).toEqual(['good morning', 'echo:[jasperhu]: good morning']);
+
+    // Simulate a second machine (bytedance) persisting a turn directly to shared VPS storage.
+    deps.stored.push(
+      { role: 'user', senderName: 'bytedance', content: 'hey', timestamp: Date.now() },
+      { role: 'assistant', content: 'Hey bytedance!', timestamp: Date.now() },
+    );
+
+    // jasperhu sends another turn without recreating runtime -> must preserve bytedance's turn.
+    await runtime.sendAndWait({ message: '?' });
+    expect(deps.stored.map((m) => m.content)).toEqual([
+      'good morning',
+      'echo:[jasperhu]: good morning',
+      'hey',
+      'Hey bytedance!',
+      '?',
+      'echo:[jasperhu]: ?',
+    ]);
+  });
 });

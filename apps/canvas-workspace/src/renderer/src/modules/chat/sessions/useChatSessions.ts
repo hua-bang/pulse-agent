@@ -132,6 +132,7 @@ export function useChatSessions({
   const runThreadFetch = useCallback(async (
     fetchThread: () => Promise<ThreadFetchResult>,
     expectedSessionId?: string,
+    silent = false,
   ) => {
     const expectedSequences = onConversationLoadStart?.(agentScopeRef.current);
     const mutationGeneration = beginChatConversationMutation(mutationRef, onConversationMutationStart);
@@ -139,7 +140,7 @@ export function useChatSessions({
     setSessionsLoading(false);
     threadRetryRef.current = { scopeKey, fetchThread, expectedSessionId };
     const token = ++threadRequestRef.current;
-    setSessionLoading(true);
+    if (!silent) setSessionLoading(true);
     setSessionError(null);
     try {
       const result = await fetchThread();
@@ -183,7 +184,7 @@ export function useChatSessions({
       return undefined;
     } finally {
       finishChatConversationMutation(mutationRef, mutationGeneration);
-      if (token === threadRequestRef.current) {
+      if (!silent && token === threadRequestRef.current) {
         setSessionLoading(false);
       }
     }
@@ -340,8 +341,8 @@ export function useChatSessions({
     }
   }, [agentScope, mutationRef, onConversationLoaded, onConversationMutationStart, onMessagesLoaded, t]);
 
-  const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
-    setSessionMenuOpen(false);
+  const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string, silent = false) => {
+    if (!silent) setSessionMenuOpen(false);
 
     const crossWorkspace = !!(
       sourceWorkspaceId
@@ -355,6 +356,7 @@ export function useChatSessions({
           : window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId)
       ),
       crossWorkspace ? undefined : sessionId,
+      silent,
     );
   }, [agentScope, runThreadFetch, workspaceId]);
 

@@ -493,6 +493,6 @@ export const useChatPanelController = ({
         modelLabel: canvasModels.selectedLabel, onSelectModel: canvasModels.selectModel,
         onOpenModelSettings: openModelSettingsFromSwitcher, contextComposer: true,
     },
-    chatRoom: { reloadSession: () => void (activeSessionId ? handleLoadSession(activeSessionId) : retrySession()), sendMessage: (message: string) => sendMessage(message, requestContext), clearInput },
+    chatRoom: { reloadSession: () => void (activeSessionId ? handleLoadSession(activeSessionId, undefined, true) : retrySession()), sendMessage: (message: string) => sendMessage(message, requestContext), clearInput },
   };
 };

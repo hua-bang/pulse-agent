@@ -117,6 +117,7 @@ export interface RemoteVpsChatRoomEvent {
   activeTurn: RemoteVpsChatRoomActiveTurn | null;
   queue: RemoteVpsChatRoomQueuedItem[];
   turnEnded?: boolean;
+  endedBySelf?: boolean;
 }
 
 export interface RemoteVpsApi {

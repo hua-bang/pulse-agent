@@ -14,6 +14,7 @@ interface Props {
   conversationId: string;
   messages: readonly AgentChatMessage[];
   loading: boolean;
+  chatRoomActive?: boolean;
   roomActiveTurn?: RemoteVpsChatRoomActiveTurn | null;
   roomQueue?: readonly RemoteVpsChatRoomQueuedItem[];
   onCancelQueued?: (itemId: string) => void;
@@ -22,14 +23,15 @@ interface Props {
 }
 
 /**
- * Syncs live AI streaming state over VPS presence (legacy fallback) and displays
- * ~150ms SSE shared chat-room active turn + FIFO queue when available.
+ * Syncs live AI streaming state over VPS presence (legacy fallback for older daemons)
+ * and renders the compact shared FIFO queue strip when teammates have queued messages.
  */
 export const PeerStreamBridge = ({
   workspaceId,
   conversationId,
   messages,
   loading,
+  chatRoomActive = false,
   roomActiveTurn,
   roomQueue = [],
   onCancelQueued,
@@ -45,10 +47,10 @@ export const PeerStreamBridge = ({
   const latestTextRef = useRef(lastAssistant);
   latestTextRef.current = lastAssistant;
 
-  // Outbound presence fallback for older daemons without /v1/chat-room.
+  // Outbound presence fallback ONLY for older daemons without /v1/chat-room.
   useEffect(() => {
     const api = window.canvasWorkspace?.remoteVps;
-    if (!api?.updatePresence || !workspaceId || !conversationId) return;
+    if (chatRoomActive || !api?.updatePresence || !workspaceId || !conversationId) return;
 
     if (!loading) {
       if (sentActiveRef.current) {
@@ -77,40 +79,40 @@ export const PeerStreamBridge = ({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [workspaceId, conversationId, loading]);
+  }, [chatRoomActive, workspaceId, conversationId, loading]);
 
-  const streamingPeer = peers.find(
-    (peer) => peer.chatStream && (!conversationId || peer.chatStream.conversationId === conversationId),
-  );
+  const streamingPeer = chatRoomActive
+    ? undefined
+    : peers.find(
+        (peer) => peer.chatStream && (!conversationId || peer.chatStream.conversationId === conversationId),
+      );
 
   // Inbound fallback: reload the conversation once a teammate's presence stream completes.
   const wasPeerStreamingRef = useRef(false);
   useEffect(() => {
+    if (chatRoomActive) return;
     const active = Boolean(streamingPeer?.chatStream);
     if (wasPeerStreamingRef.current && !active) {
       onPeerStreamFinished?.();
     }
     wasPeerStreamingRef.current = active;
-  }, [streamingPeer?.chatStream, onPeerStreamFinished]);
+  }, [chatRoomActive, streamingPeer?.chatStream, onPeerStreamFinished]);
 
-  const peerRoomTurn = roomActiveTurn && !roomActiveTurn.self ? roomActiveTurn : null;
-  const activeName = peerRoomTurn?.senderName ?? streamingPeer?.name;
-  // When peerRoomTurn is active, the live reply renders inline in the message thread;
-  // only show the top preview box for legacy presence fallback (older daemons).
-  const legacyPreviewText = peerRoomTurn ? '' : (streamingPeer?.chatStream?.text ?? '');
-  const showActive = Boolean(peerRoomTurn || streamingPeer?.chatStream);
+  // In chat-room mode, live teammate replies render inline inside the message thread,
+  // so the top strip is only shown when there are queued messages (no redundant blue bar).
+  const showLegacyActive = !chatRoomActive && Boolean(streamingPeer?.chatStream && !roomActiveTurn?.self);
   const showQueue = roomQueue.length > 0;
 
-  if (!showActive && !showQueue) return null;
+  if (!showLegacyActive && !showQueue) return null;
 
   return (
     <div className="chat-peer-stream" role="status" aria-live="polite">
-      {showActive && activeName && (
+      {showLegacyActive && streamingPeer?.name && (
         <>
           <div className="chat-peer-stream__header">
             <span className="chat-peer-stream__status">
               <span className="chat-peer-stream__dot" aria-hidden="true" />
-              <span>{t('presence.peerStreaming', { name: activeName })}</span>
+              <span>{t('presence.peerStreaming', { name: streamingPeer.name })}</span>
             </span>
             {onNewBranch && (
               <Button size="sm" variant="secondary" onClick={onNewBranch}>
@@ -118,8 +120,8 @@ export const PeerStreamBridge = ({
               </Button>
             )}
           </div>
-          {legacyPreviewText && (
-            <div className="chat-peer-stream__preview">{legacyPreviewText}</div>
+          {streamingPeer.chatStream?.text && (
+            <div className="chat-peer-stream__preview">{streamingPeer.chatStream.text}</div>
           )}
         </>
       )}

@@ -1101,7 +1101,11 @@ describe('vps-daemon end-to-end', () => {
     ).json()) as { ok: boolean; claimed: boolean; snapshot: { activeTurn: { clientId: string; senderName: string } | null; queue: unknown[] } };
     expect(first.ok).toBe(true);
     expect(first.claimed).toBe(true);
-    expect(first.snapshot.activeTurn).toMatchObject({ clientId: 'alice-1', senderName: 'Alice' });
+    expect(first.snapshot.activeTurn).toMatchObject({
+      clientId: 'alice-1',
+      senderName: 'Alice',
+      prompt: 'first question',
+    });
 
     // Bob enqueues while Alice holds the turn -> queued in FIFO order.
     const second = (await (

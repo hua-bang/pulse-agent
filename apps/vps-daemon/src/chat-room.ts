@@ -28,6 +28,7 @@ export interface ChatRoomSnapshot {
   activeTurn: ChatRoomActiveTurn | null;
   queue: ChatRoomQueuedItem[];
   turnEnded?: boolean;
+  endedByClientId?: string;
 }
 
 interface RoomState {
@@ -75,14 +76,14 @@ export class ChatRoomHub {
     workspaceId: string,
     conversationId: string,
     room: RoomState,
-    turnEnded?: boolean,
+    endedByClientId?: string,
   ): ChatRoomSnapshot {
     return {
       workspaceId,
       conversationId,
       activeTurn: room.activeTurn ? { ...room.activeTurn } : null,
       queue: room.queue.map((item) => ({ ...item })),
-      ...(turnEnded ? { turnEnded: true } : {}),
+      ...(endedByClientId ? { turnEnded: true, endedByClientId } : {}),
     };
   }
 
@@ -209,7 +210,7 @@ export class ChatRoomHub {
     if (owned) {
       room.activeTurn = null;
     }
-    const snap = this.snapshot(workspaceId, conversationId, room, owned);
+    const snap = this.snapshot(workspaceId, conversationId, room, owned ? clientId : undefined);
     if (owned) {
       this.broadcast(snap);
     }

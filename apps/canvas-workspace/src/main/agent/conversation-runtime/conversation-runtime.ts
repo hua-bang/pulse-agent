@@ -288,6 +288,10 @@ export class ConversationRuntime {
       this.messages.length = input.truncateAt;
     }
     const senderName = this.deps.resolveSenderName?.()?.trim() || undefined;
+    if (senderName && input.truncateAt === undefined) {
+      const latest = await this.deps.loadMessages();
+      if (latest.length > 0) this.messages = latest;
+    }
     this.messages.push({
       role: 'user',
       content: input.message,
