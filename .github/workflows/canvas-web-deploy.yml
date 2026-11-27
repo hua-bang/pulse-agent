@@ -1,0 +1,66 @@
+# Deploy Pulse Canvas Web/H5 static bundle (`apps/canvas-workspace/dist/web`) to Cloudflare Pages.
+# Reuses existing repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
+# Publishes to a dedicated Pages project (`pulse-canvas-web`) so it never touches the desktop download site.
+
+name: Deploy Pulse Canvas Web
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'apps/canvas-workspace/src/renderer/**'
+      - 'apps/canvas-workspace/src/shared/**'
+      - 'apps/canvas-workspace/vite.web.config.ts'
+      - 'apps/canvas-workspace/package.json'
+      - 'packages/storage/**'
+      - '.github/workflows/canvas-web-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canvas-web-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build storage and Web/H5 bundle
+        run: |
+          pnpm --filter @pulse-coder/storage build
+          pnpm --filter canvas-workspace build:web
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@4
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAGES_PROJECT: pulse-canvas-web
+        run: |
+          wrangler pages project create "$PAGES_PROJECT" --production-branch=main || true
+          wrangler pages deploy apps/canvas-workspace/dist/web \
+            --project-name="$PAGES_PROJECT" \
+            --branch=main \
+            --commit-dirty=true

@@ -87,6 +87,45 @@ export const useEmbeddedBrowser = ({
     const host = hostRef.current;
     if (!host) return;
 
+    const isWebHost =
+      typeof document !== 'undefined' &&
+      document.documentElement.dataset.pulseWeb === 'true';
+
+    if (isWebHost) {
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+      iframe.setAttribute('referrerpolicy', 'no-referrer');
+      iframe.className = className;
+      const initialUrl = urlRef.current;
+      if (initialUrl) iframe.setAttribute('src', initialUrl);
+      host.appendChild(iframe);
+      realNavigationStartedRef.current = true;
+      guestUrlRef.current = initialUrl;
+      setCurrentUrl(initialUrl);
+      setCanGoBack(false);
+      setCanGoForward(false);
+      setLoadState(initialUrl ? 'loading' : 'idle');
+      setLoadError(null);
+
+      const handleLoad = () => {
+        setLoadState('ready');
+        callbacksRef.current.onInitialLoadSettled?.('complete');
+      };
+      const handleError = () => {
+        setLoadState('failed');
+        setLoadError({ description: 'Unable to embed this page in a browser iframe. Open in a new tab instead.' });
+        callbacksRef.current.onInitialLoadSettled?.('failed');
+      };
+      iframe.addEventListener('load', handleLoad);
+      iframe.addEventListener('error', handleError);
+
+      return () => {
+        iframe.removeEventListener('load', handleLoad);
+        iframe.removeEventListener('error', handleError);
+        iframe.remove();
+      };
+    }
+
     const element = document.createElement('webview') as EmbeddedWebviewTag;
     element.setAttribute('allowpopups', '');
     if (partition) element.setAttribute('partition', partition);

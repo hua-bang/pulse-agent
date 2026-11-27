@@ -1282,6 +1282,107 @@ describe('vps-daemon end-to-end', () => {
       expect(res.status, `GET /v1/fs/list-dirs?path=${forbidden}`).toBe(403);
     }
   });
+
+  it('serves static web assets when webDir is configured while keeping /v1/* authenticated', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pulse-vps-web-test-'));
+    const webDir = join(dir, 'web');
+    const assetsDir = join(webDir, 'assets');
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(join(webDir, 'index.html'), '<!doctype html><div id="root">pulse-web</div>', 'utf8');
+    await writeFile(join(assetsDir, 'app.js'), 'console.log("ok");', 'utf8');
+    await writeFile(join(dir, 'secret.txt'), 'top-secret', 'utf8');
+
+    const daemon = await startVpsDaemon({
+      host: '127.0.0.1',
+      port: 0,
+      token: 'web-secret-token',
+      dataDir: join(dir, 'data'),
+      workDir: dir,
+      webDir,
+      writeRuntimeDescriptor: false,
+    });
+
+    try {
+      const health = (await (await fetch(`${daemon.url}/health`)).json()) as { ok: boolean; webUi?: boolean };
+      expect(health.ok).toBe(true);
+      expect(health.webUi).toBe(true);
+
+      const rootRes = await fetch(`${daemon.url}/`);
+      expect(rootRes.status).toBe(200);
+      expect(rootRes.headers.get('content-type')).toContain('text/html');
+      expect(await rootRes.text()).toContain('pulse-web');
+
+      const assetRes = await fetch(`${daemon.url}/assets/app.js`);
+      expect(assetRes.status).toBe(200);
+      expect(assetRes.headers.get('content-type')).toContain('application/javascript');
+      expect(assetRes.headers.get('cache-control')).toContain('immutable');
+
+      // Extensionless SPA route falls back to index.html.
+      const spaRes = await fetch(`${daemon.url}/workspace/demo`);
+      expect(spaRes.status).toBe(200);
+      expect(await spaRes.text()).toContain('pulse-web');
+
+      // Missing asset with extension returns 404 (not index.html).
+      const missingAsset = await fetch(`${daemon.url}/assets/missing.js`);
+      expect(missingAsset.status).toBe(404);
+
+      // Path traversal outside webDir is blocked and never leaks parent files.
+      const traversalRes = await fetch(`${daemon.url}/%2e%2e/secret.txt`);
+      expect([403, 404]).toContain(traversalRes.status);
+      expect(await traversalRes.text()).not.toContain('top-secret');
+
+      // /v1/* remains strictly authenticated.
+      const unauthApi = await fetch(`${daemon.url}/v1/meta`);
+      expect(unauthApi.status).toBe(401);
+    } finally {
+      await daemon.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('enforces optional CORS allowlist and handles OPTIONS preflight for hosted Web frontends', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pulse-vps-cors-test-'));
+    const daemon = await startVpsDaemon({
+      host: '127.0.0.1',
+      port: 0,
+      token: 'cors-secret-token',
+      dataDir: join(dir, 'data'),
+      workDir: dir,
+      corsOrigins: ['https://app.pulse.example'],
+      writeRuntimeDescriptor: false,
+    });
+
+    try {
+      const preflight = await fetch(`${daemon.url}/v1/meta`, {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://app.pulse.example' },
+      });
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get('access-control-allow-origin')).toBe('https://app.pulse.example');
+      expect(preflight.headers.get('access-control-allow-headers')).toContain('Authorization');
+
+      const allowedMeta = await fetch(`${daemon.url}/v1/meta`, {
+        headers: {
+          Origin: 'https://app.pulse.example',
+          Authorization: 'Bearer cors-secret-token',
+        },
+      });
+      expect(allowedMeta.status).toBe(200);
+      expect(allowedMeta.headers.get('access-control-allow-origin')).toBe('https://app.pulse.example');
+
+      const blockedMeta = await fetch(`${daemon.url}/v1/meta`, {
+        headers: {
+          Origin: 'https://evil.example',
+          Authorization: 'Bearer cors-secret-token',
+        },
+      });
+      expect(blockedMeta.status).toBe(200);
+      expect(blockedMeta.headers.get('access-control-allow-origin')).toBeNull();
+    } finally {
+      await daemon.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 
