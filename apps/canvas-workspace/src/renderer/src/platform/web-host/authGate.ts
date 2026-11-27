@@ -34,17 +34,28 @@ function decodeBase64UrlJson(encoded: string): Record<string, unknown> | null {
   }
 }
 
-export function parseInviteInput(raw: string): { endpoint?: string; token: string } {
+export function parseInviteInput(raw: string): {
+  endpoint?: string;
+  token: string;
+  workspaceName?: string;
+} {
   const trimmed = raw.trim();
+  const extractPayload = (payload: Record<string, unknown> | null) => {
+    const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+    const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
+    const workspaceName = typeof payload?.name === 'string' ? payload.name.trim() : '';
+    if (!token) return null;
+    return {
+      token,
+      ...(endpoint ? { endpoint } : {}),
+      ...(workspaceName ? { workspaceName } : {}),
+    };
+  };
   // Match Pulse Canvas native share invite code (supports pasting an entire chat message).
   const shareMatch = /pulse-share:\/\/v1\/([A-Za-z0-9_-]+)/.exec(trimmed);
   if (shareMatch) {
-    const payload = decodeBase64UrlJson(shareMatch[1]);
-    const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
-    const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
-    if (token) {
-      return { token, ...(endpoint ? { endpoint } : {}) };
-    }
+    const extracted = extractPayload(decodeBase64UrlJson(shareMatch[1]));
+    if (extracted) return extracted;
   }
   // Match desktop one-click deep link `pulse-canvas://join?code=<base64url>` (even inside chat text).
   const deepLinkMatch = /pulse-canvas:\/\/join\?[^\s]*\bcode=([A-Za-z0-9_%=-]+)/.exec(trimmed);
@@ -55,12 +66,8 @@ export function parseInviteInput(raw: string): { endpoint?: string; token: strin
     } catch {
       // Keep raw capture if percent-decoding fails.
     }
-    const payload = decodeBase64UrlJson(rawCode.replace(/^pulse-share:\/\/v1\//, ''));
-    const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
-    const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
-    if (token) {
-      return { token, ...(endpoint ? { endpoint } : {}) };
-    }
+    const extracted = extractPayload(decodeBase64UrlJson(rawCode.replace(/^pulse-share:\/\/v1\//, '')));
+    if (extracted) return extracted;
   }
   if (
     trimmed.startsWith('pulse://') ||
@@ -73,12 +80,8 @@ export function parseInviteInput(raw: string): { endpoint?: string; token: strin
       const invite = (parsed.searchParams.get('invite') ?? parsed.searchParams.get('code') ?? '').trim();
       if (invite) {
         const stripped = invite.replace(/^pulse-share:\/\/v1\//, '');
-        const payload = decodeBase64UrlJson(stripped);
-        const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
-        const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
-        if (token) {
-          return { token, ...(endpoint ? { endpoint } : {}) };
-        }
+        const extracted = extractPayload(decodeBase64UrlJson(stripped));
+        if (extracted) return extracted;
       }
       const token = parsed.searchParams.get('token')?.trim();
       const endpoint = parsed.searchParams.get('endpoint')?.trim();
@@ -151,6 +154,9 @@ function readStoredCredentials(): WebHostStoredCredentials | null {
       ...(typeof parsed.senderName === 'string' && parsed.senderName.trim()
         ? { senderName: parsed.senderName.trim() }
         : {}),
+      ...(typeof parsed.workspaceName === 'string' && parsed.workspaceName.trim()
+        ? { workspaceName: parsed.workspaceName.trim() }
+        : {}),
     };
   } catch {
     return null;
@@ -198,6 +204,7 @@ async function verifyWebHostCredentials(
         token,
         role,
         ...(meta.workspaceId ? { workspaceId: meta.workspaceId } : {}),
+        ...(creds.workspaceName ? { workspaceName: creds.workspaceName } : {}),
         ...(meta.shareLabel ? { shareLabel: meta.shareLabel } : {}),
         ...(meta.version ? { version: meta.version } : {}),
         senderName,
@@ -305,6 +312,7 @@ function mountAuthGate(
           endpoint: parsed.endpoint ?? endpointInput.value.trim(),
           token: parsed.token,
           ...(nameInput.value.trim() ? { senderName: nameInput.value.trim() } : {}),
+          ...(parsed.workspaceName ? { workspaceName: parsed.workspaceName } : {}),
         };
         const result = await verifyWebHostCredentials(creds);
         if (!result.ok) {

@@ -9,6 +9,7 @@ export interface WebHostAuthSession {
   role: 'admin' | RemoteVpsShareRole;
   /** Present when authenticated with a scoped share token. */
   workspaceId?: string;
+  workspaceName?: string;
   shareLabel?: string;
   version?: string;
   senderName: string;
@@ -19,6 +20,7 @@ export interface WebHostStoredCredentials {
   endpoint: string;
   token: string;
   senderName?: string;
+  workspaceName?: string;
 }
 
 export const WEB_HOST_STORAGE_KEY = 'pulse.webHost.auth.v1';

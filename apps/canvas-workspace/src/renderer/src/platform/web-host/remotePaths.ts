@@ -1,4 +1,38 @@
-import type { AgentScopeRef } from '../../../../shared/agent-chat';
+import type { AgentChatMessage, AgentScopeRef } from '../../../../shared/agent-chat';
+import type { CanvasSummaryBox } from '../../../../shared/canvas';
+
+export function extractConversationMessages(snapshot: {
+  messages?: unknown[];
+  entries?: Array<{ data?: unknown }>;
+}): AgentChatMessage[] {
+  if (Array.isArray(snapshot.messages)) {
+    return snapshot.messages as AgentChatMessage[];
+  }
+  if (Array.isArray(snapshot.entries)) {
+    return snapshot.entries
+      .map((entry) => entry?.data)
+      .filter((item): item is AgentChatMessage => Boolean(item && typeof item === 'object'));
+  }
+  return [];
+}
+
+export function toSummaryBox(node: {
+  type?: string;
+  title?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}): CanvasSummaryBox {
+  return {
+    type: node.type ?? 'text',
+    ...(node.title ? { title: node.title.slice(0, 60) } : {}),
+    x: typeof node.x === 'number' ? node.x : 0,
+    y: typeof node.y === 'number' ? node.y : 0,
+    width: typeof node.width === 'number' ? node.width : 240,
+    height: typeof node.height === 'number' ? node.height : 160,
+  };
+}
 
 export function scopeIdFromRef(scopeRef: AgentScopeRef, fallbackWorkspaceId?: string): string {
   if (typeof scopeRef === 'string') return scopeRef;
