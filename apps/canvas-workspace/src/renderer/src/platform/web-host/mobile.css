@@ -44,7 +44,7 @@ html[data-pulse-web='true'] #root {
   border-radius: 10px;
   background: var(--ink, #37352f);
   color: #ffffff;
-  font-weight: 700;
+  font-weight: 500;
   font-size: 16px;
   display: flex;
   align-items: center;
@@ -55,7 +55,7 @@ html[data-pulse-web='true'] #root {
 .pulse-web-auth-title {
   margin: 0;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .pulse-web-auth-subtitle {
@@ -114,7 +114,7 @@ html[data-pulse-web='true'] #root {
   background: var(--ink, #37352f);
   color: #ffffff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -249,7 +249,7 @@ html[data-pulse-web='true'] .canvas-container {
     background: transparent;
     color: var(--text, #1f1f1d);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     max-width: 220px;
     outline: none;
   }
@@ -313,7 +313,7 @@ html[data-pulse-web='true'] .canvas-container {
 
   .pulse-h5-badge {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     padding: 2px 7px;
     border-radius: 6px;
     background: var(--bg-canvas, #f1f1ef);
@@ -334,7 +334,7 @@ html[data-pulse-web='true'] .canvas-container {
 
   .pulse-h5-card-title {
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text, #1f1f1d);
     line-height: 1.35;
   }
@@ -364,7 +364,7 @@ html[data-pulse-web='true'] .canvas-container {
     background: var(--ink, #37352f);
     color: #ffffff;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     padding: 6px 12px;
     border-radius: 8px;
     cursor: pointer;
@@ -389,7 +389,7 @@ html[data-pulse-web='true'] .canvas-container {
   .pulse-h5-reader-title {
     margin: 0 0 14px;
     font-size: 20px;
-    font-weight: 700;
+    font-weight: 500;
     line-height: 1.3;
   }
 
@@ -402,7 +402,7 @@ html[data-pulse-web='true'] .canvas-container {
   .pulse-h5-reader-body h3,
   .pulse-h5-reader-body h4 {
     margin: 14px 0 6px;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .pulse-h5-reader-body p {
@@ -478,6 +478,6 @@ html[data-pulse-web='true'] .canvas-container {
 
   .pulse-h5-tab.is-active {
     color: var(--text, #1f1f1d);
-    font-weight: 700;
+    font-weight: 500;
   }
 }
