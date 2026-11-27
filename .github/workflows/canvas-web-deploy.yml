@@ -13,6 +13,7 @@ on:
       - 'apps/canvas-workspace/src/shared/**'
       - 'apps/canvas-workspace/vite.web.config.ts'
       - 'apps/canvas-workspace/package.json'
+      - 'apps/vps-daemon/**'
       - 'packages/storage/**'
       - '.github/workflows/canvas-web-deploy.yml'
   workflow_dispatch:
@@ -45,10 +46,30 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: pnpm install --frozen-lockfile
 
-      - name: Build storage and Web/H5 bundle
+      - name: Build storage, vps-daemon, and Web/H5 bundle
         run: |
           pnpm --filter @pulse-coder/storage build
+          pnpm --filter @pulse-coder/vps-daemon build
           pnpm --filter canvas-workspace build:web
+          mkdir -p apps/canvas-workspace/dist/web/daemon
+          cp apps/vps-daemon/dist/index.cjs apps/canvas-workspace/dist/web/daemon/index.cjs
+          node -e '
+            const fs = require("node:fs");
+            const crypto = require("node:crypto");
+            const buf = fs.readFileSync("apps/canvas-workspace/dist/web/daemon/index.cjs");
+            const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+            const manifest = {
+              sha256,
+              bundleHash: sha256.slice(0, 16),
+              bytes: buf.length,
+              updatedAt: new Date().toISOString(),
+              url: "https://pulse-canvas-web.pages.dev/daemon/index.cjs",
+            };
+            fs.writeFileSync(
+              "apps/canvas-workspace/dist/web/daemon/latest.json",
+              JSON.stringify(manifest, null, 2) + "\n",
+            );
+          '
 
       - name: Install Wrangler
         run: npm install -g wrangler@4
