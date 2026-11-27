@@ -48,7 +48,7 @@ const aroundNav: AroundNavHandler = (navigate, to, options) => {
 // A non-English catalog is a separate chunk. Load it before the first render
 // so the first frame is already in the user's language.
 const ensureHostBridge =
-  typeof window !== "undefined" && !window.canvasWorkspace
+  __PULSE_WEB_HOST__ && typeof window !== "undefined" && !window.canvasWorkspace
     ? import("./platform/web-host").then((mod) => mod.bootstrapWebHost(root))
     : Promise.resolve();
 
