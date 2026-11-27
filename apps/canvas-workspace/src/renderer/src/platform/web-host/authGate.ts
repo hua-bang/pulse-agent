@@ -190,34 +190,66 @@ function mountAuthGate(
   initialError?: string,
 ): Promise<WebHostAuthSession> {
   return new Promise((resolveSession) => {
+    const isZh = typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh');
+    const copy = isZh
+      ? {
+          eyebrow: 'PULSE CANVAS · WEB',
+          title: '连接到远程工作区',
+          subtitle: '支持直接粘贴桌面端「Share」生成的 pulse-share://v1/... 邀请码，或 VPS 管理员 Token。',
+          tokenLabel: '共享邀请码 / VPS Token',
+          tokenPlaceholder: '粘贴 pulse-share://v1/... 或 PULSE_VPS_TOKEN',
+          nameLabel: '协作昵称（可选）',
+          namePlaceholder: '例如：Jasper（手机）',
+          advanced: '自定义 VPS 地址（使用邀请码时无需填写）',
+          endpointLabel: 'VPS 地址（留空默认当前域名）',
+          submit: '进入工作区',
+          connecting: '连接中...',
+        }
+      : {
+          eyebrow: 'PULSE CANVAS · WEB',
+          title: 'Connect to Workspace',
+          subtitle: 'Paste a pulse-share://v1/... invite code from desktop Share, or your VPS admin token.',
+          tokenLabel: 'Invite Code or VPS Token',
+          tokenPlaceholder: 'Paste pulse-share://v1/... or PULSE_VPS_TOKEN',
+          nameLabel: 'Display Name (optional)',
+          namePlaceholder: 'e.g. Jasper (Mobile)',
+          advanced: 'Custom VPS Endpoint (optional for invite codes)',
+          endpointLabel: 'VPS Endpoint URL (blank = current origin)',
+          submit: 'Open Workspace',
+          connecting: 'Connecting...',
+        };
+
     const defaultEndpoint = initial.endpoint?.trim() || '';
     root.innerHTML = `
       <div class="pulse-web-auth-backdrop">
         <form class="pulse-web-auth-card" id="pulse-web-auth-form">
           <div class="pulse-web-auth-header">
-            <div class="pulse-web-auth-logo">P</div>
-            <div>
-              <h1 class="pulse-web-auth-title">Pulse Canvas Web</h1>
-              <p class="pulse-web-auth-subtitle">Connect to your VPS daemon to browse workspaces and join the shared chat room.</p>
+            <img class="pulse-web-auth-logo" src="/icon.png" alt="Pulse Canvas" />
+            <div class="pulse-web-auth-heading">
+              <span class="pulse-web-auth-eyebrow">${copy.eyebrow}</span>
+              <h1 class="pulse-web-auth-title">${copy.title}</h1>
             </div>
           </div>
-          <label class="pulse-web-auth-row">
-            <span>Share Invite Code or VPS Token</span>
-            <input id="pulse-web-token" type="password" autocomplete="off" required placeholder="Paste pulse-share://v1/... or PULSE_VPS_TOKEN" value="" />
-          </label>
-          <label class="pulse-web-auth-row">
-            <span>Display Name (optional)</span>
-            <input id="pulse-web-name" type="text" autocomplete="name" placeholder="e.g. Jasper (Mobile)" value="" />
-          </label>
-          <details class="pulse-web-auth-advanced" ${defaultEndpoint ? 'open' : ''}>
-            <summary>Advanced: Custom VPS Endpoint</summary>
+          <div class="pulse-web-auth-body">
+            <p class="pulse-web-auth-subtitle">${copy.subtitle}</p>
             <label class="pulse-web-auth-row">
-              <span>Endpoint URL (blank = current origin)</span>
-              <input id="pulse-web-endpoint" type="url" placeholder="${window.location.origin}" value="" />
+              <span>${copy.tokenLabel}</span>
+              <input id="pulse-web-token" type="password" autocomplete="off" required placeholder="${copy.tokenPlaceholder}" value="" />
             </label>
-          </details>
-          <div id="pulse-web-auth-error" class="pulse-web-auth-error" role="alert"></div>
-          <button id="pulse-web-auth-submit" type="submit" class="pulse-web-auth-submit">Connect to Workspace</button>
+            <label class="pulse-web-auth-row">
+              <span>${copy.nameLabel}</span>
+              <input id="pulse-web-name" type="text" autocomplete="name" placeholder="${copy.namePlaceholder}" value="" />
+            </label>
+            <details class="pulse-web-auth-advanced" ${defaultEndpoint ? 'open' : ''}>
+              <summary>${copy.advanced}</summary>
+              <label class="pulse-web-auth-row">
+                <span>${copy.endpointLabel}</span>
+                <input id="pulse-web-endpoint" type="url" placeholder="${window.location.origin}" value="" />
+              </label>
+            </details>
+            <div id="pulse-web-auth-error" class="pulse-web-auth-error" role="alert"></div>
+            <button id="pulse-web-auth-submit" type="submit" class="pulse-web-auth-submit">${copy.submit}</button>
+          </div>
         </form>
       </div>
     `;
@@ -238,7 +270,7 @@ function mountAuthGate(
       event.preventDefault();
       errorEl.textContent = '';
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Connecting...';
+      submitBtn.textContent = copy.connecting;
       try {
         const parsed = parseInviteInput(tokenInput.value);
         const creds: WebHostStoredCredentials = {
@@ -256,7 +288,7 @@ function mountAuthGate(
         resolveSession(result.session);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Connect to Workspace';
+        submitBtn.textContent = copy.submit;
       }
     });
   });
