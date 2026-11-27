@@ -130,5 +130,8 @@ describe('createWebWorkspaceApi', () => {
 
     const fromWebUrl = parseInviteInput(`https://pulse-canvas-web.pages.dev/?invite=${encoded}`);
     expect(fromWebUrl).toEqual({ endpoint: 'https://my-vps.ts.net', token: 'sh_secret_123' });
+
+    const fromDeepLink = parseInviteInput(`点此加入：pulse-canvas://join?code=${encoded}`);
+    expect(fromDeepLink).toEqual({ endpoint: 'https://my-vps.ts.net', token: 'sh_secret_123' });
   });
 });

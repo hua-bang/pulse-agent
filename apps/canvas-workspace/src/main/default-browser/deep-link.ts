@@ -124,9 +124,10 @@ export function setupDeepLinkEarly(writeLog: WriteLog): boolean {
     return false;
   }
 
-  // Register custom scheme for one-click `pulse-canvas://join?code=...` links.
+  // Register custom schemes for one-click `pulse-share://v1/...` (and legacy `pulse-canvas://join`) links.
   try {
     if (app.isPackaged) {
+      app.setAsDefaultProtocolClient('pulse-share');
       app.setAsDefaultProtocolClient('pulse-canvas');
     }
   } catch {

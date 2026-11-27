@@ -46,12 +46,34 @@ export function parseInviteInput(raw: string): { endpoint?: string; token: strin
       return { token, ...(endpoint ? { endpoint } : {}) };
     }
   }
-  if (trimmed.startsWith('pulse://') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  // Match desktop one-click deep link `pulse-canvas://join?code=<base64url>` (even inside chat text).
+  const deepLinkMatch = /pulse-canvas:\/\/join\?[^\s]*\bcode=([A-Za-z0-9_%=-]+)/.exec(trimmed);
+  if (deepLinkMatch) {
+    let rawCode = deepLinkMatch[1];
+    try {
+      rawCode = decodeURIComponent(rawCode);
+    } catch {
+      // Keep raw capture if percent-decoding fails.
+    }
+    const payload = decodeBase64UrlJson(rawCode.replace(/^pulse-share:\/\/v1\//, ''));
+    const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+    const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
+    if (token) {
+      return { token, ...(endpoint ? { endpoint } : {}) };
+    }
+  }
+  if (
+    trimmed.startsWith('pulse://') ||
+    trimmed.startsWith('pulse-canvas://') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://')
+  ) {
     try {
       const parsed = new URL(trimmed);
-      const invite = parsed.searchParams.get('invite')?.trim();
+      const invite = (parsed.searchParams.get('invite') ?? parsed.searchParams.get('code') ?? '').trim();
       if (invite) {
-        const payload = decodeBase64UrlJson(invite);
+        const stripped = invite.replace(/^pulse-share:\/\/v1\//, '');
+        const payload = decodeBase64UrlJson(stripped);
         const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
         const endpoint = typeof payload?.endpoint === 'string' ? payload.endpoint.trim() : '';
         if (token) {
@@ -74,7 +96,13 @@ function readCredentialsFromUrl(): WebHostStoredCredentials | null {
   try {
     const url = new URL(window.location.href);
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-    const inviteParam = (url.searchParams.get('invite') ?? hashParams.get('invite') ?? '').trim();
+    const inviteParam = (
+      url.searchParams.get('invite') ??
+      url.searchParams.get('code') ??
+      hashParams.get('invite') ??
+      hashParams.get('code') ??
+      ''
+    ).trim();
     const senderName = (url.searchParams.get('name') ?? hashParams.get('name') ?? '').trim();
 
     let token = (url.searchParams.get('token') ?? hashParams.get('token') ?? '').trim();
@@ -98,7 +126,7 @@ function readCredentialsFromUrl(): WebHostStoredCredentials | null {
     if (!token) return null;
 
     // Strip credentials from the address bar immediately so they do not linger in history/screenshots.
-    for (const key of ['token', 'endpoint', 'invite', 'name']) {
+    for (const key of ['token', 'endpoint', 'invite', 'code', 'name']) {
       url.searchParams.delete(key);
       hashParams.delete(key);
     }

@@ -282,8 +282,6 @@ export const zhMessages: MessageCatalog = {
   'presence.stopFollow': '退出跟随',
   'presence.clickToFollow': '点击跟随 {name}',
   'presence.viewerReadOnly': '只读阅读态',
-  'presence.copyDeepLink': '复制一键加入链接',
-  'presence.deepLinkCopied': '一键加入链接已复制',
   'presence.peerStreaming': '{name} 正在与 Agent 对话…',
   'chatRoom.queuedLabel': '排队中 ({count})',
   'chatRoom.cancelQueued': '取消',

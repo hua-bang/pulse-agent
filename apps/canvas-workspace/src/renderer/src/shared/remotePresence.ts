@@ -87,12 +87,6 @@ export function useSelfSenderName(workspaceId: string | null | undefined): strin
   );
 }
 
-/** Build a clickable `pulse-canvas://join?code=...` deep link from a share invite code. */
-export function buildJoinDeepLink(inviteCode: string): string {
-  const stripped = inviteCode.trim().replace(/^pulse-share:\/\/v1\//, '');
-  return `pulse-canvas://join?code=${encodeURIComponent(stripped)}`;
-}
-
 export type PeerTone = 'accent' | 'term' | 'frame' | 'file';
 
 const PEER_TONES: readonly PeerTone[] = ['accent', 'term', 'frame', 'file'];

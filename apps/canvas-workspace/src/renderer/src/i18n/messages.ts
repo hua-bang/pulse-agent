@@ -293,8 +293,6 @@ export const enMessages = {
   'presence.stopFollow': 'Stop',
   'presence.clickToFollow': 'Click to follow {name}',
   'presence.viewerReadOnly': 'View-only reading mode',
-  'presence.copyDeepLink': 'Copy join link',
-  'presence.deepLinkCopied': 'Join link copied',
   'presence.peerStreaming': '{name} is chatting with Agent…',
   'chatRoom.queuedLabel': 'Queued ({count})',
   'chatRoom.cancelQueued': 'Cancel',
