@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BrowserWindow, ipcMain } from 'electron';
 import type {
   RemoteVpsChatRoomActiveTurn,
@@ -274,21 +275,36 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
       try {
         const text = typeof p.message === 'string' ? p.message.trim() : '';
         if (!text) return { ok: false, error: 'Empty message' };
-        const { getRemoteWorkspaceConfig, resolveRemoteWorkspaceSenderName } = await import('../config');
+        const [{ getRemoteWorkspaceConfig, resolveRemoteWorkspaceSenderName }, { getRemotePulseStorage }] =
+          await Promise.all([import('../config'), import('../client')]);
         if (getRemoteWorkspaceConfig(p.workspaceId)?.shareRole === 'viewer') {
           return { ok: false, forbidden: true };
         }
+        const resolved = await getRemotePulseStorage(p.workspaceId);
+        if (!resolved) return { ok: false, error: 'Remote storage unavailable' };
+        const existing = await resolved.storage.conversations.read(
+          resolved.target.remoteWorkspaceId,
+          p.conversationId,
+        );
+        if (!existing) return { ok: false, error: 'Conversation not found' };
         const senderName = resolveRemoteWorkspaceSenderName(p.workspaceId);
-        const { SessionStore } = await import('../../agent/sessions/store/session-store');
-        const store = new SessionStore(p.workspaceId, { kind: 'workspace', workspaceId: p.workspaceId });
-        await store.appendToSession(p.conversationId, [
-          {
-            role: 'user',
-            content: text,
-            timestamp: Date.now(),
-            ...(senderName ? { senderName } : {}),
-          },
-        ]);
+        const now = Date.now();
+        await resolved.storage.conversations.commit({
+          scopeId: resolved.target.remoteWorkspaceId,
+          sessionId: p.conversationId,
+          expectedRevision: existing.revision,
+          expectedGeneration: existing.generation,
+          metadata: { ...existing.metadata, updatedAt: now },
+          appendMessages: [
+            {
+              id: `message-${randomUUID()}`,
+              role: 'user',
+              content: text,
+              timestamp: now,
+              ...(senderName ? { senderName } : {}),
+            },
+          ],
+        });
         await postChatRoom(p.workspaceId, 'note', selfClientId, {
           conversationId: p.conversationId,
         }).catch(() => undefined);
