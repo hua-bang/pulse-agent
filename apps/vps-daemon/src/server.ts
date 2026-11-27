@@ -22,6 +22,7 @@ import {
   ShareTokenStore,
   type AuthPrincipal,
 } from './shares.js';
+import { createVpsAgentController } from './agent-loop.js';
 import { handleStaticWebRequest } from './static-web.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
 import { handleToolExecRequest } from './tools-rpc.js';
@@ -131,6 +132,12 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
   const capabilityRelay = new CapabilityRelay();
   const presenceHub = new PresenceHub();
   const chatRoomHub = new ChatRoomHub();
+  const agentController = createVpsAgentController({
+    storage,
+    workDir,
+    chatRoomHub,
+    onMutation: () => broadcaster.wake(),
+  });
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
@@ -208,9 +215,16 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
           'capability-relay',
           'presence',
           'chat-room',
+          'agent-loop',
         ],
       });
       return;
+    }
+
+    if (url.pathname.startsWith('/v1/agent/')) {
+      if (await agentController.handleRequest(req, res, url, principal)) {
+        return;
+      }
     }
 
     if (await handleChatRoomRequest(req, res, url, principal, chatRoomHub)) {
@@ -605,6 +619,7 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     async close() {
       broadcaster.stop();
       chatRoomHub.stop();
+      agentController.close();
       capabilityRelay.closeAll();
       ptyHub.closeAll();
       if (options.writeRuntimeDescriptor) {
