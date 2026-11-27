@@ -303,7 +303,10 @@ export const ChatInput = ({
             ) : null}
           </div>
           <div className="chat-input-footer-right">
-            {contextComposer && onSelectModel && onOpenModelSettings && (
+            {contextComposer
+              && onSelectModel
+              && onOpenModelSettings
+              && !(typeof document !== 'undefined' && document.documentElement.dataset.pulseWeb === 'true') && (
               <ModelSwitcher
                 status={modelStatus}
                 selection={modelSelection}

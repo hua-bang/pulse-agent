@@ -18,7 +18,13 @@ import {
 import { listVpsSkills, loadVpsSkill } from './agent-skills.js';
 import { VPS_AGENT_TOOLS } from './agent-tools-schema.js';
 import type { ChatRoomHub } from './chat-room.js';
-import { canUseRuntime, isSafeWorkspaceId, resolvePrincipalName, type AuthPrincipal } from './shares.js';
+import {
+  canUseRuntime,
+  isSafeWorkspaceId,
+  resolvePrincipalName,
+  scopeClientId,
+  type AuthPrincipal,
+} from './shares.js';
 import { executeRemoteBuiltinTool, type RemoteBuiltinToolName } from './tools-rpc.js';
 
 const MAX_AGENT_STEPS = 16;
@@ -195,10 +201,11 @@ export function createVpsAgentController(options: {
         : `vps-${Date.now()}-${randomUUID().slice(0, 6)}`;
     const runId = typeof body.runId === 'string' && body.runId.trim() ? body.runId.trim() : randomUUID();
     const senderName = resolvePrincipalName(principal, body.senderName);
-    const clientId =
+    const rawClientId =
       typeof body.clientId === 'string' && body.clientId.trim()
         ? body.clientId.trim().slice(0, 64)
-        : `vps-agent:${principal.kind}`;
+        : `vps-agent-${principal.kind}`;
+    const clientId = scopeClientId(principal, rawClientId);
 
     const key = runKey(workspaceId, sessionId);
     const prevAbort = activeRuns.get(key);
@@ -277,6 +284,7 @@ export function createVpsAgentController(options: {
       chatRoomHub.updateStream(workspaceId, sessionId, {
         clientId,
         senderName,
+        prompt: userText,
         text: fullAssistantText,
         toolName,
       });

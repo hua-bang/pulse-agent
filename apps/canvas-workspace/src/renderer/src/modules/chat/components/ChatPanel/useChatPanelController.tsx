@@ -62,7 +62,7 @@ export const useChatPanelController = ({
   sessionRefreshKey,
   requestedSessionId,
   onOpenSessionInScope,
-}: ChatPanelProps): ChatViewProps & { chatRoom: { reloadSession: () => void; sendMessage: (message: string) => Promise<boolean>; clearInput: () => void } } => {
+}: ChatPanelProps): ChatViewProps & { chatRoom: { reloadSession: (sessionId?: string) => void; sendMessage: (message: string) => Promise<boolean>; clearInput: () => void } } => {
   const { t } = useI18n();
   const { notify } = useAppShell();
   const executionMode = 'auto' as const;
@@ -493,6 +493,6 @@ export const useChatPanelController = ({
         modelLabel: canvasModels.selectedLabel, onSelectModel: canvasModels.selectModel,
         onOpenModelSettings: openModelSettingsFromSwitcher, contextComposer: true,
     },
-    chatRoom: { reloadSession: () => void (activeSessionId ? handleLoadSession(activeSessionId, undefined, true) : retrySession()), sendMessage: (message: string) => sendMessage(message, requestContext), clearInput },
+    chatRoom: { reloadSession: (targetSessionId?: string) => { const sid = targetSessionId && targetSessionId !== workspaceId ? targetSessionId : activeSessionId; void (sid ? handleLoadSession(sid, undefined, true) : retrySession()); }, sendMessage: (message: string) => sendMessage(message, requestContext), clearInput },
   };
 };
