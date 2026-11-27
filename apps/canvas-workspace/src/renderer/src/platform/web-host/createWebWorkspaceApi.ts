@@ -4,10 +4,11 @@ import {
   openRemoteStorage,
   subscribeRemoteChanges,
 } from '@pulse-coder/storage/remote';
-import type { AgentChatMessage, AgentScopeRef, AgentSessionInfo } from '../../../../shared/agent-chat';
+import type { AgentChatMessage, AgentSessionInfo } from '../../../../shared/agent-chat';
 import type { CanvasSaveData, CanvasSummary, CanvasSummaryBox } from '../../../../shared/canvas';
 import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import { createWebRemoteVpsApi } from './chatRoomClient';
+import { scopeIdFromRef, toRemoteFileUri } from './remotePaths';
 import { WEB_HOST_ACTIVE_WS_KEY, type WebHostAuthSession } from './types';
 
 const MANIFEST_ID = '__workspaces__';
@@ -43,14 +44,6 @@ function writeStoredActiveWorkspace(id: string | undefined): void {
   } catch {
     // Ignore storage errors.
   }
-}
-
-function scopeIdFromRef(scopeRef: AgentScopeRef): string {
-  if (typeof scopeRef === 'string') return scopeRef;
-  if ('workspaceId' in scopeRef && typeof scopeRef.workspaceId === 'string' && scopeRef.workspaceId) {
-    return scopeRef.workspaceId;
-  }
-  return 'global';
 }
 
 function extractConversationMessages(snapshot: {
@@ -156,6 +149,8 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     return ids;
   }
 
+  let currentWorkspaceId: string | undefined = session.workspaceId || readStoredActiveWorkspace();
+
   const store: CanvasWorkspaceApi['store'] = {
     list: async () => {
       try {
@@ -175,11 +170,15 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
           const storedActive = readStoredActiveWorkspace();
           const activeId =
             (storedActive && ids.includes(storedActive) ? storedActive : undefined) ?? ids[0] ?? 'default';
+          if (activeId && activeId !== 'default') {
+            currentWorkspaceId = activeId;
+          }
           return {
             ok: true,
             data: { workspaces, folders: [], activeId } as unknown as CanvasSaveData,
           };
         }
+        currentWorkspaceId = id;
         ensureCanvasStream(id);
         const canvasStore = await getCanvasStore();
         const data = (await canvasStore.readCanvas(id)) as CanvasSaveData | null;
@@ -191,6 +190,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     save: async (id, data) => {
       if (id === MANIFEST_ID) {
         const activeId = (data as { activeId?: string } | null)?.activeId;
+        if (activeId) currentWorkspaceId = activeId;
         writeStoredActiveWorkspace(activeId);
         return { ok: true };
       }
@@ -264,8 +264,12 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
 
   const file = createNoopNamespace<CanvasWorkspaceApi['file']>({
     read: async (filePath) => {
+      const uri = toRemoteFileUri(filePath, currentWorkspaceId, session.workspaceId);
+      if (!uri) {
+        return { ok: false, error: 'File is outside the shared remote workspace.' };
+      }
       try {
-        const result = await remoteFiles.readText(filePath);
+        const result = await remoteFiles.readText(uri);
         if (!result) return { ok: false, error: 'File not found' };
         return { ok: true, content: result.content, version: result.version };
       } catch (err) {
@@ -276,9 +280,13 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
       if (session.role === 'viewer') {
         return { ok: false, error: 'Read-only viewer role cannot modify files.' };
       }
+      const uri = toRemoteFileUri(filePath, currentWorkspaceId, session.workspaceId);
+      if (!uri) {
+        return { ok: false, error: 'File is outside the shared remote workspace.' };
+      }
       try {
         const receipt = await remoteFiles.write(
-          filePath,
+          uri,
           content,
           expectedVersion ? { expectedVersion } : undefined,
         );
@@ -299,8 +307,11 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     listSkills: async () => ({ ok: true, skills: [] }),
     listSessions: async (scopeRef) => {
       try {
+        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
+        if (session.workspaceId && scopeId !== session.workspaceId) {
+          return { ok: true, sessions: [] };
+        }
         const storage = await getStorage();
-        const scopeId = scopeIdFromRef(scopeRef);
         const [scope, page] = await Promise.all([
           storage.conversationScopes.read(scopeId),
           storage.conversations.list(scopeId, { limit: 100 }),
@@ -326,8 +337,11 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     },
     getCurrentSession: async (scopeRef) => {
       try {
+        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
+        if (session.workspaceId && scopeId !== session.workspaceId) {
+          return { ok: true, sessionId: null };
+        }
         const storage = await getStorage();
-        const scopeId = scopeIdFromRef(scopeRef);
         const scope = await storage.conversationScopes.read(scopeId);
         if (scope?.currentSessionId) {
           return { ok: true, sessionId: scope.currentSessionId };
@@ -340,8 +354,11 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     },
     getHistory: async (scopeRef) => {
       try {
+        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
+        if (session.workspaceId && scopeId !== session.workspaceId) {
+          return { ok: true, messages: [], activeSessionId: null };
+        }
         const storage = await getStorage();
-        const scopeId = scopeIdFromRef(scopeRef);
         const scope = await storage.conversationScopes.read(scopeId);
         let activeId = scope?.currentSessionId ?? null;
         if (!activeId) {
@@ -361,8 +378,11 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     },
     loadSession: async (scopeRef, sessionId) => {
       try {
+        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
+        if (session.workspaceId && scopeId !== session.workspaceId) {
+          return { ok: true, messages: [], activeSessionId: sessionId };
+        }
         const storage = await getStorage();
-        const scopeId = scopeIdFromRef(scopeRef);
         const conv = await storage.conversations.read(scopeId, sessionId);
         return {
           ok: true,

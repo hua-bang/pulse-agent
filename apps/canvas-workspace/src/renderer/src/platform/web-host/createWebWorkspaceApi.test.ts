@@ -134,4 +134,65 @@ describe('createWebWorkspaceApi', () => {
     const fromDeepLink = parseInviteInput(`点此加入：pulse-canvas://join?code=${encoded}`);
     expect(fromDeepLink).toEqual({ endpoint: 'https://my-vps.ts.net', token: 'sh_secret_123' });
   });
+
+  it('normalizes desktop absolute file paths to pulse-remote:/// URIs and blocks out-of-scope paths', async () => {
+    const requestedUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      requestedUrls.push(url);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          uri: 'pulse-remote:///ws-1/notes/DAG.md',
+          version: 'sha256:abc',
+          base64: Buffer.from('# Hello', 'utf8').toString('base64'),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const api = createWebWorkspaceApi(createSession({ workspaceId: 'ws-1' }));
+    const res = await api.file.read('/Users/bytedance/.pulse/workspaces/ws-1/notes/DAG.md');
+    expect(res.ok).toBe(true);
+    expect(res.content).toBe('# Hello');
+    expect(requestedUrls[0]).toContain(encodeURIComponent('pulse-remote:///ws-1/notes/DAG.md'));
+
+    const outside = await api.file.read('/Users/bytedance/Desktop/secret.txt');
+    expect(outside.ok).toBe(false);
+    expect(requestedUrls).toHaveLength(1);
+  });
+
+  it('unwraps nested AgentScopeRef { scope: { kind: workspace, workspaceId } } for conversation RPCs', async () => {
+    const rpcCalls: Array<{ method: string; args: unknown[] }> = [];
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.body) {
+        const parsed = JSON.parse(String(init.body)) as { method: string; args: unknown[] };
+        rpcCalls.push(parsed);
+        if (parsed.method === 'conversationScopes.read') {
+          return new Response(JSON.stringify({ ok: true, result: { currentSessionId: 'sess-1' } }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (parsed.method === 'conversations.read') {
+          return new Response(JSON.stringify({ ok: true, result: { messages: [] } }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      return new Response(JSON.stringify({ ok: true, result: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const api = createWebWorkspaceApi(createSession({ workspaceId: 'ws-1' }));
+    const history = await api.agent.getHistory({ scope: { kind: 'workspace', workspaceId: 'ws-1' } });
+    expect(history.ok).toBe(true);
+    expect(rpcCalls[0]).toEqual({ method: 'conversationScopes.read', args: ['ws-1'] });
+    expect(rpcCalls[1]).toEqual({ method: 'conversations.read', args: ['ws-1', 'sess-1'] });
+  });
 });
