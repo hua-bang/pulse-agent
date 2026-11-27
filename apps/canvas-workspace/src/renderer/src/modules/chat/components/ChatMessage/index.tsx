@@ -188,12 +188,17 @@ const ChatMessageView = ({
         {message.speakerRoleName ? message.speakerRoleName.slice(0, 1) : <BotAvatarIcon size={20} />}
       </div>
     )}
+    {isPeerUser && message.senderName && (
+      <div
+        className={`chat-message-peer-avatar chat-message-peer-avatar--${peerToneForName(message.senderName)}`}
+        aria-hidden="true"
+      >
+        {Array.from(message.senderName.trim())[0]?.toUpperCase() ?? '?'}
+      </div>
+    )}
     <div className="chat-message-body">
-      {message.role === 'user' && message.senderName && (
-        <span className={`chat-message-sender chat-message-sender--${peerToneForName(message.senderName)}`}>
-          <span className="chat-message-sender__dot" aria-hidden="true" />
-          {message.senderName}
-        </span>
+      {isPeerUser && message.senderName && (
+        <span className="chat-message-sender">{message.senderName}</span>
       )}
       {message.role === 'assistant' && message.speakerRoleName && (
         <span
