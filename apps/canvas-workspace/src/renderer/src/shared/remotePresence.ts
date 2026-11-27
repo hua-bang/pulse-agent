@@ -6,6 +6,7 @@ const EMPTY_PEERS: readonly RemoteVpsPresencePeer[] = [];
 const peersByWorkspace = new Map<string, readonly RemoteVpsPresencePeer[]>();
 const followingByWorkspace = new Map<string, string | null>();
 const viewerReadOnlyByWorkspace = new Map<string, boolean>();
+const selfSenderNameByWorkspace = new Map<string, string>();
 const listeners = new Set<() => void>();
 
 const emit = () => {
@@ -70,8 +71,38 @@ export function useWorkspaceViewerReadOnly(workspaceId: string | null | undefine
   );
 }
 
+export function setSelfSenderName(workspaceId: string, name: string | undefined): void {
+  const trimmed = name?.trim() ?? '';
+  if ((selfSenderNameByWorkspace.get(workspaceId) ?? '') === trimmed) return;
+  if (trimmed) selfSenderNameByWorkspace.set(workspaceId, trimmed);
+  else selfSenderNameByWorkspace.delete(workspaceId);
+  emit();
+}
+
+export function useSelfSenderName(workspaceId: string | null | undefined): string | undefined {
+  return useSyncExternalStore(
+    subscribe,
+    () => (workspaceId ? selfSenderNameByWorkspace.get(workspaceId) : undefined),
+    () => undefined,
+  );
+}
+
 /** Build a clickable `pulse-canvas://join?code=...` deep link from a share invite code. */
 export function buildJoinDeepLink(inviteCode: string): string {
   const stripped = inviteCode.trim().replace(/^pulse-share:\/\/v1\//, '');
   return `pulse-canvas://join?code=${encodeURIComponent(stripped)}`;
+}
+
+export type PeerTone = 'accent' | 'term' | 'frame' | 'file';
+
+const PEER_TONES: readonly PeerTone[] = ['accent', 'term', 'frame', 'file'];
+
+/** Deterministic design-token tone shared by top-bar avatars, canvas halos, and chat sender badges. */
+export function peerToneForName(name: string): PeerTone {
+  const normalized = name.trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0;
+  }
+  return PEER_TONES[hash % PEER_TONES.length];
 }

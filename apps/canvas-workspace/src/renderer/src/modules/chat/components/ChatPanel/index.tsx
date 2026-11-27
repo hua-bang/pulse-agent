@@ -1,17 +1,19 @@
 import './index.css';
 import { ChatView } from '../ChatView';
 import { PeerStreamBridge } from './PeerStreamBridge';
+import { SharedChatRoomBar } from './SharedChatRoomBar';
 import { useSharedChatRoom } from './hooks/useSharedChatRoom';
 import type { ChatPanelProps } from './types';
 import { useChatPanelController } from './useChatPanelController';
 
 export const ChatPanel = (props: ChatPanelProps) => {
   const { chatRoom, ...viewProps } = useChatPanelController(props);
-  const { workspaceId, conversationKey, messages, loading } = viewProps.thread;
+  const { workspaceId, conversationKey, messages, loading, streamingTools } = viewProps.thread;
   const sharedRoom = useSharedChatRoom({
     workspaceId,
     conversationId: conversationKey ?? '',
     messages,
+    streamingTools,
     loading,
     input: viewProps.composer.input,
     mentionOpen: viewProps.composer.mentionOpen,
@@ -36,6 +38,14 @@ export const ChatPanel = (props: ChatPanelProps) => {
       }}
       chrome={{
         ...viewProps.chrome,
+        composerAccessory: (
+          <SharedChatRoomBar
+            active={sharedRoom.chatRoomActive}
+            typingPeers={sharedRoom.typingPeers}
+            noteOnly={sharedRoom.noteOnly}
+            onToggleNoteOnly={sharedRoom.toggleNoteOnly}
+          />
+        ),
         banner: (
           <>
             {viewProps.chrome.banner}
@@ -46,8 +56,6 @@ export const ChatPanel = (props: ChatPanelProps) => {
               loading={loading}
               chatRoomActive={sharedRoom.chatRoomActive}
               roomActiveTurn={sharedRoom.activeTurn}
-              roomQueue={sharedRoom.queue}
-              onCancelQueued={sharedRoom.cancelQueued}
               onNewBranch={viewProps.chrome.onNewSession}
               onPeerStreamFinished={chatRoom.reloadSession}
             />

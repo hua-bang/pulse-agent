@@ -257,6 +257,10 @@ export const createRemoteVpsApi = (ipcRenderer: IpcRenderer): RemoteVpsApi => ({
     ipcRenderer.invoke("remote-vps:chatRoomRelease", { workspaceId, conversationId }),
   cancelChatRoomQueued: (workspaceId, conversationId, itemId) =>
     ipcRenderer.invoke("remote-vps:chatRoomCancel", { workspaceId, conversationId, itemId }),
+  setChatRoomTyping: (workspaceId, conversationId, active) =>
+    ipcRenderer.invoke("remote-vps:chatRoomTyping", { workspaceId, conversationId, active }),
+  sendChatRoomNote: (workspaceId, conversationId, message) =>
+    ipcRenderer.invoke("remote-vps:chatRoomNote", { workspaceId, conversationId, message }),
   subscribeChatRoom: (workspaceId) =>
     ipcRenderer.invoke("remote-vps:chatRoomSubscribe", { workspaceId }),
   unsubscribeChatRoom: (workspaceId) =>

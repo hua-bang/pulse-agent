@@ -116,6 +116,7 @@ export interface RemoteVpsChatRoomEvent {
   conversationId: string;
   activeTurn: RemoteVpsChatRoomActiveTurn | null;
   queue: RemoteVpsChatRoomQueuedItem[];
+  typingPeers?: string[];
   turnEnded?: boolean;
   endedBySelf?: boolean;
 }
@@ -208,6 +209,7 @@ export interface RemoteVpsApi {
   ) => Promise<{
     ok: boolean;
     fallback?: boolean;
+    selfName?: string;
     activeTurn: RemoteVpsChatRoomActiveTurn | null;
     queue: RemoteVpsChatRoomQueuedItem[];
   }>;
@@ -247,6 +249,16 @@ export interface RemoteVpsApi {
     conversationId: string,
     itemId: string,
   ) => Promise<{ ok: boolean; removed?: boolean }>;
+  setChatRoomTyping?: (
+    workspaceId: string,
+    conversationId: string,
+    active: boolean,
+  ) => Promise<{ ok: boolean }>;
+  sendChatRoomNote?: (
+    workspaceId: string,
+    conversationId: string,
+    message: string,
+  ) => Promise<{ ok: boolean; forbidden?: boolean; error?: string }>;
   subscribeChatRoom?: (workspaceId: string) => Promise<{ ok: boolean }>;
   unsubscribeChatRoom?: (workspaceId: string) => Promise<{ ok: boolean }>;
   onChatRoomEvent?: (callback: (event: RemoteVpsChatRoomEvent) => void) => () => void;

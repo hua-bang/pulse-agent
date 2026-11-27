@@ -25,6 +25,8 @@ export interface ChatViewChrome {
   header?: ReactNode;
   beforeHeader?: ReactNode;
   banner?: ReactNode;
+  /** Optional compact strip rendered directly above the composer (e.g. shared room typing/note bar). */
+  composerAccessory?: ReactNode;
   onResizeStart?: (event: ReactMouseEvent) => void;
   /** `chat.newSession` shortcut; absent while starting a chat is blocked. */
   onNewSession?: () => void;

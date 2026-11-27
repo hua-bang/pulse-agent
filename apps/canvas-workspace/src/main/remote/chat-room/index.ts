@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BrowserWindow, ipcMain } from 'electron';
 import type {
   RemoteVpsChatRoomActiveTurn,
@@ -94,16 +95,21 @@ async function runSseLoop(workspaceId: string, selfId: string, abort: AbortContr
           for (const line of chunk.split('\n')) {
             if (!line.startsWith('data:')) continue;
             try {
-              const parsed = JSON.parse(line.slice(5).trim()) as RemoteVpsChatRoomEvent & {
+              const parsed = JSON.parse(line.slice(5).trim()) as Omit<RemoteVpsChatRoomEvent, 'typingPeers'> & {
                 type?: string;
                 endedByClientId?: string;
+                typingPeers?: Array<{ clientId: string; senderName: string }>;
               };
               if (parsed.type === 'chat-room' && parsed.conversationId) {
+                const typingPeers = Array.isArray(parsed.typingPeers)
+                  ? parsed.typingPeers.filter((p) => p.clientId !== selfId).map((p) => p.senderName)
+                  : [];
                 broadcastEvent({
                   workspaceId,
                   conversationId: parsed.conversationId,
                   activeTurn: markSelfTurn(parsed.activeTurn, selfId),
                   queue: markSelfQueue(parsed.queue, selfId),
+                  typingPeers,
                   ...(parsed.turnEnded ? { turnEnded: true } : {}),
                   ...(parsed.endedByClientId ? { endedBySelf: parsed.endedByClientId === selfId } : {}),
                 });
@@ -127,18 +133,23 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
     'remote-vps:chatRoomState',
     async (_e, p: { workspaceId: string; conversationId: string }) => {
       try {
-        const { resolveRemoteWorkspaceTarget } = await import('../client');
+        const [{ resolveRemoteWorkspaceTarget }, { resolveRemoteWorkspaceSenderName }] = await Promise.all([
+          import('../client'),
+          import('../config'),
+        ]);
         const target = await resolveRemoteWorkspaceTarget(p.workspaceId, 'storage');
         if (!target) return { ok: true, fallback: true, activeTurn: null, queue: [] };
+        const selfName = resolveRemoteWorkspaceSenderName(p.workspaceId);
         const res = await fetch(
           `${target.endpoint}/v1/chat-room/state?workspaceId=${encodeURIComponent(target.remoteWorkspaceId)}&conversationId=${encodeURIComponent(p.conversationId)}`,
           { headers: { Authorization: `Bearer ${target.token}` }, signal: AbortSignal.timeout(4_000) },
         );
-        if (res.status === 404) return { ok: true, fallback: true, activeTurn: null, queue: [] };
-        if (!res.ok) return { ok: false, activeTurn: null, queue: [] };
+        if (res.status === 404) return { ok: true, fallback: true, selfName, activeTurn: null, queue: [] };
+        if (!res.ok) return { ok: false, selfName, activeTurn: null, queue: [] };
         const body = (await res.json()) as Record<string, any>;
         return {
           ok: true,
+          selfName,
           activeTurn: markSelfTurn(body.activeTurn, selfClientId),
           queue: markSelfQueue(body.queue, selfClientId),
         };
@@ -239,6 +250,67 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
         return { ok: Boolean(res && res.status < 400), removed: Boolean(res?.body.removed) };
       } catch {
         return { ok: false, removed: false };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'remote-vps:chatRoomTyping',
+    async (_e, p: { workspaceId: string; conversationId: string; active: boolean }) => {
+      try {
+        const res = await postChatRoom(p.workspaceId, 'typing', selfClientId, {
+          conversationId: p.conversationId,
+          active: Boolean(p.active),
+        });
+        return { ok: Boolean(res && res.status < 400) };
+      } catch {
+        return { ok: false };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'remote-vps:chatRoomNote',
+    async (_e, p: { workspaceId: string; conversationId: string; message: string }) => {
+      try {
+        const text = typeof p.message === 'string' ? p.message.trim() : '';
+        if (!text) return { ok: false, error: 'Empty message' };
+        const [{ getRemoteWorkspaceConfig, resolveRemoteWorkspaceSenderName }, { getRemotePulseStorage }] =
+          await Promise.all([import('../config'), import('../client')]);
+        if (getRemoteWorkspaceConfig(p.workspaceId)?.shareRole === 'viewer') {
+          return { ok: false, forbidden: true };
+        }
+        const resolved = await getRemotePulseStorage(p.workspaceId);
+        if (!resolved) return { ok: false, error: 'Remote storage unavailable' };
+        const existing = await resolved.storage.conversations.read(
+          resolved.target.remoteWorkspaceId,
+          p.conversationId,
+        );
+        if (!existing) return { ok: false, error: 'Conversation not found' };
+        const senderName = resolveRemoteWorkspaceSenderName(p.workspaceId);
+        const now = Date.now();
+        await resolved.storage.conversations.commit({
+          scopeId: resolved.target.remoteWorkspaceId,
+          sessionId: p.conversationId,
+          expectedRevision: existing.revision,
+          expectedGeneration: existing.generation,
+          metadata: { ...existing.metadata, updatedAt: now },
+          appendMessages: [
+            {
+              id: `message-${randomUUID()}`,
+              role: 'user',
+              content: text,
+              timestamp: now,
+              ...(senderName ? { senderName } : {}),
+            },
+          ],
+        });
+        await postChatRoom(p.workspaceId, 'note', selfClientId, {
+          conversationId: p.conversationId,
+        }).catch(() => undefined);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
   );

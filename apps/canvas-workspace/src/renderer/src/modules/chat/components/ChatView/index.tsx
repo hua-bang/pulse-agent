@@ -122,6 +122,7 @@ export const ChatView = ({ chrome, thread, context, composer }: ChatViewProps) =
       {relay && relay.total > 1 && onStopRelay && (
         <RelayBar relay={relay} onStop={onStopRelay} />
       )}
+      {chrome.composerAccessory}
       <ChatInput
         loading={loading}
         input={input}
