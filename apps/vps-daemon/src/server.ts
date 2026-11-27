@@ -151,9 +151,10 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
         'Access-Control-Allow-Origin',
         !corsRestricted || allowedCorsOrigins.has('*') ? '*' : origin,
       );
-      res.setHeader('Vary', 'Origin');
+      res.setHeader('Vary', 'Origin, Access-Control-Request-Private-Network');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept');
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
       res.setHeader('Access-Control-Max-Age', '600');
     }
     if (req.method === 'OPTIONS') {

@@ -4,11 +4,16 @@ import {
   openRemoteStorage,
   subscribeRemoteChanges,
 } from '@pulse-coder/storage/remote';
-import type { AgentChatMessage, AgentSessionInfo } from '../../../../shared/agent-chat';
-import type { CanvasSaveData, CanvasSummary, CanvasSummaryBox } from '../../../../shared/canvas';
+import type { AgentSessionInfo } from '../../../../shared/agent-chat';
+import type { CanvasSaveData, CanvasSummary } from '../../../../shared/canvas';
 import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import { createWebRemoteVpsApi } from './chatRoomClient';
-import { scopeIdFromRef, toRemoteFileUri } from './remotePaths';
+import {
+  extractConversationMessages,
+  scopeIdFromRef,
+  toRemoteFileUri,
+  toSummaryBox,
+} from './remotePaths';
 import { WEB_HOST_ACTIVE_WS_KEY, type WebHostAuthSession } from './types';
 import { createWebAgentRuntime } from './webAgentClient';
 import { createWebPtyClient } from './webPtyClient';
@@ -46,39 +51,6 @@ function writeStoredActiveWorkspace(id: string | undefined): void {
   } catch {
     // Ignore storage errors.
   }
-}
-
-function extractConversationMessages(snapshot: {
-  messages?: unknown[];
-  entries?: Array<{ data?: unknown }>;
-}): AgentChatMessage[] {
-  if (Array.isArray(snapshot.messages)) {
-    return snapshot.messages as AgentChatMessage[];
-  }
-  if (Array.isArray(snapshot.entries)) {
-    return snapshot.entries
-      .map((entry) => entry?.data)
-      .filter((item): item is AgentChatMessage => Boolean(item && typeof item === 'object'));
-  }
-  return [];
-}
-
-function toSummaryBox(node: {
-  type?: string;
-  title?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-}): CanvasSummaryBox {
-  return {
-    type: node.type ?? 'text',
-    ...(node.title ? { title: node.title.slice(0, 60) } : {}),
-    x: typeof node.x === 'number' ? node.x : 0,
-    y: typeof node.y === 'number' ? node.y : 0,
-    width: typeof node.width === 'number' ? node.width : 240,
-    height: typeof node.height === 'number' ? node.height : 160,
-  };
 }
 
 export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorkspaceApi {
@@ -167,7 +139,10 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
           const ids = await listWorkspaceIds();
           const workspaces = ids.map((wsId) => ({
             id: wsId,
-            name: wsId === session.workspaceId && session.shareLabel ? session.shareLabel : wsId,
+            name:
+              wsId === session.workspaceId
+                ? session.workspaceName || session.shareLabel || wsId
+                : wsId,
           }));
           const storedActive = readStoredActiveWorkspace();
           const activeId =
@@ -283,11 +258,11 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     read: async (filePath) => {
       const uri = toRemoteFileUri(filePath, currentWorkspaceId, session.workspaceId);
       if (!uri) {
-        return { ok: false, error: 'File is outside the shared remote workspace.' };
+        return { ok: false, error: `ENOENT: file is outside remote workspace, open '${filePath}'` };
       }
       try {
         const result = await remoteFiles.readText(uri);
-        if (!result) return { ok: false, error: 'File not found' };
+        if (!result) return { ok: false, error: `ENOENT: no such file or directory, open '${filePath}'` };
         return { ok: true, content: result.content, version: result.version };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -309,7 +284,15 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
         );
         return { ok: true, version: receipt.version };
       } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+        const code =
+          err && typeof err === 'object' && 'code' in err && typeof (err as { code?: unknown }).code === 'string'
+            ? (err as { code: string }).code
+            : undefined;
+        return {
+          ok: false,
+          ...(code ? { code } : {}),
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
     },
   });
@@ -328,24 +311,35 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
           return { ok: true, sessions: [] };
         }
         const storage = await getStorage();
-        const [scope, page] = await Promise.all([
-          storage.conversationScopes.read(scopeId),
-          storage.conversations.list(scopeId, { limit: 100 }),
-        ]);
-        const currentId = scope?.currentSessionId ?? page.items[0]?.sessionId ?? null;
-        const sessions: AgentSessionInfo[] = page.items.map((item) => {
-          const meta = (item.metadata ?? {}) as Record<string, unknown>;
-          return {
-            sessionId: item.sessionId,
-            date: typeof meta.date === 'string' ? meta.date : new Date().toISOString().slice(0, 10),
-            updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : undefined,
-            messageCount: typeof meta.messageCount === 'number' ? meta.messageCount : 0,
-            isCurrent: item.sessionId === currentId,
-            title: typeof meta.title === 'string' ? meta.title : undefined,
-            preview: typeof meta.preview === 'string' ? meta.preview : undefined,
-            pinned: typeof meta.pinned === 'boolean' ? meta.pinned : undefined,
-          };
-        });
+        const scope = await storage.conversationScopes.read(scopeId);
+        const allItems: Array<{ sessionId: string; metadata?: Record<string, unknown> }> = [];
+        let cursor: string | undefined;
+        do {
+          const page = await storage.conversations.list(scopeId, { cursor, limit: 200 });
+          for (const item of page.items) {
+            allItems.push({
+              sessionId: item.sessionId,
+              metadata: (item.metadata ?? {}) as Record<string, unknown>,
+            });
+          }
+          cursor = page.nextCursor;
+        } while (cursor);
+        const currentId = scope?.currentSessionId ?? allItems[0]?.sessionId ?? null;
+        const sessions: AgentSessionInfo[] = allItems
+          .map((item) => {
+            const meta = item.metadata ?? {};
+            return {
+              sessionId: item.sessionId,
+              date: typeof meta.date === 'string' ? meta.date : new Date().toISOString().slice(0, 10),
+              updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : undefined,
+              messageCount: typeof meta.messageCount === 'number' ? meta.messageCount : 0,
+              isCurrent: item.sessionId === currentId,
+              title: typeof meta.title === 'string' ? meta.title : undefined,
+              preview: typeof meta.preview === 'string' ? meta.preview : undefined,
+              pinned: typeof meta.pinned === 'boolean' ? meta.pinned : undefined,
+            };
+          })
+          .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
         return { ok: true, sessions };
       } catch (err) {
         return { ok: false, sessions: [], error: err instanceof Error ? err.message : String(err) };
