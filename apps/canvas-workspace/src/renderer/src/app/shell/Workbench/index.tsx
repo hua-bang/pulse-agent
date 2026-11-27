@@ -87,12 +87,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const { mountedWorkspaceIds, evictWorkspace } = useMountedWorkspaceIds(activeWorkspaceId, workspaces, dockState.terminalTabsByWorkspace);
   // On mobile H5 (<= 768px), only mount the heavy Canvas tree while on the Canvas tab so iOS Safari
   // does not OOM/Jetsam-crash from mounting dozens of editors behind the Cards/Chat overlay.
+  const isWebHost = typeof __PULSE_WEB_HOST__ !== 'undefined' && __PULSE_WEB_HOST__;
   const [mobileCanvasAllowed, setMobileCanvasAllowed] = useState(() => {
-    if (!__PULSE_WEB_HOST__ || typeof window === 'undefined' || window.innerWidth > 768) return true;
+    if (!isWebHost || typeof window === 'undefined' || window.innerWidth > 768) return true;
     return document.documentElement.dataset.pulseH5Tab === 'canvas';
   });
   useEffect(() => {
-    if (!__PULSE_WEB_HOST__ || typeof window === 'undefined') return;
+    if (!isWebHost || typeof window === 'undefined') return;
     const sync = () => {
       setMobileCanvasAllowed(
         window.innerWidth > 768 || document.documentElement.dataset.pulseH5Tab === 'canvas',
@@ -105,7 +106,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       window.removeEventListener('pulse-h5-tab-change', sync);
       window.removeEventListener('resize', sync);
     };
-  }, []);
+  }, [isWebHost]);
   // Publish the live-mounted set so the dock never previews an already-live canvas.
   useEffect(() => { dock.setMountedWorkspaces(mountedWorkspaceIds); }, [dock, mountedWorkspaceIds]);
   useEvictAndPreview({ mountedWorkspaceIds, evictWorkspace, terminalTabsByWorkspace: dockState.terminalTabsByWorkspace, openCanvasPreview: dock.openCanvasPreview });
