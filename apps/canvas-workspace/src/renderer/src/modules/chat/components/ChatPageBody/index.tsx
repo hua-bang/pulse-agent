@@ -1,5 +1,7 @@
 import './index.css';
 import { ChatView } from '../ChatView';
+import { PeerStreamBridge } from '../ChatPanel/PeerStreamBridge';
+import { useSharedChatRoom } from '../ChatPanel/hooks/useSharedChatRoom';
 import { ChatPageRail, ChatPageTopbar } from './ChatPageNavigationChrome';
 import type { ChatPageBodyProps } from './types';
 import { useChatPageBodyController } from './useChatPageBodyController';
@@ -8,6 +10,22 @@ export type { ChatPageBodyProps } from './types';
 
 export const ChatPageBody = (props: ChatPageBodyProps) => {
   const controller = useChatPageBodyController(props);
+  const { viewProps, chatRoom } = controller;
+  const { workspaceId, conversationKey, messages, loading } = viewProps.thread;
+  const sharedRoom = useSharedChatRoom({
+    workspaceId,
+    conversationId: conversationKey ?? '',
+    messages,
+    loading,
+    input: viewProps.composer.input,
+    mentionOpen: viewProps.composer.mentionOpen,
+    onSubmit: viewProps.composer.onSubmit,
+    onKeyDown: viewProps.composer.onKeyDown,
+    sendMessage: chatRoom.sendMessage,
+    clearInput: chatRoom.clearInput,
+    reloadSession: chatRoom.reloadSession,
+  });
+
   return (
     <div className="chat-page">
       {controller.showRail && (
@@ -15,7 +33,37 @@ export const ChatPageBody = (props: ChatPageBodyProps) => {
       )}
       <div className="chat-page-main">
         <ChatPageTopbar {...controller.topbar} />
-        <ChatView {...controller.viewProps} />
+        <ChatView
+          {...viewProps}
+          thread={{
+            ...viewProps.thread,
+            messages: sharedRoom.displayMessages,
+          }}
+          composer={{
+            ...viewProps.composer,
+            onSubmit: sharedRoom.onSubmit,
+            onKeyDown: sharedRoom.onKeyDown,
+          }}
+          chrome={{
+            ...viewProps.chrome,
+            banner: (
+              <>
+                {viewProps.chrome.banner}
+                <PeerStreamBridge
+                  workspaceId={workspaceId}
+                  conversationId={conversationKey ?? ''}
+                  messages={messages}
+                  loading={loading}
+                  roomActiveTurn={sharedRoom.activeTurn}
+                  roomQueue={sharedRoom.queue}
+                  onCancelQueued={sharedRoom.cancelQueued}
+                  onNewBranch={viewProps.chrome.onNewSession}
+                  onPeerStreamFinished={chatRoom.reloadSession}
+                />
+              </>
+            ),
+          }}
+        />
       </div>
     </div>
   );

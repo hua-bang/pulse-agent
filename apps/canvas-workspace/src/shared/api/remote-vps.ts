@@ -90,6 +90,35 @@ export interface RemoteVpsPresencePeer {
   self?: boolean;
 }
 
+export interface RemoteVpsChatRoomActiveTurn {
+  clientId: string;
+  senderName: string;
+  conversationId: string;
+  prompt?: string;
+  text: string;
+  toolName?: string;
+  startedAt: number;
+  updatedAt: number;
+  self?: boolean;
+}
+
+export interface RemoteVpsChatRoomQueuedItem {
+  id: string;
+  clientId: string;
+  senderName: string;
+  message: string;
+  createdAt: number;
+  self?: boolean;
+}
+
+export interface RemoteVpsChatRoomEvent {
+  workspaceId: string;
+  conversationId: string;
+  activeTurn: RemoteVpsChatRoomActiveTurn | null;
+  queue: RemoteVpsChatRoomQueuedItem[];
+  turnEnded?: boolean;
+}
+
 export interface RemoteVpsApi {
   listSshHosts: () => Promise<{ ok: boolean; hosts: string[] }>;
   getConfig: (
@@ -172,4 +201,52 @@ export interface RemoteVpsApi {
   leavePresence?: (workspaceId: string) => Promise<{ ok: boolean }>;
   onJoinDeepLink?: (callback: (inviteCode: string) => void) => () => void;
   consumePendingJoinLinks?: () => Promise<string[]>;
+  getChatRoomState?: (
+    workspaceId: string,
+    conversationId: string,
+  ) => Promise<{
+    ok: boolean;
+    fallback?: boolean;
+    activeTurn: RemoteVpsChatRoomActiveTurn | null;
+    queue: RemoteVpsChatRoomQueuedItem[];
+  }>;
+  enqueueChatRoom?: (
+    workspaceId: string,
+    conversationId: string,
+    message: string,
+  ) => Promise<{
+    ok: boolean;
+    fallback?: boolean;
+    forbidden?: boolean;
+    claimed?: boolean;
+    queuedItem?: RemoteVpsChatRoomQueuedItem;
+    activeTurn?: RemoteVpsChatRoomActiveTurn | null;
+    queue?: RemoteVpsChatRoomQueuedItem[];
+  }>;
+  claimChatRoom?: (
+    workspaceId: string,
+    conversationId: string,
+    options?: { popNext?: boolean },
+  ) => Promise<{
+    ok: boolean;
+    claimed?: boolean;
+    nextItem?: RemoteVpsChatRoomQueuedItem;
+    activeTurn?: RemoteVpsChatRoomActiveTurn | null;
+    queue?: RemoteVpsChatRoomQueuedItem[];
+  }>;
+  streamChatRoom?: (
+    workspaceId: string,
+    conversationId: string,
+    text: string,
+    toolName?: string,
+  ) => Promise<{ ok: boolean }>;
+  releaseChatRoom?: (workspaceId: string, conversationId: string) => Promise<{ ok: boolean }>;
+  cancelChatRoomQueued?: (
+    workspaceId: string,
+    conversationId: string,
+    itemId: string,
+  ) => Promise<{ ok: boolean; removed?: boolean }>;
+  subscribeChatRoom?: (workspaceId: string) => Promise<{ ok: boolean }>;
+  unsubscribeChatRoom?: (workspaceId: string) => Promise<{ ok: boolean }>;
+  onChatRoomEvent?: (callback: (event: RemoteVpsChatRoomEvent) => void) => () => void;
 }

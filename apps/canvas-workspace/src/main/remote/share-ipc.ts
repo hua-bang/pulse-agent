@@ -330,4 +330,8 @@ export function setupRemoteVpsShareIpc(): void {
   ipcMain.handle('remote-vps:consumePendingJoinLinks', async (): Promise<string[]> => {
     return consumePendingJoinLinks();
   });
+
+  void import('./chat-room').then(({ registerRemoteChatRoomIpc }) => {
+    registerRemoteChatRoomIpc(PROCESS_CLIENT_ID);
+  });
 }

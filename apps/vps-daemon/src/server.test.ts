@@ -1045,4 +1045,127 @@ describe('vps-daemon end-to-end', () => {
     ).json()) as { ok: boolean; peers: Array<{ clientId: string }> };
     expect(afterLeave.peers.map((p) => p.clientId)).toEqual(['owner-1']);
   });
+
+  it('coordinates shared chat-room turns, FIFO queue, stream updates, and viewer 403', async () => {
+    const { daemon, token } = await boot();
+    const adminHeaders = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    const editorShare = (await (
+      await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-room', role: 'editor', label: 'Bob' }),
+      })
+    ).json()) as { ok: boolean; share: { token: string } };
+    const viewerShare = (await (
+      await fetch(`${daemon.url}/v1/shares`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ workspaceId: 'ws-room', role: 'viewer', label: 'Eve' }),
+      })
+    ).json()) as { ok: boolean; share: { token: string } };
+
+    const editorHeaders = {
+      Authorization: `Bearer ${editorShare.share.token}`,
+      'Content-Type': 'application/json',
+    };
+    const viewerHeaders = {
+      Authorization: `Bearer ${viewerShare.share.token}`,
+      'Content-Type': 'application/json',
+    };
+
+    // Viewer cannot enqueue messages.
+    const viewerRes = await fetch(`${daemon.url}/v1/chat-room/enqueue`, {
+      method: 'POST',
+      headers: viewerHeaders,
+      body: JSON.stringify({ conversationId: 'conv-1', clientId: 'eve-1', message: 'hi' }),
+    });
+    expect(viewerRes.status).toBe(403);
+
+    // Owner enqueues when idle -> immediately claims activeTurn.
+    const first = (await (
+      await fetch(`${daemon.url}/v1/chat-room/enqueue`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          workspaceId: 'ws-room',
+          conversationId: 'conv-1',
+          clientId: 'alice-1',
+          senderName: 'Alice',
+          message: 'first question',
+        }),
+      })
+    ).json()) as { ok: boolean; claimed: boolean; snapshot: { activeTurn: { clientId: string; senderName: string } | null; queue: unknown[] } };
+    expect(first.ok).toBe(true);
+    expect(first.claimed).toBe(true);
+    expect(first.snapshot.activeTurn).toMatchObject({ clientId: 'alice-1', senderName: 'Alice' });
+
+    // Bob enqueues while Alice holds the turn -> queued in FIFO order.
+    const second = (await (
+      await fetch(`${daemon.url}/v1/chat-room/enqueue`, {
+        method: 'POST',
+        headers: editorHeaders,
+        body: JSON.stringify({
+          conversationId: 'conv-1',
+          clientId: 'bob-1',
+          message: 'follow up from Bob',
+        }),
+      })
+    ).json()) as { ok: boolean; claimed: boolean; queuedItem: { id: string; senderName: string }; snapshot: { queue: Array<{ id: string; senderName: string }> } };
+    expect(second.ok).toBe(true);
+    expect(second.claimed).toBe(false);
+    expect(second.queuedItem.senderName).toBe('Bob');
+    expect(second.snapshot.queue).toHaveLength(1);
+
+    // Alice streams text updates.
+    const streamed = (await (
+      await fetch(`${daemon.url}/v1/chat-room/stream`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          workspaceId: 'ws-room',
+          conversationId: 'conv-1',
+          clientId: 'alice-1',
+          senderName: 'Alice',
+          text: 'Working on it...',
+        }),
+      })
+    ).json()) as { ok: boolean; snapshot: { activeTurn: { text: string } | null } };
+    expect(streamed.snapshot.activeTurn?.text).toBe('Working on it...');
+
+    // Alice releases turn -> Bob claims and pops his queued message.
+    const released = (await (
+      await fetch(`${daemon.url}/v1/chat-room/release`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          workspaceId: 'ws-room',
+          conversationId: 'conv-1',
+          clientId: 'alice-1',
+        }),
+      })
+    ).json()) as { ok: boolean; snapshot: { activeTurn: unknown; turnEnded?: boolean; queue: unknown[] } };
+    expect(released.snapshot.activeTurn).toBeNull();
+    expect(released.snapshot.turnEnded).toBe(true);
+    expect(released.snapshot.queue).toHaveLength(1);
+
+    const bobClaim = (await (
+      await fetch(`${daemon.url}/v1/chat-room/claim`, {
+        method: 'POST',
+        headers: editorHeaders,
+        body: JSON.stringify({
+          conversationId: 'conv-1',
+          clientId: 'bob-1',
+          popNext: true,
+        }),
+      })
+    ).json()) as { ok: boolean; claimed: boolean; nextItem?: { message: string }; snapshot: { queue: unknown[] } };
+    expect(bobClaim.claimed).toBe(true);
+    expect(bobClaim.nextItem?.message).toBe('follow up from Bob');
+    expect(bobClaim.snapshot.queue).toHaveLength(0);
+  });
 });
+

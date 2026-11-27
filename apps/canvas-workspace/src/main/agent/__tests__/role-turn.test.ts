@@ -293,4 +293,11 @@ describe('persisted tool evidence in follow-up turns', () => {
     expect(restored.content).toContain('truncated');
     expect(restored.content).toContain('known-error');
   });
+
+  it('prefixes user messages with [senderName]: only when senderName is present', () => {
+    expect(sessionMessageToModelMessage({ role: 'user', content: 'plain local', timestamp: 1 }).content).toBe('plain local');
+    expect(
+      sessionMessageToModelMessage({ role: 'user', content: 'from shared', senderName: 'Alice', timestamp: 2 }).content,
+    ).toBe('[Alice]: from shared');
+  });
 });
