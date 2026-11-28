@@ -20,16 +20,30 @@
 
   /*
    * Prevent iOS WebKit Jetsam crash on pinch-zoom:
-   * - Pin --canvas-scale to 1 so zooming never triggers per-node inverse-scale nested GPU layers.
+   * - Pin --canvas-scale to 1 and disable transform transitions so zooming never triggers
+   *   per-node inverse-scale nested GPU layers or post-gesture transition re-raster storms.
+   * - Disable content-visibility: auto inside scaled containers (causes Safari 18 layer thrashing).
    * - Strip per-node shadows/filters so WebKit does not re-rasterize dozens of offscreen textures.
    */
   html[data-pulse-web='true'] .canvas-transform {
     --canvas-scale: 1 !important;
+    transition: none !important;
   }
 
   html[data-pulse-web='true'] .canvas-container .canvas-transform .canvas-node {
     box-shadow: none;
     filter: none;
+    content-visibility: visible !important;
+  }
+
+  /*
+   * While two fingers are actively pinching, hide heavy card inner bodies (ProseMirror,
+   * iframes, images, mindmaps) and the overflow:visible SVG edges layer so iOS WebKit only
+   * scales lightweight card shells + headers and re-rasterizes full content ONCE at settle.
+   */
+  html[data-pulse-web='true'][data-pulse-pinching='true'] .canvas-node .node-body,
+  html[data-pulse-web='true'][data-pulse-pinching='true'] .canvas-edges {
+    visibility: hidden !important;
   }
 
   /* Free iOS WebKit GPU backing stores for off-tab canvas nodes when reading cards or chatting. */
