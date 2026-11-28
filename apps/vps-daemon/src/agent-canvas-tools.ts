@@ -212,6 +212,8 @@ export async function executeCanvasAgentTool(
       }
       const edge: CanvasEdgeRecord = {
         id: `edge-${randomUUID().slice(0, 8)}`,
+        source: { kind: 'node', nodeId: fromNode },
+        target: { kind: 'node', nodeId: toNode },
         fromNode,
         toNode,
         ...(typeof input.label === 'string' && input.label.trim() ? { label: input.label.trim() } : {}),

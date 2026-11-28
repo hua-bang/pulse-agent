@@ -6,14 +6,15 @@ import {
 } from '../../../../../../utils/frameHierarchy';
 
 const isEdgeEndpointVisible = (
-  endpoint: CanvasEdge['source'],
+  endpoint: CanvasEdge['source'] | undefined,
   visibleNodeIds: Set<string>,
-): boolean => endpoint.kind === 'point' || visibleNodeIds.has(endpoint.nodeId);
+): boolean => Boolean(endpoint && (endpoint.kind === 'point' || visibleNodeIds.has(endpoint.nodeId)));
 
 const isEdgeVisible = (
-  edge: CanvasEdge,
+  edge: CanvasEdge | undefined,
   visibleNodeIds: Set<string>,
 ): boolean =>
+  edge != null &&
   isEdgeEndpointVisible(edge.source, visibleNodeIds) &&
   isEdgeEndpointVisible(edge.target, visibleNodeIds);
 

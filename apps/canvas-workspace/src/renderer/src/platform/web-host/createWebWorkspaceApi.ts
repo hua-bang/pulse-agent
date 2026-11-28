@@ -10,6 +10,7 @@ import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import { createWebRemoteVpsApi } from './chatRoomClient';
 import {
   extractConversationMessages,
+  normalizeCanvasData,
   scopeIdFromRef,
   toRemoteFileUri,
   toSummaryBox,
@@ -158,7 +159,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
         currentWorkspaceId = id;
         ensureCanvasStream(id);
         const canvasStore = await getCanvasStore();
-        const data = (await canvasStore.readCanvas(id)) as CanvasSaveData | null;
+        const data = normalizeCanvasData((await canvasStore.readCanvas(id)) as CanvasSaveData | null);
         return { ok: true, data };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
