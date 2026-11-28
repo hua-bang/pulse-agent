@@ -1476,8 +1476,8 @@ describe('vps-daemon end-to-end', () => {
     expect(resizes).toEqual([{ cols: 52, rows: 30 }]);
     expect(writes).toEqual(['codex\r']);
     expect(received).toEqual([
-      { type: 'data', data: 'banner\r\n' },
-      { type: 'data', data: 'echo:codex\r' },
+      { type: 'data', data: 'banner\r\n', offset: 8 },
+      { type: 'data', data: 'echo:codex\r', offset: 19 },
       { type: 'exit', exitCode: 0 },
     ]);
   });

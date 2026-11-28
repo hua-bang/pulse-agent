@@ -64,3 +64,24 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
   });
   res.end(payload);
 }
+
+/** Pending bytes after which an SSE reader counts as stalled. */
+export const MAX_PENDING_SSE_BYTES = 1024 * 1024;
+
+/**
+ * Write one SSE frame. A stalled reader would make Node buffer without limit,
+ * so it is destroyed instead; clients reconnect and resync. Returns false when
+ * the subscriber must be removed.
+ */
+export function writeSseFrame(res: ServerResponse, frame: string): boolean {
+  if (res.destroyed || res.writableLength > MAX_PENDING_SSE_BYTES) {
+    res.destroy();
+    return false;
+  }
+  try {
+    res.write(frame);
+    return true;
+  } catch {
+    return false;
+  }
+}

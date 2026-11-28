@@ -1,6 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode, FileNodeData } from '../../../../../types';
 
+/**
+ * Remote events name a file as `pulse-remote:///<workspaceId>/<relPath>`. A
+ * note stores that URI or its local mirror under `/canvas/<workspaceId>/`, so
+ * both the workspace and the relative path must match (same rule as the main
+ * process `matchRemoteWorkspaceFile`).
+ */
+export function isSameChangedFile(changed: string, target: string): boolean {
+  if (!changed || !target) return false;
+  const a = changed.replace(/\\/g, '/');
+  const b = target.replace(/\\/g, '/');
+  if (a === b) return true;
+  const remote = (path: string) => /^pulse-remote:\/\/\/([^/]+)\/(.+)$/.exec(path);
+  const [uri, other] = remote(a) ? [remote(a)!, b] : remote(b) ? [remote(b)!, a] : [null, ''];
+  if (!uri) return false;
+  const [, workspaceId, relPath] = uri;
+  return other === `pulse-remote:///${workspaceId}/${relPath}`
+    || other.endsWith(`/canvas/${workspaceId}/${relPath}`);
+}
+
 interface Options {
   nodeId: string;
   data: FileNodeData;
@@ -220,18 +239,7 @@ export function useFilePersistence(options: Options) {
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
     const unsubscribe = window.canvasWorkspace?.file?.onChanged?.((filePath) => {
-      const target = session.filePath;
-      if (!target || !filePath) return;
-      const a = filePath.replace(/\\/g, '/');
-      const b = target.replace(/\\/g, '/');
-      if (a === b) {
-        void refresh();
-        return;
-      }
-      const remoteMatch = /^pulse-remote:\/\/\/[^/]+\/(.+)$/.exec(a) ?? /^pulse-remote:\/\/\/[^/]+\/(.+)$/.exec(b);
-      if (remoteMatch && (b.endsWith(`/${remoteMatch[1]}`) || b === remoteMatch[1] || a.endsWith(`/${remoteMatch[1]}`) || a === remoteMatch[1])) {
-        void refresh();
-      }
+      if (isSameChangedFile(filePath, session.filePath)) void refresh();
     });
     return () => {
       session.active = false;

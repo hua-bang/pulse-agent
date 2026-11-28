@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir, platform } from 'node:os';
 import { readlink } from 'node:fs/promises';
 import type { Duplex } from 'node:stream';
-import { readJsonBody, sendJson } from './auth.js';
+import { readJsonBody, sendJson, writeSseFrame } from './auth.js';
 import type { AuthPrincipal } from './shares.js';
 import { acceptWebSocket, rejectUpgrade, type WsConnection } from './ws-frame.js';
 
@@ -60,7 +60,6 @@ interface PtySessionRecord {
 }
 
 const MAX_SCROLLBACK_CHARS = 128 * 1024;
-const MAX_PENDING_STREAM_BYTES = 1024 * 1024;
 
 /**
  * Output a client missed since `since`. If the gap is larger than the retained
@@ -235,18 +234,8 @@ export class PtyHub {
         if (record.subscribers.size > 0) {
           const frame = `event: data\ndata: ${JSON.stringify({ data, offset: record.outputChars })}\n\n`;
           for (const sub of record.subscribers) {
-            // A stalled reader would make Node buffer without limit. Drop it;
-            // it reconnects with `since` and catches up from the scrollback.
-            if (sub.writableLength > MAX_PENDING_STREAM_BYTES) {
-              record.subscribers.delete(sub);
-              sub.destroy();
-              continue;
-            }
-            try {
-              sub.write(frame);
-            } catch {
-              record.subscribers.delete(sub);
-            }
+            // A dropped stalled reader reconnects with `since` and catches up.
+            if (!writeSseFrame(sub, frame)) record.subscribers.delete(sub);
           }
         }
         if (record.wsSubscribers.size > 0) {

@@ -3,7 +3,8 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 
 const WS_MAGIC_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const MAX_FRAME_BYTES = 1024 * 1024; // 1 MiB guard for terminal input/control frames
+const MAX_FRAME_BYTES = 1024 * 1024; // 1 MiB guard for terminal input/control messages
+const MAX_PENDING_SEND_BYTES = 1024 * 1024;
 
 export interface WsConnection {
   sendText(text: string): void;
@@ -69,6 +70,7 @@ export function acceptWebSocket(
   let closed = false;
   let buffer: Buffer = head.length > 0 ? Buffer.from(head) : Buffer.alloc(0);
   let fragmentedChunks: Buffer[] = [];
+  let fragmentedBytes = 0;
   let fragmentedOpcode: number | null = null;
   const messageListeners = new Set<(text: string) => void>();
   const closeListeners = new Set<() => void>();
@@ -90,6 +92,13 @@ export function acceptWebSocket(
 
   const sendRaw = (frame: Buffer) => {
     if (closed || socket.destroyed) return;
+    // A stalled reader would make Node buffer without limit. Drop it; PTY
+    // clients reconnect with `since` and catch up.
+    if (socket.writableLength > MAX_PENDING_SEND_BYTES) {
+      socket.destroy();
+      notifyClose();
+      return;
+    }
     try {
       socket.write(frame);
     } catch {
@@ -187,14 +196,22 @@ export function acceptWebSocket(
         } else {
           fragmentedOpcode = opcode;
           fragmentedChunks = [payload];
+          fragmentedBytes = payload.length;
         }
       } else if (opcode === 0x0 && fragmentedOpcode !== null) {
+        fragmentedBytes += payload.length;
+        if (fragmentedBytes > MAX_FRAME_BYTES) {
+          // Each fragment passes the per-frame limit; the whole message must too.
+          close(1009);
+          return;
+        }
         fragmentedChunks.push(payload);
         if (fin) {
           const full = Buffer.concat(fragmentedChunks);
           const origOpcode = fragmentedOpcode;
           fragmentedOpcode = null;
           fragmentedChunks = [];
+          fragmentedBytes = 0;
           if (origOpcode === 0x1) {
             const text = full.toString('utf8');
             for (const cb of messageListeners) {

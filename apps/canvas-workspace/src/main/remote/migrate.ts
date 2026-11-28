@@ -26,6 +26,7 @@ export interface MigrateWorkspaceToVpsResult {
 }
 
 const SKIPPED_NAMES = new Set(['.DS_Store', '__locks__', '__storage-backup__']);
+const MIGRATION_TIMEOUT_MS = 10 * 60_000;
 
 async function collectFiles(rootDir: string, currentDir = rootDir): Promise<string[]> {
   let entries;
@@ -87,11 +88,10 @@ export async function migrateLocalWorkspaceToVps(
   }
 
   const target = await resolveRemoteTargetFromConfig(options.workspaceId, options.config);
-  const remoteStorage = await openRemoteStorage({ endpoint: target.endpoint, token: target.token });
-  const remoteFiles = createRemoteWorkspaceFiles({
-    endpoint: target.endpoint,
-    token: target.token,
-  });
+  // Large attachments and whole histories exceed the default 30s request timeout.
+  const transfer = { endpoint: target.endpoint, token: target.token, timeoutMs: MIGRATION_TIMEOUT_MS };
+  const remoteStorage = await openRemoteStorage(transfer);
+  const remoteFiles = createRemoteWorkspaceFiles(transfer);
 
   try {
     if (options.onlyIfRemoteEmpty) {
@@ -123,7 +123,14 @@ export async function migrateLocalWorkspaceToVps(
         const relPosix = relative(options.localWorkspaceDir, filePath).split(sep).join('/');
         const remoteUri = remoteFiles.uriForPath(`${target.remoteWorkspaceId}/${relPosix}`);
         const bytes = await readFile(filePath);
-        await remoteFiles.write(remoteUri, bytes);
+        try {
+          await remoteFiles.write(remoteUri, bytes);
+        } catch (error) {
+          // The binding is saved only after every step succeeds, so a retry
+          // after fixing the cause re-uploads safely.
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new Error(`Uploading "${relPosix}" (${bytes.byteLength} bytes) to the VPS failed: ${detail}`);
+        }
         uploadedFiles += 1;
       }
     }

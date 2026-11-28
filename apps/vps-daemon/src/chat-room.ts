@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readJsonBody, sendJson } from './auth.js';
+import { readJsonBody, sendJson, writeSseFrame } from './auth.js';
 import {
   isSafeWorkspaceId,
   resolvePrincipalName,
@@ -117,11 +117,7 @@ export class ChatRoomHub {
     const frame = `id: ${id}\ndata: ${JSON.stringify({ type: 'chat-room', ...snapshot })}\n\n`;
     for (const sub of this.subscribers) {
       if (sub.workspaceId !== snapshot.workspaceId) continue;
-      try {
-        sub.res.write(frame);
-      } catch {
-        this.subscribers.delete(sub);
-      }
+      if (!writeSseFrame(sub.res, frame)) this.subscribers.delete(sub);
     }
   }
 

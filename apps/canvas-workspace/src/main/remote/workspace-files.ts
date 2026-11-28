@@ -1,6 +1,11 @@
 import { extname } from 'node:path';
-import type { PulseStorage } from '@pulse-coder/storage';
-import { getRemoteWorkspaceConfig, matchRemoteWorkspaceFile } from './config';
+import { isStorageError, type PulseStorage } from '@pulse-coder/storage';
+import {
+  getRemoteWorkspaceConfig,
+  isRemoteRuntimeEnabled,
+  isRemoteStorageEnabled,
+  matchRemoteWorkspaceFile,
+} from './config';
 import { getRemoteCanvasBackend, getRemoteWorkspaceFiles, resolveRemoteWorkspaceTarget } from './client';
 
 export { matchRemoteWorkspaceFile };
@@ -140,7 +145,7 @@ export async function writeRemoteWorkspaceText(
   content: string,
 ): Promise<boolean> {
   const cfg = getRemoteWorkspaceConfig(workspaceId);
-  if (!cfg || cfg.storage !== 'vps') return false;
+  if (!cfg || !isRemoteStorageEnabled(cfg)) return false;
   if (cfg.shareRole === 'viewer') return true;
   const remote = await getRemoteWorkspaceFiles(workspaceId);
   if (!remote) return false;
@@ -158,7 +163,7 @@ export async function writeRemoteWorkspaceText(
 
 export async function readRemoteWorkspaceDocById(workspaceId: string): Promise<string | null> {
   const cfg = getRemoteWorkspaceConfig(workspaceId);
-  if (!cfg || (cfg.storage !== 'vps' && cfg.runtime !== 'vps')) return null;
+  if (!cfg || (!isRemoteStorageEnabled(cfg) && !isRemoteRuntimeEnabled(cfg))) return null;
   const target = await resolveRemoteWorkspaceTarget(workspaceId);
   if (!target) return null;
   const dir = cfg.cwd?.trim();
@@ -181,7 +186,7 @@ export async function getRemoteConversationStorage(workspaceId: string): Promise
   scopeId: string;
 } | null> {
   const cfg = getRemoteWorkspaceConfig(workspaceId);
-  if (!cfg || cfg.storage !== 'vps') return null;
+  if (!cfg || !isRemoteStorageEnabled(cfg)) return null;
   const resolved = await getRemoteCanvasBackend(workspaceId);
   if (!resolved) return null;
   return {
@@ -202,44 +207,107 @@ async function resolveRemoteScheduledWorkspaceId(): Promise<string | null> {
   for (const wsId of listConfiguredRemoteWorkspaceIds()) {
     const cfg = getRemoteWorkspaceConfig(wsId);
     // Only mirror global scheduled tasks to self-owned VPS workspaces, never guest shared workspaces.
-    if (cfg && cfg.storage === 'vps' && !cfg.shareRole) {
+    if (cfg && isRemoteStorageEnabled(cfg) && !cfg.shareRole) {
       return wsId;
     }
   }
   return null;
 }
 
-export async function readMergedRemoteScheduledTasks<T extends SyncableScheduledTask>(
-  localTasks: T[],
-  migrate: (raw: unknown) => T,
-): Promise<T[]> {
-  const wsId = await resolveRemoteScheduledWorkspaceId();
-  if (!wsId) return localTasks;
-  const remote = await readRemoteWorkspaceText(wsId, 'scheduled-tasks.json');
-  if (!remote?.exists) return localTasks;
-  const parsed = JSON.parse(remote.content) as { tasks?: unknown[] };
-  const remoteTasks = Array.isArray(parsed.tasks) ? parsed.tasks.map(migrate) : [];
+export interface SyncableScheduledState<T> {
+  tasks: T[];
+  /** Task id -> deletion time. Without it a device that still has the task re-adds it. */
+  deletedTaskIds?: Record<string, number>;
+}
+
+const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60_000;
+
+function taskScore(task: SyncableScheduledTask): number {
+  return Math.max(task.updatedAt, task.lastAttemptAt ?? 0);
+}
+
+/** Union by id, newest copy wins; a deletion newer than every copy removes the task. */
+export function mergeScheduledTaskStates<T extends SyncableScheduledTask>(
+  local: SyncableScheduledState<T>,
+  remote: SyncableScheduledState<T>,
+  now = Date.now(),
+): Required<SyncableScheduledState<T>> {
+  const deletedTaskIds: Record<string, number> = {};
+  for (const source of [local.deletedTaskIds, remote.deletedTaskIds]) {
+    for (const [id, at] of Object.entries(source ?? {})) {
+      if (typeof at !== 'number' || now - at > TOMBSTONE_TTL_MS) continue;
+      deletedTaskIds[id] = Math.max(deletedTaskIds[id] ?? 0, at);
+    }
+  }
   const byId = new Map<string, T>();
-  for (const task of localTasks) byId.set(task.id, task);
-  for (const r of remoteTasks) {
+  for (const task of local.tasks) byId.set(task.id, task);
+  for (const r of remote.tasks) {
     const l = byId.get(r.id);
     if (!l) {
       byId.set(r.id, r);
       continue;
     }
-    const rScore = Math.max(r.updatedAt, r.lastAttemptAt ?? 0);
-    const lScore = Math.max(l.updatedAt, l.lastAttemptAt ?? 0);
+    const rScore = taskScore(r);
+    const lScore = taskScore(l);
     if (rScore > lScore || (rScore === lScore && r.runCount > l.runCount)) {
       byId.set(r.id, r);
     }
   }
-  return Array.from(byId.values());
+  for (const [id, task] of byId) {
+    const deletedAt = deletedTaskIds[id];
+    if (deletedAt !== undefined && deletedAt >= taskScore(task)) byId.delete(id);
+  }
+  return { tasks: Array.from(byId.values()), deletedTaskIds };
 }
 
+export async function readMergedRemoteScheduledTasks<T extends SyncableScheduledTask>(
+  local: SyncableScheduledState<T>,
+  migrate: (raw: unknown) => T,
+): Promise<SyncableScheduledState<T>> {
+  const wsId = await resolveRemoteScheduledWorkspaceId();
+  if (!wsId) return local;
+  const remote = await readRemoteWorkspaceText(wsId, 'scheduled-tasks.json');
+  if (!remote?.exists) return local;
+  const parsed = JSON.parse(remote.content) as { tasks?: unknown[]; deletedTaskIds?: Record<string, number> };
+  const remoteTasks = Array.isArray(parsed.tasks) ? parsed.tasks.map(migrate) : [];
+  return mergeScheduledTaskStates(local, { tasks: remoteTasks, deletedTaskIds: parsed.deletedTaskIds });
+}
+
+/**
+ * Writes the local state merged with the current remote copy, guarded by the
+ * remote version. A blind overwrite would drop a change another device wrote
+ * between our read and this write; on conflict, re-read and merge again.
+ */
 export async function mirrorRemoteScheduledTasks(serialized: string): Promise<void> {
   const wsId = await resolveRemoteScheduledWorkspaceId();
   if (!wsId) return;
-  await writeRemoteWorkspaceText(wsId, 'scheduled-tasks.json', serialized);
+  if (getRemoteWorkspaceConfig(wsId)?.shareRole === 'viewer') return;
+  const remote = await getRemoteWorkspaceFiles(wsId);
+  if (!remote) return;
+  const uri = `pulse-remote:///${remote.target.remoteWorkspaceId}/scheduled-tasks.json`;
+  const local = JSON.parse(serialized) as SyncableScheduledState<SyncableScheduledTask> & { version?: number };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const current = await remote.files.readText(uri);
+    let next = local;
+    if (current) {
+      const parsed = JSON.parse(current.content) as SyncableScheduledState<SyncableScheduledTask>;
+      next = {
+        ...local,
+        ...mergeScheduledTaskStates(local, {
+          tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+          deletedTaskIds: parsed.deletedTaskIds,
+        }),
+      };
+    }
+    try {
+      await remote.files.write(uri, JSON.stringify(next, null, 2), {
+        expectedVersion: current ? current.version : null,
+      });
+      return;
+    } catch (error) {
+      if (!isStorageError(error) || error.code !== 'revision_conflict') throw error;
+    }
+  }
 }
 
 export async function tryServeRemoteProtocolFile(normalizedPath: string): Promise<Response | null> {

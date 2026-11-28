@@ -142,12 +142,16 @@ function createRequester(options: RemoteStorageOptions) {
         (parsed && typeof parsed === 'object' && (parsed as { ok?: boolean }).ok === false)
       ) {
         const errObj = parsed as Partial<StorageRpcErrorBody> | null;
+        // Trust the daemon's own code; the status only covers bodies without
+        // one (for example an older daemon or a proxy error page).
         const code =
-          response.status === 404
-            ? 'not_found'
-            : response.status === 409
-              ? 'revision_conflict'
-              : toStorageErrorCode(errObj?.code);
+          typeof errObj?.code === 'string' && VALID_ERROR_CODES.has(errObj.code)
+            ? (errObj.code as StorageErrorCode)
+            : response.status === 404
+              ? 'not_found'
+              : response.status === 409
+                ? 'revision_conflict'
+                : toStorageErrorCode(errObj?.code);
         throw new StorageError(
           code,
           errObj?.message || `Remote storage request failed (${response.status})`,

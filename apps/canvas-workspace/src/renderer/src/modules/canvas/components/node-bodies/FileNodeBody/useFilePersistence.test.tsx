@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useFilePersistence } from './useFilePersistence';
+import { isSameChangedFile, useFilePersistence } from './useFilePersistence';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
@@ -244,5 +244,23 @@ describe('file editor byte-version persistence', () => {
 
     await act(async () => { await state.persistToFile('attempted edit', '/tmp/locked.md'); });
     expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe('isSameChangedFile', () => {
+  it('matches a remote event to the local mirror of the same workspace', () => {
+    expect(isSameChangedFile('pulse-remote:///default/notes/a.md', '/Users/me/.pulse-coder/canvas/default/notes/a.md'))
+      .toBe(true);
+    expect(isSameChangedFile('pulse-remote:///default/notes/a.md', 'pulse-remote:///default/notes/a.md')).toBe(true);
+  });
+
+  it('ignores the same relative path in another workspace', () => {
+    expect(isSameChangedFile('pulse-remote:///default/notes/a.md', '/Users/me/.pulse-coder/canvas/other/notes/a.md'))
+      .toBe(false);
+    expect(isSameChangedFile('pulse-remote:///default/notes/a.md', '/Users/me/code/notes/a.md')).toBe(false);
+  });
+
+  it('matches identical local paths', () => {
+    expect(isSameChangedFile('C:\\notes\\a.md', 'C:/notes/a.md')).toBe(true);
   });
 });
