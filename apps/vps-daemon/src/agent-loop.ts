@@ -1,22 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { PulseStorage } from '@pulse-coder/storage';
+import { Engine, type Context } from 'pulse-coder-engine';
 import { readJsonBody, sendJson } from './auth.js';
+import { summarizeCanvasForPrompt } from './agent-canvas-tools.js';
+import { createVpsEngineTools } from './agent-engine-tools.js';
 import {
-  CANVAS_AGENT_TOOL_NAMES,
-  executeCanvasAgentTool,
-  summarizeCanvasForPrompt,
-  type CanvasAgentToolName,
-} from './agent-canvas-tools.js';
-import {
+  buildVpsLlmProvider,
   resolveAgentLlmConfig,
   saveAgentLlmConfigToEnvFile,
-  streamLlmTurn,
   type AgentLlmOverride,
-  type LlmMessage,
 } from './agent-llm.js';
-import { listVpsSkills, loadVpsSkill } from './agent-skills.js';
-import { VPS_AGENT_TOOLS } from './agent-tools-schema.js';
+import { listVpsSkills } from './agent-skills.js';
 import type { ChatRoomHub } from './chat-room.js';
 import {
   canUseRuntime,
@@ -25,12 +20,9 @@ import {
   scopeClientId,
   type AuthPrincipal,
 } from './shares.js';
-import { executeRemoteBuiltinTool, type RemoteBuiltinToolName } from './tools-rpc.js';
 
-const MAX_AGENT_STEPS = 16;
-const MAX_HISTORY_MESSAGES = 24;
+const MAX_HISTORY_MESSAGES = 48;
 const MAX_TOOL_OUTPUT_CHARS = 16_000;
-const BUILTIN_ENV_TOOLS = new Set<string>(['bash', 'read', 'write', 'edit', 'ls', 'grep']);
 
 export interface VpsAgentController {
   handleRequest: (
@@ -280,14 +272,19 @@ export function createVpsAgentController(options: {
       'Be concise, direct, and reply in the user’s language.',
     ].join('\n\n');
 
-    const llmMessages: LlmMessage[] = [
-      { role: 'system', content: systemPrompt },
-      ...storedHistory.slice(-MAX_HISTORY_MESSAGES).map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: userText },
-    ];
+    const context: Context = {
+      messages: [
+        ...storedHistory.slice(-MAX_HISTORY_MESSAGES).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        { role: 'user', content: userText },
+      ],
+    };
 
     let fullAssistantText = '';
     const recordedTools: NonNullable<StoredChatMessage['toolCalls']> = [];
+    const toolArgsById = new Map<string, Record<string, unknown>>();
     let toolSeq = 0;
     let lastRoomPushAt = 0;
 
@@ -308,87 +305,80 @@ export function createVpsAgentController(options: {
     mirrorRoom(undefined, true);
 
     try {
-      for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
-        if (controller.signal.aborted) break;
-        const turnResult = await streamLlmTurn(
-          llmConfig,
-          llmMessages,
-          VPS_AGENT_TOOLS,
-          controller.signal,
-          (delta) => {
-            fullAssistantText += delta;
-            writeSse('text_delta', { delta });
-            mirrorRoom();
-          },
-        );
+      const engine = new Engine({
+        disableBuiltInPlugins: true,
+        builtInTools: {},
+        tools: createVpsEngineTools({
+          storage,
+          workspaceId,
+          workDir,
+          signal: controller.signal,
+          onMutation,
+        }),
+      });
+      await engine.initialize();
 
-        llmMessages.push({
-          role: 'assistant',
-          content: turnResult.text,
-          ...(turnResult.toolCalls.length > 0 ? { toolCalls: turnResult.toolCalls } : {}),
-        });
-
-        if (turnResult.toolCalls.length === 0) break;
-
-        for (const call of turnResult.toolCalls) {
-          if (controller.signal.aborted) break;
-          writeSse('tool_call', { toolCallId: call.id, name: call.name, args: call.args });
-          mirrorRoom(call.name, true);
-
-          let output: unknown;
-          let errorText: string | undefined;
-          try {
-            if (BUILTIN_ENV_TOOLS.has(call.name)) {
-              output = await executeRemoteBuiltinTool(
-                call.name as RemoteBuiltinToolName,
-                call.args,
-                workDir,
-                controller.signal,
-              );
-            } else if (CANVAS_AGENT_TOOL_NAMES.has(call.name)) {
-              output = await executeCanvasAgentTool(
-                call.name as CanvasAgentToolName,
-                call.args,
-                storage,
-                workspaceId,
-                onMutation,
-              );
-            } else if (call.name === 'load_skill') {
-              const skillName = typeof call.args.name === 'string' ? call.args.name : '';
-              const detail = await loadVpsSkill(workDir, skillName);
-              output = detail
-                ? { ok: true, name: detail.name, description: detail.description, content: detail.content }
-                : { ok: false, error: `Skill not found: ${skillName}` };
-            } else {
-              errorText = `Unknown tool: ${call.name}`;
-            }
-          } catch (err) {
-            errorText = err instanceof Error ? err.message : String(err);
-          }
-
-          const status = errorText ? 'failed' : 'succeeded';
-          const serialized = errorText ? JSON.stringify({ ok: false, error: errorText }) : serializeToolOutput(output);
+      const engineText = await engine.run(context, {
+        provider: buildVpsLlmProvider(llmConfig),
+        model: llmConfig.model,
+        systemPrompt,
+        abortSignal: controller.signal,
+        errorMode: 'throw',
+        promptCacheKey: `${llmConfig.provider}:${llmConfig.model}:${sessionId}`,
+        onText: (delta) => {
+          fullAssistantText += delta;
+          writeSse('text_delta', { delta });
+          mirrorRoom();
+        },
+        onToolCall: (toolCall: { toolCallId?: string; toolName?: string; input?: unknown; args?: unknown }) => {
+          const callId = typeof toolCall?.toolCallId === 'string' ? toolCall.toolCallId : `call-${++toolSeq}`;
+          const name = typeof toolCall?.toolName === 'string' ? toolCall.toolName : 'unknown';
+          const rawArgs = toolCall?.input ?? toolCall?.args;
+          const args =
+            rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+              ? (rawArgs as Record<string, unknown>)
+              : {};
+          toolArgsById.set(callId, args);
+          writeSse('tool_call', { toolCallId: callId, name, args });
+          mirrorRoom(name, true);
+        },
+        onToolResult: (toolResult: {
+          toolCallId?: string;
+          toolName?: string;
+          output?: unknown;
+          result?: unknown;
+          isError?: boolean;
+        }) => {
+          const callId = typeof toolResult?.toolCallId === 'string' ? toolResult.toolCallId : '';
+          const name = typeof toolResult?.toolName === 'string' ? toolResult.toolName : 'unknown';
+          const rawOut = toolResult?.output ?? toolResult?.result;
+          const isError = Boolean(toolResult?.isError);
+          const errorText = isError
+            ? typeof rawOut === 'string'
+              ? rawOut
+              : serializeToolOutput(rawOut)
+            : undefined;
+          const status = isError ? 'failed' : 'succeeded';
+          const serialized = errorText ? errorText : serializeToolOutput(rawOut);
           recordedTools.push({
             id: ++toolSeq,
-            name: call.name,
-            args: call.args,
-            toolCallId: call.id,
+            name,
+            args: toolArgsById.get(callId) ?? {},
+            toolCallId: callId,
             status,
             ...(errorText ? { error: errorText } : { result: serialized.slice(0, 4000) }),
           });
           writeSse('tool_result', {
-            toolCallId: call.id,
-            name: call.name,
+            toolCallId: callId,
+            name,
             status,
             ...(errorText ? { error: errorText } : { result: serialized.slice(0, 4000) }),
           });
-          llmMessages.push({
-            role: 'tool',
-            toolCallId: call.id,
-            name: call.name,
-            content: serialized,
-          });
-        }
+        },
+      });
+
+      if (!fullAssistantText && engineText) {
+        fullAssistantText = engineText;
       }
 
       const stopped = controller.signal.aborted;

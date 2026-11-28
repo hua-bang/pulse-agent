@@ -1387,23 +1387,25 @@ describe('vps-daemon end-to-end', () => {
   it('streams bidirectional PTY input, output, resize, and exit over WebSocket /v1/pty/:id/ws', async () => {
     const writes: string[] = [];
     const resizes: Array<{ cols: number; rows: number }> = [];
-    let emitData: ((data: string) => void) | null = null;
-    let emitExit: ((event: { exitCode: number }) => void) | null = null;
+    const hooks: {
+      emitData: ((data: string) => void) | null;
+      emitExit: ((event: { exitCode: number }) => void) | null;
+    } = { emitData: null, emitExit: null };
     const spawner: PtySpawner = async () => ({
       pid: 4242,
       write: (data) => {
         writes.push(data);
-        emitData?.(`echo:${data}`);
+        hooks.emitData?.(`echo:${data}`);
       },
       resize: (cols, rows) => {
         resizes.push({ cols, rows });
       },
       kill: () => {},
       onData: (cb) => {
-        emitData = cb;
+        hooks.emitData = cb;
       },
       onExit: (cb) => {
-        emitExit = cb;
+        hooks.emitExit = cb;
       },
     });
     const root = await mkdtemp(join(tmpdir(), 'pulse-vps-ws-'));
@@ -1428,7 +1430,7 @@ describe('vps-daemon end-to-end', () => {
       body: JSON.stringify({ id: 'ws-term-1', cols: 80, rows: 24 }),
     });
     expect(spawnRes.status).toBe(200);
-    emitData?.('banner\r\n');
+    hooks.emitData?.('banner\r\n');
 
     const wsBase = daemon.url.replace(/^http/, 'ws');
 
@@ -1457,7 +1459,7 @@ describe('vps-daemon end-to-end', () => {
         const msg = JSON.parse(String(event.data)) as { type: string; data?: string; exitCode?: number };
         received.push(msg);
         if (msg.type === 'data' && msg.data === 'echo:codex\r') {
-          emitExit?.({ exitCode: 0 });
+          hooks.emitExit?.({ exitCode: 0 });
         }
         if (msg.type === 'exit') {
           clearTimeout(timer);
