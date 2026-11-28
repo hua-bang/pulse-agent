@@ -98,9 +98,9 @@ describe('createWebWorkspaceApi', () => {
     expect(presence?.peers.find((p) => p.clientId === 'web-client-1')?.self).toBe(true);
     expect(presence?.peers.find((p) => p.clientId === 'mac-2')?.self).toBe(false);
 
+    // The daemon queues web turns itself, so the web host sends directly.
     const enqueued = await api.remoteVps.enqueueChatRoom?.('ws-1', 'conv-1', 'hi');
-    expect(enqueued?.ok).toBe(true);
-    expect(enqueued?.queuedItem?.self).toBe(true);
+    expect(enqueued).toEqual({ ok: true, fallback: true });
   });
 
   it('guards shell.openExternal to http/https URLs only', async () => {

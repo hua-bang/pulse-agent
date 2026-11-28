@@ -9,6 +9,7 @@ import {
   getRemoteWorkspaceConfig,
   isRemoteRuntimeEnabled,
   isRemoteStorageEnabled,
+  isVpsChatRuntimeEnabled,
   matchRemoteWorkspaceFile,
   resolveRemoteToken,
   type RemoteVpsWorkspaceConfig,
@@ -193,6 +194,29 @@ export async function resolveRemoteWorkspaceTarget(
   if (!config) return null;
   if (capability === 'storage' && !isRemoteStorageEnabled(config)) return null;
   if (capability === 'runtime' && !isRemoteRuntimeEnabled(config)) return null;
+  return await resolveRemoteTargetFromConfig(workspaceId, config);
+}
+
+/** Workspaces whose chat turns this process currently runs on the daemon. */
+const vpsChatWorkspaces = new Set<string>();
+
+export function setVpsChatActive(workspaceId: string, active: boolean): void {
+  if (active) vpsChatWorkspaces.add(workspaceId);
+  else vpsChatWorkspaces.delete(workspaceId);
+}
+
+/**
+ * True when the daemon runs, queues, and mirrors this workspace's turns, so
+ * the client-side chat-room lease and preview pushes must stay out of the way.
+ */
+export function isVpsChatActive(workspaceId: string): boolean {
+  return vpsChatWorkspaces.has(workspaceId);
+}
+
+/** Target for Canvas Agent chat turns run by the daemon; null keeps them on the desktop. */
+export async function resolveVpsChatTarget(workspaceId: string): Promise<ResolvedRemoteTarget | null> {
+  const config = getRemoteWorkspaceConfig(workspaceId);
+  if (!config || !isVpsChatRuntimeEnabled(config)) return null;
   return await resolveRemoteTargetFromConfig(workspaceId, config);
 }
 

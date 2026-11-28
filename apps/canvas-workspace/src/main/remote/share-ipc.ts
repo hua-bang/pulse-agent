@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { ipcMain } from 'electron';
 import type {
   RemoteVpsPresencePeer,
@@ -6,8 +5,9 @@ import type {
   RemoteVpsWorkspaceConfigDto,
 } from '../../shared/api/remote-vps';
 import { consumePendingJoinLinks } from '../default-browser/deep-link';
+import { REMOTE_PROCESS_CLIENT_ID } from './config';
 
-const PROCESS_CLIENT_ID = `c_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+const PROCESS_CLIENT_ID = REMOTE_PROCESS_CLIENT_ID;
 
 function isSelfClientId(clientId: string): boolean {
   return clientId === PROCESS_CLIENT_ID || clientId.endsWith(`:${PROCESS_CLIENT_ID}`);

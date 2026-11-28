@@ -1,5 +1,16 @@
 import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
-import type { AgentScope } from '../../../../shared/agent-chat';
+import type { AgentChatMessage, AgentScope } from '../../../../shared/agent-chat';
+import { conversationKey } from '../../../../shared/conversation-runtime';
+import {
+  abortVpsRun,
+  conversationSnapshotFromVpsRun,
+  fetchVpsActiveRun,
+  followVpsRun,
+  VpsRunStartError,
+  type FollowVpsRunOptions,
+  type VpsRunHandlers,
+  type VpsRunResult,
+} from '../../../../shared/vps-agent/run-stream';
 import { openWebModelSettingsModal, readStoredWebLlmConfig } from './modelSettings';
 import type { WebHostAuthSession } from './types';
 
@@ -48,128 +59,70 @@ function createListenerRegistry<T>() {
 export function createWebAgentRuntime(
   session: WebHostAuthSession,
   getActiveWorkspaceId: () => string | undefined,
+  loadMessages: (workspaceId: string, sessionId: string) => Promise<AgentChatMessage[]> = async () => [],
 ): Partial<AgentApi> {
   const textListeners = createListenerRegistry<TextDeltaCb>();
   const toolCallListeners = createListenerRegistry<ToolCallCb>();
   const toolResultListeners = createListenerRegistry<ToolResultCb>();
   const completeListeners = createListenerRegistry<ChatCompleteCb>();
-  const activeControllers = new Map<string, AbortController>();
+  /** Runs this tab follows, by session. Detaching stops following, never the run. */
+  const following = new Map<string, { runId: string; detach: AbortController }>();
 
-  const authHeaders = () => ({
-    Authorization: `Bearer ${session.token}`,
-    'Content-Type': 'application/json',
+  const workspaceFor = (scope: AgentScope) => session.workspaceId || workspaceIdFromScope(scope, getActiveWorkspaceId());
+
+  const handlersFor = (sessionId: string, extra: VpsRunHandlers = {}): VpsRunHandlers => ({
+    ...extra,
+    onText: (delta) => textListeners.emit(sessionId, (cb) => cb(delta)),
+    onToolCall: (call) => toolCallListeners.emit(sessionId, (cb) => cb({
+      name: call.name,
+      args: call.args,
+      toolCallId: call.toolCallId,
+    })),
+    onToolResult: (result) => toolResultListeners.emit(sessionId, (cb) => cb({
+      name: result.name,
+      result: result.result,
+      status: result.status,
+      toolCallId: result.toolCallId,
+      ...(result.error ? { error: result.error } : {}),
+    })),
   });
 
-  async function pumpSse(
-    res: Response,
-    sessionId: string,
-    runId: string | undefined,
-    controller: AbortController,
-  ): Promise<void> {
-    if (!res.body) {
-      completeListeners.emit(sessionId, (cb) =>
-        cb({ ok: false, error: 'Empty agent response stream', runId }),
-      );
-      return;
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let completed = false;
-    let accumulated = '';
+  const emitComplete = (sessionId: string, result: VpsRunResult) => {
+    completeListeners.emit(sessionId, (cb) => cb({
+      ok: result.ok,
+      response: result.response,
+      stopped: result.stopped,
+      runId: result.runId,
+      ...(result.error && !result.stopped ? { error: result.error } : {}),
+    }));
+  };
 
-    const handleEvent = (eventName: string, rawData: string) => {
-      let payload: Record<string, any>;
-      try {
-        payload = JSON.parse(rawData) as Record<string, any>;
-      } catch {
-        return;
-      }
-      if (eventName === 'text_delta' && typeof payload.delta === 'string') {
-        accumulated += payload.delta;
-        textListeners.emit(sessionId, (cb) => cb(payload.delta));
-      } else if (eventName === 'tool_call' && typeof payload.name === 'string') {
-        toolCallListeners.emit(sessionId, (cb) =>
-          cb({
-            name: payload.name,
-            args: payload.args ?? {},
-            ...(typeof payload.toolCallId === 'string' ? { toolCallId: payload.toolCallId } : {}),
-          }),
-        );
-      } else if (eventName === 'tool_result' && typeof payload.name === 'string') {
-        const status = payload.status === 'failed' ? 'failed' : 'succeeded';
-        toolResultListeners.emit(sessionId, (cb) =>
-          cb({
-            name: payload.name,
-            result: typeof payload.result === 'string' ? payload.result : '',
-            status,
-            ...(typeof payload.toolCallId === 'string' ? { toolCallId: payload.toolCallId } : {}),
-            ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
-          }),
-        );
-      } else if (eventName === 'complete') {
-        completed = true;
-        completeListeners.emit(sessionId, (cb) =>
-          cb({
-            ok: Boolean(payload.ok),
-            response: typeof payload.response === 'string' ? payload.response : accumulated,
-            stopped: Boolean(payload.stopped),
-            runId: typeof payload.runId === 'string' ? payload.runId : runId,
-            ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
-          }),
-        );
-      }
-    };
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let sep = buffer.indexOf('\n\n');
-        while (sep !== -1) {
-          const block = buffer.slice(0, sep);
-          buffer = buffer.slice(sep + 2);
-          let eventName = 'message';
-          const dataLines: string[] = [];
-          for (const line of block.split(/\r?\n/)) {
-            if (line.startsWith('event:')) eventName = line.slice(6).trim();
-            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
-          }
-          if (dataLines.length > 0) handleEvent(eventName, dataLines.join('\n'));
-          sep = buffer.indexOf('\n\n');
-        }
-      }
-      if (!completed) {
-        completeListeners.emit(sessionId, (cb) =>
-          cb({
-            ok: !controller.signal.aborted,
-            stopped: controller.signal.aborted,
-            response: accumulated,
-            runId,
-          }),
-        );
-      }
-    } catch (err) {
-      if (!completed) {
-        const stopped = controller.signal.aborted;
-        completeListeners.emit(sessionId, (cb) =>
-          cb({
-            ok: false,
-            stopped,
-            response: accumulated,
-            runId,
-            error: stopped ? 'Aborted' : err instanceof Error ? err.message : String(err),
-          }),
-        );
-      }
-    } finally {
-      reader.releaseLock();
-      if (activeControllers.get(sessionId) === controller) {
-        activeControllers.delete(sessionId);
-      }
-    }
-  }
+  /** Follow a run to the end and report it; replaces any run this tab followed for the session. */
+  const follow = (sessionId: string, start: FollowVpsRunOptions['start'], extra?: VpsRunHandlers) => {
+    following.get(sessionId)?.detach.abort();
+    const detach = new AbortController();
+    const runId = start.kind === 'start' ? start.body.runId : start.runId;
+    following.set(sessionId, { runId, detach });
+    const run = followVpsRun({
+      endpoint: session.endpoint,
+      token: session.token,
+      start,
+      signal: detach.signal,
+      handlers: handlersFor(sessionId, extra),
+    });
+    void run.then(
+      (result) => {
+        // A replaced follower must not complete the newer turn.
+        if (following.get(sessionId)?.runId !== runId) return;
+        following.delete(sessionId);
+        emitComplete(sessionId, result);
+      },
+      () => undefined,
+    ).finally(() => {
+      if (following.get(sessionId)?.runId === runId) following.delete(sessionId);
+    });
+    return run;
+  };
 
   return {
     listSkills: async () => {
@@ -199,65 +152,72 @@ export function createWebAgentRuntime(
       return { ok: true, sessionId, activeSessionId: sessionId };
     },
     conversationChat: async (scope, sessionId, message, _mentioned, _ctx, _attachments, _truncateAt, trace) => {
-      const workspaceId = session.workspaceId || workspaceIdFromScope(scope, getActiveWorkspaceId());
+      const workspaceId = workspaceFor(scope);
       if (!workspaceId) {
         return { ok: false, error: 'No active workspace selected.' };
       }
-      const prev = activeControllers.get(sessionId);
-      if (prev) prev.abort();
-      const controller = new AbortController();
-      activeControllers.set(sessionId, controller);
-
       const llm = readStoredWebLlmConfig();
-      try {
-        const res = await fetch(`${session.endpoint}/v1/agent/chat`, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({
+      const runId = trace?.runId || crypto.randomUUID();
+      // Resolve once the daemon accepts (or refuses) the run; the reply streams after.
+      return await new Promise((resolve) => {
+        let settled = false;
+        const settle = (value: { ok: boolean; sessionId?: string; error?: string }) => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+        follow(sessionId, {
+          kind: 'start',
+          body: {
             workspaceId,
             sessionId,
+            runId,
             message,
-            senderName: session.senderName,
-            clientId: session.clientId,
-            ...(trace?.runId ? { runId: trace.runId } : {}),
+            ...(session.senderName ? { senderName: session.senderName } : {}),
+            ...(session.clientId ? { clientId: session.clientId } : {}),
             ...(llm ? { llm } : {}),
-          }),
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          activeControllers.delete(sessionId);
-          const body = (await res.json().catch(() => ({}))) as {
-            code?: string;
-            message?: string;
-            error?: string;
-          };
-          if (body.code === 'agent_not_configured') {
-            openWebModelSettingsModal(session);
-          }
-          return {
-            ok: false,
-            error: body.message || body.error || `VPS Agent returned HTTP ${res.status}`,
-          };
-        }
-        void pumpSse(res, sessionId, trace?.runId, controller);
-        return { ok: true, sessionId };
-      } catch (err) {
-        activeControllers.delete(sessionId);
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          },
+        }, {
+          onAccepted: () => settle({ ok: true, sessionId }),
+        }).then(
+          (result) => settle(result.ok || result.stopped ? { ok: true, sessionId } : { ok: false, error: result.error }),
+          (err: unknown) => {
+            if (err instanceof VpsRunStartError && err.code === 'agent_not_configured') {
+              openWebModelSettingsModal(session);
+            }
+            if (following.get(sessionId)?.runId === runId) following.delete(sessionId);
+            settle({ ok: false, error: err instanceof Error ? err.message : String(err) });
+          },
+        );
+      });
+    },
+    conversationAttach: async (scope, sessionId) => {
+      const workspaceId = workspaceFor(scope);
+      if (!workspaceId || following.has(sessionId)) return { ok: true, running: false };
+      try {
+        const active = await fetchVpsActiveRun(session.endpoint, session.token, workspaceId, sessionId);
+        if (!active) return { ok: true, running: false };
+        const messages = await loadMessages(workspaceId, sessionId);
+        const { snapshot, after } = conversationSnapshotFromVpsRun(conversationKey(scope, sessionId), messages, active);
+        void follow(sessionId, { kind: 'follow', runId: active.runId, after });
+        return { ok: true, running: true, snapshot };
+      } catch {
+        return { ok: true, running: false };
       }
     },
     conversationAbort: async (scope, sessionId) => {
-      const active = activeControllers.get(sessionId);
-      if (active) active.abort();
-      const workspaceId = session.workspaceId || workspaceIdFromScope(scope, getActiveWorkspaceId());
+      const workspaceId = workspaceFor(scope);
+      const active = following.get(sessionId);
       try {
-        await fetch(`${session.endpoint}/v1/agent/abort`, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ workspaceId, sessionId }),
+        // Keep following: the stopped reply arrives as the run's complete event.
+        await abortVpsRun(session.endpoint, session.token, {
+          workspaceId,
+          sessionId,
+          ...(active ? { runId: active.runId } : {}),
         });
       } catch {
-        // Best effort remote abort.
+        // The VPS is unreachable; stop waiting for it.
+        active?.detach.abort();
       }
       return { ok: true };
     },

@@ -9,7 +9,10 @@ import { startVpsDaemon, type RunningVpsDaemon } from './server.js';
 describe('vps-daemon lightweight agent loop', () => {
   const cleanups: Array<() => Promise<void>> = [];
 
+  const originalHome = process.env.HOME;
+
   afterEach(async () => {
+    process.env.HOME = originalHome;
     delete process.env.PULSE_AGENT_API_KEY;
     delete process.env.PULSE_AGENT_BASE_URL;
     delete process.env.PULSE_AGENT_MODEL;
@@ -25,6 +28,8 @@ describe('vps-daemon lightweight agent loop', () => {
     cleanups.push(() => rm(tempRoot, { recursive: true, force: true }));
     const dataDir = join(tempRoot, 'data');
     const workDir = join(tempRoot, 'work');
+    // Skill discovery also reads ~/.pulse-coder/skills; keep the developer's out.
+    process.env.HOME = join(tempRoot, 'home');
     const skillDir = join(workDir, '.pulse-coder', 'skills', 'canvas-summary');
     await mkdir(skillDir, { recursive: true });
     await writeFile(
@@ -135,6 +140,7 @@ describe('vps-daemon lightweight agent loop', () => {
       body: JSON.stringify({
         workspaceId: 'ws-agent',
         sessionId: 'sess-1',
+        runId: 'run-1',
         message: 'Summarize canvas and check environment',
       }),
     });
@@ -149,6 +155,14 @@ describe('vps-daemon lightweight agent loop', () => {
     expect(sseText).toContain('Created the Summary node.');
     expect(sseText).toContain('event: complete');
 
+    // A finished run stays resumable: a client that lost its stream replays the tail.
+    const resumeRes = await fetch(`${daemon.url}/v1/agent/runs/run-1/events?after=0`, { headers: authHeaders });
+    const resumeText = await resumeRes.text();
+    expect(resumeText).toContain('Created the Summary node.');
+    expect(resumeText).toContain('event: complete');
+    const runsRes = await fetch(`${daemon.url}/v1/agent/runs?workspaceId=ws-agent&sessionId=sess-1`, { headers: authHeaders });
+    expect(await runsRes.json()).toMatchObject({ ok: true, active: null, queued: [] });
+
     // Verify canvas mutation persisted in SQLite storage.
     const canvasStore = createCanvasCompatibilityStore(daemon.storage.canvas);
     const canvas = await canvasStore.readCanvas('ws-agent');
@@ -158,6 +172,7 @@ describe('vps-daemon lightweight agent loop', () => {
     // Verify conversation persisted in SQLite storage with Electron-compatible metadata.session header.
     const conv = await daemon.storage.conversations.read('ws-agent', 'sess-1');
     expect(conv?.messages).toHaveLength(2);
+    expect(conv?.messages?.map((m) => (m as unknown as { data?: { role?: string }; role?: string }).data?.role ?? (m as unknown as { role?: string }).role)).toEqual(['user', 'assistant']);
     expect(conv?.metadata?.session).toMatchObject({
       sessionId: 'sess-1',
       workspaceId: 'ws-agent',

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -26,6 +27,13 @@ export interface RemoteVpsWorkspaceConfig {
   storage?: 'vps' | 'local';
   /** Where PTY terminals and external CLI agents run (default: `'vps'`). */
   runtime?: 'vps' | 'local';
+  /**
+   * Where Canvas Agent chat turns run. `'vps'` runs them on the daemon, so a
+   * turn survives the desktop closing and every member sees one live run;
+   * `'local'` keeps the desktop agent (full local tools/MCP). Default: `'vps'`
+   * when both storage and runtime are on the VPS and the daemon has a model.
+   */
+  chatRuntime?: 'vps' | 'local';
   /** Automatically push and start `vps-daemon` over SSH if the remote health check fails. */
   autoBootstrap?: boolean;
   /** Granted role when joined via a share invite code. */
@@ -78,6 +86,14 @@ export function isRemoteStorageEnabled(config: RemoteVpsWorkspaceConfig): boolea
 export function isRemoteRuntimeEnabled(config: RemoteVpsWorkspaceConfig): boolean {
   return (config.runtime ?? 'vps') === 'vps';
 }
+
+export function isVpsChatRuntimeEnabled(config: RemoteVpsWorkspaceConfig): boolean {
+  if (config.chatRuntime) return config.chatRuntime === 'vps';
+  return isRemoteStorageEnabled(config) && isRemoteRuntimeEnabled(config);
+}
+
+/** Identifies this desktop process to the daemon (presence, chat room, agent runs). */
+export const REMOTE_PROCESS_CLIENT_ID = `c_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 
 export function saveRemoteWorkspaceConfig(
   workspaceId: string,

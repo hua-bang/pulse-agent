@@ -2,6 +2,7 @@ import {
   conversationKey,
   conversationKeyId,
   type ConversationSendInput,
+  type ConversationSnapshot,
 } from '../../../shared/conversation-runtime';
 import { ipcMain, type WebContents } from 'electron';
 import { SessionStore } from '../sessions/store/session-store';
@@ -15,6 +16,7 @@ import { onCompactionPhase } from '../run/compaction-status';
 import { tracedAssertWorkspaceAvailable } from '../workspace/traced-workspace-availability';
 import { trackTelemetry } from '../../telemetry/ipc';
 import { startAgentTurnTelemetry, type AgentTurnTrigger } from '../../telemetry/agent-turn';
+import { resolveVpsRunnerDeps } from './vps-conversation-runner';
 
 let service: ConversationRuntimeService | null = null;
 
@@ -48,6 +50,7 @@ export function getConversationRuntimeService(
       ),
       async (scope) => (await load()).activateScope(scope),
       tracedAssertWorkspaceAvailable,
+      async (scope) => (scope.kind === 'workspace' ? resolveVpsRunnerDeps(scope.workspaceId) : null),
     );
   }
   return service;
@@ -141,6 +144,57 @@ export async function chatToSubscribers(
   return result;
 }
 
+/** Daemon runs a window follows without a local turn (started by another member). */
+const remoteFollowers = new Map<string, { runId: string; detach: AbortController; sender: WebContents }>();
+
+const remoteFollowerFor = (scope: AgentScope, sessionId: string) => {
+  const prefix = `${conversationKeyId(conversationKey(scope, sessionId))}\u0000`;
+  for (const [id, follower] of remoteFollowers) {
+    if (id.startsWith(prefix)) return follower;
+  }
+  return undefined;
+};
+
+/**
+ * Attach a window to a run the VPS daemon is executing for this
+ * conversation. Events go to that window over the usual per-session
+ * channels and end with `chat-complete`, as for a local turn.
+ */
+async function attachRemoteRunToWindow(
+  runtime: ConversationRuntimeService,
+  sender: WebContents,
+  scope: AgentScope,
+  sessionId: string,
+): Promise<{ ok: boolean; running: boolean; snapshot?: ConversationSnapshot }> {
+  const id = `${conversationKeyId(conversationKey(scope, sessionId))}\u0000${sender.id}`;
+  remoteFollowers.get(id)?.detach.abort();
+  const detach = new AbortController();
+  const subscribers = new Set([sender]);
+  try {
+    const attached = await runtime.attachRemoteRun(scope, sessionId, {
+      onText: (delta) => send(subscribers, 'text-delta', sessionId, delta),
+      onToolCall: (call) => send(subscribers, 'tool-call', sessionId, call),
+      onToolResult: (result) => send(subscribers, 'tool-result', sessionId, result),
+    }, detach.signal);
+    if (!attached || detach.signal.aborted) return { ok: true, running: false };
+    const runId = attached.snapshot.runId ?? '';
+    remoteFollowers.set(id, { runId, detach, sender });
+    void attached.done.then((result) => {
+      if (remoteFollowers.get(id)?.runId !== runId) return;
+      remoteFollowers.delete(id);
+      const response: ChatResponse = result.ok || result.stopped
+        ? { ok: true, response: result.response, runId: result.runId, stopped: result.stopped }
+        : { ok: false, runId: result.runId, error: result.error };
+      send(subscribers, 'chat-complete', sessionId, response);
+    }, () => {
+      if (remoteFollowers.get(id)?.runId === runId) remoteFollowers.delete(id);
+    });
+    return { ok: true, running: true, snapshot: attached.snapshot };
+  } catch {
+    return { ok: true, running: false };
+  }
+}
+
 export interface ConversationRuntimeChatPayload {
   scope: AgentScope;
   sessionId: string;
@@ -200,7 +254,12 @@ export function setupConversationRuntimeIpc(loadService: () => Promise<CanvasAge
     'canvas-agent:conversation-attach',
     (event, payload: { scope: AgentScope; sessionId: string }) => {
       const snapshot = ensure().liveSnapshot(payload.scope, payload.sessionId);
-      if (!snapshot) return { ok: true, running: false };
+      if (!snapshot) {
+        // Only VPS-bound workspaces can have a daemon run to follow; others stay synchronous.
+        return payload.scope.kind === 'workspace'
+          ? attachRemoteRunToWindow(ensure(), event.sender, payload.scope, payload.sessionId)
+          : { ok: true, running: false };
+      }
       subscribersFor(payload.scope, payload.sessionId).add(event.sender);
       return { ok: true, running: true, snapshot };
     },
@@ -208,8 +267,11 @@ export function setupConversationRuntimeIpc(loadService: () => Promise<CanvasAge
 
   ipcMain.handle(
     'canvas-agent:conversation-abort',
-    (_event, payload: { scope: AgentScope; sessionId: string }) => {
-      return { ok: ensure().abort(payload.scope, payload.sessionId) };
+    async (_event, payload: { scope: AgentScope; sessionId: string }) => {
+      if (ensure().abort(payload.scope, payload.sessionId)) return { ok: true };
+      const followed = remoteFollowerFor(payload.scope, payload.sessionId);
+      if (!followed) return { ok: false };
+      return { ok: await ensure().abortRemoteRun(payload.scope, payload.sessionId, followed.runId) };
     },
   );
 
@@ -242,6 +304,8 @@ export function setupConversationRuntimeIpc(loadService: () => Promise<CanvasAge
 
 export function teardownConversationRuntime(): void {
   turnSubscribers.clear();
+  for (const follower of remoteFollowers.values()) follower.detach.abort();
+  remoteFollowers.clear();
   service?.disposeAll();
   service = null;
 }

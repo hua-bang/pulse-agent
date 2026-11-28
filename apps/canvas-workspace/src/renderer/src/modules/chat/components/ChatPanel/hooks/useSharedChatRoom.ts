@@ -8,6 +8,7 @@ import { useAppShell } from '../../../../../shared/appShell';
 import { setSelfSenderName } from '../../../../../shared/remotePresence';
 import { useI18n } from '../../../../../i18n';
 import { isImeComposing } from '../../../../../utils/ime';
+import { requestConversationAttach } from '../../../runtime/conversationAttachRequest';
 
 interface UseSharedChatRoomOptions {
   workspaceId: string;
@@ -82,6 +83,7 @@ export function useSharedChatRoom({
   const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
   const claimingRef = useRef(false);
+  const peerEndedWhileBusyRef = useRef(false);
   const heldTurnRef = useRef(false);
   const claimedConvIdRef = useRef<string | null>(null);
 
@@ -166,19 +168,19 @@ export function useSharedChatRoom({
 
     const unsubscribe = api.onChatRoomEvent((event) => {
       if (cancelled) return;
-      // Match exact conversationId, or accept any workspace turn when this client is on an empty
-      // draft chat (conversationId === workspaceId or messages.length === 0) so peers see live streaming.
-      if (event.workspaceId !== workspaceId) return;
-      if (
-        event.conversationId !== conversationId
-        && conversationId !== workspaceId
-        && messagesRef.current.length > 0
-      ) return;
+      // Only this exact conversation: another session's turn must never stream into this view.
+      if (event.workspaceId !== workspaceId || event.conversationId !== conversationId) return;
       setActiveTurn(event.activeTurn);
       setQueue(event.queue);
       if (event.typingPeers !== undefined) setTypingPeers(event.typingPeers);
+      // A daemon-run peer turn can be followed live instead of through the preview.
+      if (event.activeTurn?.runId && !event.activeTurn.self && !loadingRef.current) {
+        requestConversationAttach(conversationId);
+      }
       if (event.turnEnded) {
         if (!event.endedBySelf && !loadingRef.current) reloadSessionRef.current(event.conversationId);
+        // Busy with our own turn: reload once it ends, or the peer's reply stays hidden.
+        else if (!event.endedBySelf) peerEndedWhileBusyRef.current = true;
         if (!event.activeTurn && event.queue[0]?.self) {
           tryClaimNext(event.queue);
         }
@@ -227,6 +229,10 @@ export function useSharedChatRoom({
     if (!isRemote || !supported || !workspaceId || !conversationId || !api?.streamChatRoom) return;
 
     if (!loading) {
+      if (peerEndedWhileBusyRef.current) {
+        peerEndedWhileBusyRef.current = false;
+        reloadSessionRef.current(conversationId);
+      }
       if (heldTurnRef.current && (!claimedConvIdRef.current || claimedConvIdRef.current === conversationId)) {
         const releaseConvId = claimedConvIdRef.current ?? conversationId;
         heldTurnRef.current = false;
@@ -365,12 +371,7 @@ export function useSharedChatRoom({
     if (!isRemote) return messages as AgentChatMessage[];
     // Never overlay a peer streaming bubble while this client is already streaming locally,
     // or if a stale activeTurn belongs to a different conversation.
-    const turnMatchesView = Boolean(
-      activeTurn
-      && (activeTurn.conversationId === conversationId
-        || conversationId === workspaceId
-        || messages.length === 0),
-    );
+    const turnMatchesView = Boolean(activeTurn && activeTurn.conversationId === conversationId);
     const hasPeerTurn = Boolean(!loading && turnMatchesView && activeTurn && !activeTurn.self);
     if (!hasPeerTurn && queue.length === 0) {
       return messages as AgentChatMessage[];
@@ -424,7 +425,7 @@ export function useSharedChatRoom({
       });
     }
     return next;
-  }, [activeTurn, conversationId, isRemote, loading, messages, queue, workspaceId]);
+  }, [activeTurn, conversationId, isRemote, loading, messages, queue]);
 
   if (!isRemote) {
     return {

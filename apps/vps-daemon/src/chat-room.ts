@@ -14,6 +14,8 @@ export interface ChatRoomActiveTurn {
   conversationId: string;
   /** Monotonic fencing token incremented on every new turn grant. */
   leaseEpoch: number;
+  /** Set when the daemon itself runs the turn; clients resume it via `/v1/agent/runs/:runId/events`. */
+  runId?: string;
   prompt?: string;
   text: string;
   toolName?: string;
@@ -27,6 +29,8 @@ export interface ChatRoomQueuedItem {
   senderName: string;
   message: string;
   createdAt: number;
+  /** Set for messages queued in the daemon's run hub (dispatched by the daemon). */
+  runId?: string;
 }
 
 export interface ChatRoomTypingPeer {
@@ -71,6 +75,8 @@ export class ChatRoomHub {
   private readonly rooms = new Map<string, RoomState>();
   private readonly subscribers = new Set<RoomSubscriber>();
   private eventSeq = 0;
+  /** Cancels a daemon-queued run; set by the agent controller. */
+  cancelRun?: (workspaceId: string, runId: string) => boolean;
 
   private key(workspaceId: string, conversationId: string): string {
     return `${workspaceId}::${conversationId}`;
@@ -83,7 +89,7 @@ export class ChatRoomHub {
       room = { activeTurn: null, queue: [], typing: new Map(), epochSeq: 0 };
       this.rooms.set(k, room);
     }
-    if (room.activeTurn && now - room.activeTurn.updatedAt > LEASE_TTL_MS) {
+    if (room.activeTurn && !room.activeTurn.runId && now - room.activeTurn.updatedAt > LEASE_TTL_MS) {
       room.activeTurn = null;
     }
     for (const [cid, entry] of room.typing) {
@@ -228,6 +234,7 @@ export class ChatRoomHub {
       senderName: input.senderName,
       conversationId,
       leaseEpoch,
+      ...(room.activeTurn?.runId ? { runId: room.activeTurn.runId } : {}),
       ...(prompt ? { prompt } : {}),
       text: input.text.slice(-MAX_STREAM_PREVIEW_CHARS),
       ...(input.toolName ? { toolName: input.toolName.slice(0, 128) } : {}),
@@ -260,6 +267,57 @@ export class ChatRoomHub {
     return { snapshot: snap };
   }
 
+  /**
+   * Mirror the daemon run hub's state for one conversation: the running run
+   * becomes the active turn, and its queued runs replace the run-backed queue
+   * items. Client-queued items (older clients) are kept. Clearing the active
+   * turn broadcasts `turnEnded` so peers reload the persisted reply.
+   */
+  setRun(
+    workspaceId: string,
+    conversationId: string,
+    active: { runId: string; clientId: string; senderName: string; prompt: string; startedAt?: number } | null,
+    queued: Array<{ runId: string; clientId: string; senderName: string; prompt: string; createdAt: number }>,
+    now = Date.now(),
+  ): ChatRoomSnapshot {
+    const room = this.getOrCreate(workspaceId, conversationId, now);
+    const previous = room.activeTurn;
+    let endedBy: string | undefined;
+    if (active) {
+      if (previous?.runId !== active.runId) {
+        room.activeTurn = {
+          clientId: active.clientId,
+          senderName: active.senderName,
+          conversationId,
+          leaseEpoch: ++room.epochSeq,
+          runId: active.runId,
+          prompt: active.prompt.slice(0, MAX_MESSAGE_CHARS),
+          text: '',
+          startedAt: active.startedAt ?? now,
+          updatedAt: now,
+        };
+        if (previous?.runId) endedBy = previous.clientId;
+      }
+    } else if (previous?.runId) {
+      room.activeTurn = null;
+      endedBy = previous.clientId;
+    }
+    room.queue = [
+      ...room.queue.filter((item) => !item.runId),
+      ...queued.map((run) => ({
+        id: run.runId,
+        runId: run.runId,
+        clientId: run.clientId,
+        senderName: run.senderName,
+        message: run.prompt.slice(0, MAX_MESSAGE_CHARS),
+        createdAt: run.createdAt,
+      })),
+    ];
+    const snap = this.snapshot(workspaceId, conversationId, room, endedBy);
+    this.broadcast(snap);
+    return snap;
+  }
+
   cancelQueued(
     workspaceId: string,
     conversationId: string,
@@ -274,6 +332,12 @@ export class ChatRoomHub {
     );
     if (idx === -1) {
       return { removed: false, snapshot: this.snapshot(workspaceId, conversationId, room) };
+    }
+    const runId = room.queue[idx].runId;
+    if (runId) {
+      // The run hub owns the item; its change callback rebroadcasts the queue.
+      const removed = this.cancelRun?.(workspaceId, runId) ?? false;
+      return { removed, snapshot: this.snapshot(workspaceId, conversationId, room) };
     }
     room.queue.splice(idx, 1);
     const snap = this.snapshot(workspaceId, conversationId, room);
@@ -319,7 +383,7 @@ export class ChatRoomHub {
     const prefix = `${workspaceId}::`;
     for (const [k, room] of this.rooms) {
       if (!k.startsWith(prefix)) continue;
-      if (room.activeTurn && now - room.activeTurn.updatedAt > LEASE_TTL_MS) {
+      if (room.activeTurn && !room.activeTurn.runId && now - room.activeTurn.updatedAt > LEASE_TTL_MS) {
         room.activeTurn = null;
       }
       if (!room.activeTurn && room.queue.length === 0) continue;
