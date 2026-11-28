@@ -46,12 +46,17 @@ export function createWebPtyClient(
   const pendingResizes = new Map<string, { cols: number; rows: number }>();
   const flushingWrites = new Set<string>();
   const exitedSessions = new Set<string>();
+  // End offset of the last output chunk per session. A reconnect sends it as
+  // `since` so the daemon replays exactly what was missed while offline.
+  const lastOffsets = new Map<string, number>();
   let wsUnsupported = typeof WebSocket === 'undefined';
 
   const toWsUrl = (id: string, includeScrollback: boolean): string => {
     const base = session.endpoint.replace(/^http/i, (m) => (m.toLowerCase() === 'https' ? 'wss' : 'ws'));
     const qs = new URLSearchParams({ token: session.token });
-    if (!includeScrollback) qs.set('scrollback', '0');
+    const since = includeScrollback ? undefined : lastOffsets.get(id);
+    if (since !== undefined) qs.set('since', String(since));
+    else if (!includeScrollback) qs.set('scrollback', '0');
     return `${base}/v1/pty/${encodeURIComponent(id)}/ws?${qs.toString()}`;
   };
 
@@ -93,7 +98,8 @@ export function createWebPtyClient(
     streamControllers.set(id, controller);
     exitedSessions.delete(id);
 
-    const qs = includeScrollback ? '' : '?scrollback=0';
+    const since = includeScrollback ? undefined : lastOffsets.get(id);
+    const qs = since !== undefined ? `?since=${since}` : includeScrollback ? '' : '?scrollback=0';
     const url = `${session.endpoint}/v1/pty/${encodeURIComponent(id)}/stream${qs}`;
     void (async () => {
       let sawExit = false;
@@ -131,10 +137,12 @@ export function createWebPtyClient(
                 try {
                   const parsed = JSON.parse(dataLines.join('\n')) as {
                     data?: string;
+                    offset?: number;
                     exitCode?: number;
                   };
                   if (eventName === 'data' && typeof parsed.data === 'string') {
-                    emitData(id, parsed.data);
+                    if (typeof parsed.offset === 'number') lastOffsets.set(id, parsed.offset);
+                    if (parsed.data) emitData(id, parsed.data);
                   } else if (eventName === 'exit') {
                     sawExit = true;
                     exitedSessions.add(id);
@@ -213,9 +221,15 @@ export function createWebPtyClient(
     ws.onmessage = (event) => {
       if (sockets.get(id) !== ws || typeof event.data !== 'string') return;
       try {
-        const parsed = JSON.parse(event.data) as { type?: string; data?: string; exitCode?: number };
+        const parsed = JSON.parse(event.data) as {
+          type?: string;
+          data?: string;
+          offset?: number;
+          exitCode?: number;
+        };
         if (parsed.type === 'data' && typeof parsed.data === 'string') {
-          emitData(id, parsed.data);
+          if (typeof parsed.offset === 'number') lastOffsets.set(id, parsed.offset);
+          if (parsed.data) emitData(id, parsed.data);
         } else if (parsed.type === 'exit') {
           sawExit = true;
           exitedSessions.add(id);
@@ -315,6 +329,7 @@ export function createWebPtyClient(
     },
     kill: (id) => {
       exitedSessions.add(id);
+      lastOffsets.delete(id);
       pendingWrites.delete(id);
       pendingResizes.delete(id);
       const ws = sockets.get(id);

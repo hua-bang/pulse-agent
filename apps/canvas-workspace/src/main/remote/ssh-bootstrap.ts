@@ -107,6 +107,27 @@ export function computeBundledVpsDaemonHash(bundlePath = resolveBundledVpsDaemon
 }
 
 /**
+ * Hashes a healthy daemon may report: the bundled copy, or the verified OTA
+ * copy cached by the last bootstrap. Bootstrap pushes the OTA copy when it
+ * differs from the bundled one, so comparing only against the bundled hash
+ * reports every OTA-upgraded daemon as outdated.
+ */
+export function computeAcceptedVpsDaemonHashes(
+  bundlePath = resolveBundledVpsDaemonPath(),
+  otaCachePath = DAEMON_OTA_CACHE_PATH,
+): string[] {
+  const hashes = [computeBundledVpsDaemonHash(bundlePath)];
+  try {
+    if (existsSync(otaCachePath)) {
+      hashes.push(createHash('sha256').update(readFileSync(otaCachePath)).digest('hex').slice(0, 16));
+    }
+  } catch {
+    // An unreadable cache only means the OTA copy is not accepted.
+  }
+  return hashes;
+}
+
+/**
  * Resolve the latest `vps-daemon/index.cjs` bytes: checks the Cloudflare Pages OTA manifest
  * (with SHA-256 verification and local cache) and falls back cleanly to the bundled copy when
  * offline or when `explicitBundlePath` is provided.

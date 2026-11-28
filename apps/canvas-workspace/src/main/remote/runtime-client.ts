@@ -32,6 +32,8 @@ export interface RemotePtyHandle {
   detach(): void;
 }
 
+const STREAM_IDLE_TIMEOUT_MS = 45_000;
+
 function authHeaders(token: string, json = false): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -100,14 +102,30 @@ export async function connectRemotePty(
   let firstConnect = true;
   let reconnectDelayMs = 1_000;
 
+  // End offset of the last output chunk received. Daemons that report it let a
+  // reconnect replay exactly what was missed; older daemons omit it.
+  let lastOffset: number | undefined;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const armIdleWatchdog = (controller: AbortController) => {
+    if (idleTimer) clearTimeout(idleTimer);
+    // The daemon pings every 20s. Silence beyond that means a half-open
+    // connection (e.g. a dropped Tailscale path), which never errors on its own.
+    idleTimer = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS);
+    idleTimer.unref?.();
+  };
+
   const consumeStream = async () => {
     while (!detached && !exited) {
-      streamController = new AbortController();
-      const scrollbackParam = firstConnect ? '1' : '0';
+      const controller = new AbortController();
+      streamController = controller;
+      const query = lastOffset !== undefined
+        ? `since=${lastOffset}`
+        : `scrollback=${firstConnect ? '1' : '0'}`;
       firstConnect = false;
       try {
+        armIdleWatchdog(controller);
         const res = await fetch(
-          `${target.endpoint}/v1/pty/${encodedId}/stream?scrollback=${scrollbackParam}`,
+          `${target.endpoint}/v1/pty/${encodedId}/stream?${query}`,
           {
             method: 'GET',
             headers: { ...authHeaders(target.token), Accept: 'text/event-stream' },
@@ -132,6 +150,7 @@ export async function connectRemotePty(
         while (!detached && !exited) {
           const { done, value } = await reader.read();
           if (done) break;
+          armIdleWatchdog(controller);
           buffer += decoder.decode(value, { stream: true });
           let boundary = buffer.indexOf('\n\n');
           while (boundary >= 0) {
@@ -145,9 +164,10 @@ export async function connectRemotePty(
             }
             if (dataLine) {
               try {
-                const parsed = JSON.parse(dataLine) as { data?: string; exitCode?: number };
+                const parsed = JSON.parse(dataLine) as { data?: string; offset?: number; exitCode?: number };
                 if (eventName === 'data' && typeof parsed.data === 'string') {
-                  callbacks.onData(parsed.data);
+                  if (typeof parsed.offset === 'number') lastOffset = parsed.offset;
+                  if (parsed.data) callbacks.onData(parsed.data);
                 } else if (eventName === 'exit') {
                   exited = true;
                   callbacks.onExit(parsed.exitCode ?? 0);
@@ -162,6 +182,9 @@ export async function connectRemotePty(
         }
       } catch {
         // Transient drop: retry with bounded backoff unless detached or exited.
+      } finally {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = null;
       }
       if (detached || exited) return;
       await new Promise<void>((resolveWait) => {

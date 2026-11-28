@@ -358,6 +358,16 @@ export async function saveRemoteCanvas(
     if (code === 'revision_conflict') {
       const current = await remote.backend.readCanvas(remote.target.remoteWorkspaceId);
       if (!current) {
+        // A baseline read from this VPS store means the canvas existed here and
+        // was removed elsewhere: do not silently recreate it. A baseline from
+        // another store (first save after binding) initializes the VPS copy.
+        if (input.storageGeneration && input.storageGeneration === remote.storage.generation) {
+          return {
+            ok: false as const,
+            code: 'not_found' as const,
+            error: 'This canvas was deleted on another device. Reopen the workspace to continue.',
+          };
+        }
         const { revision: _r, storageGeneration: _g, ...initial } = input;
         const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, initial, {
           allowEmpty: true,

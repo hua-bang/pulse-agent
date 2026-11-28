@@ -55,9 +55,22 @@ interface PtySessionRecord {
   wsSubscribers: Set<WsConnection>;
   exited: boolean;
   exitCode?: number;
+  /** Total characters ever emitted; stream frames carry it as `offset`. */
+  outputChars: number;
 }
 
 const MAX_SCROLLBACK_CHARS = 128 * 1024;
+const MAX_PENDING_STREAM_BYTES = 1024 * 1024;
+
+/**
+ * Output a client missed since `since`. If the gap is larger than the retained
+ * scrollback, the whole scrollback is replayed (the oldest part is gone).
+ */
+export function missedOutput(record: { scrollback: string; outputChars: number }, since: number): string {
+  const missed = record.outputChars - since;
+  if (missed <= 0) return '';
+  return missed >= record.scrollback.length ? record.scrollback : record.scrollback.slice(-missed);
+}
 
 function pickShell(): string {
   if (platform() === 'win32') return 'powershell.exe';
@@ -209,17 +222,26 @@ export class PtyHub {
         subscribers: new Set(),
         wsSubscribers: new Set(),
         exited: false,
+        outputChars: 0,
       };
       this.sessions.set(id, record);
 
       proc.onData((data) => {
         record.scrollback += data;
+        record.outputChars += data.length;
         if (record.scrollback.length > MAX_SCROLLBACK_CHARS) {
           record.scrollback = record.scrollback.slice(-MAX_SCROLLBACK_CHARS);
         }
         if (record.subscribers.size > 0) {
-          const frame = `event: data\ndata: ${JSON.stringify({ data })}\n\n`;
+          const frame = `event: data\ndata: ${JSON.stringify({ data, offset: record.outputChars })}\n\n`;
           for (const sub of record.subscribers) {
+            // A stalled reader would make Node buffer without limit. Drop it;
+            // it reconnects with `since` and catches up from the scrollback.
+            if (sub.writableLength > MAX_PENDING_STREAM_BYTES) {
+              record.subscribers.delete(sub);
+              sub.destroy();
+              continue;
+            }
             try {
               sub.write(frame);
             } catch {
@@ -228,7 +250,7 @@ export class PtyHub {
           }
         }
         if (record.wsSubscribers.size > 0) {
-          const wsFrame = JSON.stringify({ type: 'data', data });
+          const wsFrame = JSON.stringify({ type: 'data', data, offset: record.outputChars });
           for (const ws of record.wsSubscribers) {
             try {
               ws.sendText(wsFrame);
@@ -276,6 +298,7 @@ export class PtyHub {
     req: IncomingMessage,
     res: ServerResponse,
     includeScrollback = true,
+    since?: number,
   ): void {
     const record = this.sessions.get(id);
     if (!record) {
@@ -288,8 +311,11 @@ export class PtyHub {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    if (includeScrollback && record.scrollback.length > 0) {
-      res.write(`event: data\ndata: ${JSON.stringify({ data: record.scrollback })}\n\n`);
+    const replay = since === undefined
+      ? (includeScrollback ? record.scrollback : '')
+      : missedOutput(record, since);
+    if (replay.length > 0 || since !== undefined) {
+      res.write(`event: data\ndata: ${JSON.stringify({ data: replay, offset: record.outputChars })}\n\n`);
     }
     if (record.exited) {
       res.write(`event: exit\ndata: ${JSON.stringify({ exitCode: record.exitCode ?? 0 })}\n\n`);
@@ -373,8 +399,13 @@ export class PtyHub {
     if (!ws) return true;
 
     const includeScrollback = url.searchParams.get('scrollback') !== '0';
-    if (includeScrollback && record.scrollback.length > 0) {
-      ws.sendText(JSON.stringify({ type: 'data', data: record.scrollback }));
+    const sinceRaw = url.searchParams.get('since');
+    const since = sinceRaw !== null && /^\d+$/.test(sinceRaw) ? Number(sinceRaw) : undefined;
+    const replay = since === undefined
+      ? (includeScrollback ? record.scrollback : '')
+      : missedOutput(record, since);
+    if (replay.length > 0 || since !== undefined) {
+      ws.sendText(JSON.stringify({ type: 'data', data: replay, offset: record.outputChars }));
     }
     if (record.exited) {
       ws.sendText(JSON.stringify({ type: 'exit', exitCode: record.exitCode ?? 0 }));
@@ -491,7 +522,9 @@ export class PtyHub {
 
     if (req.method === 'GET' && action === 'stream') {
       const includeScrollback = url.searchParams.get('scrollback') !== '0';
-      this.attachStream(sessionId, req, res, includeScrollback);
+      const sinceRaw = url.searchParams.get('since');
+      const since = sinceRaw !== null && /^\d+$/.test(sinceRaw) ? Number(sinceRaw) : undefined;
+      this.attachStream(sessionId, req, res, includeScrollback, since);
       return true;
     }
     if (req.method === 'POST' && action === 'write') {
