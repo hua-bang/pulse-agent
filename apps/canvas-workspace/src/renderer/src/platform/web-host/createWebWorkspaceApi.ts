@@ -4,20 +4,18 @@ import {
   openRemoteStorage,
   subscribeRemoteChanges,
 } from '@pulse-coder/storage/remote';
-import type { AgentSessionInfo } from '../../../../shared/agent-chat';
 import type { CanvasSaveData, CanvasSummary } from '../../../../shared/canvas';
 import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import { createWebRemoteVpsApi } from './chatRoomClient';
 import {
-  extractConversationMessages,
   normalizeCanvasData,
-  scopeIdFromRef,
   toRemoteFileUri,
   toSummaryBox,
 } from './remotePaths';
 import { WEB_HOST_ACTIVE_WS_KEY, type WebHostAuthSession } from './types';
 import { createWebAgentRuntime } from './webAgentClient';
 import { createWebPtyClient } from './webPtyClient';
+import { createWebSessionClient } from './webSessionClient';
 
 const MANIFEST_ID = '__workspaces__';
 
@@ -307,16 +305,6 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     },
   });
 
-  const draftSessionByScope = new Map<string, string>();
-  const getOrMintDraftSession = (scopeId: string): string => {
-    let id = draftSessionByScope.get(scopeId);
-    if (!id) {
-      id = `vps-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      draftSessionByScope.set(scopeId, id);
-    }
-    return id;
-  };
-
   const agent = createNoopNamespace<CanvasWorkspaceApi['agent']>({
     mcpApps: createNoopNamespace<CanvasWorkspaceApi['agent']['mcpApps']>({
       listEntrypoints: async () => ({ ok: true, entrypoints: [] }),
@@ -324,101 +312,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     getStatus: async () => ({ ok: true, active: false, messageCount: 0 }),
     getScopeRunStatus: async () => ({ ok: true, active: false }),
     getScopeRunningSessions: async () => ({ ok: true, conversationSessionIds: [] }),
-    listSessions: async (scopeRef) => {
-      try {
-        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
-        if (session.workspaceId && scopeId !== session.workspaceId) {
-          return { ok: true, sessions: [] };
-        }
-        const storage = await getStorage();
-        const scope = await storage.conversationScopes.read(scopeId);
-        const allItems: Array<{ sessionId: string; metadata?: Record<string, unknown> }> = [];
-        let cursor: string | undefined;
-        do {
-          const page = await storage.conversations.list(scopeId, { cursor, limit: 200 });
-          for (const item of page.items) {
-            allItems.push({
-              sessionId: item.sessionId,
-              metadata: (item.metadata ?? {}) as Record<string, unknown>,
-            });
-          }
-          cursor = page.nextCursor;
-        } while (cursor);
-        const currentId = scope?.currentSessionId ?? allItems[0]?.sessionId ?? null;
-        const sessions: AgentSessionInfo[] = allItems
-          .map((item) => {
-            const meta = item.metadata ?? {};
-            return {
-              sessionId: item.sessionId,
-              date: typeof meta.date === 'string' ? meta.date : new Date().toISOString().slice(0, 10),
-              updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : undefined,
-              messageCount: typeof meta.messageCount === 'number' ? meta.messageCount : 0,
-              isCurrent: item.sessionId === currentId,
-              title: typeof meta.title === 'string' ? meta.title : undefined,
-              preview: typeof meta.preview === 'string' ? meta.preview : undefined,
-              pinned: typeof meta.pinned === 'boolean' ? meta.pinned : undefined,
-            };
-          })
-          .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-        return { ok: true, sessions };
-      } catch (err) {
-        return { ok: false, sessions: [], error: err instanceof Error ? err.message : String(err) };
-      }
-    },
-    getCurrentSession: async (scopeRef) => {
-      try {
-        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
-        if (session.workspaceId && scopeId !== session.workspaceId) return { ok: true, sessionId: null };
-        const storage = await getStorage();
-        const scope = await storage.conversationScopes.read(scopeId);
-        if (scope?.currentSessionId) return { ok: true, sessionId: scope.currentSessionId };
-        const page = await storage.conversations.list(scopeId, { limit: 1 });
-        return { ok: true, sessionId: page.items[0]?.sessionId ?? getOrMintDraftSession(scopeId) };
-      } catch (err) {
-        return { ok: false, sessionId: null, error: err instanceof Error ? err.message : String(err) };
-      }
-    },
-    getHistory: async (scopeRef) => {
-      try {
-        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
-        if (session.workspaceId && scopeId !== session.workspaceId) {
-          return { ok: true, messages: [], activeSessionId: null };
-        }
-        const storage = await getStorage();
-        const scope = await storage.conversationScopes.read(scopeId);
-        let activeId = scope?.currentSessionId ?? null;
-        if (!activeId) {
-          const page = await storage.conversations.list(scopeId, { limit: 1 });
-          activeId = page.items[0]?.sessionId ?? null;
-        }
-        if (!activeId) return { ok: true, messages: [], activeSessionId: getOrMintDraftSession(scopeId) };
-        const conv = await storage.conversations.read(scopeId, activeId);
-        return {
-          ok: true,
-          messages: conv ? extractConversationMessages(conv as unknown as { messages?: unknown[] }) : [],
-          activeSessionId: activeId,
-        };
-      } catch {
-        return { ok: true, messages: [], activeSessionId: null };
-      }
-    },
-    loadSession: async (scopeRef, sessionId) => {
-      try {
-        const scopeId = scopeIdFromRef(scopeRef, currentWorkspaceId);
-        if (session.workspaceId && scopeId !== session.workspaceId) {
-          return { ok: true, messages: [], activeSessionId: sessionId };
-        }
-        const storage = await getStorage();
-        const conv = await storage.conversations.read(scopeId, sessionId);
-        return {
-          ok: true,
-          messages: conv ? extractConversationMessages(conv as unknown as { messages?: unknown[] }) : [],
-          activeSessionId: sessionId,
-        };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
-    },
+    ...createWebSessionClient(session, getStorage, () => currentWorkspaceId),
     conversationAttach: async () => ({ ok: true, running: false }),
     ...createWebAgentRuntime(session, () => currentWorkspaceId),
     warmScope: () => {},
