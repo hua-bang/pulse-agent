@@ -233,19 +233,19 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
         (message, detail) => { void writeLog('agent-teams', message, detail); },
       );
     }
-    // Stable Scheduled surface: tasks are persisted independently, checked
-    // every 30 minutes while the app is open, and caught up after startup or
-    // system wake. The built-in memory report starts disabled, so merely
-    // upgrading never creates background model spend.
+    // Scheduled surface: persisted tasks, 30-min heartbeat, startup/wake catch-up.
+    // Built-in memory report starts disabled (no automatic model spend on upgrade).
     const [{ setupScheduledTaskIpc }, { getScheduledTaskService }] = await Promise.all([
       import('../scheduled/ipc'),
       import('../scheduled/runtime'),
     ]);
     const scheduled = getScheduledTaskService();
     setAgentScheduledPort(scheduled);
-    await Promise.all([scheduled.ensureDailySummaryTask(), scheduled.ensureMemoryReportTask()]);
     setupScheduledTaskIpc();
     scheduled.start();
+    // Seed off the boot critical path: readState() may probe a remote VPS (10s+ timeout).
+    void Promise.all([scheduled.ensureDailySummaryTask(), scheduled.ensureMemoryReportTask()])
+      .catch((err) => { void writeLog('scheduled', 'default task seeding failed', String(err)); });
     const runScheduledCatchUp = () => { void scheduled.runDueTasks(); };
     powerMonitor.on('resume', runScheduledCatchUp);
     app.on('will-quit', () => {
