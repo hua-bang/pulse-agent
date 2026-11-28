@@ -23,6 +23,47 @@ class ForbiddenRpcError extends Error {
   }
 }
 
+function normalizeConversationSessionMeta<T>(record: T, fallbackScopeId?: unknown): T {
+  if (!record || typeof record !== 'object') return record;
+  const rec = record as Record<string, unknown>;
+  const meta =
+    rec.metadata && typeof rec.metadata === 'object' && !Array.isArray(rec.metadata)
+      ? (rec.metadata as Record<string, unknown>)
+      : {};
+  const existing =
+    meta.session && typeof meta.session === 'object' && !Array.isArray(meta.session)
+      ? (meta.session as Record<string, unknown>)
+      : null;
+  if (existing && typeof existing.startedAt === 'string' && typeof existing.workspaceId === 'string') {
+    return record;
+  }
+  const sessionId = typeof rec.sessionId === 'string' ? rec.sessionId : '';
+  const workspaceId =
+    (typeof existing?.workspaceId === 'string' && existing.workspaceId)
+    || (typeof rec.scopeId === 'string' && rec.scopeId)
+    || (typeof fallbackScopeId === 'string' && fallbackScopeId)
+    || 'default';
+  const startedAt =
+    (typeof existing?.startedAt === 'string' && existing.startedAt)
+    || (typeof meta.updatedAt === 'number' ? new Date(meta.updatedAt).toISOString() : undefined)
+    || (typeof meta.date === 'string' && meta.date.length >= 10 ? `${meta.date.slice(0, 10)}T00:00:00.000Z` : undefined)
+    || new Date().toISOString();
+  const title = typeof meta.title === 'string' && meta.title ? meta.title : undefined;
+  return {
+    ...rec,
+    metadata: {
+      ...meta,
+      session: {
+        ...(existing ?? {}),
+        ...(sessionId ? { sessionId } : {}),
+        workspaceId,
+        startedAt,
+        ...(title ? { title } : {}),
+      },
+    },
+  } as T;
+}
+
 async function isTargetWithinRealScope(
   dataDir: string,
   scopeRoot: string,
@@ -132,10 +173,18 @@ async function dispatchRpc(
     case 'workspaces.removeBundle':
       return storage.workspaces.removeBundle(a[0], a[1], a[2], a[3]);
 
-    case 'conversations.read':
-      return storage.conversations.read(a[0], a[1]);
-    case 'conversations.list':
-      return storage.conversations.list(a[0], a[1]);
+    case 'conversations.read': {
+      const snap = await storage.conversations.read(a[0], a[1]);
+      return normalizeConversationSessionMeta(snap, a[0]);
+    }
+    case 'conversations.list': {
+      const page = await storage.conversations.list(a[0], a[1]);
+      if (!page || !Array.isArray(page.items)) return page;
+      return {
+        ...page,
+        items: page.items.map((item) => normalizeConversationSessionMeta(item, a[0])),
+      };
+    }
     case 'conversations.commit':
       return storage.conversations.commit(a[0]);
     case 'conversations.remove':

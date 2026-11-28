@@ -109,7 +109,14 @@ export function createVpsAgentController(options: {
   ): Promise<void> {
     const existing = await storage.conversations.read(workspaceId, sessionId).catch(() => null);
     const prevMeta = (existing?.metadata ?? {}) as Record<string, unknown>;
+    const prevSession =
+      prevMeta.session && typeof prevMeta.session === 'object' && !Array.isArray(prevMeta.session)
+        ? (prevMeta.session as Record<string, unknown>)
+        : {};
     const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const title = typeof prevMeta.title === 'string' && prevMeta.title ? prevMeta.title : titleHint.slice(0, 60);
+    const startedAt = typeof prevSession.startedAt === 'string' ? prevSession.startedAt : nowIso;
     const lastContent = newMessages[newMessages.length - 1]?.content ?? '';
     await storage.conversations.commit({
       scopeId: workspaceId,
@@ -117,8 +124,15 @@ export function createVpsAgentController(options: {
       expectedRevision: existing?.revision ?? null,
       metadata: {
         ...prevMeta,
-        title: typeof prevMeta.title === 'string' && prevMeta.title ? prevMeta.title : titleHint.slice(0, 60),
-        date: typeof prevMeta.date === 'string' ? prevMeta.date : new Date(now).toISOString().slice(0, 10),
+        session: {
+          ...prevSession,
+          sessionId,
+          workspaceId,
+          startedAt,
+          title,
+        },
+        title,
+        date: typeof prevMeta.date === 'string' ? prevMeta.date : startedAt.slice(0, 10),
         updatedAt: now,
         messageCount: totalCount,
         preview: lastContent.slice(0, 120),
