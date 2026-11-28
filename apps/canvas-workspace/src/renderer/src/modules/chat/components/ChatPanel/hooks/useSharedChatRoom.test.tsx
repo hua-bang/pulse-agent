@@ -174,4 +174,81 @@ describe('useSharedChatRoom streaming deduplication', () => {
       root.unmount();
     });
   });
+
+  it('isolates concurrent conversations and clears stale peer turn when switching sessions', async () => {
+    const root = createRoot(host);
+    const sess1Msgs: AgentChatMessage[] = [{ role: 'user', content: 'S1 Q', timestamp: 1 }];
+    const sess2Msgs: AgentChatMessage[] = [{ role: 'user', content: 'S2 Q', timestamp: 2 }];
+
+    await act(async () => {
+      root.render(
+        createElement(
+          I18nProvider,
+          null,
+          createElement(Harness, { messages: sess1Msgs, loading: false, conversationId: 'sess-1' }),
+        ),
+      );
+      await Promise.resolve();
+    });
+
+    // Session 1 receives a live peer turn
+    act(() => {
+      emitEvent?.({
+        workspaceId: 'ws-1',
+        conversationId: 'sess-1',
+        activeTurn: {
+          clientId: 'peer-a',
+          senderName: 'Alice',
+          conversationId: 'sess-1',
+          prompt: 'S1 Q',
+          text: 'S1 streaming...',
+          startedAt: 1,
+          updatedAt: 2,
+          self: false,
+        },
+        queue: [],
+      });
+    });
+    expect(latest?.displayMessages).toHaveLength(2);
+    expect(latest?.displayMessages[1].content).toBe('S1 streaming...');
+
+    // Switch to Session 2 — stale Session 1 activeTurn must clear immediately
+    await act(async () => {
+      root.render(
+        createElement(
+          I18nProvider,
+          null,
+          createElement(Harness, { messages: sess2Msgs, loading: false, conversationId: 'sess-2' }),
+        ),
+      );
+      await Promise.resolve();
+    });
+    expect(latest?.displayMessages).toHaveLength(1);
+    expect(latest?.displayMessages[0].content).toBe('S2 Q');
+
+    // Further Session 1 broadcast events must NOT bleed into Session 2
+    act(() => {
+      emitEvent?.({
+        workspaceId: 'ws-1',
+        conversationId: 'sess-1',
+        activeTurn: {
+          clientId: 'peer-a',
+          senderName: 'Alice',
+          conversationId: 'sess-1',
+          prompt: 'S1 Q',
+          text: 'S1 more text...',
+          startedAt: 1,
+          updatedAt: 3,
+          self: false,
+        },
+        queue: [],
+      });
+    });
+    expect(latest?.displayMessages).toHaveLength(1);
+    expect(latest?.displayMessages[0].content).toBe('S2 Q');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });
