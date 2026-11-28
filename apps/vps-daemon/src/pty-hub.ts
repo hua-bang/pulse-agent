@@ -3,8 +3,10 @@ import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir, platform } from 'node:os';
 import { readlink } from 'node:fs/promises';
+import type { Duplex } from 'node:stream';
 import { readJsonBody, sendJson } from './auth.js';
 import type { AuthPrincipal } from './shares.js';
+import { acceptWebSocket, rejectUpgrade, type WsConnection } from './ws-frame.js';
 
 export interface ManagedPtyProcess {
   readonly pid: number;
@@ -29,6 +31,7 @@ interface PtySessionRecord {
   proc: ManagedPtyProcess;
   scrollback: string;
   subscribers: Set<ServerResponse>;
+  wsSubscribers: Set<WsConnection>;
   exited: boolean;
   exitCode?: number;
 }
@@ -57,7 +60,8 @@ async function defaultPtySpawner(options: {
   env: Record<string, string>;
 }): Promise<ManagedPtyProcess> {
   const pty = await import('node-pty');
-  const proc = pty.spawn(options.shell, [], {
+  const shellArgs = /(?:^|\/)(?:bash|zsh|sh)$/.test(options.shell) ? ['-l'] : [];
+  const proc = pty.spawn(options.shell, shellArgs, {
     name: 'xterm-256color',
     cols: options.cols,
     rows: options.rows,
@@ -76,7 +80,7 @@ async function defaultPtySpawner(options: {
 
 /**
  * Persistent PTY hub on the VPS.
- * Client SSE disconnects only detach the listener; the underlying shell/agent
+ * Client disconnects only detach the listener; the underlying shell/agent
  * process keeps running and retains a bounded scrollback buffer for reattach.
  */
 export class PtyHub {
@@ -162,6 +166,8 @@ export class PtyHub {
     if (this.dataDir && !baseEnv.PULSE_CANVAS_DATA_DIR) {
       baseEnv.PULSE_CANVAS_DATA_DIR = this.dataDir;
     }
+    baseEnv.TERM = 'xterm-256color';
+    baseEnv.COLORTERM = 'truecolor';
     if (!baseEnv.LANG) baseEnv.LANG = 'en_US.UTF-8';
 
     try {
@@ -178,6 +184,7 @@ export class PtyHub {
         proc,
         scrollback: '',
         subscribers: new Set(),
+        wsSubscribers: new Set(),
         exited: false,
       };
       this.sessions.set(id, record);
@@ -187,12 +194,24 @@ export class PtyHub {
         if (record.scrollback.length > MAX_SCROLLBACK_CHARS) {
           record.scrollback = record.scrollback.slice(-MAX_SCROLLBACK_CHARS);
         }
-        const frame = `event: data\ndata: ${JSON.stringify({ data })}\n\n`;
-        for (const sub of record.subscribers) {
-          try {
-            sub.write(frame);
-          } catch {
-            record.subscribers.delete(sub);
+        if (record.subscribers.size > 0) {
+          const frame = `event: data\ndata: ${JSON.stringify({ data })}\n\n`;
+          for (const sub of record.subscribers) {
+            try {
+              sub.write(frame);
+            } catch {
+              record.subscribers.delete(sub);
+            }
+          }
+        }
+        if (record.wsSubscribers.size > 0) {
+          const wsFrame = JSON.stringify({ type: 'data', data });
+          for (const ws of record.wsSubscribers) {
+            try {
+              ws.sendText(wsFrame);
+            } catch {
+              record.wsSubscribers.delete(ws);
+            }
           }
         }
       });
@@ -210,6 +229,16 @@ export class PtyHub {
           }
         }
         record.subscribers.clear();
+        const wsFrame = JSON.stringify({ type: 'exit', exitCode });
+        for (const ws of record.wsSubscribers) {
+          try {
+            ws.sendText(wsFrame);
+            ws.close(1000);
+          } catch {
+            /* ignore */
+          }
+        }
+        record.wsSubscribers.clear();
         this.sessions.delete(id);
       });
 
@@ -286,7 +315,67 @@ export class PtyHub {
     } catch {
       /* ignore */
     }
+    for (const ws of record.wsSubscribers) {
+      try {
+        ws.close(1000);
+      } catch {
+        /* ignore */
+      }
+    }
+    record.wsSubscribers.clear();
     this.sessions.delete(id);
+    return true;
+  }
+
+  handleUpgrade(
+    req: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+    url: URL,
+    principal: AuthPrincipal = { kind: 'admin' },
+  ): boolean {
+    const match = /^\/v1\/pty\/([^/]+)\/ws$/.exec(url.pathname);
+    if (!match) return false;
+    const sessionId = decodeURIComponent(match[1]);
+    if (!this.canAccessSession(sessionId, principal)) {
+      rejectUpgrade(socket, 403, 'Forbidden');
+      return true;
+    }
+    const record = this.sessions.get(sessionId);
+    if (!record) {
+      rejectUpgrade(socket, 404, 'PTY session not found');
+      return true;
+    }
+    const ws = acceptWebSocket(req, socket, head);
+    if (!ws) return true;
+
+    const includeScrollback = url.searchParams.get('scrollback') !== '0';
+    if (includeScrollback && record.scrollback.length > 0) {
+      ws.sendText(JSON.stringify({ type: 'data', data: record.scrollback }));
+    }
+    if (record.exited) {
+      ws.sendText(JSON.stringify({ type: 'exit', exitCode: record.exitCode ?? 0 }));
+      ws.close(1000);
+      return true;
+    }
+    record.wsSubscribers.add(ws);
+    const canWrite = principal.kind === 'admin' || principal.share.role === 'collaborator';
+    ws.onMessage((text) => {
+      if (!canWrite) return;
+      try {
+        const msg = JSON.parse(text) as { type?: string; data?: string; cols?: number; rows?: number };
+        if (msg.type === 'input' && typeof msg.data === 'string') {
+          this.write(sessionId, msg.data);
+        } else if (msg.type === 'resize' && typeof msg.cols === 'number' && typeof msg.rows === 'number') {
+          this.resize(sessionId, msg.cols, msg.rows);
+        }
+      } catch {
+        // Ignore malformed control frames.
+      }
+    });
+    ws.onClose(() => {
+      record.wsSubscribers.delete(ws);
+    });
     return true;
   }
 

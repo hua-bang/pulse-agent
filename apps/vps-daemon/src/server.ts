@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -26,6 +26,7 @@ import { createVpsAgentController } from './agent-loop.js';
 import { handleStaticWebRequest } from './static-web.js';
 import { ChangeBroadcaster, handleFileRequest, handleStorageRpc } from './storage-rpc.js';
 import { handleToolExecRequest } from './tools-rpc.js';
+import { rejectUpgrade } from './ws-frame.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -575,6 +576,34 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
       code: 'not_found',
       message: `Route not found: ${req.method} ${url.pathname}`,
     });
+  });
+
+  server.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `${host}:${port}`}`);
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+    const corsRestricted = allowedCorsOrigins.size > 0;
+    if (origin && corsRestricted && !allowedCorsOrigins.has('*') && !allowedCorsOrigins.has(origin)) {
+      rejectUpgrade(socket, 403, 'Origin not allowed');
+      return;
+    }
+    const queryToken = url.searchParams.get('token')?.trim();
+    const authReq =
+      !req.headers.authorization && queryToken
+        ? ({ headers: { authorization: `Bearer ${queryToken}` } } as IncomingMessage)
+        : req;
+    const principal = shareStore.authenticate(authReq, options.token);
+    if (!principal) {
+      rejectUpgrade(socket, 401, 'Unauthorized');
+      return;
+    }
+    if (!canUseRuntime(principal)) {
+      rejectUpgrade(socket, 403, 'Collaborator or admin role required');
+      return;
+    }
+    if (ptyHub.handleUpgrade(req, socket, head, url, principal)) {
+      return;
+    }
+    rejectUpgrade(socket, 404, 'Not Found');
   });
 
   await new Promise<void>((resolveListen, rejectListen) => {

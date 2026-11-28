@@ -41,15 +41,34 @@ export function createWebPtyClient(
     }
   };
 
+  const sockets = new Map<string, WebSocket>();
   const pendingWrites = new Map<string, string>();
+  const pendingResizes = new Map<string, { cols: number; rows: number }>();
   const flushingWrites = new Set<string>();
   const exitedSessions = new Set<string>();
+  let wsUnsupported = typeof WebSocket === 'undefined';
 
-  const flushWrites = async (id: string): Promise<void> => {
+  const toWsUrl = (id: string, includeScrollback: boolean): string => {
+    const base = session.endpoint.replace(/^http/i, (m) => (m.toLowerCase() === 'https' ? 'wss' : 'ws'));
+    const qs = new URLSearchParams({ token: session.token });
+    if (!includeScrollback) qs.set('scrollback', '0');
+    return `${base}/v1/pty/${encodeURIComponent(id)}/ws?${qs.toString()}`;
+  };
+
+  const flushHttpWrites = async (id: string): Promise<void> => {
     if (flushingWrites.has(id)) return;
     flushingWrites.add(id);
     try {
       while (true) {
+        const ws = sockets.get(id);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          const chunk = pendingWrites.get(id);
+          if (chunk) {
+            pendingWrites.delete(id);
+            ws.send(JSON.stringify({ type: 'input', data: chunk }));
+          }
+          break;
+        }
         const chunk = pendingWrites.get(id);
         if (!chunk) break;
         pendingWrites.delete(id);
@@ -62,12 +81,12 @@ export function createWebPtyClient(
     } finally {
       flushingWrites.delete(id);
       if (pendingWrites.has(id)) {
-        void flushWrites(id);
+        void flushHttpWrites(id);
       }
     }
   };
 
-  function startStream(id: string, includeScrollback = true): void {
+  function startSseStream(id: string, includeScrollback = true): void {
     const existing = streamControllers.get(id);
     if (existing) existing.abort();
     const controller = new AbortController();
@@ -139,13 +158,93 @@ export function createWebPtyClient(
           if (!controller.signal.aborted && !sawExit && !exitedSessions.has(id) && dataListeners.has(id)) {
             window.setTimeout(() => {
               if (!streamControllers.has(id) && !exitedSessions.has(id) && dataListeners.has(id)) {
-                startStream(id, false);
+                startSseStream(id, false);
               }
             }, 1200);
           }
         }
       }
     })();
+  }
+
+  function startStream(id: string, includeScrollback = true): void {
+    if (wsUnsupported) {
+      startSseStream(id, includeScrollback);
+      return;
+    }
+    const existingWs = sockets.get(id);
+    if (existingWs) {
+      sockets.delete(id);
+      try {
+        existingWs.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    exitedSessions.delete(id);
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(toWsUrl(id, includeScrollback));
+    } catch {
+      wsUnsupported = true;
+      startSseStream(id, includeScrollback);
+      return;
+    }
+    sockets.set(id, ws);
+    let opened = false;
+    let sawExit = false;
+
+    ws.onopen = () => {
+      if (sockets.get(id) !== ws) return;
+      opened = true;
+      const queuedResize = pendingResizes.get(id);
+      if (queuedResize) {
+        pendingResizes.delete(id);
+        ws.send(JSON.stringify({ type: 'resize', ...queuedResize }));
+      }
+      const queuedInput = pendingWrites.get(id);
+      if (queuedInput) {
+        pendingWrites.delete(id);
+        ws.send(JSON.stringify({ type: 'input', data: queuedInput }));
+      }
+    };
+
+    ws.onmessage = (event) => {
+      if (sockets.get(id) !== ws || typeof event.data !== 'string') return;
+      try {
+        const parsed = JSON.parse(event.data) as { type?: string; data?: string; exitCode?: number };
+        if (parsed.type === 'data' && typeof parsed.data === 'string') {
+          emitData(id, parsed.data);
+        } else if (parsed.type === 'exit') {
+          sawExit = true;
+          exitedSessions.add(id);
+          emitExit(id, typeof parsed.exitCode === 'number' ? parsed.exitCode : 0);
+        }
+      } catch {
+        // Ignore malformed frames.
+      }
+    };
+
+    ws.onclose = () => {
+      if (sockets.get(id) !== ws) return;
+      sockets.delete(id);
+      if (sawExit || exitedSessions.has(id)) return;
+      if (!opened) {
+        // Server or proxy does not support WebSocket upgrades — fall back seamlessly to SSE + POST.
+        wsUnsupported = true;
+        startSseStream(id, includeScrollback);
+        if (pendingWrites.has(id)) void flushHttpWrites(id);
+        return;
+      }
+      if (dataListeners.has(id)) {
+        window.setTimeout(() => {
+          if (!sockets.has(id) && !exitedSessions.has(id) && dataListeners.has(id)) {
+            startStream(id, false);
+          }
+        }, 1200);
+      }
+    };
   }
 
   return {
@@ -184,13 +283,30 @@ export function createWebPtyClient(
     },
     write: (id, data) => {
       if (session.role === 'viewer') return;
+      const ws = sockets.get(id);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'input', data }));
+        return;
+      }
       pendingWrites.set(id, (pendingWrites.get(id) ?? '') + data);
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        return;
+      }
       queueMicrotask(() => {
-        void flushWrites(id);
+        void flushHttpWrites(id);
       });
     },
     resize: (id, cols, rows) => {
       if (session.role === 'viewer') return;
+      const ws = sockets.get(id);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+        return;
+      }
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        pendingResizes.set(id, { cols, rows });
+        return;
+      }
       void fetch(`${session.endpoint}/v1/pty/${encodeURIComponent(id)}/resize`, {
         method: 'POST',
         headers: authHeaders(),
@@ -200,6 +316,16 @@ export function createWebPtyClient(
     kill: (id) => {
       exitedSessions.add(id);
       pendingWrites.delete(id);
+      pendingResizes.delete(id);
+      const ws = sockets.get(id);
+      if (ws) {
+        sockets.delete(id);
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }
       const ctrl = streamControllers.get(id);
       if (ctrl) {
         ctrl.abort();

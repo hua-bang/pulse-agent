@@ -1383,6 +1383,103 @@ describe('vps-daemon end-to-end', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('streams bidirectional PTY input, output, resize, and exit over WebSocket /v1/pty/:id/ws', async () => {
+    const writes: string[] = [];
+    const resizes: Array<{ cols: number; rows: number }> = [];
+    let emitData: ((data: string) => void) | null = null;
+    let emitExit: ((event: { exitCode: number }) => void) | null = null;
+    const spawner: PtySpawner = async () => ({
+      pid: 4242,
+      write: (data) => {
+        writes.push(data);
+        emitData?.(`echo:${data}`);
+      },
+      resize: (cols, rows) => {
+        resizes.push({ cols, rows });
+      },
+      kill: () => {},
+      onData: (cb) => {
+        emitData = cb;
+      },
+      onExit: (cb) => {
+        emitExit = cb;
+      },
+    });
+    const root = await mkdtemp(join(tmpdir(), 'pulse-vps-ws-'));
+    const token = 'ws-secret-token-12345';
+    const daemon = await startVpsDaemon({
+      host: '127.0.0.1',
+      port: 0,
+      token,
+      dataDir: root,
+      workDir: root,
+      pollIntervalMs: 50,
+      ptySpawner: spawner,
+    });
+    cleanups.push(async () => {
+      await daemon.close();
+      await rm(root, { recursive: true, force: true });
+    });
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const spawnRes = await fetch(`${daemon.url}/v1/pty/spawn`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'ws-term-1', cols: 80, rows: 24 }),
+    });
+    expect(spawnRes.status).toBe(200);
+    emitData?.('banner\r\n');
+
+    const wsBase = daemon.url.replace(/^http/, 'ws');
+
+    // Unauthorized WS upgrade must fail.
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        const bad = new WebSocket(`${wsBase}/v1/pty/ws-term-1/ws?token=wrong`);
+        bad.onopen = () => {
+          bad.close();
+          resolve();
+        };
+        bad.onerror = () => reject(new Error('rejected'));
+      }),
+    ).rejects.toThrow('rejected');
+
+    // Authorized WS upgrade receives scrollback, forwards input/resize, and delivers exit.
+    const received: Array<{ type: string; data?: string; exitCode?: number }> = [];
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket(`${wsBase}/v1/pty/ws-term-1/ws?token=${encodeURIComponent(token)}`);
+      const timer = setTimeout(() => reject(new Error('WebSocket PTY test timed out')), 4000);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'resize', cols: 52, rows: 30 }));
+        ws.send(JSON.stringify({ type: 'input', data: 'codex\r' }));
+      };
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(String(event.data)) as { type: string; data?: string; exitCode?: number };
+        received.push(msg);
+        if (msg.type === 'data' && msg.data === 'echo:codex\r') {
+          emitExit?.({ exitCode: 0 });
+        }
+        if (msg.type === 'exit') {
+          clearTimeout(timer);
+          ws.close();
+          resolve();
+        }
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error('WebSocket error'));
+      };
+    });
+
+    expect(resizes).toEqual([{ cols: 52, rows: 30 }]);
+    expect(writes).toEqual(['codex\r']);
+    expect(received).toEqual([
+      { type: 'data', data: 'banner\r\n' },
+      { type: 'data', data: 'echo:codex\r' },
+      { type: 'exit', exitCode: 0 },
+    ]);
+  });
 });
+
 
 
