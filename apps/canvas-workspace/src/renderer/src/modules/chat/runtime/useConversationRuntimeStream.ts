@@ -24,6 +24,7 @@ import { useChatRunQueue } from './useChatRunQueue';
 import { clearConversationCompletion, useConversationVisibility } from './conversationCompletionStore';
 import { useConversationRecovery } from './useConversationRecovery';
 import { attachConversationTurn, observeConversationTurn, type TurnObserverHooks } from './conversationTurnObserver';
+import { onConversationAttachRequest } from './conversationAttachRequest';
 
 export interface UseConversationRuntimeStreamOptions {
   agentScope: AgentScope;
@@ -150,7 +151,14 @@ export function useConversationRuntimeStream({
   agentScopeRef.current = agentScope;
   useEffect(() => {
     if (!keyed || !key.sessionId) return;
-    void attachConversationTurn(agentScopeRef.current, { storeId: key.storeId, sessionId: key.sessionId }, observerHooks);
+    const attach = () => {
+      void attachConversationTurn(agentScopeRef.current, { storeId: key.storeId, sessionId: key.sessionId }, observerHooks);
+    };
+    attach();
+    // A shared VPS room can report a run another member started after this opened.
+    return onConversationAttachRequest((sessionId) => {
+      if (sessionId === key.sessionId) attach();
+    });
   }, [key.sessionId, key.storeId, keyed, observerHooks]);
 
   useEffect(() => {

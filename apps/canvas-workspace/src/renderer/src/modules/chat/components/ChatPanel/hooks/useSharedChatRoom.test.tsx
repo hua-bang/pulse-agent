@@ -119,7 +119,7 @@ describe('useSharedChatRoom streaming deduplication', () => {
     });
   });
 
-  it('forwards peer sessionId to reloadSession when turnEnded fires on New AI chat', async () => {
+  it('keeps a new draft chat free of another session\'s live turn', async () => {
     const root = createRoot(host);
     const reloadSession = vi.fn();
 
@@ -152,10 +152,8 @@ describe('useSharedChatRoom streaming deduplication', () => {
       });
     });
 
-    // Empty draft session (messages=[]) shows peer's live prompt + streaming assistant bubble.
-    expect(latest?.displayMessages).toHaveLength(2);
-    expect(latest?.displayMessages[0].content).toBe('hello from Mac');
-    expect(latest?.displayMessages[1].content).toBe('streaming reply');
+    // A peer's turn in another session must not stream into this draft.
+    expect(latest?.displayMessages).toHaveLength(0);
 
     act(() => {
       emitEvent?.({
@@ -168,7 +166,7 @@ describe('useSharedChatRoom streaming deduplication', () => {
       });
     });
 
-    expect(reloadSession).toHaveBeenCalledWith('sess-new-42');
+    expect(reloadSession).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();

@@ -91,6 +91,12 @@ export interface ConversationRuntimeDeps {
   resolveSenderName?: () => string | undefined;
   /** Draft checkpoint interval; 0 disables checkpoints. */
   checkpointMs?: number;
+  /**
+   * `runner`: the turn runner persists the turn itself (the VPS daemon). The
+   * runtime then writes only a recovery cut, never the turn, so the two never
+   * double-append.
+   */
+  persistence?: 'local' | 'runner';
 }
 
 /**
@@ -307,8 +313,11 @@ export class ConversationRuntime {
     // Materialize the user turn before invoking the model. This makes a new
     // conversation durable/listable as soon as the user sends, so switching
     // away during generation cannot hide the session from the rail.
+    const runnerPersists = this.deps.persistence === 'runner';
     try {
-      await this.deps.persist([...this.messages]);
+      if (!runnerPersists) await this.deps.persist([...this.messages]);
+      // The runner appends the new user turn; commit only the recovery cut.
+      else if (beforeRecovery) await this.deps.persist(this.messages.slice(0, -1));
     } catch (err) {
       if (!beforeRecovery) throw err;
       // The replacement was never committed: a later send must not persist the cut.
@@ -319,7 +328,7 @@ export class ConversationRuntime {
 
     const assistant: AgentChatMessage = { role: 'assistant', content: '', contentBlocks: [], timestamp: Date.now() };
     this.draft = assistant;
-    const checkpoints = this.startDraftCheckpoints(assistant);
+    const checkpoints = runnerPersists ? { stop: () => null } : this.startDraftCheckpoints(assistant);
     const trackTools = () => {
       assistant.contentBlocks = this.tools.tools.reduce(appendContentTool, assistant.contentBlocks!);
     };
@@ -409,11 +418,13 @@ export class ConversationRuntime {
     } else if (assistant.content.length > 0 || assistant.toolCalls?.length || assistant.turnStatus) {
       this.messages.push(assistant);
     }
-    try {
-      await observeConversationPersistence(external?.performanceTiming, () => this.deps.persist([...this.messages]));
-    } catch (err) {
-      this.error = this.error ?? (err instanceof Error ? err.message : String(err));
-      result = { ...result, error: this.error };
+    if (!runnerPersists) {
+      try {
+        await observeConversationPersistence(external?.performanceTiming, () => this.deps.persist([...this.messages]));
+      } catch (err) {
+        this.error = this.error ?? (err instanceof Error ? err.message : String(err));
+        result = { ...result, error: this.error };
+      }
     }
 
     return result;

@@ -14,6 +14,14 @@ import type { ConversationTurnExternal } from './conversation-runtime';
 import type { ConversationSendInput, ConversationSnapshot } from '../../../shared/conversation-runtime';
 import { ConversationRuntimeRegistry } from './conversation-runtime-registry';
 import { createConversationRunner } from './conversation-runner';
+import {
+  abortRemoteRun,
+  attachRemoteRun,
+  createVpsConversationRunner,
+  type RemoteRunAttachment,
+  type VpsRunnerDeps,
+} from './vps-conversation-runner';
+import type { VpsRunHandlers } from '../../../shared/vps-agent/run-stream';
 import { resolveRemoteWorkspaceSenderName } from '../../remote/config';
 
 /** Structural store surface the service drives (injectable for tests). */
@@ -35,6 +43,8 @@ export class ConversationRuntimeService {
   private readonly registries = new Map<string, ConversationRuntimeRegistry>();
   private readonly pendingRegistries = new Map<string, Promise<ConversationRuntimeRegistry>>();
   private readonly stores = new Map<string, ConversationStoreAdapter>();
+  /** Scopes whose chat turns run on the VPS daemon. */
+  private readonly vpsChat = new Map<string, VpsRunnerDeps>();
 
   constructor(
     private readonly getAgent: (scope: AgentScope) => CanvasAgent | undefined,
@@ -49,6 +59,8 @@ export class ConversationRuntimeService {
     ) => Promise<T | null>,
     private readonly activateScope?: (scope: AgentScope) => Promise<void>,
     private readonly assertScopeAvailable: (scope: AgentScope) => Promise<void> = async () => undefined,
+    /** Resolves VPS runner deps when a workspace's chat runs on its daemon. */
+    private readonly resolveVpsChat: (scope: AgentScope) => Promise<VpsRunnerDeps | null> = async () => null,
   ) {}
 
   private async registryFor(scope: AgentScope): Promise<ConversationRuntimeRegistry> {
@@ -90,10 +102,13 @@ export class ConversationRuntimeService {
     const storeId = scopeSessionStoreId(scope);
     const storeAdapter = this.storeAdapterFactory(storeId, scope);
     this.stores.set(key, storeAdapter);
+    const vps = await this.resolveVpsChat(scope).catch(() => null);
+    if (vps) this.vpsChat.set(key, vps);
     const registry = new ConversationRuntimeRegistry({
       create: (conversationKey) => {
-        const runTurn = createConversationRunner(agent);
+        const runTurn = vps ? createVpsConversationRunner(vps) : createConversationRunner(agent);
         return {
+          ...(vps ? { persistence: 'runner' as const, checkpointMs: 0 } : {}),
           key: conversationKey,
           loadMessages: async () => (
             await storeAdapter.loadMessages(conversationKey.sessionId) ?? []
@@ -256,11 +271,41 @@ export class ConversationRuntimeService {
     return runtime?.answerClarification(requestId, answer) ?? false;
   }
 
+  /**
+   * Follow a conversation's run that the VPS daemon started for someone
+   * else. Null when the scope's chat is local or nothing is running there.
+   */
+  async attachRemoteRun(
+    scope: AgentScope,
+    sessionId: string,
+    handlers: VpsRunHandlers,
+    signal?: AbortSignal,
+  ): Promise<RemoteRunAttachment | null> {
+    await this.registryFor(scope);
+    const vps = this.vpsChat.get(scopeKey(scope));
+    const store = this.stores.get(scopeKey(scope));
+    if (!vps || !store) return null;
+    return attachRemoteRun(
+      vps,
+      conversationKey(scope, sessionId),
+      async () => await store.loadMessages(sessionId) ?? [],
+      handlers,
+      signal,
+    );
+  }
+
+  /** Stop a daemon run this process only follows. */
+  async abortRemoteRun(scope: AgentScope, sessionId: string, runId?: string): Promise<boolean> {
+    const vps = this.vpsChat.get(scopeKey(scope));
+    return vps ? abortRemoteRun(vps, sessionId, runId) : false;
+  }
+
   /** Dispose all runtimes (app shutdown). */
   disposeAll(): void {
     for (const registry of this.registries.values()) registry.disposeAll();
     this.registries.clear();
     this.stores.clear();
+    this.vpsChat.clear();
   }
 }
 

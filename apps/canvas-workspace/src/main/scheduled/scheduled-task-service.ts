@@ -24,6 +24,8 @@ import {
 interface ScheduledTaskState {
   version: 1;
   tasks: ScheduledTask[];
+  /** Task id -> deletion time; keeps other devices from re-adding a deleted task. */
+  deletedTaskIds?: Record<string, number>;
 }
 
 /** Pre-`schedule` records stored only a relative interval. */
@@ -229,6 +231,7 @@ export class ScheduledTaskService {
       if (!task) throw new Error('Scheduled task not found');
       if (task.source !== 'user') throw new Error('Built-in scheduled tasks cannot be removed');
       state.tasks = state.tasks.filter((candidate) => candidate.id !== taskId);
+      state.deletedTaskIds = { ...state.deletedTaskIds, [taskId]: Date.now() };
     });
   }
 
@@ -389,22 +392,27 @@ export class ScheduledTaskService {
 
   private async readState(): Promise<ScheduledTaskState> {
     let tasks: ScheduledTask[] = [];
+    let deletedTaskIds: Record<string, number> | undefined;
     try {
       const raw = await fs.readFile(this.statePath, 'utf-8');
-      const parsed = JSON.parse(raw) as { tasks?: PersistedTask[] };
+      const parsed = JSON.parse(raw) as { tasks?: PersistedTask[]; deletedTaskIds?: Record<string, number> };
       tasks = Array.isArray(parsed.tasks) ? parsed.tasks.map(migratePersistedTask) : [];
+      deletedTaskIds = parsed.deletedTaskIds;
     } catch {
       tasks = [];
     }
     if (this.useRemoteSync()) {
       try {
         const { readMergedRemoteScheduledTasks } = await import('../remote/workspace-files');
-        tasks = await readMergedRemoteScheduledTasks(tasks, (raw) => migratePersistedTask(raw as PersistedTask));
+        ({ tasks, deletedTaskIds } = await readMergedRemoteScheduledTasks(
+          { tasks, deletedTaskIds },
+          (raw) => migratePersistedTask(raw as PersistedTask),
+        ));
       } catch {
         // Fall back to local state when VPS is unreachable.
       }
     }
-    return { version: 1, tasks };
+    return { version: 1, tasks, ...(deletedTaskIds ? { deletedTaskIds } : {}) };
   }
 
   private mutate(change: (state: ScheduledTaskState) => void): Promise<void> {

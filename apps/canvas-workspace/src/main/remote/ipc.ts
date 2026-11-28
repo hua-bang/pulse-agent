@@ -60,10 +60,9 @@ export function setupRemoteVpsIpc(deps: RemoteVpsIpcDeps): void {
         }
         let outdatedDaemon = false;
         try {
-          const { computeBundledVpsDaemonHash } = await import('./ssh-bootstrap');
-          const localHash = computeBundledVpsDaemonHash();
+          const { computeAcceptedVpsDaemonHashes } = await import('./ssh-bootstrap');
           if (body.bundleHash) {
-            outdatedDaemon = body.bundleHash !== localHash;
+            outdatedDaemon = !computeAcceptedVpsDaemonHashes().includes(body.bundleHash);
           } else if (Array.isArray(body.capabilities)) {
             outdatedDaemon =
               !body.capabilities.includes('tools-exec') ||

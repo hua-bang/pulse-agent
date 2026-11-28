@@ -33,6 +33,11 @@ function markSelfQueue(
     : [];
 }
 
+async function vpsChatActive(workspaceId: string): Promise<boolean> {
+  const { isVpsChatActive } = await import('../client');
+  return isVpsChatActive(workspaceId);
+}
+
 function broadcastEvent(event: RemoteVpsChatRoomEvent): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
@@ -175,6 +180,8 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
   ipcMain.handle(
     'remote-vps:chatRoomEnqueue',
     async (_e, p: { workspaceId: string; conversationId: string; message: string }) => {
+      // The daemon queues and dispatches these turns itself: send directly.
+      if (await vpsChatActive(p.workspaceId)) return { ok: true, fallback: true };
       try {
         const res = await postChatRoom(p.workspaceId, 'enqueue', selfClientId, {
           conversationId: p.conversationId,
@@ -233,6 +240,8 @@ export function registerRemoteChatRoomIpc(selfClientId: string): void {
   ipcMain.handle(
     'remote-vps:chatRoomStream',
     async (_e, p: { workspaceId: string; conversationId: string; text: string; toolName?: string }) => {
+      // The daemon mirrors its own runs into the room; a desktop preview would fight it.
+      if (await vpsChatActive(p.workspaceId)) return { ok: true };
       try {
         const key = leaseKey(p.workspaceId, p.conversationId);
         const leaseEpoch = activeLeaseEpochByKey.get(key);

@@ -8,6 +8,7 @@ import type { CanvasSaveData, CanvasSummary } from '../../../../shared/canvas';
 import type { CanvasWorkspaceApi } from '../../../../shared/api/workspace-api';
 import { createWebRemoteVpsApi } from './chatRoomClient';
 import {
+  extractConversationMessages,
   normalizeCanvasData,
   toRemoteFileUri,
   toSummaryBox,
@@ -313,8 +314,10 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     getScopeRunStatus: async () => ({ ok: true, active: false }),
     getScopeRunningSessions: async () => ({ ok: true, conversationSessionIds: [] }),
     ...createWebSessionClient(session, getStorage, () => currentWorkspaceId),
-    conversationAttach: async () => ({ ok: true, running: false }),
-    ...createWebAgentRuntime(session, () => currentWorkspaceId),
+    ...createWebAgentRuntime(session, () => currentWorkspaceId, async (workspaceId, sessionId) => {
+      const conv = await (await getStorage()).conversations.read(workspaceId, sessionId).catch(() => null);
+      return conv ? extractConversationMessages(conv as unknown as { messages?: unknown[] }) : [];
+    }),
     warmScope: () => {},
     activate: async () => ({ ok: true }),
     deactivate: async () => ({ ok: true }),

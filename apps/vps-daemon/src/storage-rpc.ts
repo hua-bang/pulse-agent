@@ -8,7 +8,11 @@ import {
   type WorkspaceFiles,
 } from '@pulse-coder/storage';
 import type { StorageRpcRequest } from '@pulse-coder/storage/remote';
-import { isPathWithin, readJsonBody, resolveRemoteFilePath, sendJson } from './auth.js';
+import { isPathWithin, readJsonBody, resolveRemoteFilePath, sendJson, writeSseFrame } from './auth.js';
+
+/** Files travel as base64 JSON (+33%), so this admits attachments up to about 190 MB. */
+const MAX_FILE_BODY_BYTES = 256 * 1024 * 1024;
+const MAX_RPC_BODY_BYTES = 128 * 1024 * 1024;
 import {
   canWriteWorkspace,
   isRemoteFileUriAllowed,
@@ -258,7 +262,8 @@ export async function handleStorageRpc(
   onMutation?: () => void,
 ): Promise<void> {
   try {
-    const body = await readJsonBody<StorageRpcRequest>(req);
+    // Workspace import carries whole conversation histories in one call.
+    const body = await readJsonBody<StorageRpcRequest>(req, MAX_RPC_BODY_BYTES);
     if (!body || typeof body.method !== 'string' || !Array.isArray(body.args)) {
       sendJson(res, 400, {
         ok: false,
@@ -358,7 +363,10 @@ export async function handleFileRequest(
     }
 
     if (req.method === 'PUT') {
-      const body = await readJsonBody<{ base64?: string; expectedVersion?: string | null }>(req);
+      const body = await readJsonBody<{ base64?: string; expectedVersion?: string | null }>(
+        req,
+        MAX_FILE_BODY_BYTES,
+      );
       if (typeof body.base64 !== 'string') {
         sendJson(res, 400, {
           ok: false,
@@ -382,6 +390,9 @@ export async function handleFileRequest(
     if (req.method === 'DELETE') {
       const expectedVersion = url.searchParams.get('expectedVersion') ?? undefined;
       await files.remove(localUri, expectedVersion ? { expectedVersion } : undefined);
+      // An empty version tells subscribers the file is gone.
+      const match = /^pulse-remote:\/\/\/([^/]+)\/(.+)$/.exec(remoteUri);
+      if (match && onFileChanged) onFileChanged(match[1], remoteUri, match[2], '');
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -448,11 +459,7 @@ export class ChangeBroadcaster {
     const frame = `data: ${JSON.stringify(payload)}\n\n`;
     for (const sub of this.subscribers) {
       if (sub.scopeId && sub.scopeId !== scopeId) continue;
-      try {
-        sub.res.write(frame);
-      } catch {
-        this.subscribers.delete(sub);
-      }
+      if (!writeSseFrame(sub.res, frame)) this.subscribers.delete(sub);
     }
   }
 
@@ -529,11 +536,7 @@ export class ChangeBroadcaster {
         const frame = `data: ${JSON.stringify(change)}\n\n`;
         for (const sub of this.subscribers) {
           if (sub.scopeId && sub.scopeId !== change.scopeId) continue;
-          try {
-            sub.res.write(frame);
-          } catch {
-            this.subscribers.delete(sub);
-          }
+          if (!writeSseFrame(sub.res, frame)) this.subscribers.delete(sub);
         }
       }
     } catch {

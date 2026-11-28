@@ -27,8 +27,9 @@ export async function trySpawnRemotePty(payload: {
 }): Promise<
   { ok: true; adapter: RemotePtyAdapter; reused: boolean } | { ok: false; error: string } | null
 > {
-  if (!payload.workspaceId) return null;
-  const target = await resolveRemoteWorkspaceTarget(payload.workspaceId, 'runtime');
+  const { workspaceId } = payload;
+  if (!workspaceId) return null;
+  const target = await resolveRemoteWorkspaceTarget(workspaceId, 'runtime');
   if (!target) return null;
 
   const dataListeners = new Set<(data: string) => void>();
@@ -51,6 +52,7 @@ export async function trySpawnRemotePty(payload: {
         for (const fn of exitListeners) fn({ exitCode });
       },
     },
+    () => resolveRemoteWorkspaceTarget(workspaceId, 'runtime'),
   );
 
   if (!result.ok) return result;

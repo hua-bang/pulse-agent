@@ -94,6 +94,8 @@ export interface RemoteVpsChatRoomActiveTurn {
   clientId: string;
   senderName: string;
   conversationId: string;
+  /** Set when the daemon runs the turn; surfaces can attach to its live stream. */
+  runId?: string;
   prompt?: string;
   text: string;
   toolName?: string;

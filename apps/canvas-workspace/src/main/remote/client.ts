@@ -9,6 +9,7 @@ import {
   getRemoteWorkspaceConfig,
   isRemoteRuntimeEnabled,
   isRemoteStorageEnabled,
+  isVpsChatRuntimeEnabled,
   matchRemoteWorkspaceFile,
   resolveRemoteToken,
   type RemoteVpsWorkspaceConfig,
@@ -57,6 +58,7 @@ function scheduleRemoteReconnect(workspaceId: string, delayMs = 2_000): void {
         return;
       }
       subscribeRemoteCanvas(target, current.broadcast);
+      await resyncRemoteCanvas(workspaceId, current.broadcast);
     } catch {
       const nextDelay = Math.min(delayMs * 2, 30_000);
       scheduleRemoteReconnect(workspaceId, nextDelay);
@@ -64,6 +66,31 @@ function scheduleRemoteReconnect(workspaceId: string, delayMs = 2_000): void {
   }, delayMs);
   timer.unref?.();
   reconnectTimers.set(workspaceId, timer);
+}
+
+/**
+ * The change stream has no replay across a new connection, so edits made while
+ * the tunnel was down are never streamed. After a reconnect, announce every
+ * node and edge as changed so the renderer reloads and merges the remote
+ * document; only nodes someone else changed get the "synced" highlight.
+ */
+async function resyncRemoteCanvas(workspaceId: string, broadcast: BroadcastCanvasChange): Promise<void> {
+  const remote = await getRemoteCanvasBackend(workspaceId);
+  if (!remote) return;
+  const doc = await remote.backend.readCanvas(remote.target.remoteWorkspaceId);
+  if (!doc) return;
+  const isId = (id: unknown): id is string => typeof id === 'string' && id.length > 0;
+  const nodeIds = (doc.nodes ?? []).map((node) => node.id).filter(isId);
+  const edgeIds = (doc.edges ?? []).map((edge) => (edge as { id?: unknown }).id).filter(isId);
+  if (nodeIds.length === 0 && edgeIds.length === 0) return;
+  broadcast({
+    workspaceId,
+    nodeIds,
+    edgeIds,
+    kind: 'update',
+    source: 'remote-vps',
+    revision: doc.revision ?? 0,
+  });
 }
 
 function invalidateEndpointCaches(deadEndpoint: string): void {
@@ -167,6 +194,29 @@ export async function resolveRemoteWorkspaceTarget(
   if (!config) return null;
   if (capability === 'storage' && !isRemoteStorageEnabled(config)) return null;
   if (capability === 'runtime' && !isRemoteRuntimeEnabled(config)) return null;
+  return await resolveRemoteTargetFromConfig(workspaceId, config);
+}
+
+/** Workspaces whose chat turns this process currently runs on the daemon. */
+const vpsChatWorkspaces = new Set<string>();
+
+export function setVpsChatActive(workspaceId: string, active: boolean): void {
+  if (active) vpsChatWorkspaces.add(workspaceId);
+  else vpsChatWorkspaces.delete(workspaceId);
+}
+
+/**
+ * True when the daemon runs, queues, and mirrors this workspace's turns, so
+ * the client-side chat-room lease and preview pushes must stay out of the way.
+ */
+export function isVpsChatActive(workspaceId: string): boolean {
+  return vpsChatWorkspaces.has(workspaceId);
+}
+
+/** Target for Canvas Agent chat turns run by the daemon; null keeps them on the desktop. */
+export async function resolveVpsChatTarget(workspaceId: string): Promise<ResolvedRemoteTarget | null> {
+  const config = getRemoteWorkspaceConfig(workspaceId);
+  if (!config || !isVpsChatRuntimeEnabled(config)) return null;
   return await resolveRemoteTargetFromConfig(workspaceId, config);
 }
 
@@ -332,6 +382,16 @@ export async function saveRemoteCanvas(
     if (code === 'revision_conflict') {
       const current = await remote.backend.readCanvas(remote.target.remoteWorkspaceId);
       if (!current) {
+        // A baseline read from this VPS store means the canvas existed here and
+        // was removed elsewhere: do not silently recreate it. A baseline from
+        // another store (first save after binding) initializes the VPS copy.
+        if (input.storageGeneration && input.storageGeneration === remote.storage.generation) {
+          return {
+            ok: false as const,
+            code: 'not_found' as const,
+            error: 'This canvas was deleted on another device. Reopen the workspace to continue.',
+          };
+        }
         const { revision: _r, storageGeneration: _g, ...initial } = input;
         const receipt = await remote.backend.writeCanvas(remote.target.remoteWorkspaceId, initial, {
           allowEmpty: true,

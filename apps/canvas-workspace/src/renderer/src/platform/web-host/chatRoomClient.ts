@@ -323,22 +323,11 @@ export function createWebRemoteVpsApi(session: WebHostAuthSession): RemoteVpsApi
         return { ok: false, fallback: true, activeTurn: null, queue: [] };
       }
     },
-    enqueueChatRoom: async (workspaceId, conversationId, message) => {
-      const { status, body } = await postChatRoom(workspaceId, 'enqueue', { conversationId, message });
-      if (status === 403) return { ok: false, forbidden: true };
-      const snap = body.snapshot as
-        | { activeTurn?: RemoteVpsChatRoomActiveTurn | null; queue?: RemoteVpsChatRoomQueuedItem[] }
-        | undefined;
-      return {
-        ok: Boolean(body.ok),
-        claimed: Boolean(body.claimed),
-        queuedItem: body.queuedItem
-          ? { ...(body.queuedItem as RemoteVpsChatRoomQueuedItem), self: true }
-          : undefined,
-        activeTurn: markSelfTurn(snap?.activeTurn, clientId),
-        queue: markSelfQueue(snap?.queue, clientId),
-      };
-    },
+    // The daemon runs this host's turns and queues them per conversation, so
+    // a send goes straight to the agent; no client-side lease or claim.
+    enqueueChatRoom: async () => (
+      role === 'viewer' ? { ok: false, forbidden: true } : { ok: true, fallback: true }
+    ),
     claimChatRoom: async (workspaceId, conversationId, options) => {
       const { body } = await postChatRoom(workspaceId, 'claim', {
         conversationId,
@@ -355,14 +344,8 @@ export function createWebRemoteVpsApi(session: WebHostAuthSession): RemoteVpsApi
         queue: markSelfQueue(snap?.queue, clientId),
       };
     },
-    streamChatRoom: async (workspaceId, conversationId, text, toolName) => {
-      const { body } = await postChatRoom(workspaceId, 'stream', {
-        conversationId,
-        text,
-        ...(toolName ? { toolName } : {}),
-      });
-      return { ok: Boolean(body.ok) };
-    },
+    // The daemon mirrors its own runs into the room.
+    streamChatRoom: async () => ({ ok: true }),
     releaseChatRoom: async (workspaceId, conversationId) => {
       const { body } = await postChatRoom(workspaceId, 'release', { conversationId });
       return { ok: Boolean(body.ok) };

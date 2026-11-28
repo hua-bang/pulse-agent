@@ -148,6 +148,46 @@ Key invariants and their guards:
   non-empty streamed response; conversation failures must remain `ok:false`
   through runtime → service → IPC instead of rendering an empty success.
 
+## VPS chat runtime (server-authoritative runs)
+
+When a workspace binds a VPS with VPS storage and runtime, its chat turns run
+on the VPS daemon, not on the desktop agent.
+
+- Switch: `chatRuntime?: 'vps' | 'local'` in the remote workspace config
+  (`src/main/remote/config.ts`). With no value, the desktop uses the daemon
+  only when `/v1/agent/status` reports `configured`. `resolveVpsRunnerDeps`
+  decides once per registry; the decision holds until the app restarts.
+- The daemon owns the run. `AgentRunHub` (`apps/vps-daemon/src/agent-runs.ts`)
+  keeps a seq'd event log per run, a per-session FIFO queue that the daemon
+  dispatches itself, and 10-minute retention after a run finishes. A closed
+  HTTP stream only unsubscribes; it never stops the run.
+- The daemon owns persistence. It writes the user message when the run starts
+  and the final, stopped, or failed reply when it ends. The desktop runtime uses
+  `persistence: 'runner'` and does not persist or checkpoint the turn. The one
+  exception: an edit/regenerate cut persists the history before the edited
+  message, and the daemon appends the new user turn.
+- Clients follow a run with `followVpsRun` (`src/shared/vps-agent/run-stream.ts`),
+  shared by desktop main and the web host. The client chooses the runId, so a
+  retried start re-attaches instead of starting twice. A dropped or silent
+  stream (45 s idle watchdog) resumes with `?after=<last seq>`; a gap past the
+  buffer gets one `snapshot` event. The reconnect budget is 120 s without events.
+- Stop asks the daemon (`POST /v1/agent/abort` with `runId`) and keeps
+  following, so the stopped reply arrives. The client detaches only when the
+  daemon is unreachable.
+- Attach falls back to the daemon's active run for runs another member started.
+  The shared chat room requests an attach for a peer turn with a `runId` while
+  this window is idle. Chat-room events and turns filter strictly by
+  `conversationId`, so a new draft never shows another session's live turn.
+- While the VPS runtime is active, the desktop chat-room enqueue/stream path
+  returns `fallback`; the daemon queue replaces the client lease queue.
+- Known gaps: the daemon queue is memory-only; the VPS runner does not send
+  attachments or MCP app context; the daemon agent has fewer tools than the
+  desktop agent; clarification and relay are not supported over the VPS runner.
+- Guards: `apps/vps-daemon/src/agent-runs.test.ts`, `agent-loop.test.ts`,
+  `src/shared/vps-agent/run-stream.test.ts`,
+  `conversation-runtime/vps-conversation-runner.test.ts`,
+  `useSharedChatRoom.test.tsx`.
+
 ## Turn recovery
 
 A turn can outlive the renderer stream that started it, and the app can stop

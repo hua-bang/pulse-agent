@@ -4,9 +4,30 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir, platform } from 'node:os';
 import { readlink } from 'node:fs/promises';
 import type { Duplex } from 'node:stream';
-import { readJsonBody, sendJson } from './auth.js';
+import { readJsonBody, sendJson, writeSseFrame } from './auth.js';
 import type { AuthPrincipal } from './shares.js';
 import { acceptWebSocket, rejectUpgrade, type WsConnection } from './ws-frame.js';
+
+function expandHome(dir: string): string {
+  if (dir === '~') return homedir();
+  if (dir.startsWith('~/')) return `${homedir()}/${dir.slice(2)}`;
+  return dir;
+}
+
+/**
+ * Pick the first candidate that exists on this host. Clients may send a
+ * desktop-local folder (for example a macOS path) that does not exist on the
+ * VPS, so the configured VPS folder is tried before the daemon default.
+ */
+export function resolveSpawnCwd(candidates: Array<string | undefined>, defaultCwd: string): string {
+  for (const raw of candidates) {
+    const trimmed = raw?.trim();
+    if (!trimmed) continue;
+    const dir = expandHome(trimmed);
+    if (existsSync(dir)) return dir;
+  }
+  return defaultCwd;
+}
 
 export interface ManagedPtyProcess {
   readonly pid: number;
@@ -34,9 +55,21 @@ interface PtySessionRecord {
   wsSubscribers: Set<WsConnection>;
   exited: boolean;
   exitCode?: number;
+  /** Total characters ever emitted; stream frames carry it as `offset`. */
+  outputChars: number;
 }
 
 const MAX_SCROLLBACK_CHARS = 128 * 1024;
+
+/**
+ * Output a client missed since `since`. If the gap is larger than the retained
+ * scrollback, the whole scrollback is replayed (the oldest part is gone).
+ */
+export function missedOutput(record: { scrollback: string; outputChars: number }, since: number): string {
+  const missed = record.outputChars - since;
+  if (missed <= 0) return '';
+  return missed >= record.scrollback.length ? record.scrollback : record.scrollback.slice(-missed);
+}
 
 function pickShell(): string {
   if (platform() === 'win32') return 'powershell.exe';
@@ -109,6 +142,8 @@ export class PtyHub {
       cols?: number;
       rows?: number;
       cwd?: string;
+      /** Used when `cwd` does not exist on this host (e.g. a desktop-local path). */
+      fallbackCwd?: string;
       env?: Record<string, string | undefined>;
     },
     principal: AuthPrincipal = { kind: 'admin' },
@@ -149,7 +184,7 @@ export class PtyHub {
       return { ok: true, pid: existing.proc.pid, reused: true };
     }
 
-    const cwd = payload.cwd && existsSync(payload.cwd) ? payload.cwd : this.defaultCwd;
+    const cwd = resolveSpawnCwd([payload.cwd, payload.fallbackCwd], this.defaultCwd);
     const baseEnv: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) {
       if (typeof v === 'string') baseEnv[k] = v;
@@ -186,26 +221,25 @@ export class PtyHub {
         subscribers: new Set(),
         wsSubscribers: new Set(),
         exited: false,
+        outputChars: 0,
       };
       this.sessions.set(id, record);
 
       proc.onData((data) => {
         record.scrollback += data;
+        record.outputChars += data.length;
         if (record.scrollback.length > MAX_SCROLLBACK_CHARS) {
           record.scrollback = record.scrollback.slice(-MAX_SCROLLBACK_CHARS);
         }
         if (record.subscribers.size > 0) {
-          const frame = `event: data\ndata: ${JSON.stringify({ data })}\n\n`;
+          const frame = `event: data\ndata: ${JSON.stringify({ data, offset: record.outputChars })}\n\n`;
           for (const sub of record.subscribers) {
-            try {
-              sub.write(frame);
-            } catch {
-              record.subscribers.delete(sub);
-            }
+            // A dropped stalled reader reconnects with `since` and catches up.
+            if (!writeSseFrame(sub, frame)) record.subscribers.delete(sub);
           }
         }
         if (record.wsSubscribers.size > 0) {
-          const wsFrame = JSON.stringify({ type: 'data', data });
+          const wsFrame = JSON.stringify({ type: 'data', data, offset: record.outputChars });
           for (const ws of record.wsSubscribers) {
             try {
               ws.sendText(wsFrame);
@@ -253,6 +287,7 @@ export class PtyHub {
     req: IncomingMessage,
     res: ServerResponse,
     includeScrollback = true,
+    since?: number,
   ): void {
     const record = this.sessions.get(id);
     if (!record) {
@@ -265,8 +300,11 @@ export class PtyHub {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    if (includeScrollback && record.scrollback.length > 0) {
-      res.write(`event: data\ndata: ${JSON.stringify({ data: record.scrollback })}\n\n`);
+    const replay = since === undefined
+      ? (includeScrollback ? record.scrollback : '')
+      : missedOutput(record, since);
+    if (replay.length > 0 || since !== undefined) {
+      res.write(`event: data\ndata: ${JSON.stringify({ data: replay, offset: record.outputChars })}\n\n`);
     }
     if (record.exited) {
       res.write(`event: exit\ndata: ${JSON.stringify({ exitCode: record.exitCode ?? 0 })}\n\n`);
@@ -350,8 +388,13 @@ export class PtyHub {
     if (!ws) return true;
 
     const includeScrollback = url.searchParams.get('scrollback') !== '0';
-    if (includeScrollback && record.scrollback.length > 0) {
-      ws.sendText(JSON.stringify({ type: 'data', data: record.scrollback }));
+    const sinceRaw = url.searchParams.get('since');
+    const since = sinceRaw !== null && /^\d+$/.test(sinceRaw) ? Number(sinceRaw) : undefined;
+    const replay = since === undefined
+      ? (includeScrollback ? record.scrollback : '')
+      : missedOutput(record, since);
+    if (replay.length > 0 || since !== undefined) {
+      ws.sendText(JSON.stringify({ type: 'data', data: replay, offset: record.outputChars }));
     }
     if (record.exited) {
       ws.sendText(JSON.stringify({ type: 'exit', exitCode: record.exitCode ?? 0 }));
@@ -440,6 +483,7 @@ export class PtyHub {
         cols?: number;
         rows?: number;
         cwd?: string;
+        fallbackCwd?: string;
         env?: Record<string, string | undefined>;
       }>(req);
       const result = await this.spawnOrReuse(body, principal);
@@ -467,7 +511,9 @@ export class PtyHub {
 
     if (req.method === 'GET' && action === 'stream') {
       const includeScrollback = url.searchParams.get('scrollback') !== '0';
-      this.attachStream(sessionId, req, res, includeScrollback);
+      const sinceRaw = url.searchParams.get('since');
+      const since = sinceRaw !== null && /^\d+$/.test(sinceRaw) ? Number(sinceRaw) : undefined;
+      this.attachStream(sessionId, req, res, includeScrollback, since);
       return true;
     }
     if (req.method === 'POST' && action === 'write') {

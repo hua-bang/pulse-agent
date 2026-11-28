@@ -8,6 +8,7 @@ import { getRemoteWorkspaceConfig } from './config';
 import {
   bootstrapAndSaveVpsWorkspace,
   bootstrapRemoteVpsDaemon,
+  computeAcceptedVpsDaemonHashes,
   parseSshConfigHosts,
   type SshRunner,
 } from './ssh-bootstrap';
@@ -25,6 +26,19 @@ describe('ssh-bootstrap', () => {
     while (cleanups.length) {
       await cleanups.pop()?.();
     }
+  });
+
+  it('accepts both the bundled daemon hash and the cached OTA hash', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pulse-daemon-hash-'));
+    cleanups.push(() => rm(dir, { recursive: true, force: true }));
+    const bundle = join(dir, 'bundled.cjs');
+    const ota = join(dir, 'ota.cjs');
+    await writeFile(bundle, 'bundled');
+    await writeFile(ota, 'ota');
+    const short = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
+    expect(computeAcceptedVpsDaemonHashes(bundle, ota)).toEqual([short('bundled'), short('ota')]);
+    expect(computeAcceptedVpsDaemonHashes(bundle, join(dir, 'missing.cjs'))).toEqual([short('bundled')]);
   });
 
   it('parses concrete Host aliases from ~/.ssh/config and ignores wildcards', async () => {

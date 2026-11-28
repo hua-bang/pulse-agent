@@ -462,6 +462,17 @@ describe('remote VPS workspace client', () => {
     expect((canvas?.nodes?.[0] as { id?: string })?.id).toBe('node-vps-1');
     const node = await resolved!.backend.readNode(resolved!.workspaceId, 'node-vps-1');
     expect((node as { title?: string } | null)?.title).toBe('Notion Calendar');
+
+    // Another device deletes the canvas. A stale save based on this VPS store
+    // must not recreate it.
+    savedCanvas = null;
+    const staleRes = await saveRemoteCanvas(
+      'ws-vps-agent',
+      { revision: 1, storageGeneration: 'gen-vps-1', nodes: [], edges: [] },
+      () => {},
+    );
+    expect(staleRes).toMatchObject({ ok: false, code: 'not_found' });
+    expect(savedCanvas).toBeNull();
   });
 
   it('routes built-in Agent bash/read/write tools to VPS /v1/tools/exec when runtime=vps', async () => {
