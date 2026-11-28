@@ -57,6 +57,7 @@ function scheduleRemoteReconnect(workspaceId: string, delayMs = 2_000): void {
         return;
       }
       subscribeRemoteCanvas(target, current.broadcast);
+      await resyncRemoteCanvas(workspaceId, current.broadcast);
     } catch {
       const nextDelay = Math.min(delayMs * 2, 30_000);
       scheduleRemoteReconnect(workspaceId, nextDelay);
@@ -64,6 +65,31 @@ function scheduleRemoteReconnect(workspaceId: string, delayMs = 2_000): void {
   }, delayMs);
   timer.unref?.();
   reconnectTimers.set(workspaceId, timer);
+}
+
+/**
+ * The change stream has no replay across a new connection, so edits made while
+ * the tunnel was down are never streamed. After a reconnect, announce every
+ * node and edge as changed so the renderer reloads and merges the remote
+ * document; only nodes someone else changed get the "synced" highlight.
+ */
+async function resyncRemoteCanvas(workspaceId: string, broadcast: BroadcastCanvasChange): Promise<void> {
+  const remote = await getRemoteCanvasBackend(workspaceId);
+  if (!remote) return;
+  const doc = await remote.backend.readCanvas(remote.target.remoteWorkspaceId);
+  if (!doc) return;
+  const isId = (id: unknown): id is string => typeof id === 'string' && id.length > 0;
+  const nodeIds = (doc.nodes ?? []).map((node) => node.id).filter(isId);
+  const edgeIds = (doc.edges ?? []).map((edge) => (edge as { id?: unknown }).id).filter(isId);
+  if (nodeIds.length === 0 && edgeIds.length === 0) return;
+  broadcast({
+    workspaceId,
+    nodeIds,
+    edgeIds,
+    kind: 'update',
+    source: 'remote-vps',
+    revision: doc.revision ?? 0,
+  });
 }
 
 function invalidateEndpointCaches(deadEndpoint: string): void {

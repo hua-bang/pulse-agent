@@ -133,9 +133,14 @@ export function listConfiguredRemoteWorkspaceIds(storeDir = DEFAULT_STORE_DIR): 
 }
 
 /**
- * Match a local-style canvas file path against configured remote workspaces.
+ * Match a canvas data file path against configured remote workspaces.
  * Matches BOTH the local `workspaceId` and the `remoteWorkspaceId` so files
  * created on another machine or joined via invite still route to the VPS.
+ *
+ * Only paths inside a canvas data folder (`…/canvas/<id>/…`) or a
+ * `pulse-remote:///<id>/…` URI match. A project folder that merely contains a
+ * segment named like the workspace id (for example `~/code/default/`) stays
+ * local, and workspaces that keep storage local never match.
  */
 export function matchRemoteWorkspaceFile(
   filePath: string,
@@ -144,15 +149,23 @@ export function matchRemoteWorkspaceFile(
   const normalized = filePath.replace(/\\/g, '/');
   for (const workspaceId of listConfiguredRemoteWorkspaceIds(storeDir)) {
     const cfg = getRemoteWorkspaceConfig(workspaceId, storeDir);
+    if (!cfg || !isRemoteStorageEnabled(cfg)) continue;
     const candidates = [workspaceId];
-    if (cfg?.remoteWorkspaceId && cfg.remoteWorkspaceId !== workspaceId) {
+    if (cfg.remoteWorkspaceId && cfg.remoteWorkspaceId !== workspaceId) {
       candidates.push(cfg.remoteWorkspaceId);
     }
     for (const candidate of candidates) {
-      const marker = `/${candidate}/`;
-      const idx = normalized.indexOf(marker);
-      if (idx < 0) continue;
-      const relPath = normalized.slice(idx + marker.length).replace(/^\/+/, '');
+      const uriPrefix = `pulse-remote:///${candidate}/`;
+      const marker = `/canvas/${candidate}/`;
+      let rest: string;
+      if (normalized.startsWith(uriPrefix)) {
+        rest = normalized.slice(uriPrefix.length);
+      } else {
+        const idx = normalized.indexOf(marker);
+        if (idx < 0) continue;
+        rest = normalized.slice(idx + marker.length);
+      }
+      const relPath = rest.replace(/^\/+/, '');
       if (relPath && !relPath.includes('..')) {
         return { workspaceId, relPath };
       }

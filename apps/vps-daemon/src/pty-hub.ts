@@ -8,6 +8,27 @@ import { readJsonBody, sendJson } from './auth.js';
 import type { AuthPrincipal } from './shares.js';
 import { acceptWebSocket, rejectUpgrade, type WsConnection } from './ws-frame.js';
 
+function expandHome(dir: string): string {
+  if (dir === '~') return homedir();
+  if (dir.startsWith('~/')) return `${homedir()}/${dir.slice(2)}`;
+  return dir;
+}
+
+/**
+ * Pick the first candidate that exists on this host. Clients may send a
+ * desktop-local folder (for example a macOS path) that does not exist on the
+ * VPS, so the configured VPS folder is tried before the daemon default.
+ */
+export function resolveSpawnCwd(candidates: Array<string | undefined>, defaultCwd: string): string {
+  for (const raw of candidates) {
+    const trimmed = raw?.trim();
+    if (!trimmed) continue;
+    const dir = expandHome(trimmed);
+    if (existsSync(dir)) return dir;
+  }
+  return defaultCwd;
+}
+
 export interface ManagedPtyProcess {
   readonly pid: number;
   write(data: string): void;
@@ -109,6 +130,8 @@ export class PtyHub {
       cols?: number;
       rows?: number;
       cwd?: string;
+      /** Used when `cwd` does not exist on this host (e.g. a desktop-local path). */
+      fallbackCwd?: string;
       env?: Record<string, string | undefined>;
     },
     principal: AuthPrincipal = { kind: 'admin' },
@@ -149,7 +172,7 @@ export class PtyHub {
       return { ok: true, pid: existing.proc.pid, reused: true };
     }
 
-    const cwd = payload.cwd && existsSync(payload.cwd) ? payload.cwd : this.defaultCwd;
+    const cwd = resolveSpawnCwd([payload.cwd, payload.fallbackCwd], this.defaultCwd);
     const baseEnv: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) {
       if (typeof v === 'string') baseEnv[k] = v;
@@ -440,6 +463,7 @@ export class PtyHub {
         cols?: number;
         rows?: number;
         cwd?: string;
+        fallbackCwd?: string;
         env?: Record<string, string | undefined>;
       }>(req);
       const result = await this.spawnOrReuse(body, principal);
