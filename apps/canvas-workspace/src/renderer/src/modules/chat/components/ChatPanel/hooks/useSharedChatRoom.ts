@@ -146,6 +146,9 @@ export function useSharedChatRoom({
     }
     let cancelled = false;
     setSupported(true);
+    setActiveTurn((prev) => (prev === null ? prev : null));
+    setQueue((prev) => (prev.length === 0 ? prev : []));
+    setTypingPeers((prev) => (prev.length === 0 ? prev : []));
 
     void api.subscribeChatRoom(workspaceId);
     void api.getChatRoomState?.(workspaceId, conversationId).then((res) => {
@@ -224,7 +227,7 @@ export function useSharedChatRoom({
     if (!isRemote || !supported || !workspaceId || !conversationId || !api?.streamChatRoom) return;
 
     if (!loading) {
-      if (heldTurnRef.current) {
+      if (heldTurnRef.current && (!claimedConvIdRef.current || claimedConvIdRef.current === conversationId)) {
         const releaseConvId = claimedConvIdRef.current ?? conversationId;
         heldTurnRef.current = false;
         claimedConvIdRef.current = null;
@@ -360,8 +363,15 @@ export function useSharedChatRoom({
 
   const displayMessages = useMemo<AgentChatMessage[]>(() => {
     if (!isRemote) return messages as AgentChatMessage[];
-    // Never overlay a peer streaming bubble while this client is already streaming locally.
-    const hasPeerTurn = Boolean(!loading && activeTurn && !activeTurn.self);
+    // Never overlay a peer streaming bubble while this client is already streaming locally,
+    // or if a stale activeTurn belongs to a different conversation.
+    const turnMatchesView = Boolean(
+      activeTurn
+      && (activeTurn.conversationId === conversationId
+        || conversationId === workspaceId
+        || messages.length === 0),
+    );
+    const hasPeerTurn = Boolean(!loading && turnMatchesView && activeTurn && !activeTurn.self);
     if (!hasPeerTurn && queue.length === 0) {
       return messages as AgentChatMessage[];
     }
@@ -407,7 +417,7 @@ export function useSharedChatRoom({
       });
     }
     return next;
-  }, [activeTurn, isRemote, loading, messages, queue]);
+  }, [activeTurn, conversationId, isRemote, loading, messages, queue, workspaceId]);
 
   if (!isRemote) {
     return {

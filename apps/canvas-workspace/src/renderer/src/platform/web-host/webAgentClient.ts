@@ -196,7 +196,7 @@ export function createWebAgentRuntime(
     },
     newSession: async () => {
       const sessionId = `vps-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      return { ok: true, sessionId };
+      return { ok: true, sessionId, activeSessionId: sessionId };
     },
     conversationChat: async (scope, sessionId, message, _mentioned, _ctx, _attachments, _truncateAt, trace) => {
       const workspaceId = session.workspaceId || workspaceIdFromScope(scope, getActiveWorkspaceId());
