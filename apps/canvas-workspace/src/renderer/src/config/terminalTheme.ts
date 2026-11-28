@@ -94,23 +94,56 @@ const currentTerminalTheme = (): ITheme => (
   getResolvedTheme() === 'dark' ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
 );
 
+const hexToX11Rgb = (hex: string | undefined, fallback: string): string => {
+  const raw = (hex ?? fallback).replace('#', '').trim();
+  const norm = raw.length === 3
+    ? `${raw[0]}${raw[0]}${raw[1]}${raw[1]}${raw[2]}${raw[2]}`
+    : raw.length === 6
+      ? raw
+      : fallback.replace('#', '');
+  const r = norm.slice(0, 2);
+  const g = norm.slice(2, 4);
+  const b = norm.slice(4, 6);
+  return `rgb:${r}${r}/${g}${g}/${b}${b}`;
+};
+
 /**
- * Keeps a terminal on the app theme. Load it on every xterm instance; the
- * terminal disposes the addon, which drops the theme subscription.
+ * Keeps a terminal on the app theme and answers OSC 10/11 color queries
+ * (used by TUI CLIs like Codex on startup). Load it on every xterm instance;
+ * the terminal disposes the addon, which drops all subscriptions.
  */
 export class TerminalThemeAddon implements ITerminalAddon {
   private unsubscribe: (() => void) | null = null;
+  private disposables: Array<{ dispose(): void }> = [];
 
   activate(term: Terminal): void {
     term.options.theme = currentTerminalTheme();
     this.unsubscribe = onThemeChange(() => {
       term.options.theme = currentTerminalTheme();
     });
+    if (typeof term.parser?.registerOscHandler === 'function' && typeof term.input === 'function') {
+      this.disposables.push(
+        term.parser.registerOscHandler(10, (data) => {
+          if (data !== '?') return false;
+          const theme = currentTerminalTheme();
+          term.input(`\x1b]10;${hexToX11Rgb(theme.foreground, '#1f2328')}\x1b\\`, false);
+          return true;
+        }),
+        term.parser.registerOscHandler(11, (data) => {
+          if (data !== '?') return false;
+          const theme = currentTerminalTheme();
+          term.input(`\x1b]11;${hexToX11Rgb(theme.background, '#f8f8f7')}\x1b\\`, false);
+          return true;
+        }),
+      );
+    }
   }
 
   dispose(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    for (const d of this.disposables) d.dispose();
+    this.disposables = [];
   }
 }
 
