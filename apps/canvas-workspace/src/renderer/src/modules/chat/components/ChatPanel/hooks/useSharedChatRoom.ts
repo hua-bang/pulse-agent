@@ -416,6 +416,13 @@ export function useSharedChatRoom({
         timestamp: item.createdAt,
       });
     }
+    if (queue.length > 0 && next[next.length - 1]?.role === 'user') {
+      next.push({
+        role: 'assistant',
+        content: '…',
+        timestamp: queue[queue.length - 1].createdAt,
+      });
+    }
     return next;
   }, [activeTurn, conversationId, isRemote, loading, messages, queue, workspaceId]);
 

@@ -9,11 +9,15 @@ import type {
 } from '../../../../shared/api/remote-vps';
 import type { WebHostAuthSession } from './types';
 
+function isSelfClientId(candidate: string | undefined, selfId: string): boolean {
+  return Boolean(candidate && (candidate === selfId || candidate.endsWith(`:${selfId}`)));
+}
+
 function markSelfTurn(
   turn: RemoteVpsChatRoomActiveTurn | null | undefined,
   selfId: string,
 ): RemoteVpsChatRoomActiveTurn | null {
-  return turn ? { ...turn, self: turn.clientId === selfId } : null;
+  return turn ? { ...turn, self: isSelfClientId(turn.clientId, selfId) } : null;
 }
 
 function markSelfQueue(
@@ -21,12 +25,12 @@ function markSelfQueue(
   selfId: string,
 ): RemoteVpsChatRoomQueuedItem[] {
   return Array.isArray(queue)
-    ? queue.map((item) => ({ ...item, self: item.clientId === selfId }))
+    ? queue.map((item) => ({ ...item, self: isSelfClientId(item.clientId, selfId) }))
     : [];
 }
 
 function markSelfPeers(peers: RemoteVpsPresencePeer[] | undefined, selfId: string): RemoteVpsPresencePeer[] {
-  return Array.isArray(peers) ? peers.map((peer) => ({ ...peer, self: peer.clientId === selfId })) : [];
+  return Array.isArray(peers) ? peers.map((peer) => ({ ...peer, self: isSelfClientId(peer.clientId, selfId) })) : [];
 }
 
 export function createWebRemoteVpsApi(session: WebHostAuthSession): RemoteVpsApi {
@@ -107,7 +111,7 @@ export function createWebRemoteVpsApi(session: WebHostAuthSession): RemoteVpsApi
                 };
                 if (parsed.type === 'chat-room' && parsed.conversationId) {
                   const typingPeers = Array.isArray(parsed.typingPeers)
-                    ? parsed.typingPeers.filter((p) => p.clientId !== clientId).map((p) => p.senderName)
+                    ? parsed.typingPeers.filter((p) => !isSelfClientId(p.clientId, clientId)).map((p) => p.senderName)
                     : [];
                   emit({
                     workspaceId,
@@ -116,7 +120,7 @@ export function createWebRemoteVpsApi(session: WebHostAuthSession): RemoteVpsApi
                     queue: markSelfQueue(parsed.queue, clientId),
                     typingPeers,
                     ...(parsed.turnEnded ? { turnEnded: true } : {}),
-                    ...(parsed.endedByClientId ? { endedBySelf: parsed.endedByClientId === clientId } : {}),
+                    ...(parsed.endedByClientId ? { endedBySelf: isSelfClientId(parsed.endedByClientId, clientId) } : {}),
                   });
                 }
               } catch {
