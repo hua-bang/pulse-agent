@@ -126,9 +126,14 @@ describe('vps-daemon lightweight agent loop', () => {
     expect(canvas?.nodes).toHaveLength(1);
     expect(canvas?.nodes?.[0]).toMatchObject({ title: 'Summary', content: 'Created by VPS Agent' });
 
-    // Verify conversation persisted in SQLite storage.
+    // Verify conversation persisted in SQLite storage with Electron-compatible metadata.session header.
     const conv = await daemon.storage.conversations.read('ws-agent', 'sess-1');
     expect(conv?.messages).toHaveLength(2);
+    expect(conv?.metadata?.session).toMatchObject({
+      sessionId: 'sess-1',
+      workspaceId: 'ws-agent',
+    });
+    expect(typeof (conv?.metadata?.session as { startedAt?: unknown })?.startedAt).toBe('string');
 
     // Verify viewer share token is blocked from POST /v1/agent/chat.
     const shareRes = await fetch(`${daemon.url}/v1/shares`, {
