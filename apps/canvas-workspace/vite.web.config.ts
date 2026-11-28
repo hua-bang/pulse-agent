@@ -28,7 +28,15 @@ export default defineConfig({
   build: {
     outDir: '../../dist/web',
     emptyOutDir: true,
-    minify: 'esbuild',
+    // Match electron.vite.config.ts: esbuild@0.21.5 (bundled with Vite 5) miscompiles
+    // @xterm/xterm@6.0.0's `let r; (...)(r ||= {})` in InputHandler.requestMode when
+    // lowering for target < es2021, dropping `let r` and emitting `(void 0 || (i = {}))`,
+    // which throws ReferenceError in strict ESM on any DECRQM sequence (e.g. Codex TUI).
+    minify: 'terser',
+    terserOptions: {
+      compress: { passes: 2 },
+      format: { comments: false },
+    },
     cssMinify: 'esbuild',
   },
   plugins: [react(), phosphorWeightsPlugin()],
