@@ -27,6 +27,30 @@ export function installMobileTouchBridge(): () => void {
     return Math.hypot(dx, dy);
   };
 
+  let pendingPinchDelta = 0;
+  let pendingPinchTarget: Element | null = null;
+  let pendingPinchMid = { x: 0, y: 0 };
+  let pinchRafId: number | null = null;
+  let lastPinchFlushAt = 0;
+  let pinchClearTimer: number | null = null;
+
+  const setPinching = (active: boolean) => {
+    if (pinchClearTimer !== null) {
+      window.clearTimeout(pinchClearTimer);
+      pinchClearTimer = null;
+    }
+    if (active) {
+      document.documentElement.dataset.pulsePinching = 'true';
+    } else {
+      // Wait slightly past useCanvas MOVING_IDLE_MS (180ms) so card bodies and
+      // SVG edges re-rasterize once at the final settled scale instead of mid-gesture.
+      pinchClearTimer = window.setTimeout(() => {
+        pinchClearTimer = null;
+        delete document.documentElement.dataset.pulsePinching;
+      }, 240);
+    }
+  };
+
   const onTouchStart = (event: TouchEvent) => {
     if (isInteractiveTarget(event.target) || !findCanvasSurface(event.target)) {
       lastSingle = null;
@@ -37,16 +61,12 @@ export function installMobileTouchBridge(): () => void {
       lastSingle = { x: event.touches[0].clientX, y: event.touches[0].clientY };
       lastPinchDist = null;
     } else if (event.touches.length === 2) {
+      event.preventDefault();
       lastSingle = null;
       lastPinchDist = pinchDistance(event.touches);
+      setPinching(true);
     }
   };
-
-  let pendingPinchDelta = 0;
-  let pendingPinchTarget: Element | null = null;
-  let pendingPinchMid = { x: 0, y: 0 };
-  let pinchRafId: number | null = null;
-  let lastPinchFlushAt = 0;
 
   const flushPinch = () => {
     pinchRafId = null;
@@ -55,12 +75,12 @@ export function installMobileTouchBridge(): () => void {
       return;
     }
     const now = performance.now();
-    if (now - lastPinchFlushAt < 32) {
+    if (now - lastPinchFlushAt < 48) {
       pinchRafId = window.requestAnimationFrame(flushPinch);
       return;
     }
     lastPinchFlushAt = now;
-    const clamped = Math.max(-36, Math.min(36, pendingPinchDelta));
+    const clamped = Math.max(-28, Math.min(28, pendingPinchDelta));
     const target = pendingPinchTarget;
     const { x, y } = pendingPinchMid;
     pendingPinchDelta = 0;
@@ -102,6 +122,7 @@ export function installMobileTouchBridge(): () => void {
 
     if (event.touches.length === 2 && lastPinchDist !== null) {
       event.preventDefault();
+      setPinching(true);
       const dist = pinchDistance(event.touches);
       const delta = (lastPinchDist - dist) * 1.1;
       lastPinchDist = dist;
@@ -131,6 +152,9 @@ export function installMobileTouchBridge(): () => void {
   const onTouchEnd = (event: TouchEvent) => {
     if (event.touches.length < 2) {
       clearPendingPinch();
+      if (document.documentElement.dataset.pulsePinching === 'true') {
+        setPinching(false);
+      }
     }
     if (event.touches.length === 1) {
       lastSingle = { x: event.touches[0].clientX, y: event.touches[0].clientY };
@@ -148,7 +172,7 @@ export function installMobileTouchBridge(): () => void {
     }
   };
 
-  window.addEventListener('touchstart', onTouchStart, { passive: true });
+  window.addEventListener('touchstart', onTouchStart, { passive: false });
   window.addEventListener('touchmove', onTouchMove, { passive: false });
   window.addEventListener('touchend', onTouchEnd, { passive: true });
   window.addEventListener('touchcancel', onTouchEnd, { passive: true });
@@ -158,6 +182,8 @@ export function installMobileTouchBridge(): () => void {
 
   return () => {
     clearPendingPinch();
+    if (pinchClearTimer !== null) window.clearTimeout(pinchClearTimer);
+    delete document.documentElement.dataset.pulsePinching;
     window.removeEventListener('touchstart', onTouchStart);
     window.removeEventListener('touchmove', onTouchMove);
     window.removeEventListener('touchend', onTouchEnd);

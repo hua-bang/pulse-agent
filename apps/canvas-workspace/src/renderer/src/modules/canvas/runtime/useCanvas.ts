@@ -8,14 +8,25 @@ import {
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;
+const MOBILE_WEB_MIN_SCALE = 0.15;
+const MOBILE_WEB_MAX_SCALE = 1.5;
 const ZOOM_SENSITIVITY = 0.005;
 /** Idle delay after the last wheel/pan event before gesture-only rendering
  *  settles. Short enough to feel instant, long enough to cover the gap
  *  between two wheel events from a trackpad. */
 const MOVING_IDLE_MS = 180;
 
-const clampScale = (s: number) =>
-  Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+const isMobileWebViewport = () =>
+  typeof document !== 'undefined' &&
+  typeof window !== 'undefined' &&
+  document.documentElement.dataset.pulseWeb === 'true' &&
+  window.innerWidth <= 768;
+
+const clampScale = (s: number) => {
+  const minScale = isMobileWebViewport() ? MOBILE_WEB_MIN_SCALE : MIN_SCALE;
+  const maxScale = isMobileWebViewport() ? MOBILE_WEB_MAX_SCALE : MAX_SCALE;
+  return Math.min(maxScale, Math.max(minScale, s));
+};
 
 const safeNum = (n: number, fallback = 0) =>
   Number.isFinite(n) ? n : fallback;
