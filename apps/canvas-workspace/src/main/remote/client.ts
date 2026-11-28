@@ -275,6 +275,18 @@ function subscribeRemoteCanvas(target: ResolvedRemoteTarget, broadcast: Broadcas
     broadcast,
   });
   ensureRemoteChangeSubscription(target, (change) => {
+    const fileEvent = change as unknown as { domain?: string; uri?: string; relPath?: string };
+    if (fileEvent.domain === 'file' && (fileEvent.uri || fileEvent.relPath)) {
+      const filePath = fileEvent.relPath
+        ? `pulse-remote:///${target.workspaceId}/${fileEvent.relPath}`
+        : fileEvent.uri!;
+      void import('electron').then(({ BrowserWindow }) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send('canvas:file-changed', { filePath, content: '' });
+        }
+      });
+      return;
+    }
     if (change.domain !== 'canvas') return;
     broadcast({
       workspaceId: change.scopeId,

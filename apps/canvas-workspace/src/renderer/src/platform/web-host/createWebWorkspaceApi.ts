@@ -74,6 +74,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
   const remoteVps = createWebRemoteVpsApi(session);
 
   const externalListeners = new Set<(event: ExternalUpdateEvent) => void>();
+  const fileChangeListeners = new Set<(filePath: string, content: string) => void>();
   const watchedStops = new Map<string, () => void>();
 
   const emitExternalUpdate = (event: ExternalUpdateEvent) => {
@@ -91,6 +92,13 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
     const stop = subscribeRemoteChanges(
       { ...remoteOptions, scopeId: workspaceId },
       (change) => {
+        const fileEv = change as unknown as { domain?: string; uri?: string };
+        if (fileEv.domain === 'file' && fileEv.uri) {
+          for (const listener of fileChangeListeners) {
+            try { listener(fileEv.uri, ''); } catch { /* isolate */ }
+          }
+          return;
+        }
         if (change.domain !== 'canvas' || !change.scopeId) return;
         emitExternalUpdate({
           workspaceId: change.scopeId,
@@ -256,6 +264,7 @@ export function createWebWorkspaceApi(session: WebHostAuthSession): CanvasWorksp
   };
 
   const file = createNoopNamespace<CanvasWorkspaceApi['file']>({
+    onChanged: (cb) => { fileChangeListeners.add(cb); return () => { fileChangeListeners.delete(cb); }; },
     read: async (filePath) => {
       const uri = toRemoteFileUri(filePath, currentWorkspaceId, session.workspaceId);
       if (!uri) {

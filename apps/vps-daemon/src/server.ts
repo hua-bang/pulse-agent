@@ -351,7 +351,9 @@ export async function startVpsDaemon(options: VpsDaemonOptions): Promise<Running
     }
 
     if (url.pathname === '/v1/files') {
-      await handleFileRequest(req, res, url, dataDir, files, principal);
+      await handleFileRequest(req, res, url, dataDir, files, principal, (scopeId, uri, relPath, version) => {
+        broadcaster.emitCustom(scopeId, { domain: 'file', scopeId, uri, relPath, version });
+      });
       return;
     }
 
