@@ -41,14 +41,43 @@ export function createWebPtyClient(
     }
   };
 
-  function startStream(id: string): void {
+  const pendingWrites = new Map<string, string>();
+  const flushingWrites = new Set<string>();
+  const exitedSessions = new Set<string>();
+
+  const flushWrites = async (id: string): Promise<void> => {
+    if (flushingWrites.has(id)) return;
+    flushingWrites.add(id);
+    try {
+      while (true) {
+        const chunk = pendingWrites.get(id);
+        if (!chunk) break;
+        pendingWrites.delete(id);
+        await fetch(`${session.endpoint}/v1/pty/${encodeURIComponent(id)}/write`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ data: chunk }),
+        }).catch(() => undefined);
+      }
+    } finally {
+      flushingWrites.delete(id);
+      if (pendingWrites.has(id)) {
+        void flushWrites(id);
+      }
+    }
+  };
+
+  function startStream(id: string, includeScrollback = true): void {
     const existing = streamControllers.get(id);
     if (existing) existing.abort();
     const controller = new AbortController();
     streamControllers.set(id, controller);
+    exitedSessions.delete(id);
 
-    const url = `${session.endpoint}/v1/pty/${encodeURIComponent(id)}/stream`;
+    const qs = includeScrollback ? '' : '?scrollback=0';
+    const url = `${session.endpoint}/v1/pty/${encodeURIComponent(id)}/stream${qs}`;
     void (async () => {
+      let sawExit = false;
       try {
         const res = await fetch(url, {
           headers: {
@@ -57,7 +86,10 @@ export function createWebPtyClient(
           },
           signal: controller.signal,
         });
-        if (!res.ok || !res.body) return;
+        if (!res.ok || !res.body) {
+          if (res.status === 404) exitedSessions.add(id);
+          return;
+        }
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -85,6 +117,8 @@ export function createWebPtyClient(
                   if (eventName === 'data' && typeof parsed.data === 'string') {
                     emitData(id, parsed.data);
                   } else if (eventName === 'exit') {
+                    sawExit = true;
+                    exitedSessions.add(id);
                     emitExit(id, typeof parsed.exitCode === 'number' ? parsed.exitCode : 0);
                   }
                 } catch {
@@ -102,6 +136,13 @@ export function createWebPtyClient(
       } finally {
         if (streamControllers.get(id) === controller) {
           streamControllers.delete(id);
+          if (!controller.signal.aborted && !sawExit && !exitedSessions.has(id) && dataListeners.has(id)) {
+            window.setTimeout(() => {
+              if (!streamControllers.has(id) && !exitedSessions.has(id) && dataListeners.has(id)) {
+                startStream(id, false);
+              }
+            }, 1200);
+          }
         }
       }
     })();
@@ -135,7 +176,7 @@ export function createWebPtyClient(
         if (!res.ok || !body.ok) {
           return { ok: false, error: body.error || `PTY spawn failed (HTTP ${res.status})` };
         }
-        startStream(id);
+        startStream(id, true);
         return { ok: true, pid: body.pid, reused: body.reused };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -143,11 +184,10 @@ export function createWebPtyClient(
     },
     write: (id, data) => {
       if (session.role === 'viewer') return;
-      void fetch(`${session.endpoint}/v1/pty/${encodeURIComponent(id)}/write`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ data }),
-      }).catch(() => undefined);
+      pendingWrites.set(id, (pendingWrites.get(id) ?? '') + data);
+      queueMicrotask(() => {
+        void flushWrites(id);
+      });
     },
     resize: (id, cols, rows) => {
       if (session.role === 'viewer') return;
@@ -158,6 +198,8 @@ export function createWebPtyClient(
       }).catch(() => undefined);
     },
     kill: (id) => {
+      exitedSessions.add(id);
+      pendingWrites.delete(id);
       const ctrl = streamControllers.get(id);
       if (ctrl) {
         ctrl.abort();
