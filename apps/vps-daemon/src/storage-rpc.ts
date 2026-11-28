@@ -296,6 +296,7 @@ export async function handleFileRequest(
   dataDir: string,
   files: WorkspaceFiles,
   principal: AuthPrincipal,
+  onFileChanged?: (scopeId: string, uri: string, relPath: string, version: string) => void,
 ): Promise<void> {
   const remoteUri = url.searchParams.get('uri') ?? '';
   if (!isRemoteFileUriAllowed(principal, remoteUri, dataDir)) {
@@ -372,6 +373,8 @@ export async function handleFileRequest(
         Buffer.from(body.base64, 'base64'),
         'expectedVersion' in body ? { expectedVersion: body.expectedVersion } : undefined,
       );
+      const match = /^pulse-remote:\/\/\/([^/]+)\/(.+)$/.exec(remoteUri);
+      if (match && onFileChanged) onFileChanged(match[1], remoteUri, match[2], receipt.version);
       sendJson(res, 200, { ok: true, uri: remoteUri, version: receipt.version });
       return;
     }
@@ -439,6 +442,18 @@ export class ChangeBroadcaster {
 
   wake(): void {
     void this.poll();
+  }
+
+  emitCustom(scopeId: string, payload: Record<string, unknown>): void {
+    const frame = `data: ${JSON.stringify(payload)}\n\n`;
+    for (const sub of this.subscribers) {
+      if (sub.scopeId && sub.scopeId !== scopeId) continue;
+      try {
+        sub.res.write(frame);
+      } catch {
+        this.subscribers.delete(sub);
+      }
+    }
   }
 
   countSubscribers(scopeId?: string): number {

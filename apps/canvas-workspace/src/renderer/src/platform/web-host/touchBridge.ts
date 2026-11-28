@@ -42,6 +42,40 @@ export function installMobileTouchBridge(): () => void {
     }
   };
 
+  let pendingPinchDelta = 0;
+  let pendingPinchTarget: Element | null = null;
+  let pendingPinchMid = { x: 0, y: 0 };
+  let pinchRafId: number | null = null;
+  let lastPinchFlushAt = 0;
+
+  const flushPinch = () => {
+    pinchRafId = null;
+    if (!pendingPinchTarget || Math.abs(pendingPinchDelta) < 0.5) {
+      pendingPinchDelta = 0;
+      return;
+    }
+    const now = performance.now();
+    if (now - lastPinchFlushAt < 32) {
+      pinchRafId = window.requestAnimationFrame(flushPinch);
+      return;
+    }
+    lastPinchFlushAt = now;
+    const clamped = Math.max(-36, Math.min(36, pendingPinchDelta));
+    const target = pendingPinchTarget;
+    const { x, y } = pendingPinchMid;
+    pendingPinchDelta = 0;
+    target.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: clamped,
+        ctrlKey: true,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  };
+
   const onTouchMove = (event: TouchEvent) => {
     const surface = findCanvasSurface(event.target);
     if (!surface || isInteractiveTarget(event.target)) return;
@@ -67,28 +101,37 @@ export function installMobileTouchBridge(): () => void {
     }
 
     if (event.touches.length === 2 && lastPinchDist !== null) {
+      event.preventDefault();
       const dist = pinchDistance(event.touches);
-      const delta = (lastPinchDist - dist) * 1.4;
+      const delta = (lastPinchDist - dist) * 1.1;
       lastPinchDist = dist;
-      const midX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
-      const midY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
       if (Math.abs(delta) > 0.5) {
-        event.preventDefault();
-        surface.dispatchEvent(
-          new WheelEvent('wheel', {
-            deltaY: delta,
-            ctrlKey: true,
-            clientX: midX,
-            clientY: midY,
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
+        pendingPinchDelta += delta;
+        pendingPinchTarget = surface;
+        pendingPinchMid = {
+          x: (event.touches[0].clientX + event.touches[1].clientX) / 2,
+          y: (event.touches[0].clientY + event.touches[1].clientY) / 2,
+        };
+        if (pinchRafId === null) {
+          pinchRafId = window.requestAnimationFrame(flushPinch);
+        }
       }
     }
   };
 
+  const clearPendingPinch = () => {
+    if (pinchRafId !== null) {
+      window.cancelAnimationFrame(pinchRafId);
+      pinchRafId = null;
+    }
+    pendingPinchDelta = 0;
+    pendingPinchTarget = null;
+  };
+
   const onTouchEnd = (event: TouchEvent) => {
+    if (event.touches.length < 2) {
+      clearPendingPinch();
+    }
     if (event.touches.length === 1) {
       lastSingle = { x: event.touches[0].clientX, y: event.touches[0].clientY };
       lastPinchDist = null;
@@ -98,15 +141,29 @@ export function installMobileTouchBridge(): () => void {
     }
   };
 
+  // Prevent iOS Safari native pinch-zoom gesture from racing with our CSS canvas scale().
+  const preventSafariGesture = (event: Event) => {
+    if (findCanvasSurface(event.target)) {
+      event.preventDefault();
+    }
+  };
+
   window.addEventListener('touchstart', onTouchStart, { passive: true });
   window.addEventListener('touchmove', onTouchMove, { passive: false });
   window.addEventListener('touchend', onTouchEnd, { passive: true });
   window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+  window.addEventListener('gesturestart', preventSafariGesture, { passive: false });
+  window.addEventListener('gesturechange', preventSafariGesture, { passive: false });
+  window.addEventListener('gestureend', preventSafariGesture, { passive: false });
 
   return () => {
+    clearPendingPinch();
     window.removeEventListener('touchstart', onTouchStart);
     window.removeEventListener('touchmove', onTouchMove);
     window.removeEventListener('touchend', onTouchEnd);
     window.removeEventListener('touchcancel', onTouchEnd);
+    window.removeEventListener('gesturestart', preventSafariGesture);
+    window.removeEventListener('gesturechange', preventSafariGesture);
+    window.removeEventListener('gestureend', preventSafariGesture);
   };
 }

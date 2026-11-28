@@ -220,7 +220,18 @@ export function useFilePersistence(options: Options) {
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
     const unsubscribe = window.canvasWorkspace?.file?.onChanged?.((filePath) => {
-      if (filePath === session.filePath) void refresh();
+      const target = session.filePath;
+      if (!target || !filePath) return;
+      const a = filePath.replace(/\\/g, '/');
+      const b = target.replace(/\\/g, '/');
+      if (a === b) {
+        void refresh();
+        return;
+      }
+      const remoteMatch = /^pulse-remote:\/\/\/[^/]+\/(.+)$/.exec(a) ?? /^pulse-remote:\/\/\/[^/]+\/(.+)$/.exec(b);
+      if (remoteMatch && (b.endsWith(`/${remoteMatch[1]}`) || b === remoteMatch[1] || a.endsWith(`/${remoteMatch[1]}`) || a === remoteMatch[1])) {
+        void refresh();
+      }
     });
     return () => {
       session.active = false;
