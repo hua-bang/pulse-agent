@@ -46,9 +46,10 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: pnpm install --frozen-lockfile
 
-      - name: Build storage, vps-daemon, and Web/H5 bundle
+      - name: Build storage, engine, vps-daemon, and Web/H5 bundle
         run: |
           pnpm --filter @pulse-coder/storage build
+          pnpm --filter pulse-coder-engine build
           pnpm --filter @pulse-coder/vps-daemon build
           pnpm --filter canvas-workspace build:web
           mkdir -p apps/canvas-workspace/dist/web/daemon

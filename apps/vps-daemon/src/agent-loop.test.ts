@@ -43,27 +43,56 @@ describe('vps-daemon lightweight agent loop', () => {
       llmCallCount += 1;
 
       res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8' });
+      const baseChunk = {
+        id: `chatcmpl-${llmCallCount}`,
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: 'mock-model',
+      };
       if (llmCallCount === 1) {
         const calls = [
-          { index: 0, id: 'call_skill', function: { name: 'load_skill', arguments: JSON.stringify({ name: 'canvas-summary' }) } },
+          {
+            index: 0,
+            id: 'call_skill',
+            type: 'function',
+            function: { name: 'load_skill', arguments: JSON.stringify({ name: 'canvas-summary' }) },
+          },
           {
             index: 1,
             id: 'call_canvas',
+            type: 'function',
             function: {
               name: 'canvas_create_node',
               arguments: JSON.stringify({ title: 'Summary', content: 'Created by VPS Agent' }),
             },
           },
-          { index: 2, id: 'call_bash', function: { name: 'bash', arguments: JSON.stringify({ command: 'echo hello-vps' }) } },
+          {
+            index: 2,
+            id: 'call_bash',
+            type: 'function',
+            function: { name: 'bash', arguments: JSON.stringify({ command: 'echo hello-vps' }) },
+          },
         ];
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: calls } }] })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ ...baseChunk, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: calls }, finish_reason: null }] })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ ...baseChunk, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\n`,
+        );
         res.write('data: [DONE]\n\n');
         res.end();
         return;
       }
 
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'All done! ' } }] })}\n\n`);
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Created the Summary node.' } }] })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ ...baseChunk, choices: [{ index: 0, delta: { role: 'assistant', content: 'All done! ' }, finish_reason: null }] })}\n\n`,
+      );
+      res.write(
+        `data: ${JSON.stringify({ ...baseChunk, choices: [{ index: 0, delta: { content: 'Created the Summary node.' }, finish_reason: null }] })}\n\n`,
+      );
+      res.write(
+        `data: ${JSON.stringify({ ...baseChunk, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`,
+      );
       res.write('data: [DONE]\n\n');
       res.end();
     });

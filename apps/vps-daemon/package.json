@@ -13,9 +13,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.21",
     "@pulse-coder/storage": "workspace:*",
     "better-sqlite3": "12.11.1",
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "pulse-coder-engine": "workspace:*",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",

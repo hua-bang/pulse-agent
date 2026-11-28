@@ -319,6 +319,9 @@ importers:
 
   apps/vps-daemon:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: ^3.0.21
+        version: 3.0.21(zod@4.3.6)
       '@pulse-coder/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -328,6 +331,12 @@ importers:
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
+      pulse-coder-engine:
+        specifier: workspace:*
+        version: link:../../packages/engine
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^25.0.10
