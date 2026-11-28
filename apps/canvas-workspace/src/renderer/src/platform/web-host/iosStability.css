@@ -18,15 +18,23 @@
     display: none !important;
   }
 
+  /*
+   * Prevent iOS WebKit Jetsam crash on pinch-zoom:
+   * - Pin --canvas-scale to 1 so zooming never triggers per-node inverse-scale nested GPU layers.
+   * - Strip per-node shadows/filters so WebKit does not re-rasterize dozens of offscreen textures.
+   */
+  html[data-pulse-web='true'] .canvas-transform {
+    --canvas-scale: 1 !important;
+  }
+
+  html[data-pulse-web='true'] .canvas-node {
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
   /* Free iOS WebKit GPU backing stores for off-tab canvas nodes when reading cards or chatting. */
   html[data-pulse-web='true'][data-pulse-h5-tab='cards'] .canvas-container,
   html[data-pulse-web='true'][data-pulse-h5-tab='chat'] .canvas-container {
     display: none !important;
-  }
-
-  /* Keep the top-right Model button cleanly above the H5 topbar without overlapping close icons. */
-  html[data-pulse-web='true'] .pulse-web-model-trigger {
-    top: 10px;
-    right: 12px;
   }
 }
