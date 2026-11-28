@@ -275,15 +275,16 @@ export function openWebModelSettingsModal(session: WebHostAuthSession): void {
   });
 }
 
+let modelTriggerBound = false;
+let activeModelSession: WebHostAuthSession | null = null;
+
 export function mountWebModelSettingsTrigger(session: WebHostAuthSession): void {
   if (typeof document === 'undefined' || session.role === 'viewer') return;
-  if (document.getElementById('pulse-web-model-trigger')) return;
-  const isZh = typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh');
-  const btn = document.createElement('button');
-  btn.id = 'pulse-web-model-trigger';
-  btn.type = 'button';
-  btn.className = 'pulse-web-model-trigger';
-  btn.textContent = isZh ? '模型设置' : 'Model';
-  btn.addEventListener('click', () => openWebModelSettingsModal(session));
-  document.body.appendChild(btn);
+  activeModelSession = session;
+  document.documentElement.dataset.pulseWebModelConfigurable = 'true';
+  if (modelTriggerBound) return;
+  modelTriggerBound = true;
+  window.addEventListener('pulse-web-open-model-settings', () => {
+    if (activeModelSession) openWebModelSettingsModal(activeModelSession);
+  });
 }

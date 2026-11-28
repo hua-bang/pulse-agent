@@ -116,3 +116,37 @@ export function toRemoteFileUri(
   }
   return `pulse-remote:///${targetWs}/${cleanRel}`;
 }
+
+export function normalizeCanvasData<T extends { edges?: unknown[] } | null>(data: T): T {
+  if (!data || !Array.isArray(data.edges)) return data;
+  let changed = false;
+  const edges = data.edges
+    .map((raw) => {
+      if (!raw || typeof raw !== 'object') {
+        changed = true;
+        return null;
+      }
+      const edge = raw as Record<string, unknown>;
+      const hasSource = Boolean(edge.source && typeof edge.source === 'object' && 'kind' in edge.source);
+      const hasTarget = Boolean(edge.target && typeof edge.target === 'object' && 'kind' in edge.target);
+      if (hasSource && hasTarget) return edge;
+      const fromId = typeof edge.fromNode === 'string' ? edge.fromNode.trim() : '';
+      const toId = typeof edge.toNode === 'string' ? edge.toNode.trim() : '';
+      if (!fromId && !hasSource) {
+        changed = true;
+        return null;
+      }
+      if (!toId && !hasTarget) {
+        changed = true;
+        return null;
+      }
+      changed = true;
+      return {
+        ...edge,
+        source: hasSource ? edge.source : { kind: 'node', nodeId: fromId },
+        target: hasTarget ? edge.target : { kind: 'node', nodeId: toId },
+      };
+    })
+    .filter((e): e is Record<string, unknown> => e !== null);
+  return changed ? ({ ...data, edges } as T) : data;
+}

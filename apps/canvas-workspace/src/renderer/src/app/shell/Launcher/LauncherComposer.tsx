@@ -157,14 +157,26 @@ export const LauncherComposer = ({ active = true, workspaces, loadedNodes, onWor
             onChange={(value) => { if (!sendingRef.current) setScopeValue(value); }}
             ariaLabel={t('launcher.scopeLabel')}
           />
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={sending || !field.input.trim()}
-          >
-            {t('launcher.startSubmit')}
-          </Button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {typeof document !== 'undefined' && document.documentElement.dataset.pulseWebModelConfigurable === 'true' && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => window.dispatchEvent(new CustomEvent('pulse-web-open-model-settings'))}
+              >
+                Model
+              </Button>
+            )}
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={sending || !field.input.trim()}
+            >
+              {t('launcher.startSubmit')}
+            </Button>
+          </div>
         </div>
       </form>
       <div className="launcher__starters">

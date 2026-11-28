@@ -303,7 +303,17 @@ export const ChatInput = ({
             ) : null}
           </div>
           <div className="chat-input-footer-right">
-            {contextComposer
+            {typeof document !== 'undefined' && document.documentElement.dataset.pulseWebModelConfigurable === 'true' ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={interactionDisabled || loading}
+                onClick={() => window.dispatchEvent(new CustomEvent('pulse-web-open-model-settings'))}
+              >
+                Model
+              </Button>
+            ) : contextComposer
               && onSelectModel
               && onOpenModelSettings
               && !(typeof document !== 'undefined' && document.documentElement.dataset.pulseWeb === 'true') && (
