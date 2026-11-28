@@ -27,9 +27,9 @@
     --canvas-scale: 1 !important;
   }
 
-  html[data-pulse-web='true'] .canvas-node {
-    box-shadow: none !important;
-    filter: none !important;
+  html[data-pulse-web='true'] .canvas-container .canvas-transform .canvas-node {
+    box-shadow: none;
+    filter: none;
   }
 
   /* Free iOS WebKit GPU backing stores for off-tab canvas nodes when reading cards or chatting. */
